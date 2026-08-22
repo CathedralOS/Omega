@@ -4502,10 +4502,17 @@ Remaining:
   source closure and publishes its recomputed acyclic entry certificate, with
   Cathedral's first timer root pinning that evidence. Add attributed response
   outcomes only when terminal wait/foreign edges can derive them. Inserted native
-  metering must consume the installed exact-site
-  attribution rows, but is design-blocked on the sponsor counter, exhaustion
-  transfer, and resumable continuation ABI in owner Q1. Keep WCET and wall-clock
-  conversion separate.
+  metering must consume the installed exact-site attribution rows. Implement the
+  settled per-sponsor-region realization: fixed provision elides the meter only
+  when the exact installed maximum logical work fits the grant; dynamic
+  metering keeps its private per-activation context behind a target-selected
+  transport, compares before subtracting, and transfers opaque native state to
+  an independently provisioned sponsor path on insufficiency. Add transparent
+  and admitted-opaque `FuelSuspensionFree` composition, reject dynamic regions
+  without an executable exhaustion-transfer plan, and keep conservative segment
+  ceilings from replacing exact path charging. Hosted targets may interpret an
+  unavailable realization; freestanding targets reject it. Keep WCET and
+  wall-clock conversion separate.
 - **PROOF-RELEVANCE-MIGRATION.** Finish binding-level `[erased]`, checked
   noninterference, erased-stripped layout, and obligation preservation across
   the remaining consumers. Explicit relevance remains in semantic/proof
@@ -6492,7 +6499,7 @@ compiler concept is introduced.
   and out-of-isolated-root shapes remain conservative fences. Do not restore
   authored `stores` clauses or treat lifetime elision as evidence; Git carries
   individual evidence cohorts.
-- **TPR4/TPR6 — design blocked on owner Q2.** Choose how an ordinary domain or
+- **TPR4/TPR6 — design blocked on owner Q1.** Choose how an ordinary domain or
   routed requirement is classified and attached as a progress premise before
   connecting progress-profile grants and receipts. Generic routed/domain
   requirements must not be treated as progress merely because they are
@@ -7429,8 +7436,7 @@ specifications:
   checked arithmetic.
 - **IMPORTED-CRASH-CAPSULES:** realization/import/certificate identity in
   `wiki/language_guide/appendix_open_questions.md`.
-- **NATIVE-LOGICAL-FUEL-METERING:** owner Q1.
-- **PROGRESS-PROFILE-CLASSIFICATION:** owner Q2.
+- **PROGRESS-PROFILE-CLASSIFICATION:** owner Q1.
 
 ## Platform-gated verification
 

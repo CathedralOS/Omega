@@ -221,14 +221,27 @@ suspending poll as an ordinary optimization. A blocking call creates no safe
 point; without a finite wait contract, semantic response through that call is
 unbounded and tooling reports the responsible path.
 
-WCSU bounds stack space, not work. The restricted terminal-Psi fixed-work
-checker may analyze the segment to the next semantic safe point. Its report is
-`Bounded(K, evidence)`, `Unknown(reason)`, or
+WCSU bounds simultaneously live stack space, not work. The restricted
+terminal-Psi checker calls the greatest total charged along one admitted path
+the **maximum logical work**, measured in fuel units. Sequential work adds;
+exclusive branches take their maximum. This is deliberately different from
+WCSU, where stack reclaimed after one sequential call can be reused by the
+next. The checker may analyze a complete entry or a segment to the next
+semantic safe point. Its report is `Bounded(K, evidence)`, `Unknown(reason)`, or
 `NoFiniteGuarantee(edge)` when a reachable wait or foreign edge supplies no
 finite response contract. A wall-clock observation is not a theorem; converting
 a ceiling to time requires a separate target timing model and retains that
 model's trust provenance. See
 [`canonical_ir_fuel_and_resource_provisioning.md`](../design_briefs/canonical_ir_fuel_and_resource_provisioning.md).
+
+Installation may reserve a complete certified maximum and emit no native
+meter, or select a target-supported dynamic meter for sponsor-driven slicing.
+Dynamic exhaustion preserves opaque machine state and resumes at the unpaid
+charge; it is architectural suspension, not a semantic safe point. It therefore
+does not make structured cancellation, migration, or replacement legal at
+ordinary operations. A root requiring freedom from fuel suspension needs the
+transitive installed `FuelSuspensionFree` fact, including admitted guarantees
+for opaque providers and separately sponsored callees.
 
 A hard-control profile that requires bounded response rejects both
 `Unknown(reason)` and `NoFiniteGuarantee(edge)`. It does not make an unbounded

@@ -2760,8 +2760,9 @@ logical-fuel attribution row for every emitted operation and return edge:
 exact current schedule, semantic site, units, operation ordinal,
 function-relative byte offset, and byte count.
 Metadata-only settlement rows deliberately have a zero-byte interval. This is
-the provenance input to future sponsor-owned inserted metering, not evidence
-that runtime charging already occurs and not a native instruction-cost model.
+the provenance input to sponsor-owned inserted metering when installation
+selects a dynamic native realization; the row is not evidence that runtime
+charging already occurs and is not a native instruction-cost model.
 
 ## Logical fuel
 
@@ -2775,6 +2776,34 @@ total and per-`OperationId`/`EdgeId` usage. Fuel is sponsor-owned: exhaustion
 is not visible or catchable by the Psi machine. Resumption continues at the
 unpaid site without replay or double charging; a completed crash edge is not
 charged again.
+
+The maximum logical work of an entry or segment is the greatest sum of charged
+units along any one admitted path. Sequential operations and calls add; mutually
+exclusive branches take their maximum. This differs from simultaneous stack
+use, where sequential callees normally compose by maximum. Certificates and
+reports use fuel units and do not claim native instruction count or time.
+
+Native fuel is accounted per sponsor region. Same-sponsor calls share one
+private activation context; a separately sponsored edge begins another region.
+Fixed provision suppresses the meter only when the exact installed certificate
+fits the region's grant. Dynamic lowering compares the remaining allowance
+with the site's required units before subtracting or executing. Paying exactly
+to zero succeeds. A failed comparison changes nothing and transfers the exact
+schedule, unpaid site, required units, and remaining units to the sponsor.
+
+That transfer is architectural suspension, not a Psi safe point. Opaque native
+register/stack/program-counter state is the only continuation and is never a
+Psi or Omega value. Resume restores it at the failed pre-charge check; fuel
+exhaustion alone authorizes no semantic cleanup, cancellation, migration, or
+replacement. The target transfer stub is unmetered compiler/runtime machinery;
+authored sponsor policy, when present, executes in a separately and completely
+fixed-provisioned region.
+
+`FuelSuspensionFree` is a transitive installed-root fact rather than a property
+of one local certificate. Transparent closures derive it only when every
+reachable sponsor region is non-exhausting. Opaque provider summaries publish
+work units and suspension behavior as independent admitted facts; absent
+suspension evidence fails the derivation.
 
 `psi-terminal-fixed-fuel` derives certificates from verified terminal control.
 For acyclic control and call graphs it computes the greatest entry-to-exit path,

@@ -1065,10 +1065,10 @@ only; device and cross-core ordering remain separate contracts.
 
 The ledger uses one recording discipline across three
 independent resource columns: stack ceiling/realized WCSU/derivation evidence,
-logical-fuel provision/realized fixed-work ceiling/IR proof evidence, and
+logical-fuel provision/realized maximum logical work/IR proof evidence, and
 `StatePlan` ceiling/realized footprint/codegen evidence. Reports retain ceilings,
 realized facts, and validation receipts; private rankings and codegen proofs stay
-behind the evidence firewall. Fixed logical work proves only a finite admitted
+behind the evidence firewall. Maximum logical work proves only a finite admitted
 operation path, not target WCET. The current schedule-keyed fixed-fuel
 provider-summary composer and logical-fuel provision now use the dependency-light
 `psi-core` schedule identity directly. Local-evidence rows distinguish
@@ -1077,10 +1077,54 @@ provider unit claims, and the external-root report retains that distinction.
 Whole-entry certificate rows now bind exact relocation-free frozen executable
 bytes and selected entry offsets, and root installation rechecks the exact
 installed-code context. They remain the implementation precursor to broader
-terminal-Psi fixed-work and safe-point checking in
+terminal-Psi maximum-logical-work and safe-point checking in
 [`canonical_ir_fuel_and_resource_provisioning.md`](canonical_ir_fuel_and_resource_provisioning.md),
 not a general symbolic cost model. Migration of the remaining
 provider-authored hard-root rows remains.
+
+The normalized native fuel realization is likewise plan data, not Omega source
+syntax. For each dynamically metered sponsor region, a `NativeFuelPlan` binds:
+
+- the exact fuel schedule and installed attribution rows;
+- one sponsor-owned per-activation context slot;
+- the target transport used to reach it;
+- the cold exhaustion-transfer entry and its stack/state plan; and
+- the installed root and provider closure to which the plan applies.
+
+The context is the semantic home of the mutable allowance. A target may keep a
+pointer to it in a reserved non-volatile register, pass it through a hidden
+root ABI position, or use another validated target mechanism. The selected
+transport is fingerprinted target policy, not part of ordinary machine
+signatures. If a non-volatile register is selected, allocation reserves it and
+every emitted internal call, boundary adapter, context switch, callback entry,
+and interrupt entry must preserve, spill, restore, or replace it according to
+the active sponsor region. A foreign ABI's preservation rule protects the
+register value; it does not authorize foreign code to mutate the pointed-to
+context.
+
+Each dynamic charge compares `remaining` with the site's required units before
+performing either the subtraction or the semantic work. `remaining == required`
+is payable and leaves zero. Insufficiency performs neither action. The cold
+path identifies the exact unpaid `OperationId` or `EdgeId` directly or through
+the validated installed site map and preserves the complete opaque native
+activation. Restoring that state at the same pre-charge check is the only fuel
+resume operation; no source-visible continuation or raw code address exists.
+
+The exhaustion-transfer plan must be executable without scheduling machinery,
+stack, locks, or authority held by the suspended activation. Its minimal
+compiler/target stub is outside logical-fuel charging and has separately
+admitted physical resources. An authored sponsor policy uses another sponsor
+region whose complete maximum logical work is fixed-provisioned and whose
+closure is `FuelSuspensionFree`; it never consumes the empty activation meter.
+An interrupt or critical root therefore normally selects fixed provision, but
+a target may admit dynamic metering when this stronger transfer plan is proved.
+
+Provider work and suspension are independent columns. A transparent provider
+derives both from its closure. An opaque provider publishes an admitted work
+summary under the exact fuel schedule and separately publishes whether it is
+fuel-suspension-free. The summary may be charged at the boundary, but it cannot
+establish the suspension fact. A root requiring `FuelSuspensionFree` rejects an
+opaque edge without the latter guarantee.
 
 The source-to-checked acceptance path pins the control-state half directly. An
 authored `Calling<C, Policy>` policy may publish `InterruptReturn`, a stack class,
@@ -1168,7 +1212,10 @@ no-plan paths exist only as differential oracles.
 
 Remaining work is to derive inbound and outbound machinery from the same plan,
 add state-ceiling-aware selection/allocation, and validate composed footprints
-at the final artifact.
+at the final artifact. `NativeFuelPlan`, context-register allocation, inserted
+charge/transfer lowering, and installed `FuelSuspensionFree` composition are
+settled but not yet implemented; current native artifacts provide their exact
+site-attribution and fixed-provision precursors only.
 
 ## Still open
 
@@ -1178,7 +1225,7 @@ at the final artifact.
 - admitted indirect-call footprint contracts;
 - unwind/non-local-exit representation; and
 - general quantitative resource/WCET algebra beyond the timer's structural
-  fixed-work profile.
+  maximum-logical-work profile.
 
 These are plan/checker/backend questions. They do not justify reviving
 `boundary(<Plan>)`, adding an interrupt machine species, or exposing code
