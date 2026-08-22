@@ -11,11 +11,12 @@ The proof kernel is deliberately not a language rung. Programs do not elaborate
 through it, and it adds no stage between Gamma and Delta. It is an assurance
 service used by producers and artifact verifiers throughout the build lattice.
 
-Its current `compiler/proof-kernel/` path is historical placement. The target
-owner is `bootstrap/assurance/proof-kernel/`, with Beta, Gamma, and executable
-reference implementations separated from untrusted proof tooling, corpora, and
-gates. The product-specific `psi-proof-kernel` remains under Psi semantics; it
-checks Psi judgments and is not this generic bootstrap derivation checker.
+Its canonical owner is `bootstrap/assurance/proof-kernel/`;
+`compiler/proof-kernel` is a temporary compatibility path. Separating the Beta,
+Gamma, and executable reference implementations from untrusted proof tooling,
+corpora, and gates inside that owner remains migration work. The
+product-specific `psi-proof-kernel` remains under Psi semantics; it checks Psi
+judgments and is not this generic bootstrap derivation checker.
 
 ```text
 Alpha → Beta → Gamma → Delta → Omega → Omega   build lattice
@@ -40,8 +41,8 @@ they gain no authority by producing a candidate certificate.
 
 The principal low-rung implementations are:
 
-- `compiler/proof-kernel/check.beta` — logical proof checking in Beta;
-- `compiler/proof-kernel/eq.beta` — fuel-bounded definitional equality;
+- `bootstrap/assurance/proof-kernel/check.beta` — logical proof checking in Beta;
+- `bootstrap/assurance/proof-kernel/eq.beta` — fuel-bounded definitional equality;
 - `compiler/gamma/checker.gamma` — independently written Gamma checker;
 - `compiler/gamma/checker_typed.gamma` — typed Gamma form checked by Gamma's
   static type checker.

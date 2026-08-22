@@ -41,7 +41,8 @@ compatibility path.
 ## Proof kernel
 
 The proof kernel is a cross-cutting assurance service, not a language rung.
-`compiler/proof-kernel/check.beta` and `compiler/gamma/checker.gamma` are
+`bootstrap/assurance/proof-kernel/check.beta` and
+`compiler/gamma/checker.gamma` are
 separately written implementations checked against shared positive, negative,
 cross-check, fuzz, and operational-seam gates. Their agreement is useful
 evidence while the soundness bridge matures; it is not DDC and does not replace
@@ -58,7 +59,7 @@ Psi-aware artifact verifier or canonical semantic-ledger generator reconstructs
 the exact obligations from canonical artifact bytes; the proof kernel checks the
 attached derivations. Proof search and optimization remain untrusted producers.
 
-See [`proof-kernel/README.md`](proof-kernel/README.md) and
+See [`bootstrap/assurance/proof-kernel/README.md`](../bootstrap/assurance/proof-kernel/README.md) and
 [`wiki/architecture/bootstrap_lattice/proof_kernel.md`](../wiki/architecture/bootstrap_lattice/proof_kernel.md).
 
 ## Psi and the two Omega compilers
@@ -105,7 +106,7 @@ sh compiler/verify-lattice.sh
 sh bootstrap/rungs/beta/selfhost.sh
 sh compiler/gamma/test-interp.sh
 sh compiler/gamma/test-typeck.sh
-sh compiler/proof-kernel/test.sh
+sh bootstrap/assurance/proof-kernel/test.sh
 ```
 
 Architecture and standing decisions live in

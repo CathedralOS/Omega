@@ -1,15 +1,16 @@
-# `compiler/proof-kernel/` — the certificate checker (the trust anchor)
+# `bootstrap/assurance/proof-kernel/` — certificate-checking assurance
 
 This is the cross-cutting service where the lattice's whole thesis — **trust by
 checking, not by pedigree** — becomes concrete. The bootstrap spine gives us a
 Rust-free route to run it; this artifact decides whether supplied proof evidence
 is valid.
 
-The current path is historical. Because this is assurance infrastructure rather
-than a compiler or language rung, its target home is
-`bootstrap/assurance/proof-kernel/`, split into checker implementations,
-untrusted tooling, corpora, and gates. See the
-[repository structure](../../wiki/architecture/bootstrap_lattice/repository_structure.md).
+This tree is assurance infrastructure rather than a compiler or language rung.
+`compiler/proof-kernel` remains a temporary compatibility path; canonical callers
+resolve the `proof-kernel` role through `bootstrap/paths.sh`. The later internal
+split into checker implementations, untrusted tooling, corpora, and gates remains
+separate work. See the
+[repository structure](../../../wiki/architecture/bootstrap_lattice/repository_structure.md).
 
 ```
 check.beta           a natural-deduction proof checker (validates LOGICAL proofs)
@@ -133,7 +134,7 @@ untrusted producer) is the entire point.
 
 ## Status — cross-checked, type-checked, adversarially tested
 
-[`proof_kernel.md`](../../wiki/architecture/bootstrap_lattice/proof_kernel.md)
+[`proof_kernel.md`](../../../wiki/architecture/bootstrap_lattice/proof_kernel.md)
 places the checker outside the language spine and requires independent low-rung
 implementations. Gamma's algebraic data types + pattern matching keep one such
 implementation small and auditable. The implementations provide useful
@@ -143,11 +144,11 @@ bug-finding evidence while the soundness bridge matures:
   raw memory and decides everything with a CFG guard-state dispatch on integer tags
   (Beta is itself state-graph shaped, no if/while) — exactly the boilerplate that
   motivated the Gamma rung.
-- [`gamma/checker.gamma`](../gamma/checker.gamma) is the *same logic* as a dozen tiny
+- [`gamma/checker.gamma`](../../../compiler/gamma/checker.gamma) is the *same logic* as a dozen tiny
   functions over algebraic data + pattern matching. `checker-diamond.sh` runs proofs
   through **both** and requires identical verdicts. This agreement is not DDC
   and does not itself prove either checker sound.
-- [`gamma/checker_typed.gamma`](../gamma/checker_typed.gamma) is that Gamma checker
+- [`gamma/checker_typed.gamma`](../../../compiler/gamma/checker_typed.gamma) is that Gamma checker
   fully annotated, and Gamma's own static type checker (`gamma/typeck.beta`) accepts
   it — so the trust anchor's *code* is shown statically type-safe.
 

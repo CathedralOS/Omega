@@ -33,7 +33,8 @@ REPO_ROOT = os.environ.get(
 GAMMA = os.environ.get(
     'OMEGA_PATH_GAMMA', os.path.join(REPO_ROOT, 'compiler', 'gamma'))
 PROOF_KERNEL = os.environ.get(
-    'OMEGA_PATH_PROOF_KERNEL', os.path.join(REPO_ROOT, 'compiler', 'proof-kernel'))
+    'OMEGA_PATH_PROOF_KERNEL',
+    os.path.join(REPO_ROOT, 'bootstrap', 'assurance', 'proof-kernel'))
 
 
 def ref_verdict(cert, check_ref):

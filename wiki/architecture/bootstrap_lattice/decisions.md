@@ -206,9 +206,9 @@ translation-validation gates remain responsible for detecting that defect.
 `compiler/delta-rs/` is Delta's disposable Rust implementation; the self-hosted
 `lowermachine.alp` and meaning diamond remain its principal gates.
 
-The certificate checker is renamed the **proof kernel**. Its current
-`compiler/proof-kernel/` path is historical; its target owner is
-`bootstrap/assurance/proof-kernel/`. It remains a trusted assurance service with
+The certificate checker is renamed the **proof kernel**. Its canonical owner is
+`bootstrap/assurance/proof-kernel/`; `compiler/proof-kernel` is a temporary
+compatibility path. It remains a trusted assurance service with
 Beta and Gamma implementations. The rename changes neither its authority nor its
 validation gates; it removes the false claim that proof checking is a language
 stage between Gamma and Delta.
