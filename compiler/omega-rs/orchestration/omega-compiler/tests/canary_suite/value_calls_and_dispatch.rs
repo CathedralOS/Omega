@@ -380,21 +380,13 @@ fn runtime_called_machine_loop_search_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("runtime called machine loop search canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("runtime called machine loop search canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected a called machine whose state loops over a slice (a cyclic state call \
-         with arguments) to lower as a dispatch back-edge -- not inline-unroll -- and exit 70, \
-         got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "called-machine loop-search canary",
+        "a cyclic called-machine state should lower as a dispatch back-edge",
     );
 
     let _ = fs::remove_dir_all(&build_dir);
@@ -447,21 +439,13 @@ fn runtime_looping_value_return_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("runtime recursive value return canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("runtime recursive value return canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected a VALUE-position call to a looping machine (`let n = count(s, 0)`) to \
-         dispatch the loop AND write the callee's terminal value back into n's call-result \
-         slot, yielding n == 5 (exit 70); a 0 return (the pre-keystone bug) exits 71. got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "looping value-return canary",
+        "a looping value call should write its terminal value into the caller result slot",
     );
 
     let _ = fs::remove_dir_all(&build_dir);
@@ -476,18 +460,13 @@ fn runtime_looping_cast_return_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("runtime looping cast return canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("runtime looping cast return canary should run");
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected the dispatched u8 accumulator to widen into the i32 caller slot; got {:?}\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "looping cast-return canary",
+        "the dispatched u8 accumulator should widen into the i32 caller slot",
     );
 
     let _ = fs::remove_dir_all(&build_dir);
@@ -502,23 +481,13 @@ fn runtime_value_call_slice_len_guard_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("runtime value call slice len guard canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("runtime value call slice len guard canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected an inline-leaf VALUE call (`let n = self.m.classify(s)`) whose arm guard \
-         reads the slice param's length (`s.len > 0`, `s` bound through the call to an \
-         ELIDED caller local aliasing a fixed [i32; 5]) to fold the length to the static \
-         element count and take the matching arm (n == 99, exit 70); a dropped arm leaves \
-         n == 0 and exits 71. got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "value-call slice-length guard canary",
+        "an inline value-call guard should observe the elided caller slice's static length",
     );
 
     let _ = fs::remove_dir_all(&build_dir);
@@ -534,19 +503,13 @@ fn runtime_sleep_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-runtime-sleep-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("sleep canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("sleep canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected `sleep(2)` and `sleep(self.delay)` to return cleanly and the program to reach exit_process(70); got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "sleep canary",
+        "immediate and field-duration sleep calls should return before exit_process",
     );
 
     let _ = fs::remove_dir_all(&build_dir);

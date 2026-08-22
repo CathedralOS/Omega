@@ -1109,3 +1109,9 @@ The following five value-call consumers, ending at the post-splice mutation
 result probe, now share that receipt-only launch boundary as well. Their exact
 status/owner rows remain stable, and flat/bundle executable-inventory drift is
 pinned to expose no native path.
+
+Five further runtime consumers—called-machine loop search, looping value/cast
+returns, the slice-length guard, and the sleep probe—now launch only from the
+checked report receipt. Exact owner/status rows remain unchanged, and
+flat/bundle compiler-text validation drift is pinned to expose no executable
+path.
