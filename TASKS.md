@@ -3268,6 +3268,13 @@ Remaining:
   The two allocation-enabled float checked phases fell from 3.029s/3.026s to
   2.708s/2.700s with exactly unchanged allocation counts and bytes; out-of-
   range and unresolved lookups remain fail-closed.
+  State-symbol lookup in write-frame equations now validates the retained
+  handle, selects its exact owning machine from symbol parentage, and preserves
+  source order only within that machine instead of scanning every machine's
+  states. Sampling had placed 762 stack rows in the former traversal; the two
+  allocation-enabled float checked phases fell another 10.0%/9.9% to 2.436s/
+  2.432s with allocation counts and bytes exactly unchanged. Stale, non-state,
+  and mismatched symbols remain fail-closed.
   Default-domain validation now delegates conservative symbolic values,
   literal/sequence measures, valuation folding, canonical symbolic equality,
   and recursive call detection to a focused 281-line child while state walking,
@@ -3517,6 +3524,12 @@ Remaining:
   helpers, while the 2,099-line parent retains carriers and orchestration; the
   public `value_placement_json` API, exact bytes, and 79-function inventory are
   unchanged.
+  Canonical provider/runtime-owned external-root ledger projection now lives in
+  a focused 387-line `external_root_report` child, including stack/fuel summary
+  evidence, machine-state ceilings, component pins, and normalized identity
+  formatting. It reuses the calling-plan vocabulary without numeric entry
+  addresses; the 1,722-line parent retains carriers and general orchestration,
+  while public APIs, exact JSON, and the 79-function inventory are unchanged.
   Development and test profiles now both omit full DWARF by default, with an
   explicit `CARGO_PROFILE_{DEV,TEST}_DEBUG=2` escape hatch for debugger
   sessions. On the same macOS host, rebuilding the development CLI after the
@@ -5627,6 +5640,11 @@ reach or trust, and private proof improvements do not change public identity.
   Scalar internal-call frames, AArch64 return-link handling, and caller-live
   stack-alignment replay now live in a focused 180-line
   `scalar_call_stack_replay` child. The 3,483-line parent retains terminal image
+  orchestration, with crate linkage, native byte/error order, and the 69-
+  function inventory unchanged.
+  Conditional cleanup regions, provenance edges, preservation-byte replay, and
+  cleanup-owner lookup now live in a focused 128-line
+  `scalar_control_cleanup` child. The 3,372-line parent retains terminal image
   orchestration, with crate linkage, native byte/error order, and the 69-
   function inventory unchanged.
   The installed-cleanup ordinal-tamper regression now locates the authoritative
