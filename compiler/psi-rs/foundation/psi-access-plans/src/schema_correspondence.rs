@@ -7,8 +7,8 @@
 //! placement admission, content establishment, or field access.
 
 use super::{
-    AccessPlanDiagnostic, AdmittedResourceProfile, PlacementAdmission, PlacementAdmissionId,
-    PlacementPlanId, ResourceProfileReceiptId, ValidatedPlacementPlan,
+    AccessPlanDiagnostic, AdmittedResourceProfile, PlacedView, PlacementAdmission,
+    PlacementAdmissionId, PlacementPlanId, ResourceProfileReceiptId, ValidatedPlacementPlan, place,
     validate_placement_admission,
 };
 use psi_extents::ExtentLoan;
@@ -356,6 +356,106 @@ impl<'extent> SchemaCorrespondedPlacementAdmission<'extent> {
     /// admitted correspondence for a later matching placement.
     pub fn withdraw(self) -> (ExtentLoan<'extent>, AdmittedSchemaDeviceCorrespondence) {
         (self.admission.withdraw(), self.correspondence)
+    }
+
+    /// Establish the borrowed view only after independently replaying both the
+    /// correspondence relation and the retained placement admission. The
+    /// resulting carrier deliberately exposes no projection method yet:
+    /// primitive requests do not carry correspondence evidence.
+    pub fn establish_view(
+        self,
+    ) -> Result<
+        SchemaCorrespondedPlacedView<'extent>,
+        SchemaCorrespondedPlaceEstablishmentError<'extent>,
+    > {
+        if let Err(diagnostic) =
+            validate_schema_correspondence_placement_binding(&self.admission, &self.correspondence)
+        {
+            return Err(SchemaCorrespondedPlaceEstablishmentError {
+                bound: self,
+                diagnostic,
+            });
+        }
+        let Self {
+            admission,
+            correspondence,
+        } = self;
+        match place(admission) {
+            Ok(view) => Ok(SchemaCorrespondedPlacedView {
+                view,
+                correspondence,
+            }),
+            Err(rejection) => {
+                let (admission, diagnostic) = rejection.into_parts();
+                Err(SchemaCorrespondedPlaceEstablishmentError {
+                    bound: Self {
+                        admission,
+                        correspondence,
+                    },
+                    diagnostic,
+                })
+            }
+        }
+    }
+
+    #[cfg(test)]
+    pub(super) fn replace_correspondence_placement_for_test(
+        &mut self,
+        placement: PlacementPlanId,
+    ) -> PlacementPlanId {
+        self.correspondence.replace_placement_for_test(placement)
+    }
+}
+
+/// Established borrowed view retaining its separate physical correspondence.
+///
+/// Projection is intentionally absent until the primitive request spine can
+/// retain and replay this correspondence rather than dropping it.
+#[derive(Debug)]
+#[must_use = "corresponded placed view retains loan and physical provenance"]
+pub struct SchemaCorrespondedPlacedView<'extent> {
+    view: PlacedView<'extent>,
+    correspondence: AdmittedSchemaDeviceCorrespondence,
+}
+
+impl SchemaCorrespondedPlacedView<'_> {
+    pub const fn admission(&self) -> PlacementAdmissionId {
+        self.view.admission()
+    }
+
+    pub const fn base(&self) -> u64 {
+        self.view.base()
+    }
+
+    pub const fn length(&self) -> u64 {
+        self.view.length()
+    }
+
+    pub const fn correspondence(&self) -> &AdmittedSchemaDeviceCorrespondence {
+        &self.correspondence
+    }
+}
+
+/// Failed corresponded-view establishment returns the complete bound carrier;
+/// its loan and physical provenance remain available for repair or withdrawal.
+#[derive(Debug)]
+pub struct SchemaCorrespondedPlaceEstablishmentError<'extent> {
+    bound: SchemaCorrespondedPlacementAdmission<'extent>,
+    diagnostic: AccessPlanDiagnostic,
+}
+
+impl<'extent> SchemaCorrespondedPlaceEstablishmentError<'extent> {
+    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
+        &self.diagnostic
+    }
+
+    pub fn into_parts(
+        self,
+    ) -> (
+        SchemaCorrespondedPlacementAdmission<'extent>,
+        AccessPlanDiagnostic,
+    ) {
+        (self.bound, self.diagnostic)
     }
 }
 
