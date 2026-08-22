@@ -2433,6 +2433,13 @@ Remaining:
   materializing its existing proof pair. Shared-middle and alias lookup order,
   carrier checks, proof shapes, completion precedence, rejection behavior, and
   the fixed two-leg/one-alias frontiers remain unchanged.
+  Ordered affine goal-target eligibility now lives in paired, side-local
+  `affine_custody/candidates/targets` modules. Producer and reconstruction
+  independently require a `LessOrEqual` goal, retain left-before-right endpoint
+  order, and admit only exact `Value` targets. Candidate parents retain source-
+  ordered definition-word enumeration and independent proof completion, so
+  witness order, proof shape, rejection behavior, and the fixed four-definition
+  frontier remain unchanged.
   One-equality transitive affine completion now lives in independent side-local
   `affine_selection/transitive/alias/completion` modules. Each parent retains
   its own ledger-ordered equality discovery, distinct root/alias custody, and
@@ -4842,6 +4849,13 @@ Owners:
   while preserving literal statuses 70 and 0 and their diagnostics. Exact-
   owner ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift fences
   remain green; deep-state collision and u64 guard owners remain separate.
+  Two authored-root state/guard regressions—deep-arm delivery past a live same-
+  named entry local and exact `u64::MAX` round-trip through a let initializer
+  plus equality guard—now launch `OutputOnly` native execution solely through
+  exact checked-report executable receipts while preserving literal status 70
+  and their detailed diagnostics. Exact-owner ambiguity, the 795 rooted/3
+  legacy inventory, and receipt-drift fences remain green; saturating-time,
+  float, and loop owners remain separate.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
@@ -5481,6 +5495,12 @@ Remaining N6/N8 work:
   attachment/result, and service-ceiling order and tags while operation bodies
   and provider semantics remain separate. The parent is 4,329 lines and the
   exact 199-function codec inventory remains unchanged.
+  Canonical proof-declaration, application, and evidence-interface encoding/
+  decoding now lives in a focused private `proof_declaration_wire` child,
+  preserving exact binder, evidence, projection, and interface identity order,
+  tags, and error behavior while recursive proposition terms and proof
+  admission remain separate. The parent is 4,088 lines and the exact 199-
+  function codec inventory remains unchanged.
   Proof-bundle coding likewise keeps its `PSIPRF`-specific little-endian
   cursor, bounded string/count/index handling, and nonzero semantic-ID
   primitives in a focused private child; its public API, exact bytes and
