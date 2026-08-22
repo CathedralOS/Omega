@@ -3311,6 +3311,14 @@ Remaining:
   equality, orientation, inner equality, alias eligibility, and exact fact non-
   reuse, so affine precedence, proof bytes, rejection order, and the fixed two-
   equality frontier remain unchanged.
+  Fixed two-equality endpoint-alias eligibility now lives in paired, side-local
+  `integer_selection/substitution/two/selection/aliases` modules. Producer and
+  reconstruction independently resolve the exact goal endpoint, require
+  distinct same-carrier `Value` roots, middle aliases, and target aliases, and
+  accept either inner equality orientation. Their `selection` parents retain
+  assumptions-before-semantic-axioms fact enumeration, outer orientation order,
+  exact fact non-reuse, and completion. Affine precedence, proof bytes,
+  rejection order, and the fixed two-equality frontier remain unchanged.
   Fixed one-alias bound completion now lives in independent side-local
   `alias_transport/one/completion` modules. The producer parent retains origin-
   indexed equality and bound citations, same-carrier distinctness, equality
@@ -7175,8 +7183,12 @@ checked-result arithmetic decision listed below.
   private owner. Requires/ensures/boundary variance, crash-route bucketing,
   tautology elision, proposition/membership rendering, positional alpha-
   normalization, diagnostic order, crate APIs, and the exact 26-function
-  machine-parameter inventory remain unchanged; the 1,317-line parent retains
-  selection and callable-shape orchestration.
+  machine-parameter inventory remain unchanged. Static-machine binder-aware
+  type refinement now lives in a focused 213-line private owner. Positional
+  binder substitution, generic binding reuse, reference mutability,
+  constrained/slice/generic recursion, fixed-array const-binder identity,
+  normalized fallback identity, crate APIs, and that same inventory remain
+  unchanged; the 1,110-line parent retains selection/callable orchestration.
 - Materialize dynamic descriptors for pass-through, rebound, and escaping
   borrows from the retained exact conformance rows and declaring-trait symbol.
   Bodyless/bare requirements do not license `dyn`; ambiguous same-carrier
