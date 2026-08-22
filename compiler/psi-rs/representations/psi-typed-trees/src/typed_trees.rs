@@ -263,7 +263,7 @@ pub struct ClosedConformanceRowIdentity {
 /// definition (the compiler-generated `Policy<Schema>` instance). Offsets are
 /// per field in declaration order; the plan was validated (bounds, overlap,
 /// alignment) before it was recorded here, so the layout builder may trust it.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlanLaidLayout {
     /// Name of the synthesized data definition (e.g. `CLayout<GdtEntryish>`).
     /// Diagnostic/source-oriented presentation only.
@@ -280,6 +280,9 @@ pub struct PlanLaidLayout {
     /// this geometry. These identities do not grant runtime authority.
     pub policy_symbol: psi_symbols::SymbolHandle,
     pub policy_plan_machine_symbol: psi_symbols::SymbolHandle,
+    /// Exact validated target-neutral geometry from which the host-sized
+    /// consumer projections below were derived.
+    pub validated_layout: psi_layout_plans::LayoutPlanReport,
     /// Byte offset of each field, in declaration order.
     pub offsets: Vec<usize>,
     /// Fragmented scalar fields keyed by declaration-order field index.

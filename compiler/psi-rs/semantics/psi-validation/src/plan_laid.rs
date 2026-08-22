@@ -83,6 +83,13 @@ pub(crate) fn validate_plans(program: &TypedTrees, diagnostics: &mut Vec<Diagnos
             )));
             continue;
         }
+        if !geometry_matches(plan, &schema_fields) {
+            diagnostics.push(Diagnostic::error(format!(
+                "plan-laid value type `{}` changed its exact validated geometry projection",
+                plan.data_name
+            )));
+            continue;
+        }
 
         let Some(policy) = program
             .data_definitions()
@@ -118,6 +125,180 @@ pub(crate) fn validate_plans(program: &TypedTrees, diagnostics: &mut Vec<Diagnos
             )));
         }
     }
+}
+
+fn geometry_matches(
+    plan: &psi_typed_trees::PlanLaidLayout,
+    schema_fields: &[&psi_typed_trees::data::DataField],
+) -> bool {
+    let report = &plan.validated_layout;
+    if report.size.and_then(|size| usize::try_from(size).ok()) != Some(plan.size)
+        || usize::try_from(report.align).ok() != Some(plan.align)
+    {
+        return false;
+    }
+
+    let mut offsets = Vec::with_capacity(schema_fields.len());
+    let mut bit_fields = Vec::new();
+    let mut integer_fields = Vec::new();
+    let mut repeated_fields = Vec::new();
+    for (field_index, field) in schema_fields.iter().enumerate() {
+        let entries = report
+            .entries
+            .iter()
+            .filter(|entry| {
+                entry.member_identity == field.identity
+                    && (field.identity.is_some() || entry.field == field.name.as_str())
+            })
+            .collect::<Vec<_>>();
+        match entries.as_slice() {
+            [entry]
+                if matches!(
+                    entry.placement,
+                    psi_layout_plans::LayoutPlacementReport::At { .. }
+                ) =>
+            {
+                let psi_layout_plans::LayoutPlacementReport::At { offset } = entry.placement else {
+                    unreachable!()
+                };
+                let Ok(offset) = usize::try_from(offset) else {
+                    return false;
+                };
+                offsets.push(offset);
+            }
+            [entry]
+                if matches!(
+                    entry.placement,
+                    psi_layout_plans::LayoutPlacementReport::IntegerAt { .. }
+                ) =>
+            {
+                let psi_layout_plans::LayoutPlacementReport::IntegerAt {
+                    offset,
+                    stored_width,
+                    interpretation,
+                } = entry.placement
+                else {
+                    unreachable!()
+                };
+                let (Ok(offset), Ok(stored_width_bits)) =
+                    (usize::try_from(offset), u16::try_from(stored_width))
+                else {
+                    return false;
+                };
+                offsets.push(offset);
+                let Some(retained) = plan
+                    .integer_fields
+                    .iter()
+                    .find(|integer| integer.field_index == field_index)
+                else {
+                    return false;
+                };
+                integer_fields.push(psi_typed_trees::PlanLaidIntegerField {
+                    field_index,
+                    stored_width_bits,
+                    interpretation,
+                    write_is_total: retained.write_is_total,
+                });
+            }
+            entries
+                if entries.len() > 1
+                    && entries.iter().all(|entry| {
+                        matches!(
+                            entry.placement,
+                            psi_layout_plans::LayoutPlacementReport::At { .. }
+                        )
+                    }) =>
+            {
+                let mut element_offsets = entries
+                    .iter()
+                    .map(|entry| match entry.placement {
+                        psi_layout_plans::LayoutPlacementReport::At { offset } => offset,
+                        _ => unreachable!(),
+                    })
+                    .collect::<Vec<_>>();
+                element_offsets.sort_unstable();
+                let Some(stride) = element_offsets[1].checked_sub(element_offsets[0]) else {
+                    return false;
+                };
+                if stride == 0
+                    || element_offsets
+                        .windows(2)
+                        .any(|window| window[1].checked_sub(window[0]) != Some(stride))
+                {
+                    return false;
+                }
+                let (Ok(offset), Ok(element_stride)) =
+                    (usize::try_from(element_offsets[0]), usize::try_from(stride))
+                else {
+                    return false;
+                };
+                offsets.push(offset);
+                repeated_fields.push(psi_typed_trees::PlanLaidRepeatedField {
+                    field_index,
+                    element_stride,
+                });
+            }
+            entries
+                if !entries.is_empty()
+                    && entries.iter().all(|entry| {
+                        matches!(
+                            entry.placement,
+                            psi_layout_plans::LayoutPlacementReport::Bits { .. }
+                        )
+                    }) =>
+            {
+                let mut fragments = Vec::with_capacity(entries.len());
+                for entry in entries {
+                    let psi_layout_plans::LayoutPlacementReport::Bits {
+                        container,
+                        container_width,
+                        destination_lsb,
+                        source_lsb,
+                        width,
+                    } = entry.placement
+                    else {
+                        unreachable!()
+                    };
+                    let (
+                        Ok(container_byte_offset),
+                        Ok(container_width_bits),
+                        Ok(destination_lsb),
+                        Ok(source_lsb),
+                        Ok(width),
+                    ) = (
+                        usize::try_from(container),
+                        u16::try_from(container_width),
+                        u16::try_from(destination_lsb),
+                        u16::try_from(source_lsb),
+                        u16::try_from(width),
+                    )
+                    else {
+                        return false;
+                    };
+                    if fragments.is_empty() {
+                        offsets.push(container_byte_offset);
+                    }
+                    fragments.push(psi_typed_trees::PlanLaidBitFragment {
+                        container_byte_offset,
+                        container_width_bits,
+                        destination_lsb,
+                        source_lsb,
+                        width,
+                    });
+                }
+                bit_fields.push(psi_typed_trees::PlanLaidBitField {
+                    field_index,
+                    fragments,
+                });
+            }
+            _ => return false,
+        }
+    }
+
+    offsets == plan.offsets
+        && bit_fields == plan.bit_fields
+        && integer_fields == plan.integer_fields
+        && repeated_fields == plan.repeated_fields
 }
 
 fn runtime_fields<'program>(

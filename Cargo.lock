@@ -1771,6 +1771,7 @@ dependencies = [
  "psi-facts",
  "psi-language-core",
  "psi-language-semantics",
+ "psi-layout-plans",
  "psi-numerics",
  "psi-source",
  "psi-symbols",
