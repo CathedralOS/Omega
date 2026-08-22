@@ -3,6 +3,7 @@
 use psi_core::{Proposition, PropositionContext};
 use psi_proof_kernel::ProofNode;
 
+use super::super::super::affine_custody::DefinitionIndex;
 use super::super::super::integer_evidence::cited_facts;
 use super::TwoCitationChains;
 
@@ -13,6 +14,7 @@ pub(super) fn prove(
     goal: &Proposition,
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
+    definitions: &DefinitionIndex,
 ) -> Option<ProofNode> {
     let chains = TwoCitationChains::new(assumptions, semantic_axioms);
 
@@ -42,6 +44,7 @@ pub(super) fn prove(
                     goal,
                     assumptions,
                     semantic_axioms,
+                    definitions,
                     root,
                     alias,
                     left,

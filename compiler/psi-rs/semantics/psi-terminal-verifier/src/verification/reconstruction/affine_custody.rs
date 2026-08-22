@@ -11,10 +11,13 @@ use psi_proof_kernel::{
 mod frontier;
 mod relaxation;
 
+pub(super) use frontier::DefinitionIndex;
+
 pub(super) fn retained_from_root(
     context: &PropositionContext,
     goal: &Proposition,
     semantic_axioms: &[Proposition],
+    definitions: &DefinitionIndex,
     root: &ScalarTerm,
     root_bound: &Proposition,
 ) -> bool {
@@ -25,7 +28,7 @@ pub(super) fn retained_from_root(
         .into_iter()
         .filter(|target| matches!(target, ScalarTerm::Value { .. }))
         .any(|target| {
-            frontier::definition_words(context, semantic_axioms, root)
+            frontier::definition_words(context, semantic_axioms, definitions, root)
                 .into_iter()
                 .any(|definition_axioms| {
                     let witness = IntegerAffineWitness {

@@ -2,6 +2,8 @@
 
 use psi_core::{Proposition, PropositionContext, ScalarTerm};
 
+use super::super::super::affine_custody::DefinitionIndex;
+
 mod completion;
 
 pub(super) fn retained(
@@ -9,6 +11,7 @@ pub(super) fn retained(
     goal: &Proposition,
     requirements: &[Proposition],
     semantic_axioms: &[Proposition],
+    definitions: &DefinitionIndex,
 ) -> bool {
     let facts = || requirements.iter().chain(semantic_axioms);
     facts()
@@ -46,7 +49,14 @@ pub(super) fn retained(
                             if root.scalar_type() != psi_core::ScalarType::Integer(integer_type) {
                                 return false;
                             }
-                            completion::retained(context, goal, semantic_axioms, root, literal)
+                            completion::retained(
+                                context,
+                                goal,
+                                semantic_axioms,
+                                definitions,
+                                root,
+                                literal,
+                            )
                         })
                 })
         })

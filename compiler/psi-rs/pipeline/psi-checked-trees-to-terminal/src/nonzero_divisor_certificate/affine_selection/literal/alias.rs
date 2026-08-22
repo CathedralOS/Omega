@@ -3,6 +3,7 @@
 use psi_core::{Proposition, PropositionContext};
 use psi_proof_kernel::ProofNode;
 
+use super::super::super::affine_custody::DefinitionIndex;
 use super::super::super::integer_evidence::cited_facts;
 
 mod completion;
@@ -12,6 +13,7 @@ pub(super) fn prove(
     goal: &Proposition,
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
+    definitions: &DefinitionIndex,
 ) -> Option<ProofNode> {
     for (outer_citation, outer_equality) in cited_facts(assumptions, semantic_axioms) {
         let Proposition::Equal(outer_left, outer_right) = outer_equality else {
@@ -50,6 +52,7 @@ pub(super) fn prove(
                     goal,
                     assumptions,
                     semantic_axioms,
+                    definitions,
                     root,
                     alias,
                     literal,

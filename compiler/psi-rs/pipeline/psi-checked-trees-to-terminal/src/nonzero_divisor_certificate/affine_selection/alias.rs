@@ -3,13 +3,17 @@
 use psi_core::{Proposition, PropositionContext};
 use psi_proof_kernel::ProofNode;
 
-use super::super::{affine_custody, alias_transport};
+use super::super::{
+    affine_custody::{self, DefinitionIndex},
+    alias_transport,
+};
 
 pub(super) fn prove_one(
     context: &PropositionContext,
     goal: &Proposition,
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
+    definitions: &DefinitionIndex,
 ) -> Option<ProofNode> {
     alias_transport::prove_one(assumptions, semantic_axioms, |root, root_bound| {
         affine_custody::prove_from_root(
@@ -17,6 +21,7 @@ pub(super) fn prove_one(
             goal,
             assumptions,
             semantic_axioms,
+            definitions,
             root,
             root_bound,
         )
@@ -31,6 +36,7 @@ pub(super) fn prove_two(
     goal: &Proposition,
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
+    definitions: &DefinitionIndex,
 ) -> Option<ProofNode> {
     alias_transport::prove_two(assumptions, semantic_axioms, |root, root_bound| {
         affine_custody::prove_from_root(
@@ -38,6 +44,7 @@ pub(super) fn prove_two(
             goal,
             assumptions,
             semantic_axioms,
+            definitions,
             root,
             root_bound,
         )

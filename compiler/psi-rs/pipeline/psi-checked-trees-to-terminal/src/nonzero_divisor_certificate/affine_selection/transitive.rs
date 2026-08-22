@@ -3,6 +3,8 @@
 use psi_core::{Proposition, PropositionContext};
 use psi_proof_kernel::ProofNode;
 
+use super::super::affine_custody::DefinitionIndex;
+
 mod alias;
 mod chains;
 mod completion;
@@ -18,8 +20,9 @@ pub(super) fn prove_transitively_alias_substituted_affine_bound(
     goal: &Proposition,
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
+    definitions: &DefinitionIndex,
 ) -> Option<ProofNode> {
-    alias::prove(context, goal, assumptions, semantic_axioms)
+    alias::prove(context, goal, assumptions, semantic_axioms, definitions)
 }
 
 pub(super) fn prove_transitively_reconstructed_affine_bound(
@@ -27,6 +30,7 @@ pub(super) fn prove_transitively_reconstructed_affine_bound(
     goal: &Proposition,
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
+    definitions: &DefinitionIndex,
 ) -> Option<ProofNode> {
     TwoCitationChains::new(assumptions, semantic_axioms).find(
         |left_citation, left_fact, right_citation, right_fact| {
@@ -41,6 +45,7 @@ pub(super) fn prove_transitively_reconstructed_affine_bound(
                 goal,
                 assumptions,
                 semantic_axioms,
+                definitions,
                 left,
                 right,
                 left_citation.proof(left_fact),
