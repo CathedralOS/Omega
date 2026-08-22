@@ -20,10 +20,14 @@ use psi_layout_plans::{
     normalized_layout_plan_fingerprint,
 };
 
+mod corresponded_atomic;
 mod corresponded_external;
 mod resident_views;
 mod schema_correspondence;
 
+pub use corresponded_atomic::{
+    CorrespondedAtomicPrimitiveAccessRejection, CorrespondedAtomicPrimitiveAccessRequest,
+};
 pub use corresponded_external::{
     CorrespondedExternalPrimitiveAccessRejection, CorrespondedExternalPrimitiveAccessRequest,
 };
@@ -8180,6 +8184,142 @@ mod tests {
             atomic.operation(),
             AtomicAccessOperation::Load(MemoryOrdering::Receive)
         );
+    }
+
+    #[test]
+    fn provider_atomic_preflight_requires_and_retains_exact_correspondence() {
+        let plan = atomic_word_placement();
+        let extent = uart_extent_with_lineage(0xc0c0, 4, 262);
+        let loan = extent.loan(0, 4).expect("shared Atomic loan");
+        let profile = atomic_word_profile(&loan);
+        let admission = admit_placement(
+            PlacementAdmissionId::from_normalized_identity(263).expect("admission"),
+            loan,
+            &plan,
+            &profile,
+        )
+        .expect("Atomic placement admission");
+        let provider = SchemaCorrespondenceProviderId::from_normalized_identity(264)
+            .expect("correspondence provider");
+        let device = StableDeviceInstanceId::from_normalized_identity(265).expect("stable device");
+        let correspondence = SchemaDeviceCorrespondenceGrant::from_admitted_provider(
+            provider,
+            device,
+            SchemaCorrespondenceSourceId::from_normalized_identity(266)
+                .expect("datasheet provenance"),
+            &plan,
+            profile.receipt(),
+            None,
+        )
+        .expect("provider correspondence grant")
+        .admit(&plan, &profile)
+        .expect("schema correspondence admission");
+        let view = bind_schema_correspondence_to_placement(admission, correspondence)
+            .expect("correspondence placement binding")
+            .establish_view()
+            .expect("corresponded view establishment");
+        let head = view
+            .project(field_key(plan.access(), "head"))
+            .expect("Atomic head projection");
+        let request = head
+            .atomic_fetch_add(MemoryOrdering::ReceivePublish)
+            .expect("Atomic fetch-add")
+            .into_primitive_request();
+        let expected = primitive_request_snapshot(&request);
+        let atomic = request
+            .into_atomic_primitive_access()
+            .expect("Atomic fetch-add specialization");
+
+        let alternate_correspondence = SchemaDeviceCorrespondenceGrant::from_admitted_provider(
+            SchemaCorrespondenceProviderId::from_normalized_identity(267)
+                .expect("alternate correspondence provider"),
+            StableDeviceInstanceId::from_normalized_identity(268).expect("alternate stable device"),
+            SchemaCorrespondenceSourceId::from_normalized_identity(269)
+                .expect("alternate datasheet provenance"),
+            &plan,
+            profile.receipt(),
+            None,
+        )
+        .expect("alternate provider correspondence grant")
+        .admit(&plan, &profile)
+        .expect("alternate schema correspondence admission");
+        let mut corresponded = atomic
+            .into_corresponded_atomic_access()
+            .expect("provider/device Atomic preflight requires retained correspondence");
+        assert_eq!(corresponded.correspondence().provider(), provider);
+        assert_eq!(
+            corresponded.atomic_access().operation(),
+            AtomicAccessOperation::FetchAdd(MemoryOrdering::ReceivePublish)
+        );
+        assert_eq!(
+            primitive_request_snapshot(corresponded.atomic_access().primitive_request()),
+            expected
+        );
+
+        let retained_correspondence =
+            corresponded.replace_correspondence_for_test(&alternate_correspondence);
+        let diagnostic = corresponded
+            .validate_for_provider_lowering()
+            .expect_err("a distinct correspondence carrier cannot replace retained authority");
+        assert!(
+            diagnostic
+                .0
+                .contains("different schema/device correspondence")
+        );
+        corresponded.replace_correspondence_for_test(retained_correspondence);
+
+        corresponded.replace_request_plan_for_test(PlacementPlanId(plan.identity().0 ^ 1));
+        let diagnostic = corresponded
+            .validate_for_provider_lowering()
+            .expect_err("provider/device Atomic preflight must replay placement authority");
+        assert!(diagnostic.0.contains("copied plan"));
+        corresponded.replace_request_plan_for_test(plan.identity());
+        corresponded
+            .validate_for_provider_lowering()
+            .expect("restored exact carrier remains available for retry");
+        assert_eq!(
+            primitive_request_snapshot(corresponded.into_atomic_access().primitive_request()),
+            expected
+        );
+
+        let ordinary_extent = uart_extent_with_lineage(0xc0d0, 4, 270);
+        let ordinary_loan = ordinary_extent
+            .loan(0, 4)
+            .expect("ordinary shared Atomic loan");
+        let ordinary_profile = atomic_word_profile(&ordinary_loan);
+        let ordinary = place(
+            admit_placement(
+                PlacementAdmissionId::from_normalized_identity(271).expect("ordinary admission"),
+                ordinary_loan,
+                &plan,
+                &ordinary_profile,
+            )
+            .expect("ordinary Atomic placement admission"),
+        )
+        .expect("ordinary Atomic view establishment");
+        let ordinary_projection = ordinary
+            .project(field_key(plan.access(), "head"))
+            .expect("ordinary Atomic projection");
+        let ordinary_request = ordinary_projection
+            .atomic_load(MemoryOrdering::Receive)
+            .expect("ordinary Atomic load")
+            .into_primitive_request();
+        let ordinary_snapshot = primitive_request_snapshot(&ordinary_request);
+        let rejection = ordinary_request
+            .into_atomic_primitive_access()
+            .expect("ordinary Atomic specialization remains valid")
+            .into_corresponded_atomic_access()
+            .expect_err("provider/device preflight rejects correspondence-free atomic storage");
+        assert!(rejection.diagnostic().0.contains("requires admitted"));
+        let (ordinary_atomic, _) = rejection.into_parts();
+        assert_eq!(
+            primitive_request_snapshot(ordinary_atomic.primitive_request()),
+            ordinary_snapshot,
+            "rejection returns the exact already-specialized Atomic request"
+        );
+        ordinary_atomic
+            .validate_for_lowering()
+            .expect("returned correspondence-free Atomic request remains usable elsewhere");
     }
 
     #[test]
