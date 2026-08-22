@@ -15,8 +15,8 @@ use omega_target::{Architecture, NativeTarget, ObjectFormat};
 use omega_terminal_machine_code::{TerminalNativeFuelSite, TerminalStructuralReturnRecord};
 use omega_terminal_target_operations::{TerminalBoundaryRealization, TerminalCallSiteOwner};
 use psi_core::{
-    MachineId, OperationId, PlaceId, ProfileDecisionId, StructuralCaseId, StructuralDomainId,
-    StructuralFieldId, StructuralTypeId,
+    MachineId, OperationId, PlaceId, ProfileDecisionId, StructuralCaseId, StructuralFieldId,
+    StructuralTypeId,
 };
 use psi_terminal::{
     StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
@@ -42,6 +42,7 @@ mod provider_execution_codec;
 mod provider_plan_codec;
 mod structural_argument_codec;
 mod structural_return_codec;
+mod structural_scalar_codec;
 mod value_placement_codec;
 mod wire_codec;
 use boundary_settlement_codec::{decode_boundary_settlements, encode_boundary_settlements};
@@ -55,6 +56,10 @@ use internal_unit_call_codec::{decode_internal_unit_calls, encode_internal_unit_
 use port_effect_codec::{decode_port_effects, encode_port_effects};
 use provider_plan_codec::{decode_provider_plans, encode_provider_plans};
 use structural_return_codec::{decode_structural_returns, encode_structural_returns};
+use structural_scalar_codec::{
+    decode_domains, decode_identity, decode_multiplicity, encode_domains, encode_identity,
+    multiplicity_tag,
+};
 use wire_codec::{Reader, decode_boolean, push_u16, push_u32, push_u64};
 
 pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 31;
@@ -2182,16 +2187,6 @@ fn encode_structural_field(
     Ok(())
 }
 
-fn encode_identity(bytes: &mut Vec<u8>, identity: &str) -> Result<(), TerminalInstallationError> {
-    push_u32(
-        bytes,
-        u32::try_from(identity.len())
-            .map_err(|_| TerminalInstallationError::StructuralTypeIdentityTooLong)?,
-    );
-    bytes.extend_from_slice(identity.as_bytes());
-    Ok(())
-}
-
 fn encode_structural_parameter(
     bytes: &mut Vec<u8>,
     parameter: &StructuralParameterDeclaration,
@@ -2214,21 +2209,6 @@ fn encode_structural_result(
     bytes.push(multiplicity_tag(result.multiplicity));
     bytes.extend_from_slice(&[0; 3]);
     encode_domains(bytes, &result.qualifications)
-}
-
-fn encode_domains(
-    bytes: &mut Vec<u8>,
-    domains: &[StructuralDomainId],
-) -> Result<(), TerminalInstallationError> {
-    push_u32(
-        bytes,
-        u32::try_from(domains.len())
-            .map_err(|_| TerminalInstallationError::TooManyStructuralQualifications)?,
-    );
-    for domain in domains {
-        push_u64(bytes, domain.get());
-    }
-    Ok(())
 }
 
 fn decode_trivial_affine_local(
@@ -2568,18 +2548,6 @@ fn decode_structural_field(
     })
 }
 
-fn decode_identity(reader: &mut Reader<'_>) -> Result<String, TerminalInstallationError> {
-    let len = usize::try_from(reader.u32()?)
-        .map_err(|_| TerminalInstallationError::StructuralTypeIdentityTooLong)?;
-    let identity = std::str::from_utf8(reader.take(len)?)
-        .map_err(|_| TerminalInstallationError::InvalidStructuralTypeIdentity)?
-        .to_owned();
-    if identity.is_empty() {
-        return Err(TerminalInstallationError::InvalidStructuralTypeIdentity);
-    }
-    Ok(identity)
-}
-
 fn decode_structural_parameter(
     reader: &mut Reader<'_>,
 ) -> Result<StructuralParameterDeclaration, TerminalInstallationError> {
@@ -2624,39 +2592,6 @@ fn decode_structural_result(
         multiplicity,
         qualifications: decode_domains(reader)?,
     })
-}
-
-fn decode_domains(
-    reader: &mut Reader<'_>,
-) -> Result<Vec<StructuralDomainId>, TerminalInstallationError> {
-    let count = usize::try_from(reader.u32()?)
-        .map_err(|_| TerminalInstallationError::TooManyStructuralQualifications)?;
-    let mut domains = Vec::with_capacity(count);
-    for _ in 0..count {
-        domains.push(StructuralDomainId::new(reader.u64()?).ok_or(
-            TerminalInstallationError::ZeroStructuralReturnIdentity("domain"),
-        )?);
-    }
-    Ok(domains)
-}
-
-fn multiplicity_tag(value: StructuralMultiplicity) -> u8 {
-    match value {
-        StructuralMultiplicity::Unrestricted => 1,
-        StructuralMultiplicity::Affine => 2,
-        StructuralMultiplicity::Linear => 3,
-    }
-}
-
-fn decode_multiplicity(value: u8) -> Result<StructuralMultiplicity, TerminalInstallationError> {
-    match value {
-        1 => Ok(StructuralMultiplicity::Unrestricted),
-        2 => Ok(StructuralMultiplicity::Affine),
-        3 => Ok(StructuralMultiplicity::Linear),
-        _ => Err(TerminalInstallationError::InvalidStructuralMultiplicity(
-            value,
-        )),
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
