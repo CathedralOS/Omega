@@ -7067,9 +7067,12 @@ checked-result arithmetic decision listed below.
   offset proof now lives in a focused 622-line private owner. Per-edge upper/
   lower meets, constant and self-forwarding routes, guard/equality symbolic
   composition, declared ranges, boundary `ensures`, and write-frame
-  invalidation retain fail-closed order and exact results. The recast
-  coordinator is now 1,472 lines; public APIs, diagnostics, identities, and the
-  exact 49-function inventory remain unchanged. Remaining computed aggregate expression forms still
+  invalidation retain fail-closed order and exact results. Semantic-domain
+  qualification now lives in a focused 579-line private owner. Exact domain
+  lookup and vacuity, literal/range/`requires` mint discharge, contextual
+  statement/expression traversal, and diagnostic emission order retain
+  behavior. The recast coordinator is now 900 lines; public APIs, diagnostics,
+  identities, and the exact 49-function inventory remain unchanged. Remaining computed aggregate expression forms still
   need the same propagation law.
 - Materialize dynamic descriptors for pass-through, rebound, and escaping
   borrows from the retained exact conformance rows and declaring-trait symbol.
