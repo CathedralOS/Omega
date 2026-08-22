@@ -2560,10 +2560,11 @@ Remaining:
   remains preferred before landed-literal and fixed alias transport. Citation
   and endpoint order, cast proof shape, missing, redirected, or mistyped
   rejection, and every fixed cast evidence frontier are unchanged. Direct
-  affine-to-cast selection now separates exact endpoint orientation from
-  resolved completion in independent side-local
-  `cast_selection/affine/completion` modules. Parents preserve right-before-
-  left order and value eligibility; unique-source recovery, literal remapping,
+  affine-to-cast endpoint enumeration now lives in paired, side-local
+  `cast_selection/affine/candidates` modules, preserving right-before-left
+  endpoint order, value eligibility, and exact target orientation. Resolved
+  completion remains in independent side-local
+  `cast_selection/affine/completion` modules; unique-source recovery, literal remapping,
   prefix-bounded affine custody, cast proof bytes, rejection order, direct-cast
   precedence, and the fixed frontier are unchanged. Direct
   landed-literal candidate enumeration now lives in paired, side-local
