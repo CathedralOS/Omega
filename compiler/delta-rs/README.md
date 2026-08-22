@@ -37,8 +37,8 @@ DELTA_ARCH=aarch64 cargo run -- samples/shape.alp out  # macOS arm64; ./out ; ec
   `samples/omega0-frontend.alp` is the first Delta-written Omega compiler slice:
   canonical one-source bundle decoding, checked source storage, complete UTF-8
   validation, streaming lexing, exact parsing/name/type/count checks for O0, and
-  retained `write_line` bytes plus `exit_process` `i32`. Its focused gate runs a
-  25-case matrix and recompiles the frontend through Delta-written
+  retained `write_line` bytes plus `exit_process` `i32`. Its focused gate covers
+  the acceptance/rejection matrix and recompiles the frontend through Delta-written
   `lowermachine`; both boundary operands affect the observed success digest.
   Terminal-Psi emission and the lower-rung Delta-to-Gamma meaning extension are
   separate open tasks.
@@ -140,9 +140,11 @@ byte-identical fixed point), so the Rust on-ramp is discardable from steady stat
 `samples/bootstrap-storage.alp` fixes the first Omega0 storage convention over
 that surface: runtime-sized, aligned reservations return integer offsets into an
 explicit fixed backing array; exhaustion preserves allocator state; and a mark
-and reset pair provides bulk reclamation. `lowermachine.alp` still uses dedicated
-fixed tables, but source-buffer exhaustion is now an explicit exit failure
-instead of silent tail truncation. The frozen D0 contract is recorded in
+and reset pair provides bulk reclamation. `lowermachine.alp` now uses that shape
+directly: source input grows one checked cell at a time in an explicit byte
+backing, while offset handles carve its compiler tables from one reserved typed
+backing extent. Exhaustion is an explicit exit failure instead of silent tail
+truncation. The frozen D0 contract is recorded in
 [`../omega/BOOTSTRAP_PROFILES.md`](../omega/BOOTSTRAP_PROFILES.md).
 `delta-storage-meaning.sh` runs the exact contract and a perturbation through
 the lower-rung `omega2gamma.beta` → `interp.beta` route without using the Rust

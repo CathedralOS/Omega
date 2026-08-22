@@ -96,8 +96,10 @@ That evidence is necessary but is not the first Omega compiler:
   terminal-Psi lowering, or backend.
 - The Delta-written native path emits ARM64 assembly and still uses external
   `clang` and `codesign` to obtain a runnable image.
-- `lowermachine.alp` is a large, fixed-capacity, effectively single-source
-  compiler. Its source buffer and compiler tables are compile-time-sized.
+- `lowermachine.alp` is a large, effectively single-source compiler. Its source
+  and table capacities are still bounded by explicit backing extents, but input
+  and compiler tables now use checked logical byte/typed arenas rather than one
+  dedicated array per table.
 - The Rust `gamma_emit.rs` Delta-to-Gamma route is incomplete for the whole
   implemented language and remains a trusted Rust dependency while the
   Rust-free route is widened.
@@ -145,7 +147,7 @@ story.
   - [ ] Freeze the production-self-host Omega profile against the actual Omega
     compiler source tree. No such source tree exists yet, so O0 must not be
     mislabeled as sufficient evidence.
-- [ ] **Add scalable compiler storage to Delta.** Implement the explicit
+- [x] **Add scalable compiler storage to Delta.** Implement the explicit
   fixed-backing allocator, runtime-sized byte/source storage, and indexed arenas;
   gate deterministic allocation, alignment, exhaustion, and bulk reset. Remove
   silent fixed-capacity truncation from the compiler path.
@@ -154,8 +156,13 @@ story.
     across native, Rust-reference, and Rust-free Delta-to-Gamma meaning routes.
   - [x] Make `lowermachine.alp` reject source-buffer exhaustion instead of
     silently compiling a truncated prefix.
-  - [ ] Replace `lowermachine`'s dedicated fixed source/table arrays with logical
+  - [x] Replace `lowermachine`'s dedicated fixed source/table arrays with logical
     byte and typed arenas over explicit backing, preserving checked exhaustion.
+    Source bytes now reserve one contiguous indexed cell per input byte; all
+    compiler tables are offset-addressed logical arenas inside one explicitly
+    reserved typed extent. The self-build remains an assembly-byte fixed point,
+    the native corpus remains green, and source exhaustion still exits before a
+    truncated prefix can be compiled.
 - [x] **Choose and gate source packaging.** `compiler/omega/OMEGA0_BUNDLE.md`
   defines the canonical, length-delimited version-1 multi-source artifact.
   Its gate covers deterministic ordering, exact byte preservation, canonical
@@ -199,12 +206,38 @@ story.
     scalar boundary arguments until a real native realization exists.
   - [x] Implement the Delta O0 lexer/parser and complete its positive and
     name/type/count rejection matrix against the frozen source contract. The
-    focused native gate covers 25 bundle/source cases and a Delta-written
-    `lowermachine` recompilation preserves both acceptance and rejection. It
+    focused native gate covers canonical, variant, malformed, and exhaustion
+    cases, and a Delta-written `lowermachine` recompilation preserves both
+    acceptance and rejection. It
     retains the decoded `write_line` carrier and `exit_process` literal and
     exposes their digest until terminal-Psi emission consumes them.
-  - [ ] Emit the O0 terminal-Psi artifact while retaining `write_line`'s exact
-    structural string carrier and custody through its boundary call.
+  - [ ] Emit the O0 terminal-Psi semantic artifact while retaining
+    `write_line`'s exact structural byte carrier and custody through its
+    boundary call. This is implementation work, not an unresolved language
+    ruling, and it must use the shared terminal representation rather than an
+    O0-private IR.
+    - [ ] Add the first-class borrowed byte-sequence structural type, canonical
+      literal establishment/place, and generalized structural boundary-argument
+      source required by `write_line` (terminal vocabulary 24).
+    - [ ] Preserve literal bytes exactly in the canonical codec, verifier, and
+      interpreter, including non-UTF-8 bytes; fix the Psi lexer so `\xNN` adds
+      the requested byte instead of round-tripping it through Unicode.
+    - [ ] Preserve the same structural operand through Psi-to-Omega abstract
+      lowering. Keep native target lowering fail-closed until `write_line` has a
+      real target realization.
+    - [ ] Represent O0's `Main { console: Console }` attachment honestly. Either
+      verify a canonical specialization that erases the dynamic-trait field
+      into the retained boundary requirement plus provider-installation seam,
+      or carry the provider-backed attachment descriptor; do not substitute an
+      empty record or `attachment: None` while claiming the original shape.
+    - [ ] Emit canonical terminal semantic bytes directly from Delta and gate
+      them through the shared codec/verifier with the canonical empty proof
+      bundle for proof-free O0. Do not route this milestone through the Rust
+      checked-plan producer trees.
+    - [ ] If a standalone semantic-plus-proof file becomes necessary, add one
+      generic length-delimited terminal envelope; do not invent an O0-only
+      container. The proof-free semantic-slice gate does not depend on this
+      packaging work.
   - [ ] Implement a genuine target `exit_process(i32)` boundary realization.
     Consume the preserved scalar argument; do not reinterpret it as a machine
     return or route it through the metadata-only port settlement.
