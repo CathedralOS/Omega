@@ -531,7 +531,12 @@ fn retained_canonical_integer_proposition(
                 .any(|fact| closed_transitive_integer_bound(goal, fact))
                 || retained_literal_integer_bound(goal, requirements, semantic_axioms)
                 || retained_two_fact_transitive_integer_bound(goal, requirements, semantic_axioms)
-                || retained_equality_substituted_integer_bound(goal, requirements, semantic_axioms)
+                || retained_equality_substituted_integer_bound(
+                    context,
+                    goal,
+                    requirements,
+                    semantic_axioms,
+                )
                 || context.is_some_and(|context| {
                     retained_bounded_affine_bound(context, goal, requirements, semantic_axioms)
                 })
@@ -891,6 +896,7 @@ fn affine_definition_words(
 }
 
 fn retained_equality_substituted_integer_bound(
+    context: Option<&PropositionContext>,
     goal: &Proposition,
     requirements: &[Proposition],
     semantic_axioms: &[Proposition],
@@ -924,6 +930,9 @@ fn retained_equality_substituted_integer_bound(
                     requirements,
                     semantic_axioms,
                 )
+                || context.is_some_and(|context| {
+                    retained_bounded_affine_bound(context, &relation, requirements, semantic_axioms)
+                })
         })
     })
 }
@@ -2347,6 +2356,74 @@ mod tests {
                 value(4, signed),
                 ScalarTerm::integer(signed, IntegerValue::Signed(0)).expect("i8 zero"),
             )],
+        ));
+    }
+
+    #[test]
+    fn exact_division_selects_affine_bound_through_target_alias() {
+        let signed = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let context = PropositionContext::from_value_types((1..=5).map(|id| {
+            (
+                ValueId::new(id).expect("value id"),
+                ScalarType::Integer(signed),
+            )
+        }))
+        .expect("five i8 values");
+        let goal = CanonicalScalarGoal::ExactDivisionDefined {
+            integer_type: signed,
+            left: value(1, signed),
+            right: value(2, signed),
+        };
+        let target_alias = Proposition::Equal(value(4, signed), value(2, signed));
+        let zero = ScalarTerm::integer(signed, IntegerValue::Signed(0)).expect("i8 zero");
+
+        let positive_root_bound = Proposition::LessOrEqual(zero.clone(), value(3, signed));
+        let positive_definition = Proposition::Equal(
+            value(4, signed),
+            ScalarTerm::exact_integer_add(
+                signed,
+                value(3, signed),
+                ScalarTerm::integer(signed, IntegerValue::Signed(1)).expect("i8 one"),
+            )
+            .expect("exact add"),
+        );
+        assert!(exact_division_has_prior_certificate(
+            &context,
+            &goal,
+            std::slice::from_ref(&positive_definition),
+            &[positive_root_bound.clone(), target_alias.clone()],
+        ));
+
+        let negative_root_bound = Proposition::LessOrEqual(value(3, signed), zero);
+        let negative_definition = Proposition::Equal(
+            value(4, signed),
+            ScalarTerm::exact_integer_subtract(
+                signed,
+                value(3, signed),
+                ScalarTerm::integer(signed, IntegerValue::Signed(2)).expect("i8 two"),
+            )
+            .expect("exact subtract"),
+        );
+        assert!(exact_division_has_prior_certificate(
+            &context,
+            &goal,
+            std::slice::from_ref(&negative_definition),
+            &[negative_root_bound, target_alias],
+        ));
+        assert!(!exact_division_has_prior_certificate(
+            &context,
+            &goal,
+            std::slice::from_ref(&positive_definition),
+            std::slice::from_ref(&positive_root_bound),
+        ));
+        assert!(!exact_division_has_prior_certificate(
+            &context,
+            &goal,
+            &[positive_definition],
+            &[
+                positive_root_bound,
+                Proposition::Equal(value(4, signed), value(5, signed)),
+            ],
         ));
     }
 
