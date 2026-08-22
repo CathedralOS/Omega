@@ -40,8 +40,10 @@ mod unit_call_custody;
 mod unit_stack;
 
 pub use image_output::{
-    TerminalExecutableImage, TerminalObjectContainer, can_emit_terminal_executable_image,
-    emit_terminal_executable_image, emit_terminal_object_container,
+    TerminalExecutableImage, TerminalNativeFuelExecutableImage, TerminalObjectContainer,
+    can_emit_terminal_executable_image, emit_terminal_executable_image,
+    emit_terminal_native_fuel_executable_image, emit_terminal_native_fuel_object_container,
+    emit_terminal_object_container,
 };
 pub use installation::*;
 pub use native_fuel::{

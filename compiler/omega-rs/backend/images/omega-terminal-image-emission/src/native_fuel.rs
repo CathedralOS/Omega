@@ -6,6 +6,7 @@
 //! claim that differs. The result deliberately is not yet an executable object:
 //! relocation and symbol translation remain a later, separately validated step.
 
+use omega_object_file::{ObjectPlan, RelocationPlan, SectionKind};
 use omega_target::Architecture;
 use omega_terminal_installation_evidence::{
     NativeFuelTargetPlanProjection, TerminalFuelAttributionSite,
@@ -22,6 +23,8 @@ use super::{TerminalObjectArtifact, TerminalObjectError, build_terminal_object_a
 pub struct ValidatedTerminalNativeFuelArtifact {
     semantic_artifact: TerminalObjectArtifact,
     target_policy: NativeFuelTargetPlanProjection,
+    object: ObjectPlan,
+    relocations: RelocationPlan,
     text_bytes: Vec<u8>,
     functions: Vec<ValidatedTerminalNativeFuelFunction>,
 }
@@ -33,6 +36,14 @@ impl ValidatedTerminalNativeFuelArtifact {
 
     pub const fn target_policy(&self) -> NativeFuelTargetPlanProjection {
         self.target_policy
+    }
+
+    pub const fn object(&self) -> &ObjectPlan {
+        &self.object
+    }
+
+    pub const fn relocations(&self) -> &RelocationPlan {
+        &self.relocations
     }
 
     pub fn text_bytes(&self) -> &[u8] {
@@ -64,6 +75,7 @@ pub enum TerminalNativeFuelValidationError {
     ByteMismatch(MachineId),
     SizeOverflow,
     Encoding(String),
+    ObjectTranslation,
 }
 
 impl std::fmt::Display for TerminalNativeFuelValidationError {
@@ -123,12 +135,109 @@ pub fn validate_terminal_native_fuel_plan(
         });
     }
 
+    let (object, relocations) = translate_object(
+        &semantic_artifact,
+        &plan.source.functions,
+        &functions,
+        text_bytes.len(),
+        architecture,
+    )?;
     Ok(ValidatedTerminalNativeFuelArtifact {
         semantic_artifact,
         target_policy: plan.target_policy,
+        object,
+        relocations,
         text_bytes,
         functions,
     })
+}
+
+fn translate_object(
+    semantic: &TerminalObjectArtifact,
+    source_functions: &[TerminalMachineCodeFunction],
+    metered_functions: &[ValidatedTerminalNativeFuelFunction],
+    text_size: usize,
+    architecture: Architecture,
+) -> Result<(ObjectPlan, RelocationPlan), TerminalNativeFuelValidationError> {
+    let mut object = semantic.object.clone();
+    let text_section = object
+        .layout
+        .sections
+        .iter()
+        .find_map(|(handle, section)| (section.kind == SectionKind::Text).then_some(handle))
+        .ok_or(TerminalNativeFuelValidationError::ObjectTranslation)?;
+    object.layout.sections.get_mut(text_section).size = text_size;
+
+    for (semantic_function, metered_function) in semantic.functions.iter().zip(metered_functions) {
+        if semantic_function.machine != metered_function.machine {
+            return Err(TerminalNativeFuelValidationError::ObjectTranslation);
+        }
+        let symbol = object.layout.symbols.get_mut(semantic_function.symbol);
+        if symbol.section != omega_object_file::SymbolSection::Section(SectionKind::Text)
+            || symbol.offset != semantic_function.text_offset
+            || symbol.size != semantic_function.byte_count
+        {
+            return Err(TerminalNativeFuelValidationError::ObjectTranslation);
+        }
+        symbol.offset = metered_function.text_offset;
+        symbol.size = metered_function.byte_count;
+    }
+
+    let mut relocations = semantic.relocations.clone();
+    let handles = relocations
+        .records()
+        .map(|(handle, _)| handle)
+        .collect::<Vec<_>>();
+    for handle in handles {
+        let record = relocations.record_set.records.get_mut(handle);
+        if record.section != SectionKind::Text {
+            return Err(TerminalNativeFuelValidationError::ObjectTranslation);
+        }
+        let owner_symbol = record.origin.symbol_handle();
+        let semantic_function = semantic
+            .functions
+            .iter()
+            .find(|function| function.symbol == owner_symbol)
+            .ok_or(TerminalNativeFuelValidationError::ObjectTranslation)?;
+        let source_function = source_functions
+            .iter()
+            .find(|function| function.machine == semantic_function.machine)
+            .ok_or(TerminalNativeFuelValidationError::ObjectTranslation)?;
+        let metered_function = metered_functions
+            .iter()
+            .find(|function| function.machine == semantic_function.machine)
+            .ok_or(TerminalNativeFuelValidationError::ObjectTranslation)?;
+        let local_offset = record
+            .offset
+            .checked_sub(semantic_function.text_offset)
+            .filter(|offset| *offset <= source_function.bytes.len())
+            .ok_or(TerminalNativeFuelValidationError::ObjectTranslation)?;
+        let metered_local_offset = translate_semantic_offset(
+            local_offset,
+            &source_function.fuel_attribution,
+            architecture,
+        )?;
+        record.offset = metered_function
+            .text_offset
+            .checked_add(metered_local_offset)
+            .ok_or(TerminalNativeFuelValidationError::SizeOverflow)?;
+    }
+    Ok((object, relocations))
+}
+
+fn translate_semantic_offset(
+    source_offset: usize,
+    attributions: &[TerminalNativeFuelAttribution],
+    architecture: Architecture,
+) -> Result<usize, TerminalNativeFuelValidationError> {
+    let preceding_charges = attributions.partition_point(|row| row.code_offset <= source_offset);
+    source_offset
+        .checked_add(
+            hot_charge_byte_count(architecture)
+                .checked_mul(preceding_charges)
+                .ok_or(TerminalNativeFuelValidationError::SizeOverflow)?,
+        )
+        .ok_or(TerminalNativeFuelValidationError::SizeOverflow)
 }
 
 fn replay_function(
@@ -426,6 +535,33 @@ mod tests {
             assert_eq!(validated.text_bytes(), plan.functions[0].bytes);
             assert_eq!(validated.functions()[0].text_offset, 0);
             assert_eq!(validated.functions()[0].charges, plan.functions[0].charges);
+            let text_section = validated
+                .object()
+                .layout
+                .sections
+                .iter()
+                .find(|(_, section)| section.kind == SectionKind::Text)
+                .unwrap()
+                .1;
+            assert_eq!(text_section.size, validated.text_bytes().len());
+            let symbol = validated.semantic_artifact().functions()[0].symbol;
+            assert_eq!(validated.object().layout.symbols.get(symbol).offset, 0);
+            assert_eq!(
+                validated.object().layout.symbols.get(symbol).size,
+                validated.text_bytes().len()
+            );
+            assert_eq!(validated.relocations().record_count(), 0);
+            let image = crate::emit_terminal_native_fuel_executable_image(&validated, 3)
+                .expect("metered direct image");
+            assert_eq!(image.output().final_text_bytes, validated.text_bytes());
+            assert_eq!(
+                image
+                    .output()
+                    .compiler_text_validation
+                    .expect("exact final text")
+                    .text_relocation_count,
+                0
+            );
         }
     }
 

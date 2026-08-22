@@ -4561,10 +4561,18 @@ Remaining:
   separate terminal-object owner first validates the immutable semantic object,
   then reconstructs every hot/cold byte and charge record independently;
   producer byte, offset, size, function-order, and record drift reject. This
-  replay-validated carrier is deliberately not yet an executable object: symbol
-  spans, internal-call relocations, all semantic metadata offsets, final-image
-  replay, and the opaque-state/sponsor-policy transfer stub still need exact
-  translation before any installed dynamic evidence can exist.
+  replay-validated carrier now owns a distinct executable object view: function
+  symbols cover the full metered spans, and typed internal-call relocation
+  fields move through one checked source-to-metered offset map while retaining
+  their exact symbol handles and semantic owners. Object-container and direct-
+  image emission consume only those replayed bytes; x86-64 and AArch64 final
+  images require complete compiler-function region classification and the exact
+  final relocation envelope. The carrier deliberately does not masquerade as
+  the existing semantic `TerminalObjectArtifact`: effect, settlement, stack,
+  cleanup, return, and installation offsets still name the immutable source
+  evidence. Their final binding, the opaque-state/sponsor-policy transfer stub,
+  and installed codecs remain necessary before any installed dynamic evidence
+  can exist.
   Root admission now retains the selected native realization against the exact
   logical-fuel demand, provision, grant, installed-code context, and artifact.
   Existing fixed roots automatically produce the exact fixed realization;
