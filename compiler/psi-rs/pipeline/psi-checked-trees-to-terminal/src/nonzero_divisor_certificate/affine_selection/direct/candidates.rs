@@ -10,14 +10,10 @@ pub(super) fn find<'a, T>(
     semantic_axioms: &'a [Proposition],
     mut complete: impl FnMut(&'a ScalarTerm, ProofNode) -> Option<T>,
 ) -> Option<T> {
-    for (citation, root_bound, root_left, root_right) in
-        bounds::ordered(assumptions, semantic_axioms)
-    {
-        for root in bounds::value_endpoints(root_left, root_right) {
-            if let Some(result) = complete(root, citation.proof(root_bound)) {
-                return Some(result);
-            }
-        }
-    }
-    None
+    bounds::ordered(assumptions, semantic_axioms).find_map(
+        |(citation, root_bound, root_left, root_right)| {
+            bounds::value_endpoints(root_left, root_right)
+                .find_map(|root| complete(root, citation.proof(root_bound)))
+        },
+    )
 }
