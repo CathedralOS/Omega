@@ -6,13 +6,14 @@
 //! fact produced by that same operation.
 
 use psi_core::{Proposition, PropositionContext};
-use psi_proof_kernel::{ProofNode, check_certificate};
+use psi_proof_kernel::ProofNode;
 
 mod affine_custody;
 mod affine_selection;
 mod alias_transport;
 mod cast_custody;
 mod cast_selection;
+mod certificate_entry;
 mod integer_evidence;
 mod integer_selection;
 
@@ -27,10 +28,7 @@ pub(super) fn prove_canonical_integer_proposition(
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
 ) -> Option<ProofNode> {
-    let proof = integer_selection::build(context, goal, assumptions, semantic_axioms)?;
-    check_certificate(context, goal, assumptions, semantic_axioms, &proof)
-        .is_ok()
-        .then_some(proof)
+    certificate_entry::prove(context, goal, assumptions, semantic_axioms)
 }
 
 #[cfg(test)]

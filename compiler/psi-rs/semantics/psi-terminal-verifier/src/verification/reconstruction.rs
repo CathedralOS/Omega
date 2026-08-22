@@ -24,6 +24,7 @@ mod affine_selection;
 mod alias_transport;
 mod cast_custody;
 mod cast_selection;
+mod certificate_entry;
 mod integer_evidence;
 mod integer_selection;
 
@@ -492,10 +493,7 @@ fn exact_division_has_closed_prior_certificate(
     semantic_axioms: &[Proposition],
     requirements: &[Proposition],
 ) -> bool {
-    let Ok(Some(proposition)) = goal.kernel_proposition() else {
-        return false;
-    };
-    integer_selection::retained(None, &proposition, requirements, semantic_axioms)
+    certificate_entry::retained(None, goal, semantic_axioms, requirements)
 }
 
 fn exact_division_has_prior_certificate(
@@ -504,10 +502,7 @@ fn exact_division_has_prior_certificate(
     semantic_axioms: &[Proposition],
     requirements: &[Proposition],
 ) -> bool {
-    let Ok(Some(proposition)) = goal.kernel_proposition() else {
-        return false;
-    };
-    integer_selection::retained(Some(context), &proposition, requirements, semantic_axioms)
+    certificate_entry::retained(Some(context), goal, semantic_axioms, requirements)
 }
 
 fn true_condition_fact(
