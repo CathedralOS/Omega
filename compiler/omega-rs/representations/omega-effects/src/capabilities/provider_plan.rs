@@ -679,9 +679,15 @@ impl ProviderPlan {
                 .then_with(|| left.requirement_identity.cmp(&right.requirement_identity))
         });
         for row in rows {
+            let binding_identity = match &row.binding {
+                ProviderBinding::CompilerIntrinsic { machine, .. } => {
+                    format!("CompilerIntrinsic {{ machine: {machine:?} }}")
+                }
+                binding => format!("{binding:?}"),
+            };
             rendered.push_str(&format!(
-                "\nr:{}/{}/{:?}",
-                row.method, row.requirement_identity, row.binding
+                "\nr:{}/{}/{}",
+                row.method, row.requirement_identity, binding_identity
             ));
         }
         let mut hash: u64 = 0xcbf29ce484222325;
@@ -1174,6 +1180,21 @@ mod tests {
             first.identity_fingerprint(),
             refactored.identity_fingerprint()
         );
+    }
+
+    #[test]
+    fn intrinsic_catalog_display_is_not_provider_identity() {
+        let mut plan = windows_console_plan();
+        plan.rows[0].binding = ProviderBinding::CompilerIntrinsic {
+            machine: "named-callable(path(ConsoleNativeProvider::write_line))".to_owned(),
+            catalog: "Console::write_line".to_owned(),
+        };
+        let identity = plan.identity_fingerprint();
+        let ProviderBinding::CompilerIntrinsic { catalog, .. } = &mut plan.rows[0].binding else {
+            unreachable!()
+        };
+        *catalog = "readable text changed".to_owned();
+        assert_eq!(plan.identity_fingerprint(), identity);
     }
 
     #[test]
