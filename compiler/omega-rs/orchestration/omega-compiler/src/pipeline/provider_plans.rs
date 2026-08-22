@@ -849,6 +849,14 @@ impl SelectedExternalRootProviderPlan {
                 diagnostic: omega_external_roots::ExternalRootDiagnostic(diagnostic.0),
             });
         }
+        if let Err(diagnostic) = destination.validate_for_writer_preparation() {
+            return Err(SelectedExternalRootWriterPreparationError {
+                selected_provider: self,
+                lowered,
+                destination,
+                diagnostic: omega_external_roots::ExternalRootDiagnostic(diagnostic.0),
+            });
+        }
         let destination_len = destination.len();
         let destination_site = destination.site();
         match execution.prepare_post_handoff_entry_writer(

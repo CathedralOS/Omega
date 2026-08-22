@@ -926,6 +926,19 @@ impl<'mapping, 'bytes> PreparedPostHandoffWriterDestination<'mapping, 'bytes> {
     pub const fn is_empty(&self) -> bool {
         self.bytes.is_empty()
     }
+
+    /// Independently replay the exact activated mapping, provider receipt,
+    /// placement, and byte-view geometry before a resolver observes symbolic
+    /// source values. This borrows the carrier and grants no write or
+    /// publication authority.
+    pub fn validate_for_writer_preparation(&self) -> Result<(), InstallationDiagnostic> {
+        validate_post_handoff_destination_binding(
+            &self.mapping,
+            &self.receipt,
+            self.site,
+            self.bytes.len(),
+        )
+    }
 }
 
 fn validate_post_handoff_destination_binding(
@@ -2607,9 +2620,22 @@ mod tests {
         assert_eq!(returned_bytes, &[0xa5; 8]);
 
         let receipt = prepared_destination_receipt(&mapping, 172);
-        let destination =
+        let mut destination =
             PreparedPostHandoffWriterDestination::claim(mapping, receipt, site, returned_bytes)
                 .expect("returned mapping and bytes remain usable");
+        destination
+            .validate_for_writer_preparation()
+            .expect("prepared destination replays exact mapping custody");
+        destination.receipt.unpublished = false;
+        let diagnostic = destination
+            .validate_for_writer_preparation()
+            .expect_err("preparation replay must reject publication-state drift");
+        assert!(diagnostic.0.contains("unpublished destination"));
+        assert_eq!(destination.bytes, &[0xa5; 8]);
+        destination.receipt.unpublished = true;
+        destination
+            .validate_for_writer_preparation()
+            .expect("repaired destination remains available for exact retry");
         let installed = installed_code(&admit(&artifact(1)), 107, 0x8000);
         let target = RelocationTarget::Entry(entry_id(1001));
         let writer = PostHandoffWriterPlan {
