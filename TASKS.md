@@ -791,7 +791,11 @@ Owners:
   exclusive projection now live in a focused 108-line lifecycle owner,
   preserving exact loan polarity, profile/resource replay, correspondence
   retirement composition, retry-complete recovery, and private carrier fields.
-  These extractions leave a 2,322-line coordinator. All 81
+  The complete owned placement lifecycle now lives in a focused 250-line owner:
+  permission-only extent withdrawal/rejection, dormant resident activation,
+  active Stable projection, resident-preserving retirement, and retry-carrier
+  recovery remain exact inherent transitions while carrier declarations remain
+  root-private. These extractions leave a 2,085-line coordinator. All 81
   unit tests, the current 440-function production inventory, diagnostics,
   custody, retry behavior, and the public surface remain unchanged.
 - Implement `Extent::Resident<P, T>` as the owned exact-range dormant-content
