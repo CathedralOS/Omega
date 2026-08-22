@@ -1516,8 +1516,10 @@ Remaining:
   through their own local indexed constructor shared by cast and affine
   completion. Those fixed one-/two-alias constructors now live in dedicated,
   side-local `alias_transport` modules rather than the broader certificate and
-  reconstruction engines. They prefer every one-alias family and perform no
-  recursive or parameterized alias walk. Missing,
+  reconstruction engines. The cast-specific closed strengthening and
+  alias-landed-literal shapes live beside them while retaining their distinct
+  transitivity and substitution proofs. They prefer every one-alias family and
+  perform no recursive or parameterized alias walk. Missing,
   reused, redirected, crossed, cyclic, mistyped, or weaker facts reject. A
   third alias, literal landing through two aliases, affine/cast, shift/cast,
   joins, and correlated results remain outside this sibling; neither complete
@@ -2463,6 +2465,9 @@ Owners:
   bridge's final wrapper evidence must also name the same executable-region
   inventory fingerprint as the flat publication receipt, preventing evidence
   from another valid final image from accompanying the published container.
+  Receipts now additionally retain the sealed compiler-text derivation and
+  compiler-function evidence fingerprints; flat/bundle copies and native
+  wrapper evidence must rejoin the same pair rather than inventory alone.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
@@ -2908,8 +2913,10 @@ Remaining N6/N8 work:
   destructuring reject quotient subjects before field/case analysis, so an
   empty or rest pattern cannot become a representation observer. Struct and
   case literals likewise cannot forge a quotient value; casting an exact
-  carrier instance with `as Quotient` is the sole construction path. Logical
-  proof-position equality remains raw for the exact
+  carrier instance with `as Quotient` is the sole construction path. That
+  nominal fence runs before generic field-shape deferral, so a parameterized
+  quotient head cannot bypass it. Logical proof-position equality remains raw
+  for the exact
   quotient-congruence judge; it never lowers to representative bytes. Add
   quotient-owned executable equality through an ordinary lifted operation with
   `DecidesEquivalence`; derive its `Respects` proof, and bind its optional `==`
