@@ -216,9 +216,12 @@ fn runtime_owned_string_byte_view_exit_canary_runs() {
 
     let build_dir = std::env::temp_dir().join(format!("omega-string-view-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("owned String byte-view canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("owned String byte-view canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("owned String byte-view canary should run");
     assert_eq!(output.status.code(), Some(70));
@@ -232,9 +235,12 @@ fn equatable_sum_stale_payload_exit_canary_runs() {
     let canary = pass_canary("traits/equatable_sum_stale_payload_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-sumstale-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("sum stale-payload equality canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("sum stale-payload equality canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("sum stale-payload equality canary should run");
     assert_eq!(
@@ -262,9 +268,12 @@ fn runtime_text_not_equals_exit_canary_runs() {
     );
     let build_dir = std::env::temp_dir().join(format!("omega-texteqne-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("text not-equals canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("text not-equals canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("text not-equals canary should run");
     assert_eq!(
@@ -293,9 +302,12 @@ fn runtime_text_equals_boolean_operand_exit_canary_runs() {
     );
     let build_dir = std::env::temp_dir().join(format!("omega-texteqbool-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("texteq boolean-operand canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("texteq boolean-operand canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("texteq boolean-operand canary should run");
     assert_eq!(
@@ -325,9 +337,12 @@ fn case_literal_texteq_terminal_exit_canary_runs() {
     );
     let build_dir = std::env::temp_dir().join(format!("omega-texteqterm-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("texteq terminal canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("texteq terminal canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("texteq terminal canary should run");
     assert_eq!(
