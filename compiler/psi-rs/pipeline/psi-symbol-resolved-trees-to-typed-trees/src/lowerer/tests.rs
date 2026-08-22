@@ -925,6 +925,41 @@ fn quotient_cannot_declare_structural_equatable_conformance() {
 }
 
 #[test]
+fn quotient_cannot_choose_a_zero_value_representative() {
+    let source = r#"
+        data Carrier {}
+        proposition equivalent(left: Carrier, right: Carrier);
+        trait Equivalence<C, proposition Relation>
+        where proposition Relation(left: C, right: C);
+        {
+        }
+        CarrierEquivalence: satisfies Equivalence<Carrier, equivalent> {}
+        data ExactQ = Carrier % equivalent
+        where equivalent satisfies
+            Equivalence<Carrier, equivalent>
+            as CarrierEquivalence;
+
+        machine impossible_default()
+        ensures zero_value<ExactQ>() == zero_value<ExactQ>();
+        {
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let diagnostic = lower_symbol_resolved_trees(&resolved)
+        .expect_err("a quotient must not expose a canonical zero representative");
+
+    assert!(
+        diagnostic
+            .message
+            .contains("cannot observe or choose a retained quotient representative"),
+        "unexpected diagnostic: {}",
+        diagnostic.message
+    );
+}
+
+#[test]
 fn quotient_field_cannot_enter_synthesized_container_equality() {
     let source = r#"
         data Carrier {}
