@@ -710,6 +710,14 @@ order, strict definition boundaries, proof shapes, rejection behavior, and the
 fixed witness frontier do not change, and no authority crosses the producer/
 verifier boundary.
 
+The direct cast-to-affine sibling likewise separates cast/root-bound
+enumeration from completion. Matching producer and verifier `cast/direct`
+parents retain semantic cast-root order, unique source-spine recovery, and
+requirement order; independent `cast/direct/completion` modules own endpoint
+remapping, exact-cast completion, and the strictly post-cast affine suffix.
+Assumption identity, proof bytes, the last-cast boundary, rejection,
+direct-before-sandwich precedence, and the finite frontier remain unchanged.
+
 The fixed affine/cast/affine sibling likewise separates candidate enumeration
 from completion. Matching producer and verifier `cast/sandwich` parents retain
 cast-root, source-spine, requirement, and root-endpoint order; independent
