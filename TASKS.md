@@ -7136,9 +7136,14 @@ surface. Expression cast validation now lives in a focused 285-line private
 owner. Recast bypass, indexed qualification, proof embedding, quotient-mint
 carrier checks, same-carrier erasure, scalar source fences, and Exact/Wrapping
 float-policy diagnostics retain exact behavior and order. The natural 270-line
-  expression-type facade retains generic argument matching, bounded-text capacity
-  validation, expression-owner diagnostics, and type labels; crate-facing APIs,
-  identities, and the exact 51-function inventory remain unchanged.
+expression-type facade retains generic argument matching, bounded-text capacity
+validation, expression-owner diagnostics, and type labels; crate-facing APIs,
+identities, and the exact 51-function inventory remain unchanged.
+Anonymous-float destination landing now lives in a focused 445-line owner.
+Destination-format discovery, exact pre-landing rational and comparison
+folding, one-time rounding, and runtime-tree stamping retain original order and
+the public re-export. The literal coordinator is now 565 lines with the exact
+16-function inventory unchanged.
 
 Checked-result float/integer conversion remains blocked on the separate
 checked-result arithmetic decision listed below.
