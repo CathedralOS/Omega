@@ -2006,8 +2006,14 @@ bridge, substitutes the alias, substitutes the root, then applies
 equalities. Missing,
 reused, redirected, mistyped, or weaker literals reject. A second alias,
 affine/cast, shift/cast, joins, and correlated results remain outside this
-sibling; neither complete exact row changes trust and `fully-derived false`
-remains.
+sibling. One separate fixed two-alias sibling may transport one directly cited
+canonical bound through exactly two distinct same-carrier value equalities. It
+nests two `IntegerLessOrEqualSubstitution` nodes under `IntegerCastBound`;
+production and verification independently enumerate that exact three-citation
+shape, prefer every one-alias family, and perform no recursive alias walk.
+Missing, reused, redirected, crossed, cyclic, mistyped, or weaker facts reject.
+A third alias and literal landing through two aliases remain outside. Neither
+complete exact row changes trust and `fully-derived false` remains.
 
 The common exact-shift spine now also has a producer-visible, non-serialized
 `IntegerShiftChainWitness`. It binds a nonempty ordered word of exact left and
