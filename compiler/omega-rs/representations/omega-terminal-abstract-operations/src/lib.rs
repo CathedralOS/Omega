@@ -12,22 +12,41 @@ use psi_core::{
     PlaceId, ScalarType, ServiceId, StructuralTypeId, ValueId,
 };
 use psi_terminal::{
-    BoundaryMachineDeclaration, ClaimTransfer, CompletionReceipt, CrashCause, EntryClaim,
-    ProviderCandidateConformance, StructuralArgument, StructuralParameterDeclaration,
+    BoundaryMachineDeclaration, ClaimTransfer, CompletionReceipt, ContentEntryClaim, CrashCause,
+    EntryClaim, ProviderCandidateConformance, StructuralArgument, StructuralParameterDeclaration,
     StructuralPlaceDeclaration, StructuralResultDeclaration, StructuralTypeDeclaration,
     TerminalAffineCleanupAction, TerminalPsiIdentity,
 };
 
-/// Minimal source-independent projection of one caller claim needed to replay
-/// exact boundary-completion receipts after the verified module is discarded.
-/// `Some(path)` is an ordinary entry claim; `None` is a content-entry claim,
-/// whose completion ownership is rooted at `input` independently of its
-/// content projections.
+/// Exact caller claim source needed to replay boundary-completion custody after
+/// the verified module is discarded. Content-bearing sources retain their full
+/// entry-version subject and owner-unique projection/algebra catalog rather
+/// than collapsing to a generic whole-root claim identity.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TerminalCompletionClaimSource {
     pub claim: ClaimId,
-    pub input: PlaceId,
-    pub path: Option<Vec<psi_terminal::StructuralPathSegment>>,
+    /// Ordinary structural claim source, when this claim participates in the
+    /// whole-value frontier.
+    pub entry: Option<EntryClaim>,
+    /// Exact content subject and projection/algebra catalog, when this claim
+    /// also participates in content conservation.
+    pub content: Option<ContentEntryClaim>,
+}
+
+impl TerminalCompletionClaimSource {
+    pub const fn claim(&self) -> ClaimId {
+        self.claim
+    }
+
+    pub fn input(&self) -> PlaceId {
+        match &self.entry {
+            Some(source) => source.input,
+            None => match &self.content {
+                Some(source) => source.input.root,
+                None => unreachable!(),
+            },
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

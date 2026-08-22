@@ -298,19 +298,27 @@ fn lower_machine(
                     let mut completion_claim_sources = machine
                         .entry_claims
                         .iter()
-                        .map(|claim| TerminalCompletionClaimSource {
-                            claim: claim.claim,
-                            input: claim.input,
-                            path: Some(claim.path.clone()),
+                        .cloned()
+                        .map(|entry| TerminalCompletionClaimSource {
+                            claim: entry.claim,
+                            entry: Some(entry),
+                            content: None,
                         })
-                        .chain(machine.content_entry_claims.iter().map(|claim| {
-                            TerminalCompletionClaimSource {
-                                claim: claim.claim,
-                                input: claim.input.root,
-                                path: None,
-                            }
-                        }))
                         .collect::<Vec<_>>();
+                    for content in &machine.content_entry_claims {
+                        if let Some(source) = completion_claim_sources
+                            .iter_mut()
+                            .find(|source| source.claim == content.claim)
+                        {
+                            source.content = Some(content.clone());
+                        } else {
+                            completion_claim_sources.push(TerminalCompletionClaimSource {
+                                claim: content.claim,
+                                entry: None,
+                                content: Some(content.clone()),
+                            });
+                        }
+                    }
                     completion_claim_sources.sort();
                     operations.push(TerminalAbstractOperation::BoundaryCall {
                         psi_operation: operation.id,

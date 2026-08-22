@@ -42,9 +42,10 @@ use omega_terminal_target_operations::{
 };
 use omega_terminal_target_operations_to_assigned_target_operations::assign_registers;
 use psi_core::{
-    BlockId, BoundaryMachineId, ClaimId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType,
-    MachineId, OperationId, PlaceId, ProfileDecisionId, ScalarType, ServiceId, StructuralFieldId,
-    StructuralTypeId, ValueId,
+    BlockId, BoundaryMachineId, ClaimId, ContentAlgebra, ContentAlgebraKind, ContentDomainId,
+    ContentPlaceSegment, ContentPlaceVersion, ContentProjectionIdentity, ContentStructuralPlace,
+    EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, MachineId, OperationId, PlaceId,
+    ProfileDecisionId, ScalarType, ServiceId, StructuralFieldId, StructuralTypeId, ValueId,
 };
 use psi_extents::{
     AddressSpaceId, ExtentLineageId, ExtentProvenanceId, ExtentRightId, ExtentRights,
@@ -58,10 +59,11 @@ use psi_layout_plans::{
     PostHandoffWriterPlan, PostHandoffWriterSource, PostHandoffWriterStep, RelocationTarget,
 };
 use psi_terminal::{
-    BindingRelevance, BoundaryMachineDeclaration, CompletionReceipt, EntryClaim,
-    SemanticFingerprint, StructuralArgument, StructuralFieldDeclaration, StructuralFieldType,
-    StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
-    StructuralTypeDeclaration, StructuralTypeShape, TerminalPsiIdentity, VocabularyMarker,
+    BindingRelevance, BoundaryMachineDeclaration, ClaimContentProjection, CompletionReceipt,
+    ContentEntryClaim, SemanticFingerprint, StructuralArgument, StructuralFieldDeclaration,
+    StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
+    StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape, TerminalPsiIdentity,
+    VocabularyMarker,
 };
 
 #[test]
@@ -624,6 +626,28 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
         port: 0x60,
     };
     let direct_claim = ClaimId::new(1).unwrap();
+    let direct_content_source = TerminalCompletionClaimSource {
+        claim: direct_claim,
+        entry: None,
+        content: Some(ContentEntryClaim {
+            claim: direct_claim,
+            input: ContentStructuralPlace {
+                version: ContentPlaceVersion::Entry,
+                root: custody_place,
+                segments: vec![ContentPlaceSegment::Field("payload".into())],
+            },
+            projections: vec![ClaimContentProjection {
+                projection: ContentProjectionIdentity {
+                    domain: ContentDomainId::new(1).expect("content domain"),
+                    projection_fingerprint: 0x63f4_9912,
+                },
+                algebra: ContentAlgebra {
+                    kind: ContentAlgebraKind::CountedQuantity,
+                    parameter: "KeyboardStatusBytes".into(),
+                },
+            }],
+        }),
+    };
     let direct_arguments = vec![StructuralArgument {
         place: custody_place,
         path: Vec::new(),
@@ -679,11 +703,7 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
                 qualifications: Vec::new(),
             }],
             result: TerminalAbstractFunctionResult::Scalar(result),
-            entry_claims: vec![EntryClaim {
-                claim: direct_claim,
-                input: custody_place,
-                path: Vec::new(),
-            }],
+            entry_claims: Vec::new(),
             published_service_ceiling: vec![service],
             block_entries: vec![TerminalAbstractBlockEntry {
                 block: BlockId::new(1).unwrap(),
@@ -695,11 +715,7 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
                     result: Some(result),
                     boundary,
                     structural_arguments: direct_arguments.clone(),
-                    completion_claim_sources: vec![TerminalCompletionClaimSource {
-                        claim: direct_claim,
-                        input: custody_place,
-                        path: Some(Vec::new()),
-                    }],
+                    completion_claim_sources: vec![direct_content_source.clone()],
                     completion_receipts: vec![CompletionReceipt {
                         claim: direct_claim,
                         argument_index: 0,
@@ -736,11 +752,7 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
     };
     assert_eq!(
         completion_claim_sources,
-        &[TerminalCompletionClaimSource {
-            claim: direct_claim,
-            input: custody_place,
-            path: Some(Vec::new()),
-        }]
+        std::slice::from_ref(&direct_content_source)
     );
     assert!(
         lower_to_target_operations_with_provider_executions(
@@ -770,6 +782,15 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
         direct_machine.functions[0].boundary_settlements[0].completion_claim_sources,
         completion_claim_sources.as_slice()
     );
+    let mut dropped_content_source = direct_machine.clone();
+    dropped_content_source.functions[0].boundary_settlements[0].completion_claim_sources[0]
+        .content = None;
+    assert!(matches!(
+        build_terminal_object_artifact(&dropped_content_source),
+        Err(
+            omega_terminal_image_emission::TerminalObjectError::InvalidCompletionReceiptCustody { .. }
+        )
+    ));
     let native_result = direct_machine.functions[0].boundary_settlements[0]
         .native_result
         .as_ref()
