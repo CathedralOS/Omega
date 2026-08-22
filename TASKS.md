@@ -4791,6 +4791,14 @@ Owners:
   specific diagnostics. Exact-owner ambiguity, the 795 rooted/3 legacy
   inventory, and receipt-drift fences remain green; explicit conversion and
   dispatch owners remain separate.
+  Two authored-root statically typed receiver-dispatch regressions—method
+  dispatch through a mutable data-reference parameter and same-named methods
+  on two concrete receiver types—now launch `OutputOnly` native execution
+  solely through exact checked-report executable receipts while preserving
+  literal status 70 and their detailed receiver-resolution diagnostics. Exact-
+  owner ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift fences
+  remain green; dynamic coercion and single-/multi-implementation dynamic
+  dispatch owners remain separate.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
