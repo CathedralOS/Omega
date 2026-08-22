@@ -2465,19 +2465,13 @@ fn runtime_wire_roundtrip_repeated_max_one_exit_canary_runs() {
     ));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("repeated max-one wire canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("repeated max-one wire canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected the max=1 repeated field to round-trip (exit 70), got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "max-one repeated-field wire canary",
+        "the required single-element packed field should roundtrip",
     );
 
     let _ = fs::remove_dir_all(&scratch);
@@ -2490,16 +2484,13 @@ fn runtime_wire_roundtrip_utf8_exit_canary_runs() {
     let canary = pass_canary("wire/runtime_wire_roundtrip_utf8_exit");
     let scratch = std::env::temp_dir().join(format!("omega-wireutf8-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("utf8 wire roundtrip canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("utf8 wire roundtrip canary should run");
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "utf8 wire roundtrip canary should pass (exit 70), got {:?}",
-        output.status.code(),
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "Utf8 wire-roundtrip canary",
+        "honest Utf8 bytes should roundtrip through the wire codec",
     );
     let _ = fs::remove_dir_all(&scratch);
 }
@@ -2511,16 +2502,13 @@ fn runtime_wire_utf8_edge_verdicts_exit_canary_runs() {
     let canary = pass_canary("wire/runtime_wire_utf8_edge_verdicts_exit");
     let scratch = std::env::temp_dir().join(format!("omega-utf8edge-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("utf8 edge canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("utf8 edge canary should run");
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "utf8 edge canary should agree on every class (exit 70), got {:?}",
-        output.status.code(),
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "Utf8 edge-verdict canary",
+        "the validator should agree on every honest and invalid Utf8 edge class",
     );
     let _ = fs::remove_dir_all(&scratch);
 }
@@ -2531,16 +2519,13 @@ fn runtime_wire_utf8_invalid_refused_exit_canary_runs() {
     let canary = pass_canary("wire/runtime_wire_utf8_invalid_refused_exit");
     let scratch = std::env::temp_dir().join(format!("omega-utf8ref-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("utf8 refusal canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("utf8 refusal canary should run");
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "adversarial bytes must refuse (exit 70), got {:?}",
-        output.status.code(),
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "Utf8 invalid-refusal canary",
+        "the adversarial byte pair should produce the Invalid verdict",
     );
     let _ = fs::remove_dir_all(&scratch);
 }
@@ -2551,16 +2536,13 @@ fn runtime_wire_schema_as_value_type_exit_canary_runs() {
     let canary = pass_canary("wire/runtime_wire_schema_as_value_type_exit");
     let scratch = std::env::temp_dir().join(format!("omega-schemaval-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("schema-as-value canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("schema-as-value canary should run");
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "schema-as-value canary should pass (exit 70), got {:?}",
-        output.status.code(),
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "wire schema-as-value canary",
+        "the numbered data should remain usable as its ordinary program value type",
     );
     let _ = fs::remove_dir_all(&scratch);
 }
