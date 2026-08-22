@@ -3,9 +3,10 @@
 use psi_core::{Proposition, PropositionContext};
 use psi_proof_kernel::ProofNode;
 
+use super::cast_custody;
 use super::integer_evidence::cited_facts;
-use super::{alias_transport, cast_custody};
 
+mod alias;
 mod literal;
 
 pub(super) fn prove(
@@ -38,46 +39,5 @@ pub(super) fn prove(
         }
     }
     literal::prove(context, goal, assumptions, semantic_axioms)
-        .or_else(|| prove_alias_substituted_cast_bound(context, goal, assumptions, semantic_axioms))
-}
-
-fn prove_alias_substituted_cast_bound(
-    context: &PropositionContext,
-    goal: &Proposition,
-    assumptions: &[Proposition],
-    semantic_axioms: &[Proposition],
-) -> Option<ProofNode> {
-    alias_transport::prove_one(assumptions, semantic_axioms, |root, root_bound| {
-        cast_custody::prove_from_root(
-            context,
-            goal,
-            assumptions,
-            semantic_axioms,
-            root,
-            root_bound,
-        )
-    })
-    .or_else(|| alias_transport::prove_stronger_cast(context, goal, assumptions, semantic_axioms))
-    .or_else(|| {
-        alias_transport::prove_landed_literal_cast(context, goal, assumptions, semantic_axioms)
-    })
-    .or_else(|| prove_two_alias_substituted_cast_bound(context, goal, assumptions, semantic_axioms))
-}
-
-fn prove_two_alias_substituted_cast_bound(
-    context: &PropositionContext,
-    goal: &Proposition,
-    assumptions: &[Proposition],
-    semantic_axioms: &[Proposition],
-) -> Option<ProofNode> {
-    alias_transport::prove_two(assumptions, semantic_axioms, |root, root_bound| {
-        cast_custody::prove_from_root(
-            context,
-            goal,
-            assumptions,
-            semantic_axioms,
-            root,
-            root_bound,
-        )
-    })
+        .or_else(|| alias::prove(context, goal, assumptions, semantic_axioms))
 }
