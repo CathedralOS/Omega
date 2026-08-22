@@ -769,8 +769,12 @@ Owners:
   resource-profile grant/admission custody now lives in a focused 264-line
   owner behind unchanged re-exports: the non-Clone grant, retry-complete
   rejection, admitted profile, reach restriction, and exact range/address-
-  space/provenance/era/origin/lineage/rights replay remain sealed. These
-  extractions leave a 2,775-line coordinator. All 81
+  space/provenance/era/origin/lineage/rights replay remain sealed. Borrowed and
+  owned placement admission plus borrowed placed-view establishment now live in
+  a focused 119-line owner, preserving exact profile restriction, resource
+  compatibility, runtime base-congruence discharge, and retry-complete loan/
+  extent/admission rejection order. These extractions leave a 2,667-line
+  coordinator. All 81
   unit tests, the current 440-function production inventory, diagnostics,
   custody, retry behavior, and the public surface remain unchanged.
 - Implement `Extent::Resident<P, T>` as the owned exact-range dormant-content
