@@ -257,7 +257,7 @@ pub fn bind_compiler_entry_footprint(
     binding: &crate::CompilerEntryRegionBindingEvidence,
     final_region_binding_fingerprint: u64,
     footprint: omega_calling_conventions::StateFootprintEvidence,
-) -> Result<(), Diagnostic> {
+) -> Result<crate::CompilerEntryFootprintBindingEvidence, Diagnostic> {
     if !binding.function_identity.is_valid()
         || !binding.object_symbol_handle.is_valid()
         || binding.inventory_fingerprint != inventory.inventory_fingerprint
@@ -315,6 +315,8 @@ pub fn bind_compiler_entry_footprint(
             binding.symbol
         )));
     }
+    let prior_inventory_fingerprint = inventory.inventory_fingerprint;
+    let footprint_fingerprint = footprint.evidence_fingerprint();
     entry.footprint = Some(footprint);
     inventory.inventory_fingerprint = executable_inventory_fingerprint(
         inventory.text_address,
@@ -323,7 +325,16 @@ pub fn bind_compiler_entry_footprint(
         &inventory.regions,
         &inventory.unclassified_gaps,
     );
-    Ok(())
+    let mut evidence = crate::CompilerEntryFootprintBindingEvidence {
+        entry_region_evidence_fingerprint: binding.evidence_fingerprint,
+        final_region_binding_fingerprint,
+        prior_inventory_fingerprint,
+        footprint_fingerprint,
+        resulting_inventory_fingerprint: inventory.inventory_fingerprint,
+        evidence_fingerprint: 0,
+    };
+    evidence.evidence_fingerprint = evidence.recomputed_evidence_fingerprint();
+    Ok(evidence)
 }
 
 fn placed_gap(
@@ -586,11 +597,17 @@ mod tests {
             .is_err()
         );
 
-        bind_compiler_entry_footprint(&mut inventory, &binding, 8, footprint.clone())
+        let receipt = bind_compiler_entry_footprint(&mut inventory, &binding, 8, footprint.clone())
             .expect("the exact entry should accept retained evidence");
 
         assert_eq!(inventory.regions[0].footprint, Some(footprint));
         assert_ne!(inventory.inventory_fingerprint, original_fingerprint);
+        assert!(receipt.validate_identity());
+        assert_eq!(receipt.prior_inventory_fingerprint, original_fingerprint);
+        assert_eq!(
+            receipt.resulting_inventory_fingerprint,
+            inventory.inventory_fingerprint
+        );
         let mut drifted_binding = binding;
         drifted_binding.inventory_fingerprint = inventory.inventory_fingerprint;
         drifted_binding.region_index = 1;

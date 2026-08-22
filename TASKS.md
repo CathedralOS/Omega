@@ -2301,7 +2301,11 @@ Owners:
   identity, object symbol handle, region index and final span, inventory
   identity, and whole function-region binding identity participate in its own
   replayed fingerprint; any identity/handle/row/custody drift rejects before
-  the inventory is mutated.
+  the inventory is mutated. That mutation now returns a checked custody receipt
+  joining the sealed entry projection and whole function-region binding to the
+  prior inventory, exact composed footprint, and resulting inventory.
+  Boundary-bearing final footprint certificates require and fingerprint this
+  receipt; missing, stale, redirected, or pre/post-inventory drift rejects.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected

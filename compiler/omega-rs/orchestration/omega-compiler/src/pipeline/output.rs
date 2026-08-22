@@ -55,13 +55,14 @@ pub(super) fn write_output(
                         "checked executable image omitted exact compiler-entry region custody",
                     )]
                 })?;
-            omega_image::bind_compiler_entry_footprint(
+            let footprint_binding = omega_image::bind_compiler_entry_footprint(
                 &mut image.executable_regions,
                 entry_binding,
                 final_region_binding_fingerprint,
                 footprints.composed_evidence(),
             )
             .map_err(|diagnostic| vec![diagnostic])?;
+            image.compiler_entry_footprint_binding = Some(footprint_binding);
         }
 
         // Entry-specific evidence must join the exact relocated image before
@@ -87,6 +88,7 @@ pub(super) fn write_output(
             footprints,
             &compiler_text_validation,
             &compiler_function_validation,
+            image.compiler_entry_footprint_binding,
             &image.executable_regions,
             emit_auxiliary_artifacts,
         )?;
@@ -125,6 +127,7 @@ fn write_executable_region_inventory(
     footprints: &omega_target_operations::BoundaryFootprintPlan,
     compiler_text_validation: &omega_image::CompilerTextValidationEvidence,
     compiler_function_validation: &omega_image::CompilerFunctionValidationEvidence,
+    compiler_entry_footprint_binding: Option<omega_image::CompilerEntryFootprintBindingEvidence>,
     inventory: &omega_image::PlacedExecutableRegionInventory,
     emit_auxiliary_artifacts: bool,
 ) -> Result<(), Vec<Diagnostic>> {
@@ -188,6 +191,7 @@ fn write_executable_region_inventory(
         footprints.fragments.len(),
         *compiler_text_validation,
         *compiler_function_validation,
+        compiler_entry_footprint_binding,
         inventory.clone(),
     )
     .map_err(|diagnostic| vec![diagnostic])?;
@@ -296,6 +300,21 @@ fn write_executable_region_inventory(
         inventory.inventory_fingerprint,
         certificate.boundary_placement_binding_fingerprint,
     ));
+    json.push_str("  \"entry_footprint_binding\": ");
+    if let Some(binding) = certificate.compiler_entry_footprint_binding {
+        json.push_str(&format!(
+            "{{\"evidence_fingerprint\": \"0x{:016x}\", \"entry_region_evidence_fingerprint\": \"0x{:016x}\", \"final_region_binding_fingerprint\": \"0x{:016x}\", \"prior_inventory_fingerprint\": \"0x{:016x}\", \"footprint_fingerprint\": \"0x{:016x}\", \"resulting_inventory_fingerprint\": \"0x{:016x}\"}}",
+            binding.evidence_fingerprint,
+            binding.entry_region_evidence_fingerprint,
+            binding.final_region_binding_fingerprint,
+            binding.prior_inventory_fingerprint,
+            binding.footprint_fingerprint,
+            binding.resulting_inventory_fingerprint,
+        ));
+    } else {
+        json.push_str("null");
+    }
+    json.push_str(",\n");
     json.push_str(&format!(
         "  \"text_address\": \"0x{:016x}\",\n  \"text_byte_count\": {},\n  \"text_fingerprint\": \"0x{:016x}\",\n  \"regions\": [",
         inventory.text_address, inventory.text_byte_count, inventory.text_fingerprint
