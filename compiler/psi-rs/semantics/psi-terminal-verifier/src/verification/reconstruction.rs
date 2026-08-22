@@ -597,6 +597,12 @@ fn retained_bounded_affine_bound(
             requirements,
             semantic_axioms,
         )
+        || retained_transitively_alias_substituted_affine_bound(
+            context,
+            goal,
+            requirements,
+            semantic_axioms,
+        )
 }
 
 fn retained_landed_literal_affine_bound(
@@ -702,6 +708,81 @@ fn retained_alias_substituted_affine_bound(
                         })
                     })
                 })
+        })
+}
+
+fn retained_transitively_alias_substituted_affine_bound(
+    context: &PropositionContext,
+    goal: &Proposition,
+    requirements: &[Proposition],
+    semantic_axioms: &[Proposition],
+) -> bool {
+    let facts = || requirements.iter().chain(semantic_axioms);
+    let mut bounds_by_left_endpoint = BTreeMap::<_, Vec<_>>::new();
+    for fact in facts() {
+        let Proposition::LessOrEqual(left, _) = fact else {
+            continue;
+        };
+        if matches!(left, ScalarTerm::Value { .. }) {
+            bounds_by_left_endpoint
+                .entry(left.clone())
+                .or_default()
+                .push(fact);
+        }
+    }
+
+    facts()
+        .filter_map(|equality| match equality {
+            Proposition::Equal(left, right) => Some((left, right)),
+            _ => None,
+        })
+        .any(|(equality_left, equality_right)| {
+            [
+                (equality_left, equality_right),
+                (equality_right, equality_left),
+            ]
+            .into_iter()
+            .filter(|(root, alias)| {
+                root != alias
+                    && matches!(root, ScalarTerm::Value { .. })
+                    && matches!(alias, ScalarTerm::Value { .. })
+            })
+            .any(|(root, alias)| {
+                facts().any(|left_fact| {
+                    let Proposition::LessOrEqual(left, middle) = left_fact else {
+                        return false;
+                    };
+                    if !matches!(middle, ScalarTerm::Value { .. }) {
+                        return false;
+                    }
+                    bounds_by_left_endpoint
+                        .get(middle)
+                        .is_some_and(|right_facts| {
+                            right_facts.iter().any(|right_fact| {
+                                if std::ptr::eq(left_fact, *right_fact) {
+                                    return false;
+                                }
+                                let Proposition::LessOrEqual(_, right) = right_fact else {
+                                    unreachable!("only integer bounds are indexed")
+                                };
+                                let root_bound = if alias == left {
+                                    Proposition::LessOrEqual(root.clone(), right.clone())
+                                } else if alias == right {
+                                    Proposition::LessOrEqual(left.clone(), root.clone())
+                                } else {
+                                    return false;
+                                };
+                                retained_affine_bound_from_root(
+                                    context,
+                                    goal,
+                                    semantic_axioms,
+                                    root,
+                                    &root_bound,
+                                )
+                            })
+                        })
+                })
+            })
         })
 }
 
@@ -2481,6 +2562,86 @@ mod tests {
             &[
                 Proposition::Equal(value(5, signed), value(4, signed)),
                 alias_bound,
+            ],
+        ));
+    }
+
+    #[test]
+    fn exact_division_selects_transitive_bound_on_affine_root_alias() {
+        let signed = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let context = PropositionContext::from_value_types((1..=6).map(|id| {
+            (
+                ValueId::new(id).expect("value id"),
+                ScalarType::Integer(signed),
+            )
+        }))
+        .expect("six i8 values");
+        let goal = CanonicalScalarGoal::ExactDivisionDefined {
+            integer_type: signed,
+            left: value(1, signed),
+            right: value(2, signed),
+        };
+        let root_alias = Proposition::Equal(value(3, signed), value(4, signed));
+        let lower_to_middle = Proposition::LessOrEqual(
+            ScalarTerm::integer(signed, IntegerValue::Signed(0)).expect("i8 zero"),
+            value(5, signed),
+        );
+        let middle_to_alias = Proposition::LessOrEqual(value(5, signed), value(4, signed));
+        let definition = Proposition::Equal(
+            value(2, signed),
+            ScalarTerm::exact_integer_add(
+                signed,
+                value(3, signed),
+                ScalarTerm::integer(signed, IntegerValue::Signed(1)).expect("i8 one"),
+            )
+            .expect("exact add"),
+        );
+        assert!(exact_division_has_prior_certificate(
+            &context,
+            &goal,
+            std::slice::from_ref(&definition),
+            &[
+                root_alias.clone(),
+                lower_to_middle.clone(),
+                middle_to_alias.clone(),
+            ],
+        ));
+
+        let alias_to_middle = Proposition::LessOrEqual(value(4, signed), value(5, signed));
+        let middle_to_ceiling = Proposition::LessOrEqual(
+            value(5, signed),
+            ScalarTerm::integer(signed, IntegerValue::Signed(-3)).expect("i8 -3"),
+        );
+        assert!(exact_division_has_prior_certificate(
+            &context,
+            &goal,
+            std::slice::from_ref(&definition),
+            &[root_alias.clone(), alias_to_middle, middle_to_ceiling,],
+        ));
+        assert!(!exact_division_has_prior_certificate(
+            &context,
+            &goal,
+            std::slice::from_ref(&definition),
+            &[lower_to_middle.clone(), middle_to_alias.clone()],
+        ));
+        assert!(!exact_division_has_prior_certificate(
+            &context,
+            &goal,
+            std::slice::from_ref(&definition),
+            &[
+                root_alias.clone(),
+                lower_to_middle.clone(),
+                Proposition::LessOrEqual(value(6, signed), value(4, signed)),
+            ],
+        ));
+        assert!(!exact_division_has_prior_certificate(
+            &context,
+            &goal,
+            &[definition],
+            &[
+                Proposition::Equal(value(3, signed), value(6, signed)),
+                lower_to_middle,
+                middle_to_alias,
             ],
         ));
     }
