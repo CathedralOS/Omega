@@ -1511,9 +1511,14 @@ Remaining:
   lives in dedicated, side-local `cast_custody` modules. Production and
   reconstruction independently own unique-spine selection, exact
   witness/kernel replay, and final `IntegerCastBound` completion; the broader
-  evidence selectors retain their existing order and proof shapes. This
-  completes contiguous cast-chain custody for exact divide/remainder goals but
-  does not promote either whole row: affine/cast,
+  evidence selectors retain their existing order and proof shapes. Cast
+  evidence selection now lives in dedicated, side-local `cast_selection`
+  modules. Production and reconstruction independently preserve direct-bound,
+  landed-literal, fixed one-alias, closed-strengthening,
+  alias-landed-literal, then fixed two-alias precedence; source-carrier literal
+  remapping remains with cast custody. No proof shape or search frontier
+  changes. This completes contiguous cast-chain custody for exact
+  divide/remainder goals but does not promote either whole row: affine/cast,
   shift/cast, joins, and correlated results remain trusted-reducer work, and
   `fully-derived false` is unchanged. The root-bound child may now also come
   from exactly one retained same-carrier `root == literal` fact when that
@@ -2515,7 +2520,11 @@ Owners:
   written-output handoff now also requires a native output path to equal its
   flat receipt's installed path before auxiliary reporting or report
   construction; object output carries no executable receipts, and check-only
-  cannot masquerade as a written output.
+  cannot masquerade as a written output. Before that handoff is consumed, its
+  optional bundle receipt must also satisfy the same canonical root-derived
+  path, role, shared publication/certificate/container identity, valid
+  installation seal, and distinct-installation checks that final report
+  construction independently replays.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
