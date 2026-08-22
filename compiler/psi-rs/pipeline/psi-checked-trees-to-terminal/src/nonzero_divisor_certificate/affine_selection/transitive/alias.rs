@@ -15,7 +15,9 @@ pub(super) fn prove(
     semantic_axioms: &[Proposition],
     definitions: &DefinitionIndex,
 ) -> Option<ProofNode> {
-    candidates::AliasedTransitiveCandidates::new(assumptions, semantic_axioms).find(
+    candidates::find(
+        assumptions,
+        semantic_axioms,
         |root, alias, left, right, left_proof, right_proof, equality_proof| {
             completion::prove(
                 context,
