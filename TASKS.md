@@ -709,7 +709,23 @@ Owners:
   replays that context against the exact installed realization and destination
   preparation before writing and again before exposing the still-unpublished
   written carrier; this establishes neither consumer semantics nor publication
-  authority.
+  authority. Successful bound external-root writer execution now returns a
+  sealed non-clonable carrier retaining the exact AOT-lowered fragment beside
+  the installation-owned written destination and resolved context. The outward
+  consumer independently replays canonical lowered bytes, footprint, emitted
+  identity, invocation, target architecture, and the exact installed
+  realization; rejection only borrows the carrier, preserving every input for
+  corrected retry. The destination remains unpublished and this transition
+  establishes neither consumer semantics nor publication authority. Successful
+  external-root writer execution now also retains the exact admitted provider
+  execution, target architecture, source invocation, writer plan, and
+  installation-owned written destination/context. Its outward consumer
+  independently re-lowers and replays the writer against those retained
+  provider and installation facts, while the compiler's written bound carrier
+  retains that complete provider evidence beside the exact AOT-lowered
+  fragment. Validation rejection only borrows the carriers, preserving complete
+  retry ownership; no consumer semantics or publication authority is
+  established.
 
 Acceptance: UART/MMIO, shared-page IPC, and ordinary RAM use one extent/layout
 foundation with different profiles. Misalignment, insufficient rights,
@@ -1584,7 +1600,26 @@ Remaining:
   its retained literal, closed-strengthening, and exact two-fact forms. Fixed
   endpoint substitution likewise lives in independent side-local
   `integer_selection/substitution` modules; each side owns its existing one-
-  and two-equality completion without sharing authority. Recursive proposition
+  and two-equality completion without sharing authority. One-substitution
+  inner-relation custody now lives in independent side-local
+  `integer_selection/substitution/relation` modules. Production alone preserves
+  exact or closed-strengthened prior relation, exact two-fact transitivity,
+  affine custody, then eligible pure closed relation precedence;
+  reconstruction independently rechecks its retained-fact, two-fact, and
+  affine forms. Equality orientation, citation identity, endpoint selection,
+  and the outer `IntegerLessOrEqualSubstitution` proof remain in each parent.
+  The fixed two-equality affine sibling, proof shapes, rejection behavior, and
+  finite search frontier are unchanged. Fixed two-equality endpoint
+  substitution now lives in independent side-local
+  `integer_selection/substitution/two` modules. Production alone retains the
+  outer and inner equality citations, proves the final-alias affine relation,
+  and nests inner then outer `IntegerLessOrEqualSubstitution` nodes on the
+  unchanged endpoint; reconstruction independently rechecks the same three
+  distinct same-carrier values and final affine relation. One-equality relation
+  custody remains preferred in each parent. Equality order, citation
+  identities, endpoint orientation, proof shape, missing, reused, redirected,
+  mistyped, or cyclic rejection, and the exact two-equality frontier are
+  unchanged; a third alias remains outside. Recursive proposition
   coordination, precedence, ledger citation order, equality orientation,
   endpoint selection, proof shapes, rejection behavior, and the finite search
   frontier are unchanged. Certificate-entry custody now lives
@@ -1647,7 +1682,16 @@ Remaining:
   equalities and typed literals. Direct-bound, literal, one-alias, transitive,
   alias-transitive, then two-alias precedence, citation and endpoint order,
   rejection behavior, proof shapes, and the finite search frontier are
-  unchanged. A
+  unchanged. Fixed one-intermediate-alias affine literal custody now lives in
+  independent side-local `affine_selection/literal/alias` modules. Production
+  alone retains the distinct root-alias and alias-literal citation identities
+  and constructs the closed reflexive relation followed by two exact
+  substitutions; reconstruction independently rechecks the same typed
+  equalities and both root-bound orientations. Direct landed-literal custody
+  remains preferred in each parent. Citation order, endpoint orientation,
+  nested proof shape, reused, redirected, or mistyped rejection, and the
+  single-intermediate-alias frontier are unchanged; no recursive alias search
+  is introduced. A
   single exact prior value equality may also transport a completed affine bound
   from its checked target alias to the canonical goal endpoint. The producer
   replaces that one endpoint, constructs the bounded affine relation directly,
@@ -2850,6 +2894,32 @@ Owners:
   report receipts while retaining literal status 70 for every row. Stdout-
   bearing carrier probes remain unchanged, and the 795 exact-owner pin remains
   stable.
+  Five further authored-root output/operator executions—bounded-carrier
+  `write_line`, cross-state nested-carrier text building, shift operators,
+  bitwise operators, and the popcount loop—now launch only from exact checked-
+  report receipts while retaining literal statuses 70, 0, 70, 70, and 70. Both
+  output probes retain their exact `Room A1` stdout assertions, and the 795
+  exact-owner pin remains stable.
+  Five further authored-root operator/value-call executions—xorshift PRNG
+  composition, bitwise guard subjects, suffixed integer literals, value-
+  position branching calls, and free-machine value calls—now launch only from
+  exact checked-report receipts while retaining literal status 70 for every
+  row. The 795 exact-owner pin remains stable, and the existing receipt-drift
+  matrix continues to expose no executable path.
+  Five further authored-root by-value machine executions—free-machine struct
+  arguments, case-bearing parameter self-write, attached-machine struct
+  arguments, record forwarding across a nested statement call, and free-
+  machine struct returns—now launch only from exact checked-report receipts
+  while retaining literal status 70 for every row. The 795 exact-owner pin
+  remains stable.
+  Five further authored-root machine/integer executions—free-machine mutable-
+  argument value calls, looping free-machine value calls, widened integer
+  comparisons, widened bitwise operations, and 16-bit cast roundtrips—now
+  launch only from exact checked-report receipts while retaining literal status
+  70 for every row. The 795 exact-owner pin remains stable. The separate mixed
+  numeric-cast fixture remains unmigrated because current `Float::add` boundary
+  selection resolves zero exact typed traits; receipt work does not mask that
+  diagnostic.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
@@ -3373,9 +3443,13 @@ Remaining N6/N8 work:
   monus operation and its complete dependent
   order/metric/Cauchy/Rat corpus now use `Nat::saturating_sub`; measured-recursion
   recognition and affected pass/fail canaries consume the same final identity.
-  Migrate `Granted::content` and the content-projection examples to explicit
-  `as Nat` conversions while retaining `IntervalSet<Nat>` as their public
-  nonnegative algebra. Add the integer-policy bridge catalog and the separate
+  `Granted::content` and the normalized content-projection examples now embed
+  fixed unsigned/address fields uniformly into proof `Int`, spell the exact
+  `as Nat` conversions explicitly, and retain `IntervalSet<Nat>` as their
+  public nonnegative algebra. Canonical content normalization erases only that
+  exact proof conversion around an otherwise admitted scalar term; signed
+  runtime embeddings still reject at the closed projection boundary. Add the
+  integer-policy bridge catalog and the separate
   `FloatMeaning` projection rules described by
   [`total_specification_arithmetic.md`](wiki/design_briefs/total_specification_arithmetic.md).
 - Then migrate suffix law discovery to propositions plus explicit conformances,

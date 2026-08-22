@@ -91,7 +91,7 @@ fn checked_facts_lift_a_singleton_into_the_interval_set_algebra() {
         trait Content<A> {
             machine project(subject: &Self) -> A;
         }
-        boundary machine embed<T>(value: T) -> Nat;
+        boundary machine embed<T>(value: T) -> Int;
         data Region [linear] { base: u64; length: u64; }
         domain Region::Owned;
 
@@ -99,8 +99,8 @@ fn checked_facts_lift_a_singleton_into_the_interval_set_algebra() {
         satisfies Content<IntervalSet<PhysicalMemory>>::project
         {
             IntervalSet {
-                start: embed(region.base),
-                end: embed(region.base) + embed(region.length)
+                start: embed(region.base) as Nat,
+                end: (embed(region.base) + embed(region.length)) as Nat
             }
         }
 
@@ -149,14 +149,14 @@ fn checked_facts_retain_runtime_scalar_embedding() {
         trait Content<A> {
             machine project(subject: &Self) -> A;
         }
-        boundary machine embed<T>(value: T) -> Nat;
+        boundary machine embed<T>(value: T) -> Int;
         data Region [linear] { length: u64; }
         domain Region::Owned;
 
         machine Owned::content(region: &Region) -> CountedQuantity<ByteUnit>
         satisfies Content<CountedQuantity<ByteUnit>>::project
         {
-            CountedQuantity { magnitude: embed(region.length) }
+            CountedQuantity { magnitude: embed(region.length) as Nat }
         }
 
         data Main {}
@@ -175,6 +175,36 @@ fn checked_facts_retain_runtime_scalar_embedding() {
         ContentScalarExpression::RuntimeScalarEmbedding(path)
             if matches!(path.as_slice(), [field] if field.name == "length" && field.symbol.is_valid())
     ));
+}
+
+#[test]
+fn signed_runtime_embedding_cannot_enter_a_nat_content_algebra() {
+    let diagnostics = rejected(
+        r#"
+        data Nat { case Zero; case Succ(previous: Nat); }
+        data ByteUnit {}
+        data CountedQuantity<Unit> { magnitude: Nat; }
+        trait Content<A> { machine project(subject: &Self) -> A; }
+        boundary machine embed<T>(value: T) -> Int;
+        data Region [linear] { delta: i64; }
+        domain Region::Owned;
+
+        machine Owned::content(region: &Region) -> CountedQuantity<ByteUnit>
+        satisfies Content<CountedQuantity<ByteUnit>>::project
+        {
+            CountedQuantity { magnitude: embed(region.delta) as Nat }
+        }
+
+        data Main {}
+        machine Main::main(&mut self) {}
+        "#,
+    );
+
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("outside the closed projection fragment")
+    }));
 }
 
 #[test]

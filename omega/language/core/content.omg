@@ -28,12 +28,10 @@ pub trait Content<A> {
 // builtins. They are reserved compiler symbols rather than package machines:
 // neither can be implemented, overridden, stored, or executed.
 
-// Transitional bootstrap injection of an unsigned runtime scalar directly into
-// proof Nat. The settled surface embeds every fixed-width integer/address into
-// proof Int with its carrier range, then requires an explicit exact `as Nat`
-// where a nonnegative content algebra consumes it. Migrate this declaration and
-// `Granted::content` together when that proof conversion lands. The
-// content-fragment validator admits the bootstrap surface only for
-// u8/u16/u32/u64/addr subject fields; arbitrary calls and non-scalar arguments
-// remain outside the fragment.
-boundary machine embed<T>(value: T) -> Nat;
+// Uniform specification-number injection. Every fixed-width integer and
+// address embeds into proof Int with its complete carrier range; a consumer
+// that needs a nonnegative algebra must perform an explicit exact `as Nat`
+// conversion and discharge nonnegativity from that derived range. The content-
+// fragment validator admits this surface only for u8/u16/u32/u64/addr subject
+// fields; arbitrary calls and non-scalar arguments remain outside the fragment.
+boundary machine embed<T>(value: T) -> Int;
