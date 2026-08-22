@@ -2,23 +2,25 @@
 
 use psi_core::{Proposition, ScalarTerm, ScalarType};
 
+pub(super) fn is_value(term: &ScalarTerm) -> bool {
+    matches!(term, ScalarTerm::Value { .. })
+}
+
 pub(super) fn ordered_value_endpoints<'a>(
     left: &'a ScalarTerm,
     right: &'a ScalarTerm,
 ) -> impl Iterator<Item = &'a ScalarTerm> {
     [left, right]
         .into_iter()
-        .filter(|endpoint| matches!(endpoint, ScalarTerm::Value { .. }))
+        .filter(|endpoint| is_value(endpoint))
 }
 
 pub(super) fn distinct_value_alias(root: &ScalarTerm, alias: &ScalarTerm) -> bool {
-    root != alias
-        && matches!(root, ScalarTerm::Value { .. })
-        && matches!(alias, ScalarTerm::Value { .. })
+    root != alias && is_value(root) && is_value(alias)
 }
 
 pub(super) fn exact_value_binding(root: &ScalarTerm, literal: &ScalarTerm) -> bool {
-    matches!(root, ScalarTerm::Value { .. })
+    is_value(root)
         && literal.integer_value().is_some_and(|(integer_type, _)| {
             root.scalar_type() == ScalarType::Integer(integer_type)
         })

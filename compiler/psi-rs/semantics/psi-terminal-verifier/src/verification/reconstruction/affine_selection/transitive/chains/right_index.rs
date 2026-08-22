@@ -4,6 +4,8 @@ use std::collections::BTreeMap;
 
 use psi_core::{Proposition, ScalarTerm};
 
+use super::super::super::eligibility;
+
 pub(super) struct RightLegIndex<'a> {
     by_left_endpoint: BTreeMap<ScalarTerm, Vec<&'a Proposition>>,
 }
@@ -15,7 +17,7 @@ impl<'a> RightLegIndex<'a> {
             let Proposition::LessOrEqual(left, _) = fact else {
                 continue;
             };
-            if matches!(left, ScalarTerm::Value { .. }) {
+            if eligibility::is_value(left) {
                 by_left_endpoint.entry(left.clone()).or_default().push(fact);
             }
         }

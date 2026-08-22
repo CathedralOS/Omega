@@ -3,6 +3,7 @@
 use psi_core::{Proposition, ScalarTerm};
 
 use super::super::super::super::integer_evidence::{Citation, cited_facts};
+use super::super::super::eligibility;
 
 pub(super) fn find<'a, T>(
     assumptions: &'a [Proposition],
@@ -13,7 +14,7 @@ pub(super) fn find<'a, T>(
         let Proposition::LessOrEqual(_, middle) = fact else {
             continue;
         };
-        if !matches!(middle, ScalarTerm::Value { .. }) {
+        if !eligibility::is_value(middle) {
             continue;
         }
         if let Some(result) = join(citation, fact, middle) {
