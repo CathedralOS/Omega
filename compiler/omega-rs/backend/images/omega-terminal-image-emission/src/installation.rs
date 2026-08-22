@@ -19,8 +19,7 @@ use psi_core::{
     StructuralTypeId,
 };
 use psi_terminal::{
-    StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
-    StructuralPlaceDeclaration, StructuralResultDeclaration, StructuralTypeShape,
+    StructuralMultiplicity, StructuralPathSegment, StructuralPlaceDeclaration, StructuralTypeShape,
     TerminalPsiIdentity,
 };
 use psi_terminal_fuel::TerminalFuelSchedule;
@@ -43,6 +42,7 @@ mod provider_plan_codec;
 mod structural_argument_codec;
 mod structural_return_codec;
 mod structural_scalar_codec;
+mod structural_signature_codec;
 mod value_placement_codec;
 mod wire_codec;
 use boundary_settlement_codec::{decode_boundary_settlements, encode_boundary_settlements};
@@ -57,8 +57,7 @@ use port_effect_codec::{decode_port_effects, encode_port_effects};
 use provider_plan_codec::{decode_provider_plans, encode_provider_plans};
 use structural_return_codec::{decode_structural_returns, encode_structural_returns};
 use structural_scalar_codec::{
-    decode_domains, decode_identity, decode_multiplicity, encode_domains, encode_identity,
-    multiplicity_tag,
+    decode_identity, decode_multiplicity, encode_identity, multiplicity_tag,
 };
 use wire_codec::{Reader, decode_boolean, push_u16, push_u32, push_u64};
 
@@ -2187,30 +2186,6 @@ fn encode_structural_field(
     Ok(())
 }
 
-fn encode_structural_parameter(
-    bytes: &mut Vec<u8>,
-    parameter: &StructuralParameterDeclaration,
-) -> Result<(), TerminalInstallationError> {
-    push_u64(bytes, parameter.place.get());
-    push_u32(bytes, parameter.position);
-    bytes.push(u8::from(parameter.is_self));
-    bytes.push(multiplicity_tag(parameter.multiplicity));
-    bytes.extend_from_slice(&[0; 2]);
-    push_u64(bytes, parameter.structural_type.get());
-    encode_domains(bytes, &parameter.qualifications)
-}
-
-fn encode_structural_result(
-    bytes: &mut Vec<u8>,
-    result: &StructuralResultDeclaration,
-) -> Result<(), TerminalInstallationError> {
-    push_u64(bytes, result.place.get());
-    push_u64(bytes, result.structural_type.get());
-    bytes.push(multiplicity_tag(result.multiplicity));
-    bytes.extend_from_slice(&[0; 3]);
-    encode_domains(bytes, &result.qualifications)
-}
-
 fn decode_trivial_affine_local(
     reader: &mut Reader<'_>,
 ) -> Result<StructuralPlaceDeclaration, TerminalInstallationError> {
@@ -2545,52 +2520,6 @@ fn decode_structural_field(
         identity,
         relevance,
         field_type,
-    })
-}
-
-fn decode_structural_parameter(
-    reader: &mut Reader<'_>,
-) -> Result<StructuralParameterDeclaration, TerminalInstallationError> {
-    let place = PlaceId::new(reader.u64()?).ok_or(
-        TerminalInstallationError::ZeroStructuralReturnIdentity("source place"),
-    )?;
-    let position = reader.u32()?;
-    let is_self = decode_boolean(reader.u8()?)?;
-    let multiplicity = decode_multiplicity(reader.u8()?)?;
-    if reader.u16()? != 0 {
-        return Err(TerminalInstallationError::NonzeroReservedField);
-    }
-    let structural_type = StructuralTypeId::new(reader.u64()?).ok_or(
-        TerminalInstallationError::ZeroStructuralReturnIdentity("source type"),
-    )?;
-    Ok(StructuralParameterDeclaration {
-        place,
-        position,
-        is_self,
-        structural_type,
-        multiplicity,
-        qualifications: decode_domains(reader)?,
-    })
-}
-
-fn decode_structural_result(
-    reader: &mut Reader<'_>,
-) -> Result<StructuralResultDeclaration, TerminalInstallationError> {
-    let place = PlaceId::new(reader.u64()?).ok_or(
-        TerminalInstallationError::ZeroStructuralReturnIdentity("result place"),
-    )?;
-    let structural_type = StructuralTypeId::new(reader.u64()?).ok_or(
-        TerminalInstallationError::ZeroStructuralReturnIdentity("result type"),
-    )?;
-    let multiplicity = decode_multiplicity(reader.u8()?)?;
-    if reader.take(3)? != [0; 3] {
-        return Err(TerminalInstallationError::NonzeroReservedField);
-    }
-    Ok(StructuralResultDeclaration {
-        place,
-        structural_type,
-        multiplicity,
-        qualifications: decode_domains(reader)?,
     })
 }
 

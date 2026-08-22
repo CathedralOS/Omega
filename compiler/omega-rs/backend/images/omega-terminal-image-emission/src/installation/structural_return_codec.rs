@@ -8,9 +8,12 @@ use psi_core::{ClaimId, EdgeId, MachineId, OperationId, PlaceId};
 
 use super::{
     Reader, TerminalInstallationError, TerminalInstalledStructuralReturn,
-    decode_structural_parameter, decode_structural_result, decode_trivial_affine_local,
-    decode_trivial_affine_local_type, encode_structural_parameter, encode_structural_result,
-    encode_trivial_affine_local, encode_trivial_affine_local_type, push_u32, push_u64,
+    decode_trivial_affine_local, decode_trivial_affine_local_type, encode_trivial_affine_local,
+    encode_trivial_affine_local_type, push_u32, push_u64,
+    structural_signature_codec::{
+        decode_structural_parameter, decode_structural_result, encode_structural_parameter,
+        encode_structural_result,
+    },
     value_placement_codec::{decode_placement, decode_shape, encode_placement, encode_shape},
 };
 
