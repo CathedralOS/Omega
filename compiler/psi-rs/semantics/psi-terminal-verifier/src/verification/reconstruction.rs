@@ -569,10 +569,10 @@ fn retained_cast_chain_bound(
     requirements: &[Proposition],
     semantic_axioms: &[Proposition],
 ) -> bool {
-    let Proposition::LessOrEqual(goal_left, goal_right) = goal else {
+    if !matches!(goal, Proposition::LessOrEqual(_, _)) {
         return false;
-    };
-    requirements
+    }
+    if requirements
         .iter()
         .chain(semantic_axioms)
         .filter_map(|root_bound| match root_bound {
@@ -584,30 +584,78 @@ fn retained_cast_chain_bound(
                 .into_iter()
                 .filter(|root| matches!(root, ScalarTerm::Value { .. }))
                 .any(|root| {
-                    [goal_left, goal_right]
-                        .into_iter()
-                        .filter(|target| matches!(target, ScalarTerm::Value { .. }))
-                        .any(|target| {
-                            let Some(definition_axioms) =
-                                retained_exact_cast_chain_axioms(root, target, semantic_axioms)
-                            else {
-                                return false;
-                            };
-                            check_integer_cast_chain_witness(
-                                context,
-                                semantic_axioms,
-                                &IntegerCastChainWitness {
-                                    root: root.clone(),
-                                    target: target.clone(),
-                                    definition_axioms,
-                                },
-                            )
-                            .is_ok_and(|chain| {
-                                check_integer_cast_bound_conversion(&chain, root_bound, goal)
-                                    .is_ok()
-                            })
+                    retained_cast_bound_from_root(context, goal, semantic_axioms, root, root_bound)
+                })
+        })
+    {
+        return true;
+    }
+    requirements
+        .iter()
+        .chain(semantic_axioms)
+        .filter_map(|equality| match equality {
+            Proposition::Equal(left, right) => Some((left, right)),
+            _ => None,
+        })
+        .any(|(left, right)| {
+            [(left, right), (right, left)]
+                .into_iter()
+                .filter(|(root, literal)| {
+                    matches!(root, ScalarTerm::Value { .. })
+                        && literal.integer_value().is_some_and(|(integer_type, _)| {
+                            root.scalar_type() == psi_core::ScalarType::Integer(integer_type)
                         })
                 })
+                .any(|(root, literal)| {
+                    [
+                        Proposition::LessOrEqual(literal.clone(), root.clone()),
+                        Proposition::LessOrEqual(root.clone(), literal.clone()),
+                    ]
+                    .iter()
+                    .any(|root_bound| {
+                        retained_cast_bound_from_root(
+                            context,
+                            goal,
+                            semantic_axioms,
+                            root,
+                            root_bound,
+                        )
+                    })
+                })
+        })
+}
+
+fn retained_cast_bound_from_root(
+    context: &PropositionContext,
+    goal: &Proposition,
+    semantic_axioms: &[Proposition],
+    root: &ScalarTerm,
+    root_bound: &Proposition,
+) -> bool {
+    let Proposition::LessOrEqual(goal_left, goal_right) = goal else {
+        return false;
+    };
+    [goal_left, goal_right]
+        .into_iter()
+        .filter(|target| matches!(target, ScalarTerm::Value { .. }))
+        .any(|target| {
+            let Some(definition_axioms) =
+                retained_exact_cast_chain_axioms(root, target, semantic_axioms)
+            else {
+                return false;
+            };
+            check_integer_cast_chain_witness(
+                context,
+                semantic_axioms,
+                &IntegerCastChainWitness {
+                    root: root.clone(),
+                    target: target.clone(),
+                    definition_axioms,
+                },
+            )
+            .is_ok_and(|chain| {
+                check_integer_cast_bound_conversion(&chain, root_bound, goal).is_ok()
+            })
         })
 }
 
@@ -2777,6 +2825,10 @@ mod tests {
                 ValueId::new(5).expect("wide root"),
                 ScalarType::Integer(i32_type),
             ),
+            (
+                ValueId::new(6).expect("redirected root"),
+                ScalarType::Integer(i32_type),
+            ),
         ])
         .expect("cast values");
         let goal = CanonicalScalarGoal::ExactDivisionDefined {
@@ -2834,6 +2886,42 @@ mod tests {
             &goal,
             &[first_cast.clone(), second_cast.clone()],
             std::slice::from_ref(&wide_bound),
+        ));
+        assert!(exact_division_has_prior_certificate(
+            &context,
+            &goal,
+            &[first_cast.clone(), second_cast.clone()],
+            &[Proposition::Equal(
+                value(5, i32_type),
+                ScalarTerm::integer(i32_type, IntegerValue::Signed(1)).expect("i32 one"),
+            )],
+        ));
+        assert!(exact_division_has_prior_certificate(
+            &context,
+            &goal,
+            &[first_cast.clone(), second_cast.clone()],
+            &[Proposition::Equal(
+                value(5, i32_type),
+                ScalarTerm::integer(i32_type, IntegerValue::Signed(-2)).expect("i32 -2"),
+            )],
+        ));
+        assert!(!exact_division_has_prior_certificate(
+            &context,
+            &goal,
+            &[first_cast.clone(), second_cast.clone()],
+            &[Proposition::Equal(
+                value(6, i32_type),
+                ScalarTerm::integer(i32_type, IntegerValue::Signed(1)).expect("i32 one"),
+            )],
+        ));
+        assert!(!exact_division_has_prior_certificate(
+            &context,
+            &goal,
+            &[first_cast.clone(), second_cast.clone()],
+            &[Proposition::Equal(
+                value(5, i32_type),
+                ScalarTerm::integer(i32_type, IntegerValue::Signed(2)).expect("i32 two"),
+            )],
         ));
         assert!(!exact_division_has_prior_certificate(
             &context,

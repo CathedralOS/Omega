@@ -1454,7 +1454,16 @@ Remaining:
   contiguous cast-chain custody for exact divide/remainder goals but does not
   promote either whole row: affine/cast,
   shift/cast, joins, and correlated results remain trusted-reducer work, and
-  `fully-derived false` is unchanged. A third
+  `fully-derived false` is unchanged. The root-bound child may now also come
+  from exactly one retained same-carrier `root == literal` fact when that
+  literal is the canonical bound endpoint. The producer builds the closed
+  reflexive order, substitutes the root endpoint once, then applies the cast
+  rule; reconstruction independently selects the same exact equality. Direct
+  bounds remain preferred. Missing, redirected, mistyped, or changed endpoint
+  facts reject. Stronger-literal bridges, root aliases, affine/cast,
+  shift/cast, joins, and correlated results remain outside this fixed sibling;
+  neither complete exact row changes trust and `fully-derived false` remains.
+  A third
   non-serialized common checker now normalizes the
   complete exact-shift core shared by direct, cast-adjacent, affine-adjacent,
   and divide/remainder-adjacent families. It binds a nonempty, strictly ordered
