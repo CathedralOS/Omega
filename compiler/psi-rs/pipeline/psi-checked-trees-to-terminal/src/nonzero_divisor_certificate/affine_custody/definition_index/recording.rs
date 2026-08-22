@@ -25,10 +25,13 @@ impl DefinitionIndex {
         Self { by_input }
     }
 
-    pub(in crate::nonzero_divisor_certificate::affine_custody) fn candidates(
+    pub(in crate::nonzero_divisor_certificate::affine_custody) fn candidates_from(
         &self,
         input: &ScalarTerm,
-    ) -> &[usize] {
-        self.by_input.get(input).map(Vec::as_slice).unwrap_or(&[])
+        start: usize,
+    ) -> impl Iterator<Item = usize> + '_ {
+        let candidates = self.by_input.get(input).map(Vec::as_slice).unwrap_or(&[]);
+        let first = candidates.partition_point(|&index| index < start);
+        candidates[first..].iter().copied()
     }
 }
