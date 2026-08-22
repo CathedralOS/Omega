@@ -1288,9 +1288,12 @@ fn runtime_carrier_byte_write_width_coercion_canary_runs() {
 
     let scratch = std::env::temp_dir().join(format!("omega-carrier-coerce-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("carrier byte-write coercion canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("carrier byte-write coercion canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("carrier byte-write coercion canary should run");
     assert_eq!(
