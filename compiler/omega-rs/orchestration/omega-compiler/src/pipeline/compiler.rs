@@ -227,6 +227,21 @@ fn extract_external_binding_rows(
                 &row.requirement_identity,
             )
             .map_err(|diagnostic| vec![diagnostic])?;
+            // Boundary operators are consumed by checked operator dispatch,
+            // where the exact selected ProviderPlan realization is retained
+            // on the operator-use fact. They are not host ABI calls and must
+            // not be reinterpreted as platform-call catalog entries merely
+            // because their selected realization is compiler-owned.
+            if matches!(&binding, ExternalBindingKind::CompilerIntrinsic { .. })
+                && typed.operators().iter().any(|operator| {
+                    operator.is_boundary
+                        && psi_typed_trees::operator::boundary_operator_requirement_identity(
+                            typed, operator,
+                        ) == plan.schema.trait_name
+                })
+            {
+                continue;
+            }
             let compatibility_policy = match &binding {
                 ExternalBindingKind::CompilerIntrinsic { .. } => None,
                 ExternalBindingKind::Syscall { .. } => {
@@ -349,6 +364,42 @@ fn selected_source_boundary_entry_plan(
         return Err(Diagnostic::error(format!(
             "selected source boundary entry ProviderPlan `{provider_plan_name}` method `{method_name}` has an empty exact requirement owner"
         )));
+    }
+
+    let schema_operators = typed
+        .operators()
+        .iter()
+        .filter(|operator| {
+            operator.is_boundary
+                && psi_typed_trees::operator::boundary_operator_requirement_identity(
+                    typed, operator,
+                ) == plan.schema.trait_name
+        })
+        .collect::<Vec<_>>();
+    if !schema_operators.is_empty() {
+        let [operator] = schema_operators.as_slice() else {
+            return Err(Diagnostic::error(format!(
+                "selected source boundary entry schema `{}` resolves to {} exact typed boundary operators",
+                plan.schema.trait_name,
+                schema_operators.len()
+            )));
+        };
+        let operator_identity =
+            psi_typed_trees::operator::boundary_operator_requirement_identity(typed, operator);
+        if method.name != "realize"
+            || method.requirement_owner != operator_identity
+            || method.requirement_identity != operator_identity
+        {
+            return Err(Diagnostic::error(format!(
+                "selected source boundary entry ProviderPlan `{provider_plan_name}` does not bind exact boundary operator `{operator_identity}`"
+            )));
+        }
+        return match method.calling_plan_fingerprint {
+            None => Ok(None),
+            Some(_) => Err(Diagnostic::error(format!(
+                "selected source boundary operator `{operator_identity}` retains a trait calling-plan fingerprint"
+            ))),
+        };
     }
 
     let schema_owners = typed
@@ -1211,6 +1262,76 @@ mod tests {
                 Ok(Some(fixture.expected.clone()))
             );
         }
+    }
+
+    #[test]
+    fn selected_source_boundary_entry_plan_accepts_exact_operator_custody_without_trait_abi() {
+        let source = r#"
+            data CheckedMath {}
+            boundary operator CheckedMath::offset_zero(value: i32) -> i32;
+
+            data CheckedMathProvider {}
+            machine CheckedMathProvider::offset_zero_impl(input: i32) -> i32
+            satisfies CheckedMath::offset_zero
+            {
+                transition { _ -> (input) }
+            }
+        "#;
+        let tokens = psi_source_files_to_tokens::Lexer::new(source)
+            .tokenize()
+            .expect("tokenize operator custody fixture");
+        let syntax = psi_tokens_to_syntax_trees::parse_syntax_trees(&tokens)
+            .expect("parse operator custody fixture");
+        let resolved = psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax)
+            .expect("resolve operator custody fixture");
+        let typed =
+            psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+                .expect("type operator custody fixture");
+        let mut plans = crate::pipeline::provider_plans::derive_satisfies_plans(&typed, None);
+        let plan_index = plans
+            .iter()
+            .position(|plan| {
+                plan.schema
+                    .trait_name
+                    .starts_with("operator::CheckedMath::offset_zero")
+            })
+            .expect("exact operator provider plan");
+        let selected = vec![plans[plan_index].name.clone()];
+        let method = plans[plan_index].schema.methods[0].clone();
+
+        assert_eq!(
+            selected_source_boundary_entry_plan(
+                &typed,
+                &plans,
+                &selected,
+                &[],
+                &selected[0],
+                &plans[plan_index].schema.trait_name,
+                &method.name,
+                &method.requirement_identity,
+            )
+            .expect("exact boundary operator custody"),
+            None,
+            "operator dispatch owns its selected realization; it is not a trait ABI call",
+        );
+
+        plans[plan_index].schema.methods[0].requirement_owner = "other::Owner".to_owned();
+        let error = selected_source_boundary_entry_plan(
+            &typed,
+            &plans,
+            &selected,
+            &[],
+            &selected[0],
+            &plans[plan_index].schema.trait_name,
+            &method.name,
+            &method.requirement_identity,
+        )
+        .expect_err("operator requirement-owner drift must reject");
+        assert!(
+            error
+                .message
+                .contains("does not bind exact boundary operator")
+        );
     }
 
     #[test]

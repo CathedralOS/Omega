@@ -564,6 +564,29 @@ Owners:
   independently replay descriptor, current/source borrow polarities, and
   operation before specialization; coordinated privilege rewrites reject while
   returning the unchanged authority-bearing request.
+  Stable read/write primitive specialization now exposes a borrowed outward-
+  lowering preflight that independently replays the exact retained placement,
+  admitted profile/resource row, descriptor geometry, resident-content
+  custody, borrow polarity, authorization, and operation specialization.
+  Rejection consumes nothing, so copied-evidence drift can be corrected and
+  the same sealed request retried; no memory event or target lowering is
+  established. Stable bounded compound-mutation specialization exposes the
+  same borrowed preflight over its exact placement/profile/resource,
+  descriptor and footprint, resident custody, exclusive current/source loans,
+  authorization, and `CompoundMutation` identity. Rejection likewise consumes
+  nothing and establishes no read-patch-write event or target lowering.
+  External Read/Take/Write specialization now replays exact placement,
+  profile/resources, descriptor/footprint, authorization, admitted External-
+  or-conservative-Stable supply, and retained operation before outward
+  lowering. Rejection performs no storage observation and consumes no custody,
+  so repair and retry use the same sealed request; no external transfer or
+  target lowering is established.
+  Atomic primitive specialization now exposes borrowed outward-lowering replay
+  of the exact placement/profile/resource authority, descriptor and footprint,
+  resident custody, admitted Atomic supply, operation family, ordering law,
+  and retained specialization. Rejection performs no atomic attempt and
+  consumes no custody, so corrected retry uses the same sealed request; no
+  target lowering or synthesized retry loop is established.
   Placement admission now retains the complete admitted resource profile
   through borrowed, owned, and borrowed-resident access; primitive
   specialization independently replays the exact profile/loan/plan join and
@@ -1619,7 +1642,41 @@ Remaining:
   custody remains preferred in each parent. Equality order, citation
   identities, endpoint orientation, proof shape, missing, reused, redirected,
   mistyped, or cyclic rejection, and the exact two-equality frontier are
-  unchanged; a third alias remains outside. Recursive proposition
+  unchanged; a third alias remains outside. Exact two-fact integer-order
+  custody now lives in independent side-local
+  `integer_selection/order/transitive` modules. Production alone retains the
+  ordered left/right citation identities and constructs one
+  `IntegerLessOrEqualTransitivity` proof; reconstruction independently rechecks
+  the exact goal-left endpoint, shared middle value, and goal-right endpoint.
+  Direct retained relations, closed strengthening, and landed-literal checks
+  remain in each order parent. Citation order, proof shape, disconnected or
+  missing-leg rejection, and the exact two-fact frontier are unchanged; no
+  third leg or generalized path search is introduced. One-bridge closed
+  integer-order custody likewise now lives in independent side-local
+  `integer_selection/order/closed` modules. Production preserves retained
+  citation order and constructs either retained-bound-then-closed-tail or
+  closed-head-then-retained-bound transitivity; reconstruction independently
+  checks the same endpoint and closed bridge. Exact retained relations remain
+  preferred, while landed-literal and exact two-fact custody remain separate.
+  Citation order, endpoint orientation, proof shape, nonclosed, mistyped, or
+  weaker rejection, and the single-bridge frontier are unchanged. Canonical
+  compound-proposition custody now lives in independent side-local
+  `integer_selection/logical` modules. Production alone constructs conjunction
+  children in source order and selects the first provable disjunction arm;
+  reconstruction independently requires every member of a nonempty
+  conjunction and accepts the first retained disjunct. Exact retained
+  proposition precedence, recursive child dispatch, Truth and atomic-bound
+  ownership, arm indices, proof shapes, incomplete or reordered rejection, and
+  the finite evidence frontier are unchanged. Atomic integer-bound custody now
+  lives in independent side-local `integer_selection/bound` modules.
+  Production alone preserves exact/closed order, exact two-citation
+  transitivity, fixed substitution, cast, then affine proof precedence;
+  reconstruction independently preserves closed/direct-literal/two-fact,
+  substitution, cast, then affine retained-evidence precedence. Exact whole-
+  proposition citation remains preferred in each parent, while Truth and
+  recursive compound coordination remain separate. Citation identities,
+  endpoint orientation, proof shapes, rejection behavior, and every finite
+  evidence frontier are unchanged. Recursive proposition
   coordination, precedence, ledger citation order, equality orientation,
   endpoint selection, proof shapes, rejection behavior, and the finite search
   frontier are unchanged. Certificate-entry custody now lives
@@ -2916,10 +2973,29 @@ Owners:
   argument value calls, looping free-machine value calls, widened integer
   comparisons, widened bitwise operations, and 16-bit cast roundtrips—now
   launch only from exact checked-report receipts while retaining literal status
-  70 for every row. The 795 exact-owner pin remains stable. The separate mixed
-  numeric-cast fixture remains unmigrated because current `Float::add` boundary
-  selection resolves zero exact typed traits; receipt work does not mask that
-  diagnostic.
+  70 for every row. The 795 exact-owner pin remains stable.
+  Five further authored-root versioning/equality executions—explicit version
+  migration, two-era and three-era lineage matching, scalar `Equatable`
+  equality/inequality guarding, and mixed-shape case membership—now launch
+  only from exact checked-report receipts while retaining literal status 70
+  for every row. The 795 exact-owner pin remains stable.
+  Five further authored-root wire executions—max-one repeated-field roundtrip,
+  honest Utf8 roundtrip, Utf8 edge-class validation, invalid-Utf8 refusal, and
+  numbered schema-as-value use—now launch only from exact checked-report
+  receipts while retaining literal status 70 for every row. Five more wire/
+  comptime executions—decoded-field let comparison, repeated-then-string
+  encoding, nested-plus-repeated roundtrip, transitive const-array length, and
+  parenthesized bare-call-arm const-array length—use the same receipt-only
+  launch boundary and statuses. The 795 exact-owner pin remains stable.
+  The two-row scalar-operation entry-result probe now launches its builtin and
+  comparison results only from exact checked-report receipts while retaining
+  literal statuses 70 and 1. The 795 exact-owner pin remains stable. All
+  four remaining authored-root numeric/float executions in this module—mixed
+  numeric casts, float place comparison, float comparison guards, and float
+  arithmetic—now also launch only from exact checked-report receipts while
+  retaining literal status 70. The operator target-row regression is repaired,
+  the 795 exact-owner pin remains stable, and this module no longer reconstructs
+  any native executable from a build-directory/name convention.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
