@@ -2467,6 +2467,7 @@ impl<'extent> PlacedView<'extent> {
 #[derive(Debug, Clone, Copy)]
 enum PlacementAuthorityRef<'view, 'extent> {
     Borrowed(&'view PlacedView<'extent>),
+    CorrespondedBorrowed(&'view SchemaCorrespondedPlacedView<'extent>),
     BorrowedResident(&'view EstablishedBorrowedResidentPlacement<'extent>),
     EstablishedOwned(&'view EstablishedOwnedPlacement),
 }
@@ -2475,6 +2476,7 @@ impl<'view, 'extent> PlacementAuthorityRef<'view, 'extent> {
     const fn base(self) -> u64 {
         match self {
             Self::Borrowed(view) => view.loan.base(),
+            Self::CorrespondedBorrowed(view) => view.view().loan.base(),
             Self::BorrowedResident(established) => established.base(),
             Self::EstablishedOwned(established) => established.extent().base(),
         }
@@ -2483,6 +2485,7 @@ impl<'view, 'extent> PlacementAuthorityRef<'view, 'extent> {
     const fn placement_plan(self) -> &'view ValidatedPlacementPlan {
         match self {
             Self::Borrowed(view) => &view.plan,
+            Self::CorrespondedBorrowed(view) => &view.view().plan,
             Self::BorrowedResident(established) => established.placement_plan(),
             Self::EstablishedOwned(established) => established.placement_plan(),
         }
@@ -2491,6 +2494,7 @@ impl<'view, 'extent> PlacementAuthorityRef<'view, 'extent> {
     const fn profile_receipt(self) -> ResourceProfileReceiptId {
         match self {
             Self::Borrowed(view) => view.profile_receipt,
+            Self::CorrespondedBorrowed(view) => view.view().profile_receipt,
             Self::BorrowedResident(established) => established.profile_receipt(),
             Self::EstablishedOwned(established) => established.profile_receipt(),
         }
@@ -2499,6 +2503,7 @@ impl<'view, 'extent> PlacementAuthorityRef<'view, 'extent> {
     const fn profile(self) -> &'view AdmittedResourceProfile {
         match self {
             Self::Borrowed(view) => &view.profile,
+            Self::CorrespondedBorrowed(view) => &view.view().profile,
             Self::BorrowedResident(established) => established.profile(),
             Self::EstablishedOwned(established) => &established.admission.profile,
         }
@@ -2509,6 +2514,11 @@ impl<'view, 'extent> PlacementAuthorityRef<'view, 'extent> {
             Self::Borrowed(view) => {
                 validate_placement_admission(&view.loan, &view.plan, &view.profile)
             }
+            Self::CorrespondedBorrowed(view) => validate_placement_admission(
+                &view.view().loan,
+                &view.view().plan,
+                &view.view().profile,
+            ),
             Self::BorrowedResident(established) => validate_placement_admission(
                 established.loan(),
                 established.placement_plan(),
@@ -2522,7 +2532,7 @@ impl<'view, 'extent> PlacementAuthorityRef<'view, 'extent> {
 
     fn replay_resident_content(self, transition: &str) -> Result<(), AccessPlanDiagnostic> {
         let replay = match self {
-            Self::Borrowed(_) => return Ok(()),
+            Self::Borrowed(_) | Self::CorrespondedBorrowed(_) => return Ok(()),
             Self::BorrowedResident(established) => validate_provider_content_binding(
                 established.placement_plan(),
                 established.loan(),
@@ -2539,9 +2549,28 @@ impl<'view, 'extent> PlacementAuthorityRef<'view, 'extent> {
         })
     }
 
+    fn replay_correspondence(self, transition: &str) -> Result<(), AccessPlanDiagnostic> {
+        match self {
+            Self::CorrespondedBorrowed(view) => view.validate_correspondence().map_err(|diagnostic| {
+                AccessPlanDiagnostic(format!(
+                    "{transition} could not replay the retained schema/device correspondence: {diagnostic}"
+                ))
+            }),
+            _ => Ok(()),
+        }
+    }
+
+    const fn correspondence(self) -> Option<&'view AdmittedSchemaDeviceCorrespondence> {
+        match self {
+            Self::CorrespondedBorrowed(view) => Some(view.correspondence()),
+            _ => None,
+        }
+    }
+
     const fn resources(self) -> &'view PlacementResourceCompatibility {
         match self {
             Self::Borrowed(view) => &view.resources,
+            Self::CorrespondedBorrowed(view) => &view.view().resources,
             Self::BorrowedResident(established) => established.resources(),
             Self::EstablishedOwned(established) => established.resources(),
         }
@@ -2550,6 +2579,7 @@ impl<'view, 'extent> PlacementAuthorityRef<'view, 'extent> {
     const fn admission(self) -> PlacementAdmissionId {
         match self {
             Self::Borrowed(view) => view.admission,
+            Self::CorrespondedBorrowed(view) => view.view().admission,
             Self::BorrowedResident(established) => established.admission(),
             Self::EstablishedOwned(established) => established.admission(),
         }
@@ -2558,6 +2588,7 @@ impl<'view, 'extent> PlacementAuthorityRef<'view, 'extent> {
     const fn source_loan(self) -> BorrowPolarity {
         let polarity = match self {
             Self::Borrowed(view) => view.loan.polarity(),
+            Self::CorrespondedBorrowed(view) => view.view().loan.polarity(),
             Self::BorrowedResident(established) => established.loan_polarity(),
             Self::EstablishedOwned(_) => LoanPolarity::Exclusive,
         };
@@ -2569,7 +2600,7 @@ impl<'view, 'extent> PlacementAuthorityRef<'view, 'extent> {
 
     const fn resident_claim(self) -> Option<ResidentClaimId> {
         match self {
-            Self::Borrowed(_) => None,
+            Self::Borrowed(_) | Self::CorrespondedBorrowed(_) => None,
             Self::BorrowedResident(established) => Some(established.resident_claim()),
             Self::EstablishedOwned(established) => Some(established.resident_claim()),
         }
@@ -2577,7 +2608,7 @@ impl<'view, 'extent> PlacementAuthorityRef<'view, 'extent> {
 
     const fn placed_occurrence(self) -> Option<PlacedOccurrenceId> {
         match self {
-            Self::Borrowed(_) => None,
+            Self::Borrowed(_) | Self::CorrespondedBorrowed(_) => None,
             Self::BorrowedResident(established) => Some(established.occurrence()),
             Self::EstablishedOwned(established) => Some(established.occurrence),
         }
@@ -2626,6 +2657,7 @@ fn project_placed_field<'view, 'extent>(
                 .into(),
         ));
     }
+    authority.replay_correspondence("placed field projection")?;
     authority.replay_resident_content("placed field projection")?;
     let descriptor = plan.access.field_descriptor(key).cloned().ok_or_else(|| {
         AccessPlanDiagnostic(format!(
@@ -2713,6 +2745,10 @@ impl<'view, 'extent> PlacedFieldProjection<'view, 'extent> {
 
     pub const fn placed_occurrence(&self) -> Option<PlacedOccurrenceId> {
         self.placed_occurrence
+    }
+
+    pub const fn correspondence(&self) -> Option<&AdmittedSchemaDeviceCorrespondence> {
+        self._authority.correspondence()
     }
 
     pub fn read<'access>(
@@ -2854,6 +2890,7 @@ impl<'view, 'extent> PlacedFieldProjection<'view, 'extent> {
                     .into(),
             ));
         }
+        authority.replay_correspondence("placed field authorization")?;
         authority.replay_resident_content("placed field authorization")?;
 
         let descriptor_address = authority
@@ -2947,6 +2984,10 @@ impl<'view, 'extent> PlacedFieldAccess<'view, 'extent> {
 
     pub const fn placed_occurrence(&self) -> Option<PlacedOccurrenceId> {
         self.placed_occurrence
+    }
+
+    pub const fn correspondence(&self) -> Option<&AdmittedSchemaDeviceCorrespondence> {
+        self._authority.correspondence()
     }
 
     /// Consume one authorized access event into the only request primitive
@@ -3096,6 +3137,10 @@ impl PrimitiveAccessRequest<'_, '_> {
         self.placed_occurrence
     }
 
+    pub const fn correspondence(&self) -> Option<&AdmittedSchemaDeviceCorrespondence> {
+        self._authority.correspondence()
+    }
+
     fn validate_effective_supply_binding(&self) -> Result<(), AccessPlanDiagnostic> {
         if self.effective_supply.key != self.key
             || self.effective_supply.field != self.field
@@ -3211,6 +3256,7 @@ impl PrimitiveAccessRequest<'_, '_> {
                     .into(),
             ));
         }
+        authority.replay_correspondence("primitive lowering")?;
         authority.replay_resident_content("primitive lowering")?;
 
         if authority.source_loan() != self.source_loan
@@ -5790,6 +5836,10 @@ mod tests {
             PlacementAuthorityRef::Borrowed(view) => {
                 ("borrowed", std::ptr::from_ref(view).cast::<()>())
             }
+            PlacementAuthorityRef::CorrespondedBorrowed(view) => (
+                "corresponded-borrowed",
+                std::ptr::from_ref(view).cast::<()>(),
+            ),
             PlacementAuthorityRef::BorrowedResident(established) => (
                 "borrowed-resident",
                 std::ptr::from_ref(established).cast::<()>(),
@@ -6131,6 +6181,104 @@ mod tests {
         assert_eq!(view.correspondence().provider(), provider);
         assert_eq!(view.correspondence().device(), device);
         assert_eq!(view.correspondence().placement(), plan.identity());
+    }
+
+    #[test]
+    fn corresponded_view_retains_and_replays_evidence_through_primitive_specialization() {
+        let plan = uart_placement_plan();
+        let extent = uart_extent_with_lineage(0x71b0, 12, 252);
+        let loan = extent.loan(0, 12).expect("shared UART loan");
+        let profile = uart_resource_profile(&loan, &uart_reach());
+        let admission = admit_placement(
+            PlacementAdmissionId::from_normalized_identity(253).expect("placement admission"),
+            loan,
+            &plan,
+            &profile,
+        )
+        .expect("borrowed placement admission");
+        let provider = SchemaCorrespondenceProviderId::from_normalized_identity(254)
+            .expect("correspondence provider");
+        let device = StableDeviceInstanceId::from_normalized_identity(255).expect("stable device");
+        let correspondence = SchemaDeviceCorrespondenceGrant::from_admitted_provider(
+            provider,
+            device,
+            SchemaCorrespondenceSourceId::from_normalized_identity(256)
+                .expect("datasheet provenance"),
+            plan.identity(),
+            profile.receipt(),
+            None,
+        )
+        .expect("provider correspondence grant")
+        .admit(&plan, &profile)
+        .expect("schema correspondence admission");
+        let mut view = bind_schema_correspondence_to_placement(admission, correspondence)
+            .expect("correspondence placement binding")
+            .establish_view()
+            .expect("corresponded view establishment");
+        let status = field_key(plan.access(), "status");
+
+        view.replace_correspondence_placement_for_test(PlacementPlanId(plan.identity().0 ^ 1));
+        let rejection = view
+            .project(status)
+            .expect_err("projection must replay retained correspondence");
+        assert!(rejection.0.contains("schema/device correspondence"));
+        view.replace_correspondence_placement_for_test(plan.identity());
+
+        let projection = view
+            .project(status)
+            .expect("repaired correspondence remains available for retry");
+        assert_eq!(
+            projection
+                .correspondence()
+                .expect("corresponded projection")
+                .provider(),
+            provider
+        );
+        let access = projection.read().expect("External status read");
+        assert_eq!(
+            access
+                .correspondence()
+                .expect("corresponded authorized access")
+                .device(),
+            device
+        );
+        let request = access.into_primitive_request();
+        assert_eq!(
+            request
+                .correspondence()
+                .expect("corresponded primitive request")
+                .placement(),
+            plan.identity()
+        );
+        let external = request
+            .into_external_primitive_access()
+            .expect("External specialization replays correspondence");
+        external
+            .validate_for_lowering()
+            .expect("outward preflight independently replays correspondence");
+        let request = external.into_primitive_request();
+        assert_eq!(
+            request
+                .correspondence()
+                .expect("retained evidence")
+                .provider(),
+            provider
+        );
+
+        let ordinary_extent = uart_extent_with_lineage(0x71c0, 12, 257);
+        let ordinary_loan = ordinary_extent.loan(0, 12).expect("ordinary shared loan");
+        let ordinary = place(
+            admit_uart(258, ordinary_loan, &plan, &uart_reach())
+                .expect("ordinary placement admission"),
+        )
+        .expect("ordinary view establishment");
+        assert!(
+            ordinary
+                .project(status)
+                .expect("ordinary projection")
+                .correspondence()
+                .is_none()
+        );
     }
 
     #[test]

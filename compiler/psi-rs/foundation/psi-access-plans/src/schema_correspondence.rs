@@ -7,11 +7,12 @@
 //! placement admission, content establishment, or field access.
 
 use super::{
-    AccessPlanDiagnostic, AdmittedResourceProfile, PlacedView, PlacementAdmission,
-    PlacementAdmissionId, PlacementPlanId, ResourceProfileReceiptId, ValidatedPlacementPlan, place,
-    validate_placement_admission,
+    AccessFieldKey, AccessPlanDiagnostic, AdmittedResourceProfile, BorrowPolarity,
+    PlacedFieldProjection, PlacedView, PlacementAdmission, PlacementAdmissionId,
+    PlacementAuthorityRef, PlacementPlanId, ResourceProfileReceiptId, ValidatedPlacementPlan,
+    place, project_placed_field, validate_placement_admission,
 };
-use psi_extents::ExtentLoan;
+use psi_extents::{ExtentLoan, LoanPolarity};
 
 macro_rules! normalized_identity {
     ($name:ident, $label:literal) => {
@@ -360,8 +361,8 @@ impl<'extent> SchemaCorrespondedPlacementAdmission<'extent> {
 
     /// Establish the borrowed view only after independently replaying both the
     /// correspondence relation and the retained placement admission. The
-    /// resulting carrier deliberately exposes no projection method yet:
-    /// primitive requests do not carry correspondence evidence.
+    /// resulting carrier retains the exact correspondence through every
+    /// projection derived from it.
     pub fn establish_view(
         self,
     ) -> Result<
@@ -409,8 +410,6 @@ impl<'extent> SchemaCorrespondedPlacementAdmission<'extent> {
 
 /// Established borrowed view retaining its separate physical correspondence.
 ///
-/// Projection is intentionally absent until the primitive request spine can
-/// retain and replay this correspondence rather than dropping it.
 #[derive(Debug)]
 #[must_use = "corresponded placed view retains loan and physical provenance"]
 pub struct SchemaCorrespondedPlacedView<'extent> {
@@ -418,7 +417,7 @@ pub struct SchemaCorrespondedPlacedView<'extent> {
     correspondence: AdmittedSchemaDeviceCorrespondence,
 }
 
-impl SchemaCorrespondedPlacedView<'_> {
+impl<'extent> SchemaCorrespondedPlacedView<'extent> {
     pub const fn admission(&self) -> PlacementAdmissionId {
         self.view.admission()
     }
@@ -433,6 +432,73 @@ impl SchemaCorrespondedPlacedView<'_> {
 
     pub const fn correspondence(&self) -> &AdmittedSchemaDeviceCorrespondence {
         &self.correspondence
+    }
+
+    /// Project one field while retaining this exact admitted correspondence
+    /// as part of the placement authority borrowed by the projection.
+    pub fn project<'view>(
+        &'view self,
+        key: AccessFieldKey,
+    ) -> Result<PlacedFieldProjection<'view, 'extent>, AccessPlanDiagnostic> {
+        self.project_with(key, BorrowPolarity::Shared)
+    }
+
+    /// Exclusively project one field while retaining this exact admitted
+    /// correspondence as part of the placement authority.
+    pub fn project_mut<'view>(
+        &'view mut self,
+        key: AccessFieldKey,
+    ) -> Result<PlacedFieldProjection<'view, 'extent>, AccessPlanDiagnostic> {
+        self.project_with(key, BorrowPolarity::Exclusive)
+    }
+
+    fn project_with<'view>(
+        &'view self,
+        key: AccessFieldKey,
+        current_borrow: BorrowPolarity,
+    ) -> Result<PlacedFieldProjection<'view, 'extent>, AccessPlanDiagnostic> {
+        let source_loan = match self.view.loan.polarity() {
+            LoanPolarity::Shared => BorrowPolarity::Shared,
+            LoanPolarity::Exclusive => BorrowPolarity::Exclusive,
+        };
+        project_placed_field(
+            &self.view.plan,
+            self.view.profile_receipt,
+            &self.view.resources,
+            self.view.admission,
+            self.view.loan.base(),
+            key,
+            current_borrow,
+            source_loan,
+            None,
+            PlacementAuthorityRef::CorrespondedBorrowed(self),
+        )
+    }
+
+    pub(super) const fn view(&self) -> &PlacedView<'extent> {
+        &self.view
+    }
+
+    pub(super) fn validate_correspondence(&self) -> Result<(), AccessPlanDiagnostic> {
+        self.correspondence.validate_structure()?;
+        if self.correspondence.placement != self.view.plan.identity()
+            || self.correspondence.profile_receipt != self.view.profile_receipt
+            || self.view.profile.receipt() != self.view.profile_receipt
+        {
+            return Err(AccessPlanDiagnostic(
+                "corresponded placed view could not replay its exact placement and resource-profile correspondence"
+                    .into(),
+            ));
+        }
+        Ok(())
+    }
+
+    #[cfg(test)]
+    pub(super) fn replace_correspondence_placement_for_test(
+        &mut self,
+        placement: PlacementPlanId,
+    ) -> PlacementPlanId {
+        self.correspondence.replace_placement_for_test(placement)
     }
 }
 
