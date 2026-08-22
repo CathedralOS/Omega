@@ -1927,6 +1927,12 @@ Truth/conjunction/disjunction/order proof shape before the public entry applies
 the kernel check; verification independently replays canonical proposition
 shape and fixed bound dispatch. Each preserves its prior precedence and finite
 evidence frontier.
+Certificate-entry custody now lives in dedicated, side-local
+`certificate_entry` modules. Production exposes a selected proof only after the
+kernel accepts its exact context, goal, assumptions, and semantic axioms;
+verification independently projects the canonical scalar goal before retained
+selection. Invalid projection or failed checking yields no authority, and
+neither side imports the other's decision.
 One exact prior value equality may also transport a completed affine bound from
 its checked target alias to the canonical goal endpoint. The producer replaces
 that one endpoint, constructs the bounded affine relation directly, and wraps
