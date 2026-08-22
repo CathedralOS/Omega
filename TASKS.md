@@ -2363,7 +2363,11 @@ Owners:
   authority. Receipt minting now occurs only after the renamed destination is
   independently read and compared byte-for-byte with the sealed container.
   Missing or changed destination bytes are removed and reject before the
-  orchestration return can expose a receipt or path.
+  orchestration return can expose a receipt or path. Mach-O GUI builds now
+  retain the optional app-bundle executable receipt separately from the flat
+  executable receipt; both bind the same publication/container identity but
+  their exact destination paths cannot substitute for one another. Other
+  targets retain no bundle receipt.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
