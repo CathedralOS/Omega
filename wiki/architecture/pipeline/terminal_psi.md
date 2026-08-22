@@ -2212,10 +2212,11 @@ completion, and the strictly post-cast affine suffix. Assumption identity,
 proof bytes, last-cast boundary, rejection within each candidate,
 direct-before-sandwich precedence, and the finite frontier are unchanged.
 
-The fixed affine/cast/affine sibling now also separates candidate enumeration
-from proof completion. Producer and verifier `cast/sandwich` parents retain
-semantic cast-root order, exact source-spine recovery, and requirement/root
-endpoint order; independent side-local `cast/sandwich/completion` modules own
+The fixed affine/cast/affine sibling now separates entry dispatch, candidate
+enumeration, and proof completion. Producer and verifier `cast/sandwich`
+facades delegate to independent side-local `cast/sandwich/candidates` modules
+that retain semantic cast-root order, exact source-spine recovery, and
+requirement/root-endpoint order. Their `cast/sandwich/completion` siblings own
 the mapped-prefix, exact-cast, then affine-suffix composition. Citation
 identity, strict first/last-cast boundaries, the nested proof shape, rejection,
 and the fixed frontier remain unchanged.
