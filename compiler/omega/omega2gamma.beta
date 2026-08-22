@@ -41,8 +41,8 @@
 ; `(rev out Nil)` (the whole stdout) not the exit code; interp prints that list. `rev` prepended if outputs.
 ; SELF-METHODS: `machine Main::m(&mut self, params)` shares the caller's `self`. The self-state {fields,
 ; arrays, inp, out} is UNIFIED (union over the entry + all methods) and threaded as extra params after each
-; machine's locals. A void method returns its self-state BUNDLE: "0" / the sole slot / right-nested Pairs.
-; A call `self.m(a);` -> `(let nss <call> rest)` (1 slot) or `(match <call> ((Pair a0 r0) ..((Pair .. ) rest)))`
+; machine's locals. A void method returns its self-state BUNDLE: "0" / the sole slot / a flat SelfState.
+; A call `self.m(a);` -> `(let nss <call> rest)` (1 slot) or `(match <call> ((SelfState a0 .. aN) rest))`
 ; (N slots), rebinding the self-slots to fresh names. Slot order everywhere: locals, fields, arrays, inp, out.
 ;
 ; Emission (matching gamma_emit.rs slices 3-5): EVERY machine becomes mutually-recursive gamma defs
@@ -56,8 +56,8 @@
 ; Scalars: 6000000 MACHINE_CNT  6000008 ENTRY_IDX  6000016 FRESH  6000024 FIELD_CNT  6000032 CUR_MI
 ; Per-machine (mi*8): 6010000 M_NAME 6010200 M_KIND(0 entry/1 free) 6010400 M_BODY 6010600 M_PCNT
 ;                     6010800 M_LCNT 6011000 M_SCNT
-; Per-machine local names ((mi*16+k)*8): 6100000 M_LNAME
-; Per-machine states     ((mi*16+s)*8): 6300000 M_SNAME  6500000 M_SBODY
+; Per-machine local names ((mi*128+k)*8): 6100000 M_LNAME
+; Per-machine states     ((mi*128+s)*8): 6300000 M_SNAME  6500000 M_SBODY
 ; Entry fields (g*8): 6800000 FIELD_NAME     SSA scratch (idx*8): 6400000/6410000 local kind/val,
 ;                     6420000/6430000 field kind/val (0=param l{i}/g{g}, 1=t{val})
 ; Transition arms (j*8): 6600000 ARM_PAT  6610000 ARM_TGT
@@ -280,7 +280,7 @@ proc lookup_local(off) {
     let k = 0
     state loop {
         to nomatch when (k == word[6010800 + mi * 8])       ; M_LCNT[mi]
-        to hit when (name_eq2(off, word[6100000 + (mi * 16 + k) * 8]) == 1)
+        to hit when (name_eq2(off, word[6100000 + (mi * 128 + k) * 8]) == 1)
         k = k + 1
         to loop
     }
@@ -293,7 +293,7 @@ proc state_exists(off) {
     let k = 0
     state loop {
         to no when (k == word[6011000 + mi * 8])
-        to yes when (name_eq2(off, word[6300000 + (mi * 16 + k) * 8]) == 1)
+        to yes when (name_eq2(off, word[6300000 + (mi * 128 + k) * 8]) == 1)
         k = k + 1
         to loop
     }
@@ -306,7 +306,7 @@ proc lookup_state(off) {
     let k = 0
     state loop {
         to nomatch when (k == word[6011000 + mi * 8])       ; M_SCNT[mi]
-        to hit when (name_eq2(off, word[6300000 + (mi * 16 + k) * 8]) == 1)
+        to hit when (name_eq2(off, word[6300000 + (mi * 128 + k) * 8]) == 1)
         k = k + 1
         to loop
     }
@@ -574,11 +574,11 @@ proc parse_term() {
         adv()                          ; consume '.'
         let lfo = word[2097144]
         skip_ident()                   ; past the field name
-        to lftyped when (word[6200000 + (word[6000032] * 16 + lookup_local(off)) * 8] > 0)
+        to lftyped when (word[6200000 + (word[6000032] * 128 + lookup_local(off)) * 8] > 0)
         return alloc(12, lookup_local(off), lx, 0)   ; untracked local (type unknown): 1-field identity, as before
     }
     state lftyped {                    ; param slice `&[Tname]`: resolve Tname now (dtypes are collected by render)
-        let ldt = dt2_idx(word[6200000 + (word[6000032] * 16 + lookup_local(off)) * 8])
+        let ldt = dt2_idx(word[6200000 + (word[6000032] * 128 + lookup_local(off)) * 8])
         return alloc(21, lookup_local(off), lx, case_like_pack(dt2_fidx(ldt, lfo), word[7030000 + ldt * 8]))
     }
     state lsub {
@@ -1418,7 +1418,8 @@ proc emit_call_expr(callee, ch) {
     return 0
 }
 
-; a method's return value = its self-state bundle: "0" (empty), the sole slot (1), or right-nested Pairs.
+; a method's return value = its self-state bundle: "0" (empty), the sole slot (1), or a flat
+; `SelfState` constructor. This keeps call-result reconstruction independent of the number of slots.
 proc emit_bundle() {
     let n = self_slot_count()
     state d {
@@ -1428,26 +1429,20 @@ proc emit_bundle() {
     }
     state zero { emit("0")  return 0 }
     state one { print_self_slot(0)  return 0 }
-    state many { let i = 0  to oloop }
+    state many { emit("(SelfState")  let i = 0  to oloop }
     state oloop {
-        to lastp when (i == n - 1)
-        emit("(Pair ")  print_self_slot(i)  write_byte(' ')
+        to lastp when (i == n)
+        write_byte(' ')  print_self_slot(i)
         i = i + 1
         to oloop
     }
-    state lastp {
-        print_self_slot(n - 1)
-        let j = 0
-        to cl
-    }
-    state cl { to cldone when (j == n - 1)  write_byte(')')  j = j + 1  to cl }
-    state cldone { return 0 }
+    state lastp { write_byte(')')  return 0 }
 }
 
 ; self.m(args); (a void method call for effect) -> call + unbundle the returned self-state, rebinding the
 ; self-slots to fresh names. Returns the number of `let`/`match` groups opened (closed by the block).
 ;   1 slot:  (let nss0 <call> <rest>)                                        -> 1
-;   N slots: (match <call> ((Pair a0 r0) (match r0 (...((Pair a_{n-2} a_{n-1}) <rest>)...))))  -> 2(N-1)
+;   N slots: (match <call> ((SelfState a0 ... aN) <rest>))       -> 2
 proc emit_scall(callee) {
     adv()                              ; consume '('
     let ch = parse_args()
@@ -1472,27 +1467,20 @@ proc emit_scall(callee) {
     state smany {                      ; `ns` is the single declaration from `eatsemi` (reused, not re-let)
         let abase = word[6000016]
         word[6000016] = word[6000016] + ns
-        let rbase = word[6000016]
-        word[6000016] = word[6000016] + ns - 2
         emit("(match ")
         emit_call_expr(callee, ch)
-        write_byte(' ')
+        emit(" ((SelfState")
         let i = 0
         to marm
     }
     state marm {
-        to mlast when (i == ns - 2)
-        emit("((Pair t")  emit_dec(abase + i)  emit(" t")  emit_dec(rbase + i)  emit(") (match t")  emit_dec(rbase + i)  write_byte(' ')
+        to mlast when (i == ns)
+        emit(" t")  emit_dec(abase + i)
         set_self_slot(i, abase + i)
         i = i + 1
         to marm
     }
-    state mlast {
-        emit("((Pair t")  emit_dec(abase + ns - 2)  emit(" t")  emit_dec(abase + ns - 1)  emit(") ")
-        set_self_slot(ns - 2, abase + ns - 2)
-        set_self_slot(ns - 1, abase + ns - 1)
-        return 2 * ns - 2
-    }
+    state mlast { emit(") ")  return 2 }
 }
 
 ; <target> = self.m(args);  — a VALUE-RETURNING method call. The method returns (Pair result <selfbundle>);
@@ -1527,17 +1515,17 @@ proc emit_vcall(callee, kindb, valb, idx) {
         return 1
     }
     state vone_h { word[6000112] = f0  return 1 }
-    state vmany {                      ; tuple = (Pair result <selfbundle>): ns+1 components, ns matches
+    state vmany {                      ; tuple = (Pair result <selfbundle>): flat SelfState when ns > 1
         let rr = word[6000016]         ; component 0: the result -> the target slot
         let sbase = word[6000016] + 1  ; components 1..ns: the self slots
         word[6000016] = word[6000016] + 1 + ns
-        let qbase = word[6000016]      ; intermediate tails q0..q_{ns-2}
-        word[6000016] = word[6000016] + ns - 1
+        let qbase = word[6000016]      ; the flat self-bundle temporary
+        word[6000016] = word[6000016] + 1
         emit("(match ")
         emit_call_expr(callee, ch)
         emit(" ((Pair t")  emit_dec(rr)  write_byte(' ')
         to vsingle when (ns == 1)
-        emit("t")  emit_dec(qbase)  emit(") ")
+        emit("t")  emit_dec(qbase)  emit(") (match t")  emit_dec(qbase)  emit(" ((SelfState")
         let i = 0
         to vmarm
     }
@@ -1546,30 +1534,25 @@ proc emit_vcall(callee, kindb, valb, idx) {
         set_self_slot(0, sbase)
         to vbind
     }
-    state vmarm {                      ; match k over q_k: (Pair s_k q_{k+1}); the last binds two slots
-        to vmlast when (i == ns - 2)
-        emit("(match t")  emit_dec(qbase + i)  emit(" ((Pair t")  emit_dec(sbase + i)  emit(" t")  emit_dec(qbase + i + 1)  emit(") ")
+    state vmarm {
+        to vmlast when (i == ns)
+        emit(" t")  emit_dec(sbase + i)
         set_self_slot(i, sbase + i)
         i = i + 1
         to vmarm
     }
-    state vmlast {
-        emit("(match t")  emit_dec(qbase + i)  emit(" ((Pair t")  emit_dec(sbase + i)  emit(" t")  emit_dec(sbase + i + 1)  emit(") ")
-        set_self_slot(ns - 2, sbase + ns - 2)
-        set_self_slot(ns - 1, sbase + ns - 1)
-        to vbind
-    }
+    state vmlast { emit(") ")  to vbind }
     state vbind {                      ; bind the TARGET slot to the result LAST — if the target is itself
         to vbind_h when (kindb == 0)   ; a self-field (self.w = self.m(...)), the self-slot rebinds above
         word[kindb + idx * 8] = 1      ; would otherwise CLOBBER the result with the threaded-through slot.
         word[valb + idx * 8] = rr
         to vfin when (ns == 1)
-        return 2 * ns
+        return 4
     }
     state vbind_h {
         word[6000112] = rr             ; HOIST mode: hand the result index back, no slot bind
         to vfin when (ns == 1)
-        return 2 * ns
+        return 4
     }
     state vfin { return 2 }
 }
@@ -1748,7 +1731,7 @@ proc print_expr(node) {
 ; AST node, or 0. (State params are machine locals; arm args map to them positionally via M_SPOFF.)
 proc arm_arg_for(tgt, arm, i) {
     let mi = word[6000032]
-    let si = mi * 16 + tgt
+    let si = mi * 128 + tgt
     let j = 0
     state loop {
         to none when (j == word[6630000 + arm * 8])        ; ARM_ARGC
@@ -2550,8 +2533,8 @@ proc parse_machine_header() {
     state parmloop {
         skip_ws()
         to toclose when (cbyte() == ')')
-        word[6100000 + (mc * 16 + word[6010600 + mc * 8]) * 8] = word[2097144]   ; M_LNAME[mc][PCNT] = name
-        word[6200000 + (mc * 16 + word[6010600 + mc * 8]) * 8] = 0               ; PARM_STYPE[mc][PCNT] = 0 (not a struct slice)
+        word[6100000 + (mc * 128 + word[6010600 + mc * 8]) * 8] = word[2097144]   ; M_LNAME[mc][PCNT] = name
+        word[6200000 + (mc * 128 + word[6010600 + mc * 8]) * 8] = 0               ; PARM_STYPE[mc][PCNT] = 0 (not a struct slice)
         word[6010600 + mc * 8] = word[6010600 + mc * 8] + 1                      ; M_PCNT++
         skip_ident()
         to parmskip
@@ -2570,7 +2553,7 @@ proc parse_machine_header() {
         to parmskip                    ; scalar-element slice `&[i32 ..]` -> leave PARM_STYPE 0
     }
     state parmstruct {                 ; `&[Tname]` -> record the element type name's source offset for this param
-        word[6200000 + (mc * 16 + (word[6010600 + mc * 8] - 1)) * 8] = word[2097144]
+        word[6200000 + (mc * 128 + (word[6010600 + mc * 8] - 1)) * 8] = word[2097144]
         to parmskip
     }
     state parmnext { adv()  to parmloop }
@@ -2653,13 +2636,15 @@ proc find_machines() {
 proc add_local(mi, off) {
     let k = 0
     state loop {
+        to full when (k == 128)
         to add when (k == word[6010800 + mi * 8])       ; M_LCNT
-        to dup when (name_eq2(off, word[6100000 + (mi * 16 + k) * 8]) == 1)
+        to dup when (name_eq2(off, word[6100000 + (mi * 128 + k) * 8]) == 1)
         k = k + 1
         to loop
     }
+    state full { emit("E2G-UNSUPPORTED-machine-local-capacity ")  return 0 }
     state add {
-        word[6100000 + (mi * 16 + word[6010800 + mi * 8]) * 8] = off
+        word[6100000 + (mi * 128 + word[6010800 + mi * 8]) * 8] = off
         word[6010800 + mi * 8] = word[6010800 + mi * 8] + 1
         return 0
     }
@@ -2738,16 +2723,18 @@ proc scan_states(mi) {
         skip_ident()                   ; past "state"
         skip_ws()
         to not_st when (is_idchar(cbyte()) == 0)   ; `self.state.a` / `state = ..`: a FIELD named
-        word[6300000 + (mi * 16 + word[6011000 + mi * 8]) * 8] = word[2097144]   ; state, not a decl
+        to state_full when (word[6011000 + mi * 8] == 128)
+        word[6300000 + (mi * 128 + word[6011000 + mi * 8]) * 8] = word[2097144]   ; state, not a decl
         skip_ident()                   ; past state name
         to hdclose
     }
+    state state_full { emit("E2G-UNSUPPORTED-machine-state-capacity ")  return 0 }
     state not_st { to loop }
     ; the state header `( [&mut self][, NAME: TYPE]* )` — value params register as machine locals
     ; (zero-init slots; a transition arm's args write them) and in the state's M_SP tables.
     state hdclose {
         skip_ws()
-        let si = mi * 16 + word[6011000 + mi * 8]        ; this state's table index
+        let si = mi * 128 + word[6011000 + mi * 8]        ; this state's table index
         word[6850000 + si * 8] = 0                       ; M_SPCNT = 0
         adv()                                            ; consume '('
         to hdparm
@@ -2782,7 +2769,7 @@ proc scan_states(mi) {
     state hdin {
         adv()                          ; consume '{'
         depth = depth + 1
-        word[6500000 + (mi * 16 + word[6011000 + mi * 8]) * 8] = word[2097144]   ; M_SBODY (after '{')
+        word[6500000 + (mi * 128 + word[6011000 + mi * 8]) * 8] = word[2097144]   ; M_SBODY (after '{')
         word[6011000 + mi * 8] = word[6011000 + mi * 8] + 1                      ; M_SCNT++
         to loop
     }
@@ -3397,7 +3384,7 @@ proc render_machine(mi) {
         emit("(def m")  emit_dec(mi)  emit("_s")  emit_dec(s)  emit(" (")
         emit_sig(mi)
         emit(") ")
-        translate_block(mi, word[6500000 + (mi * 16 + s) * 8])   ; M_SBODY
+        translate_block(mi, word[6500000 + (mi * 128 + s) * 8])   ; M_SBODY
         emit(") ")
         s = s + 1
         to sloop
@@ -3416,7 +3403,68 @@ proc emit_array_zeros(ai, count) {
         fc = word[7030000 + (word[7050000 + ai * 8] - 1) * 8]
         to sc
     }
-    state sc { let k = 0  to opens }
+    state sc {
+        ; Compiler-sized scalar arrays use private 64-element chunks. Small arrays and every structured
+        ; array retain the historical flat-list representation, so slice/string behavior is unchanged.
+        to chunks when (count >= 1024)
+        let k = 0
+        to opens
+    }
+    state chunks {
+        to chunk_flat when (fc != 0)
+        emit("(Chunks ")  emit_dec(count)  write_byte(' ')
+        let rem = count
+        let blocks = 0
+        to chunk_loop
+    }
+    state chunk_flat { let k = 0  to opens }
+    state chunk_loop {
+        to chunk_tail when (rem == 0)
+        emit("(Cons ")
+        let bn = 64
+        to chunk_short when (rem < 64)
+        to chunk_values
+    }
+    state chunk_short { bn = rem  to chunk_values }
+    state chunk_values {
+        let q = 0
+        to chunk_value_loop
+    }
+    state chunk_value_loop {
+        to chunk_value_tail when (q == bn)
+        emit("(Cons 0 ")
+        q = q + 1
+        to chunk_value_loop
+    }
+    state chunk_value_tail {
+        emit("Nil")
+        let qc = 0
+        to chunk_value_close
+    }
+    state chunk_value_close {
+        to chunk_next when (qc == bn)
+        write_byte(')')
+        qc = qc + 1
+        to chunk_value_close
+    }
+    state chunk_next {
+        write_byte(' ')
+        rem = rem - bn
+        blocks = blocks + 1
+        to chunk_loop
+    }
+    state chunk_tail {
+        emit("Nil")
+        let bc = 0
+        to chunk_close
+    }
+    state chunk_close {
+        to chunk_done when (bc == blocks)
+        write_byte(')')
+        bc = bc + 1
+        to chunk_close
+    }
+    state chunk_done { write_byte(')')  return 0 }
     state opens {
         to closes when (k == count)
         emit("(Cons ")
@@ -3439,9 +3487,15 @@ proc render() {
         to strhelp0                                     ; no arrays -> maybe just the string helpers
     }
     state arrhelp {
-        emit("(def nth (xs k) (match xs (Nil 0) ((Cons h t) (if (eq k 0) h (nth t (- k 1)))))) ")
-        emit("(def setl (xs k v) (match xs (Nil Nil) ((Cons h t) (if (eq k 0) (Cons v t) (Cons h (setl t (- k 1) v)))))) ")
-        emit("(def len (xs) (match xs (Nil 0) ((Cons h t) (+ 1 (len t))))) ")
+        ; Flat lists remain canonical for small arrays and list-valued operations. Compiler-sized scalar
+        ; arrays are a private `(Chunks length blocks)` carrier with 64-element flat-list blocks: scalar
+        ; indexing and updates stay exact while persistent writes allocate O(blocks + 64), not O(capacity).
+        emit("(def nthf (xs k) (match xs (Nil 0) ((Cons h t) (if (eq k 0) h (nthf t (- k 1)))))) ")
+        emit("(def nth (xs k) (match xs (Nil 0) ((Cons h t) (if (eq k 0) h (nthf t (- k 1)))) ((Chunks n bs) (nthf (nthf bs (/ k 64)) (% k 64))))) ")
+        emit("(def setlf (xs k v) (match xs (Nil Nil) ((Cons h t) (if (eq k 0) (Cons v t) (Cons h (setlf t (- k 1) v)))))) ")
+        emit("(def setl (xs k v) (match xs (Nil Nil) ((Cons h t) (if (eq k 0) (Cons v t) (Cons h (setlf t (- k 1) v)))) ((Chunks n bs) (Chunks n (setlf bs (/ k 64) (setlf (nthf bs (/ k 64)) (% k 64) v)))))) ")
+        emit("(def lenf (xs) (match xs (Nil 0) ((Cons h t) (+ 1 (lenf t))))) ")
+        emit("(def len (xs) (match xs (Nil 0) ((Cons h t) (+ 1 (lenf t))) ((Chunks n bs) n))) ")
         emit("(def drop (xs k) (match xs (Nil Nil) ((Cons h t) (if (eq k 0) xs (drop t (- k 1)))))) ")
         emit("(def take (xs k) (match xs (Nil Nil) ((Cons h t) (if (eq k 0) Nil (Cons h (take t (- k 1))))))) ")
         emit("(def listeq (a b) (match a (Nil (match b (Nil 1) ((Cons bh bt) 0))) ((Cons ah at) (match b (Nil 0) ((Cons bh bt) (if (eq ah bh) (listeq at bt) 0)))))) ")

@@ -1,0 +1,25 @@
+// Focused omega2gamma method-ABI canary.
+// `touch` exercises void multi-slot threading; `total` mutates the same state,
+// returns a value, and its caller stores that result without losing the mutation.
+data Main {
+    console: Console;
+    a: i32;
+    b: i32;
+    c: i32;
+}
+
+machine Main::touch(&mut self) {
+    self.a = 5;
+    self.b = 7;
+}
+
+machine Main::total(&mut self) -> i32 {
+    self.a = self.a + 1;
+    return self.a + self.b;
+}
+
+machine Main::main(&mut self) {
+    self.touch();
+    self.c = self.total();
+    self.console.exit_process(self.a + self.b + self.c);
+}

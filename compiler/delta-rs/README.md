@@ -33,15 +33,17 @@ DELTA_ARCH=aarch64 cargo run -- samples/shape.alp out  # macOS arm64; ./out ; ec
 
 ## Status
 
-- **Omega0 frontend canary — DONE for native/self-host execution.**
+- **Omega0 frontend canary — DONE for native/self-host/lower-rung meaning.**
   `samples/omega0-frontend.alp` is the first Delta-written Omega compiler slice:
   canonical one-source bundle decoding, checked source storage, complete UTF-8
   validation, streaming lexing, exact parsing/name/type/count checks for O0, and
   retained `write_line` bytes plus `exit_process` `i32`. Its focused gate covers
-  the acceptance/rejection matrix and recompiles the frontend through Delta-written
-  `lowermachine`; both boundary operands affect the observed success digest.
-  Terminal-Psi emission and the lower-rung Delta-to-Gamma meaning extension are
-  separate open tasks.
+  the acceptance/rejection matrix and recompiles the frontend through
+  Delta-written `lowermachine`; both boundary operands affect the observed
+  success digest. `omega0-frontend-meaning.sh` independently elaborates it with
+  the Beta-written `omega2gamma.beta` and executes it with Gamma's canonical
+  interpreter, pinning the canonical digest, semantic rejection, and multi-slot
+  method-state threading. Terminal-Psi emission remains the next open slice.
 
 - **Slice 1 — `exit_process(N)` end-to-end: DONE.** Lex → parse → lower → emit a
   Windows x64 PE that exits with the given code. Deterministic. Minimal PE: no
