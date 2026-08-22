@@ -11,6 +11,7 @@ path = "src/lib.rs"
 [dependencies]
 omega-assigned-target-operations = { path = "../../representations/omega-assigned-target-operations" }
 omega-calling-conventions = { path = "../../foundation/omega-calling-conventions" }
+omega-control-flow = { path = "../../representations/omega-control-flow" }
 psi-arena = { path = "../../../psi-rs/foundation/psi-arena" }
 psi-symbols = { path = "../../../psi-rs/foundation/psi-symbols" }
 omega-machine-instructions = { path = "../../representations/omega-machine-instructions" }
@@ -19,5 +20,4 @@ psi-diagnostics = { path = "../../../psi-rs/foundation/psi-diagnostics" }
 
 [dev-dependencies]
 omega-abstract-operations = { path = "../../representations/omega-abstract-operations" }
-omega-control-flow = { path = "../../representations/omega-control-flow" }
 psi-language-semantics = { path = "../../../psi-rs/foundation/psi-language-semantics" }
