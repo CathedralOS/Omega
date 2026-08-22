@@ -155,6 +155,7 @@ pub(super) fn emit_unit_body(
             TerminalAssignedUnitOperation::Call {
                 psi_operation,
                 callee,
+                result,
                 copies,
                 claim_transfers,
             } => {
@@ -181,6 +182,7 @@ pub(super) fn emit_unit_body(
                 internal_unit_calls.push(TerminalInternalUnitCallRecord {
                     owner: TerminalCallSiteOwner::Operation(*psi_operation),
                     target: *callee,
+                    result: *result,
                     arguments: copies
                         .iter()
                         .zip(argument_intervals)
@@ -271,6 +273,16 @@ pub(super) fn emit_unit_body(
                 psi_edge,
                 cleanup_actions,
             } => {
+                let transferred_roots = body.operations[..operation_ordinal]
+                    .iter()
+                    .filter_map(|operation| match operation {
+                        TerminalAssignedUnitOperation::Call { copies, .. } => Some(copies),
+                        _ => None,
+                    })
+                    .flatten()
+                    .filter(|copy| copy.path.is_empty())
+                    .map(|copy| copy.place)
+                    .collect::<std::collections::BTreeSet<_>>();
                 let expected_local_prefix = established_affine_locals
                     .iter()
                     .rev()
@@ -286,6 +298,7 @@ pub(super) fn emit_unit_body(
                             .filter(|parameter| {
                                 parameter.multiplicity
                                     == psi_terminal::StructuralMultiplicity::Affine
+                                    && !transferred_roots.contains(&parameter.place)
                             })
                             .map(|parameter| parameter.place),
                     )
@@ -463,6 +476,7 @@ pub(super) fn emit_unit_body(
                         internal_unit_calls.push(TerminalInternalUnitCallRecord {
                             owner,
                             target: cleanup.cleanup_machine,
+                            result: None,
                             arguments: Vec::new(),
                             claim_transfers: Vec::new(),
                             operation_ordinal,

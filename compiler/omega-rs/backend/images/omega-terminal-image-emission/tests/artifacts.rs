@@ -1759,7 +1759,7 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
         terminal_installation_fingerprint(&record)
             .expect("installation fingerprint")
             .to_string(),
-        "2ba6203a5e8ce9cb79a9e6e6358502ec047178095517e13dfac1f3f1d8a5b145"
+        "607728920a442a95fa8f57326d37eb58a6781418642b37b315718ead2a7bf791"
     );
 
     let mut changed_plan = plan;
@@ -2832,6 +2832,7 @@ fn account_x86_unit_call(plan: &mut TerminalMachineCodePlan) {
     caller.internal_unit_calls = vec![TerminalInternalUnitCallRecord {
         owner: caller.internal_calls[0].owner,
         target: caller.internal_calls[0].target,
+        result: None,
         arguments: Vec::new(),
         claim_transfers: Vec::new(),
         operation_ordinal: 0,
@@ -3049,6 +3050,7 @@ fn account_aarch64_unit_call(plan: &mut TerminalMachineCodePlan) {
     caller.internal_unit_calls = vec![TerminalInternalUnitCallRecord {
         owner: caller.internal_calls[0].owner,
         target: caller.internal_calls[0].target,
+        result: None,
         arguments: Vec::new(),
         claim_transfers: Vec::new(),
         operation_ordinal: 0,
@@ -3135,6 +3137,7 @@ fn edge_owned_cleanup_plan() -> TerminalMachineCodePlan {
     let operation_custody = |operation, target| TerminalInternalUnitCallRecord {
         owner: TerminalCallSiteOwner::Operation(operation),
         target,
+        result: None,
         arguments: Vec::new(),
         claim_transfers: Vec::new(),
         operation_ordinal: 0,
@@ -3266,6 +3269,7 @@ fn edge_owned_cleanup_plan() -> TerminalMachineCodePlan {
                         action_ordinal: 0,
                     },
                     target: machine_id(1),
+                    result: None,
                     arguments: Vec::new(),
                     claim_transfers: Vec::new(),
                     operation_ordinal: 0,
@@ -3365,6 +3369,7 @@ fn two_call_edge_owned_cleanup_plan() -> TerminalMachineCodePlan {
         .push(TerminalInternalUnitCallRecord {
             owner: TerminalCallSiteOwner::Operation(second_operation),
             target: second_helper,
+            result: None,
             arguments: Vec::new(),
             claim_transfers: Vec::new(),
             operation_ordinal: 1,

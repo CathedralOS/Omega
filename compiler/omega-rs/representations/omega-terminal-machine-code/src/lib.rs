@@ -11,7 +11,7 @@ use omega_terminal_target_operations::{
 };
 use psi_core::{
     BoundaryMachineId, ClaimId, EdgeId, FuelScheduleIdentity, MachineId, OperationId, PlaceId,
-    ServiceId, StructuralFieldId, StructuralTypeId,
+    ScalarType, ServiceId, StructuralFieldId, StructuralTypeId,
 };
 use psi_terminal::{
     ClaimTransfer, CompletionReceipt, StructuralArgument, StructuralParameterDeclaration,
@@ -33,15 +33,17 @@ pub struct TerminalMachineCodeFunction {
     pub attachment: Option<StructuralTypeId>,
     pub provenance: TerminalPsiProvenance,
     pub bytes: Vec<u8>,
-    /// Target-emitter-owned stack facts for the currently supported Unit-body
-    /// closure. Other terminal function forms remain deliberately unreported
+    /// Target-emitter-owned stack facts for the aggregate-frame body closure:
+    /// Unit bodies and the bounded direct structural-call/scalar-return
+    /// carrier. Other terminal function forms remain deliberately unreported
     /// until their complete temporary-stack accounting is retained.
     pub unit_stack: Option<TerminalUnitStackEvidence>,
-    /// Complete ordered incoming structural-parameter homes for a Unit body.
+    /// Complete ordered incoming structural-parameter homes for an aggregate-
+    /// frame body.
     /// Object validation binds projected-call custody to this independently
     /// retained caller frame plan instead of trusting per-call offsets.
     pub unit_parameter_homes: Vec<TerminalUnitParameterHomeRecord>,
-    /// Independent ordered semantic signature for a Unit body. Object
+    /// Independent ordered semantic signature for an aggregate-frame body. Object
     /// validation binds each mutable ABI home back to this declaration row.
     pub unit_parameters: Vec<TerminalUnitParameterRecord>,
     /// Exact ordered stack mutations and admitted control-flow shape for a
@@ -261,8 +263,8 @@ pub struct TerminalInternalCallRelocation {
     /// [`EdgeId`] here instead of borrowing or inventing an operation identity.
     pub owner: TerminalCallSiteOwner,
     pub target: MachineId,
-    /// Exact caller-owned stack live immediately after this Unit-body call
-    /// enters its callee. Absent for non-Unit function forms whose full stack
+    /// Exact caller-owned stack live immediately after this aggregate-frame
+    /// call enters its callee. Absent for function forms whose full stack
     /// accounting has not yet migrated.
     pub unit_stack: Option<TerminalUnitCallStackEvidence>,
     /// Exact scalar-expression call-site stack facts. The object boundary
@@ -281,6 +283,9 @@ pub struct TerminalInternalUnitCallRecord {
     /// Must match the owner of the corresponding relocation exactly.
     pub owner: TerminalCallSiteOwner,
     pub target: MachineId,
+    /// `None` for a value-less structural call; otherwise the exact scalar
+    /// result returned through the ordinary target ABI.
+    pub result: Option<ScalarType>,
     pub arguments: Vec<TerminalInternalUnitCallArgumentRecord>,
     pub claim_transfers: Vec<ClaimTransfer>,
     pub operation_ordinal: usize,

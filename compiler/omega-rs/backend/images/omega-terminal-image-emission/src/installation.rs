@@ -33,7 +33,7 @@ use crate::{
     TerminalObjectPortEffect, can_emit_terminal_executable_image,
 };
 
-pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 24;
+pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 25;
 const MAGIC: &[u8; 8] = b"PSIINST\0";
 const IMAGE_DOMAIN: &[u8] = b"omega-terminal-installed-image\0";
 const RECORD_DOMAIN: &[u8] = b"omega-terminal-installation-record\0";
@@ -1740,11 +1740,22 @@ fn validate_record_shape(
                 .rev()
                 .map(|(_, place, _)| place.id)
                 .collect::<Vec<_>>();
+            let transferred_roots = record
+                .internal_unit_calls
+                .iter()
+                .filter(|call| call.machine == function.machine)
+                .flat_map(|call| &call.custody.arguments)
+                .filter(|argument| argument.path.is_empty())
+                .map(|argument| argument.place)
+                .collect::<std::collections::BTreeSet<_>>();
             let expected_parameter_discards = function
                 .unit_parameter_homes
                 .iter()
                 .rev()
-                .filter(|home| home.multiplicity == StructuralMultiplicity::Affine)
+                .filter(|home| {
+                    home.multiplicity == StructuralMultiplicity::Affine
+                        && !transferred_roots.contains(&home.place)
+                })
                 .map(|home| home.place)
                 .collect::<Vec<_>>();
             let discards = cleanup
@@ -1812,6 +1823,7 @@ fn validate_record_shape(
                     && calls.iter().enumerate().all(|(ordinal, call)| {
                         matches!(call.custody.owner, TerminalCallSiteOwner::Operation(_))
                             && call.custody.operation_ordinal == ordinal
+                            && call.custody.result.is_none()
                             && call.custody.arguments.is_empty()
                             && call.custody.claim_transfers.is_empty()
                             && record.functions.iter().any(|helper| {
@@ -2268,6 +2280,16 @@ fn validate_record_shape(
             TerminalInstallationError::InvalidInternalUnitCall(installed.machine),
         )?;
         let custody = &installed.custody;
+        let target_returns_scalar =
+            function_by_machine
+                .get(&custody.target)
+                .is_some_and(|target| {
+                    target.scalar_stack.is_some()
+                        || (target.unit_body
+                            && record.internal_unit_calls.iter().any(|call| {
+                                call.machine == custody.target && call.custody.result.is_some()
+                            }))
+                });
         let expected_text_offset = function
             .text_offset
             .checked_add(custody.code_offset)
@@ -2284,7 +2306,13 @@ fn validate_record_shape(
                     .iter()
                     .map(|argument| argument.shape)
                     .collect(),
-                result: None,
+                result: custody.result.map(|result| {
+                    let bytes = match result {
+                        psi_core::ScalarType::Boolean => 1,
+                        psi_core::ScalarType::Integer(integer) => integer.bits().div_ceil(8),
+                    };
+                    ValueShape::integer(bytes, bytes.next_power_of_two().min(8))
+                }),
             },
         )
         .map_err(|_| TerminalInstallationError::InvalidInternalUnitCall(installed.machine))?;
@@ -2331,7 +2359,8 @@ fn validate_record_shape(
                 edge,
                 action_ordinal,
             } => {
-                custody.arguments.is_empty()
+                custody.result.is_none()
+                    && custody.arguments.is_empty()
                     && custody.claim_transfers.is_empty()
                     && affine_cleanup
                         .is_some_and(|cleanup| {
@@ -2369,6 +2398,7 @@ fn validate_record_shape(
             || installed.text_offset != expected_text_offset
             || end > function.byte_count
             || !function_by_machine.contains_key(&custody.target)
+            || custody.result.is_some() != target_returns_scalar
             || !owner_valid
             || plan.parameters.len() != custody.arguments.len()
             || custody.arguments.windows(2).any(|pair| {
@@ -3066,6 +3096,22 @@ fn encode_internal_unit_call(
         }
     }
     push_u64(bytes, custody.target.get());
+    match custody.result {
+        None => bytes.extend_from_slice(&[0; 6]),
+        Some(psi_core::ScalarType::Boolean) => {
+            bytes.extend_from_slice(&[1, 0, 0, 0, 0, 0]);
+        }
+        Some(psi_core::ScalarType::Integer(integer)) => {
+            bytes.push(2);
+            bytes.push(u8::from(integer.is_address()));
+            bytes.push(u8::from(matches!(
+                integer.sign(),
+                psi_core::IntegerSign::Signed
+            )));
+            bytes.push(0);
+            push_u16(bytes, integer.bits());
+        }
+    }
     push_u64(
         bytes,
         u64::try_from(custody.operation_ordinal)
@@ -3296,6 +3342,38 @@ fn decode_internal_unit_call(
     };
     let target = MachineId::new(reader.u64()?)
         .ok_or(TerminalInstallationError::ZeroInternalUnitCallIdentity)?;
+    let result_tag = reader.u8()?;
+    let is_address = decode_boolean(reader.u8()?)?;
+    let signed = decode_boolean(reader.u8()?)?;
+    if reader.u8()? != 0 {
+        return Err(TerminalInstallationError::NonzeroReservedField);
+    }
+    let bits = reader.u16()?;
+    let result = match result_tag {
+        0 if !is_address && !signed && bits == 0 => None,
+        1 if !is_address && !signed && bits == 0 => Some(psi_core::ScalarType::Boolean),
+        2 => Some(psi_core::ScalarType::Integer(
+            if is_address {
+                if signed {
+                    return Err(TerminalInstallationError::InvalidInternalUnitCall(machine));
+                }
+                psi_core::IntegerType::address(bits)
+            } else {
+                psi_core::IntegerType::new(
+                    if signed {
+                        psi_core::IntegerSign::Signed
+                    } else {
+                        psi_core::IntegerSign::Unsigned
+                    },
+                    bits,
+                )
+            }
+            .map_err(|_| TerminalInstallationError::InvalidInternalUnitCall(machine))?,
+        )),
+        _ => {
+            return Err(TerminalInstallationError::InvalidInternalUnitCall(machine));
+        }
+    };
     let operation_ordinal = usize::try_from(reader.u64()?)
         .map_err(|_| TerminalInstallationError::InternalUnitCallOffsetNotRepresentable)?;
     let code_offset = usize::try_from(reader.u64()?)
@@ -3375,6 +3453,7 @@ fn decode_internal_unit_call(
         custody: omega_terminal_machine_code::TerminalInternalUnitCallRecord {
             owner,
             target,
+            result,
             arguments,
             claim_transfers,
             operation_ordinal,

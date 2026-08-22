@@ -274,6 +274,134 @@ fn lower_function(
         .collect::<Vec<_>>();
 
     if let [
+        TerminalAbstractOperation::CallStructuralScalar {
+            psi_operation,
+            result: call_result,
+            callee,
+            structural_arguments,
+            claim_transfers,
+        },
+        TerminalAbstractOperation::Return {
+            psi_edge,
+            result,
+            value,
+            scalar_type,
+            cleanup_actions,
+        },
+    ] = function.operations.as_slice()
+        && *result == function_result.value
+        && *value == call_result.value
+        && *scalar_type == function_result.scalar_type
+        && call_result.scalar_type == function_result.scalar_type
+        && cleanup_actions.is_empty()
+        && !structural_arguments.is_empty()
+        && structural_arguments
+            .iter()
+            .all(|argument| argument.path.is_empty())
+    {
+        let callee_function = functions
+            .get(callee)
+            .copied()
+            .ok_or(LoweringError::UnknownCallTarget(*callee))?;
+        let callee_result = callee_function.result.scalar().ok_or(
+            LoweringError::UnsupportedOperationInScalarFunction(function.machine),
+        )?;
+        if !callee_function.parameters.is_empty()
+            || callee_result.scalar_type != call_result.scalar_type
+            || structural_arguments.len() != callee_function.structural_parameters.len()
+        {
+            return Err(LoweringError::UnsupportedOperationInScalarFunction(
+                function.machine,
+            ));
+        }
+        let callee_shapes = callee_function
+            .structural_parameters
+            .iter()
+            .map(|parameter| {
+                structural_shape(
+                    parameter.structural_type,
+                    structural_types,
+                    &mut shape_cache,
+                    &mut active,
+                )
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let callee_plan = evaluate_call_plan(
+            CallingPolicy::native_for_target(target),
+            &CallSignature {
+                parameters: callee_shapes.clone(),
+                result: Some(scalar_shape(
+                    callee_result.value,
+                    callee_result.scalar_type,
+                    false,
+                )?),
+            },
+        )
+        .map_err(LoweringError::AbiPlan)?;
+        let parameters_by_place = target_structural_parameters
+            .iter()
+            .map(|parameter| (parameter.place, parameter))
+            .collect::<BTreeMap<_, _>>();
+        let arguments = structural_arguments
+            .iter()
+            .zip(&callee_function.structural_parameters)
+            .zip(callee_shapes)
+            .zip(&callee_plan.parameters)
+            .map(|(((argument, callee_parameter), shape), destination)| {
+                let source = parameters_by_place.get(&argument.place).copied().ok_or(
+                    LoweringError::UnknownStructuralArgumentPlace {
+                        machine: function.machine,
+                        place: argument.place,
+                    },
+                )?;
+                if source.structural_type != callee_parameter.structural_type
+                    || source.shape != shape
+                {
+                    return Err(LoweringError::StructuralCallArgumentTypeMismatch {
+                        callee: *callee,
+                        place: argument.place,
+                    });
+                }
+                Ok(TerminalTargetStructuralArgument {
+                    place: argument.place,
+                    path: Vec::new(),
+                    root_structural_type: source.structural_type,
+                    structural_type: source.structural_type,
+                    shape,
+                    source_byte_offset: 0,
+                    fixed_array_length: None,
+                    element_stride: None,
+                    source: source.placement.clone(),
+                    destination: destination.clone(),
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        return Ok(TerminalTargetFunction {
+            machine: function.machine,
+            attachment: function.attachment,
+            provenance: TerminalPsiProvenance {
+                operations: vec![*psi_operation],
+                edges: vec![*psi_edge],
+            },
+            operation: TerminalTargetOperation::ReturnStructuralScalarCall {
+                psi_edge: *psi_edge,
+                psi_operation: *psi_operation,
+                source_value: call_result.value,
+                scalar_type: call_result.scalar_type,
+                callee: *callee,
+                structural_types: structural_types
+                    .values()
+                    .map(|declaration| (*declaration).clone())
+                    .collect(),
+                call_plan,
+                structural_parameters: target_structural_parameters,
+                arguments,
+                claim_transfers: claim_transfers.clone(),
+            },
+        });
+    }
+
+    if let [
         TerminalAbstractOperation::BoundaryCall {
             psi_operation,
             result: Some(boundary_result),
@@ -5518,11 +5646,151 @@ mod tests {
     use omega_terminal_target_operations::MachineRegister;
     use psi_core::{BlockId, EdgeId, PlaceId, StructuralFieldId, StructuralTypeId};
     use psi_terminal::{
-        BoundaryMachineDeclaration, SemanticFingerprint, StructuralFieldDeclaration,
-        StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
-        StructuralTypeDeclaration, StructuralTypeShape, TerminalAffineCleanupAction,
-        TerminalPsiIdentity, VocabularyMarker,
+        BoundaryMachineDeclaration, SemanticFingerprint, StructuralArgument,
+        StructuralFieldDeclaration, StructuralMultiplicity, StructuralParameterDeclaration,
+        StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
+        TerminalAffineCleanupAction, TerminalPsiIdentity, VocabularyMarker,
     };
+
+    fn structural_scalar_call_plan() -> TerminalAbstractOperationPlan {
+        let caller = MachineId::new(70).unwrap();
+        let callee = MachineId::new(71).unwrap();
+        let structural_type = StructuralTypeId::new(70).unwrap();
+        let caller_place = PlaceId::new(70).unwrap();
+        let callee_place = PlaceId::new(71).unwrap();
+        let caller_result = ValueId::new(70).unwrap();
+        let callee_result = ValueId::new(71).unwrap();
+        let callee_value = ValueId::new(72).unwrap();
+        let block_entry =
+            |machine: MachineId| omega_terminal_abstract_operations::TerminalAbstractBlockEntry {
+                block: BlockId::new(machine.get()).unwrap(),
+                operation_offset: 0,
+            };
+        let parameter = |place, position| StructuralParameterDeclaration {
+            place,
+            position,
+            is_self: false,
+            structural_type,
+            multiplicity: StructuralMultiplicity::Affine,
+            qualifications: Vec::new(),
+        };
+        TerminalAbstractOperationPlan {
+            terminal_psi: identity(),
+            entry: caller,
+            structural_types: vec![StructuralTypeDeclaration {
+                id: structural_type,
+                identity: "Token".into(),
+                shape: StructuralTypeShape::Record {
+                    fields: vec![StructuralFieldDeclaration {
+                        id: StructuralFieldId::new(70).unwrap(),
+                        identity: "live".into(),
+                        relevance: psi_terminal::BindingRelevance::Relevant,
+                        field_type: StructuralFieldType::Scalar(ScalarType::Boolean),
+                    }],
+                },
+            }],
+            boundary_machines: Vec::new(),
+            provider_candidates: Vec::new(),
+            functions: vec![
+                TerminalAbstractFunction {
+                    machine: caller,
+                    attachment: None,
+                    entry: BlockId::new(caller.get()).unwrap(),
+                    parameters: Vec::new(),
+                    structural_parameters: vec![parameter(caller_place, 0)],
+                    result: TerminalAbstractFunctionResult::Scalar(TerminalAbstractResult {
+                        value: caller_result,
+                        scalar_type: ScalarType::Boolean,
+                    }),
+                    entry_claims: Vec::new(),
+                    published_service_ceiling: Vec::new(),
+                    block_entries: vec![block_entry(caller)],
+                    operations: vec![
+                        TerminalAbstractOperation::CallStructuralScalar {
+                            psi_operation: OperationId::new(70).unwrap(),
+                            result: TerminalAbstractResult {
+                                value: caller_result,
+                                scalar_type: ScalarType::Boolean,
+                            },
+                            callee,
+                            structural_arguments: vec![StructuralArgument {
+                                place: caller_place,
+                                path: Vec::new(),
+                            }],
+                            claim_transfers: Vec::new(),
+                        },
+                        TerminalAbstractOperation::Return {
+                            psi_edge: EdgeId::new(70).unwrap(),
+                            result: caller_result,
+                            value: caller_result,
+                            scalar_type: ScalarType::Boolean,
+                            cleanup_actions: Vec::new(),
+                        },
+                    ],
+                },
+                TerminalAbstractFunction {
+                    machine: callee,
+                    attachment: None,
+                    entry: BlockId::new(callee.get()).unwrap(),
+                    parameters: Vec::new(),
+                    structural_parameters: vec![parameter(callee_place, 0)],
+                    result: TerminalAbstractFunctionResult::Scalar(TerminalAbstractResult {
+                        value: callee_result,
+                        scalar_type: ScalarType::Boolean,
+                    }),
+                    entry_claims: Vec::new(),
+                    published_service_ceiling: Vec::new(),
+                    block_entries: vec![block_entry(callee)],
+                    operations: vec![
+                        TerminalAbstractOperation::BooleanConstant {
+                            psi_operation: OperationId::new(71).unwrap(),
+                            result: callee_value,
+                            value: true,
+                        },
+                        TerminalAbstractOperation::Return {
+                            psi_edge: EdgeId::new(71).unwrap(),
+                            result: callee_result,
+                            value: callee_value,
+                            scalar_type: ScalarType::Boolean,
+                            cleanup_actions: vec![TerminalAffineCleanupAction::DiscardRoot(
+                                callee_place,
+                            )],
+                        },
+                    ],
+                },
+            ],
+        }
+    }
+
+    #[test]
+    fn whole_root_structural_call_retains_direct_scalar_return_abi() {
+        for target in [
+            NativeTarget::linux_x64(),
+            NativeTarget::windows_x64(),
+            NativeTarget::uefi_x64(),
+            NativeTarget::linux_arm64(),
+            NativeTarget::macos_arm64(),
+        ] {
+            let lowered = lower_to_target_operations(&structural_scalar_call_plan(), target)
+                .expect("bounded structural scalar call lowers");
+            let TerminalTargetOperation::ReturnStructuralScalarCall {
+                scalar_type,
+                callee,
+                structural_parameters,
+                arguments,
+                ..
+            } = &lowered.functions[0].operation
+            else {
+                panic!("structural scalar call retains its dedicated target carrier")
+            };
+            assert_eq!(*scalar_type, ScalarType::Boolean);
+            assert_eq!(*callee, MachineId::new(71).unwrap());
+            assert_eq!(structural_parameters.len(), 1);
+            assert_eq!(arguments.len(), 1);
+            assert!(arguments[0].path.is_empty());
+            assert_eq!(arguments[0].source_byte_offset, 0);
+        }
+    }
 
     fn bounded_boolean_cleanup_plan() -> TerminalAbstractOperationPlan {
         let caller = MachineId::new(40).unwrap();

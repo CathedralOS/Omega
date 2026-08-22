@@ -2078,7 +2078,11 @@ Remaining:
   proof-bearing branch may choose canonical certificate custody or trusted
   sufficient reduction before recording the pre-result axiom snapshot. CFG
   traversal and return intersection remain in the parent, and an unclaimed
-  validated operation still fails closed. Terminator custody now lives in a
+  validated operation still fails closed. Exact divide/remainder now compute their
+  existing literal-aware trusted reduction before probing retained canonical
+  certificates, and an exact `Truth` reduction keeps precedence; nontrivial
+  obligations still select canonical certificate custody, while wrapping and
+  saturating rows remain unchanged. Terminator custody now lives in a
   side-local `terminator_facts` module. It owns the exact
   Jump/Conditional/return/crash dispatch, successor fact propagation,
   scalar-result equality, nominal-cleanup obligations, structural-return facts,
@@ -2249,6 +2253,14 @@ Remaining:
   reconstruction retains proposition references only. Completion, affine
   custody, proof shape, rejection, and the fixed non-recursive frontier remain
   unchanged.
+  One-alias transitive affine candidate selection now uses paired side-local
+  stateless functions rather than one-shot candidate structs. Producer and
+  reconstruction each build their own ordered two-citation index once per
+  invocation, then independently scan assumptions or requirements before
+  semantic axioms and left-before-right equality orientation; only production
+  retains citation proofs. Equality distinctness, exact shared-middle chain
+  order, citation/proof shape, alias completion, rejection behavior, and the
+  fixed one-alias/two-citation frontier remain unchanged.
   One-equality transitive affine completion now lives in independent side-local
   `affine_selection/transitive/alias/completion` modules. Each parent retains
   its own ledger-ordered equality discovery, distinct root/alias custody, and
@@ -4421,6 +4433,29 @@ Owners:
   literal status 70 and all specialization, fact-discharge, and written-
   override diagnostics. The 795 rooted/3 legacy exact-owner pins and all
   established fences remain unchanged.
+  Five authored-root generic/default executions—inherited and generic trait
+  defaults, const-specialized container methods, coexisting concrete generic
+  instances, and pure min/max guard-subject hoisting—now launch solely through
+  exact checked-report executable receipts while preserving literal statuses
+  70, 70, 70, 30, and 70 and all inheritance, specialization, layout, and
+  guard-discrimination diagnostics. Existing `OutputOnly` policy, the 795
+  rooted/3 legacy exact-owner pins, and all established fences remain
+  unchanged.
+  Five authored-root indexed/control executions—indexed true/false guard
+  pairing, indexed-field local operands, indexed-local bitwise and comparison
+  operands, and scalar min-guard true/false pairing—now launch solely through
+  exact checked-report executable receipts while preserving literal status 70
+  and all shared-subject, materialized-slot, bitwise, comparison, and guard-
+  discrimination diagnostics. Existing `OutputOnly` policy, the 795 rooted/3
+  legacy exact-owner pins, and all established fences remain unchanged.
+  Five authored-root generic/reduction executions—nested generic instances,
+  generic let-local instances, domain-carrying generic instances, one-pass
+  array max/sum, and indexed reduction loops—now launch solely through exact
+  checked-report executable receipts while preserving literal statuses 30,
+  30, 42, 70, and 70 and all fixed-point monomorphization, domain-layout,
+  indexed-read, and reduction diagnostics. Existing `OutputOnly` policy, the
+  795 rooted/3 legacy exact-owner pins, and all established fences remain
+  unchanged.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
@@ -4984,25 +5019,27 @@ Remaining N6/N8 work:
   receiver qualification. Leaf spelling alone grants no projection semantics.
   Checked and Terminal representations now retain a source-handle-free proof-
   only `FloatMeaning` value namespace and exact `Meaning32`/`Meaning64`
-  projection rows. Checked-to-Terminal lowering independently replays the
-  source primitive and result shape, preserves plan-local input/result
-  identities, and maps only the matching format. The independent verifier
-  reconstructs the shared projection-catalog row solely from Terminal
-  operation and format fields, without source names, a name-table join,
-  runtime bits, or float evaluation. Validation now captures each actual proof-
-  position exact `Float::meaning32`/`Float::meaning64` invocation, its selected
-  operator identity, actual operand coordinate, and landed `f32`/`f64` format.
-  Checked binding independently replays the exact path, signature, symbol,
-  argument identity, and format before transactionally publishing dense
-  source-handle-free projection rows; operand and cross-format substitution
-  reject. Terminal module lowering now emits every checked dense projection
-  row into a dedicated proof-only section. Vocabulary 21/module format 19
-  encode the exact result/source IDs, IEEE format, and closed operation tag;
-  canonical validation requires dense paired identities, and module
-  verification independently reconstructs every catalog row while rejecting
-  identity, order, tag, and cross-format drift. The rows remain outside
-  executable operations, runtime values, interpretation, and native lowering.
-  Proposition consumption remains open.
+  projection rows. Validation captures each actual proof-position invocation,
+  selected operator identity, operand coordinate, and landed format. Checked
+  binding independently replays the exact path, signature, symbol, argument,
+  format, original binary-equality expression, and both invocation handles
+  before transactionally publishing dense projection and equality-proposition
+  tables; operand and cross-format substitution reject. Terminal vocabulary
+  22/module format 20 encode the exact projection rows plus dense, source-
+  handle-free equality rows with ordered projection references. Verification
+  independently resolves each operand through the projection table and
+  reconstructs its format-specific catalog law, rejecting missing, reordered,
+  noncanonical, or cross-format evidence. These propositions remain outside
+  runtime Booleans, machine operations/contracts, interpretation, native
+  lowering, and proof-kernel discharge; those later consumers remain open.
+  Proof-kernel discharge is now an explicit language-design block rather than
+  an implementation task: the kernel accepts only scalar-term equality, with
+  no proof-only `FloatMeaning`/`ProofValueId` term; independently authored
+  projection invocations do not retain a shared landed-source identity; and
+  Terminal equality rows have no contract owner or evidence-provenance lane.
+  A ruling must choose the core/kernel proof-term carrier and accepted
+  FloatMeaning equality rule, plus exact source-coordinate identity/coalescing
+  (or an alternative owner/contract binding), before this row can advance.
 - Then migrate suffix law discovery to propositions plus explicit conformances,
   and expand the checked `Nat`/`Int`/`Rat`/Cauchy/approximation corpus. `Real`
   remains proof-only and core-level.
@@ -5070,9 +5107,15 @@ boundary without its corresponding checked law.
   lowering emits a two-machine owner/realization closure in disjoint identity
   namespaces, retains the closed conformance application, and round-trips the
   exact whole-root operand permutation. The verifier, fixed-fuel analysis, and
-  target-neutral interpreter consume the row; Omega projects it explicitly to
-  an abstract operation but native target lowering still rejects it pending a
-  result-bearing structural-call ABI operation.
+  target-neutral interpreter consume the row. Omega now retains a dedicated
+  bounded whole-root structural-call/scalar-return carrier through target
+  selection and assignment, reuses the aggregate-copy ABI frame without
+  fabricating a Unit result, and records the exact optional scalar result in
+  object and installation custody. Both x86-64 and AArch64 emit, object/image
+  validation and installation round trips replay the result-bearing call plan,
+  and a checked trait-operator source canary reaches that complete native
+  artifact boundary. General mixed scalar/effect structural-call bodies remain
+  outside this fixed two-operation closure.
   A concrete direct wrapper may crown only one token meaning per normalized
   operand signature; alternative conformances remain named explicit calls.
 

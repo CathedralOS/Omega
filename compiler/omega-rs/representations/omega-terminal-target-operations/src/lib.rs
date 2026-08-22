@@ -265,6 +265,22 @@ pub enum TerminalTargetOperation {
     /// a separate representation so value-less execution cannot fabricate a
     /// pseudo-result.
     UnitBody(TerminalTargetUnitBody),
+    /// One bounded whole-root structural call whose scalar ABI result is
+    /// returned directly. Keeping this carrier distinct from `UnitBody`
+    /// prevents a result-bearing call from being erased into a value-less
+    /// operation stream while still sharing the aggregate-copy ABI lane.
+    ReturnStructuralScalarCall {
+        psi_edge: EdgeId,
+        psi_operation: OperationId,
+        source_value: ValueId,
+        scalar_type: ScalarType,
+        callee: MachineId,
+        structural_types: Vec<StructuralTypeDeclaration>,
+        call_plan: CallPlan,
+        structural_parameters: Vec<TerminalTargetStructuralParameter>,
+        arguments: Vec<TerminalTargetStructuralArgument>,
+        claim_transfers: Vec<ClaimTransfer>,
+    },
     /// A scalar return plus the exact structural cleanup frontier that runs
     /// after result materialization and before native return teardown.
     ScalarReturnWithCleanup {

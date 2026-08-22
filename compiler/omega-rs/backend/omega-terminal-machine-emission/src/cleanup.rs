@@ -178,6 +178,7 @@ pub(super) fn emit_scalar_return_with_cleanup(
         internal_unit_calls.push(TerminalInternalUnitCallRecord {
             owner,
             target: cleanup.cleanup_machine,
+            result: None,
             arguments: Vec::new(),
             claim_transfers: Vec::new(),
             operation_ordinal: 0,
@@ -812,6 +813,7 @@ fn emit_boolean_cleanup_leaf(
         internal_unit_calls.push(TerminalInternalUnitCallRecord {
             owner,
             target: cleanup.cleanup_machine,
+            result: None,
             arguments: Vec::new(),
             claim_transfers: Vec::new(),
             operation_ordinal: leaf_ordinal,

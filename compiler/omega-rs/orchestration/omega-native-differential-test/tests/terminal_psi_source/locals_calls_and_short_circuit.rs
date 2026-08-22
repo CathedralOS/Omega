@@ -238,6 +238,88 @@ fn checked_source_direct_call_emits_its_reachable_terminal_closure() {
 }
 
 #[test]
+fn checked_trait_operator_structural_call_reaches_native_artifact_custody() {
+    let checked = compile_to_checked(
+        &terminal_source_canary("structural_scalar_trait_operator"),
+        None,
+    )
+    .expect("the fixed trait-operator source canary should compile");
+    let plan = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .trait_operator_machines
+        .first()
+        .expect("one exact trait-operator structural call plan");
+    let name = checked
+        .facts
+        .flow
+        .terminal_machines
+        .machines
+        .iter()
+        .find(|selection| selection.machine == plan.machine)
+        .expect("selected specialized caller")
+        .name
+        .clone();
+    let lowered = lower_machine(&checked, &name)
+        .expect("the fixed trait-operator call should lower to terminal Psi");
+    let verified = verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("the structural scalar call closure should verify");
+    let abstract_operations = lower_verified_artifact(&verified)
+        .expect("the structural scalar call should cross the Omega boundary");
+
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let target_operations = lower_to_target_operations(&abstract_operations, target)
+            .expect("the structural scalar call should select a native calling plan");
+        assert!(matches!(
+            target_operations.functions[0].operation,
+            TerminalTargetOperation::ReturnStructuralScalarCall { .. }
+        ));
+        let assigned = assign_registers(&target_operations)
+            .expect("the structural scalar aggregate copies should assign");
+        let emitted =
+            emit_machine_code(&assigned).expect("the structural scalar call closure should emit");
+        let caller = &emitted.functions[0];
+        let [custody] = caller.internal_unit_calls.as_slice() else {
+            panic!("one structural scalar call retains artifact custody")
+        };
+        assert_eq!(custody.result, Some(ScalarType::Boolean));
+        assert_eq!(custody.arguments.len(), 2);
+        assert!(
+            custody
+                .arguments
+                .iter()
+                .all(|argument| argument.path.is_empty())
+        );
+        let mut erased_result = emitted.clone();
+        erased_result.functions[0].internal_unit_calls[0].result = None;
+        assert!(
+            build_terminal_object_artifact(&erased_result).is_err(),
+            "object validation must reject erasing result-bearing call custody"
+        );
+        let object = build_terminal_object_artifact(&emitted)
+            .expect("the structural scalar call should replay at the object boundary");
+        let image = emit_terminal_executable_image(&object, 3)
+            .expect("the structural scalar call should link into an executable image");
+        let installation = build_terminal_installation_record(
+            &image,
+            ProfileDecisionId::new(70).expect("installation profile decision"),
+        )
+        .expect("the structural scalar call should retain installation custody");
+        let bytes = encode_terminal_installation_record(&installation)
+            .expect("structural scalar installation should encode");
+        assert_eq!(
+            decode_terminal_installation_record(&bytes),
+            Ok(installation)
+        );
+    }
+}
+
+#[test]
 fn checked_source_short_circuit_call_argument_is_staged_before_the_call() {
     let checked = compile_to_checked(&source_canary(), None)
         .expect("the short-circuit call source canary should compile");

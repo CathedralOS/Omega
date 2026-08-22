@@ -574,6 +574,22 @@ pub fn build_terminal_object_artifact(
             function.unit_affine_cleanup.as_ref()
         };
         for custody in &function.internal_unit_calls {
+            let target_returns_scalar = machine_functions
+                .get(&custody.target)
+                .copied()
+                .is_some_and(|target| {
+                    target.scalar_stack.is_some()
+                        || (target.unit_stack.is_some()
+                            && target
+                                .internal_unit_calls
+                                .iter()
+                                .any(|call| call.result.is_some()))
+                });
+            if custody.result.is_some() != target_returns_scalar {
+                return Err(TerminalObjectError::InvalidInternalUnitCallEvidence(
+                    function.machine,
+                ));
+            }
             let unit_call_stack = validated_call_stacks
                 .iter()
                 .find(|call| call.owner == custody.owner && call.target == custody.target);
@@ -1109,10 +1125,19 @@ fn validate_unit_affine_cleanup(
         .map(|(_, place, _)| place.id)
         .collect::<Vec<_>>();
     let expected_local_prefix = local_places.iter().rev().copied().collect::<Vec<_>>();
+    let transferred_roots = internal_unit_calls
+        .iter()
+        .flat_map(|call| &call.arguments)
+        .filter(|argument| argument.path.is_empty())
+        .map(|argument| argument.place)
+        .collect::<std::collections::BTreeSet<_>>();
     let expected_parameter_suffix = parameter_homes
         .iter()
         .rev()
-        .filter(|home| home.multiplicity == psi_terminal::StructuralMultiplicity::Affine)
+        .filter(|home| {
+            home.multiplicity == psi_terminal::StructuralMultiplicity::Affine
+                && !transferred_roots.contains(&home.place)
+        })
         .map(|home| home.place)
         .collect::<Vec<_>>();
     let local_operations = cleanup
@@ -1163,6 +1188,7 @@ fn validate_unit_affine_cleanup(
                     matches!(call.owner, TerminalCallSiteOwner::Operation(operation)
                         if function.provenance.operations.get(ordinal) == Some(&operation))
                         && call.operation_ordinal == ordinal
+                        && call.result.is_none()
                         && call.arguments.is_empty()
                         && call.claim_transfers.is_empty()
                         && functions.get(&call.target).is_some_and(|helper| {
@@ -1823,6 +1849,9 @@ fn validate_internal_unit_call_custody(
         Architecture::Aarch64 => 0,
     };
     if custody.arguments.is_empty() && custody.claim_transfers.is_empty() {
+        if custody.result.is_some() {
+            return Err(invalid());
+        }
         let owner_valid = match custody.owner {
             TerminalCallSiteOwner::Operation(operation) => {
                 provenance.operations.contains(&operation)
@@ -1898,7 +1927,16 @@ fn validate_internal_unit_call_custody(
                 .iter()
                 .map(|argument| argument.shape)
                 .collect(),
-            result: None,
+            result: custody.result.map(|result| {
+                let bytes = match result {
+                    psi_core::ScalarType::Boolean => 1,
+                    psi_core::ScalarType::Integer(integer) => integer.bits().div_ceil(8),
+                };
+                omega_calling_conventions::ValueShape::integer(
+                    bytes,
+                    bytes.next_power_of_two().min(8),
+                )
+            }),
         },
     )
     .map_err(|_| invalid())?;

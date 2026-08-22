@@ -11,7 +11,7 @@ use omega_terminal_target_operations::{
 };
 use psi_core::{
     BoundaryMachineId, ClaimId, EdgeId, IntegerType, IntegerValue, MachineId, OperationId, PlaceId,
-    ServiceId, StructuralFieldId, StructuralTypeId, ValueId,
+    ScalarType, ServiceId, StructuralFieldId, StructuralTypeId, ValueId,
 };
 use psi_terminal::{
     ClaimTransfer, CompletionReceipt, CrashCause, CrashPredicateTerm, StructuralArgument,
@@ -39,6 +39,18 @@ pub struct TerminalAssignedFunction {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminalAssignedOperation {
     UnitBody(TerminalAssignedUnitBody),
+    ReturnStructuralScalarCall {
+        psi_edge: EdgeId,
+        psi_operation: OperationId,
+        source_value: ValueId,
+        scalar_type: ScalarType,
+        callee: MachineId,
+        structural_types: Vec<StructuralTypeDeclaration>,
+        call_plan: CallPlan,
+        structural_parameters: Vec<TerminalTargetStructuralParameter>,
+        copies: Vec<TerminalAssignedAggregateCopy>,
+        claim_transfers: Vec<ClaimTransfer>,
+    },
     ScalarReturnWithCleanup {
         scalar: Box<TerminalAssignedOperation>,
         structural_types: Vec<StructuralTypeDeclaration>,
@@ -205,6 +217,7 @@ pub enum TerminalAssignedUnitOperation {
     Call {
         psi_operation: OperationId,
         callee: MachineId,
+        result: Option<ScalarType>,
         copies: Vec<TerminalAssignedAggregateCopy>,
         claim_transfers: Vec<ClaimTransfer>,
     },
