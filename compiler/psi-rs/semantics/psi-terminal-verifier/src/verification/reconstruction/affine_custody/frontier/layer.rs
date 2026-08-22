@@ -5,21 +5,9 @@ use psi_core::{Proposition, PropositionContext, ScalarTerm};
 use super::super::DefinitionIndex;
 use super::prefix;
 
-pub(super) struct Entry {
-    word: Vec<usize>,
-    start: usize,
-    current: ScalarTerm,
-}
+mod entry;
 
-impl Entry {
-    pub(super) fn root(root: &ScalarTerm) -> Self {
-        Self {
-            word: Vec::new(),
-            start: 0,
-            current: root.clone(),
-        }
-    }
-}
+pub(super) use entry::Entry;
 
 pub(super) fn expand(
     context: &PropositionContext,
