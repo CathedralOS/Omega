@@ -451,7 +451,10 @@ Remaining:
   only map its closed failures to unchanged public errors. The format-31
   completion-source codec now likewise lives in a private 189-line child,
   retaining exact tags, reserved bytes, structural paths, content segments,
-  projection/algebra rows, count guards, bytes, and decode errors. This is
+  projection/algebra rows, count guards, bytes, and decode errors. Its format-
+  31 structural argument place/path codec now lives in a further 83-line child,
+  retaining field/index tags, reserved bytes, UTF-8/nonempty-field validation,
+  count/end guards, exact bytes, and established errors. This is
   custody, not
   authorization. The remaining
   work is real
@@ -2184,8 +2187,11 @@ Remaining:
   require an exact `LessOrEqual` goal, enumerate left-before-right Value targets
   and the existing definition-word frontier, and construct the same
   `IntegerAffineWitness`; root-evidence custody and completion remain in their
-  prior side-local authorities. Proof shape, rejection behavior, and the fixed
-  bounded frontier are unchanged.
+  prior side-local authorities. Exact fixed-target completion now lives in
+  independent `affine_custody/candidates/fixed` children: each parent builds
+  the bounded word catalog once and preserves target-first then word-order
+  precedence. Literal alignment, witness shape, callbacks, rejection, and the
+  fixed frontier are unchanged.
   Optional affine endpoint relaxation now
   lives in independent side-local `affine_custody/relaxation` modules.
   Production alone maps the checked affine root bound, constructs
