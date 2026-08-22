@@ -1,5 +1,26 @@
 use super::*;
 
+fn assert_native_exit_code(
+    report: &CompileReport,
+    expected: i32,
+    fixture: &str,
+    expectation: &str,
+) {
+    let executable = report
+        .checked_native_executable_path()
+        .unwrap_or_else(|| panic!("{fixture} lost its exact executable publication receipt"));
+    let output = Command::new(executable)
+        .output()
+        .unwrap_or_else(|error| panic!("{fixture} should run: {error}"));
+    assert_eq!(
+        output.status.code(),
+        Some(expected),
+        "{expectation}; expected exit {expected}, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
 #[test]
 fn static_guard_footprints_reach_x86_and_aarch64_artifacts() {
     let canary = pass_canary("control_flow/runtime_integer_literal_dispatch_exit");
@@ -244,18 +265,13 @@ fn runtime_shared_ref_param_copy_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("shared ref-param direct-copy canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("shared ref-param direct-copy canary should run");
-    assert_eq!(
-        output.status.code(),
-        Some(42),
-        "expected the dereferenced-source copy `self.got = r.value` to exit 42, got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        42,
+        "shared reference-parameter copy canary",
+        "the dereferenced source field should copy into the receiver",
     );
 
     let _ = fs::remove_dir_all(&build_dir);
@@ -323,18 +339,13 @@ fn runtime_pointee_pair_copy_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("pointee-pair copy canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("pointee-pair copy canary should run");
-    assert_eq!(
-        output.status.code(),
-        Some(42),
-        "expected `target.value = source.value` through two references to exit 42, got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        42,
+        "pointee-pair copy canary",
+        "the field value should copy through the source and target references",
     );
 
     let _ = fs::remove_dir_all(&build_dir);
@@ -1679,12 +1690,14 @@ fn runtime_record_view_place_address_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("runtime record-view place-address canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("runtime record-view place-address canary should run");
-    assert_eq!(output.status.code(), Some(70));
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "record-view place-address canary",
+        "the record view should retain its exact place address",
+    );
     let _ = fs::remove_dir_all(&build_dir);
 }
 
