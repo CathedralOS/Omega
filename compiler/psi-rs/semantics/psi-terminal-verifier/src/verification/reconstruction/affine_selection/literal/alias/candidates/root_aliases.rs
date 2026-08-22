@@ -2,16 +2,16 @@
 
 use psi_core::{Proposition, ScalarTerm};
 
+use super::super::super::equalities::OrientedEqualities;
+
 pub(super) struct RootAliases<'a> {
-    requirements: &'a [Proposition],
-    semantic_axioms: &'a [Proposition],
+    equalities: OrientedEqualities<'a>,
 }
 
 impl<'a> RootAliases<'a> {
     pub(super) fn new(requirements: &'a [Proposition], semantic_axioms: &'a [Proposition]) -> Self {
         Self {
-            requirements,
-            semantic_axioms,
+            equalities: OrientedEqualities::new(requirements, semantic_axioms),
         }
     }
 
@@ -19,21 +19,12 @@ impl<'a> RootAliases<'a> {
         &self,
         mut join: impl FnMut(&'a Proposition, &'a ScalarTerm, &'a ScalarTerm) -> bool,
     ) -> bool {
-        for equality in self.requirements.iter().chain(self.semantic_axioms) {
-            let Proposition::Equal(left, right) = equality else {
-                continue;
-            };
-            for (root, alias) in [(left, right), (right, left)] {
-                if root != alias
-                    && matches!(root, ScalarTerm::Value { .. })
-                    && matches!(alias, ScalarTerm::Value { .. })
-                    && root.scalar_type() == alias.scalar_type()
-                    && join(equality, root, alias)
-                {
-                    return true;
-                }
-            }
-        }
-        false
+        self.equalities.any(|equality, root, alias| {
+            root != alias
+                && matches!(root, ScalarTerm::Value { .. })
+                && matches!(alias, ScalarTerm::Value { .. })
+                && root.scalar_type() == alias.scalar_type()
+                && join(equality, root, alias)
+        })
     }
 }

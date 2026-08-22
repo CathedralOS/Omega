@@ -3,10 +3,7 @@
 use psi_core::{Proposition, ScalarTerm};
 use psi_proof_kernel::ProofNode;
 
-mod equalities;
-
-use super::super::eligibility;
-use equalities::OrientedEqualities;
+use super::super::{eligibility, equalities::OrientedEqualities};
 
 pub(super) struct DirectLiteralCandidates<'a> {
     equalities: OrientedEqualities<'a>,

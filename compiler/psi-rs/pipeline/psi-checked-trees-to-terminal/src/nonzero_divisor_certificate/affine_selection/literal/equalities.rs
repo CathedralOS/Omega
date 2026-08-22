@@ -1,8 +1,8 @@
-//! Source-ordered oriented equalities for direct literal certificate production.
+//! Source-ordered oriented equalities for affine-literal certificate production.
 
 use psi_core::{Proposition, ScalarTerm};
 
-use super::super::super::super::super::integer_evidence::{Citation, cited_facts};
+use super::super::super::integer_evidence::{Citation, cited_facts};
 
 pub(super) struct OrientedEqualities<'a> {
     assumptions: &'a [Proposition],
@@ -30,8 +30,8 @@ impl<'a> OrientedEqualities<'a> {
             let Proposition::Equal(left, right) = equality else {
                 continue;
             };
-            for (root, literal) in [(left, right), (right, left)] {
-                if let Some(result) = candidate(citation, equality, root, literal) {
+            for (left, right) in [(left, right), (right, left)] {
+                if let Some(result) = candidate(citation, equality, left, right) {
                     return Some(result);
                 }
             }
