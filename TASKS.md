@@ -538,9 +538,13 @@ Owners:
   remain unchanged. Closed build-time Schema ABI construction now also lives in
   a focused 228-line private owner, retaining stable nonzero record/case/payload
   keys, Optional identities, fixed-capacity padding, tombstones, payload
-  reflection, and exact capacity diagnostics. The 107-function production
-  inventory and all 33 layout tests remain intact, with the coordinator now
-  1,231 lines.
+  reflection, and exact capacity diagnostics. Evaluated Plan decoding,
+  structural validation, and canonical report normalization now live in a
+  focused 525-line owner, preserving u64 carriers, placement-family legality,
+  repeated/fragmented tiling, alignment/overflow, overlap/bounds, stored-
+  integer total decode, and diagnostic order. The 107-function production
+  inventory and all 33 layout tests remain intact, with the coordinator now 715
+  lines.
   Erased terms remain semantically mandatory but add no bytes, including nested
   records and fixed arrays whose entire runtime shape is erased. Scalar
   placement/access semantics remain fenced for aggregates. Continue beyond
