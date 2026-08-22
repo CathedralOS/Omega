@@ -4,13 +4,9 @@ use psi_core::Proposition;
 
 use super::super::super::integer_evidence::closed_integer_less_or_equal;
 
+mod bridge;
+
 pub(super) fn retained(mapped: &Proposition, goal: &Proposition) -> bool {
-    let Proposition::LessOrEqual(mapped_left, mapped_right) = mapped else {
-        return false;
-    };
-    let Proposition::LessOrEqual(goal_left, goal_right) = goal else {
-        return false;
-    };
-    (goal_right == mapped_right && closed_integer_less_or_equal(goal_left, mapped_left))
-        || (goal_left == mapped_left && closed_integer_less_or_equal(mapped_right, goal_right))
+    bridge::required(mapped, goal)
+        .is_some_and(|bridge| closed_integer_less_or_equal(bridge.left, bridge.right))
 }
