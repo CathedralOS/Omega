@@ -4,6 +4,10 @@ use psi_core::{Proposition, ScalarTerm};
 
 use super::super::integer_evidence::{Citation, cited_facts};
 
+pub(super) fn is_value(term: &ScalarTerm) -> bool {
+    matches!(term, ScalarTerm::Value { .. })
+}
+
 pub(super) fn ordered<'a>(
     assumptions: &'a [Proposition],
     semantic_axioms: &'a [Proposition],
@@ -20,5 +24,5 @@ pub(super) fn value_endpoints<'a>(
 ) -> impl Iterator<Item = &'a ScalarTerm> {
     [left, right]
         .into_iter()
-        .filter(|endpoint| matches!(endpoint, ScalarTerm::Value { .. }))
+        .filter(|endpoint| is_value(endpoint))
 }

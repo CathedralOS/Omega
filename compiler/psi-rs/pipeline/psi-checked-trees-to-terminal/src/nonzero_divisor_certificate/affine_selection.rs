@@ -8,8 +8,8 @@ use super::affine_custody::DefinitionIndex;
 mod alias;
 mod bounds;
 mod direct;
-mod eligibility;
 mod equalities;
+mod fact_identity;
 mod literal;
 mod transitive;
 

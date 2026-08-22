@@ -2,7 +2,7 @@
 
 use psi_core::{Proposition, ScalarTerm};
 
-use super::super::eligibility;
+use super::super::fact_identity;
 
 mod left_legs;
 mod right_index;
@@ -33,7 +33,7 @@ impl<'a> TwoCitationChains<'a> {
             self.semantic_axioms,
             |left_fact, left, middle| {
                 for &(right_fact, right) in self.right_legs.candidates(middle) {
-                    if !eligibility::distinct_facts(left_fact, right_fact) {
+                    if !fact_identity::distinct(left_fact, right_fact) {
                         continue;
                     }
                     if complete(left, right) {

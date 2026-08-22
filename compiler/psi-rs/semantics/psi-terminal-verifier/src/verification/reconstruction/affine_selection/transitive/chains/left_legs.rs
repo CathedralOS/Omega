@@ -2,7 +2,7 @@
 
 use psi_core::{Proposition, ScalarTerm};
 
-use super::super::super::{bounds, eligibility};
+use super::super::super::bounds;
 
 pub(super) fn any<'a>(
     requirements: &'a [Proposition],
@@ -10,6 +10,6 @@ pub(super) fn any<'a>(
     mut join: impl FnMut(&'a Proposition, &'a ScalarTerm, &'a ScalarTerm) -> bool,
 ) -> bool {
     bounds::ordered(requirements, semantic_axioms)
-        .filter(|(_, _, middle)| eligibility::is_value(middle))
+        .filter(|(_, _, middle)| bounds::is_value(middle))
         .any(|(fact, left, middle)| join(fact, left, middle))
 }

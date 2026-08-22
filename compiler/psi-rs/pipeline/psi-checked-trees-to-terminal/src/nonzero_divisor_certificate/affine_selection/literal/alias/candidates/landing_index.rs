@@ -6,7 +6,7 @@ use psi_core::{Proposition, ScalarTerm};
 use psi_proof_kernel::ProofNode;
 
 use super::super::super::super::super::integer_evidence::Citation;
-use super::super::super::super::{eligibility, equalities};
+use super::super::super::super::{equalities, fact_identity};
 
 pub(super) struct LandingIndex<'a> {
     by_alias: BTreeMap<ScalarTerm, Vec<(Citation, &'a Proposition, &'a ScalarTerm)>>,
@@ -38,7 +38,7 @@ impl<'a> LandingIndex<'a> {
             return None;
         }
         for &(citation, inner_equality, literal) in self.by_alias.get(alias).into_iter().flatten() {
-            if !eligibility::distinct_facts(outer_equality, inner_equality) {
+            if !fact_identity::distinct(outer_equality, inner_equality) {
                 continue;
             }
             if let Some(result) = complete(

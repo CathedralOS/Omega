@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 
 use psi_core::{Proposition, ScalarTerm};
 
-use super::super::super::super::{eligibility, equalities};
+use super::super::super::super::{equalities, fact_identity};
 
 pub(super) struct LandingIndex<'a> {
     by_alias: BTreeMap<ScalarTerm, Vec<(&'a Proposition, &'a ScalarTerm)>>,
@@ -39,7 +39,7 @@ impl<'a> LandingIndex<'a> {
             .into_iter()
             .flatten()
             .any(|&(inner_equality, literal)| {
-                eligibility::distinct_facts(outer_equality, inner_equality) && complete(literal)
+                fact_identity::distinct(outer_equality, inner_equality) && complete(literal)
             })
     }
 }
