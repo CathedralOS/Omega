@@ -2132,19 +2132,13 @@ fn runtime_free_machine_value_call_mut_arg_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-free-machine-mut-arg-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("free-machine mut-arg value call canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("free-machine mut-arg value call canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected a free-machine value call with a &mut tally arg to return 100 and bump the tally once (exit 70), got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "free-machine mutable-argument value-call canary",
+        "the call should return its value and mutate the tally exactly once",
     );
 
     let _ = fs::remove_dir_all(&scratch);
@@ -2164,19 +2158,13 @@ fn runtime_free_machine_looping_value_call_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-free-machine-looping-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("looping free-machine value call canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("looping free-machine value call canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected a looping free-machine value call to deliver the looped accumulator (exit 70), got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "looping free-machine value-call canary",
+        "the looping call should deliver its final accumulator to the caller",
     );
 
     let _ = fs::remove_dir_all(&scratch);
@@ -2219,19 +2207,13 @@ fn runtime_widened_comparison_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-runtime-widened-cmp-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("widened comparison canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("widened comparison canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected the widened compare to avoid truncation (44 as i32 != 300, 44 as i32 == 44) and exit 70, got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "widened-comparison canary",
+        "the explicitly widened comparison should not truncate the wider operand",
     );
 
     let _ = fs::remove_dir_all(&scratch);
@@ -2249,19 +2231,13 @@ fn runtime_widened_bitwise_exit_canary_runs() {
     ));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("widened bitwise canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("widened bitwise canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected the widened bitwise OR to avoid truncation (256 | 1 == 257) and exit 70, got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "widened-bitwise canary",
+        "the explicitly widened bitwise operation should retain every high bit",
     );
 
     let _ = fs::remove_dir_all(&scratch);
@@ -2274,19 +2250,13 @@ fn runtime_16bit_cast_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-runtime-16bit-cast-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("16-bit cast canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("16-bit cast canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected i16/u16 casts (truncate, sign/zero-extend, reinterpret) in every direction to evaluate correctly and exit 70, got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "16-bit cast canary",
+        "i16 and u16 truncation, extension, and reinterpretation should agree",
     );
 
     let _ = fs::remove_dir_all(&scratch);
