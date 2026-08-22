@@ -1829,6 +1829,15 @@ endpoint identity, inner-relation precedence, outer proof shape, rejection,
 and both fixed frontiers are unchanged; reconstruction does not consume the
 producer's citation or proof node as authority.
 
+The fixed two-equality endpoint sibling now keeps its established
+`integer_selection/substitution/two` API as a facade over independent
+side-local `two/selection` owners. Each selection retains outer equality,
+orientation, inner equality, then affine-relation order and exact fact
+non-reuse. The producer constructs the same inner-then-outer substitution
+bytes; reconstruction independently checks the final-alias affine relation.
+Endpoint identity, rejection order, and the exact two-equality frontier are
+unchanged.
+
 The complete retained-bound `i1` family selects that conjunction when exact
 prior `divisor <= -1` and `0 <= dividend` propositions are both present; the
 untrusted producer cites both through conjunction introduction. A missing
