@@ -3244,6 +3244,12 @@ Remaining:
   next measured duplicate is the same resolver rebuild under
   `assignment_guard_is_stable`; do not redirect this work toward backend or
   arena concurrency.
+  Value-fact construction now owns one lazy exact-program
+  `AssignmentRangeContext`, reusing that resolver only within its immutable
+  invocation while the public range query remains a one-shot wrapper. This
+  reduced the two float canaries' checked phases by 56–97ms (3.248s to 3.151s
+  and 3.172s to 3.116s); unchanged allocation counts confirm the win is avoided
+  symbol/arena rescanning rather than allocation suppression.
   Default-domain validation now delegates conservative symbolic values,
   literal/sequence measures, valuation folding, canonical symbolic equality,
   and recursive call detection to a focused 281-line child while state walking,
@@ -5454,6 +5460,11 @@ reach or trust, and private proof improvements do not change public identity.
   byte replay now live in a focused 197-line `structural_condition_read` child
   shared by structural-condition validation. Higher scalar-control accounting
   remains in the 4,427-line parent, with APIs, bytes, errors, order, and function
+  inventory unchanged.
+  Straight-line scalar cleanup-presence validation and exact x86-64/AArch64
+  save/restore/frame/return replay now live in a focused 139-line
+  `scalar_cleanup_preservation` child. Higher conditional cleanup accounting
+  remains in the 4,307-line parent, with APIs, bytes, errors, order, and function
   inventory unchanged.
   The installed-cleanup ordinal-tamper regression now locates the authoritative
   internal-call custody row by its complete machine/text-offset/owner/target
