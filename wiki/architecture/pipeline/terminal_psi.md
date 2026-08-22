@@ -2083,6 +2083,14 @@ cited proof nodes or retained facts. Citation identity, closed bridge and
 substitution bytes, rejection order, single-alias/single-bridge frontier, and
 cast-family precedence are unchanged.
 
+Alias-landed-literal transport uses the same ownership split. Independent
+producer and verifier `alias_transport/cast/literal/candidates` modules retain
+root-equality-first, orientation-second, then distinct landing-equality order,
+including exact fact non-reuse and carrier eligibility. Existing completion
+owners receive the same two cited proof nodes or retained terms. Equality
+identity, nested substitution bytes, target-endpoint order, rejection, the
+single-alias/single-landing frontier, and cast-family precedence are unchanged.
+
 One separately
 bounded source-affine composition may now supply the cast root-bound child:
 production first follows the unique cast spine to its non-cast source, remaps
