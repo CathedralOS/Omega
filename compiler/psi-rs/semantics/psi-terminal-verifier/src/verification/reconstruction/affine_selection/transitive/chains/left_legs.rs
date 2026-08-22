@@ -2,6 +2,8 @@
 
 use psi_core::{Proposition, ScalarTerm};
 
+use super::super::super::eligibility;
+
 pub(super) fn any<'a>(
     requirements: &'a [Proposition],
     semantic_axioms: &'a [Proposition],
@@ -11,7 +13,7 @@ pub(super) fn any<'a>(
         .iter()
         .chain(semantic_axioms)
         .filter_map(|fact| match fact {
-            Proposition::LessOrEqual(_, middle) if matches!(middle, ScalarTerm::Value { .. }) => {
+            Proposition::LessOrEqual(_, middle) if eligibility::is_value(middle) => {
                 Some((fact, middle))
             }
             _ => None,
