@@ -2025,6 +2025,37 @@ fn typed_snapshots_publish_only_normalized_service_reach() {
         panic!("one typed trait-machine snapshot");
     };
     assert_eq!(signature.service_reach, ["Console"]);
+    assert!(!signature.service_reach_is_installation_bound);
+}
+
+#[test]
+fn retains_installation_bound_reach_through_typed_snapshot() {
+    let source = r#"
+        boundary trait MachineControl {}
+        boundary trait PortIo {}
+
+        boundary trait InterruptCompletion {
+            machine complete(acknowledgement: u64)
+            reaches <= MachineControl + PortIo;
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let snapshot = typed.snapshot();
+    let trait_definition = snapshot
+        .roots
+        .traits
+        .iter()
+        .find(|definition| definition.name == "InterruptCompletion")
+        .expect("interrupt completion trait snapshot");
+    let [requirement] = trait_definition.machines.as_slice() else {
+        panic!("one typed requirement snapshot");
+    };
+
+    assert!(requirement.service_reach_is_installation_bound);
+    assert_eq!(requirement.service_reach, ["MachineControl", "PortIo"]);
 }
 
 #[test]

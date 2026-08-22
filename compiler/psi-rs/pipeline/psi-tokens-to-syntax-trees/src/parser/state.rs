@@ -33,6 +33,7 @@ pub(super) fn parse_state_signature<'tokens, 'source>(
             is_default: false,
             parameters,
             return_type,
+            service_reach_is_installation_bound: false,
             service_reaches: HandleSpan::empty(),
             invokes: HandleSpan::empty(),
             suspends: false,

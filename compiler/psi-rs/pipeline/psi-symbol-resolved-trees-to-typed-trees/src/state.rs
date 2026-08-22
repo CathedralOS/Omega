@@ -177,6 +177,7 @@ pub(crate) fn lower_state_signature(
             .unwrap_or_else(typed::types::TypeReferenceHandle::invalid),
         invokes: Default::default(),
         service_reach_row: signature.service_reach_row,
+        service_reach_is_installation_bound: signature.service_reach_is_installation_bound,
         suspends: signature.suspends,
         blocks: signature.blocks,
         contracts: Default::default(),

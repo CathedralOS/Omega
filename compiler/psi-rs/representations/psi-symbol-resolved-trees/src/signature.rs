@@ -24,6 +24,9 @@ pub struct StateSignatureStorage {
     pub invokes: HandleSpan<DiagnosticName>,
     /// EFX: normalized symbol-resolved boundary-service row.
     pub service_reach_row: psi_language_semantics::ServiceReachRowId,
+    /// The published row is an installation-selected upper bound rather than
+    /// a fixed callable ceiling.
+    pub service_reach_is_installation_bound: bool,
     pub suspends: bool,
     pub blocks: bool,
     pub contracts: HandleSpan<SignatureContract>,

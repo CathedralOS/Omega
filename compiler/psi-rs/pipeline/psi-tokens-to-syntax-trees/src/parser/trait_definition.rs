@@ -100,11 +100,27 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
         };
         let (mut signature, rest) = parse_trait_machine_signature(syntax_trees, input)?;
         signature.spelling = spelling;
-        let ((service_reaches, invokes, suspends, blocks, contracts, terminates_guarantee), rest) =
-            parse_signature_clauses(syntax_trees, rest, true)?;
+        let (
+            (
+                service_reaches,
+                service_reach_is_installation_bound,
+                invokes,
+                suspends,
+                blocks,
+                contracts,
+                terminates_guarantee,
+            ),
+            rest,
+        ) = parse_signature_clauses(syntax_trees, rest, true)?;
         // Body presence = the default marker.
         let is_default = rest.at_punctuation(PunctuationKind::LeftBrace);
         signature.is_default = is_default;
+        if service_reach_is_installation_bound && (!is_boundary || is_default) {
+            return Err(rest.error_here(
+                "`reaches <= Bound` is permitted only on a bodyless boundary-trait requirement",
+            ));
+        }
+        signature.service_reach_is_installation_bound = service_reach_is_installation_bound;
         signature.service_reaches = service_reaches;
         signature.invokes = invokes;
         signature.suspends = suspends;
@@ -283,6 +299,7 @@ fn parse_trait_machine_signature<'tokens, 'source>(
             is_default: false,
             parameters,
             return_type,
+            service_reach_is_installation_bound: false,
             service_reaches: HandleSpan::empty(),
             invokes: HandleSpan::empty(),
             suspends: false,
@@ -373,6 +390,7 @@ pub(super) fn parse_signature_clauses<'tokens, 'source>(
     (
         (
             HandleSpan<psi_syntax_trees::identifier::Identifier>,
+            bool,
             HandleSpan<psi_syntax_trees::identifier::Identifier>,
             bool,
             bool,
@@ -387,6 +405,7 @@ pub(super) fn parse_signature_clauses<'tokens, 'source>(
 > {
     let mut service_start = Handle::invalid();
     let mut service_count = 0u32;
+    let mut service_reach_is_installation_bound = false;
     let mut invokes_start = Handle::invalid();
     let mut invokes_count = 0u32;
     let mut suspends = false;
@@ -416,6 +435,20 @@ pub(super) fn parse_signature_clauses<'tokens, 'source>(
 
         if input.at_contextual("reaches") {
             input = input.take_contextual("reaches")?;
+            let service_count_before_clause = service_count;
+            if input.at_punctuation(PunctuationKind::LessEqual) {
+                if service_reach_is_installation_bound || service_count != 0 {
+                    return Err(input.error_here(
+                        "an installation-bound reach row must be declared once as `reaches <= Bound`",
+                    ));
+                }
+                service_reach_is_installation_bound = true;
+                input = input.take_punctuation(PunctuationKind::LessEqual, "<=")?;
+            } else if service_reach_is_installation_bound {
+                return Err(input.error_here(
+                    "an installation-bound reach bound cannot be combined with another `reaches` clause",
+                ));
+            }
             while !input.at_punctuation(PunctuationKind::Semicolon)
                 && !input.at_punctuation(PunctuationKind::LeftBrace)
                 && !input.at_contextual("requires")
@@ -445,6 +478,11 @@ pub(super) fn parse_signature_clauses<'tokens, 'source>(
                 } else if input.at_punctuation(PunctuationKind::Plus) {
                     input = input.take_punctuation(PunctuationKind::Plus, "+")?;
                 }
+            }
+            if service_reach_is_installation_bound && service_count == service_count_before_clause {
+                return Err(input.error_here(
+                    "an installation-bound reach row requires a nonempty upper bound after `reaches <=`",
+                ));
             }
             continue;
         }
@@ -625,6 +663,7 @@ pub(super) fn parse_signature_clauses<'tokens, 'source>(
     Ok((
         (
             service_reaches,
+            service_reach_is_installation_bound,
             invokes,
             suspends,
             blocks,

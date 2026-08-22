@@ -230,6 +230,7 @@ impl Default for LibraryFunction {
                 is_default: false,
                 parameters: HandleSpan::empty(),
                 return_type: crate::types::TypeReferenceHandle::invalid(),
+                service_reach_is_installation_bound: false,
                 service_reaches: HandleSpan::empty(),
                 invokes: HandleSpan::empty(),
                 suspends: false,
@@ -866,6 +867,10 @@ pub struct StateSignature {
     pub is_default: bool,
     pub parameters: HandleSpan<StateParameterHandle>,
     pub return_type: crate::types::TypeReferenceHandle,
+    /// `reaches <= Bound`: the listed row is an upper bound whose exact row is
+    /// supplied by installation. Only bodyless boundary-trait requirements may
+    /// carry this marker.
+    pub service_reach_is_installation_bound: bool,
     pub service_reaches: HandleSpan<Identifier>,
     /// Bodyless direct synchronous invocation ceiling. Members name callable
     /// parameters (or a boundary-trait identity when no parameter path exists).
@@ -1246,6 +1251,7 @@ impl ItemTable {
             is_default: signature.is_default,
             parameters: signature.parameters,
             return_type: signature.return_type,
+            service_reach_is_installation_bound: signature.service_reach_is_installation_bound,
             service_reaches: signature.service_reaches,
             invokes: signature.invokes,
             suspends: signature.suspends,
@@ -1353,6 +1359,7 @@ pub struct StateSignatureNode {
     pub is_default: bool,
     pub parameters: HandleSpan<StateParameterHandle>,
     pub return_type: crate::types::TypeReferenceHandle,
+    pub service_reach_is_installation_bound: bool,
     pub service_reaches: HandleSpan<Identifier>,
     pub invokes: HandleSpan<Identifier>,
     pub suspends: bool,

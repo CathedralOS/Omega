@@ -1681,6 +1681,73 @@ fn rejects_legacy_effects_reach_clause() {
 }
 
 #[test]
+fn parses_installation_bound_reach_on_bodyless_boundary_requirement() {
+    let source = r#"
+        boundary trait InterruptCompletion {
+            machine complete(acknowledgement: u64)
+            reaches <= MachineControl + PortIo;
+        }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens)
+        .expect("bounded installation reach should parse on a boundary requirement");
+    let trait_definition = parsed
+        .root_items()
+        .find_map(|item| match item {
+            psi_syntax_trees::item::Item::Trait(definition) => Some(definition),
+            _ => None,
+        })
+        .expect("boundary trait");
+    let signature = parsed
+        .items
+        .state_signature(parsed.items.state_signatures(trait_definition.machines)[0]);
+    assert!(signature.service_reach_is_installation_bound);
+    assert_eq!(signature.service_reaches.len(), 2);
+}
+
+#[test]
+fn rejects_installation_bound_reach_outside_bodyless_boundary_requirement() {
+    for source in [
+        "trait Completion { machine complete() reaches <= MachineControl; }",
+        "boundary trait Completion { machine complete() reaches <= MachineControl {} }",
+        "machine run<machine Op>() where machine Op() reaches <= MachineControl; {}",
+    ] {
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        let error = parse_syntax_trees(&tokens)
+            .expect_err("installation-bound reach must stay on a bodyless boundary requirement");
+        assert!(
+            error.message.contains("`reaches <= Bound`"),
+            "got: {}",
+            error.message
+        );
+    }
+}
+
+#[test]
+fn rejects_empty_or_mixed_installation_bound_reach_rows() {
+    for source in [
+        "boundary trait Completion { machine complete() reaches <=; }",
+        "boundary trait Completion { machine complete() reaches MachineControl reaches <= PortIo; }",
+        "boundary trait Completion { machine complete() reaches <= MachineControl reaches PortIo; }",
+    ] {
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        let error = parse_syntax_trees(&tokens)
+            .expect_err("empty or mixed installation-bound reach must reject");
+        assert!(
+            error.message.contains("installation-bound reach"),
+            "got: {}",
+            error.message
+        );
+    }
+}
+
+#[test]
 fn rejects_operational_members_in_service_reach_rows() {
     for (retired, replacement) in [
         ("Suspend", "suspends;"),
