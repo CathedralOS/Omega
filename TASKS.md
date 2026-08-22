@@ -2750,15 +2750,18 @@ Owners:
   arguments—now launch only from exact checked-report receipts while retaining
   literal statuses 40, 1, 1, 1, and 1. The 795 owner pin remains stable, and
   reused flat/bundle installation evidence exposes no executable path.
-  Twenty further authored-root indexed executions now cross the same checked
-  report boundary in four exact cohorts: by-value parameter/local indexed
+  Twenty-five further authored-root indexed executions now cross the same
+  checked report boundary in five exact cohorts: by-value parameter/local indexed
   access; machine/frame read, write, RMW, dual-frame, operand, and argument use;
   nested constant-row, runtime-middle 3D, and let-bound computed indexing; and
   aggregate-field, double-runtime-index, deep-prefix, and dual-frame-copy use.
+  The fifth cohort covers mixed-index frame aggregates, cross-region single/
+  double-index aggregate copies, a constant nested-index guard, and dual mixed-
+  index copies.
   All retain literal status 1 and the 795-owner pin. Certificate-fingerprint
   drift, flat substitution into the bundle role, a bundle without its required
-  flat receipt, swapped destination roles, and related receipt-cardinality drift
-  each expose no executable path.
+  flat receipt, swapped destination roles, a dropped native-output flag, and
+  related receipt-cardinality drift each expose no executable path.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
