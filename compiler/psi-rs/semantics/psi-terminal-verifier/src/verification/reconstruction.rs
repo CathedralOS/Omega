@@ -585,6 +585,12 @@ fn retained_bounded_affine_bound(
         return true;
     }
     retained_alias_substituted_affine_bound(context, goal, requirements, semantic_axioms)
+        || retained_transitively_reconstructed_affine_bound(
+            context,
+            goal,
+            requirements,
+            semantic_axioms,
+        )
 }
 
 fn retained_alias_substituted_affine_bound(
@@ -681,6 +687,61 @@ fn retained_affine_bound_from_root(
                     )
                 })
         })
+}
+
+fn retained_transitively_reconstructed_affine_bound(
+    context: &PropositionContext,
+    goal: &Proposition,
+    requirements: &[Proposition],
+    semantic_axioms: &[Proposition],
+) -> bool {
+    let facts = || requirements.iter().chain(semantic_axioms);
+    let mut bounds_by_left_endpoint = BTreeMap::<_, Vec<_>>::new();
+    for fact in facts() {
+        let Proposition::LessOrEqual(left, _) = fact else {
+            continue;
+        };
+        if matches!(left, ScalarTerm::Value { .. }) {
+            bounds_by_left_endpoint
+                .entry(left.clone())
+                .or_default()
+                .push(fact);
+        }
+    }
+
+    facts().any(|left_fact| {
+        let Proposition::LessOrEqual(left, middle) = left_fact else {
+            return false;
+        };
+        if !matches!(middle, ScalarTerm::Value { .. }) {
+            return false;
+        }
+        bounds_by_left_endpoint
+            .get(middle)
+            .is_some_and(|right_facts| {
+                right_facts.iter().any(|right_fact| {
+                    if std::ptr::eq(left_fact, *right_fact) {
+                        return false;
+                    }
+                    let Proposition::LessOrEqual(_, right) = right_fact else {
+                        unreachable!("only integer bounds are indexed")
+                    };
+                    let root_bound = Proposition::LessOrEqual(left.clone(), right.clone());
+                    [left, right]
+                        .into_iter()
+                        .filter(|root| matches!(root, ScalarTerm::Value { .. }))
+                        .any(|root| {
+                            retained_affine_bound_from_root(
+                                context,
+                                goal,
+                                semantic_axioms,
+                                root,
+                                &root_bound,
+                            )
+                        })
+                })
+            })
+    })
 }
 
 fn affine_definition_words(
@@ -2106,6 +2167,64 @@ mod tests {
             &[
                 Proposition::Equal(value(5, signed), value(4, signed)),
                 alias_bound,
+            ],
+        ));
+    }
+
+    #[test]
+    fn exact_division_selects_transitively_reconstructed_affine_root_bound() {
+        let signed = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let context = PropositionContext::from_value_types((1..=5).map(|id| {
+            (
+                ValueId::new(id).expect("value id"),
+                ScalarType::Integer(signed),
+            )
+        }))
+        .expect("five i8 values");
+        let goal = CanonicalScalarGoal::ExactDivisionDefined {
+            integer_type: signed,
+            left: value(1, signed),
+            right: value(2, signed),
+        };
+        let lower_to_middle = Proposition::LessOrEqual(
+            ScalarTerm::integer(signed, IntegerValue::Signed(0)).expect("i8 zero"),
+            value(4, signed),
+        );
+        let middle_to_root = Proposition::LessOrEqual(value(4, signed), value(3, signed));
+        let definition = Proposition::Equal(
+            value(2, signed),
+            ScalarTerm::exact_integer_add(
+                signed,
+                value(3, signed),
+                ScalarTerm::integer(signed, IntegerValue::Signed(1)).expect("i8 one"),
+            )
+            .expect("exact add"),
+        );
+        assert!(exact_division_has_prior_certificate(
+            &context,
+            &goal,
+            std::slice::from_ref(&definition),
+            &[lower_to_middle.clone(), middle_to_root.clone()],
+        ));
+        assert!(!exact_division_has_prior_certificate(
+            &context,
+            &goal,
+            std::slice::from_ref(&definition),
+            std::slice::from_ref(&lower_to_middle),
+        ));
+        assert!(!exact_division_has_prior_certificate(
+            &context,
+            &goal,
+            std::slice::from_ref(&definition),
+            std::slice::from_ref(&middle_to_root),
+        ));
+        assert!(!exact_division_has_prior_certificate(
+            &context,
+            &goal,
+            &[definition],
+            &[
+                lower_to_middle,
+                Proposition::LessOrEqual(value(5, signed), value(3, signed)),
             ],
         ));
     }
