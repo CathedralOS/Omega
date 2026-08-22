@@ -5142,10 +5142,10 @@ boundary without its corresponding checked law.
   validation and installation round trips replay the result-bearing call plan,
   and a checked trait-operator source canary reaches that complete native
   artifact boundary. General mixed scalar/effect structural-call bodies remain
-  outside this fixed two-operation closure. The bounded target selector now
-  lives in its own `structural_scalar` lowering child rather than another large
-  branch in the central target-selection function; ABI checks and behavior are
-  unchanged.
+  outside this fixed two-operation closure. The bounded target selector and
+  calling-plan assignment validator now live in paired `structural_scalar`
+  children rather than large feature-specific branches in either central
+  pipeline function; ABI checks and behavior are unchanged.
   A concrete direct wrapper may crown only one token meaning per normalized
   operand signature; alternative conformances remain named explicit calls.
 
