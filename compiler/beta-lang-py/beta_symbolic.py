@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # beta_symbolic.py SOURCEFILE — SYMBOLIC evaluation of a Beta program: the source-side dual of
-# alpha/alpha_symbolic.py. It tree-walks bc2.py's AST over a mix of CONCRETE integers and SYMBOLIC Peano
+# alpha/alpha_symbolic.py. It tree-walks the shared parser's AST over a mix of CONCRETE integers and SYMBOLIC Peano
 # terms — each read_byte() is a fresh input variable — and reports what function of its inputs the SOURCE
 # denotes, as a closed-form expression. Where beta_interp.py RUNS a Beta program on concrete input, this asks
 # "what does the source MEAN, for all inputs?" without picking any.
@@ -18,7 +18,7 @@
 import sys, os
 sys.setrecursionlimit(400000)          # deep-nat traversals (buffer addresses render as s^k chains)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from bc2 import lex, Parser
+from beta_parser import lex, Parser
 
 NAT_CAP = 1 << 20
 MASK = (1 << 64) - 1

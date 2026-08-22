@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 # beta_interp.py SOURCEFILE — an independent REFERENCE INTERPRETER for the Beta language: it runs Beta
-# source directly (tree-walking bc2.py's AST) and exits with the program's exit code, writing its stdout.
-# It reuses bc2.py's lexer + parser but is an entirely separate back end from the code generator.
+# source directly (tree-walking the shared parser's AST) and exits with the
+# program's exit code, writing its stdout. It has no dependency on the optional
+# bc2 compiler backend.
 #
 # WHY THIS EXISTS — executable reference meaning for Beta compiler validation.
 # Compiler agreement and self-reproduction say nothing about whether bc compiles correctly. Beta has
@@ -15,7 +16,7 @@
 # the interpreter and the compiled-and-run program agree bit for bit.
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from bc2 import lex, Parser
+from beta_parser import lex, Parser
 
 MASK = (1 << 64) - 1
 INT_MIN = -(1 << 63)

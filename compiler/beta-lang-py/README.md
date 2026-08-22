@@ -14,8 +14,9 @@ defined in
   refinement experiments.
 - `symbolic_loop_check.py` and the fuzz generators test those reference and
   reconstruction paths.
-- `bc2.py` contains a separately written Beta parser/compiler currently reused
-  by some of those tools.
+- `beta_parser.py` owns the shared source lexer/parser and tuple-AST contract.
+- `bc2.py` is an optional separately written compiler backend. Active meaning
+  and symbolic tools no longer import compiler code merely to parse Beta.
 
 These programs are untrusted. Their value is diagnostic: disagreement exposes a
 bug or unsupported case. None grants an artifact authority.
@@ -51,7 +52,7 @@ Retain tools by role rather than by host language:
 | --- | --- |
 | interpreter and semantic fuzzing | Beta reference meaning or Beta refinement tests |
 | symbolic evaluator and loop reconstruction | `bootstrap/assurance/refinement/beta/` |
-| reusable parser support currently inside `bc2.py` | the narrowest reference/refinement owner that needs it |
+| reusable `beta_parser.py` source recognition | the narrowest reference/refinement owner that needs it |
 | optional `bc2.py` compiler backend | retain only while it provides unique differential coverage |
 
 The directory can disappear once those responsibilities have explicit owners.

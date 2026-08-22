@@ -5,7 +5,7 @@
 # correctness guarantee from "random fixed inputs" to "verified over the WHOLE bounded input domain".
 import sys, os, subprocess
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from bc2 import lex, Parser
+from beta_parser import lex, Parser
 from beta_interp import interpret
 
 def main():
