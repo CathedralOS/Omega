@@ -2083,9 +2083,12 @@ fn runtime_value_call_composition_exit_canary_runs() {
         "omega-value-call-composition-{}",
         std::process::id()
     ));
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("value call composition canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("value call composition canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("value call composition canary should run");
     assert_eq!(
@@ -2106,9 +2109,12 @@ fn runtime_struct_value_call_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_struct_value_call_exit");
     let scratch =
         std::env::temp_dir().join(format!("omega-struct-value-call-{}", std::process::id()));
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("struct value call canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("struct value call canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("struct value call canary should run");
     assert_eq!(
@@ -2130,9 +2136,12 @@ fn runtime_option_value_call_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_option_value_call_exit");
     let scratch =
         std::env::temp_dir().join(format!("omega-option-value-call-{}", std::process::id()));
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("option value call canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("option value call canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("option value call canary should run");
     assert_eq!(
@@ -2152,9 +2161,12 @@ fn runtime_result_match_exit_canary_runs() {
     // sums the Ok values to 10 and counts 1 Err -> exit 70.
     let canary = pass_canary("errors/runtime_result_match_exit");
     let scratch = std::env::temp_dir().join(format!("omega-result-match-{}", std::process::id()));
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("result match canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("result match canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("result match canary should run");
     assert_eq!(
@@ -2177,9 +2189,12 @@ fn runtime_entity_component_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-entity-component-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("entity component canary should compile from its authored root");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("entity component canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("entity component canary should run");
     assert_eq!(
