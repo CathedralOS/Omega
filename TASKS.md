@@ -496,7 +496,10 @@ Owners:
   ordinary scalar materialization and decoding now use the same identity join
   across whole, stored-integer, and fragmented entries; decoded values retain
   the current schema spelling, while identity drift or collision rejects
-  transactionally.
+  transactionally. Every fixed materialization and scalar-decoding entry point
+  now preflights the retained layout identity set: one stable identity under
+  multiple names, or one name under multiple identities, rejects before
+  destination mutation, value exposure, or symbolic resolution.
   Erased terms remain semantically mandatory but add no bytes, including nested
   records and fixed arrays whose entire runtime shape is erased. Scalar
   placement/access semantics remain fenced for aggregates. Continue beyond
