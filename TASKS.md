@@ -5660,7 +5660,13 @@ Owners:
   binding and certificate identity, so a valid image/certificate cannot
   substitute a different callback registration or satisfaction realization.
   The fingerprint is summary evidence only; exact structural receipt comparison
-  remains authoritative before final emission. The
+  remains authoritative before final emission. Checked executable-image
+  evidence now retains that exact callback-placement identity summary, and
+  publication requires it to equal the final certificate summary. A separately
+  valid certificate recomputed for a substituted registration/satisfaction
+  realization therefore cannot pair with unchanged image evidence. This seals
+  structural callback identity through image-to-certificate publication
+  without selecting the blocked private registration relocation. The
   remaining slices are
   resource-ceiling aggregation, multi-entry/re-entrant target instruction
   lowering, and the
