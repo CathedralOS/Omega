@@ -21,7 +21,7 @@ pub(super) fn retained_from_root(
     context: &PropositionContext,
     goal: &Proposition,
     semantic_axioms: &[Proposition],
-    definitions: &DefinitionIndex,
+    definitions: &mut DefinitionIndex,
     root: &ScalarTerm,
     root_bound: &Proposition,
 ) -> bool {

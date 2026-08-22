@@ -3,7 +3,7 @@
 use psi_core::{Proposition, PropositionContext};
 use psi_terminal_semantics::CanonicalScalarGoal;
 
-use super::integer_selection;
+use super::{affine_custody::DefinitionIndex, integer_selection};
 
 pub(super) fn retained(
     context: Option<&PropositionContext>,
@@ -14,5 +14,12 @@ pub(super) fn retained(
     let Ok(Some(proposition)) = goal.kernel_proposition() else {
         return false;
     };
-    integer_selection::retained(context, &proposition, requirements, semantic_axioms)
+    let mut definitions = DefinitionIndex::new(semantic_axioms);
+    integer_selection::retained(
+        context,
+        &proposition,
+        requirements,
+        semantic_axioms,
+        &mut definitions,
+    )
 }

@@ -2,7 +2,7 @@
 
 use psi_core::{Proposition, PropositionContext, ScalarTerm};
 
-use super::super::super::super::super::affine_selection;
+use super::super::super::super::super::{affine_custody::DefinitionIndex, affine_selection};
 
 pub(super) fn retained(
     context: &PropositionContext,
@@ -12,11 +12,18 @@ pub(super) fn retained(
     endpoint: usize,
     requirements: &[Proposition],
     semantic_axioms: &[Proposition],
+    definitions: &mut DefinitionIndex,
 ) -> bool {
     let relation = if endpoint == 0 {
         Proposition::LessOrEqual(target_alias.clone(), goal_right.clone())
     } else {
         Proposition::LessOrEqual(goal_left.clone(), target_alias.clone())
     };
-    affine_selection::retained(context, &relation, requirements, semantic_axioms)
+    affine_selection::retained_with_definitions(
+        context,
+        &relation,
+        requirements,
+        semantic_axioms,
+        definitions,
+    )
 }
