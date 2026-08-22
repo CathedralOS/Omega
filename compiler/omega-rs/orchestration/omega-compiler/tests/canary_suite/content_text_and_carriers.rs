@@ -7,10 +7,13 @@ fn unary_negation_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-unary-negation-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("unary negation canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("unary negation canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("unary negation canary should run");
 
@@ -37,10 +40,13 @@ fn utf8_literal_len_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-utf8-literal-len-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("utf8 literal len canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("utf8 literal len canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("utf8 literal len canary should run");
 
@@ -68,10 +74,13 @@ fn user_domain_literal_grant_canary_runs() {
         std::env::temp_dir().join(format!("omega-user-domain-grant-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("user-domain literal grant canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("user-domain literal grant canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("user-domain literal grant canary should run");
 
@@ -94,10 +103,13 @@ fn bodyless_domain_declaration_spellings_canary_runs() {
         std::env::temp_dir().join(format!("omega-bodyless-domains-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("equivalent bodyless-domain spellings should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("bodyless-domain declaration canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("bodyless-domain declaration canary should run");
 
