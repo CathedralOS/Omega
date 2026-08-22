@@ -626,6 +626,14 @@ Owners:
   derived-offset, or unmatched-entry drift rejects before host geometry or
   layout consumers; compact identities remain non-authoritative and no policy
   code is re-evaluated.
+  This plan-laid semantic-custody strand is now at its implementation-only
+  boundary: every retained producer, schema/data field identity, target-neutral
+  report identity and complete entry inventory, host geometry projection, and
+  stored-integer type capability is independently rejoined before consumption.
+  Further coordinated provenance needs a settled sealed build-time evaluation
+  receipt or policy re-evaluation; compact fingerprints and duplicate mutable
+  reports cannot serve as authority. Sum placement remains blocked on tagged-
+  case vocabulary, while placed lifecycle work remains a separate L6b strand.
 - Keep alias-exclusion admission separate from access rights; `&mut` does not
   claim exclusivity against a device. Sealed primitive events now specialize
   linearly into Stable read/take/write/swap, External read/take/write, or one
@@ -5723,7 +5731,13 @@ Owners:
   boundary-to-internal argument/result recipe before emitting callback
   functions; placeholder enter/call/return bodies are unsound. This prerequisite
   is independent of private registration placement and checked resource
-  ceilings. The
+  ceilings. Registration lease/unregister machinery is already complete below
+  source binding: an exact provider registration receipt owns an installed-root
+  code borrow, and release requires exact provider unregistration plus
+  independent root unreachability/quiescence. The remaining durable
+  `Registration` slice needs an emitted thunk and settled private registration
+  binding that can mint that receipt, plus a checked linear source carrier;
+  creating a detached lease earlier would invent authority. The
   remaining slices are
   resource-ceiling aggregation, multi-entry/re-entrant target instruction
   lowering, and the
