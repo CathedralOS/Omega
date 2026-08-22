@@ -77,6 +77,17 @@ fn push_external_root_json(output: &mut String, record: &InstalledRootRecord) {
     push_hex_identity(output, record.provider_execution_fingerprint);
     output.push_str(", \"provider_plan\": ");
     push_hex_identity(output, record.provider_plan.normalized_identity());
+    output.push_str(", \"native_fuel\": {\"kind\": ");
+    output.push('"');
+    output.push_str(match record.native_fuel_kind {
+        omega_external_roots::NativeFuelRealizationKind::FixedProvision => "fixed_provision",
+        omega_external_roots::NativeFuelRealizationKind::DynamicMetering => "dynamic_metering",
+        omega_external_roots::NativeFuelRealizationKind::Interpreted => "interpreted",
+    });
+    output.push('"');
+    output.push_str(", \"fingerprint\": ");
+    push_hex_identity(output, record.native_fuel_fingerprint);
+    output.push('}');
     output.push_str(", \"boundary_contract\": ");
     push_hex_identity(output, record.boundary_contract_fingerprint);
     output.push_str(", \"boundary_plan\": ");

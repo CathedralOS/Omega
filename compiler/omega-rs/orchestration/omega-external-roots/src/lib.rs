@@ -322,6 +322,7 @@ pub struct RootAdmission {
     slot: RootSlotId,
     owner: RootSlotOwnerId,
     trust_receipts: BTreeSet<TrustReceiptId>,
+    native_fuel: InstalledNativeFuelRealization,
 }
 
 impl RootAdmission {
@@ -333,9 +334,51 @@ impl RootAdmission {
         slot: &RootSlotAuthority,
         trust_receipts: impl IntoIterator<Item = TrustReceiptId>,
     ) -> Result<Self, ExternalRootDiagnostic> {
+        let fuel = &root.candidate.logical_fuel;
+        let fixed = admit_fixed_native_fuel(&fuel.realization, fuel.provision, fuel.ceiling_units)?;
+        let native_fuel = bind_installed_native_fuel_realization(
+            select_fixed_native_fuel(fixed),
+            &fuel.realization,
+            fuel.provision,
+            fuel.ceiling_units,
+            installed_code,
+            None,
+        )?;
+        Self::from_admitted_provider_with_native_fuel(
+            identity,
+            root,
+            execution,
+            installed_code,
+            slot,
+            native_fuel,
+            trust_receipts,
+        )
+    }
+
+    pub fn from_admitted_provider_with_native_fuel(
+        identity: RootAdmissionId,
+        root: &ValidatedExternalRoot,
+        execution: &ProviderExecution,
+        installed_code: &InstalledCode,
+        slot: &RootSlotAuthority,
+        native_fuel: InstalledNativeFuelRealization,
+        trust_receipts: impl IntoIterator<Item = TrustReceiptId>,
+    ) -> Result<Self, ExternalRootDiagnostic> {
         if !execution.matches_root(root) {
             return Err(ExternalRootDiagnostic(
                 "root admission provider execution does not bind the exact validated root realization"
+                    .into(),
+            ));
+        }
+        let fuel = &root.candidate.logical_fuel;
+        if !native_fuel.matches(
+            &fuel.realization,
+            fuel.provision,
+            fuel.ceiling_units,
+            installed_code,
+        ) {
+            return Err(ExternalRootDiagnostic(
+                "root admission native-fuel realization does not bind the exact resource column and installed code"
                     .into(),
             ));
         }
@@ -355,6 +398,7 @@ impl RootAdmission {
             slot: slot.slot,
             owner: slot.owner,
             trust_receipts: trust_receipts.into_iter().collect(),
+            native_fuel,
         })
     }
 
@@ -383,6 +427,8 @@ pub struct InstalledRootRecord {
     pub provider_exit_assurance: OpaqueProviderExitAssurance,
     pub provider_exit_assurance_fingerprint: u64,
     pub provider_plan: ProviderPlanId,
+    pub native_fuel_kind: NativeFuelRealizationKind,
+    pub native_fuel_fingerprint: u64,
     pub requirement_identity: String,
     pub entry_claims: Vec<ExternalRootEntryClaim>,
     pub acknowledgement_parameter_index: Option<usize>,
@@ -410,6 +456,7 @@ struct InstalledRootEvidence {
     installed_code: InstalledCodeContext,
     slot: RootSlotId,
     owner: RootSlotOwnerId,
+    native_fuel: InstalledNativeFuelRealization,
 }
 
 #[derive(Debug)]
@@ -1120,6 +1167,7 @@ impl InstalledRootLedger {
             hash.u64(record.provider_execution_fingerprint);
             hash.u64(record.provider_exit_assurance_fingerprint);
             hash.u64(record.provider_plan.normalized_identity());
+            hash.u64(record.native_fuel_fingerprint);
         }
         hash.finish()
     }
@@ -1201,6 +1249,12 @@ impl InstalledRootLedger {
             || admission.slot != slot.slot
             || admission.owner != slot.owner
             || admission.trust_receipts != root.candidate.trust_receipts
+            || !admission.native_fuel.matches(
+                &root.candidate.logical_fuel.realization,
+                root.candidate.logical_fuel.provision,
+                root.candidate.logical_fuel.ceiling_units,
+                installed_code,
+            )
         {
             return reject(
                 ExternalRootDiagnostic(
@@ -1219,6 +1273,7 @@ impl InstalledRootLedger {
             installed_code: installed_code.receipt_context(),
             slot: slot.slot,
             owner: slot.owner,
+            native_fuel: admission.native_fuel.clone(),
         };
         let record = InstalledRootRecord {
             root: root.candidate.identity,
@@ -1234,6 +1289,8 @@ impl InstalledRootLedger {
             provider_exit_assurance: admission.provider_exit_assurance,
             provider_exit_assurance_fingerprint: admission.provider_exit_assurance_fingerprint,
             provider_plan: admission.provider_plan,
+            native_fuel_kind: admission.native_fuel.kind(),
+            native_fuel_fingerprint: admission.native_fuel.fingerprint(),
             requirement_identity: root.candidate.requirement_identity,
             entry_claims: root.candidate.entry_claims,
             acknowledgement_parameter_index: root.candidate.acknowledgement_parameter_index,

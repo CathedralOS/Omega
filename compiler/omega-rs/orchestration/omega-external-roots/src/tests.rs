@@ -1294,6 +1294,11 @@ fn installation_records_the_complete_external_root_and_pins_code_liveness() {
     assert_eq!(record.installed_code, code.identity());
     assert_eq!(record.provider_execution, execution.identity());
     assert_eq!(record.provider_plan, execution.provider_plan());
+    assert_eq!(
+        record.native_fuel_kind,
+        NativeFuelRealizationKind::FixedProvision
+    );
+    assert_ne!(record.native_fuel_fingerprint, 0);
     assert_eq!(record.requirement_identity, "TestRoot::entry");
     assert!(record.entry_claims.is_empty());
     assert_eq!(record.acknowledgement_parameter_index, None);

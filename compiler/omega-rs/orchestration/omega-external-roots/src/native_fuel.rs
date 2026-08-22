@@ -183,6 +183,12 @@ impl InstalledDynamicFuelAttributionPlan {
     pub const fn fingerprint(&self) -> u64 {
         self.fingerprint
     }
+
+    fn matches_installed_code(&self, installed_code: &InstalledCode) -> bool {
+        self.installed_code == installed_code.identity()
+            && self.installed_code_context == installed_code.receipt_context()
+            && self.artifact == installed_code.artifact()
+    }
 }
 
 /// Bind dynamic metering to the exact already-validated attribution catalog.
@@ -363,7 +369,7 @@ pub struct ValidatedNativeFuelRealization {
     demand: ComposedFuelDemand,
     provision: FuelProvisionId,
     granted_units: u64,
-    environment: NativeFuelExecutionEnvironment,
+    target: Option<NativeTarget>,
     kind: NativeFuelRealizationKind,
     dynamic_plan: Option<DynamicNativeFuelMeterPlan>,
 }
@@ -385,12 +391,32 @@ impl ValidatedNativeFuelRealization {
         self.provision
     }
 
-    pub const fn environment(&self) -> NativeFuelExecutionEnvironment {
-        self.environment
+    pub const fn target(&self) -> Option<NativeTarget> {
+        self.target
     }
 
     pub const fn dynamic_plan(&self) -> Option<&DynamicNativeFuelMeterPlan> {
         self.dynamic_plan.as_ref()
+    }
+
+    fn matches_resource(
+        &self,
+        demand: &ComposedFuelDemand,
+        provision: FuelProvisionId,
+        granted_units: u64,
+    ) -> bool {
+        self.demand == *demand && self.provision == provision && self.granted_units == granted_units
+    }
+}
+
+pub fn select_fixed_native_fuel(fixed: FixedNativeFuelProvision) -> ValidatedNativeFuelRealization {
+    ValidatedNativeFuelRealization {
+        demand: fixed.demand,
+        provision: fixed.provision,
+        granted_units: fixed.granted_units,
+        target: None,
+        kind: NativeFuelRealizationKind::FixedProvision,
+        dynamic_plan: None,
     }
 }
 
@@ -406,7 +432,7 @@ pub fn admit_native_fuel_realization(
             "native logical-fuel realization requires a nonzero grant".into(),
         ));
     }
-    let (kind, dynamic_plan) = match request {
+    let (kind, dynamic_plan, target) = match request {
         NativeFuelRealizationRequest::Fixed(fixed) => {
             if !fixed.matches(demand, provision, granted_units) {
                 return Err(ExternalRootDiagnostic(
@@ -414,7 +440,7 @@ pub fn admit_native_fuel_realization(
                         .into(),
                 ));
             }
-            (NativeFuelRealizationKind::FixedProvision, None)
+            (NativeFuelRealizationKind::FixedProvision, None, None)
         }
         NativeFuelRealizationRequest::Dynamic(plan) => {
             if plan.target != environment.target() {
@@ -451,13 +477,18 @@ pub fn admit_native_fuel_realization(
             (
                 NativeFuelRealizationKind::DynamicMetering,
                 Some(plan.clone()),
+                Some(plan.target),
             )
         }
         NativeFuelRealizationRequest::Unavailable => match environment {
             NativeFuelExecutionEnvironment::Hosted {
                 interpreter_available: true,
                 ..
-            } => (NativeFuelRealizationKind::Interpreted, None),
+            } => (
+                NativeFuelRealizationKind::Interpreted,
+                None,
+                Some(environment.target()),
+            ),
             NativeFuelExecutionEnvironment::Hosted {
                 interpreter_available: false,
                 ..
@@ -480,10 +511,172 @@ pub fn admit_native_fuel_realization(
         demand: demand.clone(),
         provision,
         granted_units,
-        environment,
+        target,
         kind,
         dynamic_plan,
     })
+}
+
+/// Installed custody for the selected native realization. Dynamic selection
+/// is incomplete without the exact installed attribution binding; fixed and
+/// interpreted selections reject a stray binding.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InstalledNativeFuelRealization {
+    selected: ValidatedNativeFuelRealization,
+    installed_code: InstalledCodeId,
+    installed_code_context: InstalledCodeContext,
+    artifact: ArtifactId,
+    dynamic_attribution: Option<InstalledDynamicFuelAttributionPlan>,
+    fingerprint: u64,
+}
+
+impl InstalledNativeFuelRealization {
+    pub const fn kind(&self) -> NativeFuelRealizationKind {
+        self.selected.kind()
+    }
+
+    pub const fn selected(&self) -> &ValidatedNativeFuelRealization {
+        &self.selected
+    }
+
+    pub const fn dynamic_attribution(&self) -> Option<&InstalledDynamicFuelAttributionPlan> {
+        self.dynamic_attribution.as_ref()
+    }
+
+    pub const fn fingerprint(&self) -> u64 {
+        self.fingerprint
+    }
+
+    pub const fn installed_code(&self) -> InstalledCodeId {
+        self.installed_code
+    }
+
+    pub(super) fn matches(
+        &self,
+        demand: &ComposedFuelDemand,
+        provision: FuelProvisionId,
+        granted_units: u64,
+        installed_code: &InstalledCode,
+    ) -> bool {
+        self.selected
+            .matches_resource(demand, provision, granted_units)
+            && self.installed_code == installed_code.identity()
+            && self.installed_code_context == installed_code.receipt_context()
+            && self.artifact == installed_code.artifact()
+    }
+}
+
+pub fn bind_installed_native_fuel_realization(
+    selected: ValidatedNativeFuelRealization,
+    demand: &ComposedFuelDemand,
+    provision: FuelProvisionId,
+    granted_units: u64,
+    installed_code: &InstalledCode,
+    dynamic_attribution: Option<InstalledDynamicFuelAttributionPlan>,
+) -> Result<InstalledNativeFuelRealization, ExternalRootDiagnostic> {
+    if !selected.matches_resource(demand, provision, granted_units) {
+        return Err(ExternalRootDiagnostic(
+            "native fuel selection does not match the exact installed resource demand, provision, and grant"
+                .into(),
+        ));
+    }
+    match selected.kind {
+        NativeFuelRealizationKind::FixedProvision => {
+            if dynamic_attribution.is_some() || selected.dynamic_plan.is_some() {
+                return Err(ExternalRootDiagnostic(
+                    "fixed native fuel provision cannot retain dynamic attribution".into(),
+                ));
+            }
+        }
+        NativeFuelRealizationKind::DynamicMetering => {
+            let attribution = dynamic_attribution.as_ref().ok_or_else(|| {
+                ExternalRootDiagnostic(
+                    "dynamic native fuel realization lacks installed attribution evidence".into(),
+                )
+            })?;
+            if selected.dynamic_plan.as_ref() != Some(attribution.plan())
+                || !attribution.matches_installed_code(installed_code)
+            {
+                return Err(ExternalRootDiagnostic(
+                    "dynamic fuel selection and attribution do not bind the exact installed realization"
+                        .into(),
+                ));
+            }
+        }
+        NativeFuelRealizationKind::Interpreted => {
+            if dynamic_attribution.is_some() || selected.dynamic_plan.is_some() {
+                return Err(ExternalRootDiagnostic(
+                    "interpreted fuel realization cannot retain native dynamic attribution".into(),
+                ));
+            }
+            if selected
+                .target
+                .is_some_and(|target| target.architecture != installed_code.architecture())
+            {
+                return Err(ExternalRootDiagnostic(
+                    "interpreted fuel realization target does not match the installed artifact"
+                        .into(),
+                ));
+            }
+        }
+    }
+
+    let fingerprint = fingerprint_installed_native_fuel_realization(
+        &selected,
+        installed_code,
+        dynamic_attribution.as_ref(),
+    );
+    Ok(InstalledNativeFuelRealization {
+        selected,
+        installed_code: installed_code.identity(),
+        installed_code_context: installed_code.receipt_context(),
+        artifact: installed_code.artifact(),
+        dynamic_attribution,
+        fingerprint,
+    })
+}
+
+fn fingerprint_installed_native_fuel_realization(
+    selected: &ValidatedNativeFuelRealization,
+    installed_code: &InstalledCode,
+    dynamic_attribution: Option<&InstalledDynamicFuelAttributionPlan>,
+) -> u64 {
+    let mut hash = Fnv1a::new();
+    hash.bytes(b"omega.installed-native-fuel-realization.v1");
+    hash.u64(installed_code.identity().normalized_identity());
+    hash.u64(installed_code.artifact().normalized_identity());
+    hash.u64(selected.demand.composition_fingerprint());
+    hash.u64(selected.provision.normalized_identity());
+    hash.u64(selected.granted_units);
+    hash.u64(match selected.kind {
+        NativeFuelRealizationKind::FixedProvision => 0,
+        NativeFuelRealizationKind::DynamicMetering => 1,
+        NativeFuelRealizationKind::Interpreted => 2,
+    });
+    if let Some(target) = selected.target {
+        hash.u64(1);
+        fingerprint_native_target(&mut hash, target);
+    } else {
+        hash.u64(0);
+    }
+    if let Some(attribution) = dynamic_attribution {
+        hash.u64(attribution.fingerprint());
+    }
+    hash.finish()
+}
+
+fn fingerprint_native_target(hash: &mut Fnv1a, target: NativeTarget) {
+    hash.u64(match target.architecture {
+        omega_target::Architecture::Aarch64 => 0,
+        omega_target::Architecture::X86_64 => 1,
+    });
+    hash.u64(match target.object_format {
+        omega_target::ObjectFormat::Elf => 0,
+        omega_target::ObjectFormat::MachO => 1,
+        omega_target::ObjectFormat::Coff => 2,
+    });
+    hash.u64(target.pointer_size as u64);
+    hash.u64(target.pointer_alignment as u64);
 }
 
 #[cfg(test)]
