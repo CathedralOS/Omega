@@ -1,8 +1,9 @@
 # The Alpha calling convention
 
 > The foundation of Beta-the-language. This is the one thing that turns "an
-> assembler" into "a language you can write a compiler in." Beta (the assembler)
-> dodged it — every value that must survive a `call` lives at a *fixed global
+> assembler" into "a language you can write a compiler in." The historically
+> Beta-named Alpha assembler does not use it: every value that must survive a
+> `call` lives at a *fixed global
 > address* (see the `524288+` block in `assembler.alpha`), so there are no locals,
 > no parameters, and **no recursion**. A real procedure needs a per-call *frame*.
 > This document is that frame discipline.
@@ -72,20 +73,21 @@ before the call and reloaded after.
 
 ## Proven on the seed
 
-Two hand-written examples exercise the convention end-to-end (assembled by beta,
-run on the alpha seed):
+Three hand-written examples exercise the convention end-to-end (assembled by
+the Alpha assembler, then run on the Alpha seed):
 
-- [`examples/factorial.alpha`](examples/factorial.alpha) — single recursion;
+- [`factorial.alpha`](../../bootstrap/rungs/alpha/assembler/examples/factorial.alpha) — single recursion;
   `factorial(5)` exits **120**. The frame holds one slot: `n`, saved across the
   recursive call.
-- [`examples/fib.alpha`](examples/fib.alpha) — **tree** recursion (two recursive
+- [`fib.alpha`](../../bootstrap/rungs/alpha/assembler/examples/fib.alpha) — **tree** recursion (two recursive
   calls per frame); `fib(10)` exits **55**. The frame holds two slots and never
   relies on a register surviving a call.
-- [`examples/gcd.alpha`](examples/gcd.alpha) — **two parameters** (`r0`, `r1`) and
+- [`gcd.alpha`](../../bootstrap/rungs/alpha/assembler/examples/gcd.alpha) — **two parameters** (`r0`, `r1`) and
   a **tail call that needs no frame**; `gcd(48, 36)` exits **12**. Shows the
   leaf/tail case where a procedure skips the frame entirely.
 
-Build either with `./build.sh examples/factorial.alpha && ./build/factorial.exe`.
+Build one through `bootstrap/rungs/alpha/assembler/build.sh`, for example with
+`bootstrap/rungs/alpha/assembler/examples/factorial.alpha`.
 
 ## Remaining limits
 

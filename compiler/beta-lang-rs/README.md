@@ -31,7 +31,7 @@ seed-stamp. Needs `cargo`.
   `+ - * / %` and parentheses, lowered onto the data stack. `answer.beta` → 42.
 - **Slice 2 — procedures, parameters, calls: DONE.** Multiple `proc`s, ≤4
   params, calls in expressions, parameters addressed via the frame pointer — i.e.
-  the [calling convention](../beta/CALLING_CONVENTION.md) generated mechanically.
+  the [calling convention](../beta-lang/CALLING_CONVENTION.md) generated mechanically.
   `double.beta` → 42, `calls.beta` (nested `add(mul(2,3),4)`) → 10.
 - **Slice 3 — control flow + locals: DONE.** Multi-statement bodies, `let` locals
   (function-scoped frame slots), assignment, `if`/`else` and `while` (→ `jz`/`jmp`),
@@ -65,5 +65,5 @@ Changes to the Beta surface must update `bc.beta`, its language gates, and the
 canonical Beta meaning/refinement route. Agreement with this Rust implementation
 or another compiler is diagnostic, not semantic authority.
 
-See [`../beta/LANGUAGE.md`](../beta/LANGUAGE.md) for the language surface, and run
+See [`../beta-lang/LANGUAGE.md`](../beta-lang/LANGUAGE.md) for the language surface, and run
 `sh test.sh` to verify the whole compiler end to end (8 examples + 9 calc cases).

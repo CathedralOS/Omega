@@ -13,8 +13,21 @@
 import sys, os, subprocess, tempfile, random
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-REPO_ROOT = os.environ.get(
-    'OMEGA_REPO_ROOT', os.path.abspath(os.path.join(HERE, '..', '..')))
+
+def find_repo_root(start):
+    """Find the manifest root when this helper is invoked outside a gate script."""
+    current = start
+    while True:
+        if os.path.isfile(os.path.join(current, 'bootstrap', 'paths.sh')):
+            return current
+        parent = os.path.dirname(current)
+        if parent == current:
+            raise RuntimeError('cannot find repository root from %s' % start)
+        current = parent
+
+REPO_ROOT = os.environ.get('OMEGA_REPO_ROOT')
+if not REPO_ROOT:
+    REPO_ROOT = find_repo_root(HERE)
 BETA_REFERENCE = os.environ.get(
     'OMEGA_PATH_BETA_REFERENCE', os.path.join(REPO_ROOT, 'compiler', 'beta-lang-py'))
 BETA_RUST = os.environ.get(
@@ -36,7 +49,7 @@ ALPHA_REF = os.path.join(HERE, 'alpha_ref.py')
 PROVER = os.path.join(PROOF_KERNEL, 'prover.py')
 CHECK = sys.argv[1]
 BC = sys.argv[2] if len(sys.argv) > 2 else None       # bc.exe — enables the real-bc-output samples
-ASM = sys.argv[3] if len(sys.argv) > 3 else None      # the beta assembler exe
+ASM = sys.argv[3] if len(sys.argv) > 3 else None      # the Alpha assembler executable
 # The recurrence prelude: user-Nat (data 2=Z, 3=S) + the triangular-sum fun g(0)=0, g(s k)=g(k)+k (fun 90),
 # which alpha_symbolic/beta_symbolic emit as ('f',90,t) for `acc += i` loops. Prepended to a cert that mentions it.
 REC_PRELUDE = '(data 2 0 0 0) (data 3 1 1 0) (fun 90 2 (k 2)) (fun 90 3 (p (rec 0) (v 0)))'

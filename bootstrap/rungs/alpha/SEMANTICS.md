@@ -9,7 +9,7 @@
 >
 > This fills the trust-root gap the lattice flagged: "you cannot audit the binary
 > against a spec that does not exist." See
-> [bootstrap_lattice rungs/alpha.md](../../wiki/architecture/bootstrap_lattice/rungs/alpha.md).
+> [bootstrap_lattice rungs/alpha.md](../../../wiki/architecture/bootstrap_lattice/rungs/alpha.md).
 
 Alpha is **role #1, an executor** (lattice overview, "Five roles"). It is not a
 type system, checker, or proof kernel — only a deterministic register machine

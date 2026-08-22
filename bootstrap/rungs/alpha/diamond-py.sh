@@ -57,7 +57,7 @@ hex bad_opcode    "ff 00" ""                                                    
 
 # --- REAL bc-compiled programs: call/ret/frames/recursion/memory/IO through actual generated code ---
 BC="${OMEGA_PATH_BETA_RUST}"/build/bc.exe
-ASM="${OMEGA_PATH_BETA_ASSEMBLER}"/$BETA_SEED
+ASM="${OMEGA_PATH_ALPHA_ASSEMBLER}"/$BETA_SEED
 if command -v cargo >/dev/null 2>&1 && [ -x "$ASM" ]; then
   [ -x "$BC" ] || ( cd "${OMEGA_PATH_BETA_RUST}" && sh build.sh "${OMEGA_PATH_BETA_LANGUAGE}"/bc.beta >/dev/null 2>&1 ) || true
 fi
