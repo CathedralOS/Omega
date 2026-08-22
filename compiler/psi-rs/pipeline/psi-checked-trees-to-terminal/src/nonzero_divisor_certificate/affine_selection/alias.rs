@@ -3,10 +3,9 @@
 use psi_core::{Proposition, PropositionContext};
 use psi_proof_kernel::ProofNode;
 
-use super::super::{
-    affine_custody::{self, DefinitionIndex},
-    alias_transport,
-};
+use super::super::{affine_custody::DefinitionIndex, alias_transport};
+
+mod completion;
 
 pub(super) fn prove_one(
     context: &PropositionContext,
@@ -16,7 +15,7 @@ pub(super) fn prove_one(
     definitions: &DefinitionIndex,
 ) -> Option<ProofNode> {
     alias_transport::prove_one(assumptions, semantic_axioms, |root, root_bound| {
-        affine_custody::prove_from_root(
+        completion::prove(
             context,
             goal,
             assumptions,
@@ -39,7 +38,7 @@ pub(super) fn prove_two(
     definitions: &DefinitionIndex,
 ) -> Option<ProofNode> {
     alias_transport::prove_two(assumptions, semantic_axioms, |root, root_bound| {
-        affine_custody::prove_from_root(
+        completion::prove(
             context,
             goal,
             assumptions,

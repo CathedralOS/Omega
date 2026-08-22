@@ -2296,6 +2296,14 @@ Missing, reused, redirected, crossed, cyclic, mistyped, or weaker facts reject.
 A third alias and literal landing through two aliases remain outside. Neither
 complete exact row changes trust and `fully-derived false` remains.
 
+The fixed one- and two-alias affine branches now share one side-local custody
+handoff after their distinct bounded selectors finish. Independent producer
+and verifier `affine_selection/alias/completion` modules accept the selected
+root and transported bound and invoke their own affine custody. The
+`affine_selection/alias` parents retain one-alias before two-alias dispatch;
+alias enumeration, citation identity, substitution proof bytes, rejection, and
+both fixed frontiers are unchanged.
+
 The common exact-shift spine now also has a producer-visible, non-serialized
 `IntegerShiftChainWitness`. It binds a nonempty ordered word of exact left and
 right shifts over one fixed-native SSA value carrier. Every step names its
