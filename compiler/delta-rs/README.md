@@ -44,7 +44,11 @@ DELTA_ARCH=aarch64 cargo run -- samples/shape.alp out  # macOS arm64; ./out ; ec
   success digest. `omega0-frontend-meaning.sh` independently elaborates it with
   the Beta-written `omega2gamma.beta` and executes it with Gamma's canonical
   interpreter, pinning the canonical digest, semantic rejection, and multi-slot
-  method-state threading. Terminal-Psi emission remains the next open slice.
+  method-state threading. Direct canonical terminal-Psi emission is also
+  complete and checked by the shared decoder/verifier. Its output is published
+  only through same-directory staging, persistence, canonical decode, expected
+  identity binding, and atomic rename. Runnable-native acceptance is the next
+  open boundary.
 
 - **Slice 1 — `exit_process(N)` end-to-end: DONE.** Lex → parse → lower → emit a
   Windows x64 PE that exits with the given code. Deterministic. Minimal PE: no
