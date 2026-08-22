@@ -1,12 +1,12 @@
 //! Side-local selection of retained evidence for bounded affine proofs.
 
-use std::collections::BTreeMap;
-
 use psi_core::{Proposition, PropositionContext};
 use psi_proof_kernel::{PrimitiveJudgment, ProofNode, ProofRule};
 
 use super::integer_evidence::cited_facts;
 use super::{affine_custody, alias_transport};
+
+mod transitive;
 
 pub(super) fn prove(
     context: &PropositionContext,
@@ -39,7 +39,7 @@ pub(super) fn prove(
             prove_alias_substituted_affine_bound(context, goal, assumptions, semantic_axioms)
         })
         .or_else(|| {
-            prove_transitively_reconstructed_affine_bound(
+            transitive::prove_transitively_reconstructed_affine_bound(
                 context,
                 goal,
                 assumptions,
@@ -47,7 +47,7 @@ pub(super) fn prove(
             )
         })
         .or_else(|| {
-            prove_transitively_alias_substituted_affine_bound(
+            transitive::prove_transitively_alias_substituted_affine_bound(
                 context,
                 goal,
                 assumptions,
@@ -229,161 +229,4 @@ fn prove_two_alias_substituted_affine_bound(
             root_bound,
         )
     })
-}
-
-/// Reconstruct one affine-root bound through exactly two ordered citations and
-/// one exact value equality. This deliberately calls the affine constructor
-/// directly: it does not recurse through the general integer-bound search, so
-/// neither equality chains nor longer order paths are admitted here.
-fn prove_transitively_alias_substituted_affine_bound(
-    context: &PropositionContext,
-    goal: &Proposition,
-    assumptions: &[Proposition],
-    semantic_axioms: &[Proposition],
-) -> Option<ProofNode> {
-    let mut bounds_by_left_endpoint = BTreeMap::<_, Vec<_>>::new();
-    for (citation, fact) in cited_facts(assumptions, semantic_axioms) {
-        let Proposition::LessOrEqual(left, _) = fact else {
-            continue;
-        };
-        if matches!(left, psi_core::ScalarTerm::Value { .. }) {
-            bounds_by_left_endpoint
-                .entry(left.clone())
-                .or_default()
-                .push((citation, fact));
-        }
-    }
-
-    for (equality_citation, equality) in cited_facts(assumptions, semantic_axioms) {
-        let Proposition::Equal(equality_left, equality_right) = equality else {
-            continue;
-        };
-        for (root, alias) in [
-            (equality_left, equality_right),
-            (equality_right, equality_left),
-        ] {
-            if root == alias
-                || !matches!(root, psi_core::ScalarTerm::Value { .. })
-                || !matches!(alias, psi_core::ScalarTerm::Value { .. })
-            {
-                continue;
-            }
-            for (left_citation, left_fact) in cited_facts(assumptions, semantic_axioms) {
-                let Proposition::LessOrEqual(left, middle) = left_fact else {
-                    continue;
-                };
-                if !matches!(middle, psi_core::ScalarTerm::Value { .. }) {
-                    continue;
-                }
-                let Some(right_facts) = bounds_by_left_endpoint.get(middle) else {
-                    continue;
-                };
-                for &(right_citation, right_fact) in right_facts {
-                    if std::ptr::eq(left_fact, right_fact) {
-                        continue;
-                    }
-                    let Proposition::LessOrEqual(_, right) = right_fact else {
-                        unreachable!("only integer bounds are indexed")
-                    };
-                    let (endpoint, conclusion) = if alias == left {
-                        (0, Proposition::LessOrEqual(root.clone(), right.clone()))
-                    } else if alias == right {
-                        (1, Proposition::LessOrEqual(left.clone(), root.clone()))
-                    } else {
-                        continue;
-                    };
-                    let transitive = ProofNode {
-                        conclusion: Proposition::LessOrEqual(left.clone(), right.clone()),
-                        rule: ProofRule::IntegerLessOrEqualTransitivity {
-                            left_less_or_equal_middle: Box::new(left_citation.proof(left_fact)),
-                            middle_less_or_equal_right: Box::new(right_citation.proof(right_fact)),
-                        },
-                    };
-                    let root_bound = ProofNode {
-                        conclusion,
-                        rule: ProofRule::IntegerLessOrEqualSubstitution {
-                            relation: Box::new(transitive),
-                            equality: Box::new(equality_citation.proof(equality)),
-                            endpoint,
-                        },
-                    };
-                    if let Some(proof) = affine_custody::prove_from_root(
-                        context,
-                        goal,
-                        assumptions,
-                        semantic_axioms,
-                        root,
-                        root_bound,
-                    ) {
-                        return Some(proof);
-                    }
-                }
-            }
-        }
-    }
-    None
-}
-
-fn prove_transitively_reconstructed_affine_bound(
-    context: &PropositionContext,
-    goal: &Proposition,
-    assumptions: &[Proposition],
-    semantic_axioms: &[Proposition],
-) -> Option<ProofNode> {
-    let mut bounds_by_left_endpoint = BTreeMap::<_, Vec<_>>::new();
-    for (citation, fact) in cited_facts(assumptions, semantic_axioms) {
-        let Proposition::LessOrEqual(left, _) = fact else {
-            continue;
-        };
-        if matches!(left, psi_core::ScalarTerm::Value { .. }) {
-            bounds_by_left_endpoint
-                .entry(left.clone())
-                .or_default()
-                .push((citation, fact));
-        }
-    }
-
-    for (left_citation, left_fact) in cited_facts(assumptions, semantic_axioms) {
-        let Proposition::LessOrEqual(left, middle) = left_fact else {
-            continue;
-        };
-        if !matches!(middle, psi_core::ScalarTerm::Value { .. }) {
-            continue;
-        }
-        let Some(right_facts) = bounds_by_left_endpoint.get(middle) else {
-            continue;
-        };
-        for &(right_citation, right_fact) in right_facts {
-            if std::ptr::eq(left_fact, right_fact) {
-                continue;
-            }
-            let Proposition::LessOrEqual(_, right) = right_fact else {
-                unreachable!("only integer bounds are indexed")
-            };
-            let conclusion = Proposition::LessOrEqual(left.clone(), right.clone());
-            let root_bound = ProofNode {
-                conclusion,
-                rule: ProofRule::IntegerLessOrEqualTransitivity {
-                    left_less_or_equal_middle: Box::new(left_citation.proof(left_fact)),
-                    middle_less_or_equal_right: Box::new(right_citation.proof(right_fact)),
-                },
-            };
-            for root in [left, right]
-                .into_iter()
-                .filter(|root| matches!(root, psi_core::ScalarTerm::Value { .. }))
-            {
-                if let Some(proof) = affine_custody::prove_from_root(
-                    context,
-                    goal,
-                    assumptions,
-                    semantic_axioms,
-                    root,
-                    root_bound.clone(),
-                ) {
-                    return Some(proof);
-                }
-            }
-        }
-    }
-    None
 }
