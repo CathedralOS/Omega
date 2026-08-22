@@ -20,9 +20,12 @@ fn runtime_adapter_dispatch_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-adapter-dispatch-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("adapter-dispatch canary should compile natively");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("adapter-dispatch canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("adapter-dispatch canary should run");
     assert_eq!(
@@ -51,9 +54,12 @@ fn checked_boundary_operator_dispatch_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("checked boundary-operator canary should compile natively");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("checked boundary-operator canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("checked boundary-operator canary should run");
     assert_eq!(
@@ -84,9 +90,12 @@ fn runtime_result_domain_requirement_overload_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("result-overloaded provider requirements should compile natively");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("result-overloaded provider canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("result-overloaded provider canary should run");
     assert_eq!(
@@ -123,9 +132,12 @@ fn runtime_selected_provider_adapter_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("selected-provider adapter canary should compile natively");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("selected-provider adapter canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("selected-provider adapter canary should run");
     assert_eq!(
