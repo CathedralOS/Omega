@@ -1552,6 +1552,13 @@ machine build(builder: &mut Build) {
         .cloned()
         .expect("receiver-free UEFI entry bridge");
     assert_eq!(
+        Some(bridge.binding().boundary_contract_fingerprint()),
+        report
+            .executable_publication()
+            .expect("written bridge publication receipt")
+            .boundary_contract_fingerprint(),
+    );
+    assert_eq!(
         bridge
             .emitted_wrapper_evidence()
             .expect("written bridge final evidence")

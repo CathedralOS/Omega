@@ -244,6 +244,14 @@ impl CompileReport {
             self.program_storage_entry_bridge
                 .as_ref()
                 .map(|bridge| bridge.emitted_wrapper_evidence().is_some()),
+        ) && retained_entry_boundary_matches_publication(
+            self.output_kind,
+            self.executable_publication
+                .as_ref()
+                .and_then(ExecutablePublicationReceipt::boundary_contract_fingerprint),
+            self.program_storage_entry
+                .as_ref()
+                .map(super::ProgramStorageEntryPlanBinding::boundary_contract_fingerprint),
         ) && emitted_inventory_matches_publication(
             self.executable_publication
                 .as_ref()
@@ -374,6 +382,23 @@ fn emitted_inventory_matches_publication(
         .is_none_or(|emitted| publication_inventory_fingerprint == Some(emitted))
 }
 
+fn retained_entry_boundary_matches_publication(
+    output_kind: CompileOutputKind,
+    publication_boundary_contract_fingerprint: Option<u64>,
+    retained_entry_boundary_contract_fingerprint: Option<u64>,
+) -> bool {
+    match (output_kind, retained_entry_boundary_contract_fingerprint) {
+        (_, None) => true,
+        (CompileOutputKind::CheckOnly, Some(_)) => {
+            publication_boundary_contract_fingerprint.is_none()
+        }
+        (CompileOutputKind::NativeExecutable, Some(retained)) => {
+            publication_boundary_contract_fingerprint == Some(retained)
+        }
+        (CompileOutputKind::ObjectContainer, Some(_)) => false,
+    }
+}
+
 fn emitted_validation_matches_publication(
     publication_validation_fingerprints: Option<(u64, u64)>,
     emitted_validation_fingerprints: Option<(u64, u64)>,
@@ -476,6 +501,52 @@ mod tests {
         assert!(!super::program_storage_emission_matches_output_kind(
             CompileOutputKind::ObjectContainer,
             Some(true),
+        ));
+        for output_kind in [
+            CompileOutputKind::CheckOnly,
+            CompileOutputKind::NativeExecutable,
+            CompileOutputKind::ObjectContainer,
+        ] {
+            assert!(super::retained_entry_boundary_matches_publication(
+                output_kind,
+                None,
+                None,
+            ));
+            assert!(super::retained_entry_boundary_matches_publication(
+                output_kind,
+                Some(1),
+                None,
+            ));
+        }
+        assert!(super::retained_entry_boundary_matches_publication(
+            CompileOutputKind::CheckOnly,
+            None,
+            Some(1),
+        ));
+        assert!(!super::retained_entry_boundary_matches_publication(
+            CompileOutputKind::CheckOnly,
+            Some(1),
+            Some(1),
+        ));
+        assert!(super::retained_entry_boundary_matches_publication(
+            CompileOutputKind::NativeExecutable,
+            Some(1),
+            Some(1),
+        ));
+        assert!(!super::retained_entry_boundary_matches_publication(
+            CompileOutputKind::NativeExecutable,
+            None,
+            Some(1),
+        ));
+        assert!(!super::retained_entry_boundary_matches_publication(
+            CompileOutputKind::NativeExecutable,
+            Some(2),
+            Some(1),
+        ));
+        assert!(!super::retained_entry_boundary_matches_publication(
+            CompileOutputKind::ObjectContainer,
+            Some(1),
+            Some(1),
         ));
         assert!(super::emitted_inventory_matches_publication(None, None));
         assert!(super::emitted_inventory_matches_publication(Some(1), None));
