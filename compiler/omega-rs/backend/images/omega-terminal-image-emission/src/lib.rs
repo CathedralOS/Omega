@@ -14,6 +14,7 @@
 //! the separate native admission, placement, and retirement ladder.
 
 mod boundary_results;
+mod byte_sequence_custody;
 mod completion_receipts;
 mod final_image_validation;
 mod image_output;
@@ -54,6 +55,7 @@ pub(crate) use partial_cleanup_partition::exact_partial_cleanup_partition;
 pub use stack_demand::{derive_terminal_stack_demand, derive_terminal_unit_stack_demand};
 
 use boundary_results::boundary_result_is_exact;
+use byte_sequence_custody::linux_write_line_custody_is_exact;
 use completion_receipts::{CompletionCustodyError, validate_completion_custody};
 use scalar_cleanup_preservation::validate_scalar_cleanup_preservation;
 use scalar_conditional_call_paths::{conditional_call_path, conditional_paths_are_exclusive};
@@ -952,6 +954,7 @@ pub fn build_terminal_object_artifact(
             let valid_realization = match settlement.realization {
                 TerminalBoundaryRealization::MetadataOnlyPort(realization) => {
                     settlement.scalar_arguments.is_empty()
+                        && settlement.byte_sequence_arguments.is_empty()
                         && settlement.byte_count == 0
                         && function
                             .port_effects
@@ -999,6 +1002,7 @@ pub fn build_terminal_object_artifact(
                                 && function.bytes.get(return_offset) == Some(&0xc3)
                         });
                     settlement.scalar_arguments.is_empty()
+                        && settlement.byte_sequence_arguments.is_empty()
                         && settlement.byte_count == expected.len()
                         && plan.target.architecture == Architecture::X86_64
                         && settlement
@@ -1016,6 +1020,14 @@ pub fn build_terminal_object_artifact(
                                     .iter()
                                     .any(|parameter| parameter.place == argument.place)
                         })
+                }
+                TerminalBoundaryRealization::LinuxWriteLine(_) => {
+                    linux_write_line_custody_is_exact(
+                        plan.target,
+                        settlement,
+                        Some(&function.bytes),
+                    ) && function.unit_stack.is_some()
+                        && function.scalar_stack.is_none()
                 }
                 TerminalBoundaryRealization::LinuxExitGroupI32(_) => {
                     let [argument] = settlement.scalar_arguments.as_slice() else {
@@ -1062,21 +1074,32 @@ pub fn build_terminal_object_artifact(
                                     matches!(attribution.site, TerminalNativeFuelSite::Edge(_))
                                         && attribution.units == 1
                                         && attribution.operation_ordinal == tail_ordinal
-                                        && attribution.code_offset == function.bytes.len()
-                                        && attribution.byte_count == 0
+                                        && attribution.code_offset
+                                            == settlement
+                                                .code_offset
+                                                .saturating_add(settlement.byte_count)
+                                        && attribution
+                                            .code_offset
+                                            .checked_add(attribution.byte_count)
+                                            == Some(function.bytes.len())
+                                        && (function.unit_stack.is_some()
+                                            || attribution.byte_count == 0)
                                 })
                                 .count()
                                 == 1
                         });
                     expected.is_some_and(|expected| {
-                        settlement.code_offset == 0
-                            && settlement.byte_count == expected.len()
+                        settlement.byte_count == expected.len()
                             && settlement.byte_count != 0
-                            && function.bytes == expected
+                            && settlement
+                                .code_offset
+                                .checked_add(settlement.byte_count)
+                                .and_then(|end| function.bytes.get(settlement.code_offset..end))
+                                == Some(expected.as_slice())
                     }) && expected_destination == Some(argument.destination)
                         && settlement.arguments.is_empty()
+                        && settlement.byte_sequence_arguments.is_empty()
                         && settlement.native_result.is_none()
-                        && function.unit_stack.is_none()
                         && function.scalar_stack.is_none()
                         && exact_nominal_tail
                 }

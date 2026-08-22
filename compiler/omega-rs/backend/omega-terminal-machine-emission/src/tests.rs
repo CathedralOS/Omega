@@ -2,7 +2,8 @@ use super::*;
 use omega_calling_conventions::{CallSignature, CallingPolicy, evaluate_call_plan};
 use omega_target::NativeTarget;
 use omega_terminal_target_operations::{
-    TerminalBoundaryScalarArgument, TerminalLinuxExitGroupI32Realization,
+    TerminalBoundaryByteSequenceArgument, TerminalBoundaryScalarArgument,
+    TerminalLinuxExitGroupI32Realization, TerminalLinuxWriteLineRealization,
     TerminalMetadataOnlyPortRealization, TerminalProviderExecutionBinding,
     TerminalProviderPlanIdentity, TerminalPsiProvenance, TerminalScalarParameterLocation,
     TerminalTargetBooleanControl, TerminalTargetBooleanExpression, TerminalTargetCallArgument,
@@ -17,8 +18,9 @@ use psi_core::{
     BoundaryMachineId, EdgeId, MachineId, OperationId, PlaceId, ServiceId, StructuralTypeId,
 };
 use psi_terminal::{
-    NominalAffineCleanup, SemanticFingerprint, StructuralArgument, StructuralMultiplicity,
-    StructuralPathSegment, TerminalPsiIdentity, VocabularyMarker,
+    ByteSequenceCarrier, NominalAffineCleanup, SemanticFingerprint, StructuralArgument,
+    StructuralMultiplicity, StructuralPathSegment, StructuralPlaceDeclaration,
+    StructuralTypeDeclaration, StructuralTypeShape, TerminalPsiIdentity, VocabularyMarker,
 };
 
 fn emit_machine_code(
@@ -118,6 +120,176 @@ fn linux_exit_group_consumes_i32_and_traps_on_both_linux_architectures() {
     assert!(assign_registers(&windows).is_err());
     let darwin = plan_for(NativeTarget::macos_arm64(), MachineRegister::Aarch64X(0));
     assert!(assign_registers(&darwin).is_err());
+}
+
+#[test]
+fn linux_write_line_then_exit_owns_exact_code_data_and_argument_custody() {
+    let machine = MachineId::new(980).unwrap();
+    let literal_place = PlaceId::new(980).unwrap();
+    let structural_type_id = StructuralTypeId::new(980).unwrap();
+    let literal_operation = OperationId::new(980).unwrap();
+    let write_operation = OperationId::new(981).unwrap();
+    let constant_operation = OperationId::new(982).unwrap();
+    let exit_operation = OperationId::new(983).unwrap();
+    let return_edge = EdgeId::new(980).unwrap();
+    let write_boundary = BoundaryMachineId::new(980).unwrap();
+    let exit_boundary = BoundaryMachineId::new(981).unwrap();
+    let exit_value = psi_core::ValueId::new(980).unwrap();
+    let literal_bytes = vec![0, 0x80, 0xff];
+    let structural_type = StructuralTypeDeclaration {
+        id: structural_type_id,
+        identity: "test::BorrowedBytes".into(),
+        shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView),
+    };
+    let place = StructuralPlaceDeclaration {
+        id: literal_place,
+        kind: psi_core::StructuralPlaceKind::ByteSequenceLiteral {
+            declaration_ordinal: 0,
+            structural_type: structural_type_id,
+        },
+    };
+    let argument = StructuralArgument {
+        place: literal_place,
+        path: Vec::new(),
+    };
+    let i32_type = psi_core::IntegerType::new(psi_core::IntegerSign::Signed, 32).unwrap();
+    let provider = |seed| {
+        TerminalProviderExecutionBinding::from_execution_record(
+            TerminalProviderPlanIdentity::new(seed).unwrap(),
+            seed + 1,
+            seed + 2,
+            seed + 3,
+            seed + 4,
+        )
+        .unwrap()
+    };
+    let plan_for = |target: NativeTarget, destination| TerminalTargetOperationPlan {
+        terminal_psi: TerminalPsiIdentity {
+            vocabulary_marker: VocabularyMarker::CURRENT,
+            program_fingerprint: SemanticFingerprint::from_bytes([0x98; 32]),
+        },
+        target,
+        entry: machine,
+        functions: vec![TerminalTargetFunction {
+            machine,
+            attachment: None,
+            provenance: TerminalPsiProvenance {
+                operations: vec![
+                    literal_operation,
+                    write_operation,
+                    constant_operation,
+                    exit_operation,
+                ],
+                edges: vec![return_edge],
+            },
+            operation: TerminalTargetOperation::UnitBody(TerminalTargetUnitBody {
+                structural_types: vec![structural_type.clone()],
+                call_plan: evaluate_call_plan(
+                    CallingPolicy::native_for_target(target),
+                    &CallSignature {
+                        parameters: Vec::new(),
+                        result: None,
+                    },
+                )
+                .unwrap(),
+                parameters: Vec::new(),
+                operations: vec![
+                    TerminalTargetUnitOperation::EstablishByteSequenceLiteral {
+                        psi_operation: literal_operation,
+                        place: place.clone(),
+                        structural_type: structural_type.clone(),
+                        bytes: literal_bytes.clone(),
+                    },
+                    TerminalTargetUnitOperation::BoundarySettlement {
+                        psi_operation: write_operation,
+                        boundary: write_boundary,
+                        provider_execution: provider(980),
+                        realization: TerminalLinuxWriteLineRealization.into(),
+                        scalar_arguments: Vec::new(),
+                        arguments: vec![argument.clone()],
+                        byte_sequence_arguments: vec![TerminalBoundaryByteSequenceArgument {
+                            argument: argument.clone(),
+                            literal_operation,
+                            structural_type: structural_type.clone(),
+                            bytes: literal_bytes.clone(),
+                        }],
+                        completion_claim_sources: Vec::new(),
+                        completion_receipts: Vec::new(),
+                    },
+                    TerminalTargetUnitOperation::IntegerConstant {
+                        psi_operation: constant_operation,
+                        result: exit_value,
+                        scalar_type: i32_type,
+                        value: psi_core::IntegerValue::Signed(37),
+                    },
+                    TerminalTargetUnitOperation::BoundarySettlement {
+                        psi_operation: exit_operation,
+                        boundary: exit_boundary,
+                        provider_execution: provider(990),
+                        realization: TerminalLinuxExitGroupI32Realization.into(),
+                        scalar_arguments: vec![TerminalBoundaryScalarArgument {
+                            source_value: exit_value,
+                            scalar_type: psi_core::ScalarType::Integer(i32_type),
+                            immediate: psi_core::IntegerValue::Signed(37),
+                            destination,
+                        }],
+                        arguments: Vec::new(),
+                        byte_sequence_arguments: Vec::new(),
+                        completion_claim_sources: Vec::new(),
+                        completion_receipts: Vec::new(),
+                    },
+                    TerminalTargetUnitOperation::Return {
+                        psi_edge: return_edge,
+                        cleanup_actions: Vec::new(),
+                    },
+                ],
+            }),
+        }],
+    };
+
+    for (target, destination) in [
+        (NativeTarget::linux_x64(), MachineRegister::X86Rdi),
+        (NativeTarget::linux_arm64(), MachineRegister::Aarch64X(0)),
+    ] {
+        let plan = plan_for(target, destination);
+        let emitted = emit_machine_code(&plan).expect("composed Linux emission");
+        assert_eq!(
+            emitted,
+            emit_machine_code(&plan).expect("deterministic composed emission")
+        );
+        let function = &emitted.functions[0];
+        assert_eq!(function.boundary_settlements.len(), 2);
+        let write = &function.boundary_settlements[0];
+        let [custody] = write.byte_sequence_arguments.as_slice() else {
+            panic!("write_line has one exact structural argument custody row")
+        };
+        assert_eq!(custody.literal_operation, literal_operation);
+        assert_eq!(custody.bytes, literal_bytes);
+        assert!(custody.code_byte_count > 0);
+        assert_eq!(custody.data_byte_count, literal_bytes.len() + 1);
+        assert_eq!(
+            &function.bytes[custody.data_offset..custody.data_offset + custody.data_byte_count],
+            &[0, 0x80, 0xff, b'\n']
+        );
+        assert!(write.byte_count > custody.data_byte_count);
+        let exit = &function.boundary_settlements[1];
+        assert_eq!(exit.code_offset, write.code_offset + write.byte_count);
+        assert!(exit.byte_count > 0);
+        assert_eq!(
+            exit.scalar_arguments[0].immediate,
+            psi_core::IntegerValue::Signed(37)
+        );
+        assert!(exit.byte_sequence_arguments.is_empty());
+        assert_eq!(function.fuel_attribution.len(), 5);
+    }
+
+    for (target, destination) in [
+        (NativeTarget::windows_x64(), MachineRegister::X86Rdi),
+        (NativeTarget::macos_arm64(), MachineRegister::Aarch64X(0)),
+    ] {
+        let plan = plan_for(target, destination);
+        assert!(emit_machine_code(&plan).is_err());
+    }
 }
 
 #[test]
@@ -1316,8 +1488,10 @@ fn x86_unit_call_port_write_and_settlement_keep_exact_order() {
                             psi_operation: settlement_operation,
                             boundary,
                             provider_execution,
-                            realization,
+                            realization: realization.into(),
+                            scalar_arguments: Vec::new(),
                             arguments: settlement_arguments.clone(),
+                            byte_sequence_arguments: Vec::new(),
                             completion_claim_sources: Vec::new(),
                             completion_receipts: Vec::new(),
                         },

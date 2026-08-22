@@ -131,6 +131,15 @@ impl TerminalAbstractFunctionResult {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminalAbstractOperation {
+    /// Establish one exact immutable byte payload in a verifier-declared
+    /// borrowed-view place. The bytes remain semantic data until target
+    /// realization chooses their physical code/data placement.
+    EstablishByteSequenceLiteral {
+        psi_operation: OperationId,
+        place: StructuralPlaceDeclaration,
+        structural_type: StructuralTypeDeclaration,
+        bytes: Vec<u8>,
+    },
     EstablishTrivialAffineLocal {
         psi_operation: OperationId,
         place: StructuralPlaceDeclaration,

@@ -442,6 +442,58 @@ pub fn encode_linux_exit_group_i32(value: i32) -> Vec<u8> {
     bytes
 }
 
+/// Import-free Linux `write_line` over one immutable literal. The returned
+/// data range names the exact literal followed by one `\n`; all preceding
+/// bytes are executable and branch over that inline data. Short writes retry,
+/// while zero/negative results trap rather than silently changing meaning.
+pub fn encode_linux_write_line_literal(
+    literal: &[u8],
+) -> Result<(Vec<u8>, std::ops::Range<usize>), Diagnostic> {
+    let payload_len = literal
+        .len()
+        .checked_add(1)
+        .and_then(|len| u32::try_from(len).ok())
+        .ok_or_else(|| Diagnostic::error("Linux x86-64 write_line literal is too large"))?;
+    let mut bytes = Vec::with_capacity(52 + payload_len as usize);
+    bytes.extend_from_slice(&[0xbf, 1, 0, 0, 0]); // mov edi, STDOUT_FILENO
+    let lea_offset = bytes.len();
+    bytes.extend_from_slice(&[0x48, 0x8d, 0x35, 0, 0, 0, 0]); // lea rsi, [rip+data]
+    bytes.push(0xba); // mov edx, payload_len
+    bytes.extend_from_slice(&payload_len.to_le_bytes());
+    let loop_offset = bytes.len();
+    bytes.extend_from_slice(&[0xb8, 1, 0, 0, 0]); // mov eax, SYS_write on every retry
+    bytes.extend_from_slice(&[0x0f, 0x05]); // syscall
+    bytes.extend_from_slice(&[0x48, 0x85, 0xc0]); // test rax, rax
+    let trap_branch_offset = bytes.len();
+    bytes.extend_from_slice(&[0x0f, 0x8e, 0, 0, 0, 0]); // jle trap
+    bytes.extend_from_slice(&[0x48, 0x01, 0xc6]); // add rsi, rax
+    bytes.extend_from_slice(&[0x48, 0x29, 0xc2]); // sub rdx, rax
+    let loop_branch_offset = bytes.len();
+    bytes.extend_from_slice(&[0x0f, 0x85, 0, 0, 0, 0]); // jne loop
+    let data_skip_offset = bytes.len();
+    bytes.extend_from_slice(&[0xe9, 0, 0, 0, 0]); // jmp after_data
+    let trap_offset = bytes.len();
+    bytes.extend_from_slice(&[0x0f, 0x0b]); // ud2
+    let data_offset = bytes.len();
+    bytes.extend_from_slice(literal);
+    bytes.push(b'\n');
+    let data_end = bytes.len();
+
+    let relative = |target: usize, instruction_end: usize| -> Result<[u8; 4], Diagnostic> {
+        i32::try_from(target as i128 - instruction_end as i128)
+            .map(i32::to_le_bytes)
+            .map_err(|_| Diagnostic::error("Linux x86-64 write_line branch is out of range"))
+    };
+    bytes[lea_offset + 3..lea_offset + 7].copy_from_slice(&relative(data_offset, lea_offset + 7)?);
+    bytes[trap_branch_offset + 2..trap_branch_offset + 6]
+        .copy_from_slice(&relative(trap_offset, trap_branch_offset + 6)?);
+    bytes[loop_branch_offset + 2..loop_branch_offset + 6]
+        .copy_from_slice(&relative(loop_offset, loop_branch_offset + 6)?);
+    bytes[data_skip_offset + 1..data_skip_offset + 5]
+        .copy_from_slice(&relative(data_end, data_skip_offset + 5)?);
+    Ok((bytes, data_offset..data_end))
+}
+
 #[cfg(test)]
 mod syscall_plan_register_tests {
     use super::*;
@@ -456,6 +508,26 @@ mod syscall_plan_register_tests {
                 0xbf, 0x78, 0x56, 0x34, 0x12, 0xb8, 0xe7, 0x00, 0x00, 0x00, 0x0f, 0x05, 0x0f, 0x0b,
             ]
         );
+    }
+
+    #[test]
+    fn linux_write_line_literal_has_exact_data_and_closed_retry_loop() {
+        let (bytes, data) = encode_linux_write_line_literal(&[0, 0x80, 0xff]).unwrap();
+        assert_eq!(&bytes[data.clone()], &[0, 0x80, 0xff, b'\n']);
+        assert!(!bytes[..data.start].is_empty());
+        assert_eq!(&bytes[data.start - 2..data.start], &[0x0f, 0x0b]);
+        let loop_reset = bytes
+            .windows(7)
+            .position(|window| window == [0xb8, 1, 0, 0, 0, 0x0f, 0x05])
+            .expect("retry loop resets eax immediately before syscall");
+        let retry = bytes
+            .windows(2)
+            .position(|window| window == [0x0f, 0x85])
+            .expect("retry loop has a backward jne");
+        let displacement = i32::from_le_bytes(bytes[retry + 2..retry + 6].try_into().unwrap());
+        let retry_target = i64::try_from(retry + 6).unwrap() + i64::from(displacement);
+        assert_eq!(retry_target, i64::try_from(loop_reset).unwrap());
+        assert_eq!(&bytes[loop_reset..loop_reset + 5], &[0xb8, 1, 0, 0, 0]);
     }
 
     #[test]

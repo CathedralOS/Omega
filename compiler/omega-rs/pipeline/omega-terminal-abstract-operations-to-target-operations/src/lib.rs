@@ -15,14 +15,14 @@ use omega_terminal_abstract_operations::{
     TerminalAbstractOperationPlan, TerminalAbstractParameter, TerminalAbstractResult,
 };
 use omega_terminal_target_operations::{
-    MachineRegister, TerminalBoundaryRealization, TerminalBoundaryScalarArgument,
-    TerminalBoundarySettlementBinding, TerminalPsiProvenance, TerminalScalarParameterLocation,
-    TerminalTargetBooleanControl, TerminalTargetBooleanExpression, TerminalTargetCallArgument,
-    TerminalTargetConditionalBooleanArm, TerminalTargetConditionalIntegerArm,
-    TerminalTargetFunction, TerminalTargetIntegerControl, TerminalTargetIntegerExpression,
-    TerminalTargetOperation, TerminalTargetOperationPlan, TerminalTargetScalarExpression,
-    TerminalTargetStructuralArgument, TerminalTargetStructuralParameter, TerminalTargetUnitBody,
-    TerminalTargetUnitOperation,
+    MachineRegister, TerminalBoundaryByteSequenceArgument, TerminalBoundaryRealization,
+    TerminalBoundaryScalarArgument, TerminalBoundarySettlementBinding, TerminalPsiProvenance,
+    TerminalScalarParameterLocation, TerminalTargetBooleanControl, TerminalTargetBooleanExpression,
+    TerminalTargetCallArgument, TerminalTargetConditionalBooleanArm,
+    TerminalTargetConditionalIntegerArm, TerminalTargetFunction, TerminalTargetIntegerControl,
+    TerminalTargetIntegerExpression, TerminalTargetOperation, TerminalTargetOperationPlan,
+    TerminalTargetScalarExpression, TerminalTargetStructuralArgument,
+    TerminalTargetStructuralParameter, TerminalTargetUnitBody, TerminalTargetUnitOperation,
 };
 use psi_core::{
     BlockId, BoundaryMachineId, EdgeId, IeeeFloatFormat, IntegerSign, IntegerType, IntegerValue,
@@ -201,9 +201,20 @@ fn lower_function(
         psi_operation,
         boundary,
         ..
-    }) = function.operations.iter().find(
-        |operation| matches!(operation, TerminalAbstractOperation::BoundaryCall { arguments, .. } if !arguments.is_empty()),
-    ) {
+    }) = function.operations.iter().find(|operation| {
+        matches!(
+            operation,
+            TerminalAbstractOperation::BoundaryCall {
+                boundary,
+                arguments,
+                ..
+            } if !arguments.is_empty()
+                && !matches!(
+                    settlements.get(boundary).map(|binding| binding.realization),
+                    Some(TerminalBoundaryRealization::LinuxExitGroupI32(_))
+                )
+        )
+    }) {
         return Err(
             LoweringError::ScalarBoundaryArgumentsRequireNativeRealization {
                 machine: function.machine,
@@ -216,7 +227,14 @@ fn lower_function(
         return lower_structural_return_function(function, result, target, structural_types);
     }
     let Some(function_result) = function.result.scalar() else {
-        return lower_unit_function(function, target, functions, structural_types, settlements);
+        return lower_unit_function(
+            function,
+            target,
+            functions,
+            structural_types,
+            boundary_machines,
+            settlements,
+        );
     };
     let mut values = BTreeMap::new();
     let mut provenance = TerminalPsiProvenance::default();
@@ -510,6 +528,12 @@ fn lower_function(
             return Err(LoweringError::OperationAfterReturn(function.machine));
         }
         match operation {
+            TerminalAbstractOperation::EstablishByteSequenceLiteral { psi_operation, .. } => {
+                return Err(LoweringError::UnitOperationInScalarFunction {
+                    machine: function.machine,
+                    operation: *psi_operation,
+                });
+            }
             TerminalAbstractOperation::BoundaryCall {
                 psi_operation,
                 result,
@@ -1721,7 +1745,26 @@ fn lower_linux_exit_group_i32(
         },
     ] = function.operations.as_slice()
     else {
-        return Err(LoweringError::InvalidLinuxExitGroupShape(function.machine));
+        // A Linux exit may be the nonreturning tail of a larger straight-line
+        // Unit effect body (notably write_line -> exit_process). Let the Unit
+        // lowering validate that composition; retain the directed error for a
+        // malformed isolated exit shape.
+        return if function.operations.iter().any(|operation| {
+            matches!(
+                operation,
+                TerminalAbstractOperation::EstablishByteSequenceLiteral { .. }
+            )
+        }) || function
+            .operations
+            .iter()
+            .filter(|operation| matches!(operation, TerminalAbstractOperation::BoundaryCall { .. }))
+            .count()
+            > 1
+        {
+            Ok(None)
+        } else {
+            Err(LoweringError::InvalidLinuxExitGroupShape(function.machine))
+        };
     };
     if function.result != TerminalAbstractFunctionResult::Unit
         || !function.parameters.is_empty()
@@ -2091,6 +2134,7 @@ fn lower_unit_function(
     target: NativeTarget,
     functions: &BTreeMap<MachineId, &TerminalAbstractFunction>,
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    boundary_machines: &BTreeMap<BoundaryMachineId, &psi_terminal::BoundaryMachineDeclaration>,
     settlements: &BTreeMap<BoundaryMachineId, TerminalBoundarySettlementBinding>,
 ) -> Result<TerminalTargetFunction, LoweringError> {
     if !function.parameters.is_empty() {
@@ -2151,11 +2195,54 @@ fn lower_unit_function(
     let mut operations = Vec::with_capacity(function.operations.len());
     let mut provenance = TerminalPsiProvenance::default();
     let mut returned = false;
+    let mut established_byte_sequences =
+        BTreeMap::<PlaceId, (OperationId, StructuralTypeDeclaration, Vec<u8>)>::new();
+    let mut integer_constants =
+        BTreeMap::<ValueId, (OperationId, IntegerType, IntegerValue)>::new();
+    let mut nonreturning_boundary = false;
     for operation in &function.operations {
         if returned {
             return Err(LoweringError::OperationAfterReturn(function.machine));
         }
         match operation {
+            TerminalAbstractOperation::EstablishByteSequenceLiteral {
+                psi_operation,
+                place,
+                structural_type,
+                bytes,
+            } => {
+                if nonreturning_boundary
+                    || !matches!(
+                        (&place.kind, &structural_type.shape),
+                        (
+                            psi_core::StructuralPlaceKind::ByteSequenceLiteral {
+                                structural_type: place_type,
+                                ..
+                            },
+                            StructuralTypeShape::ByteSequence(
+                                psi_terminal::ByteSequenceCarrier::BorrowedView
+                            )
+                        ) if *place_type == structural_type.id
+                    )
+                    || established_byte_sequences
+                        .insert(
+                            place.id,
+                            (*psi_operation, structural_type.clone(), bytes.clone()),
+                        )
+                        .is_some()
+                {
+                    return Err(LoweringError::UnsupportedOperationInUnitFunction(
+                        function.machine,
+                    ));
+                }
+                operations.push(TerminalTargetUnitOperation::EstablishByteSequenceLiteral {
+                    psi_operation: *psi_operation,
+                    place: place.clone(),
+                    structural_type: structural_type.clone(),
+                    bytes: bytes.clone(),
+                });
+                provenance.operations.push(*psi_operation);
+            }
             TerminalAbstractOperation::EstablishTrivialAffineLocal {
                 psi_operation,
                 place,
@@ -2355,7 +2442,7 @@ fn lower_unit_function(
                 psi_operation,
                 result,
                 boundary,
-                arguments: _,
+                arguments,
                 structural_arguments,
                 completion_claim_sources,
                 completion_receipts,
@@ -2373,39 +2460,142 @@ fn lower_unit_function(
                     .get(boundary)
                     .copied()
                     .ok_or(LoweringError::MissingBoundarySettlement(*boundary))?;
-                let TerminalBoundaryRealization::MetadataOnlyPort(realization) =
-                    binding.realization
-                else {
-                    return Err(LoweringError::BoundaryRealizationMismatch(*boundary));
-                };
-                if !matches!(
-                    operations.last(),
-                    Some(TerminalTargetUnitOperation::PortWrite {
-                        psi_operation,
-                        service,
-                        port,
-                        value,
-                    }) if *psi_operation == realization.effect_operation
-                        && *service == realization.service
-                        && *port == realization.port
-                        && *value == realization.value
-                ) {
-                    return Err(LoweringError::BoundaryRealizationMismatch(*boundary));
-                }
-                for argument in structural_arguments {
-                    if !parameters_by_place.contains_key(&argument.place) {
-                        return Err(LoweringError::UnknownStructuralArgumentPlace {
-                            machine: function.machine,
-                            place: argument.place,
+                let declaration = boundary_machines
+                    .get(boundary)
+                    .copied()
+                    .ok_or(LoweringError::UnknownBoundarySettlement(*boundary))?;
+                let mut scalar_arguments = Vec::new();
+                let mut byte_sequence_arguments = Vec::new();
+                match binding.realization {
+                    TerminalBoundaryRealization::MetadataOnlyPort(realization) => {
+                        if !arguments.is_empty()
+                            || !matches!(
+                                operations.last(),
+                                Some(TerminalTargetUnitOperation::PortWrite {
+                                    psi_operation,
+                                    service,
+                                    port,
+                                    value,
+                                }) if *psi_operation == realization.effect_operation
+                                    && *service == realization.service
+                                    && *port == realization.port
+                                    && *value == realization.value
+                            )
+                        {
+                            return Err(LoweringError::BoundaryRealizationMismatch(*boundary));
+                        }
+                        for argument in structural_arguments {
+                            if !parameters_by_place.contains_key(&argument.place) {
+                                return Err(LoweringError::UnknownStructuralArgumentPlace {
+                                    machine: function.machine,
+                                    place: argument.place,
+                                });
+                            }
+                        }
+                    }
+                    TerminalBoundaryRealization::LinuxWriteLine(_) => {
+                        if target.object_format != ObjectFormat::Elf
+                            || !matches!(
+                                target.architecture,
+                                Architecture::X86_64 | Architecture::Aarch64
+                            )
+                            || !arguments.is_empty()
+                            || declaration.result.is_some()
+                            || !declaration.scalar_parameters.is_empty()
+                            || structural_arguments.len() != 1
+                            || declaration.structural_parameters.len() != 1
+                        {
+                            return Err(LoweringError::LinuxWriteLineUnsupportedOrInvalid {
+                                machine: function.machine,
+                                boundary: *boundary,
+                                target,
+                            });
+                        }
+                        let argument = &structural_arguments[0];
+                        let parameter = &declaration.structural_parameters[0];
+                        let Some((literal_operation, structural_type, bytes)) =
+                            established_byte_sequences.get(&argument.place)
+                        else {
+                            return Err(LoweringError::LinuxWriteLineUnsupportedOrInvalid {
+                                machine: function.machine,
+                                boundary: *boundary,
+                                target,
+                            });
+                        };
+                        if !argument.path.is_empty()
+                            || parameter.position != 0
+                            || parameter.is_self
+                            || parameter.structural_type != structural_type.id
+                            || parameter.multiplicity
+                                != psi_terminal::StructuralMultiplicity::Unrestricted
+                            || !parameter.qualifications.is_empty()
+                        {
+                            return Err(LoweringError::LinuxWriteLineUnsupportedOrInvalid {
+                                machine: function.machine,
+                                boundary: *boundary,
+                                target,
+                            });
+                        }
+                        byte_sequence_arguments.push(TerminalBoundaryByteSequenceArgument {
+                            argument: argument.clone(),
+                            literal_operation: *literal_operation,
+                            structural_type: structural_type.clone(),
+                            bytes: bytes.clone(),
                         });
+                    }
+                    TerminalBoundaryRealization::LinuxExitGroupI32(_) => {
+                        let i32_type =
+                            IntegerType::new(IntegerSign::Signed, 32).expect("i32 is valid");
+                        let [argument] = arguments.as_slice() else {
+                            return Err(LoweringError::InvalidLinuxExitGroupShape(
+                                function.machine,
+                            ));
+                        };
+                        let Some((_, actual_type, value)) = integer_constants.get(argument) else {
+                            return Err(LoweringError::InvalidLinuxExitGroupShape(
+                                function.machine,
+                            ));
+                        };
+                        if target.object_format != ObjectFormat::Elf
+                            || !matches!(
+                                target.architecture,
+                                Architecture::X86_64 | Architecture::Aarch64
+                            )
+                            || declaration.scalar_parameters.as_slice()
+                                != [ScalarType::Integer(i32_type)]
+                            || !declaration.structural_parameters.is_empty()
+                            || declaration.result.is_some()
+                            || *actual_type != i32_type
+                            || !i32_type.admits(*value)
+                            || !structural_arguments.is_empty()
+                        {
+                            return Err(LoweringError::InvalidLinuxExitGroupShape(
+                                function.machine,
+                            ));
+                        }
+                        scalar_arguments.push(TerminalBoundaryScalarArgument {
+                            source_value: *argument,
+                            scalar_type: ScalarType::Integer(*actual_type),
+                            immediate: *value,
+                            destination: match target.architecture {
+                                Architecture::X86_64 => MachineRegister::X86Rdi,
+                                Architecture::Aarch64 => MachineRegister::Aarch64X(0),
+                            },
+                        });
+                        nonreturning_boundary = true;
+                    }
+                    TerminalBoundaryRealization::DirectPortReadU8(_) => {
+                        return Err(LoweringError::BoundaryRealizationMismatch(*boundary));
                     }
                 }
                 operations.push(TerminalTargetUnitOperation::BoundarySettlement {
                     psi_operation: *psi_operation,
                     boundary: *boundary,
                     provider_execution: binding.provider_execution,
-                    realization: realization.into(),
+                    realization: binding.realization,
+                    scalar_arguments,
                     arguments: structural_arguments.clone(),
+                    byte_sequence_arguments,
                     completion_claim_sources: completion_claim_sources.clone(),
                     completion_receipts: completion_receipts.clone(),
                 });
@@ -2415,6 +2605,9 @@ fn lower_unit_function(
                 psi_edge,
                 cleanup_actions,
             } => {
+                if nonreturning_boundary && !cleanup_actions.is_empty() {
+                    return Err(LoweringError::InvalidLinuxExitGroupShape(function.machine));
+                }
                 let local_places = operations
                     .iter()
                     .filter_map(|operation| match operation {
@@ -2633,6 +2826,29 @@ fn lower_unit_function(
                 });
                 provenance.edges.push(*psi_edge);
                 returned = true;
+            }
+            TerminalAbstractOperation::IntegerConstant {
+                psi_operation,
+                result,
+                scalar_type: ScalarType::Integer(scalar_type),
+                value,
+            } => {
+                if nonreturning_boundary
+                    || integer_constants
+                        .insert(*result, (*psi_operation, *scalar_type, *value))
+                        .is_some()
+                {
+                    return Err(LoweringError::UnsupportedOperationInUnitFunction(
+                        function.machine,
+                    ));
+                }
+                operations.push(TerminalTargetUnitOperation::IntegerConstant {
+                    psi_operation: *psi_operation,
+                    result: *result,
+                    scalar_type: *scalar_type,
+                    value: *value,
+                });
+                provenance.operations.push(*psi_operation);
             }
             TerminalAbstractOperation::Crash { .. }
             | TerminalAbstractOperation::Call { .. }
@@ -3677,7 +3893,8 @@ fn conditional_provenance(
     let mut provenance = TerminalPsiProvenance::default();
     for operation in &function.operations {
         let psi_operation = match operation {
-            TerminalAbstractOperation::EstablishTrivialAffineLocal { psi_operation, .. }
+            TerminalAbstractOperation::EstablishByteSequenceLiteral { psi_operation, .. }
+            | TerminalAbstractOperation::EstablishTrivialAffineLocal { psi_operation, .. }
             | TerminalAbstractOperation::CallUnit { psi_operation, .. }
             | TerminalAbstractOperation::CallStructuralScalar { psi_operation, .. }
             | TerminalAbstractOperation::BoundaryCall { psi_operation, .. }
@@ -3799,6 +4016,11 @@ pub enum LoweringError {
     },
     LinuxExitGroupUnsupportedTarget {
         machine: MachineId,
+        target: NativeTarget,
+    },
+    LinuxWriteLineUnsupportedOrInvalid {
+        machine: MachineId,
+        boundary: BoundaryMachineId,
         target: NativeTarget,
     },
     InvalidLinuxExitGroupShape(MachineId),

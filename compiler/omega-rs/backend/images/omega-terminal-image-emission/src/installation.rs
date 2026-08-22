@@ -4,6 +4,7 @@ use crate::{
     TerminalExecutableImage, TerminalObjectBoundarySettlement, TerminalObjectFuelAttribution,
     TerminalObjectPortEffect,
     boundary_results::boundary_result_is_exact,
+    byte_sequence_custody::linux_write_line_custody_is_exact,
     can_emit_terminal_executable_image,
     completion_receipts::{CompletionCustodyError, validate_completion_custody},
 };
@@ -63,7 +64,7 @@ use structural_scalar_codec::{
 };
 use wire_codec::{Reader, decode_boolean, push_u16, push_u32, push_u64};
 
-pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 32;
+pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 33;
 const MAGIC: &[u8; 8] = b"PSIINST\0";
 
 /// Exact normalized identity of one provider plan selected for this
@@ -1751,6 +1752,7 @@ fn validate_record_shape(
         let valid_realization = match installed.settlement.realization {
             TerminalBoundaryRealization::MetadataOnlyPort(realization) => {
                 installed.settlement.scalar_arguments.is_empty()
+                    && installed.settlement.byte_sequence_arguments.is_empty()
                     && installed.settlement.byte_count == 0
                     && record
                         .port_effects
@@ -1808,6 +1810,7 @@ fn validate_record_shape(
                                 == 1
                         });
                 installed.settlement.scalar_arguments.is_empty()
+                    && installed.settlement.byte_sequence_arguments.is_empty()
                     && record.target.architecture == Architecture::X86_64
                     && installed.settlement.byte_count
                         == omega_x86_encoding::IMMEDIATE_PORT_READ_U8_WIDTH
@@ -1821,6 +1824,11 @@ fn validate_record_shape(
                                 .iter()
                                 .any(|parameter| parameter.place == argument.place)
                     })
+            }
+            TerminalBoundaryRealization::LinuxWriteLine(_) => {
+                linux_write_line_custody_is_exact(record.target, &installed.settlement, None)
+                    && function.unit_body
+                    && function.scalar_stack.is_none()
             }
             TerminalBoundaryRealization::LinuxExitGroupI32(_) => {
                 let [argument] = installed.settlement.scalar_arguments.as_slice() else {
@@ -1876,20 +1884,29 @@ fn validate_record_shape(
                                     )
                                     && attribution.attribution.units == 1
                                     && attribution.attribution.operation_ordinal == tail_ordinal
-                                    && attribution.attribution.code_offset == function.byte_count
-                                    && attribution.attribution.byte_count == 0
+                                    && attribution.attribution.code_offset
+                                        == installed
+                                            .settlement
+                                            .code_offset
+                                            .saturating_add(installed.settlement.byte_count)
+                                    && attribution
+                                        .attribution
+                                        .code_offset
+                                        .checked_add(attribution.attribution.byte_count)
+                                        == Some(function.byte_count)
+                                    && (function.unit_body
+                                        || attribution.attribution.byte_count == 0)
                             })
                             .count()
                             == 1
                     });
                 record.target.object_format == omega_target::ObjectFormat::Elf
                     && expected_destination == Some(argument.destination)
-                    && installed.settlement.code_offset == 0
                     && installed.settlement.byte_count == expected_byte_count
                     && expected_byte_count != 0
                     && installed.settlement.arguments.is_empty()
+                    && installed.settlement.byte_sequence_arguments.is_empty()
                     && installed.settlement.native_result.is_none()
-                    && function.unit_stack.is_none()
                     && function.scalar_stack.is_none()
                     && exact_nominal_tail
             }

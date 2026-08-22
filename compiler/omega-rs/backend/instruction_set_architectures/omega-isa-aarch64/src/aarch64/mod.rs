@@ -1561,6 +1561,79 @@ pub fn encode_linux_exit_group_i32(value: i32) -> Result<Vec<u8>, Diagnostic> {
     Ok(bytes)
 }
 
+/// Import-free Linux `write_line` over one immutable literal. The inline data
+/// range is exact literal bytes plus one newline; execution branches over the
+/// padded data tail. Short writes retry and nonpositive results trap.
+pub fn encode_linux_write_line_literal(
+    literal: &[u8],
+) -> Result<(Vec<u8>, std::ops::Range<usize>), Diagnostic> {
+    let payload_len = literal
+        .len()
+        .checked_add(1)
+        .and_then(|len| u64::try_from(len).ok())
+        .ok_or_else(|| Diagnostic::error("Linux AArch64 write_line literal is too large"))?;
+    // ADR's signed 21-bit byte displacement is ample for the intentionally
+    // bounded bootstrap literal, and keeping the address PC-relative avoids a
+    // data relocation or hosted import.
+    if payload_len >= (1 << 20) {
+        return Err(Diagnostic::error(
+            "Linux AArch64 write_line literal exceeds the PC-relative carrier",
+        ));
+    }
+    let mut bytes = Vec::new();
+    let adr_offset = bytes.len();
+    bytes.extend_from_slice(&[0; 4]); // adr x1, data
+    append_unsigned_immediate(&mut bytes, 2, payload_len);
+    bytes.extend(encode_movz(8, 64)); // x8 = SYS_write
+    let loop_offset = bytes.len();
+    bytes.extend(encode_movz(0, 1)); // x0 = STDOUT_FILENO
+    bytes.extend(encode_svc(0));
+    bytes.extend(encode_compare_x_immediate(0, 0)?);
+    let trap_branch_offset = bytes.len();
+    bytes.extend_from_slice(&[0; 4]); // b.le trap
+    bytes.extend(encode_add_x_register(1, 1, 0));
+    bytes.extend(encode_subs_x_register(2, 2, 0));
+    let loop_branch_offset = bytes.len();
+    bytes.extend_from_slice(&[0; 4]); // b.ne loop
+    let data_skip_offset = bytes.len();
+    bytes.extend_from_slice(&[0; 4]); // b after_data
+    let trap_offset = bytes.len();
+    bytes.extend(encode_brk(0));
+    let data_offset = bytes.len();
+    bytes.extend_from_slice(literal);
+    bytes.push(b'\n');
+    let data_end = bytes.len();
+    while bytes.len() % 4 != 0 {
+        bytes.push(0);
+    }
+    let after_data = bytes.len();
+
+    let adr_distance = i32::try_from(data_offset as i128 - adr_offset as i128)
+        .map_err(|_| Diagnostic::error("Linux AArch64 write_line ADR is out of range"))?;
+    if !(-(1 << 20)..(1 << 20)).contains(&adr_distance) {
+        return Err(Diagnostic::error(
+            "Linux AArch64 write_line ADR is out of range",
+        ));
+    }
+    let immediate = adr_distance as u32 & 0x1f_ffff;
+    let adr = 0x1000_0000 | ((immediate & 0x3) << 29) | (((immediate >> 2) & 0x7ffff) << 5) | 1;
+    bytes[adr_offset..adr_offset + 4].copy_from_slice(&adr.to_le_bytes());
+    bytes[trap_branch_offset..trap_branch_offset + 4].copy_from_slice(
+        &encode_conditional_branch_less_or_equal(
+            isize::try_from(trap_offset).unwrap() - isize::try_from(trap_branch_offset).unwrap(),
+        )?,
+    );
+    bytes[loop_branch_offset..loop_branch_offset + 4].copy_from_slice(
+        &encode_conditional_branch_not_equal(
+            isize::try_from(loop_offset).unwrap() - isize::try_from(loop_branch_offset).unwrap(),
+        )?,
+    );
+    bytes[data_skip_offset..data_skip_offset + 4].copy_from_slice(&encode_unconditional_branch(
+        isize::try_from(after_data).unwrap() - isize::try_from(data_skip_offset).unwrap(),
+    )?);
+    Ok((bytes, data_offset..data_end))
+}
+
 #[cfg(test)]
 mod syscall_plan_register_tests {
     use super::*;
@@ -1574,6 +1647,18 @@ mod syscall_plan_register_tests {
         assert_eq!(&bytes[4..8], &0xd280_0bc8_u32.to_le_bytes());
         assert_eq!(&bytes[8..12], &0xd400_0001_u32.to_le_bytes());
         assert_eq!(&bytes[12..16], &0xd420_0000_u32.to_le_bytes());
+    }
+
+    #[test]
+    fn linux_write_line_literal_has_exact_data_and_instruction_alignment() {
+        let (bytes, data) = encode_linux_write_line_literal(&[0, 0x80, 0xff]).unwrap();
+        assert_eq!(&bytes[data.clone()], &[0, 0x80, 0xff, b'\n']);
+        assert!(!bytes[..data.start].is_empty());
+        assert_eq!(bytes.len() % 4, 0);
+        assert_eq!(
+            &bytes[data.start - 4..data.start],
+            &0xd420_0000_u32.to_le_bytes()
+        );
     }
 
     #[test]
