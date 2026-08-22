@@ -535,8 +535,12 @@ Owners:
   primitive/fixed-array/checked-record encoding to a focused 264-line private
   owner. Byte order, carrier/range checks, erased fields, alignment/padding,
   recursion rejection, error order, transactional mutation, and public APIs
-  remain unchanged. The 107-function production inventory and all 33 layout
-  tests remain intact, with the coordinator now 1,452 lines.
+  remain unchanged. Closed build-time Schema ABI construction now also lives in
+  a focused 228-line private owner, retaining stable nonzero record/case/payload
+  keys, Optional identities, fixed-capacity padding, tombstones, payload
+  reflection, and exact capacity diagnostics. The 107-function production
+  inventory and all 33 layout tests remain intact, with the coordinator now
+  1,231 lines.
   Erased terms remain semantically mandatory but add no bytes, including nested
   records and fixed arrays whose entire runtime shape is erased. Scalar
   placement/access semantics remain fenced for aggregates. Continue beyond
