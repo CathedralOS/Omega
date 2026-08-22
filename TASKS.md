@@ -2382,6 +2382,13 @@ Remaining:
   orientation order, completion precedence, nested substitution shape,
   rejection behavior, and the fixed one-intermediate-alias frontier remain
   unchanged.
+  Affine `Value` classification and retained-row identity now have separate
+  paired side-local authorities. Bound catalogs own `Value` admission for
+  ordered root endpoints and fixed two-citation legs, while fact-identity
+  modules independently reject row reuse in two-citation chains and one-alias
+  literal joins. Producer retains citation/proof custody and reconstruction
+  retains propositions; traversal order, proof shapes, rejection behavior,
+  precedence, and every fixed frontier remain unchanged.
   One-equality transitive affine completion now lives in independent side-local
   `affine_selection/transitive/alias/completion` modules. Each parent retains
   its own ledger-ordered equality discovery, distinct root/alias custody, and
@@ -4729,6 +4736,13 @@ Owners:
   owner ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift fences
   remain green; loop/automaton, numeric-conversion, and transition/iteration
   owners stay fenced.
+  Four authored-root slice-materialization regressions—bounded range length,
+  range pointer bias, local aggregate elements carried into later lets, and
+  field-array elements used as value operands—now launch `OutputOnly` native
+  execution solely through exact checked-report executable receipts while
+  preserving literal exits 215, 205, and 70 and detailed diagnostics. Exact-
+  owner ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift fences
+  remain green.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
