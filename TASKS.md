@@ -567,7 +567,14 @@ Owners:
   Stable content adoption independently replays that retained profile against
   the exact owned extent and placement before establishing resident custody;
   rejection returns both the unchanged owned admission and provider content
-  for corrected retry.
+  for corrected retry. Borrowed placed-view establishment now independently
+  replays the retained placement, admitted profile/receipt, exact loan, and
+  resource compatibility before creating a `PlacedView`; rejection returns the
+  complete loan-bearing admission for corrected retry or withdrawal. Owned
+  resident-view establishment now independently replays retained owned
+  placement/profile/resource authority before activating a requested
+  occurrence; rejection returns the exact dormant resident and occurrence for
+  corrected retry, without claiming global occurrence freshness.
 - Implement `Extent::Resident<P, T>` as the owned exact-range dormant-content
   qualification, including invariant type indices, mutual exclusion with
   `Vacant`, split/merge rejection, borrow versus owned-view continuity,
@@ -1511,14 +1518,19 @@ Remaining:
   Jump/Conditional/return/crash dispatch, successor fact propagation,
   scalar-result equality, nominal-cleanup obligations, structural-return facts,
   and the rule that Crash contributes no normal exit. CFG scheduling and final
-  all-return intersection remain in the parent; cleanup order, axiom snapshots,
-  and noncanonical cleanup status are unchanged. Immutable machine
+  all-return intersection are separately owned below; cleanup order, axiom
+  snapshots, and noncanonical cleanup status are unchanged. Immutable machine
   reconstruction context now lives in a side-local `machine_context` module.
   It alone derives the existing path-fact enablement predicate, exact
   value-type proposition context, machine-parameter custody set, and
   block/machine identity indexes. Traversal consumes that read-only context;
   operation and terminator modules retain their independent decision authority,
-  and no dispatch, fact, proof, or search order changes. A
+  and no dispatch, fact, proof, or search order changes. Deterministic machine
+  fact flow now lives in a side-local `machine_flow` module. It owns the
+  existing sorted-ready topological schedule, per-block all-incoming fact
+  intersection, and final all-return fact intersection. The parent retains
+  operation-before-terminator traversal; no successor, fact, exit, proof, or
+  search order changes. A
   single exact prior value equality may also transport a completed affine bound
   from its checked target alias to the canonical goal endpoint. The producer
   replaces that one endpoint, constructs the bounded affine relation directly,
@@ -2629,9 +2641,10 @@ Owners:
   The following five value-call executions through the post-splice mutation
   probe also use the exact report receipt; the 795 pin remains unchanged, and
   flat/bundle executable-inventory drift exposes no executable path.
-  The next five runtime value-call executions through the slice-length guard
-  probe now use receipt-only launch; the 795 owner pin stays stable, and
-  flat/bundle compiler-text validation drift exposes no executable path.
+  Five further runtime executions—called-machine loop search, looping
+  value/cast returns, the slice-length guard, and sleep—now use receipt-only
+  launch. The 795 owner pin stays stable, and flat/bundle compiler-text
+  validation drift exposes no executable path.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
