@@ -6598,18 +6598,22 @@ compiler concept is introduced.
   established through exact boundary requirements. Authored terminating
   requirements now retain each public premise as an exact semantic profile plus
   receiver-first parameter/field subject path, and that schema enters contract
-  and provider-plan identity.
+  and provider-plan identity. Checked lowering now instantiates those schemas
+  only from exact selected calls, substitutes identity-preserving parameter and
+  field paths through directly called private helpers to a fixed point, checks
+  exported bodies against their authored schemas, and discharges exact locally
+  admitted qualification receipts. Merely carrying a qualified value adds no
+  premise.
 
-  Remaining: instantiate exact call-edge premises from the selected operation's
-  schema. Exported checked bodies must cover every derived instance without
-  letting implementation refactors rewrite their published set; private bodies
-  derive only from selected operation termination contracts. Resolve each
-  instance by exact substitution or identity-preserving lineage to a public
-  schema, local admitted receipt, or manifest-bound provider receipt; reject
-  unknown correspondence. Keep nominal static-machine binder premises pinned
-  to the named requirement contract and ranking witnesses outside public
-  identity. Checked bodies with progress dependencies currently fail closed;
-  remove that rejection only when this coverage is complete.
+  Remaining: export build-bound provider subjects as unresolved manifest
+  premises and discharge them against the selected provider occurrence at
+  composition. Add cross-state and authored qualification-preserving transition
+  correspondence beyond direct parameter/field identity; unknown, indexed, and
+  local correspondence remains fail closed. Keep nominal static-machine binder
+  premises pinned to the named requirement contract and ranking witnesses
+  outside public identity. Align the pre-checked build-time termination query
+  with the same selected-call closure so semantic evaluation cannot treat a
+  premised body as unconditionally terminating.
 Acceptance: contract axes normalize independently, wrappers cannot launder
 reach or trust, and private proof improvements do not change public identity.
 
