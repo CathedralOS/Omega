@@ -2288,6 +2288,13 @@ Remaining:
   completion and `mapped` modules for exact pre-boundary mapping, while the
   parent retains ordinary root completion. Citation order, strict inequalities,
   proof shapes, rejection, and the fixed four-definition frontier are
+  unchanged. Pre-boundary affine-mapping completion now lives in paired, side-
+  local `affine_custody/mapped/completion` modules. Producer and reconstruction
+  independently enforce strict definition- and literal-axiom boundaries,
+  validate every enumerated witness, and construct or replay its exact mapped
+  bound; only production materializes and kernel-checks the proof. The `mapped`
+  parents retain requested-target and definition-word order, so proof bytes,
+  candidate rejection, and the fixed four-definition frontier remain
   unchanged. Direct
   affine-root custody now lives in independent side-local
   `affine_selection/direct` modules. Production alone retains the exact root-
