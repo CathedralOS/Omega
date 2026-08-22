@@ -10,8 +10,9 @@ use psi_terminal::{
     StructuralMultiplicity,
 };
 
+use super::structural_signature_wire::encode_service_ceiling;
 use super::wire::{Reader, Writer};
-use super::{CodecError, decode_counted, decode_ids, encode_service_ceiling};
+use super::{CodecError, decode_counted, decode_ids};
 
 pub(super) fn encode_provider_candidate(
     writer: &mut Writer,
