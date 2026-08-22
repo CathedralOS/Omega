@@ -2949,6 +2949,13 @@ Remaining:
   custody retains exact goal-endpoint and source-ordered definition-word
   enumeration, so precedence, proof shape, rejection, and the four-definition
   frontier are unchanged.
+  Direct affine-witness completion now lives in paired, side-local
+  `affine_custody/completion/direct` modules. Reconstruction independently
+  replays exact affine-bound conversion after witness validation, while the
+  producer independently constructs the `IntegerAffineBound` proof node and
+  validates the complete certificate. Direct-before-relaxation precedence,
+  fallback witness replay, proof shape, rejection behavior, and the fixed
+  frontier remain unchanged.
   The two ordered landed-literal alias root bounds now live in paired, side-
   local `affine_selection/literal/alias/completion/bound` modules. The producer
   independently constructs the exact closed reflexive relation and nested
