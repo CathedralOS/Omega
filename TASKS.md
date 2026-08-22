@@ -2293,6 +2293,12 @@ Owners:
   byte fingerprint. Its binding fingerprint participates in the function
   evidence and final text derivation, preventing a validated function
   partition from being paired with another independently valid inventory.
+  Boundary-footprint attachment now consumes an exact sealed entry projection
+  of that join rather than searching by linkage spelling. The compiler-private
+  identity, object symbol handle, region index and final span, inventory
+  identity, and whole function-region binding identity participate in its own
+  replayed fingerprint; any identity/handle/row/custody drift rejects before
+  the inventory is mutated.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected

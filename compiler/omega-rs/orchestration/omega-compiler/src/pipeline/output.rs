@@ -39,9 +39,26 @@ pub(super) fn write_output(
         .map_err(|diagnostic| vec![diagnostic])?;
 
         if footprints.boundary_contract_fingerprint.is_some() {
+            let final_region_binding_fingerprint = image
+                .compiler_function_validation
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "checked executable image omitted compiler-function validation evidence",
+                    )]
+                })?
+                .final_region_binding_fingerprint;
+            let entry_binding = image
+                .compiler_entry_region_binding
+                .as_ref()
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "checked executable image omitted exact compiler-entry region custody",
+                    )]
+                })?;
             omega_image::bind_compiler_entry_footprint(
                 &mut image.executable_regions,
-                omega_object_file::object_entry_symbol_name(&emitted.object),
+                entry_binding,
+                final_region_binding_fingerprint,
                 footprints.composed_evidence(),
             )
             .map_err(|diagnostic| vec![diagnostic])?;

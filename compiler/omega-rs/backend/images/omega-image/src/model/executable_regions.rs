@@ -254,31 +254,56 @@ pub fn validate_placed_executable_region_inventory(
 /// than a presentation-only annotation added while serializing an artifact.
 pub fn bind_compiler_entry_footprint(
     inventory: &mut PlacedExecutableRegionInventory,
-    entry_symbol: &str,
+    binding: &crate::CompilerEntryRegionBindingEvidence,
+    final_region_binding_fingerprint: u64,
     footprint: omega_calling_conventions::StateFootprintEvidence,
 ) -> Result<(), Diagnostic> {
+    if !binding.function_identity.is_valid()
+        || !binding.object_symbol_handle.is_valid()
+        || binding.inventory_fingerprint != inventory.inventory_fingerprint
+        || binding.final_region_binding_fingerprint == 0
+        || binding.final_region_binding_fingerprint != final_region_binding_fingerprint
+        || binding.evidence_fingerprint != binding.recomputed_evidence_fingerprint()
+    {
+        return Err(Diagnostic::error(
+            "compiler entry footprint binding does not retain valid final-region custody",
+        ));
+    }
     let matching_entries = inventory
         .regions
         .iter()
+        .enumerate()
         .filter(|region| {
-            region.origin == FinalExecutableRegionOrigin::CompilerFunction
-                && region.symbol == entry_symbol
+            region.0 == binding.region_index
+                && region.1.origin == FinalExecutableRegionOrigin::CompilerFunction
+                && region.1.symbol == binding.symbol
+                && region.1.section_offset == binding.section_offset
+                && region.1.address == binding.address
+                && region.1.byte_count == binding.byte_count
+                && region.1.byte_fingerprint == binding.byte_fingerprint
         })
         .count();
     if matching_entries != 1 {
         return Err(Diagnostic::error(format!(
             "final executable inventory must contain exactly one compiler entry region \
-             named `{entry_symbol}` for retained boundary evidence; found {matching_entries}"
+             matching its exact retained custody row; found {matching_entries}"
         )));
     }
 
     let entry = inventory
         .regions
         .iter_mut()
-        .find(|region| {
-            region.origin == FinalExecutableRegionOrigin::CompilerFunction
-                && region.symbol == entry_symbol
+        .enumerate()
+        .find(|(region_index, region)| {
+            *region_index == binding.region_index
+                && region.origin == FinalExecutableRegionOrigin::CompilerFunction
+                && region.symbol == binding.symbol
+                && region.section_offset == binding.section_offset
+                && region.address == binding.address
+                && region.byte_count == binding.byte_count
+                && region.byte_fingerprint == binding.byte_fingerprint
         })
+        .map(|(_, region)| region)
         .expect("exactly one matching compiler entry region was counted");
     if entry
         .footprint
@@ -286,7 +311,8 @@ pub fn bind_compiler_entry_footprint(
         .is_some_and(|existing| existing != &footprint)
     {
         return Err(Diagnostic::error(format!(
-            "compiler entry region `{entry_symbol}` already carries conflicting footprint evidence"
+            "compiler entry region `{}` already carries conflicting footprint evidence",
+            binding.symbol
         )));
     }
     entry.footprint = Some(footprint);
@@ -394,6 +420,7 @@ mod tests {
     use omega_calling_conventions::{
         MachineRegister, MachineStateSet, RegisterSet, StateFootprintEvidence,
     };
+    use omega_control_flow::{MachineFunctionIdentity, StateKey};
     use omega_target::NativeTarget;
 
     #[test]
@@ -512,19 +539,69 @@ mod tests {
             RegisterSet::new([MachineRegister::X86Rax]),
             MachineStateSet::empty(),
         );
+        let binding = crate::CompilerEntryRegionBindingEvidence {
+            function_identity: MachineFunctionIdentity::source(StateKey {
+                machine: psi_arena::Handle::from_parts(1, 2),
+                state: psi_arena::Handle::from_parts(3, 4),
+                segment_index: 5,
+            }),
+            object_symbol_handle: psi_arena::Handle::from_parts(6, 7),
+            region_index: 0,
+            symbol: "entry".into(),
+            section_offset: inventory.regions[0].section_offset,
+            address: inventory.regions[0].address,
+            byte_count: inventory.regions[0].byte_count,
+            byte_fingerprint: inventory.regions[0].byte_fingerprint,
+            inventory_fingerprint: inventory.inventory_fingerprint,
+            final_region_binding_fingerprint: 8,
+            evidence_fingerprint: 0,
+        };
+        let mut binding = binding;
+        binding.evidence_fingerprint = binding.recomputed_evidence_fingerprint();
 
-        bind_compiler_entry_footprint(&mut inventory, "entry", footprint.clone())
+        let mut identity_drift = binding.clone();
+        identity_drift.function_identity = MachineFunctionIdentity::source(StateKey {
+            machine: psi_arena::Handle::from_parts(1, 2),
+            state: psi_arena::Handle::from_parts(3, 9),
+            segment_index: 5,
+        });
+        assert!(
+            bind_compiler_entry_footprint(
+                &mut inventory.clone(),
+                &identity_drift,
+                8,
+                footprint.clone(),
+            )
+            .is_err()
+        );
+        let mut handle_drift = binding.clone();
+        handle_drift.object_symbol_handle = psi_arena::Handle::from_parts(6, 9);
+        assert!(
+            bind_compiler_entry_footprint(
+                &mut inventory.clone(),
+                &handle_drift,
+                8,
+                footprint.clone(),
+            )
+            .is_err()
+        );
+
+        bind_compiler_entry_footprint(&mut inventory, &binding, 8, footprint.clone())
             .expect("the exact entry should accept retained evidence");
 
         assert_eq!(inventory.regions[0].footprint, Some(footprint));
         assert_ne!(inventory.inventory_fingerprint, original_fingerprint);
+        let mut drifted_binding = binding;
+        drifted_binding.inventory_fingerprint = inventory.inventory_fingerprint;
+        drifted_binding.region_index = 1;
         let diagnostic = bind_compiler_entry_footprint(
             &mut inventory,
-            "missing",
+            &drifted_binding,
+            8,
             StateFootprintEvidence::new(RegisterSet::new([]), MachineStateSet::empty()),
         )
         .expect_err("retained evidence must not float without its entry span");
-        assert!(diagnostic.message.contains("found 0"));
+        assert!(diagnostic.message.contains("custody"));
     }
 
     #[test]
