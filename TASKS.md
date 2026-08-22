@@ -2142,12 +2142,16 @@ Owners:
   survives the existing assigned-operation, machine-instruction, byte, and
   object carriers; object planning preserves its richer placement-derived
   symbol, and final emission requires the encoded identity to equal the exact
-  planned callback role. Missing, duplicate, redirected, role-drifted, or
-  interval-drifted identities reject, so a plan row cannot be mistaken for
-  emitted thunk evidence. Final emission now also rejoins every validated placement row to
-  exactly one private thunk plan. Missing, duplicate, or out-of-range placement
-  indices, selected-entry drift, and repeated private thunk identities reject
-  before encoded-function/object evidence is accepted. This does not
+  planned callback role. Target-instruction lowering now validates the whole
+  assigned function set before selecting any body, rejecting invalid roles or
+  two functions that claim one source, wrapper, or callback identity instead
+  of deferring ambiguity to object planning. Missing, duplicate, redirected,
+  role-drifted, or interval-drifted identities reject, so a plan row cannot be
+  mistaken for emitted thunk evidence. Final emission now also rejoins every
+  validated placement row to exactly one private thunk plan. Missing,
+  duplicate, or out-of-range placement indices, selected-entry drift, and
+  repeated private thunk identities reject before encoded-function/object
+  evidence is accepted. This does not
   materialize the registration relocation. Private-symbol derivation is now
   one shared backend-plan primitive, and final emission recomputes it from the
   exact site kind/index/generation, static ordinal, selected machine/entry

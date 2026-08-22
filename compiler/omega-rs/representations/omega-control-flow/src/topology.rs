@@ -3,6 +3,7 @@ use psi_language_semantics::{BlockingSummary, ServiceReachSummary, SuspensionSum
 use psi_symbols::SymbolHandle;
 use psi_typed_trees::name::Identifier;
 use psi_typed_trees::types::TypeReferenceHandle;
+use std::hash::{Hash, Hasher};
 
 use crate::{
     Operation, StateBorrowSummary, StateBoundarySummary, StateContractSummary,
@@ -16,6 +17,16 @@ pub struct StateKey {
     pub segment_index: usize,
 }
 
+impl Hash for StateKey {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.machine.arena_index().hash(state);
+        self.machine.generation().hash(state);
+        self.state.arena_index().hash(state);
+        self.state.generation().hash(state);
+        self.segment_index.hash(state);
+    }
+}
+
 impl StateKey {
     pub fn is_valid(self) -> bool {
         self.machine.is_valid() && self.state.is_valid()
@@ -27,13 +38,13 @@ impl StateKey {
 /// Source functions retain their exact control-flow key. Generated functions
 /// instead name one closed compiler-owned role and the exact source
 /// continuation they adapt; they never acquire a fabricated source key.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct MachineFunctionIdentity {
     kind: MachineFunctionIdentityKind,
     continuation: StateKey,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum MachineFunctionIdentityKind {
     Source,
     ProgramStorageEntryWrapper,
@@ -151,6 +162,21 @@ mod machine_function_identity_tests {
         assert_eq!(thunk.callback_thunk_placement_index(), Some(7));
         assert_eq!(thunk.associated_source_continuation(), key);
         assert!(MachineFunctionIdentity::callback_thunk(StateKey::default(), 7).is_none());
+
+        let generation_drift = MachineFunctionIdentity::callback_thunk(
+            StateKey {
+                state: psi_symbols::SymbolHandle::from_parts(2, 2),
+                ..key
+            },
+            7,
+        )
+        .unwrap();
+        let identities = std::collections::HashSet::from([thunk, generation_drift]);
+        assert_eq!(
+            identities.len(),
+            2,
+            "identity hashing must retain generation"
+        );
     }
 }
 
