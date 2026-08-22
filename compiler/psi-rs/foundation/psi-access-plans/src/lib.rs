@@ -6166,11 +6166,26 @@ mod tests {
             device,
             SchemaCorrespondenceSourceId::from_normalized_identity(241)
                 .expect("datasheet provenance"),
-            plan.identity(),
+            &plan,
             profile.receipt(),
             Some(revision),
         )
         .expect("provider correspondence grant");
+
+        let mut colliding = plan.clone();
+        colliding.layout.schema_identity ^= 1;
+        assert_eq!(colliding.identity(), plan.identity());
+        assert_ne!(colliding.layout(), plan.layout());
+        let rejection = grant
+            .admit(&colliding, &profile)
+            .expect_err("compact placement identity cannot substitute exact plan structure");
+        assert!(
+            rejection
+                .diagnostic()
+                .0
+                .contains("exact validated placement")
+        );
+        let (grant, _) = rejection.into_parts();
 
         let admitted = grant
             .admit(&plan, &profile)
@@ -6196,7 +6211,7 @@ mod tests {
         let profile = uart_resource_profile(&loan, &uart_reach());
         let admission_id =
             PlacementAdmissionId::from_normalized_identity(243).expect("placement admission");
-        let admission = admit_placement(admission_id, loan, &plan, &profile)
+        let mut admission = admit_placement(admission_id, loan, &plan, &profile)
             .expect("borrowed placement admission");
         let provider = SchemaCorrespondenceProviderId::from_normalized_identity(244)
             .expect("correspondence provider");
@@ -6206,14 +6221,22 @@ mod tests {
             device,
             SchemaCorrespondenceSourceId::from_normalized_identity(246)
                 .expect("datasheet provenance"),
-            plan.identity(),
+            &plan,
             profile.receipt(),
             None,
         )
         .expect("provider correspondence grant");
-        let mut correspondence = grant
+        let correspondence = grant
             .admit(&plan, &profile)
             .expect("schema correspondence admission");
+
+        admission.placement_plan.layout.schema_identity ^= 1;
+        assert_eq!(admission.placement_plan.identity(), plan.identity());
+        let rejection = bind_schema_correspondence_to_placement(admission, correspondence)
+            .expect_err("same compact identity cannot hide placement structure drift");
+        assert!(rejection.diagnostic().0.contains("exact plan"));
+        let (mut admission, mut correspondence, _) = rejection.into_parts();
+        admission.placement_plan.layout.schema_identity = plan.layout().schema_identity;
 
         correspondence.replace_placement_for_test(PlacementPlanId(plan.identity().0 ^ 1));
         let rejection = bind_schema_correspondence_to_placement(admission, correspondence)
@@ -6260,7 +6283,7 @@ mod tests {
             device,
             SchemaCorrespondenceSourceId::from_normalized_identity(251)
                 .expect("datasheet provenance"),
-            plan.identity(),
+            &plan,
             profile.receipt(),
             None,
         )
@@ -6315,7 +6338,7 @@ mod tests {
             device,
             SchemaCorrespondenceSourceId::from_normalized_identity(263)
                 .expect("datasheet provenance"),
-            plan.identity(),
+            &plan,
             profile.receipt(),
             None,
         )
@@ -6387,7 +6410,7 @@ mod tests {
             device,
             SchemaCorrespondenceSourceId::from_normalized_identity(256)
                 .expect("datasheet provenance"),
-            plan.identity(),
+            &plan,
             profile.receipt(),
             None,
         )
