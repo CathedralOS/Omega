@@ -1152,9 +1152,12 @@ fn runtime_binary_format_exit_canary_runs() {
     let canary = pass_canary("text/runtime_binary_format_exit");
     let scratch = std::env::temp_dir().join(format!("omega-binary-format-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("binary format canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("binary format canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("binary format canary should run");
     assert_eq!(
@@ -1176,9 +1179,12 @@ fn runtime_substring_search_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-substring-search-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("substring search canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("substring search canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("substring search canary should run");
     assert_eq!(
@@ -1198,10 +1204,13 @@ fn runtime_string_palindrome_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-string-palindrome-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("string palindrome canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("string palindrome canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("string palindrome canary should run");
 
@@ -1288,10 +1297,13 @@ fn runtime_bounded_carrier_byte_write_exit_canary_runs() {
     ));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("bounded carrier byte write canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("bounded carrier byte write canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("bounded carrier byte write canary should run");
 
@@ -1319,10 +1331,13 @@ fn runtime_slice_length_field_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-slice-length-field-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("slice length field canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("slice length field canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("slice length field canary should run");
 
