@@ -3256,6 +3256,14 @@ Remaining:
   `substitution/one` parents retain assumptions-before-semantic-axioms citation
   order and equality orientation, so inner-relation precedence, substitution
   proof bytes, rejection, and the fixed one-equality frontier remain unchanged.
+  Two-equality endpoint-substitution completion now lives in paired, side-local
+  `integer_selection/substitution/two/selection/completion` modules. Producer
+  and reconstruction independently rebuild the final-alias affine relation and
+  construct or replay the inner-then-outer endpoint substitutions; only
+  production carries proof nodes. The `two/selection` parents retain outer
+  equality, orientation, inner equality, alias eligibility, and exact fact non-
+  reuse, so affine precedence, proof bytes, rejection order, and the fixed two-
+  equality frontier remain unchanged.
   Fixed one-alias bound completion now lives in independent side-local
   `alias_transport/one/completion` modules. The producer parent retains origin-
   indexed equality and bound citations, same-carrier distinctness, equality
@@ -3675,16 +3683,18 @@ Remaining:
   provenance, expression-walk, frame-equation, and diagnostic helper remains
   private to its owner. Validation order, the 141-function inventory, and
   public API are unchanged.
-  Privileged inline-assembly effect discharge now lives in a focused 326-line
+  Privileged inline-assembly effect discharge now lives in a focused 449-line
   owner. Hosted/freestanding authority gating, exact catalog/service mapping,
   direct and transitive declaration checks, cycle-safe call-path recovery, and
-  unchanged path diagnostics remain one settled judgment; the effects
-  coordinator is now 436 lines with the exact 23-function inventory unchanged.
+  its complete normalized call-path renderer and symbol/state labeling stack
+  remain one settled judgment. Exact transitive service diagnostics remain byte-
+  for-byte ordered; the natural effects root is now a 135-line behavior/service-
+  ceiling facade with the exact 23-function inventory unchanged.
   Pure-result discard validation now lives in a focused 181-line owner. Proof-
   context and citation exemptions, checked-machine and boundary-signature
   resolution, recursive service/operational purity, mutable-output detection,
-  and the existing warning remain unchanged; the natural effects facade is now
-  261 lines with the exact 23-function inventory unchanged.
+  and the existing warning remain unchanged; it composes through that same
+  natural effects facade without widening the 23-function inventory.
   Profiling the differential corpus also ruled out a wholesale Arena-to-
   `PagedArena` migration as a concurrency fix: `PagedArena` provides stable
   paged storage, not concurrent mutation, and the existing sound parallel
