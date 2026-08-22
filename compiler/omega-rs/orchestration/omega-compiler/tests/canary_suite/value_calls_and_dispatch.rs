@@ -2246,10 +2246,13 @@ fn runtime_dispatch_result_transition_arg_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("dispatch result transition-arg canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("dispatch result transition-arg canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("dispatch result transition-arg canary should run");
 
@@ -2277,10 +2280,13 @@ fn runtime_dispatched_effectful_reentrant_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("dispatched effectful re-entrant canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("dispatched effectful re-entrant canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("dispatched effectful re-entrant canary should run");
 
@@ -2307,10 +2313,13 @@ fn runtime_dispatch_result_enum_case_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("dispatch enum-case result canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("dispatch enum-case result canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("dispatch enum-case result canary should run");
 
@@ -2336,10 +2345,13 @@ fn runtime_dispatch_machine_array_slice_arg_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("machine-array slice-arg canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("machine-array slice-arg canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("machine-array slice-arg canary should run");
 
@@ -2366,10 +2378,13 @@ fn runtime_dispatch_result_field_terminal_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("dispatch result field-terminal canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("dispatch result field-terminal canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("dispatch result field-terminal canary should run");
 
