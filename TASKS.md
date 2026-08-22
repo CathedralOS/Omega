@@ -5138,6 +5138,11 @@ Remaining N6/N8 work:
   line child with one parent-facing entry and no encoding callback. Its 1,748-
   line parent retains the same public API, `PSIPRF` bytes and identities, error
   order, and 48-function production inventory.
+  Deterministic review projection of kernel-derived, certificate-derived,
+  admitted, producer, and trust-graph evidence now lives in a focused 109-line
+  proof-synopsis child. Its 1,645-line parent retains the same public rendering
+  API, `PSIPRF` bytes and identities, error order, and 43-function production
+  inventory.
 - Then migrate suffix law discovery to propositions plus explicit conformances,
   and expand the checked `Nat`/`Int`/`Rat`/Cauchy/approximation corpus. `Real`
   remains proof-only and core-level.
@@ -5218,6 +5223,9 @@ boundary without its corresponding checked law.
   live in three focused `structural_scalar` children rather than large feature-
   specific branches in their central pipeline functions; the low-level copy/
   call engine remains shared, and ABI checks and behavior are unchanged.
+  The target-lowering package's 1,899-line unit corpus now lives in a private
+  test child rather than sharing its 5,527-line production coordinator; all 19
+  unit tests and the public lowering surface remain unchanged.
   A concrete direct wrapper may crown only one token meaning per normalized
   operand signature; alternative conformances remain named explicit calls.
 
