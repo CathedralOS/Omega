@@ -5,10 +5,9 @@ use psi_proof_kernel::ProofNode;
 
 use super::super::super::affine_custody::DefinitionIndex;
 
-mod bound;
 mod candidates;
 
-use super::completion;
+use super::{completion, root_bounds};
 
 pub(super) fn prove(
     context: &PropositionContext,
@@ -26,7 +25,7 @@ pub(super) fn prove(
                 semantic_axioms,
                 definitions,
                 root,
-                bound::prove(root, literal, &equality_proof),
+                root_bounds::direct(root, literal, &equality_proof),
             )
         },
     )
