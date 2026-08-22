@@ -2,6 +2,7 @@
 
 use psi_core::{Proposition, PropositionContext, ScalarTerm};
 
+use super::super::super::super::affine_custody::DefinitionIndex;
 use super::super::relation;
 
 pub(super) fn retained(
@@ -12,6 +13,7 @@ pub(super) fn retained(
     replacement: &ScalarTerm,
     requirements: &[Proposition],
     semantic_axioms: &[Proposition],
+    definitions: &mut DefinitionIndex,
 ) -> bool {
     let relation = if old == goal_left {
         Proposition::LessOrEqual(replacement.clone(), goal_right.clone())
@@ -20,5 +22,11 @@ pub(super) fn retained(
     } else {
         return false;
     };
-    relation::retained(context, &relation, requirements, semantic_axioms)
+    relation::retained(
+        context,
+        &relation,
+        requirements,
+        semantic_axioms,
+        definitions,
+    )
 }

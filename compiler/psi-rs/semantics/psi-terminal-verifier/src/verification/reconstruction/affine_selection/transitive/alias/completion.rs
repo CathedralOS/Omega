@@ -10,7 +10,7 @@ pub(super) fn retained(
     context: &PropositionContext,
     goal: &Proposition,
     semantic_axioms: &[Proposition],
-    definitions: &DefinitionIndex,
+    definitions: &mut DefinitionIndex,
     root: &ScalarTerm,
     alias: &ScalarTerm,
     left: &ScalarTerm,

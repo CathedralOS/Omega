@@ -3,6 +3,8 @@
 use psi_core::{Proposition, PropositionContext, ScalarTerm};
 use psi_proof_kernel::{IntegerAffineWitness, check_integer_affine_witness};
 
+use super::super::DefinitionIndex;
+
 mod literals;
 mod targets;
 
@@ -19,14 +21,20 @@ pub(super) fn literal_axioms(
 pub(super) fn checked_target<'a>(
     context: &PropositionContext,
     semantic_axioms: &[Proposition],
+    definitions: &mut DefinitionIndex,
     root: &ScalarTerm,
     definition_axioms: &[usize],
     definition: &'a Proposition,
 ) -> Option<&'a ScalarTerm> {
     targets::values(definition).find(|target| {
-        let Some(literal_axioms) =
-            literal_axioms(context, semantic_axioms, root, definition_axioms, target)
-        else {
+        let Some(literal_axioms) = super::literal_axioms(
+            context,
+            semantic_axioms,
+            definitions,
+            root,
+            definition_axioms,
+            target,
+        ) else {
             return false;
         };
         check_integer_affine_witness(

@@ -12,7 +12,7 @@ pub(super) use entry::Entry;
 pub(super) fn expand(
     context: &PropositionContext,
     semantic_axioms: &[Proposition],
-    definitions: &DefinitionIndex,
+    definitions: &mut DefinitionIndex,
     root: &ScalarTerm,
     frontier: Vec<Entry>,
     words: &mut Vec<Vec<usize>>,
@@ -20,10 +20,12 @@ pub(super) fn expand(
 ) -> Vec<Entry> {
     let mut next = Vec::new();
     for entry in frontier {
-        for (index, word) in entry.extensions(definitions) {
+        let extensions = entry.extensions(definitions).collect::<Vec<_>>();
+        for (index, word) in extensions {
             if let Some(next_target) = prefix::checked_target(
                 context,
                 semantic_axioms,
+                definitions,
                 root,
                 &word,
                 &semantic_axioms[index],

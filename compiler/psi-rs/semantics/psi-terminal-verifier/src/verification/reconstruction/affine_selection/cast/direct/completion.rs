@@ -11,7 +11,7 @@ pub(super) fn retained(
     context: &PropositionContext,
     goal: &Proposition,
     semantic_axioms: &[Proposition],
-    definitions: &DefinitionIndex,
+    definitions: &mut DefinitionIndex,
     source: &ScalarTerm,
     cast_root: &ScalarTerm,
     cast_type: IntegerType,

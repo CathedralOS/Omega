@@ -11,17 +11,18 @@ pub(in super::super) fn retained_from_root_after(
     context: &PropositionContext,
     goal: &Proposition,
     semantic_axioms: &[Proposition],
-    definitions: &DefinitionIndex,
+    definitions: &mut DefinitionIndex,
     root: &ScalarTerm,
     minimum_axiom: usize,
     root_bound: &Proposition,
 ) -> bool {
-    candidates::any(
+    candidates::any_after(
         context,
         goal,
         semantic_axioms,
         definitions,
         root,
+        minimum_axiom,
         |witness| {
             completion::retained(
                 context,

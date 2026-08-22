@@ -11,7 +11,7 @@ pub(super) fn retained_one(
     goal: &Proposition,
     requirements: &[Proposition],
     semantic_axioms: &[Proposition],
-    definitions: &DefinitionIndex,
+    definitions: &mut DefinitionIndex,
 ) -> bool {
     alias_transport::retained_one(requirements, semantic_axioms, |root, root_bound| {
         completion::retained(
@@ -30,7 +30,7 @@ pub(super) fn retained_two(
     goal: &Proposition,
     requirements: &[Proposition],
     semantic_axioms: &[Proposition],
-    definitions: &DefinitionIndex,
+    definitions: &mut DefinitionIndex,
 ) -> bool {
     alias_transport::retained_two(requirements, semantic_axioms, |root, root_bound| {
         completion::retained(

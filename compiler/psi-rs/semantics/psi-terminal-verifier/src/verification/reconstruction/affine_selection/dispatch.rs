@@ -10,7 +10,7 @@ pub(super) fn retained(
     goal: &Proposition,
     requirements: &[Proposition],
     semantic_axioms: &[Proposition],
-    definitions: &DefinitionIndex,
+    definitions: &mut DefinitionIndex,
 ) -> bool {
     direct::retained(context, goal, requirements, semantic_axioms, definitions)
         || literal::retained_landed_literal_affine_bound(

@@ -13,7 +13,7 @@ pub(super) fn retained(
     goal: &Proposition,
     requirements: &[Proposition],
     semantic_axioms: &[Proposition],
-    definitions: &DefinitionIndex,
+    definitions: &mut DefinitionIndex,
 ) -> bool {
     candidates::any(requirements, semantic_axioms, |root, literal| {
         completion::retained(context, goal, semantic_axioms, definitions, root, literal)

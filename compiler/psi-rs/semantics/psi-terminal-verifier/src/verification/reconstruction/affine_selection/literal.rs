@@ -13,7 +13,7 @@ pub(super) fn retained_landed_literal_affine_bound(
     goal: &Proposition,
     requirements: &[Proposition],
     semantic_axioms: &[Proposition],
-    definitions: &DefinitionIndex,
+    definitions: &mut DefinitionIndex,
 ) -> bool {
     if direct::retained(context, goal, requirements, semantic_axioms, definitions) {
         return true;

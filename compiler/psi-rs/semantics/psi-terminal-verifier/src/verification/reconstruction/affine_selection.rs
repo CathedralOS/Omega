@@ -21,6 +21,22 @@ pub(super) fn retained(
     requirements: &[Proposition],
     semantic_axioms: &[Proposition],
 ) -> bool {
-    let definitions = DefinitionIndex::new(semantic_axioms);
-    dispatch::retained(context, goal, requirements, semantic_axioms, &definitions)
+    let mut definitions = DefinitionIndex::new(semantic_axioms);
+    retained_with_definitions(
+        context,
+        goal,
+        requirements,
+        semantic_axioms,
+        &mut definitions,
+    )
+}
+
+pub(super) fn retained_with_definitions(
+    context: &PropositionContext,
+    goal: &Proposition,
+    requirements: &[Proposition],
+    semantic_axioms: &[Proposition],
+    definitions: &mut DefinitionIndex,
+) -> bool {
+    dispatch::retained(context, goal, requirements, semantic_axioms, definitions)
 }

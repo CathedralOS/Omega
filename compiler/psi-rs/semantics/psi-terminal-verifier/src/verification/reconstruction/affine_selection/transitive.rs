@@ -15,7 +15,7 @@ pub(super) fn retained_transitively_alias_substituted_affine_bound(
     goal: &Proposition,
     requirements: &[Proposition],
     semantic_axioms: &[Proposition],
-    definitions: &DefinitionIndex,
+    definitions: &mut DefinitionIndex,
 ) -> bool {
     alias::retained(context, goal, requirements, semantic_axioms, definitions)
 }
@@ -25,7 +25,7 @@ pub(super) fn retained_transitively_reconstructed_affine_bound(
     goal: &Proposition,
     requirements: &[Proposition],
     semantic_axioms: &[Proposition],
-    definitions: &DefinitionIndex,
+    definitions: &mut DefinitionIndex,
 ) -> bool {
     TwoCitationChains::new(requirements, semantic_axioms).any(|left, right| {
         completion::retained(context, goal, semantic_axioms, definitions, left, right)

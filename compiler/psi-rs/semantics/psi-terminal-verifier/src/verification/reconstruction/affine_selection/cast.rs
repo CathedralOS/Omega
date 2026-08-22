@@ -13,7 +13,7 @@ pub(super) fn retained(
     goal: &Proposition,
     requirements: &[Proposition],
     semantic_axioms: &[Proposition],
-    definitions: &DefinitionIndex,
+    definitions: &mut DefinitionIndex,
 ) -> bool {
     direct::retained(context, goal, requirements, semantic_axioms, definitions)
         || sandwich::retained(context, goal, requirements, semantic_axioms, definitions)

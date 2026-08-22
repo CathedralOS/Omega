@@ -2,6 +2,8 @@
 
 use psi_core::{Proposition, PropositionContext};
 
+use super::super::super::super::affine_custody::DefinitionIndex;
+
 mod aliases;
 mod completion;
 
@@ -10,6 +12,7 @@ pub(super) fn retained(
     goal: &Proposition,
     requirements: &[Proposition],
     semantic_axioms: &[Proposition],
+    definitions: &mut DefinitionIndex,
 ) -> bool {
     let Proposition::LessOrEqual(goal_left, goal_right) = goal else {
         return false;
@@ -48,6 +51,7 @@ pub(super) fn retained(
                                 endpoint,
                                 requirements,
                                 semantic_axioms,
+                                definitions,
                             )
                         })
                 })
