@@ -60,8 +60,10 @@ source shape without turning nested syntax into scattered heap objects.
   `blocks`, `crashes`, `requires`, and `ensures`
   clauses. A machine `requires` or `ensures` clause may retain one explicit
   evidence-term binding (`name: proposition`); a named clause contains exactly
-  one proposition. Erased call arguments, evidence assignment, producer
-  selection, and proof-output-lane binding belong to later stages. `via` is
+  one proposition. `parser/statement.rs` also recognizes the separated
+  proof-output binding `let (value; public_output: local_term) = call()` and its
+  evidence-only form. Erased call arguments, evidence assignment, producer
+  selection, and proof-output validation belong to later stages. `via` is
   terminal and mutually exclusive with an executable body.
   Standalone `decreases` and the old termination block diagnose their current
   `terminates by ...` replacement rather than entering the syntax tree.

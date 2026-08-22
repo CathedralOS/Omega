@@ -212,7 +212,7 @@ pub(crate) fn bind_evidence_package_invocation_facts(
     for package in &program.evidence_package_invocations {
         let ExpressionNode::Call(call) = program.expression_table.expression(package.call) else {
             diagnostics.push(psi_diagnostics::Diagnostic::error(
-                "generated evidence package binding requires a direct call",
+                "proof-output binding requires a direct call",
             ));
             continue;
         };
@@ -224,7 +224,7 @@ pub(crate) fn bind_evidence_package_invocation_facts(
                 .map(|state| (machine, state))
         }) else {
             diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
-                "generated evidence package call `{}` must target a concrete machine state",
+                "proof-output call `{}` must target a concrete machine state",
                 call.target
             )));
             continue;
@@ -251,7 +251,7 @@ pub(crate) fn bind_evidence_package_invocation_facts(
             !target_state.return_type.is_valid() && target_state.statement_nodes.is_empty();
         if !concrete || !immediate || (!proof_only && runtime_value_type.is_none()) {
             diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
-                "generated evidence package call `{}` is limited to a concrete one-state, zero-argument proof-only or scalar-result machine",
+                "proof-output call `{}` is currently limited to a concrete one-state, zero-argument proof-only or scalar-result machine",
                 call.target
             )));
             continue;
@@ -288,27 +288,15 @@ pub(crate) fn bind_evidence_package_invocation_facts(
         callee_outputs.sort_by_key(|handle| proof.evidence_terms.get(*handle).lane_position);
         if callee_outputs.is_empty() {
             diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
-                "generated evidence package call `{}` requires at least one unconditional named ensures output",
+                "proof-output call `{}` requires at least one unconditional named ensures output",
                 call.target
             )));
             continue;
         }
         if requires != 0 {
             diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
-                "generated evidence package call `{}` cannot require input evidence",
+                "proof-output call `{}` cannot currently require input evidence",
                 call.target
-            )));
-            continue;
-        }
-
-        let expected_binding_count =
-            callee_outputs.len() + usize::from(runtime_value_type.is_some());
-        if package.bindings.len() != expected_binding_count {
-            diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
-                "generated evidence package from `{}` must destructure all {} fields; found {} bindings",
-                call.target,
-                expected_binding_count,
-                package.bindings.len()
             )));
             continue;
         }
@@ -319,7 +307,7 @@ pub(crate) fn bind_evidence_package_invocation_facts(
         for binding in &package.bindings {
             if binding.output_field.as_str() == "value" && binding.binding.as_str() == "_" {
                 diagnostics.push(psi_diagnostics::Diagnostic::error(
-                    "generated evidence package runtime field `value` cannot be discarded",
+                    "proof-output binding cannot discard its runtime Type result",
                 ));
                 invalid = true;
                 continue;
@@ -329,7 +317,7 @@ pub(crate) fn bind_evidence_package_invocation_facts(
                 .is_some()
             {
                 diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
-                    "generated evidence package field `{}` is bound more than once",
+                    "proof-output selector `{}` is bound more than once",
                     binding.output_field
                 )));
                 invalid = true;
@@ -342,28 +330,18 @@ pub(crate) fn bind_evidence_package_invocation_facts(
                 invalid = true;
             }
         }
-        for callee_output in &callee_outputs {
-            let declaration = proof.evidence_terms.get(*callee_output);
-            if !fields.contains_key(declaration.name.as_str()) {
-                diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
-                    "generated evidence package from `{}` is missing field `{}`",
-                    call.target, declaration.name
-                )));
-                invalid = true;
-            }
-        }
         let value_binding = fields.get("value").copied();
         match (runtime_value_type, value_binding) {
             (Some(_), None) => {
                 diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
-                    "generated evidence package from `{}` is missing runtime field `value`",
+                    "proof-output binding from `{}` is missing its runtime Type result",
                     call.target
                 )));
                 invalid = true;
             }
             (None, Some(_)) => {
                 diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
-                    "proof-only generated evidence package from `{}` has no runtime field `value`",
+                    "proof-only call `{}` has no runtime Type result to bind",
                     call.target
                 )));
                 invalid = true;
@@ -377,7 +355,7 @@ pub(crate) fn bind_evidence_package_invocation_facts(
                     .any(|output| proof.evidence_terms.get(*output).name == *field)
             {
                 diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
-                    "generated evidence package from `{}` has no field `{field}`",
+                    "call `{}` publishes no proof-output selector `{field}`",
                     call.target
                 )));
                 invalid = true;
@@ -389,7 +367,7 @@ pub(crate) fn bind_evidence_package_invocation_facts(
         {
             let Some(statement_index) = package.runtime_call_statement_index else {
                 diagnostics.push(psi_diagnostics::Diagnostic::error(
-                    "runtime generated evidence package has no ordinary call statement",
+                    "runtime proof-output binding has no ordinary call statement",
                 ));
                 continue;
             };
@@ -400,7 +378,7 @@ pub(crate) fn bind_evidence_package_invocation_facts(
                     .find(|state| state.symbol == package.state_symbol)
             }) else {
                 diagnostics.push(psi_diagnostics::Diagnostic::error(
-                    "runtime generated evidence package has no caller state",
+                    "runtime proof-output binding has no caller state",
                 ));
                 continue;
             };
@@ -410,7 +388,7 @@ pub(crate) fn bind_evidence_package_invocation_facts(
                 .get(statement_index)
             else {
                 diagnostics.push(psi_diagnostics::Diagnostic::error(
-                    "runtime generated evidence package must bind `value` through an ordinary local",
+                    "runtime proof-output binding must bind its Type result through an ordinary local",
                 ));
                 continue;
             };
@@ -425,7 +403,7 @@ pub(crate) fn bind_evidence_package_invocation_facts(
                     if local_call.target_symbol == call.target_symbol);
             if !exact_local || package.statement_index != statement_index.saturating_add(1) {
                 diagnostics.push(psi_diagnostics::Diagnostic::error(
-                    "runtime generated evidence package `value` does not match its exact ordinary call local",
+                    "runtime proof-output binding does not match its exact ordinary call local",
                 ));
                 continue;
             }
@@ -438,7 +416,7 @@ pub(crate) fn bind_evidence_package_invocation_facts(
             });
             let Some(contract_call) = matching_calls.next() else {
                 diagnostics.push(psi_diagnostics::Diagnostic::error(
-                    "runtime generated evidence package call has no exact checked contract-call row",
+                    "runtime proof-output call has no exact checked contract-call row",
                 ));
                 continue;
             };
@@ -447,7 +425,7 @@ pub(crate) fn bind_evidence_package_invocation_facts(
                 || contract_call.target_state_symbol != target_state.symbol
             {
                 diagnostics.push(psi_diagnostics::Diagnostic::error(
-                    "runtime generated evidence package call disagrees with its checked contract-call row",
+                    "runtime proof-output call disagrees with its checked contract-call row",
                 ));
                 continue;
             }
@@ -458,7 +436,7 @@ pub(crate) fn bind_evidence_package_invocation_facts(
         } else {
             if package.runtime_call_statement_index.is_some() {
                 diagnostics.push(psi_diagnostics::Diagnostic::error(
-                    "proof-only generated evidence package cannot carry a runtime call",
+                    "proof-only output binding cannot carry a runtime call",
                 ));
                 continue;
             }
@@ -506,23 +484,23 @@ pub(crate) fn bind_evidence_package_invocation_facts(
             .into_iter()
             .map(|callee_output| {
                 let declaration = proof.evidence_terms.get(callee_output).clone();
-                let binding = fields
-                    .get(declaration.name.as_str())
-                    .expect("complete package fields were validated");
-                let output = (binding.binding.as_str() != "_").then(|| {
-                    proof.evidence_terms.append(CheckedEvidenceTerm {
-                        name: binding.binding.as_str().to_owned(),
-                        owner: ContractProofFactOwner::MachineState {
-                            machine_symbol: package.machine_symbol,
-                            state_symbol: package.state_symbol,
-                        },
-                        kind: ContractProofFactKind::Ensures,
-                        lane_position: declaration.lane_position,
-                        proposition: declaration.proposition,
-                        evidence_type: declaration.evidence_type,
-                        evidence_interface: declaration.evidence_interface,
-                    })
-                });
+                let binding = fields.get(declaration.name.as_str());
+                let output = binding
+                    .filter(|binding| binding.binding.as_str() != "_")
+                    .map(|binding| {
+                        proof.evidence_terms.append(CheckedEvidenceTerm {
+                            name: binding.binding.as_str().to_owned(),
+                            owner: ContractProofFactOwner::MachineState {
+                                machine_symbol: package.machine_symbol,
+                                state_symbol: package.state_symbol,
+                            },
+                            kind: ContractProofFactKind::Ensures,
+                            lane_position: declaration.lane_position,
+                            proposition: declaration.proposition,
+                            evidence_type: declaration.evidence_type,
+                            evidence_interface: declaration.evidence_interface,
+                        })
+                    });
                 psi_checked_trees::EvidencePackageOutputFact {
                     output_position: declaration.lane_position,
                     callee_output,

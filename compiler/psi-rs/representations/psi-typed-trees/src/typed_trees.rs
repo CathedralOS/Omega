@@ -58,7 +58,7 @@ pub struct TypedTrees {
     /// Exact owner identity and authored names for erased evidence forwarding;
     /// checked lowering binds both names to checked evidence-term handles.
     pub evidence_forwardings: Vec<EvidenceForwarding>,
-    /// Calls whose generated output package is destructured immediately. The
+    /// Calls whose proof-output lane is bound immediately. The
     /// group itself is proof metadata; a contextual scalar `value` separately
     /// names its corresponding ordinary runtime local/call statement.
     pub evidence_package_invocations: Vec<EvidencePackageInvocation>,

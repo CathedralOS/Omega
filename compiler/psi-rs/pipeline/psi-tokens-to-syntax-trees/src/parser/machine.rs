@@ -6,8 +6,9 @@ use crate::parser::state::{
 };
 use crate::parser::statement::{
     parse_asm_block_statement_handles, parse_statement_handle,
-    try_parse_atomic_compare_exchange_let, try_parse_atomic_fetch_let, try_parse_atomic_swap_let,
-    try_parse_destructure_let, try_parse_evidence_package_destructure,
+    reject_retired_evidence_package_destructure, try_parse_atomic_compare_exchange_let,
+    try_parse_atomic_fetch_let, try_parse_atomic_swap_let, try_parse_destructure_let,
+    try_parse_evidence_package_destructure,
 };
 use crate::parser::transition::parse_transition_block_handles;
 use psi_arena::{Handle, HandleSpan};
@@ -529,6 +530,7 @@ fn parse_implicit_entry_statements<'tokens, 'source>(
     let mut statement_count = 0u32;
 
     while !starts_machine_member(input) {
+        reject_retired_evidence_package_destructure(input)?;
         if input.at_punctuation(PunctuationKind::Arrow) {
             return Err(input.error_here(
                 "machine entry bodies must use the `transition` keyword; bare `->` transitions are not supported",

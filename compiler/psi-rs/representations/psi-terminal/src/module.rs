@@ -116,7 +116,7 @@ pub struct TerminalModule {
     /// term vocabulary identities and have no runtime representation.
     pub evidence_contract_lanes: Vec<EvidenceContractLane>,
     /// Canonical immediate invocations that introduce fresh caller-local
-    /// evidence from a generated output package. Runtime-value packages retain
+    /// evidence from a proof-output lane. Runtime-value bindings retain
     /// their exact ordinary scalar call operation.
     pub evidence_package_invocations: Vec<EvidencePackageInvocation>,
     /// Exact source-handle-free generic conformance applications used by the

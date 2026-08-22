@@ -6876,15 +6876,21 @@ Remaining N6/N8 work:
   accepted carrier is stated in
   [`law_bearing_relations_and_quotients.md`](wiki/design_briefs/law_bearing_relations_and_quotients.md).
 
-  Replace the implemented immediate generated-output-package syntax with the
-  settled proof-output lane. Ordinary results retain their declared Type;
-  `let (value; public_slot: local_term) = call()` captures selected named
-  guarantees, while omitted selectors contribute facts but mint no local term.
-  Evidence-only binding keeps the empty Type lane. Checked and terminal Psi
-  retain the exact call, callee lane, public selector, caller-local term,
-  proposition/interface, outcome guard, and producer provenance without any
-  generated package identity. Proposition terms remain copyable and add no
-  runtime work, cleanup, or fuel.
+  The settled source surface is live:
+  `let (value; public_slot: local_term) = call()` separates the ordinary Type
+  result from selectively captured Prop outputs, and `let (; ...)` keeps an
+  empty Type lane. Omitted selectors contribute facts without minting local
+  terms. The retired `let { slot: term } = call()` package spelling rejects
+  with directed migration guidance. Proposition terms remain copyable and add
+  no runtime work, cleanup, or fuel.
+
+  Remaining: replace the internal `EvidencePackage*` migration carriers with
+  proof-output call rows carrying the exact call, callee lane, public selector,
+  caller-local term, proposition/interface, outcome guard, and producer
+  provenance. Remove the current concrete one-state, zero-argument producer
+  restriction and support outcome-guarded capture in the applicable arm. No
+  generated package identity, projection, lifetime, or partial-move rule may
+  survive in checked or Terminal Psi.
 
   Generic producer conformances use the same nested static application form as
   other name-owned telescopes. Type, const, and static-machine arguments are
@@ -7368,7 +7374,10 @@ boundary without its corresponding checked law.
   source `DllImport`, `ExternalBindingIdentity::Import`, typed snapshots,
   `ProviderBinding::Import`, executable-TCB/artifact rows, calling-convention
   rows, and backend import plans still carry raw library/symbol `String` pairs.
-  Introduce and retain the nominal identities across source, checked provider,
+  First add the sealed target/link metadata table keyed by a namespace-owned
+  `DllImportId`; never synthesize that ID from raw strings or from the
+  realization machine that happens to cite it. Then introduce and retain the
+  nominal identities across source, checked provider,
   Terminal/artifact, trust, and installation custody; resolve them to target-
   owned linker bytes only in sealed object/image metadata. Exact nominal-to-raw
   binding, target applicability, artifact identity, and admission must reject

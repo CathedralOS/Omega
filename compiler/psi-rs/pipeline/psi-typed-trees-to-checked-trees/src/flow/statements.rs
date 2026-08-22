@@ -26,6 +26,16 @@ pub(super) fn append_state_statement_flow_facts(
         .iter()
         .enumerate()
     {
+        append_proof_output_ensures(
+            proof,
+            semantic,
+            ctx,
+            machine.symbol,
+            state.symbol,
+            statement_index,
+            active_contexts,
+            active_constraints,
+        );
         *active_constraints = filter_expired_borrow_loans(
             &mut ctx.borrow_lifetimes.weakenings,
             &mut ctx.contexts.constraint_refs,
@@ -196,5 +206,63 @@ pub(super) fn append_state_statement_flow_facts(
         }
     }
 
+    append_proof_output_ensures(
+        proof,
+        semantic,
+        ctx,
+        machine.symbol,
+        state.symbol,
+        program
+            .statement_table
+            .statements(state.statement_nodes)
+            .len(),
+        active_contexts,
+        active_constraints,
+    );
+
     state_calls
+}
+
+#[allow(clippy::too_many_arguments)]
+fn append_proof_output_ensures(
+    proof: &ProofFacts,
+    semantic: &FactPlan,
+    ctx: &mut FlowBuildContext,
+    machine_symbol: psi_symbols::SymbolHandle,
+    state_symbol: psi_symbols::SymbolHandle,
+    statement_index: usize,
+    active_contexts: &mut psi_arena::HandleSpan<FlowSemanticContextRef>,
+    active_constraints: &mut psi_arena::HandleSpan<FlowConstraintRef>,
+) {
+    let has_proof_only_binding =
+        proof
+            .evidence_package_invocations
+            .iter()
+            .any(|(_, invocation)| {
+                invocation.caller_machine_symbol == machine_symbol
+                    && invocation.caller_state_symbol == state_symbol
+                    && invocation.statement_index == statement_index
+                    && invocation.runtime_call.is_none()
+            });
+    if !has_proof_only_binding {
+        return;
+    }
+    let point = ProgramPoint::CallEnsures {
+        machine_symbol,
+        state_symbol,
+        statement_index,
+        call_ordinal: 0,
+    };
+    append_flow_contexts_for_points(
+        semantic,
+        &mut ctx.contexts.semantic_context_refs,
+        active_contexts,
+        &[point],
+    );
+    append_semantic_constraints_for_points(
+        semantic,
+        &mut ctx.contexts.constraint_refs,
+        active_constraints,
+        &[point],
+    );
 }

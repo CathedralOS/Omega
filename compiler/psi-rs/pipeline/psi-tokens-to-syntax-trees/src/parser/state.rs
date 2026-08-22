@@ -2,8 +2,9 @@ use crate::parser::context::StateKind;
 use crate::parser::input::{Input, ParseResult};
 use crate::parser::statement::{
     parse_asm_block_statement_handles, parse_statement_handle,
-    try_parse_atomic_compare_exchange_let, try_parse_atomic_fetch_let, try_parse_atomic_swap_let,
-    try_parse_destructure_let, try_parse_evidence_package_destructure,
+    reject_retired_evidence_package_destructure, try_parse_atomic_compare_exchange_let,
+    try_parse_atomic_fetch_let, try_parse_atomic_swap_let, try_parse_destructure_let,
+    try_parse_evidence_package_destructure,
 };
 use crate::parser::transition::parse_transition_block_handles;
 use crate::parser::type_reference::parse_type_reference_handle_allowing_borrow;
@@ -66,6 +67,7 @@ pub(super) fn parse_state<'tokens, 'source>(
     let mut statement_count = 0u32;
 
     while !input.at_punctuation(PunctuationKind::RightBrace) {
+        reject_retired_evidence_package_destructure(input)?;
         if input.at_punctuation(PunctuationKind::Arrow) {
             return Err(input.error_here(
                 "explicit state bodies must use the `transition` keyword; bare `->` transitions are only allowed in implicit entry",

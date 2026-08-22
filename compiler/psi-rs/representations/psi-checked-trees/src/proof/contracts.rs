@@ -143,7 +143,7 @@ pub struct EvidenceForwardingFact {
     pub source: EvidenceAssignmentSource,
 }
 
-/// One immediate call whose complete generated output package is bound to
+/// One immediate call whose selected proof outputs are bound to
 /// fresh caller-local evidence terms. A scalar `value` package additionally
 /// names the exact ordinary runtime call coordinate.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

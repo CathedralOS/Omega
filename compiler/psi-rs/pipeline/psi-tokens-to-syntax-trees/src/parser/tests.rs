@@ -4713,3 +4713,68 @@ fn destructure_marker_preserves_double_underscore_field_as_one_component() {
         "the internal delimiter must not split repeated underscores"
     );
 }
+
+#[test]
+fn proof_output_binding_separates_type_and_prop_lanes() {
+    let source = r#"
+        machine produce() -> i32
+        ensures proof: true
+        { proof = true; 7 }
+
+        machine consume() -> i32 {
+            let (value; proof: local_proof) = produce();
+            value
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let parsed = parse_syntax_trees(&tokens).expect("proof-output lane should parse");
+    let machine = parsed
+        .root_items()
+        .find_map(|item| match item {
+            psi_syntax_trees::item::Item::Machine(machine)
+                if machine.name.as_str() == "consume" =>
+            {
+                Some(machine)
+            }
+            _ => None,
+        })
+        .expect("consume machine");
+    let state = parsed.items.state(
+        parsed
+            .items
+            .state_handles(machine.states)
+            .first()
+            .copied()
+            .expect("entry state"),
+    );
+    let package = parsed
+        .items
+        .statements(state.statements)
+        .iter()
+        .find_map(|handle| match parsed.statements.statement(*handle) {
+            StatementNode::EvidencePackageDestructure(package) => Some(package),
+            _ => None,
+        })
+        .expect("one internal proof-output binding carrier");
+    assert_eq!(package.bindings.len(), 2);
+    assert_eq!(package.bindings[0].output_field.as_str(), "value");
+    assert_eq!(package.bindings[0].binding.as_str(), "value");
+    assert_eq!(package.bindings[1].output_field.as_str(), "proof");
+    assert_eq!(package.bindings[1].binding.as_str(), "local_proof");
+}
+
+#[test]
+fn retired_generated_proof_package_has_directed_migration() {
+    let source = r#"
+        machine produce() ensures proof: true { proof = true; }
+        machine consume() { let { proof: local } = produce(); }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let error = parse_syntax_trees(&tokens).expect_err("old package spelling must reject");
+    assert!(error.message.contains("proof-output packages are retired"));
+    assert!(
+        error
+            .message
+            .contains("let (value; public_output: local_term)")
+    );
+}
