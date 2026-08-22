@@ -15,7 +15,7 @@ use psi_access_plans::{
 use psi_checked_interpreter::BuildTimeValue;
 use psi_layout_plans::{
     IntegerInterpretation, LayoutPlacementReport, LayoutPlanReport,
-    normalized_layout_plan_fingerprint,
+    layout_plan_reports_match_for_replay,
 };
 use psi_typed_trees::TypedTrees;
 
@@ -55,12 +55,9 @@ pub fn compute_access_plan(
         schema_identity,
         policy_machine,
     )?;
-    // Numbered source names are presentation, but the derived offsets
-    // projection remains part of the exact retained report replay.
-    if normalized_layout_plan_fingerprint(&canonical_layout)
-        != normalized_layout_plan_fingerprint(layout)
-        || canonical_layout.offsets != layout.offsets
-    {
+    // Numbered source names are presentation. Acceptance still replays the
+    // exact structure rather than trusting its compact report/cache hash.
+    if !layout_plan_reports_match_for_replay(&canonical_layout, layout) {
         return Err(format!(
             "layout supplied to access policy `{policy_machine}` is not the canonical validated layout for schema `{schema_data}`"
         ));
