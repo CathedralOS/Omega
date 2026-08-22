@@ -3968,6 +3968,13 @@ Owners:
   diagnostics. Numeric-conversion, rendering, coercion, exceptional,
   interactive, report-bearing, float/cast, policy, and automaton owners remain
   excluded; exact-owner pins remain stable.
+  The final four eligible fast owners in the content/carrier module—unary
+  negation, UTF-8 literal length, user-domain literal grants, and bodyless-
+  domain declaration spellings—now launch solely through checked-report
+  receipts while preserving status 70 and exact arithmetic/domain diagnostics.
+  Its remaining conventional launches are deliberately retained numeric-
+  conversion, rendering, or coercion exceptions; exact-owner pins remain
+  stable.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
