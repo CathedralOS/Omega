@@ -1628,7 +1628,17 @@ Remaining:
   transitive affine custody and its fixed one-equality substitution remain
   separate consumers with unchanged precedence, endpoint orientation, proof
   shapes, and rejection behavior. The catalog exposes exactly two legs—no
-  depth parameter, recursion, or generalized path search.
+  depth parameter, recursion, or generalized path search. One-equality
+  transitive affine-root custody now lives in independent side-local
+  `affine_selection/transitive/alias` modules. Production alone retains the
+  equality citation and ordered two-leg citation identities, constructs one
+  transitivity child and one endpoint substitution, then invokes affine
+  completion; reconstruction independently rechecks the same distinct value
+  alias, exact two-leg chain, substituted root bound, and affine custody.
+  Direct transitive affine custody remains in each parent. Equality and chain
+  order, endpoint precedence, proof shapes, missing, reused, redirected, or
+  mistyped rejection, and the fixed two-citation/one-alias frontier are
+  unchanged.
   Prior-evidence primitives now live in dedicated, side-local
   `integer_evidence` modules. Production alone owns citation indices and proof
   nodes; reconstruction independently resolves retained integer literals and
@@ -3090,7 +3100,17 @@ Owners:
   requirement conformance—now launch only from exact checked-report receipts
   while retaining literal statuses 0, 70, 70, 70, and 70. The stdin probe
   retains its exact `look\n` stdout assertion, and the 795 exact-owner pin
-  remains stable.
+  remains stable. Five authored-root layout/generic executions—plan-laid value
+  fields, erased plan-laid fields, distinct closed erased sums, mixed closed
+  generic erasure, and exact generic call/return contexts—now launch only from
+  exact checked-report receipts while retaining literal status 70. Existing
+  semantic-layout and interpreter assertions remain unchanged; the 795 rooted
+  and 3 legacy exact-owner pins remain stable. Five authored-root ABI/runtime-
+  value executions—entry-field-write value calls, post-entry-state lets,
+  runtime-local and constant self-array indexing, and a deep post-entry chain—
+  now launch only from exact checked-report receipts while retaining literal
+  statuses 70, 24, 99, 99, and 30. Existing interpreter assertions remain
+  unchanged, and the 795 rooted/3 legacy exact-owner pins remain stable.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
