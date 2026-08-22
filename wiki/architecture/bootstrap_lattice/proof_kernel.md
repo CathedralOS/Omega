@@ -486,6 +486,10 @@ upper bound places it after. Candidate mapping supplies no authority: the
 kernel rechecks the exact affine conclusion and the enclosing transitivity
 certificate. A nonclosed, mistyped, redirected, or weaker bridge rejects, and
 no variable-endpoint or cited-fact search is added.
+Affine completion now lives in dedicated, side-local `affine_custody` modules.
+Producer and reconstruction independently own the fixed four-definition
+witness frontier, exact mapped bound, and optional closed relaxation; retained
+evidence selection remains in their broader engines and no authority is shared.
 One exact prior value equality may also transport a completed affine bound from
 its checked target alias to the canonical goal endpoint. The producer replaces
 that one endpoint, constructs the bounded affine relation directly, and wraps
