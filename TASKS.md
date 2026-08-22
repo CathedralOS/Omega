@@ -7245,9 +7245,12 @@ checked-result arithmetic decision listed below.
 - Wire declaration/schema validation now lives in a focused 413-line owner for
   stable numbering and retirement, version-scope and adjacent-era
   compatibility, field-type and bounded-carrier admission, and erased-aware
-  nested-cycle rejection. The call-validation coordinator is now 1,068 lines;
-  crate APIs, diagnostic order, protocol identities, and the exact 22-function
-  inventory remain unchanged.
+  nested-cycle rejection. Encode/decode now share a focused 214-line value-
+  field owner for nested-message shape matching, exact repeated carrier/
+  element/capacity replay, decode range establishment, and named-data
+  resolution. The call-validation coordinator is now 865 lines; crate APIs,
+  diagnostic order, protocol identities, and the exact 22-function inventory
+  remain unchanged.
 - Extend repeated encode/decode to `Vec<T>` after allocator obligations land.
   Packed scalar decode into `&[T]` remains unsupported because variable-width
   encodings cannot form a zero-copy scalar view.
