@@ -1,9 +1,10 @@
 //! Side-local selection of retained evidence for bounded affine reconstruction.
 
-use psi_core::{Proposition, PropositionContext, ScalarTerm};
+use psi_core::{Proposition, PropositionContext};
 
 use super::{affine_custody, alias_transport};
 
+mod direct;
 mod literal;
 mod transitive;
 
@@ -13,28 +14,7 @@ pub(super) fn retained(
     requirements: &[Proposition],
     semantic_axioms: &[Proposition],
 ) -> bool {
-    if requirements
-        .iter()
-        .chain(semantic_axioms)
-        .filter_map(|fact| match fact {
-            Proposition::LessOrEqual(left, right) => Some((fact, left, right)),
-            _ => None,
-        })
-        .any(|(root_bound, root_left, root_right)| {
-            [root_left, root_right]
-                .into_iter()
-                .filter(|root| matches!(root, ScalarTerm::Value { .. }))
-                .any(|root| {
-                    affine_custody::retained_from_root(
-                        context,
-                        goal,
-                        semantic_axioms,
-                        root,
-                        root_bound,
-                    )
-                })
-        })
-    {
+    if direct::retained(context, goal, requirements, semantic_axioms) {
         return true;
     }
     literal::retained_landed_literal_affine_bound(context, goal, requirements, semantic_axioms)
