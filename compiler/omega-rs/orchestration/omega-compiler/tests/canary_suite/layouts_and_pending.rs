@@ -758,9 +758,12 @@ fn plan_laid_nested_record_mutable_view_exit_canary_runs() {
         std::process::id()
     ));
     let host_scratch = scratch.join("host");
-    compile_rooted_canary_for_native_host(&canary, host_scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, host_scratch.join("out"))
         .expect("mutable plan-laid nested-record view should compile natively");
-    let output = Command::new(host_scratch.join("out").join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("mutable plan-laid nested-record view should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("mutable plan-laid nested-record view should run");
     assert_eq!(output.status.code(), Some(70));
@@ -790,9 +793,12 @@ fn plan_laid_fixed_record_array_mutable_view_exit_canary_runs() {
         std::process::id()
     ));
     let host_scratch = scratch.join("host");
-    compile_rooted_canary_for_native_host(&canary, host_scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, host_scratch.join("out"))
         .expect("mutable plan-laid fixed-record-array view should compile natively");
-    let output = Command::new(host_scratch.join("out").join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("mutable plan-laid fixed-record-array view should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("mutable plan-laid fixed-record-array view should run");
     assert_eq!(output.status.code(), Some(70));
@@ -827,9 +833,12 @@ fn plan_laid_mutable_record_view_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("mutable plan-laid record view should compile natively");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("mutable plan-laid record view should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("mutable plan-laid record-view canary should run");
     assert_eq!(
@@ -943,10 +952,13 @@ fn value_call_sequential_self_capture_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("sequential self-capture canary should compile from its authored root");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("sequential self-capture canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("sequential self-capture canary should run");
 
@@ -1017,10 +1029,13 @@ fn runtime_let_local_nested_state_arg_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("let-local nested state arg canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("let-local nested state arg canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("let-local nested state arg canary should run");
 
