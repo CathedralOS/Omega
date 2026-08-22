@@ -593,7 +593,12 @@ Owners:
   observation or destination mutation. Reusable post-handoff invocation
   evidence is sealed behind validated lowering; installation, external-root,
   and instruction-selection consumers may inspect but cannot reconstruct or
-  weaken the exact fragment, placement, source-slot, or fit evidence.
+  weaken the exact fragment, placement, source-slot, or fit evidence. Writer
+  derivation, lowering, validation, and execution uniformly require at least
+  one retained fragment; an empty provider program cannot claim materialization.
+  Validation also binds every supplied source word to any exact pre-resolved
+  value sealed for that slot, so numeric substitution under unchanged evidence
+  rejects before resolver observation or destination mutation.
 
 Acceptance: UART/MMIO, shared-page IPC, and ordinary RAM use one extent/layout
 foundation with different profiles. Misalignment, insufficient rights,
@@ -2449,7 +2454,13 @@ Owners:
   are absent together or the retained binding must equal the bridge's exact
   binding, while a dropped, unpaired, or redirected row rejects before return.
   Both retained fields are now outwardly read-only, so a consumer cannot mutate
-  one side into a post-validation mismatch.
+  one side into a post-validation mismatch. Report construction also joins
+  bridge phase to output category: check-only retains a pending bridge without
+  final wrapper evidence, native executable output requires that evidence, and
+  object-container fallback cannot carry a program-storage bridge. A native
+  bridge's final wrapper evidence must also name the same executable-region
+  inventory fingerprint as the flat publication receipt, preventing evidence
+  from another valid final image from accompanying the published container.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
@@ -2890,7 +2901,9 @@ Remaining N6/N8 work:
 - Suppress every synthesized representation observer on quotient formation.
   Resolved-to-typed lowering now rejects runtime `==`/`!=`, a direct
   `Equatable` conformance, and synthesized container equality through a quotient
-  field. Logical proof-position equality remains raw for the exact
+  field. It also rejects proof-contract `zero_value<Quotient>()`; a retained
+  representative is not a compiler-verified canonical default. Logical
+  proof-position equality remains raw for the exact
   quotient-congruence judge; it never lowers to representative bytes. Add
   quotient-owned executable equality through an ordinary lifted operation with
   `DecidesEquivalence`; derive its `Respects` proof, and bind its optional `==`
