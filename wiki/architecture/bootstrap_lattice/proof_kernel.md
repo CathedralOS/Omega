@@ -559,11 +559,12 @@ promote either whole row: affine/cast, shift/cast, joins, and correlated results
 remain trusted-reducer work, and `fully-derived false` is unchanged.
 
 The root-bound child may also come from exactly one retained same-carrier
-`root == literal` fact when that literal is the canonical bound endpoint. The
-producer builds the closed reflexive order, substitutes the root endpoint once,
-then applies `IntegerCastBound`; reconstruction independently selects the same
-exact equality. Direct bounds remain preferred. Missing, redirected, mistyped,
-or changed endpoint facts reject. Stronger-literal bridges, root aliases,
+`root == literal` fact when that literal equals or strengthens the canonical
+bound endpoint. The producer remaps the endpoint into the source carrier,
+checks the closed bridge to the landed literal, substitutes the root endpoint
+once, then applies `IntegerCastBound`; reconstruction independently selects the
+same exact equality and rechecks the bridge. Direct bounds remain preferred.
+Missing, redirected, mistyped, or weaker facts reject. Root aliases,
 affine/cast, shift/cast, joins, and correlated results remain outside this fixed
 sibling; neither complete exact row changes trust and `fully-derived false`
 remains.
