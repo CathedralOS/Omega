@@ -463,7 +463,12 @@ Remaining:
   ordered five-identity grammar and nonzero decoding shared by enclosing
   settlements and nested completion-custody bindings, removing the final
   duplicate byte spelling while leaving admission and closure checks in the
-  parent. This is
+  parent. Canonical format 31 now also isolates each installed function's
+  optional Unit/scalar stack envelopes and ordered Unit/scalar call-site rows
+  in a private 164-line stack-facts codec. The parent retains function order
+  and admission validation; the child preserves exact owner tags, target
+  identities, offsets, stack-byte facts, count guards, reserved bytes, and
+  established decode errors. The installation parent is now 5,055 lines. This is
   custody, not
   authorization. The remaining
   work is real
@@ -578,7 +583,13 @@ Owners:
   and fixed runtime-geometry reflection now live in a focused 411-line owner,
   including quotient/unsupported-shape rejection, primitive/range geometry,
   fixed-array/nested-record recursion, erased-runtime handling, alignment,
-  capacity, and key-collision checks. The 316-line root has reached its natural
+  capacity, and key-collision checks. Plan-laid pre-resolution elaboration now
+  lives in a focused 213-line private owner, including policy/schema indexing,
+  application validation, synthetic checked-record construction, and exact
+  type-reference rewriting. Public APIs, diagnostic order, synthesized
+  identities, and the 107-function production inventory remain unchanged; its
+  post-typing layout coordinator is now 418 lines. The 316-line layout-plan
+  root has reached its natural
   orchestration/public-materialization-entry boundary.
   Erased terms remain semantically mandatory but add no bytes, including nested
   records and fixed arrays whose entire runtime shape is erased. Scalar
@@ -2448,6 +2459,12 @@ Remaining:
   remains preferred before landed-literal and fixed alias transport. Citation
   and endpoint order, cast proof shape, missing, redirected, or mistyped
   rejection, and every fixed cast evidence frontier are unchanged. Direct
+  affine-to-cast selection now separates exact endpoint orientation from
+  resolved completion in independent side-local
+  `cast_selection/affine/completion` modules. Parents preserve right-before-
+  left order and value eligibility; unique-source recovery, literal remapping,
+  prefix-bounded affine custody, cast proof bytes, rejection order, direct-cast
+  precedence, and the fixed frontier are unchanged. Direct
   landed-literal cast completion now lives in independent side-local
   `cast_selection/literal/completion` modules. Each parent retains its own
   requirements-before-semantic-axioms equality discovery, orientation, and
