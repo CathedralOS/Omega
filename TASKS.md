@@ -305,7 +305,12 @@ Remaining:
   The CLI corpus is rooted on all hosted targets except the four GUI samples,
   which currently select Windows x64 and macOS arm64. Linux needs an ordinary
   source-level `Gui`/`Input` provider plus its general call/result realization;
-  that is engineering work, not a language-design blocker. Proof-only and
+  that is engineering work, not a language-design blocker. It first needs an
+  authored Linux GUI protocol/provider contract and executable binding path:
+  no X11/Wayland provider exists, and the current ELF direct-image emitter
+  cannot bind shared-library imports. Provider substitution must not use a
+  headless or fake-handle shim in place of the samples' real-window contract.
+  Proof-only and
   deliberately trapping fixtures remain targetless. Final firmware composition
   of `ImageHandle`/`SystemTable` inputs with semantic roots is design-blocked on
   owner Q1; the remaining physical bridge and corpus work is not. The native
@@ -781,8 +786,12 @@ Owners:
   inputs on rejection. Access authorization and alias-exclusion judgments now
   live in a focused 112-line owner, retaining exact descriptor permissions,
   current/source borrow polarity, Stable compound exclusivity, Atomic family/
-  order legality, and whole-transfer footprint conflict classification. These
-  extractions leave a 2,422-line coordinator. All 81
+  order legality, and whole-transfer footprint conflict classification.
+  Ordinary borrowed placed-view retirement, authority replay, and shared/
+  exclusive projection now live in a focused 108-line lifecycle owner,
+  preserving exact loan polarity, profile/resource replay, correspondence
+  retirement composition, retry-complete recovery, and private carrier fields.
+  These extractions leave a 2,322-line coordinator. All 81
   unit tests, the current 440-function production inventory, diagnostics,
   custody, retry behavior, and the public surface remain unchanged.
 - Implement `Extent::Resident<P, T>` as the owned exact-range dormant-content
