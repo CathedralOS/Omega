@@ -2155,10 +2155,11 @@ literal, and fixed alias cast families retain precedence. No rule or proof
 schema beyond proof-bundle v19 is added. This bounded composition does not
 promote either whole row.
 
-This affine-to-cast selector now separates endpoint orientation from resolved
-completion. Independent producer and verifier `cast_selection/affine` parents
-retain right-endpoint-before-left-endpoint order and value eligibility;
-side-local `cast_selection/affine/completion` modules own source-spine recovery,
+This affine-to-cast selector now separates entry dispatch, endpoint
+orientation, and resolved completion. Independent producer and verifier
+`cast_selection/affine` facades delegate to side-local `affine/candidates`
+modules that retain right-endpoint-before-left-endpoint order and value
+eligibility. Their `affine/completion` siblings own source-spine recovery,
 literal remapping, prefix-bounded affine custody, and cast completion. The
 source goal, proof bytes, rejection order within one orientation, direct-cast
 precedence, and finite frontier are unchanged.
