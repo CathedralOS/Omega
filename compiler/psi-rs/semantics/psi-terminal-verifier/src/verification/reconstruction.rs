@@ -24,6 +24,9 @@ mod affine_selection;
 mod alias_transport;
 mod cast_custody;
 mod cast_selection;
+mod integer_evidence;
+
+use integer_evidence::{closed_integer_less_or_equal, retained_integer_term_values};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReconstructedOperationObligation {
@@ -705,30 +708,6 @@ fn retained_literal_integer_bound(
     false
 }
 
-fn retained_integer_term_values<'a>(
-    term: &'a ScalarTerm,
-    requirements: &'a [Proposition],
-    semantic_axioms: &'a [Proposition],
-) -> impl Iterator<Item = (psi_core::IntegerType, psi_core::IntegerValue)> + 'a {
-    std::iter::once(term.integer_value()).flatten().chain(
-        requirements
-            .iter()
-            .chain(semantic_axioms)
-            .filter_map(move |fact| {
-                let Proposition::Equal(left, right) = fact else {
-                    return None;
-                };
-                if left == term {
-                    right.integer_value()
-                } else if right == term {
-                    left.integer_value()
-                } else {
-                    None
-                }
-            }),
-    )
-}
-
 fn retained_two_fact_transitive_integer_bound(
     goal: &Proposition,
     requirements: &[Proposition],
@@ -764,19 +743,6 @@ fn closed_transitive_integer_bound(goal: &Proposition, retained: &Proposition) -
     };
     (retained_right == goal_right && closed_integer_less_or_equal(goal_left, retained_left))
         || (retained_left == goal_left && closed_integer_less_or_equal(retained_right, goal_right))
-}
-
-fn closed_integer_less_or_equal(left: &ScalarTerm, right: &ScalarTerm) -> bool {
-    let Some((left_type, left)) = left.integer_value() else {
-        return false;
-    };
-    let Some((right_type, right)) = right.integer_value() else {
-        return false;
-    };
-    left_type == right_type
-        && left_type
-            .compare(left, right)
-            .is_some_and(|order| !order.is_gt())
 }
 
 fn true_condition_fact(

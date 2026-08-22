@@ -9,7 +9,7 @@ use psi_proof_kernel::{
     check_integer_affine_witness,
 };
 
-use super::closed_integer_less_or_equal;
+use super::integer_evidence::closed_integer_less_or_equal;
 
 pub(super) fn retained_from_root(
     context: &PropositionContext,

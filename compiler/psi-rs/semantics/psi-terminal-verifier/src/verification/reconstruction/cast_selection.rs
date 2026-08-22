@@ -2,7 +2,8 @@
 
 use psi_core::{Proposition, PropositionContext, ScalarTerm};
 
-use super::{alias_transport, cast_custody, closed_integer_less_or_equal};
+use super::integer_evidence::closed_integer_less_or_equal;
+use super::{alias_transport, cast_custody};
 
 pub(super) fn retained(
     context: &PropositionContext,

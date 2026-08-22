@@ -3,7 +3,8 @@
 use psi_core::{Proposition, PropositionContext};
 use psi_proof_kernel::{ProofNode, ProofRule};
 
-use super::{alias_transport, cast_custody, cited_facts, closed_integer_relation};
+use super::integer_evidence::{cited_facts, closed_integer_relation};
+use super::{alias_transport, cast_custody};
 
 pub(super) fn prove(
     context: &PropositionContext,

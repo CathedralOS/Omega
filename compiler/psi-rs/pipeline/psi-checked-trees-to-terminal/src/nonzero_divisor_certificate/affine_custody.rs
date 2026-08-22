@@ -10,7 +10,7 @@ use psi_proof_kernel::{
     check_integer_affine_witness,
 };
 
-use super::closed_integer_relation;
+use super::integer_evidence::closed_integer_relation;
 
 pub(super) fn prove_from_root(
     context: &PropositionContext,
