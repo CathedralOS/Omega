@@ -2107,10 +2107,13 @@ fn runtime_stdin_line_buffering_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("runtime stdin line buffering canary should compile from its authored root");
 
-    let mut child = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("runtime stdin line buffering canary should retain its executable receipt");
+    let mut child = Command::new(executable)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()
@@ -2155,10 +2158,13 @@ fn runtime_stdin_crlf_line_read_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("runtime stdin crlf line read canary should compile from its authored root");
 
-    let mut child = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("runtime stdin CRLF canary should retain its executable receipt");
+    let mut child = Command::new(executable)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()
@@ -2198,11 +2204,14 @@ fn runtime_slice_alias_indexed_string_field_concat_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
         "runtime slice alias indexed string field concat canary should compile from its authored root",
     );
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation.checked_native_executable_path().expect(
+        "runtime slice alias indexed string field concat canary should retain its executable receipt",
+    );
+    let output = Command::new(executable)
         .output()
         .expect("runtime slice alias indexed string field concat canary should run");
 
@@ -2231,10 +2240,13 @@ fn runtime_slice_indexed_string_guard_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("runtime slice indexed string guard canary should compile from its authored root");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("runtime slice indexed string guard canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("runtime slice indexed string guard canary should run");
 
@@ -2258,11 +2270,14 @@ fn runtime_slice_machine_indexed_string_guard_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
         "runtime slice machine-indexed string guard canary should compile from its authored root",
     );
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation.checked_native_executable_path().expect(
+        "runtime slice machine-indexed string guard canary should retain its executable receipt",
+    );
+    let output = Command::new(executable)
         .output()
         .expect("runtime slice machine-indexed string guard canary should run");
 
