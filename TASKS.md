@@ -2404,6 +2404,13 @@ Remaining:
   axioms enumeration, left-before-right `Value` endpoints, root custody, proof
   shape, rejection, direct precedence, and the fixed definition frontier
   remain unchanged.
+  Direct affine-selection parents now own the final side-local custody handoff
+  after their selectors produce completion-ready evidence. Production passes
+  its independently constructed cited proof directly to affine custody, while
+  reconstruction passes its independently retained proposition; the former
+  pass-through completion modules are removed. Source/citation order, left-
+  before-right endpoints, proof shape, direct precedence, rejection behavior,
+  and the fixed definition frontier remain unchanged.
   One-equality transitive affine completion now lives in independent side-local
   `affine_selection/transitive/alias/completion` modules. Each parent retains
   its own ledger-ordered equality discovery, distinct root/alias custody, and
@@ -4770,6 +4777,13 @@ Owners:
   preserving literal status 70 and diagnostics. Exact-owner ambiguity, the 795
   rooted/3 legacy inventory, and receipt-drift fences remain green; the
   adjacent product-index proof/loop owner remains untouched.
+  Three authored-root fixed-integer arithmetic regressions—i16 signed
+  arithmetic, u16 field arithmetic, and i64 signed arithmetic—now launch
+  `OutputOnly` native execution solely through exact checked-report executable
+  receipts while preserving literal status 70 and signed/unsigned width
+  diagnostics. Exact-owner ambiguity, the 795 rooted/3 legacy inventory, and
+  receipt-drift fences remain green; address algebra and explicit conversion
+  owners remain separate.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
@@ -4983,6 +4997,11 @@ reach or trust, and private proof improvements do not change public identity.
   affine-cleanup tail. Extend that accounting to general shared native joins
   and general affine cleanup rather than claiming convergence from duplicated
   leaves.
+  Exact x86-64/AArch64 register mapping and 64-bit stack/memory load byte
+  construction for terminal-image replay now live in a focused 94-line
+  `instruction_loads` child. Object construction and decoded stack validation
+  retain their existing ordering, bytes, errors, and public surface; the exact
+  94-function production inventory remains unchanged.
   Provider-sized external adapter/arrival state is design-blocked on
   `OWNER_QUESTIONS.md` Q3: stack-domain ownership across interrupted and
   switched entry must be settled before this can become a complete root
