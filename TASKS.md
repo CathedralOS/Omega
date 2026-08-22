@@ -2679,11 +2679,17 @@ conformance cannot change token meaning; and no accepted source contains a
   away from syntax rescans without reintroducing a text parser. Provider-plan
   candidate derivation now resolves each exact typed conformance id through
   that table; a same-shaped later syntax payload cannot redirect its binding.
-  Other consumers distinguish external from checked satisfiers by identity
-  presence, and the interner exposes no rendering lookup. The source
-  binding case is now payloadless, the core/std/canary corpus uses that form,
-  and the seven obsolete authored-name mismatch canaries are deleted in favor
-  of one parser regression for the retired payload. Transitional provider rows
+  Selected external ABI rows now derive only from the immutable selected
+  `ProviderPlan` carrier produced from that identity; backend preparation no
+  longer rescans `via` syntax as a second binding authority. Other consumers
+  distinguish external from checked satisfiers by identity presence, and the
+  interner exposes no rendering lookup. The source
+  binding case and its normalized structural value are now payloadless; the
+  exact normalized realization-machine identity remains on the enclosing
+  provider row instead of being copied into the binding value. The
+  core/std/canary corpus uses that form, and the seven obsolete authored-name
+  mismatch canaries are deleted in favor of one parser regression for the
+  retired payload. Transitional provider rows
   now retain the compiler-derived normalized realization-machine overload
   identity through ABI planning, trust reports, and executable-TCB identity.
   Provider rows no longer retain a separate catalog/display string. A single

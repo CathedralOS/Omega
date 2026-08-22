@@ -1722,7 +1722,7 @@ fn exact_satisfied_requirement_identity(
     }
 }
 
-pub(crate) fn exact_external_binding_identity<'typed>(
+fn exact_external_binding_identity<'typed>(
     typed: &'typed TypedTrees,
     machine: &psi_typed_trees::machine::Machine,
     trait_name: &str,

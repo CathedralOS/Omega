@@ -168,7 +168,6 @@ where
 /// Extract bodyless external leaves into the calling-convention rows consumed
 /// by the freestanding ABI builder.
 fn extract_external_binding_rows(
-    syntax_trees: &psi_syntax_trees::SyntaxTrees,
     selected_target: Option<&str>,
     native_target: omega_target::NativeTarget,
     selected_plan_names: &[String],
@@ -179,116 +178,53 @@ fn extract_external_binding_rows(
     typed: &psi_typed_trees::TypedTrees,
 ) -> Result<Vec<omega_calling_conventions::ExternalBindingRow>, Vec<Diagnostic>> {
     use omega_calling_conventions::{CallingPolicy, ExternalBindingKind, ExternalBindingRow};
+    use omega_effects::provider_plan::ProviderBinding;
 
     let mut rows = Vec::new();
-    // A bodyless
-    // `satisfies Trait::method via <Binding>;` machine contributes one row
-    // for the satisfied requirement; a `<target>`-scoped leaf rides its own
-    // marker, an unscoped leaf rides the portable name (resolves to the
-    // host target). For table-addressed mechanisms, the leaf's attached data
-    // type owns the layout used for table-addressed mechanisms.
-    for item in syntax_trees.root_items() {
-        let psi_syntax_trees::item::Item::Machine(machine) = item else {
-            continue;
-        };
-        if !machine.bodyless || machine.boundary {
-            continue;
-        }
-        for clause in syntax_trees.items.satisfies_clauses(machine.satisfies) {
-            let (Some(_), Some(requirement)) = (clause.via.as_ref(), clause.requirement.as_ref())
-            else {
-                continue;
-            };
-            let plan_target = machine.target.as_ref().map_or_else(
-                || selected_target.unwrap_or_default().to_owned(),
-                |target| target.as_str().to_owned(),
-            );
-            let provider_type = machine
-                .attached_data
-                .as_ref()
-                .map(|name| name.as_str())
-                .unwrap_or_default();
-            let plan_name = crate::pipeline::provider_plans::satisfies_plan_name(
-                &plan_target,
-                clause.trait_name.as_str(),
-                provider_type,
-            );
-            if !selected_plan_names
-                .iter()
-                .any(|selected| selected == &plan_name)
-            {
-                continue;
-            }
-            let typed_machine = typed
-                .machines()
-                .iter()
-                .find(|candidate| candidate.name.as_str() == machine.name.as_str())
-                .ok_or_else(|| {
-                    vec![Diagnostic::error(format!(
-                        "external realization `{}` has no exact typed machine",
-                        machine.name
-                    ))]
-                })?;
-            let binding = crate::pipeline::provider_plans::exact_external_binding_identity(
-                typed,
-                typed_machine,
-                clause.trait_name.as_str(),
-                requirement.as_str(),
-            )
-            .ok_or_else(|| {
-                vec![Diagnostic::error(format!(
-                    "external realization `{}` has no unique retained binding for `{}::{}`",
-                    machine.name, clause.trait_name, requirement
-                ))]
-            })?;
-            use psi_language_semantics::ExternalBindingIdentity;
-            let binding = match binding {
-                ExternalBindingIdentity::Syscall { number } => {
+    // The selected ProviderPlan set is the immutable normalization boundary.
+    // Do not rescan source `via` clauses after selection: doing so would create
+    // a second binding authority beside the retained typed identity.
+    for plan in provider_plans.iter().filter(|plan| {
+        selected_plan_names
+            .iter()
+            .any(|selected| selected == &plan.name)
+    }) {
+        for row in &plan.rows {
+            let binding = match &row.binding {
+                ProviderBinding::Import { library, symbol } => ExternalBindingKind::DllImport {
+                    module: library.clone(),
+                    symbol: symbol.clone(),
+                },
+                ProviderBinding::Syscall { number } => {
                     ExternalBindingKind::Syscall { number: *number }
                 }
-                ExternalBindingIdentity::Import { library, symbol } => {
-                    ExternalBindingKind::DllImport {
-                        module: library.clone(),
-                        symbol: symbol.clone(),
+                ProviderBinding::CompilerIntrinsic { machine } => {
+                    ExternalBindingKind::CompilerIntrinsic {
+                        machine: machine.clone(),
                     }
                 }
-                ExternalBindingIdentity::CompilerIntrinsic => {
-                    let machine = typed
-                        .normalized_machine_overload_identity(typed_machine)
-                        .map(|identity| identity.identity())
-                        .unwrap_or_default();
-                    ExternalBindingKind::CompilerIntrinsic { machine }
-                }
-                ExternalBindingIdentity::VtableSlot { index } => {
+                ProviderBinding::VtableSlot { index } => {
                     ExternalBindingKind::VtableSlot { index: *index }
                 }
-                ExternalBindingIdentity::VtableField { field } => {
-                    ExternalBindingKind::VtableField {
-                        field: field.clone(),
-                    }
-                }
-                ExternalBindingIdentity::TableFunction { field } => {
+                ProviderBinding::VtableField { field, .. } => ExternalBindingKind::VtableField {
+                    field: field.clone(),
+                },
+                ProviderBinding::TableFunction { field, .. } => {
                     ExternalBindingKind::TableFunction {
                         field: field.clone(),
                     }
                 }
+                ProviderBinding::CheckedAdapter { .. } => continue,
             };
-            let requirement_identity =
-                crate::pipeline::provider_plans::satisfied_requirement_identity(
-                    typed,
-                    machine.name.as_str(),
-                    clause.trait_name.as_str(),
-                    requirement.as_str(),
-                );
             let boundary_entry_plan = selected_source_boundary_entry_plan(
                 typed,
                 provider_plans,
                 selected_plan_names,
                 boundary_calling_plan_realizations,
-                &plan_name,
-                clause.trait_name.as_str(),
-                requirement.as_str(),
-                &requirement_identity,
+                &plan.name,
+                &plan.schema.trait_name,
+                &row.method,
+                &row.requirement_identity,
             )
             .map_err(|diagnostic| vec![diagnostic])?;
             let compatibility_policy = match &binding {
@@ -310,35 +246,30 @@ fn extract_external_binding_rows(
                 (Some(plan), _) => Some(plan),
                 (None, Some(policy)) => crate::pipeline::calling_policy_plans::evaluate_compatibility_boundary_entry_plan(
                     typed,
-                    clause.trait_name.as_str(),
-                    requirement.as_str(),
-                    &requirement_identity,
+                    &plan.schema.trait_name,
+                    &row.method,
+                    &row.requirement_identity,
                     policy,
                     usize::from(matches!(&binding, ExternalBindingKind::TableFunction { .. })),
                 )
                 .map_err(|reason| {
                     vec![Diagnostic::error(format!(
                         "cannot evaluate compatibility calling plan for `{}::{}`: {reason}",
-                        clause.trait_name, requirement
+                        plan.schema.trait_name, row.method
                     ))]
                 })?,
                 (None, None) => None,
             };
             rows.push(ExternalBindingRow {
-                // Target-machine filtering clears the selected machine's
-                // marker so it can participate as an ordinary implementation.
-                // Preserve deployment identity here from the compile target;
-                // an unselected machine still carries its own marker and stays
-                // inert. An originally unscoped leaf likewise belongs to the
-                // selected build, never implicitly to the compiler host.
-                target_name: machine.target.as_ref().map_or_else(
-                    || selected_target.unwrap_or("cross_platform_cli").to_owned(),
-                    |target| target.as_str().to_owned(),
-                ),
-                trait_name: clause.trait_name.as_str().to_owned(),
-                method: requirement.as_str().to_owned(),
-                requirement_identity: requirement_identity.clone(),
-                table_type: provider_type.to_owned(),
+                target_name: if plan.target.is_empty() {
+                    selected_target.unwrap_or("cross_platform_cli").to_owned()
+                } else {
+                    plan.target.clone()
+                },
+                trait_name: plan.schema.trait_name.clone(),
+                method: row.method.clone(),
+                requirement_identity: row.requirement_identity.clone(),
+                table_type: plan.provider_type.clone(),
                 boundary_entry_plan,
                 binding,
             });
@@ -722,7 +653,6 @@ impl Compiler {
         // before typed ownership moves into checked lowering. The rows carry
         // them beside their mechanisms into the host-ABI/backend path.
         let external_binding_rows = extract_external_binding_rows(
-            &syntax_trees,
             self.options.target_name.as_deref(),
             selected_native_target,
             &selected_provider_plans,
