@@ -521,7 +521,10 @@ Owners:
   keeping logical extents distinct from whole-transfer footprints. Enforce
   total decode/encode, exact provider width/alignment, and operation-specific
   atomic laws. Continue rejecting External initialization, multi-transfer
-  reads, and synthesized RMW.
+  reads, and synthesized RMW. Retained numbered layouts now rejoin the current
+  reflected schema and source-authored access decisions by stable member
+  identity rather than presentation spelling; positional renames, identity
+  drift, and derived-offset drift reject before an access plan is sealed.
 - Keep alias-exclusion admission separate from access rights; `&mut` does not
   claim exclusivity against a device. Sealed primitive events now specialize
   linearly into Stable read/take/write/swap, External read/take/write, or one
