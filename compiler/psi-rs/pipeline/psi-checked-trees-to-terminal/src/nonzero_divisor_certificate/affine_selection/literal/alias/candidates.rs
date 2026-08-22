@@ -3,23 +3,21 @@
 use psi_core::{Proposition, ScalarTerm, ScalarType};
 use psi_proof_kernel::ProofNode;
 
-use super::super::super::super::integer_evidence::cited_facts;
-
 mod landing_index;
+mod root_aliases;
 
 use landing_index::LandingIndex;
+use root_aliases::RootAliases;
 
 pub(super) struct LiteralAliasCandidates<'a> {
-    assumptions: &'a [Proposition],
-    semantic_axioms: &'a [Proposition],
+    root_aliases: RootAliases<'a>,
     landings: LandingIndex<'a>,
 }
 
 impl<'a> LiteralAliasCandidates<'a> {
     pub(super) fn new(assumptions: &'a [Proposition], semantic_axioms: &'a [Proposition]) -> Self {
         Self {
-            assumptions,
-            semantic_axioms,
+            root_aliases: RootAliases::new(assumptions, semantic_axioms),
             landings: LandingIndex::new(assumptions, semantic_axioms),
         }
     }
@@ -34,19 +32,8 @@ impl<'a> LiteralAliasCandidates<'a> {
             ProofNode,
         ) -> Option<T>,
     ) -> Option<T> {
-        for (outer_citation, outer_equality) in cited_facts(self.assumptions, self.semantic_axioms)
-        {
-            let Proposition::Equal(outer_left, outer_right) = outer_equality else {
-                continue;
-            };
-            for (root, alias) in [(outer_left, outer_right), (outer_right, outer_left)] {
-                if root == alias
-                    || !matches!(root, ScalarTerm::Value { .. })
-                    || !matches!(alias, ScalarTerm::Value { .. })
-                    || root.scalar_type() != alias.scalar_type()
-                {
-                    continue;
-                }
+        self.root_aliases
+            .find(|outer_citation, outer_equality, root, alias| {
                 for &(inner_citation, inner_equality, literal) in self.landings.candidates(alias) {
                     if std::ptr::eq(outer_equality, inner_equality) {
                         continue;
@@ -67,8 +54,7 @@ impl<'a> LiteralAliasCandidates<'a> {
                         return Some(result);
                     }
                 }
-            }
-        }
-        None
+                None
+            })
     }
 }
