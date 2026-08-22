@@ -60,6 +60,69 @@ pub struct CallbackThunkPlan {
     pub private_symbol: Arc<str>,
 }
 
+/// Fingerprint the exact ordered checked-placement receipts carried by callback
+/// thunks for final-footprint evidence.
+///
+/// This is evidence rather than authority: final emission still compares each
+/// structural receipt with its placement row before this summary can be used.
+pub fn callback_thunk_placement_identity_fingerprint(thunks: &[CallbackThunkPlan]) -> u64 {
+    let mut fingerprint = 0xcbf2_9ce4_8422_2325u64;
+    fingerprint_into(&mut fingerprint, b"omega.callback-placement-identity.v1");
+    fingerprint_into(&mut fingerprint, &(thunks.len() as u64).to_le_bytes());
+    for thunk in thunks {
+        fingerprint_into(
+            &mut fingerprint,
+            &(thunk.placement_index as u64).to_le_bytes(),
+        );
+        let identity = &thunk.placement_identity;
+        let (site_tag, site_index, site_generation) = match identity.site {
+            NominalMachineUseSite::Statement(handle) => {
+                (1u8, handle.arena_index(), handle.generation())
+            }
+            NominalMachineUseSite::Expression(handle) => {
+                (2u8, handle.arena_index(), handle.generation())
+            }
+        };
+        fingerprint_into(&mut fingerprint, &[site_tag]);
+        fingerprint_into(&mut fingerprint, &u64::from(site_index).to_le_bytes());
+        fingerprint_into(&mut fingerprint, &u64::from(site_generation).to_le_bytes());
+        fingerprint_symbol(&mut fingerprint, identity.registration_operation);
+        fingerprint_into(
+            &mut fingerprint,
+            &u64::from(identity.static_machine_ordinal).to_le_bytes(),
+        );
+        fingerprint_symbol(&mut fingerprint, identity.selected_machine);
+        fingerprint_symbol(&mut fingerprint, identity.selected_entry);
+        fingerprint_symbol(&mut fingerprint, identity.satisfaction_trait);
+        fingerprint_symbol(&mut fingerprint, identity.satisfaction_requirement);
+        fingerprint_into(
+            &mut fingerprint,
+            &(identity.canonical_requirement_overload.len() as u64).to_le_bytes(),
+        );
+        fingerprint_into(
+            &mut fingerprint,
+            identity.canonical_requirement_overload.as_bytes(),
+        );
+        fingerprint_into(
+            &mut fingerprint,
+            &identity.boundary_calling_plan_fingerprint.to_le_bytes(),
+        );
+    }
+    fingerprint
+}
+
+fn fingerprint_symbol(fingerprint: &mut u64, symbol: SymbolHandle) {
+    fingerprint_into(fingerprint, &u64::from(symbol.arena_index()).to_le_bytes());
+    fingerprint_into(fingerprint, &u64::from(symbol.generation()).to_le_bytes());
+}
+
+fn fingerprint_into(fingerprint: &mut u64, bytes: &[u8]) {
+    for byte in bytes {
+        *fingerprint ^= u64::from(*byte);
+        *fingerprint = fingerprint.wrapping_mul(0x0000_0100_0000_01b3);
+    }
+}
+
 /// Retain the exact checked identities that authorize one callback placement.
 pub fn callback_placement_binding_identity(
     placement: &BoundNominalCallbackPlacement,
@@ -250,6 +313,38 @@ mod tests {
         assert_ne!(
             callback_placement_binding_identity(&overload_drift),
             identity
+        );
+    }
+
+    #[test]
+    fn callback_thunk_placement_fingerprint_binds_exact_ordered_receipts() {
+        let baseline = placement();
+        let thunk = CallbackThunkPlan {
+            placement_index: 0,
+            placement_identity: callback_placement_binding_identity(&baseline),
+            entry_key: StateKey {
+                machine: baseline.selected_machine,
+                state: baseline.selected_entry,
+                segment_index: 0,
+            },
+            function_identity: omega_control_flow::MachineFunctionIdentity::default(),
+            private_symbol: canonical_callback_private_symbol(&baseline),
+        };
+        let fingerprint =
+            callback_thunk_placement_identity_fingerprint(std::slice::from_ref(&thunk));
+
+        let mut drifted = thunk.clone();
+        drifted.placement_identity.satisfaction_requirement = SymbolHandle::from_parts(8, 2);
+        assert_ne!(
+            callback_thunk_placement_identity_fingerprint(&[drifted]),
+            fingerprint
+        );
+
+        let mut reindexed = thunk;
+        reindexed.placement_index = 1;
+        assert_ne!(
+            callback_thunk_placement_identity_fingerprint(&[reindexed]),
+            fingerprint
         );
     }
 }

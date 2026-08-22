@@ -365,6 +365,7 @@ pub(super) fn write_output(
         })?;
         let final_footprint_certificate = build_final_footprint_certificate(
             footprints,
+            emitted.callback_placement_identity_fingerprint,
             compiler_text_validation,
             compiler_function_validation,
             image.compiler_entry_footprint_binding,
@@ -445,6 +446,7 @@ pub(super) fn write_output(
 
 fn build_final_footprint_certificate(
     footprints: &omega_target_operations::BoundaryFootprintPlan,
+    callback_placement_identity_fingerprint: u64,
     compiler_text_validation: omega_image::CompilerTextValidationEvidence,
     compiler_function_validation: omega_image::CompilerFunctionValidationEvidence,
     compiler_entry_footprint_binding: Option<omega_image::CompilerEntryFootprintBindingEvidence>,
@@ -455,6 +457,7 @@ fn build_final_footprint_certificate(
         footprints.boundary_contract_fingerprint,
         implementation_evidence_fingerprint,
         footprints.fragments.len(),
+        callback_placement_identity_fingerprint,
         compiler_text_validation,
         compiler_function_validation,
         compiler_entry_footprint_binding,
@@ -564,8 +567,9 @@ fn write_executable_region_inventory(
         json.push_str("null");
     }
     json.push_str(&format!(
-        ",\n  \"implementation_evidence_fingerprint\": \"0x{implementation_evidence_fingerprint:016x}\",\n  \"implementation_fragment_count\": {},\n  \"compiler_text_validation\": {{\"encoded_text_fingerprint\": \"0x{:016x}\", \"final_compiler_text_fingerprint\": \"0x{:016x}\", \"relocation_envelope_fingerprint\": \"0x{:016x}\", \"checked_instruction_validation_fingerprint\": \"0x{:016x}\", \"checked_instruction_footprint_fingerprint\": \"0x{:016x}\", \"derivation_fingerprint\": \"0x{:016x}\", \"text_relocation_count\": {}, \"checked_instruction_validation_count\": {}}},\n  \"compiler_function_validation\": {{\"evidence_fingerprint\": \"0x{:016x}\", \"validation_fingerprint\": \"0x{:016x}\", \"final_region_binding_fingerprint\": \"0x{:016x}\", \"function_count\": {}, \"instruction_count\": {}, \"zero_width_instruction_count\": {}, \"checked_assembly_instruction_count\": {}, \"fixed_mechanics_instruction_count\": {}, \"fixed_mechanics_validation_fingerprint\": \"0x{:016x}\", \"fixed_mechanics_boundary_contract_fingerprint\": \"0x{:016x}\", \"fixed_mechanics_footprint_fingerprint\": \"0x{:016x}\", \"body_specification_instruction_count\": {}, \"body_specification_validation_fingerprint\": \"0x{:016x}\", \"body_specification_boundary_contract_fingerprint\": \"0x{:016x}\", \"body_specification_footprint_fingerprint\": \"0x{:016x}\", \"composed_footprint_fingerprint\": \"0x{:016x}\"}},\n  \"inventory_fingerprint\": \"0x{:016x}\",\n  \"boundary_placement_binding_fingerprint\": \"0x{:016x}\",\n",
+        ",\n  \"implementation_evidence_fingerprint\": \"0x{implementation_evidence_fingerprint:016x}\",\n  \"implementation_fragment_count\": {},\n  \"callback_placement_identity_fingerprint\": \"0x{:016x}\",\n  \"compiler_text_validation\": {{\"encoded_text_fingerprint\": \"0x{:016x}\", \"final_compiler_text_fingerprint\": \"0x{:016x}\", \"relocation_envelope_fingerprint\": \"0x{:016x}\", \"checked_instruction_validation_fingerprint\": \"0x{:016x}\", \"checked_instruction_footprint_fingerprint\": \"0x{:016x}\", \"derivation_fingerprint\": \"0x{:016x}\", \"text_relocation_count\": {}, \"checked_instruction_validation_count\": {}}},\n  \"compiler_function_validation\": {{\"evidence_fingerprint\": \"0x{:016x}\", \"validation_fingerprint\": \"0x{:016x}\", \"final_region_binding_fingerprint\": \"0x{:016x}\", \"function_count\": {}, \"instruction_count\": {}, \"zero_width_instruction_count\": {}, \"checked_assembly_instruction_count\": {}, \"fixed_mechanics_instruction_count\": {}, \"fixed_mechanics_validation_fingerprint\": \"0x{:016x}\", \"fixed_mechanics_boundary_contract_fingerprint\": \"0x{:016x}\", \"fixed_mechanics_footprint_fingerprint\": \"0x{:016x}\", \"body_specification_instruction_count\": {}, \"body_specification_validation_fingerprint\": \"0x{:016x}\", \"body_specification_boundary_contract_fingerprint\": \"0x{:016x}\", \"body_specification_footprint_fingerprint\": \"0x{:016x}\", \"composed_footprint_fingerprint\": \"0x{:016x}\"}},\n  \"inventory_fingerprint\": \"0x{:016x}\",\n  \"boundary_placement_binding_fingerprint\": \"0x{:016x}\",\n",
         certificate.implementation_fragment_count,
+        certificate.callback_placement_identity_fingerprint,
         certificate.compiler_text_validation.encoded_text_fingerprint,
         certificate.compiler_text_validation.final_compiler_text_fingerprint,
         certificate.compiler_text_validation.relocation_envelope_fingerprint,
@@ -1008,6 +1012,7 @@ mod tests {
         let without_boundary = omega_target_operations::BoundaryFootprintPlan::default();
         build_final_footprint_certificate(
             &without_boundary,
+            0,
             compiler_text_validation(),
             compiler_function_validation(),
             None,
@@ -1022,6 +1027,7 @@ mod tests {
         assert!(
             build_final_footprint_certificate(
                 &with_boundary,
+                0,
                 compiler_text_validation(),
                 compiler_function_validation(),
                 None,
@@ -1036,6 +1042,7 @@ mod tests {
         let image = image();
         let certificate = build_final_footprint_certificate(
             &omega_target_operations::BoundaryFootprintPlan::default(),
+            0,
             compiler_text_validation(),
             compiler_function_validation(),
             None,
@@ -1066,6 +1073,7 @@ mod tests {
         let image = image();
         let certificate = build_final_footprint_certificate(
             &omega_target_operations::BoundaryFootprintPlan::default(),
+            0,
             compiler_text_validation(),
             compiler_function_validation(),
             None,
