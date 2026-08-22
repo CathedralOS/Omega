@@ -1634,19 +1634,13 @@ fn runtime_composite_initializer_local_arg_exit_canary_runs() {
     ));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("composite-initializer-local-arg canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("composite-initializer-local-arg canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected binary/unary/field-read composite initializers forwarded as args to self-check (exit 70), got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "composite-initializer argument canary",
+        "composite local initializers should retain their source frame when forwarded",
     );
 
     let _ = fs::remove_dir_all(&scratch);
@@ -1661,20 +1655,13 @@ fn runtime_captured_local_remutated_field_exit_canary_runs() {
     ));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("captured-local-remutated-field canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("captured-local-remutated-field canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected the captured `new_sp` slot (not a re-folded `self.vm.sp + 1`) to \
-         drive the nested dispatch so both pushes land and exit is 70, got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "captured-local remutated-field canary",
+        "the captured local slot should survive later mutation of its source field",
     );
 
     let _ = fs::remove_dir_all(&scratch);
@@ -1696,20 +1683,13 @@ fn runtime_bounded_carrier_pointee_guard_exit_canary_runs() {
     ));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("bounded carrier pointee guard canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("bounded carrier pointee guard canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected the value-call guard `r[0].label == \"Gate\"` (carrier through a \
-         slice-element pointee) to take the true arm and return 70, got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "bounded carrier pointee-guard canary",
+        "the value-call guard should read the carrier through the slice-element pointee",
     );
 
     let _ = fs::remove_dir_all(&scratch);
@@ -1727,20 +1707,13 @@ fn runtime_bounded_carrier_slice_field_write_exit_canary_runs() {
     ));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("bounded carrier slice field write canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("bounded carrier slice field write canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected `cells[0].label = \"Gate\"` to write the carrier through the slice pointer so \
-         `cells[0].label == \"Gate\"` exits 70, got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "bounded carrier slice-field write canary",
+        "the carrier write should reach the field through the mutable slice pointer",
     );
 
     let _ = fs::remove_dir_all(&scratch);
@@ -1829,19 +1802,13 @@ fn utf8_return_view_equals_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-utf8-return-view-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("utf8 return view canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("utf8 return view canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected a returned `&[u8] in Utf8` view compared `== \"Gate\"` to match and exit 70, got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "utf8 return-view equality canary",
+        "the returned Utf8 view descriptor should compare equal to its literal content",
     );
 
     let _ = fs::remove_dir_all(&scratch);
