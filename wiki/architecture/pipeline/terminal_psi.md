@@ -2123,6 +2123,14 @@ completion, the fixed two-affine composition, and typed literal remapping.
 Citation order, strict cast boundaries, proof shapes, rejection behavior, and
 the finite frontier are unchanged; neither side shares evidence authority.
 
+The fixed affine/cast/affine sibling now also separates candidate enumeration
+from proof completion. Producer and verifier `cast/sandwich` parents retain
+semantic cast-root order, exact source-spine recovery, and requirement/root
+endpoint order; independent side-local `cast/sandwich/completion` modules own
+the mapped-prefix, exact-cast, then affine-suffix composition. Citation
+identity, strict first/last-cast boundaries, the nested proof shape, rejection,
+and the fixed frontier remain unchanged.
+
 Boundary-aware affine custody is likewise split behind unchanged parent APIs.
 Independent producer and verifier `affine_custody/boundary` modules own strict
 post-boundary completion, while side-local `affine_custody/mapped` modules own
