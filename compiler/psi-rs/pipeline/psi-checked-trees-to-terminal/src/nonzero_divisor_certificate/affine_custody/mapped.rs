@@ -1,9 +1,11 @@
 //! Producer-local exact affine mapping strictly before one source boundary.
 
 use psi_core::{Proposition, PropositionContext, ScalarTerm};
-use psi_proof_kernel::{ProofNode, ProofRule, check_certificate, check_integer_affine_witness};
+use psi_proof_kernel::ProofNode;
 
-use super::{DefinitionIndex, candidates, relaxation};
+use super::{DefinitionIndex, candidates};
+
+mod completion;
 
 #[allow(clippy::too_many_arguments)]
 pub(in super::super) fn prove_mapped_to_target_before(
@@ -23,30 +25,14 @@ pub(in super::super) fn prove_mapped_to_target_before(
         root,
         target,
         |witness| {
-            if !witness
-                .definition_axioms
-                .iter()
-                .all(|&index| index < maximum_axiom)
-                || !witness
-                    .literal_axioms
-                    .iter()
-                    .flatten()
-                    .all(|&index| index < maximum_axiom)
-            {
-                return None;
-            }
-            let form = check_integer_affine_witness(context, semantic_axioms, &witness).ok()?;
-            let conclusion = relaxation::mapped_bound(&form, &root_bound.conclusion)?;
-            let proof = ProofNode {
-                conclusion: conclusion.clone(),
-                rule: ProofRule::IntegerAffineBound {
-                    root_bound: Box::new(root_bound.clone()),
-                    witness,
-                },
-            };
-            check_certificate(context, &conclusion, assumptions, semantic_axioms, &proof)
-                .is_ok()
-                .then_some(proof)
+            completion::prove(
+                context,
+                assumptions,
+                semantic_axioms,
+                maximum_axiom,
+                root_bound,
+                witness,
+            )
         },
     )
 }

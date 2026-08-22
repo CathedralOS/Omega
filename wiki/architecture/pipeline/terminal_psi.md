@@ -2202,6 +2202,14 @@ mapped propositions, proof shapes, rejection behavior, and the fixed
 four-definition frontier are unchanged; reconstruction still derives and
 checks its mapped proposition independently.
 
+Pre-boundary affine mapping now also separates target candidate enumeration
+from per-witness completion. Independent producer and verifier
+`affine_custody/mapped/completion` modules retain the strict definition and
+literal-axiom boundary checks, validate the witness, and construct or replay
+the exact mapped bound. Their `mapped` parents keep the requested-target and
+definition-word order. Proof bytes, rejection within each candidate, and the
+fixed four-definition frontier are unchanged.
+
 Affine-witness candidate coordination now separates goal-target enumeration
 from exact fixed-target completion. Independent producer and verifier
 `affine_custody/candidates/fixed` modules align literal landings and construct
