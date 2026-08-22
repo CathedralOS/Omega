@@ -1404,8 +1404,16 @@ Remaining:
   before the affine definition. Kernel replay records landing then definition
   and rejects missing, late, redirected, ambiguous, mistyped, or unused
   custody. A source-to-Terminal/verifier/codec mutation regression is green.
-  This completes the prerequisite only; affine-to-partial-cast exact divide/
-  remainder composition remains a separate unpromoted family.
+  That prerequisite now supports one bounded affine-to-partial-cast exact
+  divide/remainder composition. Production follows the unique nonempty cast
+  spine to its non-cast source, remaps the canonical endpoint into that carrier,
+  and invokes the finite affine selector only on axioms before the first cast;
+  the proof is exactly `IntegerCastBound(IntegerAffineBound(...))`.
+  Reconstruction independently repeats source, endpoint, prefix-boundary,
+  affine, and cast checks. Real divide and remainder source pass codec,
+  mutation rejection, verification, and interpretation. Direct/literal/fixed-
+  alias precedence is unchanged; shift/cast, joins, correlated, and broader
+  affine/cast shapes remain trusted, with fully-derived false unchanged.
   The corresponding direct same-carrier family now retains all four nonempty
   divide/remainder-to-affine/shift compositions without a cast. A leading
   divide/remainder chain supplies its complete verifier-owned carrier hull to
