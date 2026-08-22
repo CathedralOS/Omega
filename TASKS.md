@@ -2492,6 +2492,13 @@ Remaining:
   miss behavior, while catalog owners retain carrier checks, row identity,
   proof construction, and completion. Source order, proof shapes, rejection
   behavior, precedence, and both fixed frontiers remain unchanged.
+  Ordered affine-definition index recording now lives in paired, side-local
+  `affine_custody/definition_index/recording` modules. Producer and
+  reconstruction independently consume their syntactic candidate streams,
+  preserve source-row order, and adjacent-deduplicate repeated inputs from the
+  same row before constructing their immutable `Value`-to-definition maps.
+  Query behavior, prefix replay, witness/proof shape, rejection, and the fixed
+  four-definition frontier remain unchanged.
   One-equality transitive affine completion now lives in independent side-local
   `affine_selection/transitive/alias/completion` modules. Each parent retains
   its own ledger-ordered equality discovery, distinct root/alias custody, and
@@ -4985,6 +4992,13 @@ Owners:
   status 70 and exact cast-width, parser, DNF, and negation diagnostics. Exact-
   owner ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift fences
   remain green.
+  Three authored-root narrow-integer regressions—saturating i8/u8/i16 add/
+  subtract clamps, high-bit unsigned u32 divide/modulo/shift/compare, and signed
+  i8/i16 two's-complement wrapping boundaries—now launch `OutputOnly` native
+  execution solely through exact checked-report executable receipts while
+  preserving literal status 70 and detailed width/policy diagnostics. Exact-
+  owner ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift fences
+  remain green.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
@@ -5665,6 +5679,14 @@ Remaining N6/N8 work:
   order while individual payload formats remain dedicated sibling owners. The
   parent is 1,807 lines and the exact 199-function codec inventory remains
   unchanged.
+  Canonical collection ordering, crash-route canonicality, recursive
+  proposition ordering/depth, scalar/content nesting validation, and the public
+  proposition byte-order key now live in a focused private `canonical_order`
+  child, preserving validation/error order and exact encoded comparison keys
+  while structural-foundation validation remains parent-owned. The remaining
+  1,155-line parent is the public facade, structural-foundation validator,
+  shared wire helpers/errors, and resource test; the exact 199-function codec
+  inventory remains unchanged.
   Proof-bundle coding likewise keeps its `PSIPRF`-specific little-endian
   cursor, bounded string/count/index handling, and nonzero semantic-ID
   primitives in a focused private child; its public API, exact bytes and
