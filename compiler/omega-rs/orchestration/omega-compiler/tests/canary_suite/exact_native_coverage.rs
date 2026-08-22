@@ -3,7 +3,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 pub(super) const EXPECTED_UNIQUE_ROOTED_ACTIVE_COVERAGE: usize = 795;
-pub(super) const EXPECTED_UNIQUE_LEGACY_ACTIVE_COVERAGE: usize = 3;
+pub(super) const EXPECTED_UNIQUE_LEGACY_ACTIVE_COVERAGE: usize = 4;
 pub(super) const EXPECTED_UNIQUE_CROSS_TARGET_COVERAGE: usize = 32;
 pub(super) const EXPECTED_UNIQUE_ROOTED_TARGET_COVERAGE: usize = 3;
 

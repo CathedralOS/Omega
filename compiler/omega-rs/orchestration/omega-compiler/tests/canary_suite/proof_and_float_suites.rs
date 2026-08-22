@@ -1325,15 +1325,18 @@ fn runtime_total_order_satisfiers_exit_canary_runs() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-total-float-order-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: main_path.clone(),
+    let compilation = compile(CompileOptions {
+        root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
         write_output: true,
     })
     .expect("total-order satisfier canary should compile natively");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("total-order satisfier canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("total-order satisfier canary should run");
     assert_eq!(
@@ -1353,12 +1356,17 @@ fn runtime_total_order_satisfiers_exit_canary_runs() {
             std::process::id()
         ));
         let _ = fs::remove_dir_all(&cross_dir);
-        compile(CompileOptions {
-            root_path: main_path.clone(),
-            build_dir: Some(cross_dir.clone()),
-            target_name: Some(target.into()),
-            write_output: true,
-        })
+        compile_with_test_entry_worker_count_and_artifact_policy(
+            CompileOptions {
+                root_path: main_path.clone(),
+                build_dir: Some(cross_dir.clone()),
+                target_name: Some(target.into()),
+                write_output: true,
+            },
+            "Main::main",
+            canary_backend_worker_count(),
+            ArtifactEmissionPolicy::OutputOnly,
+        )
         .unwrap_or_else(|error| {
             panic!("total-order satisfier canary should cross-compile for {target}: {error:?}")
         });
