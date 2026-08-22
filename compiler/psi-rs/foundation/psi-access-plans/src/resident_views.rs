@@ -10,10 +10,11 @@ use super::{
     PlacementAdmissionId, PlacementAuthorityRef, PlacementResourceCompatibility,
     ResourceProfileReceiptId, ValidatedPlacementPlan, project_placed_field,
     validate_owned_resident_authority, validate_placement_admission,
+    validate_provider_content_binding,
 };
 use psi_extents::{
     ExtentContentCustodyReceiptId, ExtentContentValidityReceiptId, ExtentLoan, LoanPolarity,
-    ResidentClaimId,
+    ProviderExistingContentGrant, ResidentClaimId,
 };
 
 impl DormantOwnedResident {
@@ -48,10 +49,8 @@ impl DormantOwnedResident {
             resources: self.admission.resources.clone(),
             admission: self.admission.identity,
             loan,
-            resident_claim: self.content.resident_claim(),
+            content: &self.content,
             occurrence,
-            validity_receipt: self.content.validity_receipt(),
-            custody_receipt: self.content.custody_receipt(),
         })
     }
 
@@ -72,9 +71,7 @@ impl DormantOwnedResident {
         let profile = self.admission.profile.clone();
         let resources = self.admission.resources.clone();
         let admission = self.admission.identity;
-        let resident_claim = self.content.resident_claim();
-        let validity_receipt = self.content.validity_receipt();
-        let custody_receipt = self.content.custody_receipt();
+        let content = &self.content;
         let length = self.admission.extent.length();
         let loan = self
             .admission
@@ -92,10 +89,8 @@ impl DormantOwnedResident {
             resources,
             admission,
             loan,
-            resident_claim,
+            content,
             occurrence,
-            validity_receipt,
-            custody_receipt,
         })
     }
 }
@@ -115,10 +110,8 @@ pub struct EstablishedBorrowedResidentPlacement<'resident> {
     resources: PlacementResourceCompatibility,
     admission: PlacementAdmissionId,
     loan: ExtentLoan<'resident>,
-    resident_claim: ResidentClaimId,
+    content: &'resident ProviderExistingContentGrant,
     occurrence: PlacedOccurrenceId,
-    validity_receipt: ExtentContentValidityReceiptId,
-    custody_receipt: ExtentContentCustodyReceiptId,
 }
 
 /// Failed borrowed-resident retirement returns the complete active carrier.
@@ -183,7 +176,7 @@ impl<'resident> EstablishedBorrowedResidentPlacement<'resident> {
     }
 
     pub const fn resident_claim(&self) -> ResidentClaimId {
-        self.resident_claim
+        self.content.resident_claim()
     }
 
     pub const fn occurrence(&self) -> PlacedOccurrenceId {
@@ -191,11 +184,11 @@ impl<'resident> EstablishedBorrowedResidentPlacement<'resident> {
     }
 
     pub const fn validity_receipt(&self) -> ExtentContentValidityReceiptId {
-        self.validity_receipt
+        self.content.validity_receipt()
     }
 
     pub const fn custody_receipt(&self) -> ExtentContentCustodyReceiptId {
-        self.custody_receipt
+        self.content.custody_receipt()
     }
 
     pub fn project<'view>(
@@ -254,6 +247,13 @@ impl<'resident> EstablishedBorrowedResidentPlacement<'resident> {
                     .into(),
             ));
         }
+        validate_provider_content_binding(&self.plan, &self.loan, self.content).map_err(
+            |diagnostic| {
+                AccessPlanDiagnostic(format!(
+                    "borrowed resident retirement could not replay the retained provider content grant: {diagnostic}"
+                ))
+            },
+        )?;
         Ok(())
     }
 
@@ -275,5 +275,13 @@ impl<'resident> EstablishedBorrowedResidentPlacement<'resident> {
         profile: AdmittedResourceProfile,
     ) -> AdmittedResourceProfile {
         std::mem::replace(&mut self.profile, profile)
+    }
+
+    #[cfg(test)]
+    pub(super) fn replace_content_for_test(
+        &mut self,
+        content: &'resident ProviderExistingContentGrant,
+    ) -> &'resident ProviderExistingContentGrant {
+        std::mem::replace(&mut self.content, content)
     }
 }
