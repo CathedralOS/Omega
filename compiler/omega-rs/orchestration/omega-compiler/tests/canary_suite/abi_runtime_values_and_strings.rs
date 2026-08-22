@@ -2470,11 +2470,14 @@ fn runtime_mutable_carrier_parameter_concat_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
         "runtime mutable carrier parameter concat canary should compile from its authored root",
     );
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation.checked_native_executable_path().expect(
+        "runtime mutable carrier parameter concat canary should retain its executable receipt",
+    );
+    let output = Command::new(executable)
         .output()
         .expect("runtime mutable carrier parameter concat canary should run");
 
@@ -2505,11 +2508,14 @@ fn runtime_mutable_string_parameter_concat_write_line_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
         "runtime mutable carrier parameter concat write_line canary should compile from its authored root",
     );
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation.checked_native_executable_path().expect(
+        "runtime mutable carrier parameter concat write_line canary should retain its executable receipt",
+    );
+    let output = Command::new(executable)
         .output()
         .expect("runtime mutable carrier parameter concat write_line canary should run");
 
@@ -2542,11 +2548,14 @@ fn runtime_mutable_string_parameter_wrapped_concat_write_line_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
         "runtime wrapped mutable carrier concat write_line canary should compile from its authored root",
     );
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation.checked_native_executable_path().expect(
+        "runtime wrapped mutable carrier concat write_line canary should retain its executable receipt",
+    );
+    let output = Command::new(executable)
         .output()
         .expect("runtime wrapped mutable carrier concat write_line canary should run");
 
@@ -2572,11 +2581,14 @@ fn runtime_mutable_struct_carrier_field_copy_concat_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
         "runtime mutable struct carrier field copy concat canary should compile from its authored root",
     );
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation.checked_native_executable_path().expect(
+        "runtime mutable struct carrier field copy concat canary should retain its executable receipt",
+    );
+    let output = Command::new(executable)
         .output()
         .expect("runtime mutable struct carrier field copy concat canary should run");
 
@@ -2600,10 +2612,13 @@ fn runtime_local_struct_string_field_concat_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("runtime local struct string field concat canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation.checked_native_executable_path().expect(
+        "runtime local struct string field concat canary should retain its executable receipt",
+    );
+    let output = Command::new(executable)
         .output()
         .expect("runtime local struct string field concat canary should run");
 
