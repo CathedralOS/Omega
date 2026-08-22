@@ -15,15 +15,18 @@ pub(super) fn find<T>(
     root: &ScalarTerm,
     mut complete: impl FnMut(IntegerAffineWitness) -> Option<T>,
 ) -> Option<T> {
-    targets::values(goal).find_map(|target| {
-        frontier::definition_words(context, semantic_axioms, definitions, root)
-            .into_iter()
-            .find_map(|definition_axioms| {
+    let mut targets = targets::values(goal);
+    let first_target = targets.next()?;
+    let definition_words = frontier::definition_words(context, semantic_axioms, definitions, root);
+    std::iter::once(first_target)
+        .chain(targets)
+        .find_map(|target| {
+            definition_words.iter().find_map(|definition_axioms| {
                 complete(IntegerAffineWitness {
                     root: root.clone(),
                     target: target.clone(),
-                    definition_axioms,
+                    definition_axioms: definition_axioms.clone(),
                 })
             })
-    })
+        })
 }

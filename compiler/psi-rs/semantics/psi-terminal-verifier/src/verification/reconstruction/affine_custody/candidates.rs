@@ -15,15 +15,18 @@ pub(super) fn any(
     root: &ScalarTerm,
     mut complete: impl FnMut(IntegerAffineWitness) -> bool,
 ) -> bool {
-    targets::values(goal).any(|target| {
-        frontier::definition_words(context, semantic_axioms, definitions, root)
-            .into_iter()
-            .any(|definition_axioms| {
-                complete(IntegerAffineWitness {
-                    root: root.clone(),
-                    target: target.clone(),
-                    definition_axioms,
-                })
+    let mut targets = targets::values(goal);
+    let Some(first_target) = targets.next() else {
+        return false;
+    };
+    let definition_words = frontier::definition_words(context, semantic_axioms, definitions, root);
+    std::iter::once(first_target).chain(targets).any(|target| {
+        definition_words.iter().any(|definition_axioms| {
+            complete(IntegerAffineWitness {
+                root: root.clone(),
+                target: target.clone(),
+                definition_axioms: definition_axioms.clone(),
             })
+        })
     })
 }
