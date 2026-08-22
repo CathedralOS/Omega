@@ -30,7 +30,7 @@ command -v python3 >/dev/null 2>&1 || { echo "refinement: skipped (python3 absen
 . seed_env.sh
 SEED=$ALPHA_SEED
 ASM="${OMEGA_PATH_ALPHA_ASSEMBLER}"/$BETA_SEED
-( cd "${OMEGA_PATH_BETA_RUST}" && sh build.sh "${OMEGA_PATH_BETA_LANGUAGE}"/bc.beta >/dev/null 2>&1 ) || { echo "refinement: bc build failed"; exit 1; }
+( cd "${OMEGA_PATH_BETA_RUST}" && sh build.sh "${OMEGA_PATH_BETA}"/bc.beta >/dev/null 2>&1 ) || { echo "refinement: bc build failed"; exit 1; }
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 "${OMEGA_PATH_BETA_RUST}"/build/bc.exe < "${OMEGA_PATH_PROOF_KERNEL}"/check.beta > "$T/c.asm" 2>/dev/null && "$ASM" < "$T/c.asm" > "$T/c.tape" 2>/dev/null \
   && stamp_seed "$T/c.tape" "$SEED" "$T/check.exe" >/dev/null 2>&1 || { echo "refinement: check.beta build failed"; exit 1; }

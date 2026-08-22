@@ -27,7 +27,7 @@ command -v cargo   >/dev/null 2>&1 || { echo "io exhaust: skipped (no cargo for 
 SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
 ASM="${OMEGA_PATH_BETA_ASSEMBLER}"/$BETA_SEED
 BC="${OMEGA_PATH_BETA_RUST}"/build/bc.exe
-( cd "${OMEGA_PATH_BETA_RUST}" && sh build.sh "${OMEGA_PATH_BETA_LANGUAGE}"/bc.beta >/dev/null 2>&1 ) || { echo "io exhaust: bc build failed"; exit 1; }
+( cd "${OMEGA_PATH_BETA_RUST}" && sh build.sh "${OMEGA_PATH_BETA}"/bc.beta >/dev/null 2>&1 ) || { echo "io exhaust: bc build failed"; exit 1; }
 [ -x "$BC" ] && [ -x "$ASM" ] || { echo "io exhaust: skipped (bc/assembler missing)"; exit 0; }
 
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT

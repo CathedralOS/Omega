@@ -22,7 +22,7 @@ the implementation small.
 
 Beta compiles structurally to Alpha assembly, which the Alpha assembler lowers
 to a tape governed by Alpha's written semantics. The steady-state compiler is
-`compiler/beta-lang/bc.beta`, written in Beta and self-hosted to a byte-identical
+`bootstrap/rungs/beta/bc.beta`, written in Beta and self-hosted to a byte-identical
 fixed point. The first compiler was cold-started by `beta-lang-rs`; the current
 artifact still needs complete lower-rooted validation against `bc.beta`. A fixed
 point proves deterministic dependency closure, not compiler correctness or
@@ -44,14 +44,14 @@ memory.
 ## Current repository reality
 
 - `bootstrap/rungs/alpha/assembler/assembler.alpha` — self-hosting Alpha assembler;
-- `compiler/beta-lang/bc.beta` — self-hosting Beta compiler;
+- `bootstrap/rungs/beta/bc.beta` — self-hosting Beta compiler;
 - `compiler/beta-lang-rs/` — retained Rust cold-start/reference producer;
 - `compiler/beta-lang-py/` — historical mixed Python reference/refinement tools;
-- `compiler/beta-lang/CALLING_CONVENTION.md` — Beta's frame and register
+- `bootstrap/rungs/beta/CALLING_CONVENTION.md` — Beta's frame and register
   discipline over Alpha;
-- `compiler/beta-lang/LANGUAGE.md` — current Beta surface.
+- `bootstrap/rungs/beta/LANGUAGE.md` — current Beta surface.
 
-`compiler/beta-lang/selfhost.sh` and `test.sh` gate the fixed point and language
+`bootstrap/rungs/beta/selfhost.sh` and `test.sh` gate the fixed point and language
 behavior. The legacy Python compiler-comparison script is optional diagnostic
 scaffolding, not a principal lattice gate.
 

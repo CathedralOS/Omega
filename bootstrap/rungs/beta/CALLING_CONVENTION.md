@@ -76,13 +76,13 @@ before the call and reloaded after.
 Three hand-written examples exercise the convention end-to-end (assembled by
 the Alpha assembler, then run on the Alpha seed):
 
-- [`factorial.alpha`](../../bootstrap/rungs/alpha/assembler/examples/factorial.alpha) — single recursion;
+- [`factorial.alpha`](../alpha/assembler/examples/factorial.alpha) — single recursion;
   `factorial(5)` exits **120**. The frame holds one slot: `n`, saved across the
   recursive call.
-- [`fib.alpha`](../../bootstrap/rungs/alpha/assembler/examples/fib.alpha) — **tree** recursion (two recursive
+- [`fib.alpha`](../alpha/assembler/examples/fib.alpha) — **tree** recursion (two recursive
   calls per frame); `fib(10)` exits **55**. The frame holds two slots and never
   relies on a register surviving a call.
-- [`gcd.alpha`](../../bootstrap/rungs/alpha/assembler/examples/gcd.alpha) — **two parameters** (`r0`, `r1`) and
+- [`gcd.alpha`](../alpha/assembler/examples/gcd.alpha) — **two parameters** (`r0`, `r1`) and
   a **tail call that needs no frame**; `gcd(48, 36)` exits **12**. Shows the
   leaf/tail case where a procedure skips the frame entirely.
 

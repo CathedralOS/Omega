@@ -1,5 +1,5 @@
 #!/usr/bin/env sh
-# Pin the canonical Alpha ownership paths and their temporary legacy aliases.
+# Pin canonical rung ownership paths and their temporary legacy aliases.
 set -eu
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
@@ -21,15 +21,23 @@ physical_dir() {
   fail "Alpha assembler owner is $OMEGA_PATH_ALPHA_ASSEMBLER"
 [ "$OMEGA_PATH_BETA_ASSEMBLER" = "$OMEGA_PATH_ALPHA_ASSEMBLER" ] ||
   fail "historical assembler variable does not resolve to the Alpha owner"
+[ "$OMEGA_PATH_BETA" = "$OMEGA_REPO_ROOT/bootstrap/rungs/beta" ] ||
+  fail "Beta owner is $OMEGA_PATH_BETA"
+[ "$OMEGA_PATH_BETA_LANGUAGE" = "$OMEGA_PATH_BETA" ] ||
+  fail "historical Beta language variable does not resolve to the Beta owner"
 
 [ -L "$OMEGA_REPO_ROOT/compiler/alpha" ] ||
   fail "compiler/alpha is not a temporary compatibility symlink"
 [ -L "$OMEGA_REPO_ROOT/compiler/beta" ] ||
   fail "compiler/beta is not a temporary compatibility symlink"
+[ -L "$OMEGA_REPO_ROOT/compiler/beta-lang" ] ||
+  fail "compiler/beta-lang is not a temporary compatibility symlink"
 [ "$(physical_dir "$OMEGA_REPO_ROOT/compiler/alpha")" = "$(physical_dir "$OMEGA_PATH_ALPHA")" ] ||
   fail "compiler/alpha does not resolve to the Alpha owner"
 [ "$(physical_dir "$OMEGA_REPO_ROOT/compiler/beta")" = "$(physical_dir "$OMEGA_PATH_ALPHA_ASSEMBLER")" ] ||
   fail "compiler/beta does not resolve to the Alpha assembler owner"
+[ "$(physical_dir "$OMEGA_REPO_ROOT/compiler/beta-lang")" = "$(physical_dir "$OMEGA_PATH_BETA")" ] ||
+  fail "compiler/beta-lang does not resolve to the Beta owner"
 
 [ "$(omega_bootstrap_path alpha)" = "$OMEGA_PATH_ALPHA" ] ||
   fail "alpha role lookup disagrees with the manifest"
@@ -37,7 +45,9 @@ physical_dir() {
   fail "alpha-assembler role lookup disagrees with the manifest"
 [ "$(omega_bootstrap_path beta-assembler)" = "$OMEGA_PATH_ALPHA_ASSEMBLER" ] ||
   fail "beta-assembler compatibility role lookup disagrees with the manifest"
-[ "$(omega_bootstrap_path beta)" = "$OMEGA_PATH_ALPHA_ASSEMBLER" ] ||
-  fail "beta compatibility role lookup disagrees with the manifest"
+[ "$(omega_bootstrap_path beta)" = "$OMEGA_PATH_BETA" ] ||
+  fail "beta role lookup disagrees with the manifest"
+[ "$(omega_bootstrap_path beta-lang)" = "$OMEGA_PATH_BETA" ] ||
+  fail "beta-lang compatibility role lookup disagrees with the manifest"
 
-echo "bootstrap paths OK — Alpha and its assembler are owned by bootstrap/rungs/alpha"
+echo "bootstrap paths OK — Alpha and Beta are owned by bootstrap/rungs"

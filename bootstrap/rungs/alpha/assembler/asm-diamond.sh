@@ -44,7 +44,7 @@ for ex in examples/*.alpha; do [ -f "$ex" ] && cmp_asm "example $(basename "$ex"
 
 # real bc-compiled programs — exercise every opcode + labels + comparisons + memory + I/O + db strings
 if command -v cargo >/dev/null 2>&1; then
-  ( cd "${OMEGA_PATH_BETA_RUST}" && sh build.sh "${OMEGA_PATH_BETA_LANGUAGE}"/bc.beta >/dev/null 2>&1 ) || true
+  ( cd "${OMEGA_PATH_BETA_RUST}" && sh build.sh "${OMEGA_PATH_BETA}"/bc.beta >/dev/null 2>&1 ) || true
 fi
 if [ -x "$BC" ]; then
   gen() { printf '%s\n' "$2" | "$BC" > "$T/$1.asm" 2>/dev/null && cmp_asm "bc: $1" "$T/$1.asm"; }

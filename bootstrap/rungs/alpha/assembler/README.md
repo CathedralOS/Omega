@@ -5,7 +5,7 @@ seed runs. It is **written in Alpha** (`assembler.alpha`), so it belongs to the 
 The compatibility path and committed executable retain historical `beta` names;
 canonical gates call this role `alpha-assembler`.
 (The **Beta language** — the first structured language, one tier up — lives in
-`../../../../compiler/beta-lang/` and is compiled by `bc`.) The assembler reads human mnemonics directly
+`../../beta/` and is compiled by `bc`.) The assembler reads human mnemonics directly
 (opcode names, `rN` registers, decimal immediates, labels, commas as whitespace), with no
 Rust and no numeric-opcode step in normal use.
 

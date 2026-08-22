@@ -22,7 +22,10 @@ fi
 # Historical compatibility name.  The assembler is an Alpha-tier tool; new
 # plumbing should use OMEGA_PATH_ALPHA_ASSEMBLER / the alpha-assembler role.
 : "${OMEGA_PATH_BETA_ASSEMBLER:=$OMEGA_PATH_ALPHA_ASSEMBLER}"
-: "${OMEGA_PATH_BETA_LANGUAGE:=$OMEGA_PATH_COMPILER_ROOT/beta-lang}"
+: "${OMEGA_PATH_BETA:=${OMEGA_PATH_BETA_LANGUAGE:-$OMEGA_PATH_RUNGS_ROOT/beta}}"
+# Historical compatibility name.  New plumbing should use OMEGA_PATH_BETA /
+# the beta role for the language and its self-hosting compiler.
+: "${OMEGA_PATH_BETA_LANGUAGE:=$OMEGA_PATH_BETA}"
 : "${OMEGA_PATH_BETA_RUST:=$OMEGA_PATH_COMPILER_ROOT/beta-lang-rs}"
 : "${OMEGA_PATH_BETA_REFERENCE:=$OMEGA_PATH_COMPILER_ROOT/beta-lang-py}"
 : "${OMEGA_PATH_GAMMA:=$OMEGA_PATH_COMPILER_ROOT/gamma}"
@@ -36,7 +39,7 @@ fi
 
 export OMEGA_REPO_ROOT OMEGA_PATH_COMPILER_ROOT OMEGA_PATH_BOOTSTRAP_ROOT
 export OMEGA_PATH_RUNGS_ROOT OMEGA_PATH_ALPHA OMEGA_PATH_ALPHA_ASSEMBLER
-export OMEGA_PATH_BETA_ASSEMBLER OMEGA_PATH_BETA_LANGUAGE
+export OMEGA_PATH_BETA_ASSEMBLER OMEGA_PATH_BETA OMEGA_PATH_BETA_LANGUAGE
 export OMEGA_PATH_BETA_RUST OMEGA_PATH_BETA_REFERENCE OMEGA_PATH_GAMMA
 export OMEGA_PATH_DELTA OMEGA_PATH_DELTA_RUST OMEGA_PATH_PROOF_KERNEL
 export OMEGA_PATH_OMEGA0 OMEGA_PATH_CORPUS
@@ -51,7 +54,7 @@ omega_bootstrap_path() {
     alpha) printf '%s\n' "$OMEGA_PATH_ALPHA" ;;
     alpha-assembler) printf '%s\n' "$OMEGA_PATH_ALPHA_ASSEMBLER" ;;
     beta-assembler) printf '%s\n' "$OMEGA_PATH_BETA_ASSEMBLER" ;;
-    beta) printf '%s\n' "$OMEGA_PATH_BETA_ASSEMBLER" ;;
+    beta) printf '%s\n' "$OMEGA_PATH_BETA" ;;
     beta-lang) printf '%s\n' "$OMEGA_PATH_BETA_LANGUAGE" ;;
     beta-lang-rs) printf '%s\n' "$OMEGA_PATH_BETA_RUST" ;;
     beta-lang-py) printf '%s\n' "$OMEGA_PATH_BETA_REFERENCE" ;;

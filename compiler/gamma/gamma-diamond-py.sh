@@ -28,7 +28,7 @@ command -v python3 >/dev/null 2>&1 || { echo "gamma diamond (py): skipped (pytho
 . "${OMEGA_PATH_ALPHA}"/seed_env.sh
 SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
 ASM="${OMEGA_PATH_BETA_ASSEMBLER}"/$BETA_SEED
-( cd "${OMEGA_PATH_BETA_RUST}" && sh build.sh "${OMEGA_PATH_BETA_LANGUAGE}"/bc.beta >/dev/null 2>&1 ) || { echo "gamma diamond (py): bc build failed"; exit 1; }
+( cd "${OMEGA_PATH_BETA_RUST}" && sh build.sh "${OMEGA_PATH_BETA}"/bc.beta >/dev/null 2>&1 ) || { echo "gamma diamond (py): bc build failed"; exit 1; }
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 "${OMEGA_PATH_BETA_RUST}"/build/bc.exe < interp.beta > "$T/g.asm" 2>/dev/null && "$ASM" < "$T/g.asm" > "$T/g.tape" 2>/dev/null \
   && stamp_seed "$T/g.tape" "$SEED" "$T/g.exe" >/dev/null 2>&1 || { echo "gamma diamond (py): interp build failed"; exit 1; }

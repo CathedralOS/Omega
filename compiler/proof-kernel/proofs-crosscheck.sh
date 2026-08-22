@@ -35,7 +35,7 @@ command -v python3 >/dev/null 2>&1 || { echo "proofs-crosscheck: skipped (python
 SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
 ASM="${OMEGA_PATH_BETA_ASSEMBLER}"/$BETA_SEED
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
-( cd "${OMEGA_PATH_BETA_RUST}" && sh build.sh "${OMEGA_PATH_BETA_LANGUAGE}"/bc.beta >/dev/null 2>&1 ) || { echo "proofs-crosscheck: bc build failed"; exit 1; }
+( cd "${OMEGA_PATH_BETA_RUST}" && sh build.sh "${OMEGA_PATH_BETA}"/bc.beta >/dev/null 2>&1 ) || { echo "proofs-crosscheck: bc build failed"; exit 1; }
 bcc() { "${OMEGA_PATH_BETA_RUST}"/build/bc.exe < "$1" > "$T/a.asm" 2>/dev/null && "$ASM" < "$T/a.asm" > "$T/a.tape" 2>/dev/null && stamp_seed "$T/a.tape" "$SEED" "$2" >/dev/null 2>&1; }
 bcc check.beta "$T/check.exe"          || { echo "proofs-crosscheck: check.beta build failed"; exit 1; }
 bcc "${OMEGA_PATH_GAMMA}"/interp.beta "$T/interp.exe" || { echo "proofs-crosscheck: interp.beta build failed"; exit 1; }

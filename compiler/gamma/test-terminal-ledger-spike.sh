@@ -28,7 +28,7 @@ FIXTURES="${OMEGA_PATH_PSI_PRODUCT}"/semantics/psi-terminal-codec/tests/fixtures
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
 
-( cd "${OMEGA_PATH_BETA_RUST}" && sh build.sh "${OMEGA_PATH_BETA_LANGUAGE}"/bc.beta >/dev/null ) || {
+( cd "${OMEGA_PATH_BETA_RUST}" && sh build.sh "${OMEGA_PATH_BETA}"/bc.beta >/dev/null ) || {
   echo "terminal ledger spike: bc build failed" >&2
   exit 1
 }
