@@ -25,7 +25,7 @@ use wire::{Reader, Writer};
 
 const MAGIC: &[u8; 8] = b"PSIPRF\0\0";
 /// Single current pre-release proof vocabulary marker.
-const FORMAT_MARKER: u16 = 18;
+const FORMAT_MARKER: u16 = 19;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-proof-bundle-fingerprint\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
@@ -330,6 +330,19 @@ fn encode_proof_node(
             )?;
             for &index in &witness.definition_axioms {
                 writer.index("integer affine definition axiom", index)?;
+            }
+            writer.len(
+                "integer affine literal axioms",
+                witness.literal_axioms.len(),
+            )?;
+            for &index in &witness.literal_axioms {
+                match index {
+                    None => writer.u8(0),
+                    Some(index) => {
+                        writer.u8(1);
+                        writer.index("integer affine literal axiom", index)?;
+                    }
+                }
             }
         }
         ProofRule::IntegerCastBound {
@@ -1131,12 +1144,22 @@ fn decode_proof_node(
             for _ in 0..definition_count {
                 definition_axioms.push(reader.index()?);
             }
+            let literal_count = reader.count()?;
+            let mut literal_axioms = Vec::new();
+            for _ in 0..literal_count {
+                literal_axioms.push(match reader.u8()? {
+                    0 => None,
+                    1 => Some(reader.index()?),
+                    tag => return Err(ProofCodecError::UnknownIntegerAffineLiteralTag(tag)),
+                });
+            }
             ProofRule::IntegerAffineBound {
                 root_bound,
                 witness: IntegerAffineWitness {
                     root,
                     target,
                     definition_axioms,
+                    literal_axioms,
                 },
             }
         }
@@ -1613,6 +1636,7 @@ pub enum ProofCodecError {
     InvalidMagic,
     UnsupportedFormatMarker(u16),
     UnsupportedProofSystemMarker(u16),
+    UnknownIntegerAffineLiteralTag(u8),
     UnexpectedEnd,
     TrailingBytes(usize),
     InvalidBoolean(u8),

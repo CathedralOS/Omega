@@ -22,9 +22,17 @@ pub(super) fn find<T>(
         .chain(targets)
         .find_map(|target| {
             definition_words.iter().find_map(|definition_axioms| {
+                let literal_axioms = frontier::literal_axioms(
+                    context,
+                    semantic_axioms,
+                    root,
+                    definition_axioms,
+                    target,
+                )?;
                 complete(IntegerAffineWitness {
                     root: root.clone(),
                     target: target.clone(),
+                    literal_axioms,
                     definition_axioms: definition_axioms.clone(),
                 })
             })
