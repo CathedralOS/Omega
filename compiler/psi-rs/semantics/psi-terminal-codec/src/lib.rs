@@ -13,6 +13,7 @@ mod proof_bundle;
 mod provider_candidate_wire;
 mod scalar_wire;
 mod structural_field_wire;
+mod structural_signature_wire;
 mod structural_type_wire;
 mod trust_graph;
 mod wire;
@@ -52,23 +53,22 @@ use psi_core::{
     ServiceId, StructuralCaseSubject, StructuralPlaceKind, StructuralTypeId,
 };
 use psi_terminal::{
-    Block, BoundaryMachineDeclaration, ClaimTransfer, ClosedConformanceApplication,
-    ClosedConformanceParameterBinding, ClosedConformanceParameterKind, ClosedConformanceRow,
-    CompletionReceipt, ContractClause, CrashCause, CrashPredicateTerm, CrashRouteBucket,
-    CrashRouteGuard, EntryClaim, EvidenceContractLane, EvidenceContractLaneKind,
-    EvidenceInterfaceIdentity, EvidencePackageInvocation, EvidencePackageOutputBinding,
-    EvidencePackageRuntimeCall, EvidenceTermDeclaration, FloatMeaningEqualityProposition,
-    FloatMeaningProjection, FloatMeaningProjectionOperation, FloatProjectionInput,
-    FloatProjectionInputId, MachineContract, NominalAffineCleanup, Operation, OperationKind,
-    OperationResult, ProofOnlyValueType, ProofPropositionId, ProofValueDeclaration, ProofValueId,
-    PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
-    PropositionBinderArgumentKind, PropositionBinderDeclaration, PropositionBinderKind,
-    PropositionDeclaration, PropositionEvidence, ServiceDeclaration, StructuralAffineDiscard,
-    StructuralArgument, StructuralDomainDeclaration, StructuralDomainRequirement,
-    StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
-    StructuralPathSegment, StructuralPlaceDeclaration, StructuralResultDeclaration,
-    StructuralTypeShape, SuccessorEdge, TerminalAffineCleanupAction, TerminalMachine,
-    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
+    Block, ClaimTransfer, ClosedConformanceApplication, ClosedConformanceParameterBinding,
+    ClosedConformanceParameterKind, ClosedConformanceRow, CompletionReceipt, ContractClause,
+    CrashCause, CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard, EntryClaim,
+    EvidenceContractLane, EvidenceContractLaneKind, EvidenceInterfaceIdentity,
+    EvidencePackageInvocation, EvidencePackageOutputBinding, EvidencePackageRuntimeCall,
+    EvidenceTermDeclaration, FloatMeaningEqualityProposition, FloatMeaningProjection,
+    FloatMeaningProjectionOperation, FloatProjectionInput, FloatProjectionInputId, MachineContract,
+    NominalAffineCleanup, Operation, OperationKind, OperationResult, ProofOnlyValueType,
+    ProofPropositionId, ProofValueDeclaration, ProofValueId, PropositionApplicationIdentity,
+    PropositionBinderArgumentIdentity, PropositionBinderArgumentKind, PropositionBinderDeclaration,
+    PropositionBinderKind, PropositionDeclaration, PropositionEvidence, ServiceDeclaration,
+    StructuralAffineDiscard, StructuralArgument, StructuralDomainDeclaration, StructuralFieldType,
+    StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
+    StructuralPlaceDeclaration, StructuralResultDeclaration, StructuralTypeShape, SuccessorEdge,
+    TerminalAffineCleanupAction, TerminalMachine, TerminalMachineResult, TerminalModule,
+    Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_verifier::{ModuleError, validate_module_representation};
 use scalar_wire::{
@@ -82,6 +82,10 @@ use structural_field_wire::{
     decode_ieee_float_comparison_kind, decode_ieee_float_field, decode_ieee_float_format,
     encode_byte_sequence_field, encode_canonical_structural_field,
     encode_ieee_float_comparison_kind, encode_ieee_float_field, encode_ieee_float_format,
+};
+use structural_signature_wire::{
+    decode_boundary_machine, decode_structural_parameters, encode_boundary_machine,
+    encode_service_ceiling, encode_structural_parameters,
 };
 use structural_type_wire::{decode_structural_type, encode_structural_type};
 use wire::{Reader, Writer};
@@ -1761,63 +1765,6 @@ fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError> {
     Ok(writer.finish())
 }
 
-fn encode_boundary_machine(
-    writer: &mut Writer,
-    declaration: &BoundaryMachineDeclaration,
-) -> Result<(), CodecError> {
-    writer.id(declaration.id);
-    writer.string("boundary machine identity", &declaration.identity)?;
-    encode_optional_id(writer, declaration.attachment);
-    encode_structural_parameters(writer, &declaration.structural_parameters)?;
-    writer.boolean(declaration.result.is_some());
-    if let Some(result) = declaration.result {
-        encode_scalar_type(writer, result);
-    }
-    writer.len(
-        "boundary structural requirements",
-        declaration.requires.len(),
-    )?;
-    for requirement in &declaration.requires {
-        writer.u32(requirement.argument_index);
-        writer.id(requirement.domain);
-    }
-    encode_service_ceiling(writer, &declaration.published_service_ceiling)
-}
-
-fn encode_structural_parameters(
-    writer: &mut Writer,
-    parameters: &[StructuralParameterDeclaration],
-) -> Result<(), CodecError> {
-    writer.len("structural parameters", parameters.len())?;
-    for parameter in parameters {
-        writer.id(parameter.place);
-        writer.u32(parameter.position);
-        writer.u8(u8::from(parameter.is_self));
-        writer.id(parameter.structural_type);
-        writer.u8(match parameter.multiplicity {
-            StructuralMultiplicity::Unrestricted => 1,
-            StructuralMultiplicity::Affine => 2,
-            StructuralMultiplicity::Linear => 3,
-        });
-        writer.len(
-            "structural parameter qualifications",
-            parameter.qualifications.len(),
-        )?;
-        for qualification in &parameter.qualifications {
-            writer.id(*qualification);
-        }
-    }
-    Ok(())
-}
-
-fn encode_service_ceiling(writer: &mut Writer, services: &[ServiceId]) -> Result<(), CodecError> {
-    writer.len("published service ceiling", services.len())?;
-    for service in services {
-        writer.id(*service);
-    }
-    Ok(())
-}
-
 fn encode_optional_id<I: PsiSemanticId>(writer: &mut Writer, id: Option<I>) {
     match id {
         None => writer.u8(0),
@@ -3303,53 +3250,6 @@ fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModule, CodecEr
         evidence_package_invocations,
         closed_conformance_applications,
         machines,
-    })
-}
-
-fn decode_boundary_machine(
-    reader: &mut Reader<'_>,
-) -> Result<BoundaryMachineDeclaration, CodecError> {
-    Ok(BoundaryMachineDeclaration {
-        id: reader.id("BoundaryMachineId")?,
-        identity: reader.string("boundary machine identity")?,
-        attachment: decode_optional_id(reader, "StructuralTypeId")?,
-        structural_parameters: decode_structural_parameters(reader)?,
-        result: reader
-            .boolean()?
-            .then(|| decode_scalar_type(reader))
-            .transpose()?,
-        requires: decode_counted(reader, |reader| {
-            Ok(StructuralDomainRequirement {
-                argument_index: reader.u32()?,
-                domain: reader.id("StructuralDomainId")?,
-            })
-        })?,
-        published_service_ceiling: decode_ids(reader, "ServiceId")?,
-    })
-}
-
-fn decode_structural_parameters(
-    reader: &mut Reader<'_>,
-) -> Result<Vec<StructuralParameterDeclaration>, CodecError> {
-    decode_counted(reader, |reader| {
-        let place = reader.id("PlaceId")?;
-        let position = reader.u32()?;
-        let is_self = reader.boolean()?;
-        let structural_type = reader.id("StructuralTypeId")?;
-        let multiplicity = match reader.u8()? {
-            1 => StructuralMultiplicity::Unrestricted,
-            2 => StructuralMultiplicity::Affine,
-            3 => StructuralMultiplicity::Linear,
-            tag => return Err(CodecError::InvalidTag("StructuralMultiplicity", tag)),
-        };
-        Ok(StructuralParameterDeclaration {
-            place,
-            position,
-            is_self,
-            structural_type,
-            multiplicity,
-            qualifications: decode_ids(reader, "StructuralDomainId")?,
-        })
     })
 }
 
