@@ -640,8 +640,19 @@ checks. Missing or ambiguous cast sources, late affine definitions or literal
 landings, unrepresentable endpoints, and either failed checker reject. The
 existing direct/literal/fixed-alias cast precedence is unchanged, and no new
 rule or proof-bundle-v19 field is introduced. This does not promote either
-whole row: shift/cast, joins, correlated results, and all other affine/cast
-shapes remain trusted-reducer work; `fully-derived false` is unchanged.
+whole row. The bounded dual accepts one directly cited same-carrier source
+bound, a unique nonempty partial-cast spine, and one later finite affine word.
+Producer selection remaps the cited literal into the cast target, constructs
+`IntegerCastBound` from that exact assumption, and completes
+`IntegerAffineBound` only when every affine definition and optional literal
+landing is strictly after the final cast. Reconstruction independently repeats
+the same direct-bound, cast, remap, affine, and strict-boundary checks. Existing
+affine families retain precedence. Missing direct custody, ambiguous cast
+spines, unrepresentable endpoints, and affine definitions or landings at or
+before the last cast reject. Its proof is exactly
+`IntegerAffineBound(IntegerCastBound(Assumption))`, with no new rule or v19
+field. Shift/cast, joins, correlated results, and all other affine/cast shapes
+remain trusted-reducer work; `fully-derived false` is unchanged.
 
 The root-bound child may also come from exactly one retained same-carrier
 `root == literal` fact when that literal equals or strengthens the canonical

@@ -4,7 +4,7 @@ use psi_core::{Proposition, PropositionContext};
 use psi_proof_kernel::ProofNode;
 
 use super::super::affine_custody::DefinitionIndex;
-use super::{alias, direct, literal, transitive};
+use super::{alias, cast, direct, literal, transitive};
 
 pub(super) fn prove(
     context: &PropositionContext,
@@ -43,4 +43,5 @@ pub(super) fn prove(
             )
         })
         .or_else(|| alias::prove_two(context, goal, assumptions, semantic_axioms, definitions))
+        .or_else(|| cast::prove(context, goal, assumptions, semantic_axioms, definitions))
 }

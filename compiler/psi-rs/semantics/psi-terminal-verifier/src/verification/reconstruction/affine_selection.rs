@@ -6,6 +6,7 @@ use super::affine_custody::DefinitionIndex;
 
 mod alias;
 mod bounds;
+mod cast;
 mod direct;
 mod dispatch;
 mod equalities;

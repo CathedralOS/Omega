@@ -1182,6 +1182,61 @@ fn exact_division_reconstructs_landed_affine_source_through_partial_cast() {
 }
 
 #[test]
+fn exact_division_reconstructs_direct_partial_cast_into_landed_affine_suffix() {
+    let i8_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+    let i16_type = IntegerType::new(IntegerSign::Signed, 16).expect("i16");
+    let context = PropositionContext::from_value_types([
+        (ValueId::new(1).unwrap(), ScalarType::Integer(i8_type)),
+        (ValueId::new(2).unwrap(), ScalarType::Integer(i8_type)),
+        (ValueId::new(3).unwrap(), ScalarType::Integer(i16_type)),
+        (ValueId::new(4).unwrap(), ScalarType::Integer(i8_type)),
+        (ValueId::new(5).unwrap(), ScalarType::Integer(i8_type)),
+    ])
+    .expect("mixed post-cast context");
+    let goal = CanonicalScalarGoal::ExactDivisionDefined {
+        integer_type: i8_type,
+        left: value(1, i8_type),
+        right: value(2, i8_type),
+    };
+    let root_bound = Proposition::LessOrEqual(
+        ScalarTerm::integer(i16_type, IntegerValue::Signed(0)).expect("i16 zero"),
+        value(3, i16_type),
+    );
+    let cast = Proposition::Equal(
+        value(4, i8_type),
+        ScalarTerm::integer_exact_cast(i16_type, i8_type, value(3, i16_type)).expect("exact cast"),
+    );
+    let landing = Proposition::Equal(
+        value(5, i8_type),
+        ScalarTerm::integer(i8_type, IntegerValue::Signed(1)).expect("i8 one"),
+    );
+    let affine = Proposition::Equal(
+        value(2, i8_type),
+        ScalarTerm::exact_integer_add(i8_type, value(4, i8_type), value(5, i8_type))
+            .expect("exact add"),
+    );
+
+    assert!(exact_division_has_prior_certificate(
+        &context,
+        &goal,
+        &[cast.clone(), landing.clone(), affine.clone()],
+        std::slice::from_ref(&root_bound),
+    ));
+    assert!(!exact_division_has_prior_certificate(
+        &context,
+        &goal,
+        &[cast.clone(), landing.clone(), affine.clone()],
+        &[],
+    ));
+    assert!(!exact_division_has_prior_certificate(
+        &context,
+        &goal,
+        &[landing, affine, cast],
+        std::slice::from_ref(&root_bound),
+    ));
+}
+
+#[test]
 fn exact_division_selects_stronger_affine_endpoint_bounds() {
     let signed = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
     let context = PropositionContext::from_value_types((1..=3).map(|id| {

@@ -3,7 +3,7 @@
 use psi_core::{Proposition, PropositionContext};
 
 use super::super::affine_custody::DefinitionIndex;
-use super::{alias, direct, literal, transitive};
+use super::{alias, cast, direct, literal, transitive};
 
 pub(super) fn retained(
     context: &PropositionContext,
@@ -36,4 +36,5 @@ pub(super) fn retained(
             definitions,
         )
         || alias::retained_two(context, goal, requirements, semantic_axioms, definitions)
+        || cast::retained(context, goal, requirements, semantic_axioms, definitions)
 }
