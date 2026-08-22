@@ -2383,6 +2383,14 @@ enum PlacementAuthorityRef<'view, 'extent> {
 }
 
 impl PlacementAuthorityRef<'_, '_> {
+    const fn base(self) -> u64 {
+        match self {
+            Self::Borrowed(loan) => loan.base(),
+            Self::BorrowedResident(established) => established.base(),
+            Self::EstablishedOwned(established) => established.extent().base(),
+        }
+    }
+
     const fn resident_claim(self) -> Option<ResidentClaimId> {
         match self {
             Self::Borrowed(_) => None,
@@ -2818,6 +2826,44 @@ impl PrimitiveAccessRequest<'_, '_> {
     pub const fn placed_occurrence(&self) -> Option<PlacedOccurrenceId> {
         self.placed_occurrence
     }
+
+    fn validate_effective_supply_binding(&self) -> Result<(), AccessPlanDiagnostic> {
+        if self.effective_supply.key != self.key
+            || self.effective_supply.field != self.field
+            || self.effective_supply.width_bits != self.transfer_width_bits
+        {
+            return Err(AccessPlanDiagnostic(
+                "primitive lowering requires the admitted supply key and width to match the sealed request, including its field identity"
+                    .into(),
+            ));
+        }
+
+        let expected_address = self
+            ._authority
+            .base()
+            .checked_add(self.effective_supply.offset)
+            .ok_or_else(|| {
+                AccessPlanDiagnostic(
+                    "primitive lowering supply offset overflows the retained authority base".into(),
+                )
+            })?;
+        if expected_address != self.primitive_address {
+            return Err(AccessPlanDiagnostic(
+                "primitive lowering requires the admitted supply offset to reproduce the sealed primitive address"
+                    .into(),
+            ));
+        }
+
+        let alignment = self.effective_supply.alignment_bytes;
+        if alignment == 0 || !alignment.is_power_of_two() || self.primitive_address % alignment != 0
+        {
+            return Err(AccessPlanDiagnostic(
+                "primitive lowering requires the admitted supply alignment to hold at the sealed primitive address"
+                    .into(),
+            ));
+        }
+        Ok(())
+    }
 }
 
 /// Operation subset accepted by ordinary Stable primitive lowering.
@@ -2925,6 +2971,12 @@ impl<'view, 'extent> PrimitiveAccessRequest<'view, 'extent> {
                 }
             }
         };
+        if let Err(diagnostic) = self.validate_effective_supply_binding() {
+            return Err(StablePrimitiveAccessRejection {
+                request: self,
+                diagnostic,
+            });
+        }
         Ok(StablePrimitiveAccessRequest {
             request: self,
             operation,
@@ -3008,15 +3060,10 @@ impl<'view, 'extent> PrimitiveAccessRequest<'view, 'extent> {
                 ),
             });
         }
-        if self.effective_supply.key() != self.key
-            || self.effective_supply.width_bits() != self.transfer_width_bits
-        {
+        if let Err(diagnostic) = self.validate_effective_supply_binding() {
             return Err(StableCompoundMutationAccessRejection {
                 request: self,
-                diagnostic: AccessPlanDiagnostic(
-                    "Stable compound mutation requires the admitted supply key and width to match the sealed request"
-                        .into(),
-                ),
+                diagnostic,
             });
         }
         if self.current_borrow != BorrowPolarity::Exclusive
@@ -3163,6 +3210,12 @@ impl<'view, 'extent> PrimitiveAccessRequest<'view, 'extent> {
                 ),
             });
         }
+        if let Err(diagnostic) = self.validate_effective_supply_binding() {
+            return Err(ExternalPrimitiveAccessRejection {
+                request: self,
+                diagnostic,
+            });
+        }
         Ok(ExternalPrimitiveAccessRequest {
             request: self,
             operation,
@@ -3255,15 +3308,10 @@ impl<'view, 'extent> PrimitiveAccessRequest<'view, 'extent> {
                 ),
             });
         }
-        if self.effective_supply.key() != self.key
-            || self.effective_supply.width_bits() != self.transfer_width_bits
-        {
+        if let Err(diagnostic) = self.validate_effective_supply_binding() {
             return Err(AtomicPrimitiveAccessRejection {
                 request: self,
-                diagnostic: AccessPlanDiagnostic(
-                    "Atomic lowering requires the admitted supply key and width to match the sealed request"
-                        .into(),
-                ),
+                diagnostic,
             });
         }
         let AccessOperation::Atomic(operation) = self.operation else {
@@ -5295,6 +5343,25 @@ mod tests {
         request
     }
 
+    fn expect_exact_stable_primitive_rejection<'view, 'extent>(
+        request: PrimitiveAccessRequest<'view, 'extent>,
+        diagnostic_fragment: &str,
+    ) -> PrimitiveAccessRequest<'view, 'extent> {
+        let before = primitive_request_snapshot(&request);
+        let rejection = request
+            .into_stable_primitive_access()
+            .expect_err("corrupt request must fail Stable primitive specialization");
+        assert!(
+            rejection.diagnostic().0.contains(diagnostic_fragment),
+            "unexpected Stable primitive rejection: {}",
+            rejection.diagnostic()
+        );
+        let (request, diagnostic) = rejection.into_parts();
+        assert!(diagnostic.0.contains(diagnostic_fragment));
+        assert_eq!(primitive_request_snapshot(&request), before);
+        request
+    }
+
     fn expect_exact_stable_compound_rejection<'view, 'extent>(
         request: PrimitiveAccessRequest<'view, 'extent>,
         diagnostic_fragment: &str,
@@ -5848,6 +5915,45 @@ mod tests {
     }
 
     #[test]
+    fn stable_primitive_specialization_replays_exact_supply_row_and_returns_custody() {
+        let (plan, established) = established_stable_word(0xad40, 168, 169, 171);
+        let projection = established
+            .project(field_key(plan.access(), "word"))
+            .expect("shared Stable projection");
+        let mut request = projection
+            .read()
+            .expect("authorized Stable read")
+            .into_primitive_request();
+
+        request.effective_supply.key.slot ^= 1;
+        request = expect_exact_stable_primitive_rejection(request, "supply key and width");
+        request.effective_supply.key = request.key;
+
+        request.effective_supply.field.push_str("_drift");
+        request = expect_exact_stable_primitive_rejection(request, "field identity");
+        request.effective_supply.field = request.field.clone();
+
+        request.effective_supply.width_bits = 64;
+        request = expect_exact_stable_primitive_rejection(request, "supply key and width");
+        request.effective_supply.width_bits = request.transfer_width_bits;
+
+        request.effective_supply.offset = 4;
+        request = expect_exact_stable_primitive_rejection(request, "supply offset");
+        request.effective_supply.offset = 0;
+
+        request.effective_supply.alignment_bytes = 0;
+        request = expect_exact_stable_primitive_rejection(request, "supply alignment");
+        request.effective_supply.alignment_bytes = 4;
+
+        request.primitive_address += 4;
+        let request = expect_exact_stable_primitive_rejection(request, "supply offset");
+        assert_eq!(request.admission().normalized_identity(), 171);
+        drop(request);
+        assert_eq!(established.validity_receipt().normalized_identity(), 169);
+        assert_eq!(established.custody_receipt().normalized_identity(), 170);
+    }
+
+    #[test]
     fn stable_compound_specialization_fails_closed_and_returns_exact_request() {
         let (plan, mut established) = established_stable_word(0xad80, 164, 165, 167);
         let mut projection = established
@@ -6027,6 +6133,16 @@ mod tests {
             .read()
             .expect("repeatable External read")
             .into_primitive_request();
+
+        request.effective_supply.field.push_str("_drift");
+        let field_drift = primitive_request_snapshot(&request);
+        let rejection = request
+            .into_external_primitive_access()
+            .expect_err("drifting supply field must not enter External lowering");
+        assert!(rejection.diagnostic().0.contains("field identity"));
+        let (mut request, _) = rejection.into_parts();
+        assert_eq!(primitive_request_snapshot(&request), field_drift);
+        request.effective_supply.field = request.field.clone();
 
         request.effective_supply.kind = EffectiveSupplyKind::Atomic;
         let atomic_supply = primitive_request_snapshot(&request);
