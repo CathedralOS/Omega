@@ -20,23 +20,19 @@ pub(super) fn find<'a, T>(
     ) -> Option<T>,
 ) -> Option<T> {
     let chains = TwoCitationChains::new(assumptions, semantic_axioms);
-    for (equality_citation, equality, root, alias) in
-        equalities::value_aliases(assumptions, semantic_axioms)
-    {
-        let result = chains.find(|left, right, left_proof, right_proof| {
-            complete(
-                root,
-                alias,
-                left,
-                right,
-                left_proof,
-                right_proof,
-                equality_citation.proof(equality),
-            )
-        });
-        if result.is_some() {
-            return result;
-        }
-    }
-    None
+    equalities::value_aliases(assumptions, semantic_axioms).find_map(
+        |(equality_citation, equality, root, alias)| {
+            chains.find(|left, right, left_proof, right_proof| {
+                complete(
+                    root,
+                    alias,
+                    left,
+                    right,
+                    left_proof,
+                    right_proof,
+                    equality_citation.proof(equality),
+                )
+            })
+        },
+    )
 }
