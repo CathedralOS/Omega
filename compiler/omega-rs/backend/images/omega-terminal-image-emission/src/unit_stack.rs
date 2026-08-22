@@ -240,6 +240,7 @@ pub(super) fn validate_complete_unit_stack_evidence(
     bytes: &[u8],
     function: TerminalUnitStackEvidence,
     calls: &[omega_terminal_machine_code::TerminalInternalCallRelocation],
+    inline_data: &[std::ops::Range<usize>],
 ) -> Result<(), TerminalObjectError> {
     let mut claimed = std::collections::BTreeMap::new();
     let mut claim_pair = |pair: TerminalStackAdjustmentPair| {
@@ -263,59 +264,66 @@ pub(super) fn validate_complete_unit_stack_evidence(
 
     match architecture {
         Architecture::X86_64 => {
-            let mut decoder =
-                iced_x86::Decoder::with_ip(64, bytes, 0, iced_x86::DecoderOptions::NONE);
             let mut info_factory = iced_x86::InstructionInfoFactory::new();
             let call_starts = calls
                 .iter()
                 .map(|call| call.offset.saturating_sub(1))
                 .collect::<std::collections::BTreeSet<_>>();
-            while decoder.can_decode() {
-                let instruction = decoder.decode();
-                let offset = usize::try_from(instruction.ip()).expect("function-relative x86 IP");
-                if instruction.is_invalid() {
-                    return Err(TerminalObjectError::InvalidUnitInstructionEncoding {
-                        machine,
-                        offset,
-                    });
-                }
-                if is_x86_64_rsp_adjustment(&instruction) {
-                    if claimed.remove(&offset) != Some(instruction.len()) {
-                        return Err(TerminalObjectError::UnclaimedUnitStackAdjustment {
+            for code in code_ranges(bytes.len(), inline_data) {
+                let mut decoder = iced_x86::Decoder::with_ip(
+                    64,
+                    &bytes[code.clone()],
+                    code.start as u64,
+                    iced_x86::DecoderOptions::NONE,
+                );
+                while decoder.can_decode() {
+                    let instruction = decoder.decode();
+                    let offset =
+                        usize::try_from(instruction.ip()).expect("function-relative x86 IP");
+                    if instruction.is_invalid() {
+                        return Err(TerminalObjectError::InvalidUnitInstructionEncoding {
                             machine,
                             offset,
                         });
                     }
-                    continue;
-                }
-                let info = info_factory.info(&instruction);
-                let writes_stack_pointer = info.used_registers().iter().any(|register| {
-                    matches!(
-                        register.register(),
-                        iced_x86::Register::RSP
-                            | iced_x86::Register::ESP
-                            | iced_x86::Register::SP
-                            | iced_x86::Register::SPL
-                    ) && matches!(
-                        register.access(),
-                        iced_x86::OpAccess::Write
-                            | iced_x86::OpAccess::CondWrite
-                            | iced_x86::OpAccess::ReadWrite
-                            | iced_x86::OpAccess::ReadCondWrite
-                    )
-                });
-                if writes_stack_pointer
-                    && !is_expected_x86_64_linkage_instruction(
-                        &instruction,
-                        offset,
-                        bytes.len(),
-                        &call_starts,
-                    )
-                {
-                    return Err(TerminalObjectError::UnclaimedUnitStackMutation {
-                        machine,
-                        offset,
+                    if is_x86_64_rsp_adjustment(&instruction) {
+                        if claimed.remove(&offset) != Some(instruction.len()) {
+                            return Err(TerminalObjectError::UnclaimedUnitStackAdjustment {
+                                machine,
+                                offset,
+                            });
+                        }
+                        continue;
+                    }
+                    let info = info_factory.info(&instruction);
+                    let writes_stack_pointer = info.used_registers().iter().any(|register| {
+                        matches!(
+                            register.register(),
+                            iced_x86::Register::RSP
+                                | iced_x86::Register::ESP
+                                | iced_x86::Register::SP
+                                | iced_x86::Register::SPL
+                        ) && matches!(
+                            register.access(),
+                            iced_x86::OpAccess::Write
+                                | iced_x86::OpAccess::CondWrite
+                                | iced_x86::OpAccess::ReadWrite
+                                | iced_x86::OpAccess::ReadCondWrite
+                        )
                     });
+                    if writes_stack_pointer
+                        && !is_expected_x86_64_linkage_instruction(
+                            &instruction,
+                            offset,
+                            bytes.len(),
+                            &call_starts,
+                        )
+                    {
+                        return Err(TerminalObjectError::UnclaimedUnitStackMutation {
+                            machine,
+                            offset,
+                        });
+                    }
                 }
             }
         }
@@ -327,6 +335,12 @@ pub(super) fn validate_complete_unit_stack_evidence(
                 });
             }
             for offset in (0..bytes.len()).step_by(4) {
+                if inline_data
+                    .iter()
+                    .any(|data| offset < data.end && data.start < offset + 4)
+                {
+                    continue;
+                }
                 if aarch64_stack_adjustment_at(bytes, offset) {
                     if claimed.remove(&offset) != Some(4) {
                         return Err(TerminalObjectError::UnclaimedUnitStackAdjustment {
@@ -346,6 +360,26 @@ pub(super) fn validate_complete_unit_stack_evidence(
         });
     }
     Ok(())
+}
+
+fn code_ranges(
+    byte_count: usize,
+    inline_data: &[std::ops::Range<usize>],
+) -> Vec<std::ops::Range<usize>> {
+    let mut data = inline_data.to_vec();
+    data.sort_unstable_by_key(|range| (range.start, range.end));
+    let mut code = Vec::new();
+    let mut cursor = 0;
+    for range in data {
+        if range.start > cursor {
+            code.push(cursor..range.start.min(byte_count));
+        }
+        cursor = cursor.max(range.end.min(byte_count));
+    }
+    if cursor < byte_count {
+        code.push(cursor..byte_count);
+    }
+    code
 }
 
 fn is_x86_64_rsp_adjustment(instruction: &iced_x86::Instruction) -> bool {

@@ -73,6 +73,23 @@ pub fn lower_to_target_operations_with_provider_executions(
     let bindings = settlements
         .iter()
         .map(|settlement| {
+            let declaration = plan
+                .boundary_machines
+                .iter()
+                .find(|candidate| candidate.id == settlement.boundary)
+                .ok_or(LoweringError::UnknownBoundarySettlement(
+                    settlement.boundary,
+                ))?;
+            if settlement.provider_execution.requirement_identity() != declaration.identity {
+                return Err(LoweringError::ProviderExecutionRequirementMismatch {
+                    boundary: settlement.boundary,
+                    expected: declaration.identity.clone(),
+                    actual: settlement
+                        .provider_execution
+                        .requirement_identity()
+                        .to_owned(),
+                });
+            }
             let provider_plan = omega_terminal_target_operations::TerminalProviderPlanIdentity::new(
                 settlement.provider_execution.provider_plan(),
             )
@@ -3994,6 +4011,11 @@ pub enum LoweringError {
     UnusedBoundarySettlement(BoundaryMachineId),
     BoundaryRealizationMismatch(BoundaryMachineId),
     ProviderExecutionBinding(String),
+    ProviderExecutionRequirementMismatch {
+        boundary: BoundaryMachineId,
+        expected: String,
+        actual: String,
+    },
     OperationAfterReturn(MachineId),
     FunctionHasNoReturn(MachineId),
     FunctionResultMismatch(MachineId),

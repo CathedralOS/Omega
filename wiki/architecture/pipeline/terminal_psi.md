@@ -96,6 +96,15 @@ The Psi interpreter follows a cataloged boundary only through that explicit
 private-field installation; absence fails closed instead of falling through to
 an external effect handler.
 
+Provider-backed O0 roots use a distinct later binding. Terminal Psi retains the
+authored attachment, erased provider field, bodyless boundary declarations, and
+exact field-to-boundary roots, but does not serialize a chosen native provider.
+Target lowering consumes separately admitted `ProviderExecution` values and
+requires each execution's canonical requirement identity to equal the exact
+boundary declaration before projecting any numeric execution record. The Linux
+`write_line` and `exit_process` realizations therefore cannot be swapped merely
+because both are effectful Unit boundaries.
+
 An installation-bound boundary requirement may publish
 `reaches <= Bound`. Terminal Psi retains a symbolic row keyed by that exact
 requirement identity, the normalized `+`-union bound, and every internal

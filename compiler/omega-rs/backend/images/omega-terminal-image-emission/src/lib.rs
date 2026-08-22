@@ -797,12 +797,31 @@ pub fn build_terminal_object_artifact(
             ));
         }
         if let Some(stack) = function.unit_stack {
+            let inline_data = function
+                .boundary_settlements
+                .iter()
+                .filter(|settlement| {
+                    linux_write_line_custody_is_exact(
+                        plan.target,
+                        settlement,
+                        Some(&function.bytes),
+                    )
+                })
+                .flat_map(|settlement| &settlement.byte_sequence_arguments)
+                .filter_map(|argument| {
+                    argument
+                        .data_offset
+                        .checked_add(argument.data_byte_count)
+                        .map(|end| argument.data_offset..end)
+                })
+                .collect::<Vec<_>>();
             validate_complete_unit_stack_evidence(
                 plan.target.architecture,
                 function.machine,
                 &function.bytes,
                 stack,
                 &function.internal_calls,
+                &inline_data,
             )?;
         }
         if let Some(stack) = validated_function_stack {
