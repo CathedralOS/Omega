@@ -3,20 +3,14 @@
 use psi_core::{IntegerValue, Proposition, ScalarTerm};
 use psi_proof_kernel::CheckedIntegerAffineForm;
 
+mod endpoint;
+
 pub(super) fn mapped_bound(
     form: &CheckedIntegerAffineForm,
     root_bound: &Proposition,
 ) -> Option<Proposition> {
-    let Proposition::LessOrEqual(left, right) = root_bound else {
-        return None;
-    };
-    let (bound, root_is_lower_endpoint) = if left == form.root() {
-        (right, false)
-    } else if right == form.root() {
-        (left, true)
-    } else {
-        return None;
-    };
+    let endpoint = endpoint::select(form, root_bound)?;
+    let bound = endpoint.bound;
     let (bound_type, IntegerValue::Signed(bound)) = bound.integer_value()? else {
         return None;
     };
@@ -29,9 +23,9 @@ pub(super) fn mapped_bound(
         .checked_add(form.offset())?;
     let mapped = ScalarTerm::integer(form.integer_type(), IntegerValue::Signed(mapped)).ok()?;
     let target_is_left = if form.coefficient() < 0 {
-        root_is_lower_endpoint
+        endpoint.root_is_lower
     } else {
-        !root_is_lower_endpoint
+        !endpoint.root_is_lower
     };
     Some(if target_is_left {
         Proposition::LessOrEqual(form.target().clone(), mapped)
