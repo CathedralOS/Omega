@@ -1,8 +1,8 @@
 //! Independent direct retained integer-cast root-bound selection.
 
-use psi_core::{Proposition, PropositionContext, ScalarTerm};
+use psi_core::{Proposition, PropositionContext};
 
-use super::super::cast_custody;
+mod completion;
 
 pub(super) fn retained(
     context: &PropositionContext,
@@ -18,17 +18,13 @@ pub(super) fn retained(
             _ => None,
         })
         .any(|(root_bound, root_left, root_right)| {
-            [root_left, root_right]
-                .into_iter()
-                .filter(|root| matches!(root, ScalarTerm::Value { .. }))
-                .any(|root| {
-                    cast_custody::retained_from_root(
-                        context,
-                        goal,
-                        semantic_axioms,
-                        root,
-                        root_bound,
-                    )
-                })
+            completion::retained(
+                context,
+                goal,
+                semantic_axioms,
+                root_bound,
+                root_left,
+                root_right,
+            )
         })
 }
