@@ -1,6 +1,76 @@
 //! Final image, instruction-boundary, and executable-region validation regressions.
 
 use super::*;
+use crate::checked::retain_compiler_function_identity;
+use std::collections::HashSet;
+
+#[test]
+fn final_function_identity_partition_is_unique_valid_and_fingerprinted() {
+    use omega_control_flow::{MachineFunctionIdentity, StateKey};
+    use psi_symbols::SymbolHandle;
+
+    fn identity_fingerprint(identity: MachineFunctionIdentity) -> u64 {
+        let mut identities = HashSet::new();
+        let mut fingerprint = 0xcbf2_9ce4_8422_2325u64;
+        retain_compiler_function_identity(0, identity, &mut identities, &mut fingerprint)
+            .expect("valid function identity");
+        fingerprint
+    }
+
+    let continuation = StateKey {
+        machine: SymbolHandle::from_parts(1, 2),
+        state: SymbolHandle::from_parts(3, 4),
+        segment_index: 5,
+    };
+    let source = MachineFunctionIdentity::source(continuation);
+    let callback = MachineFunctionIdentity::callback_thunk(continuation, 7).unwrap();
+    assert_ne!(identity_fingerprint(source), identity_fingerprint(callback));
+    assert_ne!(
+        identity_fingerprint(callback),
+        identity_fingerprint(MachineFunctionIdentity::callback_thunk(continuation, 8).unwrap())
+    );
+    assert_ne!(
+        identity_fingerprint(callback),
+        identity_fingerprint(
+            MachineFunctionIdentity::callback_thunk(
+                StateKey {
+                    state: SymbolHandle::from_parts(3, 5),
+                    ..continuation
+                },
+                7,
+            )
+            .unwrap()
+        )
+    );
+
+    let mut source_identities = HashSet::from([source]);
+    let mut source_fingerprint = identity_fingerprint(source);
+    let duplicate = retain_compiler_function_identity(
+        1,
+        source,
+        &mut source_identities,
+        &mut source_fingerprint,
+    )
+    .expect_err("duplicate final function identity must reject");
+    assert!(
+        duplicate
+            .message
+            .contains("duplicates compiler-private identity")
+    );
+
+    let invalid = retain_compiler_function_identity(
+        0,
+        MachineFunctionIdentity::default(),
+        &mut HashSet::new(),
+        &mut 0xcbf2_9ce4_8422_2325u64,
+    )
+    .expect_err("invalid final function identity must reject");
+    assert!(
+        invalid
+            .message
+            .contains("invalid compiler-private identity")
+    );
+}
 
 #[test]
 fn compiler_validation_identity_without_a_footprint_derivation_rejects() {
@@ -154,7 +224,13 @@ fn balanced_outgoing_stack_frame_final_bytes_and_footprint_replay_fail_closed() 
     });
     plan.code.functions.insert(EncodedMachineFunction {
         symbol: "synthetic_wrapper".into(),
-        identity: Default::default(),
+        identity: omega_control_flow::MachineFunctionIdentity::source(
+            omega_control_flow::StateKey {
+                machine: psi_symbols::SymbolHandle::from_arena_index(1),
+                state: psi_symbols::SymbolHandle::from_arena_index(2),
+                segment_index: 0,
+            },
+        ),
         byte_offset: 0,
         byte_count: final_bytes.len(),
         instructions: HandleSpan::from_parts(first, 10),
@@ -839,7 +915,13 @@ fn compiler_functions_retain_a_complete_final_instruction_partition() {
     });
     let function = plan.code.functions.insert(EncodedMachineFunction {
         symbol: std::sync::Arc::from("entry"),
-        identity: Default::default(),
+        identity: omega_control_flow::MachineFunctionIdentity::source(
+            omega_control_flow::StateKey {
+                machine: psi_symbols::SymbolHandle::from_arena_index(1),
+                state: psi_symbols::SymbolHandle::from_arena_index(2),
+                segment_index: 0,
+            },
+        ),
         byte_offset: 0,
         byte_count: final_bytes.len(),
         instructions: HandleSpan::from_parts(first, 5),
