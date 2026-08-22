@@ -10,10 +10,6 @@ pub(super) fn find<'a, T>(
     semantic_axioms: &'a [Proposition],
     mut join: impl FnMut(Citation, &'a Proposition, &'a ScalarTerm, &'a ScalarTerm) -> Option<T>,
 ) -> Option<T> {
-    for (citation, fact, left, middle) in bounds::with_value_right(assumptions, semantic_axioms) {
-        if let Some(result) = join(citation, fact, left, middle) {
-            return Some(result);
-        }
-    }
-    None
+    bounds::with_value_right(assumptions, semantic_axioms)
+        .find_map(|(citation, fact, left, middle)| join(citation, fact, left, middle))
 }
