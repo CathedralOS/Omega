@@ -1382,10 +1382,13 @@ fn runtime_payload_range_narrowing_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_payload_range_narrowing_exit");
     let scratch = std::env::temp_dir().join(format!("omega-payload-range-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone()).expect(
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone()).expect(
         "payload range narrowing should compile (constrained payload discharges the obligation)",
     );
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("payload range canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("payload range narrowing canary should run");
     assert_eq!(
@@ -1412,9 +1415,12 @@ fn runtime_sum_payload_range_narrowed_exit_canary_runs() {
     let canary = pass_canary("ranges/sum_payload_range_narrowed_exit");
     let scratch = std::env::temp_dir().join(format!("omega-payload-narrow-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("direct payload pass-through should prove under the case-arm guard");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("direct payload range canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("sum payload range narrowed canary should run");
     assert_eq!(
@@ -1439,9 +1445,12 @@ fn runtime_sum_payload_range_arith_narrowed_exit_canary_runs() {
     let canary = pass_canary("ranges/sum_payload_range_arith_narrowed_exit");
     let scratch = std::env::temp_dir().join(format!("omega-payload-arith-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("payload operand arithmetic should prove under the case-arm guard");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("payload arithmetic range canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("sum payload range arith narrowed canary should run");
     assert_eq!(
@@ -1463,9 +1472,12 @@ fn runtime_exclusive_range_constraint_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-exclusive-range-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("exclusive/inclusive range-constraint syntax should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("exclusive range canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("exclusive range constraint canary should run");
     assert_eq!(
