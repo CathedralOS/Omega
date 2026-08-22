@@ -499,7 +499,12 @@ Owners:
   transactionally. Every fixed materialization and scalar-decoding entry point
   now preflights the retained layout identity set: one stable identity under
   multiple names, or one name under multiple identities, rejects before
-  destination mutation, value exposure, or symbolic resolution.
+  destination mutation, value exposure, or symbolic resolution. Retained access
+  plans now retain complete source layout geometry and authorize replay only by
+  a hash-free exact structural relation over schema identity, placements, size,
+  alignment, offsets, and canonical identity sets. Authored entry order and
+  numbered-member presentation renames are nonsemantic; compact fingerprints
+  remain report/cache identity and cannot hide geometry drift.
   Erased terms remain semantically mandatory but add no bytes, including nested
   records and fixed arrays whose entire runtime shape is erased. Scalar
   placement/access semantics remain fenced for aggregates. Continue beyond
@@ -1465,9 +1470,21 @@ Remaining:
   landed literal, substitutes the root endpoint once, then applies the cast
   rule; reconstruction independently selects the same exact equality and
   rechecks the bridge. Direct bounds remain preferred. Missing, redirected,
-  mistyped, or weaker facts reject. Root aliases, affine/cast, shift/cast,
-  joins, and correlated results remain outside this fixed sibling; neither
-  complete exact row changes trust and `fully-derived false` remains.
+  mistyped, or weaker facts reject. One exact same-carrier `root == alias`
+  citation may instead transport one directly cited canonical bound at that
+  alias. Its fixed proof nests one `IntegerLessOrEqualSubstitution` under
+  `IntegerCastBound`; reconstruction repeats the same exact equality/bound
+  selection. Missing, redirected, cross-carrier, or weaker bounds reject. The
+  constructor does not recurse or strengthen the alias bound. One fixed sibling
+  may instead land that alias through exactly one same-carrier
+  `alias == literal` citation. It proves the closed canonical bridge,
+  substitutes the alias, substitutes the root, then applies
+  `IntegerCastBound`; production and reconstruction select the same two exact
+  equalities. Missing, reused,
+  redirected, mistyped, or weaker literals reject. A second alias,
+  affine/cast, shift/cast, joins, and correlated results remain outside this
+  sibling; neither complete exact row changes trust and `fully-derived false`
+  remains.
   A third
   non-serialized common checker now normalizes the
   complete exact-shift core shared by direct, cast-adjacent, affine-adjacent,
@@ -2375,7 +2392,18 @@ Owners:
   independently validates the pair: a bundle receipt requires one flat
   receipt, equal certificate/inventory/publication/container identities and
   output leaf, plus distinct paths and installation identities. Missing,
-  substituted, or self-aliased pairs reject atomically.
+  substituted, or self-aliased pairs reject atomically. The compile report now
+  also retains the exact output category. `NativeExecutable` requires the flat
+  receipt, `ObjectContainer` requires both executable receipts absent, and
+  `CheckOnly` requires no output or receipt. A dropped native receipt can no
+  longer masquerade as a legitimate object-container fallback. Each receipt
+  additionally retains its exact destination role. The native flat slot accepts
+  only `FlatOutput`, the optional bundle slot accepts only `MacOsAppBundle`, and
+  the role tag participates in installation identity; swapped otherwise-matching
+  receipts reject. Immediately before either outward receipt is minted,
+  installation replays the renamed destination bytes once more against the
+  sealed container; interval drift removes the changed file and rejects instead
+  of returning stale custody.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
@@ -2798,7 +2826,10 @@ Remaining N6/N8 work:
   Conditional/crash transitions, continuations, extra statements, foreign or
   missing targets, cycles, and duplicate state identities reject. This is one
   bounded graph walk, not a hop-count permutation ladder. These result-flow
-  certificates prove no effect, contract, or `Respects` obligation.
+  certificates prove no effect, contract, or `Respects` obligation. The
+  relation-plan parent now delegates the whole alias/finite-graph judgment to a
+  focused 289-line child instead of accumulating hop-specific verification
+  functions.
   Every request still rejects as non-executable until all remaining obligations
   are checked and retained in checked/terminal identity.
 - Suppress every synthesized representation observer on quotient formation.
@@ -2820,8 +2851,13 @@ Remaining N6/N8 work:
   representative machine/state when its locally checked termination summary is
   unconditional. A missing guarantee or one requiring progress-profile
   premises retains the termination fence rather than treating those premises
-  as discharged. Exact owned/routed custody occurrence detection and the
-  representative effect fence remain open.
+  as discharged. The same validation now consumes the shared whole-call-graph
+  operational and service-reach fixed points once on the rejecting quotient
+  path. It retains the exact representative machine/state as pure only when
+  recursive service reach, suspension, blocking, mutable/out parameters, and
+  unresolved concrete call targets are all absent. It does not run a second
+  expression-local effect inference. Exact owned/routed custody occurrence
+  detection remains open.
 - Add exact-pair-selected heterogeneous constructor lifts. Dependent records
   lift in order and generate checked transport obligations for coarser earlier
   fields. Extend R6 carrier-family binders for reusable proposition-valued
