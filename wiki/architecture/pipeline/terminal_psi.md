@@ -1302,7 +1302,7 @@ verifier independently requires both resolved leaves to have byte-sequence
 carrier types, and call substitution rebases both roots. The bounded slice
 admits field-to-field whole-record equality for `&[u8] in Domain` and
 `[u8; N] in Domain`; text literals and direct text `!=` remain fenced. Semantic
-codec v18, proof-bundle v16, and installation-record v24 encode this vocabulary.
+codec v18, proof-bundle v17, and installation-record v24 encode this vocabulary.
 A
 genuinely zero-member record instead normalizes equality to the
 existing Boolean `true` term; inequality uses the existing negation, and calls,
@@ -1836,7 +1836,7 @@ recursive `LessOrEqual`/conjunction/disjunction shape as the producer instead of
 separate safe-divisor and exceptional selectors. Redirected goals, reordered
 joint conjunctions, or wrong operands reject. No operation-result equation is
 available as proof authority. The existing proof
-rules and proof-bundle v16 codec carry these certificates without a further
+rules and proof-bundle v17 codec carry these certificates without a further
 vocabulary change. All other exact divide/remainder families remain
 on their explicitly trusted sufficient reducer, and both complete rows retain
 their current trust status. Their canonical proposition is settled, and the
@@ -1875,8 +1875,9 @@ definition indices. The kernel replays normalization, maps the child
 conclusion, and records every definition in accepted premise closure.
 Non-order or wrong-root children, stale/reordered/malformed words,
 target/carrier drift, arithmetic failure, or changed mapped conclusions reject.
-Proof-bundle v16 assigns tag 12; the registered calculus is v13 and the Rust
-kernel v5, with the affine checker included in both trust-graph source sets.
+Proof-bundle v17 retains tag 12; the registered calculus is v14 and the Rust
+kernel v6, with the affine and cast checkers included in both trust-graph source
+sets.
 The first bounded producer family uses the rule for one to four prior signed
 fixed affine definitions whose exact retained root bound maps directly to a
 canonical safe-divisor arm. Reconstruction and production enumerate shortest
@@ -1965,8 +1966,19 @@ This cast checker accepts no proof authority, does not establish that its root
 is a machine parameter, and does not validate the surrounding prefix/suffix
 algebra. Heterogeneous words containing `IntegerWiden` require their own
 normalization witness. No cast result, carrier interval, or selected axiom is a
-certificate premise until a future intentionally versioned proof integration
-binds it explicitly.
+certificate premise until an intentionally versioned proof integration binds it
+explicitly. `IntegerCastBound` is that first integration for exactly one partial
+cast. One recursively checked root-bound child and the selected definition map
+the same mathematical literal endpoint into the target carrier. The kernel
+rechecks the cast witness and conversion and records the definition in accepted
+premise closure. A non-order or wrong-root child, zero or multiple definitions,
+stale or total/widening-shaped casts, target/orientation drift, or a changed
+endpoint rejects. Proof-bundle v17 assigns tag 13; the registered calculus is
+v14 and the Rust kernel v6. Producer and reconstruction enumerate one definition
+only. This completes direct one-cast custody for exact divide/remainder goals but
+does not promote either whole row: multi-cast, affine/cast, shift/cast, joins,
+and correlated results remain trusted-reducer work, and `fully-derived false`
+is unchanged.
 
 The common exact-shift spine now also has a producer-visible, non-serialized
 `IntegerShiftChainWitness`. It binds a nonempty ordered word of exact left and

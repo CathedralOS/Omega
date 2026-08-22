@@ -9,8 +9,8 @@ use std::collections::BTreeMap;
 
 use psi_core::{Proposition, PropositionContext};
 use psi_proof_kernel::{
-    CheckedIntegerAffineForm, IntegerAffineWitness, PrimitiveJudgment, ProofNode, ProofRule,
-    check_certificate, check_integer_affine_witness,
+    CheckedIntegerAffineForm, IntegerAffineWitness, IntegerCastChainWitness, PrimitiveJudgment,
+    ProofNode, ProofRule, check_certificate, check_integer_affine_witness,
 };
 
 #[derive(Clone, Copy)]
@@ -246,7 +246,53 @@ fn prove_integer_bound(
             }
         }
     }
-    prove_bounded_affine_bound(context, goal, assumptions, semantic_axioms)
+    prove_single_cast_bound(context, goal, assumptions, semantic_axioms)
+        .or_else(|| prove_bounded_affine_bound(context, goal, assumptions, semantic_axioms))
+}
+
+fn prove_single_cast_bound(
+    context: &PropositionContext,
+    goal: &Proposition,
+    assumptions: &[Proposition],
+    semantic_axioms: &[Proposition],
+) -> Option<ProofNode> {
+    let Proposition::LessOrEqual(goal_left, goal_right) = goal else {
+        return None;
+    };
+    for (citation, root_bound) in cited_facts(assumptions, semantic_axioms) {
+        let Proposition::LessOrEqual(root_left, root_right) = root_bound else {
+            continue;
+        };
+        for root in [root_left, root_right]
+            .into_iter()
+            .filter(|root| matches!(root, psi_core::ScalarTerm::Value { .. }))
+        {
+            for target in [goal_left, goal_right]
+                .into_iter()
+                .filter(|target| matches!(target, psi_core::ScalarTerm::Value { .. }))
+            {
+                for definition_axiom in 0..semantic_axioms.len() {
+                    let proof = ProofNode {
+                        conclusion: goal.clone(),
+                        rule: ProofRule::IntegerCastBound {
+                            root_bound: Box::new(citation.proof(root_bound)),
+                            witness: IntegerCastChainWitness {
+                                root: root.clone(),
+                                target: target.clone(),
+                                definition_axioms: vec![definition_axiom],
+                            },
+                        },
+                    };
+                    if check_certificate(context, goal, assumptions, semantic_axioms, &proof)
+                        .is_ok()
+                    {
+                        return Some(proof);
+                    }
+                }
+            }
+        }
+    }
+    None
 }
 
 fn prove_bounded_affine_bound(
@@ -2856,6 +2902,120 @@ mod tests {
             )
             .is_none(),
             "a redirected landed literal cannot provide affine root custody",
+        );
+    }
+
+    #[test]
+    fn exact_division_goal_maps_one_checked_cast_root_bound() {
+        let i8_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let i16_type = IntegerType::new(IntegerSign::Signed, 16).expect("i16");
+        let i32_type = IntegerType::new(IntegerSign::Signed, 32).expect("i32");
+        let context = PropositionContext::from_value_types([
+            (
+                ValueId::new(1).expect("dividend"),
+                ScalarType::Integer(i8_type),
+            ),
+            (
+                ValueId::new(2).expect("divisor"),
+                ScalarType::Integer(i8_type),
+            ),
+            (
+                ValueId::new(3).expect("root"),
+                ScalarType::Integer(i16_type),
+            ),
+            (
+                ValueId::new(4).expect("middle"),
+                ScalarType::Integer(i16_type),
+            ),
+            (
+                ValueId::new(5).expect("wide root"),
+                ScalarType::Integer(i32_type),
+            ),
+        ])
+        .expect("cast values");
+        let divisor = value(2, i8_type);
+        let goal = Proposition::Disjunction(vec![
+            Proposition::LessOrEqual(divisor.clone(), integer(i8_type, -2)),
+            Proposition::LessOrEqual(integer(i8_type, 1), divisor.clone()),
+            Proposition::Conjunction(vec![
+                Proposition::LessOrEqual(divisor, integer(i8_type, -1)),
+                Proposition::LessOrEqual(integer(i8_type, -127), value(1, i8_type)),
+            ]),
+        ]);
+        let cast = Proposition::Equal(
+            value(2, i8_type),
+            ScalarTerm::integer_exact_cast(i16_type, i8_type, value(3, i16_type))
+                .expect("partial exact cast"),
+        );
+        let positive_bound = Proposition::LessOrEqual(integer(i16_type, 1), value(3, i16_type));
+        let proof = prove_canonical_integer_proposition(
+            &context,
+            &goal,
+            std::slice::from_ref(&positive_bound),
+            std::slice::from_ref(&cast),
+        )
+        .expect("one checked cast maps the positive root bound");
+        let ProofRule::DisjunctionIntroduction { disjunct, index } = proof.rule else {
+            panic!("cast-bound divisor selects one canonical arm")
+        };
+        assert_eq!(index, 1);
+        let ProofRule::IntegerCastBound {
+            root_bound,
+            witness,
+        } = disjunct.rule
+        else {
+            panic!("cast-bound divisor uses the cast-bound rule")
+        };
+        assert!(matches!(
+            root_bound.rule,
+            ProofRule::Assumption { index: 0 }
+        ));
+        assert_eq!(witness.root, value(3, i16_type));
+        assert_eq!(witness.target, value(2, i8_type));
+        assert_eq!(witness.definition_axioms, vec![0]);
+
+        let negative_bound = Proposition::LessOrEqual(value(3, i16_type), integer(i16_type, -2));
+        let negative = prove_canonical_integer_proposition(
+            &context,
+            &goal,
+            std::slice::from_ref(&negative_bound),
+            std::slice::from_ref(&cast),
+        )
+        .expect("one checked cast maps the negative root bound");
+        let ProofRule::DisjunctionIntroduction { disjunct, index } = negative.rule else {
+            panic!("negative cast-bound divisor selects one canonical arm")
+        };
+        assert_eq!(index, 0);
+        assert!(matches!(disjunct.rule, ProofRule::IntegerCastBound { .. }));
+
+        assert!(
+            prove_canonical_integer_proposition(&context, &goal, &[], std::slice::from_ref(&cast),)
+                .is_none(),
+            "the cast definition does not supply root-bound authority",
+        );
+        assert!(
+            prove_canonical_integer_proposition(
+                &context,
+                &goal,
+                &[Proposition::LessOrEqual(
+                    integer(i32_type, 1),
+                    value(5, i32_type),
+                )],
+                &[
+                    Proposition::Equal(
+                        value(4, i16_type),
+                        ScalarTerm::integer_exact_cast(i32_type, i16_type, value(5, i32_type))
+                            .expect("first partial cast"),
+                    ),
+                    Proposition::Equal(
+                        value(2, i8_type),
+                        ScalarTerm::integer_exact_cast(i16_type, i8_type, value(4, i16_type))
+                            .expect("second partial cast"),
+                    )
+                ],
+            )
+            .is_none(),
+            "the fixed single-cast family does not follow a two-cast chain",
         );
     }
 

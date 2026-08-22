@@ -4,8 +4,9 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use psi_core::{Proposition, PropositionContext, ScalarTerm, ValueId};
 use psi_proof_kernel::{
-    IntegerAffineWitness, Obligation, ObligationClass, check_integer_affine_bound_conversion,
-    check_integer_affine_witness,
+    IntegerAffineWitness, IntegerCastChainWitness, Obligation, ObligationClass,
+    check_integer_affine_bound_conversion, check_integer_affine_witness,
+    check_integer_cast_chain_witness, check_single_integer_cast_bound_conversion,
 };
 use psi_terminal::{OperationKind, TerminalMachine, TerminalModule, Terminator};
 use psi_terminal_semantics::{
@@ -538,6 +539,9 @@ fn retained_canonical_integer_proposition(
                     semantic_axioms,
                 )
                 || context.is_some_and(|context| {
+                    retained_single_cast_bound(context, goal, requirements, semantic_axioms)
+                })
+                || context.is_some_and(|context| {
                     retained_bounded_affine_bound(context, goal, requirements, semantic_axioms)
                 })
         }
@@ -557,6 +561,53 @@ fn retained_canonical_integer_proposition(
         }),
         _ => false,
     }
+}
+
+fn retained_single_cast_bound(
+    context: &PropositionContext,
+    goal: &Proposition,
+    requirements: &[Proposition],
+    semantic_axioms: &[Proposition],
+) -> bool {
+    let Proposition::LessOrEqual(goal_left, goal_right) = goal else {
+        return false;
+    };
+    requirements
+        .iter()
+        .chain(semantic_axioms)
+        .filter_map(|root_bound| match root_bound {
+            Proposition::LessOrEqual(left, right) => Some((root_bound, left, right)),
+            _ => None,
+        })
+        .any(|(root_bound, root_left, root_right)| {
+            [root_left, root_right]
+                .into_iter()
+                .filter(|root| matches!(root, ScalarTerm::Value { .. }))
+                .any(|root| {
+                    [goal_left, goal_right]
+                        .into_iter()
+                        .filter(|target| matches!(target, ScalarTerm::Value { .. }))
+                        .any(|target| {
+                            (0..semantic_axioms.len()).any(|definition_axiom| {
+                                check_integer_cast_chain_witness(
+                                    context,
+                                    semantic_axioms,
+                                    &IntegerCastChainWitness {
+                                        root: root.clone(),
+                                        target: target.clone(),
+                                        definition_axioms: vec![definition_axiom],
+                                    },
+                                )
+                                .is_ok_and(|chain| {
+                                    check_single_integer_cast_bound_conversion(
+                                        &chain, root_bound, goal,
+                                    )
+                                    .is_ok()
+                                })
+                            })
+                        })
+                })
+        })
 }
 
 fn retained_bounded_affine_bound(
@@ -2651,6 +2702,92 @@ mod tests {
             &[Proposition::Equal(
                 value(4, signed),
                 ScalarTerm::integer(signed, IntegerValue::Signed(0)).expect("i8 zero"),
+            )],
+        ));
+    }
+
+    #[test]
+    fn exact_division_selects_one_checked_cast_root_bound() {
+        let i8_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let i16_type = IntegerType::new(IntegerSign::Signed, 16).expect("i16");
+        let i32_type = IntegerType::new(IntegerSign::Signed, 32).expect("i32");
+        let context = PropositionContext::from_value_types([
+            (
+                ValueId::new(1).expect("dividend"),
+                ScalarType::Integer(i8_type),
+            ),
+            (
+                ValueId::new(2).expect("divisor"),
+                ScalarType::Integer(i8_type),
+            ),
+            (
+                ValueId::new(3).expect("root"),
+                ScalarType::Integer(i16_type),
+            ),
+            (
+                ValueId::new(4).expect("middle"),
+                ScalarType::Integer(i16_type),
+            ),
+            (
+                ValueId::new(5).expect("wide root"),
+                ScalarType::Integer(i32_type),
+            ),
+        ])
+        .expect("cast values");
+        let goal = CanonicalScalarGoal::ExactDivisionDefined {
+            integer_type: i8_type,
+            left: value(1, i8_type),
+            right: value(2, i8_type),
+        };
+        let cast = Proposition::Equal(
+            value(2, i8_type),
+            ScalarTerm::integer_exact_cast(i16_type, i8_type, value(3, i16_type))
+                .expect("partial exact cast"),
+        );
+        let positive_bound = Proposition::LessOrEqual(
+            ScalarTerm::integer(i16_type, IntegerValue::Signed(1)).expect("i16 one"),
+            value(3, i16_type),
+        );
+        assert!(exact_division_has_prior_certificate(
+            &context,
+            &goal,
+            std::slice::from_ref(&cast),
+            std::slice::from_ref(&positive_bound),
+        ));
+        let negative_bound = Proposition::LessOrEqual(
+            value(3, i16_type),
+            ScalarTerm::integer(i16_type, IntegerValue::Signed(-2)).expect("i16 -2"),
+        );
+        assert!(exact_division_has_prior_certificate(
+            &context,
+            &goal,
+            std::slice::from_ref(&cast),
+            std::slice::from_ref(&negative_bound),
+        ));
+        assert!(!exact_division_has_prior_certificate(
+            &context,
+            &goal,
+            std::slice::from_ref(&cast),
+            &[],
+        ));
+        assert!(!exact_division_has_prior_certificate(
+            &context,
+            &goal,
+            &[
+                Proposition::Equal(
+                    value(4, i16_type),
+                    ScalarTerm::integer_exact_cast(i32_type, i16_type, value(5, i32_type))
+                        .expect("first partial cast"),
+                ),
+                Proposition::Equal(
+                    value(2, i8_type),
+                    ScalarTerm::integer_exact_cast(i16_type, i8_type, value(4, i16_type))
+                        .expect("second partial cast"),
+                ),
+            ],
+            &[Proposition::LessOrEqual(
+                ScalarTerm::integer(i32_type, IntegerValue::Signed(1)).expect("i32 one"),
+                value(5, i32_type),
             )],
         ));
     }

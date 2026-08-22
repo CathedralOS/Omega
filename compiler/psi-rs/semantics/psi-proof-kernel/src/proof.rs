@@ -2,8 +2,10 @@ use psi_core::{Proposition, PropositionContext};
 
 use crate::{
     IntegerAffineBoundConversionError, IntegerAffineWitness, IntegerAffineWitnessError,
+    IntegerCastBoundConversionError, IntegerCastChainWitness, IntegerCastChainWitnessError,
     KernelError, PrimitiveJudgment, check_integer_affine_bound_conversion,
-    check_integer_affine_witness, decide_primitive,
+    check_integer_affine_witness, check_integer_cast_chain_witness,
+    check_single_integer_cast_bound_conversion, decide_primitive,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -57,6 +59,12 @@ pub enum ProofRule {
         root_bound: Box<ProofNode>,
         witness: IntegerAffineWitness,
     },
+    /// Map one independently proved root bound through exactly one checked
+    /// partial fixed-integer exact-cast definition.
+    IntegerCastBound {
+        root_bound: Box<ProofNode>,
+        witness: IntegerCastChainWitness,
+    },
 }
 
 /// Proof-rule families exercised by one accepted certificate. The set is a
@@ -75,6 +83,7 @@ pub enum AcceptedProofRule {
     IntegerLessOrEqualTransitivity,
     IntegerLessOrEqualSubstitution,
     IntegerAffineBound,
+    IntegerCastBound,
 }
 
 /// One premise that materially participates in an accepted derivation.
@@ -524,6 +533,34 @@ fn check_node(
             }
             Ok(())
         }
+        ProofRule::IntegerCastBound {
+            root_bound,
+            witness,
+        } => {
+            acceptance.rules.insert(AcceptedProofRule::IntegerCastBound);
+            check_node(
+                context,
+                assumptions,
+                semantic_axioms,
+                root_bound,
+                acceptance,
+            )?;
+            let chain = check_integer_cast_chain_witness(context, semantic_axioms, witness)
+                .map_err(ProofError::IntegerCastChainWitness)?;
+            check_single_integer_cast_bound_conversion(
+                &chain,
+                &root_bound.conclusion,
+                &proof.conclusion,
+            )
+            .map_err(ProofError::IntegerCastBoundConversion)?;
+            for &index in &witness.definition_axioms {
+                let proposition = semantic_axioms
+                    .get(index)
+                    .ok_or(ProofError::UnknownSemanticAxiom(index))?;
+                acceptance.record_semantic_axiom(index, proposition);
+            }
+            Ok(())
+        }
     }
 }
 
@@ -552,6 +589,8 @@ pub enum ProofError {
     IntegerOrderSubstitutionMismatch,
     IntegerAffineWitness(IntegerAffineWitnessError),
     IntegerAffineBoundConversion(IntegerAffineBoundConversionError),
+    IntegerCastChainWitness(IntegerCastChainWitnessError),
+    IntegerCastBoundConversion(IntegerCastBoundConversionError),
     CertificateConclusionMismatch,
     RuleConclusionMismatch(&'static str),
     RulePremiseMismatch(&'static str),
@@ -1153,6 +1192,110 @@ mod tests {
             ),
             Err(ProofError::IntegerAffineBoundConversion(
                 IntegerAffineBoundConversionError::RootBoundNotLessOrEqual,
+            )),
+        );
+    }
+
+    #[test]
+    fn integer_cast_bound_checks_one_definition_and_exact_custody() {
+        use psi_core::{IntegerSign, IntegerType, IntegerValue, ScalarTerm, ScalarType, ValueId};
+
+        let i16_type = IntegerType::new(IntegerSign::Signed, 16).expect("i16");
+        let i8_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let root = ScalarTerm::value(
+            ValueId::new(1).expect("root"),
+            ScalarType::Integer(i16_type),
+        );
+        let target = ScalarTerm::value(
+            ValueId::new(2).expect("target"),
+            ScalarType::Integer(i8_type),
+        );
+        let context = PropositionContext::from_value_types([
+            (
+                ValueId::new(1).expect("root"),
+                ScalarType::Integer(i16_type),
+            ),
+            (
+                ValueId::new(2).expect("target"),
+                ScalarType::Integer(i8_type),
+            ),
+        ])
+        .expect("context");
+        let root_bound = Proposition::LessOrEqual(
+            ScalarTerm::integer(i16_type, IntegerValue::Signed(1)).expect("i16 one"),
+            root.clone(),
+        );
+        let definition = Proposition::Equal(
+            target.clone(),
+            ScalarTerm::integer_exact_cast(i16_type, i8_type, root.clone()).expect("partial cast"),
+        );
+        let conclusion = Proposition::LessOrEqual(
+            ScalarTerm::integer(i8_type, IntegerValue::Signed(1)).expect("i8 one"),
+            target.clone(),
+        );
+        let proof = |definition_axioms, conclusion: Proposition| ProofNode {
+            conclusion,
+            rule: ProofRule::IntegerCastBound {
+                root_bound: Box::new(ProofNode {
+                    conclusion: root_bound.clone(),
+                    rule: ProofRule::Assumption { index: 0 },
+                }),
+                witness: IntegerCastChainWitness {
+                    root: root.clone(),
+                    target: target.clone(),
+                    definition_axioms,
+                },
+            },
+        };
+
+        let accepted = accept_certificate(
+            &context,
+            &conclusion,
+            std::slice::from_ref(&root_bound),
+            std::slice::from_ref(&definition),
+            &proof(vec![0], conclusion.clone()),
+        )
+        .expect("one cast maps the independently proved root bound");
+        assert_eq!(
+            accepted.rules,
+            vec![
+                AcceptedProofRule::Assumption,
+                AcceptedProofRule::IntegerCastBound,
+            ]
+        );
+        assert_eq!(
+            accepted.semantic_axioms,
+            vec![AcceptedPremise {
+                index: 0,
+                proposition: definition.clone(),
+            }]
+        );
+        assert_eq!(
+            check_certificate(
+                &context,
+                &conclusion,
+                std::slice::from_ref(&root_bound),
+                std::slice::from_ref(&definition),
+                &proof(vec![1], conclusion.clone()),
+            ),
+            Err(ProofError::IntegerCastChainWitness(
+                IntegerCastChainWitnessError::UnknownSemanticAxiom(1),
+            )),
+        );
+        let wrong_conclusion = Proposition::LessOrEqual(
+            target.clone(),
+            ScalarTerm::integer(i8_type, IntegerValue::Signed(1)).expect("i8 one"),
+        );
+        assert_eq!(
+            check_certificate(
+                &context,
+                &wrong_conclusion,
+                std::slice::from_ref(&root_bound),
+                std::slice::from_ref(&definition),
+                &proof(vec![0], wrong_conclusion.clone()),
+            ),
+            Err(ProofError::IntegerCastBoundConversion(
+                IntegerCastBoundConversionError::ConclusionTargetMismatch,
             )),
         );
     }

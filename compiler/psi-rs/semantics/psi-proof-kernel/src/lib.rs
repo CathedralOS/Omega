@@ -27,8 +27,9 @@ pub use integer_affine::{
     IntegerAffineWitnessError, check_integer_affine_bound_conversion, check_integer_affine_witness,
 };
 pub use integer_cast::{
-    CheckedIntegerCastChain, IntegerCastChainWitness, IntegerCastChainWitnessError,
-    check_integer_cast_chain_witness,
+    CheckedIntegerCastChain, IntegerCastBoundConversionError, IntegerCastChainWitness,
+    IntegerCastChainWitnessError, check_integer_cast_chain_witness,
+    check_single_integer_cast_bound_conversion,
 };
 pub use integer_forbidden_root::{
     CheckedIntegerCorrelatedForbiddenRoots, CorrelatedAffineBranch, CorrelatedAffineBranchWitness,

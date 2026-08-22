@@ -194,6 +194,86 @@ impl std::fmt::Display for IntegerCastChainWitnessError {
 
 impl std::error::Error for IntegerCastChainWitnessError {}
 
+/// Check one exact partial-cast image of an independently proved root bound.
+///
+/// This first certificate family is intentionally one edge only. The checked
+/// cast definition preserves the mathematical integer; the conclusion must
+/// retain the root bound's orientation and express the same endpoint in the
+/// target carrier.
+pub fn check_single_integer_cast_bound_conversion(
+    chain: &CheckedIntegerCastChain,
+    root_bound: &Proposition,
+    conclusion: &Proposition,
+) -> Result<(), IntegerCastBoundConversionError> {
+    if chain.definition_axioms().len() != 1 || chain.carriers().len() != 2 {
+        return Err(IntegerCastBoundConversionError::CastChainNotSingleEdge);
+    }
+    let Proposition::LessOrEqual(root_left, root_right) = root_bound else {
+        return Err(IntegerCastBoundConversionError::RootBoundNotLessOrEqual);
+    };
+    let (root_literal, root_is_left) = if root_left == chain.root() {
+        (root_right, true)
+    } else if root_right == chain.root() {
+        (root_left, false)
+    } else {
+        return Err(IntegerCastBoundConversionError::RootBoundMismatch);
+    };
+    let source_type = chain.carriers()[0];
+    let Some(root_value) = typed_integer_as_i128(root_literal, source_type) else {
+        return Err(IntegerCastBoundConversionError::RootBoundNotTypedLiteral);
+    };
+
+    let Proposition::LessOrEqual(target_left, target_right) = conclusion else {
+        return Err(IntegerCastBoundConversionError::ConclusionNotLessOrEqual);
+    };
+    let target_literal = if root_is_left {
+        if target_left != chain.target() {
+            return Err(IntegerCastBoundConversionError::ConclusionTargetMismatch);
+        }
+        target_right
+    } else {
+        if target_right != chain.target() {
+            return Err(IntegerCastBoundConversionError::ConclusionTargetMismatch);
+        }
+        target_left
+    };
+    let target_type = chain.carriers()[1];
+    let Some(target_value) = typed_integer_as_i128(target_literal, target_type) else {
+        return Err(IntegerCastBoundConversionError::ConclusionNotTypedLiteral);
+    };
+    if target_value != root_value {
+        return Err(IntegerCastBoundConversionError::ConclusionLiteralMismatch);
+    }
+    Ok(())
+}
+
+fn typed_integer_as_i128(term: &ScalarTerm, expected: IntegerType) -> Option<i128> {
+    let (actual, value) = term.integer_value()?;
+    (actual == expected)
+        .then(|| integer_value_as_i128(actual, value))
+        .flatten()
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum IntegerCastBoundConversionError {
+    CastChainNotSingleEdge,
+    RootBoundNotLessOrEqual,
+    RootBoundMismatch,
+    RootBoundNotTypedLiteral,
+    ConclusionNotLessOrEqual,
+    ConclusionTargetMismatch,
+    ConclusionNotTypedLiteral,
+    ConclusionLiteralMismatch,
+}
+
+impl std::fmt::Display for IntegerCastBoundConversionError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(formatter, "{self:?}")
+    }
+}
+
+impl std::error::Error for IntegerCastBoundConversionError {}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -273,6 +353,82 @@ mod tests {
         assert_eq!(checked.carriers(), &[i64_type, u64_type, i32_type, u8_type],);
         assert_eq!(checked.definition_axioms(), &[0, 1, 2]);
         assert_eq!(checked.surviving_root_interval(), Some((0, u8::MAX.into())));
+    }
+
+    #[test]
+    fn maps_one_cast_bound_and_rejects_shape_or_endpoint_drift() {
+        let i16_type = integer_type(IntegerSign::Signed, 16);
+        let i8_type = integer_type(IntegerSign::Signed, 8);
+        let root = value(1, i16_type);
+        let target = value(2, i8_type);
+        let context = PropositionContext::from_value_types([
+            (ValueId::new(1).unwrap(), ScalarType::Integer(i16_type)),
+            (ValueId::new(2).unwrap(), ScalarType::Integer(i8_type)),
+        ])
+        .unwrap();
+        let chain = check_integer_cast_chain_witness(
+            &context,
+            &[cast_definition(
+                target.clone(),
+                i16_type,
+                i8_type,
+                root.clone(),
+            )],
+            &IntegerCastChainWitness {
+                root: root.clone(),
+                target: target.clone(),
+                definition_axioms: vec![0],
+            },
+        )
+        .expect("single partial cast");
+        let i16_one = ScalarTerm::integer(i16_type, IntegerValue::Signed(1)).unwrap();
+        let i8_one = ScalarTerm::integer(i8_type, IntegerValue::Signed(1)).unwrap();
+        let root_bound = Proposition::LessOrEqual(i16_one, root);
+        let conclusion = Proposition::LessOrEqual(i8_one.clone(), target.clone());
+        assert_eq!(
+            check_single_integer_cast_bound_conversion(&chain, &root_bound, &conclusion),
+            Ok(()),
+        );
+        assert_eq!(
+            check_single_integer_cast_bound_conversion(
+                &chain,
+                &root_bound,
+                &Proposition::LessOrEqual(target, i8_one),
+            ),
+            Err(IntegerCastBoundConversionError::ConclusionTargetMismatch),
+        );
+
+        let i32_type = integer_type(IntegerSign::Signed, 32);
+        let wide_root = value(3, i32_type);
+        let middle = value(1, i16_type);
+        let target = value(2, i8_type);
+        let context = PropositionContext::from_value_types([
+            (ValueId::new(3).unwrap(), ScalarType::Integer(i32_type)),
+            (ValueId::new(1).unwrap(), ScalarType::Integer(i16_type)),
+            (ValueId::new(2).unwrap(), ScalarType::Integer(i8_type)),
+        ])
+        .unwrap();
+        let chain = check_integer_cast_chain_witness(
+            &context,
+            &[
+                cast_definition(middle.clone(), i32_type, i16_type, wide_root.clone()),
+                cast_definition(target.clone(), i16_type, i8_type, middle),
+            ],
+            &IntegerCastChainWitness {
+                root: wide_root.clone(),
+                target,
+                definition_axioms: vec![0, 1],
+            },
+        )
+        .expect("two partial casts");
+        let wide_bound = Proposition::LessOrEqual(
+            ScalarTerm::integer(i32_type, IntegerValue::Signed(1)).unwrap(),
+            wide_root,
+        );
+        assert_eq!(
+            check_single_integer_cast_bound_conversion(&chain, &wide_bound, &conclusion),
+            Err(IntegerCastBoundConversionError::CastChainNotSingleEdge),
+        );
     }
 
     #[test]
