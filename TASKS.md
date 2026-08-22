@@ -740,6 +740,29 @@ Owners:
   substituted authority rejects without observation and returns the exact
   External specialization for repair or alternate use. No provider operation
   is selected, no transfer occurs, and no target lowering is established.
+  Provider/device-bound Atomic lowering now crosses the same distinct
+  correspondence-required boundary after generic Atomic specialization. Its
+  sealed carrier retains the exact lifetime-bound non-Clone correspondence and
+  independently replays the complete placed request, admitted Atomic supply,
+  operation/ordering law, and correspondence identity; correspondence-free or
+  substituted authority rejects without an atomic attempt and returns the
+  exact Atomic specialization for repair or alternate use. No provider
+  operation is selected and no target lowering is established.
+  Provider/device-bound Stable primitive lowering now crosses a distinct
+  correspondence-required preflight after generic Stable read/write
+  specialization. Its sealed carrier retains the exact lifetime-bound non-
+  Clone correspondence and independently replays the complete placed request,
+  admitted Stable supply, operation, and correspondence identity;
+  correspondence-free or substituted authority rejects without a memory event
+  and returns the exact Stable specialization for repair or alternate use.
+  Ordinary Stable storage remains correspondence-optional; no provider
+  operation is selected and no target lowering is established. Provider-bound
+  bounded Stable compound lowering now applies the same boundary after generic
+  `CompoundMutation` specialization, replaying exclusive placed custody,
+  admitted Stable supply, bounded read-patch-write identity, and exact
+  correspondence. Rejection performs no read or write and returns the exact
+  compound specialization; ordinary Stable compound access remains
+  correspondence-optional.
 
 #### L6c — symbolic materialization
 
@@ -1880,7 +1903,26 @@ Remaining:
   bound-conversion checking. Cast legality, continuity, carrier validation,
   target order, proof shape, rejection behavior, and the finite unique-spine
   frontier are unchanged; no alternate-path, permutation, or generic graph
-  search is introduced. Cast-
+  search is introduced. Exact integer-cast certificate completion now lives in
+  independent side-local `cast_custody/completion` modules. Each consumes only
+  its own deterministic exact-cast spine selection. Production alone preserves
+  target-endpoint order, constructs the `IntegerCastChainWitness` and
+  `IntegerCastBound` proof, and accepts it only after full kernel certificate
+  checking; reconstruction independently checks its witness and mapped bound
+  conversion. The cast-custody facades retain the existing entry points and
+  literal remapping. Root-bound custody, witness indices, target order, proof
+  shape, rejection behavior, and the finite unique-spine frontier are
+  unchanged; no alternate-path, permutation, or generic graph search is
+  introduced. Exact integer-literal carrier remapping now lives in independent
+  side-local `cast_custody/literal` modules. Production and reconstruction each
+  resolve the retained literal's exact source carrier and value, apply exact
+  integer-cast semantics, and rebuild the target-carrier literal before their
+  own direct, alias-landed, or stronger-bound cast completion proceeds. The
+  cast-custody facade keeps the same private entry point, while chain selection
+  and certificate completion remain separate. Candidate order, endpoint
+  orientation, citation and proof shapes, failed or out-of-range conversion
+  rejection, and every fixed cast-evidence frontier are unchanged; no generic
+  literal or path search is introduced. Cast-
   specific alias transport now lives in independent
   side-local `alias_transport/cast` modules. Production alone constructs the
   closed-strengthening and alias-landed-literal substitution proofs before cast
@@ -1963,7 +2005,18 @@ Remaining:
   and chain order, endpoint orientation, citation identity, nested proof shape,
   missing, reused, redirected, or mistyped rejection, and the fixed two-
   citation/one-alias frontier are unchanged; no generalized path or alias
-  search is introduced. A
+  search is introduced. Direct two-citation affine completion now lives in
+  independent side-local `affine_selection/transitive/completion` modules.
+  Each parent retains its own exact ordered `TwoCitationChains` enumeration and
+  citation custody; production alone constructs the
+  `IntegerLessOrEqualTransitivity` child, tries the left then right value root,
+  and completes the affine proof, while reconstruction independently rebuilds
+  the same retained root bound, endpoint order, and affine custody. The fixed
+  one-equality alias sibling and all outer precedence remain unchanged.
+  Citation identity/order, shared-middle continuity, proof shape, missing,
+  reused, disconnected, or mistyped rejection, and the exact two-leg frontier
+  are unchanged; no longer path, permutation, or generic graph search is
+  introduced. A
   single exact prior value equality may also transport a completed affine bound
   from its checked target alias to the canonical goal endpoint. The producer
   replaces that one endpoint, constructs the bounded affine relation directly,
@@ -2514,6 +2567,13 @@ Remaining:
   lock. Default-domain samples fell to 152 and the warmed exact canary moved
   from 4.75s to 4.08–4.12s while retaining exit 70. No eager whole-program
   summary or shared mutable arena was introduced.
+  A follow-up lazy exact-state cache was profiled and rejected rather than
+  retained. A fresh three-second sample placed 219 stacks in one demanded
+  `inferred_state_write_frame`, including 100 below recursive state
+  summarization, but the exact warmed float canary moved from 4.13s to 4.21s:
+  the cost was one expensive state per resolver, not repeated identical state
+  queries. No state-cache code remains. The next optimization must reduce or
+  incrementally solve that demanded recursive summary itself.
   Corpus-level bounded parallelism is viable at the harness boundary: the
   differential runner now defaults to four independent jobs with one native
   backend worker each, retains deterministic corpus-order reporting, and
@@ -3348,6 +3408,21 @@ Owners:
   while retaining literal statuses 81, 91, 81, 219, and 217. Existing
   diagnostic assertions remain unchanged, and the 795 rooted/3 legacy exact-
   owner pins remain stable.
+  Ten further authored-root executable-domain executions now use exact checked-
+  report receipts: local intersection/union guards, local union/intersection
+  values, and imported union values retain statuses 231, 241, 205, 233, and
+  215; imported intersection values, local Boolean-or values, straight-line
+  terminal local and field readback, and negated Boolean-place guards retain
+  217, 251, 70, 70, and 73. Existing diagnostic assertions remain unchanged,
+  and the 795 rooted/3 legacy exact-owner pins remain stable.
+  Ten further authored-root control executions now use exact checked-report
+  receipts. Local Boolean conjunction, scalar comparison, string comparison,
+  Boolean-or guarding, and direct Boolean transition arguments retain statuses
+  74, 76, 78, 71, and 211. Local Boolean transition arguments, Boolean
+  transition arguments after string guards, machine-owned indexed nested-room
+  copies, negated comparison guards, and case-member dispatch retain 201, 247,
+  87, 75, and 70. Existing diagnostics remain unchanged, and the 795 rooted/3
+  legacy exact-owner pins remain stable.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
