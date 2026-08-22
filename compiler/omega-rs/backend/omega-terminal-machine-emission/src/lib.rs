@@ -35,6 +35,8 @@ use psi_core::{MachineId, ValueId};
 mod unit;
 use unit::{emit_aarch64_unit_call, emit_unit_body, emit_x86_64_unit_call};
 
+mod structural_scalar;
+
 mod cleanup;
 use cleanup::{
     emit_boolean_control_with_cleanup, emit_scalar_return_with_cleanup,
@@ -155,37 +157,8 @@ fn emit_function(
         TerminalAssignedOperation::BooleanControlWithCleanup { .. } => {
             unreachable!("Boolean-control cleanup is emitted by the early carrier path")
         }
-        TerminalAssignedOperation::ReturnStructuralScalarCall {
-            psi_edge,
-            psi_operation,
-            scalar_type,
-            callee,
-            structural_types,
-            call_plan,
-            structural_parameters,
-            copies,
-            claim_transfers,
-            ..
-        } => {
-            let body = omega_terminal_assigned_target_operations::TerminalAssignedUnitBody {
-                structural_types: structural_types.clone(),
-                call_plan: call_plan.clone(),
-                parameters: structural_parameters.clone(),
-                operations: vec![
-                    omega_terminal_assigned_target_operations::TerminalAssignedUnitOperation::Call {
-                        psi_operation: *psi_operation,
-                        callee: *callee,
-                        result: Some(*scalar_type),
-                        copies: copies.clone(),
-                        claim_transfers: claim_transfers.clone(),
-                    },
-                    omega_terminal_assigned_target_operations::TerminalAssignedUnitOperation::Return {
-                        psi_edge: *psi_edge,
-                        cleanup_actions: Vec::new(),
-                    },
-                ],
-            };
-            let emitted = emit_unit_body(&body, target, functions)?;
+        operation @ TerminalAssignedOperation::ReturnStructuralScalarCall { .. } => {
+            let emitted = structural_scalar::emit(operation, target, functions)?;
             internal_calls = emitted.internal_calls;
             internal_unit_calls = emitted.internal_unit_calls;
             fuel_attribution = emitted.fuel_attribution;
