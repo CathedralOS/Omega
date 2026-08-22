@@ -33,20 +33,19 @@ impl<'a> TwoCitationChains<'a> {
             self.assumptions,
             self.semantic_axioms,
             |left_citation, left_fact, left, middle| {
-                for &(right_citation, right_fact, right) in self.right_legs.candidates(middle) {
-                    if !fact_identity::distinct(left_fact, right_fact) {
-                        continue;
-                    }
-                    if let Some(result) = complete(
-                        left,
-                        right,
-                        left_citation.proof(left_fact),
-                        right_citation.proof(right_fact),
-                    ) {
-                        return Some(result);
-                    }
-                }
-                None
+                self.right_legs.candidates(middle).iter().find_map(
+                    |&(right_citation, right_fact, right)| {
+                        if !fact_identity::distinct(left_fact, right_fact) {
+                            return None;
+                        }
+                        complete(
+                            left,
+                            right,
+                            left_citation.proof(left_fact),
+                            right_citation.proof(right_fact),
+                        )
+                    },
+                )
             },
         )
     }

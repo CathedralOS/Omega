@@ -37,18 +37,17 @@ impl<'a> LandingIndex<'a> {
         if root.scalar_type() != alias.scalar_type() {
             return None;
         }
-        for &(citation, inner_equality, literal) in self.by_alias.get(alias).into_iter().flatten() {
-            if !fact_identity::distinct(outer_equality, inner_equality) {
-                continue;
-            }
-            if let Some(result) = complete(
-                literal,
-                outer_citation.proof(outer_equality),
-                citation.proof(inner_equality),
-            ) {
-                return Some(result);
-            }
-        }
-        None
+        self.by_alias.get(alias).into_iter().flatten().find_map(
+            |&(citation, inner_equality, literal)| {
+                if !fact_identity::distinct(outer_equality, inner_equality) {
+                    return None;
+                }
+                complete(
+                    literal,
+                    outer_citation.proof(outer_equality),
+                    citation.proof(inner_equality),
+                )
+            },
+        )
     }
 }
