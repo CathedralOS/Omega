@@ -120,7 +120,6 @@ fn compile_to_checked_inner(
             _ => None,
         })
         .collect();
-    let syntax_trees = syntax.syntax_trees.clone();
     let resolved = syntax_trees_to_symbol_resolved_trees(syntax, &mut timings)?;
     let mut typed = symbol_resolved_trees_to_typed_trees(resolved, &mut timings)?;
     psi_build_time_evaluation::evaluate_pre_check(
@@ -154,7 +153,7 @@ fn compile_to_checked_inner(
     // separate by provider type and only the uniquely covering candidate may
     // rewrite adapter calls in the interpreter program.
     let provider_plans =
-        crate::pipeline::provider_plans::derive_satisfies_plans(&syntax_trees, &typed, target_name);
+        crate::pipeline::provider_plans::derive_satisfies_plans(&typed, target_name);
     let selected_native_target = omega_target::NativeTarget::from_omega_target_name(target_name)
         .unwrap_or_else(|_| omega_target::NativeTarget::host());
     let diagnostics =

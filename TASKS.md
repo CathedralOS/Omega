@@ -2692,8 +2692,9 @@ conformance cannot change token meaning; and no accepted source contains a
   rendering; the complete structural binding table now survives into typed
   trees and exposes a fail-closed identity lookup, so consumers can migrate
   away from syntax rescans without reintroducing a text parser. Provider-plan
-  candidate derivation now resolves each exact typed conformance id through
-  that table; a same-shaped later syntax payload cannot redirect its binding.
+  candidate derivation now walks only typed machines, exact conformance/supply
+  identities, and that table; its API accepts no syntax tree that could
+  redirect a retained binding.
   Selected external ABI rows now derive only from the immutable selected
   `ProviderPlan` carrier produced from that identity; backend preparation no
   longer rescans `via` syntax as a second binding authority. Other consumers

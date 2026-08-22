@@ -322,7 +322,7 @@ mod tests {
         let typed =
             psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
                 .expect("type checked-operator dispatch fixture");
-        let plans = crate::pipeline::provider_plans::derive_satisfies_plans(&syntax, &typed, None);
+        let plans = crate::pipeline::provider_plans::derive_satisfies_plans(&typed, None);
         let checked_plan = plans
             .iter()
             .find(|plan| plan.schema.trait_name.contains("CheckedMath::offset_zero"))

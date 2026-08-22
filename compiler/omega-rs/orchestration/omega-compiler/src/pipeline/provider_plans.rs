@@ -1312,41 +1312,23 @@ pub fn selected_external_root_entry_fact_bindings(
 /// COVERING derived plan selects it implicitly; ambiguity or partial
 /// coverage is loud at the consumer (the trust report shows coverage).
 pub(crate) fn derive_satisfies_plans(
-    syntax_trees: &psi_syntax_trees::SyntaxTrees,
     typed: &TypedTrees,
     selected_target: Option<&str>,
 ) -> Vec<ProviderPlan> {
     let mut plans: Vec<ProviderPlan> = Vec::new();
-    for item in syntax_trees.root_items() {
-        let psi_syntax_trees::item::Item::Machine(machine) = item else {
-            continue;
-        };
-        // Target filtering clears the selected implementation's marker and
-        // deliberately leaves every foreign target machine marked/inert.
-        // Provider derivation must obey the same boundary as symbol lowering;
-        // otherwise a target-specific satisfier leaks into unrelated targets
-        // as an empty or invalid plan.
-        if machine.target.is_some() {
-            continue;
-        }
-        if machine.boundary {
-            continue;
-        }
-        for clause in syntax_trees.items.satisfies_clauses(machine.satisfies) {
+    // Target filtering has already admitted only unscoped and selected-target
+    // machines into typed trees. Derive from their exact retained conformance
+    // and supply identities; source syntax is no longer a binding authority.
+    for machine in typed.machines() {
+        for clause in typed.machine_trait_conformances(machine) {
             if clause.requirement.as_ref().is_some_and(|requirement| {
-                typed
-                    .machines()
-                    .iter()
-                    .find(|candidate| candidate.name.as_str() == machine.name.as_str())
-                    .and_then(|candidate| {
-                        psi_typed_trees::operator::resolve_satisfied_boundary_operator(
-                            typed,
-                            candidate,
-                            clause.trait_name.as_str(),
-                            requirement.as_str(),
-                        )
-                    })
-                    .is_some()
+                psi_typed_trees::operator::resolve_satisfied_boundary_operator(
+                    typed,
+                    machine,
+                    clause.name.as_str(),
+                    requirement.as_str(),
+                )
+                .is_some()
             }) {
                 // Exact boundary-operator requirements use one overloaded
                 // signature per provider slot; derive them below rather than
@@ -1361,40 +1343,32 @@ pub(crate) fn derive_satisfies_plans(
             let Some(requirement) = clause.requirement.as_ref() else {
                 continue;
             };
-            let binding_kind = match (&clause.via, machine.bodyless) {
-                (Some(_), true) => {
-                    let Some(typed_machine) = typed
-                        .machines()
-                        .iter()
-                        .find(|candidate| candidate.name.as_str() == machine.name.as_str())
-                    else {
-                        continue;
-                    };
+            let binding_kind = match (machine.supply_mode, clause.external_binding) {
+                (
+                    psi_language_semantics::MachineSupplyMode::ExternalRealization {
+                        binding: supply_binding,
+                        ..
+                    },
+                    Some(conformance_binding),
+                ) if supply_binding == conformance_binding => {
                     let Some(binding) = exact_external_binding_identity(
                         typed,
-                        typed_machine,
-                        clause.trait_name.as_str(),
+                        machine,
+                        clause.name.as_str(),
                         requirement.as_str(),
                     ) else {
                         continue;
                     };
                     Some(binding)
                 }
-                (None, false) => {
+                (psi_language_semantics::MachineSupplyMode::CheckedBody, None) => {
                     // A CHECKED ADAPTER derives a plan row only over a
                     // BOUNDARY trait (a service schema). A plain trait's
                     // conformance -- including its service-reach ceiling -- is the
                     // existing trait machinery's business (the decision-20
                     // admission fixtures pin it) and derives nothing here.
                     let is_boundary_trait = typed.traits().iter().any(|definition| {
-                        definition.is_boundary
-                            && (definition.name.as_str() == clause.trait_name.as_str()
-                                || definition
-                                    .name
-                                    .as_str()
-                                    .rsplit("::")
-                                    .next()
-                                    .is_some_and(|leaf| leaf == clause.trait_name.as_str()))
+                        definition.is_boundary && definition.symbol == clause.symbol
                     });
                     if !is_boundary_trait {
                         continue;
@@ -1404,16 +1378,8 @@ pub(crate) fn derive_satisfies_plans(
                 _ => continue, // refused elsewhere (via rungs)
             };
             let binding = binding_kind;
-            // The selected target-machine marker is cleared before lowering
-            // so the machine behaves ordinarily. Recover the deployment
-            // dimension from compile selection for plan identity/selection;
-            // otherwise a target-scoped leaf silently becomes a universal
-            // provider after it is selected.
-            let target = machine.target.as_ref().map_or_else(
-                || selected_target.unwrap_or_default().to_owned(),
-                |target| target.as_str().to_owned(),
-            );
-            let trait_leaf = clause.trait_name.as_str().to_owned();
+            let target = selected_target.unwrap_or_default().to_owned();
+            let trait_leaf = clause.name.as_str().to_owned();
             let provider_type = machine
                 .attached_data
                 .as_ref()
@@ -1432,13 +1398,13 @@ pub(crate) fn derive_satisfies_plans(
             let requirement_identity = satisfied_requirement_identity(
                 typed,
                 machine.name.as_str(),
-                clause.trait_name.as_str(),
+                clause.name.as_str(),
                 requirement.as_str(),
             );
             let semantic_requirement_identity = exact_satisfied_requirement_identity(
                 typed,
                 machine.name.as_str(),
-                clause.trait_name.as_str(),
+                clause.name.as_str(),
                 requirement.as_str(),
             );
             for (schema_trait, schema) in provider_plan_schema_targets(
@@ -1470,11 +1436,7 @@ pub(crate) fn derive_satisfies_plans(
             }
         }
     }
-    plans.extend(derive_boundary_operator_plans(
-        syntax_trees,
-        typed,
-        selected_target,
-    ));
+    plans.extend(derive_boundary_operator_plans(typed, selected_target));
     plans
 }
 
@@ -1546,43 +1508,35 @@ fn provider_plan_schema_targets(
 }
 
 fn derive_boundary_operator_plans(
-    syntax_trees: &psi_syntax_trees::SyntaxTrees,
     typed: &TypedTrees,
     selected_target: Option<&str>,
 ) -> Vec<ProviderPlan> {
     let mut plans = Vec::<ProviderPlan>::new();
-    for item in syntax_trees.root_items() {
-        let psi_syntax_trees::item::Item::Machine(machine) = item else {
-            continue;
-        };
-        if machine.target.is_some() {
-            continue;
-        }
-        let Some(typed_machine) = typed
-            .machines()
-            .iter()
-            .find(|candidate| candidate.name.as_str() == machine.name.as_str())
-        else {
-            continue;
-        };
-        for clause in syntax_trees.items.satisfies_clauses(machine.satisfies) {
+    for machine in typed.machines() {
+        for clause in typed.machine_trait_conformances(machine) {
             let Some(requirement) = clause.requirement.as_ref() else {
                 continue;
             };
             let Some(operator) = psi_typed_trees::operator::resolve_satisfied_boundary_operator(
                 typed,
-                typed_machine,
-                clause.trait_name.as_str(),
+                machine,
+                clause.name.as_str(),
                 requirement.as_str(),
             ) else {
                 continue;
             };
-            let binding = match (&clause.via, machine.bodyless) {
-                (Some(_), true) => {
+            let binding = match (machine.supply_mode, clause.external_binding) {
+                (
+                    psi_language_semantics::MachineSupplyMode::ExternalRealization {
+                        binding: supply_binding,
+                        ..
+                    },
+                    Some(conformance_binding),
+                ) if supply_binding == conformance_binding => {
                     let Some(binding) = exact_external_binding_identity(
                         typed,
-                        typed_machine,
-                        clause.trait_name.as_str(),
+                        machine,
+                        clause.name.as_str(),
                         requirement.as_str(),
                     ) else {
                         continue;
@@ -1595,23 +1549,22 @@ fn derive_boundary_operator_plans(
                             .map(|name| name.as_str())
                             .unwrap_or_default(),
                         &typed
-                            .normalized_machine_overload_identity(typed_machine)
+                            .normalized_machine_overload_identity(machine)
                             .map(|identity| identity.identity())
                             .unwrap_or_default(),
                     )
                 }
-                (None, false) => ProviderBinding::CheckedAdapter {
-                    machine: machine.name.as_str().to_owned(),
-                },
+                (psi_language_semantics::MachineSupplyMode::CheckedBody, None) => {
+                    ProviderBinding::CheckedAdapter {
+                        machine: machine.name.as_str().to_owned(),
+                    }
+                }
                 _ => continue, // invalid via/body combinations are refused elsewhere
             };
             let Some(schema) = ServiceSchema::from_typed_operator(typed, operator) else {
                 continue;
             };
-            let target = machine.target.as_ref().map_or_else(
-                || selected_target.unwrap_or_default().to_owned(),
-                |target| target.as_str().to_owned(),
-            );
+            let target = selected_target.unwrap_or_default().to_owned();
             let provider_type = machine
                 .attached_data
                 .as_ref()
@@ -2958,7 +2911,7 @@ mod tests {
         let typed =
             psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
                 .expect("type provider fixture");
-        let plans = derive_satisfies_plans(&syntax, &typed, None);
+        let plans = derive_satisfies_plans(&typed, None);
         let [plan] = plans.as_slice() else {
             panic!(
                 "provider fixture must derive exactly one plan, got {}",
@@ -2996,16 +2949,9 @@ mod tests {
             psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
                 .expect("type retained binding");
 
-        // Supply a same-shaped syntax tree with different raw payload. Plan
-        // derivation must consume the exact id/table retained in typed trees,
-        // never re-read the later syntax payload.
-        let drifted_source = source("drifted-library", "drifted-symbol");
-        let drifted_tokens = psi_source_files_to_tokens::Lexer::new(&drifted_source)
-            .tokenize()
-            .expect("tokenize drifted binding");
-        let drifted_syntax = psi_tokens_to_syntax_trees::parse_syntax_trees(&drifted_tokens)
-            .expect("parse drifted binding");
-        let plans = derive_satisfies_plans(&drifted_syntax, &typed, None);
+        // Derivation accepts no syntax tree: the exact typed id/table is its
+        // only external-binding authority.
+        let plans = derive_satisfies_plans(&typed, None);
         let [plan] = plans.as_slice() else {
             panic!("one external provider plan")
         };
@@ -4555,7 +4501,7 @@ mod tests {
         let typed =
             psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
                 .expect("type adapter ownership fixture");
-        let plan = derive_satisfies_plans(&syntax, &typed, None)
+        let plan = derive_satisfies_plans(&typed, None)
             .into_iter()
             .find(|plan| plan.schema.trait_name == "Readable")
             .expect("Readable provider plan");
@@ -4660,7 +4606,7 @@ mod tests {
             .expect("CheckedMath::offset_zero operator");
         let identity =
             psi_typed_trees::operator::boundary_operator_requirement_identity(&typed, operator);
-        let plan = derive_satisfies_plans(&syntax, &typed, None)
+        let plan = derive_satisfies_plans(&typed, None)
             .into_iter()
             .find(|plan| plan.schema.trait_name == identity)
             .expect("CheckedMath::offset_zero provider plan");
@@ -4712,7 +4658,7 @@ mod tests {
             let typed =
                 psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
                     .expect("type syscall leaf");
-            let plans = derive_satisfies_plans(&syntax, &typed, None);
+            let plans = derive_satisfies_plans(&typed, None);
             (typed, plans)
         }
 
@@ -4767,7 +4713,7 @@ mod tests {
         let typed =
             psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
                 .expect("type provider");
-        let plans = derive_satisfies_plans(&syntax, &typed, None);
+        let plans = derive_satisfies_plans(&typed, None);
 
         let diagnostics = validate_provider_plan_candidates(&typed, &plans);
 
