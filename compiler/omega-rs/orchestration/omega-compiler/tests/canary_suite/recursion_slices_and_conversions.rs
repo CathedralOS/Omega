@@ -676,10 +676,13 @@ fn runtime_signed_index_guarded_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("runtime signed-index-guarded canary should compile");
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("runtime signed-index-guarded canary should retain its executable receipt");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(executable)
         .output()
         .expect("runtime signed-index-guarded canary should run");
 
@@ -701,10 +704,13 @@ fn runtime_two_pointer_sum_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-runtime-two-pointer-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("runtime two-pointer-sum canary should compile");
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("runtime two-pointer-sum canary should retain its executable receipt");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(executable)
         .output()
         .expect("runtime two-pointer-sum canary should run");
 
