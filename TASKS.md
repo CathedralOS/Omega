@@ -750,9 +750,13 @@ Owners:
   test child rather than sharing its production root. Its four Stable,
   Stable-compound, External, and Atomic primitive specialization contracts and
   independent replay validators now live in a focused 578-line child, leaving
-  a 3,992-line coordinator. All 81 unit tests, 312-function production
-  inventory, diagnostics, custody and retry behavior, and the public surface
-  remain unchanged.
+  a 3,992-line coordinator. Placement-resource compatibility and effective-
+  supply derivation now live in a focused 226-line child behind the unchanged
+  crate-root API. It preserves exact Stable/External/Atomic supply selection,
+  conservative Stable substitution, full-region reach, transfer alignment, and
+  base-congruence validation, leaving a 3,779-line coordinator. All 81 unit
+  tests, the current 440-function production inventory, diagnostics, custody,
+  retry behavior, and the public surface remain unchanged.
 - Implement `Extent::Resident<P, T>` as the owned exact-range dormant-content
   qualification, including invariant type indices, mutual exclusion with
   `Vacant`, split/merge rejection, borrow versus owned-view continuity,
