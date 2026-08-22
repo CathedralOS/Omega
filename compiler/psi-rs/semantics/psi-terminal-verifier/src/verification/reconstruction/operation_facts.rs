@@ -36,18 +36,37 @@ pub(super) fn append_operation(
     if let Some(semantics) = proof_bearing_scalar_leaf_semantics(operation, value_types)
         .map_err(ModuleError::OperationSemanticSchema)?
     {
+        let literal_aware_exact_reduction = matches!(
+            semantics.tag(),
+            OperationSemanticTag::ExactIntegerDivide | OperationSemanticTag::ExactIntegerRemainder
+        )
+        .then(|| {
+            reduce_proof_bearing_scalar_goal(
+                &semantics,
+                axioms,
+                &machine.contract.requires,
+                machine_parameter_values,
+            )
+        });
+        // Exact divide/remainder retain their trusted literal-aware reduction
+        // when it already closes the site. Richer nontrivial exact obligations
+        // may still select an available canonical certificate below.
+        let exact_reduction_closes = literal_aware_exact_reduction
+            .as_ref()
+            .is_some_and(|proposition| proposition == &Proposition::Truth);
         let canonical_certificate = matches!(
             semantics.tag(),
             OperationSemanticTag::WrappingIntegerDivide
                 | OperationSemanticTag::WrappingIntegerRemainder
                 | OperationSemanticTag::SaturatingIntegerDivide
                 | OperationSemanticTag::SaturatingIntegerRemainder
-        ) || certificate_entry::retained(
-            Some(proposition_context),
-            semantics.canonical_goal(),
-            axioms,
-            &machine.contract.requires,
-        );
+        ) || (!exact_reduction_closes
+            && certificate_entry::retained(
+                Some(proposition_context),
+                semantics.canonical_goal(),
+                axioms,
+                &machine.contract.requires,
+            ));
         let proposition = if canonical_certificate {
             semantics
                 .canonical_goal()
@@ -57,12 +76,14 @@ pub(super) fn append_operation(
                     OperationSemanticError::ProofBearingScalarSchemaMismatch(semantics.tag()),
                 ))?
         } else {
-            reduce_proof_bearing_scalar_goal(
-                &semantics,
-                axioms,
-                &machine.contract.requires,
-                machine_parameter_values,
-            )
+            literal_aware_exact_reduction.unwrap_or_else(|| {
+                reduce_proof_bearing_scalar_goal(
+                    &semantics,
+                    axioms,
+                    &machine.contract.requires,
+                    machine_parameter_values,
+                )
+            })
         };
         operation_obligations.push(ReconstructedOperationObligation {
             obligation: Obligation {
