@@ -1,4 +1,4 @@
-//! Canonical format-32 trivial affine local and local-type rows.
+//! Canonical format-33 trivial affine local and local-type rows.
 
 use psi_core::{PlaceId, StructuralPlaceKind, StructuralTypeId};
 use psi_terminal::{StructuralPlaceDeclaration, StructuralTypeDeclaration, StructuralTypeShape};

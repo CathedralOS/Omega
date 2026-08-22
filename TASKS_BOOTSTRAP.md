@@ -223,15 +223,19 @@ story.
       literal establishment/place, and generalized structural boundary-argument
       source required by `write_line` (terminal vocabulary 24). Local literal
       sources are admitted only at bodyless boundaries; in-module forwarding
-      and unsupported native layout remain fail-closed.
+      and nonliteral native layout remain fail-closed.
     - [x] Preserve literal bytes exactly in the canonical codec, verifier, and
       interpreter, including non-UTF-8 bytes; fix the Psi lexer so `\xNN` adds
-      the requested byte instead of round-tripping it through Unicode. The
-      parser now rejects raw-byte strings with a directed diagnostic until the
-      syntax/typed/checked representations own byte payloads end to end.
-    - [ ] Preserve the same structural operand through Psi-to-Omega abstract
-      lowering. Keep native target lowering fail-closed until `write_line` has a
-      real target realization.
+      the requested byte instead of round-tripping it through Unicode. Syntax,
+      resolved, typed, and checked representations now own exact byte payloads;
+      the checked-to-terminal path establishes the borrowed literal and passes
+      the same place to the bodyless boundary call.
+    - [x] Preserve the same structural operand through Psi-to-Omega abstract,
+      target, assigned, machine, object, image, and installation custody. The
+      exact Linux literal-only realization uses import-free `write`, appends one
+      newline, retries short writes, and composes with `exit_group` in one Unit
+      body on x86-64 and AArch64. Nonliteral forwarding and Darwin/Windows remain
+      fail-closed.
     - [ ] Represent O0's `Main { console: Console }` attachment honestly. Either
       verify a canonical specialization that erases the dynamic-trait field
       into the retained boundary requirement plus provider-installation seam,

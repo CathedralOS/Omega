@@ -75,9 +75,16 @@ through `exit_group` on x86-64 and AArch64, records its exact native settlement
 interval, and traps if the nominally nonreturning syscall returns. Darwin and
 Windows stay fail-closed pending validated import and relocation evidence.
 
-The remaining console boundary is `write_line`. Vocabulary 24 provides its
-borrowed byte-sequence structural shape, exact literal establishment, canonical
-codec/verifier/interpreter path, and bodyless-boundary custody. Source, typed,
-and checked trees do not yet own arbitrary raw bytes, and Omega native lowering
-still rejects the literal. Bootstrap work must continue through that canonical
-representation rather than bypass it with a private Omega0 IR.
+The literal `write_line` console boundary now crosses the same canonical route.
+Psi owns exact raw bytes through syntax, resolved, typed, checked, and terminal
+forms. Omega retains the literal place and bytes through abstract, target,
+assigned, machine, object, image, and installation custody. Linux x86-64 and
+AArch64 use an import-free short-write loop over the exact bytes plus one
+newline; Darwin, Windows, nonliteral forwarding, and in-module literal calls
+remain fail-closed.
+
+The remaining O0 console work is therefore not another byte representation. It
+is the honest `Main { console: Console }` attachment, direct canonical terminal
+emission from Delta, and runnable-artifact/meaning agreement. Bootstrap work
+must use this shared representation rather than bypass it with a private Omega0
+IR.

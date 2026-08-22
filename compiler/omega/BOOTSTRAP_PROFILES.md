@@ -135,8 +135,12 @@ them.
 
 Vocabulary 24 also carries a first-class borrowed byte-sequence structural type,
 an exact raw-octet literal establishment, and the literal's custody through a
-bodyless boundary call. Source/typed/checked ownership and native realization of
-that byte carrier remain the `write_line` seam; unsupported paths reject rather
+bodyless boundary call. Psi syntax, resolved, typed, and checked trees own the
+exact bytes, and checked-to-terminal lowering passes the established literal
+place to that call. Omega preserves the same custody through abstract, target,
+assigned, machine, object, image, and installation forms. On Linux x86-64 and
+AArch64 the exact literal-only call is an import-free short-write loop over the
+literal plus one newline; nonliteral forwarding and other targets reject rather
 than transcoding or discarding it.
 
 Linux `exit_process(i32)` is now realized directly as import-free `exit_group`
