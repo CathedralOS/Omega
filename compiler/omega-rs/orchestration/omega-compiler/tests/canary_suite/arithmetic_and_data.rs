@@ -1226,9 +1226,12 @@ fn runtime_float_compare_cast_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_float_compare_cast_exit");
     let scratch = std::env::temp_dir().join(format!("omega-float-breadth-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("float compare/cast canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("float compare/cast canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("float compare/cast canary should run");
     assert_eq!(
@@ -1246,9 +1249,12 @@ fn runtime_float_operations_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_float_operations_exit");
     let scratch = std::env::temp_dir().join(format!("omega-float-ops-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("float-arithmetic canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("float-arithmetic canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("float-arithmetic canary should run");
     assert_eq!(
