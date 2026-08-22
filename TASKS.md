@@ -2196,6 +2196,13 @@ Remaining:
   affine custody remain unchanged; this removes repeated full inner-ledger
   scans without changing proof shape, rejection, or the fixed definition
   frontier.
+  Source-ordered one-alias literal landing indexes now live in paired, side-
+  local `affine_selection/literal/alias/candidates/landing_index` modules.
+  Producer and reconstruction independently index requirements before semantic
+  axioms, both equality orientations, exact Value aliases, and integer-literal
+  landings; only the producer retains citation custody. Outer root/alias
+  traversal, same-row rejection, carrier checks, proof shape, and completion
+  precedence remain unchanged.
   One-intermediate-alias affine literal completion now lives in
   independent side-local `affine_selection/literal/alias/completion` modules.
   Each parent retains its own outer-then-inner equality discovery, distinct
