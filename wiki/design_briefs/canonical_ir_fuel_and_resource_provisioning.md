@@ -117,8 +117,23 @@ cycles, energy, or wall-clock time.
 The execution sponsor supplies a budget. Executed code cannot inspect its
 remaining fuel, branch on budget policy, catch exhaustion as a machine result,
 or distinguish interpreted from natively metered execution. Exhaustion is a
-sponsor event: the host may replenish and resume, cancel, or terminate
-according to installation policy.
+sponsor event: the host may replenish and resume, or terminate the enclosing
+execution under separate installation authority. Exhaustion itself creates no
+structured cancellation frontier.
+
+The documentation calls the greatest total charged along any one admitted
+path the **maximum logical work**, measured in fuel units. Sequential work
+adds, while mutually exclusive branches take their maximum:
+
+```text
+sequential A then B        work = A + B
+exclusive A or B          work = max(A, B)
+```
+
+This is intentionally unlike worst-case simultaneous stack use, where two
+sequential calls normally contribute their maximum because the first frame is
+reclaimed before the second. Logical work is consumed and is not returned.
+The maximum is neither native instruction count nor elapsed time.
 
 The same denomination serves:
 
@@ -143,6 +158,32 @@ folded back into Psi language elaboration.
 Optimization may reduce physical work without reducing logical fuel. A
 compiler release may not silently change budget behavior merely because its
 native lowering improved.
+
+Native installation selects a fuel realization for each sponsor region. A
+sponsor region is the transitive execution charged to one sponsor-owned fuel
+context; an explicit transition to a separately sponsored call begins another
+region. Ordinary calls remain in their caller's region.
+
+- **Fixed provision.** An exact installed certificate proves the region's
+  maximum logical work fits its admitted grant. Native lowering emits no meter.
+- **Dynamic metering.** Native lowering charges the exact executed operations
+  and edges incrementally against a private per-activation sponsor context.
+  The target must supply an admitted native meter and exhaustion-transfer plan.
+- **Unavailable realization.** A hosted deployment may interpret; a target
+  without an interpreter rejects the installation.
+
+Fixed provision proves that its region cannot exhaust. It does not imply that
+the complete activation is free from fuel suspension when a reachable call
+crosses into a separately sponsored dynamic region. Installation derives the
+stronger `FuelSuspensionFree` fact only when every reachable sponsor region is
+proven non-exhausting. Interrupt, non-suspendable critical, and similar roots
+that rely on this property require it explicitly.
+
+For a transparent closure, `FuelSuspensionFree` is derived. An opaque provider
+publishes an independently admitted suspension guarantee alongside its work
+summary. A numeric provider-work summary alone says how much work to charge; it
+does not prove that the provider lacks a separately sponsored dynamic region.
+Missing suspension evidence fails closed.
 
 A value-less `ReturnUnit` is still one taken normal-return edge. It has the
 same edge charge as a scalar return and no invented value-producing operation.
@@ -337,7 +378,7 @@ host load or elapsed time. Long terminating builds remain legal; progress,
 warnings, cache accounting, and optional root-selected ceilings consume the
 meter without making the ceiling program semantics.
 
-## Restricted fixed-work checking
+## Restricted maximum-logical-work checking
 
 A restricted checker may prove:
 
@@ -358,12 +399,39 @@ retains the exact attribution that prevented closure.
 Static premises may be discharged at installation. Invocation-dependent
 premises are ordinary call obligations and must hold at each meter-free call.
 
-A sponsor may execute a fixed-work entry natively without runtime metering when
+A sponsor may execute a certified entry natively without runtime metering when
 trusted lowering and installation establish that the executing bytes came
 from the certified Psi module and the proved ceiling fits the granted fuel. Psi
 without such a theorem remains safely executable under interpreter metering or
 trusted inserted native metering. A certificate that arbitrary native bytes
 refine terminal Psi is a separate future proof-carrying-code chain.
+
+A segment ceiling is not an additional execution mode. Bulk charging preserves
+exact fuel behavior only when every path through the segment has the same
+logical cost. Reserving a merely maximal segment ceiling makes exhaustion
+inside that segment impossible and is fixed provision at segment granularity;
+otherwise lowering retains the exact per-site charges. It may not replace
+actual path cost with a conservative ceiling, because doing so could reject an
+execution that the reference meter permits.
+
+Dynamic native exhaustion is architectural suspension, not a semantic safe
+point. The failed check occurs before the operation or edge, changes neither
+the remaining allowance nor program state, and transfers to sponsor-owned
+runtime machinery with the exact schedule, unpaid `OperationId` or `EdgeId`,
+required units, and remaining units. The preserved register, stack, and program
+counter state is the continuation. No Omega value names it, and exhaustion does
+not authorize structured cancellation, migration, replacement, or source-level
+handling. Replenishment restores that opaque state at the failed pre-charge
+check, so already completed work and paid call edges are not replayed.
+
+Every dynamic region requires an exhaustion-transfer plan executable from each
+charge site without waiting on a resource held by the suspended activation.
+The compiler/target transfer stub is trusted instrumentation outside Terminal
+Psi logical-work accounting. It has independently admitted stack and machine-
+state needs and switches to a sponsor context without charging the exhausted
+meter. Any authored sponsor policy reached afterward runs as a distinct,
+`FuelSuspensionFree` region with complete fixed provision. This split prevents
+recursive exhaustion without hiding authored policy work from admission.
 
 The live hard-root precursor composes recomputable entry/segment certificates
 and admitted opaque-provider summaries under one `FuelScheduleIdentity`.
@@ -430,7 +498,7 @@ suspend io.read()     work: local bound  response: NoFiniteGuarantee(io.read)
 
 A selected-point report has three honest outcomes:
 
-- `Bounded(K, evidence)` when restricted fixed-work checking closes;
+- `Bounded(K, evidence)` when restricted maximum-logical-work checking closes;
 - `Unknown(reason)` when the checker cannot prove a bound; and
 - `NoFiniteGuarantee(edge)` when a reachable wait or foreign edge publishes no
   finite response contract.
