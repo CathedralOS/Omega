@@ -26,7 +26,11 @@ pub(crate) fn validate_plans(program: &TypedTrees, diagnostics: &mut Vec<Diagnos
             )));
             continue;
         };
-        let data_field_symbols = runtime_field_symbols(program, data);
+        let data_fields = runtime_fields(program, data);
+        let data_field_symbols = data_fields
+            .iter()
+            .map(|field| field.symbol)
+            .collect::<Vec<_>>();
         if data_field_symbols != plan.field_symbols
             || plan.offsets.len() != plan.field_symbols.len()
         {
@@ -48,11 +52,33 @@ pub(crate) fn validate_plans(program: &TypedTrees, diagnostics: &mut Vec<Diagnos
             )));
             continue;
         };
-        if runtime_field_symbols(program, schema) != plan.schema_field_symbols
+        let schema_fields = runtime_fields(program, schema);
+        if schema_fields
+            .iter()
+            .map(|field| field.symbol)
+            .ne(plan.schema_field_symbols.iter().copied())
             || plan.schema_field_symbols.len() != plan.field_symbols.len()
         {
             diagnostics.push(Diagnostic::error(format!(
                 "plan-laid value type `{}` changed its exact source schema field identity inventory",
+                plan.data_name
+            )));
+            continue;
+        }
+        if data_fields
+            .iter()
+            .zip(&schema_fields)
+            .any(|(data_field, schema_field)| {
+                data_field.identity != schema_field.identity
+                    || (schema_field.identity.is_none()
+                        && data_field.name.as_str() != schema_field.name.as_str())
+                    || program.display_type_reference_with_constraints(data_field.type_reference)
+                        != program
+                            .display_type_reference_with_constraints(schema_field.type_reference)
+            })
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "plan-laid value type `{}` changed its exact schema-to-synthesized field correspondence",
                 plan.data_name
             )));
             continue;
@@ -94,16 +120,16 @@ pub(crate) fn validate_plans(program: &TypedTrees, diagnostics: &mut Vec<Diagnos
     }
 }
 
-fn runtime_field_symbols(
-    program: &TypedTrees,
+fn runtime_fields<'program>(
+    program: &'program TypedTrees,
     data: &psi_typed_trees::data::DataDefinition,
-) -> Vec<psi_symbols::SymbolHandle> {
+) -> Vec<&'program psi_typed_trees::data::DataField> {
     program
         .data_members(data)
         .iter()
         .filter_map(|member| match member {
             psi_typed_trees::data::DataMember::Field(field) if !field.relevance.is_erased() => {
-                Some(field.symbol)
+                Some(field)
             }
             psi_typed_trees::data::DataMember::Field(_)
             | psi_typed_trees::data::DataMember::Variant(_) => None,

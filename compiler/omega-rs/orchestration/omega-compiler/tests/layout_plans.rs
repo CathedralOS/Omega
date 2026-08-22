@@ -180,6 +180,7 @@ fn plan_laid_value_types_are_placed_by_their_plan() {
     assert_eq!(recorded.data_name, "Spread16<Gdtish>");
     let plan_laid_data_symbol = recorded.data_symbol;
     let schema_symbol = recorded.schema_symbol;
+    let schema_field_symbols = recorded.schema_field_symbols.clone();
     let policy_symbol = recorded.policy_symbol;
     let policy_plan_machine_symbol = recorded.policy_plan_machine_symbol;
     let plan_laid_data = checked
@@ -229,13 +230,24 @@ fn plan_laid_value_types_are_placed_by_their_plan() {
         .expect("exact synthesized plan-laid record should remain selected by symbol");
     assert_eq!(data_layout.layout.size, 64);
 
-    let main_symbol = checked
-        .typed
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.name.as_str() == "Main")
-        .expect("fixture Main data")
-        .symbol;
+    let (main_symbol, main_field_symbols) = {
+        let main = checked
+            .typed
+            .data_definitions()
+            .iter()
+            .find(|definition| definition.name.as_str() == "Main")
+            .expect("fixture Main data");
+        let symbols = checked
+            .typed
+            .data_members(main)
+            .iter()
+            .filter_map(|member| match member {
+                psi_typed_trees::data::DataMember::Field(field) => Some(field.symbol),
+                psi_typed_trees::data::DataMember::Variant(_) => None,
+            })
+            .collect::<Vec<_>>();
+        (main.symbol, symbols)
+    };
 
     checked.typed.plan_laid_layouts[0].schema_symbol = main_symbol;
     let diagnostics = psi_validation::validate_program(&checked.typed)
@@ -246,6 +258,18 @@ fn plan_laid_value_types_are_placed_by_their_plan() {
             .contains("changed its exact source schema field identity inventory")
     }));
     checked.typed.plan_laid_layouts[0].schema_symbol = schema_symbol;
+
+    checked.typed.plan_laid_layouts[0].schema_symbol = main_symbol;
+    checked.typed.plan_laid_layouts[0].schema_field_symbols = main_field_symbols;
+    let diagnostics = psi_validation::validate_program(&checked.typed)
+        .expect_err("coordinated source schema substitution must fail closed");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("changed its exact schema-to-synthesized field correspondence")
+    }));
+    checked.typed.plan_laid_layouts[0].schema_symbol = schema_symbol;
+    checked.typed.plan_laid_layouts[0].schema_field_symbols = schema_field_symbols;
 
     checked.typed.plan_laid_layouts[0].policy_symbol = main_symbol;
     let diagnostics = psi_validation::validate_program(&checked.typed)
