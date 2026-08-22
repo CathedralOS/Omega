@@ -158,6 +158,35 @@ fn known_call_written_paths_for_parts_with_origins(
     active_states: &mut Vec<SymbolHandle>,
     argument_origins: Option<&[Option<FramePlaceOrigin>]>,
 ) -> Option<Vec<String>> {
+    known_call_written_paths_for_parts_with_origins_and_summaries(
+        program,
+        target_symbol,
+        target,
+        receiver_members,
+        arguments,
+        current_machine,
+        machine_symbols,
+        symbols,
+        active_states,
+        argument_origins,
+        &mut Vec::new(),
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn known_call_written_paths_for_parts_with_origins_and_summaries(
+    program: &TypedTrees,
+    target_symbol: SymbolHandle,
+    target: &str,
+    receiver_members: &[String],
+    arguments: &[ExpressionHandle],
+    current_machine: &Machine,
+    machine_symbols: &MachineSymbols<'_>,
+    symbols: &TopLevelSymbols<'_>,
+    active_states: &mut Vec<SymbolHandle>,
+    argument_origins: Option<&[Option<FramePlaceOrigin>]>,
+    complete_state_summaries: &mut Vec<(SymbolHandle, Vec<String>)>,
+) -> Option<Vec<String>> {
     // A static machine parameter's selected target is a specialization input,
     // not an ordinary receiver binding. Until MP summaries instantiate that
     // binding explicitly, retain the sound all-facts invalidation.
@@ -212,6 +241,7 @@ fn known_call_written_paths_for_parts_with_origins(
         symbols,
         active_states,
         argument_origins,
+        complete_state_summaries,
     );
     active_states.pop();
     result
@@ -227,6 +257,7 @@ fn summarize_resolved_call(
     symbols: &TopLevelSymbols<'_>,
     active_states: &mut Vec<SymbolHandle>,
     argument_origins: Option<&[Option<FramePlaceOrigin>]>,
+    complete_state_summaries: &mut Vec<(SymbolHandle, Vec<String>)>,
 ) -> Option<Vec<String>> {
     let receiver_base = (!receiver_members.is_empty())
         .then(|| receiver_members.join("."))
@@ -245,7 +276,7 @@ fn summarize_resolved_call(
         callee_state,
         symbols,
         active_states,
-        &mut Vec::new(),
+        complete_state_summaries,
     )
     .or_else(|| {
         summarize_state_written_paths_with_permuted_cycles(
@@ -450,7 +481,7 @@ fn summarize_state_written_paths(
                         )
                     })
                     .collect::<Vec<_>>();
-                let nested_writes = known_call_written_paths_for_parts_with_origins(
+                let nested_writes = known_call_written_paths_for_parts_with_origins_and_summaries(
                     program,
                     nested_call.target_symbol,
                     nested_call.target.as_str(),
@@ -461,6 +492,7 @@ fn summarize_state_written_paths(
                     symbols,
                     active_states,
                     Some(&argument_origins),
+                    complete_state_summaries,
                 )
                 .or_else(|| {
                     (!arguments
