@@ -92,8 +92,9 @@ sum types, state-machine control flow, byte I/O, and code emission.
 
 That evidence is necessary but is not the first Omega compiler:
 
-- There is no Delta source implementing an Omega lexer, parser, checker,
-  terminal-Psi lowering, or backend.
+- The Delta-written O0 slice implements its frozen lexer, parser, and exact
+  name/type/count checks. It is not yet a full Omega frontend, and no Delta
+  source yet implements terminal-Psi lowering or a complete Omega backend.
 - The Delta-written native path emits ARM64 assembly and still uses external
   `clang` and `codesign` to obtain a runnable image.
 - `lowermachine.alp` is a large, effectively single-source compiler. Its source
@@ -208,9 +209,9 @@ story.
     name/type/count rejection matrix against the frozen source contract. The
     focused native gate covers canonical, variant, malformed, and exhaustion
     cases, and a Delta-written `lowermachine` recompilation preserves both
-    acceptance and rejection. It
-    retains the decoded `write_line` carrier and `exit_process` literal and
-    exposes their digest until terminal-Psi emission consumes them.
+    acceptance and rejection. It retains the decoded `write_line` carrier and
+    `exit_process` literal and exposes their digest until terminal-Psi emission
+    consumes them.
   - [ ] Emit the O0 terminal-Psi semantic artifact while retaining
     `write_line`'s exact structural byte carrier and custody through its
     boundary call. This is implementation work, not an unresolved language
@@ -321,8 +322,10 @@ from attractive but deferrable language work.
 3. Grow proof-kernel capability and its operational seams only in lockstep with
    real obligation classes.
 4. Build translation-validation evidence for native compiler outputs.
-5. Execute the Delta → first Omega work packages above, beginning with the two
-   profiles, scalable storage, and one vertical Omega canary.
+5. Continue the Delta → first Omega vertical canary through canonical terminal
+   emission, target boundary realization, and runnable-artifact agreement; the
+   initial D0/O0 profiles, source packaging, storage, and frontend slice now
+   exist.
 6. Use the resulting bootstrap Omega compiler to build and validate the full
    optimizing Omega compiler from Omega source.
 
