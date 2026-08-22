@@ -1,0 +1,451 @@
+//! Provider-issued correspondence between one nominal placement and one
+//! stable physical device instance.
+//!
+//! Resource-profile compatibility answers whether a range can support a
+//! placement. This module deliberately carries the separate admitted claim
+//! that the placement describes the named device. It performs no device read,
+//! placement admission, content establishment, or field access.
+
+use super::{
+    AccessPlanDiagnostic, AdmittedResourceProfile, PlacementPlanId, ResourceProfileReceiptId,
+    ValidatedPlacementPlan,
+};
+
+macro_rules! normalized_identity {
+    ($name:ident, $label:literal) => {
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+        pub struct $name(u64);
+
+        impl $name {
+            pub fn from_normalized_identity(identity: u64) -> Result<Self, AccessPlanDiagnostic> {
+                if identity == 0 {
+                    return Err(AccessPlanDiagnostic(
+                        concat!($label, " cannot be zero").into(),
+                    ));
+                }
+                Ok(Self(identity))
+            }
+
+            pub const fn normalized_identity(self) -> u64 {
+                self.0
+            }
+        }
+    };
+}
+
+normalized_identity!(
+    SchemaCorrespondenceProviderId,
+    "schema-correspondence provider identity"
+);
+normalized_identity!(StableDeviceInstanceId, "stable device-instance identity");
+normalized_identity!(
+    SchemaCorrespondenceSourceId,
+    "schema-correspondence provenance-source identity"
+);
+normalized_identity!(
+    RuntimeDeviceRevisionObservationId,
+    "runtime device-revision observation identity"
+);
+normalized_identity!(
+    DeviceRevisionPredicateId,
+    "device-revision predicate identity"
+);
+
+/// Provider-issued evidence for one runtime revision observation.
+///
+/// The observed word is ordinary data. This non-Clone carrier is the admitted
+/// evidence that the observation belongs to one stable device instance and
+/// the same resource-profile grant later named by correspondence.
+#[derive(Debug)]
+#[must_use = "runtime revision evidence retains its provider/device/grant binding"]
+pub struct RuntimeDeviceRevisionEvidence {
+    observation: RuntimeDeviceRevisionObservationId,
+    predicate: DeviceRevisionPredicateId,
+    provider: SchemaCorrespondenceProviderId,
+    device: StableDeviceInstanceId,
+    profile_receipt: ResourceProfileReceiptId,
+    observed_revision: u64,
+}
+
+impl RuntimeDeviceRevisionEvidence {
+    pub fn from_admitted_provider(
+        observation: RuntimeDeviceRevisionObservationId,
+        predicate: DeviceRevisionPredicateId,
+        provider: SchemaCorrespondenceProviderId,
+        device: StableDeviceInstanceId,
+        profile_receipt: ResourceProfileReceiptId,
+        observed_revision: u64,
+    ) -> Self {
+        Self {
+            observation,
+            predicate,
+            provider,
+            device,
+            profile_receipt,
+            observed_revision,
+        }
+    }
+
+    pub const fn observation(&self) -> RuntimeDeviceRevisionObservationId {
+        self.observation
+    }
+
+    pub const fn predicate(&self) -> DeviceRevisionPredicateId {
+        self.predicate
+    }
+
+    pub const fn provider(&self) -> SchemaCorrespondenceProviderId {
+        self.provider
+    }
+
+    pub const fn device(&self) -> StableDeviceInstanceId {
+        self.device
+    }
+
+    pub const fn profile_receipt(&self) -> ResourceProfileReceiptId {
+        self.profile_receipt
+    }
+
+    pub const fn observed_revision(&self) -> u64 {
+        self.observed_revision
+    }
+}
+
+/// Provider-only authority to assert that one nominal placement describes one
+/// exact stable device instance.
+///
+/// This remains separate from `PlacementResourceCompatibility`: compatibility
+/// cannot manufacture physical meaning. Optional revision evidence must name
+/// the same provider, device, and resource-profile grant before this carrier
+/// can be formed.
+#[derive(Debug)]
+#[must_use = "schema correspondence retains admitted provider/device provenance"]
+pub struct SchemaDeviceCorrespondenceGrant {
+    provider: SchemaCorrespondenceProviderId,
+    device: StableDeviceInstanceId,
+    source: SchemaCorrespondenceSourceId,
+    placement: PlacementPlanId,
+    profile_receipt: ResourceProfileReceiptId,
+    revision: Option<RuntimeDeviceRevisionEvidence>,
+}
+
+impl SchemaDeviceCorrespondenceGrant {
+    pub fn from_admitted_provider(
+        provider: SchemaCorrespondenceProviderId,
+        device: StableDeviceInstanceId,
+        source: SchemaCorrespondenceSourceId,
+        placement: PlacementPlanId,
+        profile_receipt: ResourceProfileReceiptId,
+        revision: Option<RuntimeDeviceRevisionEvidence>,
+    ) -> Result<Self, SchemaDeviceCorrespondenceGrantError> {
+        if revision.as_ref().is_some_and(|revision| {
+            revision.provider != provider
+                || revision.device != device
+                || revision.profile_receipt != profile_receipt
+        }) {
+            return Err(SchemaDeviceCorrespondenceGrantError {
+                revision,
+                diagnostic: AccessPlanDiagnostic(
+                    "runtime revision evidence does not bind the correspondence provider, stable device instance, and resource-profile grant"
+                        .into(),
+                ),
+            });
+        }
+        Ok(Self {
+            provider,
+            device,
+            source,
+            placement,
+            profile_receipt,
+            revision,
+        })
+    }
+
+    /// Independently join this admitted physical claim to the exact validated
+    /// placement and admitted storage profile. Rejection returns the complete
+    /// non-Clone grant for repair or retry and establishes no correspondence.
+    pub fn admit(
+        self,
+        placement: &ValidatedPlacementPlan,
+        profile: &AdmittedResourceProfile,
+    ) -> Result<AdmittedSchemaDeviceCorrespondence, SchemaDeviceCorrespondenceAdmissionError> {
+        admit_schema_device_correspondence(self, placement.identity(), profile.receipt())
+    }
+}
+
+/// Failed provider-grant formation returns optional runtime evidence intact.
+#[derive(Debug)]
+pub struct SchemaDeviceCorrespondenceGrantError {
+    revision: Option<RuntimeDeviceRevisionEvidence>,
+    diagnostic: AccessPlanDiagnostic,
+}
+
+impl SchemaDeviceCorrespondenceGrantError {
+    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
+        &self.diagnostic
+    }
+
+    pub fn into_parts(self) -> (Option<RuntimeDeviceRevisionEvidence>, AccessPlanDiagnostic) {
+        (self.revision, self.diagnostic)
+    }
+}
+
+/// Admitted physical correspondence, intentionally distinct from storage
+/// compatibility and content validity.
+#[derive(Debug)]
+#[must_use = "admitted schema correspondence retains physical provenance"]
+pub struct AdmittedSchemaDeviceCorrespondence {
+    provider: SchemaCorrespondenceProviderId,
+    device: StableDeviceInstanceId,
+    source: SchemaCorrespondenceSourceId,
+    placement: PlacementPlanId,
+    profile_receipt: ResourceProfileReceiptId,
+    revision: Option<RuntimeDeviceRevisionEvidence>,
+}
+
+impl AdmittedSchemaDeviceCorrespondence {
+    pub const fn provider(&self) -> SchemaCorrespondenceProviderId {
+        self.provider
+    }
+
+    pub const fn device(&self) -> StableDeviceInstanceId {
+        self.device
+    }
+
+    pub const fn source(&self) -> SchemaCorrespondenceSourceId {
+        self.source
+    }
+
+    pub const fn placement(&self) -> PlacementPlanId {
+        self.placement
+    }
+
+    pub const fn profile_receipt(&self) -> ResourceProfileReceiptId {
+        self.profile_receipt
+    }
+
+    pub const fn revision(&self) -> Option<&RuntimeDeviceRevisionEvidence> {
+        self.revision.as_ref()
+    }
+}
+
+/// Failed correspondence admission returns the exact provider grant rather
+/// than reducing it to copied provider/device/receipt identities.
+#[derive(Debug)]
+pub struct SchemaDeviceCorrespondenceAdmissionError {
+    grant: SchemaDeviceCorrespondenceGrant,
+    diagnostic: AccessPlanDiagnostic,
+}
+
+impl SchemaDeviceCorrespondenceAdmissionError {
+    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
+        &self.diagnostic
+    }
+
+    pub fn into_parts(self) -> (SchemaDeviceCorrespondenceGrant, AccessPlanDiagnostic) {
+        (self.grant, self.diagnostic)
+    }
+}
+
+fn admit_schema_device_correspondence(
+    grant: SchemaDeviceCorrespondenceGrant,
+    placement: PlacementPlanId,
+    profile_receipt: ResourceProfileReceiptId,
+) -> Result<AdmittedSchemaDeviceCorrespondence, SchemaDeviceCorrespondenceAdmissionError> {
+    if grant.revision.as_ref().is_some_and(|revision| {
+        revision.provider != grant.provider
+            || revision.device != grant.device
+            || revision.profile_receipt != grant.profile_receipt
+    }) {
+        return Err(SchemaDeviceCorrespondenceAdmissionError {
+            grant,
+            diagnostic: AccessPlanDiagnostic(
+                "schema correspondence could not replay its runtime revision provider, stable device instance, and resource-profile grant"
+                    .into(),
+            ),
+        });
+    }
+    if grant.placement != placement {
+        return Err(SchemaDeviceCorrespondenceAdmissionError {
+            grant,
+            diagnostic: AccessPlanDiagnostic(
+                "schema correspondence does not name the exact validated placement".into(),
+            ),
+        });
+    }
+    if grant.profile_receipt != profile_receipt {
+        return Err(SchemaDeviceCorrespondenceAdmissionError {
+            grant,
+            diagnostic: AccessPlanDiagnostic(
+                "schema correspondence does not name the exact admitted resource-profile grant"
+                    .into(),
+            ),
+        });
+    }
+    let SchemaDeviceCorrespondenceGrant {
+        provider,
+        device,
+        source,
+        placement,
+        profile_receipt,
+        revision,
+    } = grant;
+    Ok(AdmittedSchemaDeviceCorrespondence {
+        provider,
+        device,
+        source,
+        placement,
+        profile_receipt,
+        revision,
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn provider_id(identity: u64) -> SchemaCorrespondenceProviderId {
+        SchemaCorrespondenceProviderId::from_normalized_identity(identity).expect("provider")
+    }
+
+    fn device_id(identity: u64) -> StableDeviceInstanceId {
+        StableDeviceInstanceId::from_normalized_identity(identity).expect("device")
+    }
+
+    fn source(identity: u64) -> SchemaCorrespondenceSourceId {
+        SchemaCorrespondenceSourceId::from_normalized_identity(identity).expect("source")
+    }
+
+    fn receipt_id(identity: u64) -> ResourceProfileReceiptId {
+        ResourceProfileReceiptId::from_normalized_identity(identity).expect("profile receipt")
+    }
+
+    fn revision(
+        provider: SchemaCorrespondenceProviderId,
+        device: StableDeviceInstanceId,
+        receipt: ResourceProfileReceiptId,
+    ) -> RuntimeDeviceRevisionEvidence {
+        RuntimeDeviceRevisionEvidence::from_admitted_provider(
+            RuntimeDeviceRevisionObservationId::from_normalized_identity(41).expect("observation"),
+            DeviceRevisionPredicateId::from_normalized_identity(42).expect("predicate"),
+            provider,
+            device,
+            receipt,
+            0x17,
+        )
+    }
+
+    #[test]
+    fn correspondence_admission_retains_separate_provider_device_and_revision_evidence() {
+        let provider = provider_id(7);
+        let device = device_id(8);
+        let receipt = receipt_id(9);
+        let grant = SchemaDeviceCorrespondenceGrant::from_admitted_provider(
+            provider,
+            device,
+            source(10),
+            PlacementPlanId(11),
+            receipt,
+            Some(revision(provider, device, receipt)),
+        )
+        .expect("provider correspondence grant");
+
+        let admitted = admit_schema_device_correspondence(grant, PlacementPlanId(11), receipt)
+            .expect("exact placement/profile join");
+        assert_eq!(admitted.provider(), provider);
+        assert_eq!(admitted.device(), device);
+        assert_eq!(admitted.source().normalized_identity(), 10);
+        assert_eq!(admitted.placement(), PlacementPlanId(11));
+        assert_eq!(admitted.profile_receipt(), receipt);
+        let revision = admitted.revision().expect("revision evidence");
+        assert_eq!(revision.observed_revision(), 0x17);
+        assert_eq!(revision.provider(), provider);
+        assert_eq!(revision.device(), device);
+        assert_eq!(revision.profile_receipt(), receipt);
+    }
+
+    #[test]
+    fn revision_and_admission_drift_return_exact_grants_for_retry() {
+        let provider = provider_id(17);
+        let device = device_id(18);
+        let receipt = receipt_id(19);
+        let revision = revision(provider_id(99), device, receipt);
+        let revision_observation = revision.observation();
+        let rejection = SchemaDeviceCorrespondenceGrant::from_admitted_provider(
+            provider,
+            device,
+            source(20),
+            PlacementPlanId(21),
+            receipt,
+            Some(revision),
+        )
+        .expect_err("foreign-provider revision evidence must reject");
+        assert!(rejection.diagnostic().0.contains("stable device instance"));
+        let (revision, _) = rejection.into_parts();
+        assert_eq!(
+            revision.expect("returned revision evidence").observation(),
+            revision_observation
+        );
+
+        let grant = SchemaDeviceCorrespondenceGrant::from_admitted_provider(
+            provider,
+            device,
+            source(20),
+            PlacementPlanId(21),
+            receipt,
+            None,
+        )
+        .expect("unconditional provider correspondence grant");
+        let rejection = admit_schema_device_correspondence(grant, PlacementPlanId(22), receipt)
+            .expect_err("placement drift must reject");
+        assert!(rejection.diagnostic().0.contains("validated placement"));
+        let (grant, _) = rejection.into_parts();
+
+        let rejection =
+            admit_schema_device_correspondence(grant, PlacementPlanId(21), receipt_id(23))
+                .expect_err("profile-grant drift must reject");
+        assert!(rejection.diagnostic().0.contains("resource-profile grant"));
+        let (grant, _) = rejection.into_parts();
+
+        let admitted = admit_schema_device_correspondence(grant, PlacementPlanId(21), receipt)
+            .expect("returned provider grant supports corrected retry");
+        assert_eq!(admitted.provider(), provider);
+        assert_eq!(admitted.device(), device);
+        assert!(admitted.revision().is_none());
+    }
+
+    #[test]
+    fn admission_replays_revision_binding_and_returns_grant_for_retry() {
+        let provider = provider_id(27);
+        let device = device_id(28);
+        let receipt = receipt_id(29);
+        let mut grant = SchemaDeviceCorrespondenceGrant::from_admitted_provider(
+            provider,
+            device,
+            source(30),
+            PlacementPlanId(31),
+            receipt,
+            Some(revision(provider, device, receipt)),
+        )
+        .expect("provider correspondence grant");
+        grant.revision.as_mut().expect("revision evidence").device = device_id(99);
+
+        let rejection = admit_schema_device_correspondence(grant, PlacementPlanId(31), receipt)
+            .expect_err("admission must independently replay revision binding");
+        assert!(rejection.diagnostic().0.contains("could not replay"));
+        let (mut grant, _) = rejection.into_parts();
+        grant
+            .revision
+            .as_mut()
+            .expect("returned revision evidence")
+            .device = device;
+
+        let admitted = admit_schema_device_correspondence(grant, PlacementPlanId(31), receipt)
+            .expect("repaired grant remains valid for retry");
+        assert_eq!(admitted.device(), device);
+        assert_eq!(
+            admitted.revision().expect("revision evidence").device(),
+            device
+        );
+    }
+}
