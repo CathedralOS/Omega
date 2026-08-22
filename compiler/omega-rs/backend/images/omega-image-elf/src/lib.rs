@@ -8,6 +8,7 @@ mod bytes;
 mod constants;
 mod entry;
 mod headers;
+mod imports;
 mod layout;
 mod sections;
 #[cfg(test)]
@@ -15,6 +16,7 @@ mod tests;
 
 use entry::elf_entry_address;
 use headers::{write_data_program_header, write_elf_header, write_text_program_header};
+use imports::canonical_referenced_imports;
 use sections::plan_elf_sections;
 
 // ELF e_machine values.
@@ -47,6 +49,15 @@ fn emit_elf_executable(
     format: &str,
     apply_relocations: fn(&mut FinalImage, &FinalImageLayout, &str) -> Result<(), Diagnostic>,
 ) -> Result<ExecutableImageOutput, Diagnostic> {
+    let imports = canonical_referenced_imports(&image)?;
+    if let Some(import) = imports.first() {
+        return Err(Diagnostic::error(format!(
+            "ELF direct image relocation references unknown symbol `{}`; canonical dynamic import request names library `{}` at {} relocation site(s), but ELF loader binding is not implemented",
+            import.symbol,
+            import.library,
+            import.relocations.len(),
+        )));
+    }
     let sections = plan_elf_sections(&image);
     let layout = sections.final_image_layout();
     let entry_address = elf_entry_address(&image, sections.text_address)?;
