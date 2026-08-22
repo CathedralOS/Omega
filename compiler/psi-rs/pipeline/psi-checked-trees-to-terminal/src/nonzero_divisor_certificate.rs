@@ -197,16 +197,70 @@ fn prove_bounded_affine_bound(
             }
         }
     }
-    prove_alias_substituted_affine_bound(context, goal, assumptions, semantic_axioms).or_else(
-        || {
+    prove_landed_literal_affine_bound(context, goal, assumptions, semantic_axioms)
+        .or_else(|| {
+            prove_alias_substituted_affine_bound(context, goal, assumptions, semantic_axioms)
+        })
+        .or_else(|| {
             prove_transitively_reconstructed_affine_bound(
                 context,
                 goal,
                 assumptions,
                 semantic_axioms,
             )
-        },
-    )
+        })
+}
+
+fn prove_landed_literal_affine_bound(
+    context: &PropositionContext,
+    goal: &Proposition,
+    assumptions: &[Proposition],
+    semantic_axioms: &[Proposition],
+) -> Option<ProofNode> {
+    for (citation, equality) in cited_facts(assumptions, semantic_axioms) {
+        let Proposition::Equal(left, right) = equality else {
+            continue;
+        };
+        for (root, literal) in [(left, right), (right, left)] {
+            if !matches!(root, psi_core::ScalarTerm::Value { .. }) {
+                continue;
+            }
+            let Some((integer_type, _)) = literal.integer_value() else {
+                continue;
+            };
+            if root.scalar_type() != psi_core::ScalarType::Integer(integer_type) {
+                continue;
+            }
+            let reflexive = Proposition::LessOrEqual(literal.clone(), literal.clone());
+            for (root_bound, endpoint) in [
+                (Proposition::LessOrEqual(literal.clone(), root.clone()), 1),
+                (Proposition::LessOrEqual(root.clone(), literal.clone()), 0),
+            ] {
+                let root_bound = ProofNode {
+                    conclusion: root_bound,
+                    rule: ProofRule::IntegerLessOrEqualSubstitution {
+                        relation: Box::new(ProofNode {
+                            conclusion: reflexive.clone(),
+                            rule: ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),
+                        }),
+                        equality: Box::new(citation.proof(equality)),
+                        endpoint,
+                    },
+                };
+                if let Some(proof) = prove_affine_bound_from_root(
+                    context,
+                    goal,
+                    assumptions,
+                    semantic_axioms,
+                    root,
+                    root_bound,
+                ) {
+                    return Some(proof);
+                }
+            }
+        }
+    }
+    None
 }
 
 fn prove_alias_substituted_affine_bound(
@@ -2322,6 +2376,112 @@ mod tests {
             )
             .is_none(),
             "a weaker mapped endpoint cannot reverse the closed bridge",
+        );
+    }
+
+    #[test]
+    fn exact_division_goal_proves_landed_literal_affine_root() {
+        let signed = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let context = PropositionContext::from_value_types((1..=4).map(|id| {
+            (
+                ValueId::new(id).expect("value id"),
+                ScalarType::Integer(signed),
+            )
+        }))
+        .expect("four i8 values");
+        let divisor = value(2, signed);
+        let goal = Proposition::Disjunction(vec![
+            Proposition::LessOrEqual(divisor.clone(), integer(signed, -2)),
+            Proposition::LessOrEqual(integer(signed, 1), divisor.clone()),
+            Proposition::Conjunction(vec![
+                Proposition::LessOrEqual(divisor, integer(signed, -1)),
+                Proposition::LessOrEqual(integer(signed, -127), value(1, signed)),
+            ]),
+        ]);
+        let landed_root = Proposition::Equal(value(3, signed), integer(signed, 0));
+
+        let positive_definition = Proposition::Equal(
+            value(2, signed),
+            ScalarTerm::exact_integer_add(signed, value(3, signed), integer(signed, 1))
+                .expect("exact add"),
+        );
+        let positive = prove_canonical_integer_proposition(
+            &context,
+            &goal,
+            std::slice::from_ref(&landed_root),
+            std::slice::from_ref(&positive_definition),
+        )
+        .expect("a landed literal proves the positive affine divisor arm");
+        let ProofRule::DisjunctionIntroduction { disjunct, index } = positive.rule else {
+            panic!("landed positive affine divisor selects one canonical arm")
+        };
+        assert_eq!(index, 1);
+        let ProofRule::IntegerAffineBound { root_bound, .. } = disjunct.rule else {
+            panic!("landed positive divisor uses the affine-bound rule")
+        };
+        let ProofRule::IntegerLessOrEqualSubstitution {
+            relation,
+            equality,
+            endpoint,
+        } = root_bound.rule
+        else {
+            panic!("landed positive root uses endpoint substitution")
+        };
+        assert_eq!(endpoint, 1);
+        assert!(matches!(
+            relation.rule,
+            ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation)
+        ));
+        assert!(matches!(equality.rule, ProofRule::Assumption { index: 0 }));
+
+        let negative_definition = Proposition::Equal(
+            value(2, signed),
+            ScalarTerm::exact_integer_subtract(signed, value(3, signed), integer(signed, 2))
+                .expect("exact subtract"),
+        );
+        let negative = prove_canonical_integer_proposition(
+            &context,
+            &goal,
+            std::slice::from_ref(&landed_root),
+            std::slice::from_ref(&negative_definition),
+        )
+        .expect("a landed literal proves the negative affine divisor arm");
+        let ProofRule::DisjunctionIntroduction { disjunct, index } = negative.rule else {
+            panic!("landed negative affine divisor selects one canonical arm")
+        };
+        assert_eq!(index, 0);
+        let ProofRule::IntegerAffineBound { root_bound, .. } = disjunct.rule else {
+            panic!("landed negative divisor uses the affine-bound rule")
+        };
+        assert!(matches!(
+            root_bound.rule,
+            ProofRule::IntegerLessOrEqualSubstitution { endpoint: 0, .. }
+        ));
+
+        let unsafe_definition = Proposition::Equal(
+            value(2, signed),
+            ScalarTerm::exact_integer_add(signed, value(3, signed), integer(signed, 0))
+                .expect("exact add zero"),
+        );
+        assert!(
+            prove_canonical_integer_proposition(
+                &context,
+                &goal,
+                std::slice::from_ref(&landed_root),
+                std::slice::from_ref(&unsafe_definition),
+            )
+            .is_none(),
+            "a landed zero divisor cannot prove either safe arm",
+        );
+        assert!(
+            prove_canonical_integer_proposition(
+                &context,
+                &goal,
+                &[Proposition::Equal(value(4, signed), integer(signed, 0))],
+                &[positive_definition],
+            )
+            .is_none(),
+            "a redirected landed literal cannot provide affine root custody",
         );
     }
 

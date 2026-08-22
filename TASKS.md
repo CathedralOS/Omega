@@ -1356,15 +1356,17 @@ Remaining:
   mapped conclusion, and accepted-premise custody. Missing root custody,
   incomplete, reversed, redirected, or stale words, wrong targets, and
   noncanonical mapped arms reject. Root custody may now also use one exact
-  prior value-alias transport: one directly cited integer bound at the alias
-  endpoint and one independently cited value equality form a checked
-  endpoint-substitution child before the affine node. One exact two-citation
-  order chain may instead reconstruct the root bound through one shared SSA
-  middle under a checked transitivity child. Direct roots remain preferred,
-  then alias transport, then transitivity; alias equalities stay in ledger
-  order, while second order legs are indexed by their exact left endpoint. A
-  missing bound, equality, or order leg, identity, non-value, disconnected,
-  redirected, mistyped, or same-citation join rejects. Multi-alias, mixed
+  prior landed literal or value-alias transport. A typed `root == literal`
+  citation substitutes the root into either endpoint of one closed reflexive
+  relation; a value alias instead combines one directly cited integer bound at
+  the alias endpoint with its independently cited equality. One exact
+  two-citation order chain may instead reconstruct the root bound through one
+  shared SSA middle under a checked transitivity child. Direct roots remain
+  preferred, then landed literals, alias transport, and transitivity; equality
+  facts stay in ledger order, while bound and second-leg indexes use their exact
+  value endpoint. A missing bound, equality, or order leg, unsafe or mistyped
+  literal, identity, non-value, disconnected, redirected, cross-carrier, or
+  same-citation join rejects. Multi-alias, mixed
   alias/transitive, or three-or-more-leg root reconstruction, words of five or
   more definitions, joins, cast/shift compositions, and correlated results
   remain on trusted reduction; neither complete exact row changes trust and
