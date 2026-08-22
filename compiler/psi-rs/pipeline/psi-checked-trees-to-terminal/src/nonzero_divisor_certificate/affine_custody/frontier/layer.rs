@@ -19,9 +19,7 @@ pub(super) fn expand(
 ) -> Vec<Entry> {
     let mut next = Vec::new();
     for entry in frontier {
-        for index in definitions.candidates_from(&entry.current, entry.start) {
-            let mut word = entry.word.clone();
-            word.push(index);
+        for (index, word) in entry.extensions(definitions) {
             if let Some(next_target) = prefix::checked_target(
                 context,
                 semantic_axioms,
@@ -30,11 +28,7 @@ pub(super) fn expand(
                 &semantic_axioms[index],
             ) {
                 words.push(word.clone());
-                next.push(Entry {
-                    word,
-                    start: index + 1,
-                    current: next_target.clone(),
-                });
+                next.push(Entry::advance(word, index, next_target));
             }
         }
     }
