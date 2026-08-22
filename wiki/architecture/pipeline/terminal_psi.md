@@ -2093,6 +2093,15 @@ source-order validation, and the semantic-axiom-length cycle bound. Producer
 and reconstruction still perform these walks independently; neither path adds
 alternate-edge or permutation search.
 
+Exact-cast custody completion now separates ordered goal-target enumeration
+from per-target witness replay. Producer and reconstruction
+`cast_custody/completion` parents retain left-endpoint before right-endpoint
+order and value eligibility; independent side-local `completion/target`
+modules recover the exact cast word and construct or check its bound
+conversion. Only production materializes and kernel-checks `IntegerCastBound`.
+Proof bytes, per-target rejection, and the finite unique-spine frontier are
+unchanged.
+
 Production and verification independently preserve direct-bound,
 landed-literal, fixed one-alias, closed-strengthening, alias-landed-literal,
 then fixed two-alias precedence; source-carrier literal remapping remains with

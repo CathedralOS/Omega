@@ -1,9 +1,9 @@
 //! Exact integer-cast witness and certificate completion for production.
 
 use psi_core::{Proposition, PropositionContext, ScalarTerm};
-use psi_proof_kernel::{IntegerCastChainWitness, ProofNode, ProofRule, check_certificate};
+use psi_proof_kernel::ProofNode;
 
-use super::chain;
+mod target;
 
 pub(in super::super) fn prove_from_root(
     context: &PropositionContext,
@@ -20,22 +20,15 @@ pub(in super::super) fn prove_from_root(
         .into_iter()
         .filter(|target| matches!(target, ScalarTerm::Value { .. }))
     {
-        let Some(definition_axioms) = chain::definition_axioms(root, target, semantic_axioms)
-        else {
-            continue;
-        };
-        let proof = ProofNode {
-            conclusion: goal.clone(),
-            rule: ProofRule::IntegerCastBound {
-                root_bound: Box::new(root_bound.clone()),
-                witness: IntegerCastChainWitness {
-                    root: root.clone(),
-                    target: target.clone(),
-                    definition_axioms,
-                },
-            },
-        };
-        if check_certificate(context, goal, assumptions, semantic_axioms, &proof).is_ok() {
+        if let Some(proof) = target::prove(
+            context,
+            goal,
+            assumptions,
+            semantic_axioms,
+            root,
+            &root_bound,
+            target,
+        ) {
             return Some(proof);
         }
     }
