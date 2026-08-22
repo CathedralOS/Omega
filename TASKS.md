@@ -559,6 +559,11 @@ Owners:
   independently replay descriptor, current/source borrow polarities, and
   operation before specialization; coordinated privilege rewrites reject while
   returning the unchanged authority-bearing request.
+  Placement admission now retains the complete admitted resource profile
+  through borrowed, owned, and borrowed-resident access; primitive
+  specialization independently replays the exact profile/loan/plan join and
+  rejects profile-root or compatibility drift while returning the unchanged
+  request.
 - Implement `Extent::Resident<P, T>` as the owned exact-range dormant-content
   qualification, including invariant type indices, mutual exclusion with
   `Vacant`, split/merge rejection, borrow versus owned-view continuity,
