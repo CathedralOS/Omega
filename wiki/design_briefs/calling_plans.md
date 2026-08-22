@@ -1057,3 +1057,10 @@ container byte identity. Report validation checks that seal independently for
 the flat executable and optional bundle copy. A substituted path, role,
 container, or opaque installation fingerprint therefore rejects even when no
 second receipt exists for pairwise comparison.
+
+The written-output handoff is also checked before its path is used by
+auxiliary reporting or consumed into the compile report. Native output requires
+that handoff path to equal the flat receipt's exact installed path;
+object-container output carries neither executable receipt, and check-only
+cannot appear as a written output. The handoff fields are private after this
+check, preventing path/receipt drift between installation and report custody.

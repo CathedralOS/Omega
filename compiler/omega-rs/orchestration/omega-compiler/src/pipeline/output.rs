@@ -214,10 +214,60 @@ impl InstalledExecutablePublicationEvidence {
 }
 
 pub(super) struct WrittenOutput {
-    pub path: std::path::PathBuf,
-    pub kind: super::CompileOutputKind,
-    pub executable_publication: Option<super::ExecutablePublicationReceipt>,
-    pub app_bundle_publication: Option<super::ExecutablePublicationReceipt>,
+    path: std::path::PathBuf,
+    kind: super::CompileOutputKind,
+    executable_publication: Option<super::ExecutablePublicationReceipt>,
+    app_bundle_publication: Option<super::ExecutablePublicationReceipt>,
+}
+
+impl WrittenOutput {
+    fn checked(
+        path: std::path::PathBuf,
+        kind: super::CompileOutputKind,
+        executable_publication: Option<super::ExecutablePublicationReceipt>,
+        app_bundle_publication: Option<super::ExecutablePublicationReceipt>,
+    ) -> Result<Self, Diagnostic> {
+        let path_matches_kind = match kind {
+            super::CompileOutputKind::NativeExecutable => {
+                executable_publication.as_ref().is_some_and(|receipt| {
+                    receipt.destination() == super::ExecutablePublicationDestination::FlatOutput
+                        && receipt.output_path() == path
+                        && receipt.has_consistent_installation_identity()
+                })
+            }
+            super::CompileOutputKind::ObjectContainer => {
+                executable_publication.is_none() && app_bundle_publication.is_none()
+            }
+            super::CompileOutputKind::CheckOnly => false,
+        };
+        if !path_matches_kind {
+            return Err(Diagnostic::error(
+                "written output path does not match its exact publication receipt",
+            ));
+        }
+        Ok(Self {
+            path,
+            kind,
+            executable_publication,
+            app_bundle_publication,
+        })
+    }
+
+    pub(super) fn into_report_parts(
+        self,
+    ) -> (
+        std::path::PathBuf,
+        super::CompileOutputKind,
+        Option<super::ExecutablePublicationReceipt>,
+        Option<super::ExecutablePublicationReceipt>,
+    ) {
+        (
+            self.path,
+            self.kind,
+            self.executable_publication,
+            self.app_bundle_publication,
+        )
+    }
 }
 
 const FNV_OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
@@ -356,12 +406,13 @@ pub(super) fn write_output(
         } else {
             None
         };
-        return Ok(WrittenOutput {
-            path: output_path,
-            kind: super::CompileOutputKind::NativeExecutable,
-            executable_publication: Some(executable_publication),
+        return WrittenOutput::checked(
+            output_path,
+            super::CompileOutputKind::NativeExecutable,
+            Some(executable_publication),
             app_bundle_publication,
-        });
+        )
+        .map_err(|diagnostic| vec![diagnostic]);
     }
 
     let object_container = emit_omega_object_container(ObjectContainerInput {
@@ -375,12 +426,13 @@ pub(super) fn write_output(
     let output_path = build_dir.join(&object_container.file_name);
     write_output_file(&output_path, &object_container.bytes, false)
         .map_err(|diagnostic| vec![diagnostic])?;
-    Ok(WrittenOutput {
-        path: output_path,
-        kind: super::CompileOutputKind::ObjectContainer,
-        executable_publication: None,
-        app_bundle_publication: None,
-    })
+    WrittenOutput::checked(
+        output_path,
+        super::CompileOutputKind::ObjectContainer,
+        None,
+        None,
+    )
+    .map_err(|diagnostic| vec![diagnostic])
 }
 
 fn build_final_footprint_certificate(
@@ -866,7 +918,7 @@ fn mark_executable_if_needed(_path: &std::path::Path) -> Result<(), Diagnostic> 
 mod tests {
     use super::super::ExecutablePublicationDestination;
     use super::{
-        ExecutablePublicationEvidence, FNV_OFFSET, ValidatedExecutablePublication,
+        ExecutablePublicationEvidence, FNV_OFFSET, ValidatedExecutablePublication, WrittenOutput,
         build_final_footprint_certificate, fingerprint_into, validate_published_executable_bytes,
         validate_staged_executable_bytes, write_validated_executable_output_file,
     };
@@ -1089,6 +1141,60 @@ mod tests {
             super::byte_fingerprint(&image.bytes)
         );
         assert!(retained.has_consistent_installation_identity());
+        assert!(
+            WrittenOutput::checked(
+                output.clone(),
+                super::super::CompileOutputKind::NativeExecutable,
+                Some(retained.clone()),
+                None,
+            )
+            .is_ok()
+        );
+        assert!(
+            WrittenOutput::checked(
+                directory.join("redirected"),
+                super::super::CompileOutputKind::NativeExecutable,
+                Some(retained.clone()),
+                None,
+            )
+            .is_err()
+        );
+        assert!(
+            WrittenOutput::checked(
+                output.clone(),
+                super::super::CompileOutputKind::NativeExecutable,
+                None,
+                None,
+            )
+            .is_err()
+        );
+        assert!(
+            WrittenOutput::checked(
+                output.clone(),
+                super::super::CompileOutputKind::ObjectContainer,
+                Some(retained.clone()),
+                None,
+            )
+            .is_err()
+        );
+        assert!(
+            WrittenOutput::checked(
+                output.clone(),
+                super::super::CompileOutputKind::ObjectContainer,
+                None,
+                None,
+            )
+            .is_ok()
+        );
+        assert!(
+            WrittenOutput::checked(
+                output.clone(),
+                super::super::CompileOutputKind::CheckOnly,
+                None,
+                None,
+            )
+            .is_err()
+        );
 
         let bundle_directory = directory.join("Main.app/Contents/MacOS");
         std::fs::create_dir_all(&bundle_directory).expect("bundle directory");
@@ -1116,6 +1222,15 @@ mod tests {
             retained.container_fingerprint()
         );
         assert!(bundle_retained.has_consistent_installation_identity());
+        assert!(
+            WrittenOutput::checked(
+                bundle_output,
+                super::super::CompileOutputKind::NativeExecutable,
+                Some(bundle_retained.clone()),
+                None,
+            )
+            .is_err()
+        );
         assert_eq!(
             std::fs::read(&output).expect("installed bytes"),
             image.bytes
