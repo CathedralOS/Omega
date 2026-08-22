@@ -1820,6 +1820,15 @@ constructs its ordered conjunction from the two transitivity proofs; a missing
 or disconnected citation rejects the entire arm. A signed `i1` divisor
 fact alone remains
 insufficient because the canonical conjunction also needs its dividend premise.
+
+Fixed endpoint substitution is dispatched behind matching side-local
+producer and reconstruction modules. Their `substitution/one` owners
+independently enumerate the one-equality arm before the existing
+`substitution/two` siblings. Equality orientation, source citation order,
+endpoint identity, inner-relation precedence, outer proof shape, rejection,
+and both fixed frontiers are unchanged; reconstruction does not consume the
+producer's citation or proof node as authority.
+
 The complete retained-bound `i1` family selects that conjunction when exact
 prior `divisor <= -1` and `0 <= dividend` propositions are both present; the
 untrusted producer cites both through conjunction introduction. A missing

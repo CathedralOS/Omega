@@ -416,6 +416,14 @@ only at its ordered disjunct index. Reconstruction now mirrors the producer's
 recursive `LessOrEqual`/conjunction/disjunction shape rather than maintaining
 separate safe-divisor and exceptional selectors. Redirected goals, reordered
 joint conjunctions, and wrong operands reject. No result equation participates.
+
+Fixed endpoint substitution now uses matching side-local dispatch on each side
+of the trust boundary. Independent `substitution/one` modules enumerate the
+one-equality arm before the existing `substitution/two` siblings. Equality
+orientation, source citation order, endpoint identity, inner-relation
+precedence, outer `IntegerLessOrEqualSubstitution` shape, rejection, and both
+fixed frontiers remain unchanged; the verifier reconstructs its own evidence.
+
 The existing
 proof rules and proof-bundle v19 codec need no further vocabulary change.
 All other exact divide/remainder reconstruction remains on its trusted reducer
