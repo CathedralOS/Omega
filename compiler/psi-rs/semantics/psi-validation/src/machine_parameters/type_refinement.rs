@@ -1,0 +1,213 @@
+use psi_symbols::SymbolHandle;
+use psi_typed_trees::TypedTrees;
+use psi_typed_trees::data::TypeParameter;
+use psi_typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
+
+#[derive(Clone, Copy)]
+pub(super) struct TypeBinding {
+    pub(super) symbol: SymbolHandle,
+    pub(super) actual: TypeReferenceHandle,
+}
+
+#[derive(Clone, Copy)]
+pub(super) struct BinderBinding {
+    pub(super) required: SymbolHandle,
+    pub(super) actual: SymbolHandle,
+}
+
+pub(super) fn required_type_matches(
+    program: &TypedTrees,
+    actual: TypeReferenceHandle,
+    required: TypeReferenceHandle,
+    generic_types: &[&TypeParameter],
+    bindings: &mut Vec<TypeBinding>,
+    binder_bindings: &[BinderBinding],
+) -> bool {
+    if !actual.is_valid() || !required.is_valid() {
+        return actual.is_valid() == required.is_valid();
+    }
+    if let TypeReferenceNode::Named { symbol, name } =
+        program.type_reference_table.type_reference(required)
+    {
+        if let Some(binding) = binder_bindings
+            .iter()
+            .find(|binding| binding.required == *symbol)
+        {
+            return matches!(
+                program.type_reference_table.type_reference(actual),
+                TypeReferenceNode::Named { symbol, .. } if *symbol == binding.actual
+            );
+        }
+        if let Some(parameter) = generic_types.iter().find(|parameter| {
+            (parameter.symbol.is_valid() && parameter.symbol == *symbol)
+                || parameter.name.as_str() == name.as_str()
+        }) {
+            if let Some(binding) = bindings
+                .iter()
+                .find(|binding| binding.symbol == parameter.symbol)
+            {
+                return required_type_matches(
+                    program,
+                    actual,
+                    binding.actual,
+                    &[],
+                    &mut Vec::new(),
+                    binder_bindings,
+                );
+            }
+            bindings.push(TypeBinding {
+                symbol: parameter.symbol,
+                actual,
+            });
+            return true;
+        }
+    }
+
+    match (
+        program.type_reference_table.type_reference(actual),
+        program.type_reference_table.type_reference(required),
+    ) {
+        (
+            TypeReferenceNode::Reference {
+                referee: actual_inner,
+                is_mutable: actual_mutable,
+                ..
+            },
+            TypeReferenceNode::Reference {
+                referee: required_inner,
+                is_mutable: required_mutable,
+                ..
+            },
+        ) => {
+            actual_mutable == required_mutable
+                && required_type_matches(
+                    program,
+                    *actual_inner,
+                    *required_inner,
+                    generic_types,
+                    bindings,
+                    binder_bindings,
+                )
+        }
+        (
+            TypeReferenceNode::Constrained {
+                base_type: actual_base,
+                ..
+            },
+            TypeReferenceNode::Constrained {
+                base_type: required_base,
+                ..
+            },
+        ) => required_type_matches(
+            program,
+            *actual_base,
+            *required_base,
+            generic_types,
+            bindings,
+            binder_bindings,
+        ),
+        (
+            TypeReferenceNode::FixedArray {
+                element_type: actual_element,
+                length: actual_length,
+            },
+            TypeReferenceNode::FixedArray {
+                element_type: required_element,
+                length: required_length,
+            },
+        ) => {
+            fixed_array_lengths_match(actual_length, required_length, binder_bindings)
+                && required_type_matches(
+                    program,
+                    *actual_element,
+                    *required_element,
+                    generic_types,
+                    bindings,
+                    binder_bindings,
+                )
+        }
+        (
+            TypeReferenceNode::Slice {
+                element_type: actual_element,
+            },
+            TypeReferenceNode::Slice {
+                element_type: required_element,
+            },
+        ) => required_type_matches(
+            program,
+            *actual_element,
+            *required_element,
+            generic_types,
+            bindings,
+            binder_bindings,
+        ),
+        (
+            TypeReferenceNode::Generic {
+                base_symbol: actual_base,
+                base_name: actual_name,
+                arguments: actual_arguments,
+                ..
+            },
+            TypeReferenceNode::Generic {
+                base_symbol: required_base,
+                base_name: required_name,
+                arguments: required_arguments,
+                ..
+            },
+        ) => {
+            let same_base = if actual_base.is_valid() && required_base.is_valid() {
+                actual_base == required_base
+            } else {
+                actual_name == required_name
+            };
+            let actual_arguments = program
+                .type_reference_table
+                .type_reference_handles(*actual_arguments);
+            let required_arguments = program
+                .type_reference_table
+                .type_reference_handles(*required_arguments);
+            same_base
+                && actual_arguments.len() == required_arguments.len()
+                && actual_arguments
+                    .iter()
+                    .zip(required_arguments)
+                    .all(|(actual, required)| {
+                        required_type_matches(
+                            program,
+                            *actual,
+                            *required,
+                            generic_types,
+                            bindings,
+                            binder_bindings,
+                        )
+                    })
+        }
+        _ => crate::type_references::type_references_match(program, actual, required),
+    }
+}
+
+fn fixed_array_lengths_match(
+    actual: &FixedArrayLength,
+    required: &FixedArrayLength,
+    binder_bindings: &[BinderBinding],
+) -> bool {
+    match (actual, required) {
+        (FixedArrayLength::Literal(actual), FixedArrayLength::Literal(required)) => {
+            actual == required
+        }
+        (
+            FixedArrayLength::ConstParameter { symbol: actual, .. },
+            FixedArrayLength::ConstParameter {
+                symbol: required, ..
+            },
+        ) => binder_bindings
+            .iter()
+            .find(|binding| binding.required == *required)
+            .map_or(actual == required, |binding| binding.actual == *actual),
+        (
+            FixedArrayLength::ConstCall { name: actual },
+            FixedArrayLength::ConstCall { name: required },
+        ) => actual == required,
+        _ => false,
+    }
+}
