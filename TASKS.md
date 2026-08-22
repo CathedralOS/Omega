@@ -4532,10 +4532,16 @@ Remaining:
   noncanonical, wrong-schedule, zero-unit, out-of-range, unknown-function, or
   duplicate semantic sites reject; zero-byte semantic sites remain valid
   insertion points. The compact binding fingerprint is summary identity only.
-  The remaining native slice is to retain that validated realization and
-  attribution binding on the installed resource column, and implement/admit
-  the target context transports and exhaustion-transfer stubs before inserting
-  compare-before-subtract charge sequences.
+  Root admission now retains the selected native realization against the exact
+  logical-fuel demand, provision, grant, installed-code context, and artifact.
+  Existing fixed roots automatically produce the exact fixed realization;
+  dynamic admission cannot proceed without its matching installed attribution
+  binding, and fixed/interpreted paths reject stray dynamic evidence. Runtime
+  root custody retains the exact sealed value, while the address-free installed
+  root manifest publishes its kind and replay-bound fingerprint. The remaining
+  native slice is to implement/admit the target context transports and
+  exhaustion-transfer stubs before inserting compare-before-subtract charge
+  sequences.
 - **PROOF-RELEVANCE-MIGRATION.** Finish binding-level `[erased]`, checked
   noninterference, erased-stripped layout, and obligation preservation across
   the remaining consumers. Explicit relevance remains in semantic/proof
