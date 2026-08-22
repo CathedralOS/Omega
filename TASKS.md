@@ -5616,7 +5616,13 @@ Owners:
   accepting encoded-function/object evidence, so plan, canonical-form, or
   fingerprint drift rejects even when copied thunk and object rows agree. This
   retains plan custody only; multi-entry/re-entrant body lowering and the
-  private registration relocation remain separate frontiers. The
+  private registration relocation remain separate frontiers. Callback thunk
+  planning now also requires the selected control-flow entry to be the
+  canonical segment-zero `StateKey`. Final emission independently reconstructs
+  that whole selected entry and rejects segment drift even when the callback
+  role, encoded function, and object binding agree with the forged segment.
+  This strengthens selected-entry custody only; thunk-body lowering and the
+  private registration relocation remain separate. The
   remaining slices are
   resource-ceiling aggregation, multi-entry/re-entrant target instruction
   lowering, and the
