@@ -78,6 +78,9 @@ impl<'program> Evaluator<'program> {
                 self.eval_unary(unary.operator, operand)
             }
             ExpressionNode::Binary(binary) => {
+                if let Some(value) = self.eval_selected_trait_operator(handle, &binary, frame)? {
+                    return Ok(value);
+                }
                 let left = self.eval_expression(binary.left, frame)?;
                 // `&&`/`||` SHORT-CIRCUIT: synthesized structural equality
                 // (Equatable) guards each sum arm's payload reads behind tag
@@ -231,6 +234,71 @@ impl<'program> Evaluator<'program> {
                 unsupported("proof-only zero_value<T>() reached runtime evaluation")
             }
         }
+    }
+
+    /// Execute a fixed token through the exact conformance row already
+    /// selected in checked facts. No name or visible-conformance lookup is
+    /// available here: the retained realization machine/state symbols are the
+    /// complete dispatch authority.
+    fn eval_selected_trait_operator(
+        &mut self,
+        expression: ExpressionHandle,
+        binary: &psi_typed_trees::expression::TableBinaryExpression,
+        frame: &Frame,
+    ) -> EvalResult<Option<Value>> {
+        let Some(candidate) = self
+            .operator_facts
+            .and_then(|facts| {
+                facts.selected_trait_candidate_in_machine(expression, frame.machine_symbol)
+            })
+            .copied()
+        else {
+            return Ok(None);
+        };
+        let machine = self
+            .program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == candidate.realization_machine_symbol)
+            .cloned()
+            .ok_or_else(|| {
+                Halt::Trap("selected trait operator lost its realization machine".to_owned())
+            })?;
+        let state = self
+            .program
+            .machine_states(&machine)
+            .iter()
+            .find(|state| state.symbol == candidate.realization_state_symbol)
+            .cloned()
+            .ok_or_else(|| {
+                Halt::Trap("selected trait operator lost its realization state".to_owned())
+            })?;
+        let operands = [binary.left, binary.right];
+        let has_self = self
+            .program
+            .state_parameters(&state)
+            .iter()
+            .any(|parameter| parameter.is_self);
+        let instance = if has_self {
+            let receiver = self.eval_argument(operands[0], frame)?;
+            self.deref_cell(receiver)
+        } else {
+            Rc::clone(&frame.self_cell)
+        };
+        let mut arguments = Vec::with_capacity(operands.len() - usize::from(has_self));
+        for operand in operands.into_iter().skip(usize::from(has_self)) {
+            arguments.push(self.eval_state_argument(operand, frame)?);
+        }
+
+        let entered_guard_depth = self.guard_depth;
+        self.guard_depth = 0;
+        let value = self.run_state_collect(&machine, state.name.as_str(), instance, arguments);
+        self.guard_depth = entered_guard_depth;
+        value?
+            .ok_or_else(|| {
+                Halt::Trap("selected trait operator realization returned no value".to_owned())
+            })
+            .map(Some)
     }
 
     fn eval_call_expression(

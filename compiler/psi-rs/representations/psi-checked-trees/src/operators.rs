@@ -421,6 +421,24 @@ impl CheckedOperatorFacts {
             .find(|candidate| candidate.operator_symbol == operator_use.selected_operator_symbol)
     }
 
+    /// Exact trait-backed realization selected for this expression while one
+    /// machine instance executes. Nested value facts may repeat an expression
+    /// without an owning machine; they never become a second authority.
+    pub fn selected_trait_candidate_in_machine(
+        &self,
+        expression: ExpressionHandle,
+        machine_symbol: SymbolHandle,
+    ) -> Option<&CheckedOperatorCandidateFact> {
+        self.uses.iter().find_map(|(_, operator_use)| {
+            (operator_use.expression == expression
+                && operator_use.origin.machine_symbol() == Some(machine_symbol)
+                && operator_use.status == CheckedOperatorResolutionStatus::Resolved)
+                .then(|| self.selected_candidate(operator_use))
+                .flatten()
+                .filter(|candidate| candidate.is_trait_backed())
+        })
+    }
+
     pub fn resolved_contract_uses(&self) -> impl Iterator<Item = CheckedOperatorContractUse<'_>> {
         self.resolved_uses().filter_map(|operator_use| {
             let [candidate] = self.candidates(operator_use) else {

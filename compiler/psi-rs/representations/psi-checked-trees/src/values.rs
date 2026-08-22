@@ -42,6 +42,17 @@ impl Default for CheckedValueOrigin {
     }
 }
 
+impl CheckedValueOrigin {
+    pub const fn machine_symbol(self) -> Option<SymbolHandle> {
+        match self {
+            Self::MachineDecrease { machine_symbol, .. }
+            | Self::MachineOwnedDataInitializer { machine_symbol, .. }
+            | Self::StateStatement { machine_symbol, .. } => Some(machine_symbol),
+            Self::NestedExpression { .. } => None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum CheckedValueStatementRole {
     #[default]

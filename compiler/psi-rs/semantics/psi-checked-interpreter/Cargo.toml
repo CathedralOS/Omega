@@ -17,3 +17,10 @@ psi-numerics = { path = "../../foundation/psi-numerics" }
 psi-layout-plans = { path = "../../foundation/psi-layout-plans" }
 psi-typed-trees = { path = "../../representations/psi-typed-trees" }
 psi-checked-trees = { path = "../../representations/psi-checked-trees" }
+
+[dev-dependencies]
+psi-source-files-to-tokens = { path = "../../pipeline/psi-source-files-to-tokens" }
+psi-symbol-resolved-trees-to-typed-trees = { path = "../../pipeline/psi-symbol-resolved-trees-to-typed-trees" }
+psi-syntax-trees-to-symbol-resolved-trees = { path = "../../pipeline/psi-syntax-trees-to-symbol-resolved-trees" }
+psi-tokens-to-syntax-trees = { path = "../../pipeline/psi-tokens-to-syntax-trees" }
+psi-typed-trees-to-checked-trees = { path = "../../pipeline/psi-typed-trees-to-checked-trees" }
