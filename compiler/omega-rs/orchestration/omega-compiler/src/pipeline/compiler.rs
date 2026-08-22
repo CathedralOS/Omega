@@ -195,8 +195,7 @@ fn extract_external_binding_rows(
             continue;
         }
         for clause in syntax_trees.items.satisfies_clauses(machine.satisfies) {
-            let (Some(binding), Some(requirement)) =
-                (clause.via.as_ref(), clause.requirement.as_ref())
+            let (Some(_), Some(requirement)) = (clause.via.as_ref(), clause.requirement.as_ref())
             else {
                 continue;
             };
@@ -220,41 +219,59 @@ fn extract_external_binding_rows(
             {
                 continue;
             }
-            use psi_syntax_trees::item::ExternalBinding;
+            let typed_machine = typed
+                .machines()
+                .iter()
+                .find(|candidate| candidate.name.as_str() == machine.name.as_str())
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(format!(
+                        "external realization `{}` has no exact typed machine",
+                        machine.name
+                    ))]
+                })?;
+            let binding = crate::pipeline::provider_plans::exact_external_binding_identity(
+                typed,
+                typed_machine,
+                clause.trait_name.as_str(),
+                requirement.as_str(),
+            )
+            .ok_or_else(|| {
+                vec![Diagnostic::error(format!(
+                    "external realization `{}` has no unique retained binding for `{}::{}`",
+                    machine.name, clause.trait_name, requirement
+                ))]
+            })?;
+            use psi_language_semantics::ExternalBindingIdentity;
             let binding = match binding {
-                ExternalBinding::Syscall { number } => {
+                ExternalBindingIdentity::Syscall { number } => {
                     ExternalBindingKind::Syscall { number: *number }
                 }
-                ExternalBinding::DllImport { module, symbol } => ExternalBindingKind::DllImport {
-                    module: module.clone(),
-                    symbol: symbol.clone(),
-                },
-                ExternalBinding::CompilerIntrinsic => {
-                    let typed_machine = typed
-                        .machines()
-                        .iter()
-                        .find(|candidate| candidate.name.as_str() == machine.name.as_str())
-                        .ok_or_else(|| {
-                            vec![Diagnostic::error(format!(
-                                "external realization `{}` has no exact typed machine",
-                                machine.name
-                            ))]
-                        })?;
+                ExternalBindingIdentity::Import { library, symbol } => {
+                    ExternalBindingKind::DllImport {
+                        module: library.clone(),
+                        symbol: symbol.clone(),
+                    }
+                }
+                ExternalBindingIdentity::CompilerIntrinsic => {
                     let machine = typed
                         .normalized_machine_overload_identity(typed_machine)
                         .map(|identity| identity.identity())
                         .unwrap_or_default();
                     ExternalBindingKind::CompilerIntrinsic { machine }
                 }
-                ExternalBinding::VtableSlot { index } => {
+                ExternalBindingIdentity::VtableSlot { index } => {
                     ExternalBindingKind::VtableSlot { index: *index }
                 }
-                ExternalBinding::VtableField { field } => ExternalBindingKind::VtableField {
-                    field: field.as_str().to_owned(),
-                },
-                ExternalBinding::TableFunction { field } => ExternalBindingKind::TableFunction {
-                    field: field.as_str().to_owned(),
-                },
+                ExternalBindingIdentity::VtableField { field } => {
+                    ExternalBindingKind::VtableField {
+                        field: field.clone(),
+                    }
+                }
+                ExternalBindingIdentity::TableFunction { field } => {
+                    ExternalBindingKind::TableFunction {
+                        field: field.clone(),
+                    }
+                }
             };
             let requirement_identity =
                 crate::pipeline::provider_plans::satisfied_requirement_identity(

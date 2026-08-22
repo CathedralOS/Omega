@@ -147,7 +147,7 @@ impl ExternalBindingMechanism {
 pub enum ExternalBindingIdentity {
     Import { library: String, symbol: String },
     Syscall { number: i64 },
-    CompilerIntrinsic { machine: String },
+    CompilerIntrinsic,
     VtableSlot { index: i64 },
     VtableField { field: String },
     TableFunction { field: String },
@@ -158,7 +158,7 @@ impl ExternalBindingIdentity {
         match self {
             Self::Import { .. } => ExternalBindingMechanism::Import,
             Self::Syscall { .. } => ExternalBindingMechanism::Syscall,
-            Self::CompilerIntrinsic { .. } => ExternalBindingMechanism::CompilerIntrinsic,
+            Self::CompilerIntrinsic => ExternalBindingMechanism::CompilerIntrinsic,
             Self::VtableSlot { .. } => ExternalBindingMechanism::VtableSlot,
             Self::VtableField { .. } => ExternalBindingMechanism::VtableField,
             Self::TableFunction { .. } => ExternalBindingMechanism::TableFunction,
@@ -975,12 +975,16 @@ mod tests {
             first,
             "field boundaries must remain identity-bearing"
         );
+        let intrinsic = bindings.intern(ExternalBindingIdentity::CompilerIntrinsic);
         assert_ne!(
-            bindings.intern(ExternalBindingIdentity::CompilerIntrinsic {
-                machine: "a,b".to_owned(),
-            }),
+            intrinsic,
             first,
             "mechanism tags must remain identity-bearing"
+        );
+        assert_eq!(
+            bindings.intern(ExternalBindingIdentity::CompilerIntrinsic),
+            intrinsic,
+            "payloadless intrinsic values must share one structural binding identity"
         );
         assert_eq!(
             bindings.identity(first),
