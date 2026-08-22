@@ -5383,6 +5383,12 @@ Owners:
   ambiguity, the 795 rooted/3 legacy inventory, and cross-copy receipt-drift
   fences remain green; structural-recursion/cyclic and accepted-axiom trust-
   report owners remain untouched.
+  The finite computed-array-fill-via-field-temp regression now launches solely
+  through the exact executable retained by its checked compilation report while
+  preserving its five-element indexed-copy self-check and literal exit 70.
+  Exact-owner ambiguity, the 795 rooted/3 legacy inventory, and cross-copy
+  receipt-drift fences remain green; structural/nested/recursion-heavy owners
+  remain untouched.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
@@ -5690,6 +5696,11 @@ reach or trust, and private proof improvements do not change public identity.
   `scalar_division_stack` child. The 2,524-line parent retains terminal image
   orchestration, with crate linkage, native byte/error order, and the 69-
   function inventory unchanged.
+  Conditional-tree validation, terminal/crash leaves, division-subregion
+  dispatch, and target-specific mutation/call replay now live in a cohesive
+  555-line `scalar_conditional_stack` child. The 1,997-line parent retains
+  terminal image orchestration, with crate linkage, native byte/error order,
+  and the 69-function inventory unchanged.
   The installed-cleanup ordinal-tamper regression now locates the authoritative
   internal-call custody row by its complete machine/text-offset/owner/target
   header before mutating the ordinal, rather than accidentally changing an
