@@ -21,8 +21,15 @@ use psi_layout_plans::{
 };
 
 mod resident_views;
+mod schema_correspondence;
 
 pub use resident_views::{BorrowedResidentRetirementError, EstablishedBorrowedResidentPlacement};
+pub use schema_correspondence::{
+    AdmittedSchemaDeviceCorrespondence, DeviceRevisionPredicateId, RuntimeDeviceRevisionEvidence,
+    RuntimeDeviceRevisionObservationId, SchemaCorrespondenceProviderId,
+    SchemaCorrespondenceSourceId, SchemaDeviceCorrespondenceAdmissionError,
+    SchemaDeviceCorrespondenceGrant, SchemaDeviceCorrespondenceGrantError, StableDeviceInstanceId,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BoundaryServiceReachId(u64);
@@ -5973,6 +5980,51 @@ mod tests {
             plan,
             &resources,
         )
+    }
+
+    #[test]
+    fn provider_correspondence_admits_against_exact_plan_and_profile_without_storage_join() {
+        let plan = uart_placement_plan();
+        let extent = uart_extent_with_lineage(0x7180, 12, 236);
+        let loan = extent.loan(0, 12).expect("shared UART loan");
+        let profile = uart_resource_profile(&loan, &uart_reach());
+        let provider = SchemaCorrespondenceProviderId::from_normalized_identity(237)
+            .expect("correspondence provider");
+        let device = StableDeviceInstanceId::from_normalized_identity(238).expect("stable device");
+        let revision = RuntimeDeviceRevisionEvidence::from_admitted_provider(
+            RuntimeDeviceRevisionObservationId::from_normalized_identity(239)
+                .expect("revision observation"),
+            DeviceRevisionPredicateId::from_normalized_identity(240).expect("revision predicate"),
+            provider,
+            device,
+            profile.receipt(),
+            3,
+        );
+        let grant = SchemaDeviceCorrespondenceGrant::from_admitted_provider(
+            provider,
+            device,
+            SchemaCorrespondenceSourceId::from_normalized_identity(241)
+                .expect("datasheet provenance"),
+            plan.identity(),
+            profile.receipt(),
+            Some(revision),
+        )
+        .expect("provider correspondence grant");
+
+        let admitted = grant
+            .admit(&plan, &profile)
+            .expect("exact plan/profile correspondence admission");
+        assert_eq!(admitted.placement(), plan.identity());
+        assert_eq!(admitted.profile_receipt(), profile.receipt());
+        assert_eq!(admitted.provider(), provider);
+        assert_eq!(admitted.device(), device);
+        assert_eq!(
+            admitted
+                .revision()
+                .expect("runtime revision evidence")
+                .observed_revision(),
+            3
+        );
     }
 
     #[test]
