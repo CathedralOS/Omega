@@ -469,12 +469,13 @@ fn plan_laid_integer_at_proved_write_exit_canary_runs_and_cross_compiles() {
             std::process::id()
         ));
         let _ = fs::remove_dir_all(&cross_dir);
-        compile_rooted_canary_for_target(&canary, cross_dir.join("build"), target)
-        .unwrap_or_else(|diagnostics| {
-            panic!(
+        compile_rooted_canary_for_target(&canary, cross_dir.join("build"), target).unwrap_or_else(
+            |diagnostics| {
+                panic!(
                 "proved-fit IntegerAt mutation should cross-compile for {target}: {diagnostics:?}"
             )
-        });
+            },
+        );
         let _ = fs::remove_dir_all(&cross_dir);
     }
 }
@@ -543,10 +544,13 @@ fn plan_laid_value_by_value_param_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-plan-laid-byval-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("plan-laid by-value-param canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("plan-laid by-value-param canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("plan-laid by-value-param canary should run");
 
@@ -625,9 +629,12 @@ fn plan_laid_fixed_array_record_view_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("plan-laid fixed-array view should compile natively");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("plan-laid fixed-array view should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("plan-laid fixed-array view should run");
     assert_eq!(output.status.code(), Some(70));
@@ -666,9 +673,12 @@ fn plan_laid_fixed_array_mutable_view_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("mutable plan-laid fixed-array view should compile natively");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("mutable plan-laid fixed-array view should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("mutable plan-laid fixed-array view should run");
     assert_eq!(
@@ -708,9 +718,12 @@ fn plan_laid_nested_fixed_array_mutable_view_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("mutable plan-laid nested-array view should compile natively");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("mutable plan-laid nested-array view should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("mutable plan-laid nested-array view should run");
     assert_eq!(output.status.code(), Some(70));
@@ -833,12 +846,13 @@ fn plan_laid_mutable_record_view_exit_canary_runs() {
             std::process::id()
         ));
         let _ = fs::remove_dir_all(&cross_dir);
-        compile_rooted_canary_for_target(&canary, cross_dir.join("build"), target)
-        .unwrap_or_else(|diagnostics| {
-            panic!(
+        compile_rooted_canary_for_target(&canary, cross_dir.join("build"), target).unwrap_or_else(
+            |diagnostics| {
+                panic!(
                 "mutable plan-laid record view should cross-compile for {target}: {diagnostics:?}"
             )
-        });
+            },
+        );
         let _ = fs::remove_dir_all(&cross_dir);
     }
 }
@@ -864,10 +878,13 @@ fn value_call_sequential_result_slots_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("sequential result slots canary should compile from its authored root");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("sequential result slots canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("sequential result slots canary should run");
 
