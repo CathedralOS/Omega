@@ -9,7 +9,6 @@ pub(super) fn any<'a>(
     semantic_axioms: &'a [Proposition],
     mut join: impl FnMut(&'a Proposition, &'a ScalarTerm, &'a ScalarTerm) -> bool,
 ) -> bool {
-    bounds::ordered(requirements, semantic_axioms)
-        .filter(|(_, _, middle)| bounds::is_value(middle))
+    bounds::with_value_right(requirements, semantic_axioms)
         .any(|(fact, left, middle)| join(fact, left, middle))
 }
