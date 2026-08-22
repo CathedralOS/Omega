@@ -1,10 +1,11 @@
 //! Typed direct landed-literal completion for exact integer casts.
 
 use psi_core::{Proposition, PropositionContext, ScalarTerm};
-use psi_proof_kernel::{ProofNode, ProofRule};
+use psi_proof_kernel::ProofNode;
 
 use super::super::super::cast_custody;
-use super::super::super::integer_evidence::closed_integer_relation;
+
+mod bound;
 
 pub(super) fn prove(
     context: &PropositionContext,
@@ -31,25 +32,14 @@ pub(super) fn prove(
         else {
             continue;
         };
-        let closed_relation = if endpoint == 1 {
-            Proposition::LessOrEqual(source_endpoint.clone(), landed_literal.clone())
-        } else {
-            Proposition::LessOrEqual(landed_literal.clone(), source_endpoint.clone())
-        };
-        let Some(closed_relation) = closed_integer_relation(closed_relation) else {
+        let Some(root_bound) = bound::prove(
+            root,
+            landed_literal,
+            source_endpoint,
+            endpoint,
+            equality.clone(),
+        ) else {
             continue;
-        };
-        let root_bound = ProofNode {
-            conclusion: if endpoint == 1 {
-                Proposition::LessOrEqual(source_endpoint, root.clone())
-            } else {
-                Proposition::LessOrEqual(root.clone(), source_endpoint)
-            },
-            rule: ProofRule::IntegerLessOrEqualSubstitution {
-                relation: Box::new(closed_relation),
-                equality: Box::new(equality.clone()),
-                endpoint,
-            },
         };
         if let Some(proof) = cast_custody::prove_from_root(
             context,
