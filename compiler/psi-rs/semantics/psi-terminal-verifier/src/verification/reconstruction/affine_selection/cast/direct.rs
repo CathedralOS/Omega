@@ -1,10 +1,10 @@
 //! Independent direct cast-root replay for one following affine word.
 
-use psi_core::{Proposition, PropositionContext, ScalarTerm, ScalarType};
+use psi_core::{Proposition, PropositionContext};
 
 use super::super::super::affine_custody::DefinitionIndex;
-use super::super::super::cast_custody;
 
+mod candidates;
 mod completion;
 
 pub(super) fn retained(
@@ -14,35 +14,5 @@ pub(super) fn retained(
     semantic_axioms: &[Proposition],
     definitions: &DefinitionIndex,
 ) -> bool {
-    semantic_axioms.iter().any(|axiom| {
-        let Proposition::Equal(cast_root, ScalarTerm::IntegerExactCast { .. }) = axiom else {
-            return false;
-        };
-        let ScalarType::Integer(cast_type) = cast_root.scalar_type() else {
-            return false;
-        };
-        let Some((source, _)) = cast_custody::source_root(cast_root, semantic_axioms) else {
-            return false;
-        };
-        let Some(cast_word) = cast_custody::definition_axioms(&source, cast_root, semantic_axioms)
-        else {
-            return false;
-        };
-        let Some(&last_cast) = cast_word.last() else {
-            return false;
-        };
-        requirements.iter().any(|root_bound| {
-            completion::retained(
-                context,
-                goal,
-                semantic_axioms,
-                definitions,
-                &source,
-                cast_root,
-                cast_type,
-                last_cast,
-                root_bound,
-            )
-        })
-    })
+    candidates::retained(context, goal, requirements, semantic_axioms, definitions)
 }

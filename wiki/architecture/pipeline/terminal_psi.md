@@ -2203,10 +2203,11 @@ completion, the fixed two-affine composition, and typed literal remapping.
 Citation order, strict cast boundaries, proof shapes, rejection behavior, and
 the finite frontier are unchanged; neither side shares evidence authority.
 
-The direct cast-to-affine sibling now separates cast/root-bound enumeration
-from resolved completion. Producer and verifier `cast/direct` parents retain
-semantic cast-root order, unique source-spine recovery, and requirement order;
-independent `cast/direct/completion` modules own endpoint remapping, exact-cast
+The direct cast-to-affine sibling now separates entry dispatch, cast/root-bound
+enumeration, and resolved completion. Producer and verifier `cast/direct`
+facades delegate to independent `cast/direct/candidates` modules that retain
+semantic cast-root order, unique source-spine recovery, and requirement order.
+Their `cast/direct/completion` siblings own endpoint remapping, exact-cast
 completion, and the strictly post-cast affine suffix. Assumption identity,
 proof bytes, last-cast boundary, rejection within each candidate,
 direct-before-sandwich precedence, and the finite frontier are unchanged.
