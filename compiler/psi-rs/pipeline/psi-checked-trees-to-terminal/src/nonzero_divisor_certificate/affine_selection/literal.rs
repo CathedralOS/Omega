@@ -6,6 +6,7 @@ use psi_proof_kernel::ProofNode;
 use super::super::affine_custody::DefinitionIndex;
 
 mod alias;
+mod completion;
 mod direct;
 mod eligibility;
 mod equalities;

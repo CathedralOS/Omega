@@ -1,11 +1,9 @@
-//! Direct landed-literal completion for affine production.
+//! Common affine-custody completion for landed-literal certificates.
 
 use psi_core::{Proposition, PropositionContext, ScalarTerm};
 use psi_proof_kernel::ProofNode;
 
-use super::super::super::super::affine_custody::{self, DefinitionIndex};
-
-mod bound;
+use super::super::super::affine_custody::{self, DefinitionIndex};
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn prove(
@@ -15,11 +13,10 @@ pub(super) fn prove(
     semantic_axioms: &[Proposition],
     definitions: &DefinitionIndex,
     root: &ScalarTerm,
-    literal: &ScalarTerm,
-    equality: ProofNode,
+    root_bounds: [ProofNode; 2],
 ) -> Option<ProofNode> {
-    for root_bound in bound::prove(root, literal, &equality) {
-        if let Some(proof) = affine_custody::prove_from_root(
+    root_bounds.into_iter().find_map(|root_bound| {
+        affine_custody::prove_from_root(
             context,
             goal,
             assumptions,
@@ -27,9 +24,6 @@ pub(super) fn prove(
             definitions,
             root,
             root_bound,
-        ) {
-            return Some(proof);
-        }
-    }
-    None
+        )
+    })
 }

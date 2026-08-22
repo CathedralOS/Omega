@@ -5,7 +5,8 @@ use psi_core::{Proposition, PropositionContext};
 use super::super::super::affine_custody::DefinitionIndex;
 
 mod candidates;
-mod completion;
+
+use super::completion;
 
 pub(super) fn retained(
     context: &PropositionContext,
