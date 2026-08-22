@@ -827,6 +827,25 @@ data Main {}
 
     checked.typed.placed_view_plans[0].policy_plan_machine_symbol = policy_plan_machine_symbol;
 
+    let status_plan_index = checked.typed.placed_view_plans[0]
+        .fields
+        .iter()
+        .position(|field| field.field_symbol == status_field_symbol)
+        .expect("retained status field");
+    let status_plan = checked.typed.placed_view_plans[0]
+        .fields
+        .remove(status_plan_index);
+    let diagnostics = psi_validation::validate_program(&checked.typed)
+        .expect_err("missing accessible field plan must fail closed");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("changed its exact accessible field inventory")
+    }));
+    checked.typed.placed_view_plans[0]
+        .fields
+        .insert(status_plan_index, status_plan);
+
     checked.typed.placed_view_plans[0]
         .fields
         .iter_mut()

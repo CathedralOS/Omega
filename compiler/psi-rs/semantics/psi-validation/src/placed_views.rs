@@ -119,6 +119,27 @@ pub(crate) fn validate_plans(program: &TypedTrees, diagnostics: &mut Vec<Diagnos
             )));
             continue;
         }
+        let accessible_field_count = view
+            .placement
+            .access()
+            .plan()
+            .entries()
+            .iter()
+            .filter(|entry| !matches!(entry.access(), FieldAccess::Inaccessible))
+            .count();
+        if view.fields.len() != accessible_field_count
+            || program.data_members(view_data).len() != accessible_field_count
+            || program
+                .data_members(view_data)
+                .iter()
+                .any(|member| matches!(member, psi_typed_trees::data::DataMember::Variant(_)))
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "placed view `{}` changed its exact accessible field inventory",
+                view.data_name
+            )));
+            continue;
+        }
         let mut field_symbols = Vec::with_capacity(view.fields.len());
         let mut accessor_data_symbols = Vec::with_capacity(view.fields.len());
         for field in &view.fields {
