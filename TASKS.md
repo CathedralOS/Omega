@@ -5182,6 +5182,13 @@ Owners:
   exit 70 and every signedness diagnostic. The explicit named-conversion legacy
   owner remains untouched; exact-owner ambiguity, the 795 rooted/3 legacy
   inventory, and receipt-drift fences remain green.
+  Three authored-root signed overflow/division regressions—sign-correct
+  saturating multiply, saturating `INT_MIN / -1` divide/modulo, and wrapping
+  `INT_MIN / -1` divide/modulo—now launch `OutputOnly` native execution solely
+  through exact checked-report executable receipts while preserving interpreter
+  parity, literal exit 70, 72/73 diagnostics, and the no-#DE crash guard. Exact-
+  owner ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift fences
+  remain green; explicit legacy owners are unchanged.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
