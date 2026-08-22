@@ -628,10 +628,20 @@ in dedicated, side-local `cast_selection` modules. Producer and reconstruction
 independently preserve direct-bound, landed-literal, fixed one-alias,
 closed-strengthening, alias-landed-literal, then fixed two-alias precedence;
 source-carrier literal remapping remains with cast custody. No proof shape or
-search frontier changes. This completes contiguous
-cast-chain custody for exact divide/remainder goals but does not
-promote either whole row: affine/cast, shift/cast, joins, and correlated results
-remain trusted-reducer work, and `fully-derived false` is unchanged.
+search frontier changes. This completes contiguous cast-chain custody for exact
+divide/remainder goals. One bounded source-affine composition may now provide
+the cast child: producer selection follows the unique cast spine to its
+non-cast source, remaps the canonical literal endpoint into that carrier, and
+runs the existing finite affine selector against only the semantic prefix
+strictly before the first cast. The resulting proof is exactly
+`IntegerCastBound(IntegerAffineBound(...))`. Reconstruction independently
+repeats the unique-spine, endpoint-remap, prefix-boundary, affine, and cast
+checks. Missing or ambiguous cast sources, late affine definitions or literal
+landings, unrepresentable endpoints, and either failed checker reject. The
+existing direct/literal/fixed-alias cast precedence is unchanged, and no new
+rule or proof-bundle-v19 field is introduced. This does not promote either
+whole row: shift/cast, joins, correlated results, and all other affine/cast
+shapes remain trusted-reducer work; `fully-derived false` is unchanged.
 
 The root-bound child may also come from exactly one retained same-carrier
 `root == literal` fact when that literal equals or strengthens the canonical

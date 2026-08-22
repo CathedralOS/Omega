@@ -2053,10 +2053,21 @@ Production and verification independently preserve direct-bound,
 landed-literal, fixed one-alias, closed-strengthening, alias-landed-literal,
 then fixed two-alias precedence; source-carrier literal remapping remains with
 cast custody. No proof shape or search frontier changes. This completes
-contiguous cast-chain custody for exact divide/remainder goals but
-does not promote either
-whole row: affine/cast, shift/cast, joins, and correlated results remain
-trusted-reducer work, and `fully-derived false` is unchanged.
+contiguous cast-chain custody for exact divide/remainder goals. One separately
+bounded source-affine composition may now supply the cast root-bound child:
+production first follows the unique cast spine to its non-cast source, remaps
+the canonical literal endpoint into that source carrier, and invokes the
+existing finite affine selector only on semantic axioms strictly before the
+first cast. It then nests the accepted `IntegerAffineBound` beneath
+`IntegerCastBound`. Reconstruction independently repeats the unique-spine,
+endpoint-remap, prefix-boundary, affine, and cast checks. A missing or ambiguous
+cast source, an affine definition or landing at/after the first cast, an
+unrepresentable endpoint, or either failed kernel check rejects. Direct,
+literal, and fixed alias cast families retain precedence. No rule or proof
+schema beyond proof-bundle v19 is added. This bounded composition does not
+promote either whole row: shift/cast, joins, correlated results, and all other
+affine/cast shapes remain trusted-reducer work, and `fully-derived false` is
+unchanged.
 
 The cast root-bound child may also be reconstructed from exactly one retained
 same-carrier `root == literal` fact when that literal equals or strengthens the

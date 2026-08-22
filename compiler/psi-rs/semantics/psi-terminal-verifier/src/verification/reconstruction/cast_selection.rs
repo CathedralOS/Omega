@@ -2,6 +2,7 @@
 
 use psi_core::{Proposition, PropositionContext};
 
+mod affine;
 mod alias;
 mod direct;
 mod literal;
@@ -22,4 +23,5 @@ pub(super) fn retained(
         return true;
     }
     alias::retained(context, goal, requirements, semantic_axioms)
+        || affine::retained(context, goal, requirements, semantic_axioms)
 }
