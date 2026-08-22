@@ -6688,11 +6688,14 @@ reach or trust, and private proof improvements do not change public identity.
   that bound epoch composition directly; the scalar admitted stack composer is
   no longer an admission path. Per-domain demand and the complete normalized
   arrival contexts/epochs remain reportable alongside compact fingerprints.
+  A direct compiler-emitted Terminal entry with no adapter prologue now derives
+  its single body epoch from the exact installed Terminal evidence, needs no
+  provider receipt, and records that origin distinctly from an opaque adapter.
 
-  Remaining: derive hardware arrival from sealed target rules plus exact
-  installation facts and generated adapter epochs from emitted bytes. Prove
-  each admitted arrival-context set complete. Add no architecture-specific
-  frame vocabulary to source.
+  Remaining: derive nontrivial generated-adapter enter/exit epochs from exact
+  emitted instructions, and hardware arrival from sealed target rules plus
+  exact installation facts. Prove each admitted opaque arrival-context set is
+  complete. Add no architecture-specific frame vocabulary to source.
 - **TR3-TR8:** finish whole-call-graph WCSU derivation, bind exact `StackPlan`
   evidence, reserve fixed nonmoving `StackLease`s, validate preservation and
   cancellation conformances, transfer arguments transactionally, lower

@@ -8,8 +8,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use omega_calling_conventions::{
-    EntryStack, EntryStackStage, Preemption, StackDomainRef, ValidatedBoundaryEntryPlan,
-    ValidatedEntryStackRealization,
+    ArrivalContextId, ArrivalContextRealization, EntryStack, EntryStackEpoch,
+    EntryStackRealization, EntryStackStage, Preemption, StackDomainRef, ValidatedBoundaryEntryPlan,
+    ValidatedEntryStackRealization, validate_entry_stack_realization,
 };
 use omega_executable_installation::{
     ArtifactId, InstalledCode, InstalledCodeContext, InstalledCodeId,
@@ -53,6 +54,135 @@ pub struct OpaqueAdapterStackRealizationEvidence {
     resolved_stack: EntryStack,
     realization: ValidatedEntryStackRealization,
     validation_receipt: StackValidationReceiptId,
+}
+
+/// Exact compiler-derived evidence for a direct generated entry with no
+/// adapter epochs outside the emitted Terminal body itself.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DirectGeneratedEntryStackRealizationEvidence {
+    root: ExternalRootId,
+    provider: RootProviderId,
+    architecture: omega_target::Architecture,
+    installed_code: InstalledCodeId,
+    installed_code_context: InstalledCodeContext,
+    artifact: ArtifactId,
+    entry: EntryStubId,
+    boundary_contract_fingerprint: u64,
+    resolved_stack: EntryStack,
+    realization: ValidatedEntryStackRealization,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AdapterStackRealizationOrigin {
+    DirectGenerated,
+    OpaqueProvider,
+}
+
+/// Auditable origin of one bound adapter realization. Generated direct entries
+/// derive their one body epoch from exact emitted Terminal evidence; opaque
+/// adapters require an identity-bound provider receipt.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AdapterStackRealizationEvidence {
+    DirectGenerated(DirectGeneratedEntryStackRealizationEvidence),
+    OpaqueProvider(OpaqueAdapterStackRealizationEvidence),
+}
+
+impl AdapterStackRealizationEvidence {
+    pub const fn origin(&self) -> AdapterStackRealizationOrigin {
+        match self {
+            Self::DirectGenerated(_) => AdapterStackRealizationOrigin::DirectGenerated,
+            Self::OpaqueProvider(_) => AdapterStackRealizationOrigin::OpaqueProvider,
+        }
+    }
+
+    pub const fn root(&self) -> ExternalRootId {
+        match self {
+            Self::DirectGenerated(evidence) => evidence.root,
+            Self::OpaqueProvider(evidence) => evidence.root,
+        }
+    }
+
+    pub const fn provider(&self) -> RootProviderId {
+        match self {
+            Self::DirectGenerated(evidence) => evidence.provider,
+            Self::OpaqueProvider(evidence) => evidence.provider,
+        }
+    }
+
+    pub const fn architecture(&self) -> omega_target::Architecture {
+        match self {
+            Self::DirectGenerated(evidence) => evidence.architecture,
+            Self::OpaqueProvider(evidence) => evidence.architecture,
+        }
+    }
+
+    pub const fn installed_code(&self) -> InstalledCodeId {
+        match self {
+            Self::DirectGenerated(evidence) => evidence.installed_code,
+            Self::OpaqueProvider(evidence) => evidence.installed_code,
+        }
+    }
+
+    pub const fn artifact(&self) -> ArtifactId {
+        match self {
+            Self::DirectGenerated(evidence) => evidence.artifact,
+            Self::OpaqueProvider(evidence) => evidence.artifact,
+        }
+    }
+
+    pub const fn entry(&self) -> EntryStubId {
+        match self {
+            Self::DirectGenerated(evidence) => evidence.entry,
+            Self::OpaqueProvider(evidence) => evidence.entry,
+        }
+    }
+
+    pub const fn boundary_contract_fingerprint(&self) -> u64 {
+        match self {
+            Self::DirectGenerated(evidence) => evidence.boundary_contract_fingerprint,
+            Self::OpaqueProvider(evidence) => evidence.boundary_contract_fingerprint,
+        }
+    }
+
+    pub const fn resolved_stack(&self) -> EntryStack {
+        match self {
+            Self::DirectGenerated(evidence) => evidence.resolved_stack,
+            Self::OpaqueProvider(evidence) => evidence.resolved_stack,
+        }
+    }
+
+    pub const fn realization(&self) -> &ValidatedEntryStackRealization {
+        match self {
+            Self::DirectGenerated(evidence) => &evidence.realization,
+            Self::OpaqueProvider(evidence) => &evidence.realization,
+        }
+    }
+
+    pub const fn validation_receipt(&self) -> Option<StackValidationReceiptId> {
+        match self {
+            Self::DirectGenerated(_) => None,
+            Self::OpaqueProvider(evidence) => Some(evidence.validation_receipt),
+        }
+    }
+
+    pub(super) fn matches_installed_code_entry(
+        &self,
+        installed_code: &InstalledCode,
+        entry: EntryStubId,
+    ) -> bool {
+        match self {
+            Self::DirectGenerated(evidence) => {
+                evidence.architecture == installed_code.architecture()
+                    && evidence.installed_code == installed_code.identity()
+                    && evidence.installed_code_context == installed_code.receipt_context()
+                    && evidence.artifact == installed_code.artifact()
+                    && evidence.entry == entry
+            }
+            Self::OpaqueProvider(evidence) => {
+                evidence.matches_installed_code_entry(installed_code, entry)
+            }
+        }
+    }
 }
 
 impl OpaqueAdapterStackRealizationEvidence {
@@ -126,7 +256,7 @@ impl OpaqueAdapterStackRealizationEvidence {
 pub struct BoundEpochStackCompositionInput {
     pure: EpochStackCompositionInput,
     body_evidence: StackLocalEvidence,
-    realization_evidence: OpaqueAdapterStackRealizationEvidence,
+    realization_evidence: AdapterStackRealizationEvidence,
 }
 
 impl BoundEpochStackCompositionInput {
@@ -146,7 +276,7 @@ impl BoundEpochStackCompositionInput {
         &self.body_evidence
     }
 
-    pub const fn realization_evidence(&self) -> &OpaqueAdapterStackRealizationEvidence {
+    pub const fn realization_evidence(&self) -> &AdapterStackRealizationEvidence {
         &self.realization_evidence
     }
 }
@@ -162,63 +292,14 @@ pub fn bind_opaque_adapter_stack_realization(
     realization: ValidatedEntryStackRealization,
     validation_receipt: StackValidationReceiptId,
 ) -> Result<BoundEpochStackCompositionInput, ExternalRootDiagnostic> {
-    installed_code.selected_entry_target(entry).map_err(|_| {
-        ExternalRootDiagnostic(
-            "opaque adapter stack realization names no exact installed entry".into(),
-        )
-    })?;
-    if boundary.plan().state.initial_regime.architecture() != installed_code.architecture() {
-        return Err(ExternalRootDiagnostic(
-            "opaque adapter stack realization target differs from the installed artifact architecture"
-                .into(),
-        ));
-    }
-    if summary.stack != boundary.plan().state.stack {
-        return Err(ExternalRootDiagnostic(
-            "opaque adapter stack summary drifted from the boundary plan's stack disposition"
-                .into(),
-        ));
-    }
-    match boundary.plan().state.stack {
-        EntryStack::ProviderSelected => {}
-        fixed if fixed == resolved_stack => {}
-        _ => {
-            return Err(ExternalRootDiagnostic(
-                "opaque adapter resolved stack differs from the fixed boundary stack disposition"
-                    .into(),
-            ));
-        }
-    }
-    let body_domain = resolved_stack_domain(resolved_stack)?;
-    for context in &realization.realization().contexts {
-        let body = context
-            .epochs
-            .iter()
-            .find(|epoch| epoch.stage == EntryStackStage::Body)
-            .expect("validated realization has exactly one body epoch");
-        if body.active_domain != body_domain {
-            return Err(ExternalRootDiagnostic(format!(
-                "opaque adapter arrival context 0x{:016x} executes its body on a domain other than the resolved entry stack",
-                context.context.get()
-            )));
-        }
-        for epoch in &context.epochs {
-            if !preemption_refines(epoch.nesting, boundary.plan().state.preemption) {
-                return Err(ExternalRootDiagnostic(format!(
-                    "opaque adapter arrival context 0x{:016x} widens the boundary plan's nesting ceiling",
-                    context.context.get()
-                )));
-            }
-        }
-    }
-    if let StackLocalEvidence::TerminalEntry(binding) = &summary.local_evidence
-        && !binding.matches_installed_entry(installed_code, entry)
-    {
-        return Err(ExternalRootDiagnostic(
-            "terminal body WCSU and opaque adapter realization name different installed entries"
-                .into(),
-        ));
-    }
+    validate_bound_adapter_realization(
+        summary,
+        boundary,
+        installed_code,
+        entry,
+        resolved_stack,
+        &realization,
+    )?;
 
     let realization_evidence = OpaqueAdapterStackRealizationEvidence {
         root: summary.root,
@@ -243,8 +324,150 @@ pub fn bind_opaque_adapter_stack_realization(
             body_wcsu_alignment: summary.wcsu_alignment(),
         },
         body_evidence: summary.local_evidence.clone(),
-        realization_evidence,
+        realization_evidence: AdapterStackRealizationEvidence::OpaqueProvider(realization_evidence),
     })
+}
+
+/// Derive the complete stack realization for a compiler-emitted direct entry.
+/// The only epoch is the exact Terminal body's epoch; no caller-authored epoch
+/// or provider receipt is accepted on this path.
+pub fn bind_direct_generated_entry_stack_realization(
+    summary: &ProviderStackSummary,
+    boundary: &ValidatedBoundaryEntryPlan,
+    installed_code: &InstalledCode,
+    entry: EntryStubId,
+    resolved_stack: EntryStack,
+) -> Result<BoundEpochStackCompositionInput, ExternalRootDiagnostic> {
+    let StackLocalEvidence::TerminalEntry(binding) = &summary.local_evidence else {
+        return Err(ExternalRootDiagnostic(
+            "direct generated entry stack realization requires emitter-derived Terminal body evidence"
+                .into(),
+        ));
+    };
+    if !binding.matches_installed_entry(installed_code, entry) {
+        return Err(ExternalRootDiagnostic(
+            "direct generated entry body evidence names a different installed entry".into(),
+        ));
+    }
+    let active_domain = resolved_stack_domain(resolved_stack)?;
+    let realization = validate_entry_stack_realization(EntryStackRealization {
+        contexts: vec![ArrivalContextRealization {
+            context: ArrivalContextId::new(1).expect("direct generated context is nonzero"),
+            epochs: vec![EntryStackEpoch {
+                stage: EntryStackStage::Body,
+                active_domain,
+                occupancy_by_domain: Vec::new(),
+                nesting: boundary.plan().state.preemption,
+            }],
+        }],
+    })
+    .map_err(|error| {
+        ExternalRootDiagnostic(format!(
+            "direct generated entry stack realization is invalid: {}",
+            error.0
+        ))
+    })?;
+    validate_bound_adapter_realization(
+        summary,
+        boundary,
+        installed_code,
+        entry,
+        resolved_stack,
+        &realization,
+    )?;
+    Ok(BoundEpochStackCompositionInput {
+        pure: EpochStackCompositionInput {
+            root: summary.root,
+            provider: summary.provider,
+            realization: realization.clone(),
+            body_wcsu_bytes: summary.local_wcsu_bytes(),
+            body_wcsu_alignment: summary.wcsu_alignment(),
+        },
+        body_evidence: summary.local_evidence.clone(),
+        realization_evidence: AdapterStackRealizationEvidence::DirectGenerated(
+            DirectGeneratedEntryStackRealizationEvidence {
+                root: summary.root,
+                provider: summary.provider,
+                architecture: installed_code.architecture(),
+                installed_code: installed_code.identity(),
+                installed_code_context: installed_code.receipt_context(),
+                artifact: installed_code.artifact(),
+                entry,
+                boundary_contract_fingerprint: boundary.contract_fingerprint(),
+                resolved_stack,
+                realization,
+            },
+        ),
+    })
+}
+
+fn validate_bound_adapter_realization(
+    summary: &ProviderStackSummary,
+    boundary: &ValidatedBoundaryEntryPlan,
+    installed_code: &InstalledCode,
+    entry: EntryStubId,
+    resolved_stack: EntryStack,
+    realization: &ValidatedEntryStackRealization,
+) -> Result<(), ExternalRootDiagnostic> {
+    installed_code.selected_entry_target(entry).map_err(|_| {
+        ExternalRootDiagnostic("entry stack realization names no exact installed entry".into())
+    })?;
+    if boundary.plan().state.initial_regime.architecture() != installed_code.architecture() {
+        return Err(ExternalRootDiagnostic(
+            "entry stack realization target differs from the installed artifact architecture"
+                .into(),
+        ));
+    }
+    if summary.stack != boundary.plan().state.stack {
+        return Err(ExternalRootDiagnostic(
+            "entry stack summary drifted from the boundary plan's stack disposition".into(),
+        ));
+    }
+    match boundary.plan().state.stack {
+        EntryStack::ProviderSelected => {}
+        fixed if fixed == resolved_stack => {}
+        _ => {
+            return Err(ExternalRootDiagnostic(
+                "resolved entry stack differs from the fixed boundary stack disposition".into(),
+            ));
+        }
+    }
+    let body_domain = resolved_stack_domain(resolved_stack)?;
+    for context in &realization.realization().contexts {
+        let body = context
+            .epochs
+            .iter()
+            .find(|epoch| epoch.stage == EntryStackStage::Body)
+            .expect("validated realization has exactly one body epoch");
+        if body.active_domain != body_domain {
+            return Err(ExternalRootDiagnostic(format!(
+                "entry stack arrival context 0x{:016x} executes its body on a domain other than the resolved entry stack",
+                context.context.get()
+            )));
+        }
+        for epoch in &context.epochs {
+            if epoch.nesting == Preemption::ProviderDefined {
+                return Err(ExternalRootDiagnostic(format!(
+                    "entry stack arrival context 0x{:016x} retains unresolved provider-defined nesting",
+                    context.context.get()
+                )));
+            }
+            if !preemption_refines(epoch.nesting, boundary.plan().state.preemption) {
+                return Err(ExternalRootDiagnostic(format!(
+                    "entry stack arrival context 0x{:016x} widens the boundary plan's nesting ceiling",
+                    context.context.get()
+                )));
+            }
+        }
+    }
+    if let StackLocalEvidence::TerminalEntry(binding) = &summary.local_evidence
+        && !binding.matches_installed_entry(installed_code, entry)
+    {
+        return Err(ExternalRootDiagnostic(
+            "terminal body WCSU and adapter realization name different installed entries".into(),
+        ));
+    }
+    Ok(())
 }
 
 fn resolved_stack_domain(stack: EntryStack) -> Result<StackDomainRef, ExternalRootDiagnostic> {
@@ -404,19 +627,28 @@ pub fn compose_bound_entry_stack_epochs<'a>(
     fingerprint.u64(bound.len() as u64);
     for input in bound.values() {
         let evidence = input.realization_evidence();
-        fingerprint.u64(evidence.root.normalized_identity());
-        fingerprint.u64(evidence.provider.normalized_identity());
-        fingerprint.u64(match evidence.architecture {
+        fingerprint.u64(match evidence.origin() {
+            AdapterStackRealizationOrigin::DirectGenerated => 0,
+            AdapterStackRealizationOrigin::OpaqueProvider => 1,
+        });
+        fingerprint.u64(evidence.root().normalized_identity());
+        fingerprint.u64(evidence.provider().normalized_identity());
+        fingerprint.u64(match evidence.architecture() {
             omega_target::Architecture::X86_64 => 1,
             omega_target::Architecture::Aarch64 => 2,
         });
-        fingerprint.u64(evidence.installed_code.normalized_identity());
-        fingerprint.u64(evidence.artifact.normalized_identity());
-        fingerprint.u64(evidence.entry.normalized_identity());
-        fingerprint.u64(evidence.boundary_contract_fingerprint);
-        super::stack_demand::fingerprint_entry_stack(&mut fingerprint, evidence.resolved_stack);
-        fingerprint.u64(evidence.realization.fingerprint());
-        fingerprint.u64(evidence.validation_receipt.normalized_identity());
+        fingerprint.u64(evidence.installed_code().normalized_identity());
+        fingerprint.u64(evidence.artifact().normalized_identity());
+        fingerprint.u64(evidence.entry().normalized_identity());
+        fingerprint.u64(evidence.boundary_contract_fingerprint());
+        super::stack_demand::fingerprint_entry_stack(&mut fingerprint, evidence.resolved_stack());
+        fingerprint.u64(evidence.realization().fingerprint());
+        fingerprint.u64(
+            evidence
+                .validation_receipt()
+                .map(StackValidationReceiptId::normalized_identity)
+                .unwrap_or_default(),
+        );
     }
     Ok(BoundEpochStackComposition {
         composition,

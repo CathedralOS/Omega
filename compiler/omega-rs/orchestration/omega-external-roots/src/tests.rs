@@ -17,6 +17,9 @@ use omega_executable_installation::{
     PlacementPlanId, RelocationSetId, WxEnforcement, admit_executable, install_validated,
     materialize_admitted_artifact, materialize_and_freeze, validate_final_placement,
 };
+use omega_terminal_installation_evidence::{
+    TerminalFuelAttributionEvidence, TerminalObjectEvidence, TerminalStackDemandEvidence,
+};
 use psi_extents::{
     AddressSpaceId, ExtentDiagnostic, ExtentLineageId, ExtentProvenanceId, ExtentRightId,
     ExtentRights, ExtentRootGrant, MappingEraId,
@@ -192,6 +195,67 @@ fn boundary() -> ValidatedBoundaryEntryPlan {
         },
     )
     .expect("validated boundary")
+}
+
+#[derive(Debug)]
+struct TestTerminalObject {
+    identity: psi_terminal::TerminalPsiIdentity,
+    entry: psi_core::MachineId,
+    bytes: Vec<u8>,
+}
+
+impl TerminalObjectEvidence for TestTerminalObject {
+    fn terminal_psi(&self) -> psi_terminal::TerminalPsiIdentity {
+        self.identity
+    }
+
+    fn target(&self) -> omega_target::NativeTarget {
+        omega_target::NativeTarget::linux_x64()
+    }
+
+    fn text_bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+
+    fn function_text_offset(&self, machine: psi_core::MachineId) -> Option<usize> {
+        (machine == self.entry).then_some(16)
+    }
+
+    fn fuel_attribution(&self) -> Vec<TerminalFuelAttributionEvidence> {
+        Vec::new()
+    }
+}
+
+struct TestTerminalStackDemand {
+    identity: psi_terminal::TerminalPsiIdentity,
+    entry: psi_core::MachineId,
+    contributing: BTreeSet<psi_core::MachineId>,
+}
+
+impl TerminalStackDemandEvidence for TestTerminalStackDemand {
+    fn terminal_psi(&self) -> psi_terminal::TerminalPsiIdentity {
+        self.identity
+    }
+
+    fn architecture(&self) -> omega_target::Architecture {
+        omega_target::Architecture::X86_64
+    }
+
+    fn entry(&self) -> psi_core::MachineId {
+        self.entry
+    }
+
+    fn ceiling_bytes(&self) -> u64 {
+        64
+    }
+
+    fn stack_alignment(&self) -> u32 {
+        16
+    }
+
+    fn contributing_machines(&self) -> &BTreeSet<psi_core::MachineId> {
+        &self.contributing
+    }
 }
 
 fn fixed_fuel() -> ComposedFuelDemand {
@@ -432,6 +496,64 @@ fn root_service_reach_substitutes_selected_rows_and_rejects_absence() {
 }
 
 #[test]
+fn direct_generated_entry_derives_one_exact_body_epoch_without_provider_attestation() {
+    let entry = entry_id(0x801);
+    let code = installed_code(0x802, entry);
+    let boundary = boundary();
+    let machine = psi_core::MachineId::new(1).expect("machine identity");
+    let terminal_psi = psi_terminal::TerminalPsiIdentity {
+        vocabulary_marker: psi_terminal::VocabularyMarker,
+        program_fingerprint: psi_terminal::SemanticFingerprint::from_bytes([0x81; 32]),
+    };
+    let artifact = TestTerminalObject {
+        identity: terminal_psi,
+        entry: machine,
+        bytes: vec![0; 64],
+    };
+    let demand = TestTerminalStackDemand {
+        identity: terminal_psi,
+        entry: machine,
+        contributing: BTreeSet::from([machine]),
+    };
+    let installed = bind_installed_terminal_entry_stack(&demand, &artifact, &code, entry)
+        .expect("terminal stack closure binds exact installed bytes");
+    let root = root_id(0x803, ExternalRootId::from_normalized_identity);
+    let provider = root_id(0x804, RootProviderId::from_normalized_identity);
+    let summary = ProviderStackSummary::from_terminal_entry(
+        root,
+        provider,
+        boundary.plan().state.stack,
+        installed,
+    );
+    let bound = bind_direct_generated_entry_stack_realization(
+        &summary,
+        &boundary,
+        &code,
+        entry,
+        EntryStack::Interrupted,
+    )
+    .expect("direct generated entry derives its realization");
+
+    assert_eq!(
+        bound.realization_evidence().origin(),
+        AdapterStackRealizationOrigin::DirectGenerated
+    );
+    assert_eq!(bound.realization_evidence().validation_receipt(), None);
+    let contexts = &bound
+        .realization_evidence()
+        .realization()
+        .realization()
+        .contexts;
+    assert_eq!(contexts.len(), 1);
+    assert_eq!(contexts[0].epochs.len(), 1);
+    assert_eq!(contexts[0].epochs[0].stage, EntryStackStage::Body);
+    assert_eq!(
+        contexts[0].epochs[0].active_domain,
+        StackDomainRef::Interrupted
+    );
+}
+
+#[test]
 fn opaque_epoch_realization_binds_exact_installed_entry_plan_and_body_evidence() {
     let entry = entry_id(0x811);
     let code = installed_code(0x812, entry);
@@ -491,7 +613,10 @@ fn opaque_epoch_realization_binds_exact_installed_entry_plan_and_body_evidence()
             .expect("retained exact evidence")
             .realization_evidence()
             .validation_receipt(),
-        root_id(0x816, StackValidationReceiptId::from_normalized_identity)
+        Some(root_id(
+            0x816,
+            StackValidationReceiptId::from_normalized_identity
+        ))
     );
 
     let error = bind_opaque_adapter_stack_realization(
