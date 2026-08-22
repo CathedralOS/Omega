@@ -683,6 +683,14 @@ source-carrier literal remapping remains with cast custody. No proof shape or
 search frontier changes. This completes contiguous cast-chain custody for exact
 divide/remainder goals.
 
+Direct retained-bound cast selection separates source-ordered relation
+enumeration from its existing completion. Independent producer and
+reconstruction `cast_selection/direct/candidates` modules retain assumptions
+before semantic axioms and exact `LessOrEqual` filtering before delegating the
+selected relation to their own completion. Citation identity, root-endpoint
+order, `IntegerCastBound` proof bytes, rejection, direct-before-literal
+precedence, and the fixed direct-bound frontier remain unchanged.
+
 Direct landed-literal cast selection separates equality candidate enumeration
 from its existing completion. Independent producer and reconstruction
 `cast_selection/literal/candidates` modules retain assumptions before semantic

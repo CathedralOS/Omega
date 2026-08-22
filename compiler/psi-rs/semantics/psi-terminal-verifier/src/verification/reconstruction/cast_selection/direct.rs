@@ -2,6 +2,7 @@
 
 use psi_core::{Proposition, PropositionContext};
 
+mod candidates;
 mod completion;
 
 pub(super) fn retained(
@@ -10,21 +11,5 @@ pub(super) fn retained(
     requirements: &[Proposition],
     semantic_axioms: &[Proposition],
 ) -> bool {
-    requirements
-        .iter()
-        .chain(semantic_axioms)
-        .filter_map(|root_bound| match root_bound {
-            Proposition::LessOrEqual(left, right) => Some((root_bound, left, right)),
-            _ => None,
-        })
-        .any(|(root_bound, root_left, root_right)| {
-            completion::retained(
-                context,
-                goal,
-                semantic_axioms,
-                root_bound,
-                root_left,
-                root_right,
-            )
-        })
+    candidates::retained(context, goal, requirements, semantic_axioms)
 }
