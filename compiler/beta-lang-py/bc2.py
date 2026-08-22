@@ -2,9 +2,9 @@
 # bc2.py — a separately written Beta reference compiler (Beta source -> Alpha assembly)
 # in Python against alpha/SEMANTICS.md and the Beta language, NOT ported from beta-lang-rs.
 #
-# HISTORICAL ROLE — this formerly implemented a DDC ruling that has since been
-# superseded by checked source-to-artifact refinement. It remains because its
-# parser and compiler are useful to optional reference/regression tools.
+# HISTORICAL ROLE — this was once used by a DDC gate that has since been removed.
+# It remains because its parser is shared by active meaning/refinement tools and
+# its compiler provides optional differential diagnostics.
 #
 # TRUST STATUS: UNTRUSTED, exactly like elab.py / prover.py / tv-encode.py. Its output is CHECKED, never
 # trusted. A disagreement with canonical meaning or another implementation is a

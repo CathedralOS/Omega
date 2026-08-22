@@ -58,7 +58,7 @@ lattice and `compiler/` for the product implementation.
 | --- | --- | --- |
 | `compiler/beta-lang-rs/`, Rust producer portion of `compiler/delta-rs/` | disposable/reference on-ramps | `bootstrap/onramps/` |
 | semantic and symbolic portions of `compiler/beta-lang-py/` | Beta meaning/refinement references | Beta reference or refinement owner, not a Python-named peer rung |
-| `compiler/beta-lang-py/bc2.py` and DDC gate | legacy compiler-comparison scaffolding | archive/remove after the `bc` cold-start edge is checked |
+| parser/compiler portions of `compiler/beta-lang-py/bc2.py` | shared reference parser plus optional differential backend | split the parser to its consumers; retain the backend only for unique diagnostics |
 | `compiler/psi-rs/`, `compiler/omega-rs/` | current production Psi/Omega implementations | `compiler/psi/`, `compiler/omega/` |
 
 ## Current architectural state
@@ -309,8 +309,11 @@ from attractive but deferrable language work.
   checker implementations, untrusted proof tooling, corpora, and gates under
   `bootstrap/assurance/proof-kernel/`.
 - [ ] **Split `beta-lang-py` by role.** Retain the interpreter, symbolic evaluator,
-  and useful fuzzing under Beta/refinement owners. Archive or remove `bc2.py` and
-  the DDC comparison after the `bc` cold-start edge closes.
+  and useful fuzzing under Beta/refinement owners. Extract the parser currently
+  shared through `bc2.py`; retain its compiler backend only while it provides
+  unique differential coverage.
+  - [x] Remove the retired DDC comparison gate. Compiler diversity is neither a
+    repository role nor a prerequisite for closing the `bc` refinement edge.
 - [ ] **Move first-Omega work out of the product namespace.** Place the existing
   Rust-free meaning/refinement experiments and future Delta compiler source in
   `bootstrap/omega0/`.
@@ -321,8 +324,7 @@ from attractive but deferrable language work.
 
 ## Execution order
 
-1. Close the `bc` cold-start source-to-artifact edge with lower-rooted checking;
-   the current DDC comparison is not the closure criterion.
+1. Close the `bc` cold-start source-to-artifact edge with lower-rooted checking.
 2. Finish Delta's Rust-free meaning route and preserve the native/meaning
    differential gates.
 3. Grow proof-kernel capability and its operational seams only in lockstep with
