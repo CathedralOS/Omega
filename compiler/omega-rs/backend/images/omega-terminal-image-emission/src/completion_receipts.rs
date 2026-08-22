@@ -190,6 +190,7 @@ mod tests {
                 ),
             scalar_arguments: Vec::new(),
             arguments,
+            byte_sequence_arguments: Vec::new(),
             completion_claim_sources,
             completion_receipts,
             completion_provider_custody,

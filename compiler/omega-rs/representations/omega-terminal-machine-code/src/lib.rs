@@ -230,6 +230,9 @@ pub struct TerminalBoundarySettlementRecord {
     /// These are provider-settlement evidence and do not describe an internal
     /// Unit-call ABI.
     pub arguments: Vec<StructuralArgument>,
+    /// Exact native byte-sequence arguments and their independently replayable
+    /// semantic and physical custody.
+    pub byte_sequence_arguments: Vec<TerminalBoundaryByteSequenceArgumentRecord>,
     /// Complete canonical caller claim-source catalog needed to independently
     /// reconstruct the exact successful-completion receipt set.
     pub completion_claim_sources: Vec<TerminalCompletionClaimSource>,
@@ -252,6 +255,20 @@ pub struct TerminalBoundarySettlementRecord {
     /// Zero for metadata-only settlements; otherwise the exact provider
     /// instruction interval that produces the boundary result.
     pub byte_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalBoundaryByteSequenceArgumentRecord {
+    pub argument: StructuralArgument,
+    pub literal_operation: OperationId,
+    pub structural_type: StructuralTypeDeclaration,
+    pub bytes: Vec<u8>,
+    /// Function-relative executable interval that consumes this payload.
+    pub code_offset: usize,
+    pub code_byte_count: usize,
+    /// Function-relative exact literal-plus-newline interval.
+    pub data_offset: usize,
+    pub data_byte_count: usize,
 }
 
 /// Non-authoritative artifact custody for one exact completion receipt.

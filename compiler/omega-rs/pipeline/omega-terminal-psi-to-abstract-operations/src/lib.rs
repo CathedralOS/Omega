@@ -202,6 +202,17 @@ fn lower_machine(
         }))
         .map(|value| (value.id, value.scalar_type))
         .collect::<BTreeMap<_, _>>();
+    let byte_sequence_literals = machine
+        .structural_places
+        .iter()
+        .filter_map(|place| match place.kind {
+            StructuralPlaceKind::ByteSequenceLiteral {
+                declaration_ordinal,
+                structural_type,
+            } => Some((place, declaration_ordinal, structural_type)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
     let unit_affine_locals = machine
         .structural_places
         .iter()
@@ -214,6 +225,7 @@ fn lower_machine(
         })
         .collect::<Vec<_>>();
     let mut lowered_unit_affine_locals = Vec::new();
+    let mut lowered_byte_sequence_literals = 0_usize;
 
     for block in &machine.blocks {
         block_entries.push(TerminalAbstractBlockEntry {
@@ -222,8 +234,34 @@ fn lower_machine(
         });
         for operation in &block.operations {
             match operation.kind.clone() {
-                OperationKind::EstablishByteSequenceLiteral { .. } => {
-                    return Err(LoweringError::UnsupportedByteSequenceLiteral(operation.id));
+                OperationKind::EstablishByteSequenceLiteral { destination, bytes } => {
+                    let (place, ordinal, structural_type) = byte_sequence_literals
+                        .iter()
+                        .find(|(place, _, _)| place.id == destination)
+                        .copied()
+                        .ok_or(LoweringError::UnsupportedByteSequenceLiteral(operation.id))?;
+                    let declaration = structural_types
+                        .iter()
+                        .find(|declaration| declaration.id == structural_type)
+                        .cloned()
+                        .ok_or(LoweringError::UnsupportedByteSequenceLiteral(operation.id))?;
+                    if usize::try_from(ordinal) != Ok(lowered_byte_sequence_literals)
+                        || !matches!(
+                            declaration.shape,
+                            psi_terminal::StructuralTypeShape::ByteSequence(
+                                psi_terminal::ByteSequenceCarrier::BorrowedView
+                            )
+                        )
+                    {
+                        return Err(LoweringError::UnsupportedByteSequenceLiteral(operation.id));
+                    }
+                    lowered_byte_sequence_literals += 1;
+                    operations.push(TerminalAbstractOperation::EstablishByteSequenceLiteral {
+                        psi_operation: operation.id,
+                        place: place.clone(),
+                        structural_type: declaration,
+                        bytes,
+                    });
                 }
                 OperationKind::EstablishTrivialAffineLocal { destination } => {
                     let (place, ordinal, structural_type) = unit_affine_locals

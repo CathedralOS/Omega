@@ -7,11 +7,12 @@ use omega_terminal_assigned_target_operations::{
     TerminalAssignedUnitOperation,
 };
 use omega_terminal_machine_code::{
-    TerminalAarch64ReturnLinkEvidence, TerminalBoundarySettlementRecord,
-    TerminalInternalCallRelocation, TerminalInternalUnitCallArgumentRecord,
-    TerminalInternalUnitCallRecord, TerminalNativeFuelAttribution, TerminalNativeFuelSite,
-    TerminalPortEffectRecord, TerminalStackAdjustmentPair, TerminalUnitCallStackEvidence,
-    TerminalUnitStackEvidence, derive_completion_provider_custody,
+    TerminalAarch64ReturnLinkEvidence, TerminalBoundaryByteSequenceArgumentRecord,
+    TerminalBoundarySettlementRecord, TerminalInternalCallRelocation,
+    TerminalInternalUnitCallArgumentRecord, TerminalInternalUnitCallRecord,
+    TerminalNativeFuelAttribution, TerminalNativeFuelSite, TerminalPortEffectRecord,
+    TerminalStackAdjustmentPair, TerminalUnitCallStackEvidence, TerminalUnitStackEvidence,
+    derive_completion_provider_custody,
 };
 use omega_terminal_target_operations::TerminalCallSiteOwner;
 use psi_core::MachineId;
@@ -136,6 +137,7 @@ pub(super) fn emit_unit_body(
     let mut returned = false;
     let mut affine_cleanup = None;
     let mut established_affine_locals = Vec::new();
+    let mut established_byte_sequences = std::collections::BTreeMap::new();
     for (operation_ordinal, operation) in body.operations.iter().enumerate() {
         if returned {
             return Err(EmissionError::UnitOperationAfterReturn);
@@ -144,6 +146,30 @@ pub(super) fn emit_unit_body(
         let mut operation_site = None;
         let mut edge_site = None;
         match operation {
+            TerminalAssignedUnitOperation::EstablishByteSequenceLiteral {
+                psi_operation,
+                place,
+                structural_type,
+                bytes: literal_bytes,
+            } => {
+                operation_site = Some(*psi_operation);
+                if established_byte_sequences
+                    .insert(
+                        place.id,
+                        (
+                            *psi_operation,
+                            structural_type.clone(),
+                            literal_bytes.clone(),
+                        ),
+                    )
+                    .is_some()
+                {
+                    return Err(EmissionError::InvalidLinuxWriteLineCustody);
+                }
+            }
+            TerminalAssignedUnitOperation::IntegerConstant { psi_operation, .. } => {
+                operation_site = Some(*psi_operation);
+            }
             TerminalAssignedUnitOperation::EstablishTrivialAffineLocal {
                 psi_operation,
                 place,
@@ -253,7 +279,9 @@ pub(super) fn emit_unit_body(
                 boundary,
                 provider_execution,
                 realization,
+                scalar_arguments,
                 arguments,
+                byte_sequence_arguments,
                 completion_claim_sources,
                 completion_receipts,
             } => {
@@ -265,20 +293,124 @@ pub(super) fn emit_unit_body(
                     completion_receipts,
                 )
                 .ok_or(EmissionError::InvalidCompletionProviderCustody)?;
+                let settlement_code_offset = bytes.len();
+                let mut byte_sequence_records = Vec::new();
+                match realization {
+                    omega_terminal_target_operations::TerminalBoundaryRealization::MetadataOnlyPort(_) => {
+                        if !scalar_arguments.is_empty() || !byte_sequence_arguments.is_empty() {
+                            return Err(EmissionError::InvalidLinuxWriteLineCustody);
+                        }
+                    }
+                    omega_terminal_target_operations::TerminalBoundaryRealization::LinuxWriteLine(_) => {
+                        let [argument] = byte_sequence_arguments.as_slice() else {
+                            return Err(EmissionError::InvalidLinuxWriteLineCustody);
+                        };
+                        let Some((literal_operation, structural_type, literal_bytes)) =
+                            established_byte_sequences.get(&argument.argument.place)
+                        else {
+                            return Err(EmissionError::InvalidLinuxWriteLineCustody);
+                        };
+                        if !scalar_arguments.is_empty()
+                            || arguments.as_slice() != [argument.argument.clone()]
+                            || *literal_operation != argument.literal_operation
+                            || structural_type != &argument.structural_type
+                            || literal_bytes != &argument.bytes
+                            || !argument.argument.path.is_empty()
+                            || target.object_format != ObjectFormat::Elf
+                        {
+                            return Err(EmissionError::InvalidLinuxWriteLineCustody);
+                        }
+                        let (encoded, data) = match target.architecture {
+                            Architecture::X86_64 => {
+                                omega_isa_x86_64::encode_linux_write_line_literal(literal_bytes)
+                                    .map_err(|_| EmissionError::LinuxWriteLineEncoding)?
+                            }
+                            Architecture::Aarch64 => {
+                                omega_isa_aarch64::encode_linux_write_line_literal(literal_bytes)
+                                    .map_err(|_| EmissionError::LinuxWriteLineEncoding)?
+                            }
+                        };
+                        if data.is_empty() || data.start == 0 || data.end > encoded.len() {
+                            return Err(EmissionError::LinuxWriteLineEncoding);
+                        }
+                        bytes.extend_from_slice(&encoded);
+                        byte_sequence_records.push(TerminalBoundaryByteSequenceArgumentRecord {
+                            argument: argument.argument.clone(),
+                            literal_operation: argument.literal_operation,
+                            structural_type: argument.structural_type.clone(),
+                            bytes: argument.bytes.clone(),
+                            code_offset: settlement_code_offset,
+                            code_byte_count: data.start,
+                            data_offset: settlement_code_offset + data.start,
+                            data_byte_count: data.len(),
+                        });
+                    }
+                    omega_terminal_target_operations::TerminalBoundaryRealization::LinuxExitGroupI32(_) => {
+                        let [argument] = scalar_arguments.as_slice() else {
+                            return Err(EmissionError::LinuxExitGroupArgumentMismatch(*boundary));
+                        };
+                        let i32_type = psi_core::IntegerType::new(
+                            psi_core::IntegerSign::Signed,
+                            32,
+                        )
+                        .expect("i32 is valid");
+                        let value = match (argument.scalar_type, argument.immediate) {
+                            (
+                                psi_core::ScalarType::Integer(actual),
+                                psi_core::IntegerValue::Signed(value),
+                            ) if actual == i32_type => i32::try_from(value).map_err(|_| {
+                                EmissionError::LinuxExitGroupArgumentMismatch(*boundary)
+                            })?,
+                            _ => {
+                                return Err(EmissionError::LinuxExitGroupArgumentMismatch(
+                                    *boundary,
+                                ));
+                            }
+                        };
+                        let expected_destination = match target.architecture {
+                            Architecture::X86_64 => {
+                                omega_calling_conventions::MachineRegister::X86Rdi
+                            }
+                            Architecture::Aarch64 => {
+                                omega_calling_conventions::MachineRegister::Aarch64X(0)
+                            }
+                        };
+                        if target.object_format != ObjectFormat::Elf
+                            || argument.destination != expected_destination
+                            || !arguments.is_empty()
+                            || !byte_sequence_arguments.is_empty()
+                        {
+                            return Err(EmissionError::LinuxExitGroupArgumentMismatch(*boundary));
+                        }
+                        match target.architecture {
+                            Architecture::X86_64 => bytes.extend_from_slice(
+                                &omega_isa_x86_64::encode_linux_exit_group_i32(value),
+                            ),
+                            Architecture::Aarch64 => bytes.extend_from_slice(
+                                &omega_isa_aarch64::encode_linux_exit_group_i32(value)
+                                    .map_err(|_| EmissionError::LinuxExitGroupEncoding)?,
+                            ),
+                        }
+                    }
+                    omega_terminal_target_operations::TerminalBoundaryRealization::DirectPortReadU8(_) => {
+                        return Err(EmissionError::InvalidLinuxWriteLineCustody);
+                    }
+                }
                 boundary_settlements.push(TerminalBoundarySettlementRecord {
                     psi_operation: *psi_operation,
                     boundary: *boundary,
                     provider_execution,
                     realization: *realization,
-                    scalar_arguments: Vec::new(),
+                    scalar_arguments: scalar_arguments.clone(),
                     arguments: arguments.clone(),
+                    byte_sequence_arguments: byte_sequence_records,
                     completion_claim_sources: completion_claim_sources.clone(),
                     completion_receipts: completion_receipts.clone(),
                     completion_provider_custody,
                     native_result: None,
                     operation_ordinal,
-                    code_offset: bytes.len(),
-                    byte_count: 0,
+                    code_offset: settlement_code_offset,
+                    byte_count: bytes.len() - settlement_code_offset,
                 });
             }
             TerminalAssignedUnitOperation::Return {

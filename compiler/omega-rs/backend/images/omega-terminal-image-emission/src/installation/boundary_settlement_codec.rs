@@ -1,16 +1,16 @@
-//! Canonical format-32 codec for boundary-settlement rows.
+//! Canonical format-33 codec for boundary-settlement rows.
 //!
 //! The installation parent retains upfront count conversion, settlement order,
 //! validation, and admission replay. This child composes the exact row bytes.
 
 use omega_terminal_machine_code::{
-    TerminalBoundaryResultRecord, TerminalBoundarySettlementRecord,
-    TerminalCompletionProviderCustodyBinding,
+    TerminalBoundaryByteSequenceArgumentRecord, TerminalBoundaryResultRecord,
+    TerminalBoundarySettlementRecord, TerminalCompletionProviderCustodyBinding,
 };
 use omega_terminal_target_operations::{
     TerminalBoundaryRealization, TerminalBoundaryScalarArgument,
     TerminalDirectPortReadU8Realization, TerminalLinuxExitGroupI32Realization,
-    TerminalMetadataOnlyPortRealization,
+    TerminalLinuxWriteLineRealization, TerminalMetadataOnlyPortRealization,
 };
 use psi_core::{
     BoundaryMachineId, ClaimId, EdgeId, IntegerValue, MachineId, OperationId, ServiceId, ValueId,
@@ -23,7 +23,7 @@ use super::{
         decode_boundary_result_scalar_type, encode_boundary_result_scalar_type,
     },
     completion_custody_codec::{decode_completion_claim_source, encode_completion_claim_source},
-    decode_boolean,
+    decode_boolean, decode_structural_types, encode_structural_types,
     provider_execution_codec::{decode_provider_execution, encode_provider_execution},
     push_u16, push_u32, push_u64,
     structural_argument_codec::{decode_structural_argument, encode_structural_argument},
@@ -59,6 +59,13 @@ pub(super) fn encode_boundary_settlements(
             }
             TerminalBoundaryRealization::LinuxExitGroupI32(_) => {
                 bytes.push(2);
+                push_u64(bytes, 0);
+                push_u64(bytes, 0);
+                push_u16(bytes, 0);
+                bytes.push(0);
+            }
+            TerminalBoundaryRealization::LinuxWriteLine(_) => {
+                bytes.push(3);
                 push_u64(bytes, 0);
                 push_u64(bytes, 0);
                 push_u16(bytes, 0);
@@ -116,6 +123,34 @@ pub(super) fn encode_boundary_settlements(
         );
         for argument in &settlement.arguments {
             encode_structural_argument(bytes, argument)?;
+        }
+        push_u32(
+            bytes,
+            u32::try_from(settlement.byte_sequence_arguments.len())
+                .map_err(|_| TerminalInstallationError::TooManySettlementArguments)?,
+        );
+        for custody in &settlement.byte_sequence_arguments {
+            encode_structural_argument(bytes, &custody.argument)?;
+            push_u64(bytes, custody.literal_operation.get());
+            encode_structural_types(bytes, std::slice::from_ref(&custody.structural_type))?;
+            push_u64(
+                bytes,
+                u64::try_from(custody.bytes.len())
+                    .map_err(|_| TerminalInstallationError::SettlementOffsetNotRepresentable)?,
+            );
+            bytes.extend_from_slice(&custody.bytes);
+            for value in [
+                custody.code_offset,
+                custody.code_byte_count,
+                custody.data_offset,
+                custody.data_byte_count,
+            ] {
+                push_u64(
+                    bytes,
+                    u64::try_from(value)
+                        .map_err(|_| TerminalInstallationError::SettlementOffsetNotRepresentable)?,
+                );
+            }
         }
         push_u32(
             bytes,
@@ -208,6 +243,9 @@ pub(super) fn decode_boundary_settlements(
             2 if effect_operation == 0 && service == 0 && port == 0 && value == 0 => {
                 TerminalBoundaryRealization::LinuxExitGroupI32(TerminalLinuxExitGroupI32Realization)
             }
+            3 if effect_operation == 0 && service == 0 && port == 0 && value == 0 => {
+                TerminalBoundaryRealization::LinuxWriteLine(TerminalLinuxWriteLineRealization)
+            }
             _ => return Err(TerminalInstallationError::InvalidBoundaryRealizationTag),
         };
         if reader.u8()? != 0 {
@@ -261,6 +299,44 @@ pub(super) fn decode_boundary_settlements(
         let mut arguments = Vec::with_capacity(argument_count);
         for _ in 0..argument_count {
             arguments.push(decode_structural_argument(reader)?);
+        }
+        let byte_sequence_count = usize::try_from(reader.u32()?)
+            .map_err(|_| TerminalInstallationError::TooManySettlementArguments)?;
+        if byte_sequence_count > reader.remaining() / 56 {
+            return Err(TerminalInstallationError::UnexpectedEnd);
+        }
+        let mut byte_sequence_arguments = Vec::with_capacity(byte_sequence_count);
+        for _ in 0..byte_sequence_count {
+            let argument = decode_structural_argument(reader)?;
+            let literal_operation = OperationId::new(reader.u64()?).ok_or(
+                TerminalInstallationError::ZeroSettlementIdentity("literal OperationId"),
+            )?;
+            let mut structural_types = decode_structural_types(reader)?;
+            let [structural_type] = structural_types.as_mut_slice() else {
+                return Err(TerminalInstallationError::InvalidSettlementArgumentField);
+            };
+            let structural_type = structural_type.clone();
+            let byte_count = usize::try_from(reader.u64()?)
+                .map_err(|_| TerminalInstallationError::SettlementOffsetNotRepresentable)?;
+            let literal_bytes = reader.take(byte_count)?.to_vec();
+            let code_offset = usize::try_from(reader.u64()?)
+                .map_err(|_| TerminalInstallationError::SettlementOffsetNotRepresentable)?;
+            let code_byte_count = usize::try_from(reader.u64()?)
+                .map_err(|_| TerminalInstallationError::SettlementOffsetNotRepresentable)?;
+            let data_offset = usize::try_from(reader.u64()?)
+                .map_err(|_| TerminalInstallationError::SettlementOffsetNotRepresentable)?;
+            let data_byte_count = usize::try_from(reader.u64()?)
+                .map_err(|_| TerminalInstallationError::SettlementOffsetNotRepresentable)?;
+            byte_sequence_arguments.push(TerminalBoundaryByteSequenceArgumentRecord {
+                argument,
+                literal_operation,
+                structural_type,
+                bytes: literal_bytes,
+                code_offset,
+                code_byte_count,
+                data_offset,
+                data_byte_count,
+            });
         }
         let source_count = usize::try_from(reader.u32()?)
             .map_err(|_| TerminalInstallationError::TooManyCompletionClaimSources)?;
@@ -326,6 +402,7 @@ pub(super) fn decode_boundary_settlements(
                 realization,
                 scalar_arguments,
                 arguments,
+                byte_sequence_arguments,
                 completion_claim_sources,
                 completion_receipts,
                 completion_provider_custody,

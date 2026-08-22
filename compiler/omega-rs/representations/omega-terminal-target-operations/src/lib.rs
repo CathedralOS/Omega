@@ -175,10 +175,17 @@ pub struct TerminalDirectPortReadU8Realization {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct TerminalLinuxExitGroupI32Realization;
 
+/// Import-free Linux standard-output realization through the kernel's
+/// `write(2)` ABI. The emitted loop consumes the complete immutable payload
+/// and one trailing newline or traps; no hosted import is implied.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct TerminalLinuxWriteLineRealization;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TerminalBoundaryRealization {
     MetadataOnlyPort(TerminalMetadataOnlyPortRealization),
     DirectPortReadU8(TerminalDirectPortReadU8Realization),
+    LinuxWriteLine(TerminalLinuxWriteLineRealization),
     LinuxExitGroupI32(TerminalLinuxExitGroupI32Realization),
 }
 
@@ -194,6 +201,12 @@ impl From<TerminalLinuxExitGroupI32Realization> for TerminalBoundaryRealization 
     }
 }
 
+impl From<TerminalLinuxWriteLineRealization> for TerminalBoundaryRealization {
+    fn from(realization: TerminalLinuxWriteLineRealization) -> Self {
+        Self::LinuxWriteLine(realization)
+    }
+}
+
 /// Exact scalar value consumed by a native boundary realization.
 ///
 /// The value identity and type bind this row back to terminal Psi; the
@@ -206,6 +219,17 @@ pub struct TerminalBoundaryScalarArgument {
     pub scalar_type: ScalarType,
     pub immediate: IntegerValue,
     pub destination: MachineRegister,
+}
+
+/// Exact structural source consumed by one native byte-sequence boundary.
+/// The literal operation and declaration bind the payload back to terminal
+/// Psi independently of target byte placement.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalBoundaryByteSequenceArgument {
+    pub argument: StructuralArgument,
+    pub literal_operation: OperationId,
+    pub structural_type: StructuralTypeDeclaration,
+    pub bytes: Vec<u8>,
 }
 
 /// The first boundary realization is metadata-only: an exact selected
@@ -257,6 +281,18 @@ pub struct TerminalTargetStructuralArgument {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminalTargetUnitOperation {
+    EstablishByteSequenceLiteral {
+        psi_operation: OperationId,
+        place: StructuralPlaceDeclaration,
+        structural_type: StructuralTypeDeclaration,
+        bytes: Vec<u8>,
+    },
+    IntegerConstant {
+        psi_operation: OperationId,
+        result: ValueId,
+        scalar_type: IntegerType,
+        value: IntegerValue,
+    },
     EstablishTrivialAffineLocal {
         psi_operation: OperationId,
         place: StructuralPlaceDeclaration,
@@ -278,8 +314,10 @@ pub enum TerminalTargetUnitOperation {
         psi_operation: OperationId,
         boundary: BoundaryMachineId,
         provider_execution: TerminalProviderExecutionBinding,
-        realization: TerminalMetadataOnlyPortRealization,
+        realization: TerminalBoundaryRealization,
+        scalar_arguments: Vec<TerminalBoundaryScalarArgument>,
         arguments: Vec<StructuralArgument>,
+        byte_sequence_arguments: Vec<TerminalBoundaryByteSequenceArgument>,
         completion_claim_sources: Vec<TerminalCompletionClaimSource>,
         completion_receipts: Vec<CompletionReceipt>,
     },

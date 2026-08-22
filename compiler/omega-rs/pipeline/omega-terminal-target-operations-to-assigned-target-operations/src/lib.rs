@@ -202,6 +202,28 @@ fn assign_function(
                 .operations
                 .iter()
                 .map(|operation| match operation {
+                    TerminalTargetUnitOperation::EstablishByteSequenceLiteral {
+                        psi_operation,
+                        place,
+                        structural_type,
+                        bytes,
+                    } => TerminalAssignedUnitOperation::EstablishByteSequenceLiteral {
+                        psi_operation: *psi_operation,
+                        place: place.clone(),
+                        structural_type: structural_type.clone(),
+                        bytes: bytes.clone(),
+                    },
+                    TerminalTargetUnitOperation::IntegerConstant {
+                        psi_operation,
+                        result,
+                        scalar_type,
+                        value,
+                    } => TerminalAssignedUnitOperation::IntegerConstant {
+                        psi_operation: *psi_operation,
+                        result: *result,
+                        scalar_type: *scalar_type,
+                        value: *value,
+                    },
                     TerminalTargetUnitOperation::EstablishTrivialAffineLocal {
                         psi_operation,
                         place,
@@ -253,15 +275,19 @@ fn assign_function(
                         boundary,
                         provider_execution,
                         realization,
+                        scalar_arguments,
                         arguments,
+                        byte_sequence_arguments,
                         completion_claim_sources,
                         completion_receipts,
                     } => TerminalAssignedUnitOperation::BoundarySettlement {
                         psi_operation: *psi_operation,
                         boundary: *boundary,
                         provider_execution: *provider_execution,
-                        realization: (*realization).into(),
+                        realization: *realization,
+                        scalar_arguments: scalar_arguments.clone(),
                         arguments: arguments.clone(),
+                        byte_sequence_arguments: byte_sequence_arguments.clone(),
                         completion_claim_sources: completion_claim_sources.clone(),
                         completion_receipts: completion_receipts.clone(),
                     },
