@@ -2389,6 +2389,14 @@ Remaining:
   literal joins. Producer retains citation/proof custody and reconstruction
   retains propositions; traversal order, proof shapes, rejection behavior,
   precedence, and every fixed frontier remain unchanged.
+  Affine bound authorities now expose exact source-ordered left-`Value` and
+  right-`Value` row streams for the fixed two-citation chain. Right-leg indexes
+  and left-leg scans consume those side-local streams without revalidating
+  endpoints; production retains citation-bearing assumptions-before-axioms
+  enumeration and reconstruction independently retains proposition-only
+  requirements-before-axioms enumeration. Shared-middle order, row
+  nonidentity, proof shapes, completion precedence, rejection behavior, and
+  the fixed two-leg frontier remain unchanged.
   One-equality transitive affine completion now lives in independent side-local
   `affine_selection/transitive/alias/completion` modules. Each parent retains
   its own ledger-ordered equality discovery, distinct root/alias custody, and
@@ -4741,6 +4749,12 @@ Owners:
   field-array elements used as value operands—now launch `OutputOnly` native
   execution solely through exact checked-report executable receipts while
   preserving literal exits 215, 205, and 70 and detailed diagnostics. Exact-
+  owner ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift fences
+  remain green.
+  Three authored-root mutable-parameter regressions—machine-owned writes,
+  local writes, and aliased read-modify-write—now launch `OutputOnly` native
+  execution solely through exact checked-report executable receipts while
+  preserving literal exits 141, 171, and 191 and detailed diagnostics. Exact-
   owner ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift fences
   remain green.
   Final
