@@ -3234,6 +3234,16 @@ Remaining:
   to 3.93–3.98s with unchanged exit 70. The memo remains local to one demand,
   carries exact state identities and complete relative paths, and introduces no
   eager whole-program solve or shared mutable state.
+  Full phase artifacts for the two broad float canaries likewise put 92–93% of
+  measured time in TypedTrees-to-CheckedTrees (3.23–3.38s); every backend stage
+  was at most 22ms. Proof-plan assignment collection had rebuilt an immutable
+  `CallFrameResolver` per assignment, with 87/97 samples in that branch landing
+  in top-level-symbol construction. It now constructs one resolver per proof-
+  plan invocation and reuses its existing cache, reducing full-artifact wall
+  time by roughly 190–220ms without changing fail-closed frame semantics. The
+  next measured duplicate is the same resolver rebuild under
+  `assignment_guard_is_stable`; do not redirect this work toward backend or
+  arena concurrency.
   Default-domain validation now delegates conservative symbolic values,
   literal/sequence measures, valuation folding, canonical symbolic equality,
   and recursive call detection to a focused 281-line child while state walking,
@@ -5165,6 +5175,13 @@ Owners:
   and every mutation/signedness diagnostic. Exact-owner ambiguity, the 795
   rooted/3 legacy inventory, and receipt-drift fences remain green; interpreter/
   crash semantics and legacy owners are unchanged.
+  Four authored-root signedness regressions—min/max, unsigned division/
+  remainder/logical shift, signed division/remainder, and runtime right-shift
+  with interpreter parity—now launch `OutputOnly` native execution solely
+  through exact checked-report executable receipts while preserving literal
+  exit 70 and every signedness diagnostic. The explicit named-conversion legacy
+  owner remains untouched; exact-owner ambiguity, the 795 rooted/3 legacy
+  inventory, and receipt-drift fences remain green.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
@@ -5410,6 +5427,11 @@ reach or trust, and private proof improvements do not change public identity.
   `scalar_stack_mutation` child while higher scalar-control accounting remains
   in the 4,739-line parent. Public APIs, validation/error order, and native
   bytes remain unchanged.
+  Target-neutral recursive aggregate-shape and Boolean structural-field offset
+  replay now live in a focused 140-line `structural_condition_layout` child
+  behind one parent-facing query. Higher scalar-control evidence and native
+  instruction replay remain in the 4,607-line parent, with APIs, bytes, errors,
+  order, and function inventory unchanged.
   The installed-cleanup ordinal-tamper regression now locates the authoritative
   internal-call custody row by its complete machine/text-offset/owner/target
   header before mutating the ordinal, rather than accidentally changing an
