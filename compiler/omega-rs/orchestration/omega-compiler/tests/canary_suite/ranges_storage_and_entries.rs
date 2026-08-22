@@ -1732,10 +1732,12 @@ fn runtime_bounded_carrier_write_line_exit_canary_runs() {
     ));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("bounded carrier write_line canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("bounded carrier write_line canary lost its exact executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("bounded carrier write_line canary should run");
 
@@ -1767,10 +1769,12 @@ fn runtime_text_builder_canary_runs() {
         std::env::temp_dir().join(format!("omega-runtime-text-builder-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("nested-field carrier builder canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("nested-field carrier builder canary lost its exact executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("nested-field carrier builder canary should run");
 
@@ -1821,19 +1825,13 @@ fn runtime_shift_operators_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-shift-operators-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("shift operators canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("shift operators canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected `<<` and arithmetic `>>` (incl. negative) to evaluate correctly (exit 70), got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "shift-operators canary",
+        "left shift and arithmetic right shift should preserve their signed semantics",
     );
 
     let _ = fs::remove_dir_all(&scratch);
@@ -1846,19 +1844,13 @@ fn runtime_bitwise_operators_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-bitwise-operators-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("bitwise operators canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("bitwise operators canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected `&`, `|`, `^` to evaluate correctly (12&10==8, 12|10==14, 12^10==6; exit 70), got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "bitwise-operators canary",
+        "and, or, and xor should retain their exact scalar results",
     );
 
     let _ = fs::remove_dir_all(&scratch);
@@ -1870,19 +1862,13 @@ fn runtime_popcount_loop_exit_canary_runs() {
     let scratch = std::env::temp_dir().join(format!("omega-popcount-loop-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("popcount loop canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("popcount loop canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected the shift-and-mask popcount loop to count 24 bits and self-check (exit 70), got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "popcount-loop canary",
+        "the shift-and-mask loop should count the exact number of set bits",
     );
 
     let _ = fs::remove_dir_all(&scratch);
