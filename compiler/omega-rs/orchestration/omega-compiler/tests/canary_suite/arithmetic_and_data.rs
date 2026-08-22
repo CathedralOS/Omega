@@ -845,9 +845,12 @@ fn runtime_cast_in_guard_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_cast_in_guard_exit");
     let scratch = std::env::temp_dir().join(format!("omega-cast-in-guard-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("cast-in-guard canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("cast-in-guard canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("cast-in-guard canary should run");
     assert_eq!(
@@ -869,9 +872,12 @@ fn runtime_parenthesized_guard_subjects_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_parenthesized_guard_subjects_exit");
     let scratch = std::env::temp_dir().join(format!("omega-paren-guard-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("parenthesized-guard-subjects canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("parenthesized guard canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("parenthesized-guard-subjects canary should run");
     assert_eq!(
@@ -893,9 +899,12 @@ fn runtime_and_of_or_guard_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_and_of_or_guard_exit");
     let scratch = std::env::temp_dir().join(format!("omega-and-of-or-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("and-of-or-guard canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("and-of-or guard canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("and-of-or-guard canary should run");
     assert_eq!(
@@ -917,9 +926,12 @@ fn runtime_negated_boolean_nesting_guard_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_negated_boolean_nesting_guard_exit");
     let scratch = std::env::temp_dir().join(format!("omega-neg-bool-nest-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("negated-boolean-nesting canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("negated boolean guard canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("negated-boolean-nesting canary should run");
     assert_eq!(
@@ -941,9 +953,12 @@ fn runtime_guard_feature_composition_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_guard_feature_composition_exit");
     let scratch = std::env::temp_dir().join(format!("omega-guard-compose-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("guard-feature-composition canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("guard feature-composition canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("guard-feature-composition canary should run");
     assert_eq!(
