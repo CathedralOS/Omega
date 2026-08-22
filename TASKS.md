@@ -5333,6 +5333,11 @@ Remaining N6/N8 work:
   recursive term structure, validation, and identity remain in the parent.
   The 199-function codec inventory and externally observable bytes remain
   unchanged.
+  Exact structural-field wire encoding/decoding now lives in a focused private
+  `structural_field_wire` child, owning relevance/field-kind, IEEE-float, byte-
+  sequence, carrier, and canonical path tags while recursive structural-type
+  framing and validation remain in the parent. The parent is 4,881 lines and
+  the exact 199-function codec inventory remains unchanged.
   Proof-bundle coding likewise keeps its `PSIPRF`-specific little-endian
   cursor, bounded string/count/index handling, and nonzero semantic-ID
   primitives in a focused private child; its public API, exact bytes and
