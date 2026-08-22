@@ -8,6 +8,7 @@
 
 mod artifact_manifest;
 mod content_wire;
+mod contract_wire;
 mod debug_map;
 mod proof_bundle;
 mod proof_declaration_wire;
@@ -46,6 +47,10 @@ use content_wire::{
     encode_content_entry_claim, encode_content_identity_reshuffle,
     encode_content_partition_composition, encode_content_term,
 };
+use contract_wire::{
+    decode_contract, decode_crash_predicate, decode_crash_routes, decode_successor_edge,
+    encode_contract, encode_crash_predicate, encode_crash_routes, encode_successor_edge,
+};
 
 use proof_declaration_wire::{
     decode_evidence_interface, decode_proposition_application, decode_proposition_declaration,
@@ -59,19 +64,18 @@ use psi_core::{
 };
 use psi_terminal::{
     Block, ClaimTransfer, ClosedConformanceApplication, ClosedConformanceParameterBinding,
-    ClosedConformanceParameterKind, ClosedConformanceRow, CompletionReceipt, ContractClause,
-    CrashCause, CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard, EntryClaim,
-    EvidenceContractLane, EvidenceContractLaneKind, EvidencePackageInvocation,
-    EvidencePackageOutputBinding, EvidencePackageRuntimeCall, EvidenceTermDeclaration,
-    FloatMeaningEqualityProposition, FloatMeaningProjection, FloatMeaningProjectionOperation,
-    FloatProjectionInput, FloatProjectionInputId, MachineContract, NominalAffineCleanup, Operation,
-    OperationKind, OperationResult, ProofOnlyValueType, ProofPropositionId, ProofValueDeclaration,
-    ProofValueId, ServiceDeclaration, StructuralAffineDiscard, StructuralArgument,
-    StructuralDomainDeclaration, StructuralFieldType, StructuralMultiplicity,
-    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
-    StructuralResultDeclaration, StructuralTypeShape, SuccessorEdge, TerminalAffineCleanupAction,
-    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
-    VocabularyMarker,
+    ClosedConformanceParameterKind, ClosedConformanceRow, CompletionReceipt, CrashCause,
+    CrashRouteBucket, CrashRouteGuard, EntryClaim, EvidenceContractLane, EvidenceContractLaneKind,
+    EvidencePackageInvocation, EvidencePackageOutputBinding, EvidencePackageRuntimeCall,
+    EvidenceTermDeclaration, FloatMeaningEqualityProposition, FloatMeaningProjection,
+    FloatMeaningProjectionOperation, FloatProjectionInput, FloatProjectionInputId,
+    NominalAffineCleanup, Operation, OperationKind, OperationResult, ProofOnlyValueType,
+    ProofPropositionId, ProofValueDeclaration, ProofValueId, ServiceDeclaration,
+    StructuralAffineDiscard, StructuralArgument, StructuralDomainDeclaration, StructuralFieldType,
+    StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
+    StructuralPlaceDeclaration, StructuralResultDeclaration, StructuralTypeShape,
+    TerminalAffineCleanupAction, TerminalMachine, TerminalMachineResult, TerminalModule,
+    Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_verifier::{ModuleError, validate_module_representation};
 use scalar_wire::{
@@ -2398,69 +2402,6 @@ fn encode_obligation_ids(
     Ok(())
 }
 
-fn encode_successor_edge(writer: &mut Writer, successor: &SuccessorEdge) -> Result<(), CodecError> {
-    writer.id(successor.edge);
-    writer.id(successor.target);
-    writer.len("conditional successor arguments", successor.arguments.len())?;
-    for argument in &successor.arguments {
-        writer.id(*argument);
-    }
-    writer.len(
-        "conditional successor trivial affine discards",
-        successor.trivial_affine_discards.len(),
-    )?;
-    for place in &successor.trivial_affine_discards {
-        writer.id(*place);
-    }
-    Ok(())
-}
-
-fn encode_contract(writer: &mut Writer, contract: &MachineContract) -> Result<(), CodecError> {
-    writer.id(contract.id);
-    encode_crash_routes(writer, &contract.crash_routes)?;
-    writer.len("requires", contract.requires.len())?;
-    for proposition in &contract.requires {
-        encode_proposition(writer, proposition, 0)?;
-    }
-    writer.len("ensures", contract.ensures.len())?;
-    for clause in &contract.ensures {
-        writer.id(clause.obligation);
-        encode_proposition(writer, &clause.proposition, 0)?;
-    }
-    Ok(())
-}
-
-fn encode_crash_routes(
-    writer: &mut Writer,
-    crash_routes: &[CrashRouteBucket],
-) -> Result<(), CodecError> {
-    writer.len("crash route buckets", crash_routes.len())?;
-    for bucket in crash_routes {
-        writer.u8(match bucket.cause {
-            CrashCause::Trap => 1,
-            CrashCause::Abort => 2,
-        });
-        writer.len("crash route alternatives", bucket.alternatives.len())?;
-        for guard in &bucket.alternatives {
-            match guard {
-                CrashRouteGuard::Truth => writer.u8(0),
-                CrashRouteGuard::Predicate(predicate) => {
-                    writer.u8(1);
-                    encode_crash_predicate(writer, predicate)?;
-                }
-            }
-        }
-    }
-    Ok(())
-}
-
-fn encode_crash_predicate(
-    writer: &mut Writer,
-    predicate: &CrashPredicateTerm,
-) -> Result<(), CodecError> {
-    encode_proposition(writer, predicate.proposition(), 0)
-}
-
 fn encode_proposition(
     writer: &mut Writer,
     proposition: &Proposition,
@@ -3623,76 +3564,6 @@ fn decode_structural_path(
         2 => Ok(StructuralPathSegment::FixedIndex(reader.u64()?)),
         tag => Err(CodecError::InvalidTag("StructuralPathSegment", tag)),
     })
-}
-
-fn decode_successor_edge(reader: &mut Reader<'_>) -> Result<SuccessorEdge, CodecError> {
-    let edge = reader.id("EdgeId")?;
-    let target = reader.id("BlockId")?;
-    let argument_count = reader.count()?;
-    let mut arguments = Vec::new();
-    for _ in 0..argument_count {
-        arguments.push(reader.id("ValueId")?);
-    }
-    Ok(SuccessorEdge {
-        edge,
-        target,
-        arguments,
-        trivial_affine_discards: decode_counted(reader, |reader| reader.id("PlaceId"))?,
-    })
-}
-
-fn decode_contract(reader: &mut Reader<'_>) -> Result<MachineContract, CodecError> {
-    let id = reader.id("ContractId")?;
-    let crash_routes = decode_crash_routes(reader)?;
-    let requires_count = reader.count()?;
-    let mut requires = Vec::new();
-    for _ in 0..requires_count {
-        requires.push(decode_proposition(reader, 0)?);
-    }
-    let ensures_count = reader.count()?;
-    let mut ensures = Vec::new();
-    for _ in 0..ensures_count {
-        ensures.push(ContractClause {
-            obligation: reader.id("ObligationId")?,
-            proposition: decode_proposition(reader, 0)?,
-        });
-    }
-    Ok(MachineContract {
-        id,
-        crash_routes,
-        requires,
-        ensures,
-    })
-}
-
-fn decode_crash_routes(reader: &mut Reader<'_>) -> Result<Vec<CrashRouteBucket>, CodecError> {
-    let count = reader.count()?;
-    let mut crash_routes = Vec::with_capacity(count as usize);
-    for _ in 0..count {
-        let cause = match reader.u8()? {
-            1 => CrashCause::Trap,
-            2 => CrashCause::Abort,
-            tag => return Err(CodecError::InvalidTag("CrashCause", tag)),
-        };
-        let alternative_count = reader.count()?;
-        let mut alternatives = Vec::with_capacity(alternative_count as usize);
-        for _ in 0..alternative_count {
-            alternatives.push(match reader.u8()? {
-                0 => CrashRouteGuard::Truth,
-                1 => CrashRouteGuard::Predicate(decode_crash_predicate(reader)?),
-                tag => return Err(CodecError::InvalidTag("CrashRouteGuard", tag)),
-            });
-        }
-        crash_routes.push(CrashRouteBucket {
-            cause,
-            alternatives,
-        });
-    }
-    Ok(crash_routes)
-}
-
-fn decode_crash_predicate(reader: &mut Reader<'_>) -> Result<CrashPredicateTerm, CodecError> {
-    Ok(CrashPredicateTerm::new(decode_proposition(reader, 0)?))
 }
 
 fn decode_proposition(reader: &mut Reader<'_>, depth: usize) -> Result<Proposition, CodecError> {
