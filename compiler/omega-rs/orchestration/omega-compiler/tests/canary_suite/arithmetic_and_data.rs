@@ -1841,9 +1841,12 @@ fn arithmetic_domain_return_range_proven_exact_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-return-range-exact-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("return-range proven-exact canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("return-range Exact canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("return-range proven-exact canary should run");
     assert_eq!(
@@ -1872,9 +1875,12 @@ fn arithmetic_domain_trapping_const_fold_overflow_aborts() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("trapping const-fold overflow canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("trapping const-fold overflow canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("trapping const-fold overflow canary should run");
 
@@ -1903,9 +1909,12 @@ fn constant_trapping_shift_value_overflow_aborts() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("constant trapping shift-overflow canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("constant trapping shift canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("constant trapping shift-overflow canary should run");
     let code = output.status.code();
@@ -1934,9 +1943,12 @@ fn dead_trapping_let_traps_aborts() {
     let scratch =
         std::env::temp_dir().join(format!("omega-dead-trapping-let-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("dead trapping let canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("dead trapping let canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("dead trapping let canary should run");
 
