@@ -1,6 +1,7 @@
-use omega_backend_plan::{BoundNominalCallbackPlacement, CallbackThunkPlan};
+use omega_backend_plan::{
+    BoundNominalCallbackPlacement, CallbackThunkPlan, canonical_callback_private_symbol,
+};
 use omega_control_flow::ControlFlowPlan;
-use psi_checked_trees::NominalMachineUseSite;
 use psi_diagnostics::Diagnostic;
 use std::sync::Arc;
 
@@ -23,7 +24,7 @@ pub(super) fn plan_callback_thunks(
             Ok(CallbackThunkPlan {
                 placement_index,
                 entry_key,
-                private_symbol: private_callback_symbol(placement),
+                private_symbol: canonical_callback_private_symbol(placement),
             })
         })
         .collect::<Result<Vec<_>, _>>()?;
@@ -41,31 +42,12 @@ pub(super) fn plan_callback_thunks(
     Ok(Arc::from(plans))
 }
 
-fn private_callback_symbol(placement: &BoundNominalCallbackPlacement) -> Arc<str> {
-    let (site_kind, site_index) = match placement.site {
-        NominalMachineUseSite::Statement(handle) => ('s', handle.arena_index()),
-        NominalMachineUseSite::Expression(handle) => ('e', handle.arena_index()),
-    };
-    Arc::from(format!(
-        "__omega_callback_{site_kind}{site_index:08x}g{:08x}_a{:08x}_m{:08x}g{:08x}_e{:08x}g{:08x}_f{:016x}",
-        match placement.site {
-            NominalMachineUseSite::Statement(handle) => handle.generation(),
-            NominalMachineUseSite::Expression(handle) => handle.generation(),
-        },
-        placement.static_machine_ordinal,
-        placement.selected_machine.arena_index(),
-        placement.selected_machine.generation(),
-        placement.selected_entry.arena_index(),
-        placement.selected_entry.generation(),
-        placement.boundary_calling_plan_fingerprint,
-    ))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use omega_calling_conventions::{CallSignature, CallingPolicy};
     use omega_control_flow::{MachineFlow, StateFlow, StateKey};
+    use psi_checked_trees::NominalMachineUseSite;
     use psi_symbols::SymbolHandle;
 
     fn symbol(index: u32) -> SymbolHandle {
