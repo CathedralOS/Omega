@@ -18,6 +18,18 @@ use psi_terminal::{
     TerminalAffineCleanupAction, TerminalPsiIdentity,
 };
 
+/// Minimal source-independent projection of one caller claim needed to replay
+/// exact boundary-completion receipts after the verified module is discarded.
+/// `Some(path)` is an ordinary entry claim; `None` is a content-entry claim,
+/// whose completion ownership is rooted at `input` independently of its
+/// content projections.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct TerminalCompletionClaimSource {
+    pub claim: ClaimId,
+    pub input: PlaceId,
+    pub path: Option<Vec<psi_terminal::StructuralPathSegment>>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalAbstractOperationPlan {
     pub terminal_psi: TerminalPsiIdentity,
@@ -123,6 +135,7 @@ pub enum TerminalAbstractOperation {
         result: Option<TerminalAbstractResult>,
         boundary: BoundaryMachineId,
         structural_arguments: Vec<StructuralArgument>,
+        completion_claim_sources: Vec<TerminalCompletionClaimSource>,
         completion_receipts: Vec<CompletionReceipt>,
     },
     PortWrite {

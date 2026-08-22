@@ -24,8 +24,8 @@ use omega_terminal_machine_code::{
     TerminalUnitParameterHomeRecord, TerminalUnitParameterRecord, TerminalUnitStackEvidence,
 };
 use omega_terminal_target_operations::{
-    TerminalCallSiteOwner, TerminalMetadataOnlyPortRealization, TerminalProviderExecutionBinding,
-    TerminalProviderPlanIdentity, TerminalPsiProvenance,
+    TerminalCallSiteOwner, TerminalCompletionClaimSource, TerminalMetadataOnlyPortRealization,
+    TerminalProviderExecutionBinding, TerminalProviderPlanIdentity, TerminalPsiProvenance,
 };
 use psi_core::{
     BoundaryMachineId, ClaimId, EdgeId, MachineId, OperationId, PlaceId, ProfileDecisionId,
@@ -1759,7 +1759,7 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
         terminal_installation_fingerprint(&record)
             .expect("installation fingerprint")
             .to_string(),
-        "607728920a442a95fa8f57326d37eb58a6781418642b37b315718ead2a7bf791"
+        "1ac310c54798795f51634a71a269011c48236b674acefd3b1dd6cd4d36a01c52"
     );
 
     let mut changed_plan = plan;
@@ -1904,6 +1904,7 @@ fn privileged_effect_and_exact_provider_execution_survive_installation() {
                 provider_execution: provider_execution.into(),
                 realization: realization.into(),
                 arguments: Vec::new(),
+                completion_claim_sources: Vec::new(),
                 completion_receipts: Vec::new(),
                 operation_ordinal: 1,
                 code_offset: 27,
@@ -1965,6 +1966,12 @@ fn privileged_effect_and_exact_provider_execution_survive_installation() {
             argument_index: 1,
         },
     ];
+    duplicate_completion_claim.functions[0].boundary_settlements[0].completion_claim_sources =
+        vec![TerminalCompletionClaimSource {
+            claim: ClaimId::new(1).unwrap(),
+            input: PlaceId::new(1).unwrap(),
+            path: Some(Vec::new()),
+        }];
     assert_eq!(
         build_terminal_object_artifact(&duplicate_completion_claim),
         Err(TerminalObjectError::InvalidCompletionReceiptCustody {

@@ -905,7 +905,11 @@ pub fn build_terminal_object_artifact(
                     operation: settlement.psi_operation,
                 });
             }
-            if !completion_receipts_have_exact_custody(&settlement.completion_receipts) {
+            if !completion_receipts_have_exact_custody(
+                &settlement.arguments,
+                &settlement.completion_claim_sources,
+                &settlement.completion_receipts,
+            ) {
                 return Err(TerminalObjectError::InvalidCompletionReceiptCustody {
                     machine: function.machine,
                     operation: settlement.psi_operation,

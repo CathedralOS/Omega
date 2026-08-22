@@ -8,7 +8,8 @@ use std::collections::BTreeMap;
 use omega_terminal_abstract_operations::{
     TerminalAbstractBlockEntry, TerminalAbstractFunction, TerminalAbstractFunctionResult,
     TerminalAbstractOperation, TerminalAbstractOperationPlan, TerminalAbstractParameter,
-    TerminalAbstractResult, TerminalAbstractSuccessor, TerminalValueBinding,
+    TerminalAbstractResult, TerminalAbstractSuccessor, TerminalCompletionClaimSource,
+    TerminalValueBinding,
 };
 use psi_core::{BlockId, MachineId, ScalarType, StructuralPlaceKind};
 use psi_terminal::{
@@ -294,6 +295,23 @@ fn lower_machine(
                     completion_receipts,
                     ..
                 } => {
+                    let mut completion_claim_sources = machine
+                        .entry_claims
+                        .iter()
+                        .map(|claim| TerminalCompletionClaimSource {
+                            claim: claim.claim,
+                            input: claim.input,
+                            path: Some(claim.path.clone()),
+                        })
+                        .chain(machine.content_entry_claims.iter().map(|claim| {
+                            TerminalCompletionClaimSource {
+                                claim: claim.claim,
+                                input: claim.input.root,
+                                path: None,
+                            }
+                        }))
+                        .collect::<Vec<_>>();
+                    completion_claim_sources.sort();
                     operations.push(TerminalAbstractOperation::BoundaryCall {
                         psi_operation: operation.id,
                         result: operation
@@ -305,6 +323,7 @@ fn lower_machine(
                             }),
                         boundary,
                         structural_arguments,
+                        completion_claim_sources,
                         completion_receipts,
                     });
                 }
