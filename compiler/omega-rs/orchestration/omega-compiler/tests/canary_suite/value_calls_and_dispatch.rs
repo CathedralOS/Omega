@@ -1021,10 +1021,13 @@ fn runtime_alias_write_through_guarded_transition_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("alias-write-through-guarded-transition canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation.checked_native_executable_path().expect(
+        "alias-write-through-guarded-transition canary should retain its executable receipt",
+    );
+    let output = Command::new(executable)
         .output()
         .expect("alias-write-through-guarded-transition canary should run");
 
@@ -1055,10 +1058,13 @@ fn runtime_reference_param_forwarded_through_loop_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("reference-param-forwarded-through-loop canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation.checked_native_executable_path().expect(
+        "reference-param-forwarded-through-loop canary should retain its executable receipt",
+    );
+    let output = Command::new(executable)
         .output()
         .expect("reference-param-forwarded-through-loop canary should run");
 
@@ -1089,10 +1095,13 @@ fn runtime_value_call_through_alias_in_dispatch_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("value-call-through-alias-in-dispatch canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("value-call-through-alias-in-dispatch canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("value-call-through-alias-in-dispatch canary should run");
 
@@ -1123,10 +1132,13 @@ fn runtime_nested_value_call_in_substate_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("nested-value-call-in-substate canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("nested-value-call-in-substate canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("nested-value-call-in-substate canary should run");
 
@@ -1157,10 +1169,13 @@ fn runtime_call_in_inlined_substate_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("call-in-inlined-substate canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("call-in-inlined-substate canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("call-in-inlined-substate canary should run");
 
