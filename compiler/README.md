@@ -1,4 +1,4 @@
-# `compiler/` — the bootstrap and self-build lattice
+# `compiler/` — product compilers and bootstrap compatibility paths
 
 Omega is rebuilt from a small audited seed through increasingly capable
 languages, then through one deliberate Omega self-host edge:
@@ -35,7 +35,8 @@ translation validation supply the assurance.
 The Greek names and order are fixed language roles. The Alpha assembler now
 lives at `bootstrap/rungs/alpha/assembler/`; historical `compiler/beta` is only
 a compatibility path. Beta proper is the language compiled by
-`compiler/beta-lang/bc.beta`.
+`bootstrap/rungs/beta/bc.beta`; `compiler/beta-lang` is also only a
+compatibility path.
 
 ## Proof kernel
 
@@ -101,7 +102,7 @@ new language dependency.
 
 ```sh
 sh compiler/verify-lattice.sh
-sh compiler/beta-lang/selfhost.sh
+sh bootstrap/rungs/beta/selfhost.sh
 sh compiler/gamma/test-interp.sh
 sh compiler/gamma/test-typeck.sh
 sh compiler/proof-kernel/test.sh

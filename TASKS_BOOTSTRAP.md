@@ -39,7 +39,7 @@ lattice and `compiler/` for the product implementation.
 | Canonical or compatibility source | Role | Target owner |
 | --- | --- | --- |
 | `bootstrap/rungs/alpha/` (compatibility: `compiler/alpha`, `compiler/beta`) | 21-opcode native seed VM, written semantics, and Alpha-written Alpha assembler | `bootstrap/rungs/alpha/` — moved |
-| `compiler/beta-lang/` | Beta language and self-hosting compiler | `bootstrap/rungs/beta/` |
+| `bootstrap/rungs/beta/` (compatibility: `compiler/beta-lang`) | Beta language and self-hosting compiler | `bootstrap/rungs/beta/` — moved |
 | `compiler/gamma/` | Gamma language, interpreter, and type checker | `bootstrap/rungs/gamma/` |
 | lattice-built sources/artifacts in `compiler/delta*/` | Delta language and compiler | `bootstrap/rungs/delta/` |
 
@@ -308,7 +308,7 @@ from attractive but deferrable language work.
   cross-compiler byte agreement is not acceptance evidence.
   - [x] Specify the compiler observable as the complete output byte stream plus
     halt, trap, divergence, and checked resource exhaustion—not merely an exit
-    byte or a finite set of executions. `compiler/beta-lang/BOOTSTRAP_OBSERVABLE.md`
+    byte or a finite set of executions. `bootstrap/rungs/beta/BOOTSTRAP_OBSERVABLE.md`
     fixes the quantified input/resource profile, maximal trace, terminal
     classifications, and independently reconstructed closure obligation.
   - [x] Make `bc.beta` reject source-arena exhaustion before it can overwrite
@@ -340,9 +340,10 @@ from attractive but deferrable language work.
     `bootstrap/rungs/alpha/`. The directory name must not assign the assembler
     to the Beta rung. Compatibility symlinks preserve the old entry points;
     canonical gates and dependency hashes use the `alpha-assembler` role.
-  - [ ] Move the Beta language and self-hosting compiler from
+  - [x] Move the Beta language and self-hosting compiler from
     `compiler/beta-lang/` to `bootstrap/rungs/beta/` independently of the Alpha
-    assembler compatibility path.
+    assembler compatibility path. Canonical gates use the `beta` path role;
+    `compiler/beta-lang` remains a compatibility symlink.
 - [ ] **Split proof-kernel responsibilities.** Separate Beta/Gamma/reference
   checker implementations, untrusted proof tooling, corpora, and gates under
   `bootstrap/assurance/proof-kernel/`.
@@ -387,9 +388,9 @@ Run from the repository root:
 
 ```sh
 sh compiler/verify-lattice.sh
-sh compiler/beta/selfhost.sh
-sh compiler/beta-lang/selfhost.sh
-sh compiler/beta-lang/test.sh
+sh bootstrap/rungs/alpha/assembler/selfhost.sh
+sh bootstrap/rungs/beta/selfhost.sh
+sh bootstrap/rungs/beta/test.sh
 sh compiler/gamma/test-interp.sh
 sh compiler/gamma/test-typeck.sh
 sh compiler/gamma/test-checker.sh

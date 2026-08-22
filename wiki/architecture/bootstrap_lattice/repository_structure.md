@@ -110,7 +110,7 @@ temporary wrappers where needed:
 | Canonical or transitional source | Target role |
 | --- | --- |
 | `bootstrap/rungs/alpha/` (compatibility: `compiler/alpha`, historical `compiler/beta`) | `bootstrap/rungs/alpha/` — complete |
-| `compiler/beta-lang/` | `bootstrap/rungs/beta/` |
+| `bootstrap/rungs/beta/` (compatibility: `compiler/beta-lang`) | `bootstrap/rungs/beta/` — complete |
 | `compiler/gamma/` | `bootstrap/rungs/gamma/` |
 | lattice-built Delta sources/artifacts in `compiler/delta*/` | `bootstrap/rungs/delta/` |
 | `compiler/beta-rs/`, `compiler/beta-lang-rs/`, Rust portion of `compiler/delta-rs/` | `bootstrap/onramps/`, separated by produced role |

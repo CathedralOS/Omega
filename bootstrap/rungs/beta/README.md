@@ -1,7 +1,8 @@
-# `compiler/beta-lang/` — the Beta compiler, written in Beta (SELF-HOSTING)
+# `bootstrap/rungs/beta/` — the Beta compiler, written in Beta (SELF-HOSTING)
 
 This is **slice 7 of the lattice, done**: the Beta-language compiler written *in
-Beta itself* (`bc.beta`), not in the throwaway Rust on-ramp (`../beta-lang-rs`) and
+Beta itself* (`bc.beta`), not in the throwaway Rust on-ramp
+(`../../../compiler/beta-lang-rs`) and
 not hand-written in assembly. **It self-hosts** — `bc` compiles its own source to a
 compiler that reproduces that compilation byte-for-byte (`selfhost.sh`). This
 closes the steady-state execution dependency on Rust. It does not by itself prove
@@ -25,7 +26,7 @@ source-exhaustion.sh  exact source-arena boundary + checked oversized-input fail
 `bc.exe` is a real Beta compiler with no Rust in *its* execution—only in the
 one-time lowering of `bc.beta`'s own text. The fixed-point gate has `bc.exe` compile
 `bc.beta` to a tape `T1`, and `T1` compiles `bc.beta` to `T2` with `T1 == T2` — a
-self-hosting fixed point, just like `../beta/selfhost.sh` for the assembler. The
+self-hosting fixed point, just like `../alpha/assembler/selfhost.sh` for the
 Rust on-ramp becomes architecturally discardable only when this artifact is also
 validated against canonical Beta meaning through a checker rooted below `bc`.
 
@@ -88,5 +89,5 @@ The Beta compiler has a Rust-free steady-state execution path; complete
 lower-rooted validation of its cold-started artifact remains open. It builds
 Gamma's canonical interpreter and type checker; Gamma in turn supplies Delta's meaning substrate. The proof kernel
 is a cross-cutting service with independent Beta and Gamma implementations, not
-a later language rung. The Rust on-ramp (`../beta-lang-rs`) is outside the steady
+a later language rung. The Rust on-ramp (`../../../compiler/beta-lang-rs`) is outside the steady
 lineage and remains only as a documented cold-start/reference producer.
