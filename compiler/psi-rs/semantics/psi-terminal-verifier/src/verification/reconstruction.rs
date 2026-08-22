@@ -1,12 +1,12 @@
 //! Exact executable-site obligations and all-path fact reconstruction.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 use psi_core::Proposition;
 #[cfg(test)]
 use psi_core::{PropositionContext, ScalarTerm, ValueId};
 use psi_proof_kernel::Obligation;
-use psi_terminal::{TerminalMachine, TerminalModule, Terminator};
+use psi_terminal::{TerminalMachine, TerminalModule};
 #[cfg(test)]
 use psi_terminal_semantics::CanonicalScalarGoal;
 
@@ -21,6 +21,7 @@ mod certificate_entry;
 mod integer_evidence;
 mod integer_selection;
 mod machine_context;
+mod machine_flow;
 mod operation_facts;
 mod path_facts;
 mod terminator_facts;
@@ -68,69 +69,16 @@ pub(super) fn reconstruct_machine_semantics(
     // Result-content equalities become true only when an exact structural
     // return edge transfers the corresponding live claims.
     let base_axioms = Vec::new();
-    let mut successors = BTreeMap::<_, Vec<_>>::new();
-    let mut indegree = machine
-        .blocks
-        .iter()
-        .map(|block| (block.id, 0usize))
-        .collect::<BTreeMap<_, _>>();
-    for block in &machine.blocks {
-        let targets = match &block.terminator {
-            Terminator::Jump { target, .. } => vec![*target],
-            Terminator::Conditional {
-                when_true,
-                when_false,
-                ..
-            } => vec![when_true.target, when_false.target],
-            Terminator::Return { .. }
-            | Terminator::ReturnUnit { .. }
-            | Terminator::ReturnUnitPartialAffine { .. }
-            | Terminator::ReturnUnitNominalAffine { .. }
-            | Terminator::ReturnStructural { .. }
-            | Terminator::Crash { .. } => Vec::new(),
-        };
-        for target in &targets {
-            *indegree
-                .get_mut(target)
-                .expect("validated target has an indegree") += 1;
-        }
-        successors.insert(block.id, targets);
-    }
-    let mut ready = indegree
-        .iter()
-        .filter_map(|(block, count)| (*count == 0).then_some(*block))
-        .collect::<BTreeSet<_>>();
-    let mut order = Vec::with_capacity(machine.blocks.len());
-    while let Some(block) = ready.pop_first() {
-        order.push(block);
-        for target in &successors[&block] {
-            let count = indegree
-                .get_mut(target)
-                .expect("validated target has an indegree");
-            *count -= 1;
-            if *count == 0 {
-                ready.insert(*target);
-            }
-        }
-    }
-
     let mut incoming = BTreeMap::<_, Vec<Vec<Proposition>>>::new();
     incoming.insert(machine.entry, vec![base_axioms]);
     let mut exits = Vec::<Vec<Proposition>>::new();
     let mut operation_obligations = Vec::new();
-    for current in order {
+    for current in machine_flow::deterministic_block_order(machine) {
         let block = context
             .blocks
             .get(&current)
             .expect("validated module contains every reached block");
-        let paths = incoming
-            .remove(&current)
-            .expect("validated reachable block has incoming facts");
-        let mut paths = paths.into_iter();
-        let mut axioms = paths.next().expect("block has an incoming path");
-        for path in paths {
-            axioms.retain(|fact| path.contains(fact));
-        }
+        let mut axioms = machine_flow::take_guaranteed_incoming(&mut incoming, current);
         for operation in &block.operations {
             operation_facts::append_operation(
                 module,
@@ -157,19 +105,9 @@ pub(super) fn reconstruct_machine_semantics(
             &mut operation_obligations,
         );
     }
-    let mut exits = exits.into_iter();
-    let Some(mut guaranteed) = exits.next() else {
-        return Ok(ReconstructedMachineSemantics {
-            operation_obligations,
-            exit_axioms: Vec::new(),
-        });
-    };
-    for exit in exits {
-        guaranteed.retain(|fact| exit.contains(fact));
-    }
     Ok(ReconstructedMachineSemantics {
         operation_obligations,
-        exit_axioms: guaranteed,
+        exit_axioms: machine_flow::guaranteed_exit_facts(exits),
     })
 }
 
