@@ -2140,11 +2140,14 @@ fn runtime_machine_owned_indexed_bounded_carrier_literal_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
         "runtime machine-owned indexed bounded-carrier literal canary should compile from its authored root",
     );
+    let executable = compilation.checked_native_executable_path().expect(
+        "runtime machine-owned indexed bounded-carrier literal canary should retain its executable receipt",
+    );
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(executable)
         .output()
         .expect("runtime machine-owned indexed bounded-carrier literal canary should run");
 
@@ -2169,11 +2172,14 @@ fn runtime_machine_owned_double_indexed_bounded_carrier_literal_exit_canary_runs
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
         "runtime machine-owned double-indexed bounded-carrier literal canary should compile from its authored root",
     );
+    let executable = compilation.checked_native_executable_path().expect(
+        "runtime machine-owned double-indexed bounded-carrier literal canary should retain its executable receipt",
+    );
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(executable)
         .output()
         .expect("runtime machine-owned double-indexed bounded-carrier literal canary should run");
 
