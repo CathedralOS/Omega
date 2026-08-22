@@ -300,19 +300,32 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
         )
         .expect_err("lowered writer drift must reject before provider preparation");
     assert!(error.diagnostic().0.contains("exact provider writer plan"));
-    let (selected_provider, returned_lowering, returned_destination) = error.into_parts();
+    let (selected_provider, returned_lowering, destination) = error.into_parts();
     assert_eq!(selected_provider, selected_provider_snapshot);
     assert_eq!(returned_lowering, drifted_lowering_snapshot);
-    assert_eq!(returned_destination.site(), writer_site(0x8000));
-    assert_eq!(returned_destination.len(), 16);
-    let mut destination_bytes = [0u8; 16];
+    assert_eq!(destination.site(), writer_site(0x8000));
+    assert_eq!(destination.len(), 16);
+    let colliding_code = install_entry_artifact(
+        EntryStubId::from_normalized_identity(13).expect("colliding artifact entry"),
+    );
+    let error = selected_provider
+        .prepare_post_handoff_entry_writer(
+            lowered_writer,
+            &execution,
+            &colliding_code,
+            &writer,
+            destination,
+        )
+        .expect_err("installed resolver substitution must reject before source resolution");
+    assert!(error.diagnostic().0.contains("admitted installed artifact"));
+    let (selected_provider, lowered_writer, destination) = error.into_parts();
     let preparation = selected_provider
         .prepare_post_handoff_entry_writer(
             lowered_writer,
             &execution,
             &installed_code,
             &writer,
-            prepared_writer_destination(0x8000, &mut destination_bytes),
+            destination,
         )
         .expect("selected provider closure should prepare its exact AOT writer");
     assert_eq!(
@@ -331,36 +344,22 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
         bound_writer.selected_provider().schema.methods[0].requirement_identity,
         "TimerRoot::tick"
     );
-    let colliding_code = install_entry_artifact(
-        EntryStubId::from_normalized_identity(13).expect("colliding artifact entry"),
+    assert_eq!(
+        bound_writer.installed_code().identity(),
+        installed_code.identity()
     );
     let bound_lowered = bound_writer.lowered().clone();
     let bound_provider = bound_writer.prepared().provider_execution();
-    let bound_context_fingerprint = bound_writer.prepared().context().fingerprint();
-    let error = bound_writer
-        .execute(&colliding_code)
-        .expect_err("exact installed entry evidence outranks colliding report identities");
-    assert!(error.diagnostic().0.contains("exact installed artifact"));
-    let bound_writer = (*error).into_bound();
-    assert_eq!(bound_writer.lowered(), &bound_lowered);
-    assert_eq!(bound_writer.prepared().provider_execution(), bound_provider);
-    assert_eq!(
-        bound_writer.prepared().context().fingerprint(),
-        bound_context_fingerprint
-    );
-    assert_eq!(bound_writer.destination().site(), writer_site(0x8000));
-    assert_eq!(bound_writer.destination().len(), 16);
     let written = bound_writer
-        .execute(&installed_code)
-        .expect("recovered bound writer and destination remain usable");
-    let error = written
-        .recover_for_retry(&colliding_code)
-        .expect_err("written bound recovery must replay its exact installed realization");
-    assert!(error.diagnostic().0.contains("exact installed artifact"));
-    let written = (*error).into_written();
+        .execute()
+        .expect("bound writer and its exact destination remain usable");
     written
-        .validate_for_consumer(&installed_code)
-        .expect("unchanged written bound carrier supports corrected consumer retry");
+        .validate_for_consumer()
+        .expect("written bound carrier replays its retained installed realization");
+    assert_eq!(
+        written.installed_code().identity(),
+        installed_code.identity()
+    );
     assert_eq!(written.written().provider_execution(), bound_provider);
     assert_eq!(written.written().selected_entry(), entry);
     assert_eq!(written.written().selected_entry_source_slot(), 0);
@@ -377,21 +376,23 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
         0x1010
     );
     let bound_writer = written
-        .recover_for_retry(&installed_code)
+        .recover_for_retry()
         .expect("exact written carrier returns to its sealed retry state");
     assert_eq!(bound_writer.lowered(), &bound_lowered);
     assert_eq!(bound_writer.prepared().provider_execution(), bound_provider);
     assert_eq!(bound_writer.destination().site(), writer_site(0x8000));
     assert_eq!(bound_writer.destination().len(), 16);
     let written = bound_writer
-        .execute(&installed_code)
+        .execute()
         .expect("recovered writer and destination execute again");
-    let (retained_selected_provider, retained_lowered, written) = written.into_parts();
+    let (retained_selected_provider, retained_lowered, retained_installed, written) =
+        written.into_parts();
     assert_eq!(
         retained_selected_provider.schema.methods[0].requirement_identity,
         "TimerRoot::tick"
     );
     assert_eq!(retained_lowered, bound_lowered);
+    assert_eq!(retained_installed.identity(), installed_code.identity());
     let (
         provider_execution,
         provider_execution_evidence,

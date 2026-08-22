@@ -20,19 +20,22 @@ pub struct SelectedExternalRootProviderPlan {
     pub schema: ServiceSchema,
 }
 
-/// One exact selected source schema, AOT-lowered writer, and activated
-/// unpublished destination sealed to the provider-populated preparation they
-/// admitted. Lowering and destination custody precede source resolution.
+/// One exact selected source schema, AOT-lowered writer, installed resolver,
+/// and activated unpublished destination sealed to the provider-populated
+/// preparation they admitted. All four precede source resolution.
 #[derive(Debug)]
-pub struct SelectedExternalRootPostHandoffWriterPreparation<'mapping, 'bytes> {
+pub struct SelectedExternalRootPostHandoffWriterPreparation<'installed, 'mapping, 'bytes> {
     selected_provider: SelectedExternalRootProviderPlan,
     lowered: omega_instruction_selection::LoweredPostHandoffWriter,
+    installed_code: &'installed omega_executable_installation::InstalledCode,
     prepared: omega_external_roots::PreparedExternalRootPostHandoffWriterInvocation,
     destination:
         omega_executable_installation::PreparedPostHandoffWriterDestination<'mapping, 'bytes>,
 }
 
-impl<'mapping, 'bytes> SelectedExternalRootPostHandoffWriterPreparation<'mapping, 'bytes> {
+impl<'installed, 'mapping, 'bytes>
+    SelectedExternalRootPostHandoffWriterPreparation<'installed, 'mapping, 'bytes>
+{
     pub const fn selected_provider(&self) -> &SelectedExternalRootProviderPlan {
         &self.selected_provider
     }
@@ -45,6 +48,10 @@ impl<'mapping, 'bytes> SelectedExternalRootPostHandoffWriterPreparation<'mapping
 
     pub const fn lowered(&self) -> &omega_instruction_selection::LoweredPostHandoffWriter {
         &self.lowered
+    }
+
+    pub const fn installed_code(&self) -> &'installed omega_executable_installation::InstalledCode {
+        self.installed_code
     }
 
     pub const fn destination(
@@ -85,12 +92,13 @@ impl<'mapping, 'bytes> SelectedExternalRootWriterPreparationError<'mapping, 'byt
 
 /// A generated writer whose exact AOT fragment and selected source schema are
 /// joined to one admitted external-root execution and its provider-populated
-/// invocation context and the exact activated destination whose geometry was
-/// supplied to that context. It establishes no publication authority.
+/// invocation context, exact installed resolver, and activated destination.
+/// It establishes no publication authority.
 #[derive(Debug)]
-pub struct BoundExternalRootPostHandoffWriterInvocation<'mapping, 'bytes> {
+pub struct BoundExternalRootPostHandoffWriterInvocation<'installed, 'mapping, 'bytes> {
     selected_provider: SelectedExternalRootProviderPlan,
     lowered: omega_instruction_selection::LoweredPostHandoffWriter,
+    installed_code: &'installed omega_executable_installation::InstalledCode,
     prepared: omega_external_roots::PreparedExternalRootPostHandoffWriterInvocation,
     destination:
         omega_executable_installation::PreparedPostHandoffWriterDestination<'mapping, 'bytes>,
@@ -98,12 +106,14 @@ pub struct BoundExternalRootPostHandoffWriterInvocation<'mapping, 'bytes> {
 
 /// Still-unpublished destination after one exact bound external-root writer
 /// executes. The AOT-lowered fragment remains attached to the installation
-/// context instead of being reduced to copied fingerprints at this boundary.
-/// This carrier establishes neither consumer semantics nor publication.
+/// context and installed resolver instead of being reduced to copied
+/// fingerprints at this boundary. This carrier establishes neither consumer
+/// semantics nor publication.
 #[derive(Debug)]
-pub struct WrittenBoundExternalRootPostHandoffWriterDestination<'mapping, 'bytes> {
+pub struct WrittenBoundExternalRootPostHandoffWriterDestination<'installed, 'mapping, 'bytes> {
     selected_provider: SelectedExternalRootProviderPlan,
     lowered: omega_instruction_selection::LoweredPostHandoffWriter,
+    installed_code: &'installed omega_executable_installation::InstalledCode,
     written:
         omega_external_roots::WrittenExternalRootPostHandoffWriterDestination<'mapping, 'bytes>,
 }
@@ -112,30 +122,38 @@ pub struct WrittenBoundExternalRootPostHandoffWriterDestination<'mapping, 'bytes
 /// the complete written carrier so no lowered, provider, installation, or
 /// destination custody is reconstructed after rejection.
 #[derive(Debug)]
-pub struct WrittenBoundExternalRootWriterRecoveryError<'mapping, 'bytes> {
-    written: WrittenBoundExternalRootPostHandoffWriterDestination<'mapping, 'bytes>,
+pub struct WrittenBoundExternalRootWriterRecoveryError<'installed, 'mapping, 'bytes> {
+    written: WrittenBoundExternalRootPostHandoffWriterDestination<'installed, 'mapping, 'bytes>,
     diagnostic: psi_layout_plans::MaterializationDiagnostic,
 }
 
-impl<'mapping, 'bytes> WrittenBoundExternalRootWriterRecoveryError<'mapping, 'bytes> {
+impl<'installed, 'mapping, 'bytes>
+    WrittenBoundExternalRootWriterRecoveryError<'installed, 'mapping, 'bytes>
+{
     pub const fn diagnostic(&self) -> &psi_layout_plans::MaterializationDiagnostic {
         &self.diagnostic
     }
 
     pub fn into_written(
         self,
-    ) -> WrittenBoundExternalRootPostHandoffWriterDestination<'mapping, 'bytes> {
+    ) -> WrittenBoundExternalRootPostHandoffWriterDestination<'installed, 'mapping, 'bytes> {
         self.written
     }
 }
 
-impl<'mapping, 'bytes> WrittenBoundExternalRootPostHandoffWriterDestination<'mapping, 'bytes> {
+impl<'installed, 'mapping, 'bytes>
+    WrittenBoundExternalRootPostHandoffWriterDestination<'installed, 'mapping, 'bytes>
+{
     pub const fn selected_provider(&self) -> &SelectedExternalRootProviderPlan {
         &self.selected_provider
     }
 
     pub const fn lowered(&self) -> &omega_instruction_selection::LoweredPostHandoffWriter {
         &self.lowered
+    }
+
+    pub const fn installed_code(&self) -> &'installed omega_executable_installation::InstalledCode {
+        self.installed_code
     }
 
     pub const fn written(
@@ -146,17 +164,14 @@ impl<'mapping, 'bytes> WrittenBoundExternalRootPostHandoffWriterDestination<'map
     }
 
     /// Independently replay the retained AOT bytes, footprint, invocation,
-    /// opaque installation context, and installed realization. Rejection only
-    /// borrows this carrier, preserving every input for corrected retry.
-    pub fn validate_for_consumer(
-        &self,
-        installed_code: &omega_executable_installation::InstalledCode,
-    ) -> Result<(), psi_layout_plans::MaterializationDiagnostic> {
+    /// opaque installation context, and exact borrowed installed realization.
+    /// Rejection only borrows this carrier, preserving every input for retry.
+    pub fn validate_for_consumer(&self) -> Result<(), psi_layout_plans::MaterializationDiagnostic> {
         omega_instruction_selection::validate_lowered_post_handoff_writer(&self.lowered).map_err(
             |diagnostic| psi_layout_plans::MaterializationDiagnostic(diagnostic.message),
         )?;
-        self.written.validate_for_consumer(installed_code)?;
-        if self.lowered.fragment().target().architecture != installed_code.architecture()
+        self.written.validate_for_consumer(self.installed_code)?;
+        if self.lowered.fragment().target().architecture != self.installed_code.architecture()
             || self.written.invocation() != self.lowered.invocation()
             || !self
                 .written
@@ -188,12 +203,11 @@ impl<'mapping, 'bytes> WrittenBoundExternalRootPostHandoffWriterDestination<'map
     /// complete written carrier unchanged.
     pub fn recover_for_retry(
         self,
-        installed_code: &omega_executable_installation::InstalledCode,
     ) -> Result<
-        BoundExternalRootPostHandoffWriterInvocation<'mapping, 'bytes>,
-        Box<WrittenBoundExternalRootWriterRecoveryError<'mapping, 'bytes>>,
+        BoundExternalRootPostHandoffWriterInvocation<'installed, 'mapping, 'bytes>,
+        Box<WrittenBoundExternalRootWriterRecoveryError<'installed, 'mapping, 'bytes>>,
     > {
-        if let Err(diagnostic) = self.validate_for_consumer(installed_code) {
+        if let Err(diagnostic) = self.validate_for_consumer() {
             return Err(Box::new(WrittenBoundExternalRootWriterRecoveryError {
                 written: self,
                 diagnostic,
@@ -202,12 +216,14 @@ impl<'mapping, 'bytes> WrittenBoundExternalRootPostHandoffWriterDestination<'map
         let Self {
             selected_provider,
             lowered,
+            installed_code,
             written,
         } = self;
         match written.recover_for_retry(installed_code) {
             Ok((prepared, destination)) => Ok(BoundExternalRootPostHandoffWriterInvocation {
                 selected_provider,
                 lowered,
+                installed_code,
                 prepared,
                 destination,
             }),
@@ -218,6 +234,7 @@ impl<'mapping, 'bytes> WrittenBoundExternalRootPostHandoffWriterDestination<'map
                     written: WrittenBoundExternalRootPostHandoffWriterDestination {
                         selected_provider,
                         lowered,
+                        installed_code,
                         written,
                     },
                     diagnostic,
@@ -231,9 +248,15 @@ impl<'mapping, 'bytes> WrittenBoundExternalRootPostHandoffWriterDestination<'map
     ) -> (
         SelectedExternalRootProviderPlan,
         omega_instruction_selection::LoweredPostHandoffWriter,
+        &'installed omega_executable_installation::InstalledCode,
         omega_external_roots::WrittenExternalRootPostHandoffWriterDestination<'mapping, 'bytes>,
     ) {
-        (self.selected_provider, self.lowered, self.written)
+        (
+            self.selected_provider,
+            self.lowered,
+            self.installed_code,
+            self.written,
+        )
     }
 }
 
@@ -241,40 +264,48 @@ impl<'mapping, 'bytes> WrittenBoundExternalRootPostHandoffWriterDestination<'map
 /// returns that complete preparation without regenerating lowered bytes or
 /// provider authority.
 #[derive(Debug)]
-pub struct ExternalRootPostHandoffWriterBindingError<'mapping, 'bytes> {
-    preparation: SelectedExternalRootPostHandoffWriterPreparation<'mapping, 'bytes>,
+pub struct ExternalRootPostHandoffWriterBindingError<'installed, 'mapping, 'bytes> {
+    preparation: SelectedExternalRootPostHandoffWriterPreparation<'installed, 'mapping, 'bytes>,
     diagnostic: psi_diagnostics::Diagnostic,
 }
 
-impl<'mapping, 'bytes> ExternalRootPostHandoffWriterBindingError<'mapping, 'bytes> {
+impl<'installed, 'mapping, 'bytes>
+    ExternalRootPostHandoffWriterBindingError<'installed, 'mapping, 'bytes>
+{
     pub const fn diagnostic(&self) -> &psi_diagnostics::Diagnostic {
         &self.diagnostic
     }
 
     pub fn into_preparation(
         self,
-    ) -> SelectedExternalRootPostHandoffWriterPreparation<'mapping, 'bytes> {
+    ) -> SelectedExternalRootPostHandoffWriterPreparation<'installed, 'mapping, 'bytes> {
         self.preparation
     }
 }
 
 #[derive(Debug)]
-pub struct BoundExternalRootWriterExecutionError<'mapping, 'bytes> {
-    bound: BoundExternalRootPostHandoffWriterInvocation<'mapping, 'bytes>,
+pub struct BoundExternalRootWriterExecutionError<'installed, 'mapping, 'bytes> {
+    bound: BoundExternalRootPostHandoffWriterInvocation<'installed, 'mapping, 'bytes>,
     diagnostic: psi_layout_plans::MaterializationDiagnostic,
 }
 
-impl<'mapping, 'bytes> BoundExternalRootWriterExecutionError<'mapping, 'bytes> {
+impl<'installed, 'mapping, 'bytes>
+    BoundExternalRootWriterExecutionError<'installed, 'mapping, 'bytes>
+{
     pub const fn diagnostic(&self) -> &psi_layout_plans::MaterializationDiagnostic {
         &self.diagnostic
     }
 
-    pub fn into_bound(self) -> BoundExternalRootPostHandoffWriterInvocation<'mapping, 'bytes> {
+    pub fn into_bound(
+        self,
+    ) -> BoundExternalRootPostHandoffWriterInvocation<'installed, 'mapping, 'bytes> {
         self.bound
     }
 }
 
-impl<'mapping, 'bytes> BoundExternalRootPostHandoffWriterInvocation<'mapping, 'bytes> {
+impl<'installed, 'mapping, 'bytes>
+    BoundExternalRootPostHandoffWriterInvocation<'installed, 'mapping, 'bytes>
+{
     fn validate_execution(&self) -> Result<(), psi_layout_plans::MaterializationDiagnostic> {
         omega_instruction_selection::validate_lowered_post_handoff_writer(&self.lowered).map_err(
             |diagnostic| psi_layout_plans::MaterializationDiagnostic(diagnostic.message),
@@ -298,11 +329,23 @@ impl<'mapping, 'bytes> BoundExternalRootPostHandoffWriterInvocation<'mapping, 'b
                     .into(),
             ));
         }
+        self.prepared
+            .context()
+            .validate_for_destination(
+                self.installed_code,
+                self.destination.site(),
+                self.destination.len(),
+            )
+            .map_err(|diagnostic| psi_layout_plans::MaterializationDiagnostic(diagnostic.0))?;
         validate_selected_provider_writer_source(&self.selected_provider, &self.prepared)
     }
 
     pub const fn lowered(&self) -> &omega_instruction_selection::LoweredPostHandoffWriter {
         &self.lowered
+    }
+
+    pub const fn installed_code(&self) -> &'installed omega_executable_installation::InstalledCode {
+        self.installed_code
     }
 
     pub const fn selected_provider(&self) -> &SelectedExternalRootProviderPlan {
@@ -327,10 +370,9 @@ impl<'mapping, 'bytes> BoundExternalRootPostHandoffWriterInvocation<'mapping, 'b
     /// publication transition.
     pub fn execute(
         self,
-        installed_code: &omega_executable_installation::InstalledCode,
     ) -> Result<
-        WrittenBoundExternalRootPostHandoffWriterDestination<'mapping, 'bytes>,
-        Box<BoundExternalRootWriterExecutionError<'mapping, 'bytes>>,
+        WrittenBoundExternalRootPostHandoffWriterDestination<'installed, 'mapping, 'bytes>,
+        Box<BoundExternalRootWriterExecutionError<'installed, 'mapping, 'bytes>>,
     > {
         if let Err(diagnostic) = self.validate_execution() {
             return Err(Box::new(BoundExternalRootWriterExecutionError {
@@ -341,6 +383,7 @@ impl<'mapping, 'bytes> BoundExternalRootPostHandoffWriterInvocation<'mapping, 'b
         let Self {
             selected_provider,
             lowered,
+            installed_code,
             prepared,
             destination,
         } = self;
@@ -348,6 +391,7 @@ impl<'mapping, 'bytes> BoundExternalRootPostHandoffWriterInvocation<'mapping, 'b
             Ok(written) => Ok(WrittenBoundExternalRootPostHandoffWriterDestination {
                 selected_provider,
                 lowered,
+                installed_code,
                 written,
             }),
             Err(prepared_error) => {
@@ -357,6 +401,7 @@ impl<'mapping, 'bytes> BoundExternalRootPostHandoffWriterInvocation<'mapping, 'b
                     bound: BoundExternalRootPostHandoffWriterInvocation {
                         selected_provider,
                         lowered,
+                        installed_code,
                         prepared,
                         destination,
                     },
@@ -437,14 +482,15 @@ fn validate_selected_provider_source(
 
 /// Independently replay one selected source schema, AOT-lowered writer, and
 /// provider preparation before transferring them to executable custody.
-pub fn bind_external_root_post_handoff_writer_invocation<'mapping, 'bytes>(
-    preparation: SelectedExternalRootPostHandoffWriterPreparation<'mapping, 'bytes>,
+pub fn bind_external_root_post_handoff_writer_invocation<'installed, 'mapping, 'bytes>(
+    preparation: SelectedExternalRootPostHandoffWriterPreparation<'installed, 'mapping, 'bytes>,
 ) -> Result<
-    BoundExternalRootPostHandoffWriterInvocation<'mapping, 'bytes>,
-    ExternalRootPostHandoffWriterBindingError<'mapping, 'bytes>,
+    BoundExternalRootPostHandoffWriterInvocation<'installed, 'mapping, 'bytes>,
+    ExternalRootPostHandoffWriterBindingError<'installed, 'mapping, 'bytes>,
 > {
     let selected_provider = preparation.selected_provider();
     let lowered = preparation.lowered();
+    let installed_code = preparation.installed_code();
     let prepared = preparation.prepared();
     if let Err(diagnostic) =
         omega_instruction_selection::validate_lowered_post_handoff_writer(lowered)
@@ -454,7 +500,9 @@ pub fn bind_external_root_post_handoff_writer_invocation<'mapping, 'bytes>(
             diagnostic,
         });
     }
-    if prepared.architecture() != lowered.fragment().target().architecture {
+    if prepared.architecture() != lowered.fragment().target().architecture
+        || prepared.architecture() != installed_code.architecture()
+    {
         let diagnostic = psi_diagnostics::Diagnostic::error(format!(
             "external-root post-handoff writer architecture {:?} does not match lowered fragment architecture {:?}",
             prepared.architecture(),
@@ -477,6 +525,16 @@ pub fn bind_external_root_post_handoff_writer_invocation<'mapping, 'bytes>(
             ),
         });
     }
+    if let Err(diagnostic) = prepared.context().validate_for_destination(
+        installed_code,
+        preparation.destination().site(),
+        preparation.destination().len(),
+    ) {
+        return Err(ExternalRootPostHandoffWriterBindingError {
+            preparation,
+            diagnostic: psi_diagnostics::Diagnostic::error(diagnostic.0),
+        });
+    }
     if let Err(diagnostic) = validate_selected_provider_writer_source(selected_provider, prepared) {
         return Err(ExternalRootPostHandoffWriterBindingError {
             preparation,
@@ -486,12 +544,14 @@ pub fn bind_external_root_post_handoff_writer_invocation<'mapping, 'bytes>(
     let SelectedExternalRootPostHandoffWriterPreparation {
         selected_provider,
         lowered,
+        installed_code,
         prepared,
         destination,
     } = preparation;
     Ok(BoundExternalRootPostHandoffWriterInvocation {
         selected_provider,
         lowered,
+        installed_code,
         prepared,
         destination,
     })
@@ -702,22 +762,22 @@ impl SelectedExternalRootProviderPlan {
     ///
     /// The selected-plan fingerprint remains identity rather than authority;
     /// the sealed execution and installed-code resolver provide the authority.
-    /// Exact AOT bytes, architecture, writer invocation, and a previously
-    /// validated activated destination are sealed before the installed resolver
-    /// may observe any symbolic source. Matching the schema here also prevents
-    /// closure substitution during preparation.
-    pub fn prepare_post_handoff_entry_writer<'mapping, 'bytes>(
+    /// Exact AOT bytes, architecture, writer invocation, the installed resolver
+    /// itself, and a validated activated destination are sealed before that
+    /// resolver may observe any symbolic source. Matching the schema here also
+    /// prevents closure substitution during preparation.
+    pub fn prepare_post_handoff_entry_writer<'installed, 'mapping, 'bytes>(
         self,
         lowered: omega_instruction_selection::LoweredPostHandoffWriter,
         execution: &omega_external_roots::ProviderExecution,
-        installed_code: &omega_executable_installation::InstalledCode,
+        installed_code: &'installed omega_executable_installation::InstalledCode,
         writer: &psi_layout_plans::PostHandoffWriterPlan,
         destination: omega_executable_installation::PreparedPostHandoffWriterDestination<
             'mapping,
             'bytes,
         >,
     ) -> Result<
-        SelectedExternalRootPostHandoffWriterPreparation<'mapping, 'bytes>,
+        SelectedExternalRootPostHandoffWriterPreparation<'installed, 'mapping, 'bytes>,
         SelectedExternalRootWriterPreparationError<'mapping, 'bytes>,
     > {
         if self.identity != execution.provider_plan() {
@@ -801,6 +861,7 @@ impl SelectedExternalRootProviderPlan {
             Ok(prepared) => Ok(SelectedExternalRootPostHandoffWriterPreparation {
                 selected_provider: self,
                 lowered,
+                installed_code,
                 prepared,
                 destination,
             }),
