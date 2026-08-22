@@ -6520,10 +6520,14 @@ state through a raw address.
   symbol-resolved, typed, and typed-snapshot representations. The parser
   accepts it only on bodyless boundary-trait requirements and rejects empty,
   mixed, default-body, ordinary-trait, and structural-binder uses.
-  Remaining work starts at checked semantics: give each unresolved row the
-  exact normalized requirement path as identity, prove each selected
-  realization row is a subset of its bound, and retain that resolution through
-  manifests, root closure, and final admission.
+  Checked reach inference now retains each unresolved row by exact requirement
+  symbol plus upper-bound row, propagates it transitively through callers, and
+  exposes it in realized machine envelopes while keeping the bound as the
+  conservative preselection reach. Trait-conformance validation already
+  rejects realization rows outside the bound. Remaining work is the
+  cross-artifact half: encode a source-handle-free requirement identity in
+  terminal/manifests, substitute the selected provider row through each root
+  closure, and reject final admission if any row remains unresolved.
   Retain its `+`-union upper bound and internal
   dependency closure, reject escape through ordinary callable package or
   component contracts, expose unresolved rows and bounds in preselection

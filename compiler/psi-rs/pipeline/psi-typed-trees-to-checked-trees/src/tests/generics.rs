@@ -195,6 +195,139 @@ fn nominal_machine_parameter_accepts_one_explicit_exact_satisfaction_row() {
 }
 
 #[test]
+fn bounded_installation_reach_retains_exact_unresolved_requirement_through_checked_facts() {
+    let source = r#"
+        boundary trait MachineControl {}
+        boundary trait PortIo {}
+
+        boundary trait InterruptCompletion {
+            machine complete() -> u64
+            reaches <= MachineControl + PortIo;
+        }
+
+        machine pic_complete() -> u64
+        satisfies InterruptCompletion::complete
+        reaches PortIo
+        {
+            0
+        }
+
+        machine invoke<machine Completion>() -> u64
+        where machine Completion satisfies InterruptCompletion::complete;
+        {
+            Completion()
+        }
+
+        machine outer<machine Completion>() -> u64
+        where machine Completion satisfies InterruptCompletion::complete;
+        {
+            invoke<Completion>()
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let requirement = typed
+        .traits()
+        .iter()
+        .find(|definition| definition.name.as_str() == "InterruptCompletion")
+        .and_then(|definition| typed.trait_machine_signatures(definition).first())
+        .expect("InterruptCompletion::complete");
+    let requirement_symbol = requirement.symbol;
+    let upper_bound = requirement.service_reach_row;
+    let invoke_symbol = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "invoke")
+        .expect("invoke machine")
+        .symbol;
+    let outer_symbol = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "outer")
+        .expect("outer machine")
+        .symbol;
+
+    let checked = lower_typed_trees(typed).expect("bounded reach closure should check");
+    let reach = checked
+        .facts
+        .service_reaches
+        .for_machine(invoke_symbol)
+        .expect("invoke reach facts");
+
+    assert_eq!(
+        reach.unresolved_installation_reaches,
+        [psi_effects::InstallationReachRequirement {
+            requirement: requirement_symbol,
+            upper_bound,
+        }]
+    );
+    let names = checked
+        .facts
+        .service_reaches
+        .rows
+        .services(reach.effective)
+        .iter()
+        .filter_map(|service| checked.facts.service_reaches.services.definition(*service))
+        .map(|definition| definition.name.as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(names, ["MachineControl", "PortIo"]);
+    let outer_reach = checked
+        .facts
+        .service_reaches
+        .for_machine(outer_symbol)
+        .expect("outer reach facts");
+    assert_eq!(
+        outer_reach.unresolved_installation_reaches,
+        reach.unresolved_installation_reaches
+    );
+    assert_eq!(
+        checked
+            .facts
+            .contract_plans
+            .realized_envelope(outer_symbol)
+            .expect("outer realized envelope")
+            .unresolved_installation_reaches,
+        reach.unresolved_installation_reaches
+    );
+}
+
+#[test]
+fn bounded_installation_reach_rejects_provider_outside_upper_bound() {
+    let source = r#"
+        boundary trait MachineControl {}
+        boundary trait PortIo {}
+        boundary trait FilesystemHost {}
+
+        boundary trait InterruptCompletion {
+            machine complete() -> u64
+            reaches <= MachineControl + PortIo;
+        }
+
+        machine invalid_complete() -> u64
+        satisfies InterruptCompletion::complete
+        reaches FilesystemHost
+        {
+            0
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let diagnostics = lower_typed_trees(typed)
+        .expect_err("provider reach outside an installation bound must reject");
+
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic.message.contains("service `FilesystemHost`")
+            && diagnostic
+                .message
+                .contains("is not allowed by the trait requirement")
+    }));
+}
+
+#[test]
 fn nominal_callback_use_retains_exact_evaluated_placement_identity() {
     let source = r#"
         boundary trait Handler {
