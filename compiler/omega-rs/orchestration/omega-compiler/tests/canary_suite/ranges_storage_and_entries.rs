@@ -2350,19 +2350,13 @@ fn runtime_version_migration_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-version-migration-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("version migration canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("version migration canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected CounterV1 construction + Counter::from_v1 migration to land both current-shape writes (exit 70), got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "version-migration canary",
+        "the explicit migration should land both current-shape writes",
     );
 
     let _ = fs::remove_dir_all(&scratch);
@@ -2377,19 +2371,13 @@ fn runtime_versioned_match_zii_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-versioned-match-zii-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("versioned match canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("versioned match canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected the era-0 (v1) arm to be selected with a zero payload (exit 70), got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "versioned-match canary",
+        "the explicitly constructed lineage sum should select its v1 arm",
     );
 
     let _ = fs::remove_dir_all(&scratch);
@@ -2404,19 +2392,13 @@ fn runtime_versioned_three_era_match_zii_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-versioned-three-era-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("three-era versioned match canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("three-era versioned match canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected the era-0 (v1) arm among three eras to be selected (exit 70), got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "three-era versioned-match canary",
+        "the three-era lineage sum should select its v1 arm",
     );
 
     let _ = fs::remove_dir_all(&scratch);
@@ -2436,19 +2418,13 @@ fn runtime_equatable_scalar_not_equals_guard_exit_canary_runs() {
     ));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("equatable scalar != guard canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("equatable scalar != guard canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected !=/== in guard position over a scalar Equatable record to drive all three rungs (exit 70), got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "equatable scalar guard canary",
+        "scalar-record equality and inequality should drive every guard rung",
     );
 
     let _ = fs::remove_dir_all(&scratch);
@@ -2466,19 +2442,13 @@ fn runtime_case_membership_mixed_shape_exit_canary_runs() {
     ));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("mixed-shape membership canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("mixed-shape membership canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected tag-only membership over a mixed shape across all three rungs (exit 70), got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "mixed-shape case-membership canary",
+        "case membership should remain tag-only across common-field writes",
     );
 
     let _ = fs::remove_dir_all(&scratch);
