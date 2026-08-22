@@ -1800,9 +1800,12 @@ fn runtime_enum_grid_scan_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_enum_grid_scan_exit");
     let scratch = std::env::temp_dir().join(format!("omega-enum-grid-scan-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("enum grid scan canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("enum grid scan canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("enum grid scan canary should run");
     assert_eq!(
@@ -1823,9 +1826,12 @@ fn runtime_two_indexed_reads_binary_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-two-indexed-reads-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("two-indexed-reads binary canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("two-indexed-reads binary canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("two-indexed-reads binary canary should run");
     assert_eq!(
@@ -1847,9 +1853,12 @@ fn runtime_struct_field_temp_arith_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-struct-field-temp-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("struct-field-temp arithmetic canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("struct-field-temp arithmetic canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("struct-field-temp arithmetic canary should run");
     assert_eq!(
@@ -1870,9 +1879,12 @@ fn runtime_indexed_struct_write_loop_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-indexed-struct-write-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("indexed struct-write loop canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("indexed struct-write loop canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("indexed struct-write loop canary should run");
     assert_eq!(
@@ -1917,9 +1929,12 @@ fn runtime_indexed_read_then_guard_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-indexed-read-guard-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("indexed-read-then-guard canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("indexed-read-then-guard canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("indexed-read-then-guard canary should run");
     assert_eq!(
