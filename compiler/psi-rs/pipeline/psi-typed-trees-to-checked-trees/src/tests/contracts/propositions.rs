@@ -407,7 +407,7 @@ fn immediate_generated_output_package_binds_a_fresh_erased_evidence_term() {
         machine relay()
         ensures relayed: ready()
         {
-            let { outgoing: local } = produce();
+            let (; outgoing: local) = produce();
             relayed = local;
         }
     "#;
@@ -479,7 +479,7 @@ fn immediate_generated_output_package_completely_binds_multiple_fresh_terms() {
         ensures relayed_first: ready()
         ensures relayed_second: ready()
         {
-            let { second: local_second, first: local_first } = produce();
+            let (; second: local_second, first: local_first) = produce();
             relayed_first = local_first;
             relayed_second = local_second;
         }
@@ -526,7 +526,7 @@ fn immediate_generated_output_package_completely_binds_multiple_fresh_terms() {
 }
 
 #[test]
-fn generated_output_package_rejects_an_incomplete_multi_field_pattern() {
+fn proof_output_lane_allows_selective_capture() {
     let source = r#"
         trait Evidence {}
         proposition ready() evidence Evidence;
@@ -538,18 +538,53 @@ fn generated_output_package_rejects_an_incomplete_multi_field_pattern() {
         machine relay()
         ensures relayed: ready()
         {
-            let { first: local } = produce();
+            let (; first: local) = produce();
             relayed = local;
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
-        .expect_err("every generated package field must be destructured");
-    assert!(diagnostics.iter().any(|diagnostic| {
-        diagnostic
-            .message
-            .contains("must destructure all 2 fields; found 1 bindings")
-    }));
+    lower_typed_trees(parse_typed_trees(source))
+        .expect("unmentioned proof outputs contribute facts without minting local terms");
+}
+
+#[test]
+fn omitted_proof_output_contributes_its_fact_without_a_local_term() {
+    let source = r#"
+        trait Evidence {}
+        proposition first_ready() evidence Evidence;
+        proposition second_ready() evidence Evidence;
+        ConcreteEvidence: satisfies Evidence {}
+
+        machine produce()
+        ensures first: first_ready()
+        ensures second: second_ready()
+        { first = ConcreteEvidence; second = ConcreteEvidence; }
+
+        machine consume_second()
+        requires second_ready()
+        {}
+
+        machine relay() {
+            let (; first: local_first) = produce();
+            consume_second();
+        }
+    "#;
+
+    let checked = lower_typed_trees(parse_typed_trees(source))
+        .expect("an omitted proof selector still contributes its proposition fact");
+    let invocation = checked
+        .facts
+        .proof
+        .evidence_package_invocations
+        .iter()
+        .next()
+        .map(|(_, invocation)| invocation)
+        .expect("one checked proof-output invocation");
+    let [first, second] = invocation.outputs.as_slice() else {
+        panic!("two callee proof outputs")
+    };
+    assert!(first.output.is_some());
+    assert!(second.output.is_none());
 }
 
 #[test]
@@ -566,18 +601,21 @@ fn generated_output_package_rejects_duplicate_fields_and_local_names() {
         ensures one: ready()
         ensures two: ready()
         {
-            let { first: local_one, first: local_two } = produce();
+            let (; first: local_one, first: local_two) = produce();
             one = local_one;
             two = local_two;
         }
     "#;
     let diagnostics = lower_typed_trees(parse_typed_trees(duplicate_field))
         .expect_err("a generated package field cannot be repeated");
-    assert!(diagnostics.iter().any(|diagnostic| {
-        diagnostic
-            .message
-            .contains("field `first` is bound more than once")
-    }));
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("selector `first` is bound more than once")
+        }),
+        "unexpected diagnostics: {diagnostics:#?}"
+    );
 
     let duplicate_local = duplicate_field.replace(
         "first: local_one, first: local_two",
@@ -606,7 +644,7 @@ fn generated_output_package_terms_are_copyable_and_have_no_use_count() {
         ensures relayed_first: ready()
         ensures relayed_second: ready()
         {
-            let { first: local_first, second: local_second } = produce();
+            let (; first: local_first, second: local_second) = produce();
             relayed_first = local_first;
             relayed_second = local_first;
         }
@@ -668,7 +706,7 @@ fn generated_output_package_retains_explicit_proposition_discard() {
         machine relay()
         ensures relayed: ready()
         {
-            let { first: local, second: _ } = produce();
+            let (; first: local, second: _) = produce();
             relayed = local;
         }
     "#;
@@ -706,18 +744,18 @@ fn generated_output_package_rejects_a_field_not_published_by_the_callee() {
         machine relay()
         ensures relayed: ready()
         {
-            let { invented: local } = produce();
+            let (; invented: local) = produce();
             relayed = local;
         }
     "#;
 
     let diagnostics = lower_typed_trees(parse_typed_trees(source))
         .expect_err("a generated package field cannot be forged");
-    assert!(
-        diagnostics
-            .iter()
-            .any(|diagnostic| { diagnostic.message.contains("has no field `invented`") })
-    );
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("publishes no proof-output selector `invented`")
+    }));
 }
 
 #[test]
@@ -740,7 +778,7 @@ fn immediate_generated_output_package_binds_one_runtime_scalar_call_and_proofs()
         ensures relayed_first: ready()
         ensures relayed_second: ready()
         {
-            let { second: local_second, value: local_value, first: local_first } = produce();
+            let (local_value; second: local_second, first: local_first) = produce();
             relayed_first = local_first;
             relayed_second = local_second;
             local_value
@@ -795,7 +833,7 @@ fn immediate_generated_output_package_binds_one_runtime_scalar_call_and_proofs()
 }
 
 #[test]
-fn generated_output_package_rejects_runtime_result_without_value_field() {
+fn proof_output_lane_requires_a_runtime_binding_for_a_runtime_result() {
     let source = r#"
         trait Evidence {}
         proposition ready() evidence Evidence;
@@ -805,16 +843,16 @@ fn generated_output_package_rejects_runtime_result_without_value_field() {
         { outgoing = ConcreteEvidence; 1 }
         machine relay()
         ensures relayed: ready()
-        { let { outgoing: local } = produce(); relayed = local; }
+        { let (; outgoing: local) = produce(); relayed = local; }
     "#;
 
     let diagnostics = lower_typed_trees(parse_typed_trees(source))
-        .expect_err("a runtime package must bind its value field");
-    assert!(
-        diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.message.contains("must destructure all 2 fields"))
-    );
+        .expect_err("a runtime proof-output binding must bind its Type result");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("missing its runtime Type result")
+    }));
 }
 
 #[test]
@@ -826,7 +864,7 @@ fn generated_output_package_rejects_value_on_unit_and_duplicate_or_discarded_run
         machine produce() ensures outgoing: ready() { outgoing = ConcreteEvidence; }
         machine relay()
         ensures relayed: ready()
-        { let { value: runtime, outgoing: local } = produce(); relayed = local; }
+        { let (runtime; outgoing: local) = produce(); relayed = local; }
     "#;
     let unit = format!("boundary trait MachineControl {{}}\nboundary trait PortIo {{}}\n{unit}");
     let tokens = Lexer::new(&unit).tokenize().expect("tokenize");
@@ -852,18 +890,18 @@ fn generated_output_package_rejects_value_on_unit_and_duplicate_or_discarded_run
         ensures relayed_first: ready()
         ensures relayed_second: ready()
         {
-            let { value: one, value: two, first: local } = produce();
+            let (one; first: local, first: local_two) = produce();
             relayed_first = local;
             relayed_second = local;
             one
         }
     "#;
     let diagnostics = lower_typed_trees(parse_typed_trees(duplicate))
-        .expect_err("the contextual value field is unique");
+        .expect_err("a named proof output is unique");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
-            .contains("field `value` is bound more than once")
+            .contains("selector `first` is bound more than once")
     }));
 
     let discarded = r#"
@@ -875,14 +913,14 @@ fn generated_output_package_rejects_value_on_unit_and_duplicate_or_discarded_run
         { outgoing = ConcreteEvidence; 1 }
         machine relay()
         ensures relayed: ready()
-        { let { value: _, outgoing: local } = produce(); relayed = local; }
+        { let (_; outgoing: local) = produce(); relayed = local; }
     "#;
     let diagnostics = lower_typed_trees(parse_typed_trees(discarded))
         .expect_err("runtime Type values are not proposition evidence");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
-            .contains("runtime field `value` cannot be discarded")
+            .contains("cannot discard its runtime Type result")
     }));
 }
 
@@ -905,7 +943,7 @@ fn generated_output_package_rejects_a_callee_with_runtime_body_work() {
         machine relay()
         ensures relayed: ready()
         {
-            let { outgoing: local } = produce();
+            let (; outgoing: local) = produce();
             relayed = local;
         }
     "#;
@@ -914,7 +952,7 @@ fn generated_output_package_rejects_a_callee_with_runtime_body_work() {
         .expect_err("erasing a package call must not erase runtime work");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic.message.contains(
-            "is limited to a concrete one-state, zero-argument proof-only or scalar-result machine",
+            "is currently limited to a concrete one-state, zero-argument proof-only or scalar-result machine",
         )
     }));
 }
@@ -936,7 +974,7 @@ fn generated_output_package_binding_is_not_visible_to_its_own_call() {
         machine relay()
         ensures relayed: ready()
         {
-            let { outgoing: local } = produce(; local);
+            let (; outgoing: local) = produce(; local);
             relayed = local;
         }
     "#;
@@ -975,7 +1013,7 @@ fn generated_output_package_is_not_visible_before_its_binding() {
         ensures relayed: ready()
         {
             relayed = local;
-            let { outgoing: local } = produce();
+            let (; outgoing: local) = produce();
         }
     "#;
 
@@ -996,7 +1034,7 @@ fn generated_output_package_bound_term_may_remain_unused() {
         proposition ready() evidence Evidence;
         ConcreteEvidence: satisfies Evidence {}
         machine produce() ensures outgoing: ready() { outgoing = ConcreteEvidence; }
-        machine relay() { let { outgoing: local } = produce(); }
+        machine relay() { let (; outgoing: local) = produce(); }
     "#;
     lower_typed_trees(parse_typed_trees(unused))
         .expect("a copyable proposition term has no usage-count obligation");
@@ -1010,14 +1048,14 @@ fn generated_output_package_runtime_value_cannot_use_proposition_discard() {
         ConcreteEvidence: satisfies Evidence {}
         machine produce() -> i32 ensures outgoing: ready()
         { outgoing = ConcreteEvidence; 7 }
-        machine relay() { let { outgoing: _, value: _ } = produce(); }
+        machine relay() { let (_; outgoing: _) = produce(); }
     "#;
     let diagnostics = lower_typed_trees(parse_typed_trees(source))
         .expect_err("the ordinary runtime Type field is not proposition evidence");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
-            .contains("runtime field `value` cannot be discarded")
+            .contains("cannot discard its runtime Type result")
     }));
 }
 

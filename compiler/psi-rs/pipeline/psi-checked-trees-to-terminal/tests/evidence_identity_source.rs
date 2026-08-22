@@ -88,7 +88,7 @@ const GENERATED_PACKAGE_SOURCE: &str = r#"
     machine Root::relay()
     ensures relayed: ready()
     {
-        let { outgoing: local } = Root::produce();
+        let (; outgoing: local) = Root::produce();
         relayed = local;
     }
 "#;
@@ -108,7 +108,7 @@ const COPY_AND_DISCARD_GENERATED_PACKAGE_SOURCE: &str = r#"
     ensures first: ready()
     ensures second: ready()
     {
-        let { copied: local, discarded: _ } = Root::produce();
+        let (; copied: local, discarded: _) = Root::produce();
         first = local;
         second = local;
     }
@@ -132,7 +132,7 @@ const MULTI_FIELD_GENERATED_PACKAGE_SOURCE: &str = r#"
     ensures relayed_first: ready()
     ensures relayed_second: ready()
     {
-        let { second: local_second, first: local_first } = Root::produce();
+        let (; second: local_second, first: local_first) = Root::produce();
         relayed_first = local_first;
         relayed_second = local_second;
     }
@@ -166,7 +166,7 @@ const RUNTIME_VALUE_GENERATED_PACKAGE_SOURCE: &str = r#"
     ensures relayed_second: ready()
     {
         let warmed: bool = warmup();
-        let { second: local_second, value: local_value, first: local_first } = produce();
+        let (local_value; second: local_second, first: local_first) = produce();
         relayed_first = local_first;
         relayed_second = local_second;
         local_value
@@ -190,10 +190,10 @@ const REPEATED_MULTI_FIELD_GENERATED_PACKAGE_SOURCE: &str = r#"
     ensures second_one: ready()
     ensures second_two: ready()
     {
-        let { first: local_first_one, second: local_first_two } = Root::produce();
+        let (; first: local_first_one, second: local_first_two) = Root::produce();
         first_one = local_first_one;
         first_two = local_first_two;
-        let { first: local_second_one, second: local_second_two } = Root::produce();
+        let (; first: local_second_one, second: local_second_two) = Root::produce();
         second_one = local_second_one;
         second_two = local_second_two;
     }
@@ -215,9 +215,9 @@ const REPEATED_GENERATED_PACKAGE_SOURCE: &str = r#"
     ensures first: ready()
     ensures second: ready()
     {
-        let { outgoing: local_first } = Root::produce();
+        let (; outgoing: local_first) = Root::produce();
         first = local_first;
-        let { outgoing: local_second } = Root::produce();
+        let (; outgoing: local_second) = Root::produce();
         second = local_second;
     }
 "#;
@@ -240,9 +240,9 @@ const DISTINCT_GENERATED_PACKAGE_PRODUCERS_SOURCE: &str = r#"
     ensures first: ready()
     ensures second: ready()
     {
-        let { outgoing: local_first } = Root::produce_first();
+        let (; outgoing: local_first) = Root::produce_first();
         first = local_first;
-        let { outgoing: local_second } = Root::produce_second();
+        let (; outgoing: local_second) = Root::produce_second();
         second = local_second;
     }
 "#;

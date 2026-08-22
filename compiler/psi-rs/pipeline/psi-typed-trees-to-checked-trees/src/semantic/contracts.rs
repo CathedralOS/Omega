@@ -124,6 +124,60 @@ pub(super) fn append_contract_semantic_facts(
         facts.append_symbol_set(call.target_machine_symbol, refs);
     }
 
+    // A proof-only output binding has no runtime statement and therefore no
+    // ordinary `ContractCallFact`, but the call still establishes every
+    // unconditional named guarantee. Materialize one zero-runtime ensures
+    // context at the binding coordinate so omitted selectors contribute facts
+    // without minting caller-local terms. The current accepted producer subset
+    // is zero-argument, so the declaration payload needs no call substitution.
+    for (_, invocation) in proof.evidence_package_invocations.iter() {
+        if invocation.runtime_call.is_some() {
+            continue;
+        }
+        let point = ProgramPoint::CallEnsures {
+            machine_symbol: invocation.caller_machine_symbol,
+            state_symbol: invocation.caller_state_symbol,
+            statement_index: invocation.statement_index,
+            call_ordinal: 0,
+        };
+        let mut refs = HandleSpan::empty();
+        for output in &invocation.outputs {
+            let Some((contract_handle, contract)) = proof
+                .contract_facts
+                .iter()
+                .find(|(_, contract)| contract.evidence_term == Some(output.callee_output))
+            else {
+                continue;
+            };
+            let contract_index = usize::try_from(contract_handle.arena_index())
+                .expect("contract fact handle index overflow");
+            let Some(Some(source_fact)) = semantic_handles.get(contract_index) else {
+                continue;
+            };
+            let source = *facts.facts.get(*source_fact);
+            let Some(evidence) = crate::qualification_evidence::call_contract_evidence(
+                program,
+                invocation.target_machine_symbol,
+                invocation.target_state_symbol,
+                contract,
+                source.payload,
+                true,
+            ) else {
+                continue;
+            };
+            let fact = facts.append_fact(Fact {
+                point,
+                origin: FactOrigin::CallEnsures,
+                evidence,
+                ..source
+            });
+            facts.append_ref(&mut refs, fact);
+        }
+        if !refs.is_empty() {
+            facts.append_context(point, refs);
+        }
+    }
+
     for (_, exit) in proof.contract_exits.iter() {
         let mut refs = HandleSpan::empty();
         append_semantic_contract_refs(proof, facts, &semantic_handles, exit.ensures, &mut refs);

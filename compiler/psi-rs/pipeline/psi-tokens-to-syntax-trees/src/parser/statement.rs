@@ -1313,13 +1313,14 @@ pub(super) fn try_parse_destructure_let<'tokens, 'source>(
     Some((HandleSpan::from_parts(marker, count), rest))
 }
 
-/// Chapter-10 generated proof-package destructuring:
-/// `let { first: local_first, second: local_second } = producer();`.
+/// Chapter-10 proof-output binding:
+/// `let (value; first: local_first, second: local_second) = producer();`.
 ///
-/// This remains a dedicated call-only statement so the call is evaluated once
-/// and the generic place-only record destructure cannot manufacture Unit locals
-/// for evidence fields. Later lowering gives contextual `value` its one
-/// ordinary runtime local while retaining the grouped proof metadata.
+/// The semicolon mirrors the call-site universe boundary: the optional Type
+/// result is left of it and selectively retained Prop outputs are right of it.
+/// This remains a dedicated call-only statement so the call is evaluated once.
+/// The existing internal carrier still groups the binding metadata during the
+/// migration, but no generated package exists in source semantics.
 pub(super) fn try_parse_evidence_package_destructure<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
@@ -1334,16 +1335,23 @@ pub(super) fn try_parse_evidence_package_destructure<'tokens, 'source>(
 
     let mut rest = input.take_keyword(KeywordKind::Let, "let").ok()?;
     rest = rest
-        .take_punctuation(PunctuationKind::LeftBrace, "{")
+        .take_punctuation(PunctuationKind::LeftParen, "(")
         .ok()?;
     let mut bindings = Vec::new();
-    loop {
-        if rest.at_punctuation(PunctuationKind::RightBrace) {
-            rest = rest
-                .take_punctuation(PunctuationKind::RightBrace, "}")
-                .ok()?;
-            break;
-        }
+
+    if !rest.at_punctuation(PunctuationKind::Semicolon) {
+        let (binding, next) = rest.take_identifier().ok()?;
+        bindings.push(TableEvidencePackageBinding {
+            output_field: Identifier::generated("value"),
+            binding,
+        });
+        rest = next;
+    }
+    rest = rest
+        .take_punctuation(PunctuationKind::Semicolon, ";")
+        .ok()?;
+
+    while !rest.at_punctuation(PunctuationKind::RightParen) {
         let (output_field, next) = rest.take_identifier().ok()?;
         rest = next.take_punctuation(PunctuationKind::Colon, ":").ok()?;
         let (binding, next) = rest.take_identifier().ok()?;
@@ -1353,10 +1361,15 @@ pub(super) fn try_parse_evidence_package_destructure<'tokens, 'source>(
         });
         if next.at_punctuation(PunctuationKind::Comma) {
             rest = next.take_punctuation(PunctuationKind::Comma, ",").ok()?;
-        } else {
+        } else if next.at_punctuation(PunctuationKind::RightParen) {
             rest = next;
+        } else {
+            return None;
         }
     }
+    rest = rest
+        .take_punctuation(PunctuationKind::RightParen, ")")
+        .ok()?;
     if bindings.is_empty() {
         return None;
     }
@@ -1381,6 +1394,28 @@ pub(super) fn try_parse_evidence_package_destructure<'tokens, 'source>(
     );
     let statement = syntax_trees.items.append_statement_handle(statement);
     Some((HandleSpan::from_parts(statement, 1), rest))
+}
+
+/// Reject the retired aggregate-looking proof-output spelling without
+/// intercepting ordinary record destructuring (`let { field as local } = ...`).
+pub(super) fn reject_retired_evidence_package_destructure(
+    input: Input<'_, '_>,
+) -> Result<(), ParseError> {
+    let Ok(rest) = input.take_keyword(KeywordKind::Let, "let") else {
+        return Ok(());
+    };
+    let Ok(rest) = rest.take_punctuation(PunctuationKind::LeftBrace, "{") else {
+        return Ok(());
+    };
+    let Ok((_, rest)) = rest.take_identifier() else {
+        return Ok(());
+    };
+    if rest.at_punctuation(PunctuationKind::Colon) {
+        return Err(input.error_here(
+            "generated proof-output packages are retired; bind the ordinary result and selected proofs as `let (value; public_output: local_term) = call();`, or use `let (; public_output: local_term) = call();` for an evidence-only result",
+        ));
+    }
+    Ok(())
 }
 
 pub(super) fn try_parse_atomic_fetch_let<'tokens, 'source>(

@@ -43,38 +43,26 @@ pub(crate) fn validate_proposition_entailment(
                 &[],
                 true,
             ));
-            for statement in program.statement_table.statements(state.statement_nodes) {
+            let statements = program.statement_table.statements(state.statement_nodes);
+            for (statement_index, statement) in statements.iter().enumerate() {
+                intake_proof_output_propositions(
+                    program,
+                    machine,
+                    state.symbol,
+                    statement_index,
+                    &mut known,
+                );
                 if let StatementNode::Call(call) = statement {
                     intake_call_propositions(program, machine, call, &mut known, diagnostics);
                 }
             }
-            for package in &program.evidence_package_invocations {
-                if package.machine_symbol != machine.symbol || package.state_symbol != state.symbol
-                {
-                    continue;
-                }
-                let psi_typed_trees::expression::ExpressionNode::Call(call) =
-                    program.expression_table.expression(package.call)
-                else {
-                    continue;
-                };
-                let Some((callee, _)) = program.machines().iter().find_map(|candidate| {
-                    program
-                        .machine_states(candidate)
-                        .iter()
-                        .any(|candidate_state| candidate_state.symbol == call.target_symbol)
-                        .then_some((candidate, ()))
-                }) else {
-                    continue;
-                };
-                known.extend(proposition_labels(
-                    program,
-                    program.machine_contracts(callee),
-                    SignatureContractKind::Ensures,
-                    &[],
-                    true,
-                ));
-            }
+            intake_proof_output_propositions(
+                program,
+                machine,
+                state.symbol,
+                statements.len(),
+                &mut known,
+            );
 
             let mut required = machine_ensures.clone();
             required.extend(proposition_labels(
@@ -94,6 +82,43 @@ pub(crate) fn validate_proposition_entailment(
                 }
             }
         }
+    }
+}
+
+fn intake_proof_output_propositions(
+    program: &TypedTrees,
+    caller: &Machine,
+    state_symbol: psi_symbols::SymbolHandle,
+    statement_index: usize,
+    known: &mut BTreeSet<String>,
+) {
+    for package in &program.evidence_package_invocations {
+        if package.machine_symbol != caller.symbol
+            || package.state_symbol != state_symbol
+            || package.statement_index != statement_index
+        {
+            continue;
+        }
+        let psi_typed_trees::expression::ExpressionNode::Call(call) =
+            program.expression_table.expression(package.call)
+        else {
+            continue;
+        };
+        let Some(callee) = program.machines().iter().find(|candidate| {
+            program
+                .machine_states(candidate)
+                .iter()
+                .any(|candidate_state| candidate_state.symbol == call.target_symbol)
+        }) else {
+            continue;
+        };
+        known.extend(proposition_labels(
+            program,
+            program.machine_contracts(callee),
+            SignatureContractKind::Ensures,
+            &[],
+            true,
+        ));
     }
 }
 
