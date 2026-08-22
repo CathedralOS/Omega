@@ -1155,7 +1155,14 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
         &boundary,
         &installed_code,
         entry_stub,
-        omega_calling_conventions::EntryStack::Interrupted,
+        validate_entry_stack_domain_closure(
+            boundary.plan().state.stack,
+            vec![ArrivalContextStackDomain {
+                context: ArrivalContextId::new(1).expect("arrival context"),
+                domain: StackDomainRef::Interrupted,
+            }],
+        )
+        .expect("host entry stack-domain closure"),
     )
     .expect("direct generated entry should derive its epoch realization");
     let composed_stack = compose_bound_entry_stack_epochs(

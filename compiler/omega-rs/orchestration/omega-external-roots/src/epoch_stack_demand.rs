@@ -8,9 +8,10 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use omega_calling_conventions::{
-    ArrivalContextId, ArrivalContextRealization, EntryStack, EntryStackEpoch,
-    EntryStackRealization, EntryStackStage, Preemption, StackDomainRef, ValidatedBoundaryEntryPlan,
-    ValidatedEntryStackRealization, validate_entry_stack_realization,
+    ArrivalContextId, ArrivalContextRealization, ArrivalContextStackDomain, EntryStack,
+    EntryStackEpoch, EntryStackRealization, EntryStackStage, Preemption, StackDomainRef,
+    ValidatedBoundaryEntryPlan, ValidatedEntryStackDomainClosure, ValidatedEntryStackRealization,
+    validate_entry_stack_domain_closure, validate_entry_stack_realization,
 };
 use omega_executable_installation::{
     ArtifactId, InstalledCode, InstalledCodeContext, InstalledCodeId,
@@ -51,7 +52,7 @@ pub struct OpaqueAdapterStackRealizationEvidence {
     artifact: ArtifactId,
     entry: EntryStubId,
     boundary_contract_fingerprint: u64,
-    resolved_stack: EntryStack,
+    body_domains: ValidatedEntryStackDomainClosure,
     realization: ValidatedEntryStackRealization,
     validation_receipt: StackValidationReceiptId,
 }
@@ -68,7 +69,7 @@ pub struct DirectGeneratedEntryStackRealizationEvidence {
     artifact: ArtifactId,
     entry: EntryStubId,
     boundary_contract_fingerprint: u64,
-    resolved_stack: EntryStack,
+    body_domains: ValidatedEntryStackDomainClosure,
     realization: ValidatedEntryStackRealization,
 }
 
@@ -144,11 +145,19 @@ impl AdapterStackRealizationEvidence {
         }
     }
 
-    pub const fn resolved_stack(&self) -> EntryStack {
-        match self {
-            Self::DirectGenerated(evidence) => evidence.resolved_stack,
-            Self::OpaqueProvider(evidence) => evidence.resolved_stack,
-        }
+    /// Exact body stack domain in every admissible arrival context. This is
+    /// derived from the retained realization rather than collapsed to one
+    /// artifact-wide stack choice.
+    pub fn body_domains(&self) -> Vec<(ArrivalContextId, StackDomainRef)> {
+        let closure = match self {
+            Self::DirectGenerated(evidence) => &evidence.body_domains,
+            Self::OpaqueProvider(evidence) => &evidence.body_domains,
+        };
+        closure
+            .contexts()
+            .iter()
+            .map(|context| (context.context, context.domain))
+            .collect()
     }
 
     pub const fn realization(&self) -> &ValidatedEntryStackRealization {
@@ -222,10 +231,6 @@ impl OpaqueAdapterStackRealizationEvidence {
         self.boundary_contract_fingerprint
     }
 
-    pub const fn resolved_stack(&self) -> EntryStack {
-        self.resolved_stack
-    }
-
     pub(super) fn matches_installed_code_entry(
         &self,
         installed_code: &InstalledCode,
@@ -288,16 +293,16 @@ pub fn bind_opaque_adapter_stack_realization(
     boundary: &ValidatedBoundaryEntryPlan,
     installed_code: &InstalledCode,
     entry: EntryStubId,
-    resolved_stack: EntryStack,
     realization: ValidatedEntryStackRealization,
     validation_receipt: StackValidationReceiptId,
 ) -> Result<BoundEpochStackCompositionInput, ExternalRootDiagnostic> {
+    let body_domains = body_domain_closure(boundary.plan().state.stack, &realization)?;
     validate_bound_adapter_realization(
         summary,
         boundary,
         installed_code,
         entry,
-        resolved_stack,
+        &body_domains,
         &realization,
     )?;
 
@@ -310,7 +315,7 @@ pub fn bind_opaque_adapter_stack_realization(
         artifact: installed_code.artifact(),
         entry,
         boundary_contract_fingerprint: boundary.contract_fingerprint(),
-        resolved_stack,
+        body_domains,
         realization: realization.clone(),
         validation_receipt,
     };
@@ -336,7 +341,7 @@ pub fn bind_direct_generated_entry_stack_realization(
     boundary: &ValidatedBoundaryEntryPlan,
     installed_code: &InstalledCode,
     entry: EntryStubId,
-    resolved_stack: EntryStack,
+    body_domains: ValidatedEntryStackDomainClosure,
 ) -> Result<BoundEpochStackCompositionInput, ExternalRootDiagnostic> {
     let StackLocalEvidence::TerminalEntry(binding) = &summary.local_evidence else {
         return Err(ExternalRootDiagnostic(
@@ -349,17 +354,26 @@ pub fn bind_direct_generated_entry_stack_realization(
             "direct generated entry body evidence names a different installed entry".into(),
         ));
     }
-    let active_domain = resolved_stack_domain(resolved_stack)?;
+    if body_domains.boundary_stack() != boundary.plan().state.stack {
+        return Err(ExternalRootDiagnostic(
+            "direct generated entry stack-domain closure drifted from the boundary stack disposition"
+                .into(),
+        ));
+    }
     let realization = validate_entry_stack_realization(EntryStackRealization {
-        contexts: vec![ArrivalContextRealization {
-            context: ArrivalContextId::new(1).expect("direct generated context is nonzero"),
-            epochs: vec![EntryStackEpoch {
-                stage: EntryStackStage::Body,
-                active_domain,
-                occupancy_by_domain: Vec::new(),
-                nesting: boundary.plan().state.preemption,
-            }],
-        }],
+        contexts: body_domains
+            .contexts()
+            .iter()
+            .map(|context| ArrivalContextRealization {
+                context: context.context,
+                epochs: vec![EntryStackEpoch {
+                    stage: EntryStackStage::Body,
+                    active_domain: context.domain,
+                    occupancy_by_domain: Vec::new(),
+                    nesting: boundary.plan().state.preemption,
+                }],
+            })
+            .collect(),
     })
     .map_err(|error| {
         ExternalRootDiagnostic(format!(
@@ -372,7 +386,7 @@ pub fn bind_direct_generated_entry_stack_realization(
         boundary,
         installed_code,
         entry,
-        resolved_stack,
+        &body_domains,
         &realization,
     )?;
     Ok(BoundEpochStackCompositionInput {
@@ -394,7 +408,7 @@ pub fn bind_direct_generated_entry_stack_realization(
                 artifact: installed_code.artifact(),
                 entry,
                 boundary_contract_fingerprint: boundary.contract_fingerprint(),
-                resolved_stack,
+                body_domains,
                 realization,
             },
         ),
@@ -406,7 +420,7 @@ fn validate_bound_adapter_realization(
     boundary: &ValidatedBoundaryEntryPlan,
     installed_code: &InstalledCode,
     entry: EntryStubId,
-    resolved_stack: EntryStack,
+    body_domains: &ValidatedEntryStackDomainClosure,
     realization: &ValidatedEntryStackRealization,
 ) -> Result<(), ExternalRootDiagnostic> {
     installed_code.selected_entry_target(entry).map_err(|_| {
@@ -423,25 +437,36 @@ fn validate_bound_adapter_realization(
             "entry stack summary drifted from the boundary plan's stack disposition".into(),
         ));
     }
-    match boundary.plan().state.stack {
-        EntryStack::ProviderSelected => {}
-        fixed if fixed == resolved_stack => {}
-        _ => {
-            return Err(ExternalRootDiagnostic(
-                "resolved entry stack differs from the fixed boundary stack disposition".into(),
-            ));
-        }
+    if body_domains.boundary_stack() != boundary.plan().state.stack {
+        return Err(ExternalRootDiagnostic(
+            "entry stack domain closure drifted from the boundary stack disposition".into(),
+        ));
     }
-    let body_domain = resolved_stack_domain(resolved_stack)?;
+    if body_domains.contexts().len() != realization.realization().contexts.len() {
+        return Err(ExternalRootDiagnostic(
+            "entry stack domain closure and realization contain different arrival-context sets"
+                .into(),
+        ));
+    }
     for context in &realization.realization().contexts {
         let body = context
             .epochs
             .iter()
             .find(|epoch| epoch.stage == EntryStackStage::Body)
             .expect("validated realization has exactly one body epoch");
-        if body.active_domain != body_domain {
+        let Some(closed) = body_domains
+            .contexts()
+            .iter()
+            .find(|closed| closed.context == context.context)
+        else {
             return Err(ExternalRootDiagnostic(format!(
-                "entry stack arrival context 0x{:016x} executes its body on a domain other than the resolved entry stack",
+                "entry stack arrival context 0x{:016x} is absent from the domain closure",
+                context.context.get()
+            )));
+        };
+        if body.active_domain != closed.domain {
+            return Err(ExternalRootDiagnostic(format!(
+                "entry stack arrival context 0x{:016x} executes its body on a domain other than its exact context closure",
                 context.context.get()
             )));
         }
@@ -470,14 +495,35 @@ fn validate_bound_adapter_realization(
     Ok(())
 }
 
-fn resolved_stack_domain(stack: EntryStack) -> Result<StackDomainRef, ExternalRootDiagnostic> {
-    match stack {
-        EntryStack::Interrupted => Ok(StackDomainRef::Interrupted),
-        EntryStack::Dedicated { class } => Ok(StackDomainRef::Dedicated { class }),
-        EntryStack::ProviderSelected => Err(ExternalRootDiagnostic(
-            "provider-selected entry stack remains unresolved before epoch binding".into(),
-        )),
-    }
+fn body_domain_closure(
+    boundary_stack: EntryStack,
+    realization: &ValidatedEntryStackRealization,
+) -> Result<ValidatedEntryStackDomainClosure, ExternalRootDiagnostic> {
+    validate_entry_stack_domain_closure(
+        boundary_stack,
+        realization
+            .realization()
+            .contexts
+            .iter()
+            .map(|context| {
+                let body = context
+                    .epochs
+                    .iter()
+                    .find(|epoch| epoch.stage == EntryStackStage::Body)
+                    .expect("validated realization has exactly one body epoch");
+                ArrivalContextStackDomain {
+                    context: context.context,
+                    domain: body.active_domain,
+                }
+            })
+            .collect(),
+    )
+    .map_err(|error| {
+        ExternalRootDiagnostic(format!(
+            "entry stack body-domain closure is invalid: {}",
+            error.0
+        ))
+    })
 }
 
 fn preemption_refines(actual: Preemption, ceiling: Preemption) -> bool {
@@ -641,7 +687,11 @@ pub fn compose_bound_entry_stack_epochs<'a>(
         fingerprint.u64(evidence.artifact().normalized_identity());
         fingerprint.u64(evidence.entry().normalized_identity());
         fingerprint.u64(evidence.boundary_contract_fingerprint());
-        super::stack_demand::fingerprint_entry_stack(&mut fingerprint, evidence.resolved_stack());
+        let body_domains = match evidence {
+            AdapterStackRealizationEvidence::DirectGenerated(evidence) => &evidence.body_domains,
+            AdapterStackRealizationEvidence::OpaqueProvider(evidence) => &evidence.body_domains,
+        };
+        fingerprint.u64(body_domains.fingerprint());
         fingerprint.u64(evidence.realization().fingerprint());
         fingerprint.u64(
             evidence

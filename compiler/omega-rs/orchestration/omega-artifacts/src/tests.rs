@@ -791,7 +791,6 @@ fn external_root_manifest_is_complete_normalized_and_address_free() {
         &boundary,
         &installed_code,
         entry,
-        EntryStack::Interrupted,
         stack_realization,
         root_id(30, StackValidationReceiptId::from_normalized_identity),
     )
@@ -923,6 +922,16 @@ fn external_root_manifest_is_complete_normalized_and_address_free() {
     assert_eq!(
         parsed["roots"][0]["resources"]["stack"]["summary_evidence"][0]["adapter_origin"],
         "opaque_provider"
+    );
+    assert_eq!(
+        parsed["roots"][0]["resources"]["stack"]["summary_evidence"][0]["adapter_body_domains"][0]
+            ["context"],
+        "0x0000000000000001"
+    );
+    assert_eq!(
+        parsed["roots"][0]["resources"]["stack"]["summary_evidence"][0]["adapter_body_domains"][0]
+            ["domain"]["kind"],
+        "interrupted"
     );
     assert_eq!(
         parsed["roots"][0]["resources"]["stack"]["summary_evidence"][0]["adapter_validation_receipt"],
