@@ -79,6 +79,30 @@ pub(super) fn validate_machine(
                 operation.id,
                 ModuleError::DuplicateOperation,
             )?;
+            if let OperationKind::CallStructuralScalar {
+                requirement_obligations,
+                ..
+            } = &operation.kind
+            {
+                let Some(result) = operation.result.scalar() else {
+                    return Err(ModuleError::ScalarOperationHasUnitResult(operation.id));
+                };
+                insert_value(
+                    &mut value_types,
+                    &mut registry.values,
+                    result.id,
+                    result.scalar_type,
+                )?;
+                validate_unit_operation_static(module, machine, machines, operation)?;
+                for obligation in requirement_obligations {
+                    insert_unique(
+                        &mut registry.obligations,
+                        *obligation,
+                        ModuleError::DuplicateObligation,
+                    )?;
+                }
+                continue;
+            }
             if matches!(
                 operation.kind,
                 OperationKind::CallUnit { .. }
@@ -143,6 +167,7 @@ pub(super) fn validate_machine(
             )?;
             match operation.kind.clone() {
                 OperationKind::CallUnit { .. }
+                | OperationKind::CallStructuralScalar { .. }
                 | OperationKind::PortWrite { .. }
                 | OperationKind::EstablishTrivialAffineLocal { .. } => {
                     unreachable!("structural/effect operations were validated above")

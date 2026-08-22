@@ -265,11 +265,13 @@ fn provider_module() -> TerminalModule {
                 service,
             ),
         ],
+        float_meaning_projections: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
         evidence_package_invocations: Vec::new(),
         evidence_contract_lanes: Vec::new(),
+        closed_conformance_applications: Vec::new(),
         machines: vec![
             machine(
                 machine_id(1),

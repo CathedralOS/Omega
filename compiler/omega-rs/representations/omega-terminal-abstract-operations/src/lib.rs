@@ -111,6 +111,13 @@ pub enum TerminalAbstractOperation {
         structural_arguments: Vec<StructuralArgument>,
         claim_transfers: Vec<ClaimTransfer>,
     },
+    CallStructuralScalar {
+        psi_operation: OperationId,
+        result: TerminalAbstractResult,
+        callee: MachineId,
+        structural_arguments: Vec<StructuralArgument>,
+        claim_transfers: Vec<ClaimTransfer>,
+    },
     BoundaryCall {
         psi_operation: OperationId,
         result: Option<TerminalAbstractResult>,

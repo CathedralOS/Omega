@@ -1,16 +1,18 @@
 use psi_core::{
     BlockId, BoundaryMachineId, ClaimId, ContentAlgebra, ContentAlgebraKind, ContentConservation,
     ContentDomainId, ContentPlaceSegment, ContentPlaceVersion, ContentProjectionIdentity,
-    ContentStructuralPlace, ContentTerm, ContractId, EdgeId, IntegerSign, IntegerType,
-    IntegerValue, MachineId, ObligationId, OperationId, PlaceId, Proposition, PropositionId,
-    ScalarTerm, ScalarType, ServiceId, StructuralCaseId, StructuralDomainId, StructuralFieldId,
-    StructuralPlaceKind, StructuralTypeId, ValueId,
+    ContentStructuralPlace, ContentTerm, ContractId, EdgeId, IeeeFloatFormat, IntegerSign,
+    IntegerType, IntegerValue, MachineId, ObligationId, OperationId, PlaceId, Proposition,
+    PropositionId, ScalarTerm, ScalarType, ServiceId, StructuralCaseId, StructuralDomainId,
+    StructuralFieldId, StructuralPlaceKind, StructuralTypeId, ValueId,
 };
 use psi_terminal::{
     BindingRelevance, Block, BoundaryMachineDeclaration, ClaimContentProjection, ClaimTransfer,
     CompletionReceipt, ContentEntryClaim, ContentIdentityReshuffle, ContentPartitionComposition,
     ContentPlaceSubstitution, ContractClause, CrashCause, EntryClaim, EvidenceInterfaceIdentity,
-    MachineContract, NominalAffineCleanup, Operation, OperationKind, OperationResult,
+    FloatMeaningProjection, FloatMeaningProjectionOperation, FloatProjectionInput,
+    FloatProjectionInputId, MachineContract, NominalAffineCleanup, Operation, OperationKind,
+    OperationResult, ProofOnlyValueType, ProofValueDeclaration, ProofValueId,
     PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
     PropositionBinderArgumentKind, PropositionBinderDeclaration, PropositionBinderKind,
     PropositionDeclaration, PropositionEvidence, ServiceDeclaration, StructuralAffineDiscard,
@@ -31,7 +33,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     let bytes = encode_module(&module).expect("fixture should encode");
 
     assert_eq!(&bytes[..8], b"PSITERM\0");
-    assert_eq!(&bytes[8..10], 18_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 19_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 
@@ -39,12 +41,61 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.vocabulary_marker, VocabularyMarker::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "6db8d70ee0854d22e5c3021280fa45f7d066d37520965c2cea9f0ecb885d2823"
+        "547c913b339e1f27aae28a1470820ee1919e7544f7e7d5cf5173b53f4fdc89ec"
     );
     assert_eq!(
         identity.program_fingerprint,
         semantic_fingerprint(&module).unwrap()
     );
+}
+
+#[test]
+fn proof_only_float_projections_round_trip_and_reject_tampering() {
+    let mut module = fixture();
+    module.float_meaning_projections = vec![
+        FloatMeaningProjection {
+            result: ProofValueDeclaration {
+                id: ProofValueId(0),
+                value_type: ProofOnlyValueType::FloatMeaning,
+            },
+            source: FloatProjectionInput {
+                id: FloatProjectionInputId(0),
+                format: IeeeFloatFormat::Binary32,
+            },
+            operation: FloatMeaningProjectionOperation::Meaning32,
+        },
+        FloatMeaningProjection {
+            result: ProofValueDeclaration {
+                id: ProofValueId(1),
+                value_type: ProofOnlyValueType::FloatMeaning,
+            },
+            source: FloatProjectionInput {
+                id: FloatProjectionInputId(1),
+                format: IeeeFloatFormat::Binary64,
+            },
+            operation: FloatMeaningProjectionOperation::Meaning64,
+        },
+    ];
+    let bytes = encode_module(&module).expect("proof-only projections encode");
+    assert_eq!(decode_module(&bytes), Ok(module.clone()));
+
+    let mut reordered = module.clone();
+    reordered.float_meaning_projections.swap(0, 1);
+    assert!(matches!(
+        encode_module(&reordered),
+        Err(CodecError::NonCanonicalOrder(
+            "float-meaning projections by dense proof value and source IDs"
+        ))
+    ));
+
+    let mut cross_format = module;
+    cross_format.float_meaning_projections[0].source.format = IeeeFloatFormat::Binary64;
+    assert!(matches!(
+        encode_module(&cross_format),
+        Err(CodecError::InvalidModule(
+            psi_terminal_verifier::ModuleError::InvalidFloatMeaningProjection { .. }
+        ))
+    ));
 }
 
 #[test]
@@ -143,8 +194,8 @@ fn payload_sum_shape_round_trips_exact_fields_and_requires_canonical_order() {
 fn partial_affine_unit_return_round_trips_exact_path_and_leaf_type() {
     let module = partial_affine_fixture();
     let bytes = encode_module(&module).expect("partial affine return should encode");
-    assert_eq!(&bytes[8..10], 18_u16.to_le_bytes());
-    assert_eq!(&bytes[10..12], 20_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 19_u16.to_le_bytes());
+    assert_eq!(&bytes[10..12], 21_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 }
@@ -153,8 +204,8 @@ fn partial_affine_unit_return_round_trips_exact_path_and_leaf_type() {
 fn nominal_affine_unit_return_round_trips_exact_root_type_and_cleanup_machine() {
     let module = nominal_affine_fixture();
     let bytes = encode_module(&module).expect("nominal affine return should encode");
-    assert_eq!(&bytes[8..10], 18_u16.to_le_bytes());
-    assert_eq!(&bytes[10..12], 20_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 19_u16.to_le_bytes());
+    assert_eq!(&bytes[10..12], 21_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 }
@@ -185,7 +236,7 @@ fn scalar_return_round_trips_nominal_affine_cleanup_action() {
     };
 
     let bytes = encode_module(&module).expect("scalar nominal cleanup should encode");
-    assert_eq!(&bytes[8..10], 18_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 19_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 }
@@ -630,6 +681,7 @@ fn trivial_affine_local_declaration_and_establishment_round_trip_canonically() {
         services: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
+        float_meaning_projections: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
@@ -760,7 +812,7 @@ fn structural_effect_foundation_round_trips_and_has_stable_identity() {
     let module = structural_effect_fixture();
     let bytes = encode_module(&module).expect("structural/effect foundation should encode");
 
-    assert_eq!(&bytes[10..12], 20_u16.to_le_bytes());
+    assert_eq!(&bytes[10..12], 21_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 
@@ -1615,10 +1667,10 @@ fn decoder_rejects_noncanonical_or_ambiguous_bytes() {
     assert_eq!(decode_module(&trailing), Err(CodecError::TrailingBytes(1)));
 
     let mut future_format = bytes.clone();
-    future_format[8..10].copy_from_slice(&19_u16.to_le_bytes());
+    future_format[8..10].copy_from_slice(&20_u16.to_le_bytes());
     assert_eq!(
         decode_module(&future_format),
-        Err(CodecError::UnsupportedFormatMarker(19))
+        Err(CodecError::UnsupportedFormatMarker(20))
     );
 
     let mut stale_format = bytes.clone();
@@ -1792,6 +1844,7 @@ fn partial_affine_fixture() -> TerminalModule {
         services: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
+        float_meaning_projections: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
@@ -2006,6 +2059,7 @@ fn nominal_affine_fixture() -> TerminalModule {
         services: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
+        float_meaning_projections: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
@@ -2169,6 +2223,7 @@ fn structural_effect_fixture() -> TerminalModule {
             published_service_ceiling: vec![service],
         }],
         provider_candidates: Vec::new(),
+        float_meaning_projections: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
@@ -2392,6 +2447,7 @@ fn unit_fixture() -> TerminalModule {
         services: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
+        float_meaning_projections: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
@@ -2446,6 +2502,7 @@ fn fixture() -> TerminalModule {
         services: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
+        float_meaning_projections: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
@@ -2585,6 +2642,7 @@ fn content_conservation_fixture(vocabulary_marker: VocabularyMarker) -> Terminal
         services: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
+        float_meaning_projections: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
@@ -2802,6 +2860,7 @@ fn call_fixture() -> TerminalModule {
         services: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
+        float_meaning_projections: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),

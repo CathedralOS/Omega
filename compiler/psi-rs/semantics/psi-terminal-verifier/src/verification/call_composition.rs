@@ -132,6 +132,70 @@ pub(super) fn compose_call_operation(
                 );
             }
         }
+        (
+            CallResultRule::ScalarCalleeResult,
+            OperationKind::CallStructuralScalar {
+                callee,
+                structural_arguments,
+                requirement_obligations,
+                ..
+            },
+        ) => {
+            let callee = machines
+                .get(callee)
+                .copied()
+                .expect("validated structural scalar-call target exists");
+            let structural_substitutions = callee
+                .structural_parameters
+                .iter()
+                .zip(structural_arguments)
+                .map(|(parameter, argument)| {
+                    (
+                        parameter.place,
+                        (
+                            argument.place,
+                            crate::validation::structural_argument_canonical_prefix(
+                                module, machine, argument,
+                            )
+                            .expect("validated structural argument has a canonical path"),
+                        ),
+                    )
+                })
+                .collect::<BTreeMap<_, _>>();
+            let result_substitution = BTreeMap::from([(
+                callee
+                    .result
+                    .scalar()
+                    .expect("validated structural scalar-call target has a scalar result")
+                    .id,
+                value_term(operation.result.expect_scalar().id, value_types),
+            )]);
+            let substitute = |proposition: &Proposition| {
+                substitute_proposition_values(
+                    &substitute_proposition_structural_places(
+                        proposition,
+                        &structural_substitutions,
+                    ),
+                    &result_substitution,
+                )
+            };
+            for (required, obligation) in
+                callee.contract.requires.iter().zip(requirement_obligations)
+            {
+                operation_obligations.push(ReconstructedOperationObligation {
+                    obligation: Obligation {
+                        id: *obligation,
+                        proposition: substitute(required),
+                        class: ObligationClass::Derivable,
+                    },
+                    semantic_axioms: axioms.clone(),
+                    canonical_certificate: false,
+                });
+            }
+            for guarantee in &callee.contract.ensures {
+                push_unique(axioms, substitute(&guarantee.proposition));
+            }
+        }
         (CallResultRule::BoundaryDeclaredResult, OperationKind::BoundaryCall { .. }) => {}
         _ => {
             return Err(ModuleError::OperationSemanticSchema(

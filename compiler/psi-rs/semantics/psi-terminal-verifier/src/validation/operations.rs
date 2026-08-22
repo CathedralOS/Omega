@@ -429,6 +429,7 @@ pub(super) fn validate_operation_operands(
         OperationKind::SaturatingIntegerRemainder { .. } => None,
         OperationKind::Call { .. }
         | OperationKind::CallUnit { .. }
+        | OperationKind::CallStructuralScalar { .. }
         | OperationKind::BoundaryCall { .. }
         | OperationKind::PortWrite { .. }
         | OperationKind::EstablishTrivialAffineLocal { .. } => None,

@@ -6,6 +6,8 @@ use psi_language_semantics::{
     CarryPolicy, Multiplicity, SemanticDomainId, ServiceReachPlan, ServiceReachSummary,
 };
 
+use crate::CheckedScalarExpression;
+
 /// Stable machine identities and names used to select the bootstrap terminal
 /// producer without reopening the typed machine table.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -313,6 +315,10 @@ pub struct CheckedTraitOperatorScalarReturnMachinePlan {
     pub requirement: SymbolHandle,
     pub realization_machine: SymbolHandle,
     pub realization_state: SymbolHandle,
+    /// Source-independent checked body of the exact selected realization.
+    /// This is retained here because an unselected conformance member is not
+    /// otherwise part of the ordinary terminal scalar-expression roots.
+    pub realization_return_expression: CheckedScalarExpression,
     /// Authored source-parameter positions in fixed-token operand order.
     pub argument_source_positions: Vec<u32>,
 }

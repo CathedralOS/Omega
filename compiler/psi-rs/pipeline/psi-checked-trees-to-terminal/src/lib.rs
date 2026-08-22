@@ -158,7 +158,9 @@ use shared_runtime_parameters::{
     shared_boolean_runtime_parameters, valid_shared_boolean_runtime_inputs,
 };
 use structural_return::lower_structural_return_machine;
-use structural_scalar_return::lower_structural_scalar_return_machine;
+use structural_scalar_return::{
+    lower_structural_scalar_return_machine, lower_trait_operator_scalar_return_machine,
+};
 use structural_types::{
     lower_structural_type_plans, retain_additional_structural_types,
     terminal_byte_sequence_carrier, terminal_structural_field_type,
@@ -756,12 +758,28 @@ pub fn lower_machine(
         return Err(LoweringError::AmbiguousMachineName(machine_name.to_owned()));
     }
     let mut lowered = lower_selected_machine(checked, selection)?;
-    let source_machines = if selection.signature == CheckedTerminalSignatureEligibility::Eligible {
+    let source_machines = if let Some(plan) = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .trait_operator_for_machine(selection.machine)
+    {
+        vec![plan.machine, plan.realization_machine]
+    } else if selection.signature == CheckedTerminalSignatureEligibility::Eligible {
         checked_scalar_call_closure(checked, selection.machine)?
     } else {
         vec![selection.machine]
     };
     lower_closed_conformance_applications(checked, &source_machines, &mut lowered.semantic_module)?;
+    lowered.semantic_module.float_meaning_projections = checked
+        .facts
+        .proof
+        .float_meaning_projections
+        .iter()
+        .copied()
+        .map(lower_float_meaning_projection)
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(LoweringError::InvalidFloatMeaningProjection)?;
     lower_and_install_evidence_artifacts(checked, selection.machine, &mut lowered)?;
     psi_terminal_verifier::validate_module(&lowered.semantic_module)
         .map_err(LoweringError::InvalidTerminalModule)?;
@@ -783,6 +801,14 @@ fn lower_selected_machine(
     checked: &CheckedTrees,
     selection: &CheckedTerminalMachineSelection,
 ) -> Result<LoweredTerminalPsi, LoweringError> {
+    if let Some(plan) = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .trait_operator_for_machine(selection.machine)
+    {
+        return lower_trait_operator_scalar_return_machine(checked, plan);
+    }
     // A result-bearing structural plan owns both the scalar result and its
     // post-result cleanup.  It must win over the overlapping Unit-only
     // nominal-cleanup eligibility for the same attached machine.
@@ -1000,6 +1026,7 @@ pub enum LoweringError {
     DebugSemanticCodec(psi_terminal_codec::CodecError),
     InvalidDebugMap(psi_terminal_codec::DebugMapError),
     InvalidTerminalModule(psi_terminal_verifier::ModuleError),
+    InvalidFloatMeaningProjection(FloatMeaningProjectionLoweringError),
     OperationProofUnavailable(ObligationId),
     Unsupported(&'static str),
     InvalidPsiIntegerType,

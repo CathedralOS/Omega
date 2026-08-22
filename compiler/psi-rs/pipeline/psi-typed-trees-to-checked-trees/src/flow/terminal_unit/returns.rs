@@ -489,6 +489,31 @@ fn build_trait_operator_scalar_return_machine(
     {
         return None;
     }
+    let realization_machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == candidate.realization_machine_symbol)?;
+    let [realization_state] = program.machine_states(realization_machine) else {
+        return None;
+    };
+    if realization_state.symbol != candidate.realization_state_symbol {
+        return None;
+    }
+    let [StatementNode::Expression(realization_expression)] = program
+        .statement_table
+        .statements(realization_state.statement_nodes)
+    else {
+        return None;
+    };
+    let realization_return_expression = CheckedScalarExpression::Boolean(Box::new(
+        crate::values::lower_machine_parameter_boolean_expression(
+            program,
+            &facts.operators,
+            realization_machine,
+            *realization_expression,
+            &[],
+        )?,
+    ));
 
     let binders = machine_binders(program, machine);
     let attachment_type_identity = machine
@@ -583,6 +608,7 @@ fn build_trait_operator_scalar_return_machine(
         requirement: candidate.trait_requirement_symbol,
         realization_machine: candidate.realization_machine_symbol,
         realization_state: candidate.realization_state_symbol,
+        realization_return_expression,
         argument_source_positions,
     })
 }

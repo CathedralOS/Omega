@@ -31,6 +31,7 @@ mod control_flow;
 mod crash;
 mod error;
 mod evidence;
+mod float_meaning;
 mod foundation;
 mod frontier;
 mod machine;
@@ -122,6 +123,7 @@ fn validate_module_with_policy(
     validate_proposition_vocabulary(module)?;
     validate_structural_foundation(module)?;
     validate_closed_conformance_applications(module)?;
+    float_meaning::validate_float_meaning_projections(module)?;
 
     let mut registry = IdRegistry::default();
     for machine in &module.machines {

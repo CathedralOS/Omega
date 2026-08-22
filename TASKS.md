@@ -4001,6 +4001,16 @@ Owners:
   or deleting report viewers for speed. Further work should target repeated
   Stage 05 semantic compilation/search and reuse checked-report receipts where
   one owner currently recompiles the same frontend.
+  A follow-up harness audit measured the already-built exact canary at 0.02s,
+  warm Cargo-filtered runs at 0.08–0.12s, and a schema-fanout `--no-run`
+  rebuild/relink at 5.03s with 9.74s user CPU. Low-CPU multi-second outliers are
+  shared-target/Cargo-lock waits; high-CPU ones are dependency rebuilds of the
+  single 49,481-line, 2.08MB canary integration target. The 46GB shared debug
+  cache is large but not in the previously pathological range. The smallest
+  justified optimization is coordinated, batched focused gates after shared
+  schemas stabilize; per-agent target directories, cache cleaning, test-target
+  splitting, report-viewer deletion, and an Arena/PagedArena rewrite remain
+  unsupported by the measurements.
   Five further authored-root lifetime/wire executions—method-view writes after
   last use, chained view-of-view writes, shrinking-slice recursion, primitive
   wire encoding, and wire era discrimination—now launch only from exact checked-
@@ -4337,6 +4347,13 @@ Owners:
   and citation order, per-alias landing order, producer-only citation custody,
   direct-before-alias precedence, proof shapes, rejection behavior, and the
   fixed affine-literal frontier remain unchanged.
+  Direct affine-root candidate selection now uses paired side-local stateless
+  functions rather than one-shot candidate structs. Production independently
+  walks cited assumptions before semantic axioms and retains citation custody;
+  reconstruction independently walks requirements before semantic axioms.
+  Both preserve exact LessOrEqual filtering, left-before-right Value endpoint
+  order, direct custody completion, proof shape, rejection behavior, and the
+  fixed affine evidence frontier.
   Five authored-root text/result executions—stored and value-position text
   equality, branching callee chains, bind-first recursive results, and
   recursive guard/transition-result roles—now launch solely through exact
@@ -4396,6 +4413,13 @@ Owners:
   checked-report executable receipts while preserving literal status 70 and
   all nested-extent, distinct-layout, named-value, and expression-
   specialization diagnostics. The 795 rooted/3 legacy exact-owner pins and all
+  established fences remain unchanged.
+  Five authored-root const-fact and dispatch executions—const-evaluated machine
+  calls, const-only where-fact discharge, machine-backed const-domain facts,
+  signed const-data specialization, and trait-default dispatch—now launch
+  solely through exact checked-report executable receipts while preserving
+  literal status 70 and all specialization, fact-discharge, and written-
+  override diagnostics. The 795 rooted/3 legacy exact-owner pins and all
   established fences remain unchanged.
   Final
   replay now also retains an exact
@@ -4971,7 +4995,14 @@ Remaining N6/N8 work:
   Checked binding independently replays the exact path, signature, symbol,
   argument identity, and format before transactionally publishing dense
   source-handle-free projection rows; operand and cross-format substitution
-  reject. Module/codec emission and proposition consumption remain open.
+  reject. Terminal module lowering now emits every checked dense projection
+  row into a dedicated proof-only section. Vocabulary 21/module format 19
+  encode the exact result/source IDs, IEEE format, and closed operation tag;
+  canonical validation requires dense paired identities, and module
+  verification independently reconstructs every catalog row while rejecting
+  identity, order, tag, and cross-format drift. The rows remain outside
+  executable operations, runtime values, interpretation, and native lowering.
+  Proposition consumption remains open.
 - Then migrate suffix law discovery to propositions plus explicit conformances,
   and expand the checked `Nat`/`Int`/`Rat`/Cauchy/approximation corpus. `Real`
   remains proof-only and core-level.
@@ -5021,16 +5052,27 @@ boundary without its corresponding checked law.
   and reverse-consumer gates are green. The checked interpreter now dispatches
   fixed tokens directly through the retained realization machine/state symbols,
   including exact selected-conformance precedence over an unrelated visible
-  conformance; it performs no name or ambient-conformance lookup. Terminal and
-  native lowering of the retained realization row remain open. The first
+  conformance; it performs no name or ambient-conformance lookup. Terminal
+  closure now consumes the retained realization row; native lowering remains
+  open. The first
   execution prerequisite is now explicit: checked plans retain a direct
   structural-scalar fixed-token return only when its whole nominal operands
   are an exact parameter permutation, and bind that site to the selected
   conformance declaration, closed-application fingerprint, requirement, and
-  realization machine/state. The plan contains no expression handle and never
-  reopens visible conformances. Terminal still needs a structural-argument,
-  scalar-result call operation and closure before native lowering can execute
-  the row.
+  realization machine/state. The selected realization's source-independent
+  checked scalar body is retained alongside those identities because an
+  otherwise unselected conformance member is not part of the ordinary scalar-
+  expression roots; no typed expression handle crosses the boundary and the
+  producer never reopens visible conformances. Terminal vocabulary now has a
+  distinct exact in-module structural-argument/scalar-result call row with
+  claim transfer, structural requires/ensures/crash composition, fixed fuel,
+  canonical codec tag 39, and structural-frontier custody. Checked-to-Terminal
+  lowering emits a two-machine owner/realization closure in disjoint identity
+  namespaces, retains the closed conformance application, and round-trips the
+  exact whole-root operand permutation. The verifier, fixed-fuel analysis, and
+  target-neutral interpreter consume the row; Omega projects it explicitly to
+  an abstract operation but native target lowering still rejects it pending a
+  result-bearing structural-call ABI operation.
   A concrete direct wrapper may crown only one token meaning per normalized
   operand signature; alternative conformances remain named explicit calls.
 

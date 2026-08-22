@@ -8,7 +8,9 @@ pub(super) fn validate_call_graph(module: &TerminalModule) -> Result<(), ModuleE
             let mut callees = BTreeSet::new();
             for operation in machine.blocks.iter().flat_map(|block| &block.operations) {
                 match &operation.kind {
-                    OperationKind::Call { callee, .. } | OperationKind::CallUnit { callee, .. } => {
+                    OperationKind::Call { callee, .. }
+                    | OperationKind::CallUnit { callee, .. }
+                    | OperationKind::CallStructuralScalar { callee, .. } => {
                         callees.insert(*callee);
                     }
                     OperationKind::BoundaryCall { boundary, .. } => {

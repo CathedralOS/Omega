@@ -49,8 +49,10 @@ use psi_terminal::{
     ContentPlaceSubstitution, ContractClause, CrashCause, CrashPredicateTerm, CrashRouteBucket,
     CrashRouteGuard, EntryClaim, EvidenceContractLane, EvidenceContractLaneKind,
     EvidenceInterfaceIdentity, EvidencePackageInvocation, EvidencePackageOutputBinding,
-    EvidencePackageRuntimeCall, EvidenceTermDeclaration, MachineContract, NominalAffineCleanup,
-    Operation, OperationKind, OperationResult, PropositionApplicationIdentity,
+    EvidencePackageRuntimeCall, EvidenceTermDeclaration, FloatMeaningProjection,
+    FloatMeaningProjectionOperation, FloatProjectionInput, FloatProjectionInputId, MachineContract,
+    NominalAffineCleanup, Operation, OperationKind, OperationResult, ProofOnlyValueType,
+    ProofValueDeclaration, ProofValueId, PropositionApplicationIdentity,
     PropositionBinderArgumentIdentity, PropositionBinderArgumentKind, PropositionBinderDeclaration,
     PropositionBinderKind, PropositionDeclaration, PropositionEvidence,
     ProviderCandidateConformance, ProviderParameterRefinement, ProviderSignatureParameter,
@@ -67,7 +69,7 @@ use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 
 const MAGIC: &[u8; 8] = b"PSITERM\0";
-const FORMAT_MARKER: u16 = 18;
+const FORMAT_MARKER: u16 = 19;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
@@ -259,6 +261,22 @@ fn validate_canonical_order(module: &TerminalModule) -> Result<(), CodecError> {
             "provider candidates by exact conformance identity",
         ));
     }
+    if module
+        .float_meaning_projections
+        .iter()
+        .enumerate()
+        .any(|(index, projection)| {
+            let Ok(index) = u32::try_from(index) else {
+                return true;
+            };
+            projection.result.id != ProofValueId(index)
+                || projection.source.id != FloatProjectionInputId(index)
+        })
+    {
+        return Err(CodecError::NonCanonicalOrder(
+            "float-meaning projections by dense proof value and source IDs",
+        ));
+    }
     if !strictly_increasing(module.proposition_declarations.iter().cloned().map(
         |mut declaration| {
             declaration.id = PropositionId::new(1).expect("one is nonzero");
@@ -353,6 +371,10 @@ fn validate_canonical_order(module: &TerminalModule) -> Result<(), CodecError> {
                 | OperationKind::CallUnit {
                     crash_continuations,
                     ..
+                }
+                | OperationKind::CallStructuralScalar {
+                    crash_continuations,
+                    ..
                 } => Some(crash_continuations),
                 _ => None,
             };
@@ -366,6 +388,9 @@ fn validate_canonical_order(module: &TerminalModule) -> Result<(), CodecError> {
             }
             match &operation.kind {
                 OperationKind::CallUnit {
+                    claim_transfers, ..
+                }
+                | OperationKind::CallStructuralScalar {
                     claim_transfers, ..
                 } if !strictly_increasing(claim_transfers.iter().copied()) => {
                     return Err(CodecError::NonCanonicalOrder(
@@ -985,6 +1010,43 @@ fn validate_operation_foundation(
                     .map(|transfer| (transfer.claim, transfer.argument_index)),
             )?;
         }
+        OperationKind::CallStructuralScalar {
+            callee,
+            structural_arguments,
+            claim_transfers,
+            ..
+        } => {
+            let Some(callee) = module
+                .machines
+                .iter()
+                .find(|candidate| candidate.id == *callee)
+            else {
+                return malformed("structural scalar call references an unknown callee");
+            };
+            if callee.parameters.len() != 0
+                || operation.result.scalar().map(|result| result.scalar_type)
+                    != callee.result.scalar().map(|result| result.scalar_type)
+                || operation.result == OperationResult::Unit
+                || structural_arguments.len() != callee.structural_parameters.len()
+            {
+                return malformed(
+                    "structural scalar call has the wrong callee signature or structural arity",
+                );
+            }
+            validate_structural_arguments(
+                module,
+                machine,
+                structural_arguments,
+                &callee.structural_parameters,
+            )?;
+            validate_claim_indices(
+                machine,
+                structural_arguments,
+                claim_transfers
+                    .iter()
+                    .map(|transfer| (transfer.claim, transfer.argument_index)),
+            )?;
+        }
         OperationKind::BoundaryCall {
             boundary,
             structural_arguments,
@@ -1512,6 +1574,25 @@ fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError> {
     writer.len("provider candidates", module.provider_candidates.len())?;
     for candidate in &module.provider_candidates {
         encode_provider_candidate(&mut writer, candidate)?;
+    }
+    writer.len(
+        "float-meaning projections",
+        module.float_meaning_projections.len(),
+    )?;
+    for projection in &module.float_meaning_projections {
+        writer.u32(projection.result.id.0);
+        writer.u8(match projection.result.value_type {
+            ProofOnlyValueType::FloatMeaning => 1,
+        });
+        writer.u32(projection.source.id.0);
+        writer.u8(match projection.source.format {
+            IeeeFloatFormat::Binary32 => 1,
+            IeeeFloatFormat::Binary64 => 2,
+        });
+        writer.u8(match projection.operation {
+            FloatMeaningProjectionOperation::Meaning32 => 1,
+            FloatMeaningProjectionOperation::Meaning64 => 2,
+        });
     }
     writer.len(
         "proposition declarations",
@@ -2294,6 +2375,27 @@ fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), CodecError> {
                 writer.id(callee);
                 encode_structural_arguments(writer, &structural_arguments)?;
                 writer.len("unit-call claim transfers", claim_transfers.len())?;
+                for transfer in claim_transfers {
+                    writer.id(transfer.claim);
+                    writer.u32(transfer.argument_index);
+                }
+                encode_obligation_ids(writer, &requirement_obligations)?;
+                encode_crash_routes(writer, &crash_continuations)?;
+            }
+            OperationKind::CallStructuralScalar {
+                callee,
+                structural_arguments,
+                claim_transfers,
+                requirement_obligations,
+                crash_continuations,
+            } => {
+                writer.u8(39);
+                writer.id(callee);
+                encode_structural_arguments(writer, &structural_arguments)?;
+                writer.len(
+                    "structural-scalar-call claim transfers",
+                    claim_transfers.len(),
+                )?;
                 for transfer in claim_transfers {
                     writer.id(transfer.claim);
                     writer.u32(transfer.argument_index);
@@ -3423,6 +3525,35 @@ fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModule, CodecEr
     })?;
     let boundary_machines = decode_counted(reader, decode_boundary_machine)?;
     let provider_candidates = decode_counted(reader, decode_provider_candidate)?;
+    let float_meaning_projections = decode_counted(reader, |reader| {
+        Ok(FloatMeaningProjection {
+            result: ProofValueDeclaration {
+                id: ProofValueId(reader.u32()?),
+                value_type: match reader.u8()? {
+                    1 => ProofOnlyValueType::FloatMeaning,
+                    tag => return Err(CodecError::InvalidTag("ProofOnlyValueType", tag)),
+                },
+            },
+            source: FloatProjectionInput {
+                id: FloatProjectionInputId(reader.u32()?),
+                format: match reader.u8()? {
+                    1 => IeeeFloatFormat::Binary32,
+                    2 => IeeeFloatFormat::Binary64,
+                    tag => return Err(CodecError::InvalidTag("IeeeFloatFormat", tag)),
+                },
+            },
+            operation: match reader.u8()? {
+                1 => FloatMeaningProjectionOperation::Meaning32,
+                2 => FloatMeaningProjectionOperation::Meaning64,
+                tag => {
+                    return Err(CodecError::InvalidTag(
+                        "FloatMeaningProjectionOperation",
+                        tag,
+                    ));
+                }
+            },
+        })
+    })?;
     let count = reader.count()?;
     let mut proposition_declarations = Vec::with_capacity(count as usize);
     for _ in 0..count {
@@ -3543,6 +3674,7 @@ fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModule, CodecEr
         services,
         boundary_machines,
         provider_candidates,
+        float_meaning_projections,
         proposition_declarations,
         proposition_applications,
         evidence_terms,
@@ -4246,6 +4378,18 @@ fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError> {
             },
             37 => OperationKind::EstablishTrivialAffineLocal {
                 destination: reader.id("PlaceId")?,
+            },
+            39 => OperationKind::CallStructuralScalar {
+                callee: reader.id("MachineId")?,
+                structural_arguments: decode_structural_arguments(reader)?,
+                claim_transfers: decode_counted(reader, |reader| {
+                    Ok(ClaimTransfer {
+                        claim: reader.id("ClaimId")?,
+                        argument_index: reader.u32()?,
+                    })
+                })?,
+                requirement_obligations: decode_ids(reader, "ObligationId")?,
+                crash_continuations: decode_crash_routes(reader)?,
             },
             tag => return Err(CodecError::InvalidTag("OperationKind", tag)),
         };
