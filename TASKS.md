@@ -593,6 +593,13 @@ Owners:
   the field inventory before applying geometry. Presentation-name drift cannot
   redirect a plan, while same-cardinality data-symbol substitution rejects fail
   closed; no typed-content or placement authority is minted.
+  Plan-laid layouts now also retain the exact source schema and ordered schema-
+  field identities plus the exact nominal policy and build-time `Policy::plan`
+  machine that produced their geometry. A dedicated validation pass replays
+  those producer bindings together with synthesized data/field custody before
+  any layout consumer runs. Presentation-name drift remains nonsemantic;
+  schema, policy, plan-machine, or synthesized-data substitution rejects fail
+  closed without re-evaluating policy code or minting materialization authority.
 - Keep alias-exclusion admission separate from access rights; `&mut` does not
   claim exclusivity against a device. Sealed primitive events now specialize
   linearly into Stable read/take/write/swap, External read/take/write, or one
