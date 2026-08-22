@@ -757,9 +757,9 @@ participate by position and need not force the public parameter to be spelled
 `self`. Reordering,
 duplication, locals/constants, arity drift, borrowed quotient shells, and
 carrier/result drift fail closed. Owner static/`const` correspondence,
-contract-fact substitution, aliases, and normalized multi-state result flow
-remain later obligations, so this direct
-correspondence still grants no execution authority.
+contract-fact substitution, conditional/crash result flow, and the selected
+`Respects` contract remain later obligations, so this direct correspondence
+still grants no execution authority.
 
 Representative static applications now have a separate non-authoritative
 closure check. The selected entry's declaration telescope is paired exactly
@@ -809,10 +809,7 @@ initializer, every intervening statement must directly name the preceding
 local, and the state's final expression must directly name the last local.
 Mutable or type-drifted locals, symbol reuse, nesting, unrelated statements,
 assignments, transitions, and adapted expressions fail closed. Either accepted
-shape records only one unchanged fallthrough result edge. It does not prove
-that every normal exit returns the value unchanged: transition exits,
-forwarding states, and multi-state result flow still require the normalized
-result-flow judgment and remain behind the global non-executable fence.
+shape records one unchanged fallthrough result edge.
 
 One closed owner shape can now strengthen that edge without crossing the
 fence. When the owner machine and state symbols are each exact-unique, the
@@ -820,10 +817,26 @@ machine has exactly that state, and the state contains no transition, the
 non-authoritative plan records complete transition-free single-state normal-
 result coverage. A duplicate owner identity, second state, or any transition
 rejects this stronger certificate and retains at most the previously derived
-fallthrough edge. The certificate says nothing about effects, termination,
-contract correspondence, the selected `Respects` conformance, checked/terminal
-retention, or execution; transition and forwarding-state coverage remain later
-normalized judgments.
+fallthrough edge. A finite sibling-state graph can prove the same complete
+coverage when every non-result state contains exactly one unconditional
+ordinary named transition, every target is a unique state in the same machine,
+and every path reaches the unchanged transition-free result state. The
+certificate retains every exact source/target edge. Conditional or crash
+transitions, continuations, extra statements, foreign targets, cycles, and
+duplicate identities reject; validation performs one graph judgment rather
+than adding a verifier for each hop count.
+
+The rejecting request path also consumes the existing recursive operational
+and service-reach fixed points. It retains an exact representative purity
+certificate only when inferred transitive service reach is empty, suspension
+and blocking are false, the representative telescope contains no mutable/out
+parameter, and every concrete target in its reachable call closure resolves.
+This is the shared whole-call-graph inference, not a second expression-local
+effect analysis. Unconditional checked termination is retained independently;
+progress-profile premises do not satisfy that fence. Neither result-flow,
+purity, nor termination certificates prove contract correspondence, the
+selected `Respects` clauses, custody preservation, checked/terminal retention,
+or executable admission.
 
 Acceptance requires:
 
