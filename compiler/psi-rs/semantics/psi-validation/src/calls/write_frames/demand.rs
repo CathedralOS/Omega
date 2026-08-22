@@ -226,15 +226,51 @@ impl<'program> CallFrameResolver<'program> {
         {
             return NormalizedWriteFrame::opaque();
         }
-        let mut active_states = vec![state.symbol];
         let mut complete_state_summaries = Vec::new();
+        self.inferred_state_write_frame_with_summaries(
+            machine,
+            state,
+            &mut complete_state_summaries,
+        )
+    }
+
+    /// Body-derived frames for every state in one machine, in source order.
+    /// Completed acyclic state summaries are independent of the requesting
+    /// root, so the batch reuses the summarizer's existing exact memo across
+    /// sibling queries. Opaque and cycle-permutation fallbacks are not entered
+    /// into that memo and therefore retain their one-shot fail-closed behavior.
+    pub fn inferred_machine_state_write_frames(
+        &self,
+        machine: &'program Machine,
+    ) -> Vec<NormalizedWriteFrame> {
+        let mut complete_state_summaries = Vec::new();
+        self.program
+            .machine_states(machine)
+            .iter()
+            .map(|state| {
+                self.inferred_state_write_frame_with_summaries(
+                    machine,
+                    state,
+                    &mut complete_state_summaries,
+                )
+            })
+            .collect()
+    }
+
+    fn inferred_state_write_frame_with_summaries(
+        &self,
+        machine: &'program Machine,
+        state: &'program State,
+        complete_state_summaries: &mut Vec<(SymbolHandle, Vec<String>)>,
+    ) -> NormalizedWriteFrame {
+        let mut active_states = vec![state.symbol];
         let relative_paths = summarize_state_written_paths(
             self.program,
             machine,
             state,
             &self.symbols,
             &mut active_states,
-            &mut complete_state_summaries,
+            complete_state_summaries,
         )
         .or_else(|| {
             summarize_state_written_paths_with_permuted_cycles(
