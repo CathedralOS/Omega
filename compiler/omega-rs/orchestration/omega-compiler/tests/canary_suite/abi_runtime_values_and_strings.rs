@@ -996,10 +996,13 @@ fn runtime_post_entry_chained_let_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-post-entry-chained-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("post-entry chained-let canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("post-entry chained-let canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("post-entry chained-let canary should run");
 
@@ -1033,10 +1036,13 @@ fn runtime_cross_callee_division_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-cross-division-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("cross-callee division canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("cross-callee division canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("cross-callee division canary should run");
 
@@ -1077,10 +1083,13 @@ fn runtime_cross_callee_let_names_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-cross-callee-lets-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("cross-callee let-names canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("cross-callee let-names canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("cross-callee let-names canary should run");
 
@@ -1121,10 +1130,13 @@ fn runtime_nested_value_call_guard_exit_canary_runs() {
     let build_dir = std::env::temp_dir().join(format!("omega-nested-guard-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("nested-guard canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("nested-guard canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("nested-guard canary should run");
 
@@ -1166,10 +1178,13 @@ fn runtime_two_site_struct_result_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-two-site-struct-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("two-site struct result canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("two-site struct result canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("two-site struct result canary should run");
 
