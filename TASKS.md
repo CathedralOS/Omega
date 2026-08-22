@@ -4512,7 +4512,23 @@ Remaining:
   without an executable exhaustion-transfer plan, and keep conservative segment
   ceilings from replacing exact path charging. Hosted targets may interpret an
   unavailable realization; freestanding targets reject it. Keep WCET and
-  wall-clock conversion separate.
+  wall-clock conversion separate. The exact sponsor-graph owner now derives a
+  sealed `FuelSuspensionFree` proof independently from numeric work: transparent
+  terminal summaries compose directly, while every opaque provider requires a
+  separate admitted suspension receipt bound to its exact provider, schedule,
+  work summary, and work-validation receipt. Missing, duplicate, stale,
+  terminal-attached, or unreachable evidence rejects. A focused native-fuel
+  owner now also validates the three settled realization outcomes. Fixed
+  provision requires the exact composed maximum logical work to fit the grant;
+  dynamic metering pins a target and schedule and requires a disjoint,
+  independently provisioned exhaustion sponsor path with both fixed provision
+  and `FuelSuspensionFree`; unavailable realization falls back only to an
+  explicitly interpreter-enabled hosted environment and rejects for hosted
+  native-only or freestanding installation. The remaining native slice is to
+  retain that validated realization on the installed resource column, bind a
+  dynamic plan to the exact installed attribution rows, and implement/admit the
+  target context transports and exhaustion-transfer stubs before inserting
+  compare-before-subtract charge sequences.
 - **PROOF-RELEVANCE-MIGRATION.** Finish binding-level `[erased]`, checked
   noninterference, erased-stripped layout, and obligation preservation across
   the remaining consumers. Explicit relevance remains in semantic/proof
