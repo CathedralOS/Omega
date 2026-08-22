@@ -2210,6 +2210,14 @@ the exact mapped bound. Their `mapped` parents keep the requested-target and
 definition-word order. Proof bytes, rejection within each candidate, and the
 fixed four-definition frontier are unchanged.
 
+Post-boundary affine custody now mirrors that responsibility split.
+Independent producer and verifier `affine_custody/boundary/completion` modules
+retain the strict definition and literal-axiom boundary checks and delegate an
+eligible witness to their own ordinary affine-custody completion. Their
+`boundary` parents keep goal-target and definition-word order. Proof bytes,
+rejection within each candidate, and the fixed four-definition frontier are
+unchanged.
+
 Affine-witness candidate coordination now separates goal-target enumeration
 from exact fixed-target completion. Independent producer and verifier
 `affine_custody/candidates/fixed` modules align literal landings and construct
