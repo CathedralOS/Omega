@@ -563,7 +563,11 @@ Owners:
   exact footprint, and invocation plan through final artifacts. Connect placed
   fragments to source-level provider invocation after establishment; provider
   preparation generates no host code. Validate exact bytes and placement;
-  fingerprints remain report/cache identity, never authority.
+  fingerprints remain report/cache identity, never authority. Numbered
+  symbolic fields now rejoin fragmented layout rows by stable member identity
+  rather than presentation spelling: renames preserve generated-writer
+  identity, while identity drift or collision rejects before resolver
+  invocation.
 
 Acceptance: UART/MMIO, shared-page IPC, and ordinary RAM use one extent/layout
 foundation with different profiles. Misalignment, insufficient rights,

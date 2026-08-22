@@ -493,6 +493,7 @@ impl RelocationTarget {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SymbolicFieldValue {
     pub field: String,
+    member_identity: Option<u64>,
     pub width_bits: u16,
     pub target: RelocationTarget,
 }
@@ -510,9 +511,23 @@ impl SymbolicFieldValue {
         }
         Ok(Self {
             field: field.into(),
+            member_identity: None,
             width_bits,
             target,
         })
+    }
+
+    /// Constructs a symbolic value carrying its compiler-retained stable
+    /// member identity. The field spelling remains diagnostic presentation.
+    pub fn new_numbered(
+        field: impl Into<String>,
+        member_identity: u64,
+        width_bits: u16,
+        target: RelocationTarget,
+    ) -> Result<Self, MaterializationDiagnostic> {
+        let mut value = Self::new(field, width_bits, target)?;
+        value.member_identity = Some(member_identity);
+        Ok(value)
     }
 }
 
@@ -1826,8 +1841,8 @@ pub fn derive_symbolic_materialization(
         .placement
         .joined_with_layout(layout.align, byte_len)?;
 
+    let mut supplied = std::collections::BTreeSet::new();
     let mut names = std::collections::BTreeSet::new();
-    let mut actions = Vec::new();
     for symbolic in symbolic_fields {
         if !names.insert(symbolic.field.as_str()) {
             return Err(MaterializationDiagnostic(format!(
@@ -1835,18 +1850,58 @@ pub fn derive_symbolic_materialization(
                 symbolic.field
             )));
         }
-        let entries = layout
-            .entries
-            .iter()
-            .filter(|entry| entry.field == symbolic.field)
-            .collect::<Vec<_>>();
-        if entries.is_empty() {
+        let key = materialization_field_key(&symbolic.field, symbolic.member_identity);
+        if !supplied.insert(key) {
             return Err(MaterializationDiagnostic(format!(
-                "symbolic field `{}` has no entry in the validated layout plan",
-                symbolic.field
+                "symbolic field `{}` repeats stable member identity #{}",
+                symbolic.field,
+                symbolic
+                    .member_identity
+                    .expect("only numbered symbolic values can collide after name validation")
             )));
         }
+    }
+    let mut planned =
+        std::collections::BTreeMap::<MaterializationFieldKey, Vec<&LayoutFieldEntryReport>>::new();
+    for entry in &layout.entries {
+        planned
+            .entry(materialization_field_key(
+                &entry.field,
+                entry.member_identity,
+            ))
+            .or_default()
+            .push(entry);
+    }
+    for symbolic in symbolic_fields {
+        let key = materialization_field_key(&symbolic.field, symbolic.member_identity);
+        let Some(entries) = planned.get(&key) else {
+            let suffix = stable_identity_suffix(symbolic.member_identity);
+            return Err(MaterializationDiagnostic(format!(
+                "symbolic field `{}` has no entry in the validated layout plan{suffix}",
+                symbolic.field
+            )));
+        };
+        let entry_names = entries
+            .iter()
+            .map(|entry| entry.field.as_str())
+            .collect::<std::collections::BTreeSet<_>>();
+        if let Some(drifted) = layout.entries.iter().find(|entry| {
+            entry_names.contains(entry.field.as_str())
+                && materialization_field_key(&entry.field, entry.member_identity) != key
+        }) {
+            return Err(MaterializationDiagnostic(format!(
+                "layout field `{}` fragments do not retain one stable member identity",
+                drifted.field
+            )));
+        }
+    }
 
+    let mut actions = Vec::new();
+    for symbolic in symbolic_fields {
+        let key = materialization_field_key(&symbolic.field, symbolic.member_identity);
+        let entries = planned
+            .get(&key)
+            .expect("symbolic layout membership validated above");
         let resolved = resolve(symbolic.target);
         for entry in entries {
             let write = write_from_entry(entry, symbolic)?;
@@ -3079,6 +3134,84 @@ mod tests {
         )
         .expect_err("an imported scan also requires the complete schema");
         assert!(error.0.contains("`high`"));
+    }
+
+    #[test]
+    fn numbered_symbolic_materialization_rejoins_renamed_fields_by_identity() {
+        let mut layout = split_layout();
+        for entry in &mut layout.entries {
+            entry.field = "legacy_address".into();
+            entry.member_identity = Some(7);
+        }
+        let context = MaterializationContext {
+            consumption: ConsumptionInstant::AfterOmegaHandoff,
+            byte_order: ByteOrder::LittleEndian,
+            native_pointer_relocation_bits: None,
+            placement: PlacementConstraints::unconstrained(PlacementPhase::PostHandoff),
+        };
+        let symbolic =
+            SymbolicFieldValue::new_numbered("handler", 7, 64, entry()).expect("numbered target");
+        let plan = derive_symbolic_materialization(
+            &layout,
+            std::slice::from_ref(&symbolic),
+            context,
+            |_| None,
+        )
+        .expect("stable identity should rejoin renamed symbolic fragments");
+        assert_eq!(plan.actions.len(), 3);
+        assert!(plan.actions.iter().all(|action| {
+            matches!(action, MaterializationAction::RuntimeWriter(write) if write.field == "handler")
+        }));
+
+        let current_fragment = plan
+            .derive_post_handoff_writer()
+            .expect("renamed symbolic plan derives a writer")
+            .lower_reusable_fragment()
+            .expect("renamed symbolic writer lowers");
+        let legacy = SymbolicFieldValue::new_numbered("legacy_address", 7, 64, entry())
+            .expect("legacy numbered target");
+        let legacy_fragment =
+            derive_symbolic_materialization(&layout, &[legacy], context, |_| None)
+                .expect("matching presentation spelling also derives")
+                .derive_post_handoff_writer()
+                .expect("legacy symbolic plan derives a writer")
+                .lower_reusable_fragment()
+                .expect("legacy symbolic writer lowers");
+        assert_eq!(
+            current_fragment.fragment.fingerprint(),
+            legacy_fragment.fragment.fingerprint(),
+            "presentation spelling must not change generated writer identity"
+        );
+
+        let mut drifted = layout;
+        drifted.entries[1].member_identity = Some(8);
+        let mut resolutions = 0;
+        let error = derive_symbolic_materialization(
+            &drifted,
+            std::slice::from_ref(&symbolic),
+            context,
+            |_| {
+                resolutions += 1;
+                None
+            },
+        )
+        .expect_err("fragment identity drift must reject before resolution");
+        assert!(
+            error.0.contains("one stable member identity"),
+            "{}",
+            error.0
+        );
+        assert_eq!(resolutions, 0);
+
+        let alias =
+            SymbolicFieldValue::new_numbered("alias", 7, 64, entry()).expect("identity alias");
+        let error = derive_symbolic_materialization(&drifted, &[symbolic, alias], context, |_| {
+            resolutions += 1;
+            None
+        })
+        .expect_err("one stable identity cannot name two supplied symbolic values");
+        assert!(error.0.contains("repeats stable member identity #7"));
+        assert_eq!(resolutions, 0);
     }
 
     #[test]
