@@ -3,8 +3,10 @@
 use psi_core::{Proposition, PropositionContext};
 use psi_proof_kernel::ProofNode;
 
-use super::super::affine_custody::{self, DefinitionIndex};
+use super::super::affine_custody::DefinitionIndex;
 use super::super::integer_evidence::cited_facts;
+
+mod completion;
 
 pub(super) fn prove(
     context: &PropositionContext,
@@ -21,14 +23,15 @@ pub(super) fn prove(
             .into_iter()
             .filter(|root| matches!(root, psi_core::ScalarTerm::Value { .. }))
         {
-            if let Some(proof) = affine_custody::prove_from_root(
+            if let Some(proof) = completion::prove(
                 context,
                 goal,
                 assumptions,
                 semantic_axioms,
                 definitions,
                 root,
-                citation.proof(root_bound),
+                root_bound,
+                citation,
             ) {
                 return Some(proof);
             }

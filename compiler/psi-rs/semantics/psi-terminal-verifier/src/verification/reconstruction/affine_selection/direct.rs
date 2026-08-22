@@ -2,7 +2,9 @@
 
 use psi_core::{Proposition, PropositionContext, ScalarTerm};
 
-use super::super::affine_custody::{self, DefinitionIndex};
+use super::super::affine_custody::DefinitionIndex;
+
+mod completion;
 
 pub(super) fn retained(
     context: &PropositionContext,
@@ -23,7 +25,7 @@ pub(super) fn retained(
                 .into_iter()
                 .filter(|root| matches!(root, ScalarTerm::Value { .. }))
                 .any(|root| {
-                    affine_custody::retained_from_root(
+                    completion::retained(
                         context,
                         goal,
                         semantic_axioms,
