@@ -726,6 +726,14 @@ mod tests {
             !report(true, CompileOutputKind::NativeExecutable, None, None)
                 .has_consistent_executable_publication_custody()
         );
+        let dropped_output = report(
+            false,
+            CompileOutputKind::NativeExecutable,
+            Some(flat.clone()),
+            None,
+        );
+        assert!(!dropped_output.has_consistent_executable_publication_custody());
+        assert!(dropped_output.checked_native_executable_path().is_none());
         assert!(
             !report(
                 true,
