@@ -2129,10 +2129,13 @@ fn runtime_mutable_machine_owned_parameter_write_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("runtime mutable machine-owned parameter write canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("mutable machine-owned parameter canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("runtime mutable machine-owned parameter write canary should run");
 
@@ -2156,10 +2159,13 @@ fn runtime_mutable_local_parameter_write_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("runtime mutable local parameter write canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("mutable local parameter canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("runtime mutable local parameter write canary should run");
 
@@ -2183,10 +2189,13 @@ fn runtime_mutable_parameter_read_modify_write_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("runtime mutable parameter read/modify/write canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("mutable parameter RMW canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("runtime mutable parameter read/modify/write canary should run");
 
