@@ -42,7 +42,23 @@ pub fn capability_manifest_json(
     } else {
         "false"
     });
-    json.push_str(",\n  \"may_block\": ");
+    json.push_str(",\n  \"installation_bound_reaches\": [");
+    for (index, reach) in manifest.installation_bound_reaches.iter().enumerate() {
+        if index > 0 {
+            json.push_str(", ");
+        }
+        json.push_str("{\"requirement\": ");
+        push_json_string(&mut json, &reach.requirement);
+        json.push_str(", \"upper_bound\": [");
+        for (service_index, service) in reach.upper_bound.iter().enumerate() {
+            if service_index > 0 {
+                json.push_str(", ");
+            }
+            push_json_string(&mut json, service);
+        }
+        json.push_str("]}");
+    }
+    json.push_str("],\n  \"may_block\": ");
     json.push_str(if manifest.may_block { "true" } else { "false" });
     json.push_str(",\n  \"capability_flows\": {");
     for (index, (kind, count)) in manifest.capability_flow_counts.iter().enumerate() {
@@ -79,6 +95,19 @@ fn capability_manifest_text(
         report.push_str(&manifest.service_reach.join(" + "));
     }
     report.push('\n');
+    report.push_str("installation-bound reach: ");
+    if manifest.installation_bound_reaches.is_empty() {
+        report.push_str("<none>\n");
+    } else {
+        report.push('\n');
+        for reach in &manifest.installation_bound_reaches {
+            report.push_str("  ");
+            report.push_str(&reach.requirement);
+            report.push_str(" <= ");
+            report.push_str(&reach.upper_bound.join(" + "));
+            report.push('\n');
+        }
+    }
     report.push_str("may suspend:   ");
     report.push_str(if manifest.may_suspend { "yes" } else { "no" });
     report.push('\n');
@@ -102,9 +131,16 @@ struct EntryCapabilityManifest {
     entry_machine: String,
     entry_state: String,
     service_reach: Vec<String>,
+    installation_bound_reaches: Vec<InstallationBoundReachManifest>,
     may_suspend: bool,
     may_block: bool,
     capability_flow_counts: [(CapabilityFlowKind, usize); 5],
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct InstallationBoundReachManifest {
+    requirement: String,
+    upper_bound: Vec<String>,
 }
 
 fn entry_capability_manifest(
@@ -118,6 +154,7 @@ fn entry_capability_manifest(
             entry_machine: "<missing>".to_owned(),
             entry_state: "<missing>".to_owned(),
             service_reach: Vec::new(),
+            installation_bound_reaches: Vec::new(),
             may_suspend: false,
             may_block: false,
             capability_flow_counts: capability_flow_counts(program),
@@ -153,6 +190,7 @@ fn entry_capability_manifest(
         })
         .map(|definition| definition.name.clone())
         .collect();
+    let installation_bound_reaches = installation_bound_reaches(program, reach);
 
     let mut matching_suspensions = program
         .facts
@@ -186,10 +224,79 @@ fn entry_capability_manifest(
         entry_machine: machine_name,
         entry_state: state_name,
         service_reach,
+        installation_bound_reaches,
         may_suspend: suspension.plan.checked_may_suspend,
         may_block: blocking.plan.checked_may_block,
         capability_flow_counts: capability_flow_counts(program),
     }
+}
+
+fn installation_bound_reaches(
+    program: &CheckedTrees,
+    reach: &psi_checked_trees::MachineServiceReachRows,
+) -> Vec<InstallationBoundReachManifest> {
+    let mut rows = reach
+        .unresolved_installation_reaches
+        .iter()
+        .map(|dependency| {
+            let matches = program
+                .typed
+                .traits()
+                .iter()
+                .flat_map(|owner| {
+                    program
+                        .typed
+                        .trait_machine_signatures(owner)
+                        .iter()
+                        .filter(move |requirement| requirement.symbol == dependency.requirement)
+                        .map(move |requirement| (owner, requirement))
+                })
+                .collect::<Vec<_>>();
+            let [(owner, requirement)] = matches.as_slice() else {
+                panic!(
+                    "capability manifest invariant: installation-bound reach requirement resolves to {} typed declarations",
+                    matches.len()
+                );
+            };
+            let requirement = program
+                .typed
+                .normalized_trait_requirement_overload_identity(owner, requirement)
+                .identity();
+            let upper_bound = program
+                .facts
+                .service_reaches
+                .rows
+                .services(dependency.upper_bound)
+                .iter()
+                .map(|service| {
+                    program
+                        .facts
+                        .service_reaches
+                        .services
+                        .definition(*service)
+                        .unwrap_or_else(|| {
+                            panic!(
+                                "capability manifest invariant: installation-bound reach contains an unregistered service"
+                            )
+                        })
+                        .name
+                        .clone()
+                })
+                .collect();
+            InstallationBoundReachManifest {
+                requirement,
+                upper_bound,
+            }
+        })
+        .collect::<Vec<_>>();
+    rows.sort_by(|left, right| left.requirement.cmp(&right.requirement));
+    assert!(
+        !rows
+            .windows(2)
+            .any(|pair| pair[0].requirement == pair[1].requirement),
+        "capability manifest invariant: installation-bound reach requirement is duplicated"
+    );
+    rows
 }
 
 fn capability_flow_counts(program: &CheckedTrees) -> [(CapabilityFlowKind, usize); 5] {
@@ -223,6 +330,7 @@ fn entry_machine_named(
 mod tests {
     use super::{capability_manifest_json, capability_manifest_text};
     use psi_checked_trees::{CheckedTrees, MachineContractPlan, MachineServiceReachRows};
+    use psi_effects::InstallationReachRequirement;
     use psi_language_semantics::{
         BlockingInterface, BlockingPlan, ServiceReachId, ServiceReachInterface, ServiceReachRowId,
         ServiceReachRowTable, SuspensionInterface, SuspensionPlan, TerminationGuarantee,
@@ -230,7 +338,10 @@ mod tests {
     use psi_symbols::SymbolHandle;
     use psi_typed_trees::machine::Machine;
     use psi_typed_trees::name::Identifier;
+    use psi_typed_trees::signature::StateSignature;
     use psi_typed_trees::state::State;
+    use psi_typed_trees::trait_definition::TraitDefinition;
+    use psi_typed_trees::types::TypeReferenceNode;
 
     fn minimal_manifest_program() -> (CheckedTrees, SymbolHandle) {
         let machine_symbol = SymbolHandle::from_arena_index(30);
@@ -350,6 +461,8 @@ mod tests {
                 inferred_direct: service_row,
                 inferred_transitive: service_row,
                 effective: service_row,
+                concrete_effective: service_row,
+                unresolved_installation_reaches: Vec::new(),
                 states: Default::default(),
             },
         );
@@ -428,6 +541,91 @@ mod tests {
         assert!(json.contains("\"service_reach\": []"));
         assert!(json.contains("\"may_suspend\": false"));
         assert!(json.contains("\"may_block\": false"));
+    }
+
+    #[test]
+    fn executable_manifest_publishes_unresolved_installation_reach_bounds() {
+        let (mut program, machine) = minimal_manifest_program();
+        let requirement_symbol = SymbolHandle::from_arena_index(41);
+        let unit = program
+            .typed
+            .type_reference_table
+            .insert(TypeReferenceNode::Unit);
+        let mut controller = TraitDefinition {
+            symbol: SymbolHandle::from_arena_index(40),
+            is_boundary: true,
+            name: Identifier::generated("InterruptCompletion"),
+            ..Default::default()
+        };
+        program.typed.push_trait_machine_signature(
+            &mut controller,
+            StateSignature {
+                symbol: requirement_symbol,
+                name: Identifier::generated("complete"),
+                return_type: unit,
+                ..Default::default()
+            },
+        );
+        program.typed.push_trait_definition(controller);
+
+        program.facts.service_reaches = Default::default();
+        let reaches = &mut program.facts.service_reaches;
+        let machine_control = reaches
+            .services
+            .intern(SymbolHandle::from_arena_index(42), "MachineControl");
+        let port_io = reaches
+            .services
+            .intern(SymbolHandle::from_arena_index(43), "PortIo");
+        let bound = reaches.rows.intern(vec![machine_control, port_io]);
+        reaches.machines.append_to_span(
+            &mut reaches.root_machines,
+            MachineServiceReachRows {
+                machine,
+                inferred_transitive: bound,
+                unresolved_installation_reaches: vec![InstallationReachRequirement {
+                    requirement: requirement_symbol,
+                    upper_bound: bound,
+                }],
+                ..Default::default()
+            },
+        );
+
+        let json = capability_manifest_json(&program, Some("Application::launch"));
+        let text = capability_manifest_text(&program, Some("Application::launch"));
+
+        assert!(
+            json.contains("InterruptCompletion::complete"),
+            "manifest omitted exact requirement identity:\n{json}"
+        );
+        assert!(
+            json.contains("\"upper_bound\": [\"MachineControl\", \"PortIo\"]"),
+            "manifest omitted installation-bound ceiling:\n{json}"
+        );
+        assert!(text.contains("installation-bound reach:"));
+        assert!(text.contains("InterruptCompletion::complete"));
+        assert!(text.contains("<= MachineControl + PortIo"));
+    }
+
+    #[test]
+    fn executable_manifest_rejects_unresolved_reach_without_exact_requirement() {
+        let (mut program, machine) = minimal_manifest_program();
+        let reaches = &mut program.facts.service_reaches;
+        reaches.machines = Default::default();
+        reaches.root_machines = Default::default();
+        reaches.machines.append_to_span(
+            &mut reaches.root_machines,
+            MachineServiceReachRows {
+                machine,
+                inferred_transitive: ServiceReachRowTable::EMPTY_ROW,
+                unresolved_installation_reaches: vec![InstallationReachRequirement {
+                    requirement: SymbolHandle::from_arena_index(99),
+                    upper_bound: ServiceReachRowTable::EMPTY_ROW,
+                }],
+                ..Default::default()
+            },
+        );
+
+        assert!(manifest_panic(&program).contains("resolves to 0 typed declarations"));
     }
 
     #[test]

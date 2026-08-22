@@ -74,6 +74,8 @@ fn push_behavior_contract(
             inferred_direct: empty,
             inferred_transitive: empty,
             effective: empty,
+            concrete_effective: empty,
+            unresolved_installation_reaches: Vec::new(),
             states: Default::default(),
         },
     );
