@@ -2595,10 +2595,13 @@ fn runtime_reference_returned_slice_element_write_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("runtime reference returned slice element write canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation.checked_native_executable_path().expect(
+        "reference-returned slice-element write canary should retain its executable receipt",
+    );
+    let output = Command::new(executable)
         .output()
         .expect("runtime reference returned slice element write canary should run");
 
@@ -2623,10 +2626,13 @@ fn runtime_reference_returned_slice_element_through_param_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("reference-returning called machine canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("reference-returning parameter canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("reference-returning called machine canary should run");
 
@@ -2654,10 +2660,13 @@ fn runtime_nested_guarded_reference_returned_slice_element_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("nested guarded reference-returning called machine canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("nested guarded reference-returning canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("nested guarded reference-returning called machine canary should run");
 
@@ -2682,10 +2691,13 @@ fn runtime_mutable_local_indexed_parameter_write_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("runtime mutable local indexed parameter write canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("mutable local indexed parameter canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("runtime mutable local indexed parameter write canary should run");
 
@@ -2710,11 +2722,14 @@ fn runtime_mutable_machine_owned_local_indexed_parameter_write_exit_canary_runs(
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
         "runtime mutable machine-owned local indexed parameter write canary should compile",
     );
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation.checked_native_executable_path().expect(
+        "machine-owned local indexed parameter canary should retain its executable receipt",
+    );
+    let output = Command::new(executable)
         .output()
         .expect("runtime mutable machine-owned local indexed parameter write canary should run");
 
