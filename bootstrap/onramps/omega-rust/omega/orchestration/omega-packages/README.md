@@ -26,8 +26,9 @@ package namespace.
 - Extend the machine-written lock artifact with resolved package closure
   evidence.
 - Produce package capability manifests from compiler-derived evidence.
-- Reject updates when a package capability manifest changes unless an explicit
-  review/acceptance receipt is supplied.
+- Reject updates when a package capability manifest changes unless an exact
+  capability-conflict resolution artifact is supplied; surface recommended
+  audit findings for retained intrinsically dangerous authority.
 - Provide the orchestration API used by `omega install`, `omega update`, and
   `omega audit packages`.
 
@@ -137,9 +138,11 @@ cargo test -p omega-packages --test remote_fixtures -- --ignored --test-threads=
 - `review`: deterministic capability-change review receipts bound to exact
   source identities, manifest fingerprints, accepted diff sections, reviewer,
   and reason. Receipts have strict JSON parsing plus standalone atomic
-  read/write support so CLI wiring can load explicit review receipts without
-  deciding final receipt placement yet. Command-level creation rejects no-op,
-  source-only, and package-mismatched updates.
+  read/write support for the current command seam. The settled UX is to replace
+  standalone approval prompts with Omega-generated capability conflicts, exact
+  resolution artifacts, and lock references to admitted resolution evidence.
+  Command-level creation rejects no-op, source-only, and package-mismatched
+  updates.
 - `resolver`: source-cache policy records for local/Git resolution, including
   limits, path/submodule policy, resolved identities, success/rejection verdict,
   stable JSON, strict parsing, atomic persistence, and record fingerprints.
@@ -152,7 +155,9 @@ cargo test -p omega-packages --test remote_fixtures -- --ignored --test-threads=
   also produce a non-mutating lock update plan that assembles a candidate lock
   only after policy admission and candidate graph audit. The command seam can
   read the current lock file plus an optional standalone receipt file before
-  returning the plan.
+  returning the plan; final update wiring should emit capability conflicts and
+  recommended audit findings for retained filesystem, network, process,
+  dynamic-loader, signing, secret, or equivalent authority.
 
 ## Current CLI Surface
 

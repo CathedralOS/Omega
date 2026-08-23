@@ -176,7 +176,8 @@ Completed:
   receipt for the actual candidate diff.
 
 - **CAPABILITY-CHANGE-RECEIPT-PERSISTENCE.** Add standalone receipt JSON
-  read/write support before deciding final receipt placement.
+  read/write support as the temporary persistence seam before capability
+  conflict/resolution artifacts are wired.
 
   Done 2026-08-23: `omega-packages` can parse capability-change receipt JSON
   with strict schema-version, field, severity, and non-empty review checks,
@@ -190,7 +191,7 @@ Completed:
   API that compares normalized old/new package manifests, rejects package
   mismatches, no-op changes, and source-only updates, binds the receipt to the
   exact old/new source identities and manifest delta fingerprints, and returns
-  reviewer-facing diff text without choosing final receipt storage.
+  reviewer-facing diff text for the current standalone receipt seam.
 
 - **OMEGA-REVIEW-CAPABILITY-CHANGE-CLI.** Expose explicit capability-change
   receipt creation through the Rust on-ramp `omega` binary.
@@ -473,9 +474,9 @@ Remaining:
 
   Remaining after `PACKAGE-LOCK-INSTALL-PLAN`, `PACKAGE-PLAN-COMMAND-APIS`,
   and `OMEGA-PLAN-INSTALL-UPDATE-CLI`: settle package-manifest evidence,
-  `build.omg` dependency API, review-receipt placement, and dependency
-  `build.omg` admission sequence, then wire source resolution,
-  package-admission manifest derivation, `build.omg` alias/pin editing, and
+  `build.omg` dependency API, and dependency `build.omg` admission sequence,
+  then wire source resolution, package-admission manifest derivation,
+  `build.omg` alias/pin editing, capability-conflict/resolution evidence, and
   lock persistence around the install plan.
 
   Acceptance: adding a dependency produces a pinned alias in `build.omg`, an
@@ -491,14 +492,16 @@ Remaining:
   `PACKAGE-PLAN-COMMAND-APIS`, and
   `UPDATE-PLAN-CANDIDATE-GRAPH-AUDIT`, and
   `OMEGA-PLAN-INSTALL-UPDATE-CLI`: settle package-manifest evidence,
-  `build.omg` dependency API, review-receipt placement, and dependency
-  `build.omg` admission sequence, then wire candidate resolution,
-  package-admission manifest derivation, `build.omg` pin editing, and lock
+  `build.omg` dependency API, and dependency `build.omg` admission sequence,
+  then wire candidate resolution, package-admission manifest derivation,
+  `build.omg` pin editing, capability-conflict/resolution evidence, recommended
+  audit findings for intrinsically dangerous admitted authority, and lock
   persistence around the update decision.
 
   Acceptance: changing source bytes with the same capability manifest updates
-  the pin and lock. Any manifest delta rejects before changing `build.omg` or
-  the lock and prints a severity-ranked diff.
+  the pin and lock after surfacing any recommended audit findings for retained
+  dangerous authority. Any manifest delta rejects before changing `build.omg`
+  or the lock and prints a severity-ranked diff.
 
 - **OMEGA-AUDIT-PACKAGES.** Add a read-only audit command for the package graph.
 
@@ -606,14 +609,18 @@ Remaining:
   `REVIEWED-UPDATE-ADMISSION`, and
   `CAPABILITY-CHANGE-RECEIPT-PERSISTENCE`, and
   `CAPABILITY-CHANGE-REVIEW-COMMAND-API`, and
-  `OMEGA-REVIEW-CAPABILITY-CHANGE-CLI`: wire receipt loading into `omega
-  update` and persist accepted receipts in or beside `omega.lock` once receipt
-  placement is settled.
+  `OMEGA-REVIEW-CAPABILITY-CHANGE-CLI`: replace the standalone receipt UX with
+  Omega-generated capability conflict files, exact resolution artifacts,
+  `omega update --continue` verification, and lock references to the admitted
+  resolution evidence.
 
-  Acceptance: higher-capability updates require an acceptance receipt. New
-  root-memory, DMA/IOMMU, executable-installation, interrupt-publication,
+  Acceptance: higher-capability updates require an exact resolution artifact.
+  New root-memory, DMA/IOMMU, executable-installation, interrupt-publication,
   dynamic-loader, process, filesystem, network, signing, or secret reach is
-  elevated in the diff with the dependency path that introduced it.
+  elevated in the diff with the dependency path that introduced it. Updates
+  that retain already-admitted filesystem, network, process, dynamic-loader,
+  signing, secret, or equivalent authority surface a recommended audit finding
+  even when they do not expand the normalized capability set.
 
 - **AUTHOR-GUIDANCE.** Add diagnostics that advise package authors to keep
   unrelated capabilities in separate packages and publish reach ceilings on
@@ -633,24 +640,27 @@ Remaining:
 The remaining package-manager work is intentionally blocked on owner-level
 language/compiler decisions rather than package-crate implementation choices:
 
-- `PACKAGE-CAPABILITY-MANIFEST` is gated by Q9, the checked evidence boundary
+- `PACKAGE-CAPABILITY-MANIFEST` is gated by Q8, the checked evidence boundary
   for package capability manifests.
-- `PACKAGE-LOCK-CLOSURE` default compiler/lock integration is gated by Q9,
+- `PACKAGE-LOCK-CLOSURE` default compiler/lock integration is gated by Q8,
   because the lock closure must consume compiler-derived package manifests
   rather than hand-authored manifest files.
-- `SOURCE-RESOLVER` install integration is gated by Q6 and Q8, because the
+- `SOURCE-RESOLVER` install integration is gated by Q6 and Q7, because the
   resolved source must become an authored `build.omg` dependency row and then
   enter the dependency build/admission sequence.
-- `NO-AMBIENT-DEPENDENCY-EXECUTION` is gated by Q8, because dependency
+- `NO-AMBIENT-DEPENDENCY-EXECUTION` is gated by Q7, because dependency
   `build.omg` execution order and admitted package-scoped build providers must
   be settled before implementation can enforce isolation end to end.
-- `OMEGA-INSTALL` is gated by Q6, Q8, and Q9. It also depends on Q7 for the
-  final capability-change acceptance path around lock mutation.
-- `OMEGA-UPDATE` is gated by Q6, Q7, Q8, and Q9.
-- `OMEGA-AUDIT-PACKAGES` without explicit manifest files is gated by Q9 and
+- `OMEGA-INSTALL` is gated by Q6, Q7, and Q8.
+- `OMEGA-UPDATE` is gated by Q6, Q7, and Q8. The capability-conflict and
+  recommended-dangerous-authority audit UX is settled in
+  `wiki/design_briefs/build_and_package_model.md`, but not fully wired.
+- `OMEGA-AUDIT-PACKAGES` without explicit manifest files is gated by Q8 and
   resolved graph discovery from the settled package-admission flow.
-- `CAPABILITY-CHANGE-REVIEW` final update integration is gated by Q7.
-- `AUTHOR-GUIDANCE` final UX integration is gated by Q9, because guidance must
+- `CAPABILITY-CHANGE-REVIEW` final update integration is no longer
+  owner-question gated; it must implement the settled capability
+  conflict/resolution artifact flow.
+- `AUTHOR-GUIDANCE` final UX integration is gated by Q8, because guidance must
   surface through real package-admission/install/update/audit flows derived
   from package manifests.
 

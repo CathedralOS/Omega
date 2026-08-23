@@ -211,35 +211,7 @@ vocabulary with typed `Source` constructors for local and Git sources, while
 keeping the CLI editor conservative: rewrite only canonical/simple rows and
 print a proposed patch otherwise.
 
-## Q7 — Where do package capability-change acceptance receipts live?
-
-The package manager can model capability-change receipts, but the persistence
-surface is still unsettled. Default `omega update` must reject manifest changes
-unless an exact review receipt is present, yet the design has not chosen
-whether that receipt is authored in `build.omg`, embedded in `omega.lock`, or
-stored as a separate signed artifact referenced by the lock.
-
-Choose the persistence and verification contract. It must:
-
-- bind the old/new source identities, old/new manifest fingerprints, reviewer,
-  reason, and accepted delta fingerprints;
-- prevent a dependency package from approving its own imported claims or
-  capability increases;
-- preserve `omega.lock` as machine-written resolved evidence, not an authored
-  policy file unless that is explicitly chosen;
-- define how signed or unsigned local review receipts compose with repository
-  history and CI;
-- make stale, mismatched, missing, duplicated, or overbroad receipts reject
-  before `build.omg` or lock mutation; and
-- support human and LLM audit workflows without requiring ambient trust in the
-  reviewer tool.
-
-Recommended direction: store review receipts as separate machine-readable
-artifacts referenced by `omega.lock`, with a local unsigned mode for early
-development and room for signed receipts later. Do not make dependency source
-able to manufacture or bless its own acceptance record.
-
-## Q8 — Does install run dependency `build.omg` immediately or preflight first?
+## Q7 — Does install run dependency `build.omg` immediately or preflight first?
 
 The security boundary is settled: resolver-owned retrieval precedes dependency
 execution, and dependency builds never inherit resolver or root-package
@@ -269,7 +241,7 @@ Recommended direction: perform a static preflight over fetched source and
 package-scoped admitted providers to produce the final manifest. Record both
 the preflight verdict and final build observation in lock evidence.
 
-## Q9 — What exact checked evidence defines a package capability manifest?
+## Q8 — What exact checked evidence defines a package capability manifest?
 
 The package-manager model requires one compiler-derived capability manifest per
 resolved package, including public API identity, exported service reach,
