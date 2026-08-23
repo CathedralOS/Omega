@@ -93,7 +93,8 @@ cargo test -p omega-packages --test remote_fixtures -- --ignored --test-threads=
   locators.
 - `audit`: resolved package-graph audit over locks and manifests, including
   dependency paths for exported service reach and fail-closed consistency
-  checks.
+  checks. Audit rows surface source identity, dependency aliases, provider
+  requirements/selections, trust receipts, and capability-flow verb counts.
 - `manifest`: canonical package/alias names, normalized package capability
   manifests, stable JSON, SHA-256 fingerprints, and manifest diffs.
 - `diff`: severity-ranked manifest deltas with concrete reviewer guidance for

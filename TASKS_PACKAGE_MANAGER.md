@@ -189,6 +189,15 @@ Completed:
   repositories by exact commit over SSH and verifies the fetched content
   identity matches the checked-in local fixture.
 
+- **PACKAGE-GRAPH-AUDIT-DETAILS.** Surface existing manifest and lock evidence
+  through the internal graph-audit model before CLI exposure.
+
+  Done 2026-08-23: graph audit package rows now include source kind, source
+  locator, dependency aliases, exported service reach, provider requirements,
+  provider selections/origins/plans, capability-flow verb counts, lock trust
+  receipts, and manifest trust receipts. Text output reports those fields for
+  future `omega audit packages` CLI wrapping.
+
 Remaining:
 
 - **PACKAGE-CAPABILITY-MANIFEST.** Define the normalized manifest produced for
@@ -270,8 +279,9 @@ Remaining:
 - **OMEGA-AUDIT-PACKAGES.** Add a read-only audit command for the package graph.
 
   Remaining after `PACKAGE-SOURCE-AUDIT-COMMAND-API` and
-  `PACKAGE-GRAPH-AUDIT-CORE`: derive package manifests for a resolved graph
-  and expose the graph audit through the `omega` CLI.
+  `PACKAGE-GRAPH-AUDIT-CORE` and `PACKAGE-GRAPH-AUDIT-DETAILS`: derive package
+  manifests for a resolved graph and expose the graph audit through the
+  `omega` CLI.
 
   Acceptance: `omega audit packages` prints the resolved graph, source pins,
   service reach, build observation classes, provider origins, trust receipts,
