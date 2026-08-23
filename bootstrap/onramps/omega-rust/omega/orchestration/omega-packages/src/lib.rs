@@ -7,12 +7,14 @@
 //! manifests, lock evidence, and command workflow. Language-level evidence is
 //! derived elsewhere and passed in as normalized data.
 
+mod commands;
 mod diff;
 mod lock;
 mod manifest;
 mod review;
 mod source;
 
+pub use commands::{PackageSourceAudit, PackageSourceRequest, audit_package_source};
 pub use diff::{ManifestDelta, ManifestDiff, ManifestSeverity, diff_package_capability_manifests};
 pub use lock::{LockedDependency, LockedPackage, PackageLock};
 pub use manifest::{
