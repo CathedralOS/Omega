@@ -140,13 +140,15 @@ cargo test -p omega-packages --test remote_fixtures -- --ignored --test-threads=
 
 ## Current CLI Surface
 
-The Rust on-ramp `omega` binary exposes the read-only manifest-file graph audit
-path:
+The Rust on-ramp `omega` binary exposes read-only package/source audit paths:
 
 ```text
+omega audit source <locator> [--rev <rev>] [--cache-dir <dir>]
 omega audit packages [--lock <omega.lock>] --manifest <manifest.json>...
 ```
 
-This command requires precomputed package capability manifest files. It does
-not derive package manifests, execute dependency `build.omg`, edit `build.omg`,
-or write `omega.lock`.
+The source audit resolves a local/Git locator to content identity and reports
+the resolved commit/tree when applicable. The package graph audit requires
+precomputed package capability manifest files. These commands do not derive
+package manifests, execute dependency `build.omg`, edit `build.omg`, or write
+`omega.lock`.
