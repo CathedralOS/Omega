@@ -18,7 +18,7 @@
 parse_number_summary_init:
         call parse_number_require_shape
         call parse_number_prove_summary
-        jmp scan_owned_effects_init
+        jmp parse_char_summary_init
 
 parse_number_prove_summary:
         call parse_number_reset_public

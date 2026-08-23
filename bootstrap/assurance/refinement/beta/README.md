@@ -745,8 +745,32 @@ decrease before capture-avoiding backedge renaming. A complete ten-byte digit
 offset sweep and two concrete wrap/high-bit probes prevent a nonwrapping or
 signed strengthening. Twenty-four isolated canaries live in a 6.4 KB harness;
 shape and meaning remain 9.0 KB and 14.4 KB, and the focused checker is 225,147
-bytes. This does not prove canonical decimal literals, `parse_char`, full-word
-decimal output, or the expression SCC.
+bytes. This does not prove canonical decimal literals, full-word decimal
+output, or the expression SCC.
+
+`bc-parse-char-shape.alpha`, `bc-parse-char-cases.alpha`, and
+`bc-parse-char-summary.alpha` close the finite acyclic lexical/value leaf for
+procedure 56. Exact shape binds blocks 256..266, transitions 197..210, events
+414..420, locals 155..166, primitives 608..621, binary pushes 178..182, empty
+argument/store-address intervals, explicit/synthetic epilogues, and a decoded
+six-call/two-return/twelve-store quiet region. The responsibility-specific
+cases module exhausts all 256 first bytes and independently checks the unique
+backslash discriminator, then exhausts the ordered `n/t/r/0/default` mapping
+against an independent direct specification. Conditional `PCHR` starts at an
+in-range opening quote: an ordinary byte is returned unchanged at exact final
+cursor `i+3`; a backslash selects a second in-range observation, maps
+`n/t/r/0` to `10/9/13/0`, preserves any other byte, and returns at `i+4`.
+The two final advances use reusable `ADVX`, not `ADVE`, and no closing quote is
+read or required. Separate clauses preserve opening-at-end, payload/no-close,
+trailing-backslash, and escaped-byte/no-close outcomes, including distinct
+boundary-zero versus in-range-NUL provenance at both observations and exact
+`LEN+1`/`LEN+2` cursor classes. Outcomes publish only after the selected
+observation, branch, result path, fin-cursor, and terminal-bound joins have
+been consumed. Thirty-eight isolated canaries live in a 9.2 KB harness; shape,
+finite cases, and path summary remain 14.0 KB, 4.7 KB, and 19.9 KB, and the
+focused checker is 235,255 bytes. This does not prove
+canonical character literal syntax, the remaining lexical/value leaves, or
+the expression SCC.
 
 The eventual `parse_proc` theorem must be maximal, not universally terminating.
 For malformed input, an unrecognized body byte such as `@` can survive both

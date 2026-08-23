@@ -1,0 +1,508 @@
+; Exact source/artifact shape for parse_char() procedure56.
+;
+; Owns the eleven blocks, complete finite escape partition, six cursor calls,
+; explicit/synthetic returns, one local slot, exact comparisons/constants,
+; binary pushes, and exhaustive decoded/table censuses. The adjacent meaning
+; module owns ordinary/escape values and deliberately malformed tail behavior.
+
+parse_char_require_shape:
+        imm r20, 7151616
+        imm r21, 56
+        imm r22, 0                    ; no parameters
+        call transfer_require_cell
+        imm r20, 7159808
+        imm r21, 56
+        imm r22, 1                    ; local v
+        call transfer_require_cell
+        imm r20, 56
+        call call_bounds_frame_bytes
+        imm r1, 16
+        jeq r0, r1, parse_char_shape_blocks
+        jmp reject
+
+parse_char_shape_blocks:
+        imm r20, 256
+        imm r21, 37528
+        call slurp_summary_require_block_pc
+        imm r20, 257
+        imm r21, 37597
+        call slurp_summary_require_block_pc
+        imm r20, 258
+        imm r21, 37729
+        call slurp_summary_require_block_pc
+        imm r20, 259
+        imm r21, 37898
+        call slurp_summary_require_block_pc
+        imm r20, 260
+        imm r21, 37936
+        call slurp_summary_require_block_pc
+        imm r20, 261
+        imm r21, 38068
+        call slurp_summary_require_block_pc
+        imm r20, 262
+        imm r21, 38106
+        call slurp_summary_require_block_pc
+        imm r20, 263
+        imm r21, 38238
+        call slurp_summary_require_block_pc
+        imm r20, 264
+        imm r21, 38276
+        call slurp_summary_require_block_pc
+        imm r20, 265
+        imm r21, 38408
+        call slurp_summary_require_block_pc
+        imm r20, 266
+        imm r21, 38446
+        call slurp_summary_require_block_pc
+        imm r20, 256
+        imm r21, 266
+        imm r22, 56
+        call cursor_require_proc_blocks
+        call parse_char_require_transitions
+        call parse_char_require_events
+        call parse_char_require_locals
+        call parse_char_require_primitives
+        call parse_char_require_pushes
+        call parse_char_require_censuses
+        ret
+
+parse_char_require_transitions:
+        imm r20, 197
+        imm r21, 257
+        imm r22, 1
+        imm r23, 258
+        imm r24, 37701              ; first byte is backslash
+        call slurp_summary_require_transition
+        imm r20, 198
+        imm r21, 257
+        imm r22, 0
+        imm r23, 266
+        imm r24, 37720              ; ordinary/default byte
+        call slurp_summary_require_transition
+        imm r20, 199
+        imm r21, 258
+        imm r22, 1
+        imm r23, 259
+        imm r24, 37870              ; escaped n
+        call slurp_summary_require_transition
+        imm r20, 200
+        imm r21, 258
+        imm r22, 0
+        imm r23, 260
+        imm r24, 37889
+        call slurp_summary_require_transition
+        imm r20, 201
+        imm r21, 259
+        imm r22, 0
+        imm r23, 266
+        imm r24, 37927
+        call slurp_summary_require_transition
+        imm r20, 202
+        imm r21, 260
+        imm r22, 1
+        imm r23, 261
+        imm r24, 38040              ; escaped t
+        call slurp_summary_require_transition
+        imm r20, 203
+        imm r21, 260
+        imm r22, 0
+        imm r23, 262
+        imm r24, 38059
+        call slurp_summary_require_transition
+        imm r20, 204
+        imm r21, 261
+        imm r22, 0
+        imm r23, 266
+        imm r24, 38097
+        call slurp_summary_require_transition
+        imm r20, 205
+        imm r21, 262
+        imm r22, 1
+        imm r23, 263
+        imm r24, 38210              ; escaped r
+        call slurp_summary_require_transition
+        imm r20, 206
+        imm r21, 262
+        imm r22, 0
+        imm r23, 264
+        imm r24, 38229
+        call slurp_summary_require_transition
+        imm r20, 207
+        imm r21, 263
+        imm r22, 0
+        imm r23, 266
+        imm r24, 38267
+        call slurp_summary_require_transition
+        imm r20, 208
+        imm r21, 264
+        imm r22, 1
+        imm r23, 265
+        imm r24, 38380              ; escaped zero
+        call slurp_summary_require_transition
+        imm r20, 209
+        imm r21, 264
+        imm r22, 0
+        imm r23, 266
+        imm r24, 38399              ; unrecognized escape
+        call slurp_summary_require_transition
+        imm r20, 210
+        imm r21, 265
+        imm r22, 0
+        imm r23, 266
+        imm r24, 38437
+        call slurp_summary_require_transition
+        ret
+
+parse_char_require_events:
+        imm r20, 414
+        imm r21, 256
+        imm r22, 37560
+        imm r23, 0
+        imm r24, 0
+        imm r25, 1939               ; opening adv
+        imm r26, 37569
+        call summary_require_call_site
+        imm r20, 415
+        imm r21, 256
+        imm r22, 37569
+        imm r23, 0
+        imm r24, 0
+        imm r25, 1609               ; first cbyte
+        imm r26, 37578
+        call summary_require_call_site
+        imm r20, 416
+        imm r21, 258
+        imm r22, 37729
+        imm r23, 0
+        imm r24, 0
+        imm r25, 1939               ; proven-backslash adv
+        imm r26, 37738
+        call summary_require_call_site
+        imm r20, 417
+        imm r21, 258
+        imm r22, 37738
+        imm r23, 0
+        imm r24, 0
+        imm r25, 1609               ; escaped cbyte
+        imm r26, 37747
+        call summary_require_call_site
+        imm r20, 418
+        imm r21, 266
+        imm r22, 38446
+        imm r23, 0
+        imm r24, 0
+        imm r25, 1939               ; unchecked tail adv one
+        imm r26, 38455
+        call summary_require_call_site
+        imm r20, 419
+        imm r21, 266
+        imm r22, 38455
+        imm r23, 0
+        imm r24, 0
+        imm r25, 1939               ; unchecked tail adv two
+        imm r26, 38464              ; checked second tail continuation
+        call summary_require_call_site
+        imm r20, 420
+        imm r21, 266
+        imm r22, 5
+        imm r23, 38502              ; explicit return v
+        call slurp_summary_require_event
+        imm r20, 38483
+        imm r21, 38502
+        call slurp_summary_require_epilogue
+        imm r20, 38503
+        imm r21, 38522
+        call slurp_summary_require_epilogue
+        ret
+
+parse_char_require_locals:
+        imm r20, 155
+        imm r21, 256
+        imm r22, 2
+        imm r23, 0
+        imm r24, 37578              ; first cbyte into v
+        call transfer_require_local
+        imm r20, 156
+        imm r21, 257
+        imm r22, 1
+        imm r23, 0
+        imm r24, 37597
+        call transfer_require_local
+        imm r20, 157
+        imm r21, 258
+        imm r22, 2
+        imm r23, 0
+        imm r24, 37747              ; escaped cbyte into v
+        call transfer_require_local
+        imm r20, 158
+        imm r21, 258
+        imm r22, 1
+        imm r23, 0
+        imm r24, 37766
+        call transfer_require_local
+        imm r20, 159
+        imm r21, 259
+        imm r22, 2
+        imm r23, 0
+        imm r24, 37908              ; n -> 10
+        call transfer_require_local
+        imm r20, 160
+        imm r21, 260
+        imm r22, 1
+        imm r23, 0
+        imm r24, 37936
+        call transfer_require_local
+        imm r20, 161
+        imm r21, 261
+        imm r22, 2
+        imm r23, 0
+        imm r24, 38078              ; t -> 9
+        call transfer_require_local
+        imm r20, 162
+        imm r21, 262
+        imm r22, 1
+        imm r23, 0
+        imm r24, 38106
+        call transfer_require_local
+        imm r20, 163
+        imm r21, 263
+        imm r22, 2
+        imm r23, 0
+        imm r24, 38248              ; r -> 13
+        call transfer_require_local
+        imm r20, 164
+        imm r21, 264
+        imm r22, 1
+        imm r23, 0
+        imm r24, 38276
+        call transfer_require_local
+        imm r20, 165
+        imm r21, 265
+        imm r22, 2
+        imm r23, 0
+        imm r24, 38418              ; zero escape -> 0
+        call transfer_require_local
+        imm r20, 166
+        imm r21, 266
+        imm r22, 1
+        imm r23, 0
+        imm r24, 38464              ; returned v
+        call transfer_require_local
+        ret
+
+parse_char_require_primitives:
+        imm r20, 608
+        imm r21, 257
+        imm r22, 3
+        imm r23, 10
+        imm r24, 37642              ; v==backslash
+        call transfer_require_primitive
+        imm r20, 609
+        imm r21, 257
+        imm r22, 1
+        imm r23, 92
+        imm r24, 37632
+        call transfer_require_primitive
+        imm r20, 610
+        imm r21, 258
+        imm r22, 3
+        imm r23, 10
+        imm r24, 37811              ; v=='n'
+        call transfer_require_primitive
+        imm r20, 611
+        imm r21, 258
+        imm r22, 1
+        imm r23, 110
+        imm r24, 37801
+        call transfer_require_primitive
+        imm r20, 612
+        imm r21, 259
+        imm r22, 1
+        imm r23, 10
+        imm r24, 37898
+        call transfer_require_primitive
+        imm r20, 613
+        imm r21, 260
+        imm r22, 3
+        imm r23, 10
+        imm r24, 37981              ; v=='t'
+        call transfer_require_primitive
+        imm r20, 614
+        imm r21, 260
+        imm r22, 1
+        imm r23, 116
+        imm r24, 37971
+        call transfer_require_primitive
+        imm r20, 615
+        imm r21, 261
+        imm r22, 1
+        imm r23, 9
+        imm r24, 38068
+        call transfer_require_primitive
+        imm r20, 616
+        imm r21, 262
+        imm r22, 3
+        imm r23, 10
+        imm r24, 38151              ; v=='r'
+        call transfer_require_primitive
+        imm r20, 617
+        imm r21, 262
+        imm r22, 1
+        imm r23, 114
+        imm r24, 38141
+        call transfer_require_primitive
+        imm r20, 618
+        imm r21, 263
+        imm r22, 1
+        imm r23, 13
+        imm r24, 38238
+        call transfer_require_primitive
+        imm r20, 619
+        imm r21, 264
+        imm r22, 3
+        imm r23, 10
+        imm r24, 38321              ; v=='0'
+        call transfer_require_primitive
+        imm r20, 620
+        imm r21, 264
+        imm r22, 1
+        imm r23, 48
+        imm r24, 38311
+        call transfer_require_primitive
+        imm r20, 621
+        imm r21, 265
+        imm r22, 1
+        imm r23, 0
+        imm r24, 38408
+        call transfer_require_primitive
+        ret
+
+parse_char_require_pushes:
+        imm r20, 178
+        imm r21, 257
+        imm r22, 1
+        imm r23, 37616
+        call transfer_require_push
+        imm r20, 179
+        imm r21, 258
+        imm r22, 1
+        imm r23, 37785
+        call transfer_require_push
+        imm r20, 180
+        imm r21, 260
+        imm r22, 1
+        imm r23, 37955
+        call transfer_require_push
+        imm r20, 181
+        imm r21, 262
+        imm r22, 1
+        imm r23, 38125
+        call transfer_require_push
+        imm r20, 182
+        imm r21, 264
+        imm r22, 1
+        imm r23, 38295
+        call transfer_require_push
+        ret
+
+parse_char_require_censuses:
+        imm r20, 256
+        imm r21, 266
+        imm r22, 155
+        imm r23, 167                 ; exclusive local row
+        imm r24, 55
+        imm r25, 55                  ; no raw-memory rows
+        imm r26, 197
+        imm r27, 211                 ; exclusive transition row
+        imm r28, 414
+        imm r29, 421                 ; exclusive event row
+        call cursor_require_effect_census
+        imm r20, 256
+        imm r21, 266
+        imm r22, 608
+        imm r23, 622                 ; exclusive primitive row
+        imm r24, 178
+        imm r25, 183                 ; exclusive binary-push row
+        imm r26, 335                 ; exact empty argument-push start
+        imm r27, 335                 ; exact empty argument-push interval
+        imm r28, 387
+        imm r29, 387                 ; exact empty store-address interval
+        call summary_require_expr_census
+        imm r20, 37528
+        imm r21, 38523
+        imm r22, 6                   ; four adv plus two cbyte calls
+        imm r23, 2                   ; parse_char explicit and synthetic return
+        imm r24, 12                  ; prologue/local/binary stores
+        call parse_char_scan_region
+        ret
+
+; Exact decoded census for [r20,r21), rejecting direct I/O, halt, byte memory,
+; division, and remainder. r22/r23/r24 are call/ret/store totals.
+parse_char_scan_region:
+        mov r25, r20
+        mov r26, r21
+        mov r27, r22
+        mov r28, r23
+        mov r29, r24
+        imm r10, 0
+        imm r11, 0
+        imm r12, 0
+parse_char_scan_loop:
+        jlt r25, r26, parse_char_scan_pc
+        jeq r10, r27, parse_char_scan_rets
+        jmp reject
+parse_char_scan_rets:
+        jeq r11, r28, parse_char_scan_stores
+        jmp reject
+parse_char_scan_stores:
+        jeq r12, r29, parse_char_scan_done
+        jmp reject
+parse_char_scan_pc:
+        imm r1, 4194304
+        add r1, r25
+        loadb r2, r1
+        imm r3, 1
+        jeq r2, r3, parse_char_scan_start
+        jmp parse_char_scan_next
+parse_char_scan_start:
+        imm r1, 2097152
+        add r1, r25
+        loadb r2, r1
+        imm r3, 19
+        jeq r2, r3, parse_char_scan_call
+        imm r3, 20
+        jeq r2, r3, parse_char_scan_ret
+        imm r3, 11
+        jeq r2, r3, parse_char_scan_store
+        imm r3, 0
+        jeq r2, r3, reject
+        imm r3, 6
+        jeq r2, r3, reject
+        imm r3, 7
+        jeq r2, r3, reject
+        imm r3, 8
+        jeq r2, r3, reject
+        imm r3, 9
+        jeq r2, r3, reject
+        imm r3, 17
+        jeq r2, r3, reject
+        imm r3, 18
+        jeq r2, r3, reject
+        jmp parse_char_scan_next
+parse_char_scan_call:
+        imm r1, 1
+        add r10, r1
+        jmp parse_char_scan_next
+parse_char_scan_ret:
+        imm r1, 1
+        add r11, r1
+        jmp parse_char_scan_next
+parse_char_scan_store:
+        imm r1, 1
+        add r12, r1
+parse_char_scan_next:
+        imm r1, 1
+        add r25, r1
+        jmp parse_char_scan_loop
+parse_char_scan_done:
+        ret
