@@ -1,1 +1,1 @@
-proves no ensures matching boundary requirement
+proves no ensures matching operator requirement

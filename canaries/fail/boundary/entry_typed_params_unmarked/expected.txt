@@ -1,1 +1,1 @@
-build root slot names unknown entry machine `Main::main`
+selected test entry `Main::main` resolves to 0 checked machines

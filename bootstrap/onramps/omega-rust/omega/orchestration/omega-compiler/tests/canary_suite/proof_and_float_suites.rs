@@ -27,6 +27,8 @@ fn fail_canaries_reject_with_expected_diagnostic_fragment() {
         let expected_path = canary.join("expected.txt");
         let expected_fragment = fs::read_to_string(&expected_path)
             .unwrap_or_else(|error| panic!("failed to read {}: {error}", expected_path.display()))
+            .replace("\r\n", "\n")
+            .replace('\r', "\n")
             .trim()
             .to_owned();
 
