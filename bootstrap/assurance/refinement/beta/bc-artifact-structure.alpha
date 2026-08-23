@@ -3,8 +3,11 @@
 ; Starting at byte zero, walk the statically reachable control-flow graph. Every
 ; reachable instruction must be completely encoded inside the tape; every direct
 ; branch/call target and fallthrough must start an instruction; and no two
-; reachable instructions may overlap. Unreachable bytes are permitted because
-; Alpha programs use jump-skipped inline data.
+; reachable instructions may overlap. It then reconstructs procedure regions
+; from direct-call entries and checks static call/return discipline: only the
+; root halts, callees return, call continuations stay in their caller, and no
+; non-call edge crosses a procedure boundary. Unreachable bytes are permitted
+; because Alpha programs use jump-skipped inline data.
 ;
 ; Exit 0: structurally valid. Exit 1: malformed. Exit 253: input exceeds the
 ; committed 256 KiB tape-hole payload (262,140 bytes after its length prefix).
@@ -15,6 +18,10 @@
 ;   coverage   1310720 .. 1572859  (0 unseen, 1 instruction start, 2 operand)
 ;   queued     1572864 .. 1835003  (one byte per possible instruction start)
 ;   worklist   1835008 .. 3932127  (262140 word entries)
+;   call entry 3932160 .. 4194299  (one byte per possible procedure entry)
+;   owner      4194304 .. 4456443  (procedure-region id at instruction starts)
+;   inst len   4456448 .. 4718587  (encoded length at instruction starts)
+;   terminals  4718592 .. 4718847  (one byte per procedure-region id)
 
 ; Globals: LEN HEAD TAIL PC OP NEXT ILEN
 
@@ -61,8 +68,7 @@ work_loop:
         imm   r3, 524304
         load  r2, r3            ; tail
         jlt   r1, r2, work_item
-        imm   r0, 0
-        halt  r0
+        jmp   verify_partition_init
 
 work_item:
         ; pc = worklist[head++]
@@ -142,6 +148,9 @@ length_ready:
         store r3, r7            ; OP
         imm   r3, 524336
         store r3, r11           ; ILEN
+        imm   r3, 4456448
+        add   r3, r6
+        storeb r3, r11
         mov   r12, r6
         add   r12, r11          ; exclusive instruction end / fallthrough
         imm   r3, 524328
@@ -216,7 +225,23 @@ conditional_3:
         jmp   load_conditional_target
 direct_call:
         imm   r13, 1
-        jmp   load_conditional_target
+        jmp   load_call_target
+
+load_call_target:
+        imm   r3, 524312
+        load  r6, r3
+        imm   r3, 1048576
+        add   r3, r6
+        add   r3, r13
+        load  r0, r3
+        imm   r1, 0
+        jeq   r0, r1, reject     ; entry zero is the unique root, never a callee
+        call  enqueue            ; range/framing admission precedes table access
+        imm   r3, 3932160
+        add   r3, r0
+        imm   r1, 1
+        storeb r3, r1
+        jmp   enqueue_fallthrough
 
 load_conditional_target:
         imm   r3, 524312
@@ -241,6 +266,229 @@ load_direct_target:
         load  r0, r3
         call  enqueue
         jmp   work_loop
+
+; Partition all reachable instruction starts into monotonically ordered
+; procedure regions. Region zero is the entry root; each distinct direct-call
+; target starts the next region. This is valid for the exact bc artifact and is
+; checked rather than assumed below: every non-call edge must remain in its
+; region, only region zero may halt, and every other region must contain a ret.
+verify_partition_init:
+        imm   r0, 0
+        imm   r3, 524352
+        store r3, r0            ; scan pc
+        imm   r0, 1
+        imm   r3, 524344
+        store r3, r0            ; region count, including root
+
+verify_partition_loop:
+        imm   r3, 524352
+        load  r6, r3
+        imm   r3, 524288
+        load  r8, r3
+        jlt   r6, r8, verify_partition_pc
+        jmp   verify_terminals_init
+
+verify_partition_pc:
+        imm   r0, 0
+        jeq   r6, r0, verify_partition_coverage
+        imm   r3, 3932160
+        add   r3, r6
+        loadb r0, r3
+        imm   r1, 0
+        jeq   r0, r1, verify_partition_coverage
+        imm   r3, 524344
+        load  r0, r3
+        imm   r1, 255
+        jlt   r0, r1, verify_partition_new_region
+        jmp   reject
+verify_partition_new_region:
+        imm   r1, 1
+        add   r0, r1
+        store r3, r0
+
+verify_partition_coverage:
+        imm   r3, 1310720
+        add   r3, r6
+        loadb r0, r3
+        imm   r1, 1
+        jeq   r0, r1, verify_partition_start
+        jmp   verify_partition_next
+
+verify_partition_start:
+        imm   r3, 524344
+        load  r5, r3
+        imm   r1, 1
+        sub   r5, r1            ; current zero-based region id
+        imm   r3, 4194304
+        add   r3, r6
+        storeb r3, r5
+
+        imm   r3, 1048576
+        add   r3, r6
+        loadb r7, r3
+        imm   r1, 0
+        jeq   r7, r1, verify_root_halt
+        imm   r1, 20
+        jeq   r7, r1, verify_callee_ret
+        jmp   verify_partition_next
+
+verify_root_halt:
+        imm   r1, 0
+        jeq   r5, r1, verify_mark_terminal
+        jmp   reject
+verify_callee_ret:
+        imm   r1, 0
+        jeq   r5, r1, reject
+verify_mark_terminal:
+        imm   r3, 4718592
+        add   r3, r5
+        imm   r1, 1
+        storeb r3, r1
+
+verify_partition_next:
+        imm   r1, 1
+        add   r6, r1
+        imm   r3, 524352
+        store r3, r6
+        jmp   verify_partition_loop
+
+verify_terminals_init:
+        imm   r6, 0
+verify_terminals_loop:
+        imm   r3, 524344
+        load  r8, r3
+        jlt   r6, r8, verify_terminal
+        jmp   verify_edges_init
+verify_terminal:
+        imm   r3, 4718592
+        add   r3, r6
+        loadb r0, r3
+        imm   r1, 1
+        jeq   r0, r1, verify_terminal_next
+        jmp   reject
+verify_terminal_next:
+        imm   r1, 1
+        add   r6, r1
+        jmp   verify_terminals_loop
+
+verify_edges_init:
+        imm   r0, 0
+        imm   r3, 524352
+        store r3, r0
+
+verify_edges_loop:
+        imm   r3, 524352
+        load  r6, r3
+        imm   r3, 524288
+        load  r8, r3
+        jlt   r6, r8, verify_edges_pc
+        imm   r0, 0
+        halt  r0
+
+verify_edges_pc:
+        imm   r3, 1310720
+        add   r3, r6
+        loadb r0, r3
+        imm   r1, 1
+        jeq   r0, r1, verify_edge_start
+        jmp   verify_edges_next
+
+verify_edge_start:
+        imm   r3, 4194304
+        add   r3, r6
+        loadb r5, r3            ; source procedure-region id
+        imm   r3, 1048576
+        add   r3, r6
+        loadb r7, r3            ; opcode
+        imm   r3, 4456448
+        add   r3, r6
+        loadb r11, r3
+        mov   r12, r6
+        add   r12, r11          ; fallthrough / call return pc
+
+        imm   r1, 0
+        jeq   r7, r1, verify_edges_next  ; halt
+        imm   r1, 20
+        jeq   r7, r1, verify_edges_next  ; ret
+        imm   r1, 12
+        jeq   r7, r1, verify_edge_direct
+        imm   r1, 13
+        jeq   r7, r1, verify_edge_conditional_2
+        imm   r1, 14
+        jeq   r7, r1, verify_edge_conditional_2
+        imm   r1, 15
+        jeq   r7, r1, verify_edge_conditional_3
+        imm   r1, 16
+        jeq   r7, r1, verify_edge_conditional_3
+        imm   r1, 19
+        jeq   r7, r1, verify_edge_call
+        mov   r0, r12
+        mov   r1, r5
+        call  require_owner
+        jmp   verify_edges_next
+
+verify_edge_direct:
+        imm   r3, 1048576
+        add   r3, r6
+        imm   r1, 1
+        add   r3, r1
+        load  r0, r3
+        mov   r1, r5
+        call  require_owner
+        jmp   verify_edges_next
+
+verify_edge_conditional_2:
+        imm   r4, 2
+        jmp   verify_edge_conditional
+verify_edge_conditional_3:
+        imm   r4, 3
+verify_edge_conditional:
+        imm   r3, 1048576
+        add   r3, r6
+        add   r3, r4
+        load  r0, r3
+        mov   r1, r5
+        call  require_owner
+        mov   r0, r12
+        mov   r1, r5
+        call  require_owner
+        jmp   verify_edges_next
+
+verify_edge_call:
+        imm   r3, 1048576
+        add   r3, r6
+        imm   r1, 1
+        add   r3, r1
+        load  r0, r3
+        imm   r3, 3932160
+        add   r3, r0
+        loadb r2, r3
+        imm   r1, 1
+        jeq   r2, r1, verify_call_return
+        jmp   reject
+verify_call_return:
+        mov   r0, r12
+        mov   r1, r5
+        call  require_owner
+        jmp   verify_edges_next
+
+verify_edges_next:
+        imm   r3, 524352
+        load  r6, r3
+        imm   r1, 1
+        add   r6, r1
+        store r3, r6
+        jmp   verify_edges_loop
+
+; require_owner(r0 target pc, r1 expected region id)
+require_owner:
+        imm   r3, 4194304
+        add   r3, r0
+        loadb r2, r3
+        jeq   r2, r1, require_owner_ok
+        jmp   reject
+require_owner_ok:
+        ret
 
 ; enqueue(r0): require a target in [0,LEN), and add each pc at most once.
 enqueue:
