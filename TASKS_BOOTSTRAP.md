@@ -1207,11 +1207,22 @@ bridge compiler is a promise to accept full Omega.
               mappings, consumed observation/branch/fin joins, cursor deltas,
               no-close behavior, and the four hit-versus-boundary provenance
               clauses; the focused checker is 235,255 bytes.
-            - [ ] Close the remaining finite lexical/value leaves: exact fixed
-              keyword recognizers, `is_muldiv`, `is_addsub`, `cmp_op`, and
-              conditional `name_eq`/`lookup` over the already-carried bounded
-              name-table prefix. Preserve lookup's deliberate no-match alias
-              to slot zero; do not silently strengthen it to an option type.
+            - [ ] Close the remaining finite lexical/value leaves.
+              - [x] Procedures 53..54 `is_muldiv`/`is_addsub` have exact
+                block/transition/event/local/primitive/push/frame ownership and
+                a decoded quiet footprint. `OMUL`/`OADD` exhaust all 256 byte
+                values against independently ordered membership specifications
+                with exact accepted/complement counts 3/253 and 2/254. The
+                exact full-word equality rows and byte-sized literals separately
+                close the non-byte complement, yielding total Word results:
+                one exactly for `{*, /, %}` or `{+, -}`, zero otherwise. Twenty-four
+                phase-isolated canaries cover shape, full-word equality, exact
+                discriminators/counts, complement, parameter provenance, and
+                quiet frame restoration; the focused checker is 239,992 bytes.
+              - [ ] Close exact fixed keyword recognizers, `cmp_op`, and
+                conditional `name_eq`/`lookup` over the already-carried bounded
+                name-table prefix. Preserve lookup's deliberate no-match alias
+                to slot zero; do not silently strengthen it to an option type.
             - [ ] Close the bounded fixed-code emitters that need only `WSTR`
               and bounded `DECS`: `gen_read_byte`, `emit_pop_into`, `emit_push`,
               `emit_mnemonic`, `emit_combine`, `emit_slot_addr`,
