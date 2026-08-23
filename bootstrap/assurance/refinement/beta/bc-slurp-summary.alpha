@@ -1,0 +1,1493 @@
+; Cursor-zero conditional relational summary for bc.slurp.
+;
+; This phase is the first genuine blockwise value simulation.  It consumes the
+; exact source/artifact rows checked earlier, then executes a finite symbolic
+; induction rather than enumerating input lengths or branch paths.  At the loop
+; cutpoint it carries one segment token
+;
+;   SRC[0:n] = input[0:n]
+;
+; together with equal Beta/Alpha n and c values, the common input cursor, an
+; empty output trace, and the already checked frame relation.  A pending c is
+; either Byte(Input(n)) with cursor n+1 or EOF with cursor n.  The store rule
+; admits only exact endpoint address SRC+n and payload Input(n), extending the
+; segment to n+1; the reread closes both successor cases.  The rank CAP-n drops
+; on every backedge.  This proves a slurp procedure summary given its checked
+; entry relation; establishing that relation from main, main's 253 projection,
+; and typed Exhaust identity remain later obligations.
+;
+; Symbolic-state globals (fresh after preceding phases):
+;   n tag/lo/hi          525464/525472/525480
+;   segment length tag   525488
+;   c kind/index tag     525496/525504       (1=Input byte, 2=EOF)
+;   input cursor tag     525512
+;   output byte count    525536
+;   rank tag/lo/hi       525544/525552/525560
+;   input-length relation/index 525568/525576 (1=len>index, 2=len=index)
+;   selected Alpha value kind/payload 525584/525592
+;   selected value-stack top/kind/payload 525600/525608/525616
+;   popped address kind/payload 525624/525632; done-store count 525640
+;
+; Index tags: 1=N, 2=N+1, 3=N+2. Value kinds: 1=SRC constant,
+; 2=index, 3=SRC+index, 4=Input(index), 5=zero, 6=one, 7=fixed address.
+; Rank tags 30=CAP-N, 31=CAP-(N+1).
+
+slurp_summary_init:
+        call slurp_summary_require_shape
+        call slurp_summary_scan_effects
+        call slurp_summary_prove_induction
+        jmp scan_owned_effects_init
+
+; ---- Exact selected source/artifact closure -----------------------------
+
+slurp_summary_require_shape:
+        ; Procedure zero has no parameters and exactly two local slots.
+        imm r20, 7151616
+        imm r21, 0
+        imm r22, 0
+        call transfer_require_cell
+        imm r20, 7159808
+        imm r21, 0
+        imm r22, 2
+        call transfer_require_cell
+
+        ; Exact cutpoints [entry,loop,body,full,done].
+        imm r20, 0
+        imm r21, 83
+        call slurp_summary_require_block_pc
+        imm r20, 1
+        imm r21, 165
+        call slurp_summary_require_block_pc
+        imm r20, 2
+        imm r21, 297
+        call slurp_summary_require_block_pc
+        imm r20, 3
+        imm r21, 657
+        call slurp_summary_require_block_pc
+        imm r20, 4
+        imm r21, 687
+        call slurp_summary_require_block_pc
+        imm r20, 5
+        imm r21, 1131
+        call slurp_summary_require_block_pc
+
+        ; Exact source transitions and their Alpha control roots/targets.
+        imm r20, 0
+        imm r21, 1
+        imm r22, 1
+        imm r23, 2
+        imm r24, 269
+        call slurp_summary_require_transition
+        imm r20, 1
+        imm r21, 1
+        imm r22, 0
+        imm r23, 4
+        imm r24, 288
+        call slurp_summary_require_transition
+        imm r20, 2
+        imm r21, 2
+        imm r22, 1
+        imm r23, 3
+        imm r24, 401
+        call slurp_summary_require_transition
+        imm r20, 3
+        imm r21, 2
+        imm r22, 0
+        imm r23, 1
+        imm r24, 648
+        call slurp_summary_require_transition
+
+        ; All ten source local actions in the selected procedure.
+        imm r20, 0
+        imm r21, 0
+        imm r22, 2
+        imm r23, 0
+        imm r24, 125
+        call transfer_require_local
+        imm r20, 1
+        imm r21, 0
+        imm r22, 2
+        imm r23, 1
+        imm r24, 146
+        call transfer_require_local
+        imm r20, 2
+        imm r21, 1
+        imm r22, 1
+        imm r23, 1
+        imm r24, 165
+        call transfer_require_local
+        imm r20, 3
+        imm r21, 2
+        imm r22, 1
+        imm r23, 0
+        imm r24, 297
+        call transfer_require_local
+        imm r20, 4
+        imm r21, 2
+        imm r22, 1
+        imm r23, 0
+        imm r24, 446
+        call transfer_require_local
+        imm r20, 5
+        imm r21, 2
+        imm r22, 1
+        imm r23, 1
+        imm r24, 503
+        call transfer_require_local
+        imm r20, 6
+        imm r21, 2
+        imm r22, 2
+        imm r23, 0
+        imm r24, 608
+        call transfer_require_local
+        imm r20, 7
+        imm r21, 2
+        imm r22, 1
+        imm r23, 0
+        imm r24, 541
+        call transfer_require_local
+        imm r20, 8
+        imm r21, 2
+        imm r22, 2
+        imm r23, 1
+        imm r24, 629
+        call transfer_require_local
+        imm r20, 9
+        imm r21, 4
+        imm r22, 1
+        imm r23, 0
+        imm r24, 713
+        call transfer_require_local
+
+        ; The endpoint byte store plus LEN and all six success resets.
+        imm r20, 0
+        imm r21, 2
+        imm r22, 2
+        imm r23, 1
+        imm r24, 538
+        call transfer_require_memory
+        imm r20, 1
+        imm r21, 4
+        imm r22, 2
+        imm r23, 8
+        imm r24, 748
+        call transfer_require_memory
+        imm r20, 2
+        imm r21, 4
+        imm r22, 2
+        imm r23, 8
+        imm r24, 803
+        call transfer_require_memory
+        imm r20, 3
+        imm r21, 4
+        imm r22, 2
+        imm r23, 8
+        imm r24, 858
+        call transfer_require_memory
+        imm r20, 4
+        imm r21, 4
+        imm r22, 2
+        imm r23, 8
+        imm r24, 913
+        call transfer_require_memory
+        imm r20, 5
+        imm r21, 4
+        imm r22, 2
+        imm r23, 8
+        imm r24, 968
+        call transfer_require_memory
+        imm r20, 6
+        imm r21, 4
+        imm r22, 2
+        imm r23, 8
+        imm r24, 1023
+        call transfer_require_memory
+        imm r20, 7
+        imm r21, 4
+        imm r22, 2
+        imm r23, 8
+        imm r24, 1078
+        call transfer_require_memory
+
+        ; Both intrinsic reads and the two source returns.
+        imm r20, 0
+        imm r21, 0
+        imm r22, 2
+        imm r23, 144
+        call slurp_summary_require_event
+        imm r20, 1
+        imm r21, 2
+        imm r22, 2
+        imm r23, 627
+        call slurp_summary_require_event
+        imm r20, 2
+        imm r21, 3
+        imm r22, 5
+        imm r23, 686
+        call slurp_summary_require_event
+        imm r20, 3
+        imm r21, 4
+        imm r22, 5
+        imm r23, 1110
+        call slurp_summary_require_event
+
+        ; Semantic roots: n/c guards, endpoint address/payload, increment,
+        ; success footprint, and both result values. Earlier phases already
+        ; validate every complete macro; these joins select their value roles.
+        imm r20, 0
+        imm r21, 0
+        imm r22, 1
+        imm r23, 0
+        imm r24, 115
+        call transfer_require_primitive
+        imm r20, 1
+        imm r21, 1
+        imm r22, 3
+        imm r23, 13
+        imm r24, 210
+        call transfer_require_primitive
+        imm r20, 2
+        imm r21, 1
+        imm r22, 1
+        imm r23, 0
+        imm r24, 200
+        call transfer_require_primitive
+        imm r20, 3
+        imm r21, 2
+        imm r22, 3
+        imm r23, 10
+        imm r24, 342
+        call transfer_require_primitive
+        imm r20, 4
+        imm r21, 2
+        imm r22, 1
+        imm r23, 1048576
+        imm r24, 332
+        call transfer_require_primitive
+        imm r20, 5
+        imm r21, 2
+        imm r22, 1
+        imm r23, 2097152
+        imm r24, 420
+        call transfer_require_primitive
+        imm r20, 6
+        imm r21, 2
+        imm r22, 2
+        imm r23, 3
+        imm r24, 465
+        call transfer_require_primitive
+        imm r20, 7
+        imm r21, 2
+        imm r22, 2
+        imm r23, 3
+        imm r24, 586
+        call transfer_require_primitive
+        imm r20, 8
+        imm r21, 2
+        imm r22, 1
+        imm r23, 1
+        imm r24, 576
+        call transfer_require_primitive
+        imm r20, 9
+        imm r21, 3
+        imm r22, 1
+        imm r23, 0
+        imm r24, 657
+        call transfer_require_primitive
+        imm r20, 10
+        imm r21, 4
+        imm r22, 1
+        imm r23, 2097136
+        imm r24, 687
+        call transfer_require_primitive
+        imm r20, 11
+        imm r21, 4
+        imm r22, 1
+        imm r23, 2097144
+        imm r24, 751
+        call transfer_require_primitive
+        imm r20, 12
+        imm r21, 4
+        imm r22, 1
+        imm r23, 0
+        imm r24, 777
+        call transfer_require_primitive
+        imm r20, 13
+        imm r21, 4
+        imm r22, 1
+        imm r23, 2097128
+        imm r24, 806
+        call transfer_require_primitive
+        imm r20, 14
+        imm r21, 4
+        imm r22, 1
+        imm r23, 0
+        imm r24, 832
+        call transfer_require_primitive
+        imm r20, 15
+        imm r21, 4
+        imm r22, 1
+        imm r23, 2097104
+        imm r24, 861
+        call transfer_require_primitive
+        imm r20, 16
+        imm r21, 4
+        imm r22, 1
+        imm r23, 0
+        imm r24, 887
+        call transfer_require_primitive
+        imm r20, 17
+        imm r21, 4
+        imm r22, 1
+        imm r23, 2097080
+        imm r24, 916
+        call transfer_require_primitive
+        imm r20, 18
+        imm r21, 4
+        imm r22, 1
+        imm r23, 0
+        imm r24, 942
+        call transfer_require_primitive
+        imm r20, 19
+        imm r21, 4
+        imm r22, 1
+        imm r23, 2097072
+        imm r24, 971
+        call transfer_require_primitive
+        imm r20, 20
+        imm r21, 4
+        imm r22, 1
+        imm r23, 0
+        imm r24, 997
+        call transfer_require_primitive
+        imm r20, 21
+        imm r21, 4
+        imm r22, 1
+        imm r23, 2097064
+        imm r24, 1026
+        call transfer_require_primitive
+        imm r20, 22
+        imm r21, 4
+        imm r22, 1
+        imm r23, 0
+        imm r24, 1052
+        call transfer_require_primitive
+        imm r20, 23
+        imm r21, 4
+        imm r22, 1
+        imm r23, 1
+        imm r24, 1081
+        call transfer_require_primitive
+
+        ; All selected temporary/address staging roots used by the induction.
+        imm r20, 0
+        imm r21, 1
+        imm r22, 1
+        imm r23, 184
+        call transfer_require_push
+        imm r20, 1
+        imm r21, 2
+        imm r22, 1
+        imm r23, 316
+        call transfer_require_push
+        imm r20, 2
+        imm r21, 2
+        imm r22, 1
+        imm r23, 430
+        call transfer_require_push
+        imm r20, 3
+        imm r21, 2
+        imm r22, 1
+        imm r23, 560
+        call transfer_require_push
+        imm r20, 369
+        imm r21, 2
+        imm r22, 3
+        imm r23, 487
+        call transfer_require_push
+        imm r20, 370
+        imm r21, 4
+        imm r22, 3
+        imm r23, 697
+        call transfer_require_push
+        imm r20, 371
+        imm r21, 4
+        imm r22, 3
+        imm r23, 761
+        call transfer_require_push
+        imm r20, 372
+        imm r21, 4
+        imm r22, 3
+        imm r23, 816
+        call transfer_require_push
+        imm r20, 373
+        imm r21, 4
+        imm r22, 3
+        imm r23, 871
+        call transfer_require_push
+        imm r20, 374
+        imm r21, 4
+        imm r22, 3
+        imm r23, 926
+        call transfer_require_push
+        imm r20, 375
+        imm r21, 4
+        imm r22, 3
+        imm r23, 981
+        call transfer_require_push
+        imm r20, 376
+        imm r21, 4
+        imm r22, 3
+        imm r23, 1036
+        call transfer_require_push
+        ret
+
+slurp_summary_require_block_pc:
+        imm r1, 8
+        mul r20, r1
+        imm r1, 3235840
+        add r1, r20
+        load r2, r1
+        jeq r2, r21, slurp_summary_require_ok
+        jmp reject
+
+; Transition row/source-block/guarded/target/control-pc in r20..r24.
+slurp_summary_require_transition:
+        mov r25, r20
+        imm r1, 8
+        mul r25, r1
+        imm r1, 3215360
+        add r1, r25
+        load r2, r1
+        jeq r2, r21, slurp_summary_transition_guard
+        jmp reject
+slurp_summary_transition_guard:
+        imm r1, 3227648
+        add r1, r25
+        load r2, r1
+        jeq r2, r22, slurp_summary_transition_target
+        jmp reject
+slurp_summary_transition_target:
+        imm r1, 3231744
+        add r1, r25
+        load r2, r1
+        jeq r2, r23, slurp_summary_transition_pc
+        jmp reject
+slurp_summary_transition_pc:
+        imm r1, 3239936
+        add r1, r25
+        load r2, r1
+        jeq r2, r24, slurp_summary_require_ok
+        jmp reject
+
+; Event row/block/kind/pc in r20..r23.
+slurp_summary_require_event:
+        mov r25, r20
+        imm r1, 8
+        mul r25, r1
+        imm r1, 7077888
+        add r1, r25
+        load r2, r1
+        jeq r2, r21, slurp_summary_event_kind
+        jmp reject
+slurp_summary_event_kind:
+        imm r1, 7086080
+        add r1, r25
+        load r2, r1
+        jeq r2, r22, slurp_summary_event_pc
+        jmp reject
+slurp_summary_event_pc:
+        imm r1, 7135232
+        add r1, r25
+        load r2, r1
+        jeq r2, r23, slurp_summary_require_ok
+        jmp reject
+slurp_summary_require_ok:
+        ret
+
+; The selected region is intrinsic-read-only.  Exhaustively scanning decoded
+; starts rules out output, ordinary calls, halt, and hidden extra effects.
+slurp_summary_scan_effects:
+        imm r10, 83
+        imm r11, 0                     ; reads
+        imm r12, 0                     ; returns
+slurp_summary_effect_loop:
+        imm r1, 1131
+        jlt r10, r1, slurp_summary_effect_pc
+        jmp slurp_summary_effect_counts
+slurp_summary_effect_pc:
+        imm r1, 4194304
+        add r1, r10
+        loadb r2, r1
+        imm r3, 1
+        jeq r2, r3, slurp_summary_effect_start
+        jmp slurp_summary_effect_next
+slurp_summary_effect_start:
+        imm r1, 2097152
+        add r1, r10
+        loadb r2, r1
+        imm r3, 17
+        jeq r2, r3, slurp_summary_effect_read
+        imm r3, 20
+        jeq r2, r3, slurp_summary_effect_return
+        imm r3, 18                    ; write
+        jeq r2, r3, reject
+        imm r3, 19                    ; ordinary call
+        jeq r2, r3, reject
+        imm r3, 0                     ; halt
+        jeq r2, r3, reject
+        jmp slurp_summary_effect_next
+slurp_summary_effect_read:
+        imm r1, 1
+        add r11, r1
+        jmp slurp_summary_effect_next
+slurp_summary_effect_return:
+        imm r1, 1
+        add r12, r1
+slurp_summary_effect_next:
+        imm r1, 1
+        add r10, r1
+        jmp slurp_summary_effect_loop
+slurp_summary_effect_counts:
+        imm r1, 2
+        jeq r11, r1, slurp_summary_effect_return_count
+        jmp reject
+slurp_summary_effect_return_count:
+        imm r1, 3                     ; two explicit + unreachable fallthrough
+        jeq r12, r1, slurp_summary_require_epilogues
+        jmp reject
+slurp_summary_require_epilogues:
+        imm r20, 667
+        imm r21, 686
+        call slurp_summary_require_epilogue
+        imm r20, 1091
+        imm r21, 1110
+        call slurp_summary_require_epilogue
+        imm r20, 1111
+        imm r21, 1130
+        call slurp_summary_require_epilogue
+        ret
+
+; Exact 19-byte caller-pair restoration at r20, ret at r21. The all-procedure
+; frame phase already proves the corresponding saved-fp token dynamically.
+slurp_summary_require_epilogue:
+        mov r25, r20
+        mov r26, r21
+        mov r2, r25
+        imm r1, 19
+        add r2, r1
+        jeq r2, r26, slurp_summary_epilogue_ret_linked
+        jmp reject
+slurp_summary_epilogue_ret_linked:
+        mov r20, r25
+        imm r21, 2                    ; mov
+        call require_tape_byte
+        mov r20, r25
+        imm r1, 1
+        add r20, r1
+        imm r21, 15
+        call require_tape_byte
+        mov r20, r25
+        imm r1, 2
+        add r20, r1
+        imm r21, 14
+        call require_tape_byte
+        mov r20, r25
+        imm r1, 3
+        add r20, r1
+        imm r21, 10
+        call require_tape_byte
+        mov r20, r25
+        imm r1, 4
+        add r20, r1
+        imm r21, 14
+        call require_tape_byte
+        mov r20, r25
+        imm r1, 5
+        add r20, r1
+        imm r21, 15
+        call require_tape_byte
+        mov r20, r25
+        imm r1, 6
+        add r20, r1
+        imm r21, 1
+        call require_tape_byte
+        mov r20, r25
+        imm r1, 7
+        add r20, r1
+        imm r21, 2
+        call require_tape_byte
+        mov r20, r25
+        imm r1, 8
+        add r20, r1
+        imm r21, 8
+        call require_tape_word
+        mov r20, r25
+        imm r1, 16
+        add r20, r1
+        imm r21, 3
+        call require_tape_byte
+        mov r20, r25
+        imm r1, 17
+        add r20, r1
+        imm r21, 15
+        call require_tape_byte
+        mov r20, r25
+        imm r1, 18
+        add r20, r1
+        imm r21, 2
+        call require_tape_byte
+        ; Recompute ret pc as start+19 and require exact ret.
+        mov r20, r25
+        imm r1, 19
+        add r20, r1
+        imm r21, 20
+        call require_tape_byte
+        ret
+
+; ---- Executable relational induction -----------------------------------
+
+slurp_summary_prove_induction:
+        ; Root invocation starts with empty related source/input segments,
+        ; equal input cursor zero, and equal empty output.
+        imm r20, 1                    ; N
+        imm r21, 0
+        imm r22, 0
+        call slurp_summary_set_n
+        imm r1, 525488
+        imm r2, 1
+        store r1, r2                  ; segment length=N
+        imm r1, 525536
+        imm r2, 0
+        store r1, r2                  ; epsilon trace
+
+        ; The read rule has exactly two outcomes. A byte is Input(N), advances
+        ; to successor(N), and is unsigned [0,255]; EOF is all ones and leaves
+        ; the cursor at N. Prove both initial partitions.
+        imm r20, 1
+        imm r21, 2
+        call slurp_summary_set_read_byte
+        call slurp_summary_require_loop_byte
+        imm r20, 1
+        call slurp_summary_set_read_eof
+        call slurp_summary_require_loop_eof
+
+        ; Generic byte-loop cutpoint for 0<=N<=CAP.
+        imm r20, 1
+        imm r21, 0
+        imm r22, 1048576
+        call slurp_summary_set_n
+        imm r1, 525488
+        imm r2, 1
+        store r1, r2
+        imm r20, 1
+        imm r21, 2
+        call slurp_summary_set_read_byte
+        call slurp_summary_require_loop_byte
+
+        ; True equality edge: N=CAP with a pending Input(CAP) byte. No store or
+        ; reset executes; the prefix segment is preserved, the extra byte has
+        ; been consumed, result is zero, output is unchanged, and the checked
+        ; epilogue restores the caller pair.
+        imm r20, 1
+        imm r21, 1048576
+        imm r22, 1048576
+        call slurp_summary_set_n
+        imm r1, 525488
+        imm r2, 1
+        store r1, r2
+        imm r20, 1
+        imm r21, 2
+        call slurp_summary_set_read_byte
+        call slurp_summary_prove_full_exit
+
+        ; False equality edge refines N to [0,CAP-1]. Symbolically execute the
+        ; exact Alpha chain at PCs 420..538: SRC literal, address push, local n,
+        ; add, address staging, local c, address pop, and storeb. No endpoint or
+        ; payload tag is supplied directly by the proof script.
+        imm r20, 1
+        imm r21, 0
+        imm r22, 1048575
+        call slurp_summary_set_n
+        imm r1, 525488
+        imm r2, 1
+        store r1, r2
+        imm r20, 1
+        imm r21, 2
+        call slurp_summary_set_read_byte
+        call slurp_sv_reset
+        call slurp_sv_imm_src
+        call slurp_sv_push
+        call slurp_sv_load_n
+        call slurp_sv_add_src_index
+        call slurp_sv_push
+        call slurp_sv_load_c
+        call slurp_sv_pop_address
+        imm r20, 1
+        imm r21, 2
+        call slurp_summary_append
+
+        ; Replay PCs 541..627: local n, push, literal one, add, and local store.
+        ; The new n tag is therefore derived from the selected Alpha value flow.
+        call slurp_sv_load_n
+        call slurp_sv_push
+        call slurp_sv_one
+        imm r20, 1
+        imm r21, 2
+        call slurp_sv_add_index_one
+        imm r20, 1
+        imm r21, 2
+        call slurp_sv_store_n_successor
+
+        ; The backedge rank CAP-N decreases exactly once with N:=N+1.
+        call slurp_summary_rank_step
+
+        ; Second read partitions at successor N'. Both cases close the same
+        ; invariant schema after alpha-renaming N' as the new cutpoint index.
+        imm r20, 2
+        imm r21, 3
+        call slurp_summary_set_read_byte
+        call slurp_summary_close_backedge_byte
+        call slurp_summary_set_post_append
+        imm r20, 2
+        call slurp_summary_set_read_eof
+        call slurp_summary_close_backedge_eof
+        call slurp_summary_prove_done_exit
+
+        ; The generic EOF cutpoint includes empty input and every successful
+        ; length through CAP. It reaches done directly and never the body.
+        imm r20, 1
+        imm r21, 0
+        imm r22, 1048576
+        call slurp_summary_set_n
+        imm r1, 525488
+        imm r2, 1
+        store r1, r2
+        imm r20, 1
+        call slurp_summary_set_read_eof
+        call slurp_summary_require_loop_eof
+        call slurp_summary_prove_done_exit
+        ret
+
+; n tag/lo/hi in r20..r22.
+slurp_summary_set_n:
+        imm r1, 525464
+        store r1, r20
+        imm r1, 525472
+        store r1, r21
+        imm r1, 525480
+        store r1, r22
+        ret
+
+; Byte read at index tag r20 with successor/cursor tag r21.
+slurp_summary_set_read_byte:
+        call slurp_summary_require_successor
+        imm r1, 525496
+        imm r2, 1
+        store r1, r2
+        imm r1, 525504
+        store r1, r20
+        imm r1, 525512
+        store r1, r21
+        imm r1, 525568
+        imm r2, 1
+        store r1, r2                  ; finite input length > index
+        imm r1, 525576
+        store r1, r20
+        ret
+
+; EOF read at index tag r20: all-ones result and no cursor advance.
+slurp_summary_set_read_eof:
+        imm r1, 525496
+        imm r2, 2
+        store r1, r2
+        imm r1, 525504
+        store r1, r20
+        imm r1, 525512
+        store r1, r20
+        imm r1, 525568
+        imm r2, 2
+        store r1, r2                  ; finite input length = index
+        imm r1, 525576
+        store r1, r20
+        ret
+
+; Only N->N+1 and N+1->N+2 are admitted symbolic successors.
+slurp_summary_require_successor:
+        imm r1, 1
+        jeq r20, r1, slurp_summary_successor_n
+        imm r1, 2
+        jeq r20, r1, slurp_summary_successor_n1
+        jmp reject
+slurp_summary_successor_n:
+        imm r1, 2
+        jeq r21, r1, slurp_summary_require_ok
+        jmp reject
+slurp_summary_successor_n1:
+        imm r1, 3
+        jeq r21, r1, slurp_summary_require_ok
+        jmp reject
+
+; Byte(Input(index)) is exactly the nonnegative read case, so the >=0 macro
+; takes body. Require local n, segment length, and c index to share the cutpoint
+; index, with cursor at its successor and epsilon output.
+slurp_summary_require_loop_byte:
+        imm r1, 525496
+        load r2, r1
+        imm r3, 1
+        jeq r2, r3, slurp_summary_loop_byte_index
+        jmp reject
+slurp_summary_loop_byte_index:
+        imm r1, 525504
+        load r20, r1
+        imm r1, 525464
+        load r2, r1
+        jeq r20, r2, slurp_summary_loop_byte_segment
+        jmp reject
+slurp_summary_loop_byte_segment:
+        imm r1, 525488
+        load r2, r1
+        jeq r20, r2, slurp_summary_loop_byte_cursor
+        jmp reject
+slurp_summary_loop_byte_cursor:
+        imm r1, 525512
+        load r21, r1
+        call slurp_summary_require_successor
+        imm r1, 525568
+        load r2, r1
+        imm r3, 1
+        jeq r2, r3, slurp_summary_loop_byte_length_index
+        jmp reject
+slurp_summary_loop_byte_length_index:
+        imm r1, 525576
+        load r2, r1
+        jeq r2, r20, slurp_summary_loop_byte_bounds
+        jmp reject
+slurp_summary_loop_byte_bounds:
+        call slurp_summary_require_n_bounds
+        jmp slurp_summary_require_empty_output
+
+; EOF is signed -1, so the >=0 macro takes done. EOF is tied to the exact
+; segment endpoint and does not advance the input cursor.
+slurp_summary_require_loop_eof:
+        imm r1, 525496
+        load r2, r1
+        imm r3, 2
+        jeq r2, r3, slurp_summary_loop_eof_index
+        jmp reject
+slurp_summary_loop_eof_index:
+        imm r1, 525504
+        load r2, r1
+        imm r1, 525464
+        load r3, r1
+        jeq r2, r3, slurp_summary_loop_eof_segment
+        jmp reject
+slurp_summary_loop_eof_segment:
+        imm r1, 525488
+        load r3, r1
+        jeq r2, r3, slurp_summary_loop_eof_cursor
+        jmp reject
+slurp_summary_loop_eof_cursor:
+        imm r1, 525512
+        load r3, r1
+        jeq r2, r3, slurp_summary_loop_eof_bounds
+        jmp reject
+slurp_summary_loop_eof_bounds:
+        imm r1, 525568
+        load r3, r1
+        imm r4, 2
+        jeq r3, r4, slurp_summary_loop_eof_length_index
+        jmp reject
+slurp_summary_loop_eof_length_index:
+        imm r1, 525576
+        load r3, r1
+        jeq r2, r3, slurp_summary_loop_eof_n_bounds
+        jmp reject
+slurp_summary_loop_eof_n_bounds:
+        call slurp_summary_require_n_bounds
+        jmp slurp_summary_require_empty_output
+
+slurp_summary_require_n_bounds:
+        imm r1, 525472
+        load r2, r1
+        imm r3, 0
+        jlt r2, r3, reject
+        imm r1, 525480
+        load r3, r1
+        jlt r3, r2, reject
+        imm r1, 1048577
+        jlt r3, r1, slurp_summary_require_ok
+        jmp reject
+
+slurp_summary_require_empty_output:
+        imm r1, 525536
+        load r2, r1
+        imm r3, 0
+        jeq r2, r3, slurp_summary_require_ok
+        jmp reject
+
+; ---- Selected Alpha value transfer -------------------------------------
+;
+; This small executable domain derives values only by replaying already-pinned
+; Alpha macros. It intentionally has no setter for SRC+index or Input(index).
+
+slurp_sv_reset:
+        imm r0, 0
+        imm r1, 525600
+        store r1, r0                    ; value-stack top
+        imm r1, 525624
+        store r1, r0                    ; popped-address kind
+        imm r1, 525632
+        store r1, r0                    ; popped-address payload
+        imm r1, 525640
+        store r1, r0                    ; done-store count
+        ret
+
+; Set current selected value to kind/payload r20/r21.
+slurp_sv_set:
+        imm r1, 525584
+        store r1, r20
+        imm r1, 525592
+        store r1, r21
+        ret
+
+slurp_sv_imm_src:
+        imm r20, 1
+        imm r21, 2097152
+        call slurp_sv_set
+        ret
+
+slurp_sv_zero:
+        imm r20, 5
+        imm r21, 0
+        call slurp_sv_set
+        ret
+
+slurp_sv_one:
+        imm r20, 6
+        imm r21, 1
+        call slurp_sv_set
+        ret
+
+; Fixed-address immediate r20.
+slurp_sv_fixed_address:
+        mov r21, r20
+        imm r20, 7
+        call slurp_sv_set
+        ret
+
+; Exact fp-relative local n load.
+slurp_sv_load_n:
+        imm r1, 525464
+        load r21, r1
+        imm r20, 2
+        call slurp_sv_set
+        ret
+
+; Exact fp-relative local c load. Only a real input-byte token reaches body.
+slurp_sv_load_c:
+        imm r1, 525496
+        load r2, r1
+        imm r3, 1
+        jeq r2, r3, slurp_sv_load_c_index
+        jmp reject
+slurp_sv_load_c_index:
+        imm r1, 525504
+        load r21, r1
+        imm r20, 4                    ; derived c payload kind
+        call slurp_sv_set
+        ret
+
+slurp_sv_push:
+        imm r1, 525600
+        load r2, r1
+        imm r3, 0
+        jeq r2, r3, slurp_sv_push_empty
+        jmp reject
+slurp_sv_push_empty:
+        imm r1, 525584
+        load r2, r1
+        imm r1, 525608
+        store r1, r2
+        imm r1, 525592
+        load r2, r1
+        imm r1, 525616
+        store r1, r2
+        imm r1, 525600
+        imm r2, 1
+        store r1, r2
+        ret
+
+; Pop selected left/address value into r23/r24 without changing current r0.
+slurp_sv_pop:
+        imm r1, 525600
+        load r2, r1
+        imm r3, 1
+        jeq r2, r3, slurp_sv_pop_one
+        jmp reject
+slurp_sv_pop_one:
+        imm r1, 525608
+        load r23, r1
+        imm r1, 525616
+        load r24, r1
+        imm r1, 525600
+        imm r2, 0
+        store r1, r2
+        ret
+
+; Exact add at PC465: constant SRC on the left, local index on the right.
+slurp_sv_add_src_index:
+        imm r1, 525584
+        load r2, r1
+        imm r3, 2
+        jeq r2, r3, slurp_sv_add_src_index_payload
+        jmp reject
+slurp_sv_add_src_index_payload:
+        imm r1, 525592
+        load r25, r1
+        call slurp_sv_pop
+        imm r1, 1
+        jeq r23, r1, slurp_sv_add_src_base
+        jmp reject
+slurp_sv_add_src_base:
+        imm r1, 2097152
+        jeq r24, r1, slurp_sv_add_src_now
+        jmp reject
+slurp_sv_add_src_now:
+        imm r20, 3
+        mov r21, r25
+        call slurp_sv_set
+        ret
+
+; Exact pop before store: staged address becomes Alpha r1.
+slurp_sv_pop_address:
+        call slurp_sv_pop
+        imm r1, 525624
+        store r1, r23
+        imm r1, 525632
+        store r1, r24
+        ret
+
+; Exact add at PC586: local index plus literal one.
+; Expected predecessor/successor tags are r20/r21.
+slurp_sv_add_index_one:
+        mov r25, r20
+        mov r26, r21
+        call slurp_summary_require_successor
+        imm r1, 525584
+        load r2, r1
+        imm r3, 6
+        jeq r2, r3, slurp_sv_add_index_one_value
+        jmp reject
+slurp_sv_add_index_one_value:
+        imm r1, 525592
+        load r2, r1
+        imm r3, 1
+        jeq r2, r3, slurp_sv_add_index_one_left
+        jmp reject
+slurp_sv_add_index_one_left:
+        call slurp_sv_pop
+        imm r1, 2
+        jeq r23, r1, slurp_sv_add_index_one_tag
+        jmp reject
+slurp_sv_add_index_one_tag:
+        jeq r24, r25, slurp_sv_add_index_one_now
+        jmp reject
+slurp_sv_add_index_one_now:
+        imm r20, 2
+        mov r21, r26
+        call slurp_sv_set
+        ret
+
+; Exact local store at PC608. r20/r21 are predecessor/successor tags.
+slurp_sv_store_n_successor:
+        mov r25, r20
+        mov r26, r21
+        call slurp_summary_require_successor
+        imm r1, 525584
+        load r2, r1
+        imm r3, 2
+        jeq r2, r3, slurp_sv_store_n_value
+        jmp reject
+slurp_sv_store_n_value:
+        imm r1, 525592
+        load r2, r1
+        jeq r2, r26, slurp_sv_store_n_old
+        jmp reject
+slurp_sv_store_n_old:
+        imm r1, 525464
+        load r2, r1
+        jeq r2, r25, slurp_sv_store_n_segment
+        jmp reject
+slurp_sv_store_n_segment:
+        imm r1, 525488
+        load r2, r1
+        jeq r2, r26, slurp_sv_store_n_now
+        jmp reject
+slurp_sv_store_n_now:
+        imm r1, 525464
+        store r1, r26
+        imm r1, 525472
+        load r2, r1
+        imm r3, 1
+        add r2, r3
+        store r1, r2
+        imm r1, 525480
+        load r2, r1
+        add r2, r3
+        store r1, r2
+        ret
+
+; Restore the abstract post-append state to prove the other read partition.
+slurp_summary_set_post_append:
+        imm r1, 525464
+        imm r2, 2
+        store r1, r2
+        imm r1, 525488
+        store r1, r2
+        ret
+
+; Capture-avoiding backedge closure: verify the concrete successor schema, then
+; rename N+1->N and N+2->N+1 before rechecking the quantified invariant.
+slurp_summary_close_backedge_byte:
+        call slurp_summary_require_loop_byte
+        imm r1, 525464
+        load r2, r1
+        imm r3, 2
+        jeq r2, r3, slurp_summary_close_byte_segment
+        jmp reject
+slurp_summary_close_byte_segment:
+        imm r1, 525488
+        load r2, r1
+        jeq r2, r3, slurp_summary_close_byte_c
+        jmp reject
+slurp_summary_close_byte_c:
+        imm r1, 525504
+        load r2, r1
+        jeq r2, r3, slurp_summary_close_byte_cursor
+        jmp reject
+slurp_summary_close_byte_cursor:
+        imm r1, 525512
+        load r2, r1
+        imm r3, 3
+        jeq r2, r3, slurp_summary_close_byte_rename
+        jmp reject
+slurp_summary_close_byte_rename:
+        imm r1, 525464
+        imm r2, 1
+        store r1, r2
+        imm r1, 525488
+        store r1, r2
+        imm r1, 525504
+        store r1, r2
+        imm r1, 525576
+        store r1, r2
+        imm r1, 525512
+        imm r2, 2                    ; checked renamed cursor successor
+        store r1, r2
+        call slurp_summary_require_loop_byte
+        ret
+
+slurp_summary_close_backedge_eof:
+        call slurp_summary_require_loop_eof
+        imm r1, 525464
+        load r2, r1
+        imm r3, 2
+        jeq r2, r3, slurp_summary_close_eof_segment
+        jmp reject
+slurp_summary_close_eof_segment:
+        imm r1, 525488
+        load r2, r1
+        jeq r2, r3, slurp_summary_close_eof_index
+        jmp reject
+slurp_summary_close_eof_index:
+        imm r1, 525504
+        load r2, r1
+        jeq r2, r3, slurp_summary_close_eof_rename
+        jmp reject
+slurp_summary_close_eof_rename:
+        imm r1, 525464
+        imm r2, 1
+        store r1, r2
+        imm r1, 525488
+        store r1, r2
+        imm r1, 525504
+        store r1, r2
+        imm r1, 525512
+        store r1, r2
+        imm r1, 525576
+        store r1, r2
+        call slurp_summary_require_loop_eof
+        ret
+
+; Exact endpoint extension rule. This is the dynamic heap step: neither source
+; address custody nor a range fact alone can mint the longer segment token.
+; r20=current index tag, r21=successor tag.
+slurp_summary_append:
+        call slurp_summary_require_successor
+        imm r1, 525464
+        load r2, r1
+        jeq r2, r20, slurp_summary_append_segment
+        jmp reject
+slurp_summary_append_segment:
+        imm r1, 525488
+        load r2, r1
+        jeq r2, r20, slurp_summary_append_address
+        jmp reject
+slurp_summary_append_address:
+        imm r1, 525624
+        load r2, r1
+        imm r3, 3                     ; derived SRC+index
+        jeq r2, r3, slurp_summary_append_address_index
+        jmp reject
+slurp_summary_append_address_index:
+        imm r1, 525632
+        load r2, r1
+        jeq r2, r20, slurp_summary_append_payload
+        jmp reject
+slurp_summary_append_payload:
+        imm r1, 525584
+        load r2, r1
+        imm r3, 4                     ; derived Input(index)
+        jeq r2, r3, slurp_summary_append_payload_index
+        jmp reject
+slurp_summary_append_payload_index:
+        imm r1, 525592
+        load r2, r1
+        jeq r2, r20, slurp_summary_append_bound
+        jmp reject
+slurp_summary_append_bound:
+        imm r1, 525480
+        load r2, r1
+        imm r3, 1048576
+        jlt r2, r3, slurp_summary_append_now
+        jmp reject
+slurp_summary_append_now:
+        ; storeb preserves every other byte/region; the prior bounds and stack
+        ; phases establish nonalias. Mint only the longer prefix. The following
+        ; selected n+1 flow must derive and store the successor local separately.
+        imm r1, 525488
+        store r1, r21
+        ret
+
+; CAP-N -> CAP-(N+1), pointwise delta one. The tag relation supplies the
+; correlation which interval subtraction alone would lose.
+slurp_summary_rank_step:
+        imm r1, 525472
+        load r2, r1                    ; successor n low
+        imm r3, 1                     ; checked inverse-successor delta
+        sub r2, r3                    ; predecessor n low
+        imm r4, 1048576
+        sub r4, r2
+        imm r1, 525552
+        store r1, r4                  ; old rank high endpoint
+        imm r1, 525480
+        load r2, r1                    ; successor n high
+        sub r2, r3                    ; predecessor n high
+        imm r4, 1048576
+        sub r4, r2
+        imm r1, 525560
+        store r1, r4                  ; old rank low endpoint
+        imm r1, 525544
+        imm r2, 30
+        store r1, r2
+        ; Require a real positive predecessor rank on the admitted body edge.
+        imm r1, 525560
+        load r2, r1
+        imm r3, 0
+        jlt r3, r2, slurp_summary_rank_successor
+        jmp reject
+slurp_summary_rank_successor:
+        imm r1, 525544
+        imm r2, 31
+        store r1, r2
+        ; The exact n+1 macro makes successor rank old rank minus one.
+        imm r1, 525552
+        load r2, r1
+        imm r3, 1
+        sub r2, r3
+        imm r1, 525472
+        load r4, r1
+        imm r5, 1048576
+        sub r5, r4
+        jeq r2, r5, slurp_summary_rank_low
+        jmp reject
+slurp_summary_rank_low:
+        imm r1, 525560
+        load r2, r1
+        imm r3, 1
+        sub r2, r3
+        imm r1, 525480
+        load r4, r1
+        imm r5, 1048576
+        sub r5, r4
+        jeq r2, r5, slurp_summary_require_ok
+        jmp reject
+
+slurp_summary_prove_full_exit:
+        ; Byte case, n=CAP, prefix length CAP, cursor CAP+1.
+        call slurp_summary_require_loop_byte
+        imm r1, 525472
+        load r2, r1
+        imm r3, 1048576
+        jeq r2, r3, slurp_summary_full_hi
+        jmp reject
+slurp_summary_full_hi:
+        imm r1, 525480
+        load r2, r1
+        jeq r2, r3, slurp_summary_full_segment
+        jmp reject
+slurp_summary_full_segment:
+        imm r1, 525488
+        load r2, r1
+        imm r3, 1
+        jeq r2, r3, slurp_summary_full_result
+        jmp reject
+slurp_summary_full_result:
+        ; Replay primitive row9 at PC657. The exact epilogue does not write r0,
+        ; so event row2 observes the derived zero value at ret686.
+        call slurp_sv_reset
+        call slurp_sv_zero
+        imm r20, 5
+        imm r21, 0
+        call slurp_sv_require_current
+        call slurp_summary_require_empty_output
+        ret
+
+slurp_summary_prove_done_exit:
+        ; EOF makes input length/cursor equal the carried prefix endpoint.
+        call slurp_summary_require_loop_eof
+        ; Symbolically execute every address push, payload production, address
+        ; pop, and word store from PC687 through PC1078.
+        call slurp_sv_reset
+        imm r20, 2097136
+        call slurp_sv_fixed_address
+        call slurp_sv_push
+        call slurp_sv_load_n             ; checked LEN payload flow
+        call slurp_sv_pop_address
+        imm r20, 2097136
+        imm r21, 2
+        imm r1, 525464
+        load r22, r1
+        call slurp_sv_store_word
+
+        imm r20, 2097144
+        call slurp_sv_fixed_address
+        call slurp_sv_push
+        call slurp_sv_zero
+        call slurp_sv_pop_address
+        imm r20, 2097144
+        imm r21, 5
+        imm r22, 0
+        call slurp_sv_store_word
+
+        imm r20, 2097128
+        call slurp_sv_fixed_address
+        call slurp_sv_push
+        call slurp_sv_zero
+        call slurp_sv_pop_address
+        imm r20, 2097128
+        imm r21, 5
+        imm r22, 0
+        call slurp_sv_store_word
+
+        imm r20, 2097104
+        call slurp_sv_fixed_address
+        call slurp_sv_push
+        call slurp_sv_zero
+        call slurp_sv_pop_address
+        imm r20, 2097104
+        imm r21, 5
+        imm r22, 0
+        call slurp_sv_store_word
+
+        imm r20, 2097080
+        call slurp_sv_fixed_address
+        call slurp_sv_push
+        call slurp_sv_zero
+        call slurp_sv_pop_address
+        imm r20, 2097080
+        imm r21, 5
+        imm r22, 0
+        call slurp_sv_store_word
+
+        imm r20, 2097072
+        call slurp_sv_fixed_address
+        call slurp_sv_push
+        call slurp_sv_zero
+        call slurp_sv_pop_address
+        imm r20, 2097072
+        imm r21, 5
+        imm r22, 0
+        call slurp_sv_store_word
+
+        imm r20, 2097064
+        call slurp_sv_fixed_address
+        call slurp_sv_push
+        call slurp_sv_zero
+        call slurp_sv_pop_address
+        imm r20, 2097064
+        imm r21, 5
+        imm r22, 0
+        call slurp_sv_store_word
+
+        imm r1, 525640
+        load r2, r1
+        imm r3, 7
+        jeq r2, r3, slurp_summary_done_result
+        jmp reject
+slurp_summary_done_result:
+        ; Primitive row23 at PC1081 derives one; the exact epilogue preserves it
+        ; to event row3/ret1110 and restores the caller pair.
+        call slurp_sv_one
+        imm r20, 6
+        imm r21, 1
+        call slurp_sv_require_current
+        call slurp_summary_require_empty_output
+        ret
+
+; Require current selected kind/payload r20/r21.
+slurp_sv_require_current:
+        imm r1, 525584
+        load r2, r1
+        jeq r2, r20, slurp_sv_require_current_payload
+        jmp reject
+slurp_sv_require_current_payload:
+        imm r1, 525592
+        load r2, r1
+        jeq r2, r21, slurp_summary_require_ok
+        jmp reject
+
+; Store expected fixed address/current kind/payload r20/r21/r22. The address
+; and payload must have been derived by the selected Alpha flow above.
+slurp_sv_store_word:
+        mov r25, r20
+        mov r26, r21
+        mov r27, r22
+        imm r1, 525624
+        load r2, r1
+        imm r3, 7
+        jeq r2, r3, slurp_sv_store_word_address
+        jmp reject
+slurp_sv_store_word_address:
+        imm r1, 525632
+        load r2, r1
+        jeq r2, r25, slurp_sv_store_word_kind
+        jmp reject
+slurp_sv_store_word_kind:
+        imm r1, 525584
+        load r2, r1
+        jeq r2, r26, slurp_sv_store_word_payload
+        jmp reject
+slurp_sv_store_word_payload:
+        imm r1, 525592
+        load r2, r1
+        jeq r2, r27, slurp_sv_store_word_count
+        jmp reject
+slurp_sv_store_word_count:
+        imm r1, 525640
+        load r2, r1
+        imm r3, 1
+        add r2, r3
+        store r1, r2
+        ret

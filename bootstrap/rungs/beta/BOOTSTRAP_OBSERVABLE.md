@@ -170,13 +170,20 @@ are valuable teeth, but they do not yet establish the quantified observation:
   three selected Alpha address operands under valid callee entry relations. The
   selected machine-`NLOC` load/update participates. The later protected-writer,
   frame-summary, and potential-lift phases establish those selected entry
-  relations globally; other raw loads, ranged payload values, and general
-  address correspondence remain open;
+  relations globally; other raw loads, identifier/table payload values, and
+  general address correspondence remain open;
 - its grammar-derived raw-load partition now classifies those 61 loads as 54
   aligned fixed-global words, five indexed SRC bytes, and two indexed
   name-table words. An exhaustive row scan checks the exact adjacent Alpha
   immediate/load pair for every fixed-global site, closing all 54 fixed-load
   bounds while leaving the seven indexed span/index relations open;
+- its first blockwise relational phase proves a cursor-zero conditional
+  `slurp` summary with a compact `SRC[0:n] = input[0:n]` segment token, exact `Input(n)`/EOF
+  lookahead and cursor transfer, the bounded endpoint append, all seven success
+  globals, both returns, empty output, caller restoration, and a decreasing
+  `1048576-n` rank. It distinguishes complete inputs through 1 MiB from the
+  consumed-but-unstored 1,048,577th byte without yet composing return 0 through
+  `main` or assigning the typed SourceBytes exhaustion identity;
 - its BC11 grammar-composition pass further partitions every raw-store source
   address into 31 aligned fixed compiler globals, one exact source-buffer
   `base + n` spelling, and two exact local-name-table `base + s * 8` spellings;

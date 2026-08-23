@@ -552,9 +552,10 @@ additional facilities the bootstrap actually needs.
       pair satisfies `524320 <= S <= F <= 1048576` and `declare` entry machine
       `NLOC` corresponds to source `NLOC` in `[0,1024]`. Wrong local/PC and value-
       tag joins plus a 24-byte underreported frame reject only in this phase.
-      Stored `c`/IDOFF/IDLEN values and the other raw loads remain open. The
-      following counter/frame/potential lift establishes both selected entry
-      preconditions for every dynamic caller.
+      At this phase the stored `c`/IDOFF/IDLEN values and the other raw loads
+      remain open. The following counter/frame/potential lift establishes both
+      selected entry preconditions for every dynamic caller, and the later
+      cursor-zero `slurp` summary closes its `c` payload and segment update.
     - [x] Lift the checked call potentials to a whole-artifact carried stack,
       saved-fp, and depth-counter invariant. A witness-free counter phase rejoins
       both reset paths, every protected writer, the exact guards/updates/exits,
@@ -584,6 +585,23 @@ additional facilities the bootstrap actually needs.
       rejects only in this phase. This proves address correspondence and 64 MiB
       safety for all 54 fixed loads when reached; the seven indexed loads still
       require the blockwise span/index relation.
+    - [x] Prove the first blockwise relational procedure summary for cursor-zero
+      `slurp`. A witness-free Alpha phase rejoins all five cutpoints, four
+      transitions, ten local actions, eight raw stores, two reads, two source
+      returns, and their exact value macros, then carries equal Beta/Alpha
+      `n`, `Input(n)`/EOF lookahead, input cursor, empty output, and the segment
+      token `SRC[0:n] = input[0:n]`. Only the exact bounded endpoint store can
+      extend that token; `n := n+1` and the second read close both backedge
+      cases, while `1048576-n` strictly decreases. Thus, from the common
+      common cursor-zero valid entry relation, inputs through 1 MiB return 1 after
+      copying the complete stream, setting LEN, and zeroing the six compiler
+      globals; larger inputs consume exactly 1 MiB+1 bytes, preserve the first
+      1 MiB prefix, and return 0 without resets. Both restore the caller frame,
+      emit nothing, avoid traps/OOB, and terminate. Wrong endpoint payload,
+      zero rank decrement, broken backedge renaming, and wrong LEN-value-flow
+      teeth reject only here.
+      Composing return 0 with `main`'s host status 253 and assigning typed
+      SourceBytes exhaustion remain terminal-summary/ruling obligations.
     - [x] Keep comparison lookahead inside the logical source arena. `cmp_op`
       now advances through the existing `cbyte()` bounds check and restores CUR
       when a single `=` is not a comparison, instead of directly reading
