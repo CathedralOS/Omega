@@ -55,6 +55,22 @@ normalized_id!(RootSlotOwnerId, "external-root slot owner");
 normalized_id!(RootProviderId, "external-root provider");
 normalized_id!(ProviderPlanId, "provider plan");
 normalized_id!(ProviderExecutionId, "provider execution");
+normalized_id!(
+    InstalledProviderOccurrenceId,
+    "installed provider occurrence"
+);
+normalized_id!(
+    ProviderOccurrenceInstallationReceiptId,
+    "provider occurrence installation receipt"
+);
+normalized_id!(
+    ProgressProfileEstablishmentReceiptId,
+    "progress-profile establishment receipt"
+);
+normalized_id!(
+    ProgressProfileGrantInvocationId,
+    "progress-profile grant invocation"
+);
 normalized_id!(RootEffectId, "external-root effect");
 normalized_id!(TrustReceiptId, "external-root trust receipt");
 normalized_id!(NestingRelationId, "external-root nesting relation");
@@ -141,6 +157,8 @@ mod opaque_callback_replacement;
 pub use opaque_callback_replacement::*;
 mod provider_execution;
 pub use provider_execution::*;
+mod progress_profile_installation;
+pub use progress_profile_installation::*;
 mod program_local_roots;
 pub use program_local_roots::*;
 mod required_root_slots;
@@ -1009,10 +1027,22 @@ pub struct CompletedInterruptEntry {
 #[derive(Debug)]
 pub struct InstalledRootLedger {
     registry: InstallationRegistryAuthority,
+    installed_context: InstalledCodeContext,
     installed_code: InstalledCodeId,
     artifact: ArtifactId,
     installation_scope: InstallationScopeId,
     required_root_slots: Option<InstalledRequiredRootSlotClosure>,
+    provider_occurrence_closure: Option<InstalledProviderOccurrenceClosure>,
+    admitted_progress_receipts:
+        BTreeMap<ProgressProfileEstablishmentReceiptId, AdmittedProgressProfileEstablishment>,
+    admitted_progress_invocations: BTreeMap<
+        (
+            InstalledProviderOccurrenceId,
+            ProgressProfileGrantInvocationId,
+        ),
+        ProgressProfileEstablishmentReceiptId,
+    >,
+    accepted_component_progress: Vec<omega_effects::ComponentProgressManifest>,
     program_local_root_cohort_claimed: bool,
     roots: BTreeMap<ExternalRootId, InstalledRootRecord>,
     root_evidence: BTreeMap<ExternalRootId, InstalledRootEvidence>,
@@ -1027,16 +1057,22 @@ impl InstalledRootLedger {
     /// occurrence. The claim is burned in `InstalledCode`, so dropping this
     /// ledger cannot recreate an empty ledger for the same installation.
     pub fn claim(installed_code: &mut InstalledCode) -> Result<Self, ExternalRootDiagnostic> {
+        let installed_context = installed_code.receipt_context();
         let registry = installed_code
             .claim_installation_registry()
             .map_err(|diagnostic| ExternalRootDiagnostic(diagnostic.0))?;
         let installation_scope = registry.installation_scope();
         Ok(Self {
             registry,
+            installed_context,
             installed_code: installed_code.identity(),
             artifact: installed_code.artifact(),
             installation_scope,
             required_root_slots: None,
+            provider_occurrence_closure: None,
+            admitted_progress_receipts: BTreeMap::new(),
+            admitted_progress_invocations: BTreeMap::new(),
+            accepted_component_progress: Vec::new(),
             program_local_root_cohort_claimed: false,
             roots: BTreeMap::new(),
             root_evidence: BTreeMap::new(),

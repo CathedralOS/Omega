@@ -264,6 +264,23 @@ build-bound instance, and final composition must resolve it against the exact
 selected provider occurrence and one non-forgeable admitted establishment
 receipt issued through a retained authorized route.
 
+The installation join is exact and transactional. One canonical registry
+seals every selected provider plan to an installed provider occurrence before
+it admits any profile receipt. A receipt separately names the qualified
+subject occurrence and the issuer occurrence, the issuer plan, exact boundary
+route, and one grant invocation. It is reusable proposition evidence for
+several identical call-site demands, but its identity or invocation cannot be
+rebound to another subject, profile, projection, issuer, or route. Component
+closure retains the original pending manifest and exact receipt evidence; a
+compact fingerprint or a mutable `discharged` flag is never authority.
+
+Canonical terminal installation metadata commits both the manifest identity
+and the opaque accepted-closure identity. Those numbers make substitution
+visible in artifact identity but do not replace the retained closure: runnable
+publication must present that opaque value again. A compiler lane that emits a
+native executable without carrying an installation acceptance therefore stays
+fail closed rather than treating selected provider plans as receipts.
+
 The normalized guarantee records the actual pinned premises, not merely the
 presence of `suspends` or `blocks` operational clauses. General machine-side
 trace propositions, deadlines, starvation freedom, and entailment between

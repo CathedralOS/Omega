@@ -1610,6 +1610,17 @@ per-occurrence expressions plus derived cardinality; compact identities remain
 report keys and no scalar multiplication is inferred for interval or
 subject-dependent content.
 
+The same installation registry owns build-bound progress closure. It seals the
+complete selected provider-plan set to exact installed provider occurrences,
+then admits a `ProgressProfile` receipt only when the exact issuer occurrence
+realizes one owner-authorized boundary route and the receipt qualifies the
+exact subject occurrence. Issuer and subject need not be the same occurrence.
+Component closure checks every canonical pending row before committing and
+retains the original manifest plus exact evidence. Terminal installation
+format 34 records the manifest and acceptance report identities in the hashed
+installation bytes; runnable publication must still consume the opaque
+acceptance, since those compact identities grant no authority.
+
 ### Placed-occurrence and resident-custody slice
 
 Terminal Psi never serializes a concrete address as authority and never

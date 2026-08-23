@@ -1,4 +1,4 @@
-//! Canonical format-33 installation header codec.
+//! Canonical format-34 installation header codec.
 //!
 //! The parent retains validation and all count conversions so extraction does
 //! not change encode error precedence. This module owns the fixed header bytes.
@@ -18,6 +18,7 @@ pub(super) struct DecodedInstallationHeader {
     pub(super) target: NativeTarget,
     pub(super) subsystem: Option<u16>,
     pub(super) profile_decision: ProfileDecisionId,
+    pub(super) component_progress: Option<super::TerminalInstalledComponentProgress>,
     pub(super) image: TerminalImageFingerprint,
     pub(super) compiler_text_validation: CompilerTextValidationEvidence,
 }
@@ -35,7 +36,7 @@ pub(super) fn encode_installation_header(
     bytes.push(architecture_tag(record.target.architecture));
     bytes.push(object_format_tag(record.target.object_format));
     bytes.push(u8::from(record.subsystem.is_some()));
-    bytes.push(0);
+    bytes.push(u8::from(record.component_progress.is_some()));
     push_u64(
         bytes,
         u64::try_from(record.target.pointer_size)
@@ -49,6 +50,10 @@ pub(super) fn encode_installation_header(
     push_u16(bytes, record.subsystem.unwrap_or(0));
     push_u16(bytes, 0);
     push_u64(bytes, record.profile_decision.get());
+    if let Some(progress) = record.component_progress {
+        push_u64(bytes, progress.manifest_identity());
+        push_u64(bytes, progress.acceptance_identity());
+    }
     bytes.extend_from_slice(record.image.as_bytes());
     push_u64(
         bytes,
@@ -107,9 +112,7 @@ pub(super) fn decode_installation_header(
     let architecture = decode_architecture(reader.u8()?)?;
     let object_format = decode_object_format(reader.u8()?)?;
     let subsystem_present = decode_boolean(reader.u8()?)?;
-    if reader.u8()? != 0 {
-        return Err(TerminalInstallationError::NonzeroReservedField);
-    }
+    let component_progress_present = decode_boolean(reader.u8()?)?;
     let pointer_size = usize::try_from(reader.u64()?)
         .map_err(|_| TerminalInstallationError::TargetPointerFactNotRepresentable)?;
     let pointer_alignment = usize::try_from(reader.u64()?)
@@ -128,6 +131,18 @@ pub(super) fn decode_installation_header(
     };
     let profile_decision = ProfileDecisionId::new(reader.u64()?)
         .ok_or(TerminalInstallationError::ZeroProfileDecision)?;
+    let component_progress = component_progress_present
+        .then(|| {
+            let manifest = std::num::NonZeroU64::new(reader.u64()?)
+                .ok_or(TerminalInstallationError::ZeroComponentProgressManifestIdentity)?;
+            let acceptance = std::num::NonZeroU64::new(reader.u64()?)
+                .ok_or(TerminalInstallationError::ZeroComponentProgressAcceptanceIdentity)?;
+            Ok(super::TerminalInstalledComponentProgress {
+                manifest,
+                acceptance,
+            })
+        })
+        .transpose()?;
     let image = TerminalImageFingerprint(reader.array()?);
     let encoded_text_fingerprint = reader.u64()?;
     let final_compiler_text_fingerprint = reader.u64()?;
@@ -152,6 +167,7 @@ pub(super) fn decode_installation_header(
         },
         subsystem,
         profile_decision,
+        component_progress,
         image,
         compiler_text_validation: CompilerTextValidationEvidence {
             encoded_text_fingerprint,

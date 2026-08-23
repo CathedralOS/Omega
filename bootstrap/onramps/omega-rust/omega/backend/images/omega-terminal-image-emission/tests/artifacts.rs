@@ -4,7 +4,7 @@ use omega_object_file::{
 use omega_target::{NativeTarget, TargetProfile};
 use omega_terminal_image_emission::{
     TERMINAL_INSTALLATION_FORMAT_MARKER, TerminalInstallationError, TerminalObjectError,
-    build_terminal_installation_record,
+    build_terminal_installation_record, build_terminal_installation_record_with_evidence,
     build_terminal_installation_record_with_provider_executions, build_terminal_object_artifact,
     can_emit_terminal_executable_image, decode_terminal_installation_record,
     derive_terminal_installation_stack_demand, derive_terminal_stack_demand,
@@ -16,7 +16,7 @@ use omega_terminal_image_emission::{
 };
 use omega_terminal_installation_evidence::{
     NativeFuelContextLayout, NativeFuelTargetPlanProjection, SponsorContextTransport,
-    TerminalProviderExecutionEvidence,
+    TerminalComponentProgressAcceptanceEvidence, TerminalProviderExecutionEvidence,
 };
 use omega_terminal_machine_code::{
     TerminalAarch64ReturnLinkEvidence, TerminalBoundarySettlementRecord,
@@ -2255,7 +2255,7 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
         terminal_installation_fingerprint(&record)
             .expect("installation fingerprint")
             .to_string(),
-        "2a5fc94452e5cd29289bebe83e63c5b3d740b4f6c21800981a8caec4fe0a9099"
+        "a36a073ae6e28816bbba6f60f77acdb6bcd8bb79bd1e044b3e82e1dd554a7ca9"
     );
 
     let mut changed_plan = plan;
@@ -2275,6 +2275,67 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
             )
         )
     ));
+}
+
+#[derive(Debug)]
+struct TestComponentProgressAcceptance {
+    manifest: u64,
+    acceptance: u64,
+}
+
+impl TerminalComponentProgressAcceptanceEvidence for TestComponentProgressAcceptance {
+    fn component_progress_manifest_identity(&self) -> u64 {
+        self.manifest
+    }
+
+    fn component_progress_acceptance_identity(&self) -> u64 {
+        self.acceptance
+    }
+}
+
+#[test]
+fn installation_record_fingerprints_component_progress_acceptance() {
+    let artifact = build_terminal_object_artifact(&two_function_plan()).expect("artifact");
+    let image = emit_terminal_executable_image(&artifact, 3).expect("image");
+    let profile = ProfileDecisionId::new(12).expect("profile decision");
+    let plain = build_terminal_installation_record(&image, profile).expect("plain record");
+    let acceptance = TestComponentProgressAcceptance {
+        manifest: 0x1122,
+        acceptance: 0x3344,
+    };
+    let committed = build_terminal_installation_record_with_evidence(
+        &image,
+        profile,
+        std::iter::empty::<&dyn TerminalProviderExecutionEvidence>(),
+        Some(&acceptance),
+    )
+    .expect("progress-bound record");
+
+    let progress = committed
+        .component_progress()
+        .expect("component progress projection");
+    assert_eq!(progress.manifest_identity(), 0x1122);
+    assert_eq!(progress.acceptance_identity(), 0x3344);
+    assert_ne!(
+        terminal_installation_fingerprint(&plain).expect("plain fingerprint"),
+        terminal_installation_fingerprint(&committed).expect("committed fingerprint")
+    );
+    let bytes = encode_terminal_installation_record(&committed).expect("canonical bytes");
+    assert_eq!(decode_terminal_installation_record(&bytes), Ok(committed));
+
+    let zero = TestComponentProgressAcceptance {
+        manifest: 0,
+        acceptance: 0x3344,
+    };
+    assert_eq!(
+        build_terminal_installation_record_with_evidence(
+            &image,
+            profile,
+            std::iter::empty::<&dyn TerminalProviderExecutionEvidence>(),
+            Some(&zero),
+        ),
+        Err(TerminalInstallationError::ZeroComponentProgressManifestIdentity)
+    );
 }
 
 #[test]

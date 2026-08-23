@@ -74,6 +74,15 @@ pub trait TerminalProviderExecutionEvidence: std::fmt::Debug {
     fn boundary_contract_fingerprint(&self) -> u64;
 }
 
+/// Read-only projection of one opaque, installation-owned component progress
+/// acceptance. These compact identities enter the terminal installation
+/// record and artifact fingerprint, but never substitute for the retained
+/// acceptance value at publication.
+pub trait TerminalComponentProgressAcceptanceEvidence: std::fmt::Debug {
+    fn component_progress_manifest_identity(&self) -> u64;
+    fn component_progress_acceptance_identity(&self) -> u64;
+}
+
 /// Relocation-free terminal object facts required to bind installed entry and
 /// fixed-fuel evidence.
 pub trait TerminalObjectEvidence {

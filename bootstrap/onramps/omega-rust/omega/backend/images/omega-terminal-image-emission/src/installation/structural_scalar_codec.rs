@@ -1,4 +1,4 @@
-//! Canonical scalar vocabulary shared by format-33 structural codecs.
+//! Canonical scalar vocabulary shared by format-34 structural codecs.
 
 use psi_core::StructuralDomainId;
 use psi_terminal::StructuralMultiplicity;

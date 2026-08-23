@@ -1,4 +1,4 @@
-//! Canonical format-33 structural field rows.
+//! Canonical format-34 structural field rows.
 
 use psi_core::{
     IeeeFloatFormat, IntegerSign, IntegerType, ScalarType, StructuralFieldId, StructuralTypeId,
