@@ -17,7 +17,10 @@ mod source;
 
 pub use commands::{PackageSourceAudit, PackageSourceRequest, audit_package_source};
 pub use diff::{ManifestDelta, ManifestDiff, ManifestSeverity, diff_package_capability_manifests};
-pub use lock::{LockedDependency, LockedPackage, PackageLock, PackageLockValidationError};
+pub use lock::{
+    LockedDependency, LockedPackage, PackageLock, PackageLockParseError,
+    PackageLockPersistenceError, PackageLockValidationError,
+};
 pub use manifest::{
     AliasName, BuildMachineManifest, CapabilityFlowSummary, DependencyAlias,
     InstallationBoundReach, PackageCapabilityManifest, PackageName, ProviderRequirement,
