@@ -6991,8 +6991,11 @@ Remaining N6/N8 work:
   path. It retains the exact representative machine/state as pure only when
   recursive service reach, suspension, blocking, mutable/out parameters, and
   unresolved concrete call targets are all absent. It does not run a second
-  expression-local effect inference. Exact owned/routed custody occurrence
-  detection remains open.
+  expression-local effect inference. Formation expands transparent domain
+  aliases and rejects every establishment-routed qualification in the carrier
+  graph with a custody-specific diagnostic. Content-bearing qualifications
+  remain excluded by the required linear-carrier fence; custody-bearing
+  quotients still wait for exact occurrence-preservation machinery.
 - Add exact-pair-selected heterogeneous constructor lifts. Dependent records
   lift in order and generate checked transport obligations for coarser earlier
   fields. Extend R6 carrier-family binders for reusable proposition-valued
