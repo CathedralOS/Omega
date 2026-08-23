@@ -36,13 +36,25 @@ framing, direct-control-target reconstruction, and static call/return nesting.
 Dynamic call-depth bounds, data-stack and memory bounds, complete stream
 semantics, cyclic progress, and terminal-class correspondence remain open.
 
-`bc-block-control.alpha` is the next whole-artifact slice. It consumes the exact
-source and tape plus an untrusted location witness, independently scans and
-resolves the source's procedure-local entry/state/`to`/`when` graph, reconstructs
-Alpha instruction framing in the same process, and validates canonical ordered
-block/transition locations and successor shapes. A branch retargeted to another
-valid instruction boundary passes the older structural gate and fails this one.
+`bc-block-control.alpha` and `bc-effect-sites.alpha` form the next whole-artifact
+slice. The gate concatenates those responsibility-specific modules into one
+Alpha checker, so the effect checks reuse the exact source scan, block table,
+tape bytes, and decoded-instruction coverage rather than trusting a second
+private reconstruction. The checker resolves the source's procedure-local
+entry/state/`to`/`when` graph and validates canonical block/transition locations
+and successor shapes. It also binds 612 lexical source effect sites—309 ordinary
+calls, two reads, five writes, 113 fixed-string emits, and 183 explicit
+returns—to their exact artifact instructions. The emit check decodes and compares
+all 829 literal bytes and validates the exact jump/address/length/helper macro.
+Compiler-synthesized prelude, helper, and 70 fallthrough epilogues account for
+the remainder, so every one of the artifact's 423 calls, two reads, six writes,
+254 returns, and sole halt has exactly one owner.
+
 The mapper supplies locations only; `bc-block-control.sh` packages the exact
-repository source and artifact itself. This proves the pinned control skeleton,
-not expression/data effects, calls/returns, output, terminal behavior, or cyclic
-progress.
+repository source and artifact itself. Structurally valid branch/call retargets,
+I/O register/opcode mutations, helper mutations, unreachable literal changes,
+emit pointer/length changes, and malformed witnesses all reject. This proves
+static effect-site custody and the fixed-emit macro when reached. Argument and
+expression values, frame contents and dynamic call depth, return values,
+non-literal I/O values, global trace order/reachability, terminal classes,
+memory/stack bounds, and cyclic progress remain open.

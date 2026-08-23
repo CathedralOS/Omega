@@ -467,8 +467,20 @@ additional facilities the bootstrap actually needs.
       admitted only as an additional decode root under the same global framing,
       overlap, and interior-target checks. Missing/duplicate/reordered witnesses,
       operand-interior PCs, and a structurally valid branch retarget reject.
-      Expression/data effects, calls/returns, output, terminal classes, and
-      cyclic progress remain open.
+      Expression/data effects, dynamic calls/returns, output traces, terminal
+      classes, and cyclic progress remain open.
+    - [x] Bind every source effect site to the exact artifact below `bc`. The
+      same Alpha process now owns 309 ordinary calls, two `read_byte` sites, five
+      `write_byte` sites, 113 fixed-string emits carrying 829 decoded bytes, and
+      183 explicit returns. Exact prelude/helper/fallthrough accounting gives
+      one owner to all 423 artifact calls, two reads, six writes, 254 returns,
+      and the sole halt. Emit sites check jump-skipped bytes, pointer, length,
+      helper target, and the exact helper loop. Valid-entry call retargets,
+      I/O register/opcode changes, helper mutations, unreachable literal edits,
+      emit pointer/length changes, and malformed event witnesses reject while
+      remaining structurally valid. This establishes static custody and the
+      fixed-emit macro when reached, not argument/value correspondence, frame
+      behavior, reachability, global trace order, or terminal correspondence.
     - [x] Freeze supported resource profile `B_bc1` and make its source-side
       ceilings checked. `bc.beta` now refuses a 1,025th name slot, fifth live
       parameter/argument, and expression or nested-block depth 65 before any

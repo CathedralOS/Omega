@@ -38,7 +38,18 @@ python3 "$GATE_DIR/bc_block_control_map.py" \
   --operand-witness-output "$T/operand.witness" \
   --duplicate-witness-output "$T/duplicate.witness" \
   --missing-witness-output "$T/missing.witness" \
-  --noncanonical-witness-output "$T/noncanonical.witness"
+  --noncanonical-witness-output "$T/noncanonical.witness" \
+  --call-retarget-patch-output "$T/call-retarget.patch" \
+  --read-register-patch-output "$T/read-register.patch" \
+  --write-register-patch-output "$T/write-register.patch" \
+  --helper-write-patch-output "$T/helper-write.patch" \
+  --emit-byte-patch-output "$T/emit-byte.patch" \
+  --emit-length-patch-output "$T/emit-length.patch" \
+  --emit-pointer-patch-output "$T/emit-pointer.patch" \
+  --emit-helper-patch-output "$T/emit-helper.patch" \
+  --orphan-io-patch-output "$T/orphan-io.patch" \
+  --duplicate-event-witness-output "$T/duplicate-event.witness" \
+  --noncanonical-event-witness-output "$T/noncanonical-event.witness"
 
 # The untrusted mapper never writes the source/tape portion of checker input.
 # Assemble every bundle here from the exact repository source and artifact.
@@ -57,13 +68,34 @@ make_bundle "$ARTIFACT" "$T/operand.witness" "$T/operand.bundle"
 make_bundle "$ARTIFACT" "$T/duplicate.witness" "$T/duplicate.bundle"
 make_bundle "$ARTIFACT" "$T/missing.witness" "$T/missing.bundle"
 make_bundle "$ARTIFACT" "$T/noncanonical.witness" "$T/noncanonical.bundle"
+make_bundle "$ARTIFACT" "$T/duplicate-event.witness" "$T/duplicate-event.bundle"
+make_bundle "$ARTIFACT" "$T/noncanonical-event.witness" "$T/noncanonical-event.bundle"
 
 cp "$ARTIFACT" "$T/retarget.tape"
 RETARGET_OFFSET=$(dd if="$T/retarget.patch" bs=1 count=4 2>/dev/null | od -An -tu4 | tr -d ' ')
 dd if="$T/retarget.patch" of="$T/retarget.tape" bs=1 skip=4 seek="$RETARGET_OFFSET" count=8 conv=notrunc 2>/dev/null
 make_bundle "$T/retarget.tape" "$T/control.witness" "$T/retarget.bundle"
 
-"$ASM" < "$GATE_DIR/bc-block-control.alpha" > "$T/control-check.tape"
+apply_tape_patch() { # label
+  cp "$ARTIFACT" "$T/$1.tape"
+  PATCH_OFFSET=$(dd if="$T/$1.patch" bs=1 count=4 2>/dev/null | od -An -tu4 | tr -d ' ')
+  PATCH_SIZE=$(wc -c < "$T/$1.patch" | tr -d ' ')
+  PATCH_SIZE=$((PATCH_SIZE - 4))
+  dd if="$T/$1.patch" of="$T/$1.tape" bs=1 skip=4 seek="$PATCH_OFFSET" count="$PATCH_SIZE" conv=notrunc 2>/dev/null
+  make_bundle "$T/$1.tape" "$T/control.witness" "$T/$1.bundle"
+}
+apply_tape_patch call-retarget
+apply_tape_patch read-register
+apply_tape_patch write-register
+apply_tape_patch helper-write
+apply_tape_patch emit-byte
+apply_tape_patch emit-length
+apply_tape_patch emit-pointer
+apply_tape_patch emit-helper
+apply_tape_patch orphan-io
+
+cat "$GATE_DIR/bc-block-control.alpha" "$GATE_DIR/bc-effect-sites.alpha" > "$T/control-check.alpha"
+"$ASM" < "$T/control-check.alpha" > "$T/control-check.tape"
 stamp_seed "$T/control-check.tape" "$SEED" "$T/control-check" >/dev/null
 
 case_run() { # label expected-status input
@@ -83,6 +115,17 @@ case_run "block pc into opcode-looking operand" 1 "$T/operand.bundle"
 case_run "duplicate block location" 1 "$T/duplicate.bundle"
 case_run "missing transition location" 1 "$T/missing.bundle"
 case_run "noncanonical transition order" 1 "$T/noncanonical.bundle"
+case_run "valid-entry source call retarget" 1 "$T/call-retarget.bundle"
+case_run "source read register" 1 "$T/read-register.bundle"
+case_run "source write register" 1 "$T/write-register.bundle"
+case_run "helper write register" 1 "$T/helper-write.bundle"
+case_run "jump-skipped emit byte" 1 "$T/emit-byte.bundle"
+case_run "emit length" 1 "$T/emit-length.bundle"
+case_run "emit pointer" 1 "$T/emit-pointer.bundle"
+case_run "emit helper target" 1 "$T/emit-helper.bundle"
+case_run "same-width read/write opcode" 1 "$T/orphan-io.bundle"
+case_run "duplicate source effect location" 1 "$T/duplicate-event.bundle"
+case_run "noncanonical source effect order" 1 "$T/noncanonical-event.bundle"
 
 # Show that the negative control has teeth beyond the pre-existing structural
 # obligation: its changed target is another real instruction boundary, so the
@@ -106,4 +149,15 @@ if [ "$structure_status" != 0 ] || [ -s "$T/stdout" ]; then
   exit 1
 fi
 
-echo "bc block control: source completeness 70 proc / 355 block / 291 transition; valid-boundary retarget rejected ($(wc -c < "$T/control-check.tape" | tr -d ' ')-byte Alpha checker tape)"
+for mutation in call-retarget read-register write-register helper-write emit-byte emit-length emit-pointer emit-helper orphan-io; do
+  set +e
+  "$T/structure-check" < "$T/$mutation.tape" > "$T/stdout"
+  structure_status=$?
+  set -e
+  if [ "$structure_status" != 0 ] || [ -s "$T/stdout" ]; then
+    echo "bc block control FAIL — $mutation was not a structurally valid mutation" >&2
+    exit 1
+  fi
+done
+
+echo "bc block control/effects: 70 proc / 355 block / 291 transition; 612 effect sites / 829 fixed emit bytes; all 686 artifact effects owned ($(wc -c < "$T/control-check.tape" | tr -d ' ')-byte Alpha checker tape)"
