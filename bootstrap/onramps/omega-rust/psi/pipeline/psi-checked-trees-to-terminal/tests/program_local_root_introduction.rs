@@ -6,7 +6,9 @@ use psi_source_files_to_tokens::Lexer;
 use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
 use psi_terminal::program_local_root_introduction_identity;
-use psi_terminal_codec::{decode_module, encode_module};
+use psi_terminal_codec::{
+    VerifiedProgramLocalRootProducerCatalog, decode_module, encode_module, terminal_psi_identity,
+};
 use psi_tokens_to_syntax_trees::parse_syntax_trees;
 use psi_typed_trees_to_checked_trees::lower_typed_trees;
 
@@ -46,6 +48,18 @@ fn lowered() -> psi_checked_trees_to_terminal::LoweredTerminalPsi {
     let checked = lower_typed_trees(typed).expect("check");
     psi_checked_trees_to_terminal::lower_machine(&checked, "Root::run")
         .expect("lower program-local introduction schema")
+}
+
+fn owned_producer_catalog() -> VerifiedProgramLocalRootProducerCatalog {
+    let lowered = lowered();
+    let verified = psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("program-local producer verifies");
+    VerifiedProgramLocalRootProducerCatalog::from_verified(&verified)
+        .expect("verified producer catalog")
 }
 
 #[test]
@@ -115,6 +129,42 @@ fn source_route_lowers_exact_source_free_program_local_schema() {
 }
 
 #[test]
+fn verified_catalog_owns_canonical_source_free_producer_rows() {
+    // Construction happens in the helper so its module and verifier wrapper
+    // are both gone before this owned catalog is inspected.
+    let catalog = owned_producer_catalog();
+    let lowered = lowered();
+    assert_eq!(
+        catalog.terminal_psi(),
+        terminal_psi_identity(&lowered.semantic_module).expect("terminal identity")
+    );
+    assert_eq!(catalog.terminal_entry(), lowered.semantic_module.entry);
+
+    let [row] = catalog.schemas() else {
+        panic!("one verified program-local producer row")
+    };
+    let boundary = &lowered.semantic_module.boundary_machines[0];
+    let schema = &boundary.program_local_root_introductions[0];
+    let domain = lowered
+        .semantic_module
+        .structural_domains
+        .iter()
+        .find(|domain| domain.id == schema.qualification)
+        .expect("qualified domain");
+    let carrier = lowered
+        .semantic_module
+        .structural_types
+        .iter()
+        .find(|carrier| carrier.id == schema.carrier)
+        .expect("structural carrier");
+
+    assert_eq!(row.boundary_requirement_identity(), boundary.identity);
+    assert_eq!(row.qualification_identity(), domain.identity);
+    assert_eq!(row.carrier_identity(), carrier.identity);
+    assert_eq!(row.schema(), schema);
+}
+
+#[test]
 fn verifier_rejects_tampering_of_every_schema_identity_input() {
     let lowered = lowered();
     let module = lowered.semantic_module;
@@ -146,4 +196,24 @@ fn verifier_rejects_tampering_of_every_schema_identity_input() {
         );
     });
     mutate(|schema| schema.identity ^= 1);
+}
+
+#[test]
+fn duplicate_schema_cannot_cross_the_verified_catalog_gate() {
+    let lowered = lowered();
+    let mut duplicate = lowered.semantic_module;
+    let schema = duplicate.boundary_machines[0].program_local_root_introductions[0].clone();
+    duplicate.boundary_machines[0]
+        .program_local_root_introductions
+        .push(schema);
+
+    assert!(
+        psi_terminal_verifier::verify_module(
+            &duplicate,
+            &lowered.proof_bundle,
+            &AdmissionProfile::default(),
+        )
+        .is_err(),
+        "a duplicate producer row cannot yield the VerifiedTerminalModule required by the catalog"
+    );
 }
