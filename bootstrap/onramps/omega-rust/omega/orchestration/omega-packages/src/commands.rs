@@ -2,7 +2,9 @@ use crate::audit::{PackageGraphAudit, PackageGraphAuditError, audit_package_grap
 use crate::diff::{ManifestDelta, ManifestDiff, diff_package_capability_manifests};
 use crate::install::{PackageInstallPlan, PackageInstallPlanError, plan_package_install};
 use crate::lock::{PackageLock, PackageLockPersistenceError};
-use crate::manifest::{AliasName, PackageCapabilityManifest, PackageName};
+use crate::manifest::{
+    AliasName, PackageCapabilityManifest, PackageCapabilityManifestPersistenceError, PackageName,
+};
 use crate::resolver::{SourceCachePolicyRecord, SourceCacheRequest, resolve_source_cache_record};
 use crate::review::{
     CapabilityChangeReceipt, CapabilityChangeReceiptPersistenceError, CapabilityReviewError,
@@ -160,6 +162,16 @@ impl CapabilityChangeReviewCommand {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PackageGraphAuditCommandError {
     Lock(PackageLockPersistenceError),
+    Graph(PackageGraphAuditError),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PackageGraphAuditFromPathsCommandError {
+    Lock(PackageLockPersistenceError),
+    Manifest {
+        path: PathBuf,
+        error: PackageCapabilityManifestPersistenceError,
+    },
     Graph(PackageGraphAuditError),
 }
 
@@ -365,6 +377,38 @@ pub fn audit_package_graph_from_lock(
         lock_path: lock_path.to_path_buf(),
         audit,
     })
+}
+
+pub fn audit_package_graph_from_paths(
+    lock_path: impl AsRef<Path>,
+    manifest_paths: &[PathBuf],
+) -> Result<PackageGraphAuditCommand, PackageGraphAuditFromPathsCommandError> {
+    let lock_path = lock_path.as_ref();
+    let lock = PackageLock::read_from_path(lock_path)
+        .map_err(PackageGraphAuditFromPathsCommandError::Lock)?;
+    let manifests = read_manifest_paths(manifest_paths)?;
+    let audit = audit_package_graph(&lock, &manifests)
+        .map_err(PackageGraphAuditFromPathsCommandError::Graph)?;
+    Ok(PackageGraphAuditCommand {
+        lock_path: lock_path.to_path_buf(),
+        audit,
+    })
+}
+
+fn read_manifest_paths(
+    manifest_paths: &[PathBuf],
+) -> Result<Vec<PackageCapabilityManifest>, PackageGraphAuditFromPathsCommandError> {
+    manifest_paths
+        .iter()
+        .map(|path| {
+            PackageCapabilityManifest::read_from_path(path).map_err(|error| {
+                PackageGraphAuditFromPathsCommandError::Manifest {
+                    path: path.clone(),
+                    error,
+                }
+            })
+        })
+        .collect()
 }
 
 pub fn plan_package_install_from_lock(
@@ -809,6 +853,63 @@ mod tests {
                 }
             ))
         );
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn graph_audit_command_reads_lock_and_manifest_paths() {
+        let root = temp_root("graph-audit-paths");
+        std::fs::create_dir_all(&root).expect("create audit temp");
+        let lock_path = root.join("omega.lock");
+        let root_manifest_path = root.join("graph-workbench.package.json");
+        let child_manifest_path = root.join("file-journal.package.json");
+        let root_manifest = manifest("graph-workbench");
+        let mut child_manifest = manifest("file-journal");
+        child_manifest
+            .exported_service_reach
+            .push("FilesystemHost".to_owned());
+        let lock = graph_lock(&root_manifest, &child_manifest);
+        lock.write_to_path(&lock_path).expect("write lock fixture");
+        root_manifest
+            .write_to_path(&root_manifest_path)
+            .expect("write root manifest");
+        child_manifest
+            .write_to_path(&child_manifest_path)
+            .expect("write child manifest");
+
+        let report = audit_package_graph_from_paths(
+            &lock_path,
+            &[root_manifest_path.clone(), child_manifest_path.clone()],
+        )
+        .expect("audit command should read manifests");
+
+        assert_eq!(report.lock_path, lock_path);
+        assert!(
+            report
+                .to_text()
+                .contains("FilesystemHost via graph-workbench -> file-journal")
+        );
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn graph_audit_command_reports_manifest_path_parse_error() {
+        let root = temp_root("graph-audit-bad-manifest");
+        std::fs::create_dir_all(&root).expect("create audit temp");
+        let lock_path = root.join("omega.lock");
+        let manifest_path = root.join("bad.package.json");
+        let root_manifest = manifest("graph-workbench");
+        let lock = lock_from_manifests(std::slice::from_ref(&root_manifest));
+        lock.write_to_path(&lock_path).expect("write lock fixture");
+        std::fs::write(&manifest_path, "{").expect("write bad manifest");
+
+        assert!(matches!(
+            audit_package_graph_from_paths(&lock_path, std::slice::from_ref(&manifest_path)),
+            Err(PackageGraphAuditFromPathsCommandError::Manifest { path, .. })
+                if path == manifest_path
+        ));
 
         let _ = std::fs::remove_dir_all(&root);
     }

@@ -242,6 +242,15 @@ Completed:
   package manifests, runs the graph audit core, returns report text, and
   preserves distinct lock-persistence versus graph-consistency errors.
 
+- **PACKAGE-GRAPH-AUDIT-MANIFEST-FILE-API.** Add the file-backed graph audit
+  command seam for future `omega audit packages --manifest <path>` style CLI
+  wiring.
+
+  Done 2026-08-23: `omega-packages` can read the current `omega.lock`, load
+  package capability manifests from strict JSON files, preserve distinct lock,
+  manifest-file, and graph-consistency errors, and return the existing graph
+  audit text without requiring compiler manifest derivation.
+
 - **PACKAGE-LOCK-ASSEMBLY-FROM-MANIFESTS.** Add a lock assembly helper for
   compiler-supplied package manifests before full compiler/CLI lock wiring.
 
@@ -409,8 +418,9 @@ Remaining:
 
   Remaining after `PACKAGE-SOURCE-AUDIT-COMMAND-API`,
   `PACKAGE-GRAPH-AUDIT-CORE`, `PACKAGE-GRAPH-AUDIT-DETAILS`, and
-  `PACKAGE-GRAPH-AUDIT-COMMAND-API`: derive package manifests for a resolved
-  graph and expose the graph audit through the `omega` CLI.
+  `PACKAGE-GRAPH-AUDIT-COMMAND-API`, and
+  `PACKAGE-GRAPH-AUDIT-MANIFEST-FILE-API`: derive package manifests for a
+  resolved graph and expose the graph audit through the `omega` CLI.
 
   Acceptance: `omega audit packages` prints the resolved graph, source pins,
   service reach, build observation classes, provider origins, trust receipts,
