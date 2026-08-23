@@ -156,6 +156,15 @@ remains the sole source-level authority. A later package may implement a public
 authorized requirement, but implementation, ordinary invocation, and matching
 data shape cannot mint a root.
 
+The installed root ledger retains the verified required-slot closure by exact
+member evidence and issues the program-local cohort verifier once. That verifier
+has no public constructor. It accepts prebindings only from retained required
+roots and seals all eligible members for one lifecycle ledger and epoch in one
+transaction; failure returns every lease. The closed cohort derives an ordered
+aggregate schema and cardinality while retaining each per-occurrence capacity
+expression independently. A compact fingerprint or mutable prebinding count is
+never an establishment value.
+
 Before any such event can be introduced, installation derives an opaque exact
 closure of the target profile's required build-bound root slots. Missing,
 duplicate, extra, and cross-profile selections reject. The closure is

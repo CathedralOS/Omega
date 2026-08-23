@@ -1151,6 +1151,15 @@ installation scope; its ledger cannot be recreated after the claim is issued,
 and it rejects roots from another installed occurrence even when compact report
 identities resemble one another.
 
+The root ledger then replays the closure against the installed members and
+burns issuance of one program-local cohort verifier. The verifier has no public
+constructor, admits no root outside that closure, and closes every eligible
+prebinding atomically under one exact lifecycle ledger and epoch. Until that
+cohort exists, a prebinding, count, or individually packaged lease is not an
+origin. The cohort's aggregate preserves exact per-occurrence expressions and
+derives cardinality from membership; it does not multiply interval or
+subject-dependent capacity by convention.
+
 Contracts call the exact owner-unique projection machine. Proof-only
 `entry(place)` selects an entry-version structural place, while compiler-owned
 `separate(...)` performs the closed algebra's partial n-ary composition. Neither

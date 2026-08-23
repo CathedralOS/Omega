@@ -11,8 +11,9 @@ use psi_terminal::TerminalPsiIdentity;
 use psi_terminal_codec::VerifiedProgramLocalRootProducerCatalog;
 
 use super::{
-    ExternalRootDiagnostic, ExternalRootId, InstalledExternalRoot, ProviderExecutionId,
-    RootAdmissionId, RootSlotId, RootSlotOwnerId, TerminalObjectEvidence, bind_terminal_function,
+    ExternalRootDiagnostic, ExternalRootId, InstalledExternalRoot,
+    InstalledRequiredRootSlotClosure, InstalledRootLedger, ProviderExecutionId, RootAdmissionId,
+    RootSlotId, RootSlotOwnerId, TerminalObjectEvidence, bind_terminal_function,
 };
 
 /// Exact, opaque address of one non-authoritative installed prebinding.
@@ -215,17 +216,34 @@ impl InstalledProgramLocalRootOccurrence<'_, '_> {
 }
 
 /// Installation-owned ledger for the non-minting occurrence prebinding.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct ProgramLocalRootInstallationLedger {
+    installed_required_slots: InstalledRequiredRootSlotClosure,
     prebindings: BTreeMap<ProgramLocalRootPrebindingId, ProgramLocalRootInstalledPrebinding>,
+    prebindings_frozen: bool,
     lifecycle_bindings: BTreeMap<LifecycleFamilyKey, ComponentEraLedgerId>,
     active_occurrences: BTreeSet<InstalledProgramLocalRootOccurrenceId>,
     used_occurrences: BTreeSet<InstalledProgramLocalRootOccurrenceId>,
+    sealed_epoch_cohorts: BTreeSet<(ComponentEraLedgerId, u64)>,
 }
 
 impl ProgramLocalRootInstallationLedger {
-    pub fn new() -> Self {
-        Self::default()
+    fn from_installed_required_slots(
+        installed_required_slots: InstalledRequiredRootSlotClosure,
+    ) -> Self {
+        Self {
+            installed_required_slots,
+            prebindings: BTreeMap::new(),
+            prebindings_frozen: false,
+            lifecycle_bindings: BTreeMap::new(),
+            active_occurrences: BTreeSet::new(),
+            used_occurrences: BTreeSet::new(),
+            sealed_epoch_cohorts: BTreeSet::new(),
+        }
+    }
+
+    pub const fn installed_required_slots(&self) -> &InstalledRequiredRootSlotClosure {
+        &self.installed_required_slots
     }
 
     /// Join every authorized schema on the installed root's exact requirement
@@ -237,6 +255,24 @@ impl ProgramLocalRootInstallationLedger {
         terminal_artifact: &TerminalArtifact,
         root: &InstalledExternalRoot<'_>,
     ) -> Result<Vec<ProgramLocalRootInstalledPrebinding>, ExternalRootDiagnostic> {
+        if self.prebindings_frozen {
+            return Err(ExternalRootDiagnostic(
+                "program-local root prebindings are frozen after epoch-cohort sealing".into(),
+            ));
+        }
+        let Some(installed_slot) = self.installed_required_slots.slot(root.slot) else {
+            return Err(ExternalRootDiagnostic(
+                "program-local root prebinding names a slot outside the sealed required closure"
+                    .into(),
+            ));
+        };
+        if self.installed_required_slots.installed_code() != root.installed_code.identity()
+            || !installed_slot.matches_root(root)
+        {
+            return Err(ExternalRootDiagnostic(
+                "program-local root prebinding substituted the installed required root".into(),
+            ));
+        }
         let terminal_psi = catalog.terminal_psi();
         if terminal_artifact.terminal_psi() != terminal_psi {
             return Err(ExternalRootDiagnostic(
@@ -391,88 +427,195 @@ impl ProgramLocalRootInstallationLedger {
             .collect()
     }
 
-    /// Bind one canonical prebinding to an exact lifecycle occurrence.
-    ///
-    /// Rejection returns the non-clonable lease intact. A successful join is
-    /// unique per prebinding, lifecycle ledger, and era; retirement does not
-    /// make that same origin reusable.
-    pub fn join<'root, 'code>(
+    /// Atomically close every eligible prebinding into one exact lifecycle
+    /// cohort. Rejection returns every non-clonable lease intact; no member is
+    /// committed until the complete expected set validates.
+    pub fn seal_epoch_cohort<'root, 'code>(
         &mut self,
-        prebinding: ProgramLocalRootPrebindingId,
-        root: &'root InstalledExternalRoot<'code>,
         lifecycle: &ComponentEraEntryLedger,
-        epoch_lease: ProgramLocalRootEpochLease,
-    ) -> Result<InstalledProgramLocalRootOccurrence<'root, 'code>, ProgramLocalRootJoinError> {
-        let reject = |epoch_lease, diagnostic: &str| ProgramLocalRootJoinError {
-            prebinding,
-            epoch_lease,
-            diagnostic: ExternalRootDiagnostic(diagnostic.into()),
+        members: impl IntoIterator<Item = ProgramLocalRootCohortMember<'root, 'code>>,
+    ) -> Result<
+        InstalledProgramLocalRootEpochCohort<'root, 'code>,
+        Box<ProgramLocalRootCohortSealError<'root, 'code>>,
+    > {
+        let members = members.into_iter().collect::<Vec<_>>();
+        let reject = |members, diagnostic: &str| {
+            Err(Box::new(ProgramLocalRootCohortSealError {
+                members,
+                diagnostic: ExternalRootDiagnostic(diagnostic.into()),
+            }))
         };
-        let Some(canonical) = self.prebindings.get(&prebinding).cloned() else {
-            return Err(reject(
-                epoch_lease,
-                "program-local root join names no canonical installed prebinding",
-            ));
+        let Some(lifecycle_epoch) = lifecycle.current_era() else {
+            return reject(
+                members,
+                "program-local root cohort has no current lifecycle epoch",
+            );
         };
-        if lifecycle
-            .validate_program_local_root_epoch_lease(&epoch_lease)
-            .is_err()
-        {
-            return Err(reject(
-                epoch_lease,
-                "program-local root lifecycle lease is not live in the exact current open era",
-            ));
+        let cohort_key = (lifecycle.identity(), lifecycle_epoch);
+        if self.sealed_epoch_cohorts.contains(&cohort_key) {
+            return reject(
+                members,
+                "program-local root epoch cohort was already sealed",
+            );
         }
-        if !canonical.matches_root(root) {
-            return Err(reject(
-                epoch_lease,
-                "program-local root join substituted the exact installed root occurrence",
-            ));
+
+        let expected = self.prebindings.keys().copied().collect::<BTreeSet<_>>();
+        let supplied = members
+            .iter()
+            .map(|member| member.prebinding)
+            .collect::<BTreeSet<_>>();
+        if supplied.len() != members.len() {
+            return reject(
+                members,
+                "program-local root epoch cohort repeats one prebinding",
+            );
         }
-        if epoch_lease.entry_contract_identity() != canonical.requirement_identity
-            || epoch_lease.artifact_instance_identity()
-                != canonical.identity.installed_code.normalized_identity()
-        {
-            return Err(reject(
-                epoch_lease,
-                "program-local root lifecycle lease does not bind the exact requirement and installed artifact occurrence",
-            ));
+        if supplied != expected {
+            return reject(
+                members,
+                "program-local root epoch cohort omits or adds an eligible prebinding",
+            );
         }
-        let lifecycle_family = (
-            canonical.identity.installed_code,
-            canonical.identity.schema_identity,
-        );
-        if self
-            .lifecycle_bindings
-            .get(&lifecycle_family)
-            .is_some_and(|ledger| *ledger != epoch_lease.ledger())
-        {
-            return Err(reject(
-                epoch_lease,
-                "program-local root prebinding family is already bound to another lifecycle ledger",
-            ));
+
+        let mut validated = Vec::with_capacity(members.len());
+        for member in &members {
+            let Some(canonical) = self.prebindings.get(&member.prebinding).cloned() else {
+                return reject(
+                    members,
+                    "program-local root cohort names no canonical installed prebinding",
+                );
+            };
+            if lifecycle
+                .validate_program_local_root_epoch_lease(&member.epoch_lease)
+                .is_err()
+                || member.epoch_lease.ledger() != lifecycle.identity()
+                || member.epoch_lease.era_identity() != lifecycle_epoch
+            {
+                return reject(
+                    members,
+                    "program-local root cohort lease is not live in the exact current epoch ledger",
+                );
+            }
+            if !canonical.matches_root(member.root)
+                || self
+                    .installed_required_slots
+                    .slot(member.root.slot)
+                    .is_none_or(|slot| !slot.matches_root(member.root))
+            {
+                return reject(
+                    members,
+                    "program-local root cohort substituted the exact installed required root",
+                );
+            }
+            if member.epoch_lease.entry_contract_identity() != canonical.requirement_identity
+                || member.epoch_lease.artifact_instance_identity()
+                    != canonical.identity.installed_code.normalized_identity()
+            {
+                return reject(
+                    members,
+                    "program-local root cohort lease does not bind the exact requirement and installed artifact occurrence",
+                );
+            }
+            let lifecycle_family = (
+                canonical.identity.installed_code,
+                canonical.identity.schema_identity,
+            );
+            if self
+                .lifecycle_bindings
+                .get(&lifecycle_family)
+                .is_some_and(|ledger| *ledger != lifecycle.identity())
+            {
+                return reject(
+                    members,
+                    "program-local root prebinding family is already bound to another lifecycle ledger",
+                );
+            }
+            let identity = InstalledProgramLocalRootOccurrenceId {
+                prebinding: member.prebinding,
+                lifecycle_ledger: lifecycle.identity(),
+                lifecycle_epoch,
+            };
+            if self.active_occurrences.contains(&identity)
+                || self.used_occurrences.contains(&identity)
+            {
+                return reject(
+                    members,
+                    "program-local root occurrence was already committed in this lifecycle epoch",
+                );
+            }
+            validated.push((canonical, lifecycle_family, identity));
         }
-        let identity = InstalledProgramLocalRootOccurrenceId {
-            prebinding,
-            lifecycle_ledger: epoch_lease.ledger(),
-            lifecycle_epoch: epoch_lease.era_identity(),
-        };
-        if self.active_occurrences.contains(&identity) || self.used_occurrences.contains(&identity)
-        {
-            return Err(reject(
-                epoch_lease,
-                "program-local root installed occurrence already joined in this lifecycle epoch",
-            ));
+
+        for (_, lifecycle_family, identity) in &validated {
+            self.lifecycle_bindings
+                .entry(*lifecycle_family)
+                .or_insert(identity.lifecycle_ledger);
+            let fresh = self.active_occurrences.insert(*identity);
+            debug_assert!(fresh, "validated cohort occurrence is new");
         }
-        self.lifecycle_bindings
-            .entry(lifecycle_family)
-            .or_insert(identity.lifecycle_ledger);
-        self.active_occurrences.insert(identity);
-        Ok(InstalledProgramLocalRootOccurrence {
-            identity,
-            prebinding: canonical,
-            root,
-            epoch_lease,
+        self.prebindings_frozen = true;
+        let fresh = self.sealed_epoch_cohorts.insert(cohort_key);
+        debug_assert!(fresh, "validated epoch cohort is new");
+
+        let occurrences = members
+            .into_iter()
+            .zip(validated)
+            .map(
+                |(member, (prebinding, _, identity))| InstalledProgramLocalRootOccurrence {
+                    identity,
+                    prebinding,
+                    root: member.root,
+                    epoch_lease: member.epoch_lease,
+                },
+            )
+            .collect::<Vec<_>>();
+        let mut aggregate_groups: BTreeMap<
+            CountKey,
+            (
+                ProgramLocalRootInstalledPrebinding,
+                Vec<InstalledProgramLocalRootOccurrenceId>,
+            ),
+        > = BTreeMap::new();
+        for occurrence in &occurrences {
+            let prebinding = &occurrence.prebinding;
+            let key = (
+                prebinding.terminal_psi.vocabulary_marker.get(),
+                *prebinding.terminal_psi.program_fingerprint.as_bytes(),
+                prebinding.identity.installed_code,
+                prebinding.identity.schema_identity,
+            );
+            aggregate_groups
+                .entry(key)
+                .and_modify(|(_, identities)| identities.push(occurrence.identity))
+                .or_insert_with(|| (prebinding.clone(), vec![occurrence.identity]));
+        }
+        let aggregates = aggregate_groups
+            .into_values()
+            .map(|(prebinding, mut occurrence_identities)| {
+                occurrence_identities.sort_unstable();
+                ProgramLocalRootEpochAggregate {
+                    terminal_psi: prebinding.terminal_psi,
+                    artifact: prebinding.artifact,
+                    requirement_identity: prebinding.requirement_identity,
+                    source_parameter_position: prebinding.source_parameter_position,
+                    qualification_identity: prebinding.qualification_identity,
+                    carrier_identity: prebinding.carrier_identity,
+                    schema_identity: prebinding.identity.schema_identity,
+                    algebra: prebinding.algebra,
+                    per_occurrence_capacity: prebinding.per_occurrence_capacity,
+                    occurrence_identities,
+                }
+            })
+            .collect();
+        Ok(InstalledProgramLocalRootEpochCohort {
+            identity: InstalledProgramLocalRootEpochCohortId {
+                installed_code: self.installed_required_slots.installed_code(),
+                lifecycle_ledger: lifecycle.identity(),
+                lifecycle_epoch,
+            },
+            installed_required_slots: self.installed_required_slots.clone(),
+            occurrences,
+            aggregates,
         })
     }
 
@@ -535,20 +678,217 @@ impl ProgramLocalRootInstallationLedger {
     }
 }
 
+impl InstalledRootLedger {
+    /// Issue the sole program-local cohort verifier for this installation.
+    /// The exact required-slot closure must already be sealed. Burning the
+    /// claim prevents fresh ledgers from replaying the same occurrence keys.
+    pub fn claim_program_local_root_installation_ledger(
+        &mut self,
+    ) -> Result<ProgramLocalRootInstallationLedger, ExternalRootDiagnostic> {
+        if self.program_local_root_cohort_claimed {
+            return Err(ExternalRootDiagnostic(
+                "program-local root cohort verifier was already issued for this installation"
+                    .into(),
+            ));
+        }
+        let installed_required_slots = self.required_root_slots.clone().ok_or_else(|| {
+            ExternalRootDiagnostic(
+                "program-local root cohort verifier requires a sealed required root-slot closure"
+                    .into(),
+            )
+        })?;
+        self.program_local_root_cohort_claimed = true;
+        Ok(
+            ProgramLocalRootInstallationLedger::from_installed_required_slots(
+                installed_required_slots,
+            ),
+        )
+    }
+}
+
+/// Non-authoritative inputs for one member of an epoch cohort. Construction
+/// packages existing custody only; no occurrence exists until the complete
+/// cohort is validated and committed atomically.
 #[derive(Debug)]
-pub struct ProgramLocalRootJoinError {
+pub struct ProgramLocalRootCohortMember<'root, 'code> {
     prebinding: ProgramLocalRootPrebindingId,
+    root: &'root InstalledExternalRoot<'code>,
     epoch_lease: ProgramLocalRootEpochLease,
+}
+
+impl<'root, 'code> ProgramLocalRootCohortMember<'root, 'code> {
+    pub fn new(
+        prebinding: ProgramLocalRootPrebindingId,
+        root: &'root InstalledExternalRoot<'code>,
+        epoch_lease: ProgramLocalRootEpochLease,
+    ) -> Self {
+        Self {
+            prebinding,
+            root,
+            epoch_lease,
+        }
+    }
+
+    pub const fn prebinding(&self) -> ProgramLocalRootPrebindingId {
+        self.prebinding
+    }
+
+    pub const fn epoch_lease_identity(&self) -> ProgramLocalRootEpochLeaseId {
+        self.epoch_lease.identity()
+    }
+
+    pub fn into_parts(
+        self,
+    ) -> (
+        ProgramLocalRootPrebindingId,
+        &'root InstalledExternalRoot<'code>,
+        ProgramLocalRootEpochLease,
+    ) {
+        (self.prebinding, self.root, self.epoch_lease)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct InstalledProgramLocalRootEpochCohortId {
+    installed_code: InstalledCodeId,
+    lifecycle_ledger: ComponentEraLedgerId,
+    lifecycle_epoch: u64,
+}
+
+impl InstalledProgramLocalRootEpochCohortId {
+    pub const fn installed_code(self) -> InstalledCodeId {
+        self.installed_code
+    }
+
+    pub const fn lifecycle_ledger(self) -> ComponentEraLedgerId {
+        self.lifecycle_ledger
+    }
+
+    pub const fn lifecycle_epoch(self) -> u64 {
+        self.lifecycle_epoch
+    }
+}
+
+/// One exact aggregate schema derived from the closed epoch cohort. Capacity
+/// expressions remain per occurrence: subject-dependent and interval content
+/// cannot be replaced by blind scalar multiplication.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProgramLocalRootEpochAggregate {
+    terminal_psi: TerminalPsiIdentity,
+    artifact: ArtifactId,
+    requirement_identity: String,
+    source_parameter_position: u32,
+    qualification_identity: String,
+    carrier_identity: String,
+    schema_identity: u64,
+    algebra: ContentAlgebra,
+    per_occurrence_capacity: ProgramLocalCapacityExpression,
+    occurrence_identities: Vec<InstalledProgramLocalRootOccurrenceId>,
+}
+
+impl ProgramLocalRootEpochAggregate {
+    pub const fn terminal_psi(&self) -> TerminalPsiIdentity {
+        self.terminal_psi
+    }
+
+    pub const fn artifact(&self) -> ArtifactId {
+        self.artifact
+    }
+
+    pub fn requirement_identity(&self) -> &str {
+        &self.requirement_identity
+    }
+
+    pub const fn source_parameter_position(&self) -> u32 {
+        self.source_parameter_position
+    }
+
+    pub fn qualification_identity(&self) -> &str {
+        &self.qualification_identity
+    }
+
+    pub fn carrier_identity(&self) -> &str {
+        &self.carrier_identity
+    }
+
+    pub const fn schema_identity(&self) -> u64 {
+        self.schema_identity
+    }
+
+    pub const fn algebra(&self) -> &ContentAlgebra {
+        &self.algebra
+    }
+
+    pub const fn per_occurrence_capacity(&self) -> &ProgramLocalCapacityExpression {
+        &self.per_occurrence_capacity
+    }
+
+    pub fn occurrence_identities(
+        &self,
+    ) -> impl ExactSizeIterator<Item = InstalledProgramLocalRootOccurrenceId> + '_ {
+        self.occurrence_identities.iter().copied()
+    }
+
+    pub fn cardinality(&self) -> NonZeroU64 {
+        NonZeroU64::new(
+            u64::try_from(self.occurrence_identities.len())
+                .expect("sealed program-local cohort cardinality fits u64"),
+        )
+        .expect("sealed aggregate group is nonempty")
+    }
+}
+
+/// Non-clonable, exact program-local occurrence cohort for one installed
+/// artifact and lifecycle epoch. This is the first carrier from which runtime
+/// subject/capacity establishment may eventually derive lineage.
+#[derive(Debug)]
+pub struct InstalledProgramLocalRootEpochCohort<'root, 'code> {
+    identity: InstalledProgramLocalRootEpochCohortId,
+    installed_required_slots: InstalledRequiredRootSlotClosure,
+    occurrences: Vec<InstalledProgramLocalRootOccurrence<'root, 'code>>,
+    aggregates: Vec<ProgramLocalRootEpochAggregate>,
+}
+
+impl<'root, 'code> InstalledProgramLocalRootEpochCohort<'root, 'code> {
+    pub const fn identity(&self) -> InstalledProgramLocalRootEpochCohortId {
+        self.identity
+    }
+
+    pub const fn installed_required_slots(&self) -> &InstalledRequiredRootSlotClosure {
+        &self.installed_required_slots
+    }
+
+    pub fn occurrences(
+        &self,
+    ) -> impl ExactSizeIterator<Item = &InstalledProgramLocalRootOccurrence<'root, 'code>> {
+        self.occurrences.iter()
+    }
+
+    pub fn aggregates(&self) -> impl ExactSizeIterator<Item = &ProgramLocalRootEpochAggregate> {
+        self.aggregates.iter()
+    }
+
+    /// Explicitly reopen per-occurrence custody for retirement or the future
+    /// runtime establishment transition. The ledger keeps the epoch cohort
+    /// replay key sealed permanently.
+    pub fn into_occurrences(self) -> Vec<InstalledProgramLocalRootOccurrence<'root, 'code>> {
+        self.occurrences
+    }
+}
+
+#[derive(Debug)]
+pub struct ProgramLocalRootCohortSealError<'root, 'code> {
+    members: Vec<ProgramLocalRootCohortMember<'root, 'code>>,
     diagnostic: ExternalRootDiagnostic,
 }
 
-impl ProgramLocalRootJoinError {
+impl<'root, 'code> ProgramLocalRootCohortSealError<'root, 'code> {
     pub const fn diagnostic(&self) -> &ExternalRootDiagnostic {
         &self.diagnostic
     }
 
-    pub fn into_parts(self) -> (ProgramLocalRootPrebindingId, ProgramLocalRootEpochLease) {
-        (self.prebinding, self.epoch_lease)
+    pub fn into_members(self) -> Vec<ProgramLocalRootCohortMember<'root, 'code>> {
+        self.members
     }
 }
 

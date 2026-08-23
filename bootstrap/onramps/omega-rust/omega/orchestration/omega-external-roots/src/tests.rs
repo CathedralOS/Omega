@@ -1281,7 +1281,7 @@ fn install_test_root_in_ledger<'code>(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn install_test_root_pair_with_ids<'code>(
+fn install_test_root_pair_with_ids_unsealed<'code>(
     code: &'code mut InstalledCode,
     first: (u64, u64, u64, u64, Vec<ExternalRootEntryClaim>),
     second: (u64, u64, u64, u64, Vec<ExternalRootEntryClaim>),
@@ -1321,10 +1321,10 @@ fn install_test_root_pair_with_ids<'code>(
         validate_external_root(first_candidate, &boundary).expect("first root plan");
     let second_validated =
         validate_external_root(second_candidate, &boundary).expect("second root plan");
-    let first_slot = RootSlotAuthority::from_admitted_owner(
-        root_id(first.1, RootSlotId::from_normalized_identity),
-        root_id(first.2, RootSlotOwnerId::from_normalized_identity),
-    );
+    let target_profile = omega_target::TargetProfile::UefiX64;
+    let target_slot = target_profile.program_entry_slot();
+    let first_slot = RootSlotAuthority::for_target_program_entry(target_slot)
+        .expect("target program-entry authority");
     let second_slot = RootSlotAuthority::from_admitted_owner(
         root_id(second.1, RootSlotId::from_normalized_identity),
         root_id(second.2, RootSlotOwnerId::from_normalized_identity),
@@ -1357,6 +1357,56 @@ fn install_test_root_pair_with_ids<'code>(
         .install(code, second_validated, second_slot, second_admission)
         .expect("second installed root");
     (ledger, first_installed, second_installed)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn install_test_root_pair_with_ids<'code>(
+    code: &'code mut InstalledCode,
+    first: (u64, u64, u64, u64, Vec<ExternalRootEntryClaim>),
+    second: (u64, u64, u64, u64, Vec<ExternalRootEntryClaim>),
+    entry: EntryStubId,
+) -> (
+    InstalledRootLedger,
+    InstalledExternalRoot<'code>,
+    InstalledExternalRoot<'code>,
+) {
+    let (mut ledger, first_installed, second_installed) =
+        install_test_root_pair_with_ids_unsealed(code, first, second, entry);
+    ledger
+        .seal_required_root_slot_closure(program_local_required_root_slot_closure(entry))
+        .expect("installed required root-slot closure");
+    (ledger, first_installed, second_installed)
+}
+
+fn program_local_required_root_slot_closure(entry: EntryStubId) -> VerifiedRequiredRootSlotClosure {
+    let target_profile = omega_target::TargetProfile::UefiX64;
+    verify_target_required_root_slot_closure(
+        target_profile,
+        [TargetRequiredRootSlotSelection::for_program_entry(
+            target_profile.program_entry_slot(),
+            entry,
+            "TestRoot::entry",
+        )
+        .expect("required program-entry selection")],
+    )
+    .expect("complete required root-slot closure")
+}
+
+fn install_program_local_required_root<'code>(
+    code: &'code mut InstalledCode,
+    entry: EntryStubId,
+    entry_claims: Vec<ExternalRootEntryClaim>,
+) -> (
+    InstalledRootLedger,
+    InstalledExternalRoot<'code>,
+    InstalledExternalRoot<'code>,
+) {
+    install_test_root_pair_with_ids(
+        code,
+        (1, 20, 21, 22, entry_claims.clone()),
+        (101, 120, 121, 122, entry_claims),
+        entry,
+    )
 }
 
 fn program_local_root_module() -> TerminalModule {
@@ -1599,14 +1649,228 @@ fn join_program_local<'root, 'code>(
     lease_identity: u64,
     era_identity: u64,
     entry_contract_identity: &str,
-) -> Result<InstalledProgramLocalRootOccurrence<'root, 'code>, ProgramLocalRootJoinError> {
+) -> Result<
+    InstalledProgramLocalRootOccurrence<'root, 'code>,
+    Box<ProgramLocalRootCohortSealError<'root, 'code>>,
+> {
     let lease = program_local_epoch_lease(
         lifecycle,
         lease_identity,
         era_identity,
         entry_contract_identity,
     );
-    installation.join(prebinding, root, lifecycle, lease)
+    let cohort = installation.seal_epoch_cohort(
+        lifecycle,
+        [ProgramLocalRootCohortMember::new(prebinding, root, lease)],
+    )?;
+    let [occurrence]: [InstalledProgramLocalRootOccurrence<'root, 'code>; 1] = cohort
+        .into_occurrences()
+        .try_into()
+        .expect("single-prebinding test cohort");
+    Ok(occurrence)
+}
+
+fn sole_rejected_cohort_lease(
+    error: ProgramLocalRootCohortSealError<'_, '_>,
+) -> omega_effects::ProgramLocalRootEpochLease {
+    let [member]: [ProgramLocalRootCohortMember<'_, '_>; 1] = error
+        .into_members()
+        .try_into()
+        .expect("single-member rejected cohort");
+    member.into_parts().2
+}
+
+#[test]
+fn installed_required_root_closure_owns_one_cohort_verifier_and_freezes_members() {
+    let entry = entry_id(1);
+    let mut code = installed_code(1, entry);
+    let (mut root_ledger, required_root, open_root) =
+        install_program_local_required_root(&mut code, entry, vec![program_local_claim()]);
+
+    let installed_closure = root_ledger
+        .required_root_slots()
+        .expect("required root-slot closure retained in the installation");
+    assert_eq!(installed_closure.slots().len(), 1);
+    assert_eq!(
+        installed_closure
+            .slots()
+            .next()
+            .expect("required member")
+            .root(),
+        required_root.root()
+    );
+    assert!(
+        root_ledger
+            .seal_required_root_slot_closure(program_local_required_root_slot_closure(entry))
+            .expect_err("installed closure sealing is one-shot")
+            .0
+            .contains("already sealed")
+    );
+
+    let cohort_verifier = root_ledger
+        .claim_program_local_root_installation_ledger()
+        .expect("one cohort verifier");
+    drop(cohort_verifier);
+    assert!(
+        root_ledger
+            .claim_program_local_root_installation_ledger()
+            .expect_err("dropping the verifier never reopens issuance")
+            .0
+            .contains("already issued")
+    );
+
+    let open_receipt = RootRemovalReceipt::from_provider(
+        root_id(900, RootRemovalReceiptId::from_normalized_identity),
+        &open_root,
+        true,
+        true,
+    );
+    root_ledger
+        .remove(open_root, open_receipt)
+        .expect("an unrelated runtime-open root is not frozen");
+    let required_receipt = RootRemovalReceipt::from_provider(
+        root_id(901, RootRemovalReceiptId::from_normalized_identity),
+        &required_root,
+        true,
+        true,
+    );
+    let removal = root_ledger
+        .remove(required_root, required_receipt)
+        .expect_err("a sealed required root remains frozen");
+    assert!(
+        removal
+            .diagnostic()
+            .0
+            .contains("keeps that installed root frozen")
+    );
+}
+
+#[test]
+fn failed_installed_required_root_replay_is_transactional() {
+    let entry = entry_id(1);
+    let mut code = installed_code(1, entry);
+    let (mut root_ledger, _required_root, _open_root) = install_test_root_pair_with_ids_unsealed(
+        &mut code,
+        (1, 20, 21, 22, vec![program_local_claim()]),
+        (101, 120, 121, 122, vec![program_local_claim()]),
+        entry,
+    );
+    let profile = omega_target::TargetProfile::UefiX64;
+    let wrong = verify_target_required_root_slot_closure(
+        profile,
+        [TargetRequiredRootSlotSelection::for_program_entry(
+            profile.program_entry_slot(),
+            entry,
+            "OtherRoot::entry",
+        )
+        .expect("wrong requirement selection remains descriptive")],
+    )
+    .expect("wrong requirement still forms a target closure");
+    assert!(
+        root_ledger
+            .seal_required_root_slot_closure(wrong)
+            .expect_err("installed requirement substitution rejects")
+            .0
+            .contains("does not match the exact required slot")
+    );
+    assert!(root_ledger.required_root_slots().is_none());
+    root_ledger
+        .seal_required_root_slot_closure(program_local_required_root_slot_closure(entry))
+        .expect("failed replay leaves exact closure sealable");
+}
+
+#[test]
+fn program_local_cohort_verifier_requires_an_installed_required_closure() {
+    let entry = entry_id(1);
+    let mut code = installed_code(1, entry);
+    let (mut root_ledger, _root) = install_test_root(&mut code, entry);
+    assert!(
+        root_ledger
+            .claim_program_local_root_installation_ledger()
+            .expect_err("an orphan root ledger has no program-local cohort")
+            .0
+            .contains("requires a sealed required root-slot closure")
+    );
+}
+
+#[test]
+fn epoch_cohort_seals_exact_members_and_derives_aggregate_schema() {
+    let entry = entry_id(1);
+    let mut code = installed_code(1, entry);
+    let code_identity = code.identity().normalized_identity();
+    let module = program_local_root_module();
+    let catalog = program_local_root_catalog(&module);
+    let terminal = program_local_terminal_object(&module);
+    let (mut root_ledger, root, _open_root) =
+        install_program_local_required_root(&mut code, entry, vec![program_local_claim()]);
+    let mut installation = root_ledger
+        .claim_program_local_root_installation_ledger()
+        .expect("sole program-local cohort verifier");
+    let [prebinding] = installation
+        .prebind(&catalog, &terminal, &root)
+        .expect("required root prebinding")
+        .try_into()
+        .expect("one producer schema");
+    let prebinding = prebinding.identity();
+    let mut lifecycle = program_local_lifecycle(730, 10, code_identity, "TestRoot::entry");
+
+    let omitted = installation
+        .seal_epoch_cohort(&lifecycle, std::iter::empty())
+        .expect_err("omitting the eligible prebinding rejects");
+    assert!(omitted.diagnostic().0.contains("omits or adds"));
+    assert!(omitted.into_members().is_empty());
+
+    let duplicate_lease_a = program_local_epoch_lease(&mut lifecycle, 830, 10, "TestRoot::entry");
+    let duplicate_lease_b = program_local_epoch_lease(&mut lifecycle, 831, 10, "TestRoot::entry");
+    let duplicate = installation
+        .seal_epoch_cohort(
+            &lifecycle,
+            [
+                ProgramLocalRootCohortMember::new(prebinding, &root, duplicate_lease_a),
+                ProgramLocalRootCohortMember::new(prebinding, &root, duplicate_lease_b),
+            ],
+        )
+        .expect_err("duplicate cohort members reject transactionally");
+    assert!(duplicate.diagnostic().0.contains("repeats one prebinding"));
+    for member in duplicate.into_members() {
+        lifecycle
+            .release_program_local_root_epoch_lease(member.into_parts().2)
+            .expect("duplicate rejection returns every lease");
+    }
+
+    let lease = program_local_epoch_lease(&mut lifecycle, 832, 10, "TestRoot::entry");
+    let cohort = installation
+        .seal_epoch_cohort(
+            &lifecycle,
+            [ProgramLocalRootCohortMember::new(prebinding, &root, lease)],
+        )
+        .expect("exact epoch cohort");
+    assert_eq!(cohort.identity().lifecycle_epoch(), 10);
+    assert_eq!(cohort.installed_required_slots().slots().len(), 1);
+    assert_eq!(cohort.occurrences().len(), 1);
+    let aggregates = cohort.aggregates().collect::<Vec<_>>();
+    let [aggregate] = aggregates.as_slice() else {
+        panic!("one closed aggregate schema")
+    };
+    assert_eq!(aggregate.cardinality().get(), 1);
+    assert_eq!(
+        aggregate.per_occurrence_capacity(),
+        &module.boundary_machines[0].program_local_root_introductions[0].capacity
+    );
+    assert!(
+        installation
+            .prebind(&catalog, &terminal, &root)
+            .expect_err("sealing freezes the eligible prebinding set")
+            .0
+            .contains("prebindings are frozen")
+    );
+    let [occurrence]: [InstalledProgramLocalRootOccurrence<'_, '_>; 1] = cohort
+        .into_occurrences()
+        .try_into()
+        .expect("one cohort occurrence");
+    installation
+        .retire(occurrence, &mut lifecycle)
+        .expect("sealed occurrence remains retireable");
 }
 
 #[test]
@@ -1616,32 +1880,30 @@ fn program_local_root_schemas_prebind_exact_installed_slots_without_minting() {
     let module = program_local_root_module();
     let catalog = program_local_root_catalog(&module);
     let terminal = program_local_terminal_object(&module);
-    let (_root_ledger, first, second) = install_test_root_pair_with_ids(
-        &mut code,
-        (1, 20, 21, 22, vec![program_local_claim()]),
-        (101, 120, 121, 122, vec![program_local_claim()]),
-        entry,
-    );
-    let mut bindings = ProgramLocalRootInstallationLedger::new();
+    let (mut root_ledger, first, second) =
+        install_program_local_required_root(&mut code, entry, vec![program_local_claim()]);
+    let mut bindings = root_ledger
+        .claim_program_local_root_installation_ledger()
+        .expect("sole program-local cohort verifier");
     let first_occurrences = bindings
         .prebind(&catalog, &terminal, &first)
         .expect("first exact slot prebinding");
     let [first_occurrence] = first_occurrences.as_slice() else {
         panic!("one producer schema")
     };
-    let first_identity = first_occurrence.identity();
-    let second_occurrences = bindings
-        .prebind(&catalog, &terminal, &second)
-        .expect("second exact slot prebinding");
-    let [second_occurrence] = second_occurrences.as_slice() else {
-        panic!("one producer schema")
-    };
-    assert_ne!(first_identity, second_occurrence.identity());
+    assert!(
+        bindings
+            .prebind(&catalog, &terminal, &second)
+            .expect_err("a runtime-open root is outside the required cohort")
+            .0
+            .contains("outside the sealed required closure")
+    );
     let counts = bindings.counts();
     let [count] = counts.as_slice() else {
         panic!("one exact installed schema count")
     };
-    assert_eq!(count.installed_slot_count.get(), 2);
+    assert_eq!(count.installed_slot_count.get(), 1);
+    assert_eq!(count.prebinding_identities, [first_occurrence.identity()]);
     assert_eq!(
         count.per_occurrence_capacity,
         module.boundary_machines[0].program_local_root_introductions[0].capacity
@@ -1656,7 +1918,7 @@ fn program_local_root_prebinding_rejects_catalog_object_and_claim_substitution()
     let module = program_local_root_module();
     let catalog = program_local_root_catalog(&module);
     let terminal = program_local_terminal_object(&module);
-    let (_root_ledger, root, wrong_claim_root) = install_test_root_pair_with_ids(
+    let (mut root_ledger, root, wrong_claim_root) = install_test_root_pair_with_ids(
         &mut code,
         (1, 20, 21, 22, vec![program_local_claim()]),
         (
@@ -1688,17 +1950,23 @@ fn program_local_root_prebinding_rejects_catalog_object_and_claim_substitution()
         vocabulary_marker: VocabularyMarker::CURRENT,
         program_fingerprint: psi_terminal::SemanticFingerprint::from_bytes([9; 32]),
     };
+    let mut installation = root_ledger
+        .claim_program_local_root_installation_ledger()
+        .expect("sole program-local cohort verifier");
     assert!(
-        ProgramLocalRootInstallationLedger::new()
+        installation
             .prebind(&catalog, &wrong_object, &root)
             .is_err()
     );
 
     assert!(
-        ProgramLocalRootInstallationLedger::new()
+        installation
             .prebind(&catalog, &terminal, &wrong_claim_root)
             .is_err()
     );
+    installation
+        .prebind(&catalog, &terminal, &root)
+        .expect("failed substitutions leave the exact prebinding available");
 }
 
 #[test]
@@ -1709,9 +1977,11 @@ fn program_local_root_join_pins_exact_root_artifact_contract_and_epoch_once() {
     let module = program_local_root_module();
     let catalog = program_local_root_catalog(&module);
     let terminal = program_local_terminal_object(&module);
-    let (_root_ledger, root) =
-        install_test_root_with_ids(&mut code, entry, 1, 20, 21, 22, vec![program_local_claim()]);
-    let mut installation = ProgramLocalRootInstallationLedger::new();
+    let (mut root_ledger, root, _open_root) =
+        install_program_local_required_root(&mut code, entry, vec![program_local_claim()]);
+    let mut installation = root_ledger
+        .claim_program_local_root_installation_ledger()
+        .expect("sole program-local cohort verifier");
     let [prebinding] = installation
         .prebind(&catalog, &terminal, &root)
         .expect("verified installed prebinding")
@@ -1745,7 +2015,7 @@ fn program_local_root_join_pins_exact_root_artifact_contract_and_epoch_once() {
     )
     .expect_err("one installed prebinding family has one lifecycle ledger");
     assert!(foreign.diagnostic().0.contains("another lifecycle ledger"));
-    let (_, foreign_lease) = foreign.into_parts();
+    let foreign_lease = sole_rejected_cohort_lease(*foreign);
     foreign_lifecycle
         .release_program_local_root_epoch_lease(foreign_lease)
         .expect("lifecycle substitution returns its lease");
@@ -1760,7 +2030,7 @@ fn program_local_root_join_pins_exact_root_artifact_contract_and_epoch_once() {
         "TestRoot::entry",
     )
     .expect_err("one exact occurrence cannot join twice in one era");
-    let (_, replay_lease) = replay.into_parts();
+    let replay_lease = sole_rejected_cohort_lease(*replay);
     lifecycle
         .release_program_local_root_epoch_lease(replay_lease)
         .expect("rejected join returns its lease intact");
@@ -1781,7 +2051,7 @@ fn program_local_root_join_pins_exact_root_artifact_contract_and_epoch_once() {
         "TestRoot::entry",
     )
     .expect_err("retirement never makes the same-era origin reusable");
-    let (_, replay_lease) = replay.into_parts();
+    let replay_lease = sole_rejected_cohort_lease(*replay);
     lifecycle
         .release_program_local_root_epoch_lease(replay_lease)
         .expect("used-key rejection returns its lease");
@@ -1818,13 +2088,11 @@ fn program_local_root_failed_join_returns_lease_without_burning_the_occurrence()
     let module = program_local_root_module();
     let catalog = program_local_root_catalog(&module);
     let terminal = program_local_terminal_object(&module);
-    let (_root_ledger, first, other) = install_test_root_pair_with_ids(
-        &mut code,
-        (1, 20, 21, 22, vec![program_local_claim()]),
-        (101, 120, 121, 122, vec![program_local_claim()]),
-        entry,
-    );
-    let mut installation = ProgramLocalRootInstallationLedger::new();
+    let (mut root_ledger, first, other) =
+        install_program_local_required_root(&mut code, entry, vec![program_local_claim()]);
+    let mut installation = root_ledger
+        .claim_program_local_root_installation_ledger()
+        .expect("sole program-local cohort verifier");
     let [prebinding] = installation
         .prebind(&catalog, &terminal, &first)
         .expect("verified installed prebinding")
@@ -1843,7 +2111,7 @@ fn program_local_root_failed_join_returns_lease_without_burning_the_occurrence()
         "TestRoot::entry",
     )
     .expect_err("a different installed root cannot satisfy the prebinding");
-    let (_, lease) = substituted.into_parts();
+    let lease = sole_rejected_cohort_lease(*substituted);
     lifecycle
         .release_program_local_root_epoch_lease(lease)
         .expect("root substitution returns the lease");
@@ -1859,7 +2127,7 @@ fn program_local_root_failed_join_returns_lease_without_burning_the_occurrence()
         "TestRoot::entry",
     )
     .expect_err("artifact occurrence substitution rejects");
-    let (_, lease) = substituted.into_parts();
+    let lease = sole_rejected_cohort_lease(*substituted);
     wrong_artifact
         .release_program_local_root_epoch_lease(lease)
         .expect("artifact substitution returns the lease");
@@ -1875,7 +2143,7 @@ fn program_local_root_failed_join_returns_lease_without_burning_the_occurrence()
         "OtherRoot::entry",
     )
     .expect_err("entry-contract substitution rejects");
-    let (_, lease) = substituted.into_parts();
+    let lease = sole_rejected_cohort_lease(*substituted);
     wrong_contract
         .release_program_local_root_epoch_lease(lease)
         .expect("contract substitution returns the lease");
@@ -1891,10 +2159,17 @@ fn program_local_root_failed_join_returns_lease_without_burning_the_occurrence()
         true,
     );
     let stale = installation
-        .join(prebinding, &first, &stale_lifecycle, stale_lease)
+        .seal_epoch_cohort(
+            &stale_lifecycle,
+            [ProgramLocalRootCohortMember::new(
+                prebinding,
+                &first,
+                stale_lease,
+            )],
+        )
         .expect_err("a lease from a now-closing era cannot establish new authority");
-    assert!(stale.diagnostic().0.contains("current open era"));
-    let (_, stale_lease) = stale.into_parts();
+    assert!(stale.diagnostic().0.contains("current epoch ledger"));
+    let stale_lease = sole_rejected_cohort_lease(*stale);
     stale_lifecycle
         .release_program_local_root_epoch_lease(stale_lease)
         .expect("stale establishment rejection returns the lifecycle hold");
@@ -1922,9 +2197,11 @@ fn program_local_root_failed_retirement_returns_the_complete_occurrence() {
     let module = program_local_root_module();
     let catalog = program_local_root_catalog(&module);
     let terminal = program_local_terminal_object(&module);
-    let (_root_ledger, root) =
-        install_test_root_with_ids(&mut code, entry, 1, 20, 21, 22, vec![program_local_claim()]);
-    let mut installation = ProgramLocalRootInstallationLedger::new();
+    let (mut root_ledger, root, _open_root) =
+        install_program_local_required_root(&mut code, entry, vec![program_local_claim()]);
+    let mut installation = root_ledger
+        .claim_program_local_root_installation_ledger()
+        .expect("sole program-local cohort verifier");
     let [prebinding] = installation
         .prebind(&catalog, &terminal, &root)
         .expect("verified installed prebinding")

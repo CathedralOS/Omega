@@ -712,19 +712,29 @@ Remaining:
   and shares target `ProgramEntry` slot/owner identity derivation with compiler
   selection. An opaque target-derived required-slot closure also rejects an
   omitted, duplicate, extra, or cross-profile selection. This closure is
-  descriptive and cloneable, not authority, and it is not yet retained by the
-  installed artifact or consumed by the program-local cohort verifier.
+  descriptive and cloneable, not authority. The installed root ledger now
+  replays and retains it against the exact code, artifact, scope, owner, entry,
+  requirement, and installed-root evidence; required members remain frozen
+  while unrelated runtime-open roots may still retire.
 
-  This joined occurrence still mints no lineage because the current count is a
-  mutable snapshot: installation has not yet sealed the complete eligible slot
-  cohort. The next rung must retain the verified required-slot closure in the
-  exact installed artifact, join every required member to one installed root,
-  freeze that exact cohort, reject omitted or later same-epoch slots, and derive
-  finite cardinality/aggregate from the closed set before runtime
-  subject/capacity establishment may introduce authority.
-  Runtime establishment remains open, as do migration of
+  That exact installation burns issuance of one non-clonable program-local
+  cohort verifier. There is no public fresh-ledger constructor. Prebinding is
+  restricted to the retained required roots, and one atomic epoch seal accepts
+  exactly every eligible prebinding with leases from one current lifecycle
+  ledger and epoch. Omitted, duplicate, extra, substituted, stale, replayed,
+  and later same-epoch members reject transactionally with every lease returned.
+  The resulting non-clonable cohort retains the exact closure and occurrences
+  and derives ordered aggregate schemas plus finite cardinality from the closed
+  set. Per-occurrence expressions remain separate rather than being blindly
+  multiplied across subject-dependent or interval content. It still mints no
+  lineage.
+
+  Runtime subject/capacity establishment remains open, as do migration of
   `ExtentCompilerProvisioning`, ordinary-call mint rejection, closed
-  generic-family coverage, and artifact/installation aggregate canaries.
+  generic-family coverage, and artifact/installation aggregate canaries. The
+  target vocabulary currently exposes one required `ProgramEntry`; expand it
+  to an enumerable required-slot set before claiming a finite multi-member-slot
+  canary rather than synthesizing test-only target rows.
   Add source, terminal, artifact, and installation canaries for
   a one-root introduction, a finite multi-instance aggregate, an ordinary-call
   mint attempt, an unbounded installation shape, understated producer totals,
