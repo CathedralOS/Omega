@@ -975,10 +975,12 @@ hardware-atomic switching. Generated adapter epochs derive from exact emitted
 stub instructions. A direct compiler-emitted Terminal entry with no adapter
 prologue is the degenerate generated case: its exact installed Terminal stack
 closure derives one body epoch and requires no provider receipt. An opaque
-adapter instead carries admitted provider evidence bound to the target, exact
-installed entry, boundary plan, domains, contexts, epochs, and validation
-receipt. Generated and opaque origins remain distinct in artifact identity and
-reports. A bare byte count establishes nothing.
+adapter instead carries an admitted complete arrival-context set bound to the
+target, exact installed entry, boundary plan, root, provider, and validation
+receipt. That set must equal the contexts in its domain/epoch realization;
+neither a bare receipt nor a structurally valid subset establishes
+completeness. Generated and opaque origins remain distinct in artifact identity
+and reports. A bare byte count establishes nothing.
 `ProviderSelected` must close in every admissible context to the interrupted
 domain or one exact provisioned domain before final composition; the selected
 domain need not be identical across contexts when a sealed target rule proves

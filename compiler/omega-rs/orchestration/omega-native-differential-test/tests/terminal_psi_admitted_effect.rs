@@ -104,13 +104,22 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
             }],
         })
         .expect("entry stack realization");
+        let arrival_contexts = admit_opaque_arrival_context_set(
+            &stack_summary,
+            boundary,
+            &installed_code,
+            entry,
+            vec![ArrivalContextId::new(1).expect("arrival context")],
+            root_id(48, StackValidationReceiptId::from_normalized_identity),
+        )
+        .expect("arrival-context admission");
         let bound = bind_opaque_adapter_stack_realization(
             &stack_summary,
             boundary,
             &installed_code,
             entry,
             realization,
-            root_id(48, StackValidationReceiptId::from_normalized_identity),
+            arrival_contexts,
         )
         .expect("bound stack realization");
         compose_bound_entry_stack_epochs(

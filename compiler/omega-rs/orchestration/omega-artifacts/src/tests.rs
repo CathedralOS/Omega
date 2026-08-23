@@ -786,13 +786,22 @@ fn external_root_manifest_is_complete_normalized_and_address_free() {
         }],
     })
     .expect("entry stack realization");
+    let arrival_contexts = omega_external_roots::admit_opaque_arrival_context_set(
+        &stack_summary,
+        &boundary,
+        &installed_code,
+        entry,
+        vec![ArrivalContextId::new(1).expect("arrival context")],
+        root_id(30, StackValidationReceiptId::from_normalized_identity),
+    )
+    .expect("arrival-context admission");
     let bound_stack = bind_opaque_adapter_stack_realization(
         &stack_summary,
         &boundary,
         &installed_code,
         entry,
         stack_realization,
-        root_id(30, StackValidationReceiptId::from_normalized_identity),
+        arrival_contexts,
     )
     .expect("bound stack realization");
     let composed_stack = compose_bound_entry_stack_epochs(

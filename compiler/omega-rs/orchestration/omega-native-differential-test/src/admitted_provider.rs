@@ -22,8 +22,8 @@ use omega_external_roots::{
     ProviderExecutionId, ProviderFuelSummaryId, ProviderFuelValidationReceiptId, ProviderPlanId,
     ProviderStackSummary, ResolvedRootServiceReach, RootProviderId, StackNestingRelation,
     StackResourceColumn, StackValidationReceiptId, StateValidationReceiptId, TrustReceiptId,
-    bind_opaque_adapter_stack_realization, compose_bound_entry_stack_epochs, compose_fixed_fuel,
-    validate_external_root,
+    admit_opaque_arrival_context_set, bind_opaque_adapter_stack_realization,
+    compose_bound_entry_stack_epochs, compose_fixed_fuel, validate_external_root,
 };
 use omega_target::{Architecture, NativeTarget};
 use psi_extents::{
@@ -74,13 +74,22 @@ pub fn admit_native_provider(
         }],
     })
     .expect("provider stack realization");
+    let arrival_contexts = admit_opaque_arrival_context_set(
+        &stack_summary,
+        &boundary,
+        &installed,
+        entry,
+        vec![ArrivalContextId::new(1).expect("arrival context")],
+        root_id(seed + 6, StackValidationReceiptId::from_normalized_identity),
+    )
+    .expect("provider arrival-context admission");
     let bound_stack = bind_opaque_adapter_stack_realization(
         &stack_summary,
         &boundary,
         &installed,
         entry,
         stack_realization,
-        root_id(seed + 6, StackValidationReceiptId::from_normalized_identity),
+        arrival_contexts,
     )
     .expect("provider stack binding");
     let stack = compose_bound_entry_stack_epochs(
