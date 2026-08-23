@@ -1,0 +1,174 @@
+; Exact descriptor spellings shared by lower-rooted shape and generic meaning.
+; One table selector binds every per-procedure artifact interval.
+fixed_keyword_select_proc:             ; r20=procedure
+	imm r1, 15
+	jeq r20, r1, fixed_keyword_select_return
+	imm r1, 16
+	jeq r20, r1, fixed_keyword_select_state
+	imm r1, 17
+	jeq r20, r1, fixed_keyword_select_to
+	imm r1, 18
+	jeq r20, r1, fixed_keyword_select_when
+	imm r1, 19
+	jeq r20, r1, fixed_keyword_select_byte
+	imm r1, 20
+	jeq r20, r1, fixed_keyword_select_word
+	imm r1, 21
+	jeq r20, r1, fixed_keyword_select_read_byte
+	imm r1, 22
+	jeq r20, r1, fixed_keyword_select_write_byte
+	imm r1, 23
+	jeq r20, r1, fixed_keyword_select_emit
+	jmp reject
+fixed_keyword_select_return:
+	imm r21, 6                    ; return keyword length
+	imm r22, 6617                 ; return procedure pc
+	imm r23, 54                   ; return first block
+	imm r24, 40                   ; return first transition
+	imm r25, 46                   ; return first event
+	imm r26, 24                   ; return memory row
+	imm r27, 116                  ; return primitive row
+	imm r28, 33                   ; return binary-push row
+	imm r29, 243                  ; return argument-push row
+	imm r30, fixed_keyword_literal_return
+	jmp fixed_keyword_store_metadata
+fixed_keyword_select_state:
+	imm r21, 5
+	imm r22, 7943
+	imm r23, 63
+	imm r24, 47
+	imm r25, 60
+	imm r26, 25
+	imm r27, 145
+	imm r28, 40
+	imm r29, 249
+	imm r30, fixed_keyword_literal_state
+	jmp fixed_keyword_store_metadata
+fixed_keyword_select_to:
+	imm r21, 2
+	imm r22, 9084
+	imm r23, 71
+	imm r24, 53
+	imm r25, 72
+	imm r26, 26
+	imm r27, 170
+	imm r28, 46
+	imm r29, 254
+	imm r30, fixed_keyword_literal_to
+	jmp fixed_keyword_store_metadata
+fixed_keyword_select_when:
+	imm r21, 4
+	imm r22, 9670
+	imm r23, 76
+	imm r24, 56
+	imm r25, 78
+	imm r26, 27
+	imm r27, 183
+	imm r28, 49
+	imm r29, 256
+	imm r30, fixed_keyword_literal_when
+	jmp fixed_keyword_store_metadata
+fixed_keyword_select_byte:
+	imm r21, 4
+	imm r22, 10626
+	imm r23, 83
+	imm r24, 61
+	imm r25, 88
+	imm r26, 28
+	imm r27, 204
+	imm r28, 54
+	imm r29, 260
+	imm r30, fixed_keyword_literal_byte
+	jmp fixed_keyword_store_metadata
+fixed_keyword_select_word:
+	imm r21, 4
+	imm r22, 11582
+	imm r23, 90
+	imm r24, 66
+	imm r25, 98
+	imm r26, 29
+	imm r27, 225
+	imm r28, 59
+	imm r29, 264
+	imm r30, fixed_keyword_literal_word
+	jmp fixed_keyword_store_metadata
+fixed_keyword_select_read_byte:
+	imm r21, 9
+	imm r22, 12538
+	imm r23, 97
+	imm r24, 71
+	imm r25, 108
+	imm r26, 30
+	imm r27, 246
+	imm r28, 64
+	imm r29, 268
+	imm r30, fixed_keyword_literal_read_byte
+	jmp fixed_keyword_store_metadata
+fixed_keyword_select_write_byte:
+	imm r21, 10
+	imm r22, 14419
+	imm r23, 109
+	imm r24, 81
+	imm r25, 128
+	imm r26, 31
+	imm r27, 287
+	imm r28, 74
+	imm r29, 277
+	imm r30, fixed_keyword_literal_write_byte
+	jmp fixed_keyword_store_metadata
+fixed_keyword_select_emit:
+	imm r21, 4
+	imm r22, 16485
+	imm r23, 122
+	imm r24, 92
+	imm r25, 150
+	imm r26, 32
+	imm r27, 332
+	imm r28, 85
+	imm r29, 287
+	imm r30, fixed_keyword_literal_emit
+
+fixed_keyword_store_metadata:
+	imm r1, 530360
+	store r1, r20
+	imm r1, 530368
+	store r1, r21
+	imm r1, 530376
+	store r1, r22
+	imm r1, 530384
+	store r1, r23
+	imm r1, 530392
+	store r1, r24
+	imm r1, 530400
+	store r1, r25
+	imm r1, 530408
+	store r1, r26
+	imm r1, 530416
+	store r1, r27
+	imm r1, 530424
+	store r1, r28
+	imm r1, 530432
+	store r1, r29
+	imm r1, 530440
+	store r1, r30
+	ret
+
+
+fixed_keyword_literal_return:
+	db "return"                       ; fixed-keyword descriptor spelling
+fixed_keyword_literal_state:
+	db "state"
+fixed_keyword_literal_to:
+	db "to"
+fixed_keyword_literal_when:
+	db "when"
+fixed_keyword_literal_byte:
+	db "byte"
+fixed_keyword_literal_word:
+	db "word"
+fixed_keyword_literal_read_byte:
+	db "read_byte"
+fixed_keyword_literal_write_byte:
+	db "write_byte"
+fixed_keyword_literal_emit:
+	db "emit"

@@ -380,8 +380,20 @@ are valuable teeth, but they do not yet establish the quantified observation:
   returns all-ones without consumption. The `!` path performs two advances
   without observing the second byte and imports bounded unconditional `ADVX`
   for its tail. Logical-end and in-range NUL remain distinct at the first
-  observation and at zero lookaheads. The summary is quiet, restores its frame,
-  and claims no keyword, name-table, or expression-SCC meaning;
+  observation and at zero lookaheads. The summary is quiet and restores its
+  frame;
+- its conditional fixed-keyword summary binds procedures 15..23 and their exact
+  descriptor-driven blocks 54..128, transitions 40..96, events 46..159,
+  memory/expression/push rows, zero-slot frames, epilogues, and decoded quiet
+  footprints. Under the carried bounded identifier slice and exact `IDCH`, a
+  length mismatch returns zero before byte access; equal-length identifiers are
+  compared left-to-right against the nine exact descriptor spellings, return
+  zero at the first mismatch, and return one exactly on a full match.
+  Independent 256-byte singleton/complement sweeps cover all 48
+  descriptor positions, and non-aliasable tables retain all 48 byte proofs and
+  all 66 length/mismatch/match outcomes. These predicates emit nothing,
+  preserve source/input/CUR/compiler state, and restore their frames. This
+  clause gives no `name_eq`, `lookup`, name-table, or expression-SCC meaning;
 - no total `parse_proc` claim is currently made. Malformed procedure bodies can
   make `gen_stmts` diverge while emitting—for example when an unrecognized byte
   is never consumed—so closure requires maximal Return-or-Diverge and finite/

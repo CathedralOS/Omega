@@ -1,0 +1,557 @@
+; One conditional semantic schema for procedures15..23.  Exact shape binds the
+; readable spelling table; IDCH supplies each in-bounds identifier byte.
+; The 66 outcomes are nine length mismatches, 48 first-byte mismatches, and
+; nine full matches. Cells 530456..530664 carry the generic relation and
+; per-procedure joins; 530672..531192 is a non-aliasable 66-outcome table.
+; Per-case relation/expected-byte joins occupy 531680..531832; next fresh cell
+; is 531840. The global reset ends at 531200 and each case separately resets
+; its join arrays through 531840, preserving the FKEQ proof at 531208..531664.
+
+fixed_keyword_summary_init:
+	call fixed_keyword_require_shape
+	call fixed_keyword_prove_byte_cases
+	call fixed_keyword_prove_summary
+	jmp scan_owned_effects_init
+
+fixed_keyword_prove_summary:
+	call fixed_keyword_summary_reset
+	call fixed_keyword_require_imports
+	call fixed_keyword_introduce_quiet_frame
+	imm r1, 530496
+	imm r2, 15
+	store r1, r2
+fixed_keyword_proc_loop:
+	imm r1, 530496
+	load r20, r1
+	imm r2, 24
+	jlt r20, r2, fixed_keyword_prove_proc
+	jeq r20, r2, fixed_keyword_publish
+	jmp reject
+
+fixed_keyword_prove_proc:
+	call fixed_keyword_select_proc
+	imm r1, 530560
+	imm r2, 0
+	store r1, r2
+	call fixed_keyword_prove_length_mismatch
+	imm r1, 530528
+	imm r2, 0
+	store r1, r2
+fixed_keyword_mismatch_loop:
+	imm r1, 530528
+	load r30, r1
+	imm r1, 530368
+	load r2, r1
+	jlt r30, r2, fixed_keyword_prove_first_mismatch
+	jeq r30, r2, fixed_keyword_prove_full_match
+	jmp reject
+
+fixed_keyword_prove_length_mismatch:
+	call fixed_keyword_reset_case
+	imm r1, 530520
+	imm r2, 1                    ; exact IDLEN != keyword length
+	store r1, r2
+	imm r1, 530536
+	store r1, r2                  ; exact zero result
+	imm r1, 530544
+	imm r2, 0                    ; no IDCH byte access
+	store r1, r2
+	imm r20, 1
+	call fixed_keyword_require_case
+	imm r20, 0                    ; procedure-local length outcome
+	call fixed_keyword_finish_outcome
+	ret
+
+; For first mismatch j, consume exact matches 0..j-1 and one unequal byte j.
+fixed_keyword_prove_first_mismatch:
+	call fixed_keyword_reset_case
+	imm r1, 530520
+	imm r2, 2                    ; exact IDLEN == keyword length
+	store r1, r2
+	imm r1, 530584
+	imm r2, 0
+	store r1, r2
+fixed_keyword_prior_match_loop:
+	imm r1, 530584
+	load r29, r1
+	imm r1, 530528
+	load r30, r1
+	jlt r29, r30, fixed_keyword_prior_match
+	jeq r29, r30, fixed_keyword_current_mismatch
+	jmp reject
+fixed_keyword_prior_match:
+	mov r20, r29
+	imm r21, 2                    ; exact equal byte
+	call fixed_keyword_call_id_char
+	call fixed_keyword_increment_prior
+	jmp fixed_keyword_prior_match_loop
+fixed_keyword_current_mismatch:
+	mov r20, r30
+	imm r21, 1                    ; exact unequal byte
+	call fixed_keyword_call_id_char
+	imm r1, 530536
+	imm r2, 1
+	store r1, r2                  ; exact zero result
+	imm r1, 530544
+	mov r2, r30
+	imm r3, 1
+	add r2, r3
+	store r1, r2                  ; exactly j+1 IDCH calls
+	imm r20, 2
+	call fixed_keyword_require_case
+	imm r1, 530552
+	load r20, r1
+	imm r2, 1
+	add r20, r2                  ; procedure-local first-mismatch outcome
+	call fixed_keyword_finish_outcome
+	imm r1, 530528
+	load r2, r1
+	imm r3, 1
+	add r2, r3
+	store r1, r2
+	jmp fixed_keyword_mismatch_loop
+
+fixed_keyword_prove_full_match:
+	call fixed_keyword_reset_case
+	imm r1, 530520
+	imm r2, 2
+	store r1, r2                  ; exact length match
+	imm r1, 530584
+	imm r2, 0
+	store r1, r2
+fixed_keyword_full_match_loop:
+	imm r1, 530584
+	load r29, r1
+	imm r1, 530368
+	load r30, r1
+	jlt r29, r30, fixed_keyword_full_match_byte
+	jeq r29, r30, fixed_keyword_full_match_return
+	jmp reject
+fixed_keyword_full_match_byte:
+	mov r20, r29
+	imm r21, 2                    ; exact equal byte
+	call fixed_keyword_call_id_char
+	call fixed_keyword_increment_prior
+	jmp fixed_keyword_full_match_loop
+fixed_keyword_full_match_return:
+	imm r1, 530536
+	imm r2, 2                    ; exact one result
+	store r1, r2
+	imm r1, 530544
+	store r1, r30                 ; exactly length IDCH calls
+	imm r20, 3
+	call fixed_keyword_require_case
+	imm r1, 530368
+	load r20, r1
+	imm r2, 1
+	add r20, r2                  ; procedure-local full-match outcome
+	call fixed_keyword_finish_outcome
+	call fixed_keyword_finish_proc
+	jmp fixed_keyword_proc_loop
+
+fixed_keyword_summary_reset:
+	imm r1, 530456
+	imm r2, 0
+fixed_keyword_summary_reset_loop:
+	imm r3, 531200
+	jlt r1, r3, fixed_keyword_summary_reset_cell
+	ret
+fixed_keyword_summary_reset_cell:
+	store r1, r2
+	imm r3, 8
+	add r1, r3
+	jmp fixed_keyword_summary_reset_loop
+
+fixed_keyword_require_imports:
+	imm r20, 527184
+	imm r21, 1212367945           ; IDCH
+	call cursor_require_cell
+	imm r20, 527200
+	imm r21, 1                    ; bounded identifier source slice
+	call cursor_require_cell
+	imm r1, 530464
+	imm r2, 1
+	store r1, r2
+	ret
+
+fixed_keyword_introduce_quiet_frame:
+	imm r20, 527224
+	imm r21, 1                    ; IDCH is quiet
+	call cursor_require_cell
+	imm r20, 527312
+	imm r21, 1                    ; IDCH restores its frame
+	call cursor_require_cell
+	imm r1, 530472
+	imm r2, 1                    ; recognizers emit nothing/change no state
+	store r1, r2
+	imm r1, 530480
+	store r1, r2                  ; zero-slot recognizer frame restored
+	imm r1, 530488
+	store r1, r2                  ; CUR unchanged
+	ret
+
+fixed_keyword_reset_case:
+	imm r20, 530464
+	imm r21, 1
+	call cursor_require_cell
+	imm r20, 530472
+	imm r21, 1
+	call cursor_require_cell
+	imm r20, 530480
+	imm r21, 1
+	call cursor_require_cell
+	imm r20, 530488
+	imm r21, 1
+	call cursor_require_cell
+	imm r1, 530520
+	imm r2, 0
+	store r1, r2
+	imm r1, 530368
+	load r2, r1
+	imm r1, 530664
+	store r1, r2                  ; selected descriptor length
+	imm r1, 530528
+	load r2, r1
+	imm r1, 530552
+	store r1, r2                  ; stable selected first-mismatch index
+	imm r1, 530536
+	imm r2, 0
+	store r1, r2
+	imm r1, 530544
+	store r1, r2
+	imm r1, 530576
+	store r1, r2                  ; byte relation is per call
+	call fixed_keyword_reset_byte_joins
+	ret
+
+; r20=k, r21=1 unequal or 2 equal. IDLEN==L proves the call is in bounds.
+fixed_keyword_call_id_char:
+	mov r25, r20
+	mov r26, r21
+	imm r20, 530520
+	imm r21, 2
+	call cursor_require_cell
+	imm r1, 0
+	jlt r25, r1, reject
+	imm r1, 530368
+	load r2, r1
+	jlt r25, r2, fixed_keyword_id_char_index_ok
+	jmp reject
+fixed_keyword_id_char_index_ok:
+	imm r20, 527184
+	imm r21, 1212367945
+	call cursor_require_cell
+	imm r1, 527208
+	imm r2, 1
+	store r1, r2                  ; call-specific k<IDLEN
+	imm r1, 527216
+	store r1, r2                  ; exact selected identifier byte
+	imm r20, 527208
+	imm r21, 1
+	call cursor_require_cell
+	imm r20, 527216
+	imm r21, 1
+	call cursor_require_cell
+	imm r20, 531208
+	imm r21, 1363888966           ; FKEQ byte singleton/complement theorem
+	call cursor_require_cell
+	imm r1, 530440
+	load r2, r1
+	add r2, r25
+	loadb r27, r2                 ; independently proved expected singleton
+	mov r3, r25
+	imm r4, 8
+	mul r3, r4
+	imm r4, 531680
+	add r3, r4
+	load r4, r3
+	imm r5, 0
+	jeq r4, r5, fixed_keyword_byte_join_fresh
+	jmp reject
+fixed_keyword_byte_join_fresh:
+	store r3, r26                 ; relation for this exact call position
+	mov r3, r25
+	imm r4, 8
+	mul r3, r4
+	imm r4, 531760
+	add r3, r4
+	store r3, r27                 ; expected byte for this position
+	ret
+
+; r20=1 length mismatch, 2 byte mismatch, 3 complete match.
+fixed_keyword_require_case:
+	mov r25, r20
+	imm r20, 530472
+	imm r21, 1
+	call cursor_require_cell
+	imm r20, 530480
+	imm r21, 1
+	call cursor_require_cell
+	imm r20, 530488
+	imm r21, 1
+	call cursor_require_cell
+	imm r20, 531208
+	imm r21, 1363888966           ; exact singleton/complement partition
+	call cursor_require_cell
+	imm r20, 530664              ; selected descriptor-length join
+	imm r1, 530368
+	load r21, r1
+	call cursor_require_cell       ; length relation is for selected L
+	imm r1, 1
+	jeq r25, r1, fixed_keyword_require_length_mismatch
+	imm r20, 530520
+	imm r21, 2
+	call cursor_require_cell
+	imm r1, 2
+	jeq r25, r1, fixed_keyword_require_byte_mismatch
+	imm r1, 3
+	jeq r25, r1, fixed_keyword_require_match
+	jmp reject
+fixed_keyword_require_length_mismatch:
+	imm r20, 530520
+	imm r21, 1
+	call cursor_require_cell
+	imm r20, 530544
+	imm r21, 0                    ; guard dominates every IDCH call
+	call cursor_require_cell
+	jmp fixed_keyword_require_zero
+fixed_keyword_require_byte_mismatch:
+	imm r1, 530552
+	load r21, r1
+	imm r2, 1
+	add r21, r2
+	imm r20, 530544
+	call cursor_require_cell
+	call fixed_keyword_require_mismatch_prefix
+fixed_keyword_require_zero:
+	imm r20, 530536
+	imm r21, 1
+	call cursor_require_cell
+	ret
+fixed_keyword_require_match:
+	imm r20, 530544
+	imm r1, 530368
+	load r21, r1
+	call cursor_require_cell
+	call fixed_keyword_require_match_prefix
+	imm r20, 530536
+	imm r21, 2                    ; exact full-match result one
+	call cursor_require_cell
+	ret
+
+fixed_keyword_finish_outcome:
+	mov r25, r20
+	imm r1, 530368
+	load r2, r1
+	imm r3, 2
+	add r2, r3
+	jlt r25, r2, fixed_keyword_finish_outcome_local_ok
+	jmp reject
+fixed_keyword_finish_outcome_local_ok:
+	call fixed_keyword_select_outcome_base
+	add r4, r25
+	imm r3, 8
+	mul r4, r3
+	imm r3, 530672
+	add r4, r3
+	load r5, r4
+	imm r3, 0
+	jeq r5, r3, fixed_keyword_finish_outcome_fresh
+	jmp reject
+fixed_keyword_finish_outcome_fresh:
+	imm r3, 1
+	store r4, r3                  ; persistent selected outcome completion
+	imm r1, 530504
+	load r2, r1
+	imm r3, 66
+	jlt r2, r3, fixed_keyword_finish_outcome_in_range
+	jmp reject
+fixed_keyword_finish_outcome_in_range:
+	imm r3, 1
+	add r2, r3
+	store r1, r2
+	imm r1, 530560
+	load r2, r1
+	add r2, r3
+	store r1, r2
+	ret
+
+; Independent prefix offsets for descriptor-local outcomes:
+; 0,8,15,19,25,31,37,48,60.
+fixed_keyword_select_outcome_base:
+	imm r1, 530496
+	load r2, r1
+	imm r3, 15
+	imm r4, 0
+	jeq r2, r3, fixed_keyword_outcome_base_ok
+	imm r3, 16
+	imm r4, 8                    ; state outcome-table base
+	jeq r2, r3, fixed_keyword_outcome_base_ok
+	imm r3, 17
+	imm r4, 15
+	jeq r2, r3, fixed_keyword_outcome_base_ok
+	imm r3, 18
+	imm r4, 19
+	jeq r2, r3, fixed_keyword_outcome_base_ok
+	imm r3, 19
+	imm r4, 25
+	jeq r2, r3, fixed_keyword_outcome_base_ok
+	imm r3, 20
+	imm r4, 31
+	jeq r2, r3, fixed_keyword_outcome_base_ok
+	imm r3, 21
+	imm r4, 37
+	jeq r2, r3, fixed_keyword_outcome_base_ok
+	imm r3, 22
+	imm r4, 48
+	jeq r2, r3, fixed_keyword_outcome_base_ok
+	imm r3, 23
+	imm r4, 60
+	jeq r2, r3, fixed_keyword_outcome_base_ok
+	jmp reject
+fixed_keyword_outcome_base_ok:
+	ret
+
+fixed_keyword_finish_proc:
+	imm r20, 530560
+	imm r1, 530368
+	load r21, r1
+	imm r2, 2
+	add r21, r2                  ; exact L+2 procedure outcomes
+	call cursor_require_cell       ; exact L+2 outcome partition
+	imm r1, 530496
+	load r2, r1
+	imm r3, 15
+	sub r2, r3
+	imm r3, 8
+	mul r2, r3
+	imm r3, 530592
+	add r2, r3
+	imm r3, 1
+	store r2, r3                  ; per-procedure completion
+	imm r1, 530512
+	load r2, r1
+	imm r3, 1
+	add r2, r3
+	store r1, r2
+	imm r1, 530496
+	load r2, r1
+	add r2, r3
+	store r1, r2
+	ret
+
+fixed_keyword_publish:
+	imm r20, 530504
+	imm r21, 66                   ; exact aggregate outcome count
+	call cursor_require_cell
+	imm r20, 530512
+	imm r21, 9                    ; all recognizers complete
+	call cursor_require_cell
+	imm r20, 530592
+fixed_keyword_publish_proc_loop:
+	imm r1, 530664
+	jlt r20, r1, fixed_keyword_publish_proc
+	imm r20, 530672
+fixed_keyword_publish_outcome_loop:
+	imm r1, 531200
+	jlt r20, r1, fixed_keyword_publish_outcome
+	imm r1, 530456
+	imm r2, 1398231878           ; FKWS
+	store r1, r2
+	ret
+fixed_keyword_publish_proc:
+	imm r21, 1
+	call cursor_require_cell
+	imm r1, 8
+	add r20, r1
+	jmp fixed_keyword_publish_proc_loop
+
+fixed_keyword_publish_outcome:
+	imm r21, 1
+	call cursor_require_cell
+	imm r1, 8
+	add r20, r1
+	jmp fixed_keyword_publish_outcome_loop
+
+fixed_keyword_reset_byte_joins:
+	imm r1, 531680
+	imm r2, 0
+fixed_keyword_reset_byte_joins_loop:
+	imm r3, 531840
+	jlt r1, r3, fixed_keyword_reset_byte_join
+	ret
+fixed_keyword_reset_byte_join:
+	store r1, r2
+	imm r3, 8
+	add r1, r3
+	jmp fixed_keyword_reset_byte_joins_loop
+
+fixed_keyword_require_mismatch_prefix:
+	imm r1, 530552
+	load r28, r1
+	imm r29, 0
+fixed_keyword_require_mismatch_loop:
+	jlt r29, r28, fixed_keyword_require_prior_equal
+	jeq r29, r28, fixed_keyword_require_terminal_unequal
+	ret
+fixed_keyword_require_prior_equal:
+	mov r25, r29
+	imm r26, 2                    ; consumed prior equal relation
+	call fixed_keyword_require_recorded_byte
+	imm r1, 1
+	add r29, r1
+	jmp fixed_keyword_require_mismatch_loop
+fixed_keyword_require_terminal_unequal:
+	mov r25, r29
+	imm r26, 1                    ; consumed terminal unequal relation
+	call fixed_keyword_require_recorded_byte
+	ret
+
+fixed_keyword_require_match_prefix:
+	imm r29, 0
+fixed_keyword_require_match_loop:
+	imm r1, 530368
+	load r28, r1
+	jlt r29, r28, fixed_keyword_require_match_byte
+	jeq r29, r28, fixed_keyword_require_match_done
+	jmp reject
+fixed_keyword_require_match_byte:
+	mov r25, r29
+	imm r26, 2                    ; consumed full-match equal relation
+	call fixed_keyword_require_recorded_byte
+	imm r1, 1
+	add r29, r1
+	jmp fixed_keyword_require_match_loop
+fixed_keyword_require_match_done:
+	ret
+
+; Consume both the relation and descriptor byte recorded for position r25.
+fixed_keyword_require_recorded_byte:
+	mov r3, r25
+	imm r4, 8
+	mul r3, r4
+	imm r4, 531680
+	mov r20, r3
+	add r20, r4
+	mov r21, r26
+	call cursor_require_cell
+	mov r3, r25
+	imm r4, 8
+	mul r3, r4
+	imm r4, 531760               ; recorded expected-byte table
+	mov r20, r3
+	add r20, r4
+	imm r1, 530440
+	load r2, r1
+	add r2, r25
+	loadb r21, r2
+	call cursor_require_cell
+	ret
+
+fixed_keyword_increment_prior:
+	imm r1, 530584
+	load r2, r1
+	imm r3, 1
+	add r2, r3
+	store r1, r2
+	ret

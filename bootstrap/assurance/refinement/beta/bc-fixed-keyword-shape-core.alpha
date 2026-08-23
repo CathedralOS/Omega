@@ -1,0 +1,642 @@
+; Table-driven exact shape for fixed keyword recognizers. Private metadata
+; 530360..530448 is proc,len,pc,block,transition,event,memory,primitive,
+; binary,arg,literal,loop.
+
+fixed_keyword_require_shape:
+	imm r1, 530352
+	imm r2, 15
+	store r1, r2
+fixed_keyword_shape_proc_loop:
+	imm r1, 530352
+	load r20, r1
+	imm r2, 24
+	jlt r20, r2, fixed_keyword_shape_proc
+	ret
+fixed_keyword_shape_proc:
+	call fixed_keyword_select_proc
+	call fixed_keyword_require_current_proc
+	imm r1, 530352
+	load r2, r1
+	imm r3, 1
+	add r2, r3
+	store r1, r2
+	jmp fixed_keyword_shape_proc_loop
+
+fixed_keyword_require_current_proc:
+	call fixed_keyword_require_frame
+	call fixed_keyword_require_blocks
+	call fixed_keyword_require_transitions
+	call fixed_keyword_require_events
+	call fixed_keyword_require_memory
+	call fixed_keyword_require_primitives
+	call fixed_keyword_require_pushes
+	call fixed_keyword_require_censuses
+	ret
+
+fixed_keyword_require_frame:
+	imm r1, 530360
+	load r30, r1
+	imm r20, 7151616
+	mov r21, r30
+	imm r22, 0
+	call transfer_require_cell
+	imm r20, 7159808
+	mov r21, r30
+	imm r22, 0
+	call transfer_require_cell
+	mov r20, r30
+	call call_bounds_frame_bytes
+	imm r1, 8
+	jeq r0, r1, cursor_require_ok
+	jmp reject
+
+fixed_keyword_require_blocks:
+	imm r1, 530384
+	load r20, r1                  ; entry block
+	imm r1, 530376
+	load r21, r1                  ; procedure pc
+	call slurp_summary_require_block_pc
+	imm r1, 530384
+	load r20, r1
+	imm r2, 1
+	add r20, r2                   ; c0 block
+	imm r1, 530376
+	load r21, r1
+	imm r2, 19
+	add r21, r2
+	call slurp_summary_require_block_pc
+	imm r1, 530448
+	imm r2, 0
+	store r1, r2
+fixed_keyword_block_loop:
+	imm r1, 530448
+	load r30, r1
+	imm r1, 530368
+	load r2, r1
+	jlt r30, r2, fixed_keyword_block_char
+	jeq r30, r2, fixed_keyword_block_yes
+	jmp reject
+fixed_keyword_block_char:
+	imm r1, 530384
+	load r20, r1
+	imm r2, 2
+	add r20, r2
+	add r20, r30
+	imm r1, 530376
+	load r21, r1
+	imm r2, 166
+	add r21, r2
+	mov r2, r30
+	imm r3, 185
+	mul r2, r3
+	add r21, r2
+	call slurp_summary_require_block_pc
+	call fixed_keyword_increment_loop
+	jmp fixed_keyword_block_loop
+fixed_keyword_block_yes:
+	imm r1, 530384
+	load r20, r1
+	imm r2, 2
+	add r20, r2
+	add r20, r30
+	imm r1, 530376
+	load r21, r1
+	imm r2, 166
+	add r21, r2
+	mov r2, r30
+	imm r3, 185
+	mul r2, r3
+	add r21, r2
+	call slurp_summary_require_block_pc
+	imm r1, 530384
+	load r20, r1
+	imm r1, 530368
+	load r21, r1
+	imm r2, 2
+	add r21, r2
+	imm r1, 530384
+	load r2, r1
+	add r21, r2                  ; inclusive final block
+	imm r1, 530360
+	load r22, r1
+	call cursor_require_proc_blocks
+	ret
+
+fixed_keyword_require_transitions:
+	imm r1, 530448
+	imm r2, 0
+	store r1, r2
+fixed_keyword_transition_loop:
+	imm r1, 530448
+	load r30, r1
+	imm r1, 530368
+	load r2, r1
+	jlt r30, r2, fixed_keyword_transition_case
+	jeq r30, r2, fixed_keyword_transition_case
+	ret
+fixed_keyword_transition_case:
+	imm r1, 530392
+	load r20, r1
+	add r20, r30
+	imm r1, 530384
+	load r21, r1
+	imm r2, 1
+	add r21, r2
+	add r21, r30
+	imm r22, 1                    ; every edge is guarded
+	mov r23, r21
+	imm r2, 1
+	add r23, r2
+	imm r1, 0
+	jeq r30, r1, fixed_keyword_transition_length_pc
+	imm r1, 530376
+	load r24, r1
+	imm r2, 117
+	add r24, r2
+	mov r2, r30
+	imm r3, 185
+	mul r2, r3
+	add r24, r2                  ; char guard for index r30-1
+	jmp fixed_keyword_transition_require
+fixed_keyword_transition_length_pc:
+	imm r1, 530376
+	load r24, r1
+	imm r2, 117                  ; checked length-guard pc
+	add r24, r2
+fixed_keyword_transition_require:
+	call slurp_summary_require_transition
+	call fixed_keyword_increment_loop
+	jmp fixed_keyword_transition_loop
+
+fixed_keyword_require_events:
+	imm r1, 530400
+	load r20, r1
+	imm r1, 530384
+	load r21, r1
+	imm r2, 1
+	add r21, r2
+	imm r22, 5
+	imm r1, 530376
+	load r23, r1
+	imm r2, 165
+	add r23, r2
+	call slurp_summary_require_event
+	mov r21, r23
+	mov r20, r23
+	imm r2, 19
+	sub r20, r2
+	call slurp_summary_require_epilogue
+	imm r1, 530448
+	imm r2, 0
+	store r1, r2
+fixed_keyword_event_loop:
+	imm r1, 530448
+	load r30, r1
+	imm r1, 530368
+	load r2, r1
+	jlt r30, r2, fixed_keyword_event_char
+	jeq r30, r2, fixed_keyword_event_yes
+	jmp reject
+fixed_keyword_event_char:
+	imm r1, 530400
+	load r20, r1
+	mov r2, r30
+	imm r3, 2
+	mul r2, r3
+	imm r3, 1
+	add r2, r3
+	add r20, r2
+	imm r1, 530384
+	load r21, r1
+	imm r2, 2
+	add r21, r2
+	add r21, r30
+	imm r1, 530376
+	load r22, r1
+	imm r2, 208
+	add r22, r2
+	mov r2, r30
+	imm r3, 185
+	mul r2, r3
+	add r22, r2
+	imm r23, 1
+	imm r24, 0
+	imm r25, 5634                ; exact IDCH target
+	mov r26, r22
+	imm r2, 9
+	add r26, r2                  ; exact call continuation delta
+	call summary_require_call_site
+	imm r1, 530448
+	load r30, r1                 ; call checker clobbers the loop index
+	imm r1, 530400
+	load r20, r1
+	mov r2, r30
+	imm r3, 2
+	mul r2, r3
+	imm r3, 2
+	add r2, r3
+	add r20, r2
+	imm r1, 530384
+	load r21, r1
+	imm r2, 2
+	add r21, r2
+	add r21, r30
+	imm r1, 530376
+	load r23, r1
+	imm r2, 350
+	add r23, r2
+	mov r2, r30
+	imm r3, 185
+	mul r2, r3
+	add r23, r2
+	imm r22, 5
+	call slurp_summary_require_event
+	mov r21, r23
+	mov r20, r23
+	imm r2, 19
+	sub r20, r2
+	call slurp_summary_require_epilogue
+	call fixed_keyword_increment_loop
+	jmp fixed_keyword_event_loop
+fixed_keyword_event_yes:
+	imm r1, 530400
+	load r20, r1
+	mov r2, r30
+	imm r3, 2
+	mul r2, r3
+	imm r3, 1
+	add r2, r3
+	add r20, r2
+	imm r1, 530384
+	load r21, r1
+	imm r2, 2
+	add r21, r2
+	add r21, r30
+	imm r22, 5
+	imm r1, 530376
+	load r23, r1
+	imm r2, 195
+	add r23, r2
+	mov r2, r30
+	imm r3, 185
+	mul r2, r3
+	add r23, r2
+	call slurp_summary_require_event
+	mov r21, r23
+	mov r20, r23
+	imm r2, 19
+	sub r20, r2
+	call slurp_summary_require_epilogue
+	imm r1, 530376
+	load r21, r1
+	imm r2, 215
+	add r21, r2
+	imm r1, 530368
+	load r3, r1
+	imm r4, 185
+	mul r3, r4
+	add r21, r3                  ; final ret pc
+	mov r20, r21
+	imm r2, 19
+	sub r20, r2
+	call slurp_summary_require_epilogue
+	ret
+
+fixed_keyword_require_memory:
+	imm r1, 530408
+	load r20, r1
+	imm r1, 530384
+	load r21, r1
+	imm r2, 1
+	add r21, r2
+	imm r22, 1
+	imm r23, 8
+	imm r1, 530376
+	load r24, r1
+	imm r2, 29
+	add r24, r2
+	call transfer_require_memory
+	ret
+
+fixed_keyword_require_primitives:
+	imm r1, 530416
+	load r20, r1
+	imm r1, 530384
+	load r21, r1
+	imm r2, 1
+	add r21, r2
+	imm r22, 1
+	imm r23, 2097112             ; exact IDLEN address
+	imm r1, 530376
+	load r24, r1
+	imm r2, 19
+	add r24, r2
+	call transfer_require_primitive
+	mov r20, r25
+	imm r2, 1
+	add r20, r2
+	mov r21, r26
+	imm r22, 3
+	imm r23, 10                  ; length full-word equality
+	imm r1, 530376
+	load r24, r1
+	imm r2, 58
+	add r24, r2
+	call transfer_require_primitive
+	mov r20, r25
+	imm r2, 1
+	add r20, r2
+	mov r21, r26
+	imm r22, 1
+	imm r1, 530368
+	load r23, r1
+	imm r1, 530376
+	load r24, r1
+	imm r2, 48
+	add r24, r2
+	call transfer_require_primitive
+	mov r20, r25
+	imm r2, 1
+	add r20, r2
+	mov r21, r26
+	imm r22, 1
+	imm r23, 0
+	imm r1, 530376
+	load r24, r1
+	imm r2, 136
+	add r24, r2
+	call transfer_require_primitive
+	imm r1, 530448
+	imm r2, 0
+	store r1, r2
+fixed_keyword_primitive_loop:
+	imm r1, 530448
+	load r30, r1
+	imm r1, 530368
+	load r2, r1
+	jlt r30, r2, fixed_keyword_primitive_char
+	jeq r30, r2, fixed_keyword_primitive_yes
+	jmp reject
+fixed_keyword_primitive_char:
+	imm r1, 530416
+	load r20, r1
+	mov r2, r30
+	imm r3, 4
+	mul r2, r3
+	imm r3, 4
+	add r2, r3
+	add r20, r2
+	imm r1, 530384
+	load r21, r1
+	imm r2, 2
+	add r21, r2
+	add r21, r30
+	imm r22, 1
+	mov r23, r30                 ; id_char index literal
+	imm r1, 530376
+	load r24, r1
+	imm r2, 166
+	add r24, r2
+	mov r2, r30
+	imm r3, 185
+	mul r2, r3
+	add r24, r2
+	call transfer_require_primitive
+	mov r20, r25
+	imm r2, 1
+	add r20, r2
+	mov r21, r26
+	imm r22, 3
+	imm r23, 10
+	imm r1, 530376
+	load r24, r1
+	imm r2, 243
+	add r24, r2
+	mov r2, r30
+	imm r3, 185
+	mul r2, r3
+	add r24, r2
+	call transfer_require_primitive
+	mov r20, r25
+	imm r2, 1
+	add r20, r2
+	mov r21, r26
+	imm r22, 1
+	imm r1, 530440
+	load r23, r1
+	add r23, r30
+	loadb r23, r23                ; exact spelling byte
+	imm r1, 530376
+	load r24, r1
+	imm r2, 233
+	add r24, r2
+	mov r2, r30
+	imm r3, 185
+	mul r2, r3
+	add r24, r2
+	call transfer_require_primitive
+	mov r20, r25
+	imm r2, 1
+	add r20, r2
+	mov r21, r26
+	imm r22, 1
+	imm r23, 0
+	imm r1, 530376
+	load r24, r1
+	imm r2, 321
+	add r24, r2
+	mov r2, r30
+	imm r3, 185
+	mul r2, r3
+	add r24, r2
+	call transfer_require_primitive
+	call fixed_keyword_increment_loop
+	jmp fixed_keyword_primitive_loop
+fixed_keyword_primitive_yes:
+	mov r21, r26
+	imm r2, 1
+	add r21, r2                  ; success block follows final character
+	imm r1, 530416
+	load r20, r1
+	mov r2, r30
+	imm r3, 4
+	mul r2, r3
+	imm r3, 4
+	add r2, r3
+	add r20, r2
+	imm r22, 1
+	imm r23, 1                   ; full-match one literal
+	imm r1, 530376
+	load r24, r1
+	imm r2, 166
+	add r24, r2
+	mov r2, r30
+	imm r3, 185
+	mul r2, r3
+	add r24, r2
+	call transfer_require_primitive
+	ret
+
+fixed_keyword_require_pushes:
+	imm r1, 530424
+	load r20, r1
+	imm r1, 530384
+	load r21, r1
+	imm r2, 1
+	add r21, r2
+	imm r22, 1
+	imm r1, 530376
+	load r23, r1
+	imm r2, 32
+	add r23, r2
+	call transfer_require_push
+	imm r1, 530448
+	imm r2, 0
+	store r1, r2
+fixed_keyword_push_loop:
+	imm r1, 530448
+	load r30, r1
+	imm r1, 530368
+	load r2, r1
+	jlt r30, r2, fixed_keyword_push_char
+	ret
+fixed_keyword_push_char:
+	imm r1, 530384
+	load r21, r1
+	imm r2, 2
+	add r21, r2
+	add r21, r30
+	imm r1, 530424
+	load r20, r1
+	imm r2, 1
+	add r20, r2
+	add r20, r30
+	imm r22, 1
+	imm r1, 530376
+	load r23, r1
+	imm r2, 217
+	add r23, r2
+	mov r2, r30
+	imm r3, 185
+	mul r2, r3
+	add r23, r2
+	call transfer_require_push
+	mov r21, r26
+	imm r1, 530432
+	load r20, r1
+	add r20, r30
+	imm r22, 2
+	imm r1, 530376
+	load r23, r1
+	imm r2, 176
+	add r23, r2
+	mov r2, r30
+	imm r3, 185
+	mul r2, r3
+	add r23, r2
+	call transfer_require_push
+	call fixed_keyword_increment_loop
+	jmp fixed_keyword_push_loop
+
+fixed_keyword_require_censuses:
+	imm r1, 530384
+	load r20, r1
+	mov r21, r20
+	imm r1, 530368
+	load r2, r1
+	imm r3, 2
+	add r2, r3
+	add r21, r2
+	imm r22, 34
+	imm r23, 34
+	imm r1, 530408
+	load r24, r1
+	mov r25, r24
+	imm r2, 1
+	add r25, r2
+	imm r1, 530392
+	load r26, r1
+	mov r27, r26
+	imm r1, 530368
+	load r2, r1
+	imm r3, 1
+	add r2, r3
+	add r27, r2
+	imm r1, 530400
+	load r28, r1
+	mov r29, r28
+	imm r1, 530368
+	load r2, r1
+	imm r3, 2
+	mul r2, r3
+	imm r3, 2
+	add r2, r3
+	add r29, r2
+	call cursor_require_effect_census
+
+	imm r1, 530384
+	load r20, r1
+	mov r21, r20
+	imm r1, 530368
+	load r2, r1
+	imm r3, 2
+	add r2, r3
+	add r21, r2
+	imm r1, 530416
+	load r22, r1                 ; exact IDCH call count
+	mov r23, r22
+	imm r1, 530368
+	load r2, r1
+	imm r3, 4
+	mul r2, r3
+	imm r3, 5
+	add r2, r3
+	add r23, r2                  ; exact explicit+synthetic return count
+	imm r1, 530424
+	load r24, r1
+	mov r25, r24
+	imm r1, 530368
+	load r2, r1
+	imm r3, 1
+	add r2, r3
+	add r25, r2
+	imm r1, 530432
+	load r26, r1
+	mov r27, r26
+	imm r1, 530368
+	load r2, r1
+	add r27, r2
+	imm r28, 381
+	imm r29, 381                 ; exact empty store-push interval
+	call summary_require_expr_census
+
+	imm r1, 530376
+	load r20, r1
+	mov r21, r20
+	imm r1, 530368
+	load r2, r1
+	imm r3, 185
+	mul r2, r3
+	imm r3, 216
+	add r2, r3
+	add r21, r2
+	imm r1, 530368
+	load r22, r1
+	mov r23, r22
+	imm r2, 3
+	add r23, r2
+	mov r24, r22
+	imm r2, 2
+	mul r24, r2
+	imm r2, 2
+	add r24, r2                  ; exact decoded store count
+	call exact_quiet_scan_region
+	ret
+
+fixed_keyword_increment_loop:
+	imm r1, 530448
+	load r2, r1
+	imm r3, 1
+	add r2, r3
+	store r1, r2
+	ret
