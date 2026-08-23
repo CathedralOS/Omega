@@ -714,6 +714,141 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
                 .collect()
         }
 
+        fn append_direct_structural_leaf_equality(
+            program: &TypedTrees,
+            left_parameter: u32,
+            right_parameter: u32,
+            type_reference: TypeReferenceHandle,
+            left: Vec<CheckedStructuralPredicatePathSegment>,
+            right: Vec<CheckedStructuralPredicatePathSegment>,
+            comparisons: &mut Vec<CheckedBooleanExpression>,
+        ) -> Option<()> {
+            match program.primitive_type_reference(type_reference) {
+                Some(PrimitiveType::Bool) => {
+                    comparisons.push(CheckedBooleanExpression::Equal {
+                        left: Box::new(CheckedBooleanExpression::StructuralParameterField {
+                            parameter_position: left_parameter,
+                            path: left,
+                        }),
+                        right: Box::new(CheckedBooleanExpression::StructuralParameterField {
+                            parameter_position: right_parameter,
+                            path: right,
+                        }),
+                    });
+                }
+                Some(primitive_type)
+                    if is_integer(primitive_type) && primitive_type != PrimitiveType::Addr =>
+                {
+                    comparisons.push(CheckedBooleanExpression::IntegerComparison {
+                        kind: CheckedIntegerComparisonKind::Equal,
+                        left: Box::new(CheckedScalarExpression::StructuralParameterField {
+                            parameter_position: left_parameter,
+                            path: left,
+                            primitive_type,
+                        }),
+                        right: Box::new(CheckedScalarExpression::StructuralParameterField {
+                            parameter_position: right_parameter,
+                            path: right,
+                            primitive_type,
+                        }),
+                    });
+                }
+                Some(primitive_type)
+                    if matches!(primitive_type, PrimitiveType::F32 | PrimitiveType::F64) =>
+                {
+                    let mut left = CheckedStructuralParameterField {
+                        parameter_position: left_parameter,
+                        path: left,
+                    };
+                    let mut right = CheckedStructuralParameterField {
+                        parameter_position: right_parameter,
+                        path: right,
+                    };
+                    if left > right {
+                        std::mem::swap(&mut left, &mut right);
+                    }
+                    comparisons.push(CheckedBooleanExpression::IeeeFloatComparison {
+                        kind: CheckedIeeeFloatComparisonKind::Equal,
+                        primitive_type,
+                        left,
+                        right,
+                    });
+                }
+                Some(_) => return None,
+                None if crate::flow::byte_sequence_carrier(program, type_reference, &[])
+                    .is_some() =>
+                {
+                    let mut left = CheckedStructuralParameterField {
+                        parameter_position: left_parameter,
+                        path: left,
+                    };
+                    let mut right = CheckedStructuralParameterField {
+                        parameter_position: right_parameter,
+                        path: right,
+                    };
+                    if left > right {
+                        std::mem::swap(&mut left, &mut right);
+                    }
+                    comparisons.push(CheckedBooleanExpression::ByteSequenceEqual { left, right });
+                }
+                None => return None,
+            }
+            Some(())
+        }
+
+        fn append_acyclic_record_equality(
+            program: &TypedTrees,
+            left_parameter: u32,
+            right_parameter: u32,
+            type_reference: TypeReferenceHandle,
+            left: &mut Vec<CheckedStructuralPredicatePathSegment>,
+            right: &mut Vec<CheckedStructuralPredicatePathSegment>,
+            comparisons: &mut Vec<CheckedBooleanExpression>,
+            visiting: &mut Vec<psi_symbols::SymbolHandle>,
+        ) -> Option<()> {
+            let data = structural_data(program, type_reference)?;
+            if !data.symbol.is_valid() || visiting.contains(&data.symbol) {
+                return None;
+            }
+            visiting.push(data.symbol);
+            for field in structural_record_fields(program, type_reference)? {
+                let field_identity = field
+                    .identity
+                    .map(|identity| format!("#{identity}"))
+                    .unwrap_or_else(|| field.name.as_str().to_owned());
+                left.push(CheckedStructuralPredicatePathSegment::Field(
+                    field_identity.clone(),
+                ));
+                right.push(CheckedStructuralPredicatePathSegment::Field(field_identity));
+                if append_direct_structural_leaf_equality(
+                    program,
+                    left_parameter,
+                    right_parameter,
+                    field.type_reference,
+                    left.clone(),
+                    right.clone(),
+                    comparisons,
+                )
+                .is_none()
+                {
+                    append_acyclic_record_equality(
+                        program,
+                        left_parameter,
+                        right_parameter,
+                        field.type_reference,
+                        left,
+                        right,
+                        comparisons,
+                        visiting,
+                    )?;
+                }
+                left.pop();
+                right.pop();
+            }
+            visiting.pop();
+            Some(())
+        }
+
         fn payload_bearing_sum_equality(
             program: &TypedTrees,
             data: &psi_typed_trees::data::DataDefinition,
@@ -778,84 +913,33 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
                     let mut right = right_path.to_vec();
                     right.push(CheckedStructuralPredicatePathSegment::Case(case.clone()));
                     right.push(CheckedStructuralPredicatePathSegment::Field(field_identity));
-                    match program.primitive_type_reference(field.type_reference) {
-                        Some(PrimitiveType::Bool) => {
-                            comparisons.push(CheckedBooleanExpression::Equal {
-                                left: Box::new(
-                                    CheckedBooleanExpression::StructuralParameterField {
-                                        parameter_position: left_parameter,
-                                        path: left,
-                                    },
-                                ),
-                                right: Box::new(
-                                    CheckedBooleanExpression::StructuralParameterField {
-                                        parameter_position: right_parameter,
-                                        path: right,
-                                    },
-                                ),
-                            });
-                        }
-                        Some(primitive_type)
-                            if is_integer(primitive_type)
-                                && primitive_type != PrimitiveType::Addr =>
-                        {
-                            comparisons.push(CheckedBooleanExpression::IntegerComparison {
-                                kind: CheckedIntegerComparisonKind::Equal,
-                                left: Box::new(CheckedScalarExpression::StructuralParameterField {
-                                    parameter_position: left_parameter,
-                                    path: left,
-                                    primitive_type,
-                                }),
-                                right: Box::new(
-                                    CheckedScalarExpression::StructuralParameterField {
-                                        parameter_position: right_parameter,
-                                        path: right,
-                                        primitive_type,
-                                    },
-                                ),
-                            });
-                        }
-                        Some(primitive_type)
-                            if matches!(
-                                primitive_type,
-                                PrimitiveType::F32 | PrimitiveType::F64
-                            ) =>
-                        {
-                            comparisons.push(CheckedBooleanExpression::IeeeFloatComparison {
-                                kind: CheckedIeeeFloatComparisonKind::Equal,
-                                primitive_type,
-                                left: CheckedStructuralParameterField {
-                                    parameter_position: left_parameter,
-                                    path: left,
-                                },
-                                right: CheckedStructuralParameterField {
-                                    parameter_position: right_parameter,
-                                    path: right,
-                                },
-                            });
-                        }
-                        Some(_) => return None,
-                        None if crate::flow::byte_sequence_carrier(
-                            program,
-                            field.type_reference,
-                            &[],
-                        )
-                        .is_some() =>
-                        {
-                            comparisons.push(CheckedBooleanExpression::ByteSequenceEqual {
-                                left: CheckedStructuralParameterField {
-                                    parameter_position: left_parameter,
-                                    path: left,
-                                },
-                                right: CheckedStructuralParameterField {
-                                    parameter_position: right_parameter,
-                                    path: right,
-                                },
-                            });
-                        }
-                        // Structural payload fields remain outside this slice.
-                        None => return None,
+                    if append_direct_structural_leaf_equality(
+                        program,
+                        left_parameter,
+                        right_parameter,
+                        field.type_reference,
+                        left.clone(),
+                        right.clone(),
+                        &mut comparisons,
+                    )
+                    .is_some()
+                    {
+                        continue;
                     }
+
+                    // Acyclic relevant records inside one case payload expand
+                    // transitively. Nested sums, erased/address leaves, and a
+                    // repeated record identity remain fail-closed.
+                    append_acyclic_record_equality(
+                        program,
+                        left_parameter,
+                        right_parameter,
+                        field.type_reference,
+                        &mut left,
+                        &mut right,
+                        &mut comparisons,
+                        &mut Vec::new(),
+                    )?;
                 }
                 let mut comparisons = comparisons.into_iter();
                 let first = comparisons.next()?;

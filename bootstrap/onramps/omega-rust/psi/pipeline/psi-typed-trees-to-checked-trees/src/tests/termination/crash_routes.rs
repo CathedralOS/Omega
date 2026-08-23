@@ -594,6 +594,118 @@ fn nested_payload_bearing_sum_equality_retains_record_case_payload_paths() {
 }
 
 #[test]
+fn payload_sum_equality_expands_acyclic_nested_records_with_exact_paths() {
+    use psi_checked_trees::{
+        CheckedBooleanExpression, CheckedScalarExpression,
+        CheckedStructuralPredicatePathSegment as Path,
+    };
+
+    fn collect_leaf_paths(expression: &CheckedBooleanExpression, paths: &mut Vec<Vec<Path>>) {
+        match expression {
+            CheckedBooleanExpression::StructuralParameterField { path, .. } => {
+                paths.push(path.clone());
+            }
+            CheckedBooleanExpression::IntegerComparison { left, right, .. } => {
+                for operand in [left.as_ref(), right.as_ref()] {
+                    if let CheckedScalarExpression::StructuralParameterField { path, .. } = operand
+                    {
+                        paths.push(path.clone());
+                    }
+                }
+            }
+            CheckedBooleanExpression::Not(operand) => collect_leaf_paths(operand, paths),
+            CheckedBooleanExpression::Equal { left, right }
+            | CheckedBooleanExpression::And { left, right }
+            | CheckedBooleanExpression::Or { left, right } => {
+                collect_leaf_paths(left, paths);
+                collect_leaf_paths(right, paths);
+            }
+            CheckedBooleanExpression::Constant(_)
+            | CheckedBooleanExpression::Parameter { .. }
+            | CheckedBooleanExpression::Local { .. }
+            | CheckedBooleanExpression::IeeeFloatComparison { .. }
+            | CheckedBooleanExpression::ByteSequenceEqual { .. }
+            | CheckedBooleanExpression::PayloadlessSumEqual { .. }
+            | CheckedBooleanExpression::StructuralCaseMembership { .. } => {}
+        }
+    }
+
+    let source = r#"
+    trait Equatable {
+        machine equals(&self, rhs: &Self) -> bool;
+    }
+
+    data Counter { count: i32; }
+    CounterEquatable: Counter satisfies Equatable;
+
+    data Metrics { active: bool; counter: Counter; }
+    MetricsEquatable: Metrics satisfies Equatable;
+
+    data Message {
+        case Empty;
+        case Data(metrics: Metrics);
+    }
+    MessageEquatable: Message satisfies Equatable;
+
+    machine equal(left: Message, right: Message)
+    crashes Abort
+        left == right
+    {}
+
+    machine different(left: Message, right: Message)
+    crashes Abort
+        left != right
+    {}
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let checked = lower_typed_trees(typed).expect("checked lowering should succeed");
+
+    for name in ["equal", "different"] {
+        let contract = checked
+            .facts
+            .contract_plans
+            .for_machine(symbol_of_checked(&checked, name))
+            .expect("contract plan");
+        let [bucket] = contract.crash.published() else {
+            panic!("{name} should publish one crash bucket")
+        };
+        let [psi_checked_trees::CrashRouteGuard::Predicate(predicate)] =
+            bucket.alternative_guards()
+        else {
+            panic!("{name} should publish one predicate")
+        };
+        let mut paths = Vec::new();
+        collect_leaf_paths(
+            predicate
+                .scalar_expression()
+                .expect("nested payload record equality remains checked"),
+            &mut paths,
+        );
+        assert_eq!(paths.len(), 4, "{name} retains both roots for two leaves");
+        assert!(paths.iter().all(|path| match path.as_slice() {
+            [Path::Case(case), Path::Field(payload), Path::Field(leaf)] => {
+                case == "Data" && payload == "metrics" && leaf == "active"
+            }
+            [
+                Path::Case(case),
+                Path::Field(payload),
+                Path::Field(record),
+                Path::Field(leaf),
+            ] => {
+                case == "Data" && payload == "metrics" && record == "counter" && leaf == "count"
+            }
+            _ => false,
+        }));
+    }
+}
+
+#[test]
 fn checked_crash_sites_are_body_evidence_not_contract_identity() {
     let source = r#"
     machine clear_body() -> i32
