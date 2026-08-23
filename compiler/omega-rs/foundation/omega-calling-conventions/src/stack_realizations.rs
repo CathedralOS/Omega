@@ -152,6 +152,417 @@ pub fn validate_entry_stack_domain_closure(
     })
 }
 
+/// Exact installed-code identity consumed by sealed target arrival rules.
+///
+/// These are compiler identities, not source-visible interrupt vocabulary.
+/// The entry offset is allowed to be zero; every nominal identity must already
+/// have been established by the installation pipeline.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct InstalledEntryFactIdentity {
+    pub target_profile: X86_64TargetProfileIdentity,
+    pub artifact: u64,
+    pub installed_code: u64,
+    pub entry_offset: u64,
+    pub boundary_plan: u64,
+}
+
+/// Closed identity of the compiler-owned x86-64 target rule that validates an
+/// installed gate and derives its hardware arrival frame.
+///
+/// A target/provider may cite this identity through compiler installation
+/// metadata, but cannot construct a new rule identity or supply frame sizes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct X86_64TargetProfileIdentity(u64);
+
+impl X86_64TargetProfileIdentity {
+    pub const LONG_MODE_INTERRUPT_GATES: Self = Self(0x7838_365f_6c6d_6967);
+
+    pub const fn get(self) -> u64 {
+        self.0
+    }
+}
+
+/// Closed x86-64 gate category retained only as compiler installation data.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum X86_64GateKind {
+    Interrupt,
+    Trap,
+}
+
+/// Closed architectural cause for one admissible arrival at an installed
+/// x86-64 gate. The gate's exact vector is retained separately. In particular,
+/// an exception arrival may push an architectural error code while an external
+/// or software arrival at the same vector does not.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum X86_64ArrivalMechanism {
+    Exception,
+    ExternalInterrupt,
+    NonMaskableInterrupt,
+    SoftwareInterrupt,
+}
+
+/// The stack selection performed atomically by x86-64 hardware.
+///
+/// `Current` means no hardware switch. The other variants name the provisioned
+/// compiler stack domain reached by the validated gate/TSS installation; no
+/// source program can manufacture or inspect this value.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum X86_64HardwareStackSelection {
+    Current,
+    PrivilegeTransition { dedicated_class: u16 },
+    InterruptStackTable { slot: u8, dedicated_class: u16 },
+}
+
+/// One exact admissible arrival context from a validated x86-64 installation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct X86_64InstalledArrivalContext {
+    pub context: ArrivalContextId,
+    pub mechanism: X86_64ArrivalMechanism,
+    pub interrupted_privilege: u8,
+    pub entry_privilege: u8,
+    pub stack_selection: X86_64HardwareStackSelection,
+    pub nesting: Preemption,
+}
+
+/// Unvalidated exact facts decoded from one installed x86-64 gate and its
+/// target-owned installation metadata.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct X86_64InstalledHardwareEntryFacts {
+    pub identity: InstalledEntryFactIdentity,
+    pub vector: u8,
+    pub gate: X86_64GateKind,
+    pub boundary_stack: EntryStack,
+    pub contexts: Vec<X86_64InstalledArrivalContext>,
+}
+
+/// Canonical, fail-closed installed facts accepted by the sealed x86-64
+/// hardware-arrival rule.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ValidatedX86_64InstalledHardwareEntryFacts {
+    facts: X86_64InstalledHardwareEntryFacts,
+    fingerprint: u64,
+}
+
+impl ValidatedX86_64InstalledHardwareEntryFacts {
+    pub const fn facts(&self) -> &X86_64InstalledHardwareEntryFacts {
+        &self.facts
+    }
+
+    pub const fn fingerprint(&self) -> u64 {
+        self.fingerprint
+    }
+}
+
+/// Sealed target-derived arrival result. It binds the exact installed facts to
+/// both the context-to-body-domain closure and the complete epoch realization.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct X86_64TargetDerivedHardwareArrival {
+    installed_facts_fingerprint: u64,
+    body_domains: ValidatedEntryStackDomainClosure,
+    realization: ValidatedEntryStackRealization,
+    fingerprint: u64,
+}
+
+impl X86_64TargetDerivedHardwareArrival {
+    pub const fn installed_facts_fingerprint(&self) -> u64 {
+        self.installed_facts_fingerprint
+    }
+
+    pub const fn body_domains(&self) -> &ValidatedEntryStackDomainClosure {
+        &self.body_domains
+    }
+
+    pub const fn realization(&self) -> &ValidatedEntryStackRealization {
+        &self.realization
+    }
+
+    pub const fn fingerprint(&self) -> u64 {
+        self.fingerprint
+    }
+}
+
+/// Validate and canonicalize the exact installation facts consumed by the
+/// compiler's sealed x86-64 arrival rule.
+pub fn validate_x86_64_installed_hardware_entry_facts(
+    mut facts: X86_64InstalledHardwareEntryFacts,
+) -> Result<ValidatedX86_64InstalledHardwareEntryFacts, PlanDiagnostic> {
+    let identity = facts.identity;
+    if identity.target_profile != X86_64TargetProfileIdentity::LONG_MODE_INTERRUPT_GATES
+        || identity.artifact == 0
+        || identity.installed_code == 0
+        || identity.boundary_plan == 0
+    {
+        return Err(PlanDiagnostic(
+            "x86-64 installed hardware entry has an absent exact identity".into(),
+        ));
+    }
+    if facts.contexts.is_empty() {
+        return Err(PlanDiagnostic(
+            "x86-64 installed hardware entry has no admissible arrival context".into(),
+        ));
+    }
+    facts.contexts.sort_by_key(|context| context.context);
+    let mut body_domains = Vec::with_capacity(facts.contexts.len());
+    for (index, context) in facts.contexts.iter().enumerate() {
+        if index > 0 && facts.contexts[index - 1].context == context.context {
+            return Err(PlanDiagnostic(
+                "x86-64 installed hardware entry repeats an arrival-context identity".into(),
+            ));
+        }
+        validate_x86_64_arrival_context(facts.vector, context)?;
+        body_domains.push(ArrivalContextStackDomain {
+            context: context.context,
+            domain: x86_64_body_domain(context.stack_selection),
+        });
+    }
+    // This reuses the general closure validator to reject a target-derived
+    // context set that disagrees with the requirement's fixed stack contract.
+    validate_entry_stack_domain_closure(facts.boundary_stack, body_domains)?;
+    let fingerprint = fingerprint_x86_64_installed_facts(&facts);
+    Ok(ValidatedX86_64InstalledHardwareEntryFacts { facts, fingerprint })
+}
+
+fn validate_x86_64_arrival_context(
+    vector: u8,
+    context: &X86_64InstalledArrivalContext,
+) -> Result<(), PlanDiagnostic> {
+    match context.mechanism {
+        X86_64ArrivalMechanism::Exception if vector >= 32 => {
+            return Err(PlanDiagnostic(format!(
+                "x86-64 arrival context 0x{:016x} classifies non-exception vector {vector} as an exception",
+                context.context.get()
+            )));
+        }
+        X86_64ArrivalMechanism::ExternalInterrupt if vector < 32 => {
+            return Err(PlanDiagnostic(format!(
+                "x86-64 arrival context 0x{:016x} classifies reserved vector {vector} as an external interrupt",
+                context.context.get()
+            )));
+        }
+        X86_64ArrivalMechanism::NonMaskableInterrupt if vector != 2 => {
+            return Err(PlanDiagnostic(format!(
+                "x86-64 arrival context 0x{:016x} classifies vector {vector} as the non-maskable interrupt",
+                context.context.get()
+            )));
+        }
+        _ => {}
+    }
+    if context.interrupted_privilege > 3 || context.entry_privilege > 3 {
+        return Err(PlanDiagnostic(format!(
+            "x86-64 arrival context 0x{:016x} has a privilege level outside 0..=3",
+            context.context.get()
+        )));
+    }
+    if context.entry_privilege > context.interrupted_privilege {
+        return Err(PlanDiagnostic(format!(
+            "x86-64 arrival context 0x{:016x} enters a less privileged level",
+            context.context.get()
+        )));
+    }
+    match context.stack_selection {
+        X86_64HardwareStackSelection::Current => {
+            if context.interrupted_privilege != context.entry_privilege {
+                return Err(PlanDiagnostic(format!(
+                    "x86-64 arrival context 0x{:016x} changes privilege without a hardware stack switch",
+                    context.context.get()
+                )));
+            }
+        }
+        X86_64HardwareStackSelection::PrivilegeTransition { .. } => {
+            if context.interrupted_privilege == context.entry_privilege {
+                return Err(PlanDiagnostic(format!(
+                    "x86-64 arrival context 0x{:016x} selects a privilege-transition stack without changing privilege",
+                    context.context.get()
+                )));
+            }
+        }
+        X86_64HardwareStackSelection::InterruptStackTable { slot, .. } => {
+            if !(1..=7).contains(&slot) {
+                return Err(PlanDiagnostic(format!(
+                    "x86-64 arrival context 0x{:016x} selects invalid IST slot {slot}",
+                    context.context.get()
+                )));
+            }
+        }
+    }
+    match context.nesting {
+        Preemption::NotApplicable | Preemption::Masked => {}
+        Preemption::Nestable { maximum_depth } if maximum_depth > 0 => {}
+        Preemption::Nestable { .. } => {
+            return Err(PlanDiagnostic(format!(
+                "x86-64 arrival context 0x{:016x} has zero finite nesting depth",
+                context.context.get()
+            )));
+        }
+        Preemption::ProviderDefined => {
+            return Err(PlanDiagnostic(format!(
+                "x86-64 arrival context 0x{:016x} retains unresolved provider-defined nesting",
+                context.context.get()
+            )));
+        }
+    }
+    Ok(())
+}
+
+/// Apply the sealed x86-64 architectural arrival rule to exact validated
+/// installation facts.
+///
+/// Hardware stack selection and the arrival push are atomic, so no fictional
+/// pre/post-switch epoch is emitted. The hardware frame remains live in the
+/// single body epoch: RIP/CS/RFLAGS for a same-CPL entry, plus old RSP/SS for
+/// any hardware stack switch, plus the target-derived error-code word where
+/// applicable.
+pub fn derive_x86_64_hardware_arrival(
+    installed: &ValidatedX86_64InstalledHardwareEntryFacts,
+) -> Result<X86_64TargetDerivedHardwareArrival, PlanDiagnostic> {
+    let recomputed = fingerprint_x86_64_installed_facts(&installed.facts);
+    if recomputed != installed.fingerprint {
+        return Err(PlanDiagnostic(
+            "x86-64 installed hardware-entry facts failed canonical identity revalidation".into(),
+        ));
+    }
+
+    let body_domains = validate_entry_stack_domain_closure(
+        installed.facts.boundary_stack,
+        installed
+            .facts
+            .contexts
+            .iter()
+            .map(|context| ArrivalContextStackDomain {
+                context: context.context,
+                domain: x86_64_body_domain(context.stack_selection),
+            })
+            .collect(),
+    )?;
+    let realization = validate_entry_stack_realization(EntryStackRealization {
+        contexts: installed
+            .facts
+            .contexts
+            .iter()
+            .map(|context| {
+                let domain = x86_64_body_domain(context.stack_selection);
+                ArrivalContextRealization {
+                    context: context.context,
+                    epochs: vec![EntryStackEpoch {
+                        stage: EntryStackStage::Body,
+                        active_domain: domain,
+                        occupancy_by_domain: vec![StackOccupancy {
+                            domain,
+                            bytes: x86_64_arrival_frame_bytes(installed.facts.vector, context),
+                            alignment: 8,
+                        }],
+                        nesting: context.nesting,
+                    }],
+                }
+            })
+            .collect(),
+    })?;
+
+    let mut hash = Fnv1a::new();
+    hash.u64(0x7838_365f_6172_7276); // "x86_arrv"
+    hash.u64(installed.fingerprint);
+    hash.u64(body_domains.fingerprint());
+    hash.u64(realization.fingerprint());
+    Ok(X86_64TargetDerivedHardwareArrival {
+        installed_facts_fingerprint: installed.fingerprint,
+        body_domains,
+        realization,
+        fingerprint: hash.finish(),
+    })
+}
+
+fn x86_64_body_domain(selection: X86_64HardwareStackSelection) -> StackDomainRef {
+    match selection {
+        X86_64HardwareStackSelection::Current => StackDomainRef::Interrupted,
+        X86_64HardwareStackSelection::PrivilegeTransition { dedicated_class }
+        | X86_64HardwareStackSelection::InterruptStackTable {
+            dedicated_class, ..
+        } => StackDomainRef::Dedicated {
+            class: dedicated_class,
+        },
+    }
+}
+
+fn x86_64_arrival_frame_bytes(vector: u8, context: &X86_64InstalledArrivalContext) -> u64 {
+    let machine_words = match context.stack_selection {
+        X86_64HardwareStackSelection::Current => 3,
+        X86_64HardwareStackSelection::PrivilegeTransition { .. }
+        | X86_64HardwareStackSelection::InterruptStackTable { .. } => 5,
+    } + u64::from(x86_64_arrival_pushes_error_code(vector, context));
+    machine_words * 8
+}
+
+fn x86_64_arrival_pushes_error_code(vector: u8, context: &X86_64InstalledArrivalContext) -> bool {
+    context.mechanism == X86_64ArrivalMechanism::Exception
+        && matches!(
+            // Intel 64 architecturally error-code-bearing exceptions. The
+            // target profile owns this closed table; providers never supply a
+            // byte count or error-code bit.
+            vector,
+            8 | 10 | 11 | 12 | 13 | 14 | 17 | 21 | 29 | 30
+        )
+}
+
+fn fingerprint_x86_64_installed_facts(facts: &X86_64InstalledHardwareEntryFacts) -> u64 {
+    let mut hash = Fnv1a::new();
+    hash.u64(0x7838_365f_696e_7374); // "x86_inst"
+    hash.u64(facts.identity.target_profile.get());
+    hash.u64(facts.identity.artifact);
+    hash.u64(facts.identity.installed_code);
+    hash.u64(facts.identity.entry_offset);
+    hash.u64(facts.identity.boundary_plan);
+    hash.u64(u64::from(facts.vector));
+    hash.u64(match facts.gate {
+        X86_64GateKind::Interrupt => 0,
+        X86_64GateKind::Trap => 1,
+    });
+    match facts.boundary_stack {
+        EntryStack::Interrupted => hash.u64(0),
+        EntryStack::Dedicated { class } => {
+            hash.u64(1);
+            hash.u64(u64::from(class));
+        }
+        EntryStack::ProviderSelected => hash.u64(2),
+    }
+    hash.u64(facts.contexts.len() as u64);
+    for context in &facts.contexts {
+        hash.u64(context.context.get());
+        hash.u64(match context.mechanism {
+            X86_64ArrivalMechanism::Exception => 0,
+            X86_64ArrivalMechanism::ExternalInterrupt => 1,
+            X86_64ArrivalMechanism::NonMaskableInterrupt => 2,
+            X86_64ArrivalMechanism::SoftwareInterrupt => 3,
+        });
+        hash.u64(u64::from(context.interrupted_privilege));
+        hash.u64(u64::from(context.entry_privilege));
+        match context.stack_selection {
+            X86_64HardwareStackSelection::Current => hash.u64(0),
+            X86_64HardwareStackSelection::PrivilegeTransition { dedicated_class } => {
+                hash.u64(1);
+                hash.u64(u64::from(dedicated_class));
+            }
+            X86_64HardwareStackSelection::InterruptStackTable {
+                slot,
+                dedicated_class,
+            } => {
+                hash.u64(2);
+                hash.u64(u64::from(slot));
+                hash.u64(u64::from(dedicated_class));
+            }
+        }
+        match context.nesting {
+            Preemption::NotApplicable => hash.u64(0),
+            Preemption::Masked => hash.u64(1),
+            Preemption::Nestable { maximum_depth } => {
+                hash.u64(2);
+                hash.u64(u64::from(maximum_depth));
+            }
+            Preemption::ProviderDefined => hash.u64(3),
+        }
+    }
+    hash.finish()
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct EntryStackRealization {
     pub contexts: Vec<ArrivalContextRealization>,
@@ -359,6 +770,47 @@ impl Fnv1a {
 mod tests {
     use super::*;
 
+    fn installed_identity() -> InstalledEntryFactIdentity {
+        InstalledEntryFactIdentity {
+            target_profile: X86_64TargetProfileIdentity::LONG_MODE_INTERRUPT_GATES,
+            artifact: 0x20,
+            installed_code: 0x30,
+            entry_offset: 0,
+            boundary_plan: 0x40,
+        }
+    }
+
+    fn x86_context(
+        id: u64,
+        interrupted_privilege: u8,
+        entry_privilege: u8,
+        stack_selection: X86_64HardwareStackSelection,
+        mechanism: X86_64ArrivalMechanism,
+    ) -> X86_64InstalledArrivalContext {
+        X86_64InstalledArrivalContext {
+            context: ArrivalContextId::new(id).expect("context identity"),
+            mechanism,
+            interrupted_privilege,
+            entry_privilege,
+            stack_selection,
+            nesting: Preemption::Nestable { maximum_depth: 2 },
+        }
+    }
+
+    fn x86_facts(
+        vector: u8,
+        boundary_stack: EntryStack,
+        contexts: Vec<X86_64InstalledArrivalContext>,
+    ) -> X86_64InstalledHardwareEntryFacts {
+        X86_64InstalledHardwareEntryFacts {
+            identity: installed_identity(),
+            vector,
+            gate: X86_64GateKind::Interrupt,
+            boundary_stack,
+            contexts,
+        }
+    }
+
     fn context(value: u64, occupancy: Vec<StackOccupancy>) -> ArrivalContextRealization {
         ArrivalContextRealization {
             context: ArrivalContextId::new(value).expect("context identity"),
@@ -517,5 +969,301 @@ mod tests {
                 .0
                 .contains("noncanonical")
         );
+    }
+
+    #[test]
+    fn x86_same_privilege_arrival_is_derived_on_the_interrupted_stack() {
+        for (vector, mechanism, expected_bytes) in [
+            (14, X86_64ArrivalMechanism::SoftwareInterrupt, 24),
+            (14, X86_64ArrivalMechanism::Exception, 32),
+        ] {
+            let installed = validate_x86_64_installed_hardware_entry_facts(x86_facts(
+                vector,
+                EntryStack::Interrupted,
+                vec![x86_context(
+                    1,
+                    0,
+                    0,
+                    X86_64HardwareStackSelection::Current,
+                    mechanism,
+                )],
+            ))
+            .expect("same-CPL installation facts");
+            let derived = derive_x86_64_hardware_arrival(&installed)
+                .expect("sealed same-CPL target derivation");
+            let context = &derived.realization().realization().contexts[0];
+
+            assert_eq!(context.epochs.len(), 1);
+            assert_eq!(context.epochs[0].stage, EntryStackStage::Body);
+            assert_eq!(context.epochs[0].active_domain, StackDomainRef::Interrupted);
+            assert_eq!(
+                context.epochs[0].occupancy_by_domain,
+                vec![StackOccupancy {
+                    domain: StackDomainRef::Interrupted,
+                    bytes: expected_bytes,
+                    alignment: 8,
+                }]
+            );
+            assert_eq!(
+                derived.body_domains().contexts(),
+                &[ArrivalContextStackDomain {
+                    context: ArrivalContextId::new(1).expect("identity"),
+                    domain: StackDomainRef::Interrupted,
+                }]
+            );
+        }
+    }
+
+    #[test]
+    fn x86_privilege_and_ist_switches_derive_complete_dedicated_frames() {
+        for (stack_selection, vector, mechanism, expected_bytes) in [
+            (
+                X86_64HardwareStackSelection::PrivilegeTransition { dedicated_class: 7 },
+                32,
+                X86_64ArrivalMechanism::ExternalInterrupt,
+                40,
+            ),
+            (
+                X86_64HardwareStackSelection::PrivilegeTransition { dedicated_class: 7 },
+                14,
+                X86_64ArrivalMechanism::Exception,
+                48,
+            ),
+            (
+                X86_64HardwareStackSelection::InterruptStackTable {
+                    slot: 3,
+                    dedicated_class: 7,
+                },
+                32,
+                X86_64ArrivalMechanism::ExternalInterrupt,
+                40,
+            ),
+            (
+                X86_64HardwareStackSelection::InterruptStackTable {
+                    slot: 3,
+                    dedicated_class: 7,
+                },
+                14,
+                X86_64ArrivalMechanism::Exception,
+                48,
+            ),
+        ] {
+            let (interrupted_privilege, entry_privilege) = match stack_selection {
+                X86_64HardwareStackSelection::PrivilegeTransition { .. } => (3, 0),
+                X86_64HardwareStackSelection::InterruptStackTable { .. } => (0, 0),
+                X86_64HardwareStackSelection::Current => unreachable!(),
+            };
+            let installed = validate_x86_64_installed_hardware_entry_facts(x86_facts(
+                vector,
+                EntryStack::Dedicated { class: 7 },
+                vec![x86_context(
+                    1,
+                    interrupted_privilege,
+                    entry_privilege,
+                    stack_selection,
+                    mechanism,
+                )],
+            ))
+            .expect("hardware-switched installation facts");
+            let derived = derive_x86_64_hardware_arrival(&installed)
+                .expect("sealed hardware-switch target derivation");
+            let epoch = &derived.realization().realization().contexts[0].epochs[0];
+
+            assert_eq!(epoch.active_domain, StackDomainRef::Dedicated { class: 7 });
+            assert_eq!(epoch.occupancy_by_domain[0].bytes, expected_bytes);
+        }
+    }
+
+    #[test]
+    fn x86_mixed_contexts_are_canonical_and_context_complete() {
+        let same = x86_context(
+            1,
+            0,
+            0,
+            X86_64HardwareStackSelection::Current,
+            X86_64ArrivalMechanism::Exception,
+        );
+        let transition = x86_context(
+            2,
+            3,
+            0,
+            X86_64HardwareStackSelection::PrivilegeTransition { dedicated_class: 9 },
+            X86_64ArrivalMechanism::Exception,
+        );
+        let first = validate_x86_64_installed_hardware_entry_facts(x86_facts(
+            14,
+            EntryStack::ProviderSelected,
+            vec![transition, same],
+        ))
+        .expect("mixed installed contexts");
+        let second = validate_x86_64_installed_hardware_entry_facts(x86_facts(
+            14,
+            EntryStack::ProviderSelected,
+            vec![same, transition],
+        ))
+        .expect("same mixed contexts in canonical order");
+
+        assert_eq!(first, second);
+        assert_eq!(first.fingerprint(), second.fingerprint());
+        let derived = derive_x86_64_hardware_arrival(&first).expect("mixed derivation");
+        assert_eq!(derived.realization().realization().contexts.len(), 2);
+        assert_eq!(
+            derived
+                .realization()
+                .realization()
+                .contexts
+                .iter()
+                .flat_map(|context| &context.epochs)
+                .flat_map(|epoch| &epoch.occupancy_by_domain)
+                .map(|occupancy| occupancy.bytes)
+                .max(),
+            Some(48),
+            "mutually exclusive same-CPL/transition contexts contribute their maximum arrival frame",
+        );
+        assert_eq!(
+            derived.body_domains().contexts(),
+            &[
+                ArrivalContextStackDomain {
+                    context: ArrivalContextId::new(1).expect("identity"),
+                    domain: StackDomainRef::Interrupted,
+                },
+                ArrivalContextStackDomain {
+                    context: ArrivalContextId::new(2).expect("identity"),
+                    domain: StackDomainRef::Dedicated { class: 9 },
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn x86_installation_validation_fails_closed_on_invalid_exact_facts() {
+        let current = x86_context(
+            1,
+            0,
+            0,
+            X86_64HardwareStackSelection::Current,
+            X86_64ArrivalMechanism::ExternalInterrupt,
+        );
+        let mut absent_identity = x86_facts(32, EntryStack::Interrupted, vec![current]);
+        absent_identity.identity.artifact = 0;
+        let duplicate = x86_facts(32, EntryStack::Interrupted, vec![current, current]);
+        let reserved_external = x86_facts(
+            14,
+            EntryStack::Interrupted,
+            vec![x86_context(
+                1,
+                0,
+                0,
+                X86_64HardwareStackSelection::Current,
+                X86_64ArrivalMechanism::ExternalInterrupt,
+            )],
+        );
+        let bad_privilege = x86_facts(
+            32,
+            EntryStack::Interrupted,
+            vec![x86_context(
+                1,
+                4,
+                0,
+                X86_64HardwareStackSelection::Current,
+                X86_64ArrivalMechanism::ExternalInterrupt,
+            )],
+        );
+        let missing_switch = x86_facts(
+            32,
+            EntryStack::ProviderSelected,
+            vec![x86_context(
+                1,
+                3,
+                0,
+                X86_64HardwareStackSelection::Current,
+                X86_64ArrivalMechanism::ExternalInterrupt,
+            )],
+        );
+        let fake_transition = x86_facts(
+            32,
+            EntryStack::Dedicated { class: 2 },
+            vec![x86_context(
+                1,
+                0,
+                0,
+                X86_64HardwareStackSelection::PrivilegeTransition { dedicated_class: 2 },
+                X86_64ArrivalMechanism::ExternalInterrupt,
+            )],
+        );
+        let bad_ist = x86_facts(
+            32,
+            EntryStack::Dedicated { class: 2 },
+            vec![x86_context(
+                1,
+                0,
+                0,
+                X86_64HardwareStackSelection::InterruptStackTable {
+                    slot: 0,
+                    dedicated_class: 2,
+                },
+                X86_64ArrivalMechanism::ExternalInterrupt,
+            )],
+        );
+        let fixed_domain_drift = x86_facts(
+            32,
+            EntryStack::Interrupted,
+            vec![x86_context(
+                1,
+                0,
+                0,
+                X86_64HardwareStackSelection::InterruptStackTable {
+                    slot: 1,
+                    dedicated_class: 2,
+                },
+                X86_64ArrivalMechanism::ExternalInterrupt,
+            )],
+        );
+
+        for (facts, expected) in [
+            (absent_identity, "absent exact identity"),
+            (duplicate, "repeats an arrival-context identity"),
+            (reserved_external, "classifies reserved vector"),
+            (bad_privilege, "outside 0..=3"),
+            (missing_switch, "without a hardware stack switch"),
+            (fake_transition, "without changing privilege"),
+            (bad_ist, "invalid IST slot"),
+            (fixed_domain_drift, "differs from the fixed boundary"),
+        ] {
+            let error = validate_x86_64_installed_hardware_entry_facts(facts)
+                .expect_err("invalid x86 installation facts must reject");
+            assert!(error.0.contains(expected), "{}", error.0);
+        }
+    }
+
+    #[test]
+    fn x86_derived_identity_binds_every_exact_installation_fact_and_revalidates() {
+        let facts = x86_facts(
+            32,
+            EntryStack::Interrupted,
+            vec![x86_context(
+                1,
+                0,
+                0,
+                X86_64HardwareStackSelection::Current,
+                X86_64ArrivalMechanism::ExternalInterrupt,
+            )],
+        );
+        let installed =
+            validate_x86_64_installed_hardware_entry_facts(facts.clone()).expect("baseline facts");
+        let baseline = derive_x86_64_hardware_arrival(&installed).expect("baseline derivation");
+
+        let mut changed = facts;
+        changed.gate = X86_64GateKind::Trap;
+        let changed = validate_x86_64_installed_hardware_entry_facts(changed)
+            .expect("changed exact gate facts");
+        let changed = derive_x86_64_hardware_arrival(&changed).expect("changed derivation");
+        assert_ne!(baseline.fingerprint(), changed.fingerprint());
+
+        let mut tampered = installed;
+        tampered.facts.vector = 33;
+        let error = derive_x86_64_hardware_arrival(&tampered)
+            .expect_err("post-validation fact tampering must fail closed");
+        assert!(error.0.contains("canonical identity revalidation"));
     }
 }
