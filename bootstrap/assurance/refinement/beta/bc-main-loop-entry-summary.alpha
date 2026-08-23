@@ -25,6 +25,7 @@
 ;   zero-hit/end/body completions      526624/526632/526640
 ;   halt payload                       526648
 ;   selected cbyte relation            526656
+;   public generic loop-test theorem   526664
 ;
 ; Selected cases: 1=hit NUL, 2=logical end, 3=hit nonzero. Values: 1=zero,
 ; 2=nonzero source byte.  Relation tags denote inherited exact theorem facts,
@@ -33,7 +34,7 @@
 main_loop_entry_summary_init:
         call main_loop_require_shape
         call main_loop_prove_split
-        jmp scan_owned_effects_init
+        jmp classifier_summary_init
 
 ; ---- Exact source/artifact joins -------------------------------------
 
@@ -70,25 +71,17 @@ main_loop_require_shape:
 
         imm r20, 608
         imm r21, 352
-        imm r22, 1
-        imm r23, 51262
-        call slurp_summary_require_event
+        imm r22, 51262
+        imm r23, 0
+        imm r24, 0
+        imm r25, 1609
+        imm r26, 51271               ; checked loop cbyte continuation
+        call summary_require_call_site
         imm r20, 609
         imm r21, 352
         imm r22, 5
         imm r23, 51404
         call slurp_summary_require_event
-        imm r20, 608
-        imm r21, 0
-        call skip_require_event_arity
-        imm r20, 608
-        imm r21, 0
-        call main_ready_require_ambient_height
-
-        imm r20, 51262
-        imm r21, 1609
-        imm r22, 51271               ; checked loop cbyte continuation
-        call main_slurp_require_call
         imm r20, 69
         call call_bounds_frame_bytes
         imm r1, 16
@@ -180,83 +173,17 @@ main_loop_require_root_link:
         imm r29, 610                 ; checked exclusive loop event row
         call cursor_require_effect_census
         imm r20, 352
-        imm r21, 809
-        imm r22, 812                 ; checked exclusive loop primitive row
-        imm r23, 233
-        imm r24, 234
-        call main_loop_require_expr_census
+        imm r21, 352
+        imm r22, 809
+        imm r23, 812                 ; checked exclusive loop primitive row
+        imm r24, 233
+        imm r25, 234
+        imm r26, 0
+        imm r27, 0
+        imm r28, 0
+        imm r29, 0
+        call summary_require_expr_census
         ret
-
-; Exhaust all 816 primitive and 403 push rows for one selected block.  Every
-; matching row must be in the supplied contiguous interval, and every supplied
-; row must match, closing the expression inventory omitted from the generic
-; local/memory/transition/event census.
-main_loop_require_expr_census:
-        mov r30, r20                  ; block
-        mov r31, r21                  ; first primitive
-        mov r32, r22                  ; exclusive primitive
-        mov r33, r23                  ; first push
-        mov r34, r24                  ; exclusive push
-        imm r10, 0
-        imm r11, 0
-main_loop_primitive_census_loop:
-        imm r1, 816
-        jlt r10, r1, main_loop_primitive_census_row
-        mov r2, r32
-        sub r2, r31
-        jeq r11, r2, main_loop_push_census_init
-        jmp reject
-main_loop_primitive_census_row:
-        mov r2, r10
-        imm r1, 8
-        mul r2, r1
-        imm r1, 8388608
-        add r1, r2
-        load r3, r1
-        jeq r3, r30, main_loop_primitive_census_match
-        jmp main_loop_primitive_census_next
-main_loop_primitive_census_match:
-        jlt r10, r31, reject
-        jlt r10, r32, main_loop_primitive_census_count
-        jmp reject
-main_loop_primitive_census_count:
-        imm r1, 1
-        add r11, r1
-main_loop_primitive_census_next:
-        imm r1, 1
-        add r10, r1
-        jmp main_loop_primitive_census_loop
-
-main_loop_push_census_init:
-        imm r10, 0
-        imm r11, 0
-main_loop_push_census_loop:
-        imm r1, 403
-        jlt r10, r1, main_loop_push_census_row
-        mov r2, r34
-        sub r2, r33
-        jeq r11, r2, cursor_require_ok
-        jmp reject
-main_loop_push_census_row:
-        mov r2, r10
-        imm r1, 8
-        mul r2, r1
-        imm r1, 9437184
-        add r1, r2
-        load r3, r1
-        jeq r3, r30, main_loop_push_census_match
-        jmp main_loop_push_census_next
-main_loop_push_census_match:
-        jlt r10, r33, reject
-        jlt r10, r34, main_loop_push_census_count
-        jmp reject
-main_loop_push_census_count:
-        imm r1, 1
-        add r11, r1
-main_loop_push_census_next:
-        imm r1, 1
-        add r10, r1
-        jmp main_loop_push_census_loop
 
 ; ---- Root-reachable relational split ---------------------------------
 
@@ -272,47 +199,28 @@ main_loop_prove_split:
         store r1, r2
         imm r1, 526640
         store r1, r2
-        call main_loop_import_cutpoint
-        call main_loop_prove_zero_hit
-        call main_loop_prove_end
-        call main_loop_prove_nonzero_hit
-        call main_loop_publish_split
+        imm r1, 526664
+        store r1, r2
+        call main_loop_publish_schema
+        call main_loop_instantiate_root
         ret
 
-main_loop_import_cutpoint:
-        imm r20, 526496
-        imm r21, 1297238352           ; MLRP
-        call cursor_require_cell
-        imm r20, 526456
-        imm r21, 51262
-        call cursor_require_cell
-        imm r20, 526464
-        imm r21, 187
-        call cursor_require_cell
-        imm r20, 526472
-        imm r21, 2
-        call cursor_require_cell
-        imm r20, 526480
-        imm r21, 2                    ; normalized cursor
-        call cursor_require_cell
-        imm r20, 526488
-        imm r21, 1                    ; active main frame
-        call cursor_require_cell
-        imm r20, 526504
-        imm r21, 1                    ; source/input relation
+; Publish only the conditional loop schema here.  It does not manufacture a
+; reachable cutpoint or any state relation.  Every concrete use must call
+; main_loop_bind_instance with five caller-owned fact cells: exact loop PC,
+; ordered trace, normalized cursor/domain, source/input relation, and active
+; main frame.  That bridge is what makes MLSP reusable after parse_proc without
+; silently assuming its postconditions.
+main_loop_publish_schema:
+        imm r20, 525960
+        imm r21, 1128421445           ; CBLE
         call cursor_require_cell
         imm r20, 526320
         imm r21, 1                    ; 0<=CUR<=LEN<=CAP
         call cursor_require_cell
-        imm r1, 526592
-        imm r2, 1                    ; exact ordered 187-byte trace
+        imm r1, 526664
+        imm r2, 1347636301            ; published conditional MLSP
         store r1, r2
-        imm r1, 526600
-        store r1, r2                  ; normalized cursor preserved
-        imm r1, 526608
-        store r1, r2                  ; successful source/input relation
-        imm r1, 526616
-        store r1, r2                  ; active main/root call frame
         ret
 
 ; Conditional partition 1: the normalized cursor is in range and names a NUL.
@@ -550,7 +458,7 @@ main_loop_take_body:
         call main_loop_require_pc
         ret
 
-main_loop_publish_split:
+main_loop_require_instance_clauses:
         imm r20, 526624
         imm r21, 1
         call cursor_require_cell
@@ -560,6 +468,119 @@ main_loop_publish_split:
         imm r20, 526640
         imm r21, 1
         call cursor_require_cell
+        ret
+
+; Bind a concrete loop instance to the conditional schema.  Inputs are five
+; [cell, expected-token] pairs in r20..r29.  The PC pair must name 51262 and
+; every relation token must be nonzero.  Checking the caller's cells before
+; minting the local carried tags prevents MLSP from becoming an unconditional
+; reachability/state assertion.
+main_loop_bind_instance:
+        mov r10, r20
+        mov r11, r21
+        mov r12, r22
+        mov r13, r23
+        mov r14, r24
+        mov r15, r25
+        mov r16, r26
+        mov r17, r27
+        mov r18, r28
+        mov r19, r29
+        imm r20, 526664
+        imm r21, 1347636301            ; required conditional MLSP
+        call cursor_require_cell
+
+        mov r20, r10
+        mov r21, r11
+        call cursor_require_cell
+        imm r1, 51262
+        jeq r11, r1, main_loop_bind_trace
+        jmp reject
+main_loop_bind_trace:
+        mov r20, r12
+        mov r21, r13
+        call cursor_require_cell
+        imm r1, 0
+        jeq r13, r1, reject
+        mov r20, r14
+        mov r21, r15
+        call cursor_require_cell
+        imm r1, 0
+        jeq r15, r1, reject
+        mov r20, r16
+        mov r21, r17
+        call cursor_require_cell
+        imm r1, 0
+        jeq r17, r1, reject
+        mov r20, r18
+        mov r21, r19
+        call cursor_require_cell
+        imm r1, 0
+        jeq r19, r1, reject
+
+        imm r1, 526592
+        imm r2, 1                    ; checked ordered-trace token
+        store r1, r2
+        imm r1, 526600
+        store r1, r2                  ; checked normalized cursor/domain token
+        imm r1, 526608
+        store r1, r2                  ; checked successful source/input token
+        imm r1, 526616
+        store r1, r2                  ; checked active-main-frame token
+        imm r1, 526624
+        imm r2, 0
+        store r1, r2
+        imm r1, 526632
+        store r1, r2
+        imm r1, 526640
+        store r1, r2
+        ret
+
+main_loop_run_bound_instance:
+        call main_loop_prove_zero_hit
+        call main_loop_prove_end
+        call main_loop_prove_nonzero_hit
+        call main_loop_require_instance_clauses
+        ret
+
+; Root instantiation supplies all five generic premises from MLRP's concrete
+; facts, runs the schema, and only then publishes the retained exact 187-byte
+; Halt(0)/main.body clauses.
+main_loop_instantiate_root:
+        imm r20, 526496
+        imm r21, 1297238352           ; MLRP
+        call cursor_require_cell
+        imm r20, 526456
+        imm r21, 51262
+        call cursor_require_cell
+        imm r20, 526464
+        imm r21, 187
+        call cursor_require_cell
+        imm r20, 526472
+        imm r21, 2
+        call cursor_require_cell
+        imm r20, 526480
+        imm r21, 2                    ; normalized root cursor
+        call cursor_require_cell
+        imm r20, 526488
+        imm r21, 1                    ; active root main frame
+        call cursor_require_cell
+        imm r20, 526504
+        imm r21, 1                    ; root source/input relation
+        call cursor_require_cell
+        imm r20, 526456
+        imm r21, 51262                 ; checked root loop cutpoint
+        imm r22, 526472
+        imm r23, 2                     ; checked root ordered-trace token
+        imm r24, 526480
+        imm r25, 2                     ; checked root normalized-cursor token
+        imm r26, 526504
+        imm r27, 1                     ; checked root source bridge token
+        imm r28, 526488
+        imm r29, 1                     ; checked root active-frame token
+        call main_loop_bind_instance
+        call main_loop_run_bound_instance
+        call main_loop_require_carried
         imm r1, 526520
         imm r2, 1514687565            ; MLHZ
         store r1, r2
@@ -580,12 +601,6 @@ main_loop_require_carried:
         call cursor_require_cell
         imm r20, 526616
         imm r21, 1
-        call cursor_require_cell
-        imm r20, 526464
-        imm r21, 187
-        call cursor_require_cell
-        imm r20, 526472
-        imm r21, 2
         call cursor_require_cell
         ret
 

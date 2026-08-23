@@ -1,0 +1,256 @@
+; Shared byte-domain summaries for is_digit, is_alpha, and is_alnum.
+;
+; Every dynamic use in bc supplies a zero-extended cbyte result, so the exact
+; reusable premise is 0<=c<=255.  The compiled comparisons are signed; these
+; clauses intentionally do not claim the same classifications for arbitrary
+; high-bit words.
+;
+;   is_digit(c) = 1 iff '0'<=c<='9'
+;   is_alpha(c) = 1 iff c=='_' or 'A'<=c<='Z' or 'a'<=c<='z'
+;   is_alnum(c) = is_alpha(c) or is_digit(c)
+;
+; The semantic phase exhausts the complete 256-value premise. For each byte it
+; evaluates the source branch order and an independent interval specification,
+; compares their 0/1 results, and carries the same slot-zero parameter through
+; both is_alnum argument handoffs. Exact CFG/effect/expression censuses and
+; decoded quiet scans bind that finite proof to the compiled procedures.
+;
+; Fresh cells:
+;   public digit/alpha/alnum tokens   526672/526680/526688
+;   byte domain / current byte       526696/526704
+;   digit source/spec results        526712/526720
+;   alpha source/spec results        526728/526736
+;   alnum source/spec results        526744/526752
+;   parameter / alpha/digit handoff  526760/526768/526776
+;   quiet-frame relation             526784
+
+classifier_summary_init:
+        call classifier_require_shape
+        call classifier_prove_byte_domain
+        jmp scan_owned_effects_init
+
+; ---- Exhaustive byte-domain relational meaning ----------------------
+
+classifier_prove_byte_domain:
+        imm r1, 526672
+        imm r2, 0
+        store r1, r2
+        imm r1, 526680
+        store r1, r2
+        imm r1, 526688
+        store r1, r2
+        imm r1, 526696
+        imm r2, 1                    ; checked 0<=c<=255 premise
+        store r1, r2
+        imm r1, 526760
+        store r1, r2                  ; slot zero carries current c
+        imm r1, 526768
+        imm r2, 1                    ; checked alpha handoff relation
+        store r1, r2                  ; alpha argument carries same c
+        imm r1, 526776
+        imm r2, 1                    ; checked digit handoff relation
+        store r1, r2                  ; digit argument carries same c
+        imm r1, 526784
+        imm r2, 1
+        store r1, r2                  ; quiet effects / restored frames
+        imm r1, 526704
+        imm r2, 0
+        store r1, r2
+classifier_byte_loop:
+        imm r1, 526704
+        load r2, r1
+        imm r3, 256
+        jlt r2, r3, classifier_byte_case
+        jeq r2, r3, classifier_publish_theorems
+        jmp reject
+classifier_byte_case:
+        call classifier_require_byte_premise
+        call classifier_eval_digit_source
+        call classifier_eval_digit_spec
+        imm r20, 526712
+        imm r21, 526720
+        call classifier_require_equal_cells
+        call classifier_eval_alpha_source
+        call classifier_eval_alpha_spec
+        imm r20, 526728
+        imm r21, 526736
+        call classifier_require_equal_cells
+        call classifier_eval_alnum_source
+        call classifier_eval_alnum_spec
+        imm r20, 526744
+        imm r21, 526752
+        call classifier_require_equal_cells
+        imm r1, 526704
+        load r2, r1
+        imm r3, 1
+        add r2, r3
+        store r1, r2
+        jmp classifier_byte_loop
+
+classifier_require_byte_premise:
+        imm r20, 526696
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 526760
+        imm r21, 1                   ; checked slot-zero provenance
+        call cursor_require_cell
+        imm r1, 526704
+        load r2, r1
+        imm r3, 0
+        jlt r2, r3, reject
+        imm r3, 256
+        jlt r2, r3, cursor_require_ok
+        jmp reject
+
+; Source order: c<48 -> zero; c>57 -> zero; otherwise one.
+classifier_eval_digit_source:
+        imm r1, 526704
+        load r2, r1
+        imm r3, 48
+        jlt r2, r3, classifier_digit_source_zero
+        imm r3, 57
+        jlt r3, r2, classifier_digit_source_zero
+        imm r2, 1
+        jmp classifier_digit_source_store
+classifier_digit_source_zero:
+        imm r2, 0
+classifier_digit_source_store:
+        imm r1, 526712
+        store r1, r2
+        ret
+
+; Independent half-open interval specification [48,58).
+classifier_eval_digit_spec:
+        imm r1, 526704
+        load r2, r1
+        imm r3, 48
+        jlt r2, r3, classifier_digit_spec_zero
+        imm r3, 58                   ; checked digit spec exclusive upper
+        jlt r2, r3, classifier_digit_spec_one
+classifier_digit_spec_zero:
+        imm r2, 0
+        jmp classifier_digit_spec_store
+classifier_digit_spec_one:
+        imm r2, 1
+classifier_digit_spec_store:
+        imm r1, 526720
+        store r1, r2
+        ret
+
+; Source order: underscore, [A,Z], [a,z], complement.
+classifier_eval_alpha_source:
+        imm r1, 526704
+        load r2, r1
+        imm r3, 95
+        jeq r2, r3, classifier_alpha_source_one
+        imm r3, 65
+        jlt r2, r3, classifier_alpha_source_zero
+        imm r3, 90
+        jlt r3, r2, classifier_alpha_source_after_upper
+        jmp classifier_alpha_source_one
+classifier_alpha_source_after_upper:
+        imm r3, 97
+        jlt r2, r3, classifier_alpha_source_zero
+        imm r3, 122
+        jlt r3, r2, classifier_alpha_source_zero
+classifier_alpha_source_one:
+        imm r2, 1
+        jmp classifier_alpha_source_store
+classifier_alpha_source_zero:
+        imm r2, 0
+classifier_alpha_source_store:
+        imm r1, 526728
+        store r1, r2
+        ret
+
+; Independent equality or half-open ranges [65,91) and [97,123).
+classifier_eval_alpha_spec:
+        imm r1, 526704
+        load r2, r1
+        imm r3, 95
+        jeq r2, r3, classifier_alpha_spec_one
+        imm r3, 65
+        jlt r2, r3, classifier_alpha_spec_lower
+        imm r3, 91                   ; checked alpha spec uppercase exclusive
+        jlt r2, r3, classifier_alpha_spec_one
+classifier_alpha_spec_lower:
+        imm r3, 97
+        jlt r2, r3, classifier_alpha_spec_zero
+        imm r3, 123                  ; checked alpha spec lowercase exclusive
+        jlt r2, r3, classifier_alpha_spec_one
+classifier_alpha_spec_zero:
+        imm r2, 0
+        jmp classifier_alpha_spec_store
+classifier_alpha_spec_one:
+        imm r2, 1
+classifier_alpha_spec_store:
+        imm r1, 526736
+        store r1, r2
+        ret
+
+; Exact is_alnum flow: alpha(c)==1 returns one; otherwise return digit(c)
+; unchanged through the direct epilogue.
+classifier_eval_alnum_source:
+        imm r20, 526768
+        imm r21, 1                   ; checked alpha argument/current c
+        call cursor_require_cell
+        imm r1, 526728
+        load r2, r1
+        imm r3, 1
+        jeq r2, r3, classifier_alnum_source_one
+        imm r20, 526776
+        imm r21, 1                   ; checked digit argument/current c
+        call cursor_require_cell
+        imm r1, 526712
+        load r2, r1                  ; inherited digit result
+        jmp classifier_alnum_source_store
+classifier_alnum_source_one:
+        imm r2, 1
+classifier_alnum_source_store:
+        imm r1, 526744
+        store r1, r2
+        ret
+
+; Independent Boolean union of both specifications.
+classifier_eval_alnum_spec:
+        imm r1, 526736
+        load r2, r1
+        imm r3, 1
+        jeq r2, r3, classifier_alnum_spec_one
+        imm r1, 526720
+        load r2, r1
+        jeq r2, r3, classifier_alnum_spec_one
+        imm r2, 0
+        jmp classifier_alnum_spec_store
+classifier_alnum_spec_one:
+        imm r2, 1
+classifier_alnum_spec_store:
+        imm r1, 526752
+        store r1, r2
+        ret
+
+classifier_require_equal_cells:
+        mov r1, r20
+        load r2, r1
+        mov r1, r21
+        load r3, r1
+        jeq r2, r3, cursor_require_ok
+        jmp reject
+
+classifier_publish_theorems:
+        imm r20, 526696
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 526784
+        imm r21, 1
+        call cursor_require_cell
+        imm r1, 526672
+        imm r2, 1413629764            ; DGBT
+        store r1, r2
+        imm r1, 526680
+        imm r2, 1413631041            ; ALBT
+        store r1, r2
+        imm r1, 526688
+        imm r2, 1413631553            ; ANBT
+        store r1, r2
+        ret
