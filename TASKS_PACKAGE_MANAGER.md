@@ -232,6 +232,15 @@ Completed:
   parser, resolves through existing local/Git resolver policy, and preserves
   parse failures separately from source-resolution failures.
 
+- **LOCAL-FIXTURE-GRAPH-AUDIT-COVERAGE.** Exercise graph audit against the
+  checked-in local package corpus.
+
+  Done 2026-08-23: `omega-packages` has an integration test that resolves real
+  local fixture source identities for `graph-workbench`, `arithmetic-kernels`,
+  and `file-journal`, constructs package manifests from fixture intent,
+  assembles a package lock, and verifies audit output reports the dependency
+  path and capability-flow row for `graph-workbench -> file-journal`.
+
 Remaining:
 
 - **PACKAGE-CAPABILITY-MANIFEST.** Define the normalized manifest produced for
