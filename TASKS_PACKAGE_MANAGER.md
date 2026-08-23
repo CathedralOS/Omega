@@ -43,6 +43,15 @@ Completed:
   `build.omg` execution is not implemented yet; package-to-root isolation
   remains tracked by `NO-AMBIENT-DEPENDENCY-EXECUTION`.
 
+- **PACKAGE-MANIFEST-MODEL.** Add the first `omega-packages` crate slice with
+  canonical package/alias naming, a normalized package capability manifest
+  data model, deterministic JSON rendering, SHA-256 manifest fingerprints, and
+  severity-ranked manifest diffs.
+
+  Done 2026-08-23: package identities validate as kebab-case, in-code aliases
+  validate as snake_case, equal evidence renders byte-identical manifest JSON,
+  and service-reach changes produce high-severity manifest diffs.
+
 Remaining:
 
 - **PACKAGE-CAPABILITY-MANIFEST.** Define the normalized manifest produced for

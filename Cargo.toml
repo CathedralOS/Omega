@@ -110,6 +110,7 @@ members = [
     "bootstrap/onramps/omega-rust/omega/orchestration/omega-artifacts",
     "bootstrap/onramps/omega-rust/omega/orchestration/omega-backend-pipeline",
     "bootstrap/onramps/omega-rust/omega/orchestration/omega-compiler",
+    "bootstrap/onramps/omega-rust/omega/orchestration/omega-packages",
     "bootstrap/onramps/omega-rust/omega/orchestration/omega-native-differential-test",
     "bootstrap/onramps/omega-rust/omega/orchestration/omega-visualizations",
     "bootstrap/onramps/omega-rust/omega/architecture/omega-architecture-test",
