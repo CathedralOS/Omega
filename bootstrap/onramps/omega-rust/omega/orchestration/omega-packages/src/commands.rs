@@ -10,6 +10,41 @@ pub enum PackageSourceRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PackageSourceRequestParseError {
+    EmptySourceLocator,
+    LocalSourceCannotUseRevision { locator: String, rev: String },
+    UnsupportedFileUrl { locator: String },
+}
+
+impl PackageSourceRequest {
+    pub fn parse(
+        locator: impl Into<String>,
+        rev: Option<String>,
+    ) -> Result<Self, PackageSourceRequestParseError> {
+        let locator = locator.into();
+        let locator = locator.trim();
+        if locator.is_empty() {
+            return Err(PackageSourceRequestParseError::EmptySourceLocator);
+        }
+        if let Some(path) = file_url_path(locator)? {
+            reject_local_rev(locator, &rev)?;
+            return Ok(Self::LocalPath(path));
+        }
+
+        let path = PathBuf::from(locator);
+        if is_local_path_locator(locator, &path) {
+            reject_local_rev(locator, &rev)?;
+            Ok(Self::LocalPath(path))
+        } else {
+            Ok(Self::Git {
+                url: locator.to_owned(),
+                rev,
+            })
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageSourceAudit {
     pub source_kind: String,
     pub locator: String,
@@ -57,6 +92,42 @@ impl PackageSourceAudit {
         report.push('\n');
         report
     }
+}
+
+fn file_url_path(locator: &str) -> Result<Option<PathBuf>, PackageSourceRequestParseError> {
+    let Some(rest) = locator.strip_prefix("file://") else {
+        return Ok(None);
+    };
+    if !rest.starts_with('/') {
+        return Err(PackageSourceRequestParseError::UnsupportedFileUrl {
+            locator: locator.to_owned(),
+        });
+    }
+    Ok(Some(PathBuf::from(rest)))
+}
+
+fn is_local_path_locator(locator: &str, path: &Path) -> bool {
+    path.is_absolute()
+        || locator == "."
+        || locator == ".."
+        || locator.starts_with("./")
+        || locator.starts_with("../")
+        || path.exists()
+}
+
+fn reject_local_rev(
+    locator: &str,
+    rev: &Option<String>,
+) -> Result<(), PackageSourceRequestParseError> {
+    if let Some(rev) = rev {
+        return Err(
+            PackageSourceRequestParseError::LocalSourceCannotUseRevision {
+                locator: locator.to_owned(),
+                rev: rev.clone(),
+            },
+        );
+    }
+    Ok(())
 }
 
 pub fn audit_package_source(
@@ -133,6 +204,69 @@ mod tests {
             output.status.success(),
             "git command failed: {}",
             String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    #[test]
+    fn source_request_parse_classifies_local_paths_and_file_urls() {
+        assert_eq!(
+            PackageSourceRequest::parse("./fixtures/packages/file-journal", None),
+            Ok(PackageSourceRequest::LocalPath(PathBuf::from(
+                "./fixtures/packages/file-journal"
+            )))
+        );
+        assert_eq!(
+            PackageSourceRequest::parse("file:///tmp/file-journal", None),
+            Ok(PackageSourceRequest::LocalPath(PathBuf::from(
+                "/tmp/file-journal"
+            )))
+        );
+    }
+
+    #[test]
+    fn source_request_parse_classifies_git_like_locators() {
+        assert_eq!(
+            PackageSourceRequest::parse(
+                "https://github.com/CathedralOS/file-journal",
+                Some("fd4ff9824c83a85584661acad93033304512f8c8".to_owned())
+            ),
+            Ok(PackageSourceRequest::Git {
+                url: "https://github.com/CathedralOS/file-journal".to_owned(),
+                rev: Some("fd4ff9824c83a85584661acad93033304512f8c8".to_owned()),
+            })
+        );
+        assert_eq!(
+            PackageSourceRequest::parse("git@github.com:CathedralOS/file-journal.git", None),
+            Ok(PackageSourceRequest::Git {
+                url: "git@github.com:CathedralOS/file-journal.git".to_owned(),
+                rev: None,
+            })
+        );
+    }
+
+    #[test]
+    fn source_request_parse_rejects_empty_or_revisioned_local_sources() {
+        assert_eq!(
+            PackageSourceRequest::parse("", None),
+            Err(PackageSourceRequestParseError::EmptySourceLocator)
+        );
+        assert_eq!(
+            PackageSourceRequest::parse(
+                "./fixtures/packages/file-journal",
+                Some("HEAD".to_owned())
+            ),
+            Err(
+                PackageSourceRequestParseError::LocalSourceCannotUseRevision {
+                    locator: "./fixtures/packages/file-journal".to_owned(),
+                    rev: "HEAD".to_owned(),
+                }
+            )
+        );
+        assert_eq!(
+            PackageSourceRequest::parse("file://relative/path", None),
+            Err(PackageSourceRequestParseError::UnsupportedFileUrl {
+                locator: "file://relative/path".to_owned(),
+            })
         );
     }
 

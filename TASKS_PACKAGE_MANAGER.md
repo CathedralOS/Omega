@@ -171,6 +171,14 @@ Completed:
   manifests, manifest fingerprint drift, and unreachable lock entries, and
   report dependency paths for exported service reach.
 
+- **SOURCE-REQUEST-PARSING.** Add CLI-ready source locator parsing without
+  performing install/update mutation.
+
+  Done 2026-08-23: `omega-packages` can classify local path locators,
+  `file://` locators, HTTPS Git URLs, and SSH/scp-style Git locators into
+  `PackageSourceRequest`, reject empty locators, and reject revision arguments
+  for local sources.
+
 Remaining:
 
 - **PACKAGE-CAPABILITY-MANIFEST.** Define the normalized manifest produced for
@@ -206,8 +214,8 @@ Remaining:
   identity before package code is loaded.
 
   Remaining after `LOCAL-SOURCE-IDENTITY`, `GIT-SOURCE-IDENTITY`, and
-  `SOURCE-CACHE-POLICY-RECORDS`: add install-command integration and lock
-  wiring.
+  `SOURCE-CACHE-POLICY-RECORDS` and `SOURCE-REQUEST-PARSING`: add
+  install-command integration and lock wiring.
 
   Acceptance: `omega install alias <source>` resolves a candidate to an exact
   commit/tree or local content identity and stores it in an isolated source
