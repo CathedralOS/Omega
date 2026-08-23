@@ -7,9 +7,9 @@
 //! registers, emit a wrapper or call, or claim native execution.
 
 use super::{
-    ProgramEntrySourceExtentFieldRole, ProgramStorageEntryDiagnostic,
-    ProgramStorageEntryExtentLogicalValue, ProgramStorageEntryRootRole,
-    ProgramStorageEntryWholeRootLogicalValueCarrier,
+    ProgramEntrySourceExtentFieldRole, ProgramLocalStorageCustody, ProgramLocalStorageCustodyError,
+    ProgramStorageEntryDiagnostic, ProgramStorageEntryExtentLogicalValue,
+    ProgramStorageEntryRootRole, ProgramStorageEntryWholeRootLogicalValueCarrier,
 };
 use omega_calling_conventions::{
     IndirectPointerLocation, MachineRegister, ValueLocation, ValuePlacement, ValueShape,
@@ -115,6 +115,29 @@ pub fn bind_program_storage_entry_whole_root_operands(
             logical_values,
             diagnostic,
         }),
+    }
+}
+
+pub fn bind_program_local_storage_entry_whole_root_operands<'root, 'code>(
+    custody: ProgramLocalStorageCustody<
+        'root,
+        'code,
+        ProgramStorageEntryWholeRootLogicalValueCarrier,
+    >,
+) -> Result<
+    ProgramLocalStorageCustody<'root, 'code, ProgramStorageEntryWholeRootOperandCarrier>,
+    ProgramLocalStorageCustodyError<'root, 'code, ProgramStorageEntryWholeRootLogicalValueCarrier>,
+> {
+    let (logical_values, registry) = custody.into_parts();
+    match bind_program_storage_entry_whole_root_operands(logical_values) {
+        Ok(operands) => Ok(ProgramLocalStorageCustody::new(operands, registry)),
+        Err(error) => {
+            let diagnostic = error.diagnostic().clone();
+            Err(ProgramLocalStorageCustodyError::new(
+                ProgramLocalStorageCustody::new(error.into_logical_values(), registry),
+                diagnostic,
+            ))
+        }
     }
 }
 

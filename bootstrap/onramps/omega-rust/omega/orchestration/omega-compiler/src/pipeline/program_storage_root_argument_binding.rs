@@ -6,11 +6,12 @@
 //! populate registers or stack, emit a call edge, or claim native execution.
 
 use super::{
-    InstalledProgramStorageRoots, ProgramEntrySourceReceiverSignature,
+    InstalledProgramStorageRoots, ProgramEntrySourceReceiverSignature, ProgramLocalStorageCustody,
     ProgramStorageEntryContinuationReceiverAbiPlan, ProgramStorageEntryDiagnostic,
     ProgramStorageEntryNativeBridgePlan, ProgramStorageEntryRootAuthorityDisposition,
     ProgramStorageEntryRootRole, ProgramStorageEntryWholeRootAuthority,
-    ProgramStorageEntryWrapperReceiverTransfer, RecordedProgramStorageInstallation,
+    ProgramStorageEntryWrapperReceiverTransfer, RecordedProgramLocalStorageInstallation,
+    RecordedProgramStorageInstallation,
 };
 use omega_calling_conventions::{ValuePlacement, ValueShape};
 use psi_extents::Extent;
@@ -186,6 +187,52 @@ pub fn bind_recorded_program_storage_entry_whole_root_arguments(
             ),
         }
     })
+}
+
+/// Join one real program-local installation to its exact receiver-free ABI
+/// while retaining the account registry through every ownership stage.
+pub fn bind_recorded_program_local_storage_entry_whole_root_arguments<'root, 'code>(
+    installation: RecordedProgramLocalStorageInstallation<'root, 'code>,
+    bridge: &ProgramStorageEntryNativeBridgePlan,
+) -> Result<
+    ProgramLocalStorageCustody<'root, 'code, ProgramStorageEntryWholeRootArgumentCarrier>,
+    ProgramLocalStorageRecordedWholeRootArgumentError<'root, 'code>,
+> {
+    let (installation, registry) = installation.into_parts();
+    match bind_recorded_program_storage_entry_whole_root_arguments(installation, bridge) {
+        Ok(arguments) => Ok(ProgramLocalStorageCustody::new(arguments, registry)),
+        Err(error) => {
+            let diagnostic = error.diagnostic().clone();
+            let recovery = match error.into_recovery() {
+                ProgramStorageEntryRecordedWholeRootArgumentRecovery::RecordedInstallation(
+                    installation,
+                ) => ProgramLocalStorageRecordedWholeRootArgumentRecovery::RecordedInstallation(
+                    ProgramLocalStorageCustody::new(installation, registry),
+                ),
+                ProgramStorageEntryRecordedWholeRootArgumentRecovery::InstalledRoots(roots) => {
+                    ProgramLocalStorageRecordedWholeRootArgumentRecovery::InstalledRoots(
+                        ProgramLocalStorageCustody::new(roots, registry),
+                    )
+                }
+                ProgramStorageEntryRecordedWholeRootArgumentRecovery::RootAuthorityDisposition(
+                    disposition,
+                ) => {
+                    ProgramLocalStorageRecordedWholeRootArgumentRecovery::RootAuthorityDisposition(
+                        ProgramLocalStorageCustody::new(disposition, registry),
+                    )
+                }
+                ProgramStorageEntryRecordedWholeRootArgumentRecovery::WholeRootAuthority(
+                    authority,
+                ) => ProgramLocalStorageRecordedWholeRootArgumentRecovery::WholeRootAuthority(
+                    ProgramLocalStorageCustody::new(authority, registry),
+                ),
+            };
+            Err(ProgramLocalStorageRecordedWholeRootArgumentError {
+                diagnostic,
+                recovery,
+            })
+        }
+    }
 }
 
 fn validate_recorded_whole_root_arguments(
@@ -367,6 +414,46 @@ pub enum ProgramStorageEntryRecordedWholeRootArgumentRecovery {
     RootAuthorityDisposition(ProgramStorageEntryRootAuthorityDisposition),
     WholeRootAuthority(ProgramStorageEntryWholeRootAuthority),
 }
+
+/// Highest valid local carrier retained by a failed whole-root transition.
+/// Every variant still owns the same exact account registry.
+#[derive(Debug)]
+pub enum ProgramLocalStorageRecordedWholeRootArgumentRecovery<'root, 'code> {
+    RecordedInstallation(RecordedProgramLocalStorageInstallation<'root, 'code>),
+    InstalledRoots(ProgramLocalStorageCustody<'root, 'code, InstalledProgramStorageRoots>),
+    RootAuthorityDisposition(
+        ProgramLocalStorageCustody<'root, 'code, ProgramStorageEntryRootAuthorityDisposition>,
+    ),
+    WholeRootAuthority(
+        ProgramLocalStorageCustody<'root, 'code, ProgramStorageEntryWholeRootAuthority>,
+    ),
+}
+
+#[derive(Debug)]
+pub struct ProgramLocalStorageRecordedWholeRootArgumentError<'root, 'code> {
+    diagnostic: ProgramStorageEntryDiagnostic,
+    recovery: ProgramLocalStorageRecordedWholeRootArgumentRecovery<'root, 'code>,
+}
+
+impl<'root, 'code> ProgramLocalStorageRecordedWholeRootArgumentError<'root, 'code> {
+    pub const fn diagnostic(&self) -> &ProgramStorageEntryDiagnostic {
+        &self.diagnostic
+    }
+
+    pub fn into_recovery(
+        self,
+    ) -> ProgramLocalStorageRecordedWholeRootArgumentRecovery<'root, 'code> {
+        self.recovery
+    }
+}
+
+impl std::fmt::Display for ProgramLocalStorageRecordedWholeRootArgumentError<'_, '_> {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(&self.diagnostic, formatter)
+    }
+}
+
+impl std::error::Error for ProgramLocalStorageRecordedWholeRootArgumentError<'_, '_> {}
 
 #[derive(Debug)]
 pub struct ProgramStorageEntryRecordedWholeRootArgumentError {

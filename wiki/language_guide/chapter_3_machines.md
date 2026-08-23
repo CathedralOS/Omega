@@ -169,7 +169,13 @@ platform parameter is appended to the source machine.
 > placement. The recorded installation handoff now rejects unchecked release
 > of receiver-bound roots, validates the exact mapped backing, zeroes it, and
 > retains its exclusive borrow through one activation before returning the
-> conserved roots. Binding this handoff and portable evidence to the selected
+> conserved roots. Installed program-local roots additionally remain joined to
+> their non-copyable account registry through activation failures, exact
+> activation and finish, receiver-free continuation binding and recovery,
+> emitted-wrapper checks, logical and operand realization, and outgoing-frame
+> planning. The former passive-origin installer is gone; only checked
+> installation establishment may create this custody carrier. Binding this
+> handoff and portable evidence to the selected
 > target-fixed physical requirement, authored bootstrap adapter and result map,
 > physical provider, and generated native shell, plus corpus migration and
 > removal of transitional entry-name discovery, remain under

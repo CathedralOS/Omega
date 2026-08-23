@@ -96,6 +96,8 @@ fn structural_return_transfers_value_and_claim_atomically_after_edge_charge() {
         }],
         structural_domains: vec![StructuralDomainDeclaration {
             id: domain,
+            semantic_domain: psi_core::DomainSemanticId::new(1)
+                .expect("semantic domain identity"),
             identity: "test::Owned".into(),
             carrier: structural_type,
         }],
@@ -1640,6 +1642,7 @@ fn byte_sequence_literal_module(bytes: Vec<u8>) -> TerminalModule {
             }],
             result: None,
             requires: Vec::new(),
+            program_local_root_introductions: Vec::new(),
             published_service_ceiling: Vec::new(),
         }],
         provider_candidates: Vec::new(),
@@ -1730,6 +1733,7 @@ fn scalar_boundary_effect_module() -> TerminalModule {
             structural_parameters: Vec::new(),
             result: None,
             requires: Vec::new(),
+            program_local_root_introductions: Vec::new(),
             published_service_ceiling: Vec::new(),
         }],
         provider_candidates: Vec::new(),
@@ -1810,6 +1814,8 @@ fn effect_module() -> TerminalModule {
         }],
         structural_domains: vec![StructuralDomainDeclaration {
             id: domain,
+            semantic_domain: psi_core::DomainSemanticId::new(1)
+                .expect("semantic domain identity"),
             identity: "test::Ready".into(),
             carrier: structural_type,
         }],
@@ -1830,6 +1836,7 @@ fn effect_module() -> TerminalModule {
                 argument_index: 0,
                 domain,
             }],
+            program_local_root_introductions: Vec::new(),
             published_service_ceiling: Vec::new(),
         }],
         provider_candidates: Vec::new(),

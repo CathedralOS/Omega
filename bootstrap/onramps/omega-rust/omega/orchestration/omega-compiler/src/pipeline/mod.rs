@@ -15,6 +15,7 @@ mod operator_adapter_dispatch;
 mod output;
 mod program_entry_physical;
 mod program_entry_source_signature;
+mod program_local_storage_custody;
 mod program_storage_continuation_inbound;
 mod program_storage_emitted_argument_binding;
 mod program_storage_entry;
@@ -67,18 +68,23 @@ pub use program_entry_source_signature::{
     ProgramEntrySourceResultSignature, ProgramEntrySourceVisibleParameterSignature,
     SelectedProgramEntrySourceSignature,
 };
+pub use program_local_storage_custody::{
+    ProgramLocalStorageCustody, ProgramLocalStorageCustodyError,
+};
 pub use program_storage_continuation_inbound::{
     ProgramStorageEntryContinuationInboundArgument, ProgramStorageEntryContinuationInboundPlan,
 };
 pub use program_storage_emitted_argument_binding::{
     ProgramStorageEntryEmittedWholeRootArgumentCarrier,
     ProgramStorageEntryEmittedWholeRootArgumentError,
+    bind_program_local_storage_entry_emitted_whole_root_arguments,
     bind_program_storage_entry_emitted_whole_root_arguments,
 };
 pub use program_storage_entry::{
     InstalledImageSubextent, InstalledProgramStorageRoots, PartitionedProgramStorageRoots,
     ProgramEntryReceiverActivation, ProgramEntryReceiverActivationError,
     ProgramEntryReceiverPlacementRecord, ProgramEntryReceiverStoragePlan,
+    ProgramLocalEntryReceiverActivation, ProgramLocalEntryReceiverActivationError,
     ProgramLocalStorageAccountHandoffError, ProgramLocalStorageInstallationHandoffError,
     ProgramLocalStorageRecordEmissionError, ProgramLocalStorageSubjectHandoffError,
     ProgramStorageEntryBridgeError, ProgramStorageEntryContinuationReceiverBindingError,
@@ -95,27 +101,33 @@ pub use program_storage_entry::{
     establish_program_storage_entry_program_local_roots,
     install_and_activate_program_storage_entry_receiver,
     install_established_program_storage_entry_program_local_roots,
-    install_program_storage_entry_provider_invocation, install_program_storage_entry_roots,
+    install_program_storage_entry_provider_invocation,
 };
 pub use program_storage_extent_operand::{
     ProgramStorageEntryExtentOperandImage, ProgramStorageEntryWholeRootOperandCarrier,
-    ProgramStorageEntryWholeRootOperandError, bind_program_storage_entry_whole_root_operands,
+    ProgramStorageEntryWholeRootOperandError, bind_program_local_storage_entry_whole_root_operands,
+    bind_program_storage_entry_whole_root_operands,
 };
 pub use program_storage_extent_value::{
     ProgramStorageEntryExtentLogicalValue, ProgramStorageEntryWholeRootLogicalValueCarrier,
     ProgramStorageEntryWholeRootLogicalValueError,
+    bind_program_local_storage_entry_whole_root_logical_values,
     bind_program_storage_entry_whole_root_logical_values,
 };
 pub use program_storage_reserved_outgoing_frame::{
     ProgramStorageEntryOutgoingStackWord, ProgramStorageEntryReservedOutgoingStackFrameError,
     ProgramStorageEntryReservedOutgoingStackFramePlan,
+    reserve_program_local_storage_entry_outgoing_stack_frame,
     reserve_program_storage_entry_outgoing_stack_frame,
 };
 pub use program_storage_root_argument_binding::{
+    ProgramLocalStorageRecordedWholeRootArgumentError,
+    ProgramLocalStorageRecordedWholeRootArgumentRecovery,
     ProgramStorageEntryRecordedWholeRootArgumentError,
     ProgramStorageEntryRecordedWholeRootArgumentRecovery,
     ProgramStorageEntryWholeRootArgumentBinding, ProgramStorageEntryWholeRootArgumentCarrier,
     ProgramStorageEntryWholeRootArgumentError, bind_program_storage_entry_whole_root_arguments,
+    bind_recorded_program_local_storage_entry_whole_root_arguments,
     bind_recorded_program_storage_entry_whole_root_arguments,
 };
 pub use program_storage_root_authority::{
@@ -142,7 +154,9 @@ pub use program_storage_wrapper_body::{
 pub use program_storage_wrapper_evidence::ProgramStorageEntryEmittedWrapperEvidence;
 pub use program_storage_wrapper_frame::{
     ProgramStorageEntryWrapperCallerFrameError, ProgramStorageEntryWrapperCallerFramePlan,
-    ProgramStorageEntryWrapperCallerFrameStep, plan_program_storage_entry_wrapper_caller_frame,
+    ProgramStorageEntryWrapperCallerFrameStep,
+    plan_program_local_storage_entry_wrapper_caller_frame,
+    plan_program_storage_entry_wrapper_caller_frame,
 };
 pub use provider_plans::{
     AdmittedExternalRootEntryFactHandoff, BoundExternalRootPostHandoffWriterInvocation,

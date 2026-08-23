@@ -5,7 +5,8 @@
 //! machine instruction, wrapper, or call exists.
 
 use super::{
-    ProgramEntrySourceExtentFieldRole, ProgramStorageEntryDiagnostic, ProgramStorageEntryRootRole,
+    ProgramEntrySourceExtentFieldRole, ProgramLocalStorageCustody, ProgramLocalStorageCustodyError,
+    ProgramStorageEntryDiagnostic, ProgramStorageEntryRootRole,
     ProgramStorageEntryWrapperCallerFramePlan, ProgramStorageEntryWrapperCallerFrameStep,
 };
 use std::ops::Range;
@@ -100,6 +101,25 @@ pub fn reserve_program_storage_entry_outgoing_stack_frame(
             caller_frame,
             diagnostic,
         }),
+    }
+}
+
+pub fn reserve_program_local_storage_entry_outgoing_stack_frame<'root, 'code>(
+    custody: ProgramLocalStorageCustody<'root, 'code, ProgramStorageEntryWrapperCallerFramePlan>,
+) -> Result<
+    ProgramLocalStorageCustody<'root, 'code, ProgramStorageEntryReservedOutgoingStackFramePlan>,
+    ProgramLocalStorageCustodyError<'root, 'code, ProgramStorageEntryWrapperCallerFramePlan>,
+> {
+    let (caller_frame, registry) = custody.into_parts();
+    match reserve_program_storage_entry_outgoing_stack_frame(caller_frame) {
+        Ok(frame) => Ok(ProgramLocalStorageCustody::new(frame, registry)),
+        Err(error) => {
+            let diagnostic = error.diagnostic().clone();
+            Err(ProgramLocalStorageCustodyError::new(
+                ProgramLocalStorageCustody::new(error.into_caller_frame(), registry),
+                diagnostic,
+            ))
+        }
     }
 }
 

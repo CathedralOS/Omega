@@ -783,10 +783,13 @@ Remaining:
   those were the same identity. A real installed-entry canary seals one UEFI
   root with the two exact producer positions and covers atomic subject
   preflight, returned-account materialization retry, record retry, the
-  two-account installation aggregate, and exact audit origins. Removal of the
-  transitional passive-grant audit helper remains open until receiver
-  activation and receiver-free continuation binding carry the registry through
-  their downstream custody stages. The
+  two-account installation aggregate, and exact audit origins. The
+  transitional passive-grant installer and its synthetic audit helper are now
+  removed. One sealed program-local custody carrier keeps the non-copyable
+  registry beside the recorded installation through receiver rejection/retry,
+  exact activation and finish, receiver-free ABI binding and recovery, emitted
+  wrapper binding, logical values, operand images, caller-frame planning, and
+  outgoing-frame reservation. Provider-issued stages remain separate. The
   target vocabulary currently exposes one required `ProgramEntry`; expand it
   to an enumerable required-slot set before claiming a finite multi-member-slot
   canary rather than synthesizing test-only target rows.

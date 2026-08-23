@@ -14,15 +14,14 @@ use omega_compiler::{
     bind_program_storage_entry_whole_root_operands,
     bind_recorded_program_storage_entry_whole_root_arguments, compile, compile_to_checked,
     evaluate_calling_policy_plan, install_program_storage_entry_provider_invocation,
-    install_program_storage_entry_roots, plan_program_storage_entry_wrapper_caller_frame,
-    program_storage_installation_record_json, reserve_program_storage_entry_outgoing_stack_frame,
-    selected_external_root_entry_fact_bindings, selected_external_root_provider_plan,
-    selected_external_root_provider_plan_id,
+    plan_program_storage_entry_wrapper_caller_frame, program_storage_installation_record_json,
+    reserve_program_storage_entry_outgoing_stack_frame, selected_external_root_entry_fact_bindings,
+    selected_external_root_provider_plan, selected_external_root_provider_plan_id,
 };
 use omega_instruction_selection::derive_boundary_entry_storage;
 use psi_extents::{
-    AddressSpaceId, ExtentDiagnostic, ExtentLineageId, ExtentProgramLocalOrigin,
-    ExtentProvenanceId, ExtentRightId, ExtentRights, ExtentRootGrant, MappingEraId,
+    AddressSpaceId, ExtentDiagnostic, ExtentLineageId, ExtentProvenanceId, ExtentRights,
+    ExtentRootGrant, MappingEraId,
 };
 use std::fs;
 use std::path::PathBuf;
@@ -876,53 +875,6 @@ fn program_storage_entry_publishes_both_core_owned_root_positions() {
             .expect("read completed installation artifact");
     assert_eq!(emitted, provider_json);
 
-    let local_artifact_directory = main_path
-        .parent()
-        .expect("temporary policy directory")
-        .join("local-completed-installation");
-    let local_installed = install_program_storage_entry_roots(
-        &local_artifact_directory,
-        installation.binding().clone(),
-        synthetic_program_local_root_input(201, 0x2000, 0x400),
-        synthetic_program_local_root_input(202, 0x9000, 0x1000),
-    )
-    .expect("installed local roots use the same generic two-grant installer");
-    let local_json =
-        program_storage_installation_record_json(&local_installed.installation_record());
-    assert!(local_json.contains("\"kind\": \"program_local\""));
-    assert!(local_json.contains("\"installed_code\": \"0x0000000000000c91\""));
-    assert!(local_json.contains("\"external_root\": \"0x0000000000000c92\""));
-    assert!(local_json.contains("\"root_slot\": \"0x0000000000000c93\""));
-    assert!(local_json.contains("\"lifecycle_epoch\": \"0x0000000000000c96\""));
-    assert!(local_json.contains("\"rights\": [\"0x00000000000000cc\", \"0x00000000000000cd\"]"));
-
-    let blocked_artifact_directory = main_path
-        .parent()
-        .expect("temporary policy directory")
-        .join("blocked-completed-installation");
-    fs::write(&blocked_artifact_directory, "not a directory")
-        .expect("create an artifact-path collision");
-    let failed_record = install_program_storage_entry_roots(
-        &blocked_artifact_directory,
-        installation.binding().clone(),
-        synthetic_program_local_root_input(301, 0x3000, 0x400),
-        synthetic_program_local_root_input(302, 0xa000, 0x1000),
-    )
-    .expect_err("installed roots must remain sealed when record emission fails");
-    let ProgramStorageInstallationHandoffError::Record(failed_record) = failed_record else {
-        panic!("valid roots must reach record emission")
-    };
-    fs::remove_file(&blocked_artifact_directory).expect("remove artifact-path collision");
-    let retried = failed_record
-        .retry(&blocked_artifact_directory)
-        .expect("record retry releases the installed roots");
-    assert_eq!(retried.roots().image().base(), 0x3000);
-    assert!(
-        blocked_artifact_directory
-            .join(PROGRAM_STORAGE_INSTALLATION_ARTIFACT)
-            .is_file()
-    );
-
     let receiver_binding = installation
         .binding()
         .clone()
@@ -938,11 +890,16 @@ fn program_storage_entry_publishes_both_core_owned_root_positions() {
         .parent()
         .expect("temporary policy directory")
         .join("receiver-completed-installation");
-    let rejected = install_program_storage_entry_roots(
+    let (receiver_image, receiver_issuance) =
+        root_input_for_provider_invocation(401, 0x4000, 0x400, 90, 905);
+    let (receiver_storage, _) = root_input_for_provider_invocation(402, 0x8003, 11, 90, 905);
+    let rejected = install_program_storage_entry_provider_invocation(
         &receiver_artifact_directory,
         receiver_binding,
-        synthetic_program_local_root_input(401, 0x4000, 0x400),
-        synthetic_program_local_root_input(402, 0x8003, 11),
+        &selected_provider,
+        receiver_issuance,
+        receiver_image,
+        receiver_storage,
     )
     .expect_err("receiver alignment and capacity must validate before grant consumption");
     let ProgramStorageInstallationHandoffError::Rejected(rejected) = rejected else {
@@ -950,9 +907,11 @@ fn program_storage_entry_publishes_both_core_owned_root_positions() {
     };
     assert!(rejected.diagnostic().0.contains("cannot reserve"));
     let (receiver_binding, image_input, storage_input) = rejected.into_parts();
-    let receiver_installation = install_program_storage_entry_roots(
+    let receiver_installation = install_program_storage_entry_provider_invocation(
         &receiver_artifact_directory,
         receiver_binding,
+        &selected_provider,
+        receiver_issuance,
         image_input,
         storage_input.with_geometry(0x8003, 0x20),
     )
@@ -1114,24 +1073,6 @@ fn program_storage_entry_publishes_both_core_owned_root_positions() {
     let (wrong_image, provider_issuance) =
         root_input_for_provider_invocation(501, 0x5000, 0x400, 90, 901);
     let (wrong_storage, _) = root_input_for_provider_invocation(502, 0x9003, 0x20, 90, 902);
-    let local_roots = install_program_storage_entry_provider_invocation(
-        &physical_artifact_directory,
-        physical_binding.clone(),
-        &selected_provider,
-        provider_issuance,
-        synthetic_program_local_root_input(505, 0x5000, 0x400),
-        synthetic_program_local_root_input(506, 0x9003, 0x20),
-    )
-    .expect_err("the physical bridge cannot consume program-local roots");
-    let ProgramStorageInstallationHandoffError::Rejected(local_roots) = local_roots else {
-        panic!("local provisioning must reject before record emission")
-    };
-    assert!(
-        local_roots
-            .diagnostic()
-            .0
-            .contains("not issued by the selected root-provider invocation")
-    );
     let wrong_invocation = install_program_storage_entry_provider_invocation(
         &physical_artifact_directory,
         physical_binding.clone(),
@@ -1840,11 +1781,17 @@ machine build(builder: &mut Build) {
     assert!(entry_manifest.contains("\"pointer_register\": \"X86Rcx\""));
     assert!(entry_manifest.contains("\"pointer_register\": \"X86Rdx\""));
     assert!(entry_manifest.contains("\"status\": \"pending_runtime_installation\""));
-    let installation = install_program_storage_entry_roots(
+    let selected_provider = provider_for_program_storage_binding(bridge.binding());
+    let (image, provider_issuance) =
+        root_input_for_provider_invocation(701, 0x1000, 0x800, 90, 911);
+    let (initial_storage, _) = root_input_for_provider_invocation(702, 0x8000, 0x2000, 90, 911);
+    let installation = install_program_storage_entry_provider_invocation(
         &build_dir,
         bridge.binding().clone(),
-        synthetic_program_local_root_input(701, 0x1000, 0x800),
-        synthetic_program_local_root_input(702, 0x8000, 0x2000),
+        &selected_provider,
+        provider_issuance,
+        image,
+        initial_storage,
     )
     .expect("install exact receiver-free roots");
     let alternate_source = fs::read_to_string(directory.join("main.omg"))
@@ -2254,6 +2201,50 @@ fn root_input_for_provider_invocation(
     )
 }
 
+fn provider_for_program_storage_binding(
+    binding: &omega_compiler::ProgramStorageEntryPlanBinding,
+) -> SelectedExternalRootProviderPlan {
+    let entry_claims = (0..2)
+        .map(
+            |parameter_index| omega_effects::provider_plan::ServiceEntryClaim {
+                parameter_index,
+                domain: "Extent::Granted".into(),
+                predicate_body: psi_language_semantics::DomainPredicateBody::Present,
+                effective_carry: psi_language_semantics::CarryPolicy::STRICT,
+                authority_flow: omega_effects::provider_plan::ServiceEntryAuthorityFlow::Accepts,
+            },
+        )
+        .collect();
+    SelectedExternalRootProviderPlan {
+        identity: omega_external_roots::ProviderPlanId::from_normalized_identity(90)
+            .expect("selected provider identity"),
+        schema: omega_effects::provider_plan::ServiceSchema {
+            trait_name: "UefiApplication".into(),
+            methods: vec![omega_effects::provider_plan::ServiceMethod {
+                name: "enter".into(),
+                requirement_owner: "ProgramStorageEntry".into(),
+                requirement_identity: binding.requirement_identity().into(),
+                parameter_count: 2,
+                parameter_type_identities: vec![
+                    binding.image().parameter_type_identity().into(),
+                    binding.initial_storage().parameter_type_identity().into(),
+                ],
+                entry_claims,
+                has_result: false,
+                result_type_identity: None,
+                result_claims: Vec::new(),
+                service_reach: Vec::new(),
+                synchronous_invocations: Vec::new(),
+                may_suspend: false,
+                may_block: false,
+                terminates_guarantee: false,
+                termination_premises: Vec::new(),
+                calling_plan_fingerprint: Some(binding.boundary_contract_fingerprint()),
+            }],
+        },
+    }
+}
+
 fn emitted_program_storage_bridge(
     binding: omega_compiler::ProgramStorageEntryPlanBinding,
     selected_provider: Option<SelectedExternalRootProviderPlan>,
@@ -2305,46 +2296,6 @@ fn emitted_program_storage_bridge(
         "launch".into(),
     )
     .expect("synthetic emitted bridge should retain exact continuation identity")
-}
-
-fn synthetic_program_local_root_input(
-    lineage: u64,
-    base: u64,
-    length: u64,
-) -> ProgramStorageRootInput {
-    fn extent_id<T>(identity: u64, constructor: fn(u64) -> Result<T, ExtentDiagnostic>) -> T {
-        constructor(identity).expect("normalized extent identity")
-    }
-
-    let origin_base = lineage * 16;
-    let origin = ExtentProgramLocalOrigin::from_normalized_identities([
-        origin_base + 1,
-        origin_base + 2,
-        origin_base + 3,
-        origin_base + 4,
-        origin_base + 5,
-        origin_base + 6,
-        origin_base + 7,
-        origin_base + 8,
-    ])
-    .expect("normalized program-local origin");
-    let rights = ExtentRights::from_normalized_identities([
-        extent_id(205, ExtentRightId::from_normalized_identity),
-        extent_id(204, ExtentRightId::from_normalized_identity),
-    ]);
-
-    ProgramStorageRootInput::new(
-        ExtentRootGrant::from_established_program_local(
-            origin,
-            extent_id(lineage, ExtentLineageId::from_normalized_identity),
-            extent_id(100, AddressSpaceId::from_normalized_identity),
-            rights,
-            extent_id(101, ExtentProvenanceId::from_normalized_identity),
-            extent_id(102, MappingEraId::from_normalized_identity),
-        ),
-        base,
-        length,
-    )
 }
 
 #[test]

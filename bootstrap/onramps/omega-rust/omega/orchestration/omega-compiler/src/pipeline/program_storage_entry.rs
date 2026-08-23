@@ -20,6 +20,8 @@ use psi_extents::{
 };
 use std::path::Path;
 
+use super::{ProgramLocalStorageCustody, ProgramLocalStorageCustodyError};
+
 const PROGRAM_STORAGE_ENTRY_OWNER: &str = "ProgramStorageEntry";
 const PROGRAM_STORAGE_ENTRY_METHOD: &str = "enter";
 const EXTENT_CARRIER: &str = "Extent";
@@ -1157,23 +1159,60 @@ pub struct RecordedProgramStorageInstallation {
 /// behind their copyable origin rows. It retains both lifecycle leases through
 /// record retry, receiver partitioning, and every borrowed observation of the
 /// installation. No API releases the raw roots without their account owner.
-#[derive(Debug)]
-pub struct RecordedProgramLocalStorageInstallation<'root, 'code> {
-    roots: InstalledProgramStorageRoots,
-    registry: ProgramLocalExtentRegistry<'root, 'code>,
-}
+pub type RecordedProgramLocalStorageInstallation<'root, 'code> =
+    ProgramLocalStorageCustody<'root, 'code, RecordedProgramStorageInstallation>;
 
-impl<'root, 'code> RecordedProgramLocalStorageInstallation<'root, 'code> {
+impl<'root, 'code> ProgramLocalStorageCustody<'root, 'code, RecordedProgramStorageInstallation> {
     pub const fn roots(&self) -> &InstalledProgramStorageRoots {
-        &self.roots
-    }
-
-    pub const fn registry(&self) -> &ProgramLocalExtentRegistry<'root, 'code> {
-        &self.registry
+        self.stage().roots()
     }
 
     pub fn installation_record(&self) -> ProgramStorageInstallationRecord {
-        self.roots.installation_record()
+        self.stage().installation_record()
+    }
+
+    /// Release a receiver-free installation while retaining its program-local
+    /// account owner beside the raw installed-root carrier.
+    pub fn into_roots(
+        self,
+    ) -> Result<
+        ProgramLocalStorageCustody<'root, 'code, InstalledProgramStorageRoots>,
+        ProgramLocalStorageCustodyError<'root, 'code, RecordedProgramStorageInstallation>,
+    > {
+        let (installation, registry) = self.into_parts();
+        match installation.into_roots() {
+            Ok(roots) => Ok(ProgramLocalStorageCustody::new(roots, registry)),
+            Err(error) => {
+                let diagnostic = error.diagnostic().clone();
+                Err(ProgramLocalStorageCustodyError::new(
+                    ProgramLocalStorageCustody::new(error.into_installation(), registry),
+                    diagnostic,
+                ))
+            }
+        }
+    }
+
+    /// Activate the exact receiver mapping without separating passive roots
+    /// from the registry that owns their program-local accounts.
+    pub fn activate_receiver<'mapping>(
+        self,
+        mapped_base: u64,
+        mapped_storage: &'mapping mut [u8],
+    ) -> Result<
+        ProgramLocalEntryReceiverActivation<'mapping, 'root, 'code>,
+        ProgramLocalEntryReceiverActivationError<'root, 'code>,
+    > {
+        let (installation, registry) = self.into_parts();
+        match installation.activate_receiver(mapped_base, mapped_storage) {
+            Ok(activation) => Ok(ProgramLocalStorageCustody::new(activation, registry)),
+            Err(error) => {
+                let diagnostic = error.diagnostic().clone();
+                Err(ProgramLocalStorageCustodyError::new(
+                    ProgramLocalStorageCustody::new(error.into_installation(), registry),
+                    diagnostic,
+                ))
+            }
+        }
     }
 }
 
@@ -1304,6 +1343,33 @@ impl ProgramEntryReceiverActivation<'_> {
     /// receiver reservation and all remainders still conserved.
     pub fn finish(self) -> InstalledProgramStorageRoots {
         self.roots
+    }
+}
+
+pub type ProgramLocalEntryReceiverActivation<'mapping, 'root, 'code> =
+    ProgramLocalStorageCustody<'root, 'code, ProgramEntryReceiverActivation<'mapping>>;
+
+pub type ProgramLocalEntryReceiverActivationError<'root, 'code> =
+    ProgramLocalStorageCustodyError<'root, 'code, RecordedProgramStorageInstallation>;
+
+impl<'mapping, 'root, 'code>
+    ProgramLocalStorageCustody<'root, 'code, ProgramEntryReceiverActivation<'mapping>>
+{
+    pub const fn provider_invocation(&self) -> Option<ProgramStorageEntryProviderInvocation> {
+        self.stage().provider_invocation()
+    }
+
+    pub const fn placement(&self) -> &ProgramEntryReceiverPlacementRecord {
+        self.stage().placement()
+    }
+
+    pub fn receiver(&mut self) -> &mut [u8] {
+        self.stage_mut().receiver()
+    }
+
+    pub fn finish(self) -> ProgramLocalStorageCustody<'root, 'code, InstalledProgramStorageRoots> {
+        let (activation, registry) = self.into_parts();
+        ProgramLocalStorageCustody::new(activation.finish(), registry)
     }
 }
 
@@ -2034,29 +2100,27 @@ fn bind_parameter(
 
 /// Validate both `no_wrap` obligations before importing either complete root,
 /// then consume the two provider-admitted grants in semantic position order.
-fn install_program_storage_entry_roots_unrecorded(
+fn install_program_storage_entry_provider_roots_unrecorded(
     binding: ProgramStorageEntryPlanBinding,
-    provider_invocation: Option<ProgramStorageEntryProviderInvocation>,
+    provider_invocation: ProgramStorageEntryProviderInvocation,
     image: ProgramStorageRootInput,
     initial_storage: ProgramStorageRootInput,
 ) -> Result<InstalledProgramStorageRoots, Box<ProgramStorageRootInstallationError>> {
-    if let Some(provider_invocation) = provider_invocation {
-        let validation = validate_physical_provider_root("image", &image, provider_invocation)
-            .and_then(|()| {
-                validate_physical_provider_root(
-                    "initial-storage",
-                    &initial_storage,
-                    provider_invocation,
-                )
-            });
-        if let Err(diagnostic) = validation {
-            return Err(Box::new(ProgramStorageRootInstallationError {
-                binding,
-                image,
-                initial_storage,
-                diagnostic,
-            }));
-        }
+    let validation = validate_physical_provider_root("image", &image, provider_invocation)
+        .and_then(|()| {
+            validate_physical_provider_root(
+                "initial-storage",
+                &initial_storage,
+                provider_invocation,
+            )
+        });
+    if let Err(diagnostic) = validation {
+        return Err(Box::new(ProgramStorageRootInstallationError {
+            binding,
+            image,
+            initial_storage,
+            diagnostic,
+        }));
     }
 
     let (image_geometry, storage_geometry, receiver_placement) =
@@ -2082,7 +2146,7 @@ fn install_program_storage_entry_roots_unrecorded(
     let initial_storage = initial_storage.grant.mint_validated(storage_geometry);
     Ok(assemble_program_storage_entry_extents(
         binding,
-        provider_invocation,
+        Some(provider_invocation),
         image,
         initial_storage,
         receiver_placement,
@@ -2451,42 +2515,6 @@ fn validate_program_local_account_pair(
     Ok(())
 }
 
-/// Install two already-established program-local program-storage roots and emit the
-/// completion record before releasing the installed authority.
-///
-/// This is the transitional installed program-local handoff seam. Its caller
-/// must retain the exact account registry that established these passive
-/// Extent origins.
-/// Provider-issued physical roots
-/// must use [`install_program_storage_entry_provider_invocation`], which joins
-/// them to the compiler-selected provider plan and concrete invocation.
-/// Predicate rejection returns both unconsumed grants. If record emission
-/// fails after installation, the installed roots remain sealed inside the
-/// error and can only be recovered by successfully retrying the record write.
-pub fn install_program_storage_entry_roots(
-    artifact_directory: &Path,
-    binding: ProgramStorageEntryPlanBinding,
-    image: ProgramStorageRootInput,
-    initial_storage: ProgramStorageRootInput,
-) -> Result<RecordedProgramStorageInstallation, ProgramStorageInstallationHandoffError> {
-    let validation = validate_program_local_root("image", &image)
-        .and_then(|()| validate_program_local_root("initial-storage", &initial_storage));
-    if let Err(diagnostic) = validation {
-        return Err(ProgramStorageInstallationHandoffError::Rejected(Box::new(
-            ProgramStorageRootInstallationError {
-                binding,
-                image,
-                initial_storage,
-                diagnostic,
-            },
-        )));
-    }
-    let roots =
-        install_program_storage_entry_roots_unrecorded(binding, None, image, initial_storage)
-            .map_err(ProgramStorageInstallationHandoffError::Rejected)?;
-    record_program_storage_installation(artifact_directory, roots)
-}
-
 /// Install the two roots supplied by one exact selected root-provider
 /// invocation and retain that occurrence identity through audit and entry
 /// activation.
@@ -2520,9 +2548,9 @@ pub fn install_program_storage_entry_provider_invocation(
             )));
         }
     };
-    let roots = install_program_storage_entry_roots_unrecorded(
+    let roots = install_program_storage_entry_provider_roots_unrecorded(
         binding,
-        Some(provider_invocation),
+        provider_invocation,
         image,
         initial_storage,
     )
@@ -2558,18 +2586,6 @@ pub fn install_and_activate_program_storage_entry_receiver<'mapping>(
         .map_err(ProgramStorageEntryBridgeError::Activation)
 }
 
-fn validate_program_local_root(
-    role: &str,
-    input: &ProgramStorageRootInput,
-) -> Result<(), ProgramStorageEntryDiagnostic> {
-    if input.grant.origin().program_local().is_none() {
-        return Err(ProgramStorageEntryDiagnostic(format!(
-            "{role} root is provider-issued; use the selected root-provider invocation installer"
-        )));
-    }
-    Ok(())
-}
-
 fn record_program_storage_installation(
     artifact_directory: &Path,
     roots: InstalledProgramStorageRoots,
@@ -2593,7 +2609,10 @@ fn record_program_local_storage_installation<'root, 'code>(
 > {
     let record = roots.installation_record();
     match super::artifacts::write_program_storage_installation_record(artifact_directory, &record) {
-        Ok(()) => Ok(RecordedProgramLocalStorageInstallation { roots, registry }),
+        Ok(()) => Ok(ProgramLocalStorageCustody::new(
+            RecordedProgramStorageInstallation { roots },
+            registry,
+        )),
         Err(diagnostic) => Err(ProgramLocalStorageInstallationHandoffError::Record(
             Box::new(ProgramLocalStorageRecordEmissionError {
                 roots,
