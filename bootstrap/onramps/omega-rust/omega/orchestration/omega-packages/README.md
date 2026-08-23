@@ -75,6 +75,9 @@ delegate behavior here.
 
 - `manifest`: canonical package/alias names, normalized package capability
   manifests, stable JSON, SHA-256 fingerprints, and manifest diffs.
+- `lock`: machine-written package closure records with resolved source
+  identity, manifest fingerprints, dependency aliases, trust receipts, stable
+  JSON, and lock fingerprints.
 - `source`: local-path source identity with deterministic hashing, `.git`
   directory exclusion, traversal limits, symlink escape rejection, and Git
   clone/fetch resolution to exact commit/tree identity.
