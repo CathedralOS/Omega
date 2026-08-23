@@ -903,6 +903,20 @@ additional facilities the bootstrap actually needs.
             expect, declare, and the fifth-parameter status-252 guard.
           - [ ] Prove literal-aware, terminating `count_lets` and restoration of
             its entry cursor; compose its slot-capacity status-252 guard.
+            - [x] Close the identifier keyword leaf. Exact `id_char`/`is_let`
+              shape rejoins procedures 13..14, ten blocks, four guards, three
+              argument calls, all returns/epilogues, frames, indexed byte load,
+              and exhaustive local/memory/primitive/push/event/decoded rows.
+              Conditional `IDCH` returns `SRC[IDOFF+k]` only for
+              `0<=k<IDLEN`; `ILET` first proves `IDLEN==3`, then exhausts the
+              length, `l`, `e`, `t`, and success short-circuit cases. It returns
+              one exactly for `let`, quietly and with restored frames. Twelve
+              isolated variants sever bounds/address/call/constant/census or
+              branch meaning. Shape and meaning are 11.3 KB and 9.5 KB.
+            - [ ] Close `skip_char_lit` and `skip_str_lit`, including truncated
+              escape tails that can temporarily advance CUR past LEN.
+            - [ ] Compose the outer depth/count scan, its progress rank, exact
+              `let` increments, and restoration of entry CUR.
         - [ ] Compose the deterministic procedure prefix: name, `":\n"`,
           prologue, and `nparams` parameter stores under `nslots<=1024`.
         - [ ] Give `gen_stmts`/`gen_stmt`/expression recursion maximal finite or

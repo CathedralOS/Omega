@@ -257,6 +257,12 @@ are valuable teeth, but they do not yet establish the quantified observation:
   expression, frame, and exhaustive ownership joins bind both cases to
   procedure 34. No typed resource kind is inferred from 252. The parameter
   loop and cursor-restoring count_lets are the next frontier;
+- its identifier-keyword leaf proves id_char reads exactly IDOFF+k under the
+  checked identifier-slice bound and is_let returns one exactly for length-three
+  bytes `let`. Exact short-circuit guards ensure no byte is loaded before the
+  length check; complete call/argument, indexed-load, expression, frame, and
+  ownership joins bind the quiet terminating theorem to procedures 13..14.
+  Literal skippers are the next count_lets dependency;
 - no total `parse_proc` claim is currently made. Malformed procedure bodies can
   make `gen_stmts` diverge while emitting—for example when an unrecognized byte
   is never consumed—so closure requires maximal Return-or-Diverge and finite/
