@@ -115,7 +115,12 @@ installation verifies it is a subset of the bound and substitutes it through
 the complete root closure. Preselection manifests report the unresolved row
 and bound, selected manifests add the exact provider and operation, and final
 admission rejects any unresolved row. Such a row cannot cross an ordinary
-callable package or component boundary.
+callable package or component boundary. Terminal verification reconstructs the
+entry's reachable fixed boundary rows, primitive service uses, and exact
+installation-dependency identities from executable operations. That derived
+closure must equal the retained root declaration: missing, padded, stale, or
+unused rows reject. A direct service use is not erased merely because the same
+service also occurs in an abstract row's upper bound.
 
 ## Why the bootstrap stages are not the cut
 

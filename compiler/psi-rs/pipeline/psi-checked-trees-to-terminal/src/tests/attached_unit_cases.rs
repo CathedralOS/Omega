@@ -385,6 +385,13 @@ fn attached_unit_affine_return_lowers_exact_no_code_discard() {
         trivial_affine_local_discard_ordinals: Vec::new(),
         trivial_affine_discards: vec![0],
     }];
+    let root_reach_span = checked.facts.service_reaches.root_machines;
+    checked
+        .facts
+        .service_reaches
+        .machines
+        .span_mut_or_empty(root_reach_span)[0]
+        .concrete_effective = psi_language_semantics::ServiceReachRowTable::EMPTY_ROW;
 
     let lowered = lower_machine(&checked, "example::Root::enter")
         .expect("checked affine discard should lower as explicit return-edge cleanup");

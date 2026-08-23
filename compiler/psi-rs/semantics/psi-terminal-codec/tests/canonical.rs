@@ -52,20 +52,18 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
 
 #[test]
 fn installation_reach_dependencies_round_trip_and_require_canonical_identity() {
-    let mut module = fixture();
-    module.services = vec![
-        ServiceDeclaration {
-            id: service_id(1),
-            identity: "MachineControl".into(),
-            parents: Vec::new(),
-        },
-        ServiceDeclaration {
-            id: service_id(2),
-            identity: "PortIo".into(),
-            parents: Vec::new(),
-        },
-    ];
-    module.root_service_reach.concrete = vec![service_id(1)];
+    let mut module = structural_effect_fixture();
+    module.services[0].identity = "MachineControl".into();
+    module.services.push(ServiceDeclaration {
+        id: service_id(2),
+        identity: "PortIo".into(),
+        parents: Vec::new(),
+    });
+    module.boundary_machines[0].identity = "InterruptCompletion::complete".into();
+    module.boundary_machines[0].published_service_ceiling = vec![service_id(1), service_id(2)];
+    for machine in &mut module.machines {
+        machine.published_service_ceiling = vec![service_id(1), service_id(2)];
+    }
     module.root_service_reach.installation_dependencies = vec![InstallationReachDependency {
         requirement_identity: "InterruptCompletion::complete".into(),
         upper_bound: vec![service_id(1), service_id(2)],
@@ -605,6 +603,7 @@ fn unit_return_affine_discard_round_trips_canonically() {
         unreachable!()
     };
     *trivial_affine_discards = vec![callee_place];
+    module.root_service_reach.concrete.clear();
 
     let bytes = encode_module(&module).expect("explicit affine discard should encode");
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
@@ -792,6 +791,7 @@ fn scalar_jump_affine_discard_round_trips_canonically() {
     });
     module.entry = machine.id;
     module.machines = vec![machine];
+    module.root_service_reach.concrete.clear();
 
     let bytes = encode_module(&module).expect("jump affine discard should encode");
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
@@ -863,6 +863,7 @@ fn conditional_affine_discards_round_trip_canonically() {
     ];
     module.entry = machine.id;
     module.machines = vec![machine];
+    module.root_service_reach.concrete.clear();
 
     let bytes = encode_module(&module).expect("conditional affine discards should encode");
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
@@ -958,6 +959,7 @@ fn structural_result_and_return_round_trip_as_semantic_identity() {
         returned_claims: vec![claim_id(1)],
         trivial_affine_discards: Vec::new(),
     };
+    module.root_service_reach.concrete.clear();
 
     let bytes = encode_module(&module).expect("structural return should encode");
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
@@ -2276,7 +2278,10 @@ fn structural_effect_fixture() -> TerminalModule {
             identity: "example::DeviceIo".to_owned(),
             parents: Vec::new(),
         }],
-        root_service_reach: Default::default(),
+        root_service_reach: psi_terminal::TerminalRootServiceReach {
+            concrete: vec![service],
+            installation_dependencies: Vec::new(),
+        },
         boundary_machines: vec![BoundaryMachineDeclaration {
             id: boundary_machine_id(1),
             identity: "example::Occurrence::settle".to_owned(),

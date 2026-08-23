@@ -202,23 +202,67 @@ fn scalar_calls_publish_every_reachable_service() {
     );
 
     module.machines[0].published_service_ceiling.push(service);
+    module.root_service_reach.concrete.push(service);
     validate_module(&module).expect("the caller publishes its scalar callee's service reach");
 }
 
 #[test]
 fn installation_reach_dependencies_are_exact_closed_service_rows() {
-    let mut module = call_module();
+    let mut module = boundary_call_module();
     module.services.push(ServiceDeclaration {
         id: service_id(1),
         identity: "PortIo".into(),
         parents: Vec::new(),
     });
-    module.root_service_reach.concrete = vec![service_id(1)];
+    module.boundary_machines[0].identity = "InterruptCompletion::complete".into();
+    module.boundary_machines[0].published_service_ceiling = vec![service_id(1)];
+    module.machines[0].published_service_ceiling = vec![service_id(1)];
     module.root_service_reach.installation_dependencies = vec![InstallationReachDependency {
         requirement_identity: "InterruptCompletion::complete".into(),
         upper_bound: vec![service_id(1)],
     }];
     validate_module(&module).expect("canonical installation reach dependency");
+
+    module.machines[0].blocks[0].operations.push(Operation {
+        id: operation_id(3),
+        result: OperationResult::Unit,
+        kind: OperationKind::PortWrite {
+            service: service_id(1),
+            port: 0x20,
+            value: 0x20,
+        },
+    });
+    module.root_service_reach.concrete = vec![service_id(1)];
+    validate_module(&module)
+        .expect("concrete use survives even when it overlaps an abstract upper bound");
+
+    let mut drifted_bound = module.clone();
+    drifted_bound.root_service_reach.installation_dependencies[0]
+        .upper_bound
+        .clear();
+    assert_eq!(
+        validate_module(&drifted_bound).unwrap_err(),
+        ModuleError::InstallationReachBoundaryMismatch(boundary_id(1))
+    );
+
+    let mut unused_dependency = module.clone();
+    unused_dependency.machines[0].blocks[0]
+        .operations
+        .retain(|operation| !matches!(operation.kind, OperationKind::BoundaryCall { .. }));
+    assert_eq!(
+        validate_module(&unused_dependency).unwrap_err(),
+        ModuleError::RootInstallationReachDependenciesMismatch
+    );
+
+    module.root_service_reach.concrete.clear();
+    assert_eq!(
+        validate_module(&module).unwrap_err(),
+        ModuleError::RootConcreteServiceReachMismatch {
+            declared: Vec::new(),
+            derived: vec![service_id(1)],
+        }
+    );
+    module.root_service_reach.concrete = vec![service_id(1)];
 
     module.root_service_reach.installation_dependencies[0]
         .requirement_identity

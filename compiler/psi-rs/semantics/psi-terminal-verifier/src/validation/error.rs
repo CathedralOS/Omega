@@ -171,6 +171,12 @@ pub enum ModuleError {
     },
     InvalidInstallationReachDependency(usize),
     NonCanonicalInstallationReachDependencies,
+    InstallationReachBoundaryMismatch(BoundaryMachineId),
+    RootConcreteServiceReachMismatch {
+        declared: Vec<ServiceId>,
+        derived: Vec<ServiceId>,
+    },
+    RootInstallationReachDependenciesMismatch,
     DuplicateBoundaryMachine(BoundaryMachineId),
     InvalidBoundaryMachineIdentity(BoundaryMachineId),
     UnknownMachineAttachment {

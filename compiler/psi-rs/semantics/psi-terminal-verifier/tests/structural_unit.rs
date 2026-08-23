@@ -2594,6 +2594,7 @@ fn scalar_return_cannot_abandon_linear_structural_custody() {
     let scalar = module.machines.remove(1);
     module.machines = vec![scalar];
     module.entry = machine_id(2);
+    module.root_service_reach.concrete.clear();
     let value = ValueId::new(1).expect("scalar value");
     let result = ValueDeclaration {
         id: ValueId::new(2).expect("result value"),
@@ -2744,6 +2745,7 @@ fn unit_return_requires_exact_reverse_order_affine_discards() {
     *trivial_affine_discards = vec![place_id(4), place_id(2)];
     module.entry = machine.id;
     module.machines = vec![machine];
+    module.root_service_reach.concrete.clear();
     validate_module(&module).expect("complete reverse-order affine cleanup should validate");
 
     let mut missing = module.clone();
@@ -2834,6 +2836,7 @@ fn scalar_return_requires_exact_affine_discards() {
     };
     module.entry = machine.id;
     module.machines = vec![machine];
+    module.root_service_reach.concrete.clear();
     validate_module(&module).expect("scalar return should validate exact affine cleanup");
     verify_module(
         &module,
@@ -2941,6 +2944,7 @@ fn jump_applies_a_canonical_subset_of_affine_discards() {
     ];
     module.entry = machine.id;
     module.machines = vec![machine];
+    module.root_service_reach.concrete.clear();
     validate_module(&module).expect("jump may discard a canonical eligible subset");
 
     let mut reordered = module.clone();
@@ -3044,6 +3048,7 @@ fn conditional_applies_affine_discards_only_to_each_selected_successor() {
     ];
     module.entry = machine.id;
     module.machines = vec![machine];
+    module.root_service_reach.concrete.clear();
     validate_module(&module).expect("each conditional successor owns its cleanup subset");
 
     let mut reordered = module;
@@ -3394,7 +3399,10 @@ fn hard_root_module() -> TerminalModule {
         structural_types: vec![resource, other],
         structural_domains: vec![pending],
         services: vec![port_io],
-        root_service_reach: Default::default(),
+        root_service_reach: psi_terminal::TerminalRootServiceReach {
+            concrete: vec![service_id(1)],
+            installation_dependencies: Vec::new(),
+        },
         boundary_machines: vec![boundary],
         provider_candidates: Vec::new(),
         float_meaning_projections: Vec::new(),

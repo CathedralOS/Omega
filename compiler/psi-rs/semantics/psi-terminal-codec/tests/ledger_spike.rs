@@ -448,7 +448,10 @@ fn structural_effect_ledger_fixture() -> TerminalModule {
             identity: "PortSpace".into(),
             parents: Vec::new(),
         }],
-        root_service_reach: Default::default(),
+        root_service_reach: psi_terminal::TerminalRootServiceReach {
+            concrete: vec![service],
+            installation_dependencies: Vec::new(),
+        },
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         float_meaning_projections: Vec::new(),

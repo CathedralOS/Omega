@@ -6556,12 +6556,15 @@ state through a raw address.
     concrete row separately from exact bounded dependencies. The canonical
     codec and verifier retain and validate both, and final root admission
     resolves that closure against selected provider facts while rejecting an
-    absent selection or changed bound; it never reconstructs concrete reach by
-    subtracting bounds.
-  - **Remaining:** prove the retained concrete row exact against the Terminal
-    executable call graph, including legitimate overlap with abstract bounds;
-    carry the closure through the other root-capable Terminal producers; reject
-    unresolved rows escaping ordinary callable package or component contracts.
+    absent selection or changed bound. The Terminal verifier independently
+    reconstructs the entry's concrete service closure and used installation
+    dependencies from executable calls and operations. Missing, padded, stale,
+    or unused rows reject; a direct concrete use remains concrete even when it
+    also appears in an abstract bound. Neither lowering nor verification
+    reconstructs concrete reach by subtracting bounds.
+  - **Remaining:** carry the closure through the other root-capable Terminal
+    producers; reject unresolved rows escaping ordinary callable package or
+    component contracts.
   - **Constraints:** `+` is union. Do not infer one shared row from equal sets or
     add negation, subtraction, lower bounds, exclusive-or, named row variables,
     or cross-requirement correlation.
