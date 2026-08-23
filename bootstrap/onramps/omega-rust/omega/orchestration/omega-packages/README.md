@@ -110,7 +110,7 @@ cargo test -p omega-packages --test remote_fixtures -- --ignored --test-threads=
 - `commands`: internal source-audit command API plus CLI-ready source locator
   parsing for local paths, `file://`, HTTPS Git URLs, and SSH/scp-style Git
   locators. It also contains locator-backed source audit, locator-backed
-  source-cache policy records, capability-change receipt creation,
+  source-cache policy records and record writes, capability-change receipt creation,
   manifest-file backed lock assembly, lock-file backed install/update plan
   commands, and lock-file plus manifest-file backed graph-audit command seams
   for future CLI wiring.

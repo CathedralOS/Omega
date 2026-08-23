@@ -159,22 +159,24 @@ fn audit_source_cache_policy(arguments: impl Iterator<Item = std::ffi::OsString>
         );
         std::process::exit(2);
     };
-    match omega_packages::resolve_source_cache_record_locator(
-        arguments.locator,
-        arguments.rev,
-        &arguments.cache_dir,
-        omega_packages::LocalSourceLimits::default(),
-    ) {
+    let record = if let Some(out_path) = &arguments.out_path {
+        omega_packages::write_source_cache_record_locator(
+            arguments.locator,
+            arguments.rev,
+            &arguments.cache_dir,
+            omega_packages::LocalSourceLimits::default(),
+            out_path,
+        )
+    } else {
+        omega_packages::resolve_source_cache_record_locator(
+            arguments.locator,
+            arguments.rev,
+            &arguments.cache_dir,
+            omega_packages::LocalSourceLimits::default(),
+        )
+    };
+    match record {
         Ok(record) => {
-            if let Some(out_path) = &arguments.out_path {
-                if let Err(error) = record.write_to_path(out_path) {
-                    eprintln!(
-                        "cannot write source-cache policy record {}: {error:?}",
-                        out_path.display()
-                    );
-                    std::process::exit(1);
-                }
-            }
             print!("{}", record.to_json());
         }
         Err(error) => {

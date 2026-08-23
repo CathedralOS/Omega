@@ -128,8 +128,9 @@ Completed:
   Done 2026-08-23: `omega-packages` can parse source-cache policy record JSON
   with strict schema-version, required/unknown field, verdict, optional
   string, and integer checks; read/write standalone record files through
-  same-directory temporary files and atomic rename; and preserve deterministic
-  record fingerprints across read/write round trips.
+  same-directory temporary files and atomic rename; expose command-level
+  locator-to-record-file writing; and preserve deterministic record
+  fingerprints across read/write round trips.
 
 - **PACKAGE-LOCK-CLOSURE-VALIDATION.** Add fail-closed validation for assembled
   package lock closures before compiler/CLI lock wiring.
