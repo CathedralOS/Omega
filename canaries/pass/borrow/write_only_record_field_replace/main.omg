@@ -1,0 +1,23 @@
+// PASS canary: one direct common field of a plain record is a
+// content-independent write-only place. Replacing its unrestricted primitive
+// value observes neither that field nor any sibling.
+
+data Pair {
+    left: u8;
+    right: u16;
+}
+
+machine fill(pair: &write Pair) {
+    pair.left = 1;
+    pair.right = 2;
+}
+
+machine forward(pair: &write Pair) {
+    fill(&write pair);
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

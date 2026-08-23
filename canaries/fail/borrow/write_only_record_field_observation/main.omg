@@ -1,0 +1,17 @@
+// FAIL canary: admitting a direct record-field store never grants observation
+// of that field's prior contents.
+
+data Pair {
+    left: u8;
+    right: u8;
+}
+
+machine observe(pair: &write Pair) {
+    let prior: u8 = pair.left;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

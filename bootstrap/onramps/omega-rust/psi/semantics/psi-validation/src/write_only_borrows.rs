@@ -2,6 +2,7 @@ use psi_diagnostics::Diagnostic;
 use psi_language_semantics::{MachineSupplyMode, ReferenceAccess};
 use psi_symbols::SymbolHandle;
 use psi_typed_trees::TypedTrees;
+use psi_typed_trees::data::{DataDefinition, DataMember, DataShapeKind};
 use psi_typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use psi_typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 use psi_typed_trees::types::{
@@ -57,7 +58,7 @@ pub(crate) fn validate_checked_write_only_slice(
             for root in &roots {
                 if !is_supported_checked_referee(program, root.referee) {
                     diagnostics.push(Diagnostic::error(format!(
-                        "machine `{}` state `{}` parameter `{}` uses `&write` with `{}`; the current checked slice supports unrestricted primitive scalars and fixed byte arrays",
+                        "machine `{}` state `{}` parameter `{}` uses `&write` with `{}`; the current checked slice supports unrestricted primitive scalars, fixed byte arrays, and non-generic invariant-free checked records",
                         machine.name,
                         state.name,
                         root.name,
@@ -109,6 +110,84 @@ fn fixed_byte_array_length(
 fn is_supported_checked_referee(program: &TypedTrees, type_reference: TypeReferenceHandle) -> bool {
     is_unrestricted_scalar(program, type_reference)
         || fixed_byte_array_length(program, type_reference).is_some()
+        || write_only_record(program, type_reference).is_some()
+}
+
+/// The first aggregate rung is deliberately nominal and closed. It admits an
+/// ordinary checked record only when its shape is known without substitution
+/// and no authored default-domain fact can couple a field write to retained
+/// content. Field eligibility is checked separately at the exact assignment
+/// target, so a record may contain wider siblings without making them writable.
+fn write_only_record<'program>(
+    program: &'program TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Option<&'program DataDefinition> {
+    let TypeReferenceNode::Named { symbol, .. } =
+        program.type_reference_table.type_reference(type_reference)
+    else {
+        return None;
+    };
+    let definition = program
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.symbol == *symbol)?;
+    (definition.supply_mode == psi_language_semantics::DataSupplyMode::CheckedShape
+        && definition.lifetime_parameters.is_empty()
+        && program.data_type_parameters(definition).is_empty()
+        && definition.quotient.is_none()
+        && definition.where_facts.is_empty()
+        && !definition.zero_gated
+        && DataDefinition::shape_kind_from_members(program.data_members(definition))
+            == DataShapeKind::Record)
+        .then_some(definition)
+}
+
+fn whole_root_replacement_is_supported(program: &TypedTrees, root: &WriteOnlyRoot) -> bool {
+    is_unrestricted_scalar(program, root.referee)
+        || fixed_byte_array_length(program, root.referee).is_some()
+        || write_only_record(program, root.referee).is_some_and(|definition| {
+            definition.properties.multiplicity == psi_language_semantics::Multiplicity::Unrestricted
+        })
+}
+
+/// Recognize exactly `root.common_field`, where the root is an admitted plain
+/// record and the displaced field is a relevant, unconstrained primitive.
+/// This is a store-place judgment only: expression traversal still rejects
+/// reading the same member, and a member receiver that is itself a projection
+/// remains outside this rung.
+fn write_only_record_field_assignment(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    roots: &[WriteOnlyRoot],
+) -> bool {
+    let ExpressionNode::Member(member) = program.expression_table.expression(expression) else {
+        return false;
+    };
+    if member.case_variant.is_some() {
+        return false;
+    }
+    let Some(root) = direct_write_only_root(program, member.receiver, roots) else {
+        return false;
+    };
+    let Some(definition) = write_only_record(program, root.referee) else {
+        return false;
+    };
+    let Some(field) = program
+        .data_members(definition)
+        .iter()
+        .find_map(|candidate| {
+            let DataMember::Field(field) = candidate else {
+                return None;
+            };
+            ((member.member_symbol.is_valid() && field.symbol == member.member_symbol)
+                || (!member.member_symbol.is_valid()
+                    && field.name.as_str() == member.member.as_str()))
+            .then_some(field)
+        })
+    else {
+        return false;
+    };
+    !field.relevance.is_erased() && is_unrestricted_scalar(program, field.type_reference)
 }
 
 fn validate_statement(
@@ -124,8 +203,19 @@ fn validate_statement(
             validate_expression(program, machine, state, fact.expression, roots, diagnostics)
         }
         StatementNode::Assignment(assignment) => {
-            if direct_write_only_root(program, assignment.target, roots).is_some() {
-                // Whole-value replacement observes no prior content.
+            if let Some(root) = direct_write_only_root(program, assignment.target, roots) {
+                if !whole_root_replacement_is_supported(program, root) {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "machine `{machine}` state `{state}` replaces whole write-only record `{}`; whole-root replacement requires a freely discardable root, so replace one eligible direct primitive field or declare and prove an unrestricted record instead",
+                        root.name,
+                    )));
+                }
+                // An admitted whole-value replacement observes no prior
+                // content. Record roots additionally satisfy the explicit
+                // discardability check above.
+            } else if write_only_record_field_assignment(program, assignment.target, roots) {
+                // One content-independent common-field store. The exact field
+                // place is retained by the ordinary checked mutation facts.
             } else if let Some(index) =
                 write_only_byte_element_assignment_index(program, assignment.target, roots)
             {
@@ -251,7 +341,7 @@ fn diagnose_unsupported_write_only_assignment_target(
     }
 
     diagnostics.push(Diagnostic::error(format!(
-        "machine `{machine}` state `{state}` projects or observes a write-only parameter in an assignment target; the current `&write` slice permits whole-root replacement and proven-in-bounds element replacement for fixed byte arrays"
+        "machine `{machine}` state `{state}` writes through an unsupported write-only projection; accepted partial stores are a direct common field of a non-generic invariant-free record when the displaced field is an unconstrained unrestricted primitive, or a proven-in-bounds element of a fixed byte array; nested, sum-payload, qualified, invariant-dependent, range, take, swap, and read-modify-write operations remain rejected"
     )));
 }
 
@@ -297,7 +387,7 @@ fn validate_expression(
             ReferenceAccess::WriteOnly => {
                 if !is_direct_name(program, borrow.target) {
                     diagnostics.push(Diagnostic::error(format!(
-                        "machine `{machine}` state `{state}` forms `&write` from a projection or computed expression; the current checked slice supports explicit attenuation of a whole scalar root only"
+                        "machine `{machine}` state `{state}` forms `&write` from a projection or computed expression; the current checked slice supports explicit attenuation of a whole parameter only"
                     )));
                 }
             }
@@ -318,7 +408,7 @@ fn validate_expression(
         ExpressionNode::Member(member) => {
             if let Some(root) = mentioned_write_only_root(program, member.receiver, roots) {
                 diagnostics.push(Diagnostic::error(format!(
-                    "machine `{machine}` state `{state}` projects field `{}` from write-only parameter `{}`; write-only projection is not implemented in the whole-scalar slice",
+                    "machine `{machine}` state `{state}` reads field `{}` from write-only parameter `{}`; a direct eligible record field may be replaced as an assignment target, but write-only projection never grants observation",
                     member.member, root.name,
                 )));
             } else {

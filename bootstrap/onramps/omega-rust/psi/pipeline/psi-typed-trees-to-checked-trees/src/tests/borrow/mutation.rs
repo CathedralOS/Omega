@@ -136,6 +136,94 @@ fn write_only_dynamic_byte_call_retains_collection_coarse_mutation() {
 }
 
 #[test]
+fn write_only_record_field_call_retains_exact_common_field() {
+    let source = r#"
+        data Pair {
+            left: u8;
+            right: u16;
+        }
+
+        machine fill(pair: &write Pair) {
+            pair.left = 7;
+        }
+
+        machine forward(pair: &write Pair) {
+            fill(&write pair);
+        }
+    "#;
+
+    let tokens = psi_source_files_to_tokens::Lexer::new(source)
+        .tokenize()
+        .expect("tokenize");
+    let syntax = psi_tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
+    let resolved =
+        psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).expect("resolve");
+    let program = psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+        .expect("type");
+    let pair = program
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Pair")
+        .expect("Pair definition");
+    let left_symbol = program
+        .data_members(pair)
+        .iter()
+        .find_map(|member| match member {
+            psi_typed_trees::data::DataMember::Field(field) if field.name.as_str() == "left" => {
+                Some(field.symbol)
+            }
+            _ => None,
+        })
+        .expect("Pair.left field");
+    let forward = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "forward")
+        .expect("forward machine");
+    let forward_state = program
+        .machine_states(forward)
+        .first()
+        .expect("forward entry state");
+    let pair_symbol = program
+        .state_parameters(forward_state)
+        .iter()
+        .find(|parameter| parameter.name.as_str() == "pair")
+        .map(|parameter| parameter.symbol)
+        .expect("forward pair parameter");
+
+    let facts = build_borrow_facts(&program);
+    let borrow_state = facts
+        .states
+        .iter()
+        .map(|(_, state)| state)
+        .find(|state| state.state_symbol == forward_state.symbol)
+        .expect("forward borrow state");
+    let call = facts
+        .calls
+        .span_or_empty(borrow_state.calls)
+        .first()
+        .expect("forwarding call");
+    let mut cache = StateMutationSummaryCache::default();
+    let places = call_mutated_places(
+        &program,
+        forward.symbol,
+        forward_state.symbol,
+        &facts,
+        call,
+        &mut cache,
+    );
+
+    assert_eq!(places.len(), 1, "exact callee write: {places:?}");
+    assert_eq!(places[0].root, psi_facts::PlaceRoot::Symbol(pair_symbol));
+    assert_eq!(
+        places[0].segments,
+        [psi_facts::PlaceSegment::Field {
+            symbol: left_symbol
+        }]
+    );
+}
+
+#[test]
 fn call_mutated_places_include_mutable_attached_data_arguments() {
     let machine_symbol = SymbolHandle::from_arena_index(1);
     let state_symbol = SymbolHandle::from_arena_index(2);
