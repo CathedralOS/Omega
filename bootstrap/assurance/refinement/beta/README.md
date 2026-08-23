@@ -687,13 +687,33 @@ fallthrough result remains caller-clobbered rather than being overclaimed.
 Nineteen isolated canaries in a 5.5 KB harness sever
 shape, bounded arithmetic, child value/order, fixed-byte totals, store census,
 or terminal restoration; the 12.2 KB shape and 12.8 KB meaning modules pass in
-the complete 205,641-byte checker. They remain conditional leaves: the next
-phase must bind PCAP's saved values and execute the at-most-four store loop.
+the complete 205,641-byte checker.
+
+`bc-parse-output-prefix-shape.alpha` and
+`bc-parse-output-prefix-summary.alpha` consume those leaves and close the
+deterministic `parse_proc` prefix from PCAP's successful room clause through
+`genbody` PC 50945. Exact blocks 345..348, transitions 282..285, events
+596..599, locals 231..239, primitives 801..804, split pushes 230..231 and
+365..368, the 48-byte frame, exhaustive table slices, and the decoded four-call
+/ eight-store quiet region bind the machine path. `PFXS` passes PCAP's saved
+name slice to `EIDS`, appends exact `":\n"`, passes exact `nslots` to `EPRO`,
+and initializes `k=0`. A complete fifteen-state sweep of
+`0<=k<=nparams<=4` closes the `EPAR(k)` backedge with strict
+`nparams-k` decrease and source-ordered output; the synthetic EPAR result is
+dead before the exact `k` reload. The exit trace is
+`prior || name || ":\n" || prologue(nslots) || concat(param_store(k),
+k=0..nparams-1)` with the active parse frame, status-zero room clause,
+source/input/CUR, and parameter table retained. Eighteen isolated canaries in a
+5.3 KB harness sever exact joins/censuses, the bounded domain, saved-name
+custody, literal length, EPAR argument/dead-result/successor facts, or exit
+state. The 8.4 KB shape and 12.0 KB meaning modules pass in the complete
+210,239-byte checker. This clause remains conditional on PCAP's room outcome
+and assigns no typed resource kind to numeric 252.
 
 The eventual `parse_proc` theorem must be maximal, not universally terminating.
 For malformed input, an unrecognized body byte such as `@` can survive both
 `gen_stmt` and the number fallback without cursor progress while `gen_stmts`
 keeps emitting. The honest contract is therefore Return-or-Diverge with exact
-finite/infinite output behavior. The next engineering milestones are the
-deterministic procedure prefix and body Return-or-Diverge relation; the existing
-typed status-252 projection is the only language-design blocker in this area.
+finite/infinite output behavior. The next engineering milestone is the body
+Return-or-Diverge relation; the existing typed status-252 projection is the
+only language-design blocker in this area.

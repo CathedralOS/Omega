@@ -450,8 +450,10 @@ or prescribe work inside the Rust on-ramp or the eventual product compiler.
 
 The O0/O1 vertical path is closed through a direct, lattice-written x86-64 ELF.
 The next evidence boundary is to grow that frozen slice into
-`omega-bootstrap`, widening Delta and direct artifact emission only as the exact
-`Ωself` compiler-source closure requires. Neither the canary profile nor the
+`omega-bootstrap`, widening bridge acceptance and direct artifact emission only
+as the exact `Ωself` compiler-source closure requires. Any Delta-language
+change remains a separately ruled, versioned change; compiler-source pressure
+must not silently widen the frozen language. Neither the canary profile nor the
 bridge compiler is a promise to accept full Omega.
 
 ## Cross-rung assurance work
@@ -1034,7 +1036,7 @@ bridge compiler is a promise to accept full Omega.
               terminal frames. Meaning and teeth remain 9.6 KB and 5.1 KB;
               the focused gate carries a 189,911-byte checker tape. No typed
               exhaustion kind is inferred from numeric 252.
-        - [ ] Compose the deterministic procedure prefix: name, `":\n"`,
+        - [x] Compose the deterministic procedure prefix: name, `":\n"`,
           prologue, and `nparams` parameter stores under `nslots<=1024`.
           - [x] Prove the exact `emit_ident_at(off,len)` leaf. Procedure 45's
             three blocks, guarded loop, direct byte output, explicit/synthetic
@@ -1081,14 +1083,57 @@ bridge compiler is a promise to accept full Omega.
             event/arithmetic joins, bounded sweeps, child arguments/order,
             fixed-byte totals, store census, or terminal frame. Shape, meaning,
             and teeth remain 12.2 KB, 12.8 KB, and 5.5 KB; the focused gate
-            carries a 205,641-byte checker tape. Reachability and the outer
-            parameter-store loop remain for the following PCAP bridge.
-          - [ ] Bridge PCAP's saved name/parameter/slot values into blocks
-            345..347 and close the at-most-four parameter-store loop.
+            carries a 205,641-byte checker tape. The following PCAP bridge
+            consumes these conditional leaves.
+          - [x] Bridge PCAP's saved name/parameter/slot values into blocks
+            345..347 and close the at-most-four parameter-store loop. Exact
+            `PFXS` shape binds blocks 345..348, transitions 282..285, events
+            596..599 and their targets/continuations, locals 231..239,
+            primitives 801..804, pushes 230..231/365..368, the 48-byte frame,
+            exhaustive effect/expression rows, and the decoded four-call /
+            eight-store quiet region. Conditional meaning selects PCAP's
+            published `nslots<=1024` completion, passes its saved name slice to
+            `EIDS`, appends the exact `":\n"` event, passes exact `nslots` to
+            `EPRO`, initializes `k=0`, and invokes `EPAR(k)` in source order
+            exactly while `k<nparams`. The complete fifteen-state
+            `0<=k<=nparams<=4` sweep establishes successor closure and strict
+            `nparams-k` decrease; EPAR's caller-clobbered result is dead before
+            the checked reload. The false edge reaches `genbody` PC 50945 with
+            exact output `prior || name || ":\n" || prologue(nslots) ||
+            concat(param_store(k), k=0..nparams-1)`, retaining the parse frame,
+            status-zero room clause, source/input/CUR, and parameter table.
+            Eighteen isolated canaries cover exact joins/censuses, the full
+            bounded domain, saved-name custody, literal length, EPAR argument,
+            dead-result separation, successor/rank, and exit state. Shape,
+            meaning, and teeth remain 8.4 KB, 12.0 KB, and 5.3 KB; the focused
+            gate carries a 210,239-byte checker tape. No typed exhaustion kind
+            is inferred from numeric 252.
         - [ ] Give `gen_stmts`/`gen_stmt`/expression recursion maximal finite or
           infinite trace meaning. On a finite return, compose parse_proc's
           unconditional epilogue and return zero even when a nested resource
           guard has set `RESOURCE_FAIL=252`.
+          - [ ] First close procedure 62's root-independent boundary theorem.
+            Bind blocks 308..314 and split exact depth-64 exhaustion,
+            post-`skip_ws` resource return, close-brace consumption, logical
+            end/NUL return, and the remaining-byte call cutpoint into
+            `gen_stmt`. Publish the active frame and `BLOCKDEPTH=D+1` at that
+            cutpoint without claiming a body outcome yet.
+          - [ ] Close the mutually recursive expression component under the
+            checked `EXPRDEPTH<=64` induction, including the general-word
+            decimal-emission and parse/lookup/code-emission leaves it actually
+            imports. The existing bounded `DECS(0..8192)` theorem is not enough
+            for wrapped arbitrary-word literals.
+          - [ ] Build `gen_stmt`'s exact branch relation from those expression
+            results and the finite or divergent outcomes of its block/state
+            children; then take the guarded greatest fixed point of the
+            `gen_stmts`/`gen_block`/`gen_state`/`gen_stmt` component. Guard every
+            infinite clause by an executed call or backedge, carry stdout as an
+            ordered prefix chain, and do not require output productivity because
+            the canonical observable admits divergence after a finite trace.
+          - [ ] Compose PFXS's `genbody` cutpoint through event 600. A finite
+            body return must always execute event 601's `emit_epilogue` and
+            event 602's explicit return zero, including when a child has stored
+            numeric 252; a divergent child absorbs the remaining suffix.
       - [ ] **DESIGN BLOCKED — observation ruling required:** define how the
         theorem assigns typed `Exhaust(ResourceKind, limit, requested)` to the
         exact resource-guard paths whose program-level result is only 252/253.
@@ -1139,8 +1184,8 @@ bridge compiler is a promise to accept full Omega.
    real obligation classes.
 5. Build translation-validation evidence for native compiler outputs.
 6. Grow the closed O0/O1 vertical path—source through direct ELF—into
-   `omega-bootstrap`, accepting exactly `Ωself` and carrying enough lowering and
-   optimization to perform the required hosted compile.
+   `omega-bootstrap`, accepting exactly `Ωself` and carrying correct
+   conservative lowering sufficient for the required hosted compile.
 7. Use `omega-bootstrap` once to build and validate the full optimizing Omega
    compiler from the `Ωself` production source manifest. Treat any later
    product self-rebuild as optional assurance evidence, not another rung.

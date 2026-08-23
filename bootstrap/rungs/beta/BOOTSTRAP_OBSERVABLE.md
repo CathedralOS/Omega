@@ -315,8 +315,20 @@ are valuable teeth, but they do not yet establish the quantified observation:
   decoded inventories bind both conditional clauses; they restore their callers
   and preserve compiler state apart from output. The prologue's explicit return
   is zero; the parameter emitter's unused synthetic-fallthrough result remains
-  caller-clobbered. The PCAP value bridge and outer at-most-four parameter-store
-  loop remain open;
+  caller-clobbered;
+- its deterministic procedure-prefix composition selects PCAP's successful
+  `nslots<=1024` clause, emits the saved procedure-name slice and exact `":\n"`,
+  passes exact `nslots` to the prologue emitter, and executes the parameter-store
+  emitter in source order exactly for `k=0..nparams-1`. Exact blocks 345..348,
+  transitions, calls/continuations, local accesses, expressions, frame, and
+  decoded quiet-region census bind the path. A complete fifteen-state sweep of
+  `0<=k<=nparams<=4` proves backedge closure and strict `nparams-k` decrease;
+  the parameter emitter's result is dead before the checked `k` reload. The
+  false guard reaches `genbody` PC 50945 with output
+  `prior || name || ":\n" || prologue(nslots) || concat(param_store(k))` and
+  retains the active parse frame, status-zero room clause, source/input/CUR, and
+  parameter table. This is conditional on PCAP and gives numeric 252 no typed
+  resource meaning;
 - no total `parse_proc` claim is currently made. Malformed procedure bodies can
   make `gen_stmts` diverge while emitting—for example when an unrecognized byte
   is never consumed—so closure requires maximal Return-or-Diverge and finite/
