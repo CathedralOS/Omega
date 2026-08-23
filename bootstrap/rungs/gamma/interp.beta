@@ -23,8 +23,10 @@
 ; transitions back to itself.
 ;
 ; Memory:  2097152 SRC [2 MiB,6 MiB)  2097144 CUR  2097136 LEN  2097128 APTR  2097120 NFUNC
-;          2097112 ENVN 2097104 FRAMEBASE   6291456 FUNCS [6 MiB,7 MiB)
+;          2097112 ENVN 2097104 FRAMEBASE 2097096 ARGSP 2097088 ARG_EXHAUSTED
+;          6291456 FUNCS [6 MiB,7 MiB)
 ;          7340032 ENV [7 MiB,12 MiB)  12582912 SMALL_INTS (-1..65535; ends just above 14 MiB)
+;          14680096 ARG_SCRATCH [4 KiB; 512 values)  14684192 VTAIL_SENTINEL
 ;          16777216 ARENA (~48 MiB)
 ; AST/value nodes are 4 words [tag,f0,f1,f2] (32-byte stride). Func entries 3 words
 ; [name_off, paramlist, body]. Env entries 2 words [name_off, value]; -1 = unnamed arg.
@@ -62,6 +64,9 @@ proc slurp() {
         word[2097120] = 0        ; NFUNC
         word[2097112] = 0        ; ENVN
         word[2097104] = 0        ; FRAMEBASE
+        word[2097096] = 14680096 ; ARGSP — checked evaluator-private argument scratch
+        word[2097088] = 0        ; ARG_EXHAUSTED
+        word[14684192] = 103     ; stable evaluator-private VTAIL sentinel
         return 0
     }
     state exhausted { return 252 }
@@ -521,29 +526,34 @@ proc eval_args(args, fuel) {         ; AST arg-CONS -> value-CONS (evaluated)
     }
 }
 
-; Evaluate call arguments left-to-right into a private list. Ordinary calls bind
-; directly from their source argument spine; the value list is needed only when
-; a tail call discards its caller frame before installing the callee frame.
-proc eval_value_args(args, fuel) {
-    state chk { to more when (args != 0)  return 0 }
-    state more {
+; Evaluate call arguments left-to-right into a bounded evaluator-private stack.
+; A nested call starts above its caller's pending arguments and restores its own
+; mark after binding, so no source-visible Gamma value aliases this storage.
+proc eval_scratch_args(args, fuel) {
+    state loop {
+        to done when (args == 0)
+        to exhausted when (word[2097096] == 14684192)
         let h = eval(word[args + 8], fuel)
-        let t = eval_value_args(word[args + 16], fuel)
-        return alloc(6, h, t, 0)
+        to exhausted when (word[2097088] != 0)
+        word[word[2097096]] = h
+        word[2097096] = word[2097096] + 8
+        args = word[args + 16]
+        to loop
     }
+    state exhausted { word[2097088] = 1  return 0 }
+    state done { return 0 }
 }
 
-proc bind_value_args(fi, values) {
+proc bind_scratch_args(fi, values) {
     let p = word[6291456 + fi * 24 + 8]
-    let a = values
     state loop {
         to body when (p != 0)
         return 0
     }
     state body {
-        env_push(word[p + 8], word[a + 8])
+        env_push(word[p + 8], word[values])
         p = word[p + 16]
-        a = word[a + 16]
+        values = values + 8
         to loop
     }
 }
@@ -606,28 +616,42 @@ proc eval_tail(expr, fuel) {
     }
     state tail_no_match { return mk_int(0) }
     state tail_call {
-        let values = eval_value_args(word[expr + 16], fuel)
-        return alloc(103, word[expr + 8], values, 0)
+        let values = word[2097096]
+        eval_scratch_args(word[expr + 16], fuel)
+        word[14684200] = word[expr + 8]
+        word[14684208] = values
+        word[14684216] = word[2097096]
+        return 14684192
     }
 }
 
 proc eval_call(foff, args, fuel) {
     let base = word[2097112]         ; env depth before args
     let savebase = word[2097104]
-    let values = eval_value_args(args, fuel)
+    let values = word[2097096]
+    eval_scratch_args(args, fuel)
     let fi = func_lookup(foff)
     state install {
+        to exhausted when (word[2097088] != 0)
         word[2097112] = base
         word[2097104] = base
-        bind_value_args(fi, values)
+        bind_scratch_args(fi, values)
+        word[2097096] = values
         to body
     }
     state body {
         let r = eval_tail(word[6291456 + fi * 24 + 16], fuel - 1)
+        to exhausted when (word[2097088] != 0)
         to tail when (word[r] == 103)
         word[2097112] = base
         word[2097104] = savebase
         return r
+    }
+    state exhausted {
+        word[2097096] = values
+        word[2097112] = base
+        word[2097104] = savebase
+        return mk_int(0)
     }
     state tail {
         foff = word[r + 8]
@@ -953,8 +977,10 @@ proc main() {
         let result = eval(parse_expr(), 50000000)   ; fuel: an upper BOUND on calls, not a cost — programs
                                                     ; that terminate sooner are unaffected. 1M starved real
                                                     ; certifier runs (each list index is an O(i) nth chain).
+        to argument_exhausted when (word[2097088] != 0)
         print_value(result)          ; render the value (int or constructor tree)
         write_byte(10)
         return get_int(result)       ; and deliver an int result as the exit code
     }
+    state argument_exhausted { return 253 }
 }

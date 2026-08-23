@@ -32,11 +32,10 @@ reserved `compiler/{psi,omega}/` product roots.
   samples through that route.
 - [`gates/kernel-diamond.sh`](gates/kernel-diamond.sh) compares the supported kernel subset across current native
   and meaning implementations. It is a regression/coverage gate.
-- [`gates/lowermachine-elaboration-capacity.sh`](gates/lowermachine-elaboration-capacity.sh)
-  pins the actual Delta compiler's marker-free elaboration, exact state-table
-  boundaries, bounded persistent-array carrier, and canonical Gamma source
-  ceiling. It deliberately does not claim that the full compiler executes
-  within Gamma's current evaluation arena.
+- [`gates/lowermachine-meaning.sh`](gates/lowermachine-meaning.sh) pins the
+  actual Delta compiler's marker-free elaboration, exact state-table boundaries,
+  bounded persistent-array carrier, canonical Gamma source ceiling, and a
+  complete tiny compile whose status and output bytes equal native execution.
 - [`gates/delta-terminal-to-elf-meaning.sh`](gates/delta-terminal-to-elf-meaning.sh)
   compares the Delta backend's complete status and artifact bytes across native
   execution and the Rust-free Gamma meaning route, including malformed and
@@ -79,9 +78,10 @@ Omega checking. This closes O1, not the future full Omega0 backend.
 The meaning route covers a growing kernel subset and must refuse unsupported
 shapes loudly. Full Omega source semantics, complete terminal-Psi obligation
 reconstruction, and a Delta-built compiler remain open. The existing
-`lowermachine.alp` now elaborates marker-free through this route, but even a tiny
-compile still exhausts the canonical interpreter's fixed evaluation arena; that
-execution edge remains an explicit engineering task. Exact supported cases
+`lowermachine.alp` now elaborates marker-free and compiles the arithmetic sample
+through this route with the exact native status and 800 output bytes. This is
+whole-compiler meaning evidence for the existing Delta compiler, not the future
+Omega compiler or its production-self-host profile. Exact supported cases
 belong beside the scripts that gate them rather than in a drifting count here.
 
 See:
