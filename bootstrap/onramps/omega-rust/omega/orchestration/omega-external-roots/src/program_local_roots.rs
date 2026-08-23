@@ -873,17 +873,55 @@ impl ProgramLocalRootInstallationLedger {
         EstablishedProgramLocalRoot<'root, 'code>,
         Box<ProgramLocalRootEstablishmentError<'subject, 'code>>,
     > {
-        let reject = |subject, diagnostic: &str| {
-            Err(Box::new(ProgramLocalRootEstablishmentError {
-                subject,
+        match self.establish_batch(runtime, lifecycle, [subject]) {
+            Ok(mut roots) => Ok(roots
+                .pop()
+                .expect("one subject establishes exactly one program-local root")),
+            Err(error) => {
+                let diagnostic = error.diagnostic().clone();
+                let [subject]: [InstalledProgramLocalRootSubject<'subject, 'code>; 1] = error
+                    .into_subjects()
+                    .try_into()
+                    .expect("one-subject establishment returns exactly one subject");
+                Err(Box::new(ProgramLocalRootEstablishmentError {
+                    subject,
+                    diagnostic,
+                }))
+            }
+        }
+    }
+
+    /// Establish a finite set of installed-entry subjects in one transaction.
+    /// Every member, scalar roster, evaluated capacity, and lifecycle lease is
+    /// validated before any pending occurrence is removed. Rejection returns
+    /// every subject in source order and leaves the epoch runtime unchanged.
+    pub fn establish_batch<'root, 'subject, 'code>(
+        &mut self,
+        runtime: &mut ProgramLocalRootEpochRuntime<'root, 'code>,
+        lifecycle: &ComponentEraEntryLedger,
+        subjects: impl IntoIterator<Item = InstalledProgramLocalRootSubject<'subject, 'code>>,
+    ) -> Result<
+        Vec<EstablishedProgramLocalRoot<'root, 'code>>,
+        Box<ProgramLocalRootBatchEstablishmentError<'subject, 'code>>,
+    > {
+        let subjects = subjects.into_iter().collect::<Vec<_>>();
+        let reject = |subjects, diagnostic: &str| {
+            Err(Box::new(ProgramLocalRootBatchEstablishmentError {
+                subjects,
                 diagnostic: ExternalRootDiagnostic(diagnostic.into()),
             }))
         };
+        if subjects.is_empty() {
+            return reject(
+                subjects,
+                "program-local batch establishment requires at least one installed subject",
+            );
+        }
         if runtime.installed_required_slots != self.installed_required_slots
             || runtime.identity.installed_code() != self.installed_required_slots.installed_code()
         {
             return reject(
-                subject,
+                subjects,
                 "program-local runtime does not belong to this exact installation ledger",
             );
         }
@@ -891,104 +929,122 @@ impl ProgramLocalRootInstallationLedger {
             || lifecycle.current_era() != Some(runtime.identity.lifecycle_epoch())
         {
             return reject(
-                subject,
+                subjects,
                 "program-local establishment is not executing in the exact current lifecycle epoch",
             );
         }
 
-        let matches = runtime
-            .pending
-            .values()
-            .filter(|occurrence| {
-                occurrence.prebinding.matches_root(subject.root)
-                    && occurrence.prebinding.argument_index == subject.argument_index
-                    && occurrence.prebinding.source_parameter_position
-                        == subject.source_parameter_position
-                    && occurrence.prebinding.qualification_identity
-                        == subject.qualification_identity
-                    && occurrence.prebinding.carrier_identity == subject.carrier_identity
-            })
-            .map(|occurrence| occurrence.identity)
-            .collect::<Vec<_>>();
-        let [identity] = matches.as_slice() else {
-            return reject(
-                subject,
-                if matches.is_empty() {
-                    "program-local installed subject matches no pending exact cohort occurrence"
-                } else {
-                    "program-local installed subject ambiguously matches several pending cohort occurrences"
-                },
-            );
-        };
-        let identity = *identity;
-        let occurrence = runtime
-            .pending
-            .get(&identity)
-            .expect("matching occurrence remains pending during validation");
-        if !self.active_occurrences.contains(&identity)
-            || self.established_occurrences.contains(&identity)
-            || lifecycle
-                .validate_program_local_root_epoch_lease(&occurrence.epoch_lease)
-                .is_err()
-            || occurrence.epoch_lease.ledger() != lifecycle.identity()
-            || occurrence.epoch_lease.era_identity() != runtime.identity.lifecycle_epoch()
-        {
-            return reject(
-                subject,
-                "program-local cohort occurrence is not a live unestablished member of this epoch",
-            );
-        }
-
-        let expected_scalars = capacity_scalar_keys(&occurrence.prebinding.per_occurrence_capacity);
-        let supplied_scalars = subject.scalars.keys().cloned().collect::<BTreeSet<_>>();
-        if expected_scalars != supplied_scalars {
-            return reject(
-                subject,
-                "program-local installed subject omits or adds a verified capacity scalar",
-            );
-        }
-        let capacity = match evaluate_capacity(
-            &occurrence.prebinding.per_occurrence_capacity,
-            &subject.scalars,
-        ) {
-            Ok(capacity) => capacity,
-            Err(diagnostic) => {
-                return Err(Box::new(ProgramLocalRootEstablishmentError {
-                    subject,
-                    diagnostic,
-                }));
+        let mut selected = BTreeSet::new();
+        let mut validated = Vec::with_capacity(subjects.len());
+        for subject in &subjects {
+            let matches = runtime
+                .pending
+                .values()
+                .filter(|occurrence| {
+                    occurrence.prebinding.matches_root(subject.root)
+                        && occurrence.prebinding.argument_index == subject.argument_index
+                        && occurrence.prebinding.source_parameter_position
+                            == subject.source_parameter_position
+                        && occurrence.prebinding.qualification_identity
+                            == subject.qualification_identity
+                        && occurrence.prebinding.carrier_identity == subject.carrier_identity
+                })
+                .map(|occurrence| occurrence.identity)
+                .collect::<Vec<_>>();
+            let [identity] = matches.as_slice() else {
+                return reject(
+                    subjects,
+                    if matches.is_empty() {
+                        "program-local installed subject matches no pending exact cohort occurrence"
+                    } else {
+                        "program-local installed subject ambiguously matches several pending cohort occurrences"
+                    },
+                );
+            };
+            let identity = *identity;
+            if !selected.insert(identity) {
+                return reject(
+                    subjects,
+                    "program-local batch repeats one exact pending cohort occurrence",
+                );
             }
-        };
-        if !capacity_matches_algebra(&capacity, &occurrence.prebinding.algebra) {
-            return reject(
-                subject,
-                "program-local evaluated capacity does not match its verified content algebra",
-            );
+            let occurrence = runtime
+                .pending
+                .get(&identity)
+                .expect("matching occurrence remains pending during validation");
+            if !self.active_occurrences.contains(&identity)
+                || self.established_occurrences.contains(&identity)
+                || lifecycle
+                    .validate_program_local_root_epoch_lease(&occurrence.epoch_lease)
+                    .is_err()
+                || occurrence.epoch_lease.ledger() != lifecycle.identity()
+                || occurrence.epoch_lease.era_identity() != runtime.identity.lifecycle_epoch()
+            {
+                return reject(
+                    subjects,
+                    "program-local cohort occurrence is not a live unestablished member of this epoch",
+                );
+            }
+
+            let expected_scalars =
+                capacity_scalar_keys(&occurrence.prebinding.per_occurrence_capacity);
+            let supplied_scalars = subject.scalars.keys().cloned().collect::<BTreeSet<_>>();
+            if expected_scalars != supplied_scalars {
+                return reject(
+                    subjects,
+                    "program-local installed subject omits or adds a verified capacity scalar",
+                );
+            }
+            let capacity = match evaluate_capacity(
+                &occurrence.prebinding.per_occurrence_capacity,
+                &subject.scalars,
+            ) {
+                Ok(capacity) => capacity,
+                Err(diagnostic) => {
+                    return Err(Box::new(ProgramLocalRootBatchEstablishmentError {
+                        subjects,
+                        diagnostic,
+                    }));
+                }
+            };
+            if !capacity_matches_algebra(&capacity, &occurrence.prebinding.algebra) {
+                return reject(
+                    subjects,
+                    "program-local evaluated capacity does not match its verified content algebra",
+                );
+            }
+            validated.push((identity, capacity));
         }
 
-        let InstalledProgramLocalRootSubject {
-            root: _,
-            invocation,
-            argument_index: _,
-            source_parameter_position: _,
-            qualification_identity: _,
-            carrier_identity: _,
-            subject_place,
-            scalars,
-        } = subject;
-        let occurrence = runtime
-            .pending
-            .remove(&identity)
-            .expect("validated occurrence remains pending until the commit point");
-        let fresh = self.established_occurrences.insert(identity);
-        debug_assert!(fresh, "validated occurrence establishes exactly once");
-        Ok(EstablishedProgramLocalRoot {
-            occurrence,
-            invocation,
-            subject_place,
-            scalar_observations: scalars,
-            capacity,
-        })
+        Ok(subjects
+            .into_iter()
+            .zip(validated)
+            .map(|(subject, (identity, capacity))| {
+                let InstalledProgramLocalRootSubject {
+                    root: _,
+                    invocation,
+                    argument_index: _,
+                    source_parameter_position: _,
+                    qualification_identity: _,
+                    carrier_identity: _,
+                    subject_place,
+                    scalars,
+                } = subject;
+                let occurrence = runtime
+                    .pending
+                    .remove(&identity)
+                    .expect("validated occurrence remains pending until the batch commit point");
+                let fresh = self.established_occurrences.insert(identity);
+                debug_assert!(fresh, "validated occurrence establishes exactly once");
+                EstablishedProgramLocalRoot {
+                    occurrence,
+                    invocation,
+                    subject_place,
+                    scalar_observations: scalars,
+                    capacity,
+                }
+            })
+            .collect())
     }
 
     /// Retire one established root and release its exact lifecycle hold. A
@@ -1553,6 +1609,22 @@ impl<'root, 'code> ProgramLocalRootEstablishmentError<'root, 'code> {
 
     pub fn into_subject(self) -> InstalledProgramLocalRootSubject<'root, 'code> {
         self.subject
+    }
+}
+
+#[derive(Debug)]
+pub struct ProgramLocalRootBatchEstablishmentError<'root, 'code> {
+    subjects: Vec<InstalledProgramLocalRootSubject<'root, 'code>>,
+    diagnostic: ExternalRootDiagnostic,
+}
+
+impl<'root, 'code> ProgramLocalRootBatchEstablishmentError<'root, 'code> {
+    pub const fn diagnostic(&self) -> &ExternalRootDiagnostic {
+        &self.diagnostic
+    }
+
+    pub fn into_subjects(self) -> Vec<InstalledProgramLocalRootSubject<'root, 'code>> {
+        self.subjects
     }
 }
 

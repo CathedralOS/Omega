@@ -40,14 +40,46 @@ const SOURCE: &str = r#"
     }
 "#;
 
-fn lowered() -> psi_checked_trees_to_terminal::LoweredTerminalPsi {
-    let tokens = Lexer::new(SOURCE).tokenize().expect("tokenize");
+const INDEXED_SOURCE: &str = r#"
+    data ByteUnit {}
+    data CountedQuantity<Unit> { magnitude: u64; }
+    trait Content<A> {
+        machine project(subject: &Self) -> A;
+    }
+
+    data Region [linear] { length: u64; }
+    domain<T, const N: u64> T::Owned<N>
+    established by RegionEntry::enter;
+    machine Owned::content(region: &Region in Owned<4>) -> CountedQuantity<ByteUnit>
+    satisfies Content<CountedQuantity<ByteUnit>>::project
+    {
+        CountedQuantity { magnitude: region.length }
+    }
+
+    boundary trait RegionEntry {
+        machine enter(region: Region in Owned<4>);
+    }
+
+    data Root {}
+    machine Root::run<machine Enter>(region: Region in Owned<4>)
+    where machine Enter satisfies RegionEntry::enter;
+    {
+        Enter(region);
+    }
+"#;
+
+fn lowered_source(source: &str) -> psi_checked_trees_to_terminal::LoweredTerminalPsi {
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = lower_syntax_trees(&syntax).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("check");
     psi_checked_trees_to_terminal::lower_machine(&checked, "Root::run")
         .expect("lower program-local introduction schema")
+}
+
+fn lowered() -> psi_checked_trees_to_terminal::LoweredTerminalPsi {
+    lowered_source(SOURCE)
 }
 
 fn owned_producer_catalog() -> VerifiedProgramLocalRootProducerCatalog {
@@ -224,5 +256,54 @@ fn duplicate_schema_cannot_cross_the_verified_catalog_gate() {
         )
         .is_err(),
         "a duplicate producer row cannot yield the VerifiedTerminalModule required by the catalog"
+    );
+}
+
+#[test]
+fn closed_indexed_domain_applications_remain_exact_program_local_root_families() {
+    let first = lowered_source(INDEXED_SOURCE);
+    let second_source = INDEXED_SOURCE.replace("Owned<4>", "Owned<8>");
+    let second = lowered_source(&second_source);
+
+    let first_schema =
+        &first.semantic_module.boundary_machines[0].program_local_root_introductions[0];
+    let second_schema =
+        &second.semantic_module.boundary_machines[0].program_local_root_introductions[0];
+    let first_domain = first
+        .semantic_module
+        .structural_domains
+        .iter()
+        .find(|domain| domain.id == first_schema.qualification)
+        .expect("first closed indexed qualification");
+    let second_domain = second
+        .semantic_module
+        .structural_domains
+        .iter()
+        .find(|domain| domain.id == second_schema.qualification)
+        .expect("second closed indexed qualification");
+
+    assert!(first_domain.identity.contains("integer:u64:4"));
+    assert!(second_domain.identity.contains("integer:u64:8"));
+    assert_ne!(first_domain.identity, second_domain.identity);
+    assert_ne!(first_schema.identity, second_schema.identity);
+
+    psi_terminal_verifier::verify_module(
+        &first.semantic_module,
+        &first.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("first closed family instance verifies");
+    psi_terminal_verifier::verify_module(
+        &second.semantic_module,
+        &second.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("second closed family instance verifies");
+
+    let mut substituted = second.semantic_module;
+    substituted.boundary_machines[0].program_local_root_introductions[0] = first_schema.clone();
+    assert!(
+        psi_terminal_verifier::validate_module_representation(&substituted).is_err(),
+        "one closed family instance cannot substitute another"
     );
 }

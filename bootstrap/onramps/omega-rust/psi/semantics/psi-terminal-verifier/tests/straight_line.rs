@@ -3121,6 +3121,14 @@ fn sum_case_content_paths_require_nonempty_case_names() {
 
 #[test]
 fn identity_reshuffles_fail_closed_when_malformed() {
+    let (mut parentless_result, _, _) = identity_reshuffle_module();
+    parentless_result.machines[0].content_entry_claims.clear();
+    assert_eq!(
+        validate_module(&parentless_result)
+            .expect_err("a qualified result cannot mint content without an exact parent claim"),
+        ModuleError::ContentIdentityClaimHasNoEntryBinding(ClaimId::new(1).expect("claim"))
+    );
+
     let (mut empty, _, _) = identity_reshuffle_module();
     empty.machines[0].content_identity_reshuffles[0]
         .projections

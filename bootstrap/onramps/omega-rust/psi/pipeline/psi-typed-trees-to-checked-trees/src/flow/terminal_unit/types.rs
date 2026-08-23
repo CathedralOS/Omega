@@ -170,16 +170,16 @@ pub(super) fn checked_state_contracts_supported(
                     }) else {
                         return false;
                     };
-                    let Some(domain) = program
-                        .domain_definitions()
-                        .iter()
-                        .find(|domain| domain.symbol == membership.domain_symbol)
-                    else {
+                    let Some(domain) = type_domain_semantic_id(
+                        program,
+                        source_parameters[position].type_reference,
+                        membership.domain_symbol,
+                    ) else {
                         return false;
                     };
                     structural_parameters.iter().any(|parameter| {
                         parameter.position as usize == position
-                            && parameter.qualifications.contains(&domain.semantic_id)
+                            && parameter.qualifications.contains(&domain)
                     })
                 }
                 (SignatureContractKind::Ensures, ProofFact::Expression(expression)) => matches!(
@@ -256,14 +256,14 @@ pub(super) fn signature_contracts_are_exact_parameter_qualifications(
             else {
                 return false;
             };
-            let Some(domain) = program
-                .domain_definitions()
-                .iter()
-                .find(|domain| domain.symbol == membership.domain_symbol)
-            else {
+            let Some(domain) = type_domain_semantic_id(
+                program,
+                parameters[position].type_reference,
+                membership.domain_symbol,
+            ) else {
                 return false;
             };
-            actual.push((position, domain.semantic_id));
+            actual.push((position, domain));
         }
     }
     expected.sort_by_key(|(position, domain)| (*position, domain.0));
@@ -333,17 +333,30 @@ pub(super) fn boundary_domain_requirements(
         let argument_index = structural_parameters
             .iter()
             .position(|parameter| parameter.position as usize == source_position)?;
-        let domain = program
+        let domain = type_domain_semantic_id(
+            program,
+            source_parameters[source_position].type_reference,
+            membership.domain_symbol,
+        )?;
+        let definition = program
             .domain_definitions()
             .iter()
-            .find(|domain| domain.symbol == membership.domain_symbol)?;
-        if !domain.semantic_id.is_valid() {
-            return None;
-        }
-        shapes.add_domain(domain.semantic_id, domain.target_type, binders)?;
+            .find(|definition| definition.symbol == membership.domain_symbol)?;
+        let carrier = type_domain_carrier(
+            program,
+            source_parameters[source_position].type_reference,
+            membership.domain_symbol,
+        )
+        .or_else(|| {
+            definition
+                .index_arguments
+                .is_empty()
+                .then_some(definition.target_type)
+        })?;
+        shapes.add_domain(domain, carrier, binders)?;
         output.push(CheckedUnitStructuralDomainRequirementPlan {
             argument_index: u32::try_from(argument_index).ok()?,
-            domain: domain.semantic_id,
+            domain,
         });
     }
     output.sort_by_key(|requirement| (requirement.argument_index, requirement.domain.0));
@@ -371,11 +384,7 @@ pub(super) fn parameter_qualifications(
                     if !domain.semantic_id.is_valid() {
                         return None;
                     }
-                    let definition = program
-                        .domain_definitions()
-                        .iter()
-                        .find(|definition| definition.symbol == domain.symbol)?;
-                    shapes.add_domain(domain.semantic_id, definition.target_type, binders)?;
+                    shapes.add_domain(domain.semantic_id, *base_type, binders)?;
                     output.push(domain.semantic_id);
                 }
                 type_reference = *base_type;
@@ -387,6 +396,105 @@ pub(super) fn parameter_qualifications(
     output.sort_by_key(|domain| domain.0);
     output.dedup();
     Some(output)
+}
+
+fn type_domain_semantic_id(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+    domain: SymbolHandle,
+) -> Option<SemanticDomainId> {
+    fn collect(
+        program: &TypedTrees,
+        type_reference: TypeReferenceHandle,
+        domain: SymbolHandle,
+        matches: &mut Vec<SemanticDomainId>,
+    ) {
+        if !type_reference.is_valid() {
+            return;
+        }
+        match program.type_reference_table.type_reference(type_reference) {
+            TypeReferenceNode::Reference { referee, .. } => {
+                collect(program, *referee, domain, matches);
+            }
+            TypeReferenceNode::Constrained {
+                base_type,
+                constraints,
+            } => {
+                collect(program, *base_type, domain, matches);
+                for constraint in program.type_reference_table.constraints(*constraints) {
+                    let TypeConstraintNode::Domain(candidate) = constraint else {
+                        continue;
+                    };
+                    if candidate.symbol == domain
+                        && candidate.semantic_id.is_valid()
+                        && !matches.contains(&candidate.semantic_id)
+                    {
+                        matches.push(candidate.semantic_id);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    let mut matches = Vec::new();
+    collect(program, type_reference, domain, &mut matches);
+    match matches.as_slice() {
+        [semantic_id] => Some(*semantic_id),
+        [] => program
+            .domain_definitions()
+            .iter()
+            .find(|definition| definition.symbol == domain)
+            .filter(|definition| definition.index_arguments.is_empty())
+            .map(|definition| definition.semantic_id)
+            .filter(|semantic_id| semantic_id.is_valid()),
+        _ => None,
+    }
+}
+
+fn type_domain_carrier(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+    domain: SymbolHandle,
+) -> Option<TypeReferenceHandle> {
+    fn collect(
+        program: &TypedTrees,
+        type_reference: TypeReferenceHandle,
+        domain: SymbolHandle,
+        matches: &mut Vec<TypeReferenceHandle>,
+    ) {
+        if !type_reference.is_valid() {
+            return;
+        }
+        match program.type_reference_table.type_reference(type_reference) {
+            TypeReferenceNode::Reference { referee, .. } => {
+                collect(program, *referee, domain, matches);
+            }
+            TypeReferenceNode::Constrained {
+                base_type,
+                constraints,
+            } => {
+                collect(program, *base_type, domain, matches);
+                if program
+                    .type_reference_table
+                    .constraints(*constraints)
+                    .iter()
+                    .any(|constraint| matches!(constraint, TypeConstraintNode::Domain(candidate) if candidate.symbol == domain))
+                    && !matches.contains(base_type)
+                {
+                    matches.push(*base_type);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    let mut matches = Vec::new();
+    collect(program, type_reference, domain, &mut matches);
+    let [carrier] = matches.as_slice() else {
+        return None;
+    };
+    Some(*carrier)
 }
 
 pub(super) fn state_flow<'a>(
