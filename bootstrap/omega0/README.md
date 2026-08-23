@@ -36,6 +36,10 @@ reserved `compiler/{psi,omega}/` product roots.
   compares the Delta backend's complete status and artifact bytes across native
   execution and the Rust-free Gamma meaning route, including malformed and
   exhausted inputs.
+- [`gates/delta-o1-selfhost-composite.sh`](gates/delta-o1-selfhost-composite.sh)
+  recompiles both frozen O1 compiler programs through Delta's `lowermachine`,
+  composes bundle → vocabulary-25 terminal Psi → ELF, and requires exact
+  terminal and image bytes plus fail-closed semantic and exhaustion observations.
 - [`../assurance/refinement/omega0/`](../assurance/refinement/omega0/) owns the
   meaning-TV, input-TV, translation-validation, and generated-certificate replay
   gates and their untrusted encoders.
@@ -58,8 +62,12 @@ accepts the same 0–16-write profile and emits a deterministic Linux x86-64 ELF
 directly, without a host assembler or linker. Focused gates compare terminal
 modules and images byte-for-byte with the shared product pipeline and through
 lower-rung meaning, and reject malformed or exhausted inputs before emitting
-any byte. This closes O1, not general Omega checking or the future full Omega0
-backend.
+any byte. The composite self-host gate additionally proves that the same frozen
+frontend and backend still compose after both are compiled by the Delta-written
+`lowermachine`. Its initial `lowermachine` executable remains a disposable Rust
+on-ramp product, and Darwin assembly/signing still uses `clang` and `codesign`;
+the claim is O1 dependency/behavior closure, not a Rust-free root or general
+Omega checking. This closes O1, not the future full Omega0 backend.
 
 ## Coverage boundary
 

@@ -90,7 +90,7 @@ step "alpha — REFERENCE: asm_ref.py agrees with the lattice assembler over the
 step "alpha — disposable Rust assembler producer agrees with the lattice assembler" alpha-assembler-rust test.sh alpha-assembler
 step "bc    — Alpha-written cold-start compiler surface" beta cold-start/test.sh alpha alpha-assembler
 step "bc    — Alpha-rooted full source, artifact fixed point, corpus" beta cold-start/full-source.sh alpha alpha-assembler
-step "bc    — lower-rooted artifact framing + direct-target obligations" beta-refinement bc-artifact-structure.sh alpha beta alpha-assembler
+step "bc    — lower-rooted artifact framing + direct-target + call-region obligations" beta-refinement bc-artifact-structure.sh alpha beta alpha-assembler
 step "bc    — Beta compiler in Beta self-hosts"       beta   selfhost.sh
 step "bc    — per-feature gate"                       beta   test.sh
 step "bc    — checked compiler resource profile"      beta   source-exhaustion.sh alpha-assembler
@@ -135,6 +135,7 @@ step "convergence (RUST-FREE) — omega2gamma.beta->interp.beta; cert checked by
 step "omega2gamma termination canary — translator halts on every sample, supported or refused (no silent scan-forever)" omega0-gates omega2gamma-termination.sh alpha-assembler beta corpus
 step "omega0 source bundle — canonical deterministic multi-file input" omega0-gates omega0-bundle-test.sh
 step "omega0 Delta O1 artifact — variable terminal-Psi to byte-identical x86-64 ELF" omega0-gates delta-terminal-to-elf.sh delta-rs omega-rust psi-rust/semantics/psi-terminal-codec
+step "omega0 Delta O1 self-host composite — lowermachine-built frontend/backend compose through terminal vocabulary 25 to exact ELF" omega0-gates delta-o1-selfhost-composite.sh delta-rs omega-rust psi-rust/semantics/psi-terminal-codec
 step "omega0 Delta O1 artifact meaning (RUST-FREE) — exact native vs omega2gamma.beta->interp.beta images" omega0-gates delta-terminal-to-elf-meaning.sh delta-rs gamma omega-rust psi-rust/semantics/psi-terminal-codec
 step "omega meaning — real Omega samples run Rust-free; exits match documented intent" omega0-gates omega-meaning.sh gamma corpus
 step "omega meaning-TV — the kernel re-computes each covered sample's arithmetic (proof, not comparison)" omega0-refinement meaning-tv.sh omega0-meaning gamma proof-kernel alpha-assembler beta corpus
