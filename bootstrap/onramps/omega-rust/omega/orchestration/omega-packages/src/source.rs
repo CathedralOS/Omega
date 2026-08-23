@@ -1,7 +1,9 @@
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
+use std::ffi::OsStr;
 use std::fmt;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LocalSourceLimits {
@@ -29,13 +31,52 @@ pub struct ResolvedLocalSource {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GitSourceSpec {
+    pub url: String,
+    pub rev: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResolvedGitSource {
+    pub url: String,
+    pub requested_rev: String,
+    pub commit: String,
+    pub tree: String,
+    pub checkout_root: PathBuf,
+    pub local: ResolvedLocalSource,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SourceResolveError {
-    Io { path: PathBuf, message: String },
-    NotDirectory { path: PathBuf },
-    TooManyFiles { limit: usize },
-    TooManyBytes { limit: u64 },
-    TooDeep { path: PathBuf, limit: usize },
-    SymlinkEscapesRoot { link: PathBuf, target: PathBuf },
+    Io {
+        path: PathBuf,
+        message: String,
+    },
+    NotDirectory {
+        path: PathBuf,
+    },
+    TooManyFiles {
+        limit: usize,
+    },
+    TooManyBytes {
+        limit: u64,
+    },
+    TooDeep {
+        path: PathBuf,
+        limit: usize,
+    },
+    SymlinkEscapesRoot {
+        link: PathBuf,
+        target: PathBuf,
+    },
+    Git {
+        operation: String,
+        status: Option<i32>,
+        stderr: String,
+    },
+    GitSubmodulesUnsupported {
+        path: PathBuf,
+    },
 }
 
 impl fmt::Display for SourceResolveError {
@@ -67,6 +108,21 @@ impl fmt::Display for SourceResolveError {
                 "source symlink `{}` resolves outside package root to `{}`",
                 link.display(),
                 target.display()
+            ),
+            Self::Git {
+                operation,
+                status,
+                stderr,
+            } => write!(
+                output,
+                "git {operation} failed with status {:?}: {}",
+                status,
+                stderr.trim()
+            ),
+            Self::GitSubmodulesUnsupported { path } => write!(
+                output,
+                "git source `{}` declares submodules; submodules must become explicit package edges before they are supported",
+                path.display()
             ),
         }
     }
@@ -127,6 +183,80 @@ pub fn resolve_local_source(
         file_count: files.len(),
         byte_count,
         content_identity: format_sha256(&hasher.finalize()),
+    })
+}
+
+pub fn resolve_git_source(
+    spec: &GitSourceSpec,
+    cache_dir: impl AsRef<Path>,
+    limits: LocalSourceLimits,
+) -> Result<ResolvedGitSource, SourceResolveError> {
+    let requested_rev = spec.rev.clone().unwrap_or_else(|| "HEAD".to_owned());
+    let cache_dir = cache_dir.as_ref();
+    std::fs::create_dir_all(cache_dir).map_err(|error| io_error(cache_dir, error))?;
+    let checkout_root = cache_dir.join(format!(
+        "git-{}",
+        short_hash(format!("{}\0{}", spec.url, requested_rev).as_bytes())
+    ));
+
+    if !checkout_root.exists() {
+        run_git([
+            OsStr::new("clone"),
+            OsStr::new("--no-checkout"),
+            OsStr::new("--quiet"),
+            OsStr::new("--"),
+            OsStr::new(&spec.url),
+            checkout_root.as_os_str(),
+        ])?;
+    }
+
+    run_git([
+        OsStr::new("-C"),
+        checkout_root.as_os_str(),
+        OsStr::new("fetch"),
+        OsStr::new("--quiet"),
+        OsStr::new("origin"),
+        OsStr::new(&requested_rev),
+    ])?;
+    let commit = run_git_stdout([
+        OsStr::new("-C"),
+        checkout_root.as_os_str(),
+        OsStr::new("rev-parse"),
+        OsStr::new("--verify"),
+        OsStr::new("FETCH_HEAD^{commit}"),
+    ])?;
+    let commit = commit.trim().to_owned();
+
+    run_git([
+        OsStr::new("-C"),
+        checkout_root.as_os_str(),
+        OsStr::new("checkout"),
+        OsStr::new("--quiet"),
+        OsStr::new("--detach"),
+        OsStr::new(&commit),
+    ])?;
+    let tree = run_git_stdout([
+        OsStr::new("-C"),
+        checkout_root.as_os_str(),
+        OsStr::new("rev-parse"),
+        OsStr::new("--verify"),
+        OsStr::new("HEAD^{tree}"),
+    ])?;
+    let tree = tree.trim().to_owned();
+
+    let gitmodules = checkout_root.join(".gitmodules");
+    if gitmodules.exists() {
+        return Err(SourceResolveError::GitSubmodulesUnsupported { path: gitmodules });
+    }
+
+    let local = resolve_local_source(&checkout_root, limits)?;
+    Ok(ResolvedGitSource {
+        url: spec.url.clone(),
+        requested_rev,
+        commit,
+        tree,
+        checkout_root,
+        local,
     })
 }
 
@@ -265,6 +395,60 @@ fn io_error(path: &Path, error: std::io::Error) -> SourceResolveError {
     }
 }
 
+fn run_git<I, S>(args: I) -> Result<(), SourceResolveError>
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<OsStr>,
+{
+    let output =
+        Command::new("git")
+            .args(args)
+            .output()
+            .map_err(|error| SourceResolveError::Git {
+                operation: "spawn".to_owned(),
+                status: None,
+                stderr: error.to_string(),
+            })?;
+    if output.status.success() {
+        Ok(())
+    } else {
+        Err(SourceResolveError::Git {
+            operation: "command".to_owned(),
+            status: output.status.code(),
+            stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
+        })
+    }
+}
+
+fn run_git_stdout<I, S>(args: I) -> Result<String, SourceResolveError>
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<OsStr>,
+{
+    let output =
+        Command::new("git")
+            .args(args)
+            .output()
+            .map_err(|error| SourceResolveError::Git {
+                operation: "spawn".to_owned(),
+                status: None,
+                stderr: error.to_string(),
+            })?;
+    if output.status.success() {
+        Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+    } else {
+        Err(SourceResolveError::Git {
+            operation: "command".to_owned(),
+            status: output.status.code(),
+            stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
+        })
+    }
+}
+
+fn short_hash(bytes: &[u8]) -> String {
+    format_sha256(&Sha256::digest(bytes))[..16].to_owned()
+}
+
 fn format_sha256(bytes: &[u8]) -> String {
     let mut out = String::with_capacity(64);
     for byte in bytes {
@@ -287,6 +471,42 @@ mod tests {
             "omega-packages-{name}-{}-{stamp}",
             std::process::id()
         ))
+    }
+
+    fn run_test_git<I, S>(directory: &Path, args: I)
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<OsStr>,
+    {
+        let output = Command::new("git")
+            .current_dir(directory)
+            .args(args)
+            .output()
+            .expect("spawn git");
+        assert!(
+            output.status.success(),
+            "git command failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    fn create_git_source(name: &str) -> (PathBuf, String) {
+        let root = temp_root(name);
+        std::fs::create_dir_all(&root).expect("create git source");
+        run_test_git(&root, ["init", "--quiet"]);
+        run_test_git(&root, ["config", "user.email", "omega@example.invalid"]);
+        run_test_git(&root, ["config", "user.name", "Omega Tests"]);
+        std::fs::write(root.join("main.omg"), "machine Main::main() {}\n").expect("write source");
+        run_test_git(&root, ["add", "main.omg"]);
+        run_test_git(&root, ["commit", "--quiet", "-m", "initial"]);
+        let output = Command::new("git")
+            .current_dir(&root)
+            .args(["rev-parse", "HEAD"])
+            .output()
+            .expect("read head");
+        assert!(output.status.success());
+        let commit = String::from_utf8_lossy(&output.stdout).trim().to_owned();
+        (root, commit)
     }
 
     #[test]
@@ -365,5 +585,57 @@ mod tests {
 
         let _ = std::fs::remove_dir_all(&root);
         let _ = std::fs::remove_dir_all(&outside);
+    }
+
+    #[test]
+    fn git_source_resolves_exact_commit_and_local_identity() {
+        let (repo, commit) = create_git_source("git");
+        let cache = temp_root("git-cache");
+
+        let resolved = resolve_git_source(
+            &GitSourceSpec {
+                url: repo.display().to_string(),
+                rev: Some(commit.clone()),
+            },
+            &cache,
+            LocalSourceLimits::default(),
+        )
+        .expect("resolve git source");
+
+        assert_eq!(resolved.commit, commit);
+        assert_eq!(resolved.local.file_count, 1);
+        assert!(!resolved.tree.is_empty());
+
+        let _ = std::fs::remove_dir_all(&repo);
+        let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[test]
+    fn git_source_rejects_submodule_manifest() {
+        let (repo, commit) = create_git_source("git-submodule");
+        std::fs::write(repo.join(".gitmodules"), "[submodule \"dep\"]\n")
+            .expect("write gitmodules");
+        run_test_git(&repo, ["add", ".gitmodules"]);
+        run_test_git(&repo, ["commit", "--quiet", "-m", "submodule manifest"]);
+        let cache = temp_root("git-submodule-cache");
+
+        let error = resolve_git_source(
+            &GitSourceSpec {
+                url: repo.display().to_string(),
+                rev: Some("HEAD".to_owned()),
+            },
+            &cache,
+            LocalSourceLimits::default(),
+        )
+        .expect_err("submodule manifest should reject");
+
+        assert!(matches!(
+            error,
+            SourceResolveError::GitSubmodulesUnsupported { .. }
+        ));
+
+        assert!(!commit.is_empty());
+        let _ = std::fs::remove_dir_all(&repo);
+        let _ = std::fs::remove_dir_all(&cache);
     }
 }

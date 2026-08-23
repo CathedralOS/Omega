@@ -76,4 +76,5 @@ delegate behavior here.
 - `manifest`: canonical package/alias names, normalized package capability
   manifests, stable JSON, SHA-256 fingerprints, and manifest diffs.
 - `source`: local-path source identity with deterministic hashing, `.git`
-  directory exclusion, traversal limits, and symlink escape rejection.
+  directory exclusion, traversal limits, symlink escape rejection, and Git
+  clone/fetch resolution to exact commit/tree identity.
