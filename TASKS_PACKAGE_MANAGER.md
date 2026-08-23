@@ -119,6 +119,15 @@ Completed:
   aliases within a package, has no dependency edges to packages absent from the
   closure, and retains non-empty source identities and manifest fingerprints.
 
+- **PACKAGE-LOCK-PERSISTENCE.** Add strict lock artifact read/write support
+  before install/update mutates `omega.lock`.
+
+  Done 2026-08-23: `omega-packages` can write normalized locks through a
+  same-directory temporary file and atomic rename, parse the machine-written
+  JSON schema with fail-closed errors for duplicate/unknown/missing/invalid
+  fields and unsupported schema versions, normalize locks after read, and
+  reject invalid closures before writing or accepting a lock from disk.
+
 Remaining:
 
 - **PACKAGE-CAPABILITY-MANIFEST.** Define the normalized manifest produced for
@@ -136,9 +145,9 @@ Remaining:
   trust receipts only to the full package closure without making it a second
   hand-authored manifest.
 
-  Remaining after `PACKAGE-LOCK-MODEL` and
-  `PACKAGE-LOCK-CLOSURE-VALIDATION`: wire compiler/package admission output
-  into the existing `omega.lock` artifact.
+  Remaining after `PACKAGE-LOCK-MODEL`,
+  `PACKAGE-LOCK-CLOSURE-VALIDATION`, and `PACKAGE-LOCK-PERSISTENCE`: wire
+  compiler/package admission output into the existing `omega.lock` artifact.
 
   Acceptance: the lock records exact repository revisions/content identities,
   package manifest fingerprints, dependency edges, build observation verdicts,
