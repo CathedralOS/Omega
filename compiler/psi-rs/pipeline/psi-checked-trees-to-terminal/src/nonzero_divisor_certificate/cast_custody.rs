@@ -13,11 +13,3 @@ pub(super) fn source_root(
 ) -> Option<(psi_core::ScalarTerm, usize)> {
     chain::source_root(target, semantic_axioms)
 }
-
-pub(super) fn definition_axioms(
-    root: &psi_core::ScalarTerm,
-    target: &psi_core::ScalarTerm,
-    semantic_axioms: &[psi_core::Proposition],
-) -> Option<Vec<usize>> {
-    chain::definition_axioms(root, target, semantic_axioms)
-}

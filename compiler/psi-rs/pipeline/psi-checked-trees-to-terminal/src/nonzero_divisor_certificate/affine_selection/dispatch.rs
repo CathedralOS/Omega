@@ -11,7 +11,7 @@ pub(super) fn prove(
     goal: &Proposition,
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
-    definitions: &DefinitionIndex,
+    definitions: &mut DefinitionIndex,
 ) -> Option<ProofNode> {
     direct::prove(context, goal, assumptions, semantic_axioms, definitions)
         .or_else(|| {

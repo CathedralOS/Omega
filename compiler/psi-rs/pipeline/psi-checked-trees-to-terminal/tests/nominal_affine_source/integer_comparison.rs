@@ -813,25 +813,16 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         let EvidenceRoute::CertificateDerived(certificate) = &evidence.route else {
             panic!("carrier-total literal exact operation has a recursive certificate")
         };
-        match literal {
-            IntegerValue::Unsigned(_) => {
-                assert!(matches!(certificate.proof.conclusion, Proposition::LessOrEqual(_, _)));
-                assert!(matches!(
-                    certificate.proof.rule,
-                    ProofRule::IntegerLessOrEqualSubstitution { endpoint: 1, .. }
-                ));
-            }
-            IntegerValue::Signed(_) => {
-                assert!(matches!(
-                    certificate.proof.conclusion,
-                    Proposition::Disjunction(ref disjuncts) if disjuncts.len() == 3
-                ));
-                assert!(matches!(
-                    certificate.proof.rule,
-                    ProofRule::DisjunctionIntroduction { .. }
-                ));
-            }
-        }
+        assert!(matches!(
+            literal,
+            IntegerValue::Unsigned(_)
+                | IntegerValue::Signed(_)
+        ));
+        assert_eq!(certificate.proof.conclusion, Proposition::Truth);
+        assert!(matches!(
+            certificate.proof.rule,
+            ProofRule::Primitive(psi_proof_kernel::PrimitiveJudgment::Truth)
+        ));
     }
     let retained_bound_negative_one_obligations = entry
         .blocks

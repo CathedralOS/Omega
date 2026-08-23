@@ -15,7 +15,7 @@ pub(super) fn prove_landed_literal_affine_bound(
     goal: &Proposition,
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
-    definitions: &DefinitionIndex,
+    definitions: &mut DefinitionIndex,
 ) -> Option<ProofNode> {
     if let Some(proof) = direct::prove(context, goal, assumptions, semantic_axioms, definitions) {
         return Some(proof);

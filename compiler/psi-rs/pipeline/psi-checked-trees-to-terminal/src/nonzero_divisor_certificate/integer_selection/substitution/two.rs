@@ -3,6 +3,8 @@
 use psi_core::{Proposition, PropositionContext};
 use psi_proof_kernel::ProofNode;
 
+use super::super::super::affine_custody::DefinitionIndex;
+
 mod selection;
 
 pub(super) fn prove(
@@ -10,6 +12,7 @@ pub(super) fn prove(
     goal: &Proposition,
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
+    definitions: &mut DefinitionIndex,
 ) -> Option<ProofNode> {
-    selection::prove(context, goal, assumptions, semantic_axioms)
+    selection::prove(context, goal, assumptions, semantic_axioms, definitions)
 }

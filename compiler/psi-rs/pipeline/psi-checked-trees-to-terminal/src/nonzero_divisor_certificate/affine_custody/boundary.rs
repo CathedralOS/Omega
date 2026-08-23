@@ -13,17 +13,18 @@ pub(in super::super) fn prove_from_root_after(
     goal: &Proposition,
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
-    definitions: &DefinitionIndex,
+    definitions: &mut DefinitionIndex,
     root: &ScalarTerm,
     minimum_axiom: usize,
     root_bound: ProofNode,
 ) -> Option<ProofNode> {
-    candidates::find(
+    candidates::find_after(
         context,
         goal,
         semantic_axioms,
         definitions,
         root,
+        minimum_axiom,
         |witness| {
             completion::prove(
                 context,

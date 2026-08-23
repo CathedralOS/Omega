@@ -12,7 +12,7 @@ pub(super) fn prove_one(
     goal: &Proposition,
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
-    definitions: &DefinitionIndex,
+    definitions: &mut DefinitionIndex,
 ) -> Option<ProofNode> {
     alias_transport::prove_one(assumptions, semantic_axioms, |root, root_bound| {
         completion::prove(
@@ -35,7 +35,7 @@ pub(super) fn prove_two(
     goal: &Proposition,
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
-    definitions: &DefinitionIndex,
+    definitions: &mut DefinitionIndex,
 ) -> Option<ProofNode> {
     alias_transport::prove_two(assumptions, semantic_axioms, |root, root_bound| {
         completion::prove(
