@@ -1112,17 +1112,68 @@ bridge compiler is a promise to accept full Omega.
           infinite trace meaning. On a finite return, compose parse_proc's
           unconditional epilogue and return zero even when a nested resource
           guard has set `RESOURCE_FAIL=252`.
-          - [ ] First close procedure 62's root-independent boundary theorem.
+          - [x] First close procedure 62's root-independent boundary theorem.
             Bind blocks 308..314 and split exact depth-64 exhaustion,
             post-`skip_ws` resource return, close-brace consumption, logical
             end/NUL return, and the remaining-byte call cutpoint into
             `gen_stmt`. Publish the active frame and `BLOCKDEPTH=D+1` at that
-            cutpoint without claiming a body outcome yet.
+            cutpoint without claiming a body outcome yet. Exact `GSBD` shape
+            binds procedure 62's 16-byte frame, blocks 308..314, transitions
+            252..257, events 498..507, locals 198..200, raw-memory rows 64..73,
+            primitives 694..724, binary pushes 207..214, store-address pushes
+            392..396, all five concrete/synthetic epilogues, exhaustive table
+            slices, and the decoded six-call/five-return/twenty-store region.
+            Conditional meaning checks all 65 entry depths against the existing
+            counter/potential context bridge. Exact `D=64` stores numeric 252
+            and returns zero without changing depth. Every `D<64` stores
+            `D+1`, composes terminating `SWSQ`, then either returns after the
+            checked resource, close-brace `ADVE`, or zero-byte boundary while
+            restoring `D`, or reaches the exact `gen_stmt` call PC 44956 with
+            the proc62 frame active, depth `D+1`, cursor/byte unconsumed, and an
+            arbitrary prior trace unchanged. Twenty-four isolated canaries
+            sever exact CFG/data/census joins, the complete depth domain,
+            counter context, depth preservation/increment/decrement, SKIP/ADV,
+            byte partitions, child PC, and active-frame cutpoint. Shape,
+            meaning, and teeth remain 16.1 KB, 16.9 KB, and 6.3 KB; the focused
+            checker is 219,443 bytes. The child is not executed, and no child
+            outcome, totality, or typed meaning for numeric 252 is claimed.
           - [ ] Close the mutually recursive expression component under the
             checked `EXPRDEPTH<=64` induction, including the general-word
             decimal-emission and parse/lookup/code-emission leaves it actually
             imports. The existing bounded `DECS(0..8192)` theorem is not enough
             for wrapped arbitrary-word literals.
+            - [ ] Prove `parse_number` before any decimal-output generalization.
+              Carry the exact digit slice and the recurrence
+              `V'=(10*V+d) mod 2^64`, with rank `LEN-CUR`, so arbitrary wrapped
+              source words—not merely small nonnegative literals—reach the
+              expression proof. Then close the finite acyclic `parse_char`
+              escape partition with exact cursor consumption and byte result.
+            - [ ] Close the remaining finite lexical/value leaves: exact fixed
+              keyword recognizers, `is_muldiv`, `is_addsub`, `cmp_op`, and
+              conditional `name_eq`/`lookup` over the already-carried bounded
+              name-table prefix. Preserve lookup's deliberate no-match alias
+              to slot zero; do not silently strengthen it to an option type.
+            - [ ] Close the bounded fixed-code emitters that need only `WSTR`
+              and bounded `DECS`: `gen_read_byte`, `emit_pop_into`, `emit_push`,
+              `emit_mnemonic`, `emit_combine`, `emit_slot_addr`,
+              `emit_load_slot`, and `emit_store_slot`.
+            - [ ] Add a separate full-word `emit_dec` theorem; retain bounded
+              `DECS` for its existing clients. Follow Beta's actual signed
+              comparison/division semantics: signed values below ten,
+              including negative words, take the one-byte base case; values
+              from ten through `INT64_MAX` recurse on a strictly smaller
+              quotient and need at most nineteen activations. Do not claim a
+              minus sign or canonical unsigned formatting the source does not
+              implement.
+            - [ ] Compose the full-word-decimal-dependent finite emitters:
+              `new_label`, `emit_lref`, `emit_str_body`, `gen_emit`, and
+              `emit_cmp`, retaining their exact ordered traces and cursor
+              bounds even on malformed finite string tails.
+            - [ ] Close `gen_load`, `gen_write_byte`, `gen_call`, `gen_factor`,
+              `gen_term`, `gen_sum`, and `gen_expr` together under the checked
+              depth counter. Keep the fourteen internal recursive edges and
+              every depth-64 resource exit explicit; do not import the block
+              SCC or infer a typed resource kind from numeric 252.
           - [ ] Build `gen_stmt`'s exact branch relation from those expression
             results and the finite or divergent outcomes of its block/state
             children; then take the guarded greatest fixed point of the

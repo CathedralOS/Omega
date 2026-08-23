@@ -710,6 +710,26 @@ state. The 8.4 KB shape and 12.0 KB meaning modules pass in the complete
 210,239-byte checker. This clause remains conditional on PCAP's room outcome
 and assigns no typed resource kind to numeric 252.
 
+`bc-gen-stmts-boundary-shape.alpha` and
+`bc-gen-stmts-boundary-summary.alpha` close procedure 62's root-independent
+immediate boundary without pretending to solve its recursive child. Exact
+blocks 308..314, transitions 252..257, events 498..507, local/memory/primitive
+and push intervals, the 16-byte frame, every epilogue, exhaustive table slices,
+and a decoded inventory of six calls, five returns, and twenty stores bind the
+artifact. `GSBD` checks every entry `D=0..64` against the existing
+`remaining=64-live-depth` counter/potential bridge. At `D=64`, the exact false
+guard stores numeric 252 and returns zero without changing BLOCKDEPTH. At
+`D<64`, exact increment and terminating `SWSQ` reach the loop with depth `D+1`;
+the resource, close-brace/`ADVE`, and zero-byte exits each restore `D` and return
+zero, while a remaining nonzero/non-`}` byte reaches the exact `gen_stmt` call
+PC 44956 unconsumed with the proc62 frame active and arbitrary prior output
+unchanged. Twenty-four isolated canaries in a 6.3 KB harness cover exact joins,
+censuses, all 65 depths, context selection, counter actions, SKIP/ADV, byte
+classes, child PC, and active-frame custody. The 16.1 KB shape and 16.9 KB
+meaning modules produce a 219,443-byte checker. The child call is not executed;
+no child outcome, totality, recursive fixed point, or typed status-252 meaning
+is claimed.
+
 The eventual `parse_proc` theorem must be maximal, not universally terminating.
 For malformed input, an unrecognized body byte such as `@` can survive both
 `gen_stmt` and the number fallback without cursor progress while `gen_stmts`

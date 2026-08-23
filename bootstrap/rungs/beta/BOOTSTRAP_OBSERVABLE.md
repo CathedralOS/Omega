@@ -329,6 +329,17 @@ are valuable teeth, but they do not yet establish the quantified observation:
   retains the active parse frame, status-zero room clause, source/input/CUR, and
   parameter table. This is conditional on PCAP and gives numeric 252 no typed
   resource meaning;
+- its root-independent `gen_stmts` boundary checks procedure 62's exact frame,
+  blocks, transitions, calls/returns, counter/resource accesses, expressions,
+  pushes, epilogues, and exhaustive decoded footprint. For every entry
+  `0<=D<=64`, `D=64` stores numeric 252 and returns zero without changing
+  BLOCKDEPTH. For `D<64`, the exact increment and terminating whitespace skip
+  establish depth `D+1`; resource failure, a consumed close brace, or logical
+  zero then restores `D` and returns zero. A remaining nonzero/non-close byte
+  instead reaches the exact `gen_stmt` call PC 44956 unconsumed, with the
+  procedure frame active, depth `D+1`, and prior output unchanged. The child is
+  not executed, so this clause gives no child outcome, totality, recursive
+  fixed-point, or typed numeric-252 meaning;
 - no total `parse_proc` claim is currently made. Malformed procedure bodies can
   make `gen_stmts` diverge while emitting—for example when an unrecognized byte
   is never consumed—so closure requires maximal Return-or-Diverge and finite/

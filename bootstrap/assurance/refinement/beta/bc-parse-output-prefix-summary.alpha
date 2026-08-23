@@ -34,7 +34,7 @@ parse_output_prefix_summary_init:
         call parse_output_prefix_prove_step
         call parse_output_prefix_prove_exit
         call parse_output_prefix_publish
-        jmp scan_owned_effects_init
+        jmp gen_stmts_boundary_summary_init
 
 parse_output_prefix_require_imports:
         imm r20, 528072
