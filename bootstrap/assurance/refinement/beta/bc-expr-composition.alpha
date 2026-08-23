@@ -1306,9 +1306,14 @@ composition_decimal_advance:
 ; Classify the exact source address of store site r20 without consuming it for
 ; the ordinary expression composer.  Exact bc.beta has 31 fixed compiler-global
 ; word stores and three guarded ranged stores: the source byte capture plus the
-; paired local-name tables.  The latter spellings are pinned here; their
-; induction/guard schemas remain a blockwise abstract-interpretation obligation.
+; paired local-name tables.  The latter spellings are pinned here and consumed
+; by the following ranged-store abstract-interpretation phase.
 composition_validate_store_address:
+        ; Preserve the lexical memory-site row.  The later ranged-bounds phase
+        ; consumes only classifications established by this parser; no mapper
+        ; field supplies address/value facts.
+        imm r1, 525144
+        store r1, r20
         imm r1, 524304
         load r2, r1
         imm r1, 525096
@@ -1320,22 +1325,34 @@ composition_validate_store_address:
         imm r1, 41
         jeq r20, r1, composition_store_namelen_range
         call composition_store_parse_fixed
+        imm r6, 1
+        mov r7, r8
+        call composition_store_record_address_class
         imm r1, 525080
         jmp composition_store_increment
 composition_store_source_range:
         imm r20, composition_store_source_literal
         imm r21, 11
         call composition_store_require_literal
+        imm r6, 2
+        imm r7, 0
+        call composition_store_record_address_class
         jmp composition_store_ranged_count
 composition_store_nameoff_range:
         imm r20, composition_store_nameoff_literal
         imm r21, 15
         call composition_store_require_literal
+        imm r6, 3
+        imm r7, 0
+        call composition_store_record_address_class
         jmp composition_store_ranged_count
 composition_store_namelen_range:
         imm r20, composition_store_namelen_literal
         imm r21, 15
         call composition_store_require_literal
+        imm r6, 4
+        imm r7, 0
+        call composition_store_record_address_class
 composition_store_ranged_count:
         imm r1, 525088
 composition_store_increment:
@@ -1347,6 +1364,27 @@ composition_store_increment:
         load r2, r1
         imm r1, 524304
         store r1, r2
+        ret
+
+; Record checked class r6 and fixed address r7 for the saved memory-site row.
+; Class/address tables occupy fresh space immediately after the final full-tape
+; owner map.  A duplicate row is an internal parser inconsistency and rejects.
+composition_store_record_address_class:
+        imm r1, 525144
+        load r2, r1
+        imm r3, 8
+        mul r2, r3
+        imm r1, 10616832
+        add r1, r2
+        load r3, r1
+        imm r4, 0
+        jeq r3, r4, composition_store_record_address_class_new
+        jmp reject
+composition_store_record_address_class_new:
+        store r1, r6
+        imm r1, 10618880
+        add r1, r2
+        store r1, r7
         ret
 
 composition_store_parse_fixed:

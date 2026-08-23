@@ -194,6 +194,9 @@ stream admitted by `B_bc1`.
   grammar-directed phase reparses every expression and statement continuation,
   requires those owned pieces in recursive lowering order, proves relative
   temporary-stack balance, and pins exact `bc.beta`'s peak at two words.
+  A final reduced induction checks the complete Beta-source `slurp`/`declare`
+  store slices, proving the nonwrapping SRC/NAMEOFF/NAMELEN premise for all
+  three ranged stores. Transfer through compiled frame slots remains open.
 
 These gates are evidence. Whole-compiler closure still requires a checked
 forward simulation from these source transitions to Alpha small steps, including

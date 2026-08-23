@@ -86,8 +86,10 @@ binds all 61 raw loads (56 word, five byte) and 34 raw stores (33 word, one byte
 to exact Alpha width/opcode/register sites. Every store also checks the immediate
 16-byte address pop. Same-width load/store-width substitutions, register
 changes, pop-step changes, duplicate sites, and reordered BCT8 records retain
-valid Alpha framing and reject. Address-expression values, stored/loaded values,
-aliasing, alignment, and the 64 MiB bounds obligation remain open.
+valid Alpha framing and reject. The reduced ranged-store phase below closes the
+Beta-source address/alignment/bounds premise for three stores only; transfer to
+the Alpha operands, stored/loaded values, all raw loads, and general address
+correspondence remain open.
 
 `bc-expr-primitives.alpha` extends that same source scan and BCT8 witness with
 all 581 decimal/character literals and all 55 arithmetic operators (`+`, `-`,
@@ -144,11 +146,23 @@ artifact order is part of the remaining blockwise simulation.
 The BC11 composition pass also classifies all 34 raw-store address expressions
 without trusting the mapper: 31 are aligned fixed compiler-global words in
 `[2097064, 2097145)`, one is exactly `2097152 + n`, and the two local-name-table
-stores are exactly `3145728 + s * 8` and `3153920 + s * 8`. This is a static
-source-family result, not yet a dynamic address proof. The blockwise simulation
-must still establish the source guards and carried `n`/`s` values before using
-these families to prove disjointness from frames, depth counters, or other
-compiler-owned regions.
+stores are exactly `3145728 + s * 8` and `3153920 + s * 8`. This static
+source-family result is consumed by the following value phase.
+
+`bc-ranged-store-bounds.alpha` preserves those parser-derived classes for all
+95 memory rows and exhaustively checks 31 fixed stores plus the three ranged
+families. It pins the exact `slurp`, `declare`, and `parse_proc` reset schemas,
+their eight blocks and five transitions, rejects any additional decoded branch
+predecessor, then checks Beta-source inductive intervals for `n`, `s`, and
+global `NLOC`. The guarded paths establish the exact SRC, NAMEOFF, and NAMELEN
+byte extents without wrapping and their numeric disjointness from the reserved
+global, explicit-stack, and hidden-return regions. Three coherent
+source/artifact/witness mutations pass a projection ending immediately before
+this schema/induction phase and fail the full checker; an independent
+underreported-loop mutation reaches and fails backedge closure. This is a
+source-semantic lemma plus static artifact macro custody, not yet a transfer of
+`n`/`s` through Alpha frame slots. The stored `c`/IDOFF/IDLEN values, every
+raw-load bound, live frame values, and general local contents remain open.
 
 `bc_call_bounds.py` emits the untrusted compact BCS9 potential tables consumed
 by `bc-call-bounds.alpha`. The Alpha phase independently resolves all 310
@@ -162,10 +176,11 @@ equation. The conservative root summary is at most 12,720 explicit-stack bytes
 and 662 hidden returns, comfortably inside the `B_bc1` extents; underreported
 probe and root witnesses reject. This proves the finite call recurrence and its
 numeric margin conditional on isolation of the depth counters and saved-frame
-words. Raw-memory bounds/aliasing must still show that unrelated stores cannot
-corrupt those locations before the absolute stack obligation is closed.
-Carried local/return values, reachability, and terminal/trace correspondence
-also remain open.
+words. The later source induction shows that the three ranged source families
+avoid those locations; their Alpha value transfer, the intended fixed counter
+writes, carried depth/frame values, and the absolute stack obligation remain
+open, as do local/return values, reachability, and terminal/trace
+correspondence.
 
 `bc-stack-register-custody.alpha` then transfers the earlier responsibility-
 specific checks into one fresh per-PC owner map. It derives owners from the
@@ -176,6 +191,7 @@ scan requires that map to equal exactly the 2,630 starts which write `r14` or
 `r15` or address memory through `r15`: 324 writes to `r14`, 1,430 writes to
 `r15`, and 1,129 stack-addressed memory accesses, with 253 saved-frame loads in
 both the first and third totals. This closes exhaustive static custody of the
-artifact's explicit-stack effects. It does not yet prove carried stack/frame
-values or exclude the separately classified ranged raw stores from aliasing
-live frames and depth counters.
+artifact's explicit-stack effects. The following induction makes the three
+ranged source families numerically disjoint from the reserved stack and counter
+regions, but their Alpha operand transfer and carried stack/frame values remain
+open.

@@ -516,9 +516,32 @@ additional facilities the bootstrap actually needs.
       spellings `3145728 + s * 8` and `3153920 + s * 8`. A store moved between
       fixed and ranged families, an unaligned/out-of-window fixed address, or a
       different ranged expression rejects before artifact execution. This
-      closes the finite source-site classification only: the guards and carried
-      `n`/`s` values, disjointness from the explicit stack and depth counters,
-      and all raw-load bounds remain blockwise-simulation obligations.
+      closes the finite source-site classification only; the following reduced
+      induction consumes it. All raw-load bounds remain blockwise-simulation
+      obligations.
+    - [x] Prove the Beta-source bounds for all three ranged raw stores. An
+      Alpha-written checker exhaustively joins the 95 memory rows to the
+      grammar-derived address classes, pins the complete `slurp`, `declare`,
+      and `parse_proc` reset schemas plus their eight blocks, five source edges,
+      and decoded direct-branch plus sequential predecessor closure, then checks
+      the simultaneous
+      source invariants `0 <= n <= 1048576` and `0 <= NLOC <= 1024`, with
+      `s` snapshotting `NLOC`. The guarded store paths refine to
+      `n <= 1048575` and `s <= 1023`, proving exact extents
+      `[2097152,3145728)`, `[3145728,3153920)`, and
+      `[3153920,3162112)` without wrap and disjoint from the reserved global,
+      explicit-stack, and hidden-return regions. Three coherently rebuilt unsafe
+      compilers preserve every pre-induction phase and reject in this phase; a
+      separate underreported-loop tooth reaches and fails interval backedge
+      closure. This closes the source-semantic premise, not its transfer through
+      Alpha frame slots, the stored values, any raw load, or general frame/local
+      values.
+    - [ ] Transfer the three source interval facts to the exact Alpha store
+      operands with a selective joint frame/local simulation. It must carry
+      `slurp.n`, `declare.s`, and `NLOC` through the already owned fp-relative
+      loads/stores and address push/pop macros while proving `r14`/`r15` stay in
+      the reserved explicit-stack region. Until then the compiled store bounds
+      and absolute `B_bc1` stack theorem remain conditional.
     - [x] Keep comparison lookahead inside the logical source arena. `cmp_op`
       now advances through the existing `cbyte()` bounds check and restores CUR
       when a single `=` is not a comparison, instead of directly reading
@@ -594,10 +617,10 @@ additional facilities the bootstrap actually needs.
       underreported probe and root certificates reject. This closes the static
       call graph, finite recurrence, and numerical margin conditional on the
       two depth counters and saved-frame words retaining their source/ABI
-      values. Absolute `B_bc1` stack safety remains part of the blockwise
-      simulation until raw-memory bounds/aliasing prove unrelated stores cannot
-      corrupt those locations; carried local values, return values, and
-      reachability also remain open.
+      values. The later source induction proves that the three ranged source
+      families avoid those locations, but their Alpha value transfer, the
+      intended fixed counter writes, carried counter/frame values, absolute
+      `B_bc1` stack safety, return values, and reachability remain open.
     - [x] Give every explicit-stack register effect one lower-rooted artifact
       owner. A fresh BC11 per-PC map is derived only from the already checked
       prelude, 70 prologues, 253 epilogues, and 403 push/pop roots, with
@@ -608,10 +631,10 @@ additional facilities the bootstrap actually needs.
       variant underreports the fixed prelude owner while keeping the exact
       source, artifact, witness, and all preceding phases unchanged; it rejects
       only at the exhaustive owner/effect equality scan. This closes static
-      stack-effect custody, not the dynamic frame/value invariant: the three
-      ranged raw-store address families still need guard/value induction before
-      saved-frame, stack-bound, and depth-counter isolation transfer to
-      executions.
+      stack-effect custody, not the dynamic frame/value invariant. The following
+      phase closes the Beta-source ranged-address premise; its Alpha transfer
+      plus carried frame, saved-fp, depth-counter, and general local values
+      remain open.
     - [x] Freeze supported resource profile `B_bc1` and make its source-side
       ceilings checked. `bc.beta` now refuses a 1,025th name slot, fifth live
       parameter/argument, and expression or nested-block depth 65 before any

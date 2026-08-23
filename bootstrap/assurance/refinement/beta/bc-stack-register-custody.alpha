@@ -563,5 +563,5 @@ stack_scan_memory_count:
         imm r1, 525136
         load r2, r1
         imm r3, 1129
-        jeq r2, r3, scan_owned_effects_init
+        jeq r2, r3, ranged_bounds_init
         jmp reject

@@ -202,7 +202,8 @@ cat "$GATE_DIR/bc-block-control.alpha" \
   "$GATE_DIR/bc-stack-pushes.alpha" \
   "$GATE_DIR/bc-expr-composition.alpha" \
   "$GATE_DIR/bc-call-bounds.alpha" \
-  "$GATE_DIR/bc-stack-register-custody.alpha" > "$T/control-check.alpha"
+  "$GATE_DIR/bc-stack-register-custody.alpha" \
+  "$GATE_DIR/bc-ranged-store-bounds.alpha" > "$T/control-check.alpha"
 "$ASM" < "$T/control-check.alpha" > "$T/control-check.tape"
 stamp_seed "$T/control-check.tape" "$SEED" "$T/control-check" >/dev/null
 
@@ -215,6 +216,18 @@ sed \
   "$T/control-check.alpha" > "$T/stack-missing-owner.alpha"
 "$ASM" < "$T/stack-missing-owner.alpha" > "$T/stack-missing-owner.tape"
 stamp_seed "$T/stack-missing-owner.tape" "$SEED" "$T/stack-missing-owner" >/dev/null
+
+# Phase-isolated ranged-store teeth. One drops the sole source-range class;
+# the other underreports the loop invariant while leaving every prior phase and
+# the exact source/artifact/witness unchanged.
+sed '/composition_store_source_range:/,/jmp composition_store_ranged_count/{s/imm r6, 2/imm r6, 0/;}' \
+  "$T/control-check.alpha" > "$T/ranged-missing-class.alpha"
+"$ASM" < "$T/ranged-missing-class.alpha" > "$T/ranged-missing-class.tape"
+stamp_seed "$T/ranged-missing-class.tape" "$SEED" "$T/ranged-missing-class" >/dev/null
+sed '/ranged_interval_loop_candidate:/,/call ranged_interval_store/{s/imm r22, 1048576/imm r22, 1048575/;}' \
+  "$T/control-check.alpha" > "$T/ranged-underreported-loop.alpha"
+"$ASM" < "$T/ranged-underreported-loop.alpha" > "$T/ranged-underreported-loop.tape"
+stamp_seed "$T/ranged-underreported-loop.tape" "$SEED" "$T/ranged-underreported-loop" >/dev/null
 
 # Preserve a diagnostic projection of the immediately preceding flat-custody
 # phase.  The same-valued composition witness below must pass this projection
@@ -229,9 +242,28 @@ cat "$GATE_DIR/bc-block-control.alpha" \
   "$GATE_DIR/bc-expr-primitives.alpha" \
   "$T/bc-stack-pushes-flat.alpha" \
   "$GATE_DIR/bc-call-bounds.alpha" \
-  "$GATE_DIR/bc-stack-register-custody.alpha" > "$T/flat-check.alpha"
+  "$GATE_DIR/bc-stack-register-custody.alpha" \
+  "$GATE_DIR/bc-ranged-store-bounds.alpha" > "$T/flat-check.alpha"
 "$ASM" < "$T/flat-check.alpha" > "$T/flat-check.tape"
 stamp_seed "$T/flat-check.tape" "$SEED" "$T/flat-check" >/dev/null
+
+# Projection immediately before the ranged-store induction. Coherent source /
+# artifact mutations below must retain every earlier custody and stack-bound
+# fact, then fail only after the carried-value phase is enabled.
+sed 's/jeq r2, r3, ranged_bounds_init/jeq r2, r3, scan_owned_effects_init/' \
+  "$GATE_DIR/bc-stack-register-custody.alpha" > "$T/bc-stack-register-pre-ranged.alpha"
+cat "$GATE_DIR/bc-block-control.alpha" \
+  "$GATE_DIR/bc-effect-sites.alpha" \
+  "$GATE_DIR/bc-frame-shape.alpha" \
+  "$GATE_DIR/bc-local-access.alpha" \
+  "$GATE_DIR/bc-memory-sites.alpha" \
+  "$GATE_DIR/bc-expr-primitives.alpha" \
+  "$GATE_DIR/bc-stack-pushes.alpha" \
+  "$GATE_DIR/bc-expr-composition.alpha" \
+  "$GATE_DIR/bc-call-bounds.alpha" \
+  "$T/bc-stack-register-pre-ranged.alpha" > "$T/pre-ranged-check.alpha"
+"$ASM" < "$T/pre-ranged-check.alpha" > "$T/pre-ranged-check.tape"
+stamp_seed "$T/pre-ranged-check.tape" "$SEED" "$T/pre-ranged-check" >/dev/null
 
 case_run() { # label expected-status input
   set +e
@@ -244,7 +276,57 @@ case_run() { # label expected-status input
   fi
 }
 
+coherent_ranged_mutant() { # label
+  ranged_label=$1
+  case "$ranged_label" in
+    slurp-cap)
+      sed 's/to full when (n == 1048576)/to full when (n == 1048577)/' \
+        "$SOURCE" > "$T/$ranged_label.beta"
+      ;;
+    declare-cap)
+      sed 's/to write when (s < 1024)/to write when (s <= 1024)/' \
+        "$SOURCE" > "$T/$ranged_label.beta"
+      ;;
+    nloc-step)
+      sed 's/word\[2097128\] = s + 1/word[2097128] = s - 1/' \
+        "$SOURCE" > "$T/$ranged_label.beta"
+      ;;
+    *)
+      exit 2
+      ;;
+  esac
+  "$T/bc" < "$T/$ranged_label.beta" > "$T/$ranged_label.alpha"
+  "$ASM" < "$T/$ranged_label.alpha" > "$T/$ranged_label.tape"
+  python3 "$GATE_DIR/bc_block_control_map.py" \
+    --repo "$OMEGA_REPO_ROOT" \
+    --source "$T/$ranged_label.beta" \
+    --assembly "$T/$ranged_label.alpha" \
+    --tape "$T/$ranged_label.tape" \
+    --output "$T/$ranged_label.witness"
+  ranged_source_len=$(wc -c < "$T/$ranged_label.beta" | tr -d ' ')
+  ranged_tape_len=$(wc -c < "$T/$ranged_label.tape" | tr -d ' ')
+  u32_file "$ranged_source_len" "$T/$ranged_label-source.len"
+  u32_file "$ranged_tape_len" "$T/$ranged_label-tape.len"
+  cat "$T/$ranged_label-source.len" "$T/$ranged_label.beta" \
+    "$T/$ranged_label-tape.len" "$T/$ranged_label.tape" \
+    "$T/$ranged_label.witness" "$T/call-bounds.witness" \
+    > "$T/$ranged_label.bundle"
+
+  set +e
+  "$T/pre-ranged-check" < "$T/$ranged_label.bundle" > "$T/stdout"
+  ranged_pre_status=$?
+  set -e
+  if [ "$ranged_pre_status" != 0 ] || [ -s "$T/stdout" ]; then
+    echo "bc block control FAIL — $ranged_label did not preserve the pre-induction projection" >&2
+    exit 1
+  fi
+  case_run "unsafe ranged-store induction: $ranged_label" 1 "$T/$ranged_label.bundle"
+}
+
 case_run "whole compiler control skeleton" 0 "$T/control.bundle"
+coherent_ranged_mutant slurp-cap
+coherent_ranged_mutant declare-cap
+coherent_ranged_mutant nloc-step
 case_run "underreported rejected recursive probe" 1 "$T/call-bounds-probe.bundle"
 case_run "underreported root stack bound" 1 "$T/call-bounds-root.bundle"
 set +e
@@ -253,6 +335,22 @@ missing_stack_owner_status=$?
 set -e
 if [ "$missing_stack_owner_status" != 1 ] || [ -s "$T/stdout" ]; then
   echo "bc block control FAIL — underreported stack owner: expected 1/empty, got $missing_stack_owner_status/$(wc -c < "$T/stdout" | tr -d ' ') bytes" >&2
+  exit 1
+fi
+set +e
+"$T/ranged-missing-class" < "$T/control.bundle" > "$T/stdout"
+ranged_missing_class_status=$?
+set -e
+if [ "$ranged_missing_class_status" != 1 ] || [ -s "$T/stdout" ]; then
+  echo "bc block control FAIL — missing ranged-store class was not rejected" >&2
+  exit 1
+fi
+set +e
+"$T/ranged-underreported-loop" < "$T/control.bundle" > "$T/stdout"
+ranged_underreported_loop_status=$?
+set -e
+if [ "$ranged_underreported_loop_status" != 1 ] || [ -s "$T/stdout" ]; then
+  echo "bc block control FAIL — underreported ranged loop invariant was not rejected" >&2
   exit 1
 fi
 flat_case() { # label input
@@ -361,4 +459,4 @@ for mutation in call-retarget read-register write-register helper-write emit-byt
   fi
 done
 
-echo "bc block control/effects: 70 proc / 355 block / 291 transition; 613 effect sites / 829 fixed emit bytes; 78 frame slots / 27 parameter stores / 134 call pops; 169 local loads / 73 local stores; 61 raw loads / 34 raw stores; 581 literals / 55 arithmetic / 180 comparison primitives; 235 binary / 134 argument / 34 store-address pushes; syntax-directed composition / relative temporary peak 2; source-derived call bound <=12720 explicit bytes / <=662 hidden returns; all 2630 explicit-stack effects and 687 artifact effects owned ($(wc -c < "$T/control-check.tape" | tr -d ' ')-byte Alpha checker tape)"
+echo "bc block control/effects: 70 proc / 355 block / 291 transition; 613 effect sites / 829 fixed emit bytes; 78 frame slots / 27 parameter stores / 134 call pops; 169 local loads / 73 local stores; 61 raw loads / 34 raw stores; 581 literals / 55 arithmetic / 180 comparison primitives; 235 binary / 134 argument / 34 store-address pushes; syntax-directed composition / relative temporary peak 2; three ranged source intervals checked; source-derived call bound <=12720 explicit bytes / <=662 hidden returns; all 2630 explicit-stack effects and 687 artifact effects owned ($(wc -c < "$T/control-check.tape" | tr -d ' ')-byte Alpha checker tape)"
