@@ -161,8 +161,10 @@ are valuable teeth, but they do not yet establish the quantified observation:
   all 113 checked emit rows / 829 literal bytes; these conditional per-event
   clauses do not yet prove reachability or the complete ordered output trace.
   Two one-block procedure summaries now order the 55-byte `emit_prelude` and
-  132-byte `emit_write_str` traces and prove their termination/restoration, but
-  composing those calls from `main.ready` remains open;
+  132-byte `emit_write_str` traces and prove their termination/restoration. A
+  following root phase composes both exact calls and `skip_ws` from
+  `main.ready`, reaching `main.loop` with their ordered 187-byte prefix and a
+  normalized cursor;
 - its source-derived frame phase checks all 70 prologues, 78 parameter/local
   slots, 27 parameter stores, callee arities, and 134 immediate pre-call pops;
   a source-name/slot phase additionally binds all 169 local reads and 73
@@ -208,7 +210,15 @@ are valuable teeth, but they do not yet establish the quantified observation:
   every result-one outer `skip_ws` backedge, with each successor cursor/rank
   pair capture-renamed and rechecked at its cutpoint. Both procedures terminate without
   input/output or source mutation, changing no compiler global except `CUR`;
-  root composition from `main.ready` remains open;
+  the following root composition instantiates this theorem after both fixed
+  emitters;
+- its `main.ready` phase imports the bridge's rechecked success clause, exact
+  fixed-emitter clauses, and terminating whitespace clause at three checked
+  zero-argument/zero-ambient calls. Exact block/event/transition/effect scans
+  then establish the sole jump to PC 51262 with 187 ordered output bytes,
+  unchanged successful source/input relation, restored main frame, and `CUR`
+  at the first nontrivia byte, logical end, or in-range NUL. The next
+  simulation frontier is the `main.loop` token test;
 - its BC11 grammar-composition pass further partitions every raw-store source
   address into 31 aligned fixed compiler globals, one exact source-buffer
   `base + n` spelling, and two exact local-name-table `base + s * 8` spellings;
