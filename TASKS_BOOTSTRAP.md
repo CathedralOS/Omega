@@ -438,6 +438,17 @@ additional facilities the bootstrap actually needs.
       inside its region. Focused fixtures reject root returns, callee halts,
       returnless callees, and cross-region jumps. Dynamic call-depth bounds,
       frame contents, output semantics, and termination remain open.
+    - [x] Check the whole-compiler control skeleton against exact `bc.beta`.
+      A lower-rooted Alpha checker independently scans 70 procedures, 355 entry/
+      state blocks, 291 `to` sites, and 180 guarded sites; resolves exact
+      procedure-local state names; reconstructs Alpha instruction boundaries;
+      and checks ordered, unique block/site mappings plus unconditional and
+      guarded successors. The one source block absent from the pc-zero CFG is
+      admitted only as an additional decode root under the same global framing,
+      overlap, and interior-target checks. Missing/duplicate/reordered witnesses,
+      operand-interior PCs, and a structurally valid branch retarget reject.
+      Expression/data effects, calls/returns, output, terminal classes, and
+      cyclic progress remain open.
     - [x] Freeze supported resource profile `B_bc1` and make its source-side
       ceilings checked. `bc.beta` now refuses a 1,025th name slot, fifth live
       parameter/argument, and expression or nested-block depth 65 before any
@@ -509,6 +520,7 @@ sh bootstrap/rungs/beta/cold-start/test.sh
 sh bootstrap/rungs/beta/cold-start/full-source.sh
 sh bootstrap/rungs/beta/source-exhaustion.sh
 sh bootstrap/assurance/refinement/beta/bc-artifact-structure.sh
+sh bootstrap/assurance/refinement/beta/bc-block-control.sh
 sh bootstrap/rungs/beta/selfhost.sh
 sh bootstrap/rungs/beta/test.sh
 sh bootstrap/rungs/gamma/test-interp.sh

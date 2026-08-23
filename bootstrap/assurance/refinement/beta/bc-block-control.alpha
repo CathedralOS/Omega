@@ -1,0 +1,1240 @@
+; Bounded whole-bc control-skeleton checker.
+;
+; Input is [u32 source length][bc.beta bytes][u32 tape length][bc.tape bytes]
+; followed by an untrusted BCT1 location witness.  This checker independently
+; lexes proc/state/to/when from the source, resolves each state target by exact
+; byte-string equality, and checks the corresponding Alpha jmp or
+; jz-fallthrough-jmp successors in the tape.  It deliberately says nothing
+; about expressions, data, calls, returns, output, terminal behavior, or
+; termination.
+;
+; Exit 0 accepts; exit 1 rejects.
+;
+; Fixed tables are generously bounded above the pinned bc.beta counts.
+; Globals: 524288 onward. Source: 1048576. Tape: 2097152.
+; Block tables: 3145728 onward. Transition tables: 3211264 onward.
+
+        call read_u32
+        imm r1, 262140
+        jlt r1, r0, reject
+        imm r1, 524288
+        store r1, r0                    ; source length
+        imm r20, 1048576
+        mov r21, r0
+        call read_blob
+
+        call read_u32
+        imm r1, 262140
+        jlt r1, r0, reject
+        imm r1, 1
+        jlt r0, r1, reject
+        imm r1, 524296
+        store r1, r0                    ; tape length
+        imm r20, 2097152
+        mov r21, r0
+        call read_blob
+        jmp cfg_decode_init
+
+scan_init:
+        ; Empty the counters/current indices before the independent scan.
+        imm r0, 0
+        imm r1, 524304
+        store r1, r0                    ; source cursor
+        imm r1, 524312
+        store r1, r0                    ; proc count
+        imm r1, 524320
+        store r1, r0                    ; block count
+        imm r1, 524328
+        store r1, r0                    ; transition count
+        imm r1, 524336
+        store r1, r0                    ; guarded count
+        imm r1, 524344
+        store r1, r0                    ; current proc
+        imm r1, 524352
+        store r1, r0                    ; current block
+
+scan_loop:
+        call skip_trivia
+        imm r1, 524304
+        load r2, r1
+        imm r1, 524288
+        load r3, r1
+        jlt r2, r3, scan_byte
+        jmp scan_done
+scan_byte:
+        imm r4, 1048576
+        add r4, r2
+        loadb r5, r4
+        imm r6, 34                      ; string
+        jeq r5, r6, skip_string
+        imm r6, 39                      ; char literal
+        jeq r5, r6, skip_char
+        mov r20, r5
+        call is_ident_start
+        imm r1, 1
+        jeq r0, r1, scan_ident
+        call advance_one
+        jmp scan_loop
+
+skip_string:
+        call advance_one
+string_loop:
+        call current_byte
+        imm r1, 0
+        jlt r0, r1, reject
+        imm r1, 92
+        jeq r0, r1, string_escape
+        imm r1, 34
+        jeq r0, r1, string_done
+        call advance_one
+        jmp string_loop
+string_escape:
+        call advance_one
+        call current_byte
+        imm r1, 0
+        jlt r0, r1, reject
+        call advance_one
+        jmp string_loop
+string_done:
+        call advance_one
+        jmp scan_loop
+
+skip_char:
+        call advance_one
+        call current_byte
+        imm r1, 0
+        jlt r0, r1, reject
+        imm r1, 92
+        jeq r0, r1, char_escape
+        call advance_one
+        jmp char_close
+char_escape:
+        call advance_one
+        call current_byte
+        imm r1, 0
+        jlt r0, r1, reject
+        call advance_one
+char_close:
+        call current_byte
+        imm r1, 39
+        jeq r0, r1, char_done
+        jmp reject
+char_done:
+        call advance_one
+        jmp scan_loop
+
+scan_ident:
+        call read_ident
+        call ident_is_proc
+        imm r1, 1
+        jeq r0, r1, found_proc
+        call ident_is_state
+        imm r1, 1
+        jeq r0, r1, found_state
+        call ident_is_to
+        imm r1, 1
+        jeq r0, r1, found_to
+        jmp scan_loop
+
+found_proc:
+        call next_ident
+        ; proc index = proc_count, then proc_count++.
+        imm r1, 524312
+        load r2, r1
+        imm r3, 128
+        jlt r2, r3, proc_room
+        jmp reject
+proc_room:
+        imm r3, 524344
+        store r3, r2
+        imm r3, 1
+        add r2, r3
+        store r1, r2
+        ; Each procedure entry is a source block named by the proc identifier.
+        imm r4, 0
+        call add_block
+        jmp scan_loop
+
+found_state:
+        call next_ident
+        imm r4, 1
+        call add_block
+        jmp scan_loop
+
+found_to:
+        call next_ident
+        ; Append transition with target name in IOFF/ILEN and current context.
+        imm r1, 524328
+        load r2, r1
+        imm r3, 512
+        jlt r2, r3, transition_room
+        jmp reject
+transition_room:
+        mov r4, r2
+        imm r5, 8
+        mul r4, r5
+        imm r6, 524344
+        load r7, r6
+        imm r6, 3211264
+        add r6, r4
+        store r6, r7                    ; source proc index
+        imm r6, 524352
+        load r7, r6
+        imm r6, 3215360
+        add r6, r4
+        store r6, r7                    ; source block index
+        imm r6, 524360
+        load r7, r6
+        imm r6, 3219456
+        add r6, r4
+        store r6, r7                    ; target name offset
+        imm r6, 524368
+        load r7, r6
+        imm r6, 3223552
+        add r6, r4
+        store r6, r7                    ; target name length
+        imm r6, 0
+        imm r7, 3227648
+        add r7, r4
+        store r7, r6                    ; guarded = false initially
+        imm r3, 1
+        add r2, r3
+        store r1, r2
+
+        ; Look ahead for `when`, restoring the cursor if it is not present.
+        imm r1, 524304
+        load r8, r1
+        call skip_trivia
+        call current_byte
+        mov r20, r0
+        call is_ident_start
+        imm r1, 1
+        jeq r0, r1, to_look_ident
+        imm r1, 524304
+        store r1, r8
+        jmp scan_loop
+to_look_ident:
+        call read_ident
+        call ident_is_when
+        imm r1, 1
+        jeq r0, r1, to_guarded
+        imm r1, 524304
+        store r1, r8
+        jmp scan_loop
+to_guarded:
+        imm r3, 1
+        imm r4, 524328
+        load r5, r4
+        sub r5, r3
+        imm r4, 8
+        mul r5, r4
+        imm r4, 3227648
+        add r4, r5
+        store r4, r3
+        imm r4, 524336
+        load r5, r4
+        add r5, r3
+        store r4, r5
+        jmp scan_loop
+
+scan_done:
+        ; This milestone is intentionally pinned to the current whole compiler.
+        imm r1, 524312
+        load r2, r1
+        imm r3, 70
+        jeq r2, r3, count_blocks
+        jmp reject
+count_blocks:
+        imm r1, 524320
+        load r2, r1
+        imm r3, 355
+        jeq r2, r3, count_transitions
+        jmp reject
+count_transitions:
+        imm r1, 524328
+        load r2, r1
+        imm r3, 291
+        jeq r2, r3, count_guards
+        jmp reject
+count_guards:
+        imm r1, 524336
+        load r2, r1
+        imm r3, 180
+        jeq r2, r3, resolve_init
+        jmp reject
+
+resolve_init:
+        imm r10, 0                     ; transition index
+resolve_transition:
+        imm r1, 291
+        jlt r10, r1, resolve_search_init
+        jmp read_witness
+resolve_search_init:
+        imm r11, 0                     ; candidate block index
+resolve_search:
+        imm r1, 355
+        jlt r11, r1, resolve_candidate
+        jmp reject                     ; unknown target state
+resolve_candidate:
+        mov r12, r10
+        imm r1, 8
+        mul r12, r1
+        mov r13, r11
+        mul r13, r1
+        ; same procedure?
+        imm r1, 3211264
+        add r1, r12
+        load r2, r1
+        imm r1, 3145728
+        add r1, r13
+        load r3, r1
+        jeq r2, r3, resolve_state_only
+        jmp resolve_next
+resolve_state_only:
+        ; target must be a state block, never the synthetic proc entry block.
+        imm r1, 3178496
+        add r1, r13
+        load r2, r1
+        imm r3, 1
+        jeq r2, r3, resolve_names
+        jmp resolve_next
+resolve_names:
+        imm r1, 3219456
+        add r1, r12
+        load r20, r1
+        imm r1, 3223552
+        add r1, r12
+        load r21, r1
+        imm r1, 3149824
+        add r1, r13
+        load r22, r1
+        imm r1, 3153920
+        add r1, r13
+        load r23, r1
+        call names_equal
+        imm r1, 1
+        jeq r0, r1, resolve_found
+resolve_next:
+        imm r1, 1
+        add r11, r1
+        jmp resolve_search
+resolve_found:
+        imm r1, 3231744
+        add r1, r12
+        store r1, r11
+        imm r1, 1
+        add r10, r1
+        jmp resolve_transition
+
+read_witness:
+        call read_u32
+        imm r1, 826496066              ; BCT1
+        jeq r0, r1, witness_proc_count
+        jmp reject
+witness_proc_count:
+        call read_u32
+        imm r1, 70
+        jeq r0, r1, witness_block_count
+        jmp reject
+witness_block_count:
+        call read_u32
+        imm r1, 355
+        jeq r0, r1, witness_transition_count
+        jmp reject
+witness_transition_count:
+        call read_u32
+        imm r1, 291
+        jeq r0, r1, witness_guard_count
+        jmp reject
+witness_guard_count:
+        call read_u32
+        imm r1, 180
+        jeq r0, r1, read_block_pcs_init
+        jmp reject
+
+read_block_pcs_init:
+        imm r10, 0
+read_block_pc:
+        imm r1, 355
+        jlt r10, r1, read_block_pc_one
+        ; Decode from any source block roots not reachable from Alpha pc zero.
+        ; Suggested roots remain untrusted: overlap/queued-interior checks bind
+        ; them into one non-overlapping instruction framing.
+        imm r1, 524448
+        imm r2, 1
+        store r1, r2
+        jmp cfg_work_loop
+read_block_pc_one:
+        call read_u32
+        mov r14, r0
+        imm r1, 524296
+        load r2, r1
+        jlt r14, r2, block_pc_opcode
+        jmp reject
+block_pc_opcode:
+        ; The checker reconstructed this coverage map itself from pc zero.
+        imm r1, 4194304
+        add r1, r14
+        loadb r2, r1
+        imm r3, 1
+        jeq r2, r3, block_pc_unique_init
+        imm r3, 0
+        jeq r2, r3, block_pc_queue_root
+        jmp reject                     ; points inside a decoded instruction
+block_pc_queue_root:
+        mov r0, r14
+        call cfg_enqueue
+        jmp block_pc_unique_init
+block_pc_unique_init:
+        imm r11, 0
+block_pc_unique:
+        jlt r11, r10, block_pc_compare
+        jmp block_pc_store
+block_pc_compare:
+        mov r12, r11
+        imm r1, 8
+        mul r12, r1
+        imm r1, 3235840
+        add r1, r12
+        load r2, r1
+        jeq r2, r14, reject
+        imm r1, 1
+        add r11, r1
+        jmp block_pc_unique
+block_pc_store:
+        ; Source block order is also the canonical emitted block-range order.
+        imm r1, 0
+        jeq r10, r1, block_pc_store_now
+        mov r12, r10
+        imm r1, 1
+        sub r12, r1
+        imm r1, 8
+        mul r12, r1
+        imm r1, 3235840
+        add r1, r12
+        load r2, r1
+        jlt r2, r14, block_pc_store_now
+        jmp reject
+block_pc_store_now:
+        mov r12, r10
+        imm r1, 8
+        mul r12, r1
+        imm r1, 3235840
+        add r1, r12
+        store r1, r14
+        imm r1, 1
+        add r10, r1
+        jmp read_block_pc
+
+read_transition_pcs_init:
+        imm r10, 0
+read_transition_pc:
+        imm r1, 291
+        jlt r10, r1, read_transition_pc_one
+        jmp require_eof
+read_transition_pc_one:
+        call read_u32
+        mov r14, r0
+        ; Source traversal order is the canonical emitted transition-site order.
+        imm r1, 0
+        jeq r10, r1, transition_pc_unique_init
+        mov r12, r10
+        imm r1, 1
+        sub r12, r1
+        imm r1, 8
+        mul r12, r1
+        imm r1, 3239936
+        add r1, r12
+        load r2, r1
+        jlt r2, r14, transition_pc_unique_init
+        jmp reject
+transition_pc_unique_init:
+        ; Exact transition-site completeness also requires unique mapped sites.
+        imm r11, 0
+transition_pc_unique:
+        jlt r11, r10, transition_pc_compare
+        jmp check_transition
+transition_pc_compare:
+        mov r12, r11
+        imm r1, 8
+        mul r12, r1
+        imm r1, 3239936
+        add r1, r12
+        load r2, r1
+        jeq r2, r14, reject
+        imm r1, 1
+        add r11, r1
+        jmp transition_pc_unique
+
+check_transition:
+        mov r12, r10
+        imm r1, 8
+        mul r12, r1
+        imm r1, 3239936
+        add r1, r12
+        store r1, r14
+        ; Load resolved target block pc.
+        imm r1, 3231744
+        add r1, r12
+        load r2, r1
+        imm r1, 8
+        mul r2, r1
+        imm r1, 3235840
+        add r1, r2
+        load r15, r1
+        ; Bind the suggested site to its independently scanned source block's
+        ; canonical [block_pc, next_block_pc) emitted range.
+        imm r1, 3215360
+        add r1, r12
+        load r4, r1
+        mov r5, r4
+        imm r1, 8
+        mul r5, r1
+        imm r1, 3235840
+        add r1, r5
+        load r6, r1
+        jlt r14, r6, reject
+        imm r1, 1
+        add r4, r1
+        imm r1, 355
+        jlt r4, r1, transition_range_next_block
+        imm r1, 524296
+        load r7, r1
+        jmp transition_range_end_ready
+transition_range_next_block:
+        mov r5, r4
+        imm r1, 8
+        mul r5, r1
+        imm r1, 3235840
+        add r1, r5
+        load r7, r1
+transition_range_end_ready:
+        jlt r14, r7, transition_site_covered
+        jmp reject
+transition_site_covered:
+        imm r1, 4194304
+        add r1, r14
+        loadb r2, r1
+        imm r3, 1
+        jeq r2, r3, transition_site_in_range
+        jmp reject
+transition_site_in_range:
+        ; Branch site must be in the tape.
+        imm r1, 524296
+        load r2, r1
+        jlt r14, r2, transition_kind
+        jmp reject
+transition_kind:
+        imm r1, 3227648
+        add r1, r12
+        load r2, r1
+        imm r3, 1
+        jeq r2, r3, check_guarded
+
+check_plain:
+        ; jmp target
+        imm r1, 9
+        add r1, r14
+        imm r2, 524296
+        load r3, r2
+        jlt r3, r1, reject
+        imm r1, 2097152
+        add r1, r14
+        loadb r2, r1
+        imm r3, 12
+        jeq r2, r3, plain_target
+        jmp reject
+plain_target:
+        imm r2, 1
+        add r1, r2
+        load r2, r1
+        jeq r2, r15, transition_ok
+        jmp reject
+
+check_guarded:
+        ; Exact bc lowering: jz r0, site+19; jmp mapped_target.
+        imm r1, 19
+        add r1, r14
+        imm r2, 524296
+        load r3, r2
+        jlt r3, r1, reject
+        imm r1, 2097152
+        add r1, r14
+        loadb r2, r1
+        imm r3, 13
+        jeq r2, r3, guarded_register
+        jmp reject
+guarded_register:
+        imm r2, 1
+        add r1, r2
+        loadb r2, r1
+        imm r3, 0
+        jeq r2, r3, guarded_skip_target
+        jmp reject
+guarded_skip_target:
+        imm r2, 1
+        add r1, r2
+        load r2, r1
+        mov r3, r14
+        imm r4, 19
+        add r3, r4
+        jeq r2, r3, guarded_jump
+        jmp reject
+guarded_jump:
+        imm r1, 2097152
+        add r1, r14
+        imm r2, 10
+        add r1, r2
+        loadb r2, r1
+        imm r3, 12
+        jeq r2, r3, guarded_jump_target
+        jmp reject
+guarded_jump_target:
+        imm r2, 1
+        add r1, r2
+        load r2, r1
+        jeq r2, r15, transition_ok
+        jmp reject
+
+transition_ok:
+        imm r1, 1
+        add r10, r1
+        jmp read_transition_pc
+
+require_eof:
+        read r0
+        imm r1, 0
+        jlt r0, r1, accept
+        jmp reject
+
+; Reconstruct the reachable Alpha instruction-start set from pc zero.  This is
+; intentionally in the same lower-rooted process as the correspondence checks;
+; a separate structural gate's private coverage table would not bind witness
+; locations.  coverage: 4194304, queued: 4456448, worklist: 4718592.
+cfg_decode_init:
+        imm r1, 524448
+        imm r2, 0
+        store r1, r2                    ; first/rooted decode phase
+        imm r1, 4456448
+        imm r2, 1
+        storeb r1, r2
+        imm r1, 4718592
+        imm r2, 0
+        store r1, r2
+        imm r1, 524400
+        store r1, r2                    ; head
+        imm r1, 524408
+        imm r2, 1
+        store r1, r2                    ; tail
+
+cfg_work_loop:
+        imm r1, 524400
+        load r2, r1
+        imm r1, 524408
+        load r3, r1
+        jlt r2, r3, cfg_work_item
+        imm r1, 524448
+        load r2, r1
+        imm r3, 1
+        jeq r2, r3, cfg_secondary_done
+        jmp scan_init
+cfg_secondary_done:
+        ; Every canonical block root has now actually been decoded as a start.
+        imm r10, 0
+cfg_verify_block_roots:
+        imm r1, 355
+        jlt r10, r1, cfg_verify_block_root
+        jmp read_transition_pcs_init
+cfg_verify_block_root:
+        mov r2, r10
+        imm r1, 8
+        mul r2, r1
+        imm r1, 3235840
+        add r1, r2
+        load r3, r1
+        imm r1, 4194304
+        add r1, r3
+        loadb r2, r1
+        imm r1, 1
+        jeq r2, r1, cfg_verify_block_next
+        jmp reject
+cfg_verify_block_next:
+        imm r1, 1
+        add r10, r1
+        jmp cfg_verify_block_roots
+cfg_work_item:
+        mov r4, r2
+        imm r5, 8
+        mul r4, r5
+        imm r5, 4718592
+        add r4, r5
+        load r6, r4                    ; pc
+        imm r4, 1
+        add r2, r4
+        imm r1, 524400
+        store r1, r2
+
+        imm r1, 0
+        jlt r6, r1, reject
+        imm r1, 524296
+        load r2, r1
+        jlt r6, r2, cfg_pc_in_range
+        jmp reject
+cfg_pc_in_range:
+        imm r1, 4194304
+        add r1, r6
+        loadb r2, r1
+        imm r3, 0
+        jeq r2, r3, cfg_pc_uncovered
+        jmp reject
+cfg_pc_uncovered:
+        imm r1, 2097152
+        add r1, r6
+        loadb r7, r1                   ; opcode
+        imm r1, 21
+        jlt r7, r1, cfg_opcode_known
+        jmp reject
+
+cfg_opcode_known:
+        imm r1, 1
+        jlt r7, r1, cfg_len_2          ; halt
+        imm r1, 2
+        jlt r7, r1, cfg_len_10         ; imm
+        imm r1, 12
+        jlt r7, r1, cfg_len_3          ; mov..store
+        imm r1, 13
+        jlt r7, r1, cfg_len_9          ; jmp
+        imm r1, 15
+        jlt r7, r1, cfg_len_10         ; jz/jnz
+        imm r1, 17
+        jlt r7, r1, cfg_len_11         ; jlt/jeq
+        imm r1, 19
+        jlt r7, r1, cfg_len_2          ; read/write
+        imm r1, 20
+        jlt r7, r1, cfg_len_9          ; call
+        imm r8, 1                      ; ret
+        jmp cfg_length_ready
+cfg_len_2:
+        imm r8, 2
+        jmp cfg_length_ready
+cfg_len_3:
+        imm r8, 3
+        jmp cfg_length_ready
+cfg_len_9:
+        imm r8, 9
+        jmp cfg_length_ready
+cfg_len_10:
+        imm r8, 10
+        jmp cfg_length_ready
+cfg_len_11:
+        imm r8, 11
+
+cfg_length_ready:
+        imm r1, 524416
+        store r1, r6                    ; current pc
+        imm r1, 524424
+        store r1, r7                    ; opcode
+        imm r1, 524440
+        store r1, r8                    ; instruction length
+        mov r9, r6
+        add r9, r8
+        imm r1, 524432
+        store r1, r9                    ; fallthrough/exclusive end
+        imm r1, 524296
+        load r2, r1
+        jlt r2, r9, reject
+
+        ; Claim every byte, rejecting overlap or an already queued interior pc.
+        imm r10, 0
+cfg_cover_loop:
+        jlt r10, r8, cfg_cover_byte
+        jmp cfg_dispatch
+cfg_cover_byte:
+        mov r11, r6
+        add r11, r10
+        imm r1, 4194304
+        add r1, r11
+        loadb r2, r1
+        imm r3, 0
+        jeq r2, r3, cfg_cover_empty
+        jmp reject
+cfg_cover_empty:
+        jeq r10, r3, cfg_cover_start
+        imm r4, 4456448
+        add r4, r11
+        loadb r5, r4
+        jeq r5, r3, cfg_cover_operand
+        jmp reject
+cfg_cover_operand:
+        imm r5, 2
+        storeb r1, r5
+        jmp cfg_cover_next
+cfg_cover_start:
+        imm r5, 1
+        storeb r1, r5
+cfg_cover_next:
+        imm r5, 1
+        add r10, r5
+        jmp cfg_cover_loop
+
+cfg_dispatch:
+        imm r1, 524424
+        load r7, r1
+        imm r2, 0
+        jeq r7, r2, cfg_work_loop       ; halt
+        imm r2, 20
+        jeq r7, r2, cfg_work_loop       ; ret
+        imm r2, 12
+        jeq r7, r2, cfg_direct_1
+        imm r2, 13
+        jeq r7, r2, cfg_conditional_2
+        imm r2, 14
+        jeq r7, r2, cfg_conditional_2
+        imm r2, 15
+        jeq r7, r2, cfg_conditional_3
+        imm r2, 16
+        jeq r7, r2, cfg_conditional_3
+        imm r2, 19
+        jeq r7, r2, cfg_call_1
+        jmp cfg_enqueue_fallthrough
+
+cfg_direct_1:
+        imm r13, 1
+        jmp cfg_load_direct
+cfg_conditional_2:
+        imm r13, 2
+        jmp cfg_load_conditional
+cfg_conditional_3:
+        imm r13, 3
+        jmp cfg_load_conditional
+cfg_call_1:
+        imm r13, 1
+        jmp cfg_load_call
+
+cfg_load_direct:
+        imm r1, 524416
+        load r6, r1
+        imm r1, 2097152
+        add r1, r6
+        add r1, r13
+        load r0, r1
+        call cfg_enqueue
+        jmp cfg_work_loop
+cfg_load_conditional:
+        imm r1, 524416
+        load r6, r1
+        imm r1, 2097152
+        add r1, r6
+        add r1, r13
+        load r0, r1
+        call cfg_enqueue
+        jmp cfg_enqueue_fallthrough
+cfg_load_call:
+        imm r1, 524416
+        load r6, r1
+        imm r1, 2097152
+        add r1, r6
+        add r1, r13
+        load r0, r1
+        call cfg_enqueue
+cfg_enqueue_fallthrough:
+        imm r1, 524432
+        load r0, r1
+        call cfg_enqueue
+        jmp cfg_work_loop
+
+; Queue a target in r0, rejecting range/interior targets.
+cfg_enqueue:
+        imm r1, 0
+        jlt r0, r1, reject
+        imm r1, 524296
+        load r2, r1
+        jlt r0, r2, cfg_enqueue_range
+        jmp reject
+cfg_enqueue_range:
+        imm r1, 4194304
+        add r1, r0
+        loadb r2, r1
+        imm r3, 2
+        jeq r2, r3, reject
+        imm r3, 1
+        jeq r2, r3, cfg_enqueue_done
+        imm r1, 4456448
+        add r1, r0
+        loadb r2, r1
+        imm r3, 1
+        jeq r2, r3, cfg_enqueue_done
+        storeb r1, r3
+        imm r1, 524408
+        load r2, r1
+        imm r4, 262140
+        jlt r2, r4, cfg_enqueue_store
+        jmp reject
+cfg_enqueue_store:
+        mov r4, r2
+        imm r5, 8
+        mul r4, r5
+        imm r5, 4718592
+        add r4, r5
+        store r4, r0
+        imm r4, 1
+        add r2, r4
+        store r1, r2
+cfg_enqueue_done:
+        ret
+
+; Add block using current IOFF/ILEN. r4 is kind (0 entry, 1 state).
+add_block:
+        imm r1, 524320
+        load r2, r1
+        imm r3, 512
+        jlt r2, r3, add_block_room
+        jmp reject
+add_block_room:
+        mov r5, r2
+        imm r6, 8
+        mul r5, r6
+        imm r6, 524344
+        load r7, r6
+        imm r6, 3145728
+        add r6, r5
+        store r6, r7
+        imm r6, 524360
+        load r7, r6
+        imm r6, 3149824
+        add r6, r5
+        store r6, r7
+        imm r6, 524368
+        load r7, r6
+        imm r6, 3153920
+        add r6, r5
+        store r6, r7
+        imm r6, 3178496
+        add r6, r5
+        store r6, r4
+        imm r6, 524352
+        store r6, r2
+        imm r6, 1
+        add r2, r6
+        store r1, r2
+        ret
+
+; r20/r21 and r22/r23 are source-relative name offset/length pairs.
+names_equal:
+        jeq r21, r23, names_equal_init
+        imm r0, 0
+        ret
+names_equal_init:
+        imm r24, 0
+names_equal_loop:
+        jlt r24, r21, names_equal_byte
+        imm r0, 1
+        ret
+names_equal_byte:
+        imm r25, 1048576
+        add r25, r20
+        add r25, r24
+        loadb r26, r25
+        imm r25, 1048576
+        add r25, r22
+        add r25, r24
+        loadb r27, r25
+        jeq r26, r27, names_equal_next
+        imm r0, 0
+        ret
+names_equal_next:
+        imm r25, 1
+        add r24, r25
+        jmp names_equal_loop
+
+; Read a required identifier after trivia into IOFF/ILEN.
+next_ident:
+        call skip_trivia
+        call current_byte
+        mov r20, r0
+        call is_ident_start
+        imm r1, 1
+        jeq r0, r1, read_ident
+        jmp reject
+
+; Read identifier at CUR into IOFF/ILEN and advance CUR.
+read_ident:
+        imm r1, 524304
+        load r2, r1
+        imm r3, 524360
+        store r3, r2
+ident_loop:
+        call current_byte
+        imm r1, 0
+        jlt r0, r1, ident_done
+        mov r20, r0
+        call is_ident_continue
+        imm r1, 1
+        jeq r0, r1, ident_advance
+        jmp ident_done
+ident_advance:
+        call advance_one
+        jmp ident_loop
+ident_done:
+        imm r1, 524304
+        load r2, r1
+        imm r1, 524360
+        load r3, r1
+        sub r2, r3
+        imm r1, 524368
+        store r1, r2
+        ret
+
+skip_trivia:
+trivia_loop:
+        call current_byte
+        imm r1, 0
+        jlt r0, r1, trivia_done
+        imm r1, 32
+        jeq r0, r1, trivia_advance
+        imm r1, 9
+        jeq r0, r1, trivia_advance
+        imm r1, 10
+        jeq r0, r1, trivia_advance
+        imm r1, 13
+        jeq r0, r1, trivia_advance
+        imm r1, 59
+        jeq r0, r1, comment_loop
+        ret
+trivia_advance:
+        call advance_one
+        jmp trivia_loop
+comment_loop:
+        call current_byte
+        imm r1, 0
+        jlt r0, r1, trivia_done
+        imm r1, 10
+        jeq r0, r1, trivia_advance
+        call advance_one
+        jmp comment_loop
+trivia_done:
+        ret
+
+current_byte:
+        imm r1, 524304
+        load r2, r1
+        imm r1, 524288
+        load r3, r1
+        jlt r2, r3, current_in_range
+        imm r0, 0
+        imm r1, 1
+        sub r0, r1
+        ret
+current_in_range:
+        imm r1, 1048576
+        add r1, r2
+        loadb r0, r1
+        ret
+
+advance_one:
+        imm r1, 524304
+        load r2, r1
+        imm r3, 1
+        add r2, r3
+        store r1, r2
+        ret
+
+; ASCII identifier predicates. Input r20, output r0.
+is_ident_start:
+        imm r1, 65
+        jlt r20, r1, ident_start_underscore
+        imm r1, 91
+        jlt r20, r1, predicate_true
+        imm r1, 97
+        jlt r20, r1, ident_start_underscore
+        imm r1, 123
+        jlt r20, r1, predicate_true
+ident_start_underscore:
+        imm r1, 95
+        jeq r20, r1, predicate_true
+        imm r0, 0
+        ret
+is_ident_continue:
+        call is_ident_start
+        imm r1, 1
+        jeq r0, r1, predicate_true
+        imm r1, 48
+        jlt r20, r1, predicate_false
+        imm r1, 58
+        jlt r20, r1, predicate_true
+predicate_false:
+        imm r0, 0
+        ret
+predicate_true:
+        imm r0, 1
+        ret
+
+; Keyword comparisons use the just-read IOFF/ILEN.
+ident_is_proc:
+        imm r20, 4
+        imm r21, 112
+        imm r22, 114
+        imm r23, 111
+        imm r24, 99
+        jmp ident_equals_4
+ident_is_when:
+        imm r20, 4
+        imm r21, 119
+        imm r22, 104
+        imm r23, 101
+        imm r24, 110
+        jmp ident_equals_4
+ident_is_state:
+        imm r1, 524368
+        load r2, r1
+        imm r3, 5
+        jeq r2, r3, state_bytes
+        imm r0, 0
+        ret
+state_bytes:
+        imm r1, 524360
+        load r2, r1
+        imm r1, 1048576
+        add r1, r2
+        loadb r2, r1
+        imm r3, 115
+        jeq r2, r3, state_b1
+        imm r0, 0
+        ret
+state_b1:
+        imm r3, 1
+        add r1, r3
+        loadb r2, r1
+        imm r3, 116
+        jeq r2, r3, state_b2
+        imm r0, 0
+        ret
+state_b2:
+        imm r3, 1
+        add r1, r3
+        loadb r2, r1
+        imm r3, 97
+        jeq r2, r3, state_b3
+        imm r0, 0
+        ret
+state_b3:
+        imm r3, 1
+        add r1, r3
+        loadb r2, r1
+        imm r3, 116
+        jeq r2, r3, state_b4
+        imm r0, 0
+        ret
+state_b4:
+        imm r3, 1
+        add r1, r3
+        loadb r2, r1
+        imm r3, 101
+        jeq r2, r3, predicate_true
+        imm r0, 0
+        ret
+ident_is_to:
+        imm r1, 524368
+        load r2, r1
+        imm r3, 2
+        jeq r2, r3, to_bytes
+        imm r0, 0
+        ret
+to_bytes:
+        imm r1, 524360
+        load r2, r1
+        imm r1, 1048576
+        add r1, r2
+        loadb r2, r1
+        imm r3, 116
+        jeq r2, r3, to_b1
+        imm r0, 0
+        ret
+to_b1:
+        imm r3, 1
+        add r1, r3
+        loadb r2, r1
+        imm r3, 111
+        jeq r2, r3, predicate_true
+        imm r0, 0
+        ret
+ident_equals_4:
+        imm r1, 524368
+        load r2, r1
+        jeq r2, r20, eq4_b0
+        imm r0, 0
+        ret
+eq4_b0:
+        imm r1, 524360
+        load r2, r1
+        imm r1, 1048576
+        add r1, r2
+        loadb r2, r1
+        jeq r2, r21, eq4_b1
+        imm r0, 0
+        ret
+eq4_b1:
+        imm r2, 1
+        add r1, r2
+        loadb r2, r1
+        jeq r2, r22, eq4_b2
+        imm r0, 0
+        ret
+eq4_b2:
+        imm r2, 1
+        add r1, r2
+        loadb r2, r1
+        jeq r2, r23, eq4_b3
+        imm r0, 0
+        ret
+eq4_b3:
+        imm r2, 1
+        add r1, r2
+        loadb r2, r1
+        jeq r2, r24, predicate_true
+        imm r0, 0
+        ret
+
+; Required little-endian u32, returned in r0.
+read_u32:
+        read r1
+        imm r2, 0
+        jlt r1, r2, reject
+        read r3
+        jlt r3, r2, reject
+        read r4
+        jlt r4, r2, reject
+        read r5
+        jlt r5, r2, reject
+        imm r6, 256
+        mul r5, r6
+        add r4, r5
+        mul r4, r6
+        add r3, r4
+        mul r3, r6
+        mov r0, r1
+        add r0, r3
+        ret
+
+; Read exactly r21 bytes to r20.
+read_blob:
+        imm r22, 0
+read_blob_loop:
+        jlt r22, r21, read_blob_byte
+        ret
+read_blob_byte:
+        read r23
+        imm r24, 0
+        jlt r23, r24, reject
+        storeb r20, r23
+        imm r24, 1
+        add r20, r24
+        add r22, r24
+        jmp read_blob_loop
+
+accept:
+        imm r0, 0
+        halt r0
+reject:
+        imm r0, 1
+        halt r0

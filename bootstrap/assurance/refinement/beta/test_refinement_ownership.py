@@ -43,6 +43,24 @@ class BetaRefinementOwnershipTests(unittest.TestCase):
         self.assertNotIn('bc', sys.modules)
         self.assertNotIn('bc2', sys.modules)
 
+    def test_block_control_mapper_is_only_an_untrusted_witness_builder(self):
+        tree = ast.parse((HERE / 'bc_block_control_map.py').read_text())
+        imported = {
+            alias.name.split('.')[0]
+            for node in ast.walk(tree)
+            if isinstance(node, (ast.Import, ast.ImportFrom))
+            for alias in node.names
+        }
+        self.assertNotIn('bc2', imported)
+        self.assertNotIn('beta_backend', imported)
+        self.assertNotIn('subprocess', imported)
+        self.assertFalse(any(
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id in {'exec', 'eval'}
+            for node in ast.walk(tree)
+        ))
+
     def test_legacy_facade_contains_no_second_compiler(self):
         facade = ROOT / 'compiler/beta-lang-py'
         self.assertFalse((facade / 'bc2.py').exists())

@@ -148,6 +148,9 @@ are valuable teeth, but they do not yet establish the quantified observation:
 - the lower-rooted artifact checker proves reachable instruction framing,
   direct-target boundaries, and static procedure-region/call-return discipline,
   but not the 8,192-frame dynamic call bound or frame/data-memory contents;
+- the lower-rooted control-skeleton checker binds every exact source entry/state
+  block and `to` site to decoded Alpha instruction starts and successor shapes,
+  including guarded fallthrough, but not statement-local data/trace simulation;
 - Alpha out-of-range memory remains undefined in `alpha/SEMANTICS.md` and must be
   excluded by independently checked `B_bc1` bounds before whole-artifact closure
   (or Alpha must be hardened independently);
