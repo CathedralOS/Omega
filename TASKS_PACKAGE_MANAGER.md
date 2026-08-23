@@ -145,6 +145,14 @@ Completed:
   fingerprints, and reject mismatched receipts with guidance to regenerate the
   receipt for the actual candidate diff.
 
+- **CAPABILITY-CHANGE-RECEIPT-PERSISTENCE.** Add standalone receipt JSON
+  read/write support before deciding final receipt placement.
+
+  Done 2026-08-23: `omega-packages` can parse capability-change receipt JSON
+  with strict schema-version, field, severity, and non-empty review checks,
+  reject empty or duplicate accepted-delta lists, and read/write standalone
+  receipt files through same-directory temporary files and atomic rename.
+
 - **LOCAL-PACKAGE-FIXTURE-CORPUS.** Add the first local package corpus for
   resolver, install, update, and audit tests.
 
@@ -429,8 +437,9 @@ Remaining:
   a deliberate command records reviewer identity, old/new fingerprints, diff,
   source revision pair, and acceptance reason.
 
-  Remaining after `CAPABILITY-REVIEW-RECEIPT-MODEL` and
-  `REVIEWED-UPDATE-ADMISSION`: wire receipt creation/loading into
+  Remaining after `CAPABILITY-REVIEW-RECEIPT-MODEL`,
+  `REVIEWED-UPDATE-ADMISSION`, and
+  `CAPABILITY-CHANGE-RECEIPT-PERSISTENCE`: wire receipt creation/loading into
   `omega update` and persist accepted receipts in or beside `omega.lock`.
 
   Acceptance: higher-capability updates require an acceptance receipt. New
