@@ -1,0 +1,610 @@
+; Exact source/artifact shape for cmp_op() procedure59.
+
+cmp_op_require_shape:
+        imm r20, 7151616
+        imm r21, 59
+        imm r22, 0                    ; no parameters
+        call transfer_require_cell
+        imm r20, 7159808
+        imm r21, 59
+        imm r22, 2                    ; locals c and saved i
+        call transfer_require_cell
+        imm r20, 59
+        call call_bounds_frame_bytes
+        imm r1, 24
+        jeq r0, r1, cmp_op_shape_blocks
+        jmp reject
+
+cmp_op_shape_blocks:
+        imm r20, 273
+        imm r21, 39297
+        call slurp_summary_require_block_pc
+        imm r20, 274
+        imm r21, 39357
+        call slurp_summary_require_block_pc
+        imm r20, 275
+        imm r21, 39489
+        call slurp_summary_require_block_pc
+        imm r20, 276
+        imm r21, 39641
+        call slurp_summary_require_block_pc
+        imm r20, 277
+        imm r21, 39680
+        call slurp_summary_require_block_pc
+        imm r20, 278
+        imm r21, 39812
+        call slurp_summary_require_block_pc
+        imm r20, 279
+        imm r21, 39964
+        call slurp_summary_require_block_pc
+        imm r20, 280
+        imm r21, 40003
+        call slurp_summary_require_block_pc
+        imm r20, 281
+        imm r21, 40135
+        call slurp_summary_require_block_pc
+        imm r20, 282
+        imm r21, 40183
+        call slurp_summary_require_block_pc
+        imm r20, 283
+        imm r21, 40384
+        call slurp_summary_require_block_pc
+        imm r20, 284
+        imm r21, 40680
+        call slurp_summary_require_block_pc
+        imm r20, 273
+        imm r21, 284
+        imm r22, 59
+        call cursor_require_proc_blocks
+        call cmp_op_require_transitions
+        call cmp_op_require_events
+        call cmp_op_require_locals_memory
+        call cmp_op_require_primitives
+        call cmp_op_require_pushes
+        call cmp_op_require_censuses
+        ret
+
+cmp_op_require_transitions:
+        imm r20, 215
+        imm r21, 274
+        imm r22, 1
+        imm r23, 275
+        imm r24, 39461                ; first byte '<'
+        call slurp_summary_require_transition
+        imm r20, 216
+        imm r21, 274
+        imm r22, 0
+        imm r23, 277
+        imm r24, 39480
+        call slurp_summary_require_transition
+        imm r20, 217
+        imm r21, 275
+        imm r22, 1
+        imm r23, 276
+        imm r24, 39592                ; '<' lookahead '='
+        call slurp_summary_require_transition
+        imm r20, 218
+        imm r21, 277
+        imm r22, 1
+        imm r23, 278
+        imm r24, 39784                ; first byte '>'
+        call slurp_summary_require_transition
+        imm r20, 219
+        imm r21, 277
+        imm r22, 0
+        imm r23, 280
+        imm r24, 39803
+        call slurp_summary_require_transition
+        imm r20, 220
+        imm r21, 278
+        imm r22, 1
+        imm r23, 279
+        imm r24, 39915                ; '>' lookahead '='
+        call slurp_summary_require_transition
+        imm r20, 221
+        imm r21, 280
+        imm r22, 1
+        imm r23, 281
+        imm r24, 40107                ; first byte '!'
+        call slurp_summary_require_transition
+        imm r20, 222
+        imm r21, 280
+        imm r22, 0
+        imm r23, 282
+        imm r24, 40126
+        call slurp_summary_require_transition
+        imm r20, 223
+        imm r21, 282
+        imm r22, 1
+        imm r23, 283
+        imm r24, 40287                ; first byte '='
+        call slurp_summary_require_transition
+        imm r20, 224
+        imm r21, 283
+        imm r22, 1
+        imm r23, 284
+        imm r24, 40519                ; '=' lookahead '='
+        call slurp_summary_require_transition
+        ret
+
+cmp_op_require_events:
+        imm r20, 443
+        imm r21, 273
+        imm r22, 39329
+        imm r23, 0
+        imm r24, 0
+        imm r25, 1609
+        imm r26, 39338
+        call summary_require_call_site
+        imm r20, 444
+        imm r21, 275
+        imm r22, 39489
+        imm r23, 0
+        imm r24, 0
+        imm r25, 1939
+        imm r26, 39498
+        call summary_require_call_site
+        imm r20, 445
+        imm r21, 275
+        imm r22, 39498
+        imm r23, 0
+        imm r24, 0
+        imm r25, 1609
+        imm r26, 39507
+        call summary_require_call_site
+        imm r20, 446
+        imm r21, 275
+        imm r22, 5
+        imm r23, 39640
+        call slurp_summary_require_event
+        imm r20, 447
+        imm r21, 276
+        imm r22, 39641
+        imm r23, 0
+        imm r24, 0
+        imm r25, 1939
+        imm r26, 39650
+        call summary_require_call_site
+        imm r20, 448
+        imm r21, 276
+        imm r22, 5
+        imm r23, 39679
+        call slurp_summary_require_event
+        imm r20, 449
+        imm r21, 278
+        imm r22, 39812
+        imm r23, 0
+        imm r24, 0
+        imm r25, 1939
+        imm r26, 39821
+        call summary_require_call_site
+        imm r20, 450
+        imm r21, 278
+        imm r22, 39821
+        imm r23, 0
+        imm r24, 0
+        imm r25, 1609
+        imm r26, 39830
+        call summary_require_call_site
+        imm r20, 451
+        imm r21, 278
+        imm r22, 5
+        imm r23, 39963
+        call slurp_summary_require_event
+        imm r20, 452
+        imm r21, 279
+        imm r22, 39964
+        imm r23, 0
+        imm r24, 0
+        imm r25, 1939
+        imm r26, 39973
+        call summary_require_call_site
+        imm r20, 453
+        imm r21, 279
+        imm r22, 5
+        imm r23, 40002
+        call slurp_summary_require_event
+        imm r20, 454
+        imm r21, 281
+        imm r22, 40135
+        imm r23, 0
+        imm r24, 0
+        imm r25, 1939
+        imm r26, 40144
+        call summary_require_call_site
+        imm r20, 455
+        imm r21, 281
+        imm r22, 40144
+        imm r23, 0
+        imm r24, 0
+        imm r25, 1939
+        imm r26, 40153              ; unchecked bang tail continuation
+        call summary_require_call_site
+        imm r20, 456
+        imm r21, 281
+        imm r22, 5
+        imm r23, 40182
+        call slurp_summary_require_event
+        imm r20, 457
+        imm r21, 282
+        imm r22, 5
+        imm r23, 40383
+        call slurp_summary_require_event
+        imm r20, 458
+        imm r21, 283
+        imm r22, 40416
+        imm r23, 0
+        imm r24, 0
+        imm r25, 1939
+        imm r26, 40425
+        call summary_require_call_site
+        imm r20, 459
+        imm r21, 283
+        imm r22, 40425
+        imm r23, 0
+        imm r24, 0
+        imm r25, 1609
+        imm r26, 40434
+        call summary_require_call_site
+        imm r20, 460
+        imm r21, 283
+        imm r22, 5
+        imm r23, 40679
+        call slurp_summary_require_event
+        imm r20, 461
+        imm r21, 284
+        imm r22, 40680
+        imm r23, 0
+        imm r24, 0
+        imm r25, 1939
+        imm r26, 40689
+        call summary_require_call_site
+        imm r20, 462
+        imm r21, 284
+        imm r22, 5
+        imm r23, 40718
+        call slurp_summary_require_event
+        call cmp_op_require_epilogues
+        ret
+
+cmp_op_require_epilogues:
+        imm r20, 39621
+        imm r21, 39640
+        call slurp_summary_require_epilogue
+        imm r20, 39660
+        imm r21, 39679
+        call slurp_summary_require_epilogue
+        imm r20, 39944
+        imm r21, 39963
+        call slurp_summary_require_epilogue
+        imm r20, 39983
+        imm r21, 40002
+        call slurp_summary_require_epilogue
+        imm r20, 40163
+        imm r21, 40182
+        call slurp_summary_require_epilogue
+        imm r20, 40364
+        imm r21, 40383
+        call slurp_summary_require_epilogue
+        imm r20, 40660
+        imm r21, 40679
+        call slurp_summary_require_epilogue
+        imm r20, 40699
+        imm r21, 40718
+        call slurp_summary_require_epilogue
+        imm r20, 40719
+        imm r21, 40738
+        call slurp_summary_require_epilogue
+        ret
+
+cmp_op_require_locals_memory:
+        imm r20, 171
+        imm r21, 273
+        imm r22, 2
+        imm r23, 0
+        imm r24, 39338              ; c = opening cbyte
+        call transfer_require_local
+        imm r20, 172
+        imm r21, 274
+        imm r22, 1
+        imm r23, 0
+        imm r24, 39357
+        call transfer_require_local
+        imm r20, 173
+        imm r21, 277
+        imm r22, 1
+        imm r23, 0
+        imm r24, 39680
+        call transfer_require_local
+        imm r20, 174
+        imm r21, 280
+        imm r22, 1
+        imm r23, 0
+        imm r24, 40003
+        call transfer_require_local
+        imm r20, 175
+        imm r21, 282
+        imm r22, 1
+        imm r23, 0
+        imm r24, 40183
+        call transfer_require_local
+        imm r20, 176
+        imm r21, 283
+        imm r22, 2
+        imm r23, 1
+        imm r24, 40397              ; saved entry CUR
+        call transfer_require_local
+        imm r20, 177
+        imm r21, 283
+        imm r22, 1
+        imm r23, 1
+        imm r24, 40564              ; restored entry CUR
+        call transfer_require_local
+        imm r20, 55
+        imm r21, 283
+        imm r22, 1
+        imm r23, 8
+        imm r24, 40394              ; load CUR before '=' advance
+        call transfer_require_memory
+        imm r20, 56
+        imm r21, 283
+        imm r22, 2
+        imm r23, 8
+        imm r24, 40599              ; restore CUR on single '='
+        call transfer_require_memory
+        ret
+
+cmp_op_require_primitives:
+        imm r20, 628
+        imm r21, 274
+        imm r22, 3
+        imm r23, 10
+        imm r24, 39402
+        call transfer_require_primitive
+        imm r20, 629
+        imm r21, 274
+        imm r22, 1
+        imm r23, 60
+        imm r24, 39392
+        call transfer_require_primitive
+        imm r20, 630
+        imm r21, 275
+        imm r22, 3
+        imm r23, 10
+        imm r24, 39533
+        call transfer_require_primitive
+        imm r20, 631
+        imm r21, 275
+        imm r22, 1
+        imm r23, 61
+        imm r24, 39523
+        call transfer_require_primitive
+        imm r20, 632
+        imm r21, 275
+        imm r22, 1
+        imm r23, 0
+        imm r24, 39611
+        call transfer_require_primitive
+        imm r20, 633
+        imm r21, 276
+        imm r22, 1
+        imm r23, 4
+        imm r24, 39650
+        call transfer_require_primitive
+        imm r20, 634
+        imm r21, 277
+        imm r22, 3
+        imm r23, 10
+        imm r24, 39725
+        call transfer_require_primitive
+        imm r20, 635
+        imm r21, 277
+        imm r22, 1
+        imm r23, 62
+        imm r24, 39715
+        call transfer_require_primitive
+        imm r20, 636
+        imm r21, 278
+        imm r22, 3
+        imm r23, 10
+        imm r24, 39856
+        call transfer_require_primitive
+        imm r20, 637
+        imm r21, 278
+        imm r22, 1
+        imm r23, 61
+        imm r24, 39846
+        call transfer_require_primitive
+        imm r20, 638
+        imm r21, 278
+        imm r22, 1
+        imm r23, 1
+        imm r24, 39934
+        call transfer_require_primitive
+        imm r20, 639
+        imm r21, 279
+        imm r22, 1
+        imm r23, 5
+        imm r24, 39973
+        call transfer_require_primitive
+        imm r20, 640
+        imm r21, 280
+        imm r22, 3
+        imm r23, 10
+        imm r24, 40048
+        call transfer_require_primitive
+        imm r20, 641
+        imm r21, 280
+        imm r22, 1
+        imm r23, 33
+        imm r24, 40038
+        call transfer_require_primitive
+        imm r20, 642
+        imm r21, 281
+        imm r22, 1
+        imm r23, 3
+        imm r24, 40153
+        call transfer_require_primitive
+        imm r20, 643
+        imm r21, 282
+        imm r22, 3
+        imm r23, 10
+        imm r24, 40228
+        call transfer_require_primitive
+        imm r20, 644
+        imm r21, 282
+        imm r22, 1
+        imm r23, 61
+        imm r24, 40218
+        call transfer_require_primitive
+        imm r20, 645
+        imm r21, 282
+        imm r22, 1
+        imm r23, 0
+        imm r24, 40306
+        call transfer_require_primitive
+        imm r20, 646
+        imm r21, 282
+        imm r22, 2
+        imm r23, 4
+        imm r24, 40342
+        call transfer_require_primitive
+        imm r20, 647
+        imm r21, 282
+        imm r22, 1
+        imm r23, 1
+        imm r24, 40332
+        call transfer_require_primitive
+        imm r20, 648
+        imm r21, 283
+        imm r22, 1
+        imm r23, 2097144
+        imm r24, 40384
+        call transfer_require_primitive
+        imm r20, 649
+        imm r21, 283
+        imm r22, 3
+        imm r23, 10
+        imm r24, 40460
+        call transfer_require_primitive
+        imm r20, 650
+        imm r21, 283
+        imm r22, 1
+        imm r23, 61
+        imm r24, 40450
+        call transfer_require_primitive
+        imm r20, 651
+        imm r21, 283
+        imm r22, 1
+        imm r23, 2097144
+        imm r24, 40538
+        call transfer_require_primitive
+        imm r20, 652
+        imm r21, 283
+        imm r22, 1
+        imm r23, 0
+        imm r24, 40602
+        call transfer_require_primitive
+        imm r20, 653
+        imm r21, 283
+        imm r22, 2
+        imm r23, 4
+        imm r24, 40638
+        call transfer_require_primitive
+        imm r20, 654
+        imm r21, 283
+        imm r22, 1
+        imm r23, 1
+        imm r24, 40628
+        call transfer_require_primitive
+        imm r20, 655
+        imm r21, 284
+        imm r22, 1
+        imm r23, 2
+        imm r24, 40689
+        call transfer_require_primitive
+        ret
+
+cmp_op_require_pushes:
+        imm r20, 185
+        imm r21, 274
+        imm r22, 1
+        imm r23, 39376
+        call transfer_require_push
+        imm r20, 186
+        imm r21, 275
+        imm r22, 1
+        imm r23, 39507
+        call transfer_require_push
+        imm r20, 187
+        imm r21, 277
+        imm r22, 1
+        imm r23, 39699
+        call transfer_require_push
+        imm r20, 188
+        imm r21, 278
+        imm r22, 1
+        imm r23, 39830
+        call transfer_require_push
+        imm r20, 189
+        imm r21, 280
+        imm r22, 1
+        imm r23, 40022
+        call transfer_require_push
+        imm r20, 190
+        imm r21, 282
+        imm r22, 1
+        imm r23, 40202
+        call transfer_require_push
+        imm r20, 191
+        imm r21, 282
+        imm r22, 1
+        imm r23, 40316
+        call transfer_require_push
+        imm r20, 192
+        imm r21, 283
+        imm r22, 1
+        imm r23, 40434
+        call transfer_require_push
+        imm r20, 193
+        imm r21, 283
+        imm r22, 1
+        imm r23, 40612
+        call transfer_require_push
+        imm r20, 387
+        imm r21, 283
+        imm r22, 3
+        imm r23, 40548              ; restore-CUR address push
+        call transfer_require_push
+        ret
+
+cmp_op_require_censuses:
+        imm r20, 273
+        imm r21, 284
+        imm r22, 171
+        imm r23, 178                 ; exclusive local row
+        imm r24, 55
+        imm r25, 57                  ; exclusive raw-memory row
+        imm r26, 215
+        imm r27, 225                 ; exclusive transition row
+        imm r28, 443
+        imm r29, 463                 ; exclusive event row
+        call cursor_require_effect_census
+        imm r20, 273
+        imm r21, 284
+        imm r22, 628
+        imm r23, 656                 ; exclusive primitive row
+        imm r24, 185
+        imm r25, 194                 ; exclusive binary-push row
+        imm r26, 339                 ; exact empty argument-push start
+        imm r27, 339                 ; exact empty argument-push interval
+        imm r28, 387
+        imm r29, 388                 ; exact restore-CUR store push
+        call summary_require_expr_census
+        imm r20, 39297
+        imm r21, 40739
+        imm r22, 12                  ; adv/cbyte calls
+        imm r23, 9                   ; eight explicit plus synthetic return
+        imm r24, 14                  ; prologue/local/push/raw stores
+        call exact_quiet_scan_region
+        ret

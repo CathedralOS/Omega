@@ -1219,10 +1219,26 @@ bridge compiler is a promise to accept full Omega.
                 phase-isolated canaries cover shape, full-word equality, exact
                 discriminators/counts, complement, parameter provenance, and
                 quiet frame restoration; the focused checker is 239,992 bytes.
-              - [ ] Close exact fixed keyword recognizers, `cmp_op`, and
-                conditional `name_eq`/`lookup` over the already-carried bounded
-                name-table prefix. Preserve lookup's deliberate no-match alias
-                to slot zero; do not silently strengthen it to an option type.
+              - [x] Close procedure 59 `cmp_op` under the reusable cursor-leaf
+                premises. Exact blocks 273..284, transitions 215..224, events
+                443..462, local/raw-memory/expression rows, the two-slot frame,
+                epilogues, and decoded quiet footprint are lower-rooted.
+                Exhaustive first/lookahead byte partitions derive exact result
+                codes and cursor deltas: `<`/`>` consume one, `<=`/`>=` and
+                `==` consume two, single `=` restores entry CUR and returns
+                target Word all-ones, `!` advances twice without checking its
+                second byte and returns 3, and all other bytes consume nothing
+                and return all-ones. Checked clauses retain logical-end versus
+                in-range-NUL provenance, including three zero-lookahead pairs;
+                trailing `!` uses `ADVX` and may finish at `LEN+1`. Forty-one
+                isolated canaries cover shape, censuses, partitions, exact
+                results/deltas, restore flow, cursor provenance, unconditional
+                bang tail, and all-ones construction; the focused checker is
+                251,931 bytes.
+              - [ ] Close exact fixed keyword recognizers and conditional
+                `name_eq`/`lookup` over the already-carried bounded name-table
+                prefix. Preserve lookup's deliberate no-match alias to slot
+                zero; do not silently strengthen it to an option type.
             - [ ] Close the bounded fixed-code emitters that need only `WSTR`
               and bounded `DECS`: `gen_read_byte`, `emit_pop_into`, `emit_push`,
               `emit_mnemonic`, `emit_combine`, `emit_slot_addr`,

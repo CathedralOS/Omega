@@ -1,0 +1,673 @@
+; Conditional exact value/cursor summary for cmp_op() procedure59.
+; Entry has the successful source segment and 0<=CUR=i<=LEN.
+; Fresh cells 529952..530344; reset endpoint 530352.
+
+cmp_op_summary_init:
+        call cmp_op_require_shape
+        call cmp_op_prove_summary
+        jmp scan_owned_effects_init
+
+cmp_op_prove_summary:
+        call cmp_op_reset
+        call cmp_op_require_imports
+        call cmp_op_introduce_entry
+        call cmp_op_sweep_first_bytes
+        call cmp_op_sweep_lookahead
+        call cmp_op_prove_allones
+        call cmp_op_prove_restore_flow
+        imm r20, 1                   ; <
+        call cmp_op_prove_path
+        imm r20, 2                   ; <=
+        call cmp_op_prove_path
+        imm r20, 3                   ; >
+        call cmp_op_prove_path
+        imm r20, 4                   ; >=
+        call cmp_op_prove_path
+        imm r20, 5                   ; ! plus unchecked next byte
+        call cmp_op_prove_path
+        imm r20, 6                   ; single =, restored
+        call cmp_op_prove_path
+        imm r20, 7                   ; ==
+        call cmp_op_prove_path
+        imm r20, 8                   ; other
+        call cmp_op_prove_path
+        call cmp_op_prove_end_cases
+        call cmp_op_prove_second_zero_cases
+        call cmp_op_publish
+        ret
+
+cmp_op_reset:
+        imm r1, 529952
+        imm r2, 0
+cmp_op_reset_loop:
+        imm r3, 530352
+        jlt r1, r3, cmp_op_reset_cell
+        ret
+cmp_op_reset_cell:
+        store r1, r2
+        imm r3, 8
+        add r1, r3
+        jmp cmp_op_reset_loop
+
+cmp_op_require_imports:
+        imm r20, 525960
+        imm r21, 1128421445           ; CBLE
+        call cursor_require_cell
+        imm r20, 525968
+        imm r21, 1094992965           ; ADVE
+        call cursor_require_cell
+        imm r20, 527320
+        imm r21, 1094994008           ; ADVX
+        call cursor_require_cell
+        imm r20, 526320
+        imm r21, 1                    ; successful source/cursor domain
+        call cursor_require_cell
+        imm r1, 529960
+        imm r2, 1
+        store r1, r2
+        ret
+
+cmp_op_introduce_entry:
+        imm r1, 529968
+        imm r2, 1                    ; fixed entry i with 0<=i<=LEN
+        store r1, r2
+        imm r1, 529976
+        store r1, r2                  ; quiet state and restored two-slot frame
+        ret
+
+; The two source spellings of 0-1 are Alpha word subtraction.
+cmp_op_prove_allones:
+        imm r1, 0
+        imm r2, 1
+        sub r1, r2
+        mov r2, r1
+        imm r3, 1                    ; independent allones-plus-one probe
+        add r2, r3
+        imm r3, 0
+        jeq r2, r3, cmp_op_allones_checked
+        jmp reject
+cmp_op_allones_checked:
+        imm r3, 530280
+        store r3, r1                  ; source-faithful exact word 0-1
+        ret
+
+; Recheck the exact CUR load, slot1 save/load, address push, and CUR store.
+cmp_op_prove_restore_flow:
+        call cmp_op_require_locals_memory
+        call cmp_op_require_pushes
+        imm r1, 2097144
+        imm r2, 2097144
+        jeq r1, r2, cmp_op_restore_flow_ok
+        jmp reject
+cmp_op_restore_flow_ok:
+        imm r1, 530288
+        imm r2, 1                    ; exact saved-entry-CUR restore chain
+        store r1, r2
+        ret
+
+cmp_op_reset_work:
+        imm r1, 530104
+        imm r2, 0
+cmp_op_reset_work_loop:
+        imm r3, 530184
+        jlt r1, r3, cmp_op_reset_work_cell
+        ret
+cmp_op_reset_work_cell:
+        store r1, r2
+        imm r3, 8
+        add r1, r3
+        jmp cmp_op_reset_work_loop
+
+; Path tags: 1 <, 2 <=, 3 >, 4 >=, 5 !x, 6 single =, 7 ==, 8 other.
+cmp_op_prove_path:
+        mov r25, r20
+        call cmp_op_reset_work
+        call cmp_op_require_entry
+        imm r1, 530104
+        store r1, r25
+        imm r1, 8
+        jeq r25, r1, cmp_op_path_other
+        imm r1, 530112
+        imm r2, 1                    ; recognized nonzero first byte is a hit
+        store r1, r2
+        imm r1, 530128
+        store r1, r2                  ; first ADVE consumes recognized byte
+        imm r1, 1
+        jeq r25, r1, cmp_op_path_lt
+        imm r1, 2
+        jeq r25, r1, cmp_op_path_le
+        imm r1, 3
+        jeq r25, r1, cmp_op_path_gt
+        imm r1, 4
+        jeq r25, r1, cmp_op_path_ge
+        imm r1, 5
+        jeq r25, r1, cmp_op_path_bang
+        imm r1, 6
+        jeq r25, r1, cmp_op_path_single_eq
+        imm r1, 7
+        jeq r25, r1, cmp_op_path_eqeq
+        jmp reject
+cmp_op_path_lt:
+        imm r2, 60
+        call cmp_op_set_first_value
+        imm r20, 0
+        imm r21, 1
+        jmp cmp_op_set_non_equal
+cmp_op_path_le:
+        imm r2, 60
+        call cmp_op_set_first_value
+        imm r20, 4
+        jmp cmp_op_set_equal
+cmp_op_path_gt:
+        imm r2, 62
+        call cmp_op_set_first_value
+        imm r20, 1
+        imm r21, 1
+        jmp cmp_op_set_non_equal
+cmp_op_path_ge:
+        imm r2, 62
+        call cmp_op_set_first_value
+        imm r20, 5
+        jmp cmp_op_set_equal
+cmp_op_path_bang:
+        imm r2, 33
+        call cmp_op_set_first_value
+        imm r1, 530152
+        imm r2, 2                    ; second call is ADVX, not cbyte/ADVE
+        store r1, r2
+        imm r1, 530168
+        imm r2, 3
+        store r1, r2                  ; exact code3
+        imm r1, 530176
+        imm r2, 2                    ; exact bang CUR delta
+        store r1, r2                  ; exact CUR delta2, bounded LEN+1
+        imm r1, 530264
+        imm r2, 1
+        store r1, r2                  ; no second-byte observation/check
+        jmp cmp_op_path_require
+cmp_op_path_single_eq:
+        imm r2, 61
+        call cmp_op_set_first_value
+        imm r1, 530160
+        imm r2, 1                    ; saved entry CUR restored
+        store r1, r2
+        imm r20, 530280
+        load r20, r20
+        imm r21, 0
+        jmp cmp_op_set_non_equal
+cmp_op_path_eqeq:
+        imm r2, 61
+        call cmp_op_set_first_value
+        imm r20, 2
+        jmp cmp_op_set_equal
+cmp_op_path_other:
+        imm r1, 530112
+        imm r2, 3                    ; complete complement: hit or boundary
+        store r1, r2
+        imm r1, 530120
+        imm r2, 256                  ; first-byte complement relation
+        store r1, r2
+        imm r1, 530168
+        imm r2, 530280
+        load r2, r2
+        store r1, r2
+        imm r1, 530176
+        imm r2, 0                    ; consumes nothing
+        store r1, r2
+        jmp cmp_op_path_require
+
+cmp_op_set_first_value:
+        imm r1, 530120
+        store r1, r2
+        ret
+
+; r20=result, r21=delta. Lookahead is the complete non-'=' partition.
+cmp_op_set_non_equal:
+        imm r1, 530136
+        imm r2, 3                    ; lookahead hit or boundary
+        store r1, r2
+        imm r1, 530144
+        imm r2, 2                    ; exact non-'=' relation
+        store r1, r2
+        imm r1, 530168
+        store r1, r20
+        imm r1, 530176
+        store r1, r21
+        jmp cmp_op_path_require
+
+; r20=result. '=' lookahead is in range and is consumed with ADVE.
+cmp_op_set_equal:
+        imm r1, 530136
+        imm r2, 1                    ; lookahead hit
+        store r1, r2
+        imm r1, 530144
+        store r1, r2                  ; exact '=' relation
+        imm r1, 530152
+        store r1, r2                  ; second ADVE
+        imm r1, 530168
+        store r1, r20
+        imm r1, 530176
+        imm r2, 2
+        store r1, r2
+
+cmp_op_path_require:
+        call cmp_op_require_selected_path
+        mov r1, r25
+        imm r2, 1
+        sub r1, r2
+        imm r2, 8
+        mul r1, r2
+        imm r2, 530184
+        add r1, r2
+        imm r2, 1
+        store r1, r2
+        ret
+
+cmp_op_require_entry:
+        imm r20, 529960
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 529968
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 529976
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 530008
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 530080
+        imm r21, 1
+        call cursor_require_cell
+        ret
+
+cmp_op_require_selected_path:
+        call cmp_op_require_entry
+        imm r20, 530104
+        mov r21, r25                  ; consumed exact branch selection
+        call cursor_require_cell
+        imm r1, 8
+        jeq r25, r1, cmp_op_require_other
+        imm r20, 530112
+        imm r21, 1                    ; consumed first-byte hit
+        call cursor_require_cell
+        imm r20, 530128
+        imm r21, 1                    ; consumed first ADVE
+        call cursor_require_cell
+        imm r20, 526016
+        imm r21, 1                    ; recognized first byte consumes CBLE hit
+        call cursor_require_cell
+        imm r20, 525968
+        imm r21, 1094992965
+        call cursor_require_cell
+        imm r1, 5
+        jeq r25, r1, cmp_op_require_bang
+        call cmp_op_require_lookahead
+        call cmp_op_require_path_result
+        imm r1, 6
+        jeq r25, r1, cmp_op_require_single_eq
+        ret
+cmp_op_require_other:
+        imm r20, 530112
+        imm r21, 3                    ; consumed complete first complement
+        call cursor_require_cell
+        imm r20, 530120
+        imm r21, 256
+        call cursor_require_cell
+        imm r20, 530168
+        imm r21, 530280
+        load r21, r21
+        call cursor_require_cell
+        imm r20, 530176
+        imm r21, 0
+        call cursor_require_cell
+        ret
+cmp_op_require_bang:
+        imm r20, 530120
+        imm r21, 33
+        call cursor_require_cell
+        imm r20, 530152
+        imm r21, 2                    ; consumed unconditional ADVX tail
+        call cursor_require_cell
+        imm r20, 527320
+        imm r21, 1094994008           ; consumed unconditional tail ADVX
+        call cursor_require_cell
+        imm r20, 530264
+        imm r21, 1                    ; consumed absence of second-byte check
+        call cursor_require_cell
+        imm r20, 530168
+        imm r21, 3
+        call cursor_require_cell
+        imm r20, 530176
+        imm r21, 2
+        call cursor_require_cell
+        ret
+cmp_op_require_single_eq:
+        imm r20, 530160
+        imm r21, 1                    ; consumed exact restore relation
+        call cursor_require_cell
+        imm r20, 530288
+        imm r21, 1                    ; consumed load/local/push/store chain
+        call cursor_require_cell
+        imm r20, 530280
+        load r21, r20
+        call cursor_require_cell
+        ret
+
+cmp_op_require_lookahead:
+        imm r20, 530136
+        load r21, r20
+        imm r1, 1
+        jeq r21, r1, cmp_op_require_equal_lookahead
+        imm r1, 3
+        jeq r21, r1, cmp_op_require_non_equal_lookahead
+        jmp reject
+cmp_op_require_equal_lookahead:
+        imm r20, 526016
+        imm r21, 1                    ; '=' lookahead consumes CBLE hit
+        call cursor_require_cell
+        imm r20, 530144
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 530152
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 525968
+        imm r21, 1094992965
+        call cursor_require_cell
+        ret
+cmp_op_require_non_equal_lookahead:
+        imm r20, 530144
+        imm r21, 2
+        call cursor_require_cell
+        ret
+
+cmp_op_require_path_result:
+        imm r22, 60
+        imm r23, 0
+        imm r24, 1
+        imm r1, 1
+        jeq r25, r1, cmp_op_require_result_cells
+        imm r23, 4
+        imm r24, 2
+        imm r1, 2
+        jeq r25, r1, cmp_op_require_result_cells
+        imm r22, 62
+        imm r23, 1
+        imm r24, 1
+        imm r1, 3
+        jeq r25, r1, cmp_op_require_result_cells
+        imm r23, 5
+        imm r24, 2
+        imm r1, 4
+        jeq r25, r1, cmp_op_require_result_cells
+        imm r22, 61
+        imm r23, 530280
+        load r23, r23
+        imm r24, 0
+        imm r1, 6
+        jeq r25, r1, cmp_op_require_result_cells
+        imm r23, 2
+        imm r24, 2
+        imm r1, 7
+        jeq r25, r1, cmp_op_require_result_cells
+        jmp reject
+cmp_op_require_result_cells:
+        imm r20, 530120
+        mov r21, r22                  ; consumed exact first operator byte
+        call cursor_require_cell
+        imm r20, 530168
+        mov r21, r23                  ; consumed exact result code
+        call cursor_require_cell
+        imm r20, 530176
+        mov r21, r24                  ; consumed exact cursor delta
+        call cursor_require_cell
+        ret
+
+; Logical end and in-range NUL both return allones without consumption but
+; retain distinct CBLE provenance. A trailing ! reaches LEN+1 via ADVX.
+cmp_op_prove_end_cases:
+        imm r20, 1
+        call cmp_op_prove_zero_case
+        imm r20, 2
+        call cmp_op_prove_zero_case
+        call cmp_op_prove_trailing_bang
+        ret
+
+; Explicit zero lookaheads retain boundary versus in-range NUL provenance for
+; the <, >, and single-= complement paths.
+cmp_op_prove_second_zero_cases:
+        imm r20, 1
+        imm r21, 1
+        call cmp_op_prove_second_zero
+        imm r20, 1
+        imm r21, 2
+        call cmp_op_prove_second_zero
+        imm r20, 3
+        imm r21, 1
+        call cmp_op_prove_second_zero
+        imm r20, 3
+        imm r21, 2
+        call cmp_op_prove_second_zero
+        imm r20, 6
+        imm r21, 1
+        call cmp_op_prove_second_zero
+        imm r20, 6
+        imm r21, 2
+        call cmp_op_prove_second_zero
+        ret
+
+cmp_op_prove_second_zero:
+        mov r25, r20                  ; path 1/3/6
+        mov r26, r21                  ; second CBLE 1=hit, 2=boundary
+        call cmp_op_reset_work
+        call cmp_op_require_entry
+        imm r1, 530104
+        store r1, r25
+        imm r1, 530112
+        imm r2, 1
+        store r1, r2                  ; first CBLE hit
+        imm r1, 530128
+        store r1, r2                  ; first ADVE
+        imm r1, 530136
+        store r1, r26                 ; exact second provenance
+        imm r1, 530144
+        imm r2, 0
+        store r1, r2                  ; exact second value zero
+        imm r27, 530296
+        imm r2, 60
+        imm r20, 0
+        imm r21, 1
+        imm r1, 1
+        jeq r25, r1, cmp_op_second_zero_selected
+        imm r27, 530312
+        imm r2, 62
+        imm r20, 1
+        imm r1, 3
+        jeq r25, r1, cmp_op_second_zero_selected
+        imm r27, 530328
+        imm r2, 61
+        imm r20, 530280
+        load r20, r20
+        imm r21, 0
+        imm r1, 6
+        jeq r25, r1, cmp_op_second_zero_eq
+        jmp reject
+cmp_op_second_zero_eq:
+        imm r1, 530160
+        imm r3, 1
+        store r1, r3                  ; exact restore on single =
+cmp_op_second_zero_selected:
+        imm r1, 530120
+        store r1, r2                  ; exact first operator byte
+        imm r1, 530168
+        store r1, r20                 ; exact result
+        imm r1, 530176
+        store r1, r21                 ; exact final delta
+        call cmp_op_require_second_zero
+        mov r1, r26
+        imm r2, 1
+        sub r1, r2
+        imm r2, 8
+        mul r1, r2
+        add r1, r27
+        imm r2, 1
+        store r1, r2                  ; publish only after exact joins
+        ret
+
+cmp_op_require_second_zero:
+        imm r20, 526016
+        imm r21, 1                    ; first operator CBLE hit
+        call cursor_require_cell
+        imm r20, 530136
+        mov r21, r26                  ; consumed second hit/boundary join
+        call cursor_require_cell
+        imm r20, 530144
+        imm r21, 0                    ; consumed exact zero lookahead
+        call cursor_require_cell
+        imm r1, 1
+        jeq r26, r1, cmp_op_second_zero_hit
+        imm r20, 526024
+        imm r21, 1                    ; second CBLE boundary clause
+        call cursor_require_cell
+        jmp cmp_op_second_zero_path
+cmp_op_second_zero_hit:
+        imm r20, 526016
+        imm r21, 1                    ; second CBLE in-range NUL clause
+        call cursor_require_cell
+cmp_op_second_zero_path:
+        mov r1, r25
+        imm r2, 1
+        sub r1, r2
+        imm r2, 8
+        mul r1, r2
+        imm r2, 530184
+        add r1, r2
+        mov r20, r1
+        imm r21, 1                    ; consumed generic path result
+        call cursor_require_cell
+        call cmp_op_require_path_result
+        imm r1, 6
+        jeq r25, r1, cmp_op_require_single_eq
+        ret
+
+cmp_op_prove_zero_case:
+        mov r25, r20
+        call cmp_op_reset_work
+        call cmp_op_require_entry
+        imm r1, 530104
+        imm r2, 8
+        store r1, r2                  ; other branch
+        imm r1, 530112
+        store r1, r25                 ; 1 hit-NUL, 2 logical boundary
+        imm r1, 530120
+        imm r2, 0                    ; exact observed zero
+        store r1, r2
+        imm r1, 530168
+        imm r2, 530280
+        load r2, r2
+        store r1, r2
+        imm r1, 530176
+        imm r2, 0
+        store r1, r2
+        call cmp_op_require_zero_case
+        imm r1, 530240
+        imm r2, 8
+        mul r2, r25
+        add r1, r2
+        imm r2, 1
+        store r1, r2
+        ret
+
+cmp_op_require_zero_case:
+        imm r20, 530240
+        imm r21, 1                    ; consumed complete other path
+        call cursor_require_cell
+        imm r20, 530104
+        imm r21, 8
+        call cursor_require_cell
+        imm r20, 530112
+        mov r21, r25                  ; consumed hit-vs-boundary provenance
+        call cursor_require_cell
+        imm r20, 530120
+        imm r21, 0                    ; consumed exact zero value
+        call cursor_require_cell
+        imm r1, 1
+        jeq r25, r1, cmp_op_require_zero_hit
+        imm r20, 526024
+        imm r21, 1                    ; logical-end miss clause
+        call cursor_require_cell
+        jmp cmp_op_require_zero_result
+cmp_op_require_zero_hit:
+        imm r20, 526016
+        imm r21, 1                    ; in-range NUL hit clause
+        call cursor_require_cell
+cmp_op_require_zero_result:
+        imm r20, 530168
+        imm r21, 530280
+        load r21, r21
+        call cursor_require_cell
+        imm r20, 530176
+        imm r21, 0
+        call cursor_require_cell
+        ret
+
+cmp_op_prove_trailing_bang:
+        imm r1, 530344
+        imm r2, 1                    ; exact entry gap LEN-i=1
+        store r1, r2
+        imm r20, 5
+        call cmp_op_prove_path
+        imm r20, 530344
+        imm r21, 1                    ; consumed trailing-bang entry gap
+        call cursor_require_cell
+        imm r20, 530216
+        imm r21, 1                    ; exact bang path
+        call cursor_require_cell
+        imm r20, 530264
+        imm r21, 1                    ; no lookahead before second adv
+        call cursor_require_cell
+        imm r20, 527320
+        imm r21, 1094994008
+        call cursor_require_cell
+        imm r1, 530272
+        imm r2, 1                    ; trailing ! exits at LEN+1 with code3
+        store r1, r2
+        ret
+
+cmp_op_publish:
+        imm r10, 530184
+cmp_op_publish_loop:
+        imm r1, 530280
+        jlt r10, r1, cmp_op_publish_path
+        imm r20, 530280
+        load r21, r20
+        call cursor_require_cell
+        imm r20, 530288
+        imm r21, 1
+        call cursor_require_cell
+        imm r10, 530296
+cmp_op_publish_zero_loop:
+        imm r1, 530344
+        jlt r10, r1, cmp_op_publish_zero
+        imm r20, 530344
+        imm r21, 1
+        call cursor_require_cell
+        imm r1, 529952
+        imm r2, 1347374403            ; CMOP
+        store r1, r2
+        ret
+cmp_op_publish_zero:
+        mov r20, r10
+        imm r21, 1
+        call cursor_require_cell
+        imm r1, 8
+        add r10, r1
+        jmp cmp_op_publish_zero_loop
+cmp_op_publish_path:
+        mov r20, r10
+        imm r21, 1
+        call cursor_require_cell
+        imm r1, 8
+        add r10, r1
+        jmp cmp_op_publish_loop

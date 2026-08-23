@@ -371,6 +371,17 @@ are valuable teeth, but they do not yet establish the quantified observation:
   comparison is exact full-word equality, so a separate complement clause proves
   all non-byte Words return zero. The resulting quiet/restored functions return
   one exactly for `{*, /, %}` and `{+, -}`, respectively, and zero otherwise;
+- its conditional `cmp_op` summary binds procedure 59's exact twelve blocks,
+  transitions, calls/returns, local/raw-memory/expression rows, two-slot frame,
+  epilogues, and decoded quiet footprint. Exhaustive byte partitions and
+  cursor-leaf joins derive codes 0/1 for `<`/`>`, 4/5 for `<=`/`>=`, 2 for
+  `==`, and 3 for `!` followed by any byte or logical end. A single `=` restores
+  entry CUR and returns the target Word all-ones value; any other first byte
+  returns all-ones without consumption. The `!` path performs two advances
+  without observing the second byte and imports bounded unconditional `ADVX`
+  for its tail. Logical-end and in-range NUL remain distinct at the first
+  observation and at zero lookaheads. The summary is quiet, restores its frame,
+  and claims no keyword, name-table, or expression-SCC meaning;
 - no total `parse_proc` claim is currently made. Malformed procedure bodies can
   make `gen_stmts` diverge while emitting—for example when an unrecognized byte
   is never consumed—so closure requires maximal Return-or-Diverge and finite/
