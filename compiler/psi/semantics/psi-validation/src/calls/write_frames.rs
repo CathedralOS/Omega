@@ -660,12 +660,12 @@ fn stable_alias_initializer_origin(
     allow_isolated_local: bool,
 ) -> Option<FramePlaceOrigin> {
     match program.expression_table.expression(expression) {
-        ExpressionNode::Mutable(inner) => stable_alias_initializer_origin(
+        ExpressionNode::Borrow(inner) => stable_alias_initializer_origin(
             program,
             current_machine,
             machine_symbols,
             active_states,
-            *inner,
+            inner.target,
             parameters,
             isolated_local_roots,
             aliases,
@@ -828,9 +828,9 @@ fn stable_alias_expression_origin(
     allow_isolated_local: bool,
 ) -> Option<FramePlaceOrigin> {
     match program.expression_table.expression(expression) {
-        ExpressionNode::Mutable(inner) => stable_alias_expression_origin(
+        ExpressionNode::Borrow(inner) => stable_alias_expression_origin(
             program,
-            *inner,
+            inner.target,
             parameters,
             isolated_local_roots,
             aliases,
@@ -1057,8 +1057,8 @@ fn transparent_place_expression_origin(
     active_states: &mut Vec<SymbolHandle>,
 ) -> Option<FramePlaceOrigin> {
     match program.expression_table.expression(expression) {
-        ExpressionNode::Mutable(inner) => {
-            transparent_place_expression_origin(program, *inner, symbols, active_states)
+        ExpressionNode::Borrow(inner) => {
+            transparent_place_expression_origin(program, inner.target, symbols, active_states)
         }
         ExpressionNode::Indexed(indexed) => {
             if expression_is_effectful_for_transparent_result(program, indexed.index) {
@@ -2258,10 +2258,10 @@ fn parameter_relative_place_origin(
     active_states: &mut Vec<SymbolHandle>,
 ) -> Option<ParameterRelativeFrameOrigin> {
     match program.expression_table.expression(expression) {
-        ExpressionNode::Mutable(inner) => parameter_relative_place_origin(
+        ExpressionNode::Borrow(inner) => parameter_relative_place_origin(
             program,
             current_machine,
-            *inner,
+            inner.target,
             parameters,
             aliases,
             symbols,

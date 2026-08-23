@@ -8,7 +8,7 @@ use omega_runtime_branching::{
 use omega_state_calls::StateCallRole;
 use psi_arena::Arena;
 use psi_checked_trees::expression::{
-    Expression, ExpressionHandle, ExpressionNode, ExpressionTable,
+    Expression, ExpressionHandle, ExpressionNode, ExpressionTable, TableBorrowExpression,
 };
 use psi_checked_trees::name::Identifier;
 use psi_checked_trees::statement::StatementNode;
@@ -1175,10 +1175,12 @@ fn resolve_leaf_caller_local_initializer_names(
                 // By-value parameter bindings retain a `Mutable` wrapper while
                 // being substituted into a leaf. A field read is still a value
                 // projection from that literal, not an addressable write.
-                ExpressionNode::Mutable(inner) => match expressions.expression(inner).clone() {
-                    ExpressionNode::StructLiteral(literal) => Some(literal),
-                    _ => None,
-                },
+                ExpressionNode::Borrow(inner) => {
+                    match expressions.expression(inner.target).clone() {
+                        ExpressionNode::StructLiteral(literal) => Some(literal),
+                        _ => None,
+                    }
+                }
                 _ => None,
             };
             if let Some(struct_literal) = literal {
@@ -1203,19 +1205,22 @@ fn resolve_leaf_caller_local_initializer_names(
                 },
             ))
         }
-        ExpressionNode::Mutable(inner) => {
+        ExpressionNode::Borrow(inner) => {
             let resolved = resolve_leaf_caller_local_initializer_names(
                 input,
                 expansion,
                 expressions,
-                inner,
+                inner.target,
                 bindings,
                 statement_bound,
             );
-            if resolved == inner {
+            if resolved == inner.target {
                 return expression;
             }
-            expressions.insert(ExpressionNode::Mutable(resolved))
+            expressions.insert(ExpressionNode::Borrow(TableBorrowExpression {
+                target: resolved,
+                access: inner.access,
+            }))
         }
         // A STRUCT-LITERAL terminal value (`Pair { a: x, b: x + 1 }` returned
         // by value) carries the substitution into each FIELD value: after

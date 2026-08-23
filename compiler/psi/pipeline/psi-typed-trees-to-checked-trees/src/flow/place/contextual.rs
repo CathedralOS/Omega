@@ -13,11 +13,11 @@ pub(super) fn contextual_canonical_place_from_expression(
     }
 
     match program.expression_table.expression(expression) {
-        ExpressionNode::Mutable(inner) => contextual_canonical_place_from_expression(
+        ExpressionNode::Borrow(inner) => contextual_canonical_place_from_expression(
             program,
             state_symbol,
             statement_index,
-            *inner,
+            inner.target,
         ),
         ExpressionNode::Name(path) => {
             let root_symbol = resolve_contextual_name_path_root(

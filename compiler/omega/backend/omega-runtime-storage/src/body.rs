@@ -720,7 +720,7 @@ fn recast_view_slot_layout(
     }
     let expressions = &context.state_storage.expressions;
     let initializer = match expressions.expression(local_storage.initial_value) {
-        psi_checked_trees::expression::ExpressionNode::Mutable(inner) => *inner,
+        psi_checked_trees::expression::ExpressionNode::Borrow(inner) => inner.target,
         _ => local_storage.initial_value,
     };
     let psi_checked_trees::expression::ExpressionNode::Cast(cast) =
@@ -1208,8 +1208,8 @@ fn strip_mutable_expression_node<'tree>(
     table: &'tree ExpressionTable,
 ) -> &'tree ExpressionNode {
     let mut node = node;
-    while let ExpressionNode::Mutable(inner) = node {
-        node = table.expression(*inner);
+    while let ExpressionNode::Borrow(inner) = node {
+        node = table.expression(inner.target);
     }
     node
 }

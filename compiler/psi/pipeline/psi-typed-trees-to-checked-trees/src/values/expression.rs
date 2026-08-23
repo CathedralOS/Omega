@@ -52,8 +52,8 @@ impl ValueFactBuilder<'_, '_> {
             ExpressionNode::Member(member) => {
                 self.collect_nested_expression(expression, member.receiver);
             }
-            ExpressionNode::Mutable(value) => {
-                self.collect_nested_expression(expression, *value);
+            ExpressionNode::Borrow(value) => {
+                self.collect_nested_expression(expression, value.target);
             }
             ExpressionNode::Unary(unary) => {
                 self.collect_nested_expression(expression, unary.operand);

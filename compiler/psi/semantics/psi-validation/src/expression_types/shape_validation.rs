@@ -24,7 +24,9 @@ pub(super) fn value_shape_is_array(
         | ExpressionNode::Boolean(_)
         | ExpressionNode::String(_)
         | ExpressionNode::StructLiteral(_) => Some(false),
-        ExpressionNode::Mutable(inner) => value_shape_is_array(program, machine, state, *inner),
+        ExpressionNode::Borrow(inner) => {
+            value_shape_is_array(program, machine, state, inner.target)
+        }
         ExpressionNode::Name(_) | ExpressionNode::Member(_) => {
             crate::places::declared_place_type(program, machine, state, value)
                 .map(|type_reference| type_reference_is_array(program, type_reference))

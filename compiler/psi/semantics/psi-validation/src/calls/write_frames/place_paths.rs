@@ -48,7 +48,7 @@ pub(super) fn frame_place_path(
     expression: ExpressionHandle,
 ) -> Option<FramePlaceOrigin> {
     match program.expression_table.expression(expression) {
-        ExpressionNode::Mutable(inner) => frame_place_path(program, *inner),
+        ExpressionNode::Borrow(inner) => frame_place_path(program, inner.target),
         ExpressionNode::Indexed(indexed) => {
             let mut collection = frame_place_path(program, indexed.collection)?;
             collection.precision = FramePathPrecision::CollectionCoarse;

@@ -953,7 +953,7 @@ fn is_state_independent_borrow_source(
         | psi_typed_trees::expression::ExpressionNode::Indexed(_)
         | psi_typed_trees::expression::ExpressionNode::Integer(_)
         | psi_typed_trees::expression::ExpressionNode::Member(_)
-        | psi_typed_trees::expression::ExpressionNode::Mutable(_)
+        | psi_typed_trees::expression::ExpressionNode::Borrow(_)
         | psi_typed_trees::expression::ExpressionNode::Name(_)
         | psi_typed_trees::expression::ExpressionNode::Range(_)
         | psi_typed_trees::expression::ExpressionNode::StructLiteral(_)

@@ -94,7 +94,7 @@ pub(super) fn receiver_member_chain(
             chain.push(member.member.as_str().to_string());
             Some(chain)
         }
-        ExpressionNode::Mutable(inner) => receiver_member_chain(program, *inner),
+        ExpressionNode::Borrow(inner) => receiver_member_chain(program, inner.target),
         _ => None,
     }
 }

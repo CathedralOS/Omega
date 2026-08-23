@@ -689,7 +689,7 @@ fn fact_mentions_proof_only_data(
         ExpressionNode::Unary(unary) => recurse(unary.operand),
         ExpressionNode::Cast(cast) => recurse(cast.value),
         ExpressionNode::Member(member) => recurse(member.receiver),
-        ExpressionNode::Mutable(inner) => recurse(*inner),
+        ExpressionNode::Borrow(inner) => recurse(inner.target),
         ExpressionNode::Indexed(indexed) => {
             recurse(indexed.collection).or_else(|| recurse(indexed.index))
         }
@@ -727,7 +727,7 @@ fn fact_mentions_zero_value(program: &TypedTrees, expression: ExpressionHandle) 
         ExpressionNode::Unary(unary) => recurse(unary.operand),
         ExpressionNode::Cast(cast) => recurse(cast.value),
         ExpressionNode::Member(member) => recurse(member.receiver),
-        ExpressionNode::Mutable(inner) => recurse(*inner),
+        ExpressionNode::Borrow(inner) => recurse(inner.target),
         ExpressionNode::Indexed(indexed) => {
             recurse(indexed.collection).or_else(|| recurse(indexed.index))
         }

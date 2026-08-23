@@ -218,7 +218,7 @@ fn literal_only_integer_value(
 ) -> Option<i64> {
     match program.expression_table.expression(index) {
         ExpressionNode::Integer(value) => value.value_i64(),
-        ExpressionNode::Mutable(inner) => literal_only_integer_value(program, *inner),
+        ExpressionNode::Borrow(inner) => literal_only_integer_value(program, inner.target),
         ExpressionNode::Cast(cast) => literal_only_integer_value(program, cast.value),
         ExpressionNode::Binary(binary) => {
             let left = literal_only_integer_value(program, binary.left)?;
@@ -233,7 +233,7 @@ fn index_is_computed(program: &psi_typed_trees::TypedTrees, index: ExpressionHan
     let mut node = index;
     loop {
         match program.expression_table.expression(node) {
-            ExpressionNode::Mutable(inner) => node = *inner,
+            ExpressionNode::Borrow(inner) => node = inner.target,
             ExpressionNode::Cast(cast) => node = cast.value,
             ExpressionNode::Binary(_) | ExpressionNode::Unary(_) => return true,
             _ => return false,

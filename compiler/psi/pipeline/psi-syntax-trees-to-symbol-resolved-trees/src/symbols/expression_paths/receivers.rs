@@ -86,13 +86,13 @@ pub(in crate::symbols) fn resolve_expression_table_receiver_path_symbols(
                 invalid_symbol_pair()
             }
         }
-        psi_symbol_resolved_trees::expression::ExpressionNode::Mutable(inner) => {
+        psi_symbol_resolved_trees::expression::ExpressionNode::Borrow(inner) => {
             resolve_expression_table_receiver_path_symbols(
                 symbols,
                 machine_symbol,
                 state_symbol,
                 expression_table,
-                *inner,
+                inner.target,
             )
         }
         psi_symbol_resolved_trees::expression::ExpressionNode::Indexed(indexed) => {
@@ -168,13 +168,13 @@ fn resolve_indexed_expression_table_receiver_path_symbols(
                 invalid_symbol_pair()
             }
         }
-        psi_symbol_resolved_trees::expression::ExpressionNode::Mutable(inner) => {
+        psi_symbol_resolved_trees::expression::ExpressionNode::Borrow(inner) => {
             resolve_indexed_expression_table_receiver_path_symbols(
                 symbols,
                 machine_symbol,
                 state_symbol,
                 expression_table,
-                *inner,
+                inner.target,
                 index,
             )
         }
@@ -210,13 +210,13 @@ pub(in crate::symbols::expression_paths) fn resolve_expression_table_receiver_sy
                 &member.member,
             )
         }
-        psi_symbol_resolved_trees::expression::ExpressionNode::Mutable(inner) => {
+        psi_symbol_resolved_trees::expression::ExpressionNode::Borrow(inner) => {
             resolve_expression_table_receiver_symbol(
                 symbols,
                 machine_symbol,
                 state_symbol,
                 expression_table,
-                *inner,
+                inner.target,
             )
         }
         psi_symbol_resolved_trees::expression::ExpressionNode::Indexed(_) => {

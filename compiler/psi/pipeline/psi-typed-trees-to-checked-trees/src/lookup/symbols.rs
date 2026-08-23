@@ -58,8 +58,8 @@ pub(crate) fn expression_root_symbol(
         ExpressionNode::Indexed(indexed) => {
             expression_root_symbol(indexed.collection, expressions, machine_symbol)
         }
-        ExpressionNode::Mutable(inner) => {
-            expression_root_symbol(*inner, expressions, machine_symbol)
+        ExpressionNode::Borrow(inner) => {
+            expression_root_symbol(inner.target, expressions, machine_symbol)
         }
         ExpressionNode::Member(member) => match expressions.expression(member.receiver) {
             ExpressionNode::Name(path)

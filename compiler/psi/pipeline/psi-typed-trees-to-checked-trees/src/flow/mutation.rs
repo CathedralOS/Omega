@@ -41,7 +41,7 @@ pub(crate) fn call_mutated_places(
 
     if use_mutable_argument_fallback {
         for access in borrow.argument_accesses.span_or_empty(borrow_call.accesses) {
-            if access.kind == BorrowAccessKind::Mutable
+            if access.kind.is_exclusive()
                 && let Some(mut place) = canonical_place_from_symbol(access.root_symbol)
             {
                 place.extend_segments(borrow.access_segments.span_or_empty(access.segments));

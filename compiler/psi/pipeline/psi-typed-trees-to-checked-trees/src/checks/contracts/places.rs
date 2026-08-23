@@ -5,8 +5,8 @@ pub(super) fn expression_is_boolean_place_like(
     expression: psi_typed_trees::expression::ExpressionHandle,
 ) -> bool {
     match program.expression_table.expression(expression) {
-        psi_typed_trees::expression::ExpressionNode::Mutable(inner) => {
-            expression_is_boolean_place_like(program, *inner)
+        psi_typed_trees::expression::ExpressionNode::Borrow(inner) => {
+            expression_is_boolean_place_like(program, inner.target)
         }
         psi_typed_trees::expression::ExpressionNode::Name(_)
         | psi_typed_trees::expression::ExpressionNode::Member(_)

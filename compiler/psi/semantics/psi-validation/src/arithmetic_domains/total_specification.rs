@@ -114,7 +114,9 @@ fn validate_total_specification_arithmetic_with_domain_lookup(
         }
         match program.expression_table.expression(expression) {
             ExpressionNode::Cast(cast) if !cast.form.is_recast() => Some(cast.domain),
-            ExpressionNode::Mutable(value) => selected_domain(program, *value, expression_domain),
+            ExpressionNode::Borrow(value) => {
+                selected_domain(program, value.target, expression_domain)
+            }
             ExpressionNode::Unary(unary) => {
                 selected_domain(program, unary.operand, expression_domain)
             }
@@ -272,7 +274,7 @@ fn validate_total_specification_arithmetic_with_domain_lookup(
                 recurse(indexed.index, diagnostics, visited);
             }
             ExpressionNode::Member(member) => recurse(member.receiver, diagnostics, visited),
-            ExpressionNode::Mutable(value) => recurse(*value, diagnostics, visited),
+            ExpressionNode::Borrow(value) => recurse(value.target, diagnostics, visited),
             ExpressionNode::Unary(unary) => recurse(unary.operand, diagnostics, visited),
             ExpressionNode::Range(range) => {
                 recurse(range.start, diagnostics, visited);
@@ -427,7 +429,7 @@ pub(super) fn abstract_specification_place_type(
                 output.push(member.member.to_string());
                 Some(())
             }
-            ExpressionNode::Mutable(value) => segments(program, *value, output),
+            ExpressionNode::Borrow(value) => segments(program, value.target, output),
             _ => None,
         }
     }
@@ -681,7 +683,7 @@ fn validate_abstract_exact_policy_erasure_formation(
                 recurse(indexed.index, diagnostics, visited);
             }
             ExpressionNode::Member(member) => recurse(member.receiver, diagnostics, visited),
-            ExpressionNode::Mutable(value) => recurse(*value, diagnostics, visited),
+            ExpressionNode::Borrow(value) => recurse(value.target, diagnostics, visited),
             ExpressionNode::Unary(unary) => recurse(unary.operand, diagnostics, visited),
             ExpressionNode::Range(range) => {
                 recurse(range.start, diagnostics, visited);

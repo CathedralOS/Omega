@@ -40,7 +40,11 @@ impl ExpressionNode {
             Self::Member(member) => {
                 format!("{}.{}", table.display_name(member.receiver), member.member)
             }
-            Self::Mutable(expression) => format!("mut {}", table.display_name(*expression)),
+            Self::Borrow(expression) => format!(
+                "{}{}",
+                borrow_access_prefix(expression.access),
+                table.display_name(expression.target)
+            ),
             Self::Name(path) => display_identifier_path(table.identifier_path_members(*path), "::"),
             Self::Range(range) => {
                 let separator = if range.end_inclusive { "..=" } else { ".." };
@@ -62,6 +66,14 @@ impl ExpressionNode {
             Self::Unary(unary) => unary.display_name(table),
             Self::ZeroValue(_) => "zero_value<type>()".to_owned(),
         }
+    }
+}
+
+fn borrow_access_prefix(access: psi_language_core::ReferenceAccess) -> &'static str {
+    match access {
+        psi_language_core::ReferenceAccess::Mutable => "&mut ",
+        psi_language_core::ReferenceAccess::WriteOnly => "&write ",
+        psi_language_core::ReferenceAccess::Shared => "&",
     }
 }
 

@@ -270,8 +270,8 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             resolved::expression::ExpressionNode::Name(path) => {
                 !path.is_self_value && self.source.name_path_members(path.members).len() >= 2
             }
-            resolved::expression::ExpressionNode::Mutable(inner) => {
-                self.classifier_reference_operand(*inner)
+            resolved::expression::ExpressionNode::Borrow(inner) => {
+                self.classifier_reference_operand(inner.target)
             }
             _ => false,
         }
@@ -328,8 +328,8 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                 let members = self.source.name_path_members(path.members);
                 (members.len() >= 2).then(|| members[0].as_str().to_owned())
             }
-            resolved::expression::ExpressionNode::Mutable(inner) => {
-                self.classifier_reference_type(*inner)
+            resolved::expression::ExpressionNode::Borrow(inner) => {
+                self.classifier_reference_type(inner.target)
             }
             _ => None,
         }
@@ -350,8 +350,8 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             resolved::expression::ExpressionNode::StructLiteral(literal) => {
                 Some(literal.type_name.as_str().to_owned())
             }
-            resolved::expression::ExpressionNode::Mutable(inner) => {
-                self.operand_data_type_name(*inner)
+            resolved::expression::ExpressionNode::Borrow(inner) => {
+                self.operand_data_type_name(inner.target)
             }
             resolved::expression::ExpressionNode::Name(path) => {
                 let members = self.source.name_path_members(path.members);
@@ -397,8 +397,8 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                     .map(|name| name.as_str().to_owned()),
                 fields: literal.fields,
             }),
-            resolved::expression::ExpressionNode::Mutable(inner) => {
-                self.classify_operand(*inner, type_name)
+            resolved::expression::ExpressionNode::Borrow(inner) => {
+                self.classify_operand(inner.target, type_name)
             }
             resolved::expression::ExpressionNode::Name(_)
             | resolved::expression::ExpressionNode::Member(_)

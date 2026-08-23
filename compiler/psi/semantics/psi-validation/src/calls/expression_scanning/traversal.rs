@@ -273,8 +273,8 @@ fn report_nested_runtime_indexed_read(
     // The index must be a RUNTIME SCALAR: not a constant integer (a fixed offset,
     // lowerable) and not a RANGE (`sub[1..][1..]` is a nested SUBSLICE that lowers).
     let mut index = indexed.index;
-    while let ExpressionNode::Mutable(inner) = program.expression_table.expression(index) {
-        index = *inner;
+    while let ExpressionNode::Borrow(inner) = program.expression_table.expression(index) {
+        index = inner.target;
     }
     if matches!(
         program.expression_table.expression(index),
@@ -296,10 +296,10 @@ fn report_nested_runtime_indexed_read(
         match program.expression_table.expression(collection) {
             ExpressionNode::Indexed(inner) => {
                 let mut inner_index = inner.index;
-                while let ExpressionNode::Mutable(next) =
+                while let ExpressionNode::Borrow(next) =
                     program.expression_table.expression(inner_index)
                 {
-                    inner_index = *next;
+                    inner_index = next.target;
                 }
                 if !matches!(
                     program.expression_table.expression(inner_index),
@@ -310,7 +310,7 @@ fn report_nested_runtime_indexed_read(
                 collection = inner.collection;
             }
             ExpressionNode::Member(member) => collection = member.receiver,
-            ExpressionNode::Mutable(inner) => collection = *inner,
+            ExpressionNode::Borrow(inner) => collection = inner.target,
             _ => break false,
         }
     };
@@ -357,7 +357,7 @@ fn double_indexed_machine_read_is_lowerable(
     let mut inner = indexed.collection;
     loop {
         match program.expression_table.expression(inner) {
-            ExpressionNode::Mutable(next) => inner = *next,
+            ExpressionNode::Borrow(next) => inner = next.target,
             ExpressionNode::Member(member) => inner = member.receiver,
             _ => break,
         }
@@ -366,8 +366,8 @@ fn double_indexed_machine_read_is_lowerable(
         return false;
     };
     let mut inner_index = inner_indexed.index;
-    while let ExpressionNode::Mutable(next) = program.expression_table.expression(inner_index) {
-        inner_index = *next;
+    while let ExpressionNode::Borrow(next) = program.expression_table.expression(inner_index) {
+        inner_index = next.target;
     }
     if matches!(
         program.expression_table.expression(inner_index),
@@ -384,10 +384,10 @@ fn double_indexed_machine_read_is_lowerable(
         match program.expression_table.expression(place) {
             ExpressionNode::Indexed(below) => {
                 let mut below_index = below.index;
-                while let ExpressionNode::Mutable(next) =
+                while let ExpressionNode::Borrow(next) =
                     program.expression_table.expression(below_index)
                 {
-                    below_index = *next;
+                    below_index = next.target;
                 }
                 if !matches!(
                     program.expression_table.expression(below_index),
@@ -412,7 +412,7 @@ fn double_indexed_machine_read_is_lowerable(
                 }
                 place = receiver;
             }
-            ExpressionNode::Mutable(next) => place = *next,
+            ExpressionNode::Borrow(next) => place = next.target,
             ExpressionNode::Name(path) => {
                 // A multi-member Name path starting at `self` (`self.grid`
                 // resolved as one path) is machine-owned. A BARE single name
@@ -717,7 +717,7 @@ fn scan_expression_calls(
                 diagnostics,
             );
         }
-        ExpressionNode::Mutable(inner) => {
+        ExpressionNode::Borrow(inner) => {
             scan_expression_calls(
                 program,
                 machine,
@@ -726,7 +726,7 @@ fn scan_expression_calls(
                 symbols,
                 writable_roots,
                 value_env,
-                *inner,
+                inner.target,
                 diagnostics,
             );
         }

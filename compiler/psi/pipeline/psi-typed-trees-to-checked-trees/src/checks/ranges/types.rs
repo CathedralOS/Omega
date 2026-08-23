@@ -230,8 +230,8 @@ fn expression_type_reference(
     expression: ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
     match program.expression_table.expression(expression) {
-        ExpressionNode::Mutable(inner) => {
-            expression_type_reference(program, machine, state, *inner)
+        ExpressionNode::Borrow(inner) => {
+            expression_type_reference(program, machine, state, inner.target)
         }
         ExpressionNode::Name(path) => {
             type_reference_for_symbol(program, machine, state, path.symbol).or_else(|| {

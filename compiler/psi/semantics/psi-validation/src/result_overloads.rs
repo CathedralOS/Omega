@@ -697,8 +697,8 @@ fn push_expected_call(
     expected: &mut Vec<(ExpressionHandle, TypeReferenceHandle)>,
 ) {
     match program.expression_table.expression(value) {
-        ExpressionNode::Mutable(inner) => {
-            push_expected_call(program, *inner, expected_type, expected)
+        ExpressionNode::Borrow(inner) => {
+            push_expected_call(program, inner.target, expected_type, expected)
         }
         ExpressionNode::Atomic(atomic) => {
             push_expected_call(program, atomic.value, expected_type, expected)

@@ -111,10 +111,10 @@ pub(super) fn known_boundary_call_written_paths_for_parts(
         if !access.is_exclusive() {
             continue;
         }
-        let ExpressionNode::Mutable(place) = program.expression_table.expression(*argument) else {
+        let ExpressionNode::Borrow(place) = program.expression_table.expression(*argument) else {
             return None;
         };
-        let path = coarse_place_path(program, *place)?;
+        let path = coarse_place_path(program, place.target)?;
         if !written.contains(&path) {
             written.push(path);
         }

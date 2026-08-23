@@ -635,8 +635,8 @@ fn count_expression_handle(
             count_expression_handle(syntax_trees, member.receiver, counts);
             count_identifier(&member.member, counts);
         }
-        crate::expression::ExpressionNode::Mutable(expression) => {
-            count_expression_handle(syntax_trees, *expression, counts)
+        crate::expression::ExpressionNode::Borrow(expression) => {
+            count_expression_handle(syntax_trees, expression.target, counts)
         }
         crate::expression::ExpressionNode::Name(path) => {
             for member in syntax_trees.expressions.identifier_path_members(*path) {

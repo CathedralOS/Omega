@@ -284,8 +284,8 @@ fn boundary_call_ensures_bound(
     let position = arguments.iter().position(|argument| {
         matches!(
             program.expression_table.expression(*argument),
-            ExpressionNode::Mutable(inner)
-                if program.expression_table.display_name(*inner) == argument_label
+            ExpressionNode::Borrow(inner)
+                if program.expression_table.display_name(inner.target) == argument_label
         )
     })?;
     let parameter = program

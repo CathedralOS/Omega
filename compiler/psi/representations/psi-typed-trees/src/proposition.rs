@@ -332,7 +332,7 @@ fn expression_mentions_any(
                 || expression_mentions_any(program, binary.right, symbols)
         }
         ExpressionNode::Unary(unary) => expression_mentions_any(program, unary.operand, symbols),
-        ExpressionNode::Mutable(inner) => expression_mentions_any(program, *inner, symbols),
+        ExpressionNode::Borrow(inner) => expression_mentions_any(program, inner.target, symbols),
         ExpressionNode::Boolean(_)
         | ExpressionNode::Float(_)
         | ExpressionNode::Integer(_)
@@ -965,7 +965,15 @@ fn render_expression(
         }
         ExpressionNode::Integer(value) => value.to_string(),
         ExpressionNode::Member(member) => format!("{}.{}", render(member.receiver), member.member),
-        ExpressionNode::Mutable(inner) => format!("mut {}", render(*inner)),
+        ExpressionNode::Borrow(inner) => format!(
+            "{} {}",
+            match inner.access {
+                psi_language_core::ReferenceAccess::Mutable => "mut",
+                psi_language_core::ReferenceAccess::WriteOnly => "write",
+                psi_language_core::ReferenceAccess::Shared => "shared",
+            },
+            render(inner.target)
+        ),
         ExpressionNode::Name(path) => {
             if let Some((_, replacement)) = substitutions
                 .iter()

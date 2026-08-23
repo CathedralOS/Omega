@@ -207,7 +207,7 @@ fn collect_assignment_result_host_lowering(
                 ),
                 is_borrowed: matches!(
                     program.expression_table.expression(*argument),
-                    psi_checked_trees::expression::ExpressionNode::Mutable(_)
+                    psi_checked_trees::expression::ExpressionNode::Borrow(_)
                 ),
                 expects_reference: call_parameter_expects_reference(
                     program,
@@ -354,7 +354,7 @@ fn collect_local_result_host_lowering(
                 ),
                 is_borrowed: matches!(
                     program.expression_table.expression(*argument),
-                    psi_checked_trees::expression::ExpressionNode::Mutable(_)
+                    psi_checked_trees::expression::ExpressionNode::Borrow(_)
                 ),
                 expects_reference: call_parameter_expects_reference(
                     program,

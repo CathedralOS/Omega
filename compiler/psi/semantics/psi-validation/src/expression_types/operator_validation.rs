@@ -53,8 +53,8 @@ pub(super) fn expression_is_float_typed(
 ) -> bool {
     match program.expression_table.expression(operand) {
         ExpressionNode::Float(_) => true,
-        ExpressionNode::Mutable(inner) => {
-            expression_is_float_typed(program, machine, state, *inner)
+        ExpressionNode::Borrow(inner) => {
+            expression_is_float_typed(program, machine, state, inner.target)
         }
         ExpressionNode::Binary(binary) => {
             expression_is_float_typed(program, machine, state, binary.left)

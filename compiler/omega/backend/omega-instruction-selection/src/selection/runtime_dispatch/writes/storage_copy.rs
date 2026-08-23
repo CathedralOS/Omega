@@ -818,7 +818,7 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_indexed_source_cop
     // explicit Mutable wrapper for the address-write selector.
     if matches!(
         expressions.expression(value),
-        psi_checked_trees::expression::ExpressionNode::Mutable(_)
+        psi_checked_trees::expression::ExpressionNode::Borrow(_)
     ) {
         return None;
     }

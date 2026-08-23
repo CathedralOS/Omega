@@ -294,7 +294,7 @@ fn collect_static_string_expression_data(
         | ExpressionNode::Indexed(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::Member(_)
-        | ExpressionNode::Mutable(_)
+        | ExpressionNode::Borrow(_)
         | ExpressionNode::Name(_)
         | ExpressionNode::ZeroValue(_) => {}
     }

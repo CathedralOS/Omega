@@ -697,7 +697,9 @@ fn collect_expression_self_fields(
             collect_expression_self_fields(program, binary.left, fields);
             collect_expression_self_fields(program, binary.right, fields);
         }
-        ExpressionNode::Mutable(inner) => collect_expression_self_fields(program, *inner, fields),
+        ExpressionNode::Borrow(inner) => {
+            collect_expression_self_fields(program, inner.target, fields)
+        }
         ExpressionNode::Cast(cast) => collect_expression_self_fields(program, cast.value, fields),
         _ => {}
     }
@@ -735,7 +737,9 @@ fn assignment_target_mentions_field(
             member.member.as_str() == field.as_str()
                 || assignment_target_mentions_field(program, member.receiver, field)
         }
-        ExpressionNode::Mutable(inner) => assignment_target_mentions_field(program, *inner, field),
+        ExpressionNode::Borrow(inner) => {
+            assignment_target_mentions_field(program, inner.target, field)
+        }
         ExpressionNode::Indexed(indexed) => {
             assignment_target_mentions_field(program, indexed.collection, field)
         }

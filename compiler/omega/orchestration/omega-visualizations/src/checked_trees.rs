@@ -832,7 +832,7 @@ fn qualification_expression_contains(
         ExpressionNode::Cast(cast) => contains(cast.value),
         ExpressionNode::Indexed(indexed) => contains(indexed.collection) || contains(indexed.index),
         ExpressionNode::Member(member) => contains(member.receiver),
-        ExpressionNode::Mutable(inner) => contains(*inner),
+        ExpressionNode::Borrow(inner) => contains(inner.target),
         ExpressionNode::Range(range) => contains(range.start) || contains(range.end),
         ExpressionNode::StructLiteral(literal) => program
             .expression_table
@@ -4750,6 +4750,7 @@ fn borrow_access_label(
     label.push_str(match access.kind {
         BorrowAccessKind::Read => "read",
         BorrowAccessKind::Mutable => "mutable",
+        BorrowAccessKind::WriteOnly => "write-only",
     });
     label
 }

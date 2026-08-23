@@ -58,7 +58,7 @@ pub(crate) fn call_receiver_parts(
     }
 
     match program.expression_table.expression(receiver) {
-        ExpressionNode::Mutable(inner) => call_receiver_parts(program, *inner),
+        ExpressionNode::Borrow(inner) => call_receiver_parts(program, inner.target),
         ExpressionNode::Name(path) => (
             path.symbol,
             Some(NamePath::resolved_from_iter(

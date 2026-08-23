@@ -8,11 +8,11 @@ fn collects_nested_state_call_ordinals_for_checked_borrow_facts() {
     let item_symbol = SymbolHandle::from_arena_index(4);
     let machine_symbol = SymbolHandle::from_arena_index(5);
 
-    let item_argument = Expression::Mutable(Box::new(Expression::Name(NamePath::resolved(
+    let item_argument = mutable_borrow(Expression::Name(NamePath::resolved(
         vec![Identifier::generated("item")],
         item_symbol,
         item_symbol,
-    ))));
+    )));
 
     let nested_call = Expression::Call(Box::new(CallExpression {
         receiver: None,

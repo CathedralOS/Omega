@@ -708,7 +708,7 @@ fn copied_place_argument(
 ) -> ExpressionHandle {
     let copied = expressions.copy_from(&input.program.expression_table, argument);
     match expressions.expression(copied) {
-        ExpressionNode::Mutable(inner) => *inner,
+        ExpressionNode::Borrow(inner) => inner.target,
         _ => copied,
     }
 }

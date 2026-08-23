@@ -1638,9 +1638,12 @@ fn copy_expression_as_place(
                 index: idx.index,
             })
         }
-        ExpressionNode::Mutable(inner) => {
-            let inner_copy = copy_expression_as_place(syntax_trees, inner)?;
-            ExpressionNode::Mutable(inner_copy)
+        ExpressionNode::Borrow(inner) => {
+            let inner_copy = copy_expression_as_place(syntax_trees, inner.target)?;
+            ExpressionNode::Borrow(psi_syntax_trees::expression::TableBorrowExpression {
+                target: inner_copy,
+                access: inner.access,
+            })
         }
         _ => return None,
     };

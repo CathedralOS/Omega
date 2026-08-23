@@ -271,7 +271,7 @@ pub(crate) fn instantiate_call_contract_expression_label(
             ),
             member.member
         ),
-        psi_typed_trees::expression::ExpressionNode::Mutable(inner) => {
+        psi_typed_trees::expression::ExpressionNode::Borrow(inner) => {
             format!(
                 "mut {}",
                 instantiate_call_contract_expression_label(
@@ -280,7 +280,7 @@ pub(crate) fn instantiate_call_contract_expression_label(
                     statement_index,
                     call_site,
                     target_state,
-                    *inner,
+                    inner.target,
                 )
             )
         }

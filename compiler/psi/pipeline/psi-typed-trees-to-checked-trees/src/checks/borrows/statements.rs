@@ -58,7 +58,7 @@ pub(super) fn check_statement_borrows(
                     continue;
                 }
                 if loan.source_owner_symbol == active_loan.owner_symbol
-                    && active_loan.kind == BorrowAccessKind::Mutable
+                    && active_loan.kind.is_exclusive()
                 {
                     continue;
                 }

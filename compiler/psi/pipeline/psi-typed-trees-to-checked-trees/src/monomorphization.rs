@@ -965,7 +965,7 @@ fn collect_expression_tree(
         ExpressionNode::Member(member) => {
             collect_expression_tree(program, member.receiver, handles)
         }
-        ExpressionNode::Mutable(inner) => collect_expression_tree(program, *inner, handles),
+        ExpressionNode::Borrow(inner) => collect_expression_tree(program, inner.target, handles),
         ExpressionNode::Range(range) => {
             collect_expression_tree(program, range.start, handles);
             collect_expression_tree(program, range.end, handles);
@@ -3152,7 +3152,7 @@ fn statement_receiver_path(
 ) -> Option<(SymbolHandle, Vec<psi_typed_trees::name::Identifier>)> {
     match program.expression_table.expression(expression) {
         ExpressionNode::Atomic(atomic) => statement_receiver_path(program, atomic.value),
-        ExpressionNode::Mutable(inner) => statement_receiver_path(program, *inner),
+        ExpressionNode::Borrow(inner) => statement_receiver_path(program, inner.target),
         ExpressionNode::Name(path) => Some((
             path.symbol,
             program

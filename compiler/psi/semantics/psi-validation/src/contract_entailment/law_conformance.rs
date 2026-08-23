@@ -200,8 +200,8 @@ fn operator_contract_expressions_match(
         (ExpressionNode::Boolean(left), ExpressionNode::Boolean(right)) => left == right,
         (ExpressionNode::String(left), ExpressionNode::String(right)) => left == right,
         (ExpressionNode::Float(left), ExpressionNode::Float(right)) => left == right,
-        (ExpressionNode::Mutable(left), ExpressionNode::Mutable(right)) => {
-            operator_contract_expressions_match(program, *left, *right, name_map)
+        (ExpressionNode::Borrow(left), ExpressionNode::Borrow(right)) => {
+            operator_contract_expressions_match(program, left.target, right.target, name_map)
         }
         (ExpressionNode::Unary(left), ExpressionNode::Unary(right)) => {
             left.operator == right.operator

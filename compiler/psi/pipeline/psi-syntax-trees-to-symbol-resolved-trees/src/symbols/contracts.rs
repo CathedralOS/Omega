@@ -301,14 +301,14 @@ fn assign_contract_call_symbols(
             child_type_references,
             membership.value,
         ),
-        ExpressionNode::Mutable(inner) => assign_contract_call_symbols(
+        ExpressionNode::Borrow(inner) => assign_contract_call_symbols(
             symbols,
             machine,
             parameters,
             state_symbol,
             expression_table,
             child_type_references,
-            inner,
+            inner.target,
         ),
         ExpressionNode::Range(range) => {
             for child in [range.start, range.end] {

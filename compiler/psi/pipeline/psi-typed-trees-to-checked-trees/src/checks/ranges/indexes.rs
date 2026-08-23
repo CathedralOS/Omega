@@ -82,8 +82,8 @@ pub(super) fn check_expression(
         ExpressionNode::Member(member) => {
             check_expression(program, machine, state, facts, member.receiver, diagnostics);
         }
-        ExpressionNode::Mutable(inner) => {
-            check_expression(program, machine, state, facts, *inner, diagnostics)
+        ExpressionNode::Borrow(inner) => {
+            check_expression(program, machine, state, facts, inner.target, diagnostics)
         }
         ExpressionNode::Unary(unary) => {
             check_expression(program, machine, state, facts, unary.operand, diagnostics)

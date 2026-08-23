@@ -24,7 +24,9 @@ use omega_control_flow::{StateKey, StateParameterFlow};
 use omega_layout::{DataShape, ENUM_TAG_BYTES};
 use omega_state_calls::{StateCallLowering, StateCallRole};
 use psi_arena::Arena;
-use psi_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
+use psi_checked_trees::expression::{
+    ExpressionHandle, ExpressionNode, ExpressionTable, TableBorrowExpression,
+};
 use psi_checked_trees::statement::StatementNode;
 
 #[allow(clippy::too_many_arguments)]
@@ -403,7 +405,7 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
             argument,
         ) && pointee.pointee_byte_size == slot.byte_size
             && pointee.pointee_byte_size > 0
-            && !matches!(expressions.expression(argument), ExpressionNode::Mutable(_))
+            && !matches!(expressions.expression(argument), ExpressionNode::Borrow(_))
             // Only DEREF into a VALUE parameter slot. When the target parameter is
             // itself a reference (`&mut T`), forwarding another reference argument
             // (e.g. an `out_room: &mut Room` param passed on to a sub-state's
@@ -443,7 +445,7 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
             argument,
         ) && indexed_source.byte_count == slot.byte_size
             && indexed_source.byte_count > 0
-            && !matches!(expressions.expression(argument), ExpressionNode::Mutable(_))
+            && !matches!(expressions.expression(argument), ExpressionNode::Borrow(_))
             && slot.type_descriptor.reference_referee().is_none()
         {
             selected_instructions.push(SelectedInstruction {
@@ -469,7 +471,7 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
             expressions,
             argument,
         ) && place.byte_count == slot.byte_size
-            && !matches!(expressions.expression(argument), ExpressionNode::Mutable(_))
+            && !matches!(expressions.expression(argument), ExpressionNode::Borrow(_))
         {
             // Same-sized place: copy the value into the parameter slot. A
             // size MISMATCH (e.g. a 16-byte String place feeding an 8-byte
@@ -1110,12 +1112,12 @@ fn collect_argument_source_frame_ranges(
             cast.value,
             sources,
         ),
-        ExpressionNode::Mutable(inner) => collect_argument_source_frame_ranges(
+        ExpressionNode::Borrow(inner) => collect_argument_source_frame_ranges(
             input,
             source_dispatch_index,
             argument_source_key,
             scratch,
-            *inner,
+            inner.target,
             sources,
         ),
         _ => {}
@@ -1346,7 +1348,7 @@ fn expression_contains_result_call(table: &ExpressionTable, expression: Expressi
         }
         ExpressionNode::Cast(cast) => expression_contains_result_call(table, cast.value),
         ExpressionNode::Unary(unary) => expression_contains_result_call(table, unary.operand),
-        ExpressionNode::Mutable(inner) => expression_contains_result_call(table, *inner),
+        ExpressionNode::Borrow(inner) => expression_contains_result_call(table, inner.target),
         ExpressionNode::Indexed(indexed) => {
             expression_contains_result_call(table, indexed.collection)
                 || expression_contains_result_call(table, indexed.index)
@@ -1610,18 +1612,21 @@ fn resolve_prior_local_initializers_in_table(
                 ))
             }
         }
-        ExpressionNode::Mutable(inner) => {
+        ExpressionNode::Borrow(inner) => {
             let resolved = resolve_prior_local_initializers_in_table(
                 input,
                 source_key,
                 statement_index,
                 expressions,
-                inner,
+                inner.target,
             );
-            if resolved == inner {
+            if resolved == inner.target {
                 expression
             } else {
-                expressions.insert(ExpressionNode::Mutable(resolved))
+                expressions.insert(ExpressionNode::Borrow(TableBorrowExpression {
+                    target: resolved,
+                    access: inner.access,
+                }))
             }
         }
         ExpressionNode::Binary(binary) => {
@@ -1729,7 +1734,7 @@ fn local_root_identity(
         )),
         ExpressionNode::Member(member) => local_root_identity(expressions, member.receiver),
         ExpressionNode::Indexed(indexed) => local_root_identity(expressions, indexed.collection),
-        ExpressionNode::Mutable(inner) => local_root_identity(expressions, *inner),
+        ExpressionNode::Borrow(inner) => local_root_identity(expressions, inner.target),
         _ => None,
     }
 }
@@ -1748,7 +1753,7 @@ fn place_symbol_signature(
             Some(signature)
         }
         ExpressionNode::Indexed(indexed) => place_symbol_signature(expressions, indexed.collection),
-        ExpressionNode::Mutable(inner) => place_symbol_signature(expressions, *inner),
+        ExpressionNode::Borrow(inner) => place_symbol_signature(expressions, inner.target),
         _ => None,
     }
 }
@@ -1773,7 +1778,9 @@ fn collect_read_place_signatures(
         ExpressionNode::Unary(unary) => {
             collect_read_place_signatures(expressions, unary.operand, out)
         }
-        ExpressionNode::Mutable(inner) => collect_read_place_signatures(expressions, *inner, out),
+        ExpressionNode::Borrow(inner) => {
+            collect_read_place_signatures(expressions, inner.target, out)
+        }
         _ => {}
     }
 }
@@ -1863,7 +1870,7 @@ fn local_initializer_is_pure_place(
             local_initializer_is_pure_place(indexed.collection, expressions)
                 && local_initializer_is_pure_place(indexed.index, expressions)
         }
-        ExpressionNode::Mutable(inner) => local_initializer_is_pure_place(*inner, expressions),
+        ExpressionNode::Borrow(inner) => local_initializer_is_pure_place(inner.target, expressions),
         // Integers/booleans are compile-time constants; perfectly safe to
         // capture (they never become stale). Float literals likewise.
         ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) | ExpressionNode::Float(_) => true,

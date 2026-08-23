@@ -42,7 +42,7 @@ pub(super) fn self_place_spelling(
             };
             Some(format!("{collection}[{index}]"))
         }
-        ExpressionNode::Mutable(inner) => self_place_spelling(program, *inner),
+        ExpressionNode::Borrow(inner) => self_place_spelling(program, inner.target),
         _ => None,
     }
 }

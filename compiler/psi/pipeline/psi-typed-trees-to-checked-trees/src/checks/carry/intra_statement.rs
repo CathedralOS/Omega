@@ -142,7 +142,7 @@ impl EvaluationTraversal<'_, '_> {
                 self.visit_expression(member.receiver);
                 self.observe_place(expression);
             }
-            ExpressionNode::Mutable(inner) => self.visit_expression(*inner),
+            ExpressionNode::Borrow(inner) => self.visit_expression(inner.target),
             ExpressionNode::Name(_) => self.observe_place(expression),
             ExpressionNode::Range(range) => {
                 self.visit_expression(range.start);

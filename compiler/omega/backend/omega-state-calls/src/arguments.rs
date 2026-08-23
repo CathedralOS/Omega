@@ -119,6 +119,6 @@ fn argument_is_mutable_alias(
     let _ = role;
     matches!(
         context.control_flow.expressions.expression(expression),
-        ExpressionNode::Mutable(_)
+        ExpressionNode::Borrow(_)
     )
 }

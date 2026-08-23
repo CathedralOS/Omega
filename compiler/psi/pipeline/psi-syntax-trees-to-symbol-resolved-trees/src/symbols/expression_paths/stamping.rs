@@ -29,8 +29,13 @@ pub(in crate::symbols) fn stamp_receiver_path_symbols_in_table(
                 head_symbol,
             );
         }
-        psi_symbol_resolved_trees::expression::ExpressionNode::Mutable(inner) => {
-            stamp_receiver_path_symbols_in_table(expression_table, inner, head_symbol, symbol);
+        psi_symbol_resolved_trees::expression::ExpressionNode::Borrow(inner) => {
+            stamp_receiver_path_symbols_in_table(
+                expression_table,
+                inner.target,
+                head_symbol,
+                symbol,
+            );
         }
         _ => {}
     }
@@ -64,8 +69,8 @@ fn stamp_receiver_path_head_symbol_in_table(
                 head_symbol,
             );
         }
-        psi_symbol_resolved_trees::expression::ExpressionNode::Mutable(inner) => {
-            stamp_receiver_path_head_symbol_in_table(expression_table, inner, head_symbol);
+        psi_symbol_resolved_trees::expression::ExpressionNode::Borrow(inner) => {
+            stamp_receiver_path_head_symbol_in_table(expression_table, inner.target, head_symbol);
         }
         _ => {}
     }

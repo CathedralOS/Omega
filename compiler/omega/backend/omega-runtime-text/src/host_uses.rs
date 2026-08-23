@@ -85,11 +85,13 @@ fn collect_runtime_text_buffer(
     let HostCallArgumentKind::Expression(expression) = &first_argument.kind else {
         return;
     };
-    let ExpressionNode::Mutable(target) = host_calls.expressions.expression(*expression) else {
+    let ExpressionNode::Borrow(target) = host_calls.expressions.expression(*expression) else {
         return;
     };
 
-    let target = plan.expressions.copy_from(&host_calls.expressions, *target);
+    let target = plan
+        .expressions
+        .copy_from(&host_calls.expressions, target.target);
     let text_place = text_place_for_buffer_target(&mut plan.expressions, target);
 
     plan.buffers.insert(RuntimeTextBuffer {
@@ -127,7 +129,7 @@ fn classify_runtime_text_source(
             unreachable!("stored places are classified before expression node matching")
         }
         ExpressionNode::Binary(_) => RuntimeTextSource::GeneratedString,
-        ExpressionNode::Mutable(_) => RuntimeTextSource::MutablePlace,
+        ExpressionNode::Borrow(_) => RuntimeTextSource::MutablePlace,
         ExpressionNode::Range(_) => RuntimeTextSource::OtherExpression,
         ExpressionNode::ArrayLiteral(_)
         | ExpressionNode::Atomic(_)
@@ -149,7 +151,7 @@ fn output_buffer_target_for_text_expression(
     expression: ExpressionHandle,
 ) -> ExpressionHandle {
     let source_expression = host_calls.expressions.expression(expression);
-    if matches!(source_expression, ExpressionNode::Mutable(_)) {
+    if matches!(source_expression, ExpressionNode::Borrow(_)) {
         return ExpressionHandle::invalid();
     }
 

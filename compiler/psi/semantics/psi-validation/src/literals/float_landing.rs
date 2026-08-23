@@ -309,7 +309,7 @@ fn anonymous_exact_float_tree(
         ExpressionNode::Float(literal) if literal.landing().is_none() => {
             psi_numerics::bignum::ExactFloat::from_decimal_str(literal.text())
         }
-        ExpressionNode::Mutable(inner) => anonymous_exact_float_tree(program, *inner),
+        ExpressionNode::Borrow(inner) => anonymous_exact_float_tree(program, inner.target),
         ExpressionNode::Binary(binary) => {
             let left = anonymous_exact_float_tree(program, binary.left)?;
             let right = anonymous_exact_float_tree(program, binary.right)?;
@@ -420,9 +420,9 @@ fn stamp_float_tree(
     format: psi_numerics::literals::FloatFormat,
 ) {
     match program.expression_table.expression(expression) {
-        ExpressionNode::Mutable(inner) => {
+        ExpressionNode::Borrow(inner) => {
             let inner = *inner;
-            stamp_float_tree(program, inner, format);
+            stamp_float_tree(program, inner.target, format);
         }
         ExpressionNode::Unary(unary) => {
             let operand = unary.operand;

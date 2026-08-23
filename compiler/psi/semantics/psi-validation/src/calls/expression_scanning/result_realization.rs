@@ -212,7 +212,7 @@ fn first_non_builtin_call(
             .or_else(|| first_non_builtin_call(program, binary.right)),
         ExpressionNode::Unary(unary) => first_non_builtin_call(program, unary.operand),
         ExpressionNode::Cast(cast) => first_non_builtin_call(program, cast.value),
-        ExpressionNode::Mutable(inner) => first_non_builtin_call(program, *inner),
+        ExpressionNode::Borrow(inner) => first_non_builtin_call(program, inner.target),
         ExpressionNode::Indexed(indexed) => first_non_builtin_call(program, indexed.collection)
             .or_else(|| first_non_builtin_call(program, indexed.index)),
         ExpressionNode::Member(member) => first_non_builtin_call(program, member.receiver),

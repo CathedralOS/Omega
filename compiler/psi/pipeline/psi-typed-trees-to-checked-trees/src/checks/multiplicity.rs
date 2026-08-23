@@ -2669,6 +2669,12 @@ fn append_borrow_permission_event(
         psi_checked_trees::BorrowAccessKind::Mutable => {
             (Multiplicity::Affine, PermissionAccess::Exclusive)
         }
+        psi_checked_trees::BorrowAccessKind::WriteOnly => {
+            // A write-only borrow is exclusive and therefore follows the same
+            // affine use discipline as a mutable borrow. Its observation
+            // restriction is validated separately.
+            (Multiplicity::Affine, PermissionAccess::Exclusive)
+        }
     };
     permission_events.push(FlowPermissionEventFact {
         machine_symbol,

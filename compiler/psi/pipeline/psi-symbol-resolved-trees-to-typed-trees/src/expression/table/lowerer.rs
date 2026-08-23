@@ -258,11 +258,16 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                         },
                     )))
             }
-            resolved::expression::ExpressionNode::Mutable(expression) => {
-                let expression = self.lower(*expression)?;
+            resolved::expression::ExpressionNode::Borrow(expression) => {
+                let target = self.lower(expression.target)?;
                 Ok(self
                     .target()
-                    .insert(typed::expression::ExpressionNode::Mutable(expression)))
+                    .insert(typed::expression::ExpressionNode::Borrow(
+                        typed::expression::TableBorrowExpression {
+                            target,
+                            access: expression.access,
+                        },
+                    )))
             }
             resolved::expression::ExpressionNode::Name(path) => {
                 if path.is_self_value

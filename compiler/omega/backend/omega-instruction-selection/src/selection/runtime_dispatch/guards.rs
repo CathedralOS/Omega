@@ -1772,7 +1772,7 @@ fn static_guard_value(expression: &Expression) -> Option<i64> {
         Expression::Boolean(value) => Some(i64::from(*value)),
         Expression::Integer(value) => value.value_i64(),
         // Transparent through an inlined-argument `mut <literal>` wrapper.
-        Expression::Mutable(inner) => static_guard_value(inner),
+        Expression::Borrow(inner) => static_guard_value(&inner.target),
         _ => None,
     }
 }
@@ -1784,14 +1784,14 @@ fn static_guard_value_in_table(
     match expressions.expression(expression) {
         ExpressionNode::Boolean(value) => Some(i64::from(*value)),
         ExpressionNode::Integer(value) => value.value_i64(),
-        ExpressionNode::Mutable(inner) => static_guard_value_in_table(expressions, *inner),
+        ExpressionNode::Borrow(inner) => static_guard_value_in_table(expressions, inner.target),
         // A field read on a STRUCT LITERAL receiver projects to the literal
         // field value: a call argument `Card { power: 3 }` substituted into
         // an inline arm guard `card.power > 0` folds to `3 > 0`.
         ExpressionNode::Member(member) => {
             let mut receiver = member.receiver;
-            while let ExpressionNode::Mutable(inner) = expressions.expression(receiver) {
-                receiver = *inner;
+            while let ExpressionNode::Borrow(inner) = expressions.expression(receiver) {
+                receiver = inner.target;
             }
             // `.len` of a substituted STRING literal folds to its byte length
             // (`"a/b/c".len` -> 5): a binding-resolved inline arm guard over a

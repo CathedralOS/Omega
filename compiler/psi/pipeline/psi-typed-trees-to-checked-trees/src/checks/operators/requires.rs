@@ -295,8 +295,13 @@ fn contexts_prove_boolean_expression(
     expression: ExpressionHandle,
 ) -> bool {
     match program.expression_table.expression(expression) {
-        ExpressionNode::Mutable(inner) => contexts_prove_boolean_expression(
-            program, semantic, contexts, parameters, operands, *inner,
+        ExpressionNode::Borrow(inner) => contexts_prove_boolean_expression(
+            program,
+            semantic,
+            contexts,
+            parameters,
+            operands,
+            inner.target,
         ),
         ExpressionNode::Boolean(true) => true,
         ExpressionNode::Binary(binary) => match binary.operator {

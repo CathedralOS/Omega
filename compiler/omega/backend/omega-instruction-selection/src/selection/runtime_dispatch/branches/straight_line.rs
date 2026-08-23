@@ -7,7 +7,9 @@ use omega_runtime_branching::{
     RuntimeStraightLineBranchOperation, RuntimeStraightLineBranchOperationKind,
 };
 use psi_arena::Arena;
-use psi_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
+use psi_checked_trees::expression::{
+    ExpressionHandle, ExpressionNode, ExpressionTable, TableBorrowExpression,
+};
 use psi_checked_trees::statement::StatementNode;
 
 use super::super::super::bindings::{
@@ -956,20 +958,23 @@ fn fold_straight_line_prior_local_names(
                 },
             ))
         }
-        ExpressionNode::Mutable(inner) => {
+        ExpressionNode::Borrow(inner) => {
             let resolved = fold_straight_line_prior_local_names(
                 input,
                 state_key,
                 dispatch_index,
                 expressions,
-                inner,
+                inner.target,
                 bindings,
                 statement_bound,
             );
-            if resolved == inner {
+            if resolved == inner.target {
                 return expression;
             }
-            expressions.insert(ExpressionNode::Mutable(resolved))
+            expressions.insert(ExpressionNode::Borrow(TableBorrowExpression {
+                target: resolved,
+                access: inner.access,
+            }))
         }
         ExpressionNode::Name(path) => {
             if path.members.count() != 1 {
@@ -1127,13 +1132,13 @@ fn select_runtime_straight_line_local_initializer_write(
     // (the programmable-layout `struct stat` decode either read zero or
     // faulted, depending on whether storage planning retained the view).
     let recast_initializer = match expressions.expression(resolved_initializer) {
-        ExpressionNode::Mutable(inner)
+        ExpressionNode::Borrow(inner)
             if matches!(
-                expressions.expression(*inner),
+                expressions.expression(inner.target),
                 ExpressionNode::Cast(cast) if cast.form.is_recast()
             ) =>
         {
-            *inner
+            inner.target
         }
         _ => resolved_initializer,
     };
@@ -1473,10 +1478,9 @@ fn local_initializer_is_direct_call(
         return false;
     }
     let mut initializer = local.initial_value;
-    while let ExpressionNode::Mutable(inner) =
-        input.program.expression_table.expression(initializer)
+    while let ExpressionNode::Borrow(inner) = input.program.expression_table.expression(initializer)
     {
-        initializer = *inner;
+        initializer = inner.target;
     }
     matches!(
         input.program.expression_table.expression(initializer),
@@ -2180,23 +2184,23 @@ fn resolve_leaf_call_expression_handle(
                 },
             ))
         }
-        ExpressionNode::Mutable(target) => {
+        ExpressionNode::Borrow(target) => {
             let resolved_target = resolve_leaf_call_expression_handle(
                 input,
                 table,
                 target_key,
-                target,
+                target.target,
                 leaf_parameters,
                 arguments,
                 straight_line_bindings,
             );
-            if matches!(
-                table.expression(resolved_target),
-                ExpressionNode::Mutable(_)
-            ) {
+            if matches!(table.expression(resolved_target), ExpressionNode::Borrow(_)) {
                 resolved_target
             } else {
-                table.insert(ExpressionNode::Mutable(resolved_target))
+                table.insert(ExpressionNode::Borrow(TableBorrowExpression {
+                    target: resolved_target,
+                    access: target.access,
+                }))
             }
         }
         ExpressionNode::Name(path) if path.members.count() > 0 => resolve_leaf_call_name_handle(

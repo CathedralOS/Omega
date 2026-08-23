@@ -66,7 +66,7 @@ pub(super) fn value_bounds(
             .parse::<i64>()
             .map(Bounds::point)
             .unwrap_or(Bounds::UNKNOWN),
-        ExpressionNode::Mutable(inner) => value_bounds(program, machine, state, *inner),
+        ExpressionNode::Borrow(inner) => value_bounds(program, machine, state, inner.target),
         ExpressionNode::Name(_) | ExpressionNode::Member(_) => {
             // RAW keeps the Constrained shell that carries the declared
             // range (the unwrapping variant strips it).
@@ -249,7 +249,7 @@ fn bounds_eval(
                 _ => Bounds::UNKNOWN,
             }
         }
-        ExpressionNode::Mutable(inner) => bounds_eval(program, valuation, *inner),
+        ExpressionNode::Borrow(inner) => bounds_eval(program, valuation, inner.target),
         _ => Bounds::UNKNOWN,
     }
 }

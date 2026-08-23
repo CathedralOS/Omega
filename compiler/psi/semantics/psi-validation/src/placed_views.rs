@@ -185,8 +185,8 @@ fn validate_expression(
         ExpressionNode::Member(member) => {
             validate_expression(program, machine, state, member.receiver, false, diagnostics);
         }
-        ExpressionNode::Mutable(inner) => {
-            validate_expression(program, machine, state, *inner, false, diagnostics);
+        ExpressionNode::Borrow(inner) => {
+            validate_expression(program, machine, state, inner.target, false, diagnostics);
         }
         ExpressionNode::Unary(unary) => {
             validate_expression(program, machine, state, unary.operand, false, diagnostics);

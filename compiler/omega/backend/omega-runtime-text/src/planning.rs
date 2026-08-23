@@ -341,7 +341,7 @@ fn classify_runtime_text_builder_segment(
         | ExpressionNode::Cast(_)
         | ExpressionNode::Float(_)
         | ExpressionNode::Integer(_)
-        | ExpressionNode::Mutable(_)
+        | ExpressionNode::Borrow(_)
         | ExpressionNode::Range(_)
         | ExpressionNode::StructLiteral(_)
         | ExpressionNode::Unary(_)
@@ -386,7 +386,7 @@ fn is_runtime_text_segment_like(table: &ExpressionTable, expression: ExpressionH
                 && is_runtime_text_segment_like(table, binary.left)
                 && is_runtime_text_segment_like(table, binary.right)
         }
-        ExpressionNode::Mutable(inner) => is_runtime_text_segment_like(table, *inner),
+        ExpressionNode::Borrow(inner) => is_runtime_text_segment_like(table, inner.target),
         ExpressionNode::Unary(unary) => is_runtime_text_segment_like(table, unary.operand),
         ExpressionNode::Range(_) => false,
         ExpressionNode::Boolean(_)
@@ -408,7 +408,7 @@ fn contains_runtime_text_anchor(table: &ExpressionTable, expression: ExpressionH
             contains_runtime_text_anchor(table, binary.left)
                 || contains_runtime_text_anchor(table, binary.right)
         }
-        ExpressionNode::Mutable(inner) => contains_runtime_text_anchor(table, *inner),
+        ExpressionNode::Borrow(inner) => contains_runtime_text_anchor(table, inner.target),
         ExpressionNode::Unary(unary) => contains_runtime_text_anchor(table, unary.operand),
         ExpressionNode::ArrayLiteral(_)
         | ExpressionNode::Atomic(_)
@@ -447,7 +447,7 @@ fn classify_runtime_text_write(
         | ExpressionNode::Cast(_)
         | ExpressionNode::Float(_)
         | ExpressionNode::Integer(_)
-        | ExpressionNode::Mutable(_)
+        | ExpressionNode::Borrow(_)
         | ExpressionNode::Range(_)
         | ExpressionNode::StructLiteral(_)
         | ExpressionNode::Unary(_)

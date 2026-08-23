@@ -323,8 +323,8 @@ fn expression_uses_content_surface(
         ExpressionNode::Member(member) => {
             expression_uses_content_surface(program, projections, member.receiver)
         }
-        ExpressionNode::Mutable(inner) => {
-            expression_uses_content_surface(program, projections, *inner)
+        ExpressionNode::Borrow(inner) => {
+            expression_uses_content_surface(program, projections, inner.target)
         }
         ExpressionNode::Range(range) => {
             expression_uses_content_surface(program, projections, range.start)
@@ -382,7 +382,7 @@ fn collect_expression_nodes(
             recurse(indexed.index, nodes);
         }
         ExpressionNode::Member(member) => recurse(member.receiver, nodes),
-        ExpressionNode::Mutable(inner) => recurse(*inner, nodes),
+        ExpressionNode::Borrow(inner) => recurse(inner.target, nodes),
         ExpressionNode::Range(range) => {
             recurse(range.start, nodes);
             recurse(range.end, nodes);

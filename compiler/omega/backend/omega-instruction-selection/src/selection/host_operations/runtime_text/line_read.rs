@@ -10,7 +10,9 @@ use crate::selection::storage_places::{
 use omega_abstract_operations::{RuntimeTextReadTarget, SelectedInstructionKind};
 use omega_calling_conventions::PlatformCallData;
 use omega_platform_interface::HostCall;
-use psi_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
+use psi_checked_trees::expression::{
+    ExpressionHandle, ExpressionNode, ExpressionTable, TableBorrowExpression,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(in crate::selection) struct RuntimeStringDescriptorPlace {
@@ -236,8 +238,8 @@ fn host_call_argument_has_alias(
     expression: ExpressionHandle,
 ) -> bool {
     match expressions.expression(expression) {
-        ExpressionNode::Mutable(target) => {
-            host_call_argument_has_alias(input, source_key, expressions, *target)
+        ExpressionNode::Borrow(target) => {
+            host_call_argument_has_alias(input, source_key, expressions, target.target)
         }
         ExpressionNode::Indexed(indexed) => {
             host_call_argument_has_alias(input, source_key, expressions, indexed.collection)
@@ -262,12 +264,19 @@ fn resolve_host_call_alias_expression_handle(
     expression: ExpressionHandle,
 ) -> (omega_control_flow::StateKey, ExpressionHandle) {
     match expressions.expression(expression).clone() {
-        ExpressionNode::Mutable(target) => {
-            let (resolved_source_key, resolved_target) =
-                resolve_host_call_alias_expression_handle(input, source_key, expressions, target);
+        ExpressionNode::Borrow(target) => {
+            let (resolved_source_key, resolved_target) = resolve_host_call_alias_expression_handle(
+                input,
+                source_key,
+                expressions,
+                target.target,
+            );
             (
                 resolved_source_key,
-                expressions.insert(ExpressionNode::Mutable(resolved_target)),
+                expressions.insert(ExpressionNode::Borrow(TableBorrowExpression {
+                    target: resolved_target,
+                    access: target.access,
+                })),
             )
         }
         ExpressionNode::Indexed(indexed) => {

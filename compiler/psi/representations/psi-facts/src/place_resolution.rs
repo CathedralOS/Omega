@@ -217,7 +217,7 @@ fn expression_type_symbol(
     }
 
     match program.expression_table.expression(expression) {
-        ExpressionNode::Mutable(inner) => expression_type_symbol(program, *inner),
+        ExpressionNode::Borrow(inner) => expression_type_symbol(program, inner.target),
         ExpressionNode::Name(path) => {
             let symbol = if path.head_symbol.is_valid() {
                 path.head_symbol

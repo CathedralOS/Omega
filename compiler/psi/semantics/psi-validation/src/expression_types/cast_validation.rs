@@ -206,7 +206,9 @@ fn expression_data_symbol(
             .iter()
             .find(|definition| definition.name.as_str() == literal.type_name.as_str())
             .map(|definition| definition.symbol),
-        ExpressionNode::Mutable(inner) => expression_data_symbol(program, machine, state, *inner),
+        ExpressionNode::Borrow(inner) => {
+            expression_data_symbol(program, machine, state, inner.target)
+        }
         ExpressionNode::Atomic(atomic) => {
             expression_data_symbol(program, machine, state, atomic.value)
         }

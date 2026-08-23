@@ -199,8 +199,10 @@ fn expression_atoms(
 ) -> Vec<DomainAtom> {
     let mut atoms = Vec::new();
     match program.expression_table.expression(value) {
-        ExpressionNode::Mutable(inner)
-        | ExpressionNode::Atomic(psi_typed_trees::expression::TableAtomicExpression {
+        ExpressionNode::Borrow(inner) => {
+            return expression_atoms(program, machine, state, inner.target);
+        }
+        ExpressionNode::Atomic(psi_typed_trees::expression::TableAtomicExpression {
             value: inner,
             ..
         }) => {

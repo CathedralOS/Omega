@@ -163,8 +163,8 @@ fn collect_expression_dependency_symbols(
         ExpressionNode::Member(member) => {
             collect_expression_dependency_symbols(program, member.receiver, symbols)
         }
-        ExpressionNode::Mutable(inner) => {
-            collect_expression_dependency_symbols(program, *inner, symbols)
+        ExpressionNode::Borrow(inner) => {
+            collect_expression_dependency_symbols(program, inner.target, symbols)
         }
         ExpressionNode::Range(range) => {
             collect_expression_dependency_symbols(program, range.start, symbols);
@@ -628,7 +628,7 @@ fn collect_expression_edges(
             recurse(indexed.index, out);
         }
         ExpressionNode::Member(member) => recurse(member.receiver, out),
-        ExpressionNode::Mutable(inner) => recurse(*inner, out),
+        ExpressionNode::Borrow(inner) => recurse(inner.target, out),
         ExpressionNode::Range(range) => {
             recurse(range.start, out);
             recurse(range.end, out);
@@ -830,8 +830,8 @@ fn expression_is_strict_member_of(
         ExpressionNode::Member(member) => {
             expression_is_rooted_at_name(program, member.receiver, root_symbol, root_name)
         }
-        ExpressionNode::Mutable(inner) => {
-            expression_is_strict_member_of(program, *inner, root_symbol, root_name)
+        ExpressionNode::Borrow(inner) => {
+            expression_is_strict_member_of(program, inner.target, root_symbol, root_name)
         }
         _ => false,
     }
@@ -853,8 +853,8 @@ fn expression_is_rooted_at_name(
         ExpressionNode::Member(member) => {
             expression_is_rooted_at_name(program, member.receiver, root_symbol, root_name)
         }
-        ExpressionNode::Mutable(inner) => {
-            expression_is_rooted_at_name(program, *inner, root_symbol, root_name)
+        ExpressionNode::Borrow(inner) => {
+            expression_is_rooted_at_name(program, inner.target, root_symbol, root_name)
         }
         ExpressionNode::Name(path) => {
             path.symbol == root_symbol

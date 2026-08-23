@@ -93,8 +93,8 @@ fn asm_operand_primitive_type(
     operand: ExpressionHandle,
 ) -> Option<PrimitiveType> {
     match program.expression_table.expression(operand) {
-        ExpressionNode::Mutable(inner) => {
-            asm_operand_primitive_type(program, machine, state, *inner)
+        ExpressionNode::Borrow(inner) => {
+            asm_operand_primitive_type(program, machine, state, inner.target)
         }
         ExpressionNode::Cast(cast) => program.primitive_type_reference(cast.target_type),
         _ => crate::places::declared_place_type(program, machine, state, operand)

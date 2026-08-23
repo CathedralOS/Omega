@@ -24,6 +24,13 @@ use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
 use psi_tokens_to_syntax_trees::parse_syntax_trees;
 use std::sync::Arc;
 
+fn mutable_borrow(target: Expression) -> Expression {
+    Expression::Borrow(Box::new(psi_checked_trees::expression::BorrowExpression {
+        target,
+        access: psi_language_semantics::ReferenceAccess::Mutable,
+    }))
+}
+
 mod admissibility;
 mod borrow;
 mod carry;

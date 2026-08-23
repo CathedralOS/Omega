@@ -10,8 +10,8 @@ pub(super) fn relative_place_segments_from_expression(
     }
 
     match program.expression_table.expression(expression) {
-        ExpressionNode::Mutable(inner) => {
-            relative_place_segments_from_expression(program, *inner, self_type_symbol)
+        ExpressionNode::Borrow(inner) => {
+            relative_place_segments_from_expression(program, inner.target, self_type_symbol)
         }
         ExpressionNode::Name(path) => {
             let members = program.expression_table.name_path_members(path.members);

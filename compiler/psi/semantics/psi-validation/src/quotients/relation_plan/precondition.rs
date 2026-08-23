@@ -383,7 +383,7 @@ fn expression_depends_on_any(
             Ok(collection || index)
         }
         ExpressionNode::Member(member) => depends(member.receiver),
-        ExpressionNode::Mutable(inner) => depends(*inner),
+        ExpressionNode::Borrow(inner) => depends(inner.target),
         ExpressionNode::Unary(unary) => depends(unary.operand),
         ExpressionNode::Name(path) => {
             if !path.symbol.is_valid() && !path.head_symbol.is_valid() {

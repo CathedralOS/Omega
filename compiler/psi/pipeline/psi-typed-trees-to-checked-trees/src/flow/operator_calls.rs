@@ -421,8 +421,8 @@ fn operator_contract_relative_place(
     expression: ExpressionHandle,
 ) -> Option<CanonicalPlace> {
     match program.expression_table.expression(expression) {
-        ExpressionNode::Mutable(inner) => {
-            operator_contract_relative_place(program, operator, *inner)
+        ExpressionNode::Borrow(inner) => {
+            operator_contract_relative_place(program, operator, inner.target)
         }
         ExpressionNode::Name(path) => {
             let members = program.expression_table.name_path_members(path.members);

@@ -167,7 +167,7 @@ pub enum ExpressionNode {
     Integer(IntegerLiteral),
     Membership(TableMembershipExpression),
     Member(TableMemberExpression),
-    Mutable(ExpressionHandle),
+    Borrow(TableBorrowExpression),
     Name(HandleSpan<Identifier>),
     Range(TableRangeExpression),
     SelfValue,
@@ -178,6 +178,16 @@ pub enum ExpressionNode {
     Unary(TableUnaryExpression),
     /// Proof-only observation of a type's normalized all-zero home value.
     ZeroValue(crate::types::TypeReferenceHandle),
+}
+
+/// One explicit exclusive borrow expression. The access mode is retained on
+/// the expression rather than reconstructed from the callee's expected type:
+/// `&mut place` and its explicit `&write place` attenuation are distinct
+/// source operations even though both lower to an exclusive pointer ABI.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TableBorrowExpression {
+    pub target: ExpressionHandle,
+    pub access: psi_language_core::ReferenceAccess,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

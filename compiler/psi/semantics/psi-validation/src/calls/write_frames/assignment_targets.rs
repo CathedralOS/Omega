@@ -27,7 +27,9 @@ pub(super) fn expression_is_effectful_indexed_place(
     expression: ExpressionHandle,
 ) -> bool {
     match program.expression_table.expression(expression) {
-        ExpressionNode::Mutable(inner) => expression_is_effectful_indexed_place(program, *inner),
+        ExpressionNode::Borrow(inner) => {
+            expression_is_effectful_indexed_place(program, inner.target)
+        }
         ExpressionNode::Member(member) => {
             expression_is_effectful_indexed_place(program, member.receiver)
         }
@@ -48,8 +50,8 @@ pub(super) fn transparent_assignment_target_effect_is_structural(
     expression: ExpressionHandle,
 ) -> bool {
     match program.expression_table.expression(expression) {
-        ExpressionNode::Mutable(inner) => {
-            transparent_assignment_target_effect_is_structural(program, *inner)
+        ExpressionNode::Borrow(inner) => {
+            transparent_assignment_target_effect_is_structural(program, inner.target)
         }
         ExpressionNode::Indexed(_) => true,
         ExpressionNode::Member(member) => {

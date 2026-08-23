@@ -885,8 +885,9 @@ fn expressions_structurally_equal(
                 )
                 && expressions_structurally_equal(program, left.value, right.value)
         }
-        (ExpressionNode::Mutable(left), ExpressionNode::Mutable(right)) => {
-            expressions_structurally_equal(program, *left, *right)
+        (ExpressionNode::Borrow(left), ExpressionNode::Borrow(right)) => {
+            left.access == right.access
+                && expressions_structurally_equal(program, left.target, right.target)
         }
         (ExpressionNode::Cast(left), ExpressionNode::Cast(right)) => {
             expressions_structurally_equal(program, left.value, right.value)

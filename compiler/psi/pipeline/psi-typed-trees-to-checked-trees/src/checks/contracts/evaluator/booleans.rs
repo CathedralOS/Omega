@@ -105,7 +105,7 @@ impl ContractExpressionEvaluator<'_, '_> {
                     .then(|| self.boolean_value(resolved))
                     .flatten()
             }
-            ExpressionNode::Mutable(inner) => self.boolean_value(*inner),
+            ExpressionNode::Borrow(inner) => self.boolean_value(inner.target),
             ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
                 Some(!self.boolean_value(unary.operand)?)
             }

@@ -37,8 +37,8 @@ fn spelled_receiver_chain(
             chain.push(member.member.as_str().to_string());
             Some(chain)
         }
-        psi_symbol_resolved_trees::expression::ExpressionNode::Mutable(inner) => {
-            spelled_receiver_chain(expression_table, *inner)
+        psi_symbol_resolved_trees::expression::ExpressionNode::Borrow(inner) => {
+            spelled_receiver_chain(expression_table, inner.target)
         }
         _ => None,
     }

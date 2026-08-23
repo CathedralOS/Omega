@@ -7,8 +7,8 @@ pub(crate) fn argument_binding_place_key(
     aliases: &[(PlaceKey, PlaceKey)],
 ) -> Option<PlaceKey> {
     match table.expression(expression) {
-        ExpressionNode::Mutable(inner_expression) => {
-            shallow_canonical_place_key(table, *inner_expression, aliases)
+        ExpressionNode::Borrow(inner_expression) => {
+            shallow_canonical_place_key(table, inner_expression.target, aliases)
         }
         _ => canonical_place_key(table, expression, aliases),
     }
@@ -20,8 +20,8 @@ pub(crate) fn canonical_place_key(
     aliases: &[(PlaceKey, PlaceKey)],
 ) -> Option<PlaceKey> {
     let key = match table.expression(expression) {
-        ExpressionNode::Mutable(inner_expression) => {
-            return canonical_place_key(table, *inner_expression, aliases);
+        ExpressionNode::Borrow(inner_expression) => {
+            return canonical_place_key(table, inner_expression.target, aliases);
         }
         ExpressionNode::Name(_) | ExpressionNode::Indexed(_) => {
             PlaceKey::from_expression_handle(table, expression)?
@@ -38,8 +38,8 @@ pub(crate) fn shallow_canonical_place_key(
     aliases: &[(PlaceKey, PlaceKey)],
 ) -> Option<PlaceKey> {
     let key = match table.expression(expression) {
-        ExpressionNode::Mutable(inner_expression) => {
-            return shallow_canonical_place_key(table, *inner_expression, aliases);
+        ExpressionNode::Borrow(inner_expression) => {
+            return shallow_canonical_place_key(table, inner_expression.target, aliases);
         }
         ExpressionNode::Name(_) | ExpressionNode::Indexed(_) => {
             PlaceKey::from_expression_handle(table, expression)?

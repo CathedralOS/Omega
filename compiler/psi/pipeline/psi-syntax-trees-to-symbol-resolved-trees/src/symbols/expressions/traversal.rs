@@ -259,7 +259,7 @@ pub(in crate::symbols) fn assign_expression_table_symbols(
             );
             assign_membership_symbol(symbols, expression_table, membership.domain, expression);
         }
-        psi_symbol_resolved_trees::expression::ExpressionNode::Mutable(inner) => {
+        psi_symbol_resolved_trees::expression::ExpressionNode::Borrow(inner) => {
             assign_expression_table_symbols(
                 symbols,
                 machine,
@@ -267,7 +267,7 @@ pub(in crate::symbols) fn assign_expression_table_symbols(
                 state_symbol,
                 expression_table,
                 child_type_references,
-                inner,
+                inner.target,
             );
         }
         psi_symbol_resolved_trees::expression::ExpressionNode::Unary(unary) => {

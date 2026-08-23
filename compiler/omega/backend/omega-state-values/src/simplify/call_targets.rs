@@ -86,8 +86,8 @@ fn machine_can_receive_self_call(current: &Machine, target: &Machine) -> bool {
 }
 
 fn strip_mutable_expression_ref(mut expression: &Expression) -> &Expression {
-    while let Expression::Mutable(inner) = expression {
-        expression = inner.as_ref();
+    while let Expression::Borrow(inner) = expression {
+        expression = &inner.target;
     }
     expression
 }
@@ -109,7 +109,7 @@ pub(crate) fn resolve_call_target_state<'machine>(
 
 fn expression_is_self_reference(machine: &Machine, expression: &Expression) -> bool {
     match expression {
-        Expression::Mutable(inner) => expression_is_self_reference(machine, inner),
+        Expression::Borrow(inner) => expression_is_self_reference(machine, &inner.target),
         Expression::Name(path) => path.len() == 1 && path.symbol() == machine.symbol,
         _ => false,
     }

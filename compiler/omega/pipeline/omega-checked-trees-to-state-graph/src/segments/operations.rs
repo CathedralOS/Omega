@@ -85,8 +85,8 @@ fn expression_is_runtime_indexed(table: &ExpressionTable, handle: ExpressionHand
         return false;
     };
     let mut index = indexed.index;
-    while let ExpressionNode::Mutable(inner) = table.expression(index) {
-        index = *inner;
+    while let ExpressionNode::Borrow(inner) = table.expression(index) {
+        index = inner.target;
     }
     !matches!(table.expression(index), ExpressionNode::Integer(_))
 }
@@ -120,7 +120,7 @@ fn target_is_nested_runtime_indexed(table: &ExpressionTable, target: ExpressionH
                 place = indexed.collection;
             }
             ExpressionNode::Member(member) => place = member.receiver,
-            ExpressionNode::Mutable(inner) => place = *inner,
+            ExpressionNode::Borrow(inner) => place = inner.target,
             _ => return false,
         }
     }
@@ -135,7 +135,7 @@ fn collection_chain_reaches_index(table: &ExpressionTable, mut place: Expression
         match table.expression(place) {
             ExpressionNode::Indexed(_) => return true,
             ExpressionNode::Member(member) => place = member.receiver,
-            ExpressionNode::Mutable(inner) => place = *inner,
+            ExpressionNode::Borrow(inner) => place = inner.target,
             _ => return false,
         }
     }

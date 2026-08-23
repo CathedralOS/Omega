@@ -185,8 +185,8 @@ fn initializer_is_reference_param_member(
     expression: ExpressionHandle,
 ) -> bool {
     match expressions.expression(expression) {
-        ExpressionNode::Mutable(inner) => {
-            initializer_is_reference_param_member(program, state, expressions, *inner)
+        ExpressionNode::Borrow(inner) => {
+            initializer_is_reference_param_member(program, state, expressions, inner.target)
         }
         ExpressionNode::Member(member) => {
             let ExpressionNode::Name(path) = expressions.expression(member.receiver) else {
@@ -269,7 +269,7 @@ fn collect_member_field_names(
             out.push(member.member.clone());
             collect_member_field_names(expressions, member.receiver, out);
         }
-        ExpressionNode::Mutable(inner) => collect_member_field_names(expressions, *inner, out),
+        ExpressionNode::Borrow(inner) => collect_member_field_names(expressions, inner.target, out),
         ExpressionNode::Binary(binary) => {
             collect_member_field_names(expressions, binary.left, out);
             collect_member_field_names(expressions, binary.right, out);
@@ -301,7 +301,7 @@ fn assignment_member_field_name(
 ) -> Option<psi_checked_trees::name::Identifier> {
     match expressions.expression(target) {
         ExpressionNode::Member(member) => Some(member.member.clone()),
-        ExpressionNode::Mutable(inner) => assignment_member_field_name(expressions, *inner),
+        ExpressionNode::Borrow(inner) => assignment_member_field_name(expressions, inner.target),
         ExpressionNode::Indexed(indexed) => {
             assignment_member_field_name(expressions, indexed.collection)
         }
@@ -376,8 +376,14 @@ fn simple_local_binding_value_from_table(
             evidence_arguments: Arc::from(call.evidence_arguments.clone()),
             operational_acknowledgement: call.operational_acknowledgement,
         }))),
-        ExpressionNode::Mutable(inner) => simple_local_binding_value_from_table(table, *inner)
-            .map(|value| Expression::Mutable(Box::new(value))),
+        ExpressionNode::Borrow(borrow) => {
+            simple_local_binding_value_from_table(table, borrow.target).map(|target| {
+                Expression::Borrow(Box::new(psi_checked_trees::expression::BorrowExpression {
+                    target,
+                    access: borrow.access,
+                }))
+            })
+        }
         ExpressionNode::Unary(unary) => simple_local_binding_value_from_table(table, unary.operand)
             .map(|operand| {
                 Expression::Unary(Box::new(psi_checked_trees::expression::UnaryExpression {

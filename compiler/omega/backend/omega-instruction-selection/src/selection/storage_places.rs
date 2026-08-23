@@ -1007,7 +1007,7 @@ fn peel_mutable_in_table(
     expression: ExpressionHandle,
 ) -> ExpressionHandle {
     match expressions.expression(expression) {
-        ExpressionNode::Mutable(inner) => peel_mutable_in_table(expressions, *inner),
+        ExpressionNode::Borrow(inner) => peel_mutable_in_table(expressions, inner.target),
         _ => expression,
     }
 }
@@ -2996,7 +2996,7 @@ pub(super) fn resolve_runtime_frame_base_double_indexed_source_with_index_region
     let mut outer = expression;
     loop {
         match expressions.expression(outer) {
-            ExpressionNode::Mutable(next) => outer = *next,
+            ExpressionNode::Borrow(next) => outer = next.target,
             ExpressionNode::Member(member) => outer = member.receiver,
             _ => break,
         }
@@ -3005,8 +3005,8 @@ pub(super) fn resolve_runtime_frame_base_double_indexed_source_with_index_region
         return None;
     };
     let mut inner = outer_indexed.collection;
-    while let ExpressionNode::Mutable(next) = expressions.expression(inner) {
-        inner = *next;
+    while let ExpressionNode::Borrow(next) = expressions.expression(inner) {
+        inner = next.target;
     }
     let ExpressionNode::Indexed(inner_indexed) = expressions.expression(inner) else {
         return None;
@@ -3184,7 +3184,7 @@ pub(super) fn resolve_runtime_pointee_double_indexed_target_in_table(
     let mut outer = expression;
     loop {
         match expressions.expression(outer) {
-            ExpressionNode::Mutable(next) => outer = *next,
+            ExpressionNode::Borrow(next) => outer = next.target,
             ExpressionNode::Member(member) => outer = member.receiver,
             _ => break,
         }
@@ -3198,7 +3198,7 @@ pub(super) fn resolve_runtime_pointee_double_indexed_target_in_table(
     let mut inner = outer_indexed.collection;
     loop {
         match expressions.expression(inner) {
-            ExpressionNode::Mutable(next) => inner = *next,
+            ExpressionNode::Borrow(next) => inner = next.target,
             ExpressionNode::Member(member) => {
                 between_members.push(member);
                 inner = member.receiver;
@@ -3401,7 +3401,7 @@ pub(super) fn resolve_runtime_machine_double_indexed_source_in_table(
     let mut outer = expression;
     loop {
         match expressions.expression(outer) {
-            ExpressionNode::Mutable(next) => outer = *next,
+            ExpressionNode::Borrow(next) => outer = next.target,
             ExpressionNode::Member(member) => outer = member.receiver,
             _ => break,
         }
@@ -3419,7 +3419,7 @@ pub(super) fn resolve_runtime_machine_double_indexed_source_in_table(
     let mut inner = outer_indexed.collection;
     loop {
         match expressions.expression(inner) {
-            ExpressionNode::Mutable(next) => inner = *next,
+            ExpressionNode::Borrow(next) => inner = next.target,
             ExpressionNode::Member(member) => {
                 between_members.push(member);
                 inner = member.receiver;
@@ -3691,15 +3691,15 @@ fn resolve_machine_owned_collection_with_const_prefix_in_table(
     }
 
     let mut peeled = expression;
-    while let ExpressionNode::Mutable(inner) = expressions.expression(peeled) {
-        peeled = *inner;
+    while let ExpressionNode::Borrow(inner) = expressions.expression(peeled) {
+        peeled = inner.target;
     }
     let ExpressionNode::Indexed(inner) = expressions.expression(peeled) else {
         return None;
     };
     let mut index = inner.index;
-    while let ExpressionNode::Mutable(next) = expressions.expression(index) {
-        index = *next;
+    while let ExpressionNode::Borrow(next) = expressions.expression(index) {
+        index = next.target;
     }
     let ExpressionNode::Integer(index) = expressions.expression(index) else {
         return None;
@@ -3982,7 +3982,7 @@ fn pointee_path_root_in_table(
     expression: ExpressionHandle,
 ) -> Option<ExpressionHandle> {
     match expressions.expression(expression) {
-        ExpressionNode::Mutable(inner) => pointee_path_root_in_table(expressions, *inner),
+        ExpressionNode::Borrow(inner) => pointee_path_root_in_table(expressions, inner.target),
         ExpressionNode::Indexed(indexed) => {
             pointee_path_root_in_table(expressions, indexed.collection)
         }
@@ -4003,9 +4003,13 @@ fn resolve_stacked_fixed_path_cursor_in_table<'layout>(
         return Some(cursor);
     }
     match expressions.expression(expression) {
-        ExpressionNode::Mutable(inner) => {
-            resolve_stacked_fixed_path_cursor_in_table(layouts, cursor, expressions, *inner, root)
-        }
+        ExpressionNode::Borrow(inner) => resolve_stacked_fixed_path_cursor_in_table(
+            layouts,
+            cursor,
+            expressions,
+            inner.target,
+            root,
+        ),
         ExpressionNode::Member(member) => {
             let cursor = resolve_stacked_fixed_path_cursor_in_table(
                 layouts,
@@ -4870,7 +4874,7 @@ fn const_fold_index_value_in_table(
     index: ExpressionHandle,
 ) -> Option<i64> {
     match table.expression(index) {
-        ExpressionNode::Mutable(inner) => const_fold_index_value_in_table(table, *inner),
+        ExpressionNode::Borrow(inner) => const_fold_index_value_in_table(table, inner.target),
         ExpressionNode::Integer(value) => value.value_i64(),
         ExpressionNode::Binary(binary) => {
             let left = const_fold_index_value_in_table(table, binary.left)?;
@@ -4891,7 +4895,7 @@ fn fixed_indexed_target_path_in_table(
     expression: ExpressionHandle,
 ) -> Option<TableFixedIndexedTargetPath> {
     match table.expression(expression) {
-        ExpressionNode::Mutable(target) => fixed_indexed_target_path_in_table(table, *target),
+        ExpressionNode::Borrow(target) => fixed_indexed_target_path_in_table(table, target.target),
         ExpressionNode::Member(member) => {
             let path = fixed_indexed_target_path_in_table(table, member.receiver)?;
             Some(TableFixedIndexedTargetPath {
@@ -4984,7 +4988,7 @@ fn indexed_target_path_in_table(
     expression: ExpressionHandle,
 ) -> Option<TableIndexedTargetPath> {
     match table.expression(expression) {
-        ExpressionNode::Mutable(target) => indexed_target_path_in_table(table, *target),
+        ExpressionNode::Borrow(target) => indexed_target_path_in_table(table, target.target),
         ExpressionNode::Member(member) => {
             let path = indexed_target_path_in_table(table, member.receiver)?;
             Some(TableIndexedTargetPath {
@@ -5035,8 +5039,8 @@ fn indexed_target_path_in_table(
 
 fn indexed_index_is_const(table: &ExpressionTable, index: ExpressionHandle) -> bool {
     let mut index = index;
-    while let ExpressionNode::Mutable(inner) = table.expression(index) {
-        index = *inner;
+    while let ExpressionNode::Borrow(inner) = table.expression(index) {
+        index = inner.target;
     }
     matches!(table.expression(index), ExpressionNode::Integer(_))
 }
@@ -5116,11 +5120,11 @@ fn resolve_indexed_target_suffix_cursor_in_table_internal<'layout>(
         return Some(cursor);
     }
     match expressions.expression(expression) {
-        ExpressionNode::Mutable(target) => resolve_indexed_target_suffix_cursor_in_table_internal(
+        ExpressionNode::Borrow(target) => resolve_indexed_target_suffix_cursor_in_table_internal(
             layouts,
             cursor,
             expressions,
-            *target,
+            target.target,
             boundary,
             allow_stored_integer,
         ),

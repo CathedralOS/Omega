@@ -1,0 +1,10 @@
+// FAIL canary: forwarding a write-only loan as readable mutable authority is
+// an illegal widening.
+
+machine consume(value: &mut i32) {
+    value = 1;
+}
+
+machine widen(value: &write i32) {
+    consume(&mut value);
+}

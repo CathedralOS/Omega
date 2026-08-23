@@ -87,7 +87,7 @@ pub(super) fn find_call_site_in_expression<'program>(
                 .or_else(|| find_call_site_in_expression(traversal, indexed.index))
         }
         ExpressionNode::Member(member) => find_call_site_in_expression(traversal, member.receiver),
-        ExpressionNode::Mutable(inner) => find_call_site_in_expression(traversal, *inner),
+        ExpressionNode::Borrow(inner) => find_call_site_in_expression(traversal, inner.target),
         ExpressionNode::Unary(unary) => find_call_site_in_expression(traversal, unary.operand),
         ExpressionNode::StructLiteral(struct_literal) => {
             for field in traversal

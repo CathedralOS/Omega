@@ -129,7 +129,7 @@ fn place_symbols(table: &ExpressionTable, expression: ExpressionHandle) -> Optio
         ExpressionNode::Name(path) => name_path_symbols(path),
         ExpressionNode::Member(member) => member_symbols(table, member),
         ExpressionNode::Indexed(indexed) => place_symbols(table, indexed.collection),
-        ExpressionNode::Mutable(expression) => place_symbols(table, *expression),
+        ExpressionNode::Borrow(expression) => place_symbols(table, expression.target),
         _ => None,
     }
 }

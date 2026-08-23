@@ -172,8 +172,8 @@ fn range_bounds_are_literal(
             return true;
         }
         let mut handle = bound;
-        while let ExpressionNode::Mutable(inner) = expressions.expression(handle) {
-            handle = *inner;
+        while let ExpressionNode::Borrow(inner) = expressions.expression(handle) {
+            handle = inner.target;
         }
         matches!(expressions.expression(handle), ExpressionNode::Integer(_))
     })

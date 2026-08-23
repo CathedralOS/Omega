@@ -1,0 +1,18 @@
+// PASS canary: checked Omega code may attenuate an exclusive mutable place to
+// an exact write-only loan, forward that loan, and replace the whole scalar.
+
+machine replace(destination: &write i32, value: i32) {
+    destination = value;
+}
+
+machine forward(destination: &write i32, value: i32) {
+    replace(&write destination, value);
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+    let mut destination: i32 = 0;
+    forward(&write destination, 42);
+}

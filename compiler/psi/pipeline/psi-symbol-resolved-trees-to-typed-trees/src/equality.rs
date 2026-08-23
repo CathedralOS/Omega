@@ -178,7 +178,7 @@ fn scan_expression(
         ExpressionNode::Membership(membership) => {
             scan_expression(program, membership.value, fact_position)
         }
-        ExpressionNode::Mutable(inner) => scan_expression(program, *inner, fact_position),
+        ExpressionNode::Borrow(inner) => scan_expression(program, inner.target, fact_position),
         ExpressionNode::Range(range) => {
             scan_expression(program, range.start, fact_position)?;
             scan_expression(program, range.end, fact_position)

@@ -30,6 +30,13 @@ pub enum BorrowAccessKind {
     #[default]
     Read,
     Mutable,
+    WriteOnly,
+}
+
+impl BorrowAccessKind {
+    pub fn is_exclusive(&self) -> bool {
+        matches!(self, Self::Mutable | Self::WriteOnly)
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

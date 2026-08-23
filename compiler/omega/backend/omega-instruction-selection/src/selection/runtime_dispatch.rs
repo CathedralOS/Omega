@@ -4063,14 +4063,14 @@ fn select_runtime_dispatch_local_initializer_write(
         // `&mut x as &mut T` parses as Mutable(Cast(..)); shared recasts are
         // bare Cast nodes. Normalize only for recast recognition so ordinary
         // mutable borrows retain their existing initializer lowering.
-        psi_checked_trees::expression::ExpressionNode::Mutable(inner)
+        psi_checked_trees::expression::ExpressionNode::Borrow(inner)
             if matches!(
-                expressions.expression(*inner),
+                expressions.expression(inner.target),
                 psi_checked_trees::expression::ExpressionNode::Cast(cast)
                     if cast.form.is_recast()
             ) =>
         {
-            *inner
+            inner.target
         }
         _ => resolved_initializer,
     };
@@ -4426,8 +4426,8 @@ fn expression_contains_runtime_float_builtin(
                     expression_contains_runtime_float_builtin(input, expressions, *argument)
                 })
         }
-        ExpressionNode::Mutable(inner) => {
-            expression_contains_runtime_float_builtin(input, expressions, *inner)
+        ExpressionNode::Borrow(inner) => {
+            expression_contains_runtime_float_builtin(input, expressions, inner.target)
         }
         ExpressionNode::Indexed(indexed) => {
             expression_contains_runtime_float_builtin(input, expressions, indexed.collection)
@@ -4501,7 +4501,7 @@ fn expression_contains_carried_float_provider_plan(
                     .copied()
                     .any(nested)
         }
-        ExpressionNode::Mutable(inner) => nested(*inner),
+        ExpressionNode::Borrow(inner) => nested(inner.target),
         ExpressionNode::Indexed(indexed) => nested(indexed.collection) || nested(indexed.index),
         ExpressionNode::Member(member) => nested(member.receiver),
         ExpressionNode::Range(range) => {
@@ -4539,7 +4539,7 @@ fn expression_contains_value_cast(
                     .copied()
                     .any(nested)
         }
-        ExpressionNode::Mutable(inner) => nested(*inner),
+        ExpressionNode::Borrow(inner) => nested(inner.target),
         ExpressionNode::Indexed(indexed) => nested(indexed.collection) || nested(indexed.index),
         ExpressionNode::Member(member) => nested(member.receiver),
         ExpressionNode::Range(range) => {
@@ -4670,8 +4670,8 @@ fn strip_recast_initializer(
         psi_checked_trees::expression::ExpressionNode::Cast(cast) if cast.form.is_recast() => {
             cast.value
         }
-        psi_checked_trees::expression::ExpressionNode::Mutable(inner) => {
-            match expressions.expression(*inner) {
+        psi_checked_trees::expression::ExpressionNode::Borrow(inner) => {
+            match expressions.expression(inner.target) {
                 psi_checked_trees::expression::ExpressionNode::Cast(cast)
                     if cast.form.is_recast() =>
                 {

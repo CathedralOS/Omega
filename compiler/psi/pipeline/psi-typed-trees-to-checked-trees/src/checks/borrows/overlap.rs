@@ -164,7 +164,7 @@ fn expression_mentions_field(
             member.member.as_str() == field
                 || expression_mentions_field(program, member.receiver, field)
         }
-        ExpressionNode::Mutable(inner) => expression_mentions_field(program, *inner, field),
+        ExpressionNode::Borrow(inner) => expression_mentions_field(program, inner.target, field),
         _ => false,
     }
 }

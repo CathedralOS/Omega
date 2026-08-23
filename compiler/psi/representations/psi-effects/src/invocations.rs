@@ -329,8 +329,8 @@ fn collect_expression_calls(
         ExpressionNode::Member(member) => {
             collect_expression_calls(program, machine, state, member.receiver, direct, calls)
         }
-        ExpressionNode::Mutable(inner) => {
-            collect_expression_calls(program, machine, state, *inner, direct, calls)
+        ExpressionNode::Borrow(inner) => {
+            collect_expression_calls(program, machine, state, inner.target, direct, calls)
         }
         ExpressionNode::Unary(unary) => {
             collect_expression_calls(program, machine, state, unary.operand, direct, calls)
@@ -642,7 +642,9 @@ fn origin_for_expression(
             origin_for_symbol(program, machine, state, member.member_symbol)
                 .or_else(|| origin_for_expression(program, machine, state, member.receiver))
         }
-        ExpressionNode::Mutable(inner) => origin_for_expression(program, machine, state, *inner),
+        ExpressionNode::Borrow(inner) => {
+            origin_for_expression(program, machine, state, inner.target)
+        }
         _ => None,
     }
 }

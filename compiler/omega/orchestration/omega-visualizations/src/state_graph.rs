@@ -318,6 +318,7 @@ fn borrow_access_label(
     label.push_str(match access.kind {
         StateBorrowAccessKind::Read => "read",
         StateBorrowAccessKind::Mutable => "mutable",
+        StateBorrowAccessKind::WriteOnly => "write-only",
     });
     label
 }

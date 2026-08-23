@@ -54,8 +54,8 @@ pub(super) fn collect_read_accesses(
         ExpressionNode::Name(_) => {
             append_read_access(collection, expression);
         }
-        ExpressionNode::Mutable(inner_expression) => {
-            collect_read_accesses(collection, *inner_expression)
+        ExpressionNode::Borrow(inner_expression) => {
+            collect_read_accesses(collection, inner_expression.target)
         }
         ExpressionNode::Unary(unary) => collect_read_accesses(collection, unary.operand),
         ExpressionNode::StructLiteral(struct_literal) => {

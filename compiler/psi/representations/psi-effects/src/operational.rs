@@ -336,8 +336,8 @@ fn collect_expression_calls(
                 calls,
             );
         }
-        ExpressionNode::Mutable(inner) => {
-            collect_expression_calls(program, *inner, statement_index, call_ordinal, calls);
+        ExpressionNode::Borrow(inner) => {
+            collect_expression_calls(program, inner.target, statement_index, call_ordinal, calls);
         }
         ExpressionNode::Unary(unary) => {
             collect_expression_calls(program, unary.operand, statement_index, call_ordinal, calls);

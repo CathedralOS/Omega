@@ -18,7 +18,7 @@ pub(super) fn value_kind(table: &ExpressionTable, expression: ExpressionHandle) 
         ExpressionNode::Indexed(_) | ExpressionNode::Member(_) | ExpressionNode::Name(_) => {
             unreachable!("stored places are classified before expression node matching")
         }
-        ExpressionNode::Mutable(_) => StateValueKind::MutablePlace,
+        ExpressionNode::Borrow(_) => StateValueKind::MutablePlace,
         ExpressionNode::Range(_) => StateValueKind::Binary,
         ExpressionNode::StructLiteral(_) => StateValueKind::Struct,
         ExpressionNode::Unary(_) => StateValueKind::Binary,

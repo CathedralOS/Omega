@@ -470,7 +470,7 @@ fn vacuous_qualification_fixture() -> (
     let statement_expression = program
         .typed
         .expression_table
-        .insert(ExpressionNode::Mutable(cast_expression));
+        .insert(ExpressionNode::Borrow(cast_expression));
     for (machine, state, machine_name, state_name) in [
         (machine_symbol, state_symbol, "Main::main", "main"),
         (

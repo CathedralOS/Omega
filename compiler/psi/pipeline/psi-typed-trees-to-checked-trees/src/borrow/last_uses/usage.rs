@@ -311,7 +311,7 @@ fn expression_uses_owner_path(
             .iter()
             .any(|field| recurse(field.value)),
         ExpressionNode::Unary(unary) => recurse(unary.operand),
-        ExpressionNode::Mutable(inner) => recurse(*inner),
+        ExpressionNode::Borrow(inner) => recurse(inner.target),
         ExpressionNode::Member(_)
         | ExpressionNode::Name(_)
         | ExpressionNode::Boolean(_)

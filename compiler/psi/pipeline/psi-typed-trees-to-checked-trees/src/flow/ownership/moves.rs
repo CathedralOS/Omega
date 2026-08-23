@@ -142,7 +142,7 @@ pub(super) fn append_move_events_for_expression(
                 source,
             );
         }
-        ExpressionNode::Mutable(_)
+        ExpressionNode::Borrow(_)
         | ExpressionNode::Name(_)
         | ExpressionNode::Member(_)
         | ExpressionNode::Indexed(_)
@@ -397,7 +397,9 @@ fn receiver_expression_static_path_segments<'program>(
     }
 
     match program.expression_table.expression(receiver) {
-        ExpressionNode::Mutable(inner) => receiver_expression_static_path_segments(program, *inner),
+        ExpressionNode::Borrow(inner) => {
+            receiver_expression_static_path_segments(program, inner.target)
+        }
         ExpressionNode::Name(path) => {
             let value_symbol =
                 crate::lookup::first_valid_name_path_symbol(path, &program.expression_table)

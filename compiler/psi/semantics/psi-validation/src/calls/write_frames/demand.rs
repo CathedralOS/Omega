@@ -461,7 +461,7 @@ pub(super) fn collect_expression_call_written_paths(
             visit(indexed.index)?;
         }
         ExpressionNode::Member(member) => visit(member.receiver)?,
-        ExpressionNode::Mutable(inner) => visit(*inner)?,
+        ExpressionNode::Borrow(inner) => visit(inner.target)?,
         ExpressionNode::ArrayLiteral(elements) => {
             for element in program.expression_table.expression_handles(*elements) {
                 visit(*element)?;
@@ -505,7 +505,7 @@ pub(super) fn syntactic_call_written_paths(
     }];
     for argument in arguments {
         let place = match program.expression_table.expression(*argument) {
-            ExpressionNode::Mutable(place) => *place,
+            ExpressionNode::Borrow(place) => place.target,
             ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
                 *argument
             }

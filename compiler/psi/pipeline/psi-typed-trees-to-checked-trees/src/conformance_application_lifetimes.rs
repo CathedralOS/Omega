@@ -450,9 +450,13 @@ fn collect_expression_elision_calls(
             member.receiver,
             calls,
         ),
-        ExpressionNode::Mutable(inner) => {
-            collect_expression_elision_calls(program, caller_machine, caller_state, *inner, calls)
-        }
+        ExpressionNode::Borrow(inner) => collect_expression_elision_calls(
+            program,
+            caller_machine,
+            caller_state,
+            inner.target,
+            calls,
+        ),
         ExpressionNode::Range(range) => {
             collect_expression_elision_calls(
                 program,

@@ -3,6 +3,21 @@ use psi_arena::HandleSpan;
 use psi_symbols::SymbolHandle;
 
 #[test]
+fn remaps_write_only_argument_access_without_widening() {
+    let remapped =
+        remap_borrow_argument_access_owned(omega_state_graph::StateBorrowArgumentAccess {
+            root_symbol: SymbolHandle::from_arena_index(1),
+            segments: HandleSpan::empty(),
+            kind: omega_state_graph::StateBorrowAccessKind::WriteOnly,
+        });
+
+    assert_eq!(
+        remapped.kind,
+        omega_control_flow::StateBorrowAccessKind::WriteOnly
+    );
+}
+
+#[test]
 fn remap_borrow_summary_preserves_all_borrow_spans() {
     let mut writable_roots = Arena::new();
     let mut calls = Arena::new();

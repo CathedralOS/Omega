@@ -89,8 +89,8 @@ pub(super) fn collect_expression_borrow_calls(
         ExpressionNode::Member(member) => {
             collect_expression_borrow_calls(collection, member.receiver)
         }
-        ExpressionNode::Mutable(inner_expression) => {
-            collect_expression_borrow_calls(collection, *inner_expression)
+        ExpressionNode::Borrow(inner_expression) => {
+            collect_expression_borrow_calls(collection, inner_expression.target)
         }
         ExpressionNode::Unary(unary) => collect_expression_borrow_calls(collection, unary.operand),
         ExpressionNode::StructLiteral(struct_literal) => {

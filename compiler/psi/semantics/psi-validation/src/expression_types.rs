@@ -52,16 +52,26 @@ pub(crate) fn argument_matches_type_reference_handle(
     argument: ExpressionHandle,
     type_reference: TypeReferenceHandle,
 ) -> bool {
-    if let ExpressionNode::Mutable(inner_expression) = program.expression_table.expression(argument)
+    if let ExpressionNode::Borrow(inner_expression) = program.expression_table.expression(argument)
     {
-        return argument_matches_type_reference_handle(program, *inner_expression, type_reference);
+        let TypeReferenceNode::Reference {
+            referee, access, ..
+        } = program.type_reference_table.type_reference(type_reference)
+        else {
+            return false;
+        };
+        return inner_expression.access == *access
+            && argument_matches_type_reference_handle(program, inner_expression.target, *referee);
     }
 
     let argument_node = program.expression_table.expression(argument);
 
     match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Reference { referee, .. } => {
-            argument_matches_type_reference_handle(program, argument, *referee)
+        TypeReferenceNode::Reference {
+            referee, access, ..
+        } => {
+            *access == psi_language_semantics::ReferenceAccess::Shared
+                && argument_matches_type_reference_handle(program, argument, *referee)
         }
         TypeReferenceNode::Constrained { base_type, .. } => {
             // A literal may directly establish an owned bounded text carrier
@@ -254,8 +264,8 @@ pub(crate) fn expression_type_name_handle(
         ExpressionNode::Indexed(_) => "indexed value",
         ExpressionNode::Integer(_) => "integer literal",
         ExpressionNode::Member(_) => "member access",
-        ExpressionNode::Mutable(inner_expression) => {
-            expression_type_name_handle(program, *inner_expression)
+        ExpressionNode::Borrow(inner_expression) => {
+            expression_type_name_handle(program, inner_expression.target)
         }
         ExpressionNode::Name(_) => "named value",
         ExpressionNode::Range(_) => "range expression",

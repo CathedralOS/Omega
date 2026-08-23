@@ -713,7 +713,7 @@ fn normalize_index_expression(
         | ExpressionNode::Call(_)
         | ExpressionNode::Indexed(_)
         | ExpressionNode::Member(_)
-        | ExpressionNode::Mutable(_)
+        | ExpressionNode::Borrow(_)
         | ExpressionNode::Range(_)
         | ExpressionNode::StructLiteral(_)
         | ExpressionNode::ZeroValue(_) => "unsupported-index-expression".to_owned(),

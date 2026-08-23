@@ -416,7 +416,7 @@ fn expression_receiver_head(
     }
     match program.expression_table.expression(expression) {
         ExpressionNode::Call(call) => expression_path_head(program, call.receiver),
-        ExpressionNode::Mutable(inner) => expression_receiver_head(program, *inner),
+        ExpressionNode::Borrow(inner) => expression_receiver_head(program, inner.target),
         ExpressionNode::Cast(cast) => expression_receiver_head(program, cast.value),
         _ => None,
     }
@@ -431,7 +431,7 @@ fn expression_path_head(
     }
     match program.expression_table.expression(receiver) {
         ExpressionNode::Member(member) => expression_path_head(program, member.receiver),
-        ExpressionNode::Mutable(inner) => expression_path_head(program, *inner),
+        ExpressionNode::Borrow(inner) => expression_path_head(program, inner.target),
         ExpressionNode::Name(name) => program
             .expression_table
             .name_path_members(name.members)
@@ -503,7 +503,7 @@ fn assignment_target_is_field(
 
     match program.expression_table.expression(target) {
         ExpressionNode::Member(_) => true,
-        ExpressionNode::Mutable(inner) => assignment_target_is_field(program, *inner),
+        ExpressionNode::Borrow(inner) => assignment_target_is_field(program, inner.target),
         ExpressionNode::Name(name) => {
             // A multi-segment name path rooted at `self` (e.g. `self.field`).
             program

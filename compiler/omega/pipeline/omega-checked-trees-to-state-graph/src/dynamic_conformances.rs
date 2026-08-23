@@ -205,7 +205,7 @@ fn strip_mutable(
         ));
     }
     Ok(match program.expression_table.expression(expression) {
-        ExpressionNode::Mutable(inner) => *inner,
+        ExpressionNode::Borrow(inner) => inner.target,
         _ => expression,
     })
 }
@@ -252,7 +252,7 @@ fn exact_source_place(
     }
     match program.expression_table.expression(expression) {
         ExpressionNode::Atomic(atomic) => exact_source_place(program, atomic.value),
-        ExpressionNode::Mutable(inner) => exact_source_place(program, *inner),
+        ExpressionNode::Borrow(inner) => exact_source_place(program, inner.target),
         ExpressionNode::Name(name) => {
             let members = program.expression_table.name_path_members(name.members);
             let leaf = members.last().cloned().ok_or_else(|| {
@@ -626,7 +626,8 @@ mod tests {
     use psi_arena::HandleSpan;
     use psi_checked_trees::data::{DataDefinition, DataField, DataMember};
     use psi_checked_trees::expression::{
-        ExpressionNode, TableCastExpression, TableMemberExpression, TableNamePath,
+        ExpressionNode, TableBorrowExpression, TableCastExpression, TableMemberExpression,
+        TableNamePath,
     };
     use psi_checked_trees::machine::Machine;
     use psi_checked_trees::signature::{StateParameter, StateSignature};
@@ -837,7 +838,10 @@ mod tests {
         let borrowed = program
             .typed
             .expression_table
-            .insert(ExpressionNode::Mutable(source));
+            .insert(ExpressionNode::Borrow(TableBorrowExpression {
+                target: source,
+                access: psi_language_semantics::ReferenceAccess::Mutable,
+            }));
         let occurrence =
             program
                 .typed

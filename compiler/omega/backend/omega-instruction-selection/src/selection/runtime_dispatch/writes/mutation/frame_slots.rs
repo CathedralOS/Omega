@@ -258,8 +258,8 @@ fn select_runtime_frame_slot_value_write_in_table_with_source_anchor_and_call_or
     // float value-call RETURN divergence).
     if matches!(slot.byte_size, 4 | 8) {
         let mut float_value = value;
-        while let ExpressionNode::Mutable(inner) = expressions.expression(float_value) {
-            float_value = *inner;
+        while let ExpressionNode::Borrow(inner) = expressions.expression(float_value) {
+            float_value = inner.target;
         }
         if let ExpressionNode::Float(literal) = expressions.expression(float_value) {
             let bits = match slot.byte_size {
@@ -379,7 +379,7 @@ fn select_runtime_frame_slot_value_write_in_table_with_source_anchor_and_call_or
         value,
     ) && pointee.pointee_byte_size == slot.byte_size
         && pointee.pointee_byte_size > 0
-        && !matches!(expressions.expression(value), ExpressionNode::Mutable(_))
+        && !matches!(expressions.expression(value), ExpressionNode::Borrow(_))
     {
         return Some(
             crate::selection::runtime_dispatch::copy_places_from_pointee(
@@ -748,14 +748,14 @@ fn select_runtime_frame_slot_address_write_in_table(
     // slot to the *address* of the referenced place rather than copying the
     // referent. Without this the place is mis-lowered as a copy through the
     // still-uninitialized reference slot.
-    if let ExpressionNode::Mutable(inner) = expressions.expression(value) {
+    if let ExpressionNode::Borrow(inner) = expressions.expression(value) {
         return select_runtime_frame_slot_place_address_write_in_table(
             input,
             dispatch_index,
             value_source_key,
             expressions,
             slot,
-            *inner,
+            inner.target,
         );
     }
 

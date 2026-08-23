@@ -3,7 +3,7 @@ use omega_control_flow::StateKey;
 use omega_runtime_bodies::{RuntimeDispatchBodyOperation, RuntimeDispatchBodyOperationKind};
 use omega_state_calls::StateCallRole;
 use psi_checked_trees::expression::{
-    ExpressionHandle, ExpressionNode, ExpressionTable, TableBinaryExpression,
+    ExpressionHandle, ExpressionNode, ExpressionTable, TableBinaryExpression, TableBorrowExpression,
 };
 use psi_checked_trees::statement::StatementNode;
 use psi_checked_trees::types::{PrimitiveType, TypeReferenceHandle};
@@ -297,13 +297,16 @@ pub(super) fn stamp_anonymous_integer_landing_on_value_spine(
                 }))
             }
         }
-        ExpressionNode::Mutable(inner) => {
+        ExpressionNode::Borrow(inner) => {
             let landed =
-                stamp_anonymous_integer_landing_on_value_spine(expressions, inner, landing);
-            if landed == inner {
+                stamp_anonymous_integer_landing_on_value_spine(expressions, inner.target, landing);
+            if landed == inner.target {
                 expression
             } else {
-                expressions.insert(ExpressionNode::Mutable(landed))
+                expressions.insert(ExpressionNode::Borrow(TableBorrowExpression {
+                    target: landed,
+                    access: inner.access,
+                }))
             }
         }
         _ => expression,
@@ -371,7 +374,7 @@ fn assignment_target_head_symbol(
         ExpressionNode::Indexed(indexed) => {
             assignment_target_head_symbol(input, indexed.collection)
         }
-        ExpressionNode::Mutable(inner) => assignment_target_head_symbol(input, *inner),
+        ExpressionNode::Borrow(inner) => assignment_target_head_symbol(input, inner.target),
         _ => SymbolHandle::invalid(),
     }
 }

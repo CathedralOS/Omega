@@ -504,7 +504,7 @@ impl<'table> NormalizedGuardNamePath<'table> {
 
 fn guard_path_head_symbol(table: &ExpressionTable, expression: ExpressionHandle) -> SymbolHandle {
     match table.expression(expression) {
-        ExpressionNode::Mutable(target) => guard_path_head_symbol(table, *target),
+        ExpressionNode::Borrow(target) => guard_path_head_symbol(table, target.target),
         ExpressionNode::Indexed(indexed) => guard_path_head_symbol(table, indexed.collection),
         ExpressionNode::Member(member) => guard_path_head_symbol(table, member.receiver),
         ExpressionNode::Name(path) => path.head_symbol,
@@ -514,7 +514,7 @@ fn guard_path_head_symbol(table: &ExpressionTable, expression: ExpressionHandle)
 
 fn guard_path_len(table: &ExpressionTable, expression: ExpressionHandle) -> Option<usize> {
     match table.expression(expression) {
-        ExpressionNode::Mutable(target) => guard_path_len(table, *target),
+        ExpressionNode::Borrow(target) => guard_path_len(table, target.target),
         ExpressionNode::Indexed(indexed) => {
             let ExpressionNode::Integer(_) = table.expression(indexed.index) else {
                 return None;
@@ -525,8 +525,8 @@ fn guard_path_len(table: &ExpressionTable, expression: ExpressionHandle) -> Opti
             // transposed/wrong element. Refuse the static clause so the
             // canonical expression/place guard path retains both levels.
             let mut collection = indexed.collection;
-            while let ExpressionNode::Mutable(inner) = table.expression(collection) {
-                collection = *inner;
+            while let ExpressionNode::Borrow(inner) = table.expression(collection) {
+                collection = inner.target;
             }
             if matches!(table.expression(collection), ExpressionNode::Indexed(_)) {
                 return None;
@@ -545,7 +545,7 @@ fn guard_path_member(
     index: usize,
 ) -> Option<&Identifier> {
     match table.expression(expression) {
-        ExpressionNode::Mutable(target) => guard_path_member(table, *target, index),
+        ExpressionNode::Borrow(target) => guard_path_member(table, target.target, index),
         ExpressionNode::Indexed(indexed) => guard_path_member(table, indexed.collection, index),
         ExpressionNode::Member(member) => {
             let receiver_len = guard_path_len(table, member.receiver)?;
@@ -566,7 +566,7 @@ fn guard_path_member_symbol(
     index: usize,
 ) -> SymbolHandle {
     match table.expression(expression) {
-        ExpressionNode::Mutable(target) => guard_path_member_symbol(table, *target, index),
+        ExpressionNode::Borrow(target) => guard_path_member_symbol(table, target.target, index),
         ExpressionNode::Indexed(indexed) => {
             guard_path_member_symbol(table, indexed.collection, index)
         }
@@ -597,7 +597,7 @@ fn guard_path_member_index(
     index: usize,
 ) -> Option<usize> {
     match table.expression(expression) {
-        ExpressionNode::Mutable(target) => guard_path_member_index(table, *target, index),
+        ExpressionNode::Borrow(target) => guard_path_member_index(table, target.target, index),
         ExpressionNode::Indexed(indexed) => {
             let indexed_len = guard_path_len(table, indexed.collection)?;
             if index + 1 == indexed_len {
