@@ -1,6 +1,7 @@
 use crate::audit::{PackageGraphAudit, PackageGraphAuditError, audit_package_graph};
 use crate::lock::{PackageLock, PackageLockPersistenceError};
 use crate::manifest::PackageCapabilityManifest;
+use crate::resolver::{SourceCachePolicyRecord, SourceCacheRequest, resolve_source_cache_record};
 use crate::source::{
     GitSourceSpec, LocalSourceLimits, SourceResolveError, resolve_git_source, resolve_local_source,
 };
@@ -86,6 +87,11 @@ pub enum PackageGraphAuditCommandError {
 pub enum PackageSourceAuditCommandError {
     Parse(PackageSourceRequestParseError),
     Resolve(SourceResolveError),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SourceCachePolicyCommandError {
+    Parse(PackageSourceRequestParseError),
 }
 
 impl PackageSourceAudit {
@@ -214,6 +220,28 @@ pub fn audit_package_source_locator(
         PackageSourceRequest::parse(locator, rev).map_err(PackageSourceAuditCommandError::Parse)?;
     audit_package_source(request, cache_dir, limits)
         .map_err(PackageSourceAuditCommandError::Resolve)
+}
+
+pub fn resolve_source_cache_record_locator(
+    locator: impl Into<String>,
+    rev: Option<String>,
+    cache_dir: impl AsRef<Path>,
+    limits: LocalSourceLimits,
+) -> Result<SourceCachePolicyRecord, SourceCachePolicyCommandError> {
+    let request =
+        PackageSourceRequest::parse(locator, rev).map_err(SourceCachePolicyCommandError::Parse)?;
+    Ok(resolve_source_cache_record(
+        source_cache_request_from_package_request(request),
+        cache_dir,
+        limits,
+    ))
+}
+
+fn source_cache_request_from_package_request(request: PackageSourceRequest) -> SourceCacheRequest {
+    match request {
+        PackageSourceRequest::LocalPath(path) => SourceCacheRequest::LocalPath(path),
+        PackageSourceRequest::Git { url, rev } => SourceCacheRequest::Git { url, rev },
+    }
 }
 
 pub fn audit_package_graph_from_lock(
@@ -432,6 +460,48 @@ mod tests {
                 LocalSourceLimits::default()
             ),
             Err(PackageSourceAuditCommandError::Parse(
+                PackageSourceRequestParseError::LocalSourceCannotUseRevision {
+                    locator: "./fixtures/packages/file-journal".to_owned(),
+                    rev: "HEAD".to_owned(),
+                }
+            ))
+        );
+    }
+
+    #[test]
+    fn source_cache_policy_command_parses_and_records_local_locator() {
+        let root = temp_root("source-cache-policy-local");
+        let cache = temp_root("source-cache-policy-cache");
+        std::fs::create_dir_all(&root).expect("create local package");
+        std::fs::write(root.join("main.omg"), "machine Main::main() {}\n").expect("write source");
+
+        let record = resolve_source_cache_record_locator(
+            root.display().to_string(),
+            None,
+            &cache,
+            LocalSourceLimits::default(),
+        )
+        .expect("record local source cache policy");
+
+        assert_eq!(record.source_kind, "local-path");
+        assert_eq!(record.verdict.as_str(), "accepted");
+        assert_eq!(record.file_count, Some(1));
+        assert!(record.content_identity.as_ref().expect("identity").len() == 64);
+
+        let _ = std::fs::remove_dir_all(&root);
+        let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[test]
+    fn source_cache_policy_command_reports_parse_errors_before_resolving() {
+        assert_eq!(
+            resolve_source_cache_record_locator(
+                "./fixtures/packages/file-journal",
+                Some("HEAD".to_owned()),
+                temp_root("unused-cache-policy"),
+                LocalSourceLimits::default()
+            ),
+            Err(SourceCachePolicyCommandError::Parse(
                 PackageSourceRequestParseError::LocalSourceCannotUseRevision {
                     locator: "./fixtures/packages/file-journal".to_owned(),
                     rev: "HEAD".to_owned(),

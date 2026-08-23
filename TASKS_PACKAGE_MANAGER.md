@@ -232,6 +232,14 @@ Completed:
   parser, resolves through existing local/Git resolver policy, and preserves
   parse failures separately from source-resolution failures.
 
+- **SOURCE-CACHE-POLICY-LOCATOR-API.** Add the command seam that combines
+  source locator parsing with resolver-owned source-cache policy records.
+
+  Done 2026-08-23: `omega-packages` exposes a source-cache policy API that
+  accepts a locator string plus optional revision, reuses the centralized
+  source-request parser, resolves through existing local/Git source-cache
+  policy records, and preserves parse failures separately from policy records.
+
 - **LOCAL-FIXTURE-GRAPH-AUDIT-COVERAGE.** Exercise graph audit against the
   checked-in local package corpus.
 
@@ -277,8 +285,9 @@ Remaining:
   identity before package code is loaded.
 
   Remaining after `LOCAL-SOURCE-IDENTITY`, `GIT-SOURCE-IDENTITY`, and
-  `SOURCE-CACHE-POLICY-RECORDS`, `SOURCE-REQUEST-PARSING`, and
-  `REMOTE-FIXTURE-RESOLUTION-TESTS`: add install-command integration and lock
+  `SOURCE-CACHE-POLICY-RECORDS`, `SOURCE-REQUEST-PARSING`,
+  `REMOTE-FIXTURE-RESOLUTION-TESTS`, and
+  `SOURCE-CACHE-POLICY-LOCATOR-API`: add install-command integration and lock
   wiring.
 
   Acceptance: `omega install alias <source>` resolves a candidate to an exact
