@@ -76,6 +76,14 @@ Completed:
   package manifest fingerprints, build observation class, dependency aliases,
   trust receipts, stable JSON, and a SHA-256 lock fingerprint.
 
+- **CAPABILITY-REVIEW-RECEIPT-MODEL.** Add explicit acceptance receipts for
+  manifest-changing updates before CLI integration.
+
+  Done 2026-08-23: `omega-packages` can create deterministic review receipts
+  from non-empty manifest diffs, requiring reviewer and reason text, binding
+  the exact old/new source identities, old/new manifest fingerprints, accepted
+  delta fingerprints, severity, stable JSON, and receipt fingerprint.
+
 Remaining:
 
 - **PACKAGE-CAPABILITY-MANIFEST.** Define the normalized manifest produced for
@@ -237,6 +245,10 @@ Remaining:
   capability changes. Default `omega update` must reject any manifest change;
   a deliberate command records reviewer identity, old/new fingerprints, diff,
   source revision pair, and acceptance reason.
+
+  Remaining after `CAPABILITY-REVIEW-RECEIPT-MODEL`: wire receipts into
+  `omega update`, persist them in or beside `omega.lock`, and make update
+  mutation contingent on an exact receipt match.
 
   Acceptance: higher-capability updates require an acceptance receipt. New
   root-memory, DMA/IOMMU, executable-installation, interrupt-publication,

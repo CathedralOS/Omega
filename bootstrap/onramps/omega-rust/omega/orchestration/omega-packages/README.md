@@ -78,6 +78,9 @@ delegate behavior here.
 - `lock`: machine-written package closure records with resolved source
   identity, manifest fingerprints, dependency aliases, trust receipts, stable
   JSON, and lock fingerprints.
+- `review`: deterministic capability-change review receipts bound to exact
+  source identities, manifest fingerprints, accepted diff sections, reviewer,
+  and reason.
 - `source`: local-path source identity with deterministic hashing, `.git`
   directory exclusion, traversal limits, symlink escape rejection, and Git
   clone/fetch resolution to exact commit/tree identity.

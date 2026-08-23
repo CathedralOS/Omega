@@ -10,6 +10,7 @@
 mod diff;
 mod lock;
 mod manifest;
+mod review;
 mod source;
 
 pub use diff::{ManifestDelta, ManifestDiff, ManifestSeverity, diff_package_capability_manifests};
@@ -18,6 +19,10 @@ pub use manifest::{
     AliasName, BuildMachineManifest, CapabilityFlowSummary, DependencyAlias,
     InstallationBoundReach, PackageCapabilityManifest, PackageName, ProviderRequirement,
     ProviderSelection, QualificationRoute, ReproducibilityEvidence, SourceIdentity, TrustReceipt,
+};
+pub use review::{
+    AcceptedManifestDelta, CAPABILITY_CHANGE_RECEIPT_SCHEMA_VERSION, CapabilityChangeReceipt,
+    CapabilityReviewError,
 };
 pub use source::{
     GitSourceSpec, LocalSourceLimits, ResolvedGitSource, ResolvedLocalSource, SourceResolveError,
