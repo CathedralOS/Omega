@@ -6,10 +6,13 @@ static type system. It is suitable for parsers, validators, interpreters, and an
 implementation of the cross-cutting proof kernel.
 
 The reference evaluator implements proper tail calls and uses compact internal
-representations for dense integers and ordinary `Cons` cells. These are bounded
-execution properties of the canonical interpreter, not extra Gamma syntax;
-printed values and pattern matching retain the language definition in
-[`LANGUAGE.md`](LANGUAGE.md).
+representations for dense integers, ordinary `Cons` cells, and the `Node` and
+`Chunks` constructors used by the bootstrap translator's bounded persistent
+array carrier. These are bounded execution properties of the canonical
+interpreter, not extra Gamma syntax; printed values and pattern matching retain
+the language definition in [`LANGUAGE.md`](LANGUAGE.md). Canonical source input
+has a checked 4 MiB ceiling; the adjacent byte exits 252 without evaluation or
+output rather than overlapping the function table.
 
 The canonical implementation path is Rust-free:
 

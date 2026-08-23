@@ -134,6 +134,7 @@ step "convergence (self-hosted) — the self-hosted compiler's certifiers, check
 step "convergence (reference route) — certifier RUN on interp.beta; cert checked by check.beta" delta-rs convergence-reference.sh proof-kernel gamma
 step "convergence (RUST-FREE) — omega2gamma.beta->interp.beta; cert checked by check.beta" omega0-gates convergence-reference.sh delta-rs proof-kernel gamma
 step "omega2gamma termination canary — translator halts on every sample, supported or refused (no silent scan-forever)" omega0-gates omega2gamma-termination.sh alpha-assembler beta corpus
+step "lowermachine elaboration capacity — real compiler admitted; exact state/tree/source ceilings fail closed" omega0-gates lowermachine-elaboration-capacity.sh delta-rs gamma
 step "omega0 source bundle — canonical deterministic multi-file input" omega0-gates omega0-bundle-test.sh
 step "omega0 Delta O1 artifact — variable terminal-Psi to byte-identical x86-64 ELF" omega0-gates delta-terminal-to-elf.sh delta-rs omega-rust psi-rust/semantics/psi-terminal-codec
 step "omega0 Delta O1 self-host composite — lowermachine-built frontend/backend compose through terminal vocabulary 25 to exact ELF" omega0-gates delta-o1-selfhost-composite.sh delta-rs omega-rust psi-rust/semantics/psi-terminal-codec

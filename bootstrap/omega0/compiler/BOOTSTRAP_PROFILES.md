@@ -243,3 +243,14 @@ frontend through Gamma and pins the O1 zero/two-write dual-channel results and
 semantic rejection. Its previously unbounded expansion was metadata-table
 aliasing at machine 25, not an inherent cost of the route. O1 remains a small
 vertical compiler slice, not the production-self-host profile.
+
+The same route now admits the current 695-state `lowermachine.alp` source to
+marker-free elaboration. Its explicit translator ceilings are 1,024 states per
+machine, four parameters per state, and 524,288 cells for the private
+compiler-sized scalar-array carrier; exact state admission and the adjacent
+refusals are executable gates. The carrier is a depth-19 persistent tree with a
+compact all-zero root, so admission does not materialize the fixed backing.
+This closes an elaboration/capacity boundary only. Executing the resulting
+compiler on even the tiny arithmetic sample still exhausts the canonical Gamma
+interpreter's fixed evaluation arena, so no Rust-free whole-compiler execution
+or production-self-host claim follows from it.

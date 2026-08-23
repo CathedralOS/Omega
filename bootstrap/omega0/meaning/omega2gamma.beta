@@ -62,7 +62,12 @@
 ; 6010000 M_NAME 6012000 M_KIND(0 entry/1 free) 6014000 M_BODY 6016000 M_PCNT
 ; 6018000 M_LCNT 6020000 M_SCNT 6022000 M_OWNER 6024000 M_PREF
 ; Per-machine local names ((mi*128+k)*8): 6100000 M_LNAME
-; Per-machine states     ((mi*128+s)*8): 6300000 M_SNAME  6500000 M_SBODY
+; Per-machine states use a checked 1,024-state stride across at most 128 machines.
+; The four state-indexed regions are contiguous and non-overlapping:
+;   [16777216,17825792) M_SNAME  ((mi*1024+s)*8)
+;   [17825792,18874368) M_SBODY  ((mi*1024+s)*8)
+;   [18874368,19922944) M_SPCNT  ((mi*1024+s)*8; at most 4 params)
+;   [19922944,24117248) M_SPOFF  ((mi*1024+s)*4*8)
 ; Entry fields (g*8): 6800000 FIELD_NAME     SSA scratch (idx*8): 6400000/6410000 local kind/val,
 ;                     6420000/6430000 scalar-carrier kind/val (0=param gs, 1=t{val})
 ; Transition arms (j*8): 6600000 ARM_PAT  6610000 ARM_TGT
@@ -298,7 +303,7 @@ proc state_exists(off) {
     let k = 0
     state loop {
         to no when (k == word[6020000 + mi * 8])
-        to yes when (name_eq2(off, word[6300000 + (mi * 128 + k) * 8]) == 1)
+        to yes when (name_eq2(off, word[16777216 + (mi * 1024 + k) * 8]) == 1)
         k = k + 1
         to loop
     }
@@ -311,7 +316,7 @@ proc lookup_state(off) {
     let k = 0
     state loop {
         to nomatch when (k == word[6020000 + mi * 8])       ; M_SCNT[mi]
-        to hit when (name_eq2(off, word[6300000 + (mi * 128 + k) * 8]) == 1)
+        to hit when (name_eq2(off, word[16777216 + (mi * 1024 + k) * 8]) == 1)
         k = k + 1
         to loop
     }
@@ -1830,12 +1835,12 @@ proc print_expr(node) {
 ; AST node, or 0. (State params are machine locals; arm args map to them positionally via M_SPOFF.)
 proc arm_arg_for(tgt, arm, i) {
     let mi = word[6000032]
-    let si = mi * 128 + tgt
+    let si = mi * 1024 + tgt
     let j = 0
     state loop {
         to none when (j == word[6630000 + arm * 8])        ; ARM_ARGC
-        to none when (j == word[6850000 + si * 8])         ; M_SPCNT
-        to hit when (lookup_local(word[6860000 + (si * 4 + j) * 8]) == i)
+        to none when (j == word[18874368 + si * 8])         ; M_SPCNT
+        to hit when (lookup_local(word[19922944 + (si * 4 + j) * 8]) == i)
         j = j + 1
         to loop
     }
@@ -2829,8 +2834,8 @@ proc scan_states(mi) {
         skip_ident()                   ; past "state"
         skip_ws()
         to not_st when (is_idchar(cbyte()) == 0)   ; `self.state.a` / `state = ..`: a FIELD named
-        to state_full when (word[6020000 + mi * 8] == 128)
-        word[6300000 + (mi * 128 + word[6020000 + mi * 8]) * 8] = word[2097144]   ; state, not a decl
+        to state_full when (word[6020000 + mi * 8] == 1024)
+        word[16777216 + (mi * 1024 + word[6020000 + mi * 8]) * 8] = word[2097144]   ; state, not a decl
         skip_ident()                   ; past state name
         to hdclose
     }
@@ -2840,8 +2845,8 @@ proc scan_states(mi) {
     ; (zero-init slots; a transition arm's args write them) and in the state's M_SP tables.
     state hdclose {
         skip_ws()
-        let si = mi * 128 + word[6020000 + mi * 8]        ; this state's table index
-        word[6850000 + si * 8] = 0                       ; M_SPCNT = 0
+        let si = mi * 1024 + word[6020000 + mi * 8]        ; this state's table index
+        word[18874368 + si * 8] = 0                        ; M_SPCNT = 0
         adv()                                            ; consume '('
         to hdparm
     }
@@ -2850,12 +2855,14 @@ proc scan_states(mi) {
         to hdbrace when (cbyte() == ')')
         to hdself when (cbyte() == '&')                  ; `&mut self`
         to hdcomma when (cbyte() == ',')
-        word[6860000 + (si * 4 + word[6850000 + si * 8]) * 8] = word[2097144]   ; M_SPOFF[si][k] = name
-        word[6850000 + si * 8] = word[6850000 + si * 8] + 1                     ; M_SPCNT++
+        to state_params_full when (word[18874368 + si * 8] == 4)
+        word[19922944 + (si * 4 + word[18874368 + si * 8]) * 8] = word[2097144]   ; M_SPOFF[si][k] = name
+        word[18874368 + si * 8] = word[18874368 + si * 8] + 1                     ; M_SPCNT++
         add_local(mi, word[2097144])                     ; the param is a machine local slot
         skip_ident()
         to hdtype
     }
+    state state_params_full { emit("E2G-UNSUPPORTED-state-parameter-capacity ")  return 0 }
     state hdself { adv()  to hdselfskip }                ; skip `&mut self` to ',' or ')'
     state hdselfskip {
         to hdbrace when (cbyte() == ')')
@@ -2875,7 +2882,7 @@ proc scan_states(mi) {
     state hdin {
         adv()                          ; consume '{'
         depth = depth + 1
-        word[6500000 + (mi * 128 + word[6020000 + mi * 8]) * 8] = word[2097144]   ; M_SBODY (after '{')
+        word[17825792 + (mi * 1024 + word[6020000 + mi * 8]) * 8] = word[2097144]   ; M_SBODY (after '{')
         word[6020000 + mi * 8] = word[6020000 + mi * 8] + 1                      ; M_SCNT++
         to loop
     }
@@ -3490,7 +3497,7 @@ proc render_machine(mi) {
         emit("(def m")  emit_dec(mi)  emit("_s")  emit_dec(s)  emit(" (")
         emit_sig(mi)
         emit(") ")
-        translate_block(mi, word[6500000 + (mi * 128 + s) * 8])   ; M_SBODY
+        translate_block(mi, word[17825792 + (mi * 1024 + s) * 8])   ; M_SBODY
         emit(") ")
         s = s + 1
         to sloop
@@ -3510,67 +3517,20 @@ proc emit_array_zeros(ai, count) {
         to sc
     }
     state sc {
-        ; Compiler-sized scalar arrays use private 64-element chunks. Small arrays and every structured
+        ; Compiler-sized scalar arrays use a private fixed-depth tree. Small arrays and every structured
         ; array retain the historical flat-list representation, so slice/string behavior is unchanged.
+        to tree_full when (count > 524288)
         to chunks when (count >= 1024)
         let k = 0
         to opens
     }
+    state tree_full { emit("E2G-UNSUPPORTED-array-capacity ")  return 0 }
     state chunks {
         to chunk_flat when (fc != 0)
-        emit("(Chunks ")  emit_dec(count)  write_byte(' ')
-        let rem = count
-        let blocks = 0
-        to chunk_loop
+        emit("(Chunks ")  emit_dec(count)  emit(" ZeroTree)")
+        return 0
     }
     state chunk_flat { let k = 0  to opens }
-    state chunk_loop {
-        to chunk_tail when (rem == 0)
-        emit("(Cons ")
-        let bn = 64
-        to chunk_short when (rem < 64)
-        to chunk_values
-    }
-    state chunk_short { bn = rem  to chunk_values }
-    state chunk_values {
-        let q = 0
-        to chunk_value_loop
-    }
-    state chunk_value_loop {
-        to chunk_value_tail when (q == bn)
-        emit("(Cons 0 ")
-        q = q + 1
-        to chunk_value_loop
-    }
-    state chunk_value_tail {
-        emit("Nil")
-        let qc = 0
-        to chunk_value_close
-    }
-    state chunk_value_close {
-        to chunk_next when (qc == bn)
-        write_byte(')')
-        qc = qc + 1
-        to chunk_value_close
-    }
-    state chunk_next {
-        write_byte(' ')
-        rem = rem - bn
-        blocks = blocks + 1
-        to chunk_loop
-    }
-    state chunk_tail {
-        emit("Nil")
-        let bc = 0
-        to chunk_close
-    }
-    state chunk_close {
-        to chunk_done when (bc == blocks)
-        write_byte(')')
-        bc = bc + 1
-        to chunk_close
-    }
-    state chunk_done { write_byte(')')  return 0 }
     state opens {
         to closes when (k == count)
         emit("(Cons ")
@@ -3610,12 +3570,17 @@ proc render() {
     }
     state arrhelp {
         ; Flat lists remain canonical for small arrays and list-valued operations. Compiler-sized scalar
-        ; arrays are a private `(Chunks length blocks)` carrier with 64-element flat-list blocks: scalar
-        ; indexing and updates stay exact while persistent writes allocate O(blocks + 64), not O(capacity).
+        ; arrays are a private `(Chunks length tree)` carrier. A depth-19 persistent binary tree covers
+        ; the admitted 262,144-byte backing extent: `ZeroTree` represents an all-zero subtree, and each
+        ; write copies only one 19-node path. Scalar indexing and persistent updates stay exact without
+        ; allocating or scanning O(capacity) cells.
         emit("(def nthf (xs k) (match xs (Nil 0) ((Cons h t) (if (eq k 0) h (nthf t (- k 1)))))) ")
-        emit("(def nth (xs k) (match xs (Nil 0) ((Cons h t) (if (eq k 0) h (nthf t (- k 1)))) ((Chunks n bs) (nthf (nthf bs (/ k 64)) (% k 64))))) ")
+        emit("(def pow2 (n) (if (eq n 0) 1 (* 2 (pow2 (- n 1))))) ")
+        emit("(def ntht (t d k) (if (eq d 0) (match t (ZeroTree 0) (v v)) (match t (ZeroTree 0) ((Node l r) (let h (pow2 (- d 1)) (if (lt k h) (ntht l (- d 1) k) (ntht r (- d 1) (- k h)))))))) ")
+        emit("(def nth (xs k) (match xs (Nil 0) ((Cons h t) (if (eq k 0) h (nthf t (- k 1)))) ((Chunks n t) (ntht t 19 k)))) ")
         emit("(def setlf (xs k v) (match xs (Nil Nil) ((Cons h t) (if (eq k 0) (Cons v t) (Cons h (setlf t (- k 1) v)))))) ")
-        emit("(def setl (xs k v) (match xs (Nil Nil) ((Cons h t) (if (eq k 0) (Cons v t) (Cons h (setlf t (- k 1) v)))) ((Chunks n bs) (Chunks n (setlf bs (/ k 64) (setlf (nthf bs (/ k 64)) (% k 64) v)))))) ")
+        emit("(def sett (t d k v) (if (eq d 0) v (let h (pow2 (- d 1)) (match t (ZeroTree (if (lt k h) (Node (sett ZeroTree (- d 1) k v) ZeroTree) (Node ZeroTree (sett ZeroTree (- d 1) (- k h) v)))) ((Node l r) (if (lt k h) (Node (sett l (- d 1) k v) r) (Node l (sett r (- d 1) (- k h) v)))))))) ")
+        emit("(def setl (xs k v) (match xs (Nil Nil) ((Cons h t) (if (eq k 0) (Cons v t) (Cons h (setlf t (- k 1) v)))) ((Chunks n t) (Chunks n (sett t 19 k v))))) ")
         emit("(def lenf (xs) (match xs (Nil 0) ((Cons h t) (+ 1 (lenf t))))) ")
         emit("(def len (xs) (match xs (Nil 0) ((Cons h t) (+ 1 (lenf t))) ((Chunks n bs) n))) ")
         emit("(def drop (xs k) (match xs (Nil Nil) ((Cons h t) (if (eq k 0) xs (drop t (- k 1)))))) ")
