@@ -212,6 +212,11 @@ general Omega endpoint merely because it compiles the production source. A
 compiler can implement proofs, dependent types, and the rest of full Omega
 without using those features in its own implementation.
 
+“Full product compiler” means full Omega source acceptance and artifact meaning,
+not the inclusion of every compiler-adjacent executable in the hosted source
+closure. Terminal-Psi interpreters, REPLs, proof explorers, viewers, and similar
+tools are optional unless the compiler executable imports them.
+
 The profile is a compositional feature-and-resource subset, not an allowlist of
 particular source files or hard-coded compiler AST permutations. Its exact source
 manifest proves that the product compiler closes under the profile; the manifest

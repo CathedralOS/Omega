@@ -18,6 +18,11 @@ source is normal Omega constrained to that profile; the resulting compiler
 implements full Omega. This hosted dependency replaces a historical tower of
 external implementation-language dependencies.
 
+“Full Omega” refers to accepted language and artifact semantics, not a mandate
+to import every adjacent tool. Standalone Terminal-Psi interpreters, REPLs,
+proof explorers, viewers, and debuggers stay outside the hosted compiler source
+closure unless the compiler executable actually depends on them.
+
 The bridge may run slowly and lower the product compiler conservatively. It
 must compile the `Ωself` source that implements the production optimizer and
 advanced lowering, but need not run those passes itself. A further product
