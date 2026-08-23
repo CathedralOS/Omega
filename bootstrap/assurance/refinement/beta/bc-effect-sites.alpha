@@ -89,6 +89,9 @@ effect_event_room:
         imm r6, 7127040
         add r6, r5
         store r6, r7                    ; literal decoded length
+        imm r6, 7143424
+        add r6, r5
+        store r6, r7                    ; ordinary/intrinsic call arity
 
         imm r6, 1
         add r2, r6
@@ -106,12 +109,16 @@ effect_event_room:
         jeq r4, r1, count_source_return
         jmp reject
 count_source_call:
+        call record_call_arity
+        call count_ordinary_call_arity
         imm r1, 524464
         jmp increment_source_kind
 count_source_read:
+        call record_call_arity
         imm r1, 524472
         jmp increment_source_kind
 count_source_write:
+        call record_call_arity
         imm r1, 524480
         jmp increment_source_kind
 count_source_return:
@@ -619,7 +626,7 @@ helper_own_effects:
         imm r1, 51
         add r0, r1
         call mark_effect_owner
-        jmp validate_fallthrough_init
+        jmp validate_frame_shapes_init
 
 ; Every source procedure has one compiler-synthesized final epilogue.  Entry
 ; blocks are kind zero; the next entry starts the next procedure region.
@@ -708,6 +715,12 @@ validate_event_one:
         jmp reject
 
 validate_source_call:
+        call check_call_unstage
+        imm r1, 524544
+        load r10, r1
+        mov r12, r10
+        imm r1, 8
+        mul r12, r1
         imm r1, 7094272
         add r1, r12
         load r20, r1
@@ -716,6 +729,7 @@ validate_source_call:
         load r21, r1
         call resolve_proc_pc
         mov r8, r0
+        call check_resolved_call_arity
         imm r1, 2097152
         add r1, r14
         loadb r2, r1
@@ -1177,6 +1191,11 @@ resolve_proc_next:
         add r10, r1
         jmp resolve_proc_loop
 resolve_proc_found:
+        imm r1, 3145728
+        add r1, r12
+        load r2, r1
+        imm r1, 524600
+        store r1, r2                    ; resolved source callee procedure index
         imm r1, 3235840
         add r1, r12
         load r0, r1

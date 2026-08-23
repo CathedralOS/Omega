@@ -481,6 +481,16 @@ additional facilities the bootstrap actually needs.
       remaining structurally valid. This establishes static custody and the
       fixed-emit macro when reached, not argument/value correspondence, frame
       behavior, reachability, global trace order, or terminal correspondence.
+    - [x] Check source-derived frame shape and immediate parameter handoff. A
+      separate Alpha module in the same checker process derives 27 parameters
+      and 51 function-scoped `let`s, then validates all 70 base prologues, 47
+      nonempty allocations covering 78 slots, and 27 ordered parameter stores.
+      All 309 ordinary calls match their source callee arity and pop 134 staged
+      arguments into `r0..r1` in exact reverse-stack order. Structurally valid
+      frame-size, fp-register, parameter-offset/register, pop-order, and
+      pop-step mutations reject. This proves static allocation and handoff
+      conditional on staged values; argument pushes/values, local access
+      correspondence, live stack depth, and dynamic frame contents remain open.
     - [x] Freeze supported resource profile `B_bc1` and make its source-side
       ceilings checked. `bc.beta` now refuses a 1,025th name slot, fifth live
       parameter/argument, and expression or nested-block depth 65 before any
