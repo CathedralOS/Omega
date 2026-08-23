@@ -156,6 +156,15 @@ remains the sole source-level authority. A later package may implement a public
 authorized requirement, but implementation, ordinary invocation, and matching
 data shape cannot mint a root.
 
+Before any such event can be introduced, installation derives an opaque exact
+closure of the target profile's required build-bound root slots. Missing,
+duplicate, extra, and cross-profile selections reject. The closure is
+descriptive evidence, not authority. One non-clonable registry authority from
+the exact installed-code occurrence then creates the sole root ledger for that
+installation scope; dropping the ledger does not make the authority issuable
+again. Slot and owner identities are derived from the target declaration by one
+shared rule rather than restated as compiler-local numeric coordinates.
+
 Direction is the root/provider distinction. An environment-to-program slot is
 an external root; a program-to-provider slot is an outbound service. Lifecycle,
 cardinality, and indexing are orthogonal to direction. Program entry, reset

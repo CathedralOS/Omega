@@ -1215,14 +1215,14 @@ fn writer_site(base_address: u64) -> PlacementSite {
 }
 
 fn install_test_root<'code>(
-    code: &'code InstalledCode,
+    code: &'code mut InstalledCode,
     entry: EntryStubId,
 ) -> (InstalledRootLedger, InstalledExternalRoot<'code>) {
     install_test_root_with_ids(code, entry, 1, 20, 21, 22, Vec::new())
 }
 
 fn install_test_root_with_ids<'code>(
-    code: &'code InstalledCode,
+    code: &'code mut InstalledCode,
     entry: EntryStubId,
     root_identity: u64,
     slot_identity: u64,
@@ -1230,6 +1230,31 @@ fn install_test_root_with_ids<'code>(
     admission_identity: u64,
     entry_claims: Vec<ExternalRootEntryClaim>,
 ) -> (InstalledRootLedger, InstalledExternalRoot<'code>) {
+    let mut ledger = InstalledRootLedger::claim(code).expect("canonical root ledger");
+    let installed = install_test_root_in_ledger(
+        &mut ledger,
+        code,
+        entry,
+        root_identity,
+        slot_identity,
+        owner_identity,
+        admission_identity,
+        entry_claims,
+    );
+    (ledger, installed)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn install_test_root_in_ledger<'code>(
+    ledger: &mut InstalledRootLedger,
+    code: &'code InstalledCode,
+    entry: EntryStubId,
+    root_identity: u64,
+    slot_identity: u64,
+    owner_identity: u64,
+    admission_identity: u64,
+    entry_claims: Vec<ExternalRootEntryClaim>,
+) -> InstalledExternalRoot<'code> {
     let mut candidate = candidate_for_code_with_root(entry, code, root_identity);
     candidate.entry_claims = entry_claims;
     let validated = validate_external_root(candidate, &boundary()).expect("root plan");
@@ -1250,11 +1275,88 @@ fn install_test_root_with_ids<'code>(
         validated.candidate().trust_receipts.iter().copied(),
     )
     .expect("root admission");
-    let mut ledger = InstalledRootLedger::default();
-    let installed = ledger
+    ledger
         .install(code, validated, authority, admission)
-        .expect("installed external root");
-    (ledger, installed)
+        .expect("installed external root")
+}
+
+#[allow(clippy::too_many_arguments)]
+fn install_test_root_pair_with_ids<'code>(
+    code: &'code mut InstalledCode,
+    first: (u64, u64, u64, u64, Vec<ExternalRootEntryClaim>),
+    second: (u64, u64, u64, u64, Vec<ExternalRootEntryClaim>),
+    entry: EntryStubId,
+) -> (
+    InstalledRootLedger,
+    InstalledExternalRoot<'code>,
+    InstalledExternalRoot<'code>,
+) {
+    let mut first_candidate = candidate_for_code_with_root(entry, code, first.0);
+    first_candidate.entry_claims = first.4;
+    let mut second_candidate = candidate_for_code_with_root(entry, code, second.0);
+    second_candidate.entry_claims = second.4;
+    let first_input = first_candidate
+        .stack
+        .realization
+        .input(first_candidate.identity)
+        .expect("first root stack input")
+        .clone();
+    let second_input = second_candidate
+        .stack
+        .realization
+        .input(second_candidate.identity)
+        .expect("second root stack input")
+        .clone();
+    let relation = StackNestingRelation {
+        identity: first_candidate.nesting_relation,
+        edges: BTreeSet::new(),
+    };
+    let composition = compose_bound_entry_stack_epochs(&relation, [&first_input, &second_input])
+        .expect("artifact-wide two-root stack composition");
+    first_candidate.stack.realization = composition.clone();
+    second_candidate.stack.realization = composition;
+
+    let boundary = boundary();
+    let first_validated =
+        validate_external_root(first_candidate, &boundary).expect("first root plan");
+    let second_validated =
+        validate_external_root(second_candidate, &boundary).expect("second root plan");
+    let first_slot = RootSlotAuthority::from_admitted_owner(
+        root_id(first.1, RootSlotId::from_normalized_identity),
+        root_id(first.2, RootSlotOwnerId::from_normalized_identity),
+    );
+    let second_slot = RootSlotAuthority::from_admitted_owner(
+        root_id(second.1, RootSlotId::from_normalized_identity),
+        root_id(second.2, RootSlotOwnerId::from_normalized_identity),
+    );
+    let first_execution = provider_execution(&first_validated);
+    let second_execution = provider_execution(&second_validated);
+    let first_admission = RootAdmission::from_admitted_provider(
+        root_id(first.3, RootAdmissionId::from_normalized_identity),
+        &first_validated,
+        &first_execution,
+        code,
+        &first_slot,
+        first_validated.candidate().trust_receipts.iter().copied(),
+    )
+    .expect("first root admission");
+    let second_admission = RootAdmission::from_admitted_provider(
+        root_id(second.3, RootAdmissionId::from_normalized_identity),
+        &second_validated,
+        &second_execution,
+        code,
+        &second_slot,
+        second_validated.candidate().trust_receipts.iter().copied(),
+    )
+    .expect("second root admission");
+    let mut ledger = InstalledRootLedger::claim(code).expect("canonical two-root ledger");
+    let first_installed = ledger
+        .install(code, first_validated, first_slot, first_admission)
+        .expect("first installed root");
+    let second_installed = ledger
+        .install(code, second_validated, second_slot, second_admission)
+        .expect("second installed root");
+    (ledger, first_installed, second_installed)
 }
 
 fn program_local_root_module() -> TerminalModule {
@@ -1510,20 +1612,15 @@ fn join_program_local<'root, 'code>(
 #[test]
 fn program_local_root_schemas_prebind_exact_installed_slots_without_minting() {
     let entry = entry_id(1);
-    let code = installed_code(1, entry);
+    let mut code = installed_code(1, entry);
     let module = program_local_root_module();
     let catalog = program_local_root_catalog(&module);
     let terminal = program_local_terminal_object(&module);
-    let (_first_ledger, first) =
-        install_test_root_with_ids(&code, entry, 1, 20, 21, 22, vec![program_local_claim()]);
-    let (_second_ledger, second) = install_test_root_with_ids(
-        &code,
+    let (_root_ledger, first, second) = install_test_root_pair_with_ids(
+        &mut code,
+        (1, 20, 21, 22, vec![program_local_claim()]),
+        (101, 120, 121, 122, vec![program_local_claim()]),
         entry,
-        101,
-        120,
-        121,
-        122,
-        vec![program_local_claim()],
     );
     let mut bindings = ProgramLocalRootInstallationLedger::new();
     let first_occurrences = bindings
@@ -1555,12 +1652,25 @@ fn program_local_root_schemas_prebind_exact_installed_slots_without_minting() {
 #[test]
 fn program_local_root_prebinding_rejects_catalog_object_and_claim_substitution() {
     let entry = entry_id(1);
-    let code = installed_code(1, entry);
+    let mut code = installed_code(1, entry);
     let module = program_local_root_module();
     let catalog = program_local_root_catalog(&module);
     let terminal = program_local_terminal_object(&module);
-    let (_root_ledger, root) =
-        install_test_root_with_ids(&code, entry, 1, 20, 21, 22, vec![program_local_claim()]);
+    let (_root_ledger, root, wrong_claim_root) = install_test_root_pair_with_ids(
+        &mut code,
+        (1, 20, 21, 22, vec![program_local_claim()]),
+        (
+            201,
+            220,
+            221,
+            222,
+            vec![ExternalRootEntryClaim {
+                domain: "Region::Other".into(),
+                ..program_local_claim()
+            }],
+        ),
+        entry,
+    );
 
     let mut tampered_module = module.clone();
     tampered_module.boundary_machines[0].program_local_root_introductions[0].identity ^= 1;
@@ -1584,18 +1694,6 @@ fn program_local_root_prebinding_rejects_catalog_object_and_claim_substitution()
             .is_err()
     );
 
-    let (_wrong_claim_ledger, wrong_claim_root) = install_test_root_with_ids(
-        &code,
-        entry,
-        201,
-        220,
-        221,
-        222,
-        vec![ExternalRootEntryClaim {
-            domain: "Region::Other".into(),
-            ..program_local_claim()
-        }],
-    );
     assert!(
         ProgramLocalRootInstallationLedger::new()
             .prebind(&catalog, &terminal, &wrong_claim_root)
@@ -1606,12 +1704,13 @@ fn program_local_root_prebinding_rejects_catalog_object_and_claim_substitution()
 #[test]
 fn program_local_root_join_pins_exact_root_artifact_contract_and_epoch_once() {
     let entry = entry_id(1);
-    let code = installed_code(1, entry);
+    let mut code = installed_code(1, entry);
+    let code_identity = code.identity().normalized_identity();
     let module = program_local_root_module();
     let catalog = program_local_root_catalog(&module);
     let terminal = program_local_terminal_object(&module);
     let (_root_ledger, root) =
-        install_test_root_with_ids(&code, entry, 1, 20, 21, 22, vec![program_local_claim()]);
+        install_test_root_with_ids(&mut code, entry, 1, 20, 21, 22, vec![program_local_claim()]);
     let mut installation = ProgramLocalRootInstallationLedger::new();
     let [prebinding] = installation
         .prebind(&catalog, &terminal, &root)
@@ -1619,12 +1718,7 @@ fn program_local_root_join_pins_exact_root_artifact_contract_and_epoch_once() {
         .try_into()
         .expect("one program-local prebinding");
     let prebinding = prebinding.identity();
-    let mut lifecycle = program_local_lifecycle(
-        700,
-        10,
-        code.identity().normalized_identity(),
-        "TestRoot::entry",
-    );
+    let mut lifecycle = program_local_lifecycle(700, 10, code_identity, "TestRoot::entry");
     let occurrence = join_program_local(
         &mut installation,
         prebinding,
@@ -1639,12 +1733,7 @@ fn program_local_root_join_pins_exact_root_artifact_contract_and_epoch_once() {
     assert_eq!(occurrence.identity().lifecycle_epoch(), 10);
     assert_eq!(lifecycle.program_local_root_authority_holds(10), Some(1));
 
-    let mut foreign_lifecycle = program_local_lifecycle(
-        701,
-        10,
-        code.identity().normalized_identity(),
-        "TestRoot::entry",
-    );
+    let mut foreign_lifecycle = program_local_lifecycle(701, 10, code_identity, "TestRoot::entry");
     let foreign = join_program_local(
         &mut installation,
         prebinding,
@@ -1700,7 +1789,7 @@ fn program_local_root_join_pins_exact_root_artifact_contract_and_epoch_once() {
     publish_program_local_era(
         &mut lifecycle,
         20,
-        code.identity().normalized_identity(),
+        code_identity,
         "TestRoot::entry",
         120,
         true,
@@ -1724,20 +1813,16 @@ fn program_local_root_join_pins_exact_root_artifact_contract_and_epoch_once() {
 #[test]
 fn program_local_root_failed_join_returns_lease_without_burning_the_occurrence() {
     let entry = entry_id(1);
-    let code = installed_code(1, entry);
+    let mut code = installed_code(1, entry);
+    let code_identity = code.identity().normalized_identity();
     let module = program_local_root_module();
     let catalog = program_local_root_catalog(&module);
     let terminal = program_local_terminal_object(&module);
-    let (_first_root_ledger, first) =
-        install_test_root_with_ids(&code, entry, 1, 20, 21, 22, vec![program_local_claim()]);
-    let (_other_root_ledger, other) = install_test_root_with_ids(
-        &code,
+    let (_root_ledger, first, other) = install_test_root_pair_with_ids(
+        &mut code,
+        (1, 20, 21, 22, vec![program_local_claim()]),
+        (101, 120, 121, 122, vec![program_local_claim()]),
         entry,
-        101,
-        120,
-        121,
-        122,
-        vec![program_local_claim()],
     );
     let mut installation = ProgramLocalRootInstallationLedger::new();
     let [prebinding] = installation
@@ -1747,12 +1832,7 @@ fn program_local_root_failed_join_returns_lease_without_burning_the_occurrence()
         .expect("one program-local prebinding");
     let prebinding = prebinding.identity();
 
-    let mut lifecycle = program_local_lifecycle(
-        710,
-        10,
-        code.identity().normalized_identity(),
-        "TestRoot::entry",
-    );
+    let mut lifecycle = program_local_lifecycle(710, 10, code_identity, "TestRoot::entry");
     let substituted = join_program_local(
         &mut installation,
         prebinding,
@@ -1768,12 +1848,7 @@ fn program_local_root_failed_join_returns_lease_without_burning_the_occurrence()
         .release_program_local_root_epoch_lease(lease)
         .expect("root substitution returns the lease");
 
-    let mut wrong_artifact = program_local_lifecycle(
-        711,
-        10,
-        code.identity().normalized_identity() + 1,
-        "TestRoot::entry",
-    );
+    let mut wrong_artifact = program_local_lifecycle(711, 10, code_identity + 1, "TestRoot::entry");
     let substituted = join_program_local(
         &mut installation,
         prebinding,
@@ -1789,12 +1864,7 @@ fn program_local_root_failed_join_returns_lease_without_burning_the_occurrence()
         .release_program_local_root_epoch_lease(lease)
         .expect("artifact substitution returns the lease");
 
-    let mut wrong_contract = program_local_lifecycle(
-        712,
-        10,
-        code.identity().normalized_identity(),
-        "OtherRoot::entry",
-    );
+    let mut wrong_contract = program_local_lifecycle(712, 10, code_identity, "OtherRoot::entry");
     let substituted = join_program_local(
         &mut installation,
         prebinding,
@@ -1810,17 +1880,12 @@ fn program_local_root_failed_join_returns_lease_without_burning_the_occurrence()
         .release_program_local_root_epoch_lease(lease)
         .expect("contract substitution returns the lease");
 
-    let mut stale_lifecycle = program_local_lifecycle(
-        713,
-        10,
-        code.identity().normalized_identity(),
-        "TestRoot::entry",
-    );
+    let mut stale_lifecycle = program_local_lifecycle(713, 10, code_identity, "TestRoot::entry");
     let stale_lease = program_local_epoch_lease(&mut stale_lifecycle, 814, 10, "TestRoot::entry");
     publish_program_local_era(
         &mut stale_lifecycle,
         20,
-        code.identity().normalized_identity(),
+        code_identity,
         "TestRoot::entry",
         121,
         true,
@@ -1852,30 +1917,21 @@ fn program_local_root_failed_join_returns_lease_without_burning_the_occurrence()
 #[test]
 fn program_local_root_failed_retirement_returns_the_complete_occurrence() {
     let entry = entry_id(1);
-    let code = installed_code(1, entry);
+    let mut code = installed_code(1, entry);
+    let code_identity = code.identity().normalized_identity();
     let module = program_local_root_module();
     let catalog = program_local_root_catalog(&module);
     let terminal = program_local_terminal_object(&module);
     let (_root_ledger, root) =
-        install_test_root_with_ids(&code, entry, 1, 20, 21, 22, vec![program_local_claim()]);
+        install_test_root_with_ids(&mut code, entry, 1, 20, 21, 22, vec![program_local_claim()]);
     let mut installation = ProgramLocalRootInstallationLedger::new();
     let [prebinding] = installation
         .prebind(&catalog, &terminal, &root)
         .expect("verified installed prebinding")
         .try_into()
         .expect("one program-local prebinding");
-    let mut rightful = program_local_lifecycle(
-        720,
-        10,
-        code.identity().normalized_identity(),
-        "TestRoot::entry",
-    );
-    let mut substituted = program_local_lifecycle(
-        721,
-        10,
-        code.identity().normalized_identity(),
-        "TestRoot::entry",
-    );
+    let mut rightful = program_local_lifecycle(720, 10, code_identity, "TestRoot::entry");
+    let mut substituted = program_local_lifecycle(721, 10, code_identity, "TestRoot::entry");
     let occurrence = join_program_local(
         &mut installation,
         prebinding.identity(),
@@ -2018,7 +2074,7 @@ fn interrupt_entry_receipt(
 #[test]
 fn interrupt_entry_mints_exact_linear_obligations_and_requires_settlement() {
     let entry = entry_id(1001);
-    let code = installed_code(1, entry);
+    let mut code = installed_code(1, entry);
     let boundary = interrupt_boundary();
     let validated =
         validate_external_root(interrupt_candidate(entry), &boundary).expect("interrupt root plan");
@@ -2033,7 +2089,7 @@ fn interrupt_entry_mints_exact_linear_obligations_and_requires_settlement() {
         validated.candidate().trust_receipts.iter().copied(),
     )
     .expect("root admission");
-    let mut ledger = InstalledRootLedger::default();
+    let mut ledger = InstalledRootLedger::claim(&mut code).expect("canonical root ledger");
     let installed = ledger
         .install(&code, validated, authority, admission)
         .expect("installed interrupt root");
@@ -2289,7 +2345,7 @@ fn interrupt_entry_mints_exact_linear_obligations_and_requires_settlement() {
 #[test]
 fn interrupt_entry_rejects_policy_drift_replay_and_unsettled_exit() {
     let entry = entry_id(1001);
-    let code = installed_code(1, entry);
+    let mut code = installed_code(1, entry);
     let boundary = interrupt_boundary();
     let validated =
         validate_external_root(interrupt_candidate(entry), &boundary).expect("interrupt root plan");
@@ -2304,7 +2360,7 @@ fn interrupt_entry_rejects_policy_drift_replay_and_unsettled_exit() {
         validated.candidate().trust_receipts.iter().copied(),
     )
     .expect("root admission");
-    let mut ledger = InstalledRootLedger::default();
+    let mut ledger = InstalledRootLedger::claim(&mut code).expect("canonical root ledger");
     let installed = ledger
         .install(&code, validated, authority, admission)
         .expect("installed interrupt root");
@@ -2394,7 +2450,7 @@ fn interrupt_entry_rejects_policy_drift_replay_and_unsettled_exit() {
 #[test]
 fn interrupt_entry_without_acknowledgement_policy_mints_no_acknowledgement() {
     let entry = entry_id(1001);
-    let code = installed_code(1, entry);
+    let mut code = installed_code(1, entry);
     let boundary = interrupt_boundary();
     let mut candidate = interrupt_candidate(entry);
     candidate.acknowledgement_policy = None;
@@ -2411,7 +2467,7 @@ fn interrupt_entry_without_acknowledgement_policy_mints_no_acknowledgement() {
         validated.candidate().trust_receipts.iter().copied(),
     )
     .expect("root admission");
-    let mut ledger = InstalledRootLedger::default();
+    let mut ledger = InstalledRootLedger::claim(&mut code).expect("canonical root ledger");
     let installed = ledger
         .install(&code, validated, authority, admission)
         .expect("installed exception root");
@@ -2450,8 +2506,8 @@ fn interrupt_entry_without_acknowledgement_policy_mints_no_acknowledgement() {
 #[test]
 fn interrupt_entry_receipt_cannot_substitute_colliding_installed_root() {
     let entry = entry_id(1001);
-    let first_code = installed_code_with_fill(1, entry, 0x90);
-    let second_code = installed_code_with_fill(1, entry, 0xcc);
+    let mut first_code = installed_code_with_fill(1, entry, 0x90);
+    let mut second_code = installed_code_with_fill(1, entry, 0xcc);
     let boundary = interrupt_boundary();
     let first_root =
         validate_external_root(interrupt_candidate_for_code(entry, &first_code), &boundary)
@@ -2482,11 +2538,13 @@ fn interrupt_entry_receipt_cannot_substitute_colliding_installed_root() {
     )
     .expect("second admission");
 
-    let mut first_ledger = InstalledRootLedger::default();
+    let mut first_ledger =
+        InstalledRootLedger::claim(&mut first_code).expect("first canonical root ledger");
     let first_installed = first_ledger
         .install(&first_code, first_root, first_slot, first_admission)
         .expect("first installed interrupt root");
-    let mut second_ledger = InstalledRootLedger::default();
+    let mut second_ledger =
+        InstalledRootLedger::claim(&mut second_code).expect("second canonical root ledger");
     let second_installed = second_ledger
         .install(&second_code, second_root, second_slot, second_admission)
         .expect("second installed interrupt root");
@@ -2501,8 +2559,8 @@ fn interrupt_entry_receipt_cannot_substitute_colliding_installed_root() {
 #[test]
 fn interrupt_obligation_receipts_retain_exact_invocation_evidence() {
     let entry = entry_id(1001);
-    let first_code = installed_code_with_fill(1, entry, 0x90);
-    let second_code = installed_code_with_fill(1, entry, 0xcc);
+    let mut first_code = installed_code_with_fill(1, entry, 0x90);
+    let mut second_code = installed_code_with_fill(1, entry, 0xcc);
     let boundary = interrupt_boundary();
     let first_root =
         validate_external_root(interrupt_candidate_for_code(entry, &first_code), &boundary)
@@ -2532,11 +2590,13 @@ fn interrupt_obligation_receipts_retain_exact_invocation_evidence() {
         second_root.candidate().trust_receipts.iter().copied(),
     )
     .expect("second admission");
-    let mut first_ledger = InstalledRootLedger::default();
+    let mut first_ledger =
+        InstalledRootLedger::claim(&mut first_code).expect("first canonical root ledger");
     let first_installed = first_ledger
         .install(&first_code, first_root, first_slot, first_admission)
         .expect("first installed root");
-    let mut second_ledger = InstalledRootLedger::default();
+    let mut second_ledger =
+        InstalledRootLedger::claim(&mut second_code).expect("second canonical root ledger");
     let second_installed = second_ledger
         .install(&second_code, second_root, second_slot, second_admission)
         .expect("second installed root");
@@ -2805,7 +2865,7 @@ fn prepared_writer_execution_replays_structure_before_destination_consumption() 
 #[test]
 fn installation_records_the_complete_external_root_and_pins_code_liveness() {
     let entry = entry_id(1001);
-    let code = installed_code(1, entry);
+    let mut code = installed_code(1, entry);
     let selected = selected_interrupt_completion();
     let mut candidate = candidate(entry);
     candidate.service_reach = ResolvedRootServiceReach::from_selected_provider_closure(
@@ -2827,7 +2887,7 @@ fn installation_records_the_complete_external_root_and_pins_code_liveness() {
         validated.candidate().trust_receipts.iter().copied(),
     )
     .expect("root admission");
-    let mut ledger = InstalledRootLedger::default();
+    let mut ledger = InstalledRootLedger::claim(&mut code).expect("canonical root ledger");
     let installed = ledger
         .install(&code, validated, authority, admission)
         .expect("installed external root");
@@ -2947,8 +3007,8 @@ fn opaque_callback_gateway_must_be_exact_current_dispatch_and_process_lifetime()
 #[test]
 fn reclaimable_opaque_callback_requires_unregister_and_root_quiescence() {
     let entry = entry_id(1001);
-    let code = installed_code(1, entry);
-    let (mut ledger, installed) = install_test_root(&code, entry);
+    let mut code = installed_code(1, entry);
+    let (mut ledger, installed) = install_test_root(&mut code, entry);
     let root_identity = installed.root();
     let not_quiesced = RootRemovalReceipt::from_provider(
         root_id(80, RootRemovalReceiptId::from_normalized_identity),
@@ -3082,7 +3142,7 @@ fn external_root_entry_claim_requires_an_exact_abi_parameter() {
 #[test]
 fn root_admission_cannot_substitute_colliding_installed_code() {
     let entry = entry_id(1001);
-    let admitted_code = installed_code_with_fill(1, entry, 0x90);
+    let mut admitted_code = installed_code_with_fill(1, entry, 0x90);
     let substituted_code = installed_code_with_fill(1, entry, 0xcc);
     assert_eq!(admitted_code.identity(), substituted_code.identity());
     assert_eq!(admitted_code.artifact(), substituted_code.artifact());
@@ -3101,22 +3161,24 @@ fn root_admission_cannot_substitute_colliding_installed_code() {
     )
     .expect("root admission");
 
-    let error = InstalledRootLedger::default()
+    let mut ledger =
+        InstalledRootLedger::claim(&mut admitted_code).expect("canonical admitted-code ledger");
+    let error = ledger
         .install(&substituted_code, validated, authority, admission)
         .expect_err("compact installed/artifact IDs cannot substitute exact code");
     assert!(
         error
             .diagnostic()
             .0
-            .contains("entry stack realization is not bound to the exact installed code")
+            .contains("exact installed-code occurrence and installation scope")
     );
 }
 
 #[test]
 fn root_removal_receipt_cannot_substitute_colliding_installed_code() {
     let entry = entry_id(1001);
-    let first_code = installed_code_with_fill(1, entry, 0x90);
-    let second_code = installed_code_with_fill(1, entry, 0xcc);
+    let mut first_code = installed_code_with_fill(1, entry, 0x90);
+    let mut second_code = installed_code_with_fill(1, entry, 0xcc);
     let first_root = validate_external_root(candidate_for_code(entry, &first_code), &boundary())
         .expect("first root plan");
     let second_root = validate_external_root(candidate_for_code(entry, &second_code), &boundary())
@@ -3144,11 +3206,13 @@ fn root_removal_receipt_cannot_substitute_colliding_installed_code() {
     )
     .expect("second admission");
 
-    let mut first_ledger = InstalledRootLedger::default();
+    let mut first_ledger =
+        InstalledRootLedger::claim(&mut first_code).expect("first canonical root ledger");
     let first_installed = first_ledger
         .install(&first_code, first_root, first_slot, first_admission)
         .expect("first installed root");
-    let mut second_ledger = InstalledRootLedger::default();
+    let mut second_ledger =
+        InstalledRootLedger::claim(&mut second_code).expect("second canonical root ledger");
     let second_installed = second_ledger
         .install(&second_code, second_root, second_slot, second_admission)
         .expect("second installed root");
@@ -3168,7 +3232,7 @@ fn root_removal_receipt_cannot_substitute_colliding_installed_code() {
 #[test]
 fn install_rejects_foreign_entries_and_returns_every_consumed_authority() {
     let admitted_entry = entry_id(1001);
-    let code = installed_code(1, admitted_entry);
+    let mut code = installed_code(1, admitted_entry);
     let foreign_entry = entry_id(1002);
     let validated =
         validate_external_root(candidate(foreign_entry), &boundary()).expect("root plan");
@@ -3183,7 +3247,7 @@ fn install_rejects_foreign_entries_and_returns_every_consumed_authority() {
         validated.candidate().trust_receipts.iter().copied(),
     )
     .expect("root admission");
-    let mut ledger = InstalledRootLedger::default();
+    let mut ledger = InstalledRootLedger::claim(&mut code).expect("canonical root ledger");
     let error = ledger
         .install(&code, validated, authority, admission)
         .expect_err("foreign entry must reject");
@@ -3200,6 +3264,41 @@ fn install_rejects_foreign_entries_and_returns_every_consumed_authority() {
         root_id(22, RootAdmissionId::from_normalized_identity)
     );
     assert_eq!(ledger.records().count(), 0);
+}
+
+#[test]
+fn installation_registry_claim_is_one_shot_and_rejects_another_installation() {
+    let entry = entry_id(1001);
+    let mut first_code = installed_code(1, entry);
+    let mut ledger =
+        InstalledRootLedger::claim(&mut first_code).expect("first canonical root ledger");
+    let replay = InstalledRootLedger::claim(&mut first_code)
+        .expect_err("one installed-code occurrence cannot issue a second registry");
+    assert!(replay.0.contains("already issued"));
+
+    let second_code = installed_code(2, entry);
+    let root = validate_external_root(candidate_for_code(entry, &second_code), &boundary())
+        .expect("second-code root plan");
+    let authority = slot();
+    let execution = provider_execution(&root);
+    let admission = RootAdmission::from_admitted_provider(
+        root_id(22, RootAdmissionId::from_normalized_identity),
+        &root,
+        &execution,
+        &second_code,
+        &authority,
+        root.candidate().trust_receipts.iter().copied(),
+    )
+    .expect("second-code root admission");
+    let error = ledger
+        .install(&second_code, root, authority, admission)
+        .expect_err("one installation registry cannot accept another installed-code occurrence");
+    assert!(
+        error
+            .diagnostic()
+            .0
+            .contains("exact installed-code occurrence and installation scope")
+    );
 }
 
 #[test]
@@ -3311,7 +3410,7 @@ fn slot_admission_retains_the_exact_validated_root() {
     let entry = entry_id(1001);
     let first =
         validate_external_root(candidate(entry), &boundary()).expect("first root realization");
-    let code = installed_code(1, entry);
+    let mut code = installed_code(1, entry);
     let authority = slot();
     let execution = provider_execution(&first);
     let admission = RootAdmission::from_admitted_provider(
@@ -3328,7 +3427,7 @@ fn slot_admission_retains_the_exact_validated_root() {
     drifted.acknowledgement_policy = None;
     let mut second = validate_external_root(drifted, &boundary()).expect("second root realization");
     second.normalized_identity = first.normalized_identity;
-    let mut ledger = InstalledRootLedger::default();
+    let mut ledger = InstalledRootLedger::claim(&mut code).expect("canonical root ledger");
     let error = ledger
         .install(&code, second, authority, admission)
         .expect_err("equal compact identity cannot replay admission across root-policy drift");
@@ -3344,7 +3443,7 @@ fn slot_admission_retains_the_exact_validated_root() {
 #[test]
 fn removal_requires_both_unreachability_and_execution_quiescence() {
     let entry = entry_id(1001);
-    let code = installed_code(1, entry);
+    let mut code = installed_code(1, entry);
     let validated = validate_external_root(candidate(entry), &boundary()).expect("root plan");
     let authority = slot();
     let execution = provider_execution(&validated);
@@ -3357,7 +3456,7 @@ fn removal_requires_both_unreachability_and_execution_quiescence() {
         validated.candidate().trust_receipts.iter().copied(),
     )
     .expect("root admission");
-    let mut ledger = InstalledRootLedger::default();
+    let mut ledger = InstalledRootLedger::claim(&mut code).expect("canonical root ledger");
     let installed = ledger
         .install(&code, validated, authority, admission)
         .expect("installed external root");

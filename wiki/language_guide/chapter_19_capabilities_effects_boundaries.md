@@ -1143,6 +1143,14 @@ establishment event: no program-local authority exists until installation
 joins it to one exact installed occurrence, finite cardinality, artifact
 instance, and lifecycle epoch.
 
+Installation first verifies the complete target-required root-slot closure.
+That opaque closure rejects omission, duplication, extra rows, and target-profile
+substitution, but remains a description rather than a minting value. The exact
+installed-code occurrence issues one non-clonable registry authority for one
+installation scope; its ledger cannot be recreated after the claim is issued,
+and it rejects roots from another installed occurrence even when compact report
+identities resemble one another.
+
 Contracts call the exact owner-unique projection machine. Proof-only
 `entry(place)` selects an entry-version structural place, while compiler-owned
 `separate(...)` performs the closed algebra's partial n-ary composition. Neither
