@@ -885,7 +885,7 @@ additional facilities the bootstrap actually needs.
           match-range implication, or cursor outcome. `parse_proc` may
           instantiate its nonzero `(` and `{` calls once its prefix bridge is
           composed; both new modules remain below 7 KB.
-        - [ ] Close `declare`, the bounded parameter loop, literal-aware
+        - [x] Close `declare`, the bounded parameter loop, literal-aware
           cursor-restoring `count_lets`, and both pre-output status-252 returns.
           - [x] Prove conditional `declare`. Exact procedure-34 shape closes
             its three blocks, room guard, local `s` snapshot, seven fixed/ranged
@@ -918,7 +918,7 @@ additional facilities the bootstrap actually needs.
             separator normalization, and successor renaming. The preceding
             `expect('(')` call is deliberately left for the deterministic
             procedure-prefix composition below.
-          - [ ] Prove literal-aware, terminating `count_lets` and restoration of
+          - [x] Prove literal-aware, terminating `count_lets` and restoration of
             its entry cursor; compose its slot-capacity status-252 guard.
             - [x] Close the identifier keyword leaf. Exact `id_char`/`is_let`
               shape rejoins procedures 13..14, ten blocks, four guards, three
@@ -952,8 +952,23 @@ additional facilities the bootstrap actually needs.
               only for exact `let`, carries (rather than falsely restores)
               IDOFF/IDLEN, restores entry CUR, and returns the exact count.
               Twenty-four isolated canaries live in a separate 6.7 KB harness.
-            - [ ] Compose `nparams+count_lets()` with the `nslots<=1024`
-              pre-output status-252 guard.
+            - [x] Compose `nparams+count_lets()` with the `nslots<=1024`
+              pre-output status-252 guard. Conditional `PCAP` selects `PLOP`'s
+              successful close clause, consumes `)`, snapshots exact
+              `0<=nparams<=4`, instantiates `EXPS` for `{`, and calls `CNTS` at
+              the checked one-local ambient height. The exact count is bounded
+              by `LEN`, so `nslots=nparams+count<=1048580` is nonwrapping and
+              in the signed comparison domain. The `<=1024` edge reaches
+              `slotsready` with status zero, prior output unchanged, and the
+              parse frame active; its complement writes numeric 252 and
+              returns zero through the checked epilogue before output. Both
+              retain source/input, the exact parameter prefix, count_lets'
+              restored body cursor, and its carried identifier state. Seventeen
+              isolated canaries cover exact rows, ambient height, close/expect/
+              count joins, bounds/addition, status, guard polarity, and both
+              terminal frames. Meaning and teeth remain 9.6 KB and 5.1 KB;
+              the focused gate carries a 189,911-byte checker tape. No typed
+              exhaustion kind is inferred from numeric 252.
         - [ ] Compose the deterministic procedure prefix: name, `":\n"`,
           prologue, and `nparams` parameter stores under `nslots<=1024`.
         - [ ] Give `gen_stmts`/`gen_stmt`/expression recursion maximal finite or

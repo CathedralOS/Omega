@@ -204,7 +204,7 @@ parse_params_require_events:
         imm r21, 344
         imm r22, 50142
         imm r23, 0
-        imm r24, 1
+        imm r24, 1                  ; checked nparams ambient local
         imm r25, 27433
         imm r26, 50151              ; checked count_lets continuation
         call summary_require_call_site

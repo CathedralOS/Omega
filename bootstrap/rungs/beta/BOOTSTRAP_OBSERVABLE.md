@@ -279,7 +279,15 @@ are valuable teeth, but they do not yet establish the quantified observation:
   byte cases under `2*(LEN+2-CUR)+live`, tracks nested brace depth, increments
   only for maximal identifiers equal to `let`, carries the last IDOFF/IDLEN,
   consumes the matching close or stops on cbyte zero, restores entry CUR, and
-  returns the exact count. The `nparams+count` capacity guard remains;
+  returns the exact count;
+- its pdone capacity phase consumes the selected close, snapshots exact
+  `0<=nparams<=4`, applies `expect('{')`, and calls count_lets with nparams held
+  at the checked ambient height one. Exact `count<=LEN` makes
+  `nslots=nparams+count<=1048580` nonwrapping and nonnegative. The checked
+  `nslots<=1024` edge reaches slotsready with status zero, unchanged prior
+  output, and the active parse frame; the complement writes numeric 252 and
+  returns zero through the exact pre-output epilogue. Both retain source/input,
+  the parameter prefix, restored body cursor, and carried identifier state;
 - no total `parse_proc` claim is currently made. Malformed procedure bodies can
   make `gen_stmts` diverge while emitting—for example when an unrecognized byte
   is never consumed—so closure requires maximal Return-or-Diverge and finite/
