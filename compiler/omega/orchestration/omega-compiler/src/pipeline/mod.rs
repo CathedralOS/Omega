@@ -8,6 +8,7 @@ pub mod compile_options;
 mod compile_policy;
 pub mod compile_report;
 pub mod compiler;
+mod component_progress;
 mod float_intrinsic_dispatch;
 pub mod frontend;
 mod operator_adapter_dispatch;

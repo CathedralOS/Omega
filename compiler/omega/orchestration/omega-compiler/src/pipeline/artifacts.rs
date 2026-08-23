@@ -171,6 +171,7 @@ pub(super) fn write_checked_snapshot(
     selected_entry_machine: Option<&str>,
     selected_provider_plans: &omega_effects::SelectedProviderPlanFacts,
     task_activations: &omega_task_plans::TaskActivationPlanSet,
+    component_progress: Option<&omega_effects::ComponentProgressManifest>,
 ) -> Result<(), Vec<Diagnostic>> {
     write_phase_diagram(
         options,
@@ -180,19 +181,21 @@ pub(super) fn write_checked_snapshot(
     write_phase_diagram(
         options,
         "05_capability_manifest.html",
-        &omega_visualizations::capability_manifest_html_with_selection(
+        &omega_visualizations::capability_manifest_html_with_composition(
             checked,
             selected_entry_machine,
             Some(selected_provider_plans),
+            component_progress,
         ),
     )?;
     write_phase_json(
         options,
         "05_capability_manifest.json",
-        &omega_visualizations::capability_manifest_json_with_selection(
+        &omega_visualizations::capability_manifest_json_with_composition(
             checked,
             selected_entry_machine,
             Some(selected_provider_plans),
+            component_progress,
         ),
     )?;
     write_phase_json(

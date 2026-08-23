@@ -289,11 +289,21 @@ fn build_termination_facts(
                     machine,
                     summaries
                         .iter()
-                        .find(|(symbol, _)| *symbol == machine.symbol)
-                        .map(|(_, summary)| summary.clone())
+                        .find(|summary| summary.machine == machine.symbol)
+                        .map(|summary| summary.guarantee.clone())
                         .unwrap_or(psi_language_semantics::TerminationGuarantee::NoGuarantee),
                 ),
             })
+            .collect(),
+        build_bound_progress: summaries
+            .into_iter()
+            .filter(|summary| !summary.build_bound_demands.is_empty())
+            .map(
+                |summary| psi_checked_trees::MachineBuildBoundProgressDemands {
+                    machine: summary.machine,
+                    demands: summary.build_bound_demands,
+                },
+            )
             .collect(),
     })
 }

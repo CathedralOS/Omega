@@ -1,6 +1,7 @@
 mod capabilities;
 mod coexisting_executable_eras;
 mod component_era_entry_ledger;
+mod component_progress_manifest;
 mod executable_tcb_manifest;
 mod executable_tcb_profile;
 mod isolated_executable_scopes;
@@ -25,6 +26,9 @@ pub use component_era_entry_ledger::{
     ComponentEraEntryReceipt, ComponentEraEntryState, ComponentEraLeaveReceipt,
     ComponentEraPublicationReceipt, ComponentEraQuiescenceReceipt, ComponentEraRetirementReceipt,
     EraEntryError, EraLeaveError, EraPublicationError, EraQuiescenceError, EraRetirementError,
+};
+pub use component_progress_manifest::{
+    CheckedComponentProgressDemand, ComponentBuildBoundProgressDemand, ComponentProgressManifest,
 };
 pub use executable_tcb_manifest::{
     ContainmentEvidence, ContainmentGuarantee, ExecutableEntryOrigin, ExecutableIdentity,

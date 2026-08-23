@@ -747,6 +747,49 @@ impl Compiler {
                 self.executable_tcb_policy.profile.as_ref(),
             )?;
         checked.selected_provider_plans = Arc::new(selected_provider_plan_facts);
+        checked.component_progress =
+            if let Some(source) = selected_program_entry_source_signature.as_ref() {
+                Some(Arc::new(
+                    crate::pipeline::component_progress::build_component_progress_manifest(
+                        &checked.program,
+                        &checked.selected_provider_plans,
+                        source.machine_symbol(),
+                        source.normalized_callable_identity().to_owned(),
+                    )?,
+                ))
+            } else if let Some(entry_name) = entry_machine_name.as_deref() {
+                let matches = checked
+                    .program
+                    .machines()
+                    .iter()
+                    .filter(|machine| machine.name.as_str() == entry_name)
+                    .collect::<Vec<_>>();
+                let [entry] = matches.as_slice() else {
+                    return Err(vec![Diagnostic::error(format!(
+                        "selected test entry `{entry_name}` resolves to {} checked machines",
+                        matches.len()
+                    ))]);
+                };
+                let identity = checked
+                    .program
+                    .normalized_machine_overload_identity(entry)
+                    .ok_or_else(|| {
+                        vec![Diagnostic::error(format!(
+                            "selected test entry `{entry_name}` has no normalized callable identity"
+                        ))]
+                    })?
+                    .identity();
+                Some(Arc::new(
+                    crate::pipeline::component_progress::build_component_progress_manifest(
+                        &checked.program,
+                        &checked.selected_provider_plans,
+                        entry.symbol,
+                        identity,
+                    )?,
+                ))
+            } else {
+                None
+            };
         crate::pipeline::trust_report::write_trust_report(
             &self.options,
             &checked.program,
@@ -789,6 +832,7 @@ impl Compiler {
                 entry_machine_name.as_deref(),
                 &checked.selected_provider_plans,
                 &checked.task_activations,
+                checked.component_progress.as_deref(),
             )?;
         }
         write_boundary_report_with_capabilities(
@@ -821,6 +865,10 @@ impl Compiler {
                 build_evaluation_usage,
             )
             .map_err(|message| vec![Diagnostic::error(message)]);
+        }
+
+        if self.options.write_output {
+            reject_undischarged_build_bound_progress(checked.component_progress.as_deref())?;
         }
 
         // Frontend-only compilation never submits work to the backend pool.
@@ -1038,6 +1086,35 @@ impl Compiler {
         )
         .map_err(|message| vec![Diagnostic::error(message)])
     }
+}
+
+/// TPR6 fail-closed admission seam. Checked lowering and the component
+/// manifest now preserve exact provider-receiver demands, but a selected
+/// provider plan is not itself an establishment receipt. Native/final
+/// composition must stop here until the installation occurrence + admitted
+/// receipt carrier can discharge each exact row.
+fn reject_undischarged_build_bound_progress(
+    manifest: Option<&omega_effects::ComponentProgressManifest>,
+) -> Result<(), Vec<Diagnostic>> {
+    let Some(manifest) = manifest else {
+        return Ok(());
+    };
+    let demands = manifest.pending();
+    if demands.is_empty() {
+        return Ok(());
+    }
+    Err(demands
+        .iter()
+        .map(|demand| {
+            Diagnostic::error(format!(
+                "final composition cannot discharge build-bound progress demand `{}` requiring profile `{}` at checked call {}:{}; the exact installed provider occurrence and admitted establishment receipt must be bound before native lowering",
+                demand.requirement_identity,
+                demand.profile_identity,
+                demand.statement_ordinal,
+                demand.call_ordinal,
+            ))
+        })
+        .collect())
 }
 
 #[cfg(test)]
