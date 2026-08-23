@@ -1,0 +1,261 @@
+; Absolute explicit/hidden stack lift for exact bc.
+;
+; The preceding phases establish the local premises of this final numerical
+; induction:
+;
+;   * the BCS9 checker reconstructs every call edge, exact frame weight,
+;     call-site temporary height, local peak, and the finite counter/rank
+;     recurrence, then checks every supplied potential equation;
+;   * the resource phase transfers the two depth counters and machine NLOC
+;     through their exact roots, guards, updates, exits, and protected-writer
+;     inventories;
+;   * the frame phase gives every procedure a call-cut ABI summary, checks all
+;     stores exhaustively, and proves that a callee restores its caller's
+;     explicit stack/frame pair without overwriting the saved-fp word.
+;
+; Consequently the already checked potential equation
+;
+;   frame(caller) + 8*ambient(call) + potential(callee)
+;       <= potential(caller)
+;
+; is an induction rule over dynamic calls.  The counter tables discharge the
+; only recursive cutpoints, and emit_dec's positive /10 rank discharges the
+; remaining one.  This phase checks the theorem's numerical side for every
+; finite context and instantiates it at the exact prelude/main root.  It does
+; not claim general local/raw-load value correspondence or termination.
+
+stack_potential_lift_init:
+        call stack_lift_require_prelude
+        call stack_lift_check_expr_contexts
+        call stack_lift_check_block_contexts
+        call stack_lift_check_root_contexts
+        call stack_lift_instantiate_main
+        jmp scan_owned_effects_init
+
+; The emitted program starts its explicit stack/frame pair at one MiB, calls
+; the independently resolved main procedure, then halts with main's r0.
+stack_lift_require_prelude:
+        imm r20, 0
+        imm r21, 1                     ; imm
+        imm r22, 15
+        imm r23, 1048576
+        call stack_lift_require_imm
+        imm r20, 10
+        imm r21, 1
+        imm r22, 14
+        imm r23, 1048576
+        call stack_lift_require_imm
+
+        imm r1, 2097172               ; tape + pc20
+        loadb r2, r1
+        imm r3, 19                    ; call
+        jeq r2, r3, stack_lift_prelude_call_target
+        jmp reject
+stack_lift_prelude_call_target:
+        imm r2, 1
+        add r1, r2
+        load r2, r1
+        mov r24, r2
+        imm r3, 524984
+        load r3, r3                    ; resolved main procedure index
+        mov r20, r3
+        call stack_lift_find_proc_entry
+        mov r3, r0
+        jeq r24, r3, stack_lift_prelude_halt
+        jmp reject
+stack_lift_prelude_halt:
+        imm r1, 2097181               ; tape + pc29
+        loadb r2, r1
+        imm r3, 0                     ; halt
+        jeq r2, r3, stack_lift_prelude_halt_reg
+        jmp reject
+stack_lift_prelude_halt_reg:
+        imm r3, 1
+        add r1, r3
+        loadb r2, r1
+        imm r3, 0
+        jeq r2, r3, stack_lift_prelude_done
+        jmp reject
+stack_lift_prelude_done:
+        ret
+
+; Resolve source procedure index r20 to its unique kind-zero block entry.
+stack_lift_find_proc_entry:
+        imm r10, 0
+        imm r11, 0                    ; match count
+        imm r0, 0
+stack_lift_find_proc_entry_loop:
+        imm r1, 355
+        jlt r10, r1, stack_lift_find_proc_entry_cell
+        imm r1, 1
+        jeq r11, r1, stack_lift_find_proc_entry_done
+        jmp reject
+stack_lift_find_proc_entry_cell:
+        mov r12, r10
+        imm r1, 8
+        mul r12, r1
+        imm r1, 3145728
+        add r1, r12
+        load r2, r1
+        jeq r2, r20, stack_lift_find_proc_entry_kind
+        jmp stack_lift_find_proc_entry_next
+stack_lift_find_proc_entry_kind:
+        imm r1, 3178496
+        add r1, r12
+        load r2, r1
+        imm r3, 0
+        jeq r2, r3, stack_lift_find_proc_entry_match
+        jmp stack_lift_find_proc_entry_next
+stack_lift_find_proc_entry_match:
+        imm r1, 1
+        add r11, r1
+        imm r1, 3235840
+        add r1, r12
+        load r0, r1
+stack_lift_find_proc_entry_next:
+        imm r1, 1
+        add r10, r1
+        jmp stack_lift_find_proc_entry_loop
+stack_lift_find_proc_entry_done:
+        ret
+
+; Require `imm register,value` at tape pc r20.  r21 is kept explicit so a
+; checker mutation cannot silently reinterpret the opcode family.
+stack_lift_require_imm:
+        imm r1, 2097152
+        add r1, r20
+        loadb r2, r1
+        jeq r2, r21, stack_lift_imm_register
+        jmp reject
+stack_lift_imm_register:
+        imm r2, 1
+        add r1, r2
+        loadb r2, r1
+        jeq r2, r22, stack_lift_imm_value
+        jmp reject
+stack_lift_imm_value:
+        imm r2, 1
+        add r1, r2
+        load r2, r1
+        jeq r2, r23, stack_lift_imm_done
+        jmp reject
+stack_lift_imm_done:
+        ret
+
+; Check all 64*70 expression-context pairs.  Zero/zero is the canonical dead
+; cell already required by BCS9.  Each live potential is aligned, contains at
+; least one frame/hidden return, and fits the reserved B_bc1 extents.
+stack_lift_check_expr_contexts:
+        imm r20, 10051584              ; explicit table
+        imm r21, 10087424              ; hidden table
+        imm r22, 4480
+        call stack_lift_check_context_table
+        ret
+
+stack_lift_check_block_contexts:
+        imm r20, 10123264
+        imm r21, 10159104
+        imm r22, 4480
+        call stack_lift_check_context_table
+        ret
+
+stack_lift_check_root_contexts:
+        imm r20, 10194944
+        imm r21, 10195504
+        imm r22, 70
+        call stack_lift_check_context_table
+        ret
+
+stack_lift_check_context_table:
+        imm r10, 0
+stack_lift_context_loop:
+        jlt r10, r22, stack_lift_context_cell
+        ret
+stack_lift_context_cell:
+        mov r11, r10
+        imm r1, 8
+        mul r11, r1
+        mov r1, r20
+        add r1, r11
+        load r2, r1                    ; explicit bytes
+        mov r1, r21
+        add r1, r11
+        load r3, r1                    ; hidden returns
+        imm r4, 0
+        jeq r2, r4, stack_lift_context_dead_hidden
+        jeq r3, r4, reject
+        mov r4, r2
+        imm r5, 8
+        mod r4, r5
+        imm r5, 0
+        jeq r4, r5, stack_lift_context_explicit_floor
+        jmp reject
+stack_lift_context_explicit_floor:
+        imm r4, 8
+        jlt r2, r4, reject
+        imm r4, 524289
+        jlt r2, r4, stack_lift_context_hidden_bound
+        jmp reject
+stack_lift_context_hidden_bound:
+        imm r4, 8193
+        jlt r3, r4, stack_lift_context_next
+        jmp reject
+stack_lift_context_dead_hidden:
+        imm r4, 0
+        jeq r3, r4, stack_lift_context_next
+        jmp reject
+stack_lift_context_next:
+        imm r1, 1
+        add r10, r1
+        jmp stack_lift_context_loop
+
+; Instantiate the induction at main.  Exact values keep the documented margin
+; auditable; their validity is still derived by the preceding Alpha recurrence,
+; not trusted from the Python witness.
+stack_lift_instantiate_main:
+        imm r1, 524984
+        load r22, r1
+        imm r20, 3
+        imm r21, 0
+        call call_bounds_load_pair
+        imm r1, 12720
+        jeq r0, r1, stack_lift_main_hidden
+        jmp reject
+stack_lift_main_hidden:
+        imm r1, 662
+        jeq r7, r1, stack_lift_main_explicit_low
+        jmp reject
+
+; r15/r14 begin at 1048576.  The whole checked potential therefore leaves the
+; explicit low-water mark at 1035856, strictly inside [524288,1048576].
+stack_lift_main_explicit_low:
+        imm r2, 1048576
+        sub r2, r0
+        imm r3, 1035856
+        jeq r2, r3, stack_lift_main_explicit_reserved
+        jmp reject
+stack_lift_main_explicit_reserved:
+        imm r3, 524288
+        jlt r2, r3, reject
+        imm r3, 1048577
+        jlt r2, r3, stack_lift_main_hidden_low
+        jmp reject
+
+; Alpha's hidden return stack starts at 64 MiB and grows down by eight bytes.
+; 662 live returns leave 67103568, far above every compiler raw-memory region
+; (whose checked upper endpoint is 3162112) and the explicit stack.
+stack_lift_main_hidden_low:
+        mov r2, r7
+        imm r3, 8
+        mul r2, r3
+        imm r3, 67108864
+        sub r3, r2
+        imm r4, 67103568
+        jeq r3, r4, stack_lift_main_hidden_disjoint
+        jmp reject
+stack_lift_main_hidden_disjoint:
+        imm r4, 3162111
+        jlt r4, r3, stack_lift_main_done
+        jmp reject
+stack_lift_main_done:
+        ret

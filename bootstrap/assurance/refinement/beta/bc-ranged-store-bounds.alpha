@@ -794,7 +794,7 @@ ranged_separation_profile:
         imm r20, 3162112
         imm r21, 67043328
         call ranged_require_le
-        jmp ranged_transfer_init
+        jmp frame_summary_init
 
 ranged_literal_slurp:
         db "slurp"

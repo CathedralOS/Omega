@@ -204,7 +204,10 @@ cat "$GATE_DIR/bc-block-control.alpha" \
   "$GATE_DIR/bc-call-bounds.alpha" \
   "$GATE_DIR/bc-stack-register-custody.alpha" \
   "$GATE_DIR/bc-ranged-store-bounds.alpha" \
-  "$GATE_DIR/bc-ranged-store-transfer.alpha" > "$T/control-check.alpha"
+  "$GATE_DIR/bc-frame-summary.alpha" \
+  "$GATE_DIR/bc-ranged-store-transfer.alpha" \
+  "$GATE_DIR/bc-counter-transfer.alpha" \
+  "$GATE_DIR/bc-stack-potential-lift.alpha" > "$T/control-check.alpha"
 "$ASM" < "$T/control-check.alpha" > "$T/control-check.tape"
 stamp_seed "$T/control-check.tape" "$SEED" "$T/control-check" >/dev/null
 
@@ -245,6 +248,37 @@ sed '/transfer_value_add_src_now:/,/call transfer_value_set/{s/imm r20, 5/imm r2
 "$ASM" < "$T/transfer-wrong-value-tag.alpha" > "$T/transfer-wrong-value-tag.tape"
 stamp_seed "$T/transfer-wrong-value-tag.tape" "$SEED" "$T/transfer-wrong-value-tag" >/dev/null
 
+# Phase-isolated frame-summary teeth.  The first omits one saved-fp owner while
+# adjusting only the derived subtotals, so the independent 607-store scan must
+# reject it.  The second underreports every procedure's checked local peak.
+sed \
+  -e '/fs_store_saved_entry:/,/fs_store_saved_next:/{s/call fs_store_mark/call fs_store_skip_first_saved/;}' \
+  -e '/fs_store_counts:/,/fs_store_saved_count:/{s/imm r3, 607/imm r3, 606/;}' \
+  -e '/fs_store_saved_count:/,/fs_store_push_count:/{s/imm r3, 70/imm r3, 69/;}' \
+  "$T/control-check.alpha" > "$T/frame-missing-store-owner.alpha"
+"$ASM" < "$T/frame-missing-store-owner.alpha" > "$T/frame-missing-store-owner.tape"
+stamp_seed "$T/frame-missing-store-owner.tape" "$SEED" "$T/frame-missing-store-owner" >/dev/null
+sed '/fs_proc_expected_peak:/,/store r1, r4/{s/imm r1, 8/imm r1, 0/;}' \
+  "$T/control-check.alpha" > "$T/frame-underreported-peak.alpha"
+"$ASM" < "$T/frame-underreported-peak.alpha" > "$T/frame-underreported-peak.tape"
+stamp_seed "$T/frame-underreported-peak.tape" "$SEED" "$T/frame-underreported-peak" >/dev/null
+
+# Phase-isolated resource/potential teeth.  The first breaks the checked
+# BCS9-row/live-counter relation, the second undercounts one protected writer,
+# and the third underreports only the final exact root instantiation.
+sed '/counter_context_build_row:/,/store r1, r21/{s/imm r21, 64/imm r21, 63/;}' \
+  "$T/control-check.alpha" > "$T/counter-wrong-context.alpha"
+"$ASM" < "$T/counter-wrong-context.alpha" > "$T/counter-wrong-context.tape"
+stamp_seed "$T/counter-wrong-context.tape" "$SEED" "$T/counter-wrong-context" >/dev/null
+sed '/counter_writer_resource_count:/,/counter_writer_counts_ok:/{s/imm r1, 7/imm r1, 6/;}' \
+  "$T/control-check.alpha" > "$T/counter-missing-writer.alpha"
+"$ASM" < "$T/counter-missing-writer.alpha" > "$T/counter-missing-writer.tape"
+stamp_seed "$T/counter-missing-writer.tape" "$SEED" "$T/counter-missing-writer" >/dev/null
+sed '/stack_lift_instantiate_main:/,/stack_lift_main_hidden:/{s/imm r1, 12720/imm r1, 12712/;}' \
+  "$T/control-check.alpha" > "$T/stack-underreported-root.alpha"
+"$ASM" < "$T/stack-underreported-root.alpha" > "$T/stack-underreported-root.tape"
+stamp_seed "$T/stack-underreported-root.tape" "$SEED" "$T/stack-underreported-root" >/dev/null
+
 # Preserve a diagnostic projection of the immediately preceding flat-custody
 # phase.  The same-valued composition witness below must pass this projection
 # and fail only once grammar-directed recursive ordering is enabled.
@@ -260,7 +294,10 @@ cat "$GATE_DIR/bc-block-control.alpha" \
   "$GATE_DIR/bc-call-bounds.alpha" \
   "$GATE_DIR/bc-stack-register-custody.alpha" \
   "$GATE_DIR/bc-ranged-store-bounds.alpha" \
-  "$GATE_DIR/bc-ranged-store-transfer.alpha" > "$T/flat-check.alpha"
+  "$GATE_DIR/bc-frame-summary.alpha" \
+  "$GATE_DIR/bc-ranged-store-transfer.alpha" \
+  "$GATE_DIR/bc-counter-transfer.alpha" \
+  "$GATE_DIR/bc-stack-potential-lift.alpha" > "$T/flat-check.alpha"
 "$ASM" < "$T/flat-check.alpha" > "$T/flat-check.tape"
 stamp_seed "$T/flat-check.tape" "$SEED" "$T/flat-check" >/dev/null
 
@@ -394,6 +431,46 @@ if [ "$transfer_wrong_value_tag_status" != 1 ] || [ -s "$T/stdout" ]; then
   echo "bc block control FAIL — wrong ranged-store value tag was not rejected" >&2
   exit 1
 fi
+set +e
+"$T/frame-missing-store-owner" < "$T/control.bundle" > "$T/stdout"
+frame_missing_store_owner_status=$?
+set -e
+if [ "$frame_missing_store_owner_status" != 1 ] || [ -s "$T/stdout" ]; then
+  echo "bc block control FAIL — missing frame-summary store owner was not rejected" >&2
+  exit 1
+fi
+set +e
+"$T/frame-underreported-peak" < "$T/control.bundle" > "$T/stdout"
+frame_underreported_peak_status=$?
+set -e
+if [ "$frame_underreported_peak_status" != 1 ] || [ -s "$T/stdout" ]; then
+  echo "bc block control FAIL — underreported procedure-local frame peak was not rejected" >&2
+  exit 1
+fi
+set +e
+"$T/counter-wrong-context" < "$T/control.bundle" > "$T/stdout"
+counter_wrong_context_status=$?
+set -e
+if [ "$counter_wrong_context_status" != 1 ] || [ -s "$T/stdout" ]; then
+  echo "bc block control FAIL — wrong counter/potential context relation was not rejected" >&2
+  exit 1
+fi
+set +e
+"$T/counter-missing-writer" < "$T/control.bundle" > "$T/stdout"
+counter_missing_writer_status=$?
+set -e
+if [ "$counter_missing_writer_status" != 1 ] || [ -s "$T/stdout" ]; then
+  echo "bc block control FAIL — undercounted protected writer was not rejected" >&2
+  exit 1
+fi
+set +e
+"$T/stack-underreported-root" < "$T/control.bundle" > "$T/stdout"
+stack_underreported_root_status=$?
+set -e
+if [ "$stack_underreported_root_status" != 1 ] || [ -s "$T/stdout" ]; then
+  echo "bc block control FAIL — underreported absolute stack root was not rejected" >&2
+  exit 1
+fi
 flat_case() { # label input
   set +e
   "$T/flat-check" < "$2" > "$T/stdout"
@@ -500,4 +577,4 @@ for mutation in call-retarget read-register write-register helper-write emit-byt
   fi
 done
 
-echo "bc block control/effects: 70 proc / 355 block / 291 transition; 613 effect sites / 829 fixed emit bytes; 78 frame slots / 27 parameter stores / 134 call pops; 169 local loads / 73 local stores; 61 raw loads / 34 raw stores; 581 literals / 55 arithmetic / 180 comparison primitives; 235 binary / 134 argument / 34 store-address pushes; syntax-directed composition / relative temporary peak 2; three ranged Alpha operands conditionally transferred / selected frames <=32 bytes; source-derived call bound <=12720 explicit bytes / <=662 hidden returns; all 2630 explicit-stack effects and 687 artifact effects owned ($(wc -c < "$T/control-check.tape" | tr -d ' ')-byte Alpha checker tape)"
+echo "bc block control/effects: 70 proc / 355 block / 291 transition; 613 effect sites / 829 fixed emit bytes; 78 frame slots / 27 parameter stores / 134 call pops; 169 local loads / 73 local stores; 61 raw loads / 34 raw stores; 581 literals / 55 arithmetic / 180 comparison primitives; 235 binary / 134 argument / 34 store-address pushes; syntax-directed composition / relative temporary peak 2; three ranged Alpha operands transferred; all 607 stores partitioned / 70 call-cut frames summarized; 64-row counter contexts; absolute B_bc1 stack <=12720 explicit bytes / <=662 hidden returns; all 2630 explicit-stack effects and 687 artifact effects owned ($(wc -c < "$T/control-check.tape" | tr -d ' ')-byte Alpha checker tape)"

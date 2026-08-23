@@ -1,0 +1,937 @@
+; Selected machine-value premises for bc's bounded recursion counters.
+;
+; The preceding phases already parse the exact source, own every local/raw-
+; memory/primitive/push macro, compose each expression in lowering order, prove
+; the source-side counter schemas, and transfer the three ranged store operands.
+; This phase has no producer witness.  It rejoins the exact machine rows for:
+;
+;   EXPRDEPTH  2097080: zero root, snapshot, <64 guard, +1, two -1 exits
+;   BLOCKDEPTH 2097064: zero root, snapshot, <64 guard, +1, three -1 exits
+;   RESOURCE   2097072: zero root and all six writes of 252
+;
+; It then executes the small interval algebra used by those selected chains and
+; exhaustively recounts all fixed writers to NLOC, EXPRDEPTH, BLOCKDEPTH, and
+; RESOURCE.  A fresh 64-row bridge binds BCS9's `remaining` phase index to the
+; live machine depth D=64-remaining, including recursive-child, rejected-probe,
+; and root-entry selections.  This closes a value-transfer premise only.  It
+; does not establish reachability, carry saved frames through arbitrary calls,
+; or make BCT9's root stack potential unconditional.
+;
+; Context bridge rows [remaining,live-depth], 16 bytes each: 16662528.
+
+counter_transfer_init:
+        call counter_require_selected_rows
+        call counter_count_protected_writers
+        call counter_check_value_domain
+        call counter_check_context_bridge
+        jmp stack_potential_lift_init
+
+; Compact wrappers around the responsibility-specific row joiners supplied by
+; bc-ranged-store-transfer.alpha.  Callers provide row/block/value/pc.
+counter_require_local_load:
+        imm r22, 1
+        jmp counter_require_local_common
+counter_require_local_store:
+        imm r22, 2
+counter_require_local_common:
+        ; r20 row, r21 block, r22 kind, r23 slot, r24 pc
+        call transfer_require_local
+        ret
+
+counter_require_memory_load:
+        imm r22, 1
+        jmp counter_require_memory_common
+counter_require_memory_store:
+        imm r22, 2
+counter_require_memory_common:
+        imm r23, 8
+        ; r20 row, r21 block, r22 kind, r23 width, r24 pc
+        call transfer_require_memory
+        ret
+
+counter_require_literal:
+        imm r22, 1
+        ; r20 row, r21 block, r22 literal kind, r23 value, r24 pc
+        call transfer_require_primitive
+        ret
+counter_require_arithmetic:
+        imm r22, 2
+        ; r23 is the Alpha arithmetic opcode selected by the source.
+        call transfer_require_primitive
+        ret
+counter_require_comparison:
+        imm r22, 3
+        ; r23 is the normalized comparison code selected by the source.
+        call transfer_require_primitive
+        ret
+
+counter_require_binary_push:
+        imm r22, 1
+        ; r20 row, r21 block, r22 kind, r23 pc
+        call transfer_require_push
+        ret
+counter_require_store_push:
+        imm r22, 3
+        call transfer_require_push
+        ret
+
+counter_require_selected_rows:
+        ; slurp zero roots: EXPRDEPTH and BLOCKDEPTH.
+        imm r20, 5
+        imm r21, 4
+        imm r24, 968
+        call counter_require_memory_store
+        imm r20, 17
+        imm r21, 4
+        imm r23, 2097080
+        imm r24, 916
+        call counter_require_literal
+        imm r20, 18
+        imm r21, 4
+        imm r23, 0
+        imm r24, 942
+        call counter_require_literal
+        imm r20, 374
+        imm r21, 4
+        imm r23, 926
+        call counter_require_store_push
+
+        imm r20, 7
+        imm r21, 4
+        imm r24, 1078
+        call counter_require_memory_store
+        imm r20, 21
+        imm r21, 4
+        imm r23, 2097064
+        imm r24, 1026
+        call counter_require_literal
+        imm r20, 22
+        imm r21, 4
+        imm r23, 0
+        imm r24, 1052
+        call counter_require_literal
+        imm r20, 376
+        imm r21, 4
+        imm r23, 1036
+        call counter_require_store_push
+
+        ; gen_expr depth snapshot and room guard.
+        imm r20, 57
+        imm r21, 303
+        imm r24, 43176
+        call counter_require_memory_load
+        imm r20, 192
+        imm r21, 303
+        imm r23, 0
+        imm r24, 43179
+        call counter_require_local_store
+        imm r20, 193
+        imm r21, 304
+        imm r23, 0
+        imm r24, 43198
+        call counter_require_local_load
+        imm r20, 673
+        imm r21, 303
+        imm r23, 2097080
+        imm r24, 43166
+        call counter_require_literal
+        imm r20, 675
+        imm r21, 304
+        imm r23, 64
+        imm r24, 43233
+        call counter_require_literal
+        imm r20, 674
+        imm r21, 304
+        imm r23, 8
+        imm r24, 43243
+        call counter_require_comparison
+        imm r20, 202
+        imm r21, 304
+        imm r23, 43217
+        call counter_require_binary_push
+
+        ; gen_expr accepted increment.
+        imm r20, 59
+        imm r21, 305
+        imm r24, 43515
+        call counter_require_memory_store
+        imm r20, 194
+        imm r21, 305
+        imm r23, 0
+        imm r24, 43432
+        call counter_require_local_load
+        imm r20, 679
+        imm r21, 305
+        imm r23, 2097080
+        imm r24, 43406
+        call counter_require_literal
+        imm r20, 681
+        imm r21, 305
+        imm r23, 1
+        imm r24, 43467
+        call counter_require_literal
+        imm r20, 680
+        imm r21, 305
+        imm r23, 3
+        imm r24, 43477
+        call counter_require_arithmetic
+        imm r20, 203
+        imm r21, 305
+        imm r23, 43451
+        call counter_require_binary_push
+        imm r20, 389
+        imm r21, 305
+        imm r23, 43416
+        call counter_require_store_push
+
+        ; gen_expr no-comparison decrement.
+        imm r20, 60
+        imm r21, 306
+        imm r24, 43799
+        call counter_require_memory_store
+        imm r20, 61
+        imm r21, 306
+        imm r24, 43732
+        call counter_require_memory_load
+        imm r20, 684
+        imm r21, 306
+        imm r23, 2097080
+        imm r24, 43696
+        call counter_require_literal
+        imm r20, 685
+        imm r21, 306
+        imm r23, 2097080
+        imm r24, 43722
+        call counter_require_literal
+        imm r20, 687
+        imm r21, 306
+        imm r23, 1
+        imm r24, 43751
+        call counter_require_literal
+        imm r20, 686
+        imm r21, 306
+        imm r23, 4
+        imm r24, 43761
+        call counter_require_arithmetic
+        imm r20, 205
+        imm r21, 306
+        imm r23, 43735
+        call counter_require_binary_push
+        imm r20, 390
+        imm r21, 306
+        imm r23, 43706
+        call counter_require_store_push
+
+        ; gen_expr comparison decrement.
+        imm r20, 62
+        imm r21, 307
+        imm r24, 44013
+        call counter_require_memory_store
+        imm r20, 63
+        imm r21, 307
+        imm r24, 43946
+        call counter_require_memory_load
+        imm r20, 689
+        imm r21, 307
+        imm r23, 2097080
+        imm r24, 43910
+        call counter_require_literal
+        imm r20, 690
+        imm r21, 307
+        imm r23, 2097080
+        imm r24, 43936
+        call counter_require_literal
+        imm r20, 692
+        imm r21, 307
+        imm r23, 1
+        imm r24, 43965
+        call counter_require_literal
+        imm r20, 691
+        imm r21, 307
+        imm r23, 4
+        imm r24, 43975
+        call counter_require_arithmetic
+        imm r20, 206
+        imm r21, 307
+        imm r23, 43949
+        call counter_require_binary_push
+        imm r20, 391
+        imm r21, 307
+        imm r23, 43920
+        call counter_require_store_push
+
+        ; gen_stmts depth snapshot and room guard.
+        imm r20, 64
+        imm r21, 308
+        imm r24, 44108
+        call counter_require_memory_load
+        imm r20, 198
+        imm r21, 308
+        imm r23, 0
+        imm r24, 44111
+        call counter_require_local_store
+        imm r20, 199
+        imm r21, 309
+        imm r23, 0
+        imm r24, 44130
+        call counter_require_local_load
+        imm r20, 694
+        imm r21, 308
+        imm r23, 2097064
+        imm r24, 44098
+        call counter_require_literal
+        imm r20, 696
+        imm r21, 309
+        imm r23, 64
+        imm r24, 44165
+        call counter_require_literal
+        imm r20, 695
+        imm r21, 309
+        imm r23, 8
+        imm r24, 44175
+        call counter_require_comparison
+        imm r20, 207
+        imm r21, 309
+        imm r23, 44149
+        call counter_require_binary_push
+
+        ; gen_stmts accepted increment.
+        imm r20, 66
+        imm r21, 310
+        imm r24, 44447
+        call counter_require_memory_store
+        imm r20, 200
+        imm r21, 310
+        imm r23, 0
+        imm r24, 44364
+        call counter_require_local_load
+        imm r20, 700
+        imm r21, 310
+        imm r23, 2097064
+        imm r24, 44338
+        call counter_require_literal
+        imm r20, 702
+        imm r21, 310
+        imm r23, 1
+        imm r24, 44399
+        call counter_require_literal
+        imm r20, 701
+        imm r21, 310
+        imm r23, 3
+        imm r24, 44409
+        call counter_require_arithmetic
+        imm r20, 208
+        imm r21, 310
+        imm r23, 44383
+        call counter_require_binary_push
+        imm r20, 393
+        imm r21, 310
+        imm r23, 44348
+        call counter_require_store_push
+
+        ; gen_stmts normal, eof, and exhausted decrements.
+        imm r20, 68
+        imm r21, 311
+        imm r24, 44810
+        call counter_require_memory_store
+        imm r20, 69
+        imm r21, 311
+        imm r24, 44743
+        call counter_require_memory_load
+        imm r20, 708
+        imm r21, 311
+        imm r23, 2097064
+        imm r24, 44707
+        call counter_require_literal
+        imm r20, 709
+        imm r21, 311
+        imm r23, 2097064
+        imm r24, 44733
+        call counter_require_literal
+        imm r20, 711
+        imm r21, 311
+        imm r23, 1
+        imm r24, 44762
+        call counter_require_literal
+        imm r20, 710
+        imm r21, 311
+        imm r23, 4
+        imm r24, 44772
+        call counter_require_arithmetic
+        imm r20, 211
+        imm r21, 311
+        imm r23, 44746
+        call counter_require_binary_push
+        imm r20, 394
+        imm r21, 311
+        imm r23, 44717
+        call counter_require_store_push
+
+        imm r20, 70
+        imm r21, 313
+        imm r24, 45086
+        call counter_require_memory_store
+        imm r20, 71
+        imm r21, 313
+        imm r24, 45019
+        call counter_require_memory_load
+        imm r20, 715
+        imm r21, 313
+        imm r23, 2097064
+        imm r24, 44983
+        call counter_require_literal
+        imm r20, 716
+        imm r21, 313
+        imm r23, 2097064
+        imm r24, 45009
+        call counter_require_literal
+        imm r20, 718
+        imm r21, 313
+        imm r23, 1
+        imm r24, 45038
+        call counter_require_literal
+        imm r20, 717
+        imm r21, 313
+        imm r23, 4
+        imm r24, 45048
+        call counter_require_arithmetic
+        imm r20, 213
+        imm r21, 313
+        imm r23, 45022
+        call counter_require_binary_push
+        imm r20, 395
+        imm r21, 313
+        imm r23, 44993
+        call counter_require_store_push
+
+        imm r20, 72
+        imm r21, 314
+        imm r24, 45222
+        call counter_require_memory_store
+        imm r20, 73
+        imm r21, 314
+        imm r24, 45155
+        call counter_require_memory_load
+        imm r20, 720
+        imm r21, 314
+        imm r23, 2097064
+        imm r24, 45119
+        call counter_require_literal
+        imm r20, 721
+        imm r21, 314
+        imm r23, 2097064
+        imm r24, 45145
+        call counter_require_literal
+        imm r20, 723
+        imm r21, 314
+        imm r23, 1
+        imm r24, 45174
+        call counter_require_literal
+        imm r20, 722
+        imm r21, 314
+        imm r23, 4
+        imm r24, 45184
+        call counter_require_arithmetic
+        imm r20, 214
+        imm r21, 314
+        imm r23, 45158
+        call counter_require_binary_push
+        imm r20, 396
+        imm r21, 314
+        imm r23, 45129
+        call counter_require_store_push
+
+        ; RESOURCE zero root and every write of 252.  The gen_expr/gen_stmts
+        ; rows are included here even though their counter guards were joined
+        ; above, so the protected-writer list is explicit and auditable.
+        imm r20, 6
+        imm r21, 4
+        imm r24, 1023
+        call counter_require_memory_store
+        imm r20, 19
+        imm r21, 4
+        imm r23, 2097072
+        imm r24, 971
+        call counter_require_literal
+        imm r20, 20
+        imm r21, 4
+        imm r23, 0
+        imm r24, 997
+        call counter_require_literal
+        imm r20, 375
+        imm r21, 4
+        imm r23, 981
+        call counter_require_store_push
+
+        imm r20, 35
+        imm r21, 159
+        imm r24, 22644
+        call counter_require_memory_store
+        imm r20, 408
+        imm r21, 159
+        imm r23, 2097072
+        imm r24, 22592
+        call counter_require_literal
+        imm r20, 409
+        imm r21, 159
+        imm r23, 252
+        imm r24, 22618
+        call counter_require_literal
+        imm r20, 381
+        imm r21, 159
+        imm r23, 22602
+        call counter_require_store_push
+
+        imm r20, 38
+        imm r21, 171
+        imm r24, 24384
+        call counter_require_memory_store
+        imm r20, 435
+        imm r21, 171
+        imm r23, 2097072
+        imm r24, 24332
+        call counter_require_literal
+        imm r20, 436
+        imm r21, 171
+        imm r23, 252
+        imm r24, 24358
+        call counter_require_literal
+        imm r20, 382
+        imm r21, 171
+        imm r23, 24342
+        call counter_require_store_push
+
+        imm r20, 58
+        imm r21, 304
+        imm r24, 43373
+        call counter_require_memory_store
+        imm r20, 676
+        imm r21, 304
+        imm r23, 2097072
+        imm r24, 43321
+        call counter_require_literal
+        imm r20, 677
+        imm r21, 304
+        imm r23, 252
+        imm r24, 43347
+        call counter_require_literal
+        imm r20, 388
+        imm r21, 304
+        imm r23, 43331
+        call counter_require_store_push
+
+        imm r20, 65
+        imm r21, 309
+        imm r24, 44305
+        call counter_require_memory_store
+        imm r20, 697
+        imm r21, 309
+        imm r23, 2097072
+        imm r24, 44253
+        call counter_require_literal
+        imm r20, 698
+        imm r21, 309
+        imm r23, 252
+        imm r24, 44279
+        call counter_require_literal
+        imm r20, 392
+        imm r21, 309
+        imm r23, 44263
+        call counter_require_store_push
+
+        imm r20, 89
+        imm r21, 340
+        imm r24, 49659
+        call counter_require_memory_store
+        imm r20, 784
+        imm r21, 340
+        imm r23, 2097072
+        imm r24, 49607
+        call counter_require_literal
+        imm r20, 785
+        imm r21, 340
+        imm r23, 252
+        imm r24, 49633
+        call counter_require_literal
+        imm r20, 401
+        imm r21, 340
+        imm r23, 49617
+        call counter_require_store_push
+
+        imm r20, 92
+        imm r21, 344
+        imm r24, 50367
+        call counter_require_memory_store
+        imm r20, 798
+        imm r21, 344
+        imm r23, 2097072
+        imm r24, 50315
+        call counter_require_literal
+        imm r20, 799
+        imm r21, 344
+        imm r23, 252
+        imm r24, 50341
+        call counter_require_literal
+        imm r20, 402
+        imm r21, 344
+        imm r23, 50325
+        call counter_require_store_push
+        ret
+
+; Independently count every fixed store to the four protected globals.  The
+; earlier address-class phase proves that fixed-address cells are meaningful
+; and that all 95 memory rows are classified exactly once.
+counter_count_protected_writers:
+        imm r10, 0                     ; memory row
+        imm r11, 0                     ; NLOC
+        imm r12, 0                     ; EXPRDEPTH
+        imm r13, 0                     ; BLOCKDEPTH
+        imm r14, 0                     ; RESOURCE
+counter_writer_loop:
+        imm r1, 95
+        jlt r10, r1, counter_writer_row
+        jmp counter_writer_counts
+counter_writer_row:
+        mov r15, r10
+        imm r1, 8
+        mul r15, r1
+        imm r1, 7610368
+        add r1, r15
+        load r2, r1
+        imm r3, 2
+        jeq r2, r3, counter_writer_class
+        jmp counter_writer_next
+counter_writer_class:
+        imm r1, 10616832
+        add r1, r15
+        load r2, r1
+        imm r3, 1
+        jeq r2, r3, counter_writer_address
+        jmp counter_writer_next
+counter_writer_address:
+        imm r1, 10618880
+        add r1, r15
+        load r2, r1
+        imm r3, 2097128
+        jeq r2, r3, counter_writer_nloc
+        imm r3, 2097080
+        jeq r2, r3, counter_writer_expr
+        imm r3, 2097064
+        jeq r2, r3, counter_writer_block
+        imm r3, 2097072
+        jeq r2, r3, counter_writer_resource
+        jmp counter_writer_next
+counter_writer_nloc:
+        imm r1, 1
+        add r11, r1
+        jmp counter_writer_next
+counter_writer_expr:
+        imm r1, 1
+        add r12, r1
+        jmp counter_writer_next
+counter_writer_block:
+        imm r1, 1
+        add r13, r1
+        jmp counter_writer_next
+counter_writer_resource:
+        imm r1, 1
+        add r14, r1
+counter_writer_next:
+        imm r1, 1
+        add r10, r1
+        jmp counter_writer_loop
+counter_writer_counts:
+        imm r1, 3
+        jeq r11, r1, counter_writer_expr_count
+        jmp reject
+counter_writer_expr_count:
+        imm r1, 4
+        jeq r12, r1, counter_writer_block_count
+        jmp reject
+counter_writer_block_count:
+        imm r1, 5
+        jeq r13, r1, counter_writer_resource_count
+        jmp reject
+counter_writer_resource_count:
+        imm r1, 7
+        jeq r14, r1, counter_writer_counts_ok
+        jmp reject
+counter_writer_counts_ok:
+        ret
+
+; Executable interval algebra for the selected machine expressions.  Registers
+; r20/r21 are an inclusive nonnegative interval.  All exact machine operators
+; and constants used below were rejoined above.
+counter_check_value_domain:
+        ; Both reset chains write exactly zero.
+        imm r20, 0
+        imm r21, 0
+        call counter_require_zero
+        call counter_require_zero
+
+        ; Actual NLOC is closed by the two zero roots and declare's checked
+        ; snapshot/guard/s+1 chain in bc-ranged-store-transfer.alpha.
+        imm r20, 0
+        imm r21, 1023
+        call counter_add_one
+        imm r22, 1
+        imm r23, 1024
+        call counter_require_interval
+
+counter_expr_guard_refine:
+        ; ED is [0,64] at entry; the exact signed ED<64 true edge is [0,63].
+        imm r20, 0
+        imm r21, 63
+        call counter_add_one
+        imm r22, 1
+        imm r23, 64
+        call counter_require_interval
+        call counter_sub_one
+        imm r22, 0
+        imm r23, 63
+        call counter_require_interval
+        ; The rejected depth-65 probe snapshots 64 and does not write ED.
+        imm r20, 64
+        imm r21, 64
+        imm r22, 64
+        imm r23, 64
+        call counter_require_interval
+
+counter_block_guard_refine:
+        ; BD uses the same admitted range and all three exact exits subtract one.
+        imm r20, 0
+        imm r21, 63
+        call counter_add_one
+        imm r22, 1
+        imm r23, 64
+        call counter_require_interval
+counter_block_exit_step:
+        imm r1, 1
+        sub r20, r1
+        sub r21, r1
+        imm r22, 0
+        imm r23, 63
+        call counter_require_interval
+        ; Recheck the other two exit chains against the same selected rule.
+        imm r20, 1
+        imm r21, 64
+        call counter_sub_one
+        imm r22, 0
+        imm r23, 63
+        call counter_require_interval
+        imm r20, 1
+        imm r21, 64
+        call counter_sub_one
+        imm r22, 0
+        imm r23, 63
+        call counter_require_interval
+
+        ; Exhaustive RESOURCE writers are the zero root or literal 252.
+        imm r20, 0
+        imm r21, 0
+        call counter_require_resource_value
+        imm r20, 252
+        imm r21, 252
+        call counter_require_resource_value
+        ret
+
+counter_add_one:
+        imm r1, 1
+        add r20, r1
+        add r21, r1
+        ret
+counter_sub_one:
+        imm r1, 1
+        sub r20, r1
+        sub r21, r1
+        ret
+
+counter_require_zero:
+        imm r22, 0
+        imm r23, 0
+        jmp counter_require_interval
+
+counter_require_resource_value:
+        imm r1, 0
+        jeq r20, r1, counter_resource_zero
+        imm r1, 252
+        jeq r20, r1, counter_resource_252
+        jmp reject
+counter_resource_zero:
+        imm r1, 0
+        jeq r21, r1, counter_resource_ok
+        jmp reject
+counter_resource_252:
+        imm r1, 252
+        jeq r21, r1, counter_resource_ok
+        jmp reject
+counter_resource_ok:
+        ret
+
+counter_require_interval:
+        jeq r20, r22, counter_interval_hi
+        jmp reject
+counter_interval_hi:
+        jeq r21, r23, counter_interval_ok
+        jmp reject
+counter_interval_ok:
+        ret
+
+; ---------------------------------------------------------------------------
+; Exact bridge between machine counter depth and the 64 BCS9 phase rows.
+;
+; BCS9 phase tables are depth-major with 70 procedure cells per row.  Earlier
+; call-bounds code has already validated every potential equation and the rule
+; which sends a recursive child from row remaining to row remaining-1.  Here we
+; independently give that index its selected machine meaning:
+;
+;   row remaining: D = 64 - remaining
+;   remaining > 0 child: (remaining-1, D+1)
+;   remaining = 0 child: checked rejected probe at snapshot D=64
+;   root: D=0, accepted +1, select row remaining=63 (D=1)
+
+counter_check_context_bridge:
+        imm r10, 0
+counter_context_build_loop:
+        imm r1, 64
+        jlt r10, r1, counter_context_build_row
+        jmp counter_context_root
+counter_context_build_row:
+        mov r20, r10                   ; remaining
+        imm r21, 64
+        sub r21, r10                   ; live D
+        mov r12, r10
+        imm r1, 16
+        mul r12, r1
+        imm r1, 16662528
+        add r1, r12
+        store r1, r20
+        imm r2, 8
+        add r1, r2
+        store r1, r21
+
+        ; Touch the exact already-validated BCS9 cutpoint cells in this row.
+        ; gen_expr is proc61 and gen_stmts is proc62.
+        mov r12, r10
+        imm r1, 70
+        mul r12, r1
+        imm r1, 61
+        add r12, r1
+        imm r1, 8
+        mul r12, r1
+        imm r1, 10051584
+        add r1, r12
+        load r6, r1                    ; expr explicit potential
+        imm r1, 10087424
+        add r1, r12
+        load r7, r1                    ; expr hidden potential
+        imm r1, 23
+        jlt r1, r6, counter_context_expr_hidden
+        jmp reject
+counter_context_expr_hidden:
+        imm r1, 0
+        jlt r1, r7, counter_context_block_cell
+        jmp reject
+counter_context_block_cell:
+        ; Move from proc61 to adjacent proc62 in the same row.
+        imm r1, 8
+        add r12, r1
+        imm r1, 10123264
+        add r1, r12
+        load r8, r1                    ; block explicit potential
+        imm r1, 10159104
+        add r1, r12
+        load r9, r1                    ; block hidden potential
+        imm r1, 15
+        jlt r1, r8, counter_context_block_hidden
+        jmp reject
+counter_context_block_hidden:
+        imm r1, 0
+        jlt r1, r9, counter_context_child_kind
+        jmp reject
+
+counter_context_child_kind:
+        imm r1, 0
+        jeq r10, r1, counter_context_probe
+        ; The child row is already present because rows are built ascending.
+        mov r22, r10
+        imm r1, 1
+        sub r22, r1                    ; child remaining
+        mov r23, r21
+        add r23, r1                    ; child D
+        mov r12, r22
+        imm r1, 16
+        mul r12, r1
+        imm r1, 16662528
+        add r1, r12
+        load r2, r1
+        jeq r2, r22, counter_context_child_depth
+        jmp reject
+counter_context_child_depth:
+        imm r2, 8
+        add r1, r2
+        load r2, r1
+        jeq r2, r23, counter_context_child_formula
+        jmp reject
+counter_context_child_formula:
+        imm r2, 64
+        sub r2, r22
+        jeq r2, r23, counter_context_next
+        jmp reject
+
+counter_context_probe:
+        ; Row zero is the admitted activation at D=64.  A recursive child now
+        ; selects the separately charged rejected probe, whose checked proc ids
+        ; are retained by bc-call-bounds.alpha.
+        imm r1, 64
+        jeq r21, r1, counter_context_expr_probe_proc
+        jmp reject
+counter_context_expr_probe_proc:
+        imm r1, 524960
+        load r2, r1
+        imm r3, 61
+        jeq r2, r3, counter_context_block_probe_proc
+        jmp reject
+counter_context_block_probe_proc:
+        imm r1, 524968
+        load r2, r1
+        imm r3, 62
+        jeq r2, r3, counter_context_next
+        jmp reject
+
+counter_context_next:
+        imm r1, 1
+        add r10, r1
+        jmp counter_context_build_loop
+
+counter_context_root:
+        ; Machine root starts at zero.  Its accepted +1 selects BCS9 row63,
+        ; which the bridge must identify with live depth one for both counters.
+        imm r20, 0
+        imm r21, 0
+        call counter_add_one
+        imm r1, 1
+        jeq r20, r1, counter_context_root_hi
+        jmp reject
+counter_context_root_hi:
+        jeq r21, r1, counter_context_root_row
+        jmp reject
+counter_context_root_row:
+        imm r12, 63
+        imm r1, 16
+        mul r12, r1
+        imm r1, 16662528
+        add r1, r12
+        load r2, r1
+        imm r3, 63
+        jeq r2, r3, counter_context_root_depth
+        jmp reject
+counter_context_root_depth:
+        imm r3, 8
+        add r1, r3
+        load r2, r1
+        imm r3, 1
+        jeq r2, r3, counter_context_done
+        jmp reject
+counter_context_done:
+        ret

@@ -1001,7 +1001,7 @@ transfer_declare_frame_init:
         imm r20, 24852
         imm r21, 16
         call transfer_require_depth
-        jmp scan_owned_effects_init
+        jmp counter_transfer_init
 
 transfer_require_visited:
         imm r1, 10625024
