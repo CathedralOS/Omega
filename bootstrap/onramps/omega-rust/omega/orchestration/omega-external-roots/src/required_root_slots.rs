@@ -4,7 +4,9 @@ use omega_target::{ProgramEntrySlotDeclaration, TargetProfile};
 use psi_layout_plans::EntryStubId;
 
 use crate::{
-    ExternalRootDiagnostic, RootSlotAuthority, RootSlotId, RootSlotOwnerId, fnv1a_identity,
+    ArtifactId, ExternalRootDiagnostic, ExternalRootId, InstallationScopeId, InstalledCodeId,
+    InstalledExternalRoot, InstalledRootEvidence, InstalledRootLedger, RootSlotAuthority,
+    RootSlotId, RootSlotOwnerId, fnv1a_identity,
 };
 
 /// Compiler-selected realization of one target-owned required root slot.
@@ -108,6 +110,165 @@ impl VerifiedRequiredRootSlotClosure {
     /// member comparison, never by comparing this compact fingerprint.
     pub const fn fingerprint(&self) -> u64 {
         self.fingerprint
+    }
+}
+
+/// One target-required slot sealed to the exact installed root that occupies
+/// it. The target closure remains descriptive; this row only proves that the
+/// complete selected set was replayed against one installation ledger.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InstalledRequiredRootSlot {
+    required: VerifiedRequiredRootSlot,
+    root: ExternalRootId,
+    evidence: InstalledRootEvidence,
+}
+
+impl InstalledRequiredRootSlot {
+    pub const fn required(&self) -> &VerifiedRequiredRootSlot {
+        &self.required
+    }
+
+    pub const fn root(&self) -> ExternalRootId {
+        self.root
+    }
+
+    pub(super) fn matches_root(&self, root: &InstalledExternalRoot<'_>) -> bool {
+        self.root == root.root
+            && self.required.slot == root.slot
+            && self.required.owner == root.owner
+            && self.evidence == root.evidence
+    }
+}
+
+/// Exact target-required root-slot closure retained by one installed artifact.
+///
+/// Compact IDs and `fingerprint` are report keys only. Exact member evidence is
+/// retained privately and replayed by the program-local cohort verifier.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InstalledRequiredRootSlotClosure {
+    profile: TargetProfile,
+    installed_code: InstalledCodeId,
+    artifact: ArtifactId,
+    installation_scope: InstallationScopeId,
+    slots: BTreeMap<RootSlotId, InstalledRequiredRootSlot>,
+    fingerprint: u64,
+}
+
+impl InstalledRequiredRootSlotClosure {
+    pub const fn profile(&self) -> TargetProfile {
+        self.profile
+    }
+
+    pub const fn installed_code(&self) -> InstalledCodeId {
+        self.installed_code
+    }
+
+    pub const fn artifact(&self) -> ArtifactId {
+        self.artifact
+    }
+
+    pub const fn installation_scope(&self) -> InstallationScopeId {
+        self.installation_scope
+    }
+
+    pub fn slots(&self) -> impl ExactSizeIterator<Item = &InstalledRequiredRootSlot> {
+        self.slots.values()
+    }
+
+    pub fn slot(&self, identity: RootSlotId) -> Option<&InstalledRequiredRootSlot> {
+        self.slots.get(&identity)
+    }
+
+    pub const fn fingerprint(&self) -> u64 {
+        self.fingerprint
+    }
+}
+
+impl InstalledRootLedger {
+    /// Replay and retain the complete target-required closure against this
+    /// exact installed root ledger. Every required member must already be
+    /// occupied by the selected entry and requirement; sealing is one-shot.
+    pub fn seal_required_root_slot_closure(
+        &mut self,
+        closure: VerifiedRequiredRootSlotClosure,
+    ) -> Result<&InstalledRequiredRootSlotClosure, ExternalRootDiagnostic> {
+        if self.required_root_slots.is_some() {
+            return Err(ExternalRootDiagnostic(
+                "required root-slot closure was already sealed for this installation".into(),
+            ));
+        }
+
+        let mut slots = BTreeMap::new();
+        for required in closure.slots.values() {
+            let record = self
+                .roots
+                .values()
+                .find(|record| record.slot == required.slot)
+                .ok_or_else(|| {
+                    ExternalRootDiagnostic(format!(
+                        "required root slot `{}` has no installed root",
+                        required.slot.normalized_identity()
+                    ))
+                })?;
+            if record.installed_code != self.installed_code
+                || record.artifact != self.artifact
+                || record.owner != required.owner
+                || record.entry != required.selected_entry
+                || record.requirement_identity != required.requirement_identity
+            {
+                return Err(ExternalRootDiagnostic(
+                    "installed root does not match the exact required slot owner, entry, requirement, code, and artifact"
+                        .into(),
+                ));
+            }
+            let evidence = self
+                .root_evidence
+                .get(&record.root)
+                .cloned()
+                .ok_or_else(|| {
+                    ExternalRootDiagnostic(
+                        "required root slot has no exact installed-root evidence".into(),
+                    )
+                })?;
+            slots.insert(
+                required.slot,
+                InstalledRequiredRootSlot {
+                    required: required.clone(),
+                    root: record.root,
+                    evidence,
+                },
+            );
+        }
+
+        let mut canonical = format!(
+            "installed-required-root-slot-closure\n{}\n{}\n{}\n{}",
+            closure.profile.target_name(),
+            self.installed_code.normalized_identity(),
+            self.artifact.normalized_identity(),
+            self.installation_scope.normalized_identity()
+        );
+        for slot in slots.values() {
+            canonical.push_str(&format!(
+                "\n{}\n{}\n{}\n{}\n{}",
+                slot.required.slot.normalized_identity(),
+                slot.required.owner.normalized_identity(),
+                slot.required.selected_entry.normalized_identity(),
+                slot.required.requirement_identity,
+                slot.root.normalized_identity()
+            ));
+        }
+        self.required_root_slots = Some(InstalledRequiredRootSlotClosure {
+            profile: closure.profile,
+            installed_code: self.installed_code,
+            artifact: self.artifact,
+            installation_scope: self.installation_scope,
+            slots,
+            fingerprint: fnv1a_identity(&canonical),
+        });
+        Ok(self
+            .required_root_slots
+            .as_ref()
+            .expect("required root-slot closure was just retained"))
     }
 }
 

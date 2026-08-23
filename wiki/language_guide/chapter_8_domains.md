@@ -253,6 +253,15 @@ per-instance requirement controls deployment cardinality. Cross-epoch or
 machine-lifetime caps require persistent authority rather than a newly
 introduced program-local root.
 
+The concrete installation cannot derive that cardinality from an open ledger.
+It first seals the complete target-required root-slot closure against the exact
+installed roots, then issues one cohort verifier for that installation. The
+verifier accepts every eligible prebinding and lifecycle lease in one atomic
+epoch transaction; omission, duplication, substitution, stale membership, or
+replay returns all inputs and establishes nothing. The closed cohort preserves
+each occurrence's exact capacity expression and derives cardinality from its
+member roster. Neither a prebinding nor a mutable count is root authority.
+
 The route names the authorized requirement; it does not select an authored
 parameter index. The compiler finds every exact matching qualified subject and
 retains its semantic source position internally. Trait inheritance, selected

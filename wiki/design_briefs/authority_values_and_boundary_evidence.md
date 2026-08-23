@@ -448,6 +448,14 @@ only at selected admitted issuance. Checked sub-allocators transform existing
 content, while externally rooted conduits require admitted backing identity,
 fresh issuance, and custody evidence.
 
+The installation gate is itself exact and one-shot. The canonical installed
+root ledger seals the target-required slot closure against full installed-root
+evidence, then burns issuance of one cohort verifier. That verifier atomically
+closes every eligible prebinding under one lifecycle ledger and epoch and
+returns every lease on failure. Only the resulting non-clonable cohort may feed
+the later runtime establishment transition; a closure, prebinding, mutable
+count, compact identity, or individually acquired lease cannot do so.
+
 Any operation that realizes content against an external substrate must name an
 exact qualified root and carry backing or correspondence evidence connecting
 that root to the same selected provider. The verifier checks that the touched

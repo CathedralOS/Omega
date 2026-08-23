@@ -1009,7 +1009,11 @@ pub struct CompletedInterruptEntry {
 #[derive(Debug)]
 pub struct InstalledRootLedger {
     registry: InstallationRegistryAuthority,
+    installed_code: InstalledCodeId,
+    artifact: ArtifactId,
     installation_scope: InstallationScopeId,
+    required_root_slots: Option<InstalledRequiredRootSlotClosure>,
+    program_local_root_cohort_claimed: bool,
     roots: BTreeMap<ExternalRootId, InstalledRootRecord>,
     root_evidence: BTreeMap<ExternalRootId, InstalledRootEvidence>,
     slots: BTreeSet<RootSlotId>,
@@ -1029,7 +1033,11 @@ impl InstalledRootLedger {
         let installation_scope = registry.installation_scope();
         Ok(Self {
             registry,
+            installed_code: installed_code.identity(),
+            artifact: installed_code.artifact(),
             installation_scope,
+            required_root_slots: None,
+            program_local_root_cohort_claimed: false,
             roots: BTreeMap::new(),
             root_evidence: BTreeMap::new(),
             slots: BTreeSet::new(),
@@ -1041,6 +1049,18 @@ impl InstalledRootLedger {
 
     pub const fn installation_scope(&self) -> InstallationScopeId {
         self.installation_scope
+    }
+
+    pub const fn installed_code(&self) -> InstalledCodeId {
+        self.installed_code
+    }
+
+    pub const fn artifact(&self) -> ArtifactId {
+        self.artifact
+    }
+
+    pub const fn required_root_slots(&self) -> Option<&InstalledRequiredRootSlotClosure> {
+        self.required_root_slots.as_ref()
     }
 
     pub fn records(&self) -> impl Iterator<Item = &InstalledRootRecord> {
@@ -1438,6 +1458,19 @@ impl InstalledRootLedger {
         root: InstalledExternalRoot<'code>,
         receipt: RootRemovalReceipt,
     ) -> Result<RootSlotAuthority, Box<RootRemovalError<'code>>> {
+        if self
+            .required_root_slots
+            .as_ref()
+            .is_some_and(|closure| closure.slot(root.slot).is_some())
+        {
+            return Err(Box::new(RootRemovalError {
+                root,
+                receipt,
+                diagnostic: ExternalRootDiagnostic(
+                    "a sealed required root-slot closure keeps that installed root frozen".into(),
+                ),
+            }));
+        }
         let matches = receipt.root == root.root
             && receipt.slot == root.slot
             && receipt.installed_code == root.installed_code.identity()
