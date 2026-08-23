@@ -1,10 +1,13 @@
 use crate::audit::{PackageGraphAudit, PackageGraphAuditError, audit_package_graph};
+use crate::install::{PackageInstallPlan, PackageInstallPlanError, plan_package_install};
 use crate::lock::{PackageLock, PackageLockPersistenceError};
-use crate::manifest::PackageCapabilityManifest;
+use crate::manifest::{AliasName, PackageCapabilityManifest, PackageName};
 use crate::resolver::{SourceCachePolicyRecord, SourceCacheRequest, resolve_source_cache_record};
+use crate::review::{CapabilityChangeReceipt, CapabilityChangeReceiptPersistenceError};
 use crate::source::{
     GitSourceSpec, LocalSourceLimits, SourceResolveError, resolve_git_source, resolve_local_source,
 };
+use crate::update::{PackageLockUpdatePlan, PackageLockUpdatePlanError, plan_package_lock_update};
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -66,6 +69,19 @@ pub struct PackageGraphAuditCommand {
     pub audit: PackageGraphAudit,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PackageInstallPlanCommand {
+    pub lock_path: PathBuf,
+    pub plan: PackageInstallPlan,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PackageLockUpdatePlanCommand {
+    pub lock_path: PathBuf,
+    pub receipt_path: Option<PathBuf>,
+    pub plan: PackageLockUpdatePlan,
+}
+
 impl PackageGraphAuditCommand {
     pub fn to_text(&self) -> String {
         let mut report = String::new();
@@ -77,10 +93,50 @@ impl PackageGraphAuditCommand {
     }
 }
 
+impl PackageInstallPlanCommand {
+    pub fn to_text(&self) -> String {
+        let mut report = String::new();
+        report.push_str("lock: ");
+        report.push_str(&self.lock_path.display().to_string());
+        report.push('\n');
+        report.push_str(&self.plan.to_text());
+        report
+    }
+}
+
+impl PackageLockUpdatePlanCommand {
+    pub fn to_text(&self) -> String {
+        let mut report = String::new();
+        report.push_str("lock: ");
+        report.push_str(&self.lock_path.display().to_string());
+        report.push('\n');
+        if let Some(receipt_path) = &self.receipt_path {
+            report.push_str("receipt: ");
+            report.push_str(&receipt_path.display().to_string());
+            report.push('\n');
+        }
+        report.push_str(&self.plan.to_text());
+        report
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PackageGraphAuditCommandError {
     Lock(PackageLockPersistenceError),
     Graph(PackageGraphAuditError),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PackageInstallPlanCommandError {
+    Lock(PackageLockPersistenceError),
+    Plan(PackageInstallPlanError),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PackageLockUpdatePlanCommandError {
+    Lock(PackageLockPersistenceError),
+    Receipt(CapabilityChangeReceiptPersistenceError),
+    Plan(PackageLockUpdatePlanError),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -259,11 +315,65 @@ pub fn audit_package_graph_from_lock(
     })
 }
 
+pub fn plan_package_install_from_lock(
+    lock_path: impl AsRef<Path>,
+    current_manifests: &[PackageCapabilityManifest],
+    candidate_manifests: &[PackageCapabilityManifest],
+    dependency_alias: &AliasName,
+    dependency_package: &PackageName,
+) -> Result<PackageInstallPlanCommand, PackageInstallPlanCommandError> {
+    let lock_path = lock_path.as_ref();
+    let lock =
+        PackageLock::read_from_path(lock_path).map_err(PackageInstallPlanCommandError::Lock)?;
+    let plan = plan_package_install(
+        &lock,
+        current_manifests,
+        candidate_manifests,
+        dependency_alias,
+        dependency_package,
+    )
+    .map_err(PackageInstallPlanCommandError::Plan)?;
+    Ok(PackageInstallPlanCommand {
+        lock_path: lock_path.to_path_buf(),
+        plan,
+    })
+}
+
+pub fn plan_package_lock_update_from_lock(
+    lock_path: impl AsRef<Path>,
+    current_manifests: &[PackageCapabilityManifest],
+    candidate_manifests: &[PackageCapabilityManifest],
+    target_package: &PackageName,
+    receipt_path: Option<&Path>,
+) -> Result<PackageLockUpdatePlanCommand, PackageLockUpdatePlanCommandError> {
+    let lock_path = lock_path.as_ref();
+    let lock =
+        PackageLock::read_from_path(lock_path).map_err(PackageLockUpdatePlanCommandError::Lock)?;
+    let receipt = receipt_path
+        .map(CapabilityChangeReceipt::read_from_path)
+        .transpose()
+        .map_err(PackageLockUpdatePlanCommandError::Receipt)?;
+    let plan = plan_package_lock_update(
+        &lock,
+        current_manifests,
+        candidate_manifests,
+        target_package,
+        receipt.as_ref(),
+    )
+    .map_err(PackageLockUpdatePlanCommandError::Plan)?;
+    Ok(PackageLockUpdatePlanCommand {
+        lock_path: lock_path.to_path_buf(),
+        receipt_path: receipt_path.map(Path::to_path_buf),
+        plan,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::diff::diff_package_capability_manifests;
     use crate::lock::{LockedDependency, LockedPackage};
-    use crate::manifest::{AliasName, PackageName, SourceIdentity};
+    use crate::manifest::{AliasName, DependencyAlias, PackageName, SourceIdentity};
     use std::ffi::OsStr;
     use std::process::Command;
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -304,6 +414,14 @@ mod tests {
         AliasName::parse(name).unwrap()
     }
 
+    fn dependency(alias: &str, package: &str) -> DependencyAlias {
+        DependencyAlias {
+            alias: self::alias(alias),
+            package: self::package(package),
+            source_fingerprint: format!("source:{package}"),
+        }
+    }
+
     fn manifest(package: &str) -> PackageCapabilityManifest {
         PackageCapabilityManifest::new(
             PackageName::parse(package).unwrap(),
@@ -313,6 +431,11 @@ mod tests {
                 resolved: format!("commit:{package}"),
             },
         )
+    }
+
+    fn lock_from_manifests(manifests: &[PackageCapabilityManifest]) -> PackageLock {
+        PackageLock::from_manifests(package("graph-workbench"), manifests)
+            .expect("assemble lock fixture")
     }
 
     fn locked_package(manifest: &PackageCapabilityManifest) -> LockedPackage {
@@ -587,6 +710,95 @@ mod tests {
                 }
             ))
         );
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn install_plan_command_reads_lock_and_returns_plan() {
+        let root = temp_root("install-plan-command");
+        std::fs::create_dir_all(&root).expect("create install temp");
+        let lock_path = root.join("omega.lock");
+        let current_root = manifest("graph-workbench");
+        let current_lock = lock_from_manifests(std::slice::from_ref(&current_root));
+        current_lock
+            .write_to_path(&lock_path)
+            .expect("write current lock");
+
+        let mut candidate_root = current_root.clone();
+        candidate_root
+            .dependency_aliases
+            .push(dependency("file_journal", "file-journal"));
+        let child_manifest = manifest("file-journal");
+        let candidate_manifests = vec![candidate_root, child_manifest];
+
+        let command = plan_package_install_from_lock(
+            &lock_path,
+            &[current_root],
+            &candidate_manifests,
+            &alias("file_journal"),
+            &package("file-journal"),
+        )
+        .expect("install command should plan");
+        let text = command.to_text();
+
+        assert_eq!(command.lock_path, lock_path);
+        assert_eq!(command.plan.added_packages, vec!["file-journal".to_owned()]);
+        assert!(text.contains("package install plan"));
+        assert!(text.contains("added packages: file-journal"));
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn update_plan_command_reads_lock_and_receipt() {
+        let root = temp_root("update-plan-command");
+        std::fs::create_dir_all(&root).expect("create update temp");
+        let lock_path = root.join("omega.lock");
+        let receipt_path = root.join("capability-change.receipt.json");
+        let mut root_manifest = manifest("graph-workbench");
+        root_manifest
+            .dependency_aliases
+            .push(dependency("file_journal", "file-journal"));
+        let current_child = manifest("file-journal");
+        let current_manifests = vec![root_manifest.clone(), current_child.clone()];
+        let current_lock = lock_from_manifests(&current_manifests);
+        current_lock
+            .write_to_path(&lock_path)
+            .expect("write current lock");
+
+        let mut candidate_child = manifest("file-journal");
+        candidate_child.source.resolved = "commit:file-journal-new".to_owned();
+        candidate_child
+            .exported_service_reach
+            .push("FilesystemHost".to_owned());
+        let candidate_manifests = vec![root_manifest, candidate_child.clone()];
+        let diff = diff_package_capability_manifests(&current_child, &candidate_child);
+        let receipt = CapabilityChangeReceipt::from_diff(
+            &diff,
+            current_child.source.resolved,
+            candidate_child.source.resolved,
+            "reviewer@example.invalid",
+            "audited filesystem reach",
+        )
+        .expect("receipt");
+        receipt.write_to_path(&receipt_path).expect("write receipt");
+
+        let command = plan_package_lock_update_from_lock(
+            &lock_path,
+            &current_manifests,
+            &candidate_manifests,
+            &package("file-journal"),
+            Some(receipt_path.as_path()),
+        )
+        .expect("update command should plan");
+        let text = command.to_text();
+
+        assert_eq!(command.lock_path, lock_path);
+        assert_eq!(command.receipt_path, Some(receipt_path.clone()));
+        assert!(command.plan.is_admitted());
+        assert!(text.contains("package lock update plan"));
+        assert!(text.contains("admitted by capability-change receipt"));
 
         let _ = std::fs::remove_dir_all(&root);
     }

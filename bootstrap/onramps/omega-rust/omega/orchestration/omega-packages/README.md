@@ -95,8 +95,8 @@ cargo test -p omega-packages --test remote_fixtures -- --ignored --test-threads=
 - `commands`: internal source-audit command API plus CLI-ready source locator
   parsing for local paths, `file://`, HTTPS Git URLs, and SSH/scp-style Git
   locators. It also contains locator-backed source audit, locator-backed
-  source-cache policy records, and the lock-file backed graph-audit command
-  seam for future CLI wiring.
+  source-cache policy records, lock-file backed install/update plan commands,
+  and the lock-file backed graph-audit command seam for future CLI wiring.
 - `audit`: resolved package-graph audit over locks and manifests, including
   dependency paths for exported service reach and fail-closed consistency
   checks. Audit rows surface source identity, dependency aliases, provider
@@ -109,7 +109,8 @@ cargo test -p omega-packages --test remote_fixtures -- --ignored --test-threads=
 - `install`: non-mutating install plan assembly for future `omega install`
   wiring. It validates the current graph, verifies the root candidate manifest
   binds the requested alias to the requested package, assembles and audits the
-  candidate lock, and reports newly added package identities.
+  candidate lock, and reports newly added package identities. The command seam
+  can read the current lock file before returning the plan.
 - `lock`: machine-written package closure records with resolved source
   identity, manifest fingerprints, dependency aliases, trust receipts, stable
   JSON, lock fingerprints, closure validation, and strict lock-file
@@ -130,4 +131,5 @@ cargo test -p omega-packages --test remote_fixtures -- --ignored --test-threads=
   non-source capability manifest deltas with review guidance, and admits
   capability-changing updates only with exact matching review receipts. It can
   also produce a non-mutating lock update plan that assembles a candidate lock
-  only after policy admission.
+  only after policy admission. The command seam can read the current lock file
+  plus an optional standalone receipt file before returning the plan.
