@@ -121,7 +121,7 @@ temporary wrappers where needed:
 | Beta Python symbolic tools | `bootstrap/assurance/refinement/beta/` — complete |
 | other refinement scripts spread across Alpha and Omega0 | `bootstrap/assurance/refinement/` |
 | `bootstrap/omega0/` (compatibility: `compiler/omega`) | `bootstrap/omega0/{meaning,compiler,gates}/` — complete |
-| `compiler/lattice-corpus/` | `bootstrap/corpus/` |
+| `bootstrap/corpus/` (compatibility: `compiler/lattice-corpus`) | `bootstrap/corpus/` — complete |
 | `compiler/psi-rs/`, `compiler/omega-rs/` | `compiler/psi/`, `compiler/omega/` |
 
 The migration is complete when `compiler/` means the product compiler,

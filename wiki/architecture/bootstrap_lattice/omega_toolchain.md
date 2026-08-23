@@ -93,3 +93,11 @@ and emits the canonical 8 KiB Linux x86-64 ELF without an assembler or linker;
 its output is byte-identical to the production lowering and malformed input
 produces no output. O0 is therefore closed end to end. Generalizing that source
 and artifact path into the first spec-compliant Omega compiler remains open.
+
+The next planned profile, O1, is the first variable rather than fixture-shaped
+step: one bounded statement table accepts zero or more literal `write_line`
+operations followed by one final literal `exit_process`, and one loop emits and
+lowers the resulting variable operation sequence. This needs no new Psi
+vocabulary or language ruling. It exists to remove the exact-count frontend and
+backend shape before arithmetic, control flow, packages, or proofs widen the
+accepted language.

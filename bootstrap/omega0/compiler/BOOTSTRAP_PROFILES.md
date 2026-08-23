@@ -18,6 +18,14 @@ compiler has an Omega source tree. It will be the smallest monotonic extension
 of O0 that accepts that exact source. Sufficiency cannot be established from the
 current Rust product implementation.
 
+The next implementation milestone is intentionally recorded separately from a
+frozen profile. **O1** will generalize the O0 body to a bounded sequence of zero
+or more literal `write_line` statements followed by exactly one literal
+`exit_process`. One table-driven frontend, terminal emitter, and direct backend
+must handle every admitted statement count. Its exact resource ceilings become
+part of this contract when the implementation and exhaustion gates land; until
+then O1 is planned, not claimed.
+
 ## D0 — Delta implementation profile for Omega0
 
 Omega0 source may use only the following already implemented, self-hosted Delta
@@ -88,7 +96,7 @@ separate byte backing. Checked exhaustion cannot compile a retained prefix.
 ## O0 — Omega vertical-canary acceptance profile
 
 O0 is exactly the single-file console program shape represented by
-[`../../../compiler/lattice-corpus/cli_mvp/main.omg`](../../../compiler/lattice-corpus/cli_mvp/main.omg):
+[`../../corpus/cli_mvp/main.omg`](../../corpus/cli_mvp/main.omg):
 
 - UTF-8 source with whitespace, line comments, identifiers, integer literals,
   string literals, and the punctuation used by the declarations below;
@@ -180,3 +188,27 @@ general expressions, user calls, control flow, allocation, proofs, and
 optimization. Those features enter later numbered acceptance profiles only when
 required by the Omega-source production compiler or a deliberate conformance
 slice.
+
+## O1 — planned variable straight-line console profile
+
+O1 is the monotonic replacement for O0's exact two-statement body:
+
+```text
+self.console.write_line(<byte-exact literal>);  // zero or more
+...
+self.console.exit_process(<nonnegative i32 literal>); // exactly one, last
+```
+
+It does not add a new language construct or terminal-Psi vocabulary. Vocabulary
+25 and the product pipeline already support ordered literal places and Unit
+operations. The implementation work is to replace the Delta frontend and direct
+ELF backend's exact-count decoders with checked statement storage, dense ID
+allocation, variable canonical counts, ordered operation emission, and complete
+preflight of source/table/text/image exhaustion before artifact publication.
+
+Acceptance must cover 0, 1, 2, and many writes through the same code path;
+aggregate stdout and newline order; the exact exit status; byte identity with
+the shared codec/lowering for representative cases; canonical meaning; and
+rejection of bad ordering, a non-final or duplicate exit, trailing operations,
+and every declared resource ceiling. O1 remains a small vertical compiler slice,
+not the production-self-host profile.
