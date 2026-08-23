@@ -19,6 +19,11 @@ that closure. Accepted constructs retain exact Omega semantics; this is not a
 bootstrap dialect. The production compiler is written in Omega constrained to
 that `Ωself` profile and implements the full specification for users.
 
+Full specification coverage is a compiler property, not a tool-bundling rule.
+Standalone Terminal-Psi interpreters, REPLs, proof explorers, viewers, and
+debuggers are not bootstrap dependencies unless imported by the production
+compiler executable.
+
 Three separate properties are involved:
 
 - `omega-bootstrap` is intentionally incomplete in Omega input coverage;

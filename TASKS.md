@@ -67,6 +67,9 @@ Remaining:
   implements. Deriving, enforcing, and closing `Ωself` and the Delta-built
   `omega-bootstrap` compiler are tracked separately in `TASKS_BOOTSTRAP.md`;
   product Psi/Omega implementation work must not be added there.
+  Keep compiler-adjacent tools out of the source closure unless the compiler
+  executable imports them; full Omega acceptance does not require a hosted
+  Terminal-Psi interpreter, REPL, proof explorer, viewer, or debugger.
 
 ## Execution order
 

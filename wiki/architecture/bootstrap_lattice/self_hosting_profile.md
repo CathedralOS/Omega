@@ -37,6 +37,12 @@ contain and run the full optimizer when it compiles user programs.
   compiler. A compiler can implement a feature without using that feature in
   its own source.
 
+Here, “implements full Omega” describes the compiler's accepted language and
+the meaning of the artifacts it produces. It does not require the bootstrap
+source closure to contain every adjacent product tool. A standalone Terminal
+Psi interpreter, REPL, proof explorer, viewer, or debugger belongs in the
+closure only if the production compiler executable actually imports it.
+
 The bootstrap closure condition is therefore:
 
 ```text
@@ -80,6 +86,12 @@ assurance burden and remain explicit in Delta's specification.
 The exact profile cannot be frozen before the production compiler source and
 deterministic dependency manifest exist. The working policy is nevertheless
 specific enough to guide that source.
+
+Delta v1 and `Ωself` must be chosen independently. Delta is judged by the cost
+of implementing and assuring `omega-bootstrap`; `Ωself` is judged by the cost
+and robustness of the production compiler source. Neither contract should be
+made artificially resemble the other, and neither source manifest is allowed
+to stand in for a language/profile definition.
 
 Presumptively excluded from compiler source:
 
