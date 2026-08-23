@@ -73,6 +73,7 @@ delegate behavior here.
 
 ## Current Slices
 
+- `commands`: internal source-audit command API for local and Git requests.
 - `manifest`: canonical package/alias names, normalized package capability
   manifests, stable JSON, SHA-256 fingerprints, and manifest diffs.
 - `lock`: machine-written package closure records with resolved source

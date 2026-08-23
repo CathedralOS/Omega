@@ -84,6 +84,14 @@ Completed:
   the exact old/new source identities, old/new manifest fingerprints, accepted
   delta fingerprints, severity, stable JSON, and receipt fingerprint.
 
+- **PACKAGE-SOURCE-AUDIT-COMMAND-API.** Add the first internal command API that
+  the CLI can later wrap without duplicating resolver policy.
+
+  Done 2026-08-23: `omega-packages` exposes `audit_package_source` for local
+  and Git requests. It reports transport kind, locator, requested rev, resolved
+  commit/tree when applicable, deterministic content identity, file count, byte
+  count, and a concise text summary.
+
 Remaining:
 
 - **PACKAGE-CAPABILITY-MANIFEST.** Define the normalized manifest produced for
@@ -156,6 +164,9 @@ Remaining:
   the lock and prints a severity-ranked diff.
 
 - **OMEGA-AUDIT-PACKAGES.** Add a read-only audit command for the package graph.
+
+  Remaining after `PACKAGE-SOURCE-AUDIT-COMMAND-API`: derive package manifests
+  for a resolved graph and expose the graph audit through the `omega` CLI.
 
   Acceptance: `omega audit packages` prints the resolved graph, source pins,
   service reach, build observation classes, provider origins, trust receipts,
