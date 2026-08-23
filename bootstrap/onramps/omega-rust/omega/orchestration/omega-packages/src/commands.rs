@@ -1,3 +1,6 @@
+use crate::audit::{PackageGraphAudit, PackageGraphAuditError, audit_package_graph};
+use crate::lock::{PackageLock, PackageLockPersistenceError};
+use crate::manifest::PackageCapabilityManifest;
 use crate::source::{
     GitSourceSpec, LocalSourceLimits, SourceResolveError, resolve_git_source, resolve_local_source,
 };
@@ -54,6 +57,29 @@ pub struct PackageSourceAudit {
     pub content_identity: String,
     pub file_count: usize,
     pub byte_count: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PackageGraphAuditCommand {
+    pub lock_path: PathBuf,
+    pub audit: PackageGraphAudit,
+}
+
+impl PackageGraphAuditCommand {
+    pub fn to_text(&self) -> String {
+        let mut report = String::new();
+        report.push_str("lock: ");
+        report.push_str(&self.lock_path.display().to_string());
+        report.push('\n');
+        report.push_str(&self.audit.to_text());
+        report
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PackageGraphAuditCommandError {
+    Lock(PackageLockPersistenceError),
+    Graph(PackageGraphAuditError),
 }
 
 impl PackageSourceAudit {
@@ -172,9 +198,26 @@ pub fn audit_package_source(
     }
 }
 
+pub fn audit_package_graph_from_lock(
+    lock_path: impl AsRef<Path>,
+    manifests: &[PackageCapabilityManifest],
+) -> Result<PackageGraphAuditCommand, PackageGraphAuditCommandError> {
+    let lock_path = lock_path.as_ref();
+    let lock =
+        PackageLock::read_from_path(lock_path).map_err(PackageGraphAuditCommandError::Lock)?;
+    let audit =
+        audit_package_graph(&lock, manifests).map_err(PackageGraphAuditCommandError::Graph)?;
+    Ok(PackageGraphAuditCommand {
+        lock_path: lock_path.to_path_buf(),
+        audit,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::lock::{LockedDependency, LockedPackage};
+    use crate::manifest::{AliasName, PackageName, SourceIdentity};
     use std::ffi::OsStr;
     use std::process::Command;
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -205,6 +248,52 @@ mod tests {
             "git command failed: {}",
             String::from_utf8_lossy(&output.stderr)
         );
+    }
+
+    fn package(name: &str) -> PackageName {
+        PackageName::parse(name).unwrap()
+    }
+
+    fn alias(name: &str) -> AliasName {
+        AliasName::parse(name).unwrap()
+    }
+
+    fn manifest(package: &str) -> PackageCapabilityManifest {
+        PackageCapabilityManifest::new(
+            PackageName::parse(package).unwrap(),
+            SourceIdentity {
+                kind: "git".to_owned(),
+                locator: format!("https://github.com/CathedralOS/{package}"),
+                resolved: format!("commit:{package}"),
+            },
+        )
+    }
+
+    fn locked_package(manifest: &PackageCapabilityManifest) -> LockedPackage {
+        LockedPackage {
+            package: manifest.package.clone(),
+            source_kind: manifest.source.kind.clone(),
+            source_locator: manifest.source.locator.clone(),
+            source_identity: manifest.source.resolved.clone(),
+            manifest_fingerprint: manifest.fingerprint(),
+            build_observation: manifest.build_machine.observation_class.clone(),
+            dependencies: Vec::new(),
+            trust_receipts: Vec::new(),
+        }
+    }
+
+    fn graph_lock(
+        root_manifest: &PackageCapabilityManifest,
+        child_manifest: &PackageCapabilityManifest,
+    ) -> PackageLock {
+        let mut root = locked_package(root_manifest);
+        root.dependencies.push(LockedDependency {
+            alias: alias("file_journal"),
+            package: package("file-journal"),
+        });
+        let mut lock = PackageLock::new(root_manifest.package.clone());
+        lock.packages = vec![root, locked_package(child_manifest)];
+        lock
     }
 
     #[test]
@@ -322,5 +411,55 @@ mod tests {
 
         let _ = std::fs::remove_dir_all(&repo);
         let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[test]
+    fn graph_audit_command_reads_lock_and_returns_text() {
+        let root = temp_root("graph-audit");
+        std::fs::create_dir_all(&root).expect("create audit temp");
+        let lock_path = root.join("omega.lock");
+        let root_manifest = manifest("graph-workbench");
+        let mut child_manifest = manifest("file-journal");
+        child_manifest
+            .exported_service_reach
+            .push("FilesystemHost".to_owned());
+        let lock = graph_lock(&root_manifest, &child_manifest);
+        lock.write_to_path(&lock_path).expect("write lock fixture");
+
+        let report = audit_package_graph_from_lock(
+            &lock_path,
+            &[root_manifest.clone(), child_manifest.clone()],
+        )
+        .expect("audit command should succeed");
+        let text = report.to_text();
+
+        assert_eq!(report.lock_path, lock_path);
+        assert!(text.contains("lock: "));
+        assert!(text.contains("package graph audit"));
+        assert!(text.contains("FilesystemHost via graph-workbench -> file-journal"));
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn graph_audit_command_rejects_missing_manifest() {
+        let root = temp_root("graph-audit-missing");
+        std::fs::create_dir_all(&root).expect("create audit temp");
+        let lock_path = root.join("omega.lock");
+        let root_manifest = manifest("graph-workbench");
+        let child_manifest = manifest("file-journal");
+        let lock = graph_lock(&root_manifest, &child_manifest);
+        lock.write_to_path(&lock_path).expect("write lock fixture");
+
+        assert_eq!(
+            audit_package_graph_from_lock(&lock_path, &[root_manifest]),
+            Err(PackageGraphAuditCommandError::Graph(
+                PackageGraphAuditError::MissingManifest {
+                    package: "file-journal".to_owned(),
+                }
+            ))
+        );
+
+        let _ = std::fs::remove_dir_all(&root);
     }
 }
