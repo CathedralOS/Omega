@@ -1,0 +1,17 @@
+// FAIL canary: admitting one primitive field store does not make an ordinary
+// affine record freely discardable as a whole.
+
+data Pair {
+    left: u8;
+    right: u8;
+}
+
+machine replace(pair: &write Pair, replacement: Pair) {
+    pair = move replacement;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

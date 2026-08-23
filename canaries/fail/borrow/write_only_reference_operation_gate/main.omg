@@ -1,13 +1,16 @@
-// FAIL canary: general aggregate projection remains outside the checked
-// fixed-byte-array milestone.
+// FAIL canary: the direct common-field rung does not recursively grant access
+// through nested records.
 
-data Pair {
-    left: u8;
-    right: u8;
+data Inner {
+    value: u8;
 }
 
-machine fill(pair: &write Pair) {
-    pair.left = 1;
+data Outer {
+    inner: Inner;
+}
+
+machine fill(outer: &write Outer) {
+    outer.inner.value = 1;
 }
 
 data Main {

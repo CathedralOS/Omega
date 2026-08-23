@@ -1,0 +1,17 @@
+// FAIL canary: the first record-field rung admits only an unconstrained
+// unrestricted primitive field. Supplying a range-qualified replacement does
+// not silently widen that settled slice.
+
+data Limited {
+    value: u8 [0..=10];
+}
+
+machine replace(limited: &write Limited, next: u8 [0..=10]) {
+    limited.value = next;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

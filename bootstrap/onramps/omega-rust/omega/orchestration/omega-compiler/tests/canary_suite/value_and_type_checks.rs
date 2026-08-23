@@ -14,19 +14,78 @@ fn write_only_fixed_byte_elements_are_accepted() {
 }
 
 #[test]
-fn write_only_aggregate_projection_is_rejected() {
+fn write_only_direct_record_fields_are_accepted() {
+    let canary = pass_canary("borrow/write_only_record_field_replace");
+    check_canary(&canary)
+        .expect("direct primitive fields of plain records should be replaceable through &write");
+}
+
+#[test]
+fn write_only_nested_record_projection_is_rejected() {
     let canary = fail_canary("borrow/write_only_reference_operation_gate");
-    let diagnostics =
-        check_canary(&canary).expect_err("write-only aggregate projection must remain gated");
+    let diagnostics = check_canary(&canary)
+        .expect_err("nested write-only aggregate projection must remain gated");
     let combined = diagnostics
         .iter()
         .map(ToString::to_string)
         .collect::<Vec<_>>()
         .join("\n");
     assert!(
-        combined.contains("unrestricted primitive scalars and fixed byte arrays")
-            && combined.contains("proven-in-bounds element replacement"),
-        "expected directed aggregate and projection diagnostics, got:\n{combined}"
+        combined.contains("unsupported write-only projection")
+            && combined.contains("direct common field")
+            && combined.contains("nested"),
+        "expected directed nested-projection diagnostic, got:\n{combined}"
+    );
+}
+
+#[test]
+fn write_only_whole_record_replacement_requires_discardable_root() {
+    let canary = fail_canary("borrow/write_only_record_whole_root_replacement");
+    let diagnostics = check_canary(&canary)
+        .expect_err("whole replacement of an affine write-only record must remain gated");
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("replaces whole write-only record `pair`")
+            && combined.contains("freely discardable root"),
+        "expected directed whole-record displacement diagnostic, got:\n{combined}"
+    );
+}
+
+#[test]
+fn write_only_record_field_observation_is_rejected() {
+    let canary = fail_canary("borrow/write_only_record_field_observation");
+    let diagnostics =
+        check_canary(&canary).expect_err("direct record-field observation must remain forbidden");
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("reads field `left` from write-only parameter `pair`")
+            && combined.contains("never grants observation"),
+        "expected directed record-field observation diagnostic, got:\n{combined}"
+    );
+}
+
+#[test]
+fn write_only_constrained_record_field_is_rejected() {
+    let canary = fail_canary("borrow/write_only_constrained_record_field");
+    let diagnostics = check_canary(&canary)
+        .expect_err("qualified record-field replacement must remain outside this rung");
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("unsupported write-only projection")
+            && combined.contains("unconstrained unrestricted primitive"),
+        "expected directed constrained-field diagnostic, got:\n{combined}"
     );
 }
 
