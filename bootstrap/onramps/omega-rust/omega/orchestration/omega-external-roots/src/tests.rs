@@ -13,6 +13,12 @@ use omega_calling_conventions::{
 use omega_effects::provider_plan::{
     ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod, ServiceSchema,
 };
+use omega_effects::{
+    ComponentEraCandidate, ComponentEraEntryLedger, ComponentEraLedgerId,
+    ComponentEraPublicationReceipt, ExecutableTcbManifest, ExecutableTcbProfile,
+    ExecutableTcbProfileAcceptance, ExecutionScope, IncompleteScopePolicy,
+    ProgramLocalRootEpochLeaseId, ScopeCompleteness, evaluate_executable_tcb_profile,
+};
 use omega_executable_installation::{
     AdmissionReceiptId, Artifact, ArtifactAdmissionEvidence, ArtifactContentId, ArtifactEntry,
     CodePlacementAuthority, CodePlacementId, EntrySetId, FinalValidationCertificate,
@@ -33,6 +39,7 @@ use psi_layout_plans::{
     PlacementConstraints, PlacementPhase, PlacementSite, PostHandoffWriterPlan,
     PostHandoffWriterSource, PostHandoffWriterStep, RelocationTarget,
 };
+use psi_proof_kernel::AdmissionProfile;
 use psi_terminal::{
     BoundaryMachineDeclaration, InstallationReachDependency, ServiceDeclaration,
     StructuralDomainDeclaration, StructuralDomainRequirement, StructuralMultiplicity,
@@ -1370,6 +1377,17 @@ fn program_local_terminal_object(module: &TerminalModule) -> TestTerminalObject 
     }
 }
 
+fn program_local_root_catalog(
+    module: &TerminalModule,
+) -> psi_terminal_codec::VerifiedProgramLocalRootProducerCatalog {
+    let proof = psi_terminal_verifier::ProofBundle::default();
+    let verified =
+        psi_terminal_verifier::verify_module(module, &proof, &AdmissionProfile::default())
+            .expect("program-local terminal module verifies");
+    psi_terminal_codec::VerifiedProgramLocalRootProducerCatalog::from_verified(&verified)
+        .expect("verified program-local producer catalog")
+}
+
 fn program_local_claim() -> ExternalRootEntryClaim {
     ExternalRootEntryClaim {
         parameter_index: 0,
@@ -1378,11 +1396,123 @@ fn program_local_claim() -> ExternalRootEntryClaim {
     }
 }
 
+fn program_local_tcb_acceptance(seed: u64) -> ExecutableTcbProfileAcceptance {
+    evaluate_executable_tcb_profile(
+        &ExecutableTcbManifest {
+            known_entries: Vec::new(),
+            completeness: ScopeCompleteness::Complete {
+                scope: ExecutionScope::CallerAddressSpace,
+                selected_provider_closure_identity: seed,
+                opaque_closure_evidence: Vec::new(),
+                runtime_closure_evidence: Vec::new(),
+            },
+        },
+        &ExecutableTcbProfile {
+            name: format!("program-local-era-{seed}"),
+            scope: ExecutionScope::CallerAddressSpace,
+            allow_static_current_artifact_checked_bodies: true,
+            exact_allowances: Vec::new(),
+            incomplete_scope: IncompleteScopePolicy::Reject,
+        },
+    )
+    .expect("component-era TCB profile acceptance")
+}
+
+fn program_local_lifecycle(
+    ledger_identity: u64,
+    era_identity: u64,
+    artifact_instance_identity: u64,
+    entry_contract_identity: &str,
+) -> ComponentEraEntryLedger {
+    let mut ledger = ComponentEraEntryLedger::new(
+        ComponentEraLedgerId::from_normalized_identity(ledger_identity)
+            .expect("component-era ledger identity"),
+        "TestRootBinding/v1".into(),
+        entry_contract_identity.into(),
+        2,
+        program_local_tcb_acceptance(ledger_identity),
+    )
+    .expect("component-era ledger");
+    publish_program_local_era(
+        &mut ledger,
+        era_identity,
+        artifact_instance_identity,
+        entry_contract_identity,
+        era_identity + 100,
+        false,
+    );
+    ledger
+}
+
+fn publish_program_local_era(
+    ledger: &mut ComponentEraEntryLedger,
+    era_identity: u64,
+    artifact_instance_identity: u64,
+    entry_contract_identity: &str,
+    publication_identity: u64,
+    previous_era_closed: bool,
+) {
+    let candidate = ComponentEraCandidate {
+        era_identity,
+        artifact_instance_identity,
+        binding_contract_identity: "TestRootBinding/v1".into(),
+        entry_contract_identity: entry_contract_identity.into(),
+        entry_plan_identity: format!("entry-plan:{era_identity}"),
+        entry_plan_admission_receipt_identity: format!("entry-plan-receipt:{era_identity}"),
+        executable_tcb_acceptance: program_local_tcb_acceptance(era_identity),
+    };
+    let receipt = ComponentEraPublicationReceipt::from_runtime(
+        publication_identity,
+        ledger,
+        &candidate,
+        true,
+        previous_era_closed,
+    );
+    ledger
+        .publish(candidate, receipt)
+        .expect("publish component era");
+}
+
+fn program_local_epoch_lease(
+    ledger: &mut ComponentEraEntryLedger,
+    lease_identity: u64,
+    era_identity: u64,
+    entry_contract_identity: &str,
+) -> omega_effects::ProgramLocalRootEpochLease {
+    ledger
+        .acquire_program_local_root_epoch_lease(
+            ProgramLocalRootEpochLeaseId::from_normalized_identity(lease_identity)
+                .expect("program-local epoch lease identity"),
+            era_identity,
+            entry_contract_identity,
+        )
+        .expect("program-local epoch lease")
+}
+
+fn join_program_local<'root, 'code>(
+    installation: &mut ProgramLocalRootInstallationLedger,
+    prebinding: ProgramLocalRootPrebindingId,
+    root: &'root InstalledExternalRoot<'code>,
+    lifecycle: &mut ComponentEraEntryLedger,
+    lease_identity: u64,
+    era_identity: u64,
+    entry_contract_identity: &str,
+) -> Result<InstalledProgramLocalRootOccurrence<'root, 'code>, ProgramLocalRootJoinError> {
+    let lease = program_local_epoch_lease(
+        lifecycle,
+        lease_identity,
+        era_identity,
+        entry_contract_identity,
+    );
+    installation.join(prebinding, root, lifecycle, lease)
+}
+
 #[test]
 fn program_local_root_schemas_prebind_exact_installed_slots_without_minting() {
     let entry = entry_id(1);
     let code = installed_code(1, entry);
     let module = program_local_root_module();
+    let catalog = program_local_root_catalog(&module);
     let terminal = program_local_terminal_object(&module);
     let (_first_ledger, first) =
         install_test_root_with_ids(&code, entry, 1, 20, 21, 22, vec![program_local_claim()]);
@@ -1395,21 +1525,21 @@ fn program_local_root_schemas_prebind_exact_installed_slots_without_minting() {
         122,
         vec![program_local_claim()],
     );
-    let mut bindings = ProgramLocalRootInstalledOccurrenceLedger::new();
+    let mut bindings = ProgramLocalRootInstallationLedger::new();
     let first_occurrences = bindings
-        .prebind(&module, &terminal, &first)
+        .prebind(&catalog, &terminal, &first)
         .expect("first exact slot prebinding");
     let [first_occurrence] = first_occurrences.as_slice() else {
         panic!("one producer schema")
     };
-    let first_identity = first_occurrence.occurrence_identity;
+    let first_identity = first_occurrence.identity();
     let second_occurrences = bindings
-        .prebind(&module, &terminal, &second)
+        .prebind(&catalog, &terminal, &second)
         .expect("second exact slot prebinding");
     let [second_occurrence] = second_occurrences.as_slice() else {
         panic!("one producer schema")
     };
-    assert_ne!(first_identity, second_occurrence.occurrence_identity);
+    assert_ne!(first_identity, second_occurrence.identity());
     let counts = bindings.counts();
     let [count] = counts.as_slice() else {
         panic!("one exact installed schema count")
@@ -1419,7 +1549,7 @@ fn program_local_root_schemas_prebind_exact_installed_slots_without_minting() {
         count.per_occurrence_capacity,
         module.boundary_machines[0].program_local_root_introductions[0].capacity
     );
-    assert!(bindings.prebind(&module, &terminal, &first).is_err());
+    assert!(bindings.prebind(&catalog, &terminal, &first).is_err());
 }
 
 #[test]
@@ -1427,6 +1557,7 @@ fn program_local_root_prebinding_rejects_catalog_object_and_claim_substitution()
     let entry = entry_id(1);
     let code = installed_code(1, entry);
     let module = program_local_root_module();
+    let catalog = program_local_root_catalog(&module);
     let terminal = program_local_terminal_object(&module);
     let (_root_ledger, root) =
         install_test_root_with_ids(&code, entry, 1, 20, 21, 22, vec![program_local_claim()]);
@@ -1434,9 +1565,12 @@ fn program_local_root_prebinding_rejects_catalog_object_and_claim_substitution()
     let mut tampered_module = module.clone();
     tampered_module.boundary_machines[0].program_local_root_introductions[0].identity ^= 1;
     assert!(
-        ProgramLocalRootInstalledOccurrenceLedger::new()
-            .prebind(&tampered_module, &terminal, &root)
-            .is_err()
+        psi_terminal_verifier::verify_module(
+            &tampered_module,
+            &psi_terminal_verifier::ProofBundle::default(),
+            &AdmissionProfile::default(),
+        )
+        .is_err()
     );
 
     let mut wrong_object = program_local_terminal_object(&module);
@@ -1445,8 +1579,8 @@ fn program_local_root_prebinding_rejects_catalog_object_and_claim_substitution()
         program_fingerprint: psi_terminal::SemanticFingerprint::from_bytes([9; 32]),
     };
     assert!(
-        ProgramLocalRootInstalledOccurrenceLedger::new()
-            .prebind(&module, &wrong_object, &root)
+        ProgramLocalRootInstallationLedger::new()
+            .prebind(&catalog, &wrong_object, &root)
             .is_err()
     );
 
@@ -1463,10 +1597,306 @@ fn program_local_root_prebinding_rejects_catalog_object_and_claim_substitution()
         }],
     );
     assert!(
-        ProgramLocalRootInstalledOccurrenceLedger::new()
-            .prebind(&module, &terminal, &wrong_claim_root)
+        ProgramLocalRootInstallationLedger::new()
+            .prebind(&catalog, &terminal, &wrong_claim_root)
             .is_err()
     );
+}
+
+#[test]
+fn program_local_root_join_pins_exact_root_artifact_contract_and_epoch_once() {
+    let entry = entry_id(1);
+    let code = installed_code(1, entry);
+    let module = program_local_root_module();
+    let catalog = program_local_root_catalog(&module);
+    let terminal = program_local_terminal_object(&module);
+    let (_root_ledger, root) =
+        install_test_root_with_ids(&code, entry, 1, 20, 21, 22, vec![program_local_claim()]);
+    let mut installation = ProgramLocalRootInstallationLedger::new();
+    let [prebinding] = installation
+        .prebind(&catalog, &terminal, &root)
+        .expect("verified installed prebinding")
+        .try_into()
+        .expect("one program-local prebinding");
+    let prebinding = prebinding.identity();
+    let mut lifecycle = program_local_lifecycle(
+        700,
+        10,
+        code.identity().normalized_identity(),
+        "TestRoot::entry",
+    );
+    let occurrence = join_program_local(
+        &mut installation,
+        prebinding,
+        &root,
+        &mut lifecycle,
+        800,
+        10,
+        "TestRoot::entry",
+    )
+    .expect("exact lifecycle join");
+    assert_eq!(occurrence.identity().prebinding(), prebinding);
+    assert_eq!(occurrence.identity().lifecycle_epoch(), 10);
+    assert_eq!(lifecycle.program_local_root_authority_holds(10), Some(1));
+
+    let mut foreign_lifecycle = program_local_lifecycle(
+        701,
+        10,
+        code.identity().normalized_identity(),
+        "TestRoot::entry",
+    );
+    let foreign = join_program_local(
+        &mut installation,
+        prebinding,
+        &root,
+        &mut foreign_lifecycle,
+        850,
+        10,
+        "TestRoot::entry",
+    )
+    .expect_err("one installed prebinding family has one lifecycle ledger");
+    assert!(foreign.diagnostic().0.contains("another lifecycle ledger"));
+    let (_, foreign_lease) = foreign.into_parts();
+    foreign_lifecycle
+        .release_program_local_root_epoch_lease(foreign_lease)
+        .expect("lifecycle substitution returns its lease");
+
+    let replay = join_program_local(
+        &mut installation,
+        prebinding,
+        &root,
+        &mut lifecycle,
+        801,
+        10,
+        "TestRoot::entry",
+    )
+    .expect_err("one exact occurrence cannot join twice in one era");
+    let (_, replay_lease) = replay.into_parts();
+    lifecycle
+        .release_program_local_root_epoch_lease(replay_lease)
+        .expect("rejected join returns its lease intact");
+
+    let retired = installation
+        .retire(occurrence, &mut lifecycle)
+        .expect("exact occurrence retirement");
+    assert_eq!(retired.identity().prebinding(), prebinding);
+    assert_eq!(lifecycle.program_local_root_authority_holds(10), Some(0));
+
+    let replay = join_program_local(
+        &mut installation,
+        prebinding,
+        &root,
+        &mut lifecycle,
+        802,
+        10,
+        "TestRoot::entry",
+    )
+    .expect_err("retirement never makes the same-era origin reusable");
+    let (_, replay_lease) = replay.into_parts();
+    lifecycle
+        .release_program_local_root_epoch_lease(replay_lease)
+        .expect("used-key rejection returns its lease");
+
+    publish_program_local_era(
+        &mut lifecycle,
+        20,
+        code.identity().normalized_identity(),
+        "TestRoot::entry",
+        120,
+        true,
+    );
+    let next_epoch = join_program_local(
+        &mut installation,
+        prebinding,
+        &root,
+        &mut lifecycle,
+        803,
+        20,
+        "TestRoot::entry",
+    )
+    .expect("a later lifecycle epoch is a fresh occurrence");
+    assert_eq!(next_epoch.identity().lifecycle_epoch(), 20);
+    installation
+        .retire(next_epoch, &mut lifecycle)
+        .expect("later epoch occurrence retires independently");
+}
+
+#[test]
+fn program_local_root_failed_join_returns_lease_without_burning_the_occurrence() {
+    let entry = entry_id(1);
+    let code = installed_code(1, entry);
+    let module = program_local_root_module();
+    let catalog = program_local_root_catalog(&module);
+    let terminal = program_local_terminal_object(&module);
+    let (_first_root_ledger, first) =
+        install_test_root_with_ids(&code, entry, 1, 20, 21, 22, vec![program_local_claim()]);
+    let (_other_root_ledger, other) = install_test_root_with_ids(
+        &code,
+        entry,
+        101,
+        120,
+        121,
+        122,
+        vec![program_local_claim()],
+    );
+    let mut installation = ProgramLocalRootInstallationLedger::new();
+    let [prebinding] = installation
+        .prebind(&catalog, &terminal, &first)
+        .expect("verified installed prebinding")
+        .try_into()
+        .expect("one program-local prebinding");
+    let prebinding = prebinding.identity();
+
+    let mut lifecycle = program_local_lifecycle(
+        710,
+        10,
+        code.identity().normalized_identity(),
+        "TestRoot::entry",
+    );
+    let substituted = join_program_local(
+        &mut installation,
+        prebinding,
+        &other,
+        &mut lifecycle,
+        810,
+        10,
+        "TestRoot::entry",
+    )
+    .expect_err("a different installed root cannot satisfy the prebinding");
+    let (_, lease) = substituted.into_parts();
+    lifecycle
+        .release_program_local_root_epoch_lease(lease)
+        .expect("root substitution returns the lease");
+
+    let mut wrong_artifact = program_local_lifecycle(
+        711,
+        10,
+        code.identity().normalized_identity() + 1,
+        "TestRoot::entry",
+    );
+    let substituted = join_program_local(
+        &mut installation,
+        prebinding,
+        &first,
+        &mut wrong_artifact,
+        811,
+        10,
+        "TestRoot::entry",
+    )
+    .expect_err("artifact occurrence substitution rejects");
+    let (_, lease) = substituted.into_parts();
+    wrong_artifact
+        .release_program_local_root_epoch_lease(lease)
+        .expect("artifact substitution returns the lease");
+
+    let mut wrong_contract = program_local_lifecycle(
+        712,
+        10,
+        code.identity().normalized_identity(),
+        "OtherRoot::entry",
+    );
+    let substituted = join_program_local(
+        &mut installation,
+        prebinding,
+        &first,
+        &mut wrong_contract,
+        812,
+        10,
+        "OtherRoot::entry",
+    )
+    .expect_err("entry-contract substitution rejects");
+    let (_, lease) = substituted.into_parts();
+    wrong_contract
+        .release_program_local_root_epoch_lease(lease)
+        .expect("contract substitution returns the lease");
+
+    let mut stale_lifecycle = program_local_lifecycle(
+        713,
+        10,
+        code.identity().normalized_identity(),
+        "TestRoot::entry",
+    );
+    let stale_lease = program_local_epoch_lease(&mut stale_lifecycle, 814, 10, "TestRoot::entry");
+    publish_program_local_era(
+        &mut stale_lifecycle,
+        20,
+        code.identity().normalized_identity(),
+        "TestRoot::entry",
+        121,
+        true,
+    );
+    let stale = installation
+        .join(prebinding, &first, &stale_lifecycle, stale_lease)
+        .expect_err("a lease from a now-closing era cannot establish new authority");
+    assert!(stale.diagnostic().0.contains("current open era"));
+    let (_, stale_lease) = stale.into_parts();
+    stale_lifecycle
+        .release_program_local_root_epoch_lease(stale_lease)
+        .expect("stale establishment rejection returns the lifecycle hold");
+
+    let exact = join_program_local(
+        &mut installation,
+        prebinding,
+        &first,
+        &mut lifecycle,
+        813,
+        10,
+        "TestRoot::entry",
+    )
+    .expect("failed joins did not burn the exact occurrence");
+    installation
+        .retire(exact, &mut lifecycle)
+        .expect("exact occurrence remains retireable");
+}
+
+#[test]
+fn program_local_root_failed_retirement_returns_the_complete_occurrence() {
+    let entry = entry_id(1);
+    let code = installed_code(1, entry);
+    let module = program_local_root_module();
+    let catalog = program_local_root_catalog(&module);
+    let terminal = program_local_terminal_object(&module);
+    let (_root_ledger, root) =
+        install_test_root_with_ids(&code, entry, 1, 20, 21, 22, vec![program_local_claim()]);
+    let mut installation = ProgramLocalRootInstallationLedger::new();
+    let [prebinding] = installation
+        .prebind(&catalog, &terminal, &root)
+        .expect("verified installed prebinding")
+        .try_into()
+        .expect("one program-local prebinding");
+    let mut rightful = program_local_lifecycle(
+        720,
+        10,
+        code.identity().normalized_identity(),
+        "TestRoot::entry",
+    );
+    let mut substituted = program_local_lifecycle(
+        721,
+        10,
+        code.identity().normalized_identity(),
+        "TestRoot::entry",
+    );
+    let occurrence = join_program_local(
+        &mut installation,
+        prebinding.identity(),
+        &root,
+        &mut rightful,
+        820,
+        10,
+        "TestRoot::entry",
+    )
+    .expect("exact lifecycle join");
+
+    let error = installation
+        .retire(occurrence, &mut substituted)
+        .expect_err("another lifecycle ledger cannot release the occurrence");
+    assert!(error.diagnostic().0.contains("lifecycle lease"));
+    let occurrence = (*error).into_occurrence();
+    assert_eq!(rightful.program_local_root_authority_holds(10), Some(1));
+    installation
+        .retire(occurrence, &mut rightful)
+        .expect("returned occurrence retires through the rightful ledger");
+    assert_eq!(rightful.program_local_root_authority_holds(10), Some(0));
 }
 
 fn interrupt_boundary() -> ValidatedBoundaryEntryPlan {

@@ -23,4 +23,6 @@ psi-terminal-fixed-fuel = { path = "../../../psi/semantics/psi-terminal-fixed-fu
 
 [dev-dependencies]
 psi-extents = { path = "../../../psi/foundation/psi-extents" }
+psi-proof-kernel = { path = "../../../psi/semantics/psi-proof-kernel" }
+psi-terminal-verifier = { path = "../../../psi/semantics/psi-terminal-verifier" }
 omega-target = { path = "../../foundation/omega-target" }

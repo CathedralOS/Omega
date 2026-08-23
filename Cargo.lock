@@ -563,9 +563,11 @@ dependencies = [
  "psi-extents",
  "psi-language-semantics",
  "psi-layout-plans",
+ "psi-proof-kernel",
  "psi-terminal",
  "psi-terminal-codec",
  "psi-terminal-fixed-fuel",
+ "psi-terminal-verifier",
 ]
 
 [[package]]
