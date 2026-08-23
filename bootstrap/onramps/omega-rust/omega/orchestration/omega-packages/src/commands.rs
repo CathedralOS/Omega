@@ -1,9 +1,12 @@
 use crate::audit::{PackageGraphAudit, PackageGraphAuditError, audit_package_graph};
+use crate::diff::{ManifestDelta, ManifestDiff, diff_package_capability_manifests};
 use crate::install::{PackageInstallPlan, PackageInstallPlanError, plan_package_install};
 use crate::lock::{PackageLock, PackageLockPersistenceError};
 use crate::manifest::{AliasName, PackageCapabilityManifest, PackageName};
 use crate::resolver::{SourceCachePolicyRecord, SourceCacheRequest, resolve_source_cache_record};
-use crate::review::{CapabilityChangeReceipt, CapabilityChangeReceiptPersistenceError};
+use crate::review::{
+    CapabilityChangeReceipt, CapabilityChangeReceiptPersistenceError, CapabilityReviewError,
+};
 use crate::source::{
     GitSourceSpec, LocalSourceLimits, SourceResolveError, resolve_git_source, resolve_local_source,
 };
@@ -82,6 +85,13 @@ pub struct PackageLockUpdatePlanCommand {
     pub plan: PackageLockUpdatePlan,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CapabilityChangeReviewCommand {
+    pub receipt: CapabilityChangeReceipt,
+    pub diff: ManifestDiff,
+    pub blocking_deltas: Vec<ManifestDelta>,
+}
+
 impl PackageGraphAuditCommand {
     pub fn to_text(&self) -> String {
         let mut report = String::new();
@@ -120,6 +130,33 @@ impl PackageLockUpdatePlanCommand {
     }
 }
 
+impl CapabilityChangeReviewCommand {
+    pub fn to_text(&self) -> String {
+        let mut report = String::new();
+        report.push_str("capability-change review receipt\n");
+        report.push_str("receipt: ");
+        report.push_str(&self.receipt.fingerprint());
+        report.push('\n');
+        report.push_str("old source: ");
+        report.push_str(&self.receipt.old_source_identity);
+        report.push('\n');
+        report.push_str("new source: ");
+        report.push_str(&self.receipt.new_source_identity);
+        report.push('\n');
+        report.push_str("blocking sections:");
+        for delta in &self.blocking_deltas {
+            report.push(' ');
+            report.push_str(&delta.section);
+            report.push('(');
+            report.push_str(delta.severity.as_str());
+            report.push(')');
+        }
+        report.push('\n');
+        report.push_str(&self.diff.to_text());
+        report
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PackageGraphAuditCommandError {
     Lock(PackageLockPersistenceError),
@@ -137,6 +174,21 @@ pub enum PackageLockUpdatePlanCommandError {
     Lock(PackageLockPersistenceError),
     Receipt(CapabilityChangeReceiptPersistenceError),
     Plan(PackageLockUpdatePlanError),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CapabilityChangeReviewCommandError {
+    PackageMismatch {
+        old_package: String,
+        new_package: String,
+    },
+    NoManifestChange {
+        package: String,
+    },
+    SourceOnlyChange {
+        package: String,
+    },
+    Review(CapabilityReviewError),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -365,6 +417,53 @@ pub fn plan_package_lock_update_from_lock(
         lock_path: lock_path.to_path_buf(),
         receipt_path: receipt_path.map(Path::to_path_buf),
         plan,
+    })
+}
+
+pub fn create_capability_change_review(
+    old_manifest: &PackageCapabilityManifest,
+    new_manifest: &PackageCapabilityManifest,
+    reviewer: impl Into<String>,
+    reason: impl Into<String>,
+) -> Result<CapabilityChangeReviewCommand, CapabilityChangeReviewCommandError> {
+    let old = old_manifest.normalized_clone();
+    let new = new_manifest.normalized_clone();
+    if old.package != new.package {
+        return Err(CapabilityChangeReviewCommandError::PackageMismatch {
+            old_package: old.package.as_str().to_owned(),
+            new_package: new.package.as_str().to_owned(),
+        });
+    }
+    let diff = diff_package_capability_manifests(&old, &new);
+    if diff.is_empty() {
+        return Err(CapabilityChangeReviewCommandError::NoManifestChange {
+            package: old.package.as_str().to_owned(),
+        });
+    }
+    let blocking_deltas = diff
+        .deltas
+        .iter()
+        .filter(|delta| delta.section != "source")
+        .cloned()
+        .collect::<Vec<_>>();
+    if blocking_deltas.is_empty() {
+        return Err(CapabilityChangeReviewCommandError::SourceOnlyChange {
+            package: old.package.as_str().to_owned(),
+        });
+    }
+    let receipt = CapabilityChangeReceipt::from_diff(
+        &diff,
+        old.source.resolved,
+        new.source.resolved,
+        reviewer,
+        reason,
+    )
+    .map_err(CapabilityChangeReviewCommandError::Review)?;
+
+    Ok(CapabilityChangeReviewCommand {
+        receipt,
+        diff,
+        blocking_deltas,
     })
 }
 
@@ -801,5 +900,83 @@ mod tests {
         assert!(text.contains("admitted by capability-change receipt"));
 
         let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn capability_change_review_command_creates_exact_receipt() {
+        let old = manifest("file-journal");
+        let mut new = manifest("file-journal");
+        new.source.resolved = "commit:file-journal-new".to_owned();
+        new.exported_service_reach.push("FilesystemHost".to_owned());
+
+        let command = create_capability_change_review(
+            &old,
+            &new,
+            "reviewer@example.invalid",
+            "audited filesystem reach",
+        )
+        .expect("capability change should create receipt");
+        let text = command.to_text();
+
+        assert!(command.receipt.accepts(&command.diff));
+        assert_eq!(command.receipt.old_source_identity, "commit:file-journal");
+        assert_eq!(
+            command.receipt.new_source_identity,
+            "commit:file-journal-new"
+        );
+        assert!(
+            command
+                .blocking_deltas
+                .iter()
+                .any(|delta| delta.section == "exported_service_reach")
+        );
+        assert!(text.contains("capability-change review receipt"));
+        assert!(text.contains("exported_service_reach(high)"));
+    }
+
+    #[test]
+    fn capability_change_review_command_rejects_source_only_or_noop() {
+        let old = manifest("file-journal");
+        let mut source_only = manifest("file-journal");
+        source_only.source.resolved = "commit:file-journal-new".to_owned();
+
+        assert_eq!(
+            create_capability_change_review(
+                &old,
+                &source_only,
+                "reviewer@example.invalid",
+                "audited source-only update",
+            ),
+            Err(CapabilityChangeReviewCommandError::SourceOnlyChange {
+                package: "file-journal".to_owned(),
+            })
+        );
+        assert_eq!(
+            create_capability_change_review(
+                &old,
+                &old,
+                "reviewer@example.invalid",
+                "audited no-op update",
+            ),
+            Err(CapabilityChangeReviewCommandError::NoManifestChange {
+                package: "file-journal".to_owned(),
+            })
+        );
+    }
+
+    #[test]
+    fn capability_change_review_command_rejects_package_mismatch() {
+        assert_eq!(
+            create_capability_change_review(
+                &manifest("file-journal"),
+                &manifest("arithmetic-kernels"),
+                "reviewer@example.invalid",
+                "audited package mismatch",
+            ),
+            Err(CapabilityChangeReviewCommandError::PackageMismatch {
+                old_package: "file-journal".to_owned(),
+                new_package: "arithmetic-kernels".to_owned(),
+            })
+        );
     }
 }

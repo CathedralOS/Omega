@@ -162,6 +162,15 @@ Completed:
   reject empty or duplicate accepted-delta lists, and read/write standalone
   receipt files through same-directory temporary files and atomic rename.
 
+- **CAPABILITY-CHANGE-REVIEW-COMMAND-API.** Add the command seam that creates
+  explicit capability-change review receipts from old/new package manifests.
+
+  Done 2026-08-23: `omega-packages` exposes a command-style receipt creation
+  API that compares normalized old/new package manifests, rejects package
+  mismatches, no-op changes, and source-only updates, binds the receipt to the
+  exact old/new source identities and manifest delta fingerprints, and returns
+  reviewer-facing diff text without choosing final receipt storage.
+
 - **LOCAL-PACKAGE-FIXTURE-CORPUS.** Add the first local package corpus for
   resolver, install, update, and audit tests.
 
@@ -482,7 +491,8 @@ Remaining:
 
   Remaining after `CAPABILITY-REVIEW-RECEIPT-MODEL`,
   `REVIEWED-UPDATE-ADMISSION`, and
-  `CAPABILITY-CHANGE-RECEIPT-PERSISTENCE`: wire receipt creation/loading into
+  `CAPABILITY-CHANGE-RECEIPT-PERSISTENCE`, and
+  `CAPABILITY-CHANGE-REVIEW-COMMAND-API`: wire receipt creation/loading into
   `omega update` and persist accepted receipts in or beside `omega.lock`.
 
   Acceptance: higher-capability updates require an acceptance receipt. New

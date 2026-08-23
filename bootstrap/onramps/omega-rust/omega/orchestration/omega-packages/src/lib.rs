@@ -24,13 +24,13 @@ pub use audit::{
     audit_package_graph,
 };
 pub use commands::{
-    PackageGraphAuditCommand, PackageGraphAuditCommandError, PackageInstallPlanCommand,
-    PackageInstallPlanCommandError, PackageLockUpdatePlanCommand,
-    PackageLockUpdatePlanCommandError, PackageSourceAudit, PackageSourceAuditCommandError,
-    PackageSourceRequest, PackageSourceRequestParseError, SourceCachePolicyCommandError,
-    audit_package_graph_from_lock, audit_package_source, audit_package_source_locator,
-    plan_package_install_from_lock, plan_package_lock_update_from_lock,
-    resolve_source_cache_record_locator,
+    CapabilityChangeReviewCommand, CapabilityChangeReviewCommandError, PackageGraphAuditCommand,
+    PackageGraphAuditCommandError, PackageInstallPlanCommand, PackageInstallPlanCommandError,
+    PackageLockUpdatePlanCommand, PackageLockUpdatePlanCommandError, PackageSourceAudit,
+    PackageSourceAuditCommandError, PackageSourceRequest, PackageSourceRequestParseError,
+    SourceCachePolicyCommandError, audit_package_graph_from_lock, audit_package_source,
+    audit_package_source_locator, create_capability_change_review, plan_package_install_from_lock,
+    plan_package_lock_update_from_lock, resolve_source_cache_record_locator,
 };
 pub use diff::{ManifestDelta, ManifestDiff, ManifestSeverity, diff_package_capability_manifests};
 pub use install::{PackageInstallPlan, PackageInstallPlanError, plan_package_install};

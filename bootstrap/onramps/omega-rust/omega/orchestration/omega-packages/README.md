@@ -95,8 +95,9 @@ cargo test -p omega-packages --test remote_fixtures -- --ignored --test-threads=
 - `commands`: internal source-audit command API plus CLI-ready source locator
   parsing for local paths, `file://`, HTTPS Git URLs, and SSH/scp-style Git
   locators. It also contains locator-backed source audit, locator-backed
-  source-cache policy records, lock-file backed install/update plan commands,
-  and the lock-file backed graph-audit command seam for future CLI wiring.
+  source-cache policy records, capability-change receipt creation,
+  lock-file backed install/update plan commands, and the lock-file backed
+  graph-audit command seam for future CLI wiring.
 - `audit`: resolved package-graph audit over locks and manifests, including
   dependency paths for exported service reach and fail-closed consistency
   checks. Audit rows surface source identity, dependency aliases, provider
@@ -120,7 +121,8 @@ cargo test -p omega-packages --test remote_fixtures -- --ignored --test-threads=
   source identities, manifest fingerprints, accepted diff sections, reviewer,
   and reason. Receipts have strict JSON parsing plus standalone atomic
   read/write support so CLI wiring can load explicit review receipts without
-  deciding final receipt placement yet.
+  deciding final receipt placement yet. Command-level creation rejects no-op,
+  source-only, and package-mismatched updates.
 - `resolver`: source-cache policy records for local/Git resolution, including
   limits, path/submodule policy, resolved identities, success/rejection verdict,
   stable JSON, and record fingerprints.
