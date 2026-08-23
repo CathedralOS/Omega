@@ -142,7 +142,7 @@ cargo test -p omega-packages --test remote_fixtures -- --ignored --test-threads=
   source-only, and package-mismatched updates.
 - `resolver`: source-cache policy records for local/Git resolution, including
   limits, path/submodule policy, resolved identities, success/rejection verdict,
-  stable JSON, and record fingerprints.
+  stable JSON, strict parsing, atomic persistence, and record fingerprints.
 - `source`: local-path source identity with deterministic hashing, `.git`
   directory exclusion, traversal limits, symlink escape rejection, and Git
   clone/fetch resolution to exact commit/tree identity.
@@ -156,11 +156,12 @@ cargo test -p omega-packages --test remote_fixtures -- --ignored --test-threads=
 
 ## Current CLI Surface
 
-The Rust on-ramp `omega` binary exposes read-only package/source audit paths:
+The Rust on-ramp `omega` binary exposes package/source audit and evidence
+paths:
 
 ```text
 omega audit source <locator> [--rev <rev>] [--cache-dir <dir>]
-omega audit source-cache-policy <locator> [--rev <rev>] [--cache-dir <dir>]
+omega audit source-cache-policy <locator> [--rev <rev>] [--cache-dir <dir>] [--out <record.json>]
 omega audit packages [--lock <omega.lock>] --manifest <manifest.json>...
 omega review capability-change --old-manifest <manifest.json> --new-manifest <manifest.json> --reviewer <id> --reason <text> --out <receipt.json>
 omega plan install --lock <omega.lock> --current-manifest <manifest.json>... --candidate-manifest <manifest.json>... --alias <alias> --package <package>
@@ -170,12 +171,12 @@ omega lock assemble --root-package <package> --manifest <manifest.json>... --out
 
 The source audit resolves a local/Git locator to content identity and reports
 the resolved commit/tree when applicable. The source-cache-policy audit prints
-the deterministic cache policy record, including rejected verdicts. The package
-graph audit requires precomputed package capability manifest files. The review
-command writes an explicit standalone capability-change receipt to the
-requested path. The plan commands read an existing lock plus explicit
-current/candidate manifest files and print install/update admission plans.
-The lock assembly command writes only the explicit `--out` lock file from
-explicit manifest files after closure validation and graph audit. These
-commands do not derive package manifests, execute dependency `build.omg`, or
-edit `build.omg`.
+the deterministic cache policy record, including rejected verdicts, and writes
+it when `--out` is supplied. The package graph audit requires precomputed
+package capability manifest files. The review command writes an explicit
+standalone capability-change receipt to the requested path. The plan commands
+read an existing lock plus explicit current/candidate manifest files and print
+install/update admission plans. The lock assembly command writes only the
+explicit `--out` lock file from explicit manifest files after closure
+validation and graph audit. These commands do not derive package manifests,
+execute dependency `build.omg`, or edit `build.omg`.

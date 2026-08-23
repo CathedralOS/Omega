@@ -71,7 +71,7 @@ fn main() {
 
     let Some(arguments) = parse_arguments() else {
         eprintln!(
-            "usage: omega [--check] [--build-dir <dir>] [--target <name>] <root.omg>\n       omega inspect-terminal --machine <qualified> [--target <name>] <root.omg>\n       omega audit source <locator> [--rev <rev>] [--cache-dir <dir>]\n       omega audit source-cache-policy <locator> [--rev <rev>] [--cache-dir <dir>]\n       omega audit packages [--lock <omega.lock>] --manifest <manifest.json>...\n       omega review capability-change --old-manifest <manifest.json> --new-manifest <manifest.json> --reviewer <id> --reason <text> --out <receipt.json>\n       omega plan install --lock <omega.lock> --current-manifest <manifest.json>... --candidate-manifest <manifest.json>... --alias <alias> --package <package>\n       omega plan update --lock <omega.lock> --current-manifest <manifest.json>... --candidate-manifest <manifest.json>... --package <package> [--receipt <receipt.json>]\n       omega lock assemble --root-package <package> --manifest <manifest.json>... --out <omega.lock>\n       omega refresh-samples [samples-dir]"
+            "usage: omega [--check] [--build-dir <dir>] [--target <name>] <root.omg>\n       omega inspect-terminal --machine <qualified> [--target <name>] <root.omg>\n       omega audit source <locator> [--rev <rev>] [--cache-dir <dir>]\n       omega audit source-cache-policy <locator> [--rev <rev>] [--cache-dir <dir>] [--out <record.json>]\n       omega audit packages [--lock <omega.lock>] --manifest <manifest.json>...\n       omega review capability-change --old-manifest <manifest.json> --new-manifest <manifest.json> --reviewer <id> --reason <text> --out <receipt.json>\n       omega plan install --lock <omega.lock> --current-manifest <manifest.json>... --candidate-manifest <manifest.json>... --alias <alias> --package <package>\n       omega plan update --lock <omega.lock> --current-manifest <manifest.json>... --candidate-manifest <manifest.json>... --package <package> [--receipt <receipt.json>]\n       omega lock assemble --root-package <package> --manifest <manifest.json>... --out <omega.lock>\n       omega refresh-samples [samples-dir]"
         );
         std::process::exit(2);
     };
@@ -102,7 +102,7 @@ fn audit(arguments: impl Iterator<Item = std::ffi::OsString>) {
     let Some(subcommand) = arguments.next() else {
         eprintln!("usage: omega audit source <locator> [--rev <rev>] [--cache-dir <dir>]");
         eprintln!(
-            "       omega audit source-cache-policy <locator> [--rev <rev>] [--cache-dir <dir>]"
+            "       omega audit source-cache-policy <locator> [--rev <rev>] [--cache-dir <dir>] [--out <record.json>]"
         );
         eprintln!(
             "       omega audit packages [--lock <omega.lock>] --manifest <manifest.json>..."
@@ -121,7 +121,7 @@ fn audit(arguments: impl Iterator<Item = std::ffi::OsString>) {
         eprintln!("unknown audit command `{}`", subcommand.to_string_lossy());
         eprintln!("usage: omega audit source <locator> [--rev <rev>] [--cache-dir <dir>]");
         eprintln!(
-            "       omega audit source-cache-policy <locator> [--rev <rev>] [--cache-dir <dir>]"
+            "       omega audit source-cache-policy <locator> [--rev <rev>] [--cache-dir <dir>] [--out <record.json>]"
         );
         eprintln!(
             "       omega audit packages [--lock <omega.lock>] --manifest <manifest.json>..."
@@ -153,9 +153,9 @@ fn audit_source(arguments: impl Iterator<Item = std::ffi::OsString>) {
 }
 
 fn audit_source_cache_policy(arguments: impl Iterator<Item = std::ffi::OsString>) {
-    let Some(arguments) = parse_audit_source_arguments(arguments) else {
+    let Some(arguments) = parse_audit_source_cache_policy_arguments(arguments) else {
         eprintln!(
-            "usage: omega audit source-cache-policy <locator> [--rev <rev>] [--cache-dir <dir>]"
+            "usage: omega audit source-cache-policy <locator> [--rev <rev>] [--cache-dir <dir>] [--out <record.json>]"
         );
         std::process::exit(2);
     };
@@ -166,6 +166,15 @@ fn audit_source_cache_policy(arguments: impl Iterator<Item = std::ffi::OsString>
         omega_packages::LocalSourceLimits::default(),
     ) {
         Ok(record) => {
+            if let Some(out_path) = &arguments.out_path {
+                if let Err(error) = record.write_to_path(out_path) {
+                    eprintln!(
+                        "cannot write source-cache policy record {}: {error:?}",
+                        out_path.display()
+                    );
+                    std::process::exit(1);
+                }
+            }
             print!("{}", record.to_json());
         }
         Err(error) => {
@@ -518,6 +527,13 @@ struct AuditSourceArguments {
     cache_dir: PathBuf,
 }
 
+struct AuditSourceCachePolicyArguments {
+    locator: String,
+    rev: Option<String>,
+    cache_dir: PathBuf,
+    out_path: Option<PathBuf>,
+}
+
 struct LockAssembleArguments {
     root_package: String,
     manifest_paths: Vec<PathBuf>,
@@ -585,6 +601,51 @@ fn parse_lock_assemble_arguments(
         root_package: root_package?,
         manifest_paths,
         out_path: out_path?,
+    })
+}
+
+fn parse_audit_source_cache_policy_arguments(
+    mut arguments: impl Iterator<Item = std::ffi::OsString>,
+) -> Option<AuditSourceCachePolicyArguments> {
+    let mut locator = None;
+    let mut rev = None;
+    let mut cache_dir = None;
+    let mut out_path = None;
+    while let Some(argument) = arguments.next() {
+        if argument == "--rev" {
+            if rev.is_some() {
+                return None;
+            }
+            rev = arguments.next().and_then(|value| value.into_string().ok());
+            rev.as_ref()?;
+            continue;
+        }
+        if argument == "--cache-dir" {
+            if cache_dir.is_some() {
+                return None;
+            }
+            cache_dir = arguments.next().map(PathBuf::from);
+            cache_dir.as_ref()?;
+            continue;
+        }
+        if argument == "--out" {
+            if out_path.is_some() {
+                return None;
+            }
+            out_path = arguments.next().map(PathBuf::from);
+            out_path.as_ref()?;
+            continue;
+        }
+        if locator.is_some() || argument.to_string_lossy().starts_with('-') {
+            return None;
+        }
+        locator = Some(argument.into_string().ok()?);
+    }
+    Some(AuditSourceCachePolicyArguments {
+        locator: locator?,
+        rev,
+        cache_dir: cache_dir.unwrap_or_else(|| PathBuf::from(".omega/package-cache")),
+        out_path,
     })
 }
 

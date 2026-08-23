@@ -1,7 +1,9 @@
+use crate::json::{JsonParseError, JsonParser, JsonValue};
 use crate::source::{
     GitSourceSpec, LocalSourceLimits, SourceResolveError, resolve_git_source, resolve_local_source,
 };
 use sha2::{Digest, Sha256};
+use std::fs;
 use std::path::{Path, PathBuf};
 
 pub const SOURCE_CACHE_POLICY_SCHEMA_VERSION: u32 = 1;
@@ -48,9 +50,124 @@ pub struct SourceCachePolicyRecord {
     pub rejection: Option<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SourceCachePolicyRecordParseError {
+    InvalidJson { message: String },
+    MissingField { field: String },
+    UnexpectedField { field: String },
+    InvalidField { field: String, message: String },
+    UnsupportedSchemaVersion { found: u32, supported: u32 },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SourceCachePolicyRecordPersistenceError {
+    Io { path: PathBuf, message: String },
+    Parse(SourceCachePolicyRecordParseError),
+}
+
 impl SourceCachePolicyRecord {
     pub fn fingerprint(&self) -> String {
         format_sha256(&Sha256::digest(self.to_json().as_bytes()))
+    }
+
+    pub fn from_json(json: &str) -> Result<Self, SourceCachePolicyRecordParseError> {
+        let value = JsonParser::new(json)
+            .parse()
+            .map_err(source_cache_policy_json_error)?;
+        let fields = value_object(&value, "$")?;
+        ensure_fields(
+            fields,
+            "$",
+            &[
+                "schema_version",
+                "verdict",
+                "source_kind",
+                "locator",
+                "requested_rev",
+                "resolved_commit",
+                "resolved_tree",
+                "content_identity",
+                "cache_path",
+                "file_count",
+                "byte_count",
+                "max_files",
+                "max_bytes",
+                "max_depth",
+                "submodule_policy",
+                "path_policy",
+                "rejection",
+            ],
+        )?;
+        let schema_version = value_u32(field(fields, "schema_version", "$")?, "$.schema_version")?;
+        if schema_version != SOURCE_CACHE_POLICY_SCHEMA_VERSION {
+            return Err(
+                SourceCachePolicyRecordParseError::UnsupportedSchemaVersion {
+                    found: schema_version,
+                    supported: SOURCE_CACHE_POLICY_SCHEMA_VERSION,
+                },
+            );
+        }
+        let verdict = parse_verdict(value_string(field(fields, "verdict", "$")?, "$.verdict")?)?;
+        Ok(Self {
+            schema_version,
+            verdict,
+            source_kind: value_string(field(fields, "source_kind", "$")?, "$.source_kind")?
+                .to_owned(),
+            locator: value_string(field(fields, "locator", "$")?, "$.locator")?.to_owned(),
+            requested_rev: optional_string(field(fields, "requested_rev", "$")?)?,
+            resolved_commit: optional_string(field(fields, "resolved_commit", "$")?)?,
+            resolved_tree: optional_string(field(fields, "resolved_tree", "$")?)?,
+            content_identity: optional_string(field(fields, "content_identity", "$")?)?,
+            cache_path: optional_string(field(fields, "cache_path", "$")?)?,
+            file_count: optional_usize(field(fields, "file_count", "$")?, "$.file_count")?,
+            byte_count: optional_u64(field(fields, "byte_count", "$")?, "$.byte_count")?,
+            max_files: value_usize(field(fields, "max_files", "$")?, "$.max_files")?,
+            max_bytes: value_u64(field(fields, "max_bytes", "$")?, "$.max_bytes")?,
+            max_depth: value_usize(field(fields, "max_depth", "$")?, "$.max_depth")?,
+            submodule_policy: value_string(
+                field(fields, "submodule_policy", "$")?,
+                "$.submodule_policy",
+            )?
+            .to_owned(),
+            path_policy: value_string(field(fields, "path_policy", "$")?, "$.path_policy")?
+                .to_owned(),
+            rejection: optional_string(field(fields, "rejection", "$")?)?,
+        })
+    }
+
+    pub fn read_from_path(
+        path: impl AsRef<Path>,
+    ) -> Result<Self, SourceCachePolicyRecordPersistenceError> {
+        let path = path.as_ref();
+        let contents = fs::read_to_string(path).map_err(|error| {
+            SourceCachePolicyRecordPersistenceError::Io {
+                path: path.to_path_buf(),
+                message: error.to_string(),
+            }
+        })?;
+        Self::from_json(&contents).map_err(SourceCachePolicyRecordPersistenceError::Parse)
+    }
+
+    pub fn write_to_path(
+        &self,
+        path: impl AsRef<Path>,
+    ) -> Result<(), SourceCachePolicyRecordPersistenceError> {
+        let path = path.as_ref();
+        let temp_path = temporary_source_cache_policy_path(path, self);
+        fs::write(&temp_path, self.to_json()).map_err(|error| {
+            SourceCachePolicyRecordPersistenceError::Io {
+                path: temp_path.clone(),
+                message: error.to_string(),
+            }
+        })?;
+        if let Err(error) = fs::rename(&temp_path, path) {
+            let _ = fs::remove_file(&temp_path);
+            return Err(SourceCachePolicyRecordPersistenceError::Io {
+                path: path.to_path_buf(),
+                message: error.to_string(),
+            });
+        }
+        Ok(())
     }
 
     pub fn to_json(&self) -> String {
@@ -106,6 +223,153 @@ impl SourceCachePolicyRecord {
         json.push_str("}\n");
         json
     }
+}
+
+fn source_cache_policy_json_error(error: JsonParseError) -> SourceCachePolicyRecordParseError {
+    match error {
+        JsonParseError::InvalidJson { message } => {
+            SourceCachePolicyRecordParseError::InvalidJson { message }
+        }
+    }
+}
+
+fn parse_verdict(value: &str) -> Result<SourceCacheVerdict, SourceCachePolicyRecordParseError> {
+    match value {
+        "accepted" => Ok(SourceCacheVerdict::Accepted),
+        "rejected" => Ok(SourceCacheVerdict::Rejected),
+        _ => Err(SourceCachePolicyRecordParseError::InvalidField {
+            field: "$.verdict".to_owned(),
+            message: format!("unsupported source-cache verdict `{value}`"),
+        }),
+    }
+}
+
+fn ensure_fields(
+    fields: &[(String, JsonValue)],
+    path: &str,
+    expected: &[&str],
+) -> Result<(), SourceCachePolicyRecordParseError> {
+    for expected_field in expected {
+        if !fields.iter().any(|(name, _)| name == expected_field) {
+            return Err(SourceCachePolicyRecordParseError::MissingField {
+                field: format!("{path}.{expected_field}"),
+            });
+        }
+    }
+    for (name, _) in fields {
+        if !expected.iter().any(|expected| expected == name) {
+            return Err(SourceCachePolicyRecordParseError::UnexpectedField {
+                field: format!("{path}.{name}"),
+            });
+        }
+    }
+    Ok(())
+}
+
+fn field<'a>(
+    fields: &'a [(String, JsonValue)],
+    name: &str,
+    path: &str,
+) -> Result<&'a JsonValue, SourceCachePolicyRecordParseError> {
+    fields
+        .iter()
+        .find(|(field, _)| field == name)
+        .map(|(_, value)| value)
+        .ok_or_else(|| SourceCachePolicyRecordParseError::MissingField {
+            field: format!("{path}.{name}"),
+        })
+}
+
+fn value_object<'a>(
+    value: &'a JsonValue,
+    path: &str,
+) -> Result<&'a [(String, JsonValue)], SourceCachePolicyRecordParseError> {
+    value
+        .as_object()
+        .ok_or_else(|| SourceCachePolicyRecordParseError::InvalidField {
+            field: path.to_owned(),
+            message: "expected object".to_owned(),
+        })
+}
+
+fn value_string<'a>(
+    value: &'a JsonValue,
+    path: &str,
+) -> Result<&'a str, SourceCachePolicyRecordParseError> {
+    match value {
+        JsonValue::String(value) => Ok(value),
+        _ => Err(SourceCachePolicyRecordParseError::InvalidField {
+            field: path.to_owned(),
+            message: "expected string".to_owned(),
+        }),
+    }
+}
+
+fn optional_string(value: &JsonValue) -> Result<Option<String>, SourceCachePolicyRecordParseError> {
+    match value {
+        JsonValue::Null => Ok(None),
+        JsonValue::String(value) => Ok(Some(value.clone())),
+        _ => Err(SourceCachePolicyRecordParseError::InvalidField {
+            field: "optional string".to_owned(),
+            message: "expected string or null".to_owned(),
+        }),
+    }
+}
+
+fn value_u64(value: &JsonValue, path: &str) -> Result<u64, SourceCachePolicyRecordParseError> {
+    match value {
+        JsonValue::Number(value) => Ok(*value),
+        _ => Err(SourceCachePolicyRecordParseError::InvalidField {
+            field: path.to_owned(),
+            message: "expected integer".to_owned(),
+        }),
+    }
+}
+
+fn value_u32(value: &JsonValue, path: &str) -> Result<u32, SourceCachePolicyRecordParseError> {
+    let value = value_u64(value, path)?;
+    u32::try_from(value).map_err(|_| SourceCachePolicyRecordParseError::InvalidField {
+        field: path.to_owned(),
+        message: "integer does not fit in u32".to_owned(),
+    })
+}
+
+fn value_usize(value: &JsonValue, path: &str) -> Result<usize, SourceCachePolicyRecordParseError> {
+    let value = value_u64(value, path)?;
+    usize::try_from(value).map_err(|_| SourceCachePolicyRecordParseError::InvalidField {
+        field: path.to_owned(),
+        message: "integer does not fit in usize".to_owned(),
+    })
+}
+
+fn optional_u64(
+    value: &JsonValue,
+    path: &str,
+) -> Result<Option<u64>, SourceCachePolicyRecordParseError> {
+    match value {
+        JsonValue::Null => Ok(None),
+        _ => value_u64(value, path).map(Some),
+    }
+}
+
+fn optional_usize(
+    value: &JsonValue,
+    path: &str,
+) -> Result<Option<usize>, SourceCachePolicyRecordParseError> {
+    match value {
+        JsonValue::Null => Ok(None),
+        _ => value_usize(value, path).map(Some),
+    }
+}
+
+fn temporary_source_cache_policy_path(path: &Path, record: &SourceCachePolicyRecord) -> PathBuf {
+    let mut temp = path.to_path_buf();
+    temp.set_extension(format!(
+        "tmp.{}.{}",
+        std::process::id(),
+        &record.fingerprint()[..12]
+    ));
+    temp
 }
 
 pub fn resolve_source_cache_record(
@@ -451,6 +715,101 @@ mod tests {
 
         let _ = std::fs::remove_dir_all(&root);
         let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[test]
+    fn source_cache_policy_record_json_round_trip_is_normalized() {
+        let record = SourceCachePolicyRecord {
+            schema_version: SOURCE_CACHE_POLICY_SCHEMA_VERSION,
+            verdict: SourceCacheVerdict::Accepted,
+            source_kind: "git".to_owned(),
+            locator: "git@github.com:CathedralOS/file-journal.git".to_owned(),
+            requested_rev: Some("0123456789abcdef0123456789abcdef01234567".to_owned()),
+            resolved_commit: Some("0123456789abcdef0123456789abcdef01234567".to_owned()),
+            resolved_tree: Some("89abcdef0123456789abcdef0123456789abcdef".to_owned()),
+            content_identity: Some(
+                "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".to_owned(),
+            ),
+            cache_path: Some("/tmp/omega-cache/file-journal".to_owned()),
+            file_count: Some(3),
+            byte_count: Some(1024),
+            max_files: 4096,
+            max_bytes: 268435456,
+            max_depth: 64,
+            submodule_policy: "gitmodules-rejected-until-submodules-are-explicit-package-edges"
+                .to_owned(),
+            path_policy:
+                "detached-commit-checkout; canonical-root-contained; symlink-escapes-rejected; dot-git-excluded"
+                    .to_owned(),
+            rejection: None,
+        };
+
+        let parsed = SourceCachePolicyRecord::from_json(&record.to_json())
+            .expect("record JSON should parse");
+
+        assert_eq!(parsed, record);
+        assert_eq!(parsed.to_json(), record.to_json());
+        assert_eq!(parsed.fingerprint(), record.fingerprint());
+    }
+
+    #[test]
+    fn source_cache_policy_record_read_write_round_trip() {
+        let root = temp_root("persist-record");
+        std::fs::create_dir_all(&root).expect("create record temp");
+        let path = root.join("source-cache-policy.json");
+        let record = SourceCachePolicyRecord {
+            schema_version: SOURCE_CACHE_POLICY_SCHEMA_VERSION,
+            verdict: SourceCacheVerdict::Rejected,
+            source_kind: "local-path".to_owned(),
+            locator: "./missing-package".to_owned(),
+            requested_rev: None,
+            resolved_commit: None,
+            resolved_tree: None,
+            content_identity: None,
+            cache_path: None,
+            file_count: None,
+            byte_count: None,
+            max_files: 4096,
+            max_bytes: 268435456,
+            max_depth: 64,
+            submodule_policy: "git-submodules-not-applicable".to_owned(),
+            path_policy: "canonical-root-contained; symlink-escapes-rejected; dot-git-excluded"
+                .to_owned(),
+            rejection: Some("missing source".to_owned()),
+        };
+
+        record.write_to_path(&path).expect("write policy record");
+        let read = SourceCachePolicyRecord::read_from_path(&path).expect("read policy record");
+
+        assert_eq!(read, record);
+        assert_eq!(
+            std::fs::read_to_string(&path).expect("record file"),
+            record.to_json()
+        );
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn source_cache_policy_record_parse_rejects_unknown_schema_and_fields() {
+        let unknown_schema = "{\n  \"schema_version\": 99,\n  \"verdict\": \"accepted\",\n  \"source_kind\": \"local-path\",\n  \"locator\": \".\",\n  \"requested_rev\": null,\n  \"resolved_commit\": null,\n  \"resolved_tree\": null,\n  \"content_identity\": null,\n  \"cache_path\": null,\n  \"file_count\": null,\n  \"byte_count\": null,\n  \"max_files\": 4096,\n  \"max_bytes\": 268435456,\n  \"max_depth\": 64,\n  \"submodule_policy\": \"git-submodules-not-applicable\",\n  \"path_policy\": \"canonical-root-contained\",\n  \"rejection\": null\n}\n";
+        assert_eq!(
+            SourceCachePolicyRecord::from_json(unknown_schema),
+            Err(
+                SourceCachePolicyRecordParseError::UnsupportedSchemaVersion {
+                    found: 99,
+                    supported: SOURCE_CACHE_POLICY_SCHEMA_VERSION,
+                }
+            )
+        );
+
+        let unexpected_field = "{\n  \"schema_version\": 1,\n  \"verdict\": \"accepted\",\n  \"source_kind\": \"local-path\",\n  \"locator\": \".\",\n  \"requested_rev\": null,\n  \"resolved_commit\": null,\n  \"resolved_tree\": null,\n  \"content_identity\": null,\n  \"cache_path\": null,\n  \"file_count\": null,\n  \"byte_count\": null,\n  \"max_files\": 4096,\n  \"max_bytes\": 268435456,\n  \"max_depth\": 64,\n  \"submodule_policy\": \"git-submodules-not-applicable\",\n  \"path_policy\": \"canonical-root-contained\",\n  \"rejection\": null,\n  \"extra\": \"no\"\n}\n";
+        assert_eq!(
+            SourceCachePolicyRecord::from_json(unexpected_field),
+            Err(SourceCachePolicyRecordParseError::UnexpectedField {
+                field: "$.extra".to_owned(),
+            })
+        );
     }
 
     #[test]
