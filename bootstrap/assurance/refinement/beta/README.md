@@ -576,10 +576,22 @@ without widening the ordinary ADVE theorem. Fourteen isolated teeth cover
 shape, calls, constants, censuses, bounds, deltas, zero-tail preservation, rank,
 and backedge renaming. The modules are 11.6 KB and 18.6 KB.
 
+The `bc-count-lets-*` family closes the outer scan without rebuilding another
+monolith. Control/effect shape (8.0 KB) and data/expression shape (10.9 KB)
+rejoin procedure 39 exactly. The one-iteration layer (16.0 KB) derives a narrow
+SWSX clause for CUR in `(LEN,LEN+2]` and exhausts zero in/out of range, both
+literal kinds, braces, alpha let/non-let, and ordinary bytes. The 15.8 KB fixed
+point ranks live iterations by `2*(LEN+2-CUR)+live`, handles the depth-one
+matching-close exit separately, increments only for exact `let`, retains the
+last scanned IDOFF/IDLEN state, restores entry CUR, and returns the exact count.
+Twenty-four negative canaries are isolated in a 6.7 KB shell harness and sever
+shape, SWSX, malformed bounds, depth/count/rank joins, identifier carry,
+restoration, or result. The focused gate carries a 180,738-byte Alpha tape.
+
 The eventual `parse_proc` theorem must be maximal, not universally terminating.
 For malformed input, an unrecognized body byte such as `@` can survive both
 `gen_stmt` and the number fallback without cursor progress while `gen_stmts`
 keeps emitting. The honest contract is therefore Return-or-Diverge with exact
-finite/infinite output behavior. The next engineering milestones are the outer
-`count_lets` scan and the parameter loop; the existing typed status-252
-projection is the only language-design blocker in this area.
+finite/infinite output behavior. The next engineering milestones are the
+`nparams+count_lets()` slot-capacity guard and parameter loop; the existing
+typed status-252 projection is the only language-design blocker in this area.

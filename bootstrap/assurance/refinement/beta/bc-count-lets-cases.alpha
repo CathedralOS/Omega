@@ -1,0 +1,535 @@
+; Conditional one-iteration cases for count_lets().
+;
+; The outer fixed point is separated into bc-count-lets-summary.alpha.  This
+; module derives SWSX, the exact out-of-range skip_ws exit used only after a
+; malformed literal tail, then exhausts one positive-depth body iteration:
+; zero in range, zero beyond LEN, character/string literal, open/close brace,
+; alpha non-let, alpha let, and ordinary byte.  Each clause carries exact CUR,
+; depth, count, identifier-global, and quiet-state effects for the fixed point.
+;
+; Fresh cells:
+;   public SWSX / case schema                  527536/527576
+;   SWSX range/cbyte/result/quiet              527544..527568
+;   common body invariant / ws mode            527584/527592
+;   normalized cursor / byte category          527600/527608
+;   cursor/depth/count/identifier effects      527616..527640
+;   quiet/frame                                527648
+;   nine completion flags                      527656..527720
+;
+; Whitespace mode: 1=entry CUR<=LEN via SWSQ, 2=LEN<CUR<=LEN+2 via SWSX.
+; Byte cases: 1=zero, 2=char, 3=string, 4=open, 5=close, 6=alpha non-let,
+; 7=alpha let, 8=ordinary. Cursor relation: 1=preserved, 2=strict progress.
+; Depth relation: 1=unchanged, 2=plus one, 3=minus one, 4=set zero.
+
+count_lets_cases_init:
+        call count_lets_prove_skip_ws_outside
+        call count_lets_prove_cases
+        jmp count_lets_summary_init
+
+; ---- skip_ws beyond logical end --------------------------------------
+
+count_lets_prove_skip_ws_outside:
+        imm r1, 527536
+        imm r2, 0
+        store r1, r2
+        ; SWSQ fixes the exact skip_ws/skip_ws_step bodies and ordinary quiet
+        ; effects. CBYE supplies zero for every nonnegative CUR>=LEN.
+        imm r20, 526216
+        imm r21, 1398231888           ; SWSQ
+        call cursor_require_cell
+        imm r20, 525960
+        imm r21, 1128421445           ; CBYE
+        call cursor_require_cell
+        imm r20, 525976
+        imm r21, 1397769539           ; SPCE
+        call cursor_require_cell
+        imm r1, 527544
+        imm r2, 1                    ; checked LEN<CUR<=LEN+2 premise
+        store r1, r2
+        imm r1, 527552
+        store r1, r2                  ; cbyte miss returns exact zero
+        imm r1, 527560
+        store r1, r2                  ; is_space(0)=0; step and outer loop exit
+        imm r1, 527568
+        store r1, r2                  ; CUR preserved; quiet/restored frame
+        call count_lets_require_skip_ws_outside
+        imm r1, 527536
+        imm r2, 1398231896            ; SWSX
+        store r1, r2
+        ret
+
+count_lets_require_skip_ws_outside:
+        imm r20, 527544
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 527552
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 527560
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 527568
+        imm r21, 1
+        call cursor_require_cell
+        ret
+
+; ---- Exhaustive body clauses -----------------------------------------
+
+count_lets_prove_cases:
+        imm r1, 527576
+        imm r2, 0
+        store r1, r2
+        imm r1, 527584
+        imm r2, 1                    ; checked depth>0, CUR<=LEN+2, safe bounds
+        store r1, r2                  ; start fixed; count/depth finite
+        imm r10, 0
+count_lets_clear_case_flags:
+        imm r1, 9
+        jlt r10, r1, count_lets_clear_case_flag
+        call count_lets_case_zero_in_range
+        call count_lets_case_zero_outside
+        call count_lets_case_char
+        call count_lets_case_string
+        call count_lets_case_open
+        call count_lets_case_close
+        call count_lets_case_alpha_nonlet
+        call count_lets_case_alpha_let
+        call count_lets_case_other
+        call count_lets_publish_cases
+        ret
+count_lets_clear_case_flag:
+        mov r2, r10
+        imm r1, 8
+        mul r2, r1
+        imm r1, 527656
+        add r1, r2
+        imm r2, 0
+        store r1, r2
+        imm r1, 1
+        add r10, r1
+        jmp count_lets_clear_case_flags
+
+count_lets_case_reset:
+        mov r25, r20
+        call count_lets_require_case_imports
+        imm r20, 527584
+        imm r21, 1
+        call cursor_require_cell
+        imm r1, 1
+        jeq r25, r1, count_lets_case_mode_ok
+        imm r1, 2
+        jeq r25, r1, count_lets_case_mode_ok
+        jmp reject
+count_lets_case_mode_ok:
+        imm r1, 527592
+        store r1, r25
+        imm r1, 527600
+        imm r2, 1                    ; selected normalized cursor version
+        store r1, r2
+        imm r1, 527608
+        imm r2, 0
+        store r1, r2
+        imm r1, 527616
+        store r1, r2
+        imm r1, 527624
+        store r1, r2
+        imm r1, 527632
+        store r1, r2
+        imm r1, 527640
+        store r1, r2
+        imm r1, 527648
+        store r1, r2
+        call count_lets_call_skip_ws
+        call count_lets_call_cbyte
+        ret
+
+count_lets_case_zero_in_range:
+        imm r20, 1
+        call count_lets_case_reset
+        imm r1, 527608
+        imm r2, 1                    ; cbyte zero: end or in-range NUL
+        store r1, r2
+        imm r1, 527616
+        imm r2, 1                    ; cursor preserved after normalization
+        store r1, r2
+        imm r1, 527624
+        imm r2, 4                    ; checked depth becomes zero
+        store r1, r2
+        imm r1, 527632
+        imm r2, 1
+        store r1, r2                  ; count unchanged
+        imm r1, 527640
+        store r1, r2                  ; identifier globals unchanged
+        imm r1, 527648
+        store r1, r2                  ; quiet state/frame
+        imm r20, 1
+        call count_lets_require_zero_case
+        imm r1, 527656
+        imm r2, 1
+        store r1, r2
+        ret
+
+count_lets_case_zero_outside:
+        imm r20, 2
+        call count_lets_case_reset
+        imm r1, 527608
+        imm r2, 1                    ; checked out-of-range cbyte zero
+        store r1, r2
+        imm r1, 527616
+        imm r2, 1                    ; SWSX/cbyte preserve overshot cursor
+        store r1, r2
+        imm r1, 527624
+        imm r2, 4                    ; checked depth becomes zero
+        store r1, r2
+        imm r1, 527632
+        imm r2, 1
+        store r1, r2
+        imm r1, 527640
+        store r1, r2
+        imm r1, 527648
+        store r1, r2
+        imm r20, 2
+        call count_lets_require_zero_case
+        imm r1, 527664
+        imm r2, 1
+        store r1, r2
+        ret
+
+count_lets_require_zero_case:
+        mov r25, r20
+        imm r20, 527592
+        mov r21, r25
+        call cursor_require_cell
+        imm r20, 527608
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 527616
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 527624
+        imm r21, 4                    ; exact zero-depth update
+        call cursor_require_cell
+        call count_lets_require_unchanged_count_state
+        ret
+
+count_lets_case_char:
+        imm r20, 1
+        call count_lets_case_reset
+        call count_lets_require_in_range_byte
+        imm r1, 527608
+        imm r2, 2                    ; checked current byte is 39
+        store r1, r2
+        imm r20, 527352
+        imm r21, 1128808786           ; CHSK
+        call cursor_require_cell
+        imm r1, 527616
+        imm r2, 2                    ; strict progress, exit<=LEN+2
+        store r1, r2
+        call count_lets_set_unchanged_depth_count_id
+        imm r20, 2
+        call count_lets_require_progress_case
+        imm r1, 527672
+        imm r2, 1
+        store r1, r2
+        ret
+
+count_lets_case_string:
+        imm r20, 1
+        call count_lets_case_reset
+        call count_lets_require_in_range_byte
+        imm r1, 527608
+        imm r2, 3                    ; checked current byte is 34
+        store r1, r2
+        imm r20, 527360
+        imm r21, 1398035027           ; STRS
+        call cursor_require_cell
+        imm r1, 527616
+        imm r2, 2                    ; strict progress, exit<=LEN+1
+        store r1, r2
+        call count_lets_set_unchanged_depth_count_id
+        imm r20, 3
+        call count_lets_require_progress_case
+        imm r1, 527680
+        imm r2, 1
+        store r1, r2
+        ret
+
+count_lets_case_open:
+        imm r20, 1
+        call count_lets_case_reset
+        call count_lets_require_in_range_byte
+        imm r1, 527608
+        imm r2, 4                    ; checked current byte is 123
+        store r1, r2
+        call count_lets_call_adv
+        imm r1, 527616
+        imm r2, 2                    ; cursor successor
+        store r1, r2
+        imm r1, 527624
+        imm r2, 2                    ; checked depth+1, no overflow
+        store r1, r2
+        imm r1, 527632
+        imm r2, 1                    ; count unchanged
+        store r1, r2
+        imm r1, 527640
+        store r1, r2
+        imm r1, 527648
+        store r1, r2
+        imm r20, 4
+        call count_lets_require_progress_case
+        imm r1, 527688
+        imm r2, 1
+        store r1, r2
+        ret
+
+count_lets_case_close:
+        imm r20, 1
+        call count_lets_case_reset
+        call count_lets_require_in_range_byte
+        imm r1, 527608
+        imm r2, 5                    ; checked current byte is 125
+        store r1, r2
+        call count_lets_call_adv
+        imm r1, 527616
+        imm r2, 2
+        store r1, r2
+        imm r1, 527624
+        imm r2, 3                    ; checked positive depth-1, possibly zero
+        store r1, r2
+        imm r1, 527632
+        imm r2, 1
+        store r1, r2
+        imm r1, 527640
+        store r1, r2
+        imm r1, 527648
+        store r1, r2
+        imm r20, 5
+        call count_lets_require_progress_case
+        imm r1, 527696
+        imm r2, 1
+        store r1, r2
+        ret
+
+count_lets_case_alpha_nonlet:
+        imm r20, 1
+        call count_lets_case_reset
+        imm r20, 6
+        imm r21, 1                    ; is_let result zero
+        call count_lets_compose_identifier_case
+        imm r1, 527704
+        imm r2, 1
+        store r1, r2
+        ret
+
+count_lets_case_alpha_let:
+        imm r20, 1
+        call count_lets_case_reset
+        imm r20, 7
+        imm r21, 2                    ; is_let result one
+        call count_lets_compose_identifier_case
+        imm r1, 527712
+        imm r2, 1
+        store r1, r2
+        ret
+
+count_lets_compose_identifier_case:
+        mov r25, r20
+        mov r26, r21
+        call count_lets_require_in_range_byte
+        imm r1, 527608
+        store r1, r25                 ; exact alpha category
+        imm r20, 526680
+        imm r21, 1413631041           ; ALBT
+        call cursor_require_cell
+        imm r20, 526792
+        imm r21, 1396984146           ; RIDS, maximal nonempty prefix here
+        call cursor_require_cell
+        imm r20, 527192
+        imm r21, 1413827657           ; ILET
+        call cursor_require_cell
+        imm r1, 527616
+        imm r2, 2                    ; read_ident strictly advances
+        store r1, r2
+        imm r1, 527624
+        imm r2, 1                    ; depth unchanged
+        store r1, r2
+        imm r1, 527632
+        store r1, r26                 ; 1=unchanged, 2=exact count+1
+        imm r1, 527640
+        imm r2, 2                    ; IDOFF/IDLEN become scanned identifier
+        store r1, r2
+        imm r1, 527648
+        imm r2, 1
+        store r1, r2
+        mov r20, r25
+        call count_lets_require_progress_case
+        imm r20, 527632
+        mov r21, r26
+        call cursor_require_cell
+        ret
+
+count_lets_case_other:
+        imm r20, 1
+        call count_lets_case_reset
+        call count_lets_require_in_range_byte
+        imm r1, 527608
+        imm r2, 8                    ; nonzero, nonquote/brace, non-alpha
+        store r1, r2
+        call count_lets_call_adv
+        imm r1, 527616
+        imm r2, 2
+        store r1, r2
+        call count_lets_set_unchanged_depth_count_id
+        imm r20, 8
+        call count_lets_require_progress_case
+        imm r1, 527720
+        imm r2, 1
+        store r1, r2
+        ret
+
+; ---- Shared case joins ------------------------------------------------
+
+count_lets_set_unchanged_depth_count_id:
+        imm r1, 527624
+        imm r2, 1
+        store r1, r2                  ; depth unchanged
+        imm r1, 527632
+        store r1, r2                  ; count unchanged
+        imm r1, 527640
+        store r1, r2                  ; identifier globals unchanged
+        imm r1, 527648
+        store r1, r2                  ; quiet state/frame
+        ret
+
+count_lets_require_progress_case:
+        mov r25, r20
+        imm r20, 527592
+        imm r21, 1                    ; every progressing case is in range
+        call cursor_require_cell
+        imm r20, 527608
+        mov r21, r25
+        call cursor_require_cell
+        imm r20, 527616
+        imm r21, 2
+        call cursor_require_cell
+        imm r1, 527608
+        load r2, r1
+        imm r1, 4
+        jeq r2, r1, count_lets_require_open_depth
+        imm r1, 5
+        jeq r2, r1, count_lets_require_close_depth
+        imm r20, 527624
+        imm r21, 1
+        call cursor_require_cell
+        jmp count_lets_require_progress_quiet
+count_lets_require_open_depth:
+        imm r20, 527624
+        imm r21, 2
+        call cursor_require_cell
+        jmp count_lets_require_progress_quiet
+count_lets_require_close_depth:
+        imm r20, 527624
+        imm r21, 3
+        call cursor_require_cell
+count_lets_require_progress_quiet:
+        imm r20, 527648
+        imm r21, 1
+        call cursor_require_cell
+        ret
+
+count_lets_require_unchanged_count_state:
+        imm r20, 527632
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 527640
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 527648
+        imm r21, 1
+        call cursor_require_cell
+        ret
+
+count_lets_require_in_range_byte:
+        imm r20, 527592
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 527600
+        imm r21, 1
+        call cursor_require_cell
+        ret
+
+count_lets_publish_cases:
+        imm r10, 0
+count_lets_publish_case_loop:
+        imm r1, 9
+        jlt r10, r1, count_lets_publish_case_flag
+        imm r1, 527576
+        imm r2, 1129071443            ; CLCS
+        store r1, r2
+        ret
+count_lets_publish_case_flag:
+        mov r2, r10
+        imm r1, 8
+        mul r2, r1
+        imm r1, 527656
+        add r1, r2
+        load r2, r1
+        imm r1, 1
+        jeq r2, r1, count_lets_publish_case_next
+        jmp reject
+count_lets_publish_case_next:
+        imm r1, 1
+        add r10, r1
+        jmp count_lets_publish_case_loop
+
+; ---- Imports and helper calls ----------------------------------------
+
+count_lets_require_case_imports:
+        imm r20, 526216
+        imm r21, 1398231888           ; SWSQ
+        call cursor_require_cell
+        imm r20, 527536
+        imm r21, 1398231896           ; SWSX
+        call cursor_require_cell
+        imm r20, 525960
+        imm r21, 1128421445           ; CBYE
+        call cursor_require_cell
+        imm r20, 525968
+        imm r21, 1094992965           ; ADVE
+        call cursor_require_cell
+        ret
+
+count_lets_call_skip_ws:
+        imm r1, 527592
+        load r2, r1
+        imm r1, 1
+        jeq r2, r1, count_lets_call_skip_ws_inside
+        imm r1, 2
+        jeq r2, r1, count_lets_call_skip_ws_outside
+        jmp reject
+count_lets_call_skip_ws_inside:
+        imm r20, 526216
+        imm r21, 1398231888
+        call cursor_require_cell
+        ret
+count_lets_call_skip_ws_outside:
+        imm r20, 527536
+        imm r21, 1398231896
+        call cursor_require_cell
+        ret
+
+count_lets_call_cbyte:
+        imm r20, 525960
+        imm r21, 1128421445
+        call cursor_require_cell
+        imm r20, 527600
+        imm r21, 1
+        call cursor_require_cell
+        ret
+
+count_lets_call_adv:
+        imm r20, 525968
+        imm r21, 1094992965
+        call cursor_require_cell
+        call count_lets_require_in_range_byte
+        ret

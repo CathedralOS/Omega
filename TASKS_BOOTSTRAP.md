@@ -926,8 +926,17 @@ additional facilities the bootstrap actually needs.
               calls, constants, censuses, widening bounds, deltas, zero-tail
               preservation, rank decrease, or backedge renaming. Shape and
               meaning are 11.6 KB and 18.6 KB.
-            - [ ] Compose the outer depth/count scan, its progress rank, exact
-              `let` increments, and restoration of entry CUR.
+            - [x] Compose the outer depth/count scan. Procedure 39's exact
+              control/effect and data/expression shapes are split at 8.0 KB and
+              10.9 KB. A 16.0 KB nine-clause layer covers in-range/out-of-range
+              zero, both literals, both braces, alpha let/non-let, and ordinary
+              bytes; a 15.8 KB fixed point uses
+              `2*(LEN+2-CUR)+live`, splits the matching-close exit, increments
+              only for exact `let`, carries (rather than falsely restores)
+              IDOFF/IDLEN, restores entry CUR, and returns the exact count.
+              Twenty-four isolated canaries live in a separate 6.7 KB harness.
+            - [ ] Compose `nparams+count_lets()` with the `nslots<=1024`
+              pre-output status-252 guard.
         - [ ] Compose the deterministic procedure prefix: name, `":\n"`,
           prologue, and `nparams` parameter stores under `nslots<=1024`.
         - [ ] Give `gen_stmts`/`gen_stmt`/expression recursion maximal finite or
