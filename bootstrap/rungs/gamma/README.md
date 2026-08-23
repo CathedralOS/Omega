@@ -25,10 +25,9 @@ Principal artifacts:
 - `bootstrap/assurance/proof-kernel/implementations/gamma/` — independent
   proof-kernel implementations hosted by Gamma and owned by assurance;
 - `canonical-bytes/` — reusable typed byte-cursor primitives;
-- `terminal-codec-primitives/` — exact primitives for the spike's frozen
-  terminal format 18/vocabulary 20 slice;
-- `terminal-ledger-spike/` — bounded historical semantic-ledger feasibility
-  work; it is an artifact-assurance experiment, not Gamma language meaning.
+- `terminal-codec-primitives/` — reusable typed scalar, identity, type, integer-
+  value, UTF-8, and structural-leaf grammar fragments. It deliberately owns no
+  fixed terminal-format header or complete live codec;
 
 Run the principal gates from the repository root:
 
@@ -40,10 +39,11 @@ sh bootstrap/rungs/gamma/test-canonical-bytes.sh
 sh bootstrap/rungs/gamma/test-terminal-codec-primitives.sh
 ```
 
-The standalone ledger-spike gate is not currently a passing principal gate. Its
-frozen format-18/vocabulary-20 decoder correctly rejects the live product's
-format-22/vocabulary-25 fixtures. Rebase or retire the experiment before adding
-it back to the default lattice suite; do not widen Gamma meaning to make it pass.
+The former terminal-ledger spike was retired after its format-18/vocabulary-20
+decoder became stale. Its architectural result is retained in the terminal-Psi
+documentation and Git history (`a5cfd83cc`); the live production semantic tables
+now own its useful closed-row decomposition. Do not recreate format-specific
+verification permutations under the Gamma language owner.
 
 ## Ownership classification
 
@@ -52,10 +52,10 @@ surface, canonical evaluation, and static checking. The independent Python
 evaluator and the focused gates are conformance tools; agreement with them does
 not override `interp.beta`.
 
-`canonical-bytes/` is a reusable program in Gamma. `terminal-codec-primitives/`
-and `terminal-ledger-spike/` are frozen bounded feasibility artifacts for
-artifact-specific terminal-Psi obligation reconstruction. Being written in and
-evaluated by Gamma does not make that spike part of the language or its meaning.
+`canonical-bytes/` and `terminal-codec-primitives/` are reusable programs in
+Gamma. Being written in and evaluated by Gamma does not make a consumer part of
+the language or its meaning. Artifact-specific obligation reconstruction belongs
+under assurance, not under the Gamma rung.
 
 ## Parked imperative Gamma
 
@@ -65,10 +65,10 @@ evaluated by Gamma does not make that spike part of the language or its meaning.
 differential-testing artifacts only. They do not define canonical Gamma and
 must not grow into a second meaning path.
 
-The parked files and the ledger spike remain co-located in this checkpoint only
-to make the ownership move behavior-neutral. Their classification, not their
-host-language suffix or directory proximity, determines their architectural
-role. `compiler/gamma` is a temporary compatibility symlink to this directory.
+The parked files remain co-located for compatibility only. Their classification,
+not their host-language suffix or directory proximity, determines their
+architectural role. `compiler/gamma` is a temporary compatibility symlink to
+this directory.
 
 See [LANGUAGE.md](LANGUAGE.md) for the canonical surface and
 [`rungs/gamma.md`](../../../wiki/architecture/bootstrap_lattice/rungs/gamma.md) for

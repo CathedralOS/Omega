@@ -416,9 +416,9 @@ additional facilities the bootstrap actually needs.
   - [ ] Persist the resulting lattice-built `bc` artifact, run its self-build and
     Beta corpus gates, then switch proof-kernel, Gamma, Delta, and Omega gates
     away from the ephemeral Rust-produced `bc0`.
-  - [x] Enlarge or replace the x64 seed's current 32 KiB image extent before
-    claiming cross-platform closure; the present self-hosted tape is about 48
-    KiB. The arm64 seed's 256 KiB extent is sufficient for the current artifact.
+  - [x] Enlarge the x64 seed's former 32 KiB image extent before claiming
+    cross-platform closure; both committed seeds now reserve 256 KiB, sufficient
+    for the current roughly 48 KiB self-hosted tape.
 - [x] **Make gate paths relocatable.** Replace hard-coded sibling-relative paths
   with a single repository-root/path helper so ownership moves can be mechanical
   and independently reviewable.
@@ -427,7 +427,7 @@ additional facilities the bootstrap actually needs.
     cache location, and the cwd-sensitive Python refinement helpers.
   - [x] Add a static path-hygiene gate and verify representative gates from both
     the repository root and an unrelated working directory before moving files.
-- [ ] **Create the `bootstrap/` ownership root.** Move rungs first without
+- [x] **Create the `bootstrap/` ownership root.** Move rungs first without
   changing behavior; retain temporary compatibility wrappers where external
   entry points require them.
   - [x] Move both the native seed/written Alpha semantics from `compiler/alpha/`
@@ -447,12 +447,18 @@ additional facilities the bootstrap actually needs.
     explicitly parked compatibility material; the ledger spike is a bounded
     artifact-assurance experiment whose execution by Gamma does not make it a
     Gamma language definition.
-    - [ ] Rebase or retire the frozen terminal-ledger feasibility gate before it
-      returns to the default lattice suite. Its decoder intentionally recognizes
-      terminal format 18/vocabulary 20, while the live product fixtures are now
-      format 22/vocabulary 25, so its positive fixture currently rejects. This
-      is stale experiment maintenance, not a Gamma meaning or language-design
-      blocker.
+    - [x] Retire the frozen terminal-ledger feasibility gate rather than rebasing
+      its stale 5,000-line monomorphic prototype from terminal format
+      18/vocabulary 20 to the live format 22/vocabulary 25. Production's closed
+      36-leaf/4-call semantic tables and mutation gates retain the reusable
+      schema shape; the historical low-rung feasibility result remains recorded
+      in the terminal-Psi architecture document and commit `a5cfd83cc`. The
+      deferred lattice branch is removed. The legacy-named product fixture test
+      remains temporarily because it is the codec's only round-trip coverage for
+      29 operation variants; preserve that evidence when decomposing or renaming
+      it with the product-root migration.
+      Reusable typed scalar/type/value/UTF-8/structural grammar fragments remain
+      gated independently; only their stale fixed-version header was retired.
   - [x] Split Delta by role: lattice-built language/compiler sources and
     artifacts belong under `bootstrap/rungs/delta/`; the Rust producer belongs
     under `bootstrap/onramps/delta-rust/`. Preserve focused compatibility entry

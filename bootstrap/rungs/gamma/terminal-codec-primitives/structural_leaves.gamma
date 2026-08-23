@@ -1,4 +1,4 @@
-; Exact v18 grammar for structural IEEE/byte-sequence and sum
+; Reusable grammar fragments for structural IEEE/byte-sequence and sum
 ; case-membership proposition leaves, including exact case-payload paths.
 ; It preserves full-width identities and indices and checks only byte-level
 ; canonical form.  Declared structural types and semantic leaf meaning remain

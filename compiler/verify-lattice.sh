@@ -16,8 +16,6 @@
 # unchanged since its last GREEN run is skipped (content-hash cache in
 # .lattice-cache/). So an omega-slice edit re-verifies only the gates it can
 # reach, not the 843-case prover battery. LATTICE_FULL=1 forces everything.
-# LATTICE_EXPERIMENTAL=1 additionally runs unfinished evidence routes which are
-# excluded from the verified claim and may currently exceed practical limits.
 # The cache holds only *hashes of inputs of passing runs* — deleting it is
 # always safe and merely makes the next run full.
 OMEGA_GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
@@ -62,7 +60,7 @@ CORE=$(hash_inputs "$OMEGA_PATH_RUNGS_ROOT" \
   "$OMEGA_PATH_BOOTSTRAP_ROOT/check-path-hygiene.sh" \
   "$OMEGA_PATH_BOOTSTRAP_ROOT/test-paths.sh" \
   beta-rust)
-RAN=0; SKIPPED=0; DEFERRED=0
+RAN=0; SKIPPED=0
 
 step() {  # label dir script [extra dep dirs...]
   s_label="$1"; s_role="$2"; s_script="$3"; shift 3
@@ -84,11 +82,6 @@ step() {  # label dir script [extra dep dirs...]
   fi
 }
 
-deferred_step() { # label reason
-  printf '\n=== %s === (DEFERRED: %s)\n' "$1" "$2"
-  DEFERRED=$((DEFERRED+1))
-}
-
 step "alpha — seed (provenance + behavior + reproduction)" alpha       verify.sh
 step "alpha — reference VM agrees with the host realization" alpha diamond-py.sh
 step "alpha — VM FUZZ: seed vs reference over random arithmetic tapes (signedness/wraparound/traps)" alpha vm-fuzz.sh
@@ -108,12 +101,6 @@ step "gamma — reference interpreter (ADTs + match)"   gamma       test-interp.
 step "gamma — MEANING CROSS-CHECK: gamma_ref.py agrees with interp.beta (fuzz)" gamma gamma-diamond-py.sh beta-rust alpha-assembler
 step "gamma — static type checker"                    gamma       test-typeck.sh
 step "gamma — shared typed canonical-byte decoder" gamma test-canonical-bytes.sh
-if [ "${LATTICE_EXPERIMENTAL:-0}" = "1" ]; then
-  step "gamma — terminal-ledger feasibility spike (EXPERIMENTAL, frozen format 18/vocabulary 20)" gamma test-terminal-ledger-spike.sh psi/semantics/psi-terminal-codec
-else
-  deferred_step "gamma — terminal-ledger feasibility spike" \
-    "frozen format 18/vocabulary 20 rejects live format 22/vocabulary 25 fixtures; use LATTICE_EXPERIMENTAL=1 to probe it"
-fi
 step "gamma — the proof kernel, written IN gamma"    proof-kernel-gates gamma-checker.sh gamma
 step "cross-check — checkers agree (Beta, Gamma, type-erased typed)" proof-kernel-gates checker-diamond.sh gamma
 step "seam — definitional eq vs operational eval"  proof-kernel-gates semantics-diamond.sh gamma
@@ -167,7 +154,7 @@ fi
 
 echo ""
 if [ "$fail" = 0 ]; then
-  echo "LATTICE VERIFIED ✓ — seed → assembler → bc → Delta; proof kernel verified; + gamma interp running the checker-in-gamma  ($RAN run, $SKIPPED cached, $DEFERRED open evidence routes deferred)"
+  echo "LATTICE VERIFIED ✓ — seed → assembler → bc → Delta; proof kernel verified; + gamma interp running the checker-in-gamma  ($RAN run, $SKIPPED cached)"
 else
-  echo "LATTICE: one or more rungs FAILED  ($RAN run, $SKIPPED cached, $DEFERRED open evidence routes deferred)"; exit 1
+  echo "LATTICE: one or more rungs FAILED  ($RAN run, $SKIPPED cached)"; exit 1
 fi

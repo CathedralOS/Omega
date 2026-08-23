@@ -19,17 +19,13 @@ The layer deliberately owns only:
 - exact-byte and zero-byte consumption.
 
 It does not know the `PSITERM\0` marker, vocabulary versions, collection counts,
-semantic identities, terminal tags, or any recursive terminal type. The exact
-current terminal envelope, canonical scalar and scalar-type grammar, and
-length-prefixed UTF-8 string grammar are the adjacent, independently gated
-`../terminal-codec-primitives/` responsibility rather than part of this raw
-byte layer.
-The bounded ledger spike still narrows decoded identities to a zero high half
-because its fixture vocabulary stores identities as `Int`; that consumer-side
-limit is explicit even though this shared layer now retains the complete
-unsigned range. Every monomorphic type-specific parser result also remains
-spike-owned. The full canonical decoder must preserve the shared `U64` carrier
-rather than laundering identities into a signed host integer.
+semantic identities, terminal tags, or any recursive terminal type. Reusable
+canonical scalar/type/value/UTF-8 and structural-leaf grammar fragments are the
+adjacent, independently gated `../terminal-codec-primitives/` responsibility.
+That layer deliberately owns no fixed format/vocabulary header and is not a
+complete live terminal codec. A future low-rung canonical decoder must preserve
+the shared full-width `U64` carrier rather than laundering identities into a
+signed host integer.
 
 Run `sh bootstrap/rungs/gamma/test-canonical-bytes.sh` for the typed and independent
 interpreter contract.

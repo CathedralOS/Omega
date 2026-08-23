@@ -1375,10 +1375,9 @@ identity, capacity, and bytes beyond the live length are irrelevant. The
 verifier independently requires both resolved leaves to have byte-sequence
 carrier types, and call substitution rebases both roots. The bounded slice
 admits field-to-field whole-record equality for `&[u8] in Domain` and
-`[u8; N] in Domain`; text literals and direct text `!=` remain fenced. Semantic
-codec v18, proof-bundle v19, and installation-record v24 encode this vocabulary.
-A
-genuinely zero-member record instead normalizes equality to the
+`[u8; N] in Domain`; text literals and direct text `!=` remain fenced. The
+current semantic codec, proof-bundle codec, and installation record encode this
+vocabulary. A genuinely zero-member record instead normalizes equality to the
 existing Boolean `true` term; inequality uses the existing negation, and calls,
 codecs, verification, fixed fuel, and interpretation reuse that carrier. An
 all-erased record is not empty and remains fenced. Payload-less sums retain
@@ -2647,17 +2646,18 @@ lifetime composition obligations are established.
 The current Rust migration surface is now exposed by `psi-terminal-codec` in
 every verified proof synopsis. Its validated graph binds exact source bytes and
 explicit versions for the decoder, proof kernel, verifier, each sufficient-form
-reducer, the unproved ledger framework, 32 direct-denotation rows, three
-separate structural/effect rows, and three call-composition rows covering every
-closed `OperationKind`. The 35 leaf / three call operation-custody split remains
+reducer, the unproved ledger framework, 32 scalar-denotation rows, four
+separate structural/effect rows, and four call-composition rows covering every
+closed `OperationKind`. The 36 leaf / four call operation-custody split remains
 unchanged. Dependency edges
 contribute to the graph identity; unknown, cyclic, unreachable, duplicate, or
 noncanonical custody rejects. The entry deliberately reports `fully-derived
 false`: this inventory is the prerequisite for, not an implementation of, the
 low canonical ledger.
 
-The production structural/effect table now mirrors the bounded Gamma schema:
-`BooleanStructuralField`, `PortWrite`, and `EstablishTrivialAffineLocal` expose
+The production structural/effect table extends the closed-row schema:
+`EstablishByteSequenceLiteral`, `BooleanStructuralField`, `PortWrite`, and
+`EstablishTrivialAffineLocal` expose
 their result, exact custody, action, external-effect, one-fuel, and place-
 frontier policies through one exact-unique Rust table. Its generic interpreter
 keeps the Boolean equation, observable port effect, and affine establishment
@@ -2668,88 +2668,38 @@ proof-bundle, reconstruction, and substitution sources, so splitting the former
 monolith does not weaken exact deciding-byte custody.
 
 Call composition follows the same production shape without pretending that a
-call is a primitive denotation. One exact-unique three-row table independently
+call is a primitive denotation. One exact-unique four-row table independently
 declares target, result, positional arguments, requirement handling, structural
 transfer, successful outcome, crash routes, evidence lifetime, fuel, and
-frontier policy for `Call`, `CallUnit`, and `BoundaryCall`. Execution-grade
+frontier policy for `Call`, `CallUnit`, `CallStructuralScalar`, and
+`BoundaryCall`. Execution-grade
 module validation remains responsible for proving each concrete signature,
 state/movement, clause coverage, capture-free substitution, transfer, outcome,
 crash, and evidence invariant. Only then does the focused call-composition
 module enumerate obligations and import successful guarantees. The general
-operation reconstruction loop no longer owns three parallel call algorithms,
+operation reconstruction loop no longer owns parallel call algorithms,
 and each call trust node binds both the shared policy table and that focused
 consumer.
 
-The bounded Gamma feasibility spike now starts from four exact current
-`PSITERM\0` v18 byte fixtures and reconstructs a typed 54-row scalar ledger plus
-a separate 3-row structural/effect ledger. It covers constants, Boolean
-not/equality, integer equality/order, bitwise operations, strict widening,
-partial exact cast, exact/wrapping shifts with independently typed counts, and
-the complete exact/wrapping/saturating add/subtract/multiply and
-divide/remainder cohorts, signed toward-zero division including `MIN / -1`,
-exact call-clause enumeration and substitution, ranked justification,
-branch-local scope/invalidation, and an all-predecessor merge; changing only one
-predecessor value rejects. The 1,983-byte scalar fixture produces a 3,607-byte
-modeled ledger and a 2,984-byte prospective reconstruction certificate. The
-695-byte structural/effect fixture produces a 185-byte ledger and a 164-byte
-prospective certificate. A separate 697-byte fixture canonical-decodes exact
-Unit and boundary call custody. The assembled typed core is 4,982 lines
-(198,971 bytes, 423 functions) with maximum source nesting 25. A separately
-gated 109-line PSITERM-neutral byte layer owns the checked byte cursor,
-fixed-width `u16`/`u32`, exact low/high-half `u64`, and exact four-limb `u128`
-primitives, including exact unsigned `u64` order. A separately gated 592-line
-terminal-codec layer owns the exact
-current envelope, canonical Boolean, optional and required full-width semantic-ID
-carriers with exact equality and canonical unsigned order,
-the complete Boolean/
-fixed-signed/fixed-unsigned/address type grammar with widths `1..=128`, exact
-signed/unsigned 128-bit integer-value payloads, and length-prefixed UTF-8
-decoding with malformed-encoding rejection. Its separate v18 structural-leaf
-module owns exact IEEE kind/format, byte-sequence carriers, full-width canonical
-structural fields including tag-`3` case path segments, and atomic proposition
-tags `11`/`12`/`13`; nonempty paths and root-then-lexicographic operand order are
-checked at the atom boundary. All
-three bounded decoders consume only its 302-line header/scalar/type/value subset.
-The structural-leaf module is independently gated but deliberately excluded
-from the bounded spike, so it adds byte grammar without adding ledger authority.
-Scalar declarations and boundary
-results retain the complete decoded type grammar, and integer-constant
-operations retain exact signed/unsigned 128-bit payloads; only the bounded
-operation rows remain limited to Boolean/i8/i16 and perform signed-i8 narrowing.
-The bounded spike narrows identities to a zero high half after complete
-decoding, while
-remaining recursive vocabulary and monomorphic semantic result types remain
-spike-local. This clears the required
-feasibility gate; it does not make the bounded subset production-authoritative
-or mark any trust-graph dependency derived.
+The historical Gamma feasibility spike proved that exact canonical-byte
+decoding and ordered ledger reconstruction can fit the low rung without making
+the Rust verifier authoritative. At its final measured checkpoint it assembled
+to 4,982 typed Gamma lines / 198,971 bytes / 423 functions with maximum source
+nesting 25. Its closed row tables eliminated per-operation builder branches;
+most remaining repetition came from Gamma's monomorphic decoder-result types,
+not the semantic schema. That format-bound implementation was retired when its
+format-18/vocabulary-20 decoder fell behind the live format-22/vocabulary-25
+artifact. Git commit `a5cfd83cc` and its follow-ups retain the executable
+provenance; dead source is not carried as a parallel verifier.
 
-The thirty-two scalar primitive variants resolve through five composed
-exact-unique policy-cohort tables whose rows own result shape, denotation, goal,
-post-discharge fact, crash policy, fuel, and frontier behavior. The structural
-`EstablishTrivialAffineLocal` and `BooleanStructuralField` rows plus effectful
-`PortWrite` live in a separate exact-unique table and decoder/evaluator modules
-with place/frontier/effect vocabulary rather than scalar permutations. Missing,
-duplicate, altered, relevance, custody, service, effect, cleanup, and retirement
-drift reject end to end. Known values are exact typed declarations rather than
-bare IDs, so duplicate result identities, invalid Boolean payloads,
-conversion/result/count type drift, missing exact obligations, join-parameter
-overlap, and call argument-type drift reject before row publication.
-Boolean-producing leaves publish ordinary result equations that conditional
-control consumes without taking ownership of leaf denotation. Exact cast,
-exact-right-shift, and exact-left-shift retain distinct goals; widening and
-wrapping shifts are total.
-
-Calls retain separate composition algebra. Three exact-unique rows for scalar
-in-module, structural in-module, and boundary calls feed one generic checker
-whose target/result, binder, requirement, substitution, transfer, outcome,
-crash-route, evidence-lifetime, fuel, and frontier axes remain independently
-visible. The canonical scalar call consumes its row end to end, while the
-697-byte call fixture decodes and validates exact qualified resource,
-requirement, transfer, receipt, and boundary identities for `CallUnit` and
-`BoundaryCall` through the same checker. Missing, duplicate, altered,
-cross-kind, per-axis, raw-identity, target, argument, transfer, receipt,
-truncation, and trailing-byte drift reject. The full low generator, row proofs,
-and composition bridges remain required; the bounded spike marks no trust-graph
+The reusable result now lives in production's closed 40-row inventory: 32
+scalar denotations plus four structural/effect leaves form 36 leaf rows, while
+four call-composition rows remain a separate algebra. Exact-unique lookup and
+mutation tests retain the schema discipline. Reusable low-rung byte,
+scalar/type/value, UTF-8, and structural-leaf grammar fragments remain gated,
+but deliberately claim neither a fixed terminal header nor a complete live
+decoder. The full assurance-owned low generator, row proofs, and composition
+bridges remain required; the retired feasibility result marks no trust-graph
 dependency derived.
 
 Portable terminal-Psi denotation bottoms out in the abstract terminal execution

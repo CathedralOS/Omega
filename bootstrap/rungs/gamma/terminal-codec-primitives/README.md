@@ -1,16 +1,10 @@
-# Canonical terminal-codec primitives
+# Reusable terminal grammar primitives
 
-This directory layers exact terminal-codec grammar over the semantics-neutral
-`../canonical-bytes/` cursor. It owns the frozen envelope prefix used by the
-bounded terminal-ledger feasibility experiment:
-
-- exact `PSITERM\0` magic;
-- exact format marker 18; and
-- exact vocabulary marker 20, retained in the typed result.
-
-These are not the current deployment markers (now format 22/vocabulary 25).
-This directory is a historical artifact-assurance experiment, not an alternate
-terminal codec and not part of Gamma language meaning.
+This directory layers reusable typed terminal grammar fragments over the
+semantics-neutral `../canonical-bytes/` cursor. It deliberately does not own the
+`PSITERM\0` envelope, a format/vocabulary marker, a complete module decoder, or
+semantic authority. Those versioned responsibilities belong to an eventual
+assurance-owned low-rung generator consuming the live canonical artifact.
 
 It also owns the codec's length-prefixed UTF-8 string rule:
 
@@ -31,13 +25,11 @@ unsigned ordering. Counts, tags, and byte offsets therefore cannot be confused
 with identities by the full ledger decoder, and identities above Gamma's signed
 `Int` range remain representable without narrowing.
 
-The scalar-type layer owns the complete current type grammar: Boolean, fixed
+The scalar-type layer owns the reusable type grammar: Boolean, fixed
 signed or unsigned integers, and unsigned address integers, each with an exact
-width in `1..=128`. The bounded spike now retains this exact type in every
-declaration; only its operation-row policy remains intentionally limited to
-Boolean, signed i8, and signed i16.
+width in `1..=128`.
 
-The separately gated structural-leaf layer owns the exact v18 byte grammar for:
+The separately gated structural-leaf layer owns grammar fragments for:
 
 - IEEE binary32/binary64 format and equality/inequality comparison kinds;
 - borrowed-view and exact-full-width-capacity bounded-owned byte-sequence
@@ -55,9 +47,7 @@ fixed-index segments before case segments and every numeric component ordered
 as unsigned `u64`.
 The layer retains the unread input tail and rejects invalid tags, zero semantic
 identities, reversed operands, and truncation. It assigns no declared type or
-runtime meaning to a decoded field. The bounded Gamma ledger fixtures do not
-concatenate this new layer and continue to reject IEEE and byte-sequence tags
-rather than silently widening their claimed semantic coverage.
+runtime meaning to a decoded field.
 
 The integer-value layer owns the complete current payload grammar: tag `1`
 retains one signed value's exact 128-bit two's-complement bits and tag `2`
@@ -68,7 +58,7 @@ consumers must validate and narrow explicitly after the shared decoder succeeds.
 Each result retains its unread input tail; strings additionally retain a
 separate captured byte spine. The module does not assign semantic meaning to an
 identity, path, or label. `structural_leaves_types.gamma` and
-`structural_leaves.gamma` are kept separate so bounded consumers need not import
-unsupported proposition vocabulary merely to reuse the scalar primitives. Run
+`structural_leaves.gamma` remain separate so consumers can select only the
+grammar fragments they need. Run
 `sh bootstrap/rungs/gamma/test-terminal-codec-primitives.sh` for the typed and
 independent-interpreter contract.
