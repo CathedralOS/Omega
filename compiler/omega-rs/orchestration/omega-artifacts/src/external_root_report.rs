@@ -242,31 +242,44 @@ fn push_external_root_json(output: &mut String, record: &InstalledRootRecord) {
                 push_hex_identity(output, validation_receipt.normalized_identity());
             }
         }
-        let adapter = input.realization_evidence();
-        output.push_str(", \"adapter_origin\": \"");
-        output.push_str(match adapter.origin() {
-            omega_external_roots::AdapterStackRealizationOrigin::DirectGenerated => {
-                "direct_generated"
+        let entry_evidence = input.realization_evidence();
+        output.push_str(", \"arrival_origin\": \"");
+        output.push_str(match entry_evidence.arrival_origin() {
+            omega_external_roots::ArrivalStackRealizationOrigin::NoHardwareArrival => {
+                "no_hardware_arrival"
             }
+            omega_external_roots::ArrivalStackRealizationOrigin::X86_64TargetRule => {
+                "x86_64_target_rule"
+            }
+            omega_external_roots::ArrivalStackRealizationOrigin::OpaqueProvider => {
+                "opaque_provider"
+            }
+        });
+        output.push_str("\", \"adapter_origin\": \"");
+        output.push_str(match entry_evidence.adapter_origin() {
+            omega_external_roots::AdapterStackRealizationOrigin::None => "none",
             omega_external_roots::AdapterStackRealizationOrigin::OpaqueProvider => {
                 "opaque_provider"
             }
         });
-        output.push_str("\", \"adapter_target\": \"");
-        output.push_str(match adapter.architecture() {
+        output.push_str("\", \"entry_target\": \"");
+        output.push_str(match entry_evidence.architecture() {
             omega_target::Architecture::X86_64 => "x86_64",
             omega_target::Architecture::Aarch64 => "aarch64",
         });
-        output.push_str("\", \"adapter_installed_code\": ");
-        push_hex_identity(output, adapter.installed_code().normalized_identity());
-        output.push_str(", \"adapter_artifact\": ");
-        push_hex_identity(output, adapter.artifact().normalized_identity());
-        output.push_str(", \"adapter_entry\": ");
-        push_hex_identity(output, adapter.entry().normalized_identity());
-        output.push_str(", \"adapter_boundary_contract\": ");
-        push_hex_identity(output, adapter.boundary_contract_fingerprint());
-        output.push_str(", \"adapter_body_domains\": [");
-        for (domain_index, (context, domain)) in adapter.body_domains().iter().enumerate() {
+        output.push_str("\", \"entry_installed_code\": ");
+        push_hex_identity(
+            output,
+            entry_evidence.installed_code().normalized_identity(),
+        );
+        output.push_str(", \"entry_artifact\": ");
+        push_hex_identity(output, entry_evidence.artifact().normalized_identity());
+        output.push_str(", \"entry_stub\": ");
+        push_hex_identity(output, entry_evidence.entry().normalized_identity());
+        output.push_str(", \"entry_boundary_contract\": ");
+        push_hex_identity(output, entry_evidence.boundary_contract_fingerprint());
+        output.push_str(", \"body_domains\": [");
+        for (domain_index, (context, domain)) in entry_evidence.body_domains().iter().enumerate() {
             if domain_index > 0 {
                 output.push_str(", ");
             }
@@ -277,16 +290,22 @@ fn push_external_root_json(output: &mut String, record: &InstalledRootRecord) {
             output.push('}');
         }
         output.push(']');
-        output.push_str(", \"adapter_realization_fingerprint\": ");
-        push_hex_identity(output, adapter.realization().fingerprint());
-        output.push_str(", \"adapter_validation_receipt\": ");
-        if let Some(receipt) = adapter.validation_receipt() {
+        output.push_str(", \"entry_realization_fingerprint\": ");
+        push_hex_identity(output, entry_evidence.realization().fingerprint());
+        output.push_str(", \"target_arrival_rule_fingerprint\": ");
+        if let Some(fingerprint) = entry_evidence.target_rule_fingerprint() {
+            push_hex_identity(output, fingerprint);
+        } else {
+            output.push_str("null");
+        }
+        output.push_str(", \"opaque_validation_receipt\": ");
+        if let Some(receipt) = entry_evidence.validation_receipt() {
             push_hex_identity(output, receipt.normalized_identity());
         } else {
             output.push_str("null");
         }
         output.push_str(", \"arrival_contexts\": ");
-        push_entry_stack_realization_json(output, adapter.realization());
+        push_entry_stack_realization_json(output, entry_evidence.realization());
         output.push('}');
     }
     output.push(']');

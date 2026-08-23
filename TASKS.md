@@ -6710,10 +6710,20 @@ reach or trust, and private proof improvements do not change public identity.
   per-domain demand, and evidence origin behind compact fingerprints. The old
   scalar admitted composer is not an admission path.
 
-  Remaining: derive hardware-arrival epochs and body-domain closure from sealed
-  target rules plus exact installation facts; derive nontrivial generated
-  adapter enter/exit epochs from emitted instructions. Add no
-  architecture-specific frame vocabulary to source.
+  A sealed x86-64 target rule now derives 24/32-byte same-privilege and
+  40/48-byte privilege/IST arrival frames from exact vector, mechanism,
+  privilege, and hardware-switch facts; providers supply neither frame sizes
+  nor error-code bits. The direct-entry binder replays the exact target,
+  artifact, installed code, entry offset, boundary contract, context set, and
+  Terminal body before the result enters composition. Arrival, adapter, and
+  body provenance are independent in canonical identity and reports.
+
+  Remaining: produce the x86 fact carrier directly from the installed
+  gate/TSS realization rather than a test target-fact fixture; add other target
+  arrival rules as their installation facts land; derive nontrivial generated
+  adapter enter/exit epochs from replayed emitted operations. Add no
+  architecture-specific frame vocabulary to source and do not infer adapter
+  transitions by pattern-matching raw bytes.
 - **TR3-TR8:** finish whole-call-graph WCSU derivation, bind exact `StackPlan`
   evidence, reserve fixed nonmoving `StackLease`s, validate preservation and
   cancellation conformances, transfer arguments transactionally, lower

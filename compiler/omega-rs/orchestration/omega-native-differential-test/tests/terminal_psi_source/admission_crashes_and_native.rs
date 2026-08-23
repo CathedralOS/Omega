@@ -1183,8 +1183,12 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
                 && binding.installed_code() == installed_code.identity()
     ));
     assert_eq!(
-        stack_input.realization_evidence().origin(),
-        AdapterStackRealizationOrigin::DirectGenerated
+        stack_input.realization_evidence().arrival_origin(),
+        ArrivalStackRealizationOrigin::NoHardwareArrival
+    );
+    assert_eq!(
+        stack_input.realization_evidence().adapter_origin(),
+        AdapterStackRealizationOrigin::None
     );
     assert_eq!(
         stack_input.realization_evidence().validation_receipt(),
@@ -1290,7 +1294,8 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
     ));
     let root_report = external_root_manifest_json(&ledger);
     assert!(root_report.contains("\"origin\": \"terminal_entry\""));
-    assert!(root_report.contains("\"adapter_origin\": \"direct_generated\""));
+    assert!(root_report.contains("\"arrival_origin\": \"no_hardware_arrival\""));
+    assert!(root_report.contains("\"adapter_origin\": \"none\""));
     assert!(root_report.contains("\"contributing_machines\": ["));
 
     let manifest_module = decode_module(&canonical_bytes)

@@ -1,11 +1,14 @@
 use super::*;
 use omega_calling_conventions::{
     ArrivalContextId, ArrivalContextRealization, ArrivalContextStackDomain, CallSignature,
-    CallingPolicy, EntryStackEpoch, EntryStackRealization, EntryStackStage, MachineRegime,
-    MachineState, MachineStateSet, Preemption, RegisterSet, StackDomainRef, StatePlan,
-    ValidatedEntryStackDomainClosure, ValueShape, evaluate_ordinary_boundary_entry_plan,
+    CallingPolicy, EntryStackEpoch, EntryStackRealization, EntryStackStage,
+    InstalledEntryFactIdentity, MachineRegime, MachineState, MachineStateSet, Preemption,
+    RegisterSet, StackDomainRef, StatePlan, ValidatedEntryStackDomainClosure, ValueShape,
+    X86_64ArrivalMechanism, X86_64GateKind, X86_64HardwareStackSelection,
+    X86_64InstalledArrivalContext, X86_64InstalledHardwareEntryFacts, X86_64TargetProfileIdentity,
+    derive_x86_64_hardware_arrival, evaluate_ordinary_boundary_entry_plan,
     validate_boundary_entry_plan, validate_entry_stack_domain_closure,
-    validate_entry_stack_realization,
+    validate_entry_stack_realization, validate_x86_64_installed_hardware_entry_facts,
 };
 use omega_effects::provider_plan::{
     ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod, ServiceSchema,
@@ -208,6 +211,16 @@ fn provider_selected_boundary() -> ValidatedBoundaryEntryPlan {
     let mut plan = ordinary.plan().clone();
     plan.state.stack = EntryStack::ProviderSelected;
     validate_boundary_entry_plan(plan, &signature).expect("provider-selected boundary")
+}
+
+fn provider_selected_masked_boundary() -> ValidatedBoundaryEntryPlan {
+    let signature = CallSignature {
+        parameters: vec![ValueShape::integer(8, 8)],
+        result: None,
+    };
+    let mut plan = provider_selected_boundary().plan().clone();
+    plan.state.preemption = Preemption::Masked;
+    validate_boundary_entry_plan(plan, &signature).expect("provider-selected masked boundary")
 }
 
 fn interrupted_boundary() -> ValidatedBoundaryEntryPlan {
@@ -606,8 +619,12 @@ fn direct_generated_entry_derives_one_exact_body_epoch_without_provider_attestat
     .expect("direct generated entry derives its realization");
 
     assert_eq!(
-        bound.realization_evidence().origin(),
-        AdapterStackRealizationOrigin::DirectGenerated
+        bound.realization_evidence().arrival_origin(),
+        ArrivalStackRealizationOrigin::NoHardwareArrival
+    );
+    assert_eq!(
+        bound.realization_evidence().adapter_origin(),
+        AdapterStackRealizationOrigin::None
     );
     assert_eq!(bound.realization_evidence().validation_receipt(), None);
     let contexts = &bound
@@ -636,6 +653,141 @@ fn direct_generated_entry_derives_one_exact_body_epoch_without_provider_attestat
         error
             .0
             .contains("drifted from the boundary stack disposition")
+    );
+}
+
+#[test]
+fn x86_target_arrival_binds_exact_installation_and_composes_mixed_contexts() {
+    let entry = entry_id(0x821);
+    let code = installed_code(0x822, entry);
+    let boundary = provider_selected_masked_boundary();
+    let machine = psi_core::MachineId::new(1).expect("machine identity");
+    let terminal_psi = psi_terminal::TerminalPsiIdentity {
+        vocabulary_marker: psi_terminal::VocabularyMarker,
+        program_fingerprint: psi_terminal::SemanticFingerprint::from_bytes([0x82; 32]),
+    };
+    let artifact = TestTerminalObject {
+        identity: terminal_psi,
+        entry: machine,
+        bytes: vec![0; 64],
+    };
+    let demand = TestTerminalStackDemand {
+        identity: terminal_psi,
+        entry: machine,
+        contributing: BTreeSet::from([machine]),
+    };
+    let installed = bind_installed_terminal_entry_stack(&demand, &artifact, &code, entry)
+        .expect("terminal stack closure binds exact installed bytes");
+    let root = root_id(0x823, ExternalRootId::from_normalized_identity);
+    let provider = root_id(0x824, RootProviderId::from_normalized_identity);
+    let summary = ProviderStackSummary::from_terminal_entry(
+        root,
+        provider,
+        boundary.plan().state.stack,
+        installed,
+    );
+    let installed_identity = InstalledEntryFactIdentity {
+        target_profile: X86_64TargetProfileIdentity::LONG_MODE_INTERRUPT_GATES,
+        artifact: code.artifact().normalized_identity(),
+        installed_code: code.identity().normalized_identity(),
+        entry: entry.normalized_identity(),
+        entry_offset: 16,
+        boundary_plan: boundary.contract_fingerprint(),
+    };
+    let facts = X86_64InstalledHardwareEntryFacts {
+        identity: installed_identity,
+        vector: 14,
+        gate: X86_64GateKind::Interrupt,
+        boundary_stack: boundary.plan().state.stack,
+        contexts: vec![
+            X86_64InstalledArrivalContext {
+                context: ArrivalContextId::new(2).expect("kernel arrival context"),
+                mechanism: X86_64ArrivalMechanism::Exception,
+                interrupted_privilege: 0,
+                entry_privilege: 0,
+                stack_selection: X86_64HardwareStackSelection::Current,
+                nesting: Preemption::Masked,
+            },
+            X86_64InstalledArrivalContext {
+                context: ArrivalContextId::new(1).expect("user arrival context"),
+                mechanism: X86_64ArrivalMechanism::Exception,
+                interrupted_privilege: 3,
+                entry_privilege: 0,
+                stack_selection: X86_64HardwareStackSelection::PrivilegeTransition {
+                    dedicated_class: 7,
+                },
+                nesting: Preemption::Masked,
+            },
+        ],
+    };
+    let validated = validate_x86_64_installed_hardware_entry_facts(facts.clone())
+        .expect("exact installed x86 gate facts");
+    let target_arrival =
+        derive_x86_64_hardware_arrival(&validated).expect("sealed x86 arrival derivation");
+    let bound = bind_x86_64_target_direct_entry_stack_realization(
+        &summary,
+        &boundary,
+        &code,
+        entry,
+        &target_arrival,
+    )
+    .expect("target arrival binds exact emitted body");
+
+    assert_eq!(
+        bound.realization_evidence().arrival_origin(),
+        ArrivalStackRealizationOrigin::X86_64TargetRule
+    );
+    assert_eq!(
+        bound.realization_evidence().adapter_origin(),
+        AdapterStackRealizationOrigin::None
+    );
+    assert_eq!(
+        bound.realization_evidence().target_rule_fingerprint(),
+        Some(target_arrival.fingerprint())
+    );
+    let composition = compose_bound_entry_stack_epochs(
+        &StackNestingRelation {
+            identity: root_id(0x825, NestingRelationId::from_normalized_identity),
+            edges: BTreeSet::new(),
+        },
+        [&bound],
+    )
+    .expect("mixed target contexts compose");
+    let demand = composition.demand(root).expect("root demand");
+    assert_eq!(
+        demand
+            .domain(StackDomain::Interrupted)
+            .expect("same-CPL domain")
+            .bytes,
+        96
+    );
+    assert_eq!(
+        demand
+            .domain(StackDomain::Dedicated { class: 7 })
+            .expect("privilege-transition domain")
+            .bytes,
+        112
+    );
+
+    let mut wrong_boundary = facts;
+    wrong_boundary.identity.boundary_plan ^= 1;
+    let wrong_arrival = derive_x86_64_hardware_arrival(
+        &validate_x86_64_installed_hardware_entry_facts(wrong_boundary)
+            .expect("structurally valid but foreign boundary identity"),
+    )
+    .expect("target rule still derives its own exact claim");
+    let error = bind_x86_64_target_direct_entry_stack_realization(
+        &summary,
+        &boundary,
+        &code,
+        entry,
+        &wrong_arrival,
+    )
+    .expect_err("target arrival cannot replay across a boundary contract");
+    assert!(
+        error
+            .0
+            .contains("different installed artifact, entry, or boundary")
     );
 }
 
