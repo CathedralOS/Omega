@@ -1,1 +1,0 @@
-../../assurance/refinement/omega0/input-tv.sh

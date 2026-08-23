@@ -86,7 +86,7 @@ fn lowered() -> psi_checked_trees_to_terminal::LoweredTerminalPsi {
 
 fn fixture_bytes() -> Vec<u8> {
     let hex = include_str!(
-        "../../../../../../../bootstrap/omega0/gates/fixtures/omega0-terminal-v26.hex"
+        "../../../../../../../bootstrap/omega-bootstrap/gates/fixtures/omega-bootstrap-terminal-v26.hex"
     );
     let digits = hex
         .bytes()
@@ -236,7 +236,9 @@ fn source_projection_is_the_shared_o0_fixture_and_perturbations_fail_closed() {
     let lowered = lowered();
     let canonical = psi_terminal_codec::encode_module(&lowered.semantic_module)
         .expect("encode source projection");
-    let fixture = if let Some(path) = std::env::var_os("OMEGA0_WRITE_TERMINAL") {
+    let fixture = if let Some(path) = std::env::var_os("OMEGA_BOOTSTRAP_WRITE_TERMINAL")
+        .or_else(|| std::env::var_os("OMEGA0_WRITE_TERMINAL"))
+    {
         std::fs::write(path, hex_bytes(&canonical)).expect("write requested canonical fixture");
         canonical.clone()
     } else {
@@ -336,7 +338,9 @@ fn source_projection_is_the_shared_o0_fixture_and_perturbations_fail_closed() {
     impossible_count[20..24].copy_from_slice(&u32::MAX.to_le_bytes());
     assert!(psi_terminal_codec::decode_module(&impossible_count).is_err());
 
-    if let Some(path) = std::env::var_os("OMEGA0_WRITE_VARIANT_TERMINAL") {
+    if let Some(path) = std::env::var_os("OMEGA_BOOTSTRAP_WRITE_VARIANT_TERMINAL")
+        .or_else(|| std::env::var_os("OMEGA0_WRITE_VARIANT_TERMINAL"))
+    {
         let variant = SOURCE
             .replace("Hello, Omega.", "A\\n")
             .replace("exit_process(0)", "exit_process(2)");

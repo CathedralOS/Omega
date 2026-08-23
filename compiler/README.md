@@ -86,7 +86,7 @@ terminal Psi and performs target realization and native emission.
 The hosted build has two source surfaces:
 
 1. Delta source implements `omega-bootstrap`, including exact `Ωself`
-   acceptance and the optimizer/lowering functionality needed for the product.
+   acceptance and correct conservative lowering of the product source.
 2. `omega-bootstrap` compiles the `Ωself`-constrained Omega product source into
    the full optimizing compiler. That compiler's own binary may be
    conservatively lowered until an optional self-rebuild.
@@ -97,7 +97,7 @@ budget and enforcement contract live in
 
 The current Rust implementation remains a migration/reference producer under
 `bootstrap/onramps/omega-rust/{psi,omega}/` while that hosted path matures.
-`bootstrap/omega0/` owns the Rust-free meaning, current Delta-written compiler
+`bootstrap/omega-bootstrap/` owns the Rust-free meaning, current Delta-written compiler
 slices/profiles, and validation gates. The roots here at
 `compiler/{psi,omega}/` are reserved for the eventual Omega-written product
 source and currently contain only placement documentation.

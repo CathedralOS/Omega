@@ -102,7 +102,7 @@ tokens_test() {
 bundle_result() {
   set +e; "$T/out" < "$1" > /dev/null 2>&1; got=$?; set -e
   if [ "$got" = "$2" ]; then PASS=$((PASS+1)); else
-    FAIL=$((FAIL+1)); echo "  FAIL omega0 bundle $3 : exit $got, expected $2"; fi
+    FAIL=$((FAIL+1)); echo "  FAIL Omega0 bundle $3 : exit $got, expected $2"; fi
 }
 # compiler NAME SOURCE.alp EXPR EXPECTED_EXIT  — a Delta-written COMPILER:
 # build it, run it on EXPR to emit assembly, assemble+sign+run, check the exit code.
@@ -196,7 +196,7 @@ run "data (self fields, sum 1..5)" "$SAMPLES/data.alp" 15
 # Slice 7b: array fields + self/method calls + bounds-checked indexing.
 run "methods (stack in self, 7*10+5)" "$SAMPLES/methods.alp" 75
 run "bootstrap storage (aligned bump allocation + reset)" "$SAMPLES/bootstrap-storage.alp" 42
-if build "omega0 canonical bundle decoder" "$SAMPLES/omega0-bundle-decode.alp"; then
+if build "omega-bootstrap canonical bundle decoder" "$SAMPLES/omega-bootstrap-bundle-decode.alp"; then
   # One canonical entry: label `main.omg`, content `abc`. Its byte checksum mod
   # 251 is 80. The other fixtures exercise framing, paths, ordering, and the
   # decoder's explicit local resource ceiling.
@@ -545,7 +545,7 @@ else
 fi
 
 selfhost_file_test "self-hosting: lowermachine compiles the Omega0 bundle decoder" \
-  "$SAMPLES/omega0-bundle-decode.alp" "$T/bundle-ok"
+  "$SAMPLES/omega-bootstrap-bundle-decode.alp" "$T/bundle-ok"
 
 # SECOND-ORDER self-hosting: the byte-identical lowermachine ($T/lmx) compiles rpn.alp -- another
 # real ~200-line Delta program (a shunting-yard compiler) -- and the resulting arm64 binary

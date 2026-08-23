@@ -11,7 +11,7 @@ independent of the language used to produce an artifact.
 - [`../../onramps/delta-rust/`](../../onramps/delta-rust/) is the disposable
   Rust producer and executable reference. It is not Delta's semantic authority.
 
-The lower-rung Delta-to-Gamma route under [`../../omega0/meaning/`](../../omega0/meaning/)
+The lower-rung Delta-to-Gamma route under [`../../omega-bootstrap/meaning/`](../../omega-bootstrap/meaning/)
 defines the meaning profile being widened toward `omega-bootstrap`.
 `compiler/delta` and `compiler/delta-rs` remain historical compatibility paths;
 new gates use the `delta` and `delta-rs` roles from `bootstrap/paths.sh`.

@@ -1,0 +1,425 @@
+; Conditional exact-output summaries for the two fixed-decimal emitters.
+;
+; EPRO covers emit_proc_prologue for 0<=nslots<=1024.  It always appends the
+; four fixed frame-setup lines; zero returns there, while positive nslots also
+; appends "imm r5," || dec(8*nslots) || "\nsub r15,r5\n".
+;
+; EPAR covers emit_param_store for 0<=k<4 and appends
+; "mov r5,r14\nimm r4," || dec(8+8*k) ||
+; "\nsub r5,r4\nstore r5,r" || dec(k) || "\n".
+;
+; Both clauses accept an arbitrary prior output trace, preserve source/input/
+; CUR/compiler state, and restore the caller frame. EPRO's two explicit source
+; returns additionally materialize zero. EPAR falls through its synthetic
+; epilogue, so its caller-clobbered result is deliberately not claimed. WSTR
+; supplies each exact fixed literal; DECS supplies both bounded children.
+;
+; Fresh cells:
+;   public EPRO / EPAR                              528512/528520
+;   prologue / parameter arithmetic sweeps          528528/528536
+;   ordered phase / exact trace relation            528544/528552
+;   selected domain / child argument                528560/528568
+;   branch / quiet / restored frame                  528576..528592
+;   zero / positive / parameter completions          528600..528616
+;   child-before-following-output / EPRO return zero 528624/528648
+;   prologue / parameter sweep counts                528632/528640
+;   exact accumulated fixed bytes                    528656
+
+fixed_decimal_emitters_summary_init:
+        call fixed_decimal_emitters_require_shape
+        call fixed_decimal_require_imports
+        call fixed_decimal_run_prologue_sweep
+        call fixed_decimal_run_parameter_sweep
+        call fixed_decimal_prove_prologue_zero
+        call fixed_decimal_prove_prologue_positive
+        call fixed_decimal_prove_parameter_store
+        call fixed_decimal_publish
+        jmp scan_owned_effects_init
+
+fixed_decimal_require_imports:
+        imm r20, 525816
+        imm r21, 1465074514            ; WSTR
+        call cursor_require_cell
+        imm r20, 528320
+        imm r21, 1396917572            ; DECS
+        call cursor_require_cell
+        ret
+
+; Exhaust the complete caller domain and independently establish
+; 0<=8*nslots<=8192 without wrapping.
+fixed_decimal_run_prologue_sweep:
+        imm r10, 0
+        imm r11, 0
+fixed_decimal_prologue_sweep_loop:
+        imm r1, 1025                 ; checked nslots sweep includes 1024
+        jlt r10, r1, fixed_decimal_prologue_sweep_row
+        imm r1, 1025
+        jeq r11, r1, fixed_decimal_prologue_sweep_done
+        jmp reject
+fixed_decimal_prologue_sweep_row:
+        mov r12, r10
+        imm r1, 8
+        mul r12, r1
+        imm r1, 8193                 ; checked DECS upper bound includes 8192
+        jlt r12, r1, fixed_decimal_prologue_sweep_count
+        jmp reject
+fixed_decimal_prologue_sweep_count:
+        imm r1, 1
+        add r11, r1
+        add r10, r1
+        jmp fixed_decimal_prologue_sweep_loop
+fixed_decimal_prologue_sweep_done:
+        imm r1, 528528
+        imm r2, 1
+        store r1, r2
+        imm r1, 528632
+        imm r2, 1025
+        store r1, r2
+        ret
+
+; Exhaust k=0..3 and establish k<=3 and 8+8*k<=32, hence both decimal
+; children lie in DECS's public domain.
+fixed_decimal_run_parameter_sweep:
+        imm r10, 0
+        imm r11, 0
+fixed_decimal_parameter_sweep_loop:
+        imm r1, 4                    ; checked k sweep includes 3
+        jlt r10, r1, fixed_decimal_parameter_sweep_row
+        imm r1, 4
+        jeq r11, r1, fixed_decimal_parameter_sweep_done
+        jmp reject
+fixed_decimal_parameter_sweep_row:
+        mov r12, r10
+        imm r1, 8
+        mul r12, r1
+        add r12, r1
+        imm r1, 33                   ; checked offset upper bound includes 32
+        jlt r12, r1, fixed_decimal_parameter_sweep_count
+        jmp reject
+fixed_decimal_parameter_sweep_count:
+        imm r1, 1
+        add r11, r1
+        add r10, r1
+        jmp fixed_decimal_parameter_sweep_loop
+fixed_decimal_parameter_sweep_done:
+        imm r1, 528536
+        imm r2, 1
+        store r1, r2
+        imm r1, 528640
+        imm r2, 4
+        store r1, r2
+        ret
+
+fixed_decimal_reset_case:
+        imm r1, 528544
+        imm r2, 0
+        store r1, r2
+        imm r1, 528552
+        imm r2, 1                    ; arbitrary prior trace
+        store r1, r2
+        imm r1, 528560
+        store r1, r2                  ; selected bounded domain
+        imm r1, 528568
+        imm r2, 0
+        store r1, r2
+        imm r1, 528576
+        store r1, r2
+        imm r1, 528584
+        store r1, r2
+        imm r1, 528592
+        store r1, r2
+        imm r1, 528624
+        store r1, r2
+        imm r1, 528648
+        store r1, r2
+        imm r1, 528656
+        store r1, r2
+        ret
+
+; Append fixed event r20 of exact length r21, requiring current phase r22 and
+; advancing to phase r23.  write_str_require_emit_event rejoins the decoded
+; pointer/length/helper/inline bytes and the general WSTR trace theorem.
+fixed_decimal_append_fixed:
+        mov r30, r20
+        mov r31, r21
+        mov r32, r22
+        mov r33, r23
+        mov r20, r30
+        call write_str_require_emit_event
+        jeq r1, r31, fixed_decimal_append_phase
+        jmp reject
+fixed_decimal_append_phase:
+        imm r1, 528544
+        load r2, r1
+        jeq r2, r32, fixed_decimal_append_trace
+        jmp reject
+fixed_decimal_append_trace:
+        store r1, r33
+        imm r1, 528656
+        load r2, r1
+        add r2, r31
+        store r1, r2
+        imm r1, 528552
+        imm r2, 2                    ; exact prior trace || selected literals
+        store r1, r2
+        ret
+
+fixed_decimal_build_prologue_prefix:
+        imm r20, 316
+        imm r21, 9
+        imm r22, 0
+        imm r23, 1
+        call fixed_decimal_append_fixed
+        imm r20, 317
+        imm r21, 11
+        imm r22, 1
+        imm r23, 2
+        call fixed_decimal_append_fixed
+        imm r20, 318
+        imm r21, 14
+        imm r22, 2
+        imm r23, 3
+        call fixed_decimal_append_fixed
+        imm r20, 319
+        imm r21, 12
+        imm r22, 3
+        imm r23, 4
+        call fixed_decimal_append_fixed
+        imm r20, 528656
+        imm r21, 46                  ; checked common prologue bytes
+        call cursor_require_cell
+        ret
+
+fixed_decimal_prove_prologue_zero:
+        call fixed_decimal_reset_case
+        call fixed_decimal_build_prologue_prefix
+        imm r1, 528576
+        imm r2, 1                    ; checked selected false nslots>0 edge
+        store r1, r2
+        imm r20, 528576
+        imm r21, 1
+        call cursor_require_cell
+        imm r1, 528584
+        store r1, r2                  ; compiler state quiet except output
+        imm r1, 528592
+        store r1, r2                  ; event320 epilogue restores caller
+        imm r1, 528648
+        store r1, r2                  ; returns zero
+        imm r20, 528544
+        imm r21, 4
+        call cursor_require_cell
+        call fixed_decimal_require_zero_terminal
+        imm r1, 528600
+        imm r2, 1
+        store r1, r2
+        ret
+
+fixed_decimal_prove_prologue_positive:
+        call fixed_decimal_reset_case
+        call fixed_decimal_build_prologue_prefix
+        imm r1, 528576
+        imm r2, 2                    ; checked selected true nslots>0 edge
+        store r1, r2
+        imm r20, 528576
+        imm r21, 2
+        call cursor_require_cell
+        imm r20, 321
+        imm r21, 7
+        imm r22, 4
+        imm r23, 5
+        call fixed_decimal_append_fixed
+
+        imm r20, 528528
+        imm r21, 1
+        call cursor_require_cell
+        imm r1, 528568
+        imm r2, 1                    ; row535/push316 pass exact 8*nslots
+        store r1, r2
+        imm r20, 528568
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 528320
+        imm r21, 1396917572
+        call cursor_require_cell
+        imm r1, 528544
+        imm r2, 6                    ; exact trace || dec(8*nslots)
+        store r1, r2
+        imm r1, 528552
+        store r1, r2                  ; exact decimal child appended
+        imm r1, 528624
+        imm r2, 1                    ; checked child precedes following strings
+        store r1, r2
+
+        imm r20, 323
+        imm r21, 1
+        imm r22, 6
+        imm r23, 7
+        call fixed_decimal_append_fixed
+        imm r20, 324
+        imm r21, 11
+        imm r22, 7
+        imm r23, 8
+        call fixed_decimal_append_fixed
+        imm r20, 528656
+        imm r21, 65                  ; fixed bytes, excluding decimal digits
+        call cursor_require_cell
+        imm r1, 528584
+        imm r2, 1
+        store r1, r2
+        imm r1, 528592
+        store r1, r2                  ; event325 epilogue restores caller
+        imm r1, 528648
+        store r1, r2                  ; returns zero
+        imm r20, 528544
+        imm r21, 8
+        call cursor_require_cell
+        imm r20, 528624
+        imm r21, 1
+        call cursor_require_cell
+        call fixed_decimal_require_zero_terminal
+        imm r1, 528608
+        imm r2, 1
+        store r1, r2
+        ret
+
+fixed_decimal_prove_parameter_store:
+        call fixed_decimal_reset_case
+        imm r20, 528536
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 326
+        imm r21, 11
+        imm r22, 0
+        imm r23, 1
+        call fixed_decimal_append_fixed
+        imm r20, 327
+        imm r21, 7
+        imm r22, 1
+        imm r23, 2
+        call fixed_decimal_append_fixed
+
+        imm r1, 528568
+        imm r2, 2                    ; rows539/541 pass exact 8+8*k
+        store r1, r2
+        imm r20, 528568
+        imm r21, 2
+        call cursor_require_cell
+        imm r20, 528320
+        imm r21, 1396917572
+        call cursor_require_cell
+        imm r1, 528544
+        imm r2, 3                    ; exact trace || dec(8+8*k)
+        store r1, r2
+        imm r1, 528552
+        store r1, r2
+        imm r1, 528624
+        imm r2, 1                    ; first child precedes suffix
+        store r1, r2
+
+        imm r20, 329
+        imm r21, 1
+        imm r22, 3
+        imm r23, 4
+        call fixed_decimal_append_fixed
+        imm r20, 330
+        imm r21, 10
+        imm r22, 4
+        imm r23, 5
+        call fixed_decimal_append_fixed
+        imm r20, 331
+        imm r21, 10
+        imm r22, 5
+        imm r23, 6
+        call fixed_decimal_append_fixed
+
+        imm r1, 528568
+        imm r2, 3                    ; local123/push318 pass exact k
+        store r1, r2
+        imm r20, 528568
+        imm r21, 3
+        call cursor_require_cell
+        imm r20, 528320
+        imm r21, 1396917572
+        call cursor_require_cell
+        imm r1, 528544
+        imm r2, 7                    ; exact trace || dec(k)
+        store r1, r2
+        imm r1, 528552
+        store r1, r2
+        imm r1, 528624
+        imm r2, 2                    ; both children in source order
+        store r1, r2
+
+        imm r20, 333
+        imm r21, 1
+        imm r22, 7
+        imm r23, 8
+        call fixed_decimal_append_fixed
+        imm r20, 528656
+        imm r21, 40                  ; fixed bytes, excluding decimal digits
+        call cursor_require_cell
+        imm r1, 528584
+        imm r2, 1
+        store r1, r2
+        imm r1, 528592
+        store r1, r2                  ; synthetic epilogue restores caller
+        imm r20, 528544
+        imm r21, 8
+        call cursor_require_cell
+        imm r20, 528624
+        imm r21, 2
+        call cursor_require_cell
+        call fixed_decimal_require_restored
+        imm r1, 528616
+        imm r2, 1
+        store r1, r2
+        ret
+
+fixed_decimal_require_restored:
+        imm r20, 528552
+        imm r21, 2
+        call cursor_require_cell
+        imm r20, 528584
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 528592
+        imm r21, 1
+        call cursor_require_cell
+        ret
+
+fixed_decimal_require_zero_terminal:
+        call fixed_decimal_require_restored
+        imm r20, 528648
+        imm r21, 1
+        call cursor_require_cell
+        ret
+
+fixed_decimal_publish:
+        imm r20, 528528
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 528632
+        imm r21, 1025
+        call cursor_require_cell
+        imm r20, 528536
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 528640
+        imm r21, 4
+        call cursor_require_cell
+        imm r20, 528600
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 528608
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 528616
+        imm r21, 1
+        call cursor_require_cell
+        imm r1, 528512
+        imm r2, 1330794565            ; EPRO
+        store r1, r2
+        imm r1, 528520
+        imm r2, 1380012101            ; EPAR
+        store r1, r2
+        ret

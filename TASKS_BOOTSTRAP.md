@@ -57,8 +57,8 @@ compatibility symlinks.
 | Canonical or transitional source | Role | Canonical owner |
 | --- | --- | --- |
 | `bootstrap/assurance/proof-kernel/{implementations,tools,corpus,gates}/` (compatibility: `compiler/proof-kernel`) | cross-cutting derivation checking, tools, corpora, and gates | `bootstrap/assurance/proof-kernel/` |
-| `bootstrap/assurance/refinement/{beta,omega0}/` (compatibility entries remain under Alpha and Omega0 gates) | cross-rung source/meaning-to-artifact obligation reconstruction and checking | `bootstrap/assurance/refinement/` |
-| `bootstrap/omega0/` (transitional name; target role `omega-bootstrap`) | Rust-free meaning, current bridge-compiler slices/contracts, and gates | `bootstrap/omega0/` pending mechanical rename |
+| `bootstrap/assurance/refinement/{beta,omega-bootstrap}/` (compatibility entries remain under Alpha and bridge gates) | cross-rung source/meaning-to-artifact obligation reconstruction and checking | `bootstrap/assurance/refinement/` |
+| `bootstrap/omega-bootstrap/` | Rust-free meaning, current bridge-compiler slices/contracts, and gates | `bootstrap/omega-bootstrap/` |
 | `bootstrap/corpus/` (compatibility: `compiler/lattice-corpus`) | fixtures shared across lattice seams | `bootstrap/corpus/` |
 
 ### Reference producers and future product implementations
@@ -172,7 +172,7 @@ or prescribe work inside the Rust on-ramp or the eventual product compiler.
 - [x] **Freeze the current bootstrap profiles.** Record the Delta surface used
   by the current compiler slices and the Omega surface those slices accept.
   - [x] Freeze Delta implementation profile D0 and Omega vertical-canary profile
-    O0 in `bootstrap/omega0/compiler/BOOTSTRAP_PROFILES.md`.
+    O0 in `bootstrap/omega-bootstrap/compiler/BOOTSTRAP_PROFILES.md`.
   - [x] Freeze O1 at 0–16 literal writes, 1 final nonnegative-i32 exit, 2,048
     source bytes, and 1,024 aggregate decoded literal bytes. The same
     table-driven frontend/emitter/backend handles every admitted count.
@@ -192,7 +192,7 @@ or prescribe work inside the Rust on-ramp or the eventual product compiler.
     reserved typed extent. The self-build remains an assembly-byte fixed point,
     the native corpus remains green, and source exhaustion still exits before a
     truncated prefix can be compiled.
-- [x] **Choose and gate source packaging.** `bootstrap/omega0/compiler/OMEGA0_BUNDLE.md`
+- [x] **Choose and gate source packaging.** `bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_BUNDLE.md`
   defines the canonical, length-delimited version-1 multi-source artifact.
   Its gate covers deterministic ordering, exact byte preservation, canonical
   paths, and malformed/truncated input rejection. The packer is untrusted; the
@@ -202,7 +202,7 @@ or prescribe work inside the Rust on-ramp or the eventual product compiler.
 - [x] **Close the Delta-written artifact path for O0/O1.** Emit the canonical
   image directly, without an unrecorded assembler or linker dependency.
   - [x] Close the exact O0 canary edge with
-    `bootstrap/omega0/compiler/omega0-terminal-to-elf.alp`. It consumes the
+    `bootstrap/omega-bootstrap/compiler/omega-bootstrap-terminal-to-elf.alp`. It consumes the
     vocabulary-25 O0 terminal shape, retains the variable literal and
     nonnegative `i32` exit operand, and emits a deterministic 8 KiB Linux x86-64
     ELF directly, with no host assembler or linker. The gate proves canonical
@@ -214,8 +214,8 @@ or prescribe work inside the Rust on-ramp or the eventual product compiler.
     byte; 17 writes, 1,200 aggregate bytes, malformed input, and truncation
     reject before emitting any image byte.
   - [x] Gate the frozen O1 compiler-program composition through Delta's
-    `lowermachine`. Both `omega0-frontend.alp` and
-    `omega0-terminal-to-elf.alp` are recompiled through the Delta-written
+    `lowermachine`. Both `omega-bootstrap-frontend.alp` and
+    `omega-bootstrap-terminal-to-elf.alp` are recompiled through the Delta-written
     compiler, then bundle → vocabulary-25 terminal Psi → ELF reproduces the
     independent product terminal and image bytes for 0/1/2/16 writes; semantic
     rejection and every frontend/backend O1 exhaustion boundary publish no
@@ -231,7 +231,7 @@ or prescribe work inside the Rust on-ramp or the eventual product compiler.
     Beta-written `omega2gamma.beta` elaborator and Gamma interpreter, with a
     source perturbation that changes the observed result.
   - [x] Exercise byte input/output and real Delta certifiers through the same
-    Rust-free route in `bootstrap/omega0/gates/convergence-reference.sh`.
+    Rust-free route in `bootstrap/omega-bootstrap/gates/convergence-reference.sh`.
   - [x] Gate the actual Delta-written backend through lower-rung meaning for the
     canonical, operand-variant, and rejection observations.
     - [x] Remove the compiler-scale elaboration cliff. Per-machine metadata
@@ -339,14 +339,39 @@ or prescribe work inside the Rust on-ramp or the eventual product compiler.
     and AArch64 images plus replayed installation records. Matching Linux hosts
     execute the image and compare stdout/status; other hosts validate both
     complete image formats without pretending to execute them.
-- [ ] **Freeze Delta's literal compiler-host specification.** Delta is an
-  independent, robust C-like language with an Omega-shaped surface where that
-  improves consistency; it is not required to be valid Omega. Specify the
-  exact integer, memory, allocation, aggregate, control-flow, module, and FFI
-  contracts needed to implement `omega-bootstrap`, including deterministic
-  failure and fixed-backing-allocation behavior. The current D0 profile remains
-  valid closed evidence for the slices already implemented, not a claim that
-  the final Delta language is frozen.
+- [ ] **Freeze Delta's literal compiler-host specification — DESIGN BLOCKED.**
+  Owner ruling:
+  [OWNER_QUESTIONS Q5](OWNER_QUESTIONS.md#q5--what-exact-language-contract-constitutes-delta-v1).
+  Delta is an independent, robust C-like language with an Omega-shaped surface
+  where that improves consistency; it is not required to be valid Omega. Q5
+  must settle the exact source, integer, memory/representation, allocation,
+  aggregate, expression/control, failure, module/bundle, and closed-boundary
+  contracts. The current D0 profile remains valid closed evidence for the
+  slices already implemented, not a claim that the final Delta language is
+  frozen.
+  Once Q5 is ruled, the remaining work is bounded implementation rather than a
+  product-language decision:
+  - [ ] Publish versioned normative Delta grammar, static/dynamic semantics,
+    representation/ABI, allocation, source-bundle, and host-boundary documents
+    under `bootstrap/rungs/delta/`; make the rung README name them as authority.
+  - [ ] Add strict lexical/type/boundary/profile checking. Every excluded type,
+    source form, module form, boundary signature, and resource excess must
+    reject explicitly rather than be ignored, hardwired, or approximated.
+  - [ ] Bring every retained arithmetic, layout, call, allocation, trap, and I/O
+    edge into agreement across the native targets, the Delta self-host, and the
+    Rust-free Delta-to-Gamma meaning route.
+  - [ ] Replace ordered newline-injecting Delta-source concatenation with the
+    ruled canonical source-unit/bundle contract, preserving exact bytes,
+    deterministic identity/order, source locations, and fail-closed decoding.
+  - [ ] Publish a classified conformance corpus/feature manifest and a
+    rung-owned gate with exact positive observations, one phase-isolated
+    negative canary per exclusion, boundary and fixed-backing exhaustion teeth,
+    cross-target arithmetic/layout edges, and native/self-host/lower-rung
+    differentials.
+  Final proof that these facilities suffice for the complete `main.delta` source
+  is a later `omega-bootstrap` implementation/validation obligation. It is not a
+  prerequisite for freezing Delta v1, and future `main.delta` pressure must not
+  silently widen the frozen language.
 - [ ] **Derive and freeze the Omega self-hosting profile (`Ωself`).** This is the
   ordinary-Omega source profile used by the production compiler implementation,
   not a language, dialect, or lattice rung. It is blocked on
@@ -473,7 +498,7 @@ bridge compiler is a promise to accept full Omega.
       gate byte-for-byte reconstruction, another self-build generation, and the
       complete retained Beta corpus through it. No Rust producer is in its
       construction lineage.
-    - [x] Switch proof-kernel, Gamma, Delta, Omega0, and refinement gates away
+    - [x] Switch proof-kernel, Gamma, Delta, omega-bootstrap, and refinement gates away
       from their ephemeral Rust-produced `bc0` setup to the shared artifact
       loader, retaining Rust comparisons only where explicitly diagnostic.
   - [ ] Discharge whole-compiler source correspondence for the exact persisted
@@ -1032,8 +1057,27 @@ bridge compiler is a promise to accept full Omega.
             sweep, guard/rank split, recursive value/continuation/order, and
             terminal frame. No full signed-word claim is inferred from BCT9's
             older conservative 19-activation resource bound.
-          - [ ] Compose fixed strings with `emit_dec` for exact
+          - [x] Compose fixed strings with `emit_dec` for exact
             `emit_proc_prologue(nslots)` and `emit_param_store(k)` summaries.
+            A shared exact-shape module binds procedures 42..43, blocks
+            209..212, the sole `nslots>0` transition, all eighteen effect rows,
+            four local loads, ten primitives, seven pushes, both 16-byte
+            frames, four source/synthetic epilogues, and decoded inventories of
+            sixteen calls, four returns, and eleven target stores. Conditional
+            `EPRO` exhausts `0<=nslots<=1024`, composes the four mandatory frame
+            lines, and on the positive edge appends `imm r5,`, exact
+            `DECS(8*nslots)`, and the allocation suffix. Conditional `EPAR`
+            exhausts `0<=k<4` and appends the exact parameter-store text with
+            `DECS(8+8*k)` before `DECS(k)`. Both accept an arbitrary prior
+            trace, preserve compiler state apart from output, and restore the
+            caller; `EPRO` additionally returns zero, while `EPAR` deliberately
+            leaves its unused fallthrough result caller-clobbered. Nineteen
+            isolated canaries sever exact CFG/
+            event/arithmetic joins, bounded sweeps, child arguments/order,
+            fixed-byte totals, store census, or terminal frame. Shape, meaning,
+            and teeth remain 12.2 KB, 12.8 KB, and 5.5 KB; the focused gate
+            carries a 205,641-byte checker tape. Reachability and the outer
+            parameter-store loop remain for the following PCAP bridge.
           - [ ] Bridge PCAP's saved name/parameter/slot values into blocks
             345..347 and close the at-most-four parameter-store loop.
         - [ ] Give `gen_stmts`/`gen_stmt`/expression recursion maximal finite or
@@ -1063,13 +1107,14 @@ bridge compiler is a promise to accept full Omega.
 - [x] Split the former `beta-lang-py` directory by responsibility: executable
   Beta meaning under the Beta rung and symbolic reconstruction under assurance.
   Remove its obsolete backend and facade gate; compatibility wrappers remain.
-- [x] Move the former first-Omega/bridge work to `bootstrap/omega0/` and shared
-  seam fixtures to `bootstrap/corpus/`.
-- [ ] Mechanically rename the transitional `bootstrap/omega0/` path and its
-  user-facing artifact names to `bootstrap/omega-bootstrap/` after the current
-  O0/O1 gate references are inventoried. Preserve compatibility wrappers only
-  where external callers still require them; do not encode an architectural
-  `Omega0` rung in the replacement layout.
+- [x] Move the former first-Omega/bridge work to
+  `bootstrap/omega-bootstrap/` and shared seam fixtures to
+  `bootstrap/corpus/`.
+- [x] Mechanically rename the transitional `bootstrap/omega0/` path and its
+  user-facing artifact names to `bootstrap/omega-bootstrap/`. Historical path
+  variables and roles remain compatibility aliases, while the frozen O0/O1
+  profile names and `Omega0`/`OMG0BNDL` version-1 wire identifiers remain part
+  of their existing contracts rather than encoding an architectural rung.
 - [x] Move the current Rust Psi/Omega compiler and CLI out of unsuffixed product
   roots and into `bootstrap/onramps/omega-rust/{psi,omega,apps/omega-cli}/`.
 - [x] Reserve `compiler/{psi,omega}/` for the eventual Omega-written product
@@ -1133,13 +1178,13 @@ sh bootstrap/onramps/delta-rust/convergence-selfhost.sh
 The current Rust-free Omega kernel/meaning experiments are gated separately:
 
 ```sh
-sh bootstrap/omega0/gates/kernel-diamond.sh
-sh bootstrap/omega0/gates/omega-meaning.sh
-sh bootstrap/assurance/refinement/omega0/meaning-cert-diamond.sh
-sh bootstrap/assurance/refinement/omega0/translation-validation.sh
-sh bootstrap/omega0/gates/delta-terminal-to-elf.sh
-sh bootstrap/omega0/gates/delta-terminal-to-elf-meaning.sh
-sh bootstrap/onramps/delta-rust/omega0-frontend-meaning.sh
+sh bootstrap/omega-bootstrap/gates/kernel-diamond.sh
+sh bootstrap/omega-bootstrap/gates/omega-meaning.sh
+sh bootstrap/assurance/refinement/omega-bootstrap/meaning-cert-diamond.sh
+sh bootstrap/assurance/refinement/omega-bootstrap/translation-validation.sh
+sh bootstrap/omega-bootstrap/gates/delta-terminal-to-elf.sh
+sh bootstrap/omega-bootstrap/gates/delta-terminal-to-elf-meaning.sh
+sh bootstrap/onramps/delta-rust/omega-bootstrap-frontend-meaning.sh
 ```
 
 ## Persistent implementation facts

@@ -304,7 +304,19 @@ are valuable teeth, but they do not yet establish the quantified observation:
   range, and decreasing decimal phase, then binds them to exact procedure-40
   control and a four-phase recursive-child-before-digit output induction. The
   older 19-activation resource ceiling is not treated as full-word value
-  semantics. Prologue/parameter emitters and their outer loop remain open;
+  semantics;
+- its two fixed-decimal emitter leaves consume the exact fixed-event clauses
+  and bounded decimal theorem. For every `0<=nslots<=1024`, `emit_proc_prologue`
+  appends its four mandatory frame lines and, on the positive branch, the exact
+  decimal byte size plus allocation suffix. For every `0<=k<4`,
+  `emit_param_store` appends the exact frame-offset and argument-register store
+  text with `dec(8+8*k)` preceding `dec(k)`. Exact procedures 42..43, calls,
+  continuations, arithmetic, frames, epilogues, effect/expression rows, and
+  decoded inventories bind both conditional clauses; they restore their callers
+  and preserve compiler state apart from output. The prologue's explicit return
+  is zero; the parameter emitter's unused synthetic-fallthrough result remains
+  caller-clobbered. The PCAP value bridge and outer at-most-four parameter-store
+  loop remain open;
 - no total `parse_proc` claim is currently made. Malformed procedure bodies can
   make `gen_stmts` diverge while emitting—for example when an unrecognized byte
   is never consumed—so closure requires maximal Return-or-Diverge and finite/

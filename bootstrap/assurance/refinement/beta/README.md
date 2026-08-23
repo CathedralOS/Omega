@@ -670,6 +670,26 @@ passes with a 198,975-byte checker tape. BCT9's conservative full-word resource
 ceiling is reused only for global stack safety, not misrepresented as decimal
 value semantics.
 
+`bc-fixed-decimal-emitters-shape.alpha` and
+`bc-fixed-decimal-emitters-summary.alpha` consume `WSTR` and `DECS` for the two
+bounded output leaves immediately below `parse_proc.slotsready`. Exact shape
+rejoins procedures 42..43, blocks 209..212, the sole `nslots>0` transition,
+events 316..333, locals 121..124, primitives 532..541, split pushes 152..155
+and 316..318, both 16-byte frames, every source/synthetic epilogue, and decoded
+inventories of sixteen calls, four returns, and eleven target stores. `EPRO`
+checks every `0<=nslots<=1024`: it emits the mandatory 46-byte frame prefix and,
+only when positive, `imm r5,` followed by canonical `DECS(8*nslots)` and the
+fixed allocation suffix. `EPAR` checks every `0<=k<4` and emits the exact
+parameter-store fragment with `DECS(8+8*k)` before `DECS(k)`. Both clauses
+extend an arbitrary prior trace, otherwise preserve compiler state, and restore
+the caller. `EPRO`'s explicit returns materialize zero; `EPAR`'s unused
+fallthrough result remains caller-clobbered rather than being overclaimed.
+Nineteen isolated canaries in a 5.5 KB harness sever
+shape, bounded arithmetic, child value/order, fixed-byte totals, store census,
+or terminal restoration; the 12.2 KB shape and 12.8 KB meaning modules pass in
+the complete 205,641-byte checker. They remain conditional leaves: the next
+phase must bind PCAP's saved values and execute the at-most-four store loop.
+
 The eventual `parse_proc` theorem must be maximal, not universally terminating.
 For malformed input, an unrecognized body byte such as `@` can survive both
 `gen_stmt` and the number fallback without cursor progress while `gen_stmts`
