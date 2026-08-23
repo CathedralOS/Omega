@@ -387,5 +387,41 @@ private frames; `cbyte` and `is_space` have no compiler-global mutation, while
 bytes remain outside the preservation claim. Six phase-isolated variants reject
 wrong source-index provenance, the wrong cbyte boundary partition, zero `adv`
 progress, omitted CR, a whitespace complement, and an effect undercount.
-`skip_ws_step`, the inner comment rank, and the outer `skip_ws` fixed point are
-the next relational composition rather than being inlined into these leaves.
+These leaves remain separate theorem interfaces for the following composition.
+
+`bc-skip-ws-summary.alpha` composes those interfaces through both whitespace
+procedures. For `skip_ws_step`, cbyte's selected return flows through the exact
+local-`c` store/load, the argument push/pop into `is_space`, and the checked
+comparison edges. Whitespace advances once and returns one; an ordinary
+nonspace/nonsemicolon value, including numeric zero, leaves `CUR` unchanged and
+returns zero. A semicolon comment must execute one initial same-cursor
+`cbyte;cbyte;adv` iteration that consumes its opener. Each later loop position
+partitions into LF, zero, or a nonzero/non-LF continuation. LF returns one with
+the LF unconsumed; logical end or in-range NUL returns zero; only the third case
+calls bounded `adv` and takes the backedge. The two cbyte calls before that
+decision share an unchanged versioned cursor, so determinism gives the same
+byte. `LEN-CUR` is natural and decreases by one on every inner backedge. The
+successor cursor and smaller rank are required together, capture-renamed to the
+new cutpoint variables, and rechecked against the domain invariant.
+
+The outer `skip_ws` fixed point imports all four step clauses. Its backedge is
+selected only for whitespace and newline-ended comments, both of which strictly
+increase `CUR`; therefore the same rank strictly decreases until the first
+ordinary byte, logical end, or in-range NUL. Each result-one successor and
+strictly smaller rank is likewise required, capture-renamed, and rechecked at
+the outer cutpoint. The procedure always returns zero.
+The phase rejoins exact targets and nine-byte continuations for all seven calls,
+all selected source events/transitions/locals/primitives/pushes, and every
+explicit or synthetic epilogue. Whole-table censuses and decoded region scans
+exclude hidden selected-procedure memory/I/O/trap actions. Input position,
+output, `SRC[0:LEN]`, `LEN`, and all compiler globals except `CUR` are preserved;
+the prior call-cut/frame theorem restores both stacks, while scratch registers
+and reclaimed frame bytes remain excluded. Sixteen isolated teeth cover the call
+continuation, local/argument flow, same-cursor fact, LF/zero terminal results,
+both ranks, forbidden result-zero backedge, event undercount, preserved cursor
+domain, opening-semicolon provenance, rank premises, and both successor
+renamings. The informal
+source comment “1 if it did” is not authoritative for a zero-ended comment,
+which consumes at least `;` but correctly returns zero. Composition from
+`main.ready` through the fixed 187-byte prefix and this cursor fixed point is the
+next root-reachability step.

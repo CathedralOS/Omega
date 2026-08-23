@@ -32,7 +32,7 @@ cursor_leaf_summary_init:
         call cursor_prove_adv
         call cursor_require_space_shape
         call cursor_prove_space
-        jmp scan_owned_effects_init
+        jmp skip_ws_summary_init
 
 ; ---- cbyte -------------------------------------------------------------
 
