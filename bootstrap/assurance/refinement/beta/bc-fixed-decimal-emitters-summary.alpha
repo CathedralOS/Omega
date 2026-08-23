@@ -34,7 +34,7 @@ fixed_decimal_emitters_summary_init:
         call fixed_decimal_prove_prologue_positive
         call fixed_decimal_prove_parameter_store
         call fixed_decimal_publish
-        jmp scan_owned_effects_init
+        jmp parse_output_prefix_summary_init
 
 fixed_decimal_require_imports:
         imm r20, 525816
