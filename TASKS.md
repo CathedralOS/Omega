@@ -2088,19 +2088,19 @@ Remaining:
   reaches the sum: the checked and Terminal paths retain every enclosing field
   followed by the exact case and payload-field identities. Direct Unit-call
   rebasing through a sum-bearing projection remains gated with runtime sum
-  projection and cleanup. An acyclic relevant record tree directly held by a
-  case-payload field now expands its Boolean, fixed-integer, IEEE, and
-  byte-sequence leaves transitively too. Checked and Terminal paths preserve
-  the exact `Case -> Field(payload) -> Field(record)... -> Field(leaf)` chain;
-  whole-root Unit calls independently rebase both operands, and codec,
-  verifier, fixed-fuel, and interpreter replay retain both `==` and `!=`.
-  Unknown or redirected case/field identities reject independently. Mixed
-  common-field/case shapes, nested sums below a payload case, recursive cycles,
-  address and erased payload equality, and runtime sum layout remain fenced.
+  projection and cleanup. An acyclic relevant record or pure-sum tree directly
+  held by a case-payload field now expands its Boolean, fixed-integer, IEEE,
+  and byte-sequence leaves transitively too. Checked and Terminal paths preserve
+  every exact alternating `Case -> Field(payload)` and record-field segment
+  through nested sums; whole-root Unit calls independently rebase both operands,
+  and codec, verifier, fixed-fuel, and interpreter replay retain both `==` and
+  `!=`. Unknown or redirected case/field identities reject independently.
+  Mixed common-field/case shapes, recursive cycles, address and erased payload
+  equality, and runtime sum layout remain fenced.
   Semantic codec v18,
   proof-bundle v18, and installation-record v24 retain the structural shapes,
   case-payload paths, and proposition. Continue with the fenced mixed,
-  case-payload-nested sums, recursive, and erased aggregate cases. Concrete machine/state
+  recursive, and erased aggregate cases. Concrete machine/state
   contracts plus domain/data predicates, trait invariants and signatures,
   machine-parameter requirements, and root/domain operator contracts now reject
   direct binary and named-float `Trapping` arithmetic plus direct Trapping

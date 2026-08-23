@@ -620,6 +620,30 @@ const NESTED_RECORD_PAYLOAD_SUM_EQUALITY_SOURCE: &str = r#"
     }
 "#;
 
+const NESTED_SUM_PAYLOAD_SUM_EQUALITY_SOURCE: &str = r#"
+    trait Equatable {
+        machine equals(&self, rhs: &Self) -> bool;
+    }
+
+    data Detail {
+        case Missing;
+        case Count(value: i32);
+    }
+    DetailEquatable: Detail satisfies Equatable;
+
+    data Message {
+        case Empty;
+        case Data(detail: Detail);
+    }
+    MessageEquatable: Message satisfies Equatable;
+
+    data Root {}
+    machine Root::enter(left: Message, right: Message)
+    crashes Abort
+        left == right
+    {}
+"#;
+
 const IEEE_FLOAT_AGGREGATE_EQUALITY_SOURCE: &str = r#"
     trait Equatable {
         machine equals(&self, rhs: &Self) -> bool;
@@ -4654,6 +4678,109 @@ fn payload_sum_nested_record_equality_rebases_and_replays_end_to_end() {
             Err(psi_terminal_verifier::ModuleError::CallCrashContinuationUncovered { .. })
         ),
         "redirecting the exact nested leaf must break the independently reconstructed call continuation: {invalid_result:?}"
+    );
+}
+
+#[test]
+fn payload_sum_nested_sum_equality_replays_end_to_end() {
+    fn collect_scalar_paths(
+        term: &ScalarTerm,
+        paths: &mut Vec<Vec<CanonicalStructuralPathSegment>>,
+    ) {
+        match term {
+            ScalarTerm::BooleanField { path, .. } | ScalarTerm::IntegerField { path, .. } => {
+                paths.push(path.clone())
+            }
+            ScalarTerm::BooleanEqual { left, right }
+            | ScalarTerm::IntegerEqual { left, right, .. } => {
+                collect_scalar_paths(left, paths);
+                collect_scalar_paths(right, paths);
+            }
+            _ => {}
+        }
+    }
+
+    fn collect_paths(
+        proposition: &Proposition,
+        paths: &mut Vec<Vec<CanonicalStructuralPathSegment>>,
+    ) {
+        match proposition {
+            Proposition::Equal(left, right)
+            | Proposition::LessThan(left, right)
+            | Proposition::LessOrEqual(left, right) => {
+                collect_scalar_paths(left, paths);
+                collect_scalar_paths(right, paths);
+            }
+            Proposition::Conjunction(children) | Proposition::Disjunction(children) => {
+                for child in children {
+                    collect_paths(child, paths);
+                }
+            }
+            Proposition::Implication {
+                premise,
+                conclusion,
+            } => {
+                collect_paths(premise, paths);
+                collect_paths(conclusion, paths);
+            }
+            Proposition::Truth
+            | Proposition::Falsehood
+            | Proposition::Atom(_)
+            | Proposition::StructuralCaseMembership { .. }
+            | Proposition::IeeeFloatComparison { .. }
+            | Proposition::ByteSequenceEqual { .. }
+            | Proposition::ContentConservation(_) => {}
+        }
+    }
+
+    let tokens = Lexer::new(NESTED_SUM_PAYLOAD_SUM_EQUALITY_SOURCE)
+        .tokenize()
+        .expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::enter")
+        .expect("payload-sum equality expands the nested sum and lowers");
+
+    let root = &lowered.semantic_module.machines[0];
+    let [CrashRouteGuard::Predicate(route)] = root.contract.crash_routes[0].alternatives.as_slice()
+    else {
+        panic!("nested sum equality publishes one predicate")
+    };
+    let mut paths = Vec::new();
+    collect_paths(route.proposition(), &mut paths);
+    assert_eq!(paths.len(), 2, "both integer roots remain explicit");
+    assert!(paths.iter().all(|path| {
+        matches!(
+            path.as_slice(),
+            [
+                CanonicalStructuralPathSegment::Case(_),
+                CanonicalStructuralPathSegment::Field(_),
+                CanonicalStructuralPathSegment::Case(_),
+                CanonicalStructuralPathSegment::Field(_),
+            ]
+        )
+    }));
+
+    let verified = psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("verifier accepts exact nested-sum payload paths");
+    let fixed = derive_fixed_entry_fuel(&verified, lowered.semantic_module.entry)
+        .expect("nested-sum equality has fixed fuel");
+    validate_fixed_entry_fuel(&verified, &fixed).expect("fixed fuel recomputes");
+    let semantics = encode_module(&lowered.semantic_module).expect("semantic encode");
+    assert_eq!(
+        decode_module(&semantics),
+        Ok(lowered.semantic_module.clone())
+    );
+    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("proof encode");
+    assert_eq!(
+        decode_proof_bundle(&proof),
+        Ok(lowered.proof_bundle.clone())
     );
 }
 

@@ -164,6 +164,76 @@ pub(super) fn validate_crash_frontiers(
     Ok(())
 }
 
+fn structural_subject_type(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    root: PlaceId,
+    path: &[CanonicalStructuralPathSegment],
+) -> Option<StructuralTypeId> {
+    let mut structural_type = machine
+        .structural_parameters
+        .iter()
+        .find(|parameter| parameter.place == root)?
+        .structural_type;
+    let mut selected_case_fields = None;
+    for segment in path {
+        let declaration = module
+            .structural_types
+            .iter()
+            .find(|declaration| declaration.id == structural_type)?;
+        if let CanonicalStructuralPathSegment::Case(case_id) = segment {
+            if selected_case_fields.is_some() {
+                return None;
+            }
+            let StructuralTypeShape::Sum { cases } = &declaration.shape else {
+                return None;
+            };
+            selected_case_fields = Some(
+                &cases
+                    .iter()
+                    .find(|candidate| candidate.id == *case_id)?
+                    .fields,
+            );
+            continue;
+        }
+        if let Some(fields) = selected_case_fields.take() {
+            let CanonicalStructuralPathSegment::Field(field_id) = segment else {
+                return None;
+            };
+            let field = fields
+                .iter()
+                .find(|candidate| candidate.id == *field_id)
+                .filter(|field| !field.relevance.is_erased())?;
+            let StructuralFieldType::Structural(next) = field.field_type else {
+                return None;
+            };
+            structural_type = next;
+            continue;
+        }
+        structural_type = match (segment, &declaration.shape) {
+            (
+                CanonicalStructuralPathSegment::Field(field_id),
+                StructuralTypeShape::Record { fields },
+            ) => {
+                let field = fields
+                    .iter()
+                    .find(|candidate| candidate.id == *field_id)
+                    .filter(|field| !field.relevance.is_erased())?;
+                let StructuralFieldType::Structural(next) = field.field_type else {
+                    return None;
+                };
+                next
+            }
+            (
+                CanonicalStructuralPathSegment::FixedIndex(index),
+                StructuralTypeShape::FixedArray { element, length },
+            ) if *index < *length => *element,
+            _ => return None,
+        };
+    }
+    selected_case_fields.is_none().then_some(structural_type)
+}
+
 fn validate_boolean_field_terms(
     module: &TerminalModule,
     machine: &TerminalMachine,
@@ -248,46 +318,6 @@ fn validate_boolean_field_terms(
             }
         }
         None
-    }
-
-    fn structural_subject_type(
-        module: &TerminalModule,
-        machine: &TerminalMachine,
-        root: PlaceId,
-        path: &[CanonicalStructuralPathSegment],
-    ) -> Option<StructuralTypeId> {
-        let mut structural_type = machine
-            .structural_parameters
-            .iter()
-            .find(|parameter| parameter.place == root)?
-            .structural_type;
-        for segment in path {
-            let declaration = module
-                .structural_types
-                .iter()
-                .find(|declaration| declaration.id == structural_type)?;
-            structural_type = match (segment, &declaration.shape) {
-                (
-                    CanonicalStructuralPathSegment::Field(field_id),
-                    StructuralTypeShape::Record { fields },
-                ) => {
-                    let field = fields
-                        .iter()
-                        .find(|candidate| candidate.id == *field_id)
-                        .filter(|field| !field.relevance.is_erased())?;
-                    let StructuralFieldType::Structural(next) = field.field_type else {
-                        return None;
-                    };
-                    next
-                }
-                (
-                    CanonicalStructuralPathSegment::FixedIndex(index),
-                    StructuralTypeShape::FixedArray { element, length },
-                ) if *index < *length => *element,
-                _ => return None,
-            };
-        }
-        Some(structural_type)
     }
 
     fn validate_term(
@@ -791,48 +821,9 @@ pub(super) fn validate_structural_case_memberships(
     machine: &TerminalMachine,
     proposition: &Proposition,
 ) -> Result<(), ModuleError> {
-    fn subject_type(
-        module: &TerminalModule,
-        machine: &TerminalMachine,
-        subject: &psi_core::StructuralCaseSubject,
-    ) -> Option<StructuralTypeId> {
-        let mut structural_type = machine
-            .structural_parameters
-            .iter()
-            .find(|parameter| parameter.place == subject.root())?
-            .structural_type;
-        for segment in subject.path() {
-            let declaration = module
-                .structural_types
-                .iter()
-                .find(|declaration| declaration.id == structural_type)?;
-            structural_type = match (segment, &declaration.shape) {
-                (
-                    CanonicalStructuralPathSegment::Field(field_id),
-                    StructuralTypeShape::Record { fields },
-                ) => {
-                    let field = fields
-                        .iter()
-                        .find(|field| field.id == *field_id)
-                        .filter(|field| !field.relevance.is_erased())?;
-                    let StructuralFieldType::Structural(next) = field.field_type else {
-                        return None;
-                    };
-                    next
-                }
-                (
-                    CanonicalStructuralPathSegment::FixedIndex(index),
-                    StructuralTypeShape::FixedArray { element, length },
-                ) if *index < *length => *element,
-                _ => return None,
-            };
-        }
-        Some(structural_type)
-    }
-
     match proposition {
         Proposition::StructuralCaseMembership { subject, case } => {
-            let valid = subject_type(module, machine, subject)
+            let valid = structural_subject_type(module, machine, subject.root(), subject.path())
                 .and_then(|structural_type| {
                     module
                         .structural_types

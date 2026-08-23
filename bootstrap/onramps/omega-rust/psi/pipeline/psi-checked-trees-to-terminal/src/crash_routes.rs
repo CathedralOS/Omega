@@ -315,19 +315,42 @@ fn lower_structural_sum_subject(
         ))?;
     let mut structural_type = parameter.structural_type;
     let mut terminal_path = Vec::with_capacity(subject.path.len());
+    let mut selected_case_fields = None;
     for segment in &subject.path {
-        let psi_checked_trees::CheckedStructuralPredicatePathSegment::Field(identity) = segment
-        else {
-            return unsupported("structural sum subject cannot select a case payload");
-        };
         let declaration = structural_types
             .iter()
             .find(|declaration| declaration.id == structural_type)
             .ok_or(LoweringError::Unsupported(
                 "structural sum predicate path type is absent",
             ))?;
-        let StructuralTypeShape::Record { fields } = &declaration.shape else {
-            return unsupported("structural sum predicate path receiver is not a record");
+        if let psi_checked_trees::CheckedStructuralPredicatePathSegment::Case(identity) = segment {
+            if selected_case_fields.is_some() {
+                return unsupported("structural sum predicate has adjacent case selections");
+            }
+            let StructuralTypeShape::Sum { cases } = &declaration.shape else {
+                return unsupported("structural sum predicate case receiver is not a sum");
+            };
+            let case = cases
+                .iter()
+                .find(|candidate| candidate.identity == *identity)
+                .ok_or(LoweringError::Unsupported(
+                    "structural sum predicate case is absent",
+                ))?;
+            terminal_path.push(CanonicalStructuralPathSegment::Case(case.id));
+            selected_case_fields = Some(&case.fields);
+            continue;
+        }
+        let psi_checked_trees::CheckedStructuralPredicatePathSegment::Field(identity) = segment
+        else {
+            unreachable!("case path handled above")
+        };
+        let fields = if let Some(fields) = selected_case_fields.take() {
+            fields
+        } else {
+            let StructuralTypeShape::Record { fields } = &declaration.shape else {
+                return unsupported("structural sum predicate path receiver is not a record");
+            };
+            fields
         };
         let field = fields
             .iter()
@@ -341,6 +364,9 @@ fn lower_structural_sum_subject(
         };
         terminal_path.push(CanonicalStructuralPathSegment::Field(field.id));
         structural_type = next;
+    }
+    if selected_case_fields.is_some() {
+        return unsupported("structural sum predicate case selection has no payload field");
     }
     if !matches!(
         structural_types
