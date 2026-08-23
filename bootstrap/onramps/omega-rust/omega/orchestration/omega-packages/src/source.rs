@@ -460,7 +460,19 @@ fn format_sha256(bytes: &[u8]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::manifest::PackageName;
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    const PACKAGE_FIXTURES: &[&str] = &[
+        "arithmetic-kernels",
+        "generated-table",
+        "file-journal",
+        "network-overreach",
+        "axiom-ledger",
+        "provider-switchboard",
+        "capability-vault",
+        "graph-workbench",
+    ];
 
     fn temp_root(name: &str) -> PathBuf {
         let stamp = SystemTime::now()
@@ -507,6 +519,28 @@ mod tests {
         assert!(output.status.success());
         let commit = String::from_utf8_lossy(&output.stdout).trim().to_owned();
         (root, commit)
+    }
+
+    fn package_fixtures_root() -> PathBuf {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../../../../fixtures/packages")
+    }
+
+    #[test]
+    fn package_fixtures_resolve_as_distinct_local_sources() {
+        let fixtures_root = package_fixtures_root();
+        let mut identities = BTreeSet::new();
+        for package in PACKAGE_FIXTURES {
+            PackageName::parse(*package).expect("fixture package names must be kebab-case");
+            let root = fixtures_root.join(package);
+            assert!(root.join("build.omg").is_file());
+            assert!(root.join("main.omg").is_file());
+
+            let resolved =
+                resolve_local_source(&root, LocalSourceLimits::default()).expect("resolve fixture");
+            assert!(resolved.file_count >= 3);
+            assert!(identities.insert(resolved.content_identity));
+        }
+        assert_eq!(identities.len(), PACKAGE_FIXTURES.len());
     }
 
     #[test]

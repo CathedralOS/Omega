@@ -1,0 +1,9 @@
+// package-manager fixture: pure package, no dependency aliases, no build-host reach.
+target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+
+machine build(b: &mut Build) {
+}
+

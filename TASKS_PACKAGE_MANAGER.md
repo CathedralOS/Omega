@@ -145,6 +145,16 @@ Completed:
   fingerprints, and reject mismatched receipts with guidance to regenerate the
   receipt for the actual candidate diff.
 
+- **LOCAL-PACKAGE-FIXTURE-CORPUS.** Add the first local package corpus for
+  resolver, install, update, and audit tests.
+
+  Done 2026-08-23: `fixtures/packages/` contains normal kebab-case package
+  directories for `arithmetic-kernels`, `generated-table`, `file-journal`,
+  `network-overreach`, `axiom-ledger`, `provider-switchboard`,
+  `capability-vault`, and `graph-workbench`. Each fixture has `build.omg`,
+  `main.omg`, package notes, and focused intent. `omega-packages` resolves all
+  fixture directories as distinct local source identities in tests.
+
 Remaining:
 
 - **PACKAGE-CAPABILITY-MANIFEST.** Define the normalized manifest produced for
@@ -246,6 +256,10 @@ package keys are kebab-case (`generated-table`). In-code names are snake_case
 where the host language requires identifiers (`generated_table` in Omega or
 Rust). Do not allow both spellings to name distinct packages in the same
 package namespace.
+
+Local package fixtures live under `fixtures/packages/`. The remote mirror task
+remains open until these contents are pushed to exact-pinned repositories under
+the GitHub `CathedralOS` organization.
 
 - **arithmetic-kernels.** Library with checked proof/helper machines, no `build.omg`
   host reach, no boundary claims.

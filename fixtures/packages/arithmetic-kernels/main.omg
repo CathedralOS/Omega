@@ -1,0 +1,5 @@
+// Pure helper package used to test source identity and empty capability reach.
+machine add_u64(left: u64, right: u64) -> u64 {
+    return left + right;
+}
+

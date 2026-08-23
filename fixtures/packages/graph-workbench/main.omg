@@ -1,0 +1,5 @@
+// Root package fixture for graph audit tests.
+machine run_graph_probe() -> u64 {
+    return 70;
+}
+
