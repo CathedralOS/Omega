@@ -83,7 +83,9 @@ should use those pins rather than branch names.
 
 ## Current Slices
 
-- `commands`: internal source-audit command API for local and Git requests.
+- `commands`: internal source-audit command API plus CLI-ready source locator
+  parsing for local paths, `file://`, HTTPS Git URLs, and SSH/scp-style Git
+  locators.
 - `audit`: resolved package-graph audit over locks and manifests, including
   dependency paths for exported service reach and fail-closed consistency
   checks.
