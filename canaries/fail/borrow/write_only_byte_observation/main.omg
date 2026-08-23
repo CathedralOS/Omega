@@ -1,0 +1,12 @@
+// FAIL canary: fixed indexing is legal only as a write target; it never grants
+// observation of the displaced or resident byte.
+
+machine inspect(bytes: &write [u8; 4]) -> u8 {
+    bytes[0]
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

@@ -1,0 +1,18 @@
+// PASS canary: a checked write-only fixed byte array may be forwarded exactly
+// or updated through a statically in-bounds literal element. Neither operation
+// observes prior content.
+
+machine fill(bytes: &write [u8; 4]) {
+    bytes[0] = 1;
+    bytes[3] = 2;
+}
+
+machine forward(bytes: &write [u8; 4]) {
+    fill(&write bytes);
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

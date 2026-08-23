@@ -1,0 +1,1 @@
+must come from exact toolchain package `omega::language::std::targets::uefi_x64::entry`

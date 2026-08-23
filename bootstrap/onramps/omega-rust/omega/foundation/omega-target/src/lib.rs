@@ -53,6 +53,27 @@ pub enum ProgramEntryCallingConvention {
     MicrosoftX64,
 }
 
+/// Closed identity of a toolchain-owned physical-entry contract package.
+/// Source paths prove membership in this identity; they never define it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProgramEntryPhysicalContractPackage {
+    UefiX64,
+}
+
+impl ProgramEntryPhysicalContractPackage {
+    pub const fn manifest_identity(self) -> &'static str {
+        match self {
+            Self::UefiX64 => "omega::language::std::targets::uefi_x64::entry",
+        }
+    }
+
+    pub const fn package_relative_source(self) -> &'static str {
+        match self {
+            Self::UefiX64 => "targets/uefi_x64/entry.omg",
+        }
+    }
+}
+
 /// Target-owned declaration of the first environment-to-program root slot.
 /// The source binding supplies only `machine`; every other field belongs to
 /// the selected target profile.
@@ -66,6 +87,8 @@ pub struct ProgramEntrySlotDeclaration {
     /// Target-fixed physical environment arrival. Hosted compatibility
     /// profiles retain `None` until their two-surface entry bridge lands.
     pub physical_arrival_requirement: Option<&'static str>,
+    /// Exact closed toolchain package that owns the physical requirement.
+    pub physical_contract_package: Option<ProgramEntryPhysicalContractPackage>,
     /// Source boundary schema whose evaluated Calling<C> plan owns the
     /// physical entry contract. `None` marks a profile not yet migrated from
     /// its hosted compatibility bridge.
@@ -169,6 +192,7 @@ impl TargetProfile {
             visible_parameters,
             boundary_schema,
             physical_arrival_requirement,
+            physical_contract_package,
             physical_calling_convention,
             semantic_calling_convention,
         ) = match self {
@@ -177,12 +201,14 @@ impl TargetProfile {
                 ProgramEntryVisibleParameters::ImageAndInitialStorage,
                 Some("UefiApplication"),
                 Some("UefiPhysicalEntry::enter"),
+                Some(ProgramEntryPhysicalContractPackage::UefiX64),
                 Some(ProgramEntryCallingConvention::MicrosoftX64),
                 Some(ProgramEntryCallingConvention::MicrosoftX64),
             ),
             _ => (
                 ProgramEntrySchema::HostedApplication,
                 ProgramEntryVisibleParameters::None,
+                None,
                 None,
                 None,
                 None,
@@ -195,6 +221,7 @@ impl TargetProfile {
             schema,
             semantic_arrival_requirement: "ProgramStorageEntry::enter",
             physical_arrival_requirement,
+            physical_contract_package,
             boundary_schema,
             physical_calling_convention,
             semantic_calling_convention,
@@ -305,7 +332,10 @@ fn host_object_format() -> ObjectFormat {
 
 #[cfg(test)]
 mod tests {
-    use super::{ProgramEntrySchema, ProgramEntryVisibleParameters, TargetProfile};
+    use super::{
+        ProgramEntryPhysicalContractPackage, ProgramEntrySchema, ProgramEntryVisibleParameters,
+        TargetProfile,
+    };
 
     #[test]
     fn hosted_program_entry_slot_hides_physical_storage_roots() {
@@ -319,6 +349,7 @@ mod tests {
         );
         assert_eq!(slot.boundary_schema, None);
         assert_eq!(slot.physical_calling_convention, None);
+        assert_eq!(slot.physical_contract_package, None);
         assert_eq!(slot.semantic_calling_convention, None);
         assert_eq!(slot.visible_parameters, ProgramEntryVisibleParameters::None);
     }
@@ -331,6 +362,21 @@ mod tests {
         assert_eq!(
             slot.physical_arrival_requirement,
             Some("UefiPhysicalEntry::enter")
+        );
+        assert_eq!(
+            slot.physical_contract_package,
+            Some(ProgramEntryPhysicalContractPackage::UefiX64)
+        );
+        let physical_package = slot
+            .physical_contract_package
+            .expect("UEFI must select its closed physical-contract package");
+        assert_eq!(
+            physical_package.manifest_identity(),
+            "omega::language::std::targets::uefi_x64::entry"
+        );
+        assert_eq!(
+            physical_package.package_relative_source(),
+            "targets/uefi_x64/entry.omg"
         );
         assert_eq!(
             slot.physical_calling_convention,

@@ -475,6 +475,9 @@ pub(crate) fn validate_selected_program_entry_calling_plan(
             expected_semantic,
         ))]);
     }
+    let physical_source =
+        target_owned_physical_contract_source(typed, selected.slot, schema.symbol, &physical)
+            .map_err(|diagnostic| vec![diagnostic])?;
     let service_schema = omega_effects::provider_plan::ServiceSchema::from_typed(typed, schema)
         .ok_or_else(|| {
             vec![Diagnostic::error(format!(
@@ -496,6 +499,8 @@ pub(crate) fn validate_selected_program_entry_calling_plan(
     let physical_contract = super::ProgramEntryPhysicalContractPlan::new(
         selected.slot,
         physical.requirement_identity,
+        physical_source.package,
+        physical_source.package_fingerprint,
         physical
             .parameters
             .into_iter()
@@ -513,6 +518,84 @@ pub(crate) fn validate_selected_program_entry_calling_plan(
         semantic_boundary_entry_plan: semantic_realization.boundary_entry_plan.clone(),
         storage_entry,
     }))
+}
+
+struct TargetOwnedPhysicalContractSource {
+    package: omega_target::ProgramEntryPhysicalContractPackage,
+    package_fingerprint: u64,
+}
+
+fn target_owned_physical_contract_source(
+    typed: &TypedTrees,
+    slot: omega_target::ProgramEntrySlotDeclaration,
+    schema: psi_symbols::SymbolHandle,
+    contract: &ArrivalRequirementContract,
+) -> Result<TargetOwnedPhysicalContractSource, Diagnostic> {
+    let expected_package = slot.physical_contract_package.ok_or_else(|| {
+        Diagnostic::error("target physical entry requirement has no owning package identity")
+    })?;
+    let source_span = typed
+        .symbols
+        .symbol_source_span(contract.signature)
+        .ok_or_else(|| {
+            Diagnostic::error(format!(
+                "target physical entry requirement `{}` has no authored source provenance",
+                contract.requirement_identity
+            ))
+        })?;
+    let source_file = typed.symbols.source_file(source_span).ok_or_else(|| {
+        Diagnostic::error("target physical entry requirement lost its source-file provenance")
+    })?;
+    let schema_source_span = typed.symbols.symbol_source_span(schema).ok_or_else(|| {
+        Diagnostic::error("target physical entry schema has no authored source provenance")
+    })?;
+    let schema_source_file = typed
+        .symbols
+        .source_file(schema_source_span)
+        .ok_or_else(|| {
+            Diagnostic::error("target physical entry schema lost its source-file provenance")
+        })?;
+    let package_relative_source = source_file
+        .path
+        .strip_prefix(&source_file.package_root)
+        .ok();
+    if source_file.origin != psi_source::SourceOrigin::Toolchain
+        || schema_source_file.source_id != source_file.source_id
+        || package_relative_source
+            != Some(std::path::Path::new(
+                expected_package.package_relative_source(),
+            ))
+    {
+        return Err(Diagnostic::error(format!(
+            "target physical entry requirement and schema `{}` must come from exact toolchain package `{}`, not `{}`",
+            contract.requirement_identity,
+            expected_package.manifest_identity(),
+            source_file.path.display()
+        )));
+    }
+    let package_fingerprint = physical_contract_package_fingerprint(
+        expected_package.manifest_identity().as_bytes(),
+        source_file.source.as_bytes(),
+    );
+    Ok(TargetOwnedPhysicalContractSource {
+        package: expected_package,
+        package_fingerprint,
+    })
+}
+
+fn physical_contract_package_fingerprint(identity: &[u8], source: &[u8]) -> u64 {
+    let mut hash = 0xcbf29ce484222325u64;
+    for bytes in [
+        b"omega.uefi-physical-package.v1".as_slice(),
+        identity,
+        source,
+    ] {
+        for byte in bytes {
+            hash ^= u64::from(*byte);
+            hash = hash.wrapping_mul(0x100000001b3);
+        }
+    }
+    hash
 }
 
 struct ArrivalRequirementParameterType {

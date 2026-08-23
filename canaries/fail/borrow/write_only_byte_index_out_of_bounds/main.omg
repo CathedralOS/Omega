@@ -1,0 +1,11 @@
+// FAIL canary: literal indexing must be statically within the fixed byte array.
+
+machine fill(bytes: &write [u8; 4]) {
+    bytes[4] = 1;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

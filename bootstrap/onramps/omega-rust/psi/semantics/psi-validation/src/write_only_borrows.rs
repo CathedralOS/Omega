@@ -4,7 +4,9 @@ use psi_symbols::SymbolHandle;
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use psi_typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
-use psi_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use psi_typed_trees::types::{
+    FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode,
+};
 
 #[derive(Clone)]
 struct WriteOnlyRoot {
@@ -13,7 +15,7 @@ struct WriteOnlyRoot {
     referee: TypeReferenceHandle,
 }
 
-pub(crate) fn validate_checked_whole_scalar_slice(
+pub(crate) fn validate_checked_write_only_slice(
     program: &TypedTrees,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -53,9 +55,9 @@ pub(crate) fn validate_checked_whole_scalar_slice(
             }
 
             for root in &roots {
-                if !is_unrestricted_scalar(program, root.referee) {
+                if !is_supported_checked_referee(program, root.referee) {
                     diagnostics.push(Diagnostic::error(format!(
-                        "machine `{}` state `{}` parameter `{}` uses `&write` with `{}`; the current checked slice supports only whole, unrestricted primitive scalars",
+                        "machine `{}` state `{}` parameter `{}` uses `&write` with `{}`; the current checked slice supports unrestricted primitive scalars and fixed byte arrays",
                         machine.name,
                         state.name,
                         root.name,
@@ -88,6 +90,27 @@ fn is_unrestricted_scalar(program: &TypedTrees, type_reference: TypeReferenceHan
         && program.primitive_type_reference(type_reference).is_some()
 }
 
+fn fixed_byte_array_length(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Option<usize> {
+    let TypeReferenceNode::FixedArray {
+        element_type,
+        length: FixedArrayLength::Literal(length),
+    } = program.type_reference_table.type_reference(type_reference)
+    else {
+        return None;
+    };
+    (is_unrestricted_scalar(program, *element_type)
+        && program.primitive_type_reference(*element_type) == Some(PrimitiveType::U8))
+    .then_some(*length)
+}
+
+fn is_supported_checked_referee(program: &TypedTrees, type_reference: TypeReferenceHandle) -> bool {
+    is_unrestricted_scalar(program, type_reference)
+        || fixed_byte_array_length(program, type_reference).is_some()
+}
+
 fn validate_statement(
     program: &TypedTrees,
     machine: &str,
@@ -103,10 +126,17 @@ fn validate_statement(
         StatementNode::Assignment(assignment) => {
             match direct_write_only_root(program, assignment.target, roots) {
                 Some(_) => {}
+                None if fixed_byte_element_assignment_target(program, assignment.target, roots)
+                    .is_some() => {}
                 None if expression_mentions_write_only_root(program, assignment.target, roots) => {
-                    diagnostics.push(Diagnostic::error(format!(
-                        "machine `{machine}` state `{state}` projects or observes a write-only parameter in an assignment target; the current `&write` slice permits only whole-root replacement"
-                    )));
+                    diagnose_unsupported_write_only_assignment_target(
+                        program,
+                        machine,
+                        state,
+                        assignment.target,
+                        roots,
+                        diagnostics,
+                    );
                 }
                 None => validate_expression(
                     program,
@@ -164,6 +194,56 @@ fn validate_statement(
             );
         }
     }
+}
+
+fn fixed_byte_element_assignment_target<'a>(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    roots: &'a [WriteOnlyRoot],
+) -> Option<&'a WriteOnlyRoot> {
+    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    let root = direct_write_only_root(program, indexed.collection, roots)?;
+    let length = fixed_byte_array_length(program, root.referee)?;
+    let ExpressionNode::Integer(index) = program.expression_table.expression(indexed.index) else {
+        return None;
+    };
+    let index = usize::try_from(index.value_i64()?).ok()?;
+    (index < length).then_some(root)
+}
+
+fn diagnose_unsupported_write_only_assignment_target(
+    program: &TypedTrees,
+    machine: &str,
+    state: &str,
+    expression: ExpressionHandle,
+    roots: &[WriteOnlyRoot],
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression)
+        && let Some(root) = direct_write_only_root(program, indexed.collection, roots)
+        && fixed_byte_array_length(program, root.referee).is_some()
+    {
+        let detail = match program.expression_table.expression(indexed.index) {
+            ExpressionNode::Range(_) => "range projection is not implemented",
+            ExpressionNode::Integer(index) => match index.value_i64() {
+                Some(value) if value < 0 => "the index must be non-negative",
+                Some(_) => "the literal index is outside the fixed byte array",
+                None => "the literal index is outside the supported index range",
+            },
+            _ => "the index must be a literal for this milestone",
+        };
+        diagnostics.push(Diagnostic::error(format!(
+            "machine `{machine}` state `{state}` writes through unsupported projection of write-only byte array `{}`; {detail}; only whole-array replacement and statically in-bounds literal element replacement are accepted",
+            root.name,
+        )));
+        return;
+    }
+
+    diagnostics.push(Diagnostic::error(format!(
+        "machine `{machine}` state `{state}` projects or observes a write-only parameter in an assignment target; the current `&write` slice permits whole-root replacement and statically in-bounds literal element replacement for fixed byte arrays"
+    )));
 }
 
 fn validate_transition_target(
@@ -239,7 +319,7 @@ fn validate_expression(
         ExpressionNode::Indexed(indexed) => {
             if let Some(root) = mentioned_write_only_root(program, indexed.collection, roots) {
                 diagnostics.push(Diagnostic::error(format!(
-                    "machine `{machine}` state `{state}` indexes write-only parameter `{}`; write-only projection is not implemented in the whole-scalar slice",
+                    "machine `{machine}` state `{state}` reads through index projection of write-only parameter `{}`; `&write` permits fixed byte-element replacement but never observation",
                     root.name,
                 )));
             } else {
