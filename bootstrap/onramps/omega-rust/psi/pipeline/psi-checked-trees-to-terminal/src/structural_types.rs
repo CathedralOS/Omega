@@ -65,7 +65,15 @@ pub(super) fn retain_additional_structural_types(
                 element_type_identity,
                 ..
             } => collect(plans, element_type_identity, active, selected)?,
-            CheckedUnitStructuralTypeShape::Sum { .. } => {}
+            CheckedUnitStructuralTypeShape::Sum { cases } => {
+                for field in cases.iter().flat_map(|case| &case.fields) {
+                    if let CheckedUnitStructuralFieldType::Structural { type_identity } =
+                        &field.field_type
+                    {
+                        collect(plans, type_identity, active, selected)?;
+                    }
+                }
+            }
         }
         active.pop();
         selected.push(identity.to_owned());
