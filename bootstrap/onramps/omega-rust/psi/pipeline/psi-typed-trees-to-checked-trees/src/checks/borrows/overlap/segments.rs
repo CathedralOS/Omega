@@ -41,6 +41,41 @@ fn place_segment_pair_may_overlap(
             psi_facts::PlaceSegment::FixedIndex { index: right_index },
         ) => left_index == right_index,
         (
+            psi_facts::PlaceSegment::FixedRange {
+                start: left_start,
+                end: left_end,
+            },
+            psi_facts::PlaceSegment::FixedRange {
+                start: right_start,
+                end: right_end,
+            },
+        ) => {
+            left_start < left_end
+                && right_start < right_end
+                && left_start < right_end
+                && right_start < left_end
+        }
+        (
+            psi_facts::PlaceSegment::FixedRange { start, end },
+            psi_facts::PlaceSegment::FixedIndex { index },
+        )
+        | (
+            psi_facts::PlaceSegment::FixedIndex { index },
+            psi_facts::PlaceSegment::FixedRange { start, end },
+        ) => start < end && start <= index && index < end,
+        (
+            psi_facts::PlaceSegment::FixedRange { start, end },
+            psi_facts::PlaceSegment::Index { expression },
+        )
+        | (
+            psi_facts::PlaceSegment::Index { expression },
+            psi_facts::PlaceSegment::FixedRange { start, end },
+        ) => program
+            .expression_table
+            .constant_integer_value(expression)
+            .and_then(|value| usize::try_from(value).ok())
+            .is_none_or(|index| start < end && start <= index && index < end),
+        (
             psi_facts::PlaceSegment::FixedIndex { index },
             psi_facts::PlaceSegment::Index { expression },
         )
@@ -129,6 +164,28 @@ mod tests {
             &program,
             &[psi_facts::PlaceSegment::FixedIndex { index: 1 }],
             &[psi_facts::PlaceSegment::Index { expression: tail }],
+        ));
+    }
+
+    #[test]
+    fn fixed_ranges_use_half_open_overlap() {
+        let program = psi_typed_trees::TypedTrees::default();
+        let range = |start, end| psi_facts::PlaceSegment::FixedRange { start, end };
+
+        assert!(place_segments_may_overlap(
+            &program,
+            &[range(0, 2)],
+            &[range(1, 3)],
+        ));
+        assert!(!place_segments_may_overlap(
+            &program,
+            &[range(0, 2)],
+            &[range(2, 4)],
+        ));
+        assert!(!place_segments_may_overlap(
+            &program,
+            &[range(1, 1)],
+            &[range(0, 2)],
         ));
     }
 }

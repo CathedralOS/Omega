@@ -24,6 +24,16 @@ pub(crate) fn canonical_place_segments_equal(
             psi_facts::PlaceSegment::FixedIndex { index: right_index },
         ) => left_index == right_index,
         (
+            psi_facts::PlaceSegment::FixedRange {
+                start: left_start,
+                end: left_end,
+            },
+            psi_facts::PlaceSegment::FixedRange {
+                start: right_start,
+                end: right_end,
+            },
+        ) => left_start == right_start && left_end == right_end,
+        (
             psi_facts::PlaceSegment::Index {
                 expression: left_expression,
             },
@@ -128,6 +138,33 @@ fn canonical_place_segment_pair_may_overlap(
             psi_facts::PlaceSegment::FixedIndex { index: right_index },
         ) => left_index == right_index,
         (
+            psi_facts::PlaceSegment::FixedRange {
+                start: left_start,
+                end: left_end,
+            },
+            psi_facts::PlaceSegment::FixedRange {
+                start: right_start,
+                end: right_end,
+            },
+        ) => fixed_ranges_overlap(left_start, left_end, right_start, right_end),
+        (
+            psi_facts::PlaceSegment::FixedRange { start, end },
+            psi_facts::PlaceSegment::FixedIndex { index },
+        )
+        | (
+            psi_facts::PlaceSegment::FixedIndex { index },
+            psi_facts::PlaceSegment::FixedRange { start, end },
+        ) => fixed_range_contains(start, end, index),
+        (
+            psi_facts::PlaceSegment::FixedRange { start, end },
+            psi_facts::PlaceSegment::Index { expression },
+        )
+        | (
+            psi_facts::PlaceSegment::Index { expression },
+            psi_facts::PlaceSegment::FixedRange { start, end },
+        ) => expression_static_index(program, expression)
+            .is_none_or(|index| fixed_range_contains(start, end, index)),
+        (
             psi_facts::PlaceSegment::FixedIndex { index },
             psi_facts::PlaceSegment::Index { expression },
         )
@@ -145,6 +182,22 @@ fn canonical_place_segment_pair_may_overlap(
         ) => index_expressions_may_overlap(program, left_expression, right_expression),
         _ => false,
     }
+}
+
+fn fixed_range_contains(start: usize, end: usize, index: usize) -> bool {
+    start < end && start <= index && index < end
+}
+
+fn fixed_ranges_overlap(
+    left_start: usize,
+    left_end: usize,
+    right_start: usize,
+    right_end: usize,
+) -> bool {
+    left_start < left_end
+        && right_start < right_end
+        && left_start < right_end
+        && right_start < left_end
 }
 
 fn expression_static_index(
@@ -217,6 +270,38 @@ mod tests {
             &program,
             &[psi_facts::PlaceSegment::Index { expression: left }],
             &[psi_facts::PlaceSegment::Index { expression: right }],
+        ));
+    }
+
+    #[test]
+    fn fixed_ranges_use_half_open_overlap() {
+        let program = psi_typed_trees::TypedTrees::default();
+        let range = |start, end| psi_facts::PlaceSegment::FixedRange { start, end };
+
+        assert!(canonical_place_segments_may_overlap(
+            &program,
+            &[range(0, 2)],
+            &[range(1, 3)],
+        ));
+        assert!(!canonical_place_segments_may_overlap(
+            &program,
+            &[range(0, 2)],
+            &[range(2, 4)],
+        ));
+        assert!(!canonical_place_segments_may_overlap(
+            &program,
+            &[range(1, 1)],
+            &[range(0, 2)],
+        ));
+        assert!(canonical_place_segments_may_overlap(
+            &program,
+            &[range(1, 3)],
+            &[psi_facts::PlaceSegment::FixedIndex { index: 2 }],
+        ));
+        assert!(!canonical_place_segments_may_overlap(
+            &program,
+            &[range(1, 3)],
+            &[psi_facts::PlaceSegment::FixedIndex { index: 3 }],
         ));
     }
 }

@@ -229,9 +229,6 @@ pub(crate) fn validate_array_literal_elements(
     expected_type: TypeReferenceHandle,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let ExpressionNode::ArrayLiteral(elements) = program.expression_table.expression(value) else {
-        return;
-    };
     let TypeReferenceNode::FixedArray {
         element_type,
         length,
@@ -239,7 +236,37 @@ pub(crate) fn validate_array_literal_elements(
     else {
         return;
     };
-    let element_type = *element_type;
+    let expected_len = match length {
+        FixedArrayLength::Literal(length) => Some(*length),
+        FixedArrayLength::ConstParameter { .. } | FixedArrayLength::ConstCall { .. } => None,
+    };
+    validate_array_literal_elements_for_shape(
+        program,
+        machine,
+        state,
+        value,
+        *element_type,
+        expected_len,
+        diagnostics,
+    );
+}
+
+/// Validate an array literal against an element type and an optional concrete
+/// width supplied by a projection rather than by a named fixed-array type.
+/// This is used by fixed write-only windows, whose destination width is
+/// `end - start` rather than the width of the containing array.
+pub(crate) fn validate_array_literal_elements_for_shape(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    value: ExpressionHandle,
+    element_type: TypeReferenceHandle,
+    expected_len: Option<usize>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let ExpressionNode::ArrayLiteral(elements) = program.expression_table.expression(value) else {
+        return;
+    };
     let element_handles = program.expression_table.expression_handles(*elements);
     // LENGTH check: a `[T; N]` literal must supply exactly N elements. Too few
     // leaves trailing slots reading uninitialized; too many overflows the storage
@@ -247,8 +274,7 @@ pub(crate) fn validate_array_literal_elements(
     // both silent before this. Only a resolved `Literal` length is checked; a
     // generic `ConstParameter` length is unknown until instantiation (a `ConstCall`
     // is const-eval'd to `Literal` upstream, so it never reaches here unresolved).
-    if let FixedArrayLength::Literal(expected_len) = length {
-        let expected_len = *expected_len;
+    if let Some(expected_len) = expected_len {
         if element_handles.len() != expected_len {
             diagnostics.push(Diagnostic::error(format!(
                 "machine `{}` state `{}` assigns an array literal with {} element(s) to a \

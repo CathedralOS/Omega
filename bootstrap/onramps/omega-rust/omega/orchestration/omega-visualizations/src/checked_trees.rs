@@ -1821,6 +1821,9 @@ fn exact_content_path(
                         .expect("content identity reshuffle fixed index must fit u64"),
                 )
             }
+            psi_facts::PlaceSegment::FixedRange { .. } => {
+                panic!("content identity reshuffle paths must not retain a range")
+            }
             psi_facts::PlaceSegment::Index { .. } => {
                 panic!("content identity reshuffle paths must not retain a runtime index")
             }
@@ -2585,6 +2588,13 @@ fn push_claim_path_json(
                 json.push_str(&index.to_string());
                 json.push('}');
             }
+            psi_facts::PlaceSegment::FixedRange { start, end } => {
+                json.push_str("{\"fixed_range\": {\"start\": ");
+                json.push_str(&start.to_string());
+                json.push_str(", \"end\": ");
+                json.push_str(&end.to_string());
+                json.push_str("}}");
+            }
             psi_facts::PlaceSegment::Index { expression } => {
                 json.push_str("{\"index\": ");
                 push_json_string(json, &program.expression_table.display_name(*expression));
@@ -2721,6 +2731,13 @@ fn qualification_subject(program: &CheckedTrees, fact: &psi_facts::Fact) -> Stri
             PlaceSegment::FixedIndex { index } => {
                 subject.push('[');
                 subject.push_str(&index.to_string());
+                subject.push(']');
+            }
+            PlaceSegment::FixedRange { start, end } => {
+                subject.push('[');
+                subject.push_str(&start.to_string());
+                subject.push_str("..");
+                subject.push_str(&end.to_string());
                 subject.push(']');
             }
             PlaceSegment::Index { expression } => {
@@ -4739,6 +4756,13 @@ fn borrow_access_label(
                 label.push_str(&index.to_string());
                 label.push(']');
             }
+            psi_facts::PlaceSegment::FixedRange { start, end } => {
+                label.push('[');
+                label.push_str(&start.to_string());
+                label.push_str("..");
+                label.push_str(&end.to_string());
+                label.push(']');
+            }
             psi_facts::PlaceSegment::Index { expression } => {
                 label.push('[');
                 label.push_str(&program.expression_table.display_name(*expression));
@@ -4780,6 +4804,13 @@ fn borrow_loan_label(
             psi_facts::PlaceSegment::FixedIndex { index } => {
                 place.push('[');
                 place.push_str(&index.to_string());
+                place.push(']');
+            }
+            psi_facts::PlaceSegment::FixedRange { start, end } => {
+                place.push('[');
+                place.push_str(&start.to_string());
+                place.push_str("..");
+                place.push_str(&end.to_string());
                 place.push(']');
             }
             psi_facts::PlaceSegment::Index { expression } => {

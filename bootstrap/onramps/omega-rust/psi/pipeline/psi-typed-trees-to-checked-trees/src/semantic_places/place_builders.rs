@@ -121,7 +121,9 @@ fn fact_place_type_symbol(
             psi_facts::PlaceSegment::Field { symbol } => {
                 current = symbol_type_symbol(program, *symbol)?;
             }
-            psi_facts::PlaceSegment::FixedIndex { .. } | psi_facts::PlaceSegment::Index { .. } => {
+            psi_facts::PlaceSegment::FixedIndex { .. }
+            | psi_facts::PlaceSegment::FixedRange { .. }
+            | psi_facts::PlaceSegment::Index { .. } => {
                 return None;
             }
         }

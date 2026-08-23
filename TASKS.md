@@ -4843,22 +4843,26 @@ Owners:
   proves the index in bounds. Literal mutation and caller-visible write frames
   retain the exact `FixedIndex`; a dynamic index retains its runtime expression
   internally and conservatively invalidates the whole collection in the
-  caller-visible frame. A non-generic checked record with no authored default
+  caller-visible frame. A fixed byte array also permits replacement of a
+  statically normalized half-open range by a same-width array literal. The
+  mutation and invalidation facts retain an exact `FixedRange`; half-open
+  overlap preserves untouched siblings, while range loans and Terminal/native
+  lowering remain gated. A non-generic checked record with no authored default
   domain now admits replacement through a finite common-field path when every
   intermediate receiver is likewise a non-generic checked record with no
   authored default domain, every selected field is relevant and unconstrained,
   and the displaced leaf is an unrestricted primitive. The ordinary mutation
   summary retains the complete exact field-symbol path. Whole-record replacement
   still requires an unrestricted/discardable root. Observation, readable
-  widening, implicit `&mut` attenuation, ranges, sum projection, qualified
-  fields, invariant-bearing records, and
+  widening, implicit `&mut` attenuation, symbolic/open-ended ranges, sum
+  projection, qualified fields, invariant-bearing records, and
   bodyless/provider declarations reject with directed diagnostics. Focused
   parser, semantic pass/fail, exact-place/frame, checked-loan, and
   checked-to-state-to-control remap tests pin the live slices.
 
   Remaining work is the broader executable access discipline: add
-  broader content-independent aggregate and byte-range projection, finer
-  symbolic dynamic-index footprints,
+  broader content-independent aggregate and symbolic byte-range projection,
+  finer symbolic dynamic-index footprints,
   reject take/swap/read-modify-write, content-driven projection,
   non-discardable displacement, and invariant restoration that depends on
   reading the referent, and retain exact per-outcome write footprints so

@@ -4,6 +4,8 @@ use psi_symbols::SymbolHandle;
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::data::{DataDefinition, DataMember, DataShapeKind};
 use psi_typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use psi_typed_trees::machine::Machine;
+use psi_typed_trees::state::State;
 use psi_typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 use psi_typed_trees::types::{
     FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode,
@@ -68,14 +70,7 @@ pub(crate) fn validate_checked_write_only_slice(
             }
 
             for statement in program.statement_table.statements(state.statement_nodes) {
-                validate_statement(
-                    program,
-                    machine.name.as_str(),
-                    state.name.as_str(),
-                    statement,
-                    &roots,
-                    diagnostics,
-                );
+                validate_statement(program, machine, state, statement, &roots, diagnostics);
             }
         }
     }
@@ -95,6 +90,13 @@ fn fixed_byte_array_length(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> Option<usize> {
+    fixed_byte_array_shape(program, type_reference).map(|(_, length)| length)
+}
+
+fn fixed_byte_array_shape(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Option<(TypeReferenceHandle, usize)> {
     let TypeReferenceNode::FixedArray {
         element_type,
         length: FixedArrayLength::Literal(length),
@@ -104,7 +106,7 @@ fn fixed_byte_array_length(
     };
     (is_unrestricted_scalar(program, *element_type)
         && program.primitive_type_reference(*element_type) == Some(PrimitiveType::U8))
-    .then_some(*length)
+    .then_some((*element_type, *length))
 }
 
 fn is_supported_checked_referee(program: &TypedTrees, type_reference: TypeReferenceHandle) -> bool {
@@ -213,12 +215,14 @@ fn write_only_record_field_assignment(
 
 fn validate_statement(
     program: &TypedTrees,
-    machine: &str,
-    state: &str,
+    machine_definition: &Machine,
+    state_definition: &State,
     statement: &StatementNode,
     roots: &[WriteOnlyRoot],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    let machine = machine_definition.name.as_str();
+    let state = state_definition.name.as_str();
     match statement {
         StatementNode::AssemblyFact(fact) => {
             validate_expression(program, machine, state, fact.expression, roots, diagnostics)
@@ -237,6 +241,17 @@ fn validate_statement(
             } else if write_only_record_field_assignment(program, assignment.target, roots) {
                 // One content-independent common-field-path store. The exact
                 // field place is retained by the ordinary checked mutation facts.
+            } else if validate_write_only_byte_range_assignment(
+                program,
+                machine_definition,
+                state_definition,
+                assignment.target,
+                assignment.value,
+                roots,
+                diagnostics,
+            ) {
+                // The range-specific gate owns non-observation and RHS shape.
+                // Ordinary range validation independently owns order/bounds.
             } else if let Some(index) =
                 write_only_byte_element_assignment_index(program, assignment.target, roots)
             {
@@ -311,6 +326,118 @@ fn validate_statement(
             );
         }
     }
+}
+
+/// Validate the first exact range-replacement rung: a statically normalized
+/// half-open window of a direct `&write [u8; N]`, replaced by an array literal
+/// of exactly the same width. Returns whether the target was such a range even
+/// when another checker owns its eventual rejection.
+fn validate_write_only_byte_range_assignment(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+    value: ExpressionHandle,
+    roots: &[WriteOnlyRoot],
+    diagnostics: &mut Vec<Diagnostic>,
+) -> bool {
+    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) else {
+        return false;
+    };
+    let Some(root) = direct_write_only_root(program, indexed.collection, roots) else {
+        return false;
+    };
+    let Some((element_type, collection_len)) = fixed_byte_array_shape(program, root.referee) else {
+        return false;
+    };
+    let ExpressionNode::Range(range) = program.expression_table.expression(indexed.index) else {
+        return false;
+    };
+
+    if range.start.is_valid() {
+        validate_expression(
+            program,
+            machine.name.as_str(),
+            state.name.as_str(),
+            range.start,
+            roots,
+            diagnostics,
+        );
+    }
+    if range.end.is_valid() {
+        validate_expression(
+            program,
+            machine.name.as_str(),
+            state.name.as_str(),
+            range.end,
+            roots,
+            diagnostics,
+        );
+    } else {
+        diagnostics.push(Diagnostic::error(format!(
+            "machine `{}` state `{}` replaces a write-only byte range with an omitted end; this exact-footprint rung requires a statically known end bound",
+            machine.name, state.name,
+        )));
+        return true;
+    }
+
+    let start = if range.start.is_valid() {
+        program
+            .expression_table
+            .constant_integer_value(range.start)
+            .and_then(|value| usize::try_from(value).ok())
+    } else {
+        Some(0)
+    };
+    let end = program
+        .expression_table
+        .constant_integer_value(range.end)
+        .and_then(|value| usize::try_from(value).ok())
+        .and_then(|end| {
+            if range.end_inclusive {
+                end.checked_add(1)
+            } else {
+                Some(end)
+            }
+        });
+    let (Some(start), Some(end)) = (start, end) else {
+        diagnostics.push(Diagnostic::error(format!(
+            "machine `{}` state `{}` replaces a write-only byte range whose bounds are not statically known; exact range replacement currently requires literal bounds",
+            machine.name, state.name,
+        )));
+        return true;
+    };
+
+    // The ordinary range checker emits the directed order/bounds diagnostic.
+    // Do not add a misleading write-only-shape error for the same invalid range.
+    if start > end || end > collection_len {
+        return true;
+    }
+    if !matches!(
+        program.expression_table.expression(value),
+        ExpressionNode::ArrayLiteral(_)
+    ) {
+        diagnostics.push(Diagnostic::error(format!(
+            "machine `{}` state `{}` replaces write-only byte range `{}[{}..{}]` from a non-literal value; the exact range-replacement rung requires an array literal of {} byte(s)",
+            machine.name,
+            state.name,
+            root.name,
+            start,
+            end,
+            end - start,
+        )));
+        return true;
+    }
+    crate::struct_literals::validate_array_literal_elements_for_shape(
+        program,
+        machine,
+        state,
+        value,
+        element_type,
+        Some(end - start),
+        diagnostics,
+    );
+    true
 }
 
 fn write_only_byte_element_assignment_index(
