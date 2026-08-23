@@ -329,3 +329,18 @@ nested call, division, or remainder. Wrong local provenance, reversed equality,
 status relabeling, and cross-clause import reject only in this phase. This proves the concrete
 `Halt(253)` projection for source oversize; whether that projection is exposed
 as typed `Exhaust(SourceBytes,1048576,1048577)` is still a design ruling.
+
+`bc-write-str-summary.alpha` gives the synthesized helper at PCs 31..82 one
+reusable relational meaning. For natural `len` and an admitted nonwrapping
+interval `[p,p+len)`, its loop carries `r0=p+k`, `r1=len-k`, and the exact
+appended slice `M[p:p+k]`; `len-k` decreases on every backedge. The zero edge
+and positive step establish termination after `8*len+3` instructions, output
+`M[p:p+len]`, no input or memory mutation, the exact final argument registers,
+and return to the saved continuation while preserving `r4..r15`. A direct scan
+then instantiates that conditional theorem at all 113 kind-four event rows,
+rejoining each checked pointer, decoded length, helper call, inline-data jump,
+and in-tape interval; their lengths total the already compared 829 literal
+bytes. Wrong loaded-byte provenance, zero rank delta, broken backedge renaming,
+an underreported byte total, and a non-start cost-path step reject only in this
+phase. This supplies per-event trace clauses, not global reachability or output
+order.

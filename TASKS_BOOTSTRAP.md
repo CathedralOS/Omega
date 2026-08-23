@@ -727,6 +727,17 @@ additional facilities the bootstrap actually needs.
         oversize clauses are published by the slurp induction only after their
         length/cursor/segment/reset/result states are rechecked. This does not
         choose the typed observation projection below.
+      - [x] Prove the synthesized `__write_str` helper once and instantiate it
+        exhaustively. The loop summary carries `r0=p+k`, `r1=len-k`, exact
+        appended slice `M[p:p+k]`, unchanged input/memory, and rank `len-k`;
+        it returns after `8*len+3` instructions with the complete slice emitted
+        and the saved continuation restored. A direct event-table scan rejoins
+        all 113 fixed-emit calls, their checked pointer/length/inline-data
+        equations and in-tape bounds, totaling all 829 decoded literal bytes.
+        Wrong byte provenance, zero rank delta, broken successor renaming,
+        underreported aggregate length, and a non-start cost-path step reject
+        only in this phase. These are conditional per-event clauses; blockwise
+        reachability/order remains.
       - [ ] **DESIGN BLOCKED — observation ruling required:** define how the
         theorem assigns typed `Exhaust(ResourceKind, limit, requested)` to the
         exact resource-guard paths whose program-level result is only 252/253.

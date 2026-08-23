@@ -36,7 +36,7 @@ main_slurp_bridge_init:
         call main_slurp_require_quiet_suffix
         call main_slurp_prove_success
         call main_slurp_prove_oversize
-        jmp scan_owned_effects_init
+        jmp write_str_summary_init
 
 ; ---- Exact source/artifact joins ---------------------------------------
 
