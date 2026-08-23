@@ -26,7 +26,7 @@ package namespace.
 - Extend the machine-written lock artifact with resolved package closure
   evidence.
 - Produce package capability manifests from compiler-derived evidence.
-- Reject updates when a package capability manifest changes unless an exact
+- Reject suspect package admission during install/update unless an exact
   capability-conflict resolution artifact is supplied; surface recommended
   audit findings for retained intrinsically dangerous authority.
 - Provide the orchestration API used by `omega install`, `omega update`, and
@@ -128,8 +128,10 @@ cargo test -p omega-packages --test remote_fixtures -- --ignored --test-threads=
 - `install`: non-mutating install plan assembly for future `omega install`
   wiring. It validates the current graph, verifies the root candidate manifest
   binds the requested alias to the requested package, assembles and audits the
-  candidate lock, and reports newly added package identities. The command seam
-  can read the current lock file before returning the plan.
+  candidate lock, and reports newly added package identities. Final install
+  wiring should route suspect initial authority through the same capability
+  conflict/resolution admission path as update. The command seam can read the
+  current lock file before returning the plan.
 - `lock`: machine-written package closure records with resolved source
   identity, manifest fingerprints, dependency aliases, trust receipts, stable
   JSON, lock fingerprints, closed-and-reachable closure validation, and strict
@@ -151,13 +153,14 @@ cargo test -p omega-packages --test remote_fixtures -- --ignored --test-threads=
   clone/fetch resolution to exact commit/tree identity.
 - `update`: package-update admission that permits source-only changes, rejects
   non-source capability manifest deltas with review guidance, and admits
-  capability-changing updates only with exact matching review receipts. It can
-  also produce a non-mutating lock update plan that assembles a candidate lock
-  only after policy admission and candidate graph audit. The command seam can
-  read the current lock file plus an optional standalone receipt file before
-  returning the plan; final update wiring should emit capability conflicts and
-  recommended audit findings for retained filesystem, network, process,
-  dynamic-loader, signing, secret, or equivalent authority.
+  capability-changing updates only with exact matching review receipts in the
+  current command seam. It can also produce a non-mutating lock update plan that
+  assembles a candidate lock only after policy admission and candidate graph
+  audit. The command seam can read the current lock file plus an optional
+  standalone receipt file before returning the plan; final update wiring should
+  emit capability conflicts and recommended audit findings for retained
+  filesystem, network, process, dynamic-loader, signing, secret, or equivalent
+  authority.
 
 ## Current CLI Surface
 
