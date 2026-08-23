@@ -1,6 +1,7 @@
 use psi_diagnostics::Diagnostic;
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use psi_typed_trees::statement::StatementNode;
 use psi_typed_trees::types::{
     PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
@@ -62,6 +63,40 @@ pub(crate) fn argument_matches_type_reference_handle(
         };
         return inner_expression.access == *access
             && argument_matches_type_reference_handle(program, inner_expression.target, *referee);
+    }
+
+    // A reference already stored in a named parameter/local is a value of its
+    // declared reference type. Forwarding that value does not form a new loan,
+    // so it has no `Borrow` syntax node to inspect. Match the complete
+    // normalized type here: transparent forwarding requires exact access and
+    // referee identity, while elided lifetime spelling remains operationally
+    // transparent as it is everywhere else in normalized type identity. The
+    // established mutable-to-shared attenuation is handled separately below;
+    // `&write` never participates in it.
+    if let TypeReferenceNode::Reference {
+        access: required_access,
+        ..
+    } = program.type_reference_table.type_reference(type_reference)
+        && let ExpressionNode::Name(path) = program.expression_table.expression(argument)
+        && let Some(actual) = named_value_type_reference(program, path)
+        && let TypeReferenceNode::Reference {
+            access: actual_access,
+            ..
+        } = program.type_reference_table.type_reference(actual)
+    {
+        if program.normalized_type_identity(actual)
+            == program.normalized_type_identity(type_reference)
+        {
+            return true;
+        }
+        // Write-only access has no implicit relationship to either readable
+        // mode, and acquiring it from mutable access is likewise explicit.
+        // Preserve the ordinary mutable-to-shared read attenuation below.
+        if *actual_access == psi_language_semantics::ReferenceAccess::WriteOnly
+            || *required_access == psi_language_semantics::ReferenceAccess::WriteOnly
+        {
+            return false;
+        }
     }
 
     let argument_node = program.expression_table.expression(argument);
@@ -175,6 +210,47 @@ pub(crate) fn argument_matches_type_reference_handle(
         }
         TypeReferenceNode::ConstExpression(_) | TypeReferenceNode::Unit => false,
     }
+}
+
+fn named_value_type_reference(
+    program: &TypedTrees,
+    path: &psi_typed_trees::expression::TableNamePath,
+) -> Option<TypeReferenceHandle> {
+    let [_] = program.expression_table.name_path_members(path.members) else {
+        return None;
+    };
+    let matches_symbol = |candidate: psi_symbols::SymbolHandle| {
+        candidate.is_valid()
+            && ((path.symbol.is_valid() && candidate == path.symbol)
+                || (path.head_symbol.is_valid() && candidate == path.head_symbol))
+    };
+
+    for machine in program.machines() {
+        if let Some(owned) = program
+            .machine_owned_data(machine)
+            .iter()
+            .find(|owned| matches_symbol(owned.symbol))
+        {
+            return Some(owned.type_reference);
+        }
+        for state in program.machine_states(machine) {
+            if let Some(parameter) = program
+                .state_parameters(state)
+                .iter()
+                .find(|parameter| matches_symbol(parameter.symbol))
+            {
+                return Some(parameter.type_reference);
+            }
+            for statement in program.statement_table.statements(state.statement_nodes) {
+                if let StatementNode::LocalData(local) = statement
+                    && matches_symbol(local.symbol)
+                {
+                    return Some(local.type_reference);
+                }
+            }
+        }
+    }
+    None
 }
 
 /// Mirror the backend layout classifier for an owned variable-fill text
