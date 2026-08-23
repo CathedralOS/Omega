@@ -1,0 +1,64 @@
+use omega::language::core::relation;
+
+data Token [copy] {
+    value: u64;
+}
+
+domain Token::Issued
+established by TokenIssuer::issue;
+
+trait TokenIssuer {
+    machine issue(value: u64) -> Token
+    ensures
+        result in Token::Issued;
+}
+
+// Recursive containment makes Representative proof-only. The qualified copy
+// field still carries one exact routed provenance occurrence, which quotient
+// equality may not make substitutable.
+data Representative {
+    case Zero(token: Token in Issued);
+    case Next(previous: Representative, token: Token in Issued);
+}
+
+proposition equivalent(a: Representative, b: Representative) = a == b;
+
+machine equivalent_reflexive(a: Representative)
+ensures a == a
+{
+}
+
+machine equivalent_symmetric(a: Representative, b: Representative)
+requires a == b
+ensures b == a
+{
+}
+
+machine equivalent_transitive(
+    a: Representative,
+    b: Representative,
+    c: Representative
+)
+requires
+    a == b
+    b == c
+ensures a == c
+{
+}
+
+RepresentativeEquivalence: satisfies Equivalence<Representative, equivalent> {
+    Reflexive::reflexive = equivalent_reflexive;
+    Symmetric::symmetric = equivalent_symmetric;
+    Transitive::transitive = equivalent_transitive;
+}
+
+data EquivalenceClass = Representative % equivalent
+where equivalent satisfies
+    Equivalence<Representative, equivalent>
+    as RepresentativeEquivalence;
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

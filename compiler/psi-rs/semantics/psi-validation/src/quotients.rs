@@ -23,7 +23,7 @@ use std::collections::HashSet;
 mod carrier_fence;
 mod relation_plan;
 
-use carrier_fence::first_noncopy_carrier_content;
+use carrier_fence::{CarrierFenceViolation, first_forbidden_carrier_content};
 
 const CORE_EQUIVALENCE_SOURCE: &str = "relation.omg";
 
@@ -71,16 +71,22 @@ pub(crate) fn validate_quotients(
                 definition.name, carrier.name,
             )));
         }
-        if let Some(forbidden) = first_noncopy_carrier_content(
+        if let Some(forbidden) = first_forbidden_carrier_content(
             program,
             proof_only,
             quotient.carrier,
             &mut HashSet::new(),
         ) {
-            diagnostics.push(Diagnostic::error(format!(
-                "quotient data `{}` carrier `{}` contains non-copy Type content `{forbidden}`; the initial quotient surface cannot identify affine or linear occurrences",
-                definition.name, carrier.name,
-            )));
+            diagnostics.push(Diagnostic::error(match forbidden {
+                CarrierFenceViolation::NonCopyType(forbidden) => format!(
+                    "quotient data `{}` carrier `{}` contains non-copy Type content `{forbidden}`; the initial quotient surface cannot identify affine or linear occurrences",
+                    definition.name, carrier.name,
+                ),
+                CarrierFenceViolation::RoutedQualification(forbidden) => format!(
+                    "quotient data `{}` carrier `{}` contains routed qualification `{forbidden}`; the initial quotient surface cannot identify exact custody occurrences",
+                    definition.name, carrier.name,
+                ),
+            }));
         }
 
         let Some(relation) = program
@@ -937,11 +943,15 @@ fn quotient_for_type(
 #[cfg(test)]
 mod tests {
     use super::{
-        exact_relation_application_matches, first_noncopy_carrier_content, validate_quotients,
+        CarrierFenceViolation, exact_relation_application_matches, first_forbidden_carrier_content,
+        validate_quotients,
     };
     use psi_symbols::SymbolHandle;
     use psi_typed_trees::TypedTrees;
     use psi_typed_trees::data::{DataDefinition, DataField, DataMember};
+    use psi_typed_trees::domain::{
+        DomainAliasConstituent, DomainAliasDefinition, DomainDefinition,
+    };
     use psi_typed_trees::expression::{
         ExpressionHandle, ExpressionNode, QuotientOperationKind, QuotientOperationRequest,
         StaticMachineArgument, TableCallExpression, TableNamePath,
@@ -951,7 +961,9 @@ mod tests {
         PropositionApplication, PropositionBinder, PropositionBinderArgument,
         PropositionBinderArgumentKind, PropositionBinderKind, PropositionDefinition,
     };
-    use psi_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+    use psi_typed_trees::types::{
+        DomainConstraint, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
+    };
 
     fn static_argument(name: &'static str) -> StaticMachineArgument {
         StaticMachineArgument {
@@ -1022,13 +1034,51 @@ mod tests {
         (program, carrier_type)
     }
 
+    fn constrained_copy_type(
+        program: &mut TypedTrees,
+        domain: DomainConstraint,
+    ) -> TypeReferenceHandle {
+        let copy_symbol = SymbolHandle::from_arena_index(40);
+        let copy_type = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: copy_symbol,
+                name: Identifier::generated_static("CopyValue"),
+            });
+        program.push_data_definition(DataDefinition {
+            symbol: copy_symbol,
+            name: Identifier::generated_static("CopyValue"),
+            properties: psi_typed_trees::data::DataProperties {
+                multiplicity: psi_language_semantics::Multiplicity::Unrestricted,
+                carry: None,
+            },
+            ..Default::default()
+        });
+        let constraints = program
+            .type_reference_table
+            .insert_constraints([TypeConstraintNode::Domain(domain)]);
+        program
+            .type_reference_table
+            .insert(TypeReferenceNode::Constrained {
+                base_type: copy_type,
+                constraints,
+            })
+    }
+
+    fn checked_route() -> psi_language_semantics::DomainEstablishmentRoute {
+        psi_language_semantics::DomainEstablishmentRoute::CheckedRequirement {
+            trait_definition: SymbolHandle::from_arena_index(90),
+            requirement: SymbolHandle::from_arena_index(91),
+        }
+    }
+
     #[test]
     fn recursive_proof_carrier_without_runtime_content_passes_noncopy_fence() {
         let (program, carrier) = recursive_proof_carrier_with(None);
         let proof_only = psi_typed_trees::proof_only::classify(&program);
 
         assert_eq!(
-            first_noncopy_carrier_content(
+            first_forbidden_carrier_content(
                 &program,
                 &proof_only,
                 carrier,
@@ -1049,13 +1099,13 @@ mod tests {
         let proof_only = psi_typed_trees::proof_only::classify(&program);
 
         assert_eq!(
-            first_noncopy_carrier_content(
+            first_forbidden_carrier_content(
                 &program,
                 &proof_only,
                 carrier,
                 &mut std::collections::HashSet::new(),
             ),
-            Some("Token".to_owned()),
+            Some(CarrierFenceViolation::NonCopyType("Token".to_owned())),
         );
     }
 
@@ -1070,13 +1120,108 @@ mod tests {
         let proof_only = psi_typed_trees::proof_only::classify(&program);
 
         assert_eq!(
-            first_noncopy_carrier_content(
+            first_forbidden_carrier_content(
                 &program,
                 &proof_only,
                 carrier,
                 &mut std::collections::HashSet::new(),
             ),
             None,
+        );
+    }
+
+    #[test]
+    fn routed_qualification_on_copy_content_rejects() {
+        let mut program = TypedTrees::default();
+        let routed = constrained_copy_type(
+            &mut program,
+            DomainConstraint {
+                name: Identifier::generated_static("Issued"),
+                establishment_routes: vec![checked_route()],
+                ..Default::default()
+            },
+        );
+        let proof_only = psi_typed_trees::proof_only::classify(&program);
+
+        assert_eq!(
+            first_forbidden_carrier_content(
+                &program,
+                &proof_only,
+                routed,
+                &mut std::collections::HashSet::new(),
+            ),
+            Some(CarrierFenceViolation::RoutedQualification(
+                "Issued".to_owned()
+            )),
+        );
+    }
+
+    #[test]
+    fn predicate_only_qualification_on_copy_content_passes() {
+        let mut program = TypedTrees::default();
+        let predicate_only = constrained_copy_type(
+            &mut program,
+            DomainConstraint {
+                name: Identifier::generated_static("NonZero"),
+                predicate_body: psi_language_semantics::DomainPredicateBody::Present,
+                ..Default::default()
+            },
+        );
+        let proof_only = psi_typed_trees::proof_only::classify(&program);
+
+        assert_eq!(
+            first_forbidden_carrier_content(
+                &program,
+                &proof_only,
+                predicate_only,
+                &mut std::collections::HashSet::new(),
+            ),
+            None,
+        );
+    }
+
+    #[test]
+    fn transparent_alias_cannot_hide_routed_qualification() {
+        let mut program = TypedTrees::default();
+        let routed_symbol = SymbolHandle::from_arena_index(50);
+        let alias_symbol = SymbolHandle::from_arena_index(51);
+        program.push_domain_definition(DomainDefinition {
+            symbol: routed_symbol,
+            name: Identifier::generated_static("Issued"),
+            establishment_routes: vec![checked_route()],
+            ..Default::default()
+        });
+        program.push_domain_definition(DomainDefinition {
+            symbol: alias_symbol,
+            name: Identifier::generated_static("Usable"),
+            alias: Some(DomainAliasDefinition {
+                constituents: vec![DomainAliasConstituent {
+                    domain_symbol: routed_symbol,
+                    ..Default::default()
+                }],
+            }),
+            ..Default::default()
+        });
+        let aliased = constrained_copy_type(
+            &mut program,
+            DomainConstraint {
+                name: Identifier::generated_static("Usable"),
+                symbol: alias_symbol,
+                ..Default::default()
+            },
+        );
+        let proof_only = psi_typed_trees::proof_only::classify(&program);
+
+        assert_eq!(
+            first_forbidden_carrier_content(
+                &program,
+                &proof_only,
+                aliased,
+                &mut std::collections::HashSet::new(),
+            ),
+            Some(CarrierFenceViolation::RoutedQualification(
+                "Issued".to_owned()
+            )),
         );
     }
 
