@@ -1394,9 +1394,15 @@ membership of both roots in that case with the exact payload-leaf equalities;
 inequality is that complete disjunction implying falsehood. A case path uses an
 exact case identity followed by its exact payload-field identity, and the
 verifier and codecs reject unknown or redirected identities. Mixed
-common-field/case shapes, nested or recursive payload expansion, address and
-erased payload equality, written `equals` bodies, and runtime sum layout remain
-outside this bounded terminal slice. Arithmetic over
+common-field/case shapes, structural fields inside a case payload, recursive
+expansion, address and erased payload equality, written `equals` bodies, and
+runtime sum layout remain outside this bounded terminal slice. When an acyclic
+relevant record field reaches a payload-bearing sum, the same sum proposition
+is retained below that field path, and independent verification preserves the
+complete `Field -> Case -> Field` identity chain. Direct source-call rebasing
+through a sum-bearing projection remains fenced with runtime sum projection and
+cleanup.
+Arithmetic over
 same-typed relevant fixed-integer members accepts Exact addition, subtraction,
 and multiplication: each member or fixed-integer-literal operand retains its
 exact checked carrier, nested operations remain typed `ExactIntegerAdd`,
