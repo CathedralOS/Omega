@@ -6,7 +6,11 @@ use omega_effects::{
     ProgramLocalRootEpochLeaseId,
 };
 use omega_executable_installation::{ArtifactId, InstalledCodeId};
-use psi_core::{ContentAlgebra, ProgramLocalCapacityExpression};
+use psi_core::{
+    ContentAlgebra, ContentAlgebraKind, ProgramLocalCapacityExpression, ProgramLocalCapacityScalar,
+};
+use psi_language_semantics::content::{CanonicalIntervalSet, NaturalInterval};
+use psi_numerics::bignum::BigInt;
 use psi_terminal::TerminalPsiIdentity;
 use psi_terminal_codec::VerifiedProgramLocalRootProducerCatalog;
 
@@ -63,6 +67,7 @@ pub struct ProgramLocalRootInstalledPrebinding {
     admission: RootAdmissionId,
     provider_execution: ProviderExecutionId,
     requirement_identity: String,
+    argument_index: u32,
     source_parameter_position: u32,
     qualification_identity: String,
     carrier_identity: String,
@@ -98,6 +103,10 @@ impl ProgramLocalRootInstalledPrebinding {
 
     pub fn requirement_identity(&self) -> &str {
         &self.requirement_identity
+    }
+
+    pub const fn argument_index(&self) -> u32 {
+        self.argument_index
     }
 
     pub const fn source_parameter_position(&self) -> u32 {
@@ -146,6 +155,7 @@ pub struct ProgramLocalRootInstalledPrebindingCount {
     pub installed_code: InstalledCodeId,
     pub artifact: ArtifactId,
     pub requirement_identity: String,
+    pub argument_index: u32,
     pub source_parameter_position: u32,
     pub qualification_identity: String,
     pub carrier_identity: String,
@@ -180,6 +190,232 @@ impl InstalledProgramLocalRootOccurrenceId {
 
     pub const fn lifecycle_epoch(self) -> u64 {
         self.lifecycle_epoch
+    }
+}
+
+/// Report identity for one concrete activation of an installed entry bridge.
+///
+/// This number is not authority. The non-clonable epoch runtime and the exact
+/// installed-root evidence retained by [`InstalledProgramLocalRootSubject`]
+/// are what make an activation eligible to establish a root.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ProgramLocalRootEntryInvocationId(u64);
+
+impl ProgramLocalRootEntryInvocationId {
+    pub fn from_normalized_identity(identity: u64) -> Result<Self, ExternalRootDiagnostic> {
+        if identity == 0 {
+            return Err(ExternalRootDiagnostic(
+                "normalized program-local entry invocation identity cannot be zero".into(),
+            ));
+        }
+        Ok(Self(identity))
+    }
+
+    pub const fn normalized_identity(self) -> u64 {
+        self.0
+    }
+}
+
+/// Report identity of the exact runtime place occupying one installed entry
+/// parameter. It distinguishes activations and places but carries no authority
+/// by itself.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ProgramLocalRootSubjectPlaceId(u64);
+
+impl ProgramLocalRootSubjectPlaceId {
+    pub fn from_normalized_identity(identity: u64) -> Result<Self, ExternalRootDiagnostic> {
+        if identity == 0 {
+            return Err(ExternalRootDiagnostic(
+                "normalized program-local subject-place identity cannot be zero".into(),
+            ));
+        }
+        Ok(Self(identity))
+    }
+
+    pub const fn normalized_identity(self) -> u64 {
+        self.0
+    }
+}
+
+/// Which compiler-checked scalar projection supplies one symbolic capacity
+/// leaf. The distinction is semantic even when two leaves use the same field
+/// path.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ProgramLocalRootScalarSource {
+    SubjectField,
+    RuntimeScalarEmbedding,
+}
+
+/// One bridge-observed proof-natural scalar used to instantiate the verified
+/// per-occurrence capacity expression.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProgramLocalRootScalarBinding {
+    source: ProgramLocalRootScalarSource,
+    path: Vec<String>,
+    value: BigInt,
+}
+
+impl ProgramLocalRootScalarBinding {
+    pub fn subject_field(
+        path: impl IntoIterator<Item = impl Into<String>>,
+        value: BigInt,
+    ) -> Result<Self, ExternalRootDiagnostic> {
+        Self::new(ProgramLocalRootScalarSource::SubjectField, path, value)
+    }
+
+    pub fn runtime_scalar_embedding(
+        path: impl IntoIterator<Item = impl Into<String>>,
+        value: BigInt,
+    ) -> Result<Self, ExternalRootDiagnostic> {
+        Self::new(
+            ProgramLocalRootScalarSource::RuntimeScalarEmbedding,
+            path,
+            value,
+        )
+    }
+
+    fn new(
+        source: ProgramLocalRootScalarSource,
+        path: impl IntoIterator<Item = impl Into<String>>,
+        value: BigInt,
+    ) -> Result<Self, ExternalRootDiagnostic> {
+        let path = path.into_iter().map(Into::into).collect::<Vec<_>>();
+        if path.is_empty() || path.iter().any(String::is_empty) {
+            return Err(ExternalRootDiagnostic(
+                "program-local capacity scalar path must contain only nonempty segments".into(),
+            ));
+        }
+        if value.is_negative() {
+            return Err(ExternalRootDiagnostic(
+                "program-local capacity scalar observation must be a proof-natural".into(),
+            ));
+        }
+        Ok(Self {
+            source,
+            path,
+            value,
+        })
+    }
+
+    pub const fn source(&self) -> ProgramLocalRootScalarSource {
+        self.source
+    }
+
+    pub fn path(&self) -> &[String] {
+        &self.path
+    }
+
+    pub const fn value(&self) -> &BigInt {
+        &self.value
+    }
+}
+
+type ProgramLocalRootScalarKey = (ProgramLocalRootScalarSource, Vec<String>);
+
+/// Single-use subject observation emitted by a generated installed-entry
+/// bridge. It borrows the exact installed root and records the semantic and ABI
+/// parameter positions; an ordinary call has no such installed-root binding.
+#[derive(Debug)]
+pub struct InstalledProgramLocalRootSubject<'root, 'code> {
+    root: &'root InstalledExternalRoot<'code>,
+    invocation: ProgramLocalRootEntryInvocationId,
+    argument_index: u32,
+    source_parameter_position: u32,
+    qualification_identity: String,
+    carrier_identity: String,
+    subject_place: ProgramLocalRootSubjectPlaceId,
+    scalars: BTreeMap<ProgramLocalRootScalarKey, BigInt>,
+}
+
+impl<'root, 'code> InstalledProgramLocalRootSubject<'root, 'code> {
+    #[allow(clippy::too_many_arguments)]
+    pub fn from_generated_entry(
+        root: &'root InstalledExternalRoot<'code>,
+        invocation: ProgramLocalRootEntryInvocationId,
+        argument_index: u32,
+        source_parameter_position: u32,
+        qualification_identity: impl Into<String>,
+        carrier_identity: impl Into<String>,
+        subject_place: ProgramLocalRootSubjectPlaceId,
+        scalars: impl IntoIterator<Item = ProgramLocalRootScalarBinding>,
+    ) -> Result<Self, ExternalRootDiagnostic> {
+        let qualification_identity = qualification_identity.into();
+        let carrier_identity = carrier_identity.into();
+        if qualification_identity.is_empty() || carrier_identity.is_empty() {
+            return Err(ExternalRootDiagnostic(
+                "program-local installed subject requires nonempty qualification and carrier identities"
+                    .into(),
+            ));
+        }
+        if root
+            .evidence
+            .root
+            .boundary
+            .plan()
+            .call
+            .parameters
+            .get(argument_index as usize)
+            .is_none()
+            || !root
+                .evidence
+                .root
+                .candidate
+                .entry_claims
+                .iter()
+                .any(|claim| {
+                    claim.parameter_index == argument_index as usize
+                        && claim.domain == qualification_identity
+                })
+        {
+            return Err(ExternalRootDiagnostic(
+                "program-local installed subject does not name an exact qualified entry ABI parameter"
+                    .into(),
+            ));
+        }
+        let mut scalar_map = BTreeMap::new();
+        for scalar in scalars {
+            let key = (scalar.source, scalar.path);
+            if scalar_map.insert(key, scalar.value).is_some() {
+                return Err(ExternalRootDiagnostic(
+                    "program-local installed subject repeats one capacity scalar observation"
+                        .into(),
+                ));
+            }
+        }
+        Ok(Self {
+            root,
+            invocation,
+            argument_index,
+            source_parameter_position,
+            qualification_identity,
+            carrier_identity,
+            subject_place,
+            scalars: scalar_map,
+        })
+    }
+
+    pub const fn invocation(&self) -> ProgramLocalRootEntryInvocationId {
+        self.invocation
+    }
+
+    pub const fn argument_index(&self) -> u32 {
+        self.argument_index
+    }
+
+    pub const fn source_parameter_position(&self) -> u32 {
+        self.source_parameter_position
+    }
+
+    pub fn qualification_identity(&self) -> &str {
+        &self.qualification_identity
+    }
+
+    pub fn carrier_identity(&self) -> &str {
+        &self.carrier_identity
+    }
+
+    pub const fn subject_place(&self) -> ProgramLocalRootSubjectPlaceId {
+        self.subject_place
     }
 }
 
@@ -223,6 +459,7 @@ pub struct ProgramLocalRootInstallationLedger {
     prebindings_frozen: bool,
     lifecycle_bindings: BTreeMap<LifecycleFamilyKey, ComponentEraLedgerId>,
     active_occurrences: BTreeSet<InstalledProgramLocalRootOccurrenceId>,
+    established_occurrences: BTreeSet<InstalledProgramLocalRootOccurrenceId>,
     used_occurrences: BTreeSet<InstalledProgramLocalRootOccurrenceId>,
     sealed_epoch_cohorts: BTreeSet<(ComponentEraLedgerId, u64)>,
 }
@@ -237,6 +474,7 @@ impl ProgramLocalRootInstallationLedger {
             prebindings_frozen: false,
             lifecycle_bindings: BTreeMap::new(),
             active_occurrences: BTreeSet::new(),
+            established_occurrences: BTreeSet::new(),
             used_occurrences: BTreeSet::new(),
             sealed_epoch_cohorts: BTreeSet::new(),
         }
@@ -355,6 +593,7 @@ impl ProgramLocalRootInstallationLedger {
                     admission: root.evidence.admission,
                     provider_execution: root.evidence.provider_execution.identity,
                     requirement_identity: requirement_identity.clone(),
+                    argument_index: schema.argument_index,
                     source_parameter_position: schema.source_parameter_position,
                     qualification_identity: verified_schema.qualification_identity().to_owned(),
                     carrier_identity: verified_schema.carrier_identity().to_owned(),
@@ -410,6 +649,7 @@ impl ProgramLocalRootInstallationLedger {
                     installed_code: occurrence.identity.installed_code,
                     artifact: occurrence.artifact,
                     requirement_identity: occurrence.requirement_identity,
+                    argument_index: occurrence.argument_index,
                     source_parameter_position: occurrence.source_parameter_position,
                     qualification_identity: occurrence.qualification_identity,
                     carrier_identity: occurrence.carrier_identity,
@@ -597,6 +837,7 @@ impl ProgramLocalRootInstallationLedger {
                     terminal_psi: prebinding.terminal_psi,
                     artifact: prebinding.artifact,
                     requirement_identity: prebinding.requirement_identity,
+                    argument_index: prebinding.argument_index,
                     source_parameter_position: prebinding.source_parameter_position,
                     qualification_identity: prebinding.qualification_identity,
                     carrier_identity: prebinding.carrier_identity,
@@ -617,6 +858,189 @@ impl ProgramLocalRootInstallationLedger {
             occurrences,
             aggregates,
         })
+    }
+
+    /// Establish one exact pending cohort member from a generated installed-entry
+    /// subject. Every symbolic scalar is replayed against the verified schema
+    /// before the occurrence is removed from the runtime, so rejection returns
+    /// the complete subject binding and mints no lineage.
+    pub fn establish<'root, 'subject, 'code>(
+        &mut self,
+        runtime: &mut ProgramLocalRootEpochRuntime<'root, 'code>,
+        lifecycle: &ComponentEraEntryLedger,
+        subject: InstalledProgramLocalRootSubject<'subject, 'code>,
+    ) -> Result<
+        EstablishedProgramLocalRoot<'root, 'code>,
+        Box<ProgramLocalRootEstablishmentError<'subject, 'code>>,
+    > {
+        let reject = |subject, diagnostic: &str| {
+            Err(Box::new(ProgramLocalRootEstablishmentError {
+                subject,
+                diagnostic: ExternalRootDiagnostic(diagnostic.into()),
+            }))
+        };
+        if runtime.installed_required_slots != self.installed_required_slots
+            || runtime.identity.installed_code() != self.installed_required_slots.installed_code()
+        {
+            return reject(
+                subject,
+                "program-local runtime does not belong to this exact installation ledger",
+            );
+        }
+        if lifecycle.identity() != runtime.identity.lifecycle_ledger()
+            || lifecycle.current_era() != Some(runtime.identity.lifecycle_epoch())
+        {
+            return reject(
+                subject,
+                "program-local establishment is not executing in the exact current lifecycle epoch",
+            );
+        }
+
+        let matches = runtime
+            .pending
+            .values()
+            .filter(|occurrence| {
+                occurrence.prebinding.matches_root(subject.root)
+                    && occurrence.prebinding.argument_index == subject.argument_index
+                    && occurrence.prebinding.source_parameter_position
+                        == subject.source_parameter_position
+                    && occurrence.prebinding.qualification_identity
+                        == subject.qualification_identity
+                    && occurrence.prebinding.carrier_identity == subject.carrier_identity
+            })
+            .map(|occurrence| occurrence.identity)
+            .collect::<Vec<_>>();
+        let [identity] = matches.as_slice() else {
+            return reject(
+                subject,
+                if matches.is_empty() {
+                    "program-local installed subject matches no pending exact cohort occurrence"
+                } else {
+                    "program-local installed subject ambiguously matches several pending cohort occurrences"
+                },
+            );
+        };
+        let identity = *identity;
+        let occurrence = runtime
+            .pending
+            .get(&identity)
+            .expect("matching occurrence remains pending during validation");
+        if !self.active_occurrences.contains(&identity)
+            || self.established_occurrences.contains(&identity)
+            || lifecycle
+                .validate_program_local_root_epoch_lease(&occurrence.epoch_lease)
+                .is_err()
+            || occurrence.epoch_lease.ledger() != lifecycle.identity()
+            || occurrence.epoch_lease.era_identity() != runtime.identity.lifecycle_epoch()
+        {
+            return reject(
+                subject,
+                "program-local cohort occurrence is not a live unestablished member of this epoch",
+            );
+        }
+
+        let expected_scalars = capacity_scalar_keys(&occurrence.prebinding.per_occurrence_capacity);
+        let supplied_scalars = subject.scalars.keys().cloned().collect::<BTreeSet<_>>();
+        if expected_scalars != supplied_scalars {
+            return reject(
+                subject,
+                "program-local installed subject omits or adds a verified capacity scalar",
+            );
+        }
+        let capacity = match evaluate_capacity(
+            &occurrence.prebinding.per_occurrence_capacity,
+            &subject.scalars,
+        ) {
+            Ok(capacity) => capacity,
+            Err(diagnostic) => {
+                return Err(Box::new(ProgramLocalRootEstablishmentError {
+                    subject,
+                    diagnostic,
+                }));
+            }
+        };
+        if !capacity_matches_algebra(&capacity, &occurrence.prebinding.algebra) {
+            return reject(
+                subject,
+                "program-local evaluated capacity does not match its verified content algebra",
+            );
+        }
+
+        let InstalledProgramLocalRootSubject {
+            root: _,
+            invocation,
+            argument_index: _,
+            source_parameter_position: _,
+            qualification_identity: _,
+            carrier_identity: _,
+            subject_place,
+            scalars,
+        } = subject;
+        let occurrence = runtime
+            .pending
+            .remove(&identity)
+            .expect("validated occurrence remains pending until the commit point");
+        let fresh = self.established_occurrences.insert(identity);
+        debug_assert!(fresh, "validated occurrence establishes exactly once");
+        Ok(EstablishedProgramLocalRoot {
+            occurrence,
+            invocation,
+            subject_place,
+            scalar_observations: scalars,
+            capacity,
+        })
+    }
+
+    /// Retire one established root and release its exact lifecycle hold. A
+    /// failed release reconstructs and returns the complete root account.
+    pub fn retire_established<'root, 'code>(
+        &mut self,
+        root: EstablishedProgramLocalRoot<'root, 'code>,
+        lifecycle: &mut ComponentEraEntryLedger,
+    ) -> Result<RetiredProgramLocalRootOccurrence, Box<ProgramLocalRootRetirementError<'root, 'code>>>
+    {
+        let EstablishedProgramLocalRoot {
+            occurrence,
+            invocation,
+            subject_place,
+            scalar_observations,
+            capacity,
+        } = root;
+        let identity = occurrence.identity;
+        if !self.established_occurrences.contains(&identity) {
+            return Err(Box::new(ProgramLocalRootRetirementError {
+                root: EstablishedProgramLocalRoot {
+                    occurrence,
+                    invocation,
+                    subject_place,
+                    scalar_observations,
+                    capacity,
+                },
+                diagnostic: ExternalRootDiagnostic(
+                    "program-local root retirement names no exact established occurrence".into(),
+                ),
+            }));
+        }
+        match self.retire(occurrence, lifecycle) {
+            Ok(retired) => {
+                let removed = self.established_occurrences.remove(&identity);
+                debug_assert!(removed, "retired established occurrence remains recorded");
+                Ok(retired)
+            }
+            Err(error) => Err(Box::new(ProgramLocalRootRetirementError {
+                root: EstablishedProgramLocalRoot {
+                    occurrence: (*error).into_occurrence(),
+                    invocation,
+                    subject_place,
+                    scalar_observations,
+                    capacity,
+                },
+                diagnostic: ExternalRootDiagnostic(
+                    "program-local established root could not release its exact lifecycle lease"
+                        .into(),
+                ),
+            })),
+        }
     }
 
     /// Release one exact lifecycle-pinned occurrence. The replay key remains
@@ -676,6 +1100,153 @@ impl ProgramLocalRootInstallationLedger {
             epoch_lease: lease_identity,
         })
     }
+}
+
+fn capacity_scalar_keys(
+    expression: &ProgramLocalCapacityExpression,
+) -> BTreeSet<ProgramLocalRootScalarKey> {
+    fn visit(scalar: &ProgramLocalCapacityScalar, keys: &mut BTreeSet<ProgramLocalRootScalarKey>) {
+        match scalar {
+            ProgramLocalCapacityScalar::SubjectField(path) => {
+                keys.insert((ProgramLocalRootScalarSource::SubjectField, path.clone()));
+            }
+            ProgramLocalCapacityScalar::RuntimeScalarEmbedding(path) => {
+                keys.insert((
+                    ProgramLocalRootScalarSource::RuntimeScalarEmbedding,
+                    path.clone(),
+                ));
+            }
+            ProgramLocalCapacityScalar::Natural(_) => {}
+            ProgramLocalCapacityScalar::Successor(inner) => visit(inner, keys),
+            ProgramLocalCapacityScalar::Add(left, right)
+            | ProgramLocalCapacityScalar::Subtract(left, right)
+            | ProgramLocalCapacityScalar::Multiply(left, right) => {
+                visit(left, keys);
+                visit(right, keys);
+            }
+        }
+    }
+
+    let mut keys = BTreeSet::new();
+    match expression {
+        ProgramLocalCapacityExpression::IntervalSet(members) => {
+            for (start, end) in members {
+                visit(start, &mut keys);
+                visit(end, &mut keys);
+            }
+        }
+        ProgramLocalCapacityExpression::CountedQuantity(magnitude) => {
+            visit(magnitude, &mut keys);
+        }
+    }
+    keys
+}
+
+fn evaluate_capacity_scalar(
+    scalar: &ProgramLocalCapacityScalar,
+    bindings: &BTreeMap<ProgramLocalRootScalarKey, BigInt>,
+) -> Result<BigInt, ExternalRootDiagnostic> {
+    let value = match scalar {
+        ProgramLocalCapacityScalar::SubjectField(path) => bindings
+            .get(&(ProgramLocalRootScalarSource::SubjectField, path.clone()))
+            .cloned()
+            .ok_or_else(|| {
+                ExternalRootDiagnostic(
+                    "program-local subject is missing a verified field observation".into(),
+                )
+            })?,
+        ProgramLocalCapacityScalar::RuntimeScalarEmbedding(path) => bindings
+            .get(&(
+                ProgramLocalRootScalarSource::RuntimeScalarEmbedding,
+                path.clone(),
+            ))
+            .cloned()
+            .ok_or_else(|| {
+                ExternalRootDiagnostic(
+                    "program-local subject is missing a verified runtime scalar embedding".into(),
+                )
+            })?,
+        ProgramLocalCapacityScalar::Natural(value) => BigInt::from_decimal_str(value)
+            .filter(|value| !value.is_negative())
+            .ok_or_else(|| {
+                ExternalRootDiagnostic(
+                    "program-local capacity schema contains a non-natural literal".into(),
+                )
+            })?,
+        ProgramLocalCapacityScalar::Successor(inner) => {
+            evaluate_capacity_scalar(inner, bindings)?.add(&BigInt::from_u64(1))
+        }
+        ProgramLocalCapacityScalar::Add(left, right) => evaluate_capacity_scalar(left, bindings)?
+            .add(&evaluate_capacity_scalar(right, bindings)?),
+        ProgramLocalCapacityScalar::Subtract(left, right) => {
+            let left = evaluate_capacity_scalar(left, bindings)?;
+            let right = evaluate_capacity_scalar(right, bindings)?;
+            if right > left {
+                return Err(ExternalRootDiagnostic(
+                    "program-local exact natural subtraction lacks its lower-bound proof".into(),
+                ));
+            }
+            left.sub(&right)
+        }
+        ProgramLocalCapacityScalar::Multiply(left, right) => {
+            evaluate_capacity_scalar(left, bindings)?
+                .mul(&evaluate_capacity_scalar(right, bindings)?)
+        }
+    };
+    if value.is_negative() {
+        return Err(ExternalRootDiagnostic(
+            "program-local capacity evaluation produced a negative proof-natural".into(),
+        ));
+    }
+    Ok(value)
+}
+
+fn evaluate_capacity(
+    expression: &ProgramLocalCapacityExpression,
+    bindings: &BTreeMap<ProgramLocalRootScalarKey, BigInt>,
+) -> Result<EstablishedProgramLocalRootCapacity, ExternalRootDiagnostic> {
+    match expression {
+        ProgramLocalCapacityExpression::IntervalSet(members) => {
+            let mut evaluated = Vec::with_capacity(members.len());
+            for (start, end) in members {
+                let start = evaluate_capacity_scalar(start, bindings)?;
+                let end = evaluate_capacity_scalar(end, bindings)?;
+                evaluated.push(NaturalInterval::new(start, end).map_err(|error| {
+                    ExternalRootDiagnostic(format!(
+                        "program-local interval capacity is invalid: {error:?}"
+                    ))
+                })?);
+            }
+            Ok(EstablishedProgramLocalRootCapacity::IntervalSet(
+                CanonicalIntervalSet::new(evaluated).map_err(|error| {
+                    ExternalRootDiagnostic(format!(
+                        "program-local interval capacity is not a separated canonical set: {error:?}"
+                    ))
+                })?,
+            ))
+        }
+        ProgramLocalCapacityExpression::CountedQuantity(magnitude) => {
+            Ok(EstablishedProgramLocalRootCapacity::CountedQuantity(
+                evaluate_capacity_scalar(magnitude, bindings)?,
+            ))
+        }
+    }
+}
+
+fn capacity_matches_algebra(
+    capacity: &EstablishedProgramLocalRootCapacity,
+    algebra: &ContentAlgebra,
+) -> bool {
+    matches!(
+        (capacity, algebra.kind),
+        (
+            EstablishedProgramLocalRootCapacity::IntervalSet(_),
+            ContentAlgebraKind::IntervalSet
+        ) | (
+            EstablishedProgramLocalRootCapacity::CountedQuantity(_),
+            ContentAlgebraKind::CountedQuantity
+        )
+    )
 }
 
 impl InstalledRootLedger {
@@ -777,6 +1348,7 @@ pub struct ProgramLocalRootEpochAggregate {
     terminal_psi: TerminalPsiIdentity,
     artifact: ArtifactId,
     requirement_identity: String,
+    argument_index: u32,
     source_parameter_position: u32,
     qualification_identity: String,
     carrier_identity: String,
@@ -797,6 +1369,10 @@ impl ProgramLocalRootEpochAggregate {
 
     pub fn requirement_identity(&self) -> &str {
         &self.requirement_identity
+    }
+
+    pub const fn argument_index(&self) -> u32 {
+        self.argument_index
     }
 
     pub const fn source_parameter_position(&self) -> u32 {
@@ -838,9 +1414,167 @@ impl ProgramLocalRootEpochAggregate {
     }
 }
 
+/// Report identity of one freshly established program-local lineage. The exact
+/// authority remains the non-clonable account retaining the full installed
+/// occurrence; this copyable identity is never accepted as minting evidence.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ProgramLocalRootLineageId {
+    occurrence: InstalledProgramLocalRootOccurrenceId,
+}
+
+impl ProgramLocalRootLineageId {
+    pub const fn occurrence(self) -> InstalledProgramLocalRootOccurrenceId {
+        self.occurrence
+    }
+}
+
+/// Exact runtime instantiation of one verified symbolic capacity expression.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum EstablishedProgramLocalRootCapacity {
+    IntervalSet(CanonicalIntervalSet),
+    CountedQuantity(BigInt),
+}
+
+impl EstablishedProgramLocalRootCapacity {
+    pub const fn interval_set(&self) -> Option<&CanonicalIntervalSet> {
+        match self {
+            Self::IntervalSet(value) => Some(value),
+            Self::CountedQuantity(_) => None,
+        }
+    }
+
+    pub const fn counted_quantity(&self) -> Option<&BigInt> {
+        match self {
+            Self::IntervalSet(_) => None,
+            Self::CountedQuantity(value) => Some(value),
+        }
+    }
+}
+
+/// One exact fresh program-local content account. It owns the lifecycle lease
+/// through its installed occurrence and therefore prevents epoch quiescence
+/// until the account (and, later, every derived descendant) is retired.
+#[derive(Debug)]
+pub struct EstablishedProgramLocalRoot<'root, 'code> {
+    occurrence: InstalledProgramLocalRootOccurrence<'root, 'code>,
+    invocation: ProgramLocalRootEntryInvocationId,
+    subject_place: ProgramLocalRootSubjectPlaceId,
+    scalar_observations: BTreeMap<ProgramLocalRootScalarKey, BigInt>,
+    capacity: EstablishedProgramLocalRootCapacity,
+}
+
+impl EstablishedProgramLocalRoot<'_, '_> {
+    pub const fn lineage(&self) -> ProgramLocalRootLineageId {
+        ProgramLocalRootLineageId {
+            occurrence: self.occurrence.identity,
+        }
+    }
+
+    pub const fn occurrence_identity(&self) -> InstalledProgramLocalRootOccurrenceId {
+        self.occurrence.identity
+    }
+
+    pub const fn invocation(&self) -> ProgramLocalRootEntryInvocationId {
+        self.invocation
+    }
+
+    pub const fn subject_place(&self) -> ProgramLocalRootSubjectPlaceId {
+        self.subject_place
+    }
+
+    pub const fn prebinding(&self) -> &ProgramLocalRootInstalledPrebinding {
+        &self.occurrence.prebinding
+    }
+
+    pub const fn capacity(&self) -> &EstablishedProgramLocalRootCapacity {
+        &self.capacity
+    }
+
+    pub fn scalar_observations(
+        &self,
+    ) -> impl ExactSizeIterator<Item = (&ProgramLocalRootScalarSource, &[String], &BigInt)> {
+        self.scalar_observations
+            .iter()
+            .map(|((source, path), value)| (source, path.as_slice(), value))
+    }
+}
+
+/// Runtime owner of the still-dormant members of one exact sealed epoch
+/// cohort. Individual entry activations remove one exact occurrence only after
+/// their complete subject/capacity validation succeeds.
+#[derive(Debug)]
+pub struct ProgramLocalRootEpochRuntime<'root, 'code> {
+    identity: InstalledProgramLocalRootEpochCohortId,
+    installed_required_slots: InstalledRequiredRootSlotClosure,
+    pending: BTreeMap<
+        InstalledProgramLocalRootOccurrenceId,
+        InstalledProgramLocalRootOccurrence<'root, 'code>,
+    >,
+    aggregates: Vec<ProgramLocalRootEpochAggregate>,
+}
+
+impl<'root, 'code> ProgramLocalRootEpochRuntime<'root, 'code> {
+    pub const fn identity(&self) -> InstalledProgramLocalRootEpochCohortId {
+        self.identity
+    }
+
+    pub const fn installed_required_slots(&self) -> &InstalledRequiredRootSlotClosure {
+        &self.installed_required_slots
+    }
+
+    pub fn pending_occurrences(
+        &self,
+    ) -> impl ExactSizeIterator<Item = &InstalledProgramLocalRootOccurrence<'root, 'code>> {
+        self.pending.values()
+    }
+
+    pub fn aggregates(&self) -> impl ExactSizeIterator<Item = &ProgramLocalRootEpochAggregate> {
+        self.aggregates.iter()
+    }
+
+    /// Cancel every still-dormant occurrence without establishing authority.
+    /// The returned occurrences may only be retired through their installation
+    /// ledger; cancellation never reopens cohort sealing or same-epoch use.
+    pub fn cancel(self) -> Vec<InstalledProgramLocalRootOccurrence<'root, 'code>> {
+        self.pending.into_values().collect()
+    }
+}
+
+#[derive(Debug)]
+pub struct ProgramLocalRootEstablishmentError<'root, 'code> {
+    subject: InstalledProgramLocalRootSubject<'root, 'code>,
+    diagnostic: ExternalRootDiagnostic,
+}
+
+impl<'root, 'code> ProgramLocalRootEstablishmentError<'root, 'code> {
+    pub const fn diagnostic(&self) -> &ExternalRootDiagnostic {
+        &self.diagnostic
+    }
+
+    pub fn into_subject(self) -> InstalledProgramLocalRootSubject<'root, 'code> {
+        self.subject
+    }
+}
+
+#[derive(Debug)]
+pub struct ProgramLocalRootRetirementError<'root, 'code> {
+    root: EstablishedProgramLocalRoot<'root, 'code>,
+    diagnostic: ExternalRootDiagnostic,
+}
+
+impl<'root, 'code> ProgramLocalRootRetirementError<'root, 'code> {
+    pub const fn diagnostic(&self) -> &ExternalRootDiagnostic {
+        &self.diagnostic
+    }
+
+    pub fn into_root(self) -> EstablishedProgramLocalRoot<'root, 'code> {
+        self.root
+    }
+}
+
 /// Non-clonable, exact program-local occurrence cohort for one installed
-/// artifact and lifecycle epoch. This is the first carrier from which runtime
-/// subject/capacity establishment may eventually derive lineage.
+/// artifact and lifecycle epoch. Consuming it into the epoch runtime is the
+/// sole route to runtime subject/capacity establishment and fresh lineage.
 #[derive(Debug)]
 pub struct InstalledProgramLocalRootEpochCohort<'root, 'code> {
     identity: InstalledProgramLocalRootEpochCohortId,
@@ -868,11 +1602,21 @@ impl<'root, 'code> InstalledProgramLocalRootEpochCohort<'root, 'code> {
         self.aggregates.iter()
     }
 
-    /// Explicitly reopen per-occurrence custody for retirement or the future
-    /// runtime establishment transition. The ledger keeps the epoch cohort
-    /// replay key sealed permanently.
-    pub fn into_occurrences(self) -> Vec<InstalledProgramLocalRootOccurrence<'root, 'code>> {
-        self.occurrences
+    /// Consume the exact sealed cohort into its runtime owner. No loose mint
+    /// tokens are produced: dormant occurrences remain inside the runtime until
+    /// one exact generated-entry subject establishes them or the runtime is
+    /// explicitly cancelled for retirement.
+    pub fn into_runtime(self) -> ProgramLocalRootEpochRuntime<'root, 'code> {
+        ProgramLocalRootEpochRuntime {
+            identity: self.identity,
+            installed_required_slots: self.installed_required_slots,
+            pending: self
+                .occurrences
+                .into_iter()
+                .map(|occurrence| (occurrence.identity, occurrence))
+                .collect(),
+            aggregates: self.aggregates,
+        }
     }
 }
 
@@ -921,5 +1665,67 @@ impl<'root, 'code> ProgramLocalRootOccurrenceRetirementError<'root, 'code> {
 
     pub fn into_occurrence(self) -> InstalledProgramLocalRootOccurrence<'root, 'code> {
         self.occurrence
+    }
+}
+
+#[cfg(test)]
+mod capacity_evaluation_tests {
+    use super::*;
+
+    #[test]
+    fn interval_capacity_evaluates_each_runtime_path_without_scalar_multiplication() {
+        let expression = ProgramLocalCapacityExpression::IntervalSet(vec![(
+            ProgramLocalCapacityScalar::RuntimeScalarEmbedding(vec!["base".into()]),
+            ProgramLocalCapacityScalar::Add(
+                Box::new(ProgramLocalCapacityScalar::RuntimeScalarEmbedding(vec![
+                    "base".into(),
+                ])),
+                Box::new(ProgramLocalCapacityScalar::SubjectField(vec![
+                    "length".into(),
+                ])),
+            ),
+        )]);
+        let bindings = BTreeMap::from([
+            (
+                (
+                    ProgramLocalRootScalarSource::RuntimeScalarEmbedding,
+                    vec!["base".into()],
+                ),
+                BigInt::from_u64(100),
+            ),
+            (
+                (
+                    ProgramLocalRootScalarSource::SubjectField,
+                    vec!["length".into()],
+                ),
+                BigInt::from_u64(8),
+            ),
+        ]);
+
+        let EstablishedProgramLocalRootCapacity::IntervalSet(capacity) =
+            evaluate_capacity(&expression, &bindings).expect("exact interval capacity")
+        else {
+            panic!("interval expression evaluates as an interval set")
+        };
+        let [member] = capacity.members() else {
+            panic!("one exact interval member")
+        };
+        assert_eq!(member.start(), &BigInt::from_u64(100));
+        assert_eq!(member.end(), &BigInt::from_u64(108));
+    }
+
+    #[test]
+    fn exact_natural_subtraction_rejects_underflow() {
+        let expression =
+            ProgramLocalCapacityExpression::CountedQuantity(ProgramLocalCapacityScalar::Subtract(
+                Box::new(ProgramLocalCapacityScalar::Natural("2".into())),
+                Box::new(ProgramLocalCapacityScalar::Natural("3".into())),
+            ));
+        assert!(
+            evaluate_capacity(&expression, &BTreeMap::new())
+                .expect_err("unproved natural subtraction must reject")
+                .0
+                .contains("lower-bound proof")
+        );
     }
 }

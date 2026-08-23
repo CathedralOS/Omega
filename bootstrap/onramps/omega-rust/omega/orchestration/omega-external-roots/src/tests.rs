@@ -45,9 +45,10 @@ use psi_layout_plans::{
 use psi_proof_kernel::AdmissionProfile;
 use psi_terminal::{
     BoundaryMachineDeclaration, InstallationReachDependency, ServiceDeclaration,
-    StructuralDomainDeclaration, StructuralDomainRequirement, StructuralMultiplicity,
-    StructuralParameterDeclaration, StructuralTypeDeclaration, StructuralTypeShape, TerminalModule,
-    TerminalRootServiceReach, VocabularyMarker, program_local_root_introduction_identity,
+    StructuralDomainDeclaration, StructuralDomainRequirement, StructuralFieldDeclaration,
+    StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
+    StructuralTypeDeclaration, StructuralTypeShape, TerminalModule, TerminalRootServiceReach,
+    VocabularyMarker, program_local_root_introduction_identity,
 };
 
 fn root_id<T>(identity: u64, constructor: fn(u64) -> Result<T, ExternalRootDiagnostic>) -> T {
@@ -1421,7 +1422,12 @@ fn program_local_root_module() -> TerminalModule {
         parameter: "ByteUnit".into(),
     };
     let capacity = psi_core::ProgramLocalCapacityExpression::CountedQuantity(
-        psi_core::ProgramLocalCapacityScalar::Natural("4".into()),
+        psi_core::ProgramLocalCapacityScalar::Add(
+            Box::new(psi_core::ProgramLocalCapacityScalar::SubjectField(vec![
+                "length".into(),
+            ])),
+            Box::new(psi_core::ProgramLocalCapacityScalar::Natural("1".into())),
+        ),
     );
     let mut schema = psi_terminal::ProgramLocalRootIntroductionSchema {
         argument_index: 0,
@@ -1451,7 +1457,17 @@ fn program_local_root_module() -> TerminalModule {
         structural_types: vec![StructuralTypeDeclaration {
             id: carrier,
             identity: "Region".into(),
-            shape: StructuralTypeShape::Record { fields: Vec::new() },
+            shape: StructuralTypeShape::Record {
+                fields: vec![StructuralFieldDeclaration {
+                    id: psi_core::StructuralFieldId::new(1).expect("field identity"),
+                    identity: "length".into(),
+                    relevance: psi_terminal::BindingRelevance::Relevant,
+                    field_type: StructuralFieldType::Scalar(psi_core::ScalarType::Integer(
+                        psi_core::IntegerType::new(psi_core::IntegerSign::Unsigned, 64)
+                            .expect("u64 type"),
+                    )),
+                }],
+            },
         }],
         structural_domains: vec![StructuralDomainDeclaration {
             id: qualification,
@@ -1644,6 +1660,37 @@ fn program_local_epoch_lease(
         .expect("program-local epoch lease")
 }
 
+fn program_local_subject<'root, 'code>(
+    root: &'root InstalledExternalRoot<'code>,
+    invocation: u64,
+    subject_place: u64,
+    length: Option<u64>,
+) -> InstalledProgramLocalRootSubject<'root, 'code> {
+    let scalars = length
+        .into_iter()
+        .map(|length| {
+            ProgramLocalRootScalarBinding::subject_field(
+                ["length"],
+                psi_numerics::bignum::BigInt::from_u64(length),
+            )
+            .expect("natural subject field")
+        })
+        .collect::<Vec<_>>();
+    InstalledProgramLocalRootSubject::from_generated_entry(
+        root,
+        ProgramLocalRootEntryInvocationId::from_normalized_identity(invocation)
+            .expect("entry invocation identity"),
+        0,
+        0,
+        "Region::Owned",
+        "Region",
+        ProgramLocalRootSubjectPlaceId::from_normalized_identity(subject_place)
+            .expect("subject place identity"),
+        scalars,
+    )
+    .expect("exact installed program-local subject")
+}
+
 fn join_program_local<'root, 'code>(
     installation: &mut ProgramLocalRootInstallationLedger,
     prebinding: ProgramLocalRootPrebindingId,
@@ -1667,7 +1714,8 @@ fn join_program_local<'root, 'code>(
         [ProgramLocalRootCohortMember::new(prebinding, root, lease)],
     )?;
     let [occurrence]: [InstalledProgramLocalRootOccurrence<'root, 'code>; 1] = cohort
-        .into_occurrences()
+        .into_runtime()
+        .cancel()
         .try_into()
         .expect("single-prebinding test cohort");
     Ok(occurrence)
@@ -1868,12 +1916,178 @@ fn epoch_cohort_seals_exact_members_and_derives_aggregate_schema() {
             .contains("prebindings are frozen")
     );
     let [occurrence]: [InstalledProgramLocalRootOccurrence<'_, '_>; 1] = cohort
-        .into_occurrences()
+        .into_runtime()
+        .cancel()
         .try_into()
         .expect("one cohort occurrence");
     installation
         .retire(occurrence, &mut lifecycle)
         .expect("sealed occurrence remains retireable");
+}
+
+#[test]
+fn installed_subject_establishes_exact_capacity_lineage_once_and_pins_the_epoch() {
+    let entry = entry_id(1);
+    let mut code = installed_code(1, entry);
+    let code_identity = code.identity().normalized_identity();
+    let module = program_local_root_module();
+    let catalog = program_local_root_catalog(&module);
+    let terminal = program_local_terminal_object(&module);
+    let (mut root_ledger, root, _open_root) =
+        install_program_local_required_root(&mut code, entry, vec![program_local_claim()]);
+    let mut installation = root_ledger
+        .claim_program_local_root_installation_ledger()
+        .expect("sole program-local cohort verifier");
+    let [prebinding] = installation
+        .prebind(&catalog, &terminal, &root)
+        .expect("verified installed prebinding")
+        .try_into()
+        .expect("one producer schema");
+    let mut lifecycle = program_local_lifecycle(740, 10, code_identity, "TestRoot::entry");
+    let lease = program_local_epoch_lease(&mut lifecycle, 840, 10, "TestRoot::entry");
+    let cohort = installation
+        .seal_epoch_cohort(
+            &lifecycle,
+            [ProgramLocalRootCohortMember::new(
+                prebinding.identity(),
+                &root,
+                lease,
+            )],
+        )
+        .expect("exact epoch cohort");
+    let mut runtime = cohort.into_runtime();
+
+    let established = installation
+        .establish(
+            &mut runtime,
+            &lifecycle,
+            program_local_subject(&root, 940, 1040, Some(8)),
+        )
+        .expect("exact installed subject establishes its root");
+    assert_eq!(
+        established
+            .capacity()
+            .counted_quantity()
+            .expect("counted capacity"),
+        &psi_numerics::bignum::BigInt::from_u64(9)
+    );
+    assert_eq!(
+        established.lineage().occurrence(),
+        established.occurrence_identity()
+    );
+    assert_eq!(established.prebinding().argument_index(), 0);
+    assert_eq!(established.scalar_observations().len(), 1);
+    assert_eq!(runtime.pending_occurrences().len(), 0);
+    assert_eq!(runtime.aggregates().len(), 1);
+    assert_eq!(lifecycle.program_local_root_authority_holds(10), Some(1));
+
+    let replay = installation
+        .establish(
+            &mut runtime,
+            &lifecycle,
+            program_local_subject(&root, 941, 1041, Some(8)),
+        )
+        .expect_err("the exact installed occurrence establishes at most once");
+    assert!(replay.diagnostic().0.contains("no pending exact cohort"));
+    assert_eq!(
+        replay.into_subject().invocation().normalized_identity(),
+        941
+    );
+
+    let mut substituted = program_local_lifecycle(741, 10, code_identity, "TestRoot::entry");
+    let retirement = installation
+        .retire_established(established, &mut substituted)
+        .expect_err("a foreign lifecycle cannot retire the established root");
+    assert!(retirement.diagnostic().0.contains("lifecycle lease"));
+    let established = (*retirement).into_root();
+    assert_eq!(lifecycle.program_local_root_authority_holds(10), Some(1));
+    installation
+        .retire_established(established, &mut lifecycle)
+        .expect("the exact lifecycle retires the root");
+    assert_eq!(lifecycle.program_local_root_authority_holds(10), Some(0));
+}
+
+#[test]
+fn subject_capacity_rejection_is_transactional_and_a_later_epoch_is_fresh() {
+    let entry = entry_id(1);
+    let mut code = installed_code(1, entry);
+    let code_identity = code.identity().normalized_identity();
+    let module = program_local_root_module();
+    let catalog = program_local_root_catalog(&module);
+    let terminal = program_local_terminal_object(&module);
+    let (mut root_ledger, root, _open_root) =
+        install_program_local_required_root(&mut code, entry, vec![program_local_claim()]);
+    let mut installation = root_ledger
+        .claim_program_local_root_installation_ledger()
+        .expect("sole program-local cohort verifier");
+    let [prebinding] = installation
+        .prebind(&catalog, &terminal, &root)
+        .expect("verified installed prebinding")
+        .try_into()
+        .expect("one producer schema");
+    let prebinding = prebinding.identity();
+    let mut lifecycle = program_local_lifecycle(750, 10, code_identity, "TestRoot::entry");
+    let lease = program_local_epoch_lease(&mut lifecycle, 850, 10, "TestRoot::entry");
+    let mut runtime = installation
+        .seal_epoch_cohort(
+            &lifecycle,
+            [ProgramLocalRootCohortMember::new(prebinding, &root, lease)],
+        )
+        .expect("first epoch cohort")
+        .into_runtime();
+
+    let rejected = installation
+        .establish(
+            &mut runtime,
+            &lifecycle,
+            program_local_subject(&root, 950, 1050, None),
+        )
+        .expect_err("missing subject-dependent capacity rejects");
+    assert!(rejected.diagnostic().0.contains("omits or adds"));
+    assert_eq!(runtime.pending_occurrences().len(), 1);
+    assert_eq!(lifecycle.program_local_root_authority_holds(10), Some(1));
+    let first = installation
+        .establish(
+            &mut runtime,
+            &lifecycle,
+            program_local_subject(&root, 951, 1051, Some(3)),
+        )
+        .expect("failed evaluation did not burn the pending occurrence");
+    let first_lineage = first.lineage();
+    installation
+        .retire_established(first, &mut lifecycle)
+        .expect("first epoch root retirement");
+
+    publish_program_local_era(
+        &mut lifecycle,
+        20,
+        code_identity,
+        "TestRoot::entry",
+        125,
+        true,
+    );
+    let next_lease = program_local_epoch_lease(&mut lifecycle, 851, 20, "TestRoot::entry");
+    let mut next_runtime = installation
+        .seal_epoch_cohort(
+            &lifecycle,
+            [ProgramLocalRootCohortMember::new(
+                prebinding, &root, next_lease,
+            )],
+        )
+        .expect("later epoch cohort")
+        .into_runtime();
+    let next = installation
+        .establish(
+            &mut next_runtime,
+            &lifecycle,
+            program_local_subject(&root, 952, 1052, Some(3)),
+        )
+        .expect("later epoch establishes a fresh root");
+    assert_ne!(first_lineage, next.lineage());
+    assert_eq!(next.lineage().occurrence().lifecycle_epoch(), 20);
+    installation
+        .retire_established(next, &mut lifecycle)
+        .expect("later epoch root retirement");
 }
 
 #[test]

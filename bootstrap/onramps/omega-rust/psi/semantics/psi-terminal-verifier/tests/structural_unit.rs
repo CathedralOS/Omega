@@ -1459,7 +1459,7 @@ fn structural_calls_preserve_optional_affine_claim_custody() {
 }
 
 #[test]
-fn unit_calls_preserve_exact_content_claim_shape() {
+fn ordinary_unit_calls_cannot_mint_or_drop_content_claims() {
     let mut matching = hard_root_module();
     matching.machines[0].content_entry_claims = vec![content_entry_claim(place_id(1))];
     matching.machines[1].content_entry_claims = vec![content_entry_claim(place_id(2))];

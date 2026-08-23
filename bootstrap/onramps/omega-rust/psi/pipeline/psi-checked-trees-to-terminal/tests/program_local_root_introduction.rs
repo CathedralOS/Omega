@@ -72,6 +72,15 @@ fn source_route_lowers_exact_source_free_program_local_schema() {
     let [schema] = boundary.program_local_root_introductions.as_slice() else {
         panic!("one routed program-local schema")
     };
+    assert_eq!(
+        module
+            .boundary_machines
+            .iter()
+            .map(|requirement| requirement.program_local_root_introductions.len())
+            .sum::<usize>(),
+        1,
+        "the ordinary Enter(region) call forwards its existing claim and must not create another producer schema"
+    );
     let domain = module
         .structural_domains
         .iter()
