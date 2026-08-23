@@ -6727,138 +6727,29 @@ reach or trust, and private proof improvements do not change public identity.
 - **TR3-TR8:** finish whole-call-graph WCSU derivation, bind exact `StackPlan`
   evidence, reserve fixed nonmoving `StackLease`s, validate preservation and
   cancellation conformances, transfer arguments transactionally, lower
-  park/resume, and implement the suspension-safe-loan subset. Current Unit,
-  scalar, and acyclic conditional shapes retain exact frame/link/temporary,
-  call, crash-terminal, and target-generated division-diamond evidence from
-  instruction selection through decoded installation and artifact-wide closure
-  composition. One depth-independent conditional-tree carrier accounts nested
-  decisions and mutually exclusive source-distributed convergence calls.
-  One bounded Boolean carrier additionally accounts ordered actual
-  unconditional native join branches plus the final fallthrough into one
-  affine-cleanup tail. Extend that accounting to general shared native joins
-  and general affine cleanup rather than claiming convergence from duplicated
-  leaves.
-  Exact x86-64/AArch64 register mapping and stack/memory load byte construction
-  for terminal-image replay now live in a focused 163-line `instruction_loads`
-  child. Structural-Boolean replay reuses the same architecture register maps
-  rather than retaining two duplicate wrappers. Object construction and
-  decoded stack validation retain their existing ordering, bytes, errors, and
-  public surface; the parent is 5,851 lines and the production inventory is 92
-  functions after eliminating those two duplicates.
-  Exact Unit function/call frame validation, complete stack-mutation
-  accounting, and canonical x86-64/AArch64 stack-adjustment and return-link
-  replay now live in a focused 410-line `unit_stack` child, while stack-demand
-  composition and object/image orchestration remain in the 5,465-line parent.
-  Public APIs, error order, exact bytes, and the 140-function crate inventory
-  remain unchanged.
-  Exact whole-root structural-return replay now lives in a focused 228-line
-  `structural_return` child, independently validating native ABI placements,
-  Terminal-Psi provenance, fuel attribution, place/type/multiplicity/
-  qualification identity, affine discard order, and final x86-64/AArch64 return
-  bytes. Object construction and stack/image orchestration remain in the 5,255-
-  line parent; APIs, errors, bytes, order, and the 140-function inventory remain
-  unchanged.
-  Exact internal Unit-call custody and projected-copy replay now live in a
-  focused 418-line `unit_call_custody` child, preserving retained call,
-  provenance, and fuel identity, native calling-policy placements, structural
-  path/home geometry, claim transfers, exact x86-64/AArch64 copy bytes, and
-  call-span containment while orchestration and relocation remain in the 4,859-
-  line parent. API, error, byte order, and the 140-function inventory remain
-  unchanged.
-  Exact x86-64/AArch64 scalar stack-mutation byte validation, depth replay, and
-  AArch64 rejection classifiers now live in a focused
-  `scalar_stack_mutation` child while higher scalar-control accounting remains
-  in the 4,739-line parent. Public APIs, validation/error order, and native
-  bytes remain unchanged.
-  Target-neutral recursive aggregate-shape and Boolean structural-field offset
-  replay now live in a focused 140-line `structural_condition_layout` child
-  behind one parent-facing query. Higher scalar-control evidence and native
-  instruction replay remain in the 4,607-line parent, with APIs, bytes, errors,
-  order, and function inventory unchanged.
-  Stack-depth reconstruction and exact x86-64/AArch64 Boolean structural-read
-  byte replay now live in a focused 197-line `structural_condition_read` child
-  shared by structural-condition validation. Higher scalar-control accounting
-  remains in the 4,427-line parent, with APIs, bytes, errors, order, and function
-  inventory unchanged.
-  Straight-line scalar cleanup-presence validation and exact x86-64/AArch64
-  save/restore/frame/return replay now live in a focused 139-line
-  `scalar_cleanup_preservation` child. Higher conditional cleanup accounting
-  remains in the 4,307-line parent, with APIs, bytes, errors, order, and function
-  inventory unchanged.
-  Conditional-tree/division-region partitioning and exact x86-64/AArch64
-  conditional-edge replay now live in a focused 189-line
-  `scalar_conditional_regions` child. Higher scalar-control and image
-  orchestration remain in the 4,137-line parent, with APIs, native bytes,
-  validation order, and the 69-function inventory unchanged.
-  Conditional call-location reconstruction and mutual-exclusivity queries now
-  live in a focused 86-line `scalar_conditional_call_paths` child. The 4,066-
-  line parent retains higher scalar-control and image orchestration, with APIs,
-  native bytes, validation order, and the 69-function inventory unchanged.
-  Public stack-demand derivation and private acyclic peak composition now live
-  in a focused 128-line `stack_demand` child behind the unchanged crate-root
-  re-export. The 3,950-line parent retains terminal image orchestration, with
-  native bytes, validation order, and the 69-function inventory unchanged.
-  Final import/relocation closure, executable-region coverage, exact function-
-  span binding, and relocation-envelope replay now live in a focused 72-line
-  `final_image_validation` child. The 3,892-line parent retains construction
-  and terminal orchestration, with native bytes, validation order, and the 69-
-  function inventory unchanged.
-  Object-container handoff, supported-target admission, executable-writer
-  dispatch, and sealed output carriers now live in a focused 155-line
-  `image_output` child behind unchanged crate-root re-exports. The 3,754-line
-  parent retains terminal image construction and validation, with native bytes,
-  error order, and the 69-function inventory unchanged.
-  Exact partial-affine cleanup partition reconstruction now lives in a focused
-  103-line `partial_cleanup_partition` child. The 3,647-line parent retains
-  terminal construction and higher cleanup orchestration, with crate-root
-  linkage, native behavior, validation order, and the 69-function inventory
-  unchanged.
-  Scalar internal-call frames, AArch64 return-link handling, and caller-live
-  stack-alignment replay now live in a focused 180-line
-  `scalar_call_stack_replay` child. The 3,483-line parent retains terminal image
-  orchestration, with crate linkage, native byte/error order, and the 69-
-  function inventory unchanged.
-  Conditional cleanup regions, provenance edges, preservation-byte replay, and
-  cleanup-owner lookup now live in a focused 128-line
-  `scalar_control_cleanup` child. The 3,372-line parent retains terminal image
-  orchestration, with crate linkage, native byte/error order, and the 69-
-  function inventory unchanged.
-  Exact Unit-affine root, residual, and nominal cleanup validation now lives in
-  a cohesive 399-line `unit_affine_cleanup` child. The 2,986-line parent retains
-  terminal image orchestration, with crate linkage, native byte/error order,
-  and the 69-function inventory unchanged.
-  Exact x86-64 division-branch decoding, stack mutation/call replay, and
-  balanced-region validation now live in a cohesive 484-line
-  `scalar_division_stack` child. The 2,524-line parent retains terminal image
-  orchestration, with crate linkage, native byte/error order, and the 69-
-  function inventory unchanged.
-  Conditional-tree validation, terminal/crash leaves, division-subregion
-  dispatch, and target-specific mutation/call replay now live in a cohesive
-  555-line `scalar_conditional_stack` child. The 1,997-line parent retains
-  terminal image orchestration, with crate linkage, native byte/error order,
-  and the 69-function inventory unchanged.
-  Exact Boolean structural-condition identity, field geometry/read bytes, join
-  replay, and shared-cleanup region validation now live in a cohesive 325-line
-  `scalar_shared_convergence` child. The 1,690-line parent retains terminal
-  image orchestration, with crate linkage, native byte/error order, and the 69-
-  function inventory unchanged.
-  Control-flow dispatch and exact balanced linear x86-64/AArch64 stack replay
-  now live in a cohesive 350-line `scalar_stack` child. The remaining 1,360-
-  line parent is the cohesive object-construction/API root for public artifact
-  records and accessors, relocation-site validation, and the public error
-  surface; crate linkage, native byte/error order, and the 69-function
-  inventory remain unchanged.
-  The installed-cleanup ordinal-tamper regression now locates the authoritative
-  internal-call custody row by its complete machine/text-offset/owner/target
-  header before mutating the ordinal, rather than accidentally changing an
-  earlier stack-evidence duplicate. The unchanged decoder rejects the targeted
-  drift, and all 16 projected Unit-call integration tests pass.
-  The terminal-conditional identity golden reflects vocabulary 25's canonical
-  FloatMeaning equality table. Its empty table count is still
-  part of the domain-separated semantic bytes, so the refreshed fingerprint
-  pins the intentional identity change; conditional, nested-conditional,
-  division-stack, and image suites are green.
-  Complete external-root `StackPlan` production now depends on implementing
+  park/resume, and implement the suspension-safe-loan subset.
+
+  The implemented terminal-image replay retains exact Unit, scalar, and
+  acyclic-conditional frame/link/temporary, call, crash-terminal, provenance,
+  fuel, custody, structural-place, multiplicity, qualification, affine-cleanup,
+  relocation, and target-generated division evidence through decoded
+  installation and artifact-wide closure composition. It independently
+  reconstructs x86-64/AArch64 register mappings, ABI placements, stack and
+  return-link mutations, structural field reads and returns, internal-call
+  copies, conditional/division regions, executable spans, relocation closure,
+  and final image output.
+
+  Current private peak composition handles nested acyclic decisions and
+  mutually exclusive source-distributed convergence calls with one
+  depth-independent conditional-tree carrier. A bounded Boolean carrier also
+  accounts ordered actual unconditional native join branches plus the final
+  fallthrough into one affine-cleanup tail. Remaining: extend that accounting
+  to general shared native joins and general affine cleanup rather than
+  claiming convergence from duplicated leaves, then complete the WCSU,
+  `StackPlan`, lease, preservation, cancellation, transfer, park/resume, and
+  suspension-safe-loan work above.
+
+  Complete external-root `StackPlan` production depends on implementing
   `EXTERNAL-ENTRY-STACK-EPOCHS`, not on an owner decision. Zero-byte internal
   closures remain inadmissible until the entry realization is joined.
 - **BLOCKEXEC:** implement an ordinary package-level blocking executor with
@@ -7012,222 +6903,49 @@ Remaining N6/N8 work:
   relators; add no global carrier role or default relator.
 - Gate runtime deciders whose lifted relation depends on erased `Type` content;
   require determination by the runtime projection or report the component.
-- Continue total specification arithmetic. Concrete and abstract Prop owners
-  reject direct Trapping arithmetic and conversion while preserving total
-  comparison, bitwise, classification, Wrapping, and Saturating terms. Same-
-  carrier policy erasure retains Exact formation against prior facts without
-  self-justification. The arithmetic-domain regression cases now live in a
-  219-line test-only child instead of sharing the 5,729-line production
-  analysis module. Its closed dependent-subtraction refinement and conservative
-  machine/state field-preservation bridge now live in a separate 313-line
-  `dependent_relations` child. The closed bounded-product recognizer and its
-  exact unsigned-widening/coupling gates form a separate 260-line
-  `dependent_products` child. Flow-sensitive interval/fact state and its
-  merge/invalidation rules now live in a 424-line `value_environment` child;
-  the checked interval lattice, including overflow-failing arithmetic, shifts,
-  division/remainder bounds, union/intersection, and containment, now lives in
-  a focused 319-line pure `interval` child;
-  concrete and abstract total-proposition formation lives in a 976-line
-  `total_specification` child; and the recursive operand-domain/interval walk
-  lives in a 789-line `expression_analysis` child. Entry-precondition,
-  branch/fall-through, out-parameter, and incoming-edge fact construction now
-  lives in a 1,207-line `guard_narrowing` child with two sibling-only query
-  seams. The production parent is now 1,814 lines, down from 5,166 before these
-  responsibility splits, and delegates this interval algebra from a 1,498-line
-  coordinator without changing the combined 63-function inventory. No
-  accepted relation, call-write fence, interval, judgment, or diagnostic
-  ordering changed. Fixed-width
-  integer and address
-  `embed` returns proof `Int` and contributes exact source-carrier range facts;
-  proof `Int as Nat` requires nonnegativity. Ordinary `Nat - Nat` is now an
-  Exact fixed operator whose `right <= left` contract is discharged at
-  formation; the independently selected structural `Nat::less_or_equal`
-  operator supplies the public order spelling, and missing order custody
-  rejects rather than selecting clamping. Checked software conformance now
-  applies the existing supported contract-entailment gate to ordinary as well
-  as boundary operators, allowing the recursive total provider to implement
-  the exact partial surface without weakening either call form. The named
-  monus operation and its complete dependent
-  order/metric/Cauchy/Rat corpus now use `Nat::saturating_sub`; measured-recursion
-  recognition and affected pass/fail canaries consume the same final identity.
-  `Granted::content` and the normalized content-projection examples now embed
-  fixed unsigned/address fields uniformly into proof `Int`, spell the exact
-  `as Nat` conversions explicitly, and retain `IntervalSet<Nat>` as their
-  public nonnegative algebra. Canonical content normalization erases only that
-  exact proof conversion around an otherwise admitted scalar term; signed
-  runtime embeddings still reject at the closed projection boundary. Add the
-  remaining integer-policy bridge integrations and the remaining compiler/
-  Terminal bindings for the `FloatMeaning` projection rules described by
+- Continue total specification arithmetic. Prop rejects direct Trapping
+  arithmetic/conversion while preserving total comparison, bitwise,
+  classification, Wrapping, and Saturating terms. Exact formation uses only
+  prior facts; flow-sensitive entry, branch, fallthrough, out-parameter,
+  incoming-edge, merge, and invalidation analysis preserves intervals,
+  dependent subtraction, bounded products, and call-write fences.
+
+  Fixed-width integer/address `embed` returns proof `Int` with exact carrier
+  range facts; `Int as Nat` requires nonnegativity. `Nat - Nat` is Exact and
+  discharges `right <= left` through independently selected
+  `Nat::less_or_equal`; missing evidence rejects. Clamping is the separately
+  named `Nat::saturating_sub`, used consistently by dependent mathematics and
+  measured recursion. `Granted::content` and normalized content projections
+  retain explicit proven `Int as Nat` conversions and `IntervalSet<Nat>`;
+  signed runtime embeddings reject at the closed projection boundary.
+  The shared integer-policy catalog covers add, subtract, multiply, divide,
+  and shifts across Exact, Wrapping, Saturating, and Trapping, with separate
+  result laws, formation conditions, primitive trap predicates, and shift-count
+  laws. Division keeps zero and signed-minimum/-1 distinct; shift count failure
+  stays distinct from overflow. Specification/expression analysis, bounded
+  checked operations, proof-bearing Terminal rows, structural-crash replay,
+  and the dedicated Exact-division lane consume the catalog. Remainder remains
+  out until its primitive is ruled. Add remaining bridge integrations only as
+  their owning operation surfaces land.
+  The float catalog fixes exact `meaning32`/`meaning64` projection: finite
+  values map to exact nonzero rationals, signed zero/infinity survive, NaN
+  payloads erase, and cross-format projection rejects. Checked interpretation
+  consumes the catalog. Source binding accepts only exact ordinary tokenless
+  `Float::meaning32`/`meaning64` signatures; names alone grant no semantics.
+  Checked and Terminal rows retain exact proof-position invocation, operator,
+  operand, format, equality, projection-table, and provenance identity, and
+  replay rejects missing, reordered, substituted, noncanonical, or cross-format
+  evidence. Runtime Booleans, machine operations/contracts, native lowering,
+  and proof-kernel discharge remain open under
   [`total_specification_arithmetic.md`](wiki/design_briefs/total_specification_arithmetic.md).
-  The shared numeric-semantics layer now owns a closed integer-policy bridge
-  catalog for add, subtract, multiply, divide, and left/right shift across
-  Exact, Wrapping, Saturating, and Trapping. Each row separately names its
-  result law, formation conditions, primitive-specific trap predicates, and
-  shift-count law; division retains zero-divisor and signed-minimum/-1 as
-  distinct traps, and Trapping shifts do not collapse count failure into
-  generic overflow. Concrete and abstract specification shift-count validation
-  now consume those rows instead of duplicating the policy match. General
-  expression analysis now also consumes the catalog's exact-result formation
-  and Trapping result-overflow predicates for add, subtract, multiply, and left
-  shift while preserving its established interval refinements, warnings, and
-  diagnostics. Exact division remains in its dedicated specification-
-  definedness lane. The bounded checked-operation producer, proof-bearing
-  Terminal rows, structural-crash verifier, and dedicated Exact-division
-  consumers described above now consume the settled catalog. Remainder stays
-  explicitly outside it until a remainder primitive is ruled; other catalog
-  integrations remain open only where their owning operation surface exists.
-  A separate shared float-projection catalog now owns the exact `meaning32`
-  and `meaning64` rows. Each row fixes its source format, exact nonzero-rational
-  finite projection, signed-zero and signed-infinity preservation, and NaN-
-  payload erasure; cross-format projection rejects. The checked interpreter's
-  central scalar float paths consume these rows rather than choosing f32/f64
-  projection ad hoc. Payload-distinct NaNs collapse while signed zeros and
-  infinities remain distinct in focused tests, and the runtime float-operation
-  canary remains green. Source-operator binding now consumes the catalog's
-  complete `Float::meaning32`/`Float::meaning64` identities and rejects a
-  drifted canonical declaration unless it is the exact ordinary tokenless
-  `f32`/`f64` to `FloatMeaning` signature, without lifetime/type parameters or
-  receiver qualification. Leaf spelling alone grants no projection semantics.
-  Checked and Terminal representations now retain a source-handle-free proof-
-  only `FloatMeaning` value namespace and exact `Meaning32`/`Meaning64`
-  projection rows. Validation captures each actual proof-position invocation,
-  selected operator identity, operand coordinate, and landed format. Checked
-  binding independently replays the exact path, signature, symbol, argument,
-  format, original binary-equality expression, and both invocation handles
-  before transactionally publishing dense projection and equality-proposition
-  tables; operand and cross-format substitution reject. Terminal vocabulary
-  24/module format 22 encode the exact projection rows plus dense, source-
-  handle-free equality rows with ordered projection references. Verification
-  independently resolves each operand through the projection table and
-  reconstructs its format-specific catalog law, rejecting missing, reordered,
-  noncanonical, or cross-format evidence. These propositions remain outside
-  runtime Booleans, machine operations/contracts, interpretation, native
-  lowering, and proof-kernel discharge; those later consumers remain open.
   Proof-kernel discharge is now an explicit language-design block rather than
   an implementation task: the kernel accepts only scalar-term equality, with
   no proof-only `FloatMeaning`/`ProofValueId` term; independently authored
   projection invocations do not retain a shared landed-source identity; and
   Terminal equality rows have no contract owner or evidence-provenance lane.
-  A ruling must choose the core/kernel proof-term carrier and accepted
-  FloatMeaning equality rule, plus exact source-coordinate identity/coalescing
+  An owner ruling must choose the core/kernel proof-term carrier and accepted
+  `FloatMeaning` equality rule, plus exact source-coordinate identity/coalescing
   (or an alternative owner/contract binding), before this row can advance.
-  Terminal semantic coding now keeps its canonical little-endian byte cursor,
-  bounded UTF-8/count handling, and nonzero semantic-ID primitives in a focused
-  private `wire` child; the public codec API, exact bytes, format marker, and
-  144-function inventory remain unchanged.
-  Exact Terminal scalar type/value tags, widths, and little-endian payload
-  codecs now live in a focused private `scalar_wire` child while framing,
-  recursive term structure, validation, and identity remain in the parent.
-  The 199-function codec inventory and externally observable bytes remain
-  unchanged.
-  Exact structural-field wire encoding/decoding now lives in a focused private
-  `structural_field_wire` child, owning relevance/field-kind, IEEE-float, byte-
-  sequence, carrier, and canonical path tags while recursive structural-type
-  framing and validation remain in the parent. The parent is 4,881 lines and
-  the exact 199-function codec inventory remains unchanged.
-  Canonical structural-type declaration encoding/decoding now lives in a
-  focused private `structural_type_wire` child, owning exact record, fixed-
-  array, and sum tags, identities, lengths, and ordered case payload envelopes
-  while module ordering and foundation validation remain in the parent. The
-  parent is 4,815 lines and the exact 199-function codec inventory remains
-  unchanged.
-  Canonical provider-candidate declaration encoding/decoding now lives in a
-  focused private `provider_candidate_wire` child, preserving exact identity,
-  signature, refinement, domain, and service-ceiling byte order while provider
-  validity and selection remain outside the codec. The parent is 4,711 lines
-  and the exact 199-function codec inventory remains unchanged.
-  Canonical content-custody and recursive content-term encoding/decoding now
-  lives in a focused private `content_wire` child, preserving exact claim,
-  composition, conservation, reshuffle, algebra, term-depth, and structural-
-  place bytes and errors while authority and interpretation remain outside the
-  codec. The parent is 4,429 lines and the exact 199-function codec inventory
-  remains unchanged.
-  Canonical boundary and shared structural-signature encoding/decoding now
-  lives in a focused private `structural_signature_wire` child, preserving
-  exact parameter, multiplicity, qualification, requirement, optional
-  attachment/result, and service-ceiling order and tags while operation bodies
-  and provider semantics remain separate. The parent is 4,329 lines and the
-  exact 199-function codec inventory remains unchanged.
-  Canonical proof-declaration, application, and evidence-interface encoding/
-  decoding now lives in a focused private `proof_declaration_wire` child,
-  preserving exact binder, evidence, projection, and interface identity order,
-  tags, and error behavior while recursive proposition terms and proof
-  admission remain separate. The parent is 4,088 lines and the exact 199-
-  function codec inventory remains unchanged.
-  Canonical successor-edge, machine-contract, and crash-route encoding/
-  decoding now lives in a focused private `contract_wire` child, preserving
-  exact contract-clause, crash-cause, guard, predicate, successor argument, and
-  discard order, tags, and error behavior while recursive proposition bytes
-  remain parent-owned. The parent is 3,959 lines and the exact 199-function
-  codec inventory remains unchanged.
-  Recursive canonical proposition encoding/decoding now lives in a focused
-  private `proposition_wire` child, preserving all 13 exact variant tags,
-  nesting bounds, operand order, invalid-tag/error behavior, and sibling-owned
-  scalar, content, and structural-field payload bytes. The parent is 3,798
-  lines and the exact 199-function codec inventory remains unchanged.
-  Canonical recursive scalar-term encoding/decoding now lives in a focused
-  private `scalar_term_wire` child, preserving all 35 exact tags, depth/error
-  behavior, operand order, primitive scalar delegation, structural field-path
-  tags, and decode-time constructor validation. The parent is 3,169 lines and
-  the exact 199-function codec inventory remains unchanged.
-  Canonical terminal-machine envelope encoding/decoding now lives in a focused
-  private `machine_wire` child, preserving exact identity, attachment, scalar
-  and structural parameter/result, structural-place, entry/content-claim,
-  service-ceiling, ordered-block, and retained-contract bytes, tags, and errors
-  while block operation/terminator vocabulary remains parent-owned. The parent
-  is 2,988 lines and the exact 199-function codec inventory remains unchanged.
-  Exact terminal block, operation-result/operation-kind, and terminator
-  encoding/decoding now lives in a focused private `block_wire` child,
-  preserving every operation/control-flow tag, operand, obligation, cleanup,
-  and crash ordering and invalid-tag/error path while declaration, contract,
-  and structural-helper bytes remain separately owned. The parent is 2,197
-  lines and the exact 199-function codec inventory remains unchanged.
-  The canonical top-level `TerminalModule` envelope now lives in a focused
-  private `module_wire` child, preserving exact format/vocabulary markers,
-  ordered structural, service, boundary, provider, proof, evidence,
-  conformance, and machine tables, optional-row tags, fingerprints, and error
-  order while individual payload formats remain dedicated sibling owners. The
-  parent is 1,807 lines and the exact 199-function codec inventory remains
-  unchanged.
-  Canonical collection ordering, crash-route canonicality, recursive
-  proposition ordering/depth, scalar/content nesting validation, and the public
-  proposition byte-order key now live in a focused private `canonical_order`
-  child, preserving validation/error order and exact encoded comparison keys
-  while structural-foundation validation remains parent-owned. The remaining
-  1,155-line parent is the public facade, structural-foundation validator,
-  shared wire helpers/errors, and resource test; the exact 199-function codec
-  inventory remains unchanged.
-  Proof-bundle coding likewise keeps its `PSIPRF`-specific little-endian
-  cursor, bounded string/count/index handling, and nonzero semantic-ID
-  primitives in a focused private child; its public API, exact bytes and
-  identities, error domain, and 71-function inventory remain unchanged.
-  Canonical proof-bundle evidence/producer ordering and bounded proof,
-  proposition, scalar, and content-tree validation now live in a focused 222-
-  line child with one parent-facing entry and no encoding callback. Its 1,748-
-  line parent retains the same public API, `PSIPRF` bytes and identities, error
-  order, and 48-function production inventory.
-  Deterministic review projection of kernel-derived, certificate-derived,
-  admitted, producer, and trust-graph evidence now lives in a focused 109-line
-  proof-synopsis child. Its 1,645-line parent retains the same public rendering
-  API, `PSIPRF` bytes and identities, error order, and 43-function production
-  inventory.
-  Terminal trust-graph custody now delegates canonical node/dependency
-  admission, root policy/status checks, closure traversal, and unknown, cycle,
-  and reachability rejection to a focused 161-line validator while source-
-  bound node construction and digests remain separate. Its 1,289-line parent
-  retains the same public API, graph identities, error order, and 52-function
-  inventory.
-  Exact NUL-domain-separated node and whole-graph SHA-256 encodings, including
-  canonical string, byte, and length framing, now live in an 81-line trust-
-  identity child shared by construction and validation. Its 1,220-line parent
-  retains the same public API, graph/node identities, validation order, errors,
-  and 48-function inventory.
-  Exact current migration-graph construction—registered roots, Rust
-  implementation nodes, reducers, operation rows, and acceptance closure—now
-  lives in a focused 536-line child while source-byte constants, public
-  carriers, validation, and identity hashing remain separate. Its 710-line
-  parent retains the same public API, exact node/graph identities, canonical
-  order and errors, and 43-function inventory.
 - Then migrate suffix law discovery to propositions plus explicit conformances,
   and expand the checked `Nat`/`Int`/`Rat`/Cauchy/approximation corpus. `Real`
   remains proof-only and core-level.
