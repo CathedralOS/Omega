@@ -628,7 +628,7 @@ impl Compiler {
         };
         let program_entry_boundary_plan = program_entry_realization
             .as_ref()
-            .map(|(plan, _)| plan.clone());
+            .map(|realization| realization.semantic_boundary_entry_plan.clone());
         let entry_machine_name = selected_program_entry
             .map(|selected| selected.machine_name.to_owned())
             .or(self.test_entry_machine_name.clone());
@@ -895,10 +895,10 @@ impl Compiler {
         let (subsystem, freestanding) = (build_config.subsystem, build_config.freestanding);
         let program_storage_entry_provider = program_entry_realization
             .as_ref()
-            .map(|(_, selected)| {
+            .map(|realization| {
                 crate::pipeline::provider_plans::optional_selected_external_root_provider_plan(
                     &checked.selected_provider_plans,
-                    &selected.schema().trait_name,
+                    &realization.storage_entry.schema().trait_name,
                 )
                 .map_err(|diagnostic| vec![Diagnostic::error(diagnostic.to_string())])
             })
@@ -919,7 +919,7 @@ impl Compiler {
         )?;
         let program_storage_entry = program_entry_realization
             .as_ref()
-            .map(|(_, selected)| {
+            .map(|realization| {
                 let source_signature = selected_program_entry_source_signature
                     .as_ref()
                     .ok_or_else(|| {
@@ -933,7 +933,7 @@ impl Compiler {
                     )]
                 })?;
                 crate::pipeline::program_storage_entry::bind_generated_program_storage_entry_plan(
-                    selected,
+                    &realization.storage_entry,
                     plan,
                     &backend.plan.runtime_storage,
                     &backend.plan.layouts,
@@ -949,6 +949,11 @@ impl Compiler {
             if binding.source_signature().is_none() {
                 return Err(vec![Diagnostic::error(
                     "compiler-generated program-storage binding lost its checked source signature",
+                )]);
+            }
+            if binding.physical_contract().is_none() {
+                return Err(vec![Diagnostic::error(
+                    "compiler-generated UEFI program-storage binding lost its distinct physical entry contract",
                 )]);
             }
             crate::pipeline::program_storage_entry::bind_emitted_program_storage_entry_native_bridge(
@@ -1029,6 +1034,14 @@ impl Compiler {
                     let Some(bridge) = &mut program_storage_entry_bridge else {
                         return Ok(());
                     };
+                    if bridge.wrapper_body_template().is_none() {
+                        if bridge.is_receiver_bound_without_wrapper_template() {
+                            return Ok(());
+                        }
+                        return Err(vec![Diagnostic::error(
+                            "native program-storage publication lost its receiver-free wrapper template without an exact receiver-bound continuation",
+                        )]);
+                    }
                     let checked_image = checked_image.ok_or_else(|| {
                         vec![Diagnostic::error(
                             "program-storage entry target emitted no checked executable image",

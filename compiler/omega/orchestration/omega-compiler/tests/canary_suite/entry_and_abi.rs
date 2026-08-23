@@ -208,6 +208,29 @@ fn uefi_program_entry_retains_exact_storage_root_binding() {
     assert_eq!(binding.image().parameter_index(), 0);
     assert_eq!(binding.initial_storage().parameter_index(), 1);
     assert_ne!(binding.boundary_contract_fingerprint(), 0);
+    let physical = binding
+        .physical_contract()
+        .expect("production UEFI binding must retain its distinct physical contract");
+    assert!(
+        physical
+            .requirement_identity()
+            .contains("UefiPhysicalEntry")
+    );
+    assert_eq!(physical.parameter_type_identities().len(), 2);
+    assert!(physical.parameter_type_identities()[0].contains("EfiImageHandle"));
+    assert!(physical.parameter_type_identities()[1].contains("EfiSystemTable"));
+    assert!(physical.result_type_identity().contains("EfiStatus"));
+    assert_eq!(
+        physical.boundary_entry_plan().call.policy,
+        omega_calling_conventions::CallingPolicy::MicrosoftX64
+    );
+    assert_eq!(physical.boundary_entry_plan().call.parameters.len(), 2);
+    assert!(physical.boundary_entry_plan().call.result.is_some());
+    assert_ne!(
+        physical.calling_plan_fingerprint(),
+        binding.boundary_contract_fingerprint(),
+        "physical launch and semantic continuation are independent contracts"
+    );
     let receiver = binding
         .receiver()
         .expect("receiver-bound entry should retain its checked storage demand");
@@ -319,7 +342,18 @@ fn uefi_program_entry_retains_exact_storage_root_binding() {
     assert!(manifest.contains("\"native_bridge\""));
     assert!(manifest.contains("\"status\": \"pending_runtime_installation\""));
     assert!(manifest.contains("\"target_profile\": \"uefi_x64\""));
-    assert!(manifest.contains("\"selected_physical_provider_plan\": null"));
+    assert!(manifest.contains("\"semantic_requirement\""));
+    assert!(manifest.contains("\"semantic_continuation_calling_plan_fingerprint\""));
+    assert!(manifest.contains("\"physical_contract\""));
+    assert!(manifest.contains("\"status\": \"planned_not_invoked\""));
+    assert!(manifest.contains("UefiPhysicalEntry"));
+    assert!(manifest.contains("EfiStatus"));
+    assert!(manifest.contains("\"physical_shell_emitted\": false"));
+    assert!(manifest.contains("\"bootstrap_invoked\": false"));
+    assert!(manifest.contains("\"emitted_wrapper_evidence\": null"));
+    assert!(!manifest.contains("\"semantic_wrapper_arrival\""));
+    assert!(!manifest.contains("\"physical_arrival\""));
+    assert!(manifest.contains("\"selected_root_provider_plan\": null"));
     assert!(manifest.contains("\"status\": \"required\""));
     assert!(
         manifest
