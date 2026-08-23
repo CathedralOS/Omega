@@ -28,7 +28,7 @@
 
 parse_capacity_summary_init:
         call parse_capacity_prove_summary
-        jmp scan_owned_effects_init
+        jmp emit_ident_summary_init
 
 parse_capacity_prove_summary:
         imm r1, 528072

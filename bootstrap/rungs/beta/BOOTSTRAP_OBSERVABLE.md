@@ -288,6 +288,15 @@ are valuable teeth, but they do not yet establish the quantified observation:
   output, and the active parse frame; the complement writes numeric 252 and
   returns zero through the exact pre-output epilogue. Both retain source/input,
   the parameter prefix, restored body cursor, and carried identifier state;
+- its identifier-output leaf gives `emit_ident_at(off,len)` exact terminating
+  meaning under the successful source segment and
+  `0<=off<=off+len<=LEN`. It appends precisely `SRC[off:off+len]` to any
+  prior output, preserves source/input/CUR/compiler globals, returns zero, and
+  restores its caller. Exact procedure-45 blocks, `k<len` outcomes, direct
+  write, indexed source load, frame, expressions, effects, and decoded census
+  anchor the theorem; the byte branch decreases `len-k`. Decimal emission,
+  prologue/parameter emitters, and the outer procedure-prefix loop remain to be
+  composed;
 - no total `parse_proc` claim is currently made. Malformed procedure bodies can
   make `gen_stmts` diverge while emitting—for example when an unrecognized byte
   is never consumed—so closure requires maximal Return-or-Diverge and finite/
