@@ -35,3 +35,14 @@ non-call edges cannot cross procedure boundaries. This closes instruction
 framing, direct-control-target reconstruction, and static call/return nesting.
 Dynamic call-depth bounds, data-stack and memory bounds, complete stream
 semantics, cyclic progress, and terminal-class correspondence remain open.
+
+`bc-block-control.alpha` is the next whole-artifact slice. It consumes the exact
+source and tape plus an untrusted location witness, independently scans and
+resolves the source's procedure-local entry/state/`to`/`when` graph, reconstructs
+Alpha instruction framing in the same process, and validates canonical ordered
+block/transition locations and successor shapes. A branch retargeted to another
+valid instruction boundary passes the older structural gate and fails this one.
+The mapper supplies locations only; `bc-block-control.sh` packages the exact
+repository source and artifact itself. This proves the pinned control skeleton,
+not expression/data effects, calls/returns, output, terminal behavior, or cyclic
+progress.
