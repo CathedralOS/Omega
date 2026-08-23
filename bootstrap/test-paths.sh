@@ -43,16 +43,38 @@ physical_dir() {
   fail "refinement root is $OMEGA_PATH_REFINEMENT_ROOT"
 [ "$OMEGA_PATH_BETA_REFINEMENT" = "$OMEGA_REPO_ROOT/bootstrap/assurance/refinement/beta" ] ||
   fail "Beta refinement owner is $OMEGA_PATH_BETA_REFINEMENT"
-[ "$OMEGA_PATH_OMEGA0_REFINEMENT" = "$OMEGA_REPO_ROOT/bootstrap/assurance/refinement/omega0" ] ||
-  fail "Omega0 refinement owner is $OMEGA_PATH_OMEGA0_REFINEMENT"
+[ "$OMEGA_PATH_OMEGA_BOOTSTRAP_REFINEMENT" = "$OMEGA_REPO_ROOT/bootstrap/assurance/refinement/omega-bootstrap" ] ||
+  fail "omega-bootstrap refinement owner is $OMEGA_PATH_OMEGA_BOOTSTRAP_REFINEMENT"
+[ "$OMEGA_PATH_OMEGA0_REFINEMENT" = "$OMEGA_PATH_OMEGA_BOOTSTRAP_REFINEMENT" ] ||
+  fail "historical Omega0 refinement variable does not resolve to the canonical owner"
 [ "$OMEGA_PATH_ONRAMPS_ROOT" = "$OMEGA_REPO_ROOT/bootstrap/onramps" ] ||
   fail "on-ramp root is $OMEGA_PATH_ONRAMPS_ROOT"
 [ "$OMEGA_PATH_DELTA" = "$OMEGA_REPO_ROOT/bootstrap/rungs/delta" ] ||
   fail "Delta owner is $OMEGA_PATH_DELTA"
 [ "$OMEGA_PATH_DELTA_RUST" = "$OMEGA_REPO_ROOT/bootstrap/onramps/delta-rust" ] ||
   fail "Delta Rust on-ramp owner is $OMEGA_PATH_DELTA_RUST"
-[ "$OMEGA_PATH_OMEGA0" = "$OMEGA_REPO_ROOT/bootstrap/omega0" ] ||
-  fail "Omega0 owner is $OMEGA_PATH_OMEGA0"
+[ "$OMEGA_PATH_OMEGA_BOOTSTRAP" = "$OMEGA_REPO_ROOT/bootstrap/omega-bootstrap" ] ||
+  fail "omega-bootstrap owner is $OMEGA_PATH_OMEGA_BOOTSTRAP"
+[ "$OMEGA_PATH_OMEGA_BOOTSTRAP_MEANING" = "$OMEGA_PATH_OMEGA_BOOTSTRAP/meaning" ] ||
+  fail "omega-bootstrap meaning owner is $OMEGA_PATH_OMEGA_BOOTSTRAP_MEANING"
+[ "$OMEGA_PATH_OMEGA_BOOTSTRAP_COMPILER" = "$OMEGA_PATH_OMEGA_BOOTSTRAP/compiler" ] ||
+  fail "omega-bootstrap compiler owner is $OMEGA_PATH_OMEGA_BOOTSTRAP_COMPILER"
+[ "$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES" = "$OMEGA_PATH_OMEGA_BOOTSTRAP/gates" ] ||
+  fail "omega-bootstrap gates owner is $OMEGA_PATH_OMEGA_BOOTSTRAP_GATES"
+[ "$OMEGA_PATH_OMEGA0" = "$OMEGA_PATH_OMEGA_BOOTSTRAP" ] ||
+  fail "historical Omega0 variable does not resolve to the canonical owner"
+[ "$OMEGA_PATH_OMEGA0_MEANING" = "$OMEGA_PATH_OMEGA_BOOTSTRAP_MEANING" ] ||
+  fail "historical Omega0 meaning variable does not resolve to the canonical owner"
+[ "$OMEGA_PATH_OMEGA0_COMPILER" = "$OMEGA_PATH_OMEGA_BOOTSTRAP_COMPILER" ] ||
+  fail "historical Omega0 compiler variable does not resolve to the canonical owner"
+[ "$OMEGA_PATH_OMEGA0_GATES" = "$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES" ] ||
+  fail "historical Omega0 gates variable does not resolve to the canonical owner"
+[ -d "$OMEGA_PATH_OMEGA_BOOTSTRAP" ] && [ ! -L "$OMEGA_PATH_OMEGA_BOOTSTRAP" ] ||
+  fail "omega-bootstrap owner is not a physical directory"
+[ -d "$OMEGA_PATH_OMEGA_BOOTSTRAP_REFINEMENT" ] && [ ! -L "$OMEGA_PATH_OMEGA_BOOTSTRAP_REFINEMENT" ] ||
+  fail "omega-bootstrap refinement owner is not a physical directory"
+[ ! -e "$OMEGA_REPO_ROOT/bootstrap/omega0" ] ||
+  fail "obsolete bootstrap/omega0 physical entry remains"
 [ "$OMEGA_PATH_CORPUS" = "$OMEGA_REPO_ROOT/bootstrap/corpus" ] ||
   fail "shared lattice corpus owner is $OMEGA_PATH_CORPUS"
 [ "$OMEGA_PATH_OMEGA_RUST_ONRAMP_ROOT" = "$OMEGA_REPO_ROOT/bootstrap/onramps/omega-rust" ] ||
@@ -106,9 +128,19 @@ done
 for entry in meaning-tv.sh input-tv.sh meaning-cert-diamond.sh \
   translation-validation.sh gamma2claim.py tv-encode.py \
   meaning_cert_diamond.py; do
-  [ -L "$OMEGA_PATH_OMEGA0_GATES/$entry" ] ||
-    fail "Omega0 refinement compatibility entry is not a symlink: $entry"
+  [ -L "$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES/$entry" ] ||
+    fail "omega-bootstrap refinement compatibility entry is not a symlink: $entry"
+  [ -f "$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES/$entry" ] ||
+    fail "omega-bootstrap refinement compatibility entry is broken: $entry"
 done
+[ -L "$OMEGA_PATH_DELTA/samples/omega-bootstrap-frontend.alp" ] ||
+  fail "canonical omega-bootstrap frontend sample entry is not a symlink"
+[ -L "$OMEGA_PATH_DELTA/samples/omega0-frontend.alp" ] ||
+  fail "historical Omega0 frontend sample entry is not a symlink"
+[ -f "$OMEGA_PATH_DELTA/samples/omega-bootstrap-frontend.alp" ] ||
+  fail "canonical omega-bootstrap frontend sample entry does not resolve to its owner"
+[ -f "$OMEGA_PATH_DELTA/samples/omega0-frontend.alp" ] ||
+  fail "historical Omega0 frontend sample entry does not resolve to its owner"
 [ "$(physical_dir "$OMEGA_REPO_ROOT/compiler/alpha")" = "$(physical_dir "$OMEGA_PATH_ALPHA")" ] ||
   fail "compiler/alpha does not resolve to the Alpha owner"
 [ "$(physical_dir "$OMEGA_REPO_ROOT/compiler/beta")" = "$(physical_dir "$OMEGA_PATH_ALPHA_ASSEMBLER")" ] ||
@@ -162,16 +194,30 @@ done
   fail "refinement role lookup disagrees with the manifest"
 [ "$(omega_bootstrap_path beta-refinement)" = "$OMEGA_PATH_BETA_REFINEMENT" ] ||
   fail "beta-refinement role lookup disagrees with the manifest"
-[ "$(omega_bootstrap_path omega0-refinement)" = "$OMEGA_PATH_OMEGA0_REFINEMENT" ] ||
-  fail "omega0-refinement role lookup disagrees with the manifest"
+[ "$(omega_bootstrap_path omega-bootstrap-refinement)" = "$OMEGA_PATH_OMEGA_BOOTSTRAP_REFINEMENT" ] ||
+  fail "omega-bootstrap-refinement role lookup disagrees with the manifest"
+[ "$(omega_bootstrap_path omega0-refinement)" = "$OMEGA_PATH_OMEGA_BOOTSTRAP_REFINEMENT" ] ||
+  fail "omega0-refinement compatibility role lookup disagrees with the manifest"
 [ "$(omega_bootstrap_path delta)" = "$OMEGA_PATH_DELTA" ] ||
   fail "delta role lookup disagrees with the manifest"
 [ "$(omega_bootstrap_path delta-rs)" = "$OMEGA_PATH_DELTA_RUST" ] ||
   fail "delta-rs role lookup disagrees with the manifest"
-[ "$(omega_bootstrap_path omega0)" = "$OMEGA_PATH_OMEGA0" ] ||
-  fail "omega0 role lookup disagrees with the manifest"
-[ "$(omega_bootstrap_path omega0-gates)" = "$OMEGA_PATH_OMEGA0/gates" ] ||
-  fail "omega0-gates role lookup disagrees with the manifest"
+[ "$(omega_bootstrap_path omega-bootstrap)" = "$OMEGA_PATH_OMEGA_BOOTSTRAP" ] ||
+  fail "omega-bootstrap role lookup disagrees with the manifest"
+[ "$(omega_bootstrap_path omega-bootstrap-gates)" = "$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES" ] ||
+  fail "omega-bootstrap-gates role lookup disagrees with the manifest"
+[ "$(omega_bootstrap_path omega-bootstrap-meaning)" = "$OMEGA_PATH_OMEGA_BOOTSTRAP_MEANING" ] ||
+  fail "omega-bootstrap-meaning role lookup disagrees with the manifest"
+[ "$(omega_bootstrap_path omega-bootstrap-compiler)" = "$OMEGA_PATH_OMEGA_BOOTSTRAP_COMPILER" ] ||
+  fail "omega-bootstrap-compiler role lookup disagrees with the manifest"
+[ "$(omega_bootstrap_path omega0)" = "$OMEGA_PATH_OMEGA_BOOTSTRAP" ] ||
+  fail "omega0 compatibility role lookup disagrees with the manifest"
+[ "$(omega_bootstrap_path omega0-gates)" = "$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES" ] ||
+  fail "omega0-gates compatibility role lookup disagrees with the manifest"
+[ "$(omega_bootstrap_path omega0-meaning)" = "$OMEGA_PATH_OMEGA_BOOTSTRAP_MEANING" ] ||
+  fail "omega0-meaning compatibility role lookup disagrees with the manifest"
+[ "$(omega_bootstrap_path omega0-compiler)" = "$OMEGA_PATH_OMEGA_BOOTSTRAP_COMPILER" ] ||
+  fail "omega0-compiler compatibility role lookup disagrees with the manifest"
 [ "$(omega_bootstrap_path corpus)" = "$OMEGA_PATH_CORPUS" ] ||
   fail "corpus role lookup disagrees with the manifest"
 [ "$(omega_bootstrap_path lattice-corpus)" = "$OMEGA_PATH_CORPUS" ] ||
@@ -195,4 +241,4 @@ done
 [ "$(omega_bootstrap_path omega/backend)" = "$OMEGA_PATH_OMEGA_PRODUCT/backend" ] ||
   fail "omega subpath lookup disagrees with the product owner"
 
-echo "bootstrap paths OK — Rust on-ramp and reserved Psi/Omega product roots are distinct"
+echo "bootstrap paths OK — omega-bootstrap, Rust on-ramp, and reserved Psi/Omega product roots are distinct"

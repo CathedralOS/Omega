@@ -1,1 +1,0 @@
-../../assurance/refinement/omega0/translation-validation.sh

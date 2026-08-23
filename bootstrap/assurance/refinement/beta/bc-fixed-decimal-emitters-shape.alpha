@@ -1,0 +1,449 @@
+; Exact source/artifact shape for emit_proc_prologue and emit_param_store.
+;
+; These two bounded output leaves contain only fixed-string helper calls and
+; bounded emit_dec children.  This module binds their complete procedure,
+; control, effect, local, primitive, push, epilogue, and decoded inventories.
+; The adjacent meaning module owns value bounds and ordered output.
+
+fixed_decimal_emitters_require_shape:
+        imm r20, 7151616
+        imm r21, 42
+        imm r22, 1                    ; nslots parameter
+        call transfer_require_cell
+        imm r20, 7159808
+        imm r21, 42
+        imm r22, 1                    ; one parameter slot
+        call transfer_require_cell
+        imm r20, 42
+        call call_bounds_frame_bytes
+        imm r1, 16
+        jeq r0, r1, fixed_decimal_shape_param_proc
+        jmp reject
+fixed_decimal_shape_param_proc:
+        imm r20, 7151616
+        imm r21, 43
+        imm r22, 1                    ; k parameter
+        call transfer_require_cell
+        imm r20, 7159808
+        imm r21, 43
+        imm r22, 1
+        call transfer_require_cell
+        imm r20, 43
+        call call_bounds_frame_bytes
+        imm r1, 16
+        jeq r0, r1, fixed_decimal_shape_blocks
+        jmp reject
+
+fixed_decimal_shape_blocks:
+        imm r20, 209
+        imm r21, 29903
+        call slurp_summary_require_block_pc
+        imm r20, 210
+        imm r21, 30152
+        call slurp_summary_require_block_pc
+        imm r20, 211
+        imm r21, 30305
+        call slurp_summary_require_block_pc
+        imm r20, 209
+        imm r21, 211
+        imm r22, 42
+        call cursor_require_proc_blocks
+        imm r20, 212
+        imm r21, 30596
+        call slurp_summary_require_block_pc
+        imm r20, 212
+        imm r21, 212
+        imm r22, 43
+        call cursor_require_proc_blocks
+        call fixed_decimal_shape_transitions
+        call fixed_decimal_shape_events
+        call fixed_decimal_shape_locals
+        call fixed_decimal_shape_primitives
+        call fixed_decimal_shape_pushes
+        call fixed_decimal_shape_censuses
+        ret
+
+fixed_decimal_shape_transitions:
+        imm r20, 166
+        imm r21, 210
+        imm r22, 1
+        imm r23, 211
+        imm r24, 30256              ; checked nslots>0 guard
+        call slurp_summary_require_transition
+        ret
+
+; Kind-four helper event in row/block/pc r20..r22.
+fixed_decimal_require_emit_site:
+        mov r30, r20
+        mov r31, r21
+        mov r32, r22
+        mov r20, r30
+        mov r21, r31
+        imm r22, 4
+        mov r23, r32
+        call slurp_summary_require_event
+        ret
+
+fixed_decimal_shape_events:
+        imm r20, 316
+        imm r21, 209
+        imm r22, 29992
+        call fixed_decimal_require_emit_site
+        imm r20, 317
+        imm r21, 209
+        imm r22, 30041
+        call fixed_decimal_require_emit_site
+        imm r20, 318
+        imm r21, 209
+        imm r22, 30093
+        call fixed_decimal_require_emit_site
+        imm r20, 319
+        imm r21, 209
+        imm r22, 30143
+        call fixed_decimal_require_emit_site
+        imm r20, 320
+        imm r21, 210
+        imm r22, 5
+        imm r23, 30304
+        call slurp_summary_require_event
+        imm r20, 321
+        imm r21, 211
+        imm r22, 30341
+        call fixed_decimal_require_emit_site
+        imm r20, 322
+        imm r21, 211
+        imm r22, 30449
+        imm r23, 1
+        imm r24, 0
+        imm r25, 29152
+        imm r26, 30458              ; checked prologue decimal continuation
+        call summary_require_call_site
+        imm r20, 323
+        imm r21, 211
+        imm r22, 30488
+        call fixed_decimal_require_emit_site
+        imm r20, 324
+        imm r21, 211
+        imm r22, 30537
+        call fixed_decimal_require_emit_site
+        imm r20, 325
+        imm r21, 211
+        imm r22, 5
+        imm r23, 30575
+        call slurp_summary_require_event
+        imm r20, 30285
+        imm r21, 30304
+        call slurp_summary_require_epilogue
+        imm r20, 30556
+        imm r21, 30575
+        call slurp_summary_require_epilogue
+        imm r20, 30576
+        imm r21, 30595
+        call slurp_summary_require_epilogue
+
+        imm r20, 326
+        imm r21, 212
+        imm r22, 30687
+        call fixed_decimal_require_emit_site
+        imm r20, 327
+        imm r21, 212
+        imm r22, 30732
+        call fixed_decimal_require_emit_site
+        imm r20, 328
+        imm r21, 212
+        imm r22, 30888
+        imm r23, 1
+        imm r24, 0
+        imm r25, 29152
+        imm r26, 30897              ; checked offset-decimal continuation
+        call summary_require_call_site
+        imm r20, 329
+        imm r21, 212
+        imm r22, 30927
+        call fixed_decimal_require_emit_site
+        imm r20, 330
+        imm r21, 212
+        imm r22, 30975
+        call fixed_decimal_require_emit_site
+        imm r20, 331
+        imm r21, 212
+        imm r22, 31023
+        call fixed_decimal_require_emit_site
+        imm r20, 332
+        imm r21, 212
+        imm r22, 31083
+        imm r23, 1
+        imm r24, 0
+        imm r25, 29152
+        imm r26, 31092              ; checked register-decimal continuation
+        call summary_require_call_site
+        imm r20, 333
+        imm r21, 212
+        imm r22, 31122
+        call fixed_decimal_require_emit_site
+        imm r20, 31131
+        imm r21, 31150
+        call slurp_summary_require_epilogue
+        ret
+
+fixed_decimal_shape_locals:
+        imm r20, 121
+        imm r21, 210
+        imm r22, 1
+        imm r23, 0
+        imm r24, 30152
+        call transfer_require_local
+        imm r20, 122
+        imm r21, 211
+        imm r22, 1
+        imm r23, 0
+        imm r24, 30350
+        call transfer_require_local
+        imm r20, 123
+        imm r21, 212
+        imm r22, 1
+        imm r23, 0
+        imm r24, 30793
+        call transfer_require_local
+        imm r20, 124
+        imm r21, 212
+        imm r22, 1
+        imm r23, 0
+        imm r24, 31032
+        call transfer_require_local
+        ret
+
+fixed_decimal_shape_primitives:
+        imm r20, 532
+        imm r21, 210
+        imm r22, 3
+        imm r23, 9                   ; nslots>0
+        imm r24, 30197
+        call transfer_require_primitive
+        imm r20, 533
+        imm r21, 210
+        imm r22, 1
+        imm r23, 0
+        imm r24, 30187
+        call transfer_require_primitive
+        imm r20, 534
+        imm r21, 210
+        imm r22, 1
+        imm r23, 0
+        imm r24, 30275
+        call transfer_require_primitive
+        imm r20, 535
+        imm r21, 211
+        imm r22, 2
+        imm r23, 5                   ; nslots*8
+        imm r24, 30395
+        call transfer_require_primitive
+        imm r20, 536
+        imm r21, 211
+        imm r22, 1
+        imm r23, 8
+        imm r24, 30385
+        call transfer_require_primitive
+        imm r20, 537
+        imm r21, 211
+        imm r22, 1
+        imm r23, 0
+        imm r24, 30546
+        call transfer_require_primitive
+
+        imm r20, 538
+        imm r21, 212
+        imm r22, 1
+        imm r23, 8
+        imm r24, 30741
+        call transfer_require_primitive
+        imm r20, 539
+        imm r21, 212
+        imm r22, 2
+        imm r23, 3                   ; 8 + 8*k
+        imm r24, 30834
+        call transfer_require_primitive
+        imm r20, 540
+        imm r21, 212
+        imm r22, 1
+        imm r23, 8
+        imm r24, 30767
+        call transfer_require_primitive
+        imm r20, 541
+        imm r21, 212
+        imm r22, 2
+        imm r23, 5                   ; 8*k
+        imm r24, 30812
+        call transfer_require_primitive
+        ret
+
+fixed_decimal_shape_pushes:
+        imm r20, 152
+        imm r21, 210
+        imm r22, 1
+        imm r23, 30171
+        call transfer_require_push
+        imm r20, 153
+        imm r21, 211
+        imm r22, 1
+        imm r23, 30369
+        call transfer_require_push
+        imm r20, 316
+        imm r21, 211
+        imm r22, 2
+        imm r23, 30417
+        call transfer_require_push
+        imm r20, 154
+        imm r21, 212
+        imm r22, 1
+        imm r23, 30751
+        call transfer_require_push
+        imm r20, 155
+        imm r21, 212
+        imm r22, 1
+        imm r23, 30777
+        call transfer_require_push
+        imm r20, 317
+        imm r21, 212
+        imm r22, 2
+        imm r23, 30856
+        call transfer_require_push
+        imm r20, 318
+        imm r21, 212
+        imm r22, 2
+        imm r23, 31051
+        call transfer_require_push
+        ret
+
+fixed_decimal_shape_censuses:
+        imm r20, 209
+        imm r21, 211
+        imm r22, 121
+        imm r23, 123
+        imm r24, 54
+        imm r25, 54                  ; no raw memory
+        imm r26, 166
+        imm r27, 167
+        imm r28, 316
+        imm r29, 326                 ; exclusive prologue event row
+        call cursor_require_effect_census
+        imm r20, 209
+        imm r21, 211
+        imm r22, 532
+        imm r23, 538
+        imm r24, 152
+        imm r25, 154
+        imm r26, 316
+        imm r27, 317
+        imm r28, 0
+        imm r29, 0
+        call summary_require_expr_census
+
+        imm r20, 212
+        imm r21, 212
+        imm r22, 123
+        imm r23, 125
+        imm r24, 54
+        imm r25, 54
+        imm r26, 167
+        imm r27, 167                 ; no transitions
+        imm r28, 326
+        imm r29, 334
+        call cursor_require_effect_census
+        imm r20, 212
+        imm r21, 212
+        imm r22, 538
+        imm r23, 542                 ; exclusive parameter primitive row
+        imm r24, 154
+        imm r25, 156
+        imm r26, 317
+        imm r27, 319
+        imm r28, 0
+        imm r29, 0
+        call summary_require_expr_census
+
+        imm r20, 29903
+        imm r21, 30596
+        imm r22, 8                   ; seven WSTR + one DECS
+        imm r23, 3                   ; two source + synthetic return
+        imm r24, 5                   ; frame/parameter/push stores
+        call fixed_decimal_scan_region
+        imm r20, 30596
+        imm r21, 31151
+        imm r22, 8                   ; six WSTR + two DECS
+        imm r23, 1                   ; synthetic return
+        imm r24, 6                   ; frame/parameter/push stores
+        call fixed_decimal_scan_region
+        ret
+
+; Region [r20,r21) has exact call/return/store counts r22..r24 and no direct
+; I/O, halt, byte memory, division, or remainder. Earlier ownership phases bind
+; each admitted call/store to its exact source family.
+fixed_decimal_scan_region:
+        mov r25, r20
+        mov r26, r21
+        mov r27, r22
+        mov r28, r23
+        mov r29, r24
+        imm r10, 0
+        imm r11, 0
+        imm r12, 0
+fixed_decimal_scan_loop:
+        jlt r25, r26, fixed_decimal_scan_pc
+        jeq r10, r27, fixed_decimal_scan_returns
+        jmp reject
+fixed_decimal_scan_returns:
+        jeq r11, r28, fixed_decimal_scan_stores
+        jmp reject
+fixed_decimal_scan_stores:
+        jeq r12, r29, fixed_decimal_scan_done
+        jmp reject
+fixed_decimal_scan_pc:
+        imm r1, 4194304
+        add r1, r25
+        loadb r2, r1
+        imm r3, 1
+        jeq r2, r3, fixed_decimal_scan_start
+        jmp fixed_decimal_scan_next
+fixed_decimal_scan_start:
+        imm r1, 2097152
+        add r1, r25
+        loadb r2, r1
+        imm r3, 19
+        jeq r2, r3, fixed_decimal_scan_call
+        imm r3, 20
+        jeq r2, r3, fixed_decimal_scan_return
+        imm r3, 11
+        jeq r2, r3, fixed_decimal_scan_store
+        imm r3, 0
+        jeq r2, r3, reject
+        imm r3, 6
+        jeq r2, r3, reject
+        imm r3, 7
+        jeq r2, r3, reject
+        imm r3, 8
+        jeq r2, r3, reject
+        imm r3, 9
+        jeq r2, r3, reject
+        imm r3, 17
+        jeq r2, r3, reject
+        imm r3, 18
+        jeq r2, r3, reject
+        jmp fixed_decimal_scan_next
+fixed_decimal_scan_call:
+        imm r1, 1
+        add r10, r1
+        jmp fixed_decimal_scan_next
+fixed_decimal_scan_return:
+        imm r1, 1
+        add r11, r1
+        jmp fixed_decimal_scan_next
+fixed_decimal_scan_store:
+        imm r1, 1
+        add r12, r1
+fixed_decimal_scan_next:
+        imm r1, 1
+        add r25, r1
+        jmp fixed_decimal_scan_loop
+fixed_decimal_scan_done:
+        ret

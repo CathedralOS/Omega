@@ -1,8 +1,8 @@
 # `bootstrap/corpus/` — the lattice's frozen Omega sample corpus
 
-The trust gates (`bootstrap/omega0/gates/omega-meaning.sh`,
+The trust gates (`bootstrap/omega-bootstrap/gates/omega-meaning.sh`,
 `bootstrap/assurance/proof-kernel/gates/forall-sample.sh`,
-`bootstrap/assurance/refinement/omega0/input-tv.sh`,
+`bootstrap/assurance/refinement/omega-bootstrap/input-tv.sh`,
 `bootstrap/assurance/proof-kernel/gates/math-contracts.sh`, …) verify meaning/proof-carrying
 claims about real Omega programs. Those gates read from **here**, not from the top-level
 `samples/`, on purpose: the trust foundation must be pinned to a stable corpus so that

@@ -39,9 +39,10 @@ DELTA_ARCH=aarch64 cargo run -- ../../rungs/delta/samples/shape.alp out  # macOS
 
 - **Bridge frontend O1 — DONE for native/self-host, direct artifacts, and the
   current lower-rung observations.**
-  `../../omega0/compiler/omega0-frontend.alp` is the canonical first
-  Delta-written bridge compiler slice (`samples/omega0-frontend.alp` is a
-  compatibility symlink):
+  `../../omega-bootstrap/compiler/omega-bootstrap-frontend.alp` is the canonical
+  first Delta-written bridge compiler slice
+  (`samples/omega-bootstrap-frontend.alp` is the canonical sample link and
+  `samples/omega0-frontend.alp` is a compatibility alias):
   canonical one-source bundle decoding, checked source storage, complete UTF-8
   validation, streaming lexing, and exact O0/O1 parsing/name/type/count checks,
   retaining 0–16 ordered `write_line` literals plus one final `exit_process`
@@ -160,7 +161,7 @@ directly: source input grows one checked cell at a time in an explicit byte
 backing, while offset handles carve its compiler tables from one reserved typed
 backing extent. Exhaustion is an explicit exit failure instead of silent tail
 truncation. The frozen D0 contract is recorded in
-[`../../omega0/compiler/BOOTSTRAP_PROFILES.md`](../../omega0/compiler/BOOTSTRAP_PROFILES.md).
+[`../../omega-bootstrap/compiler/BOOTSTRAP_PROFILES.md`](../../omega-bootstrap/compiler/BOOTSTRAP_PROFILES.md).
 `delta-storage-meaning.sh` runs the exact contract and a perturbation through
 the lower-rung `omega2gamma.beta` → `interp.beta` route without using the Rust
 Gamma emitter.

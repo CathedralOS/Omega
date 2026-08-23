@@ -125,25 +125,25 @@ step "predicate cross-check — FUZZ: random Mem/ProdIs/Perm proofs, all 3 check
 step "predicate soundness — FUZZ: random predicates, kernel vs operational decision" proof-kernel-gates predicate-soundness-fuzz.sh gamma
 step "delta — on-ramp compiles + RUNS its corpus"   delta-rs  test_aarch64.sh
 step "delta meaning — native exec vs gamma reference interpreter" delta-rs delta-meaning-diamond.sh gamma
-step "delta D0 storage meaning (RUST-FREE) — omega2gamma.beta -> interp.beta" delta-rs delta-storage-meaning.sh omega0 gamma
-step "omega0 Delta O1 frontend — variable straight-line console profile through lexer/parser/checker and Delta-written recompilation" delta-rs omega0-frontend-test.sh omega0 corpus
-step "omega0 Delta O1 frontend meaning (RUST-FREE) — retained operands + dual-channel output + semantic rejection through Gamma" delta-rs omega0-frontend-meaning.sh omega0 gamma corpus
-step "omega kernel cross-check (RUST-FREE) — native vs omega2gamma.beta->interp.beta" omega0-gates kernel-diamond.sh delta-rs gamma
+step "delta D0 storage meaning (RUST-FREE) — omega2gamma.beta -> interp.beta" delta-rs delta-storage-meaning.sh omega-bootstrap gamma
+step "omega-bootstrap Delta O1 frontend — variable straight-line console profile through lexer/parser/checker and Delta-written recompilation" delta-rs omega-bootstrap-frontend-test.sh omega-bootstrap corpus
+step "omega-bootstrap Delta O1 frontend meaning (RUST-FREE) — retained operands + dual-channel output + semantic rejection through Gamma" delta-rs omega-bootstrap-frontend-meaning.sh omega-bootstrap gamma corpus
+step "omega kernel cross-check (RUST-FREE) — native vs omega2gamma.beta->interp.beta" omega-bootstrap-gates kernel-diamond.sh delta-rs gamma
 step "convergence — Delta emits a proof; the proof kernel checks it" delta-rs convergence.sh proof-kernel
 step "convergence (self-hosted) — the self-hosted compiler's certifiers, checked by the proof kernel" delta-rs convergence-selfhost.sh proof-kernel
 step "convergence (reference route) — certifier RUN on interp.beta; cert checked by check.beta" delta-rs convergence-reference.sh proof-kernel gamma
-step "convergence (RUST-FREE) — omega2gamma.beta->interp.beta; cert checked by check.beta" omega0-gates convergence-reference.sh delta-rs proof-kernel gamma
-step "omega2gamma termination canary — translator halts on every sample, supported or refused (no silent scan-forever)" omega0-gates omega2gamma-termination.sh alpha-assembler beta corpus
-step "lowermachine meaning — real compiler executes through Gamma; exact state/tree/source ceilings fail closed" omega0-gates lowermachine-meaning.sh delta-rs gamma
-step "omega0 source bundle — canonical deterministic multi-file input" omega0-gates omega0-bundle-test.sh
-step "omega0 Delta O1 artifact — variable terminal-Psi to byte-identical x86-64 ELF" omega0-gates delta-terminal-to-elf.sh delta-rs omega-rust psi-rust/semantics/psi-terminal-codec
-step "omega0 Delta O1 self-host composite — lowermachine-built frontend/backend compose through terminal vocabulary 25 to exact ELF" omega0-gates delta-o1-selfhost-composite.sh delta-rs omega-rust psi-rust/semantics/psi-terminal-codec
-step "omega0 Delta O1 artifact meaning (RUST-FREE) — exact native vs omega2gamma.beta->interp.beta images" omega0-gates delta-terminal-to-elf-meaning.sh delta-rs gamma omega-rust psi-rust/semantics/psi-terminal-codec
-step "omega meaning — real Omega samples run Rust-free; exits match documented intent" omega0-gates omega-meaning.sh gamma corpus
-step "omega meaning-TV — the kernel re-computes each covered sample's arithmetic (proof, not comparison)" omega0-refinement meaning-tv.sh omega0-meaning gamma proof-kernel alpha-assembler beta corpus
-step "input-grid meaning TV — input-taking samples proven per documented input vector (substitution closes the program; the whole proof pipe applies per vector)" omega0-refinement input-tv.sh omega0-meaning gamma proof-kernel alpha-assembler beta corpus
-step "meaning-cert cross-check — meaning-TV certs replayed through check.beta AND check_ref.py" omega0-refinement meaning-cert-diamond.sh omega0-meaning proof-kernel alpha-assembler beta corpus
-step "translation validation — the proof kernel re-evaluates each compilation's result (+ - * < == / %, loops, gcd, cross-machine)" omega0-refinement translation-validation.sh omega0-meaning delta-rs proof-kernel gamma
+step "convergence (RUST-FREE) — omega2gamma.beta->interp.beta; cert checked by check.beta" omega-bootstrap-gates convergence-reference.sh delta-rs proof-kernel gamma
+step "omega2gamma termination canary — translator halts on every sample, supported or refused (no silent scan-forever)" omega-bootstrap-gates omega2gamma-termination.sh alpha-assembler beta corpus
+step "lowermachine meaning — real compiler executes through Gamma; exact state/tree/source ceilings fail closed" omega-bootstrap-gates lowermachine-meaning.sh delta-rs gamma
+step "omega-bootstrap source bundle — canonical deterministic multi-file input" omega-bootstrap-gates omega-bootstrap-bundle-test.sh
+step "omega-bootstrap Delta O1 artifact — variable terminal-Psi to byte-identical x86-64 ELF" omega-bootstrap-gates delta-terminal-to-elf.sh delta-rs omega-rust psi-rust/semantics/psi-terminal-codec
+step "omega-bootstrap Delta O1 self-host composite — lowermachine-built frontend/backend compose through terminal vocabulary 25 to exact ELF" omega-bootstrap-gates delta-o1-selfhost-composite.sh delta-rs omega-rust psi-rust/semantics/psi-terminal-codec
+step "omega-bootstrap Delta O1 artifact meaning (RUST-FREE) — exact native vs omega2gamma.beta->interp.beta images" omega-bootstrap-gates delta-terminal-to-elf-meaning.sh delta-rs gamma omega-rust psi-rust/semantics/psi-terminal-codec
+step "omega meaning — real Omega samples run Rust-free; exits match documented intent" omega-bootstrap-gates omega-meaning.sh gamma corpus
+step "omega meaning-TV — the kernel re-computes each covered sample's arithmetic (proof, not comparison)" omega-bootstrap-refinement meaning-tv.sh omega-bootstrap-meaning gamma proof-kernel alpha-assembler beta corpus
+step "input-grid meaning TV — input-taking samples proven per documented input vector (substitution closes the program; the whole proof pipe applies per vector)" omega-bootstrap-refinement input-tv.sh omega-bootstrap-meaning gamma proof-kernel alpha-assembler beta corpus
+step "meaning-cert cross-check — meaning-TV certs replayed through check.beta AND check_ref.py" omega-bootstrap-refinement meaning-cert-diamond.sh omega-bootstrap-meaning gamma proof-kernel alpha-assembler beta corpus
+step "translation validation — the proof kernel re-evaluates each compilation's result (+ - * < == / %, loops, gcd, cross-machine)" omega-bootstrap-refinement translation-validation.sh omega-bootstrap-meaning delta-rs proof-kernel gamma
 step "symbolic loops — beta_symbolic's data-dependent loop summaries (symbolic trip count -> closed form) pinned to the interpreter across an input grid" beta-refinement symbolic-loops.sh
 step "refinement — bc's machine code proved to compute its Beta source meaning (instruction-level TV: both meanings auto-derived, equivalence kernel-checked, never run)" beta-refinement refinement.sh alpha proof-kernel alpha-assembler beta
 step "refinement-cert cross-check — every refl cert replayed through check.beta AND check_ref.py" beta-refinement refinement-cert-diamond.sh alpha proof-kernel alpha-assembler beta

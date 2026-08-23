@@ -131,3 +131,49 @@ native slot declaration and exact callback-requirement path. The compiler
 resolves those names into opaque identities during layout evaluation. Do not
 put raw IDs or field offsets in source, infer the demand from the callback row,
 or expose a callback-address-shaped semantic field.
+
+## Q5 — What exact language contract constitutes Delta v1?
+
+Delta must be a stable, independent compiler-host language before it hosts
+`omega-bootstrap`; it is not an Omega subset. The frozen D0 profile proves that
+the current slices can use a bounded surface, but it deliberately does not
+settle Delta's language. The Rust reference currently accepts scalar spellings
+whose execution is still uniformly `i32`, target backends disagree on some
+arithmetic domains and division edges, boundary declarations are partly
+hardwired, and ordered source concatenation substitutes for a source-unit
+contract. Those are not a specification.
+
+Choose one versioned Delta-v1 contract. The ruling must jointly settle:
+
+- the source model: byte/Unicode policy, identifiers, comments and string
+  literals, canonical source extension, declaration visibility, and whether v1
+  has native modules or only one deterministic length-delimited source bundle;
+- the value and representation model: the exact fixed-width scalar set,
+  Boolean representation, arrays/slices, record and payload-sum layout,
+  zero-initialization, alignment, indexing, receiver/reference rules, integer
+  arena handles, aliasing, and the validity of handles across bulk reset;
+- expression and control meaning: evaluation order and precedence, exact
+  trapping/wrapping/saturating arithmetic including division and shift edges,
+  state transitions, loops, calls, recursion, fallthrough, entry, and which
+  call/stack ceilings are language-visible resource limits rather than backend
+  accidents;
+- the allocation and failure model: whether fixed-backing allocation is a
+  language primitive or a required library contract, its `reserve`/mark/reset
+  and exhaustion behavior, runtime traps versus checked failures, and the
+  observable effect of resource failure; and
+- the closed compiler-host boundary: exact byte input/output and process-exit
+  operations, host-I/O impossibility, declaration/signature validation, and
+  whether arithmetic domains, range refinements, contracts, mixed field-plus-
+  case data, or any other experimental corpus feature belongs to Delta v1.
+
+Recommended direction: freeze a deliberately small, versioned systems language
+around the already self-hosted core: `i32` plus `u8` storage, deterministic
+two's-complement arithmetic with explicit Trapping/Wrapping/Saturating domains,
+checked arrays and integer-offset arenas, predictable records and payload sums,
+state machines/loops/recursion, one canonical source-bundle format, and a closed
+byte-I/O/process boundary. Keep host pointers, ambient heap allocation,
+individual `free`, GC, threads, atomics, native modules, mixed field-plus-case
+data, and proof-only/refinement syntax outside v1 unless an identified
+compiler-host requirement outweighs their lower-rung assurance cost. Treat
+backend parameter counts and storage ceilings as checked implementation-profile
+limits unless the ruling intentionally makes them portable language limits.

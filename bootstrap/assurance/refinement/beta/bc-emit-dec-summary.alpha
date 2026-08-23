@@ -22,7 +22,7 @@
 emit_dec_summary_init:
         call emit_dec_require_shape
         call emit_dec_prove_summary
-        jmp scan_owned_effects_init
+        jmp fixed_decimal_emitters_summary_init
 
 emit_dec_prove_summary:
         imm r1, 528320

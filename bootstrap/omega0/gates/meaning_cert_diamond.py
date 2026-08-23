@@ -1,1 +1,0 @@
-../../assurance/refinement/omega0/meaning_cert_diamond.py

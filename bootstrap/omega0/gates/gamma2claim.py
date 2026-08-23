@@ -1,1 +1,0 @@
-../../assurance/refinement/omega0/gamma2claim.py

@@ -36,7 +36,7 @@ compiler's own machine code may initially be conservative.
 - `DELTA_EMIT=gamma` exposes the Rust reference elaborator. The
   `delta-meaning-diamond.sh` gate compares it with native execution; it is useful
   regression evidence, not the final authority.
-- `bootstrap/omega0/meaning/omega2gamma.beta` is the lower-rung, Rust-free elaborator for
+- `bootstrap/omega-bootstrap/meaning/omega2gamma.beta` is the lower-rung, Rust-free elaborator for
   the shared Delta/Omega machine surface. Gamma's `interp.beta` executes its
   result. Exact coverage of the Delta source eventually used by
   `omega-bootstrap` remains
@@ -49,17 +49,17 @@ compiler's own machine code may initially be conservative.
 - `bootstrap/onramps/delta-rust/delta-storage-meaning.sh` evaluates that canary and a
   perturbation through `omega2gamma.beta` and Gamma's `interp.beta`, without the
   Rust Gamma emitter defining the result.
-- `bootstrap/omega0/compiler/omega0-frontend.alp` is the first actual bridge
+- `bootstrap/omega-bootstrap/compiler/omega-bootstrap-frontend.alp` is the first actual bridge
   compiler slice written in Delta. It decodes a canonical single-source bundle,
   lexes and parses the O0/O1 shape, performs exact name/type/count checks, and
   retains a checked table of console-boundary operands. Its focused gate also
   recompiles it through Delta-written `lowermachine`; the lower-rung meaning gate
   executes the complete 40-machine frontend through `omega2gamma.beta` and
   Gamma. The old Delta-sample path is compatibility plumbing.
-- `bootstrap/omega0/compiler/BOOTSTRAP_PROFILES.md` freezes the current Delta D0
+- `bootstrap/omega-bootstrap/compiler/BOOTSTRAP_PROFILES.md` freezes the current Delta D0
   implementation profile and Omega O0/O1 vertical-canary input profiles; the
   production `Ωself` profile remains source-derived.
-- `bootstrap/omega0/compiler/omega0-terminal-to-elf.alp` is the first direct
+- `bootstrap/omega-bootstrap/compiler/omega-bootstrap-terminal-to-elf.alp` is the first direct
   artifact backend. It emits exact O0/O1 Linux x86-64 images without a host
   assembler or linker; general Omega lowering remains open.
 
@@ -103,8 +103,9 @@ explicit boundary surfaces and remain in the platform trust ledger.
 - Complete the Rust-free Delta implementation and keep its self-host fixed point.
 - Finish Delta's robust literal specification and the exact facilities required
   by `main.delta`; do not force subset compatibility with Omega.
-- Build `omega-bootstrap` with exact `Ωself` acceptance and the production
-  optimizer/lowering functionality.
+- Build `omega-bootstrap` with exact `Ωself` acceptance and enough conservative
+  lowering to compile the source that implements the production optimizer and
+  advanced lowering; do not duplicate those product passes in Delta.
 - Use it once to build and validate the full-spec production compiler from
   `Ωself`-constrained Omega source.
 - Continue widening the Delta-to-Gamma meaning route beyond the now-gated O1

@@ -40,9 +40,9 @@ bootstrap/
       gates/                soundness, cross-check, and operational-seam gates
     refinement/
       beta/                 Beta-source/Alpha-artifact reconstruction + gates
-      omega0/               transitional bridge reconstruction + TV gate path
+      omega-bootstrap/      bridge reconstruction + TV gate path
 
-  omega0/                   transitional path; target name: omega-bootstrap/
+  omega-bootstrap/          Delta-built bridge compiler owner
     meaning/                Rust-free Omega/Psi meaning route used by the bridge
     compiler/               Delta source, bootstrap profiles, and source-bundle format
     gates/                  current Delta→bridge and future hosted-build validation
@@ -71,10 +71,9 @@ product roots.
   proof kernel is not a compiler rung. Its trusted checker implementations,
   untrusted automation, corpora, and integration gates must be visibly
   separated.
-- `bootstrap/omega0/` is the transitional physical owner of work and artifacts
-  toward `omega-bootstrap` and the minimum Psi/Omega path it needs. The target
-  path is `bootstrap/omega-bootstrap/`; the existing path is retained only until
-  its gate and compatibility references can be renamed mechanically. The bridge
+- `bootstrap/omega-bootstrap/` is the physical owner of work and artifacts for
+  `omega-bootstrap` and the minimum Psi/Omega path it needs. Historical `omega0`
+  path-role aliases remain accepted only as compatibility plumbing. The bridge
   accepts `Ωself`, is not the production compiler, and is not another language
   rung.
 - `bootstrap/onramps/omega-rust/` owns the current working Rust compiler as an
@@ -137,8 +136,8 @@ and its remaining compatibility paths are:
 | current Rust Psi/Omega compiler and CLI | `bootstrap/onramps/omega-rust/` — complete |
 | `bootstrap/assurance/proof-kernel/` (compatibility: `compiler/proof-kernel`) | `bootstrap/assurance/proof-kernel/{implementations,tools,corpus,gates}/` — complete |
 | Beta-source/Alpha-artifact refinement tools (compatibility entries under Alpha) | `bootstrap/assurance/refinement/beta/` — complete |
-| bridge meaning/artifact TV encoders and gates (transitional `omega0` paths) | `bootstrap/assurance/refinement/omega0/` — ownership complete; rename open |
-| `bootstrap/omega0/` | target `bootstrap/omega-bootstrap/{meaning,compiler,gates}/`; mechanical rename open, compiler implementation open |
+| bridge meaning/artifact TV encoders and gates | `bootstrap/assurance/refinement/omega-bootstrap/` — complete |
+| historical `bootstrap/omega0/` owner name | `bootstrap/omega-bootstrap/{meaning,compiler,gates}/` — rename complete, compiler implementation open |
 | `bootstrap/corpus/` (compatibility: `compiler/lattice-corpus`) | `bootstrap/corpus/` — complete |
 | eventual Omega-written Psi/Omega compiler | `compiler/{psi,omega}/` — roots reserved; implementation open |
 

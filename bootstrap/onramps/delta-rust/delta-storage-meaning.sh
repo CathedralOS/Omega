@@ -36,7 +36,7 @@ build_beta() {
     && stamp_seed "$T/program.tape" "$SEED" "$2" >/dev/null 2>&1
 }
 
-build_beta "${OMEGA_PATH_OMEGA0}/meaning/omega2gamma.beta" "$T/elaborate.exe" \
+build_beta "${OMEGA_PATH_OMEGA_BOOTSTRAP}/meaning/omega2gamma.beta" "$T/elaborate.exe" \
   || { echo "delta storage meaning FAIL — omega2gamma build"; exit 1; }
 build_beta "${OMEGA_PATH_GAMMA}"/interp.beta "$T/interp.exe" \
   || { echo "delta storage meaning FAIL — Gamma interpreter build"; exit 1; }
@@ -101,10 +101,10 @@ printf 'OMG0BNDL\001\000\000\000\001\000\000\000\010\000\000\000\003\000\000\000
 cp "$T/bundle-ok" "$T/bundle-trailing"; printf x >> "$T/bundle-trailing"
 printf 'OMG0BNDL\001\000\000\000\001\000\000\000\101\000\000\000\000\000\000\000' > "$T/bundle-exhausted"
 printf 'OMG0BNDL\001\000\000\000\002\000\000\000\005\000\000\000\000\000\000\000z.omg\005\000\000\000\000\000\000\000a.omg' > "$T/bundle-order"
-run_meaning_input "canonical Omega0 bundle" "$SAMPLES/omega0-bundle-decode.alp" "$T/bundle-ok" 80
-run_meaning_input "Omega0 bundle exact EOF" "$SAMPLES/omega0-bundle-decode.alp" "$T/bundle-trailing" 251
-run_meaning_input "Omega0 bundle checked exhaustion" "$SAMPLES/omega0-bundle-decode.alp" "$T/bundle-exhausted" 252
-run_meaning_input "Omega0 bundle canonical order" "$SAMPLES/omega0-bundle-decode.alp" "$T/bundle-order" 251
+run_meaning_input "canonical Omega0 bundle" "$SAMPLES/omega-bootstrap-bundle-decode.alp" "$T/bundle-ok" 80
+run_meaning_input "Omega0 bundle exact EOF" "$SAMPLES/omega-bootstrap-bundle-decode.alp" "$T/bundle-trailing" 251
+run_meaning_input "Omega0 bundle checked exhaustion" "$SAMPLES/omega-bootstrap-bundle-decode.alp" "$T/bundle-exhausted" 252
+run_meaning_input "Omega0 bundle canonical order" "$SAMPLES/omega-bootstrap-bundle-decode.alp" "$T/bundle-order" 251
 
 echo "delta D0 storage meaning (omega2gamma.beta -> interp.beta): $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ]
