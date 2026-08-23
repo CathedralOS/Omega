@@ -182,8 +182,10 @@ are valuable teeth, but they do not yet establish the quantified observation:
   lookahead and cursor transfer, the bounded endpoint append, all seven success
   globals, both returns, empty output, caller restoration, and a decreasing
   `1048576-n` rank. It distinguishes complete inputs through 1 MiB from the
-  consumed-but-unstored 1,048,577th byte without yet composing return 0 through
-  `main` or assigning the typed SourceBytes exhaustion identity;
+  consumed-but-unstored 1,048,577th byte. The following root bridge establishes
+  its actual prelude/main entry relation, carries return 1 to `main.ready`, and
+  composes return 0 through `main` to canonical `Halt(253)` with empty output,
+  without yet assigning the typed SourceBytes exhaustion identity;
 - its BC11 grammar-composition pass further partitions every raw-store source
   address into 31 aligned fixed compiler globals, one exact source-buffer
   `base + n` spelling, and two exact local-name-table `base + s * 8` spellings;
