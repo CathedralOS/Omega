@@ -1,0 +1,1490 @@
+; Selective Beta-to-Alpha transfer for bc's three ranged store operands.
+;
+; Earlier phases already prove the exact source schemas, source intervals,
+; decoded artifact, local/raw-memory/primitive/push macros, and recursive
+; lowering order.  This phase rejoins the selected rows without a new witness,
+; pins their canonical PCs, and checks the simultaneous machine relation:
+;
+;   slurp.n       -> [fp-8] -> SRC+n at storeb pc 538
+;   declare.NLOC  -> [fp-8] -> NAMEOFF+s*8 / NAMELEN+s*8
+;   declare.s+1   -> machine NLOC
+;
+; It also computes a decoded-CFG fixed point for the two call-free procedures.
+; Relative to an aligned valid entry pair (r15=S,r14=F), both preserve the
+; caller pair, every selected local/temporary access is within S-32..S-8, and
+; every return has restored depth zero.  This is deliberately conditional on
+; the invocation satisfying aligned 524320<=S<=F<=1048576; declare additionally
+; assumes actual machine NLOC equals source NLOC in [0,1024]. Lifting the BCT9
+; root potential and NLOC relation to every call remains a whole-artifact
+; counter/saved-frame/reset obligation.
+;
+; Fresh state maps, indexed by tape PC:
+;   visited 10625024; depth 10887168; fp-kind 12984320; saved-fp 13246464.
+
+ranged_transfer_init:
+        call transfer_require_selected_rows
+        call transfer_require_selected_frame_profile
+        call transfer_check_selected_values
+        jmp transfer_slurp_frame_init
+
+; Require one checked table cell: base r20, row r21, expected r22.
+transfer_require_cell:
+        imm r1, 8
+        mul r21, r1
+        add r20, r21
+        load r2, r20
+        jeq r2, r22, transfer_require_cell_ok
+        jmp reject
+transfer_require_cell_ok:
+        ret
+
+; local row/block/kind/slot/pc in r20..r24.
+transfer_require_local:
+        mov r25, r20
+        mov r26, r21
+        mov r27, r22
+        mov r28, r23
+        mov r29, r24
+        imm r20, 7168000
+        mov r21, r25
+        mov r22, r26
+        call transfer_require_cell
+        imm r20, 7176192
+        mov r21, r25
+        mov r22, r27
+        call transfer_require_cell
+        imm r20, 7184384
+        mov r21, r25
+        mov r22, r28
+        call transfer_require_cell
+        imm r20, 7192576
+        mov r21, r25
+        mov r22, r29
+        call transfer_require_cell
+        ret
+
+; memory row/block/kind/width/pc in r20..r24.
+transfer_require_memory:
+        mov r25, r20
+        mov r26, r21
+        mov r27, r22
+        mov r28, r23
+        mov r29, r24
+        imm r20, 7602176
+        mov r21, r25
+        mov r22, r26
+        call transfer_require_cell
+        imm r20, 7610368
+        mov r21, r25
+        mov r22, r27
+        call transfer_require_cell
+        imm r20, 7618560
+        mov r21, r25
+        mov r22, r28
+        call transfer_require_cell
+        imm r20, 7626752
+        mov r21, r25
+        mov r22, r29
+        call transfer_require_cell
+        ret
+
+; primitive row/block/kind/value-or-opcode/pc in r20..r24.
+transfer_require_primitive:
+        mov r25, r20
+        mov r26, r21
+        mov r27, r22
+        mov r28, r23
+        mov r29, r24
+        imm r20, 8388608
+        mov r21, r25
+        mov r22, r26
+        call transfer_require_cell
+        imm r20, 8396800
+        mov r21, r25
+        mov r22, r27
+        call transfer_require_cell
+        imm r20, 8404992
+        mov r21, r25
+        mov r22, r28
+        call transfer_require_cell
+        imm r20, 8413184
+        mov r21, r25
+        mov r22, r29
+        call transfer_require_cell
+        ret
+
+; push row/block/kind/pc in r20..r23.
+transfer_require_push:
+        mov r25, r20
+        mov r26, r21
+        mov r27, r22
+        mov r28, r23
+        imm r20, 9437184
+        mov r21, r25
+        mov r22, r26
+        call transfer_require_cell
+        imm r20, 9445376
+        mov r21, r25
+        mov r22, r27
+        call transfer_require_cell
+        imm r20, 9453568
+        mov r21, r25
+        mov r22, r28
+        call transfer_require_cell
+        ret
+
+; The selected rows are exhaustive within the exact schemas already checked by
+; ranged_bounds.  Their canonical PCs make the semantic chain unambiguous;
+; existing macro validators independently pin every instruction byte.
+transfer_require_selected_rows:
+        ; slurp locals: n init/guard/address/update input/update output.
+        imm r20, 0
+        imm r21, 0
+        imm r22, 2
+        imm r23, 0
+        imm r24, 125
+        call transfer_require_local
+        imm r20, 3
+        imm r21, 2
+        imm r22, 1
+        imm r23, 0
+        imm r24, 297
+        call transfer_require_local
+        imm r20, 4
+        imm r21, 2
+        imm r22, 1
+        imm r23, 0
+        imm r24, 446
+        call transfer_require_local
+        imm r20, 7
+        imm r21, 2
+        imm r22, 1
+        imm r23, 0
+        imm r24, 541
+        call transfer_require_local
+        imm r20, 6
+        imm r21, 2
+        imm r22, 2
+        imm r23, 0
+        imm r24, 608
+        call transfer_require_local
+
+        ; declare snapshot, guard, two address uses, and NLOC increment input.
+        imm r20, 70
+        imm r21, 170
+        imm r22, 2
+        imm r23, 0
+        imm r24, 24190
+        call transfer_require_local
+        imm r20, 71
+        imm r21, 171
+        imm r22, 1
+        imm r23, 0
+        imm r24, 24209
+        call transfer_require_local
+        imm r20, 72
+        imm r21, 172
+        imm r22, 1
+        imm r23, 0
+        imm r24, 24443
+        call transfer_require_local
+        imm r20, 73
+        imm r21, 172
+        imm r22, 1
+        imm r23, 0
+        imm r24, 24606
+        call transfer_require_local
+        imm r20, 74
+        imm r21, 172
+        imm r22, 1
+        imm r23, 0
+        imm r24, 24769
+        call transfer_require_local
+
+        ; Three ranged stores plus the complete machine-NLOC roots/update.
+        imm r20, 0
+        imm r21, 2
+        imm r22, 2
+        imm r23, 1
+        imm r24, 538
+        call transfer_require_memory
+        imm r20, 3
+        imm r21, 4
+        imm r22, 2
+        imm r23, 8
+        imm r24, 858
+        call transfer_require_memory
+        imm r20, 37
+        imm r21, 170
+        imm r22, 1
+        imm r23, 8
+        imm r24, 24187
+        call transfer_require_memory
+        imm r20, 39
+        imm r21, 172
+        imm r22, 2
+        imm r23, 8
+        imm r24, 24577
+        call transfer_require_memory
+        imm r20, 41
+        imm r21, 172
+        imm r22, 2
+        imm r23, 8
+        imm r24, 24740
+        call transfer_require_memory
+        imm r20, 43
+        imm r21, 172
+        imm r22, 2
+        imm r23, 8
+        imm r24, 24852
+        call transfer_require_memory
+        imm r20, 83
+        imm r21, 338
+        imm r22, 2
+        imm r23, 8
+        imm r24, 49077
+        call transfer_require_memory
+
+        ; Guard/address/update primitives. Opcode values are Alpha opcodes.
+        imm r20, 0
+        imm r21, 0
+        imm r22, 1
+        imm r23, 0
+        imm r24, 115
+        call transfer_require_primitive
+        imm r20, 3
+        imm r21, 2
+        imm r22, 3
+        imm r23, 10
+        imm r24, 342
+        call transfer_require_primitive
+        imm r20, 4
+        imm r21, 2
+        imm r22, 1
+        imm r23, 1048576
+        imm r24, 332
+        call transfer_require_primitive
+        imm r20, 5
+        imm r21, 2
+        imm r22, 1
+        imm r23, 2097152
+        imm r24, 420
+        call transfer_require_primitive
+        imm r20, 6
+        imm r21, 2
+        imm r22, 2
+        imm r23, 3
+        imm r24, 465
+        call transfer_require_primitive
+        imm r20, 7
+        imm r21, 2
+        imm r22, 2
+        imm r23, 3
+        imm r24, 586
+        call transfer_require_primitive
+        imm r20, 8
+        imm r21, 2
+        imm r22, 1
+        imm r23, 1
+        imm r24, 576
+        call transfer_require_primitive
+        imm r20, 13
+        imm r21, 4
+        imm r22, 1
+        imm r23, 2097128
+        imm r24, 806
+        call transfer_require_primitive
+        imm r20, 14
+        imm r21, 4
+        imm r22, 1
+        imm r23, 0
+        imm r24, 832
+        call transfer_require_primitive
+
+        imm r20, 432
+        imm r21, 170
+        imm r22, 1
+        imm r23, 2097128
+        imm r24, 24177
+        call transfer_require_primitive
+        imm r20, 433
+        imm r21, 171
+        imm r22, 3
+        imm r23, 8
+        imm r24, 24254
+        call transfer_require_primitive
+        imm r20, 434
+        imm r21, 171
+        imm r22, 1
+        imm r23, 1024
+        imm r24, 24244
+        call transfer_require_primitive
+        imm r20, 438
+        imm r21, 172
+        imm r22, 1
+        imm r23, 3145728
+        imm r24, 24417
+        call transfer_require_primitive
+        imm r20, 439
+        imm r21, 172
+        imm r22, 2
+        imm r23, 3
+        imm r24, 24510
+        call transfer_require_primitive
+        imm r20, 440
+        imm r21, 172
+        imm r22, 2
+        imm r23, 5
+        imm r24, 24488
+        call transfer_require_primitive
+        imm r20, 441
+        imm r21, 172
+        imm r22, 1
+        imm r23, 8
+        imm r24, 24478
+        call transfer_require_primitive
+        imm r20, 443
+        imm r21, 172
+        imm r22, 1
+        imm r23, 3153920
+        imm r24, 24580
+        call transfer_require_primitive
+        imm r20, 444
+        imm r21, 172
+        imm r22, 2
+        imm r23, 3
+        imm r24, 24673
+        call transfer_require_primitive
+        imm r20, 445
+        imm r21, 172
+        imm r22, 2
+        imm r23, 5
+        imm r24, 24651
+        call transfer_require_primitive
+        imm r20, 446
+        imm r21, 172
+        imm r22, 1
+        imm r23, 8
+        imm r24, 24641
+        call transfer_require_primitive
+        imm r20, 448
+        imm r21, 172
+        imm r22, 1
+        imm r23, 2097128
+        imm r24, 24743
+        call transfer_require_primitive
+        imm r20, 449
+        imm r21, 172
+        imm r22, 2
+        imm r23, 3
+        imm r24, 24814
+        call transfer_require_primitive
+        imm r20, 450
+        imm r21, 172
+        imm r22, 1
+        imm r23, 1
+        imm r24, 24804
+        call transfer_require_primitive
+        imm r20, 772
+        imm r21, 338
+        imm r22, 1
+        imm r23, 2097128
+        imm r24, 49025
+        call transfer_require_primitive
+        imm r20, 773
+        imm r21, 338
+        imm r22, 1
+        imm r23, 0
+        imm r24, 49051
+        call transfer_require_primitive
+
+        ; Address, arithmetic-left, and store-address staging roots.
+        imm r20, 1
+        imm r21, 2
+        imm r22, 1
+        imm r23, 316
+        call transfer_require_push
+        imm r20, 2
+        imm r21, 2
+        imm r22, 1
+        imm r23, 430
+        call transfer_require_push
+        imm r20, 3
+        imm r21, 2
+        imm r22, 1
+        imm r23, 560
+        call transfer_require_push
+        imm r20, 369
+        imm r21, 2
+        imm r22, 3
+        imm r23, 487
+        call transfer_require_push
+        imm r20, 372
+        imm r21, 4
+        imm r22, 3
+        imm r23, 816
+        call transfer_require_push
+        imm r20, 112
+        imm r21, 171
+        imm r22, 1
+        imm r23, 24228
+        call transfer_require_push
+        imm r20, 113
+        imm r21, 172
+        imm r22, 1
+        imm r23, 24427
+        call transfer_require_push
+        imm r20, 114
+        imm r21, 172
+        imm r22, 1
+        imm r23, 24462
+        call transfer_require_push
+        imm r20, 115
+        imm r21, 172
+        imm r22, 1
+        imm r23, 24590
+        call transfer_require_push
+        imm r20, 116
+        imm r21, 172
+        imm r22, 1
+        imm r23, 24625
+        call transfer_require_push
+        imm r20, 117
+        imm r21, 172
+        imm r22, 1
+        imm r23, 24788
+        call transfer_require_push
+        imm r20, 383
+        imm r21, 172
+        imm r22, 3
+        imm r23, 24532
+        call transfer_require_push
+        imm r20, 384
+        imm r21, 172
+        imm r22, 3
+        imm r23, 24695
+        call transfer_require_push
+        imm r20, 385
+        imm r21, 172
+        imm r22, 3
+        imm r23, 24753
+        call transfer_require_push
+        imm r20, 398
+        imm r21, 338
+        imm r22, 3
+        imm r23, 49035
+        call transfer_require_push
+        ret
+
+; Tie the table join to the exact two frame layouts, measured temporary peaks,
+; and address classes consumed by the source interval phase.
+transfer_require_selected_frame_profile:
+        imm r20, 7159808
+        imm r21, 0
+        imm r22, 2
+        call transfer_require_cell
+        imm r20, 10043392
+        imm r21, 0
+        imm r22, 1
+        call transfer_require_cell
+        imm r20, 7159808
+        imm r21, 34
+        imm r22, 1
+        call transfer_require_cell
+        imm r20, 10043392
+        imm r21, 34
+        imm r22, 2
+        call transfer_require_cell
+        imm r20, 10616832
+        imm r21, 0
+        imm r22, 2
+        call transfer_require_cell
+        imm r20, 10616832
+        imm r21, 39
+        imm r22, 3
+        call transfer_require_cell
+        imm r20, 10616832
+        imm r21, 41
+        imm r22, 4
+        call transfer_require_cell
+        imm r20, 10618880
+        imm r21, 3
+        imm r22, 2097128
+        call transfer_require_cell
+        imm r20, 10618880
+        imm r21, 43
+        imm r22, 2097128
+        call transfer_require_cell
+        imm r20, 10618880
+        imm r21, 83
+        imm r22, 2097128
+        call transfer_require_cell
+        imm r20, 2
+        imm r21, 0
+        imm r22, 1048576
+        call transfer_require_interval
+        imm r20, 7
+        imm r21, 0
+        imm r22, 1023
+        call transfer_require_interval
+        ret
+
+; Require source interval row r20 to equal [r21,r22].
+transfer_require_interval:
+        imm r1, 16
+        mul r20, r1
+        imm r1, 10620928
+        add r1, r20
+        load r2, r1
+        jeq r2, r21, transfer_interval_hi
+        jmp reject
+transfer_interval_hi:
+        imm r2, 8
+        add r1, r2
+        load r2, r1
+        jeq r2, r22, transfer_interval_ok
+        jmp reject
+transfer_interval_ok:
+        ret
+
+; Executable selected-value domain. Current tag/[lo,hi] live at 525248..525264;
+; a two-cell abstract value stack lives at 13508608/13508640/13508672.
+;
+; Tags: 1 constant, 2 n, 3 s, 4 s*8, 5 SRC+n, 6 NAMEOFF+s*8,
+; 7 NAMELEN+s*8, 8 n+1, 9 s+1, 10 opaque payload, 11 machine NLOC.
+transfer_check_selected_values:
+        imm r0, 0
+        imm r1, 525240
+        store r1, r0
+
+        ; slurp false guard path: source row 2 [0,cap] is refined by the exact
+        ; n==cap comparison to [0,cap-1]. Evaluate base+n and stage its address.
+        imm r20, 1
+        imm r21, 2097152
+        imm r22, 2097152
+        call transfer_value_set
+        call transfer_value_push
+        imm r20, 2
+        imm r21, 0
+        imm r22, 1048575
+        call transfer_value_set
+        call transfer_value_add
+        call transfer_value_push
+        imm r20, 10
+        imm r21, 0
+        imm r22, 0
+        call transfer_value_set
+        imm r20, 5
+        imm r21, 2097152
+        imm r22, 3145727
+        call transfer_value_require_popped_address
+
+        ; The exact n+1/local-store chain closes the checked loop invariant.
+        imm r20, 2
+        imm r21, 0
+        imm r22, 1048575
+        call transfer_value_set
+        call transfer_value_push
+        imm r20, 1
+        imm r21, 1
+        imm r22, 1
+        call transfer_value_set
+        call transfer_value_add
+        imm r20, 8
+        imm r21, 1
+        imm r22, 1048576
+        call transfer_value_require
+
+        ; Conditional declare-entry relation: the selected raw load reads the
+        ; actual machine NLOC corresponding to source NLOC in [0,1024], and the
+        ; exact local store snapshots it as s. The signed guard refines the
+        ; write path to nonnegative [0,1023].
+        imm r20, 11
+        imm r21, 0
+        imm r22, 1024
+        call transfer_value_set
+        imm r20, 11
+        imm r21, 0
+        imm r22, 1024
+        call transfer_value_require
+        call transfer_value_snapshot_s
+
+        ; NAMEOFF+s*8.
+        imm r20, 1
+        imm r21, 3145728
+        imm r22, 3145728
+        call transfer_value_set
+        call transfer_value_push
+        call transfer_value_load_guarded_s
+        call transfer_value_push
+        imm r20, 1
+        imm r21, 8
+        imm r22, 8
+        call transfer_value_set
+        call transfer_value_mul
+        call transfer_value_add
+        call transfer_value_push
+        imm r20, 10
+        imm r21, 0
+        imm r22, 0
+        call transfer_value_set
+        imm r20, 6
+        imm r21, 3145728
+        imm r22, 3153912
+        call transfer_value_require_popped_address
+
+        ; NAMELEN+s*8.
+        imm r20, 1
+        imm r21, 3153920
+        imm r22, 3153920
+        call transfer_value_set
+        call transfer_value_push
+        call transfer_value_load_guarded_s
+        call transfer_value_push
+        imm r20, 1
+        imm r21, 8
+        imm r22, 8
+        call transfer_value_set
+        call transfer_value_mul
+        call transfer_value_add
+        call transfer_value_push
+        imm r20, 10
+        imm r21, 0
+        imm r22, 0
+        call transfer_value_set
+        imm r20, 7
+        imm r21, 3153920
+        imm r22, 3162104
+        call transfer_value_require_popped_address
+
+        ; s+1 is the exact value written back to fixed machine NLOC.
+        call transfer_value_load_guarded_s
+        call transfer_value_push
+        imm r20, 1
+        imm r21, 1
+        imm r22, 1
+        call transfer_value_set
+        call transfer_value_add
+        imm r20, 9
+        imm r21, 1
+        imm r22, 1024
+        call transfer_value_require
+
+        ; Both exact zero/root chains establish machine NLOC=0 when reached.
+        imm r20, 1
+        imm r21, 0
+        imm r22, 0
+        call transfer_value_set
+        imm r20, 1
+        imm r21, 0
+        imm r22, 0
+        call transfer_value_require
+        imm r1, 525240
+        load r2, r1
+        imm r3, 0
+        jeq r2, r3, transfer_values_done
+        jmp reject
+transfer_values_done:
+        ret
+
+; Exact declare entry raw-load/local-store snapshots machine NLOC as local s.
+transfer_value_snapshot_s:
+        imm r20, 11
+        imm r21, 0
+        imm r22, 1024
+        call transfer_value_require
+        imm r1, 525272
+        imm r2, 3
+        store r1, r2
+        imm r1, 525280
+        imm r2, 0
+        store r1, r2
+        imm r1, 525288
+        imm r2, 1024
+        store r1, r2
+        ret
+
+; Exact signed s<1024 true edge, with the source phase already proving s>=0.
+transfer_value_load_guarded_s:
+        imm r1, 525272
+        load r2, r1
+        imm r3, 3
+        jeq r2, r3, transfer_value_guarded_s_lo
+        jmp reject
+transfer_value_guarded_s_lo:
+        imm r1, 525280
+        load r2, r1
+        imm r3, 0
+        jeq r2, r3, transfer_value_guarded_s_hi
+        jmp reject
+transfer_value_guarded_s_hi:
+        imm r1, 525288
+        load r2, r1
+        imm r3, 1024
+        jeq r2, r3, transfer_value_guarded_s_set
+        jmp reject
+transfer_value_guarded_s_set:
+        imm r20, 3
+        imm r21, 0
+        imm r22, 1023
+        call transfer_value_set
+        ret
+
+transfer_value_set:
+        imm r1, 525248
+        store r1, r20
+        imm r1, 525256
+        store r1, r21
+        imm r1, 525264
+        store r1, r22
+        ret
+
+transfer_value_push:
+        imm r1, 525240
+        load r2, r1
+        imm r3, 2
+        jlt r2, r3, transfer_value_push_room
+        jmp reject
+transfer_value_push_room:
+        mov r12, r2
+        imm r3, 8
+        mul r12, r3
+        imm r1, 525248
+        load r4, r1
+        imm r1, 13508608
+        add r1, r12
+        store r1, r4
+        imm r1, 525256
+        load r4, r1
+        imm r1, 13508640
+        add r1, r12
+        store r1, r4
+        imm r1, 525264
+        load r4, r1
+        imm r1, 13508672
+        add r1, r12
+        store r1, r4
+        imm r3, 1
+        add r2, r3
+        imm r1, 525240
+        store r1, r2
+        ret
+
+; Pop left abstract value into r23/r24/r25.
+transfer_value_pop:
+        imm r1, 525240
+        load r2, r1
+        imm r3, 0
+        jeq r2, r3, reject
+        imm r3, 1
+        sub r2, r3
+        store r1, r2
+        mov r12, r2
+        imm r3, 8
+        mul r12, r3
+        imm r1, 13508608
+        add r1, r12
+        load r23, r1
+        imm r1, 13508640
+        add r1, r12
+        load r24, r1
+        imm r1, 13508672
+        add r1, r12
+        load r25, r1
+        ret
+
+; Selected addition rules, deriving both tag and exact unsigned interval.
+transfer_value_add:
+        imm r1, 525248
+        load r26, r1                   ; right tag
+        imm r1, 525256
+        load r27, r1                   ; right lo
+        imm r1, 525264
+        load r28, r1                   ; right hi
+        call transfer_value_pop
+        imm r1, 1
+        jeq r23, r1, transfer_value_add_const_left
+        imm r1, 2
+        jeq r23, r1, transfer_value_add_n
+        imm r1, 3
+        jeq r23, r1, transfer_value_add_s
+        jmp reject
+transfer_value_add_const_left:
+        imm r1, 2
+        jeq r26, r1, transfer_value_add_src
+        imm r1, 4
+        jeq r26, r1, transfer_value_add_name
+        jmp reject
+transfer_value_add_src:
+        imm r1, 2097152
+        jeq r24, r1, transfer_value_add_src_hi
+        jmp reject
+transfer_value_add_src_hi:
+        jeq r25, r1, transfer_value_add_src_now
+        jmp reject
+transfer_value_add_src_now:
+        imm r20, 5
+        add r24, r27
+        add r25, r28
+        mov r21, r24
+        mov r22, r25
+        call transfer_value_set
+        ret
+transfer_value_add_name:
+        imm r1, 3145728
+        jeq r24, r1, transfer_value_add_nameoff_hi
+        imm r1, 3153920
+        jeq r24, r1, transfer_value_add_namelen_hi
+        jmp reject
+transfer_value_add_nameoff_hi:
+        jeq r25, r1, transfer_value_add_nameoff_now
+        jmp reject
+transfer_value_add_nameoff_now:
+        imm r20, 6
+        add r24, r27
+        add r25, r28
+        mov r21, r24
+        mov r22, r25
+        call transfer_value_set
+        ret
+transfer_value_add_namelen_hi:
+        jeq r25, r1, transfer_value_add_namelen_now
+        jmp reject
+transfer_value_add_namelen_now:
+        imm r20, 7
+        add r24, r27
+        add r25, r28
+        mov r21, r24
+        mov r22, r25
+        call transfer_value_set
+        ret
+transfer_value_add_n:
+        imm r1, 1
+        jeq r26, r1, transfer_value_add_n_const
+        jmp reject
+transfer_value_add_n_const:
+        imm r1, 1
+        jeq r27, r1, transfer_value_add_n_const_hi
+        jmp reject
+transfer_value_add_n_const_hi:
+        jeq r28, r1, transfer_value_add_n_now
+        jmp reject
+transfer_value_add_n_now:
+        imm r20, 8
+        add r24, r27
+        add r25, r28
+        mov r21, r24
+        mov r22, r25
+        call transfer_value_set
+        ret
+transfer_value_add_s:
+        imm r1, 1
+        jeq r26, r1, transfer_value_add_s_const
+        jmp reject
+transfer_value_add_s_const:
+        imm r1, 1
+        jeq r27, r1, transfer_value_add_s_const_hi
+        jmp reject
+transfer_value_add_s_const_hi:
+        jeq r28, r1, transfer_value_add_s_now
+        jmp reject
+transfer_value_add_s_now:
+        imm r20, 9
+        add r24, r27
+        add r25, r28
+        mov r21, r24
+        mov r22, r25
+        call transfer_value_set
+        ret
+
+; Only selected multiplication rule is s * 8.
+transfer_value_mul:
+        imm r1, 525248
+        load r26, r1
+        imm r1, 525256
+        load r27, r1
+        imm r1, 525264
+        load r28, r1
+        call transfer_value_pop
+        imm r1, 3
+        jeq r23, r1, transfer_value_mul_right
+        jmp reject
+transfer_value_mul_right:
+        imm r1, 1
+        jeq r26, r1, transfer_value_mul_eight
+        jmp reject
+transfer_value_mul_eight:
+        imm r1, 8
+        jeq r27, r1, transfer_value_mul_eight_hi
+        jmp reject
+transfer_value_mul_eight_hi:
+        jeq r28, r1, transfer_value_mul_now
+        jmp reject
+transfer_value_mul_now:
+        imm r20, 4
+        mul r24, r27
+        mul r25, r28
+        mov r21, r24
+        mov r22, r25
+        call transfer_value_set
+        ret
+
+transfer_value_require_popped_address:
+        mov r26, r20
+        mov r27, r21
+        mov r28, r22
+        call transfer_value_pop
+        jeq r23, r26, transfer_value_popped_lo
+        jmp reject
+transfer_value_popped_lo:
+        jeq r24, r27, transfer_value_popped_hi
+        jmp reject
+transfer_value_popped_hi:
+        jeq r25, r28, transfer_value_popped_ok
+        jmp reject
+transfer_value_popped_ok:
+        ret
+
+transfer_value_require:
+        imm r1, 525248
+        load r2, r1
+        jeq r2, r20, transfer_value_require_lo
+        jmp reject
+transfer_value_require_lo:
+        imm r1, 525256
+        load r2, r1
+        jeq r2, r21, transfer_value_require_hi
+        jmp reject
+transfer_value_require_hi:
+        imm r1, 525264
+        load r2, r1
+        jeq r2, r22, transfer_value_require_ok
+        jmp reject
+transfer_value_require_ok:
+        ret
+
+; Analyze slurp [83,1131), then require both explicit returns and selected
+; local/store states before moving to declare.
+transfer_slurp_frame_init:
+        imm r20, 83
+        imm r21, 1131
+        call transfer_frame_region
+        imm r20, 686
+        call transfer_require_visited
+        imm r20, 1110
+        call transfer_require_visited
+        imm r20, 538
+        imm r21, 24
+        call transfer_require_depth
+        imm r20, 446
+        imm r21, 32
+        call transfer_require_depth
+        imm r20, 608
+        imm r21, 24
+        call transfer_require_depth
+        jmp transfer_declare_frame_init
+
+transfer_declare_frame_init:
+        imm r20, 24145
+        imm r21, 24914
+        call transfer_frame_region
+        imm r20, 24416
+        call transfer_require_visited
+        imm r20, 24893
+        call transfer_require_visited
+        imm r20, 24577
+        imm r21, 16
+        call transfer_require_depth
+        imm r20, 24740
+        imm r21, 16
+        call transfer_require_depth
+        imm r20, 24852
+        imm r21, 16
+        call transfer_require_depth
+        jmp scan_owned_effects_init
+
+transfer_require_visited:
+        imm r1, 10625024
+        add r1, r20
+        loadb r2, r1
+        imm r3, 1
+        jeq r2, r3, transfer_require_visited_ok
+        jmp reject
+transfer_require_visited_ok:
+        ret
+
+transfer_require_depth:
+        mov r22, r20
+        call transfer_require_visited
+        imm r1, 8
+        mul r22, r1
+        imm r1, 10887168
+        add r1, r22
+        load r2, r1
+        jeq r2, r21, transfer_require_depth_ok
+        jmp reject
+transfer_require_depth_ok:
+        ret
+
+; Region r20..r21 is checked under symbolic entry r15=S/r14=F.
+transfer_frame_region:
+        imm r1, 525216
+        store r1, r20
+        imm r1, 525224
+        store r1, r21
+        imm r21, 0                     ; depth S-r15
+        imm r22, 0                     ; fp kind: caller F
+        imm r23, 0                     ; saved caller fp not installed
+        call transfer_state_add
+transfer_frame_fixedpoint:
+        imm r0, 0
+        imm r1, 525232
+        store r1, r0
+        imm r1, 525216
+        load r10, r1
+transfer_frame_scan:
+        imm r1, 525224
+        load r2, r1
+        jlt r10, r2, transfer_frame_scan_pc
+        imm r1, 525232
+        load r2, r1
+        imm r3, 1
+        jeq r2, r3, transfer_frame_fixedpoint
+        ret
+transfer_frame_scan_pc:
+        imm r1, 10625024
+        add r1, r10
+        loadb r2, r1
+        imm r3, 1
+        jeq r2, r3, transfer_frame_interpret
+transfer_frame_scan_next:
+        imm r1, 1
+        add r10, r1
+        jmp transfer_frame_scan
+
+transfer_frame_interpret:
+        mov r27, r10                    ; current pc
+        imm r1, 8
+        mul r10, r1
+        imm r1, 10887168
+        add r1, r10
+        load r24, r1                    ; depth
+        mov r10, r27
+        imm r1, 12984320
+        add r1, r10
+        loadb r25, r1                   ; fp kind
+        imm r1, 13246464
+        add r1, r10
+        loadb r26, r1                   ; saved-fp fact
+        imm r1, 2097152
+        add r1, r10
+        loadb r28, r1                   ; opcode
+        imm r1, 21
+        jlt r28, r1, transfer_frame_opcode
+        jmp reject
+
+transfer_frame_opcode:
+        imm r1, 0
+        jeq r28, r1, reject
+        imm r1, 1
+        jeq r28, r1, transfer_frame_imm
+        imm r1, 2
+        jeq r28, r1, transfer_frame_mov
+        imm r1, 3
+        jeq r28, r1, transfer_frame_add
+        imm r1, 4
+        jeq r28, r1, transfer_frame_sub
+        imm r1, 8
+        jlt r28, r1, transfer_frame_rr_write
+        imm r1, 8
+        jeq r28, r1, transfer_frame_loadb
+        imm r1, 9
+        jeq r28, r1, transfer_frame_storeb
+        imm r1, 10
+        jeq r28, r1, transfer_frame_load
+        imm r1, 11
+        jeq r28, r1, transfer_frame_store
+        imm r1, 12
+        jeq r28, r1, transfer_frame_jmp
+        imm r1, 15
+        jlt r28, r1, transfer_frame_cond10
+        imm r1, 17
+        jlt r28, r1, transfer_frame_cond11
+        imm r1, 17
+        jeq r28, r1, transfer_frame_read
+        imm r1, 18
+        jeq r28, r1, transfer_frame_next2
+        imm r1, 19
+        jeq r28, r1, reject             ; selected procedures are call-free
+        jmp transfer_frame_ret
+
+; Reject any unrecognized write to r14/r15.
+transfer_frame_imm:
+        call transfer_load_dest
+        imm r1, 14
+        jeq r0, r1, reject
+        imm r1, 15
+        jeq r0, r1, reject
+        jmp transfer_frame_next10
+transfer_frame_read:
+        call transfer_load_dest
+        imm r1, 14
+        jeq r0, r1, reject
+        imm r1, 15
+        jeq r0, r1, reject
+        jmp transfer_frame_next2
+transfer_frame_rr_write:
+        call transfer_load_dest
+        imm r1, 14
+        jeq r0, r1, reject
+        imm r1, 15
+        jeq r0, r1, reject
+        jmp transfer_frame_next3
+transfer_frame_loadb:
+        call transfer_load_operands
+        imm r1, 14
+        jeq r0, r1, reject
+        imm r1, 15
+        jeq r0, r1, reject
+        imm r1, 15
+        jeq r2, r1, transfer_frame_stack_access
+        jmp transfer_frame_next3
+
+transfer_frame_mov:
+        call transfer_load_operands
+        imm r1, 14
+        jeq r0, r1, transfer_frame_set_fp
+        imm r1, 15
+        jeq r0, r1, transfer_frame_set_sp_from_fp
+        jmp transfer_frame_next3
+transfer_frame_set_fp:
+        imm r1, 15
+        jeq r2, r1, transfer_frame_set_fp_depth
+        jmp reject
+transfer_frame_set_fp_depth:
+        imm r1, 8
+        jeq r24, r1, transfer_frame_set_fp_now
+        jmp reject
+transfer_frame_set_fp_now:
+        imm r25, 1
+        jmp transfer_frame_next3
+transfer_frame_set_sp_from_fp:
+        imm r1, 14
+        jeq r2, r1, transfer_frame_set_sp_from_fp_kind
+        jmp reject
+transfer_frame_set_sp_from_fp_kind:
+        imm r1, 1
+        jeq r25, r1, transfer_frame_set_sp_from_fp_now
+        jmp reject
+transfer_frame_set_sp_from_fp_now:
+        imm r24, 8
+        jmp transfer_frame_next3
+
+transfer_frame_add:
+        call transfer_load_operands
+        imm r1, 14
+        jeq r0, r1, reject
+        imm r1, 15
+        jeq r0, r1, transfer_frame_pop
+        jmp transfer_frame_next3
+transfer_frame_pop:
+        mov r20, r27
+        mov r21, r2
+        call transfer_require_setup
+        mov r3, r0
+        jlt r24, r3, reject
+        sub r24, r3
+        jmp transfer_frame_next3
+
+transfer_frame_sub:
+        call transfer_load_operands
+        imm r1, 14
+        jeq r0, r1, reject
+        imm r1, 15
+        jeq r0, r1, transfer_frame_push
+        jmp transfer_frame_next3
+transfer_frame_push:
+        mov r20, r27
+        mov r21, r2
+        call transfer_require_setup
+        add r24, r0
+        imm r1, 33
+        jlt r24, r1, transfer_frame_next3
+        jmp reject
+
+transfer_frame_load:
+        call transfer_load_operands
+        imm r1, 14
+        jeq r0, r1, transfer_frame_restore_fp
+        imm r1, 15
+        jeq r0, r1, reject
+        imm r1, 15
+        jeq r2, r1, transfer_frame_stack_access
+        jmp transfer_frame_next3
+transfer_frame_restore_fp:
+        imm r1, 15
+        jeq r2, r1, transfer_frame_restore_fp_depth
+        jmp reject
+transfer_frame_restore_fp_depth:
+        imm r1, 8
+        jeq r24, r1, transfer_frame_restore_fp_saved
+        jmp reject
+transfer_frame_restore_fp_saved:
+        imm r1, 1
+        jeq r26, r1, transfer_frame_restore_fp_now
+        jmp reject
+transfer_frame_restore_fp_now:
+        imm r25, 0
+        jmp transfer_frame_next3
+
+transfer_frame_storeb:
+        call transfer_load_operands
+        imm r1, 15
+        jeq r0, r1, transfer_frame_stack_access
+        jmp transfer_frame_next3
+transfer_frame_store:
+        call transfer_load_operands
+        imm r1, 15
+        jeq r0, r1, transfer_frame_store_stack
+        jmp transfer_frame_next3
+transfer_frame_store_stack:
+        imm r1, 14
+        jeq r2, r1, transfer_frame_save_fp
+        imm r1, 16
+        jlt r24, r1, reject
+        jmp transfer_frame_next3
+transfer_frame_save_fp:
+        imm r1, 8
+        jeq r24, r1, transfer_frame_save_fp_kind
+        jmp reject
+transfer_frame_save_fp_kind:
+        imm r1, 0
+        jeq r25, r1, transfer_frame_save_fp_now
+        jmp reject
+transfer_frame_save_fp_now:
+        imm r26, 1
+        jmp transfer_frame_next3
+transfer_frame_stack_access:
+        imm r1, 8
+        jlt r24, r1, reject
+        jmp transfer_frame_next3
+
+transfer_frame_jmp:
+        mov r20, r27
+        imm r1, 1
+        add r20, r1
+        call transfer_load_tape_word
+        mov r20, r0
+        call transfer_reject_effect_branch_target
+        mov r20, r0
+        call transfer_propagate_current
+        jmp transfer_frame_scan_next
+transfer_frame_cond10:
+        mov r20, r27
+        imm r1, 2
+        add r20, r1
+        call transfer_load_tape_word
+        mov r20, r0
+        call transfer_reject_effect_branch_target
+        mov r20, r0
+        call transfer_propagate_current
+        mov r20, r27
+        imm r1, 10
+        add r20, r1
+        call transfer_propagate_current
+        jmp transfer_frame_scan_next
+transfer_frame_cond11:
+        mov r20, r27
+        imm r1, 3
+        add r20, r1
+        call transfer_load_tape_word
+        mov r20, r0
+        call transfer_reject_effect_branch_target
+        mov r20, r0
+        call transfer_propagate_current
+        mov r20, r27
+        imm r1, 11
+        add r20, r1
+        call transfer_propagate_current
+        jmp transfer_frame_scan_next
+
+transfer_frame_ret:
+        imm r1, 0
+        jeq r24, r1, transfer_frame_ret_fp
+        jmp reject
+transfer_frame_ret_fp:
+        jeq r25, r1, transfer_frame_ret_saved
+        jmp reject
+transfer_frame_ret_saved:
+        imm r1, 1
+        jeq r26, r1, transfer_frame_scan_next
+        jmp reject
+
+transfer_frame_next2:
+        imm r1, 2
+        jmp transfer_frame_fallthrough
+transfer_frame_next3:
+        imm r1, 3
+        jmp transfer_frame_fallthrough
+transfer_frame_next10:
+        imm r1, 10
+transfer_frame_fallthrough:
+        mov r20, r27
+        add r20, r1
+        call transfer_propagate_current
+        jmp transfer_frame_scan_next
+
+; Read destination/source register bytes for current pc r27.
+transfer_load_dest:
+        imm r1, 2097153
+        add r1, r27
+        loadb r0, r1
+        ret
+transfer_load_operands:
+        call transfer_load_dest
+        imm r1, 2097154
+        add r1, r27
+        loadb r2, r1
+        ret
+
+; Require immediately preceding `imm r21,k`, returning positive aligned k.
+transfer_require_setup:
+        imm r1, 10
+        jlt r20, r1, reject
+        sub r20, r1
+        imm r1, 2097152
+        add r1, r20
+        loadb r2, r1
+        imm r3, 1
+        jeq r2, r3, transfer_setup_register
+        jmp reject
+transfer_setup_register:
+        imm r2, 1
+        add r1, r2
+        loadb r3, r1
+        jeq r3, r21, transfer_setup_value
+        jmp reject
+transfer_setup_value:
+        add r1, r2
+        load r0, r1
+        imm r1, 0
+        jlt r1, r0, transfer_setup_aligned
+        jmp reject
+transfer_setup_aligned:
+        mov r2, r0
+        imm r1, 8
+        mod r2, r1
+        imm r1, 0
+        jeq r2, r1, transfer_setup_ok
+        jmp reject
+transfer_setup_ok:
+        ret
+
+transfer_load_tape_word:
+        imm r1, 2097152
+        add r1, r20
+        load r0, r1
+        ret
+
+; Direct branches may not enter an r14/r15-writing instruction after its setup.
+transfer_reject_effect_branch_target:
+        mov r6, r20
+        imm r1, 2097152
+        add r1, r6
+        loadb r2, r1
+        imm r3, 2
+        jeq r2, r3, transfer_branch_target_dest
+        imm r3, 8
+        jlt r2, r3, transfer_branch_target_dest
+        imm r3, 8
+        jeq r2, r3, transfer_branch_target_dest
+        imm r3, 10
+        jeq r2, r3, transfer_branch_target_dest
+        imm r3, 17
+        jeq r2, r3, transfer_branch_target_dest
+        mov r0, r6
+        ret
+transfer_branch_target_dest:
+        imm r2, 1
+        add r1, r2
+        loadb r2, r1
+        imm r3, 14
+        jeq r2, r3, reject
+        imm r3, 15
+        jeq r2, r3, reject
+        mov r0, r6
+        ret
+
+transfer_propagate_current:
+        mov r21, r24
+        mov r22, r25
+        mov r23, r26
+        call transfer_state_add
+        ret
+
+; Join exact abstract state at pc r20. Any nonidentical merge rejects.
+transfer_state_add:
+        imm r1, 525216
+        load r2, r1
+        jlt r20, r2, reject
+        imm r1, 525224
+        load r2, r1
+        jlt r20, r2, transfer_state_start
+        jmp reject
+transfer_state_start:
+        imm r1, 4194304
+        add r1, r20
+        loadb r2, r1
+        imm r3, 1
+        jeq r2, r3, transfer_state_visited
+        jmp reject
+transfer_state_visited:
+        imm r1, 10625024
+        add r1, r20
+        loadb r2, r1
+        imm r3, 0
+        jeq r2, r3, transfer_state_new
+        imm r3, 1
+        jeq r2, r3, transfer_state_merge
+        jmp reject
+transfer_state_new:
+        imm r2, 1
+        storeb r1, r2
+        mov r12, r20
+        imm r1, 8
+        mul r12, r1
+        imm r1, 10887168
+        add r1, r12
+        store r1, r21
+        imm r1, 12984320
+        add r1, r20
+        storeb r1, r22
+        imm r1, 13246464
+        add r1, r20
+        storeb r1, r23
+        imm r1, 525232
+        store r1, r2
+        ret
+transfer_state_merge:
+        mov r12, r20
+        imm r1, 8
+        mul r12, r1
+        imm r1, 10887168
+        add r1, r12
+        load r2, r1
+        jeq r2, r21, transfer_state_merge_fp
+        jmp reject
+transfer_state_merge_fp:
+        imm r1, 12984320
+        add r1, r20
+        loadb r2, r1
+        jeq r2, r22, transfer_state_merge_saved
+        jmp reject
+transfer_state_merge_saved:
+        imm r1, 13246464
+        add r1, r20
+        loadb r2, r1
+        jeq r2, r23, transfer_state_merge_ok
+        jmp reject
+transfer_state_merge_ok:
+        ret

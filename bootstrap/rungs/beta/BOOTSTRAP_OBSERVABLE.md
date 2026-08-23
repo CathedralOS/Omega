@@ -166,10 +166,11 @@ are valuable teeth, but they do not yet establish the quantified observation:
   bound remain open;
 - its raw-memory phase binds 61 source loads and 34 stores to exact byte/word
   opcodes and registers, including each store's immediate address pop. The
-  reduced ranged-store phase closes the Beta-source
-  address/alignment/bounds premise for three stores; their Alpha operand
-  transfer, all raw loads, stored values, and general address correspondence
-  remain open;
+  reduced ranged-store phases close the Beta-source intervals and transfer the
+  three selected Alpha address operands under valid callee entry relations. The
+  selected machine-`NLOC` load/update participates; other raw loads, ranged
+  payload values, general address correspondence, and global establishment of
+  those entry relations remain open;
 - its BC11 grammar-composition pass further partitions every raw-store source
   address into 31 aligned fixed compiler globals, one exact source-buffer
   `base + n` spelling, and two exact local-name-table `base + s * 8` spellings;
@@ -177,8 +178,13 @@ are valuable teeth, but they do not yet establish the quantified observation:
   decoded predecessor closure, and exhaustive NLOC writers, inductively
   deriving `n <= 1048575` and `s <= 1023` on the source store paths. The three
   exact byte extents are nonwrapping, in 64 MiB, and numerically disjoint from
-  the reserved global, explicit-stack, and hidden-return regions. Carrying
-  these values through the compiled fp-relative slots remains open;
+  the reserved global, explicit-stack, and hidden-return regions. A following
+  witness-free row join carries these facts through the exact compiled local,
+  primitive, push, and store chains. A two-cell executable tag/interval stack
+  derives each selected arithmetic and address-pop result. Its decoded-CFG
+  fixed point proves both call-free selected procedures restore their entry `(r15,r14)` pair with at
+  most 32 relative bytes, conditional on a valid aligned entry frame and, for
+  `declare`, the actual/source `NLOC` relation in `[0,1024]`;
 - its expression-primitive phase binds all 581 decimal/character literals and
   55 arithmetic operators to exact immediate and stack-pop/operator macros and
   all 180 comparisons to exact signed-order/full-word-equality branch variants,
@@ -208,16 +214,18 @@ are valuable teeth, but they do not yet establish the quantified observation:
   rejected depth-65 probe costs, and the 19-level signed-positive `emit_dec`
   rank, deriving conservative root bounds of 12,720 explicit-stack bytes and
   662 hidden returns. These establish the numerical margin conditional on
-  carried depth-counter and saved-frame values. The source induction excludes
-  the three ranged source families from those locations, but their Alpha
-  transfer, intended fixed counter writes, and absolute `B_bc1` stack safety
-  remain part of the full dynamic frame invariant;
+  carried depth-counter and saved-frame values. The selected Alpha transfer
+  excludes the three ranged operands under valid frame and machine-`NLOC` entry
+  relations, but establishing those relations globally, intended fixed counter
+  writes, and absolute `B_bc1` stack safety remain part of the full dynamic
+  frame invariant;
 - its BC11 stack-register phase constructs one unified owner map for every
   decoded write to `r14`/`r15` and every memory access through `r15`, deriving
   exactly 2,630 owned starts from the already checked prelude, prologues,
   epilogues, pushes, and pops. This closes orphan stack effects; the following
-  phase proves the source ranged-address premise, while its compiled transfer
-  and dynamic frame values remain open;
+  phases prove the source ranged-address premise, selected compiled operands,
+  and conditional call-free frame restoration, while whole-artifact dynamic
+  frame values remain open;
 - Alpha out-of-range memory remains undefined in `alpha/SEMANTICS.md` and must be
   excluded by independently checked `B_bc1` bounds before whole-artifact closure
   (or Alpha must be hardened independently);
