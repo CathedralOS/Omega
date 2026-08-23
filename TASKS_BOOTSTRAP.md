@@ -420,6 +420,13 @@ additional facilities the bootstrap actually needs.
       Its focused gate covers valid execution, malformed empty-output rejection,
       exact-limit acceptance, and one-byte-over checked exhaustion. This is the
       first monotonic implementation slice, not the complete `bc.beta` profile.
+    - [x] Extend the same compiler with Slice B: up to 128 framed procedures,
+      four parameters/arguments, 64 function-scoped frame slots, assignment,
+      variable references, and nested forward/backward calls. Validation freezes
+      final frame metadata, resolves up to 512 calls after EOF, enforces arity,
+      and reserves output before the publication pass. The focused gate covers
+      four live arguments, nested calls, late-entry `main`, name/arity failures,
+      malformed-late empty output, and every new bounded table's exhaustion.
   - [ ] Persist the resulting lattice-built `bc` artifact, run its self-build and
     Beta corpus gates, then switch proof-kernel, Gamma, Delta, and Omega gates
     away from the ephemeral Rust-produced `bc0`.

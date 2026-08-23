@@ -1,5 +1,5 @@
 #!/usr/bin/env sh
-# Focused gate for the first Alpha-written Beta compiler slice.
+# Focused gate for the first two Alpha-written Beta compiler slices.
 set -eu
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
@@ -36,7 +36,7 @@ accept() {
     printf '%s\n' "$source" | "$TMP/bc-alpha" > /dev/null
     status=$?
     set -e
-    echo "FAIL $name: compiler rejected valid Slice-A source (status $status)" >&2
+    echo "FAIL $name: compiler rejected valid Slices-A-B source (status $status)" >&2
     fail=$((fail + 1))
     return
   fi
@@ -84,12 +84,32 @@ accept comments ' ; before
 proc main() { ; body
   return 6 * 7 ; result
 }' 42
+accept locals 'proc main() { let a = 6 let b = 7 return a * b }' 42
+accept assignment 'proc main() { let x = 10 x = x + 32 return x }' 42
+accept forward_call 'proc main() { return double(21) } proc double(x) { return x + x }' 42
+accept nested_calls 'proc main() { return add(mul(2, 3), 4) } proc add(a, b) { return a + b } proc mul(a, b) { return a * b }' 10
+accept four_parameters 'proc sum(a, b, c, d) { let x = c * 10 + d return a + b + x } proc main() { return sum(1, 2, 3, 9) }' 42
 
 printf '%s' 'imm r15,1048576
+imm r14,1048576
 call main
 halt r0
 main:
+imm r5,8
+sub r15,r5
+store r15,r14
+mov r14,r15
 imm r0,42
+mov r15,r14
+load r14,r15
+imm r2,8
+add r15,r2
+ret
+
+mov r15,r14
+load r14,r15
+imm r2,8
+add r15,r2
 ret
 ' > "$TMP/literal.expected"
 if cmp -s "$TMP/literal.alpha" "$TMP/literal.expected"; then
@@ -100,11 +120,24 @@ else
 fi
 
 reject missing_expression 'proc main() { return }'
-reject trailing_source 'proc main() { return 42 } proc other() { return 0 }'
+reject malformed_late_proc 'proc main() { return 42 } proc other('
 reject keyword_boundary 'procedure main() { return 42 }'
 reject wrong_entry 'proc answer() { return 42 }'
+reject parameterized_main 'proc main(x) { return x }'
+reject duplicate_proc 'proc main() { return 1 } proc main() { return 2 }'
+reject duplicate_parameter 'proc main() { return f(1, 2) } proc f(x, x) { return x }'
+reject duplicate_local 'proc main() { let x = 1 let x = 2 return x }'
+reject reserved_local 'proc main() { let return = 1 return 0 }'
+reject unknown_variable 'proc main() { return x }'
+reject unknown_assignment 'proc main() { x = 1 return x }'
+reject unknown_call 'proc main() { return nope() }'
+reject arity_mismatch 'proc main() { return f(1) } proc f(a, b) { return a + b }'
+reject five_parameters 'proc main() { return 0 } proc f(a, b, c, d, e) { return a }'
+reject five_arguments 'proc main() { return f(1, 2, 3, 4, 5) } proc f(a, b, c, d) { return a }'
 reject decimal_extent 'proc main() { return 1234567890 }'
 reject bad_character "proc main() { return '\\x' }"
+long_ident=$(awk 'BEGIN { for (i = 0; i < 65; i++) printf "a" }')
+reject identifier_extent "proc main() { let $long_ident = 1 return 0 }"
 deep='proc main() { return '
 i=0
 while [ "$i" -lt 65 ]; do deep="${deep}("; i=$((i + 1)); done
@@ -115,6 +148,12 @@ deep="${deep} }"
 reject nesting_extent "$deep"
 wide=$(awk 'BEGIN { printf "proc main() { return 1"; for (i = 0; i < 12000; i++) printf "+1"; print " }" }')
 reject output_extent "$wide"
+many_slots=$(awk 'BEGIN { printf "proc main() {"; for (i = 0; i < 65; i++) printf " let v%d = %d", i, i; print " return 0 }" }')
+reject slot_extent "$many_slots"
+many_calls=$(awk 'BEGIN { printf "proc main() { return zero()"; for (i = 1; i < 513; i++) printf " + zero()"; print " } proc zero() { return 0 }" }')
+reject call_extent "$many_calls"
+many_procs=$(awk 'BEGIN { print "proc main() { return 0 }"; for (i = 0; i < 128; i++) printf "proc p%d() { return %d }\n", i, i }')
+reject procedure_extent "$many_procs"
 
 # Pin the compiler-owned source extent: exactly 1 MiB is accepted, while the
 # next byte is observed before any table write or output publication.
@@ -142,5 +181,5 @@ else
   fail=$((fail + 1))
 fi
 
-echo "bc Alpha cold start Slice A: $pass passed, $fail failed ($(wc -c < "$TMP/bc-alpha.tape" | tr -d ' ')-byte compiler tape)"
+echo "bc Alpha cold start Slices A-B: $pass passed, $fail failed ($(wc -c < "$TMP/bc-alpha.tape" | tr -d ' ')-byte compiler tape)"
 [ "$fail" -eq 0 ]
