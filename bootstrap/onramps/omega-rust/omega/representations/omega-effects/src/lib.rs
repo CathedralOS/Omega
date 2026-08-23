@@ -24,8 +24,11 @@ pub use coexisting_executable_eras::{
 pub use component_era_entry_ledger::{
     ActiveComponentEraEntry, ComponentEraCandidate, ComponentEraEntryLedger,
     ComponentEraEntryReceipt, ComponentEraEntryState, ComponentEraLeaveReceipt,
-    ComponentEraPublicationReceipt, ComponentEraQuiescenceReceipt, ComponentEraRetirementReceipt,
-    EraEntryError, EraLeaveError, EraPublicationError, EraQuiescenceError, EraRetirementError,
+    ComponentEraLedgerId, ComponentEraPublicationReceipt, ComponentEraQuiescenceReceipt,
+    ComponentEraRetirementReceipt, EraEntryError, EraLeaveError, EraPublicationError,
+    EraQuiescenceError, EraRetirementError, ProgramLocalRootEpochLease,
+    ProgramLocalRootEpochLeaseAcquisitionError, ProgramLocalRootEpochLeaseId,
+    ProgramLocalRootEpochLeaseReleaseError,
 };
 pub use component_progress_manifest::{
     CheckedComponentProgressDemand, ComponentBuildBoundProgressDemand, ComponentProgressManifest,

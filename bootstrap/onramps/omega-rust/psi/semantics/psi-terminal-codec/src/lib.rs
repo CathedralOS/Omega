@@ -14,6 +14,7 @@ mod contract_wire;
 mod debug_map;
 mod machine_wire;
 mod module_wire;
+mod program_local_root_catalog;
 mod proof_bundle;
 mod proof_declaration_wire;
 mod proposition_wire;
@@ -36,6 +37,10 @@ pub use debug_map::{
     DebugFileId, DebugMapError, DebugSite, DebugSourceDigest, DebugSourceFile, DebugSourceOrigin,
     DebugSourceSpan, DebugSubject, TerminalDebugMap, decode_debug_map, encode_debug_map,
     source_digest, validate_debug_map,
+};
+pub use program_local_root_catalog::{
+    ProgramLocalRootProducerCatalogError, VerifiedProgramLocalRootProducerCatalog,
+    VerifiedProgramLocalRootProducerSchema,
 };
 pub use proof_bundle::{
     ProofBundleFingerprint, ProofCodecError, decode_proof_bundle, encode_proof_bundle,

@@ -687,7 +687,20 @@ Remaining:
   slots derive their count from ledger state; no producer-authored cardinality
   or aggregate is accepted. This carrier still mints no lineage and deliberately
   has no lifecycle epoch. The authoritative lifecycle-epoch join and runtime
-  subject/capacity establishment remain open, as do migration of
+  subject/capacity establishment remain open. The portable side now also has
+  one owned producer catalog constructible only from a successfully verified
+  Terminal module. It retains the exact Terminal identity and entry plus each
+  resolved requirement, qualification, carrier, and producer schema, while
+  deliberately carrying no occurrence, cardinality, lifecycle, lineage, or
+  grant state. The component-era side now issues an opaque non-clonable epoch
+  lease only for the exact current open era and entry contract. Each lease is
+  bound to one ledger, installed artifact occurrence, entry plan, and plan
+  admission receipt; quiescence and retirement reject while a lease remains,
+  cross-ledger substitution and identity replay reject, and failed release
+  returns the lease intact. The next authoritative rung is the exact join of
+  this verified catalog, the installed-slot prebinding, and the lifecycle
+  lease; only that joined occurrence may enter lineage. Runtime subject and
+  capacity establishment remain open, as do migration of
   `ExtentCompilerProvisioning`, ordinary-call mint rejection, closed
   generic-family coverage, and artifact/installation aggregate canaries.
   Add source, terminal, artifact, and installation canaries for
