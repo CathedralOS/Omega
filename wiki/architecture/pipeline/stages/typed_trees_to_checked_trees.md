@@ -657,7 +657,9 @@ Current ownership is:
   resolution.
 - `checks/termination.rs` is the termination-check entry point.
   `checks/termination/order.rs` owns ranking-order recognition,
-  `checks/termination/graph.rs` owns direct recursive graph shape checks,
+  `checks/termination/graph.rs` owns direct recursive graph shape checks and
+  the shared named-transition target-state normalization consumed by ranking
+  and checked-progress subject correspondence,
   `checks/termination/ranking.rs` owns supported ranking dispatch,
   `checks/termination/ranking/patterns.rs` owns shared recursive-transition and
   parameter-expression matching, `checks/termination/ranking/nat.rs` owns

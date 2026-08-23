@@ -367,6 +367,25 @@ fn call_argument_subject(
     call: &FlowCallFact,
     parameter_symbol: SymbolHandle,
 ) -> Option<ProgressSubject> {
+    let parameters = call_target_parameters(program, call.target_symbol)?;
+    call_argument_subject_with_parameters(
+        program,
+        machine,
+        state_flow,
+        call,
+        parameters,
+        parameter_symbol,
+    )
+}
+
+fn call_argument_subject_with_parameters(
+    program: &psi_typed_trees::TypedTrees,
+    machine: &psi_typed_trees::machine::Machine,
+    state_flow: &FlowStateFact,
+    call: &FlowCallFact,
+    parameters: &[psi_typed_trees::signature::StateParameter],
+    parameter_symbol: SymbolHandle,
+) -> Option<ProgressSubject> {
     let call_site = find_call_site(
         program,
         machine.symbol,
@@ -374,7 +393,6 @@ fn call_argument_subject(
         call.statement_index,
         call.call_ordinal,
     )?;
-    let parameters = call_target_parameters(program, call.target_symbol)?;
     let parameter_index = parameters
         .iter()
         .position(|parameter| parameter.symbol == parameter_symbol)?;
@@ -457,11 +475,18 @@ fn state_parameter_lineage(
                 else {
                     continue;
                 };
-                for parameter in program.state_parameters(target) {
-                    let incoming =
-                        call_argument_subject(program, machine, state_flow, call, parameter.symbol)
-                            .map(|subject| resolve_subject_lineage(&previous, subject))
-                            .unwrap_or(ParameterLineage::Ambiguous);
+                let target_parameters = program.state_parameters(target);
+                for parameter in target_parameters {
+                    let incoming = call_argument_subject_with_parameters(
+                        program,
+                        machine,
+                        state_flow,
+                        call,
+                        target_parameters,
+                        parameter.symbol,
+                    )
+                    .map(|subject| resolve_subject_lineage(&previous, subject))
+                    .unwrap_or(ParameterLineage::Ambiguous);
                     merge_parameter_lineage(&mut lineage, parameter.symbol, incoming);
                 }
             }
@@ -499,7 +524,9 @@ fn local_state_transition_target<'program>(
     if !matches!(call_site, crate::CallSite::TransitionNamed { .. }) {
         return None;
     }
-    crate::find_state_in_machine(program, machine.symbol, call.target_symbol)
+    let target_index =
+        super::graph::named_transition_target_state_index(program, machine, call.target_symbol)?;
+    program.machine_states(machine).get(target_index)
 }
 
 fn resolve_subject_lineage(
