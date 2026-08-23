@@ -679,28 +679,38 @@ Remaining:
   per-occurrence capacity, and one canonical schema identity that excludes
   module-local dense IDs. Terminal codec fixtures and source/verifier tamper
   canaries cover this description. It is intentionally not an introduction
-  event and mints no claim. The Rust on-ramp now also has a non-authoritative
-  installation prebinding: it replays the schema against the exact Terminal
-  identity, native object bytes/architecture/entry, requirement, semantic
-  parameter and qualification, then binds the admitted provider execution,
-  installed code/artifact, root, slot, owner, and admission. Distinct occupied
-  slots derive their count from ledger state; no producer-authored cardinality
-  or aggregate is accepted. This carrier still mints no lineage and deliberately
-  has no lifecycle epoch. The authoritative lifecycle-epoch join and runtime
-  subject/capacity establishment remain open. The portable side now also has
-  one owned producer catalog constructible only from a successfully verified
-  Terminal module. It retains the exact Terminal identity and entry plus each
-  resolved requirement, qualification, carrier, and producer schema, while
-  deliberately carrying no occurrence, cardinality, lifecycle, lineage, or
-  grant state. The component-era side now issues an opaque non-clonable epoch
-  lease only for the exact current open era and entry contract. Each lease is
-  bound to one ledger, installed artifact occurrence, entry plan, and plan
-  admission receipt; quiescence and retirement reject while a lease remains,
-  cross-ledger substitution and identity replay reject, and failed release
-  returns the lease intact. The next authoritative rung is the exact join of
-  this verified catalog, the installed-slot prebinding, and the lifecycle
-  lease; only that joined occurrence may enter lineage. Runtime subject and
-  capacity establishment remain open, as do migration of
+  event and mints no claim. The portable side now has one owned producer
+  catalog constructible only from a successfully verified Terminal module. It
+  retains the exact Terminal identity and entry plus each resolved requirement,
+  qualification, carrier, and producer schema, while deliberately carrying no
+  occurrence, cardinality, lifecycle, lineage, or grant state. The Rust on-ramp
+  accepts only that catalog for non-authoritative installation prebinding, then
+  replays the exact native object bytes/architecture/entry and binds the
+  admitted provider execution, installed code/artifact, root, slot, owner, and
+  admission. Prebinding identities are exact typed tuples rather than trusted
+  compact hashes, their records are private, and distinct occupied slots derive
+  only a reportable snapshot count from ledger state.
+
+  The component-era side issues an opaque non-clonable epoch lease only for the
+  exact current open era and entry contract. Each lease is bound to one ledger,
+  installed artifact occurrence, entry plan, and plan admission receipt;
+  quiescence and retirement reject while a lease remains, cross-ledger
+  substitution and identity replay reject, and failed release returns the lease
+  intact. Installation can now join one canonical prebinding to the exact root
+  and lease. The resulting non-clonable occurrence borrows the root/code and
+  owns the lifecycle hold. Joining revalidates that the leased era is still the
+  exact current open era; root, slot, owner, code, artifact, admission, provider,
+  requirement, artifact occurrence, ledger, and epoch substitution reject
+  transactionally. One full prebinding-plus-ledger-plus-era key joins at most
+  once, successful retirement never re-enables it, and a later epoch is a
+  deliberately fresh occurrence.
+
+  This joined occurrence still mints no lineage because the current count is a
+  mutable snapshot: installation has not yet sealed the complete eligible slot
+  cohort. The next rung must freeze that exact cohort, reject omitted or later
+  same-epoch slots, and derive finite cardinality/aggregate from the closed set
+  before runtime subject/capacity establishment may introduce authority.
+  Runtime establishment remains open, as do migration of
   `ExtentCompilerProvisioning`, ordinary-call mint rejection, closed
   generic-family coverage, and artifact/installation aggregate canaries.
   Add source, terminal, artifact, and installation canaries for
@@ -2078,14 +2088,19 @@ Remaining:
   reaches the sum: the checked and Terminal paths retain every enclosing field
   followed by the exact case and payload-field identities. Direct Unit-call
   rebasing through a sum-bearing projection remains gated with runtime sum
-  projection and cleanup.
+  projection and cleanup. An acyclic relevant record tree directly held by a
+  case-payload field now expands its Boolean, fixed-integer, IEEE, and
+  byte-sequence leaves transitively too. Checked and Terminal paths preserve
+  the exact `Case -> Field(payload) -> Field(record)... -> Field(leaf)` chain;
+  whole-root Unit calls independently rebase both operands, and codec,
+  verifier, fixed-fuel, and interpreter replay retain both `==` and `!=`.
   Unknown or redirected case/field identities reject independently. Mixed
-  common-field/case shapes, structural fields inside a case payload (including
-  further records or sums), recursive expansion, address and erased payload
-  equality, and runtime sum layout remain fenced. Semantic codec v18,
+  common-field/case shapes, nested sums below a payload case, recursive cycles,
+  address and erased payload equality, and runtime sum layout remain fenced.
+  Semantic codec v18,
   proof-bundle v18, and installation-record v24 retain the structural shapes,
   case-payload paths, and proposition. Continue with the fenced mixed,
-  case-payload-nested, recursive, and erased aggregate cases. Concrete machine/state
+  case-payload-nested sums, recursive, and erased aggregate cases. Concrete machine/state
   contracts plus domain/data predicates, trait invariants and signatures,
   machine-parameter requirements, and root/domain operator contracts now reject
   direct binary and named-float `Trapping` arithmetic plus direct Trapping
@@ -4735,7 +4750,8 @@ Owners:
   an authored correlation to terminal completion claims; an Omega-only bridge
   would invent custody semantics.
 - **WRITE-ONLY-BORROW — finish the settled `&write T` access mode.** The first
-  checked whole-value and fixed-byte-element rungs are live. The parser accepts
+  checked whole-value, fixed-byte-element, and one-level record-field rungs are
+  live. The parser accepts
   `&write T`,
   `&'a write T`, `&write self`, and expression-form `&write place`; syntax,
   resolved, typed, checked, state, and control representations retain exact
@@ -4750,15 +4766,20 @@ Owners:
   proves the index in bounds. Literal mutation and caller-visible write frames
   retain the exact `FixedIndex`; a dynamic index retains its runtime expression
   internally and conservatively invalidates the whole collection in the
-  caller-visible frame. Observation, readable widening, implicit `&mut`
-  attenuation, ranges, general aggregate projection, and bodyless/provider
-  declarations reject with directed diagnostics. Focused parser, semantic
-  pass/fail, exact-place/frame, checked-loan, and checked-to-state-to-control
-  remap tests pin the live slices.
+  caller-visible frame. A non-generic checked record with no authored default
+  domain now admits replacement of one direct common field when that displaced
+  field is relevant, unconstrained, and an unrestricted primitive. The
+  ordinary mutation summary retains that exact field symbol. Whole-record
+  replacement still requires an unrestricted/discardable root. Observation,
+  readable widening, implicit `&mut` attenuation, ranges, nested or sum
+  projection, qualified fields, invariant-bearing records, and
+  bodyless/provider declarations reject with directed diagnostics. Focused
+  parser, semantic pass/fail, exact-place/frame, checked-loan, and
+  checked-to-state-to-control remap tests pin the live slices.
 
   Remaining work is the broader executable access discipline: add
-  content-independent aggregate and byte-range projection, finer symbolic
-  dynamic-index footprints,
+  broader content-independent aggregate and byte-range projection, finer
+  symbolic dynamic-index footprints,
   reject take/swap/read-modify-write, content-driven projection,
   non-discardable displacement, and invariant restoration that depends on
   reading the referent, and retain exact per-outcome write footprints so
