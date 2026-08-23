@@ -30,6 +30,10 @@ preserve historical entry points.
   samples through that route.
 - [`gates/kernel-diamond.sh`](gates/kernel-diamond.sh) compares the supported kernel subset across current native
   and meaning implementations. It is a regression/coverage gate, not DDC.
+- [`gates/delta-terminal-to-elf-meaning.sh`](gates/delta-terminal-to-elf-meaning.sh)
+  compares the Delta backend's complete status and artifact bytes across native
+  execution and the Rust-free Gamma meaning route, including malformed and
+  exhausted inputs.
 - [`../assurance/refinement/omega0/`](../assurance/refinement/omega0/) owns the
   meaning-TV, input-TV, translation-validation, and generated-certificate replay
   gates and their untrusted encoders.
@@ -50,9 +54,10 @@ body, then emits canonical terminal-Psi bytes. The old Delta-sample path is a
 compatibility symlink. [`compiler/omega0-terminal-to-elf.alp`](compiler/omega0-terminal-to-elf.alp)
 accepts the same 0–16-write profile and emits a deterministic Linux x86-64 ELF
 directly, without a host assembler or linker. Focused gates compare terminal
-modules and images byte-for-byte with the shared product pipeline and reject
-malformed or exhausted inputs before emitting any byte. This closes O1, not
-general Omega checking or the future full Omega0 backend.
+modules and images byte-for-byte with the shared product pipeline and through
+lower-rung meaning, and reject malformed or exhausted inputs before emitting
+any byte. This closes O1, not general Omega checking or the future full Omega0
+backend.
 
 ## Coverage boundary
 

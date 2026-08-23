@@ -30,7 +30,11 @@ PATTERN := NAME | CONSTRUCTOR | (CONSTRUCTOR NAME...)
 Uppercase heads are algebraic-data constructors. A lowercase pattern name is a
 catch-all binding. Evaluation is pure; recursion is bounded by explicit
 interpreter fuel, so exhaustion is a reference-evaluation outcome rather than an
-invisible unbounded computation.
+invisible unbounded computation. Tail-position `let`, `if`, `match`, and call
+chains are trampolined: a terminating tail-recursive Gamma program does not also
+depend on the Beta/Alpha return-stack depth. The interpreter may intern bounded
+integers and compact ordinary two-field `Cons` cells internally; matching and
+the canonical printed constructor tree are unchanged by those representations.
 
 ## Statically checked surface
 

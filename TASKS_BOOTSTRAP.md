@@ -207,27 +207,35 @@ story.
     source perturbation that changes the observed result.
   - [x] Exercise byte input/output and real Delta certifiers through the same
     Rust-free route in `bootstrap/omega0/gates/convergence-reference.sh`.
-  - [ ] Gate the actual Delta-written backend through lower-rung meaning for the
+  - [x] Gate the actual Delta-written backend through lower-rung meaning for the
     canonical, operand-variant, and rejection observations.
     - [x] Remove the compiler-scale elaboration cliff. Per-machine metadata
       tables previously overlapped at machine 25, corrupting machine zero's
       local count to 29,620 and repeating 29,620 phantom arguments in every
       definition. The tables now reserve the documented 128-machine capacity,
       and scalar receiver fields use one indexed carrier. The 28-machine backend
-      now elaborates completely to 87,879 bytes of Gamma in about 0.16 seconds,
+      now elaborates completely to 87,979 bytes of Gamma in about 0.16 seconds,
       rather than exceeding 116 MiB without completing.
     - [x] Lower the used nonnegative byte-extraction form `x & 255` to
       `x % 256`; reject every broader single-`&` expression explicitly instead
       of silently truncating the expression at `&`.
-    - [ ] Bound compiler-sized output evaluation without exhausting Gamma's
-      fixed no-GC arena. Decode, validation, and preflight now reach the emitter,
-      but constructing 8,192 output cons cells and copying them through `rev`
-      retains enough evaluator allocation to lose the final result. Prefer a
-      compact/chunked output carrier or another lower-rung representation over
-      merely normalizing a larger fixed arena.
-    - [ ] Add the focused native-versus-Gamma backend meaning gate; compact
-      elaboration is necessary evidence but does not by itself establish the
-      backend's artifact semantics.
+    - [x] Bound compiler-sized evaluation without normalizing a larger fixed
+      arena. The canonical Gamma interpreter now interns the dense integer range
+      used by compiler loops, represents ordinary two-field `Cons` values in one
+      arena node instead of three, and trampolines tail-position
+      `let`/`if`/`match`/call chains. These are representation-only evaluator
+      optimizations: Gamma's matching and printed values are unchanged, while
+      the backend's 3,920/4,096-byte fill loops no longer consume the evaluator
+      arena or Beta/Alpha return stack per logical iteration.
+    - [x] Add the focused native-versus-Gamma backend meaning gate. One bounded
+      87,979-byte elaboration is reused across the frozen canonical input, an
+      operand variant, malformed magic, and both O1 exhaustion controls. The
+      lower-rung `(Pair status stdout)` observation is decoded strictly and its
+      complete 8,192-byte success image (or empty rejection image) must equal
+      native Delta execution; the canonical image also equals the independent
+      product reference. The fixed signed x86 branch displacement is emitted as
+      its four literal bytes rather than silently claiming general signed
+      shift/bit-mask coverage.
   - [ ] Audit the eventual Omega0 Delta source against D0 and make every construct
     either elaborate through the lower-rung route or reject before it can enter
     the compiler. Keep `gamma_emit.rs` only as a reference differential producer.
@@ -564,6 +572,7 @@ sh bootstrap/omega0/gates/omega-meaning.sh
 sh bootstrap/assurance/refinement/omega0/meaning-cert-diamond.sh
 sh bootstrap/assurance/refinement/omega0/translation-validation.sh
 sh bootstrap/omega0/gates/delta-terminal-to-elf.sh
+sh bootstrap/omega0/gates/delta-terminal-to-elf-meaning.sh
 sh bootstrap/onramps/delta-rust/omega0-frontend-meaning.sh
 ```
 

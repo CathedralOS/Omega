@@ -385,7 +385,10 @@ machine Main::emit_write_line(&mut self) {
     write_byte(15); write_byte(142); self.emit_u32(17);
     write_byte(72); write_byte(1); write_byte(198);
     write_byte(72); write_byte(41); write_byte(194);
-    write_byte(15); write_byte(133); self.emit_u32(0 - 28);
+    // rel32 -28, written explicitly so this O1 backend does not require the
+    // broader signed-shift/bit-mask profile merely to encode a fixed opcode.
+    write_byte(15); write_byte(133);
+    write_byte(228); write_byte(255); write_byte(255); write_byte(255);
     // Jump over trap and inline literal+newline.
     write_byte(233); self.emit_u32(self.text_len + 3);
     write_byte(15); write_byte(11);

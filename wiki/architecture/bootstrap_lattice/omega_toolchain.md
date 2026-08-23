@@ -103,5 +103,8 @@ final literal `exit_process`, and one loop emits and lowers the resulting
 variable operation sequence. Delta-emitted terminal modules and direct x86-64
 images match the product pipeline for 0/1/2/16 writes, while table/text overflow
 and malformed order fail before artifact publication. This required no new Psi
-vocabulary or language ruling. Compiler-scale lower-rung elaboration remains a
-performance/meaning-coverage task before O1 can carry final trust authority.
+vocabulary or language ruling. The complete backend now also runs through the
+Beta-written Omega-to-Gamma elaborator and canonical Gamma interpreter: exact
+canonical and variant images agree with native Delta execution, while malformed
+and exhausted inputs agree on status and empty output. This closes O1's used
+Delta meaning profile; it does not generalize O1 into the production compiler.

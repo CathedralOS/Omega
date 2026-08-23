@@ -188,6 +188,14 @@ for the canonical `cli_mvp` input, while semantic rejection remains pinned at
 251. Exact coverage must continue to grow with the eventual Omega0 source; this
 gate is not authority for constructs that source has not exercised.
 
+The direct backend is covered through the same lower-rung route. One bounded
+compiler-scale elaboration is executed against the canonical O0 terminal module,
+an operand variant, malformed magic, and both O1 exhaustion controls. Its full
+`(Pair status stdout)` observation must equal native Delta execution byte for
+byte; the canonical 8 KiB image must also equal the independent product image.
+The fixed negative x86 branch displacement is represented by its literal encoded
+bytes, so this evidence does not claim unused general signed bitwise semantics.
+
 O0 excludes build files, packages beyond the fixed `use`, arbitrary data,
 general expressions, user calls, control flow, allocation, proofs, and
 optimization. Those features enter later numbered acceptance profiles only when

@@ -38,6 +38,10 @@ implementation of the generic proof kernel is small and auditable.
 ## Current repository reality
 
 - `bootstrap/rungs/gamma/interp.beta` — canonical pure, fuel-bounded interpreter;
+  tail-position control is trampolined, while dense integers and ordinary
+  two-field `Cons` values use semantics-transparent compact representations so
+  compiler-sized reference evaluation remains bounded without enlarging Alpha's
+  fixed memory;
 - `bootstrap/rungs/gamma/typeck.beta` — static checker for `Int`, declared ADTs,
   functions, constructors, and matches;
 - `bootstrap/assurance/proof-kernel/implementations/gamma/` — independent

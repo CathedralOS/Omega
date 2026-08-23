@@ -5,6 +5,12 @@ pattern matching, recursion, fuel-bounded reference evaluation, and a small
 static type system. It is suitable for parsers, validators, interpreters, and an
 implementation of the cross-cutting proof kernel.
 
+The reference evaluator implements proper tail calls and uses compact internal
+representations for dense integers and ordinary `Cons` cells. These are bounded
+execution properties of the canonical interpreter, not extra Gamma syntax;
+printed values and pattern matching retain the language definition in
+[`LANGUAGE.md`](LANGUAGE.md).
+
 The canonical implementation path is Rust-free:
 
 ```text
