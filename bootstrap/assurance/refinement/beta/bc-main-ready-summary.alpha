@@ -24,7 +24,7 @@
 main_ready_summary_init:
         call main_ready_require_shape
         call main_ready_prove_composition
-        jmp scan_owned_effects_init
+        jmp main_loop_entry_summary_init
 
 main_ready_require_shape:
         ; ready and loop are adjacent blocks of main, procedure 69.

@@ -1,0 +1,596 @@
+; Root-reachable first main.loop token split.
+;
+; The preceding phase reaches PC51262 with the exact ordered 187-byte prefix,
+; the successful source segment, 0<=CUR<=LEN, a whitespace-normalized cursor,
+; and the active main frame.  The exact loop block then executes:
+;
+;   51262 cbyte() -> 51271
+;   51271 stage result; literal 0; compare != at primitive row809
+;   51356 guarded transition: nonzero -> main.body PC51405
+;   51375 zero result; main epilogue/ret at 51404 -> prelude halt at PC29
+;
+; Three conditional partitions are kept distinct.  CUR<LEN/SRC[CUR]=0 and
+; CUR=LEN both return through main and produce Halt(0); CUR<LEN with a nonzero
+; byte reaches main.body without consuming that byte.  All paths preserve the
+; exact prefix, external input, source segment, cursor, and compiler globals;
+; the terminal path restores the root frame.  In-range NUL is deliberately a
+; compiler terminator, just as cbyte's reusable theorem specifies.
+;
+; Fresh cells:
+;   public halt/body clauses          526520/526528
+;   pc / selected case/value          526536/526544/526552
+;   staged value / stack height       526560/526568
+;   right literal / comparison        526576/526584
+;   trace/cursor/source/frame          526592/526600/526608/526616
+;   zero-hit/end/body completions      526624/526632/526640
+;   halt payload                       526648
+;   selected cbyte relation            526656
+;
+; Selected cases: 1=hit NUL, 2=logical end, 3=hit nonzero. Values: 1=zero,
+; 2=nonzero source byte.  Relation tags denote inherited exact theorem facts,
+; not concrete compiler memory.
+
+main_loop_entry_summary_init:
+        call main_loop_require_shape
+        call main_loop_prove_split
+        jmp scan_owned_effects_init
+
+; ---- Exact source/artifact joins -------------------------------------
+
+main_loop_require_shape:
+        imm r20, 352
+        imm r21, 51262
+        call slurp_summary_require_block_pc
+        imm r20, 353
+        imm r21, 51405
+        call slurp_summary_require_block_pc
+        imm r20, 3145728
+        imm r21, 352
+        imm r22, 69
+        call transfer_require_cell
+        imm r20, 3145728
+        imm r21, 353
+        imm r22, 69
+        call transfer_require_cell
+        imm r20, 3178496
+        imm r21, 352
+        imm r22, 1
+        call transfer_require_cell
+        imm r20, 3178496
+        imm r21, 353
+        imm r22, 1
+        call transfer_require_cell
+
+        imm r20, 288
+        imm r21, 352
+        imm r22, 1
+        imm r23, 353
+        imm r24, 51356
+        call slurp_summary_require_transition
+
+        imm r20, 608
+        imm r21, 352
+        imm r22, 1
+        imm r23, 51262
+        call slurp_summary_require_event
+        imm r20, 609
+        imm r21, 352
+        imm r22, 5
+        imm r23, 51404
+        call slurp_summary_require_event
+        imm r20, 608
+        imm r21, 0
+        call skip_require_event_arity
+        imm r20, 608
+        imm r21, 0
+        call main_ready_require_ambient_height
+
+        imm r20, 51262
+        imm r21, 1609
+        imm r22, 51271               ; checked loop cbyte continuation
+        call main_slurp_require_call
+        imm r20, 69
+        call call_bounds_frame_bytes
+        imm r1, 16
+        jeq r0, r1, main_loop_require_cbyte_frame
+        jmp reject
+main_loop_require_cbyte_frame:
+        imm r20, 4
+        call call_bounds_frame_bytes
+        imm r1, 16
+        jeq r0, r1, main_loop_require_root_link
+        jmp reject
+main_loop_require_root_link:
+        call stack_lift_require_prelude
+        imm r20, 20
+        imm r21, 51013
+        imm r22, 29
+        call main_slurp_require_call
+
+        ; Source lowering order is stage-left, literal zero, != comparison,
+        ; then a distinct literal zero on the false return path.
+        imm r20, 233
+        imm r21, 352
+        imm r22, 1
+        imm r23, 51271
+        call transfer_require_push
+        imm r20, 809
+        imm r21, 352
+        imm r22, 3
+        imm r23, 11                  ; !=
+        imm r24, 51297
+        call transfer_require_primitive
+        imm r20, 810
+        imm r21, 352
+        imm r22, 1
+        imm r23, 0
+        imm r24, 51287
+        call transfer_require_primitive
+        imm r20, 811
+        imm r21, 352
+        imm r22, 1
+        imm r23, 0
+        imm r24, 51375
+        call transfer_require_primitive
+
+        ; Guard false goes to the return literal; guard true takes the exact
+        ; following jump to main.body.
+        imm r20, 51356
+        imm r21, 13                  ; jz
+        call require_tape_byte
+        imm r20, 51357
+        imm r21, 0                   ; comparison result r0
+        call require_tape_byte
+        imm r20, 51358
+        imm r21, 51375               ; checked zero continuation
+        call require_tape_word
+        imm r20, 51366
+        imm r21, 12                  ; jmp
+        call require_tape_byte
+        imm r20, 51367
+        imm r21, 51405               ; checked nonzero target
+        call require_tape_word
+
+        imm r20, 51385
+        imm r21, 51404
+        call slurp_summary_require_epilogue
+        imm r20, 29
+        imm r21, 0                   ; halt
+        call require_tape_byte
+        imm r20, 30
+        imm r21, 0                   ; r0
+        call require_tape_byte
+
+        ; Exactly one call and one return occur in the complete loop block;
+        ; no direct I/O, halt, div, or remainder is hidden in the region.
+        imm r20, 51262
+        imm r21, 51405
+        imm r22, 1
+        imm r23, 1
+        call skip_scan_call_region
+        imm r20, 352
+        imm r21, 352
+        imm r22, 0
+        imm r23, 0
+        imm r24, 0
+        imm r25, 0
+        imm r26, 288
+        imm r27, 289
+        imm r28, 608
+        imm r29, 610                 ; checked exclusive loop event row
+        call cursor_require_effect_census
+        imm r20, 352
+        imm r21, 809
+        imm r22, 812                 ; checked exclusive loop primitive row
+        imm r23, 233
+        imm r24, 234
+        call main_loop_require_expr_census
+        ret
+
+; Exhaust all 816 primitive and 403 push rows for one selected block.  Every
+; matching row must be in the supplied contiguous interval, and every supplied
+; row must match, closing the expression inventory omitted from the generic
+; local/memory/transition/event census.
+main_loop_require_expr_census:
+        mov r30, r20                  ; block
+        mov r31, r21                  ; first primitive
+        mov r32, r22                  ; exclusive primitive
+        mov r33, r23                  ; first push
+        mov r34, r24                  ; exclusive push
+        imm r10, 0
+        imm r11, 0
+main_loop_primitive_census_loop:
+        imm r1, 816
+        jlt r10, r1, main_loop_primitive_census_row
+        mov r2, r32
+        sub r2, r31
+        jeq r11, r2, main_loop_push_census_init
+        jmp reject
+main_loop_primitive_census_row:
+        mov r2, r10
+        imm r1, 8
+        mul r2, r1
+        imm r1, 8388608
+        add r1, r2
+        load r3, r1
+        jeq r3, r30, main_loop_primitive_census_match
+        jmp main_loop_primitive_census_next
+main_loop_primitive_census_match:
+        jlt r10, r31, reject
+        jlt r10, r32, main_loop_primitive_census_count
+        jmp reject
+main_loop_primitive_census_count:
+        imm r1, 1
+        add r11, r1
+main_loop_primitive_census_next:
+        imm r1, 1
+        add r10, r1
+        jmp main_loop_primitive_census_loop
+
+main_loop_push_census_init:
+        imm r10, 0
+        imm r11, 0
+main_loop_push_census_loop:
+        imm r1, 403
+        jlt r10, r1, main_loop_push_census_row
+        mov r2, r34
+        sub r2, r33
+        jeq r11, r2, cursor_require_ok
+        jmp reject
+main_loop_push_census_row:
+        mov r2, r10
+        imm r1, 8
+        mul r2, r1
+        imm r1, 9437184
+        add r1, r2
+        load r3, r1
+        jeq r3, r30, main_loop_push_census_match
+        jmp main_loop_push_census_next
+main_loop_push_census_match:
+        jlt r10, r33, reject
+        jlt r10, r34, main_loop_push_census_count
+        jmp reject
+main_loop_push_census_count:
+        imm r1, 1
+        add r11, r1
+main_loop_push_census_next:
+        imm r1, 1
+        add r10, r1
+        jmp main_loop_push_census_loop
+
+; ---- Root-reachable relational split ---------------------------------
+
+main_loop_prove_split:
+        imm r1, 526520
+        imm r2, 0
+        store r1, r2
+        imm r1, 526528
+        store r1, r2
+        imm r1, 526624
+        store r1, r2
+        imm r1, 526632
+        store r1, r2
+        imm r1, 526640
+        store r1, r2
+        call main_loop_import_cutpoint
+        call main_loop_prove_zero_hit
+        call main_loop_prove_end
+        call main_loop_prove_nonzero_hit
+        call main_loop_publish_split
+        ret
+
+main_loop_import_cutpoint:
+        imm r20, 526496
+        imm r21, 1297238352           ; MLRP
+        call cursor_require_cell
+        imm r20, 526456
+        imm r21, 51262
+        call cursor_require_cell
+        imm r20, 526464
+        imm r21, 187
+        call cursor_require_cell
+        imm r20, 526472
+        imm r21, 2
+        call cursor_require_cell
+        imm r20, 526480
+        imm r21, 2                    ; normalized cursor
+        call cursor_require_cell
+        imm r20, 526488
+        imm r21, 1                    ; active main frame
+        call cursor_require_cell
+        imm r20, 526504
+        imm r21, 1                    ; source/input relation
+        call cursor_require_cell
+        imm r20, 526320
+        imm r21, 1                    ; 0<=CUR<=LEN<=CAP
+        call cursor_require_cell
+        imm r1, 526592
+        imm r2, 1                    ; exact ordered 187-byte trace
+        store r1, r2
+        imm r1, 526600
+        store r1, r2                  ; normalized cursor preserved
+        imm r1, 526608
+        store r1, r2                  ; successful source/input relation
+        imm r1, 526616
+        store r1, r2                  ; active main/root call frame
+        ret
+
+; Conditional partition 1: the normalized cursor is in range and names a NUL.
+main_loop_prove_zero_hit:
+        call main_loop_reset_case
+        imm r20, 526016
+        imm r21, 1                    ; cbyte hit theorem
+        call cursor_require_cell
+        imm r1, 526544
+        imm r2, 1                    ; hit NUL case
+        store r1, r2
+        imm r1, 526552
+        imm r2, 1                    ; selected cbyte value zero
+        store r1, r2
+        imm r1, 526656
+        imm r2, 1                    ; checked zero-hit relation CUR<LEN
+        store r1, r2
+        call main_loop_call_cbyte
+        call main_loop_stage_compare
+        call main_loop_take_zero
+        imm r1, 526624
+        imm r2, 1
+        store r1, r2
+        ret
+
+; Conditional partition 2: cbyte's miss plus CUR<=LEN gives CUR=LEN.
+main_loop_prove_end:
+        call main_loop_reset_case
+        imm r20, 526024
+        imm r21, 1                    ; cbyte miss theorem
+        call cursor_require_cell
+        imm r1, 526544
+        imm r2, 2                    ; logical-end case
+        store r1, r2
+        imm r1, 526552
+        imm r2, 1                    ; selected cbyte value zero
+        store r1, r2
+        imm r1, 526656
+        imm r2, 2                    ; logical-end relation CUR=LEN
+        store r1, r2
+        call main_loop_call_cbyte
+        call main_loop_stage_compare
+        call main_loop_take_zero
+        imm r1, 526632
+        imm r2, 1
+        store r1, r2
+        ret
+
+; Conditional partition 3: an in-range nonzero byte remains unconsumed.
+main_loop_prove_nonzero_hit:
+        call main_loop_reset_case
+        imm r20, 526016               ; checked nonzero uses hit clause
+        imm r21, 1
+        call cursor_require_cell
+        imm r1, 526544
+        imm r2, 3                    ; hit nonzero case
+        store r1, r2
+        imm r1, 526552
+        imm r2, 2                    ; selected nonzero source byte
+        store r1, r2
+        imm r1, 526656
+        imm r2, 1                    ; nonzero hit relation CUR<LEN
+        store r1, r2
+        call main_loop_call_cbyte
+        call main_loop_stage_compare
+        call main_loop_take_body
+        imm r1, 526640
+        imm r2, 1
+        store r1, r2
+        ret
+
+main_loop_reset_case:
+        call main_loop_require_carried
+        imm r1, 526536
+        imm r2, 51262
+        store r1, r2
+        imm r1, 526560
+        imm r2, 0
+        store r1, r2
+        imm r1, 526568
+        store r1, r2                  ; ambient expression stack empty
+        imm r1, 526576
+        store r1, r2
+        imm r1, 526584
+        store r1, r2
+        imm r1, 526648
+        store r1, r2
+        ret
+
+main_loop_call_cbyte:
+        imm r20, 51262
+        call main_loop_require_pc
+        imm r20, 525960
+        imm r21, 1128421445           ; CBLE
+        call cursor_require_cell
+        call main_loop_require_carried
+        imm r1, 526544
+        load r2, r1
+        imm r3, 1
+        jeq r2, r3, main_loop_call_zero_hit
+        imm r3, 2
+        jeq r2, r3, main_loop_call_end
+        imm r3, 3
+        jeq r2, r3, main_loop_call_nonzero
+        jmp reject
+main_loop_call_zero_hit:
+        imm r20, 526656
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 526552
+        imm r21, 1
+        call cursor_require_cell
+        jmp main_loop_call_complete
+main_loop_call_end:
+        imm r20, 526656
+        imm r21, 2
+        call cursor_require_cell
+        imm r20, 526552
+        imm r21, 1
+        call cursor_require_cell
+        jmp main_loop_call_complete
+main_loop_call_nonzero:
+        imm r20, 526656
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 526552
+        imm r21, 2
+        call cursor_require_cell
+main_loop_call_complete:
+        imm r1, 526536
+        imm r2, 51271
+        store r1, r2
+        ret
+
+; Exact push233 stages cbyte's return, literal row810 supplies the right zero,
+; and comparison row809 consumes the staged value.  `!=` is zero for both
+; zero partitions and one for the nonzero partition.
+main_loop_stage_compare:
+        imm r20, 51271
+        call main_loop_require_pc
+        imm r20, 526568
+        imm r21, 0
+        call cursor_require_cell
+        imm r1, 526552
+        load r2, r1
+        imm r1, 526560
+        store r1, r2                  ; checked staged cbyte value
+        imm r1, 526568
+        imm r2, 1
+        store r1, r2
+        imm r1, 526536
+        imm r2, 51287
+        store r1, r2
+
+        imm r20, 51287
+        call main_loop_require_pc
+        imm r1, 526576
+        imm r2, 1                    ; exact literal zero
+        store r1, r2
+        imm r1, 526536
+        imm r2, 51297
+        store r1, r2
+
+        imm r20, 51297
+        call main_loop_require_pc
+        imm r20, 526568
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 526576
+        imm r21, 1
+        call cursor_require_cell
+        imm r1, 526560
+        load r2, r1
+        imm r3, 2
+        jeq r2, r3, main_loop_compare_nonzero
+        imm r3, 1
+        jeq r2, r3, main_loop_compare_zero
+        jmp reject
+main_loop_compare_zero:
+        imm r1, 526584
+        imm r2, 0                    ; checked zero != zero result
+        store r1, r2
+        jmp main_loop_compare_complete
+main_loop_compare_nonzero:
+        imm r1, 526584
+        imm r2, 1                    ; nonzero != zero result
+        store r1, r2
+main_loop_compare_complete:
+        imm r1, 526568
+        imm r2, 0                    ; comparison consumed staged left
+        store r1, r2
+        imm r1, 526536
+        imm r2, 51356
+        store r1, r2
+        ret
+
+main_loop_take_zero:
+        imm r20, 51356
+        call main_loop_require_pc
+        imm r20, 526584
+        imm r21, 0
+        call cursor_require_cell
+        call main_loop_require_carried
+        imm r1, 526536
+        imm r2, 51375
+        store r1, r2
+        ; Literal row811 sets r0=0, then the exact main epilogue preserves it
+        ; across return to the root call's PC29 continuation.
+        imm r20, 51375
+        call main_loop_require_pc
+        imm r1, 526648
+        imm r2, 0                    ; checked concrete halt payload
+        store r1, r2
+        imm r1, 526536
+        imm r2, 29
+        store r1, r2
+        imm r20, 29
+        call main_loop_require_pc
+        imm r20, 526648
+        imm r21, 0
+        call cursor_require_cell
+        ret
+
+main_loop_take_body:
+        imm r20, 51356
+        call main_loop_require_pc
+        imm r20, 526584
+        imm r21, 1
+        call cursor_require_cell
+        call main_loop_require_carried
+        imm r1, 526536
+        imm r2, 51405                 ; checked main.body cutpoint
+        store r1, r2
+        imm r20, 51405
+        call main_loop_require_pc
+        ret
+
+main_loop_publish_split:
+        imm r20, 526624
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 526632
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 526640
+        imm r21, 1
+        call cursor_require_cell
+        imm r1, 526520
+        imm r2, 1514687565            ; MLHZ
+        store r1, r2
+        imm r1, 526528
+        imm r2, 1145195597            ; MLBD
+        store r1, r2
+        ret
+
+main_loop_require_carried:
+        imm r20, 526592
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 526600
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 526608
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 526616
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 526464
+        imm r21, 187
+        call cursor_require_cell
+        imm r20, 526472
+        imm r21, 2
+        call cursor_require_cell
+        ret
+
+main_loop_require_pc:
+        imm r1, 526536
+        load r2, r1
+        jeq r2, r20, cursor_require_ok
+        jmp reject
