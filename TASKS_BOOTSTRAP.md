@@ -203,6 +203,17 @@ or prescribe work inside the Rust on-ramp or the eventual product compiler.
     0/1/2/16-write terminal modules reproduce the product images byte for
     byte; 17 writes, 1,200 aggregate bytes, malformed input, and truncation
     reject before emitting any image byte.
+  - [x] Gate the frozen O1 compiler-program composition through Delta's
+    `lowermachine`. Both `omega0-frontend.alp` and
+    `omega0-terminal-to-elf.alp` are recompiled through the Delta-written
+    compiler, then bundle → vocabulary-25 terminal Psi → ELF reproduces the
+    independent product terminal and image bytes for 0/1/2/16 writes; semantic
+    rejection and every frontend/backend O1 exhaustion boundary publish no
+    partial artifact. This is a deliberately partial dependency-closure claim:
+    the initial `lowermachine` executable still comes from the disposable Rust
+    on-ramp, and native assembly/signing still uses Darwin `clang`/`codesign`.
+    It does not claim the production Omega compiler exists or a Rust-free
+    compiler lineage.
 - [x] **Complete lower-rung meaning for the current D0/O1 profile.** Cover every
   admitted construct, including allocation and exhaustion, through the
   Delta-to-Gamma route and preserve native-versus-meaning differential gates.

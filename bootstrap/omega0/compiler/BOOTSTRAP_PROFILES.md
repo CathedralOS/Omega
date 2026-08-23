@@ -230,7 +230,15 @@ the shared codec/lowering for representative cases; canonical meaning; and
 rejection of bad ordering, a non-final or duplicate exit, trailing operations,
 and every declared resource ceiling. The frontend's native and Delta-self-host
 gates and the backend's exact-product-image gate close those source/artifact
-claims. The lower-rung `omega2gamma.beta` route also executes the 40-machine
+claims. The composite gate also compiles both compiler programs through the
+Delta-written `lowermachine`, then requires bundle → vocabulary-25 terminal Psi
+→ ELF to reproduce the independent product terminal and image bytes for 0, 1,
+2, and 16 writes, with frontend and backend refusal before partial publication.
+The gate's initial `lowermachine` executable is still produced by the
+disposable Rust on-ramp, and its Darwin assembly/signing uses `clang` and
+`codesign`; this is frozen-O1 dependency/behavior closure, not a Rust-free
+compiler lineage or the production-self-host profile. The lower-rung
+`omega2gamma.beta` route also executes the 40-machine
 frontend through Gamma and pins the O1 zero/two-write dual-channel results and
 semantic rejection. Its previously unbounded expansion was metadata-table
 aliasing at machine 25, not an inherent cost of the route. O1 remains a small
