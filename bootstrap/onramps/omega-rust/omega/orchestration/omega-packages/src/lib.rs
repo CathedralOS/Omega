@@ -14,6 +14,7 @@ mod manifest;
 mod resolver;
 mod review;
 mod source;
+mod update;
 
 pub use commands::{PackageSourceAudit, PackageSourceRequest, audit_package_source};
 pub use diff::{ManifestDelta, ManifestDiff, ManifestSeverity, diff_package_capability_manifests};
@@ -36,4 +37,7 @@ pub use review::{
 pub use source::{
     GitSourceSpec, LocalSourceLimits, ResolvedGitSource, ResolvedLocalSource, SourceResolveError,
     resolve_git_source, resolve_local_source,
+};
+pub use update::{
+    PackageUpdateAdmissionError, PackageUpdateDecision, decide_default_package_update,
 };

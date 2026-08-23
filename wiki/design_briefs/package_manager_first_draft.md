@@ -90,12 +90,15 @@ Default update policy:
 2. Build or check the candidate in package-admission mode.
 3. Derive the candidate package capability manifest.
 4. Compare old and new manifests.
-5. Update the source pin only if the manifest is unchanged.
+5. Update the source pin only if the diff is empty or limited to source
+   identity/pin fields.
 6. Otherwise reject and print a capability diff.
 
 This is stricter than "only reject added capability" by design. Removing a
 capability can be an API or deployment compatibility change, and moving a
 provider/trust receipt can change the TCB even if the service row is the same.
+The source-only exception exists so exact pins can move when the compiler-
+derived package capability evidence is otherwise unchanged.
 
 The acceptance path should be explicit, for example:
 

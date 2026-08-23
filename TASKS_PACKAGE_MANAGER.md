@@ -128,6 +128,14 @@ Completed:
   fields and unsupported schema versions, normalize locks after read, and
   reject invalid closures before writing or accepting a lock from disk.
 
+- **DEFAULT-UPDATE-ADMISSION.** Add the default update decision model before
+  CLI mutation.
+
+  Done 2026-08-23: `omega-packages` can compare old/new normalized package
+  capability manifests, admit source-only updates, reject package identity
+  changes, and reject non-source manifest deltas with severity-ranked diff text
+  and explicit review guidance.
+
 Remaining:
 
 - **PACKAGE-CAPABILITY-MANIFEST.** Define the normalized manifest produced for
@@ -196,6 +204,10 @@ Remaining:
 - **OMEGA-UPDATE.** Add `omega update [alias...] [--to <rev>]`. The default
   update path may move source pins only when the dependency's normalized
   package capability manifest is unchanged.
+
+  Remaining after `DEFAULT-UPDATE-ADMISSION`: wire candidate resolution,
+  package-admission manifest derivation, `build.omg` pin editing, and lock
+  persistence around the update decision.
 
   Acceptance: changing source bytes with the same capability manifest updates
   the pin and lock. Any manifest delta rejects before changing `build.omg` or
