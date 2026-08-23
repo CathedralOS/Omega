@@ -1,25 +1,31 @@
 # `compiler/` — product compilers and bootstrap compatibility paths
 
 Omega is rebuilt from a small audited seed through increasingly capable
-languages, then through one deliberate Omega self-host edge:
+languages, then through one deliberately profile-limited hosted edge:
 
 ```text
 Alpha → Beta → Gamma → Delta
                            ↓
-              Omega (Delta-built, simple)
+              omega-bootstrap (Delta-built, accepts Ωself)
                            ↓
-              Omega (Omega-built, optimized)
+              omega (full optimizing compiler; own binary may be conservative)
 ```
 
-The first Omega compiler is required to be spec-compliant, not fast. It may use
-simple lowering, omit advanced optimization, compile slowly, and emit slower
-code. It is nevertheless a valid self-sufficient endpoint. The second compiler
-is the full production implementation written in Omega and built by the first.
-That single self-host dependency replaces a historical tower of external
-implementation-language dependencies.
+Delta is an independent compiler-host language, not necessarily an Omega
+subset. `omega-bootstrap` accepts only the Omega self-hosting profile `Ωself`
+required by the exact product source closure and rejects the rest. The product
+source is normal Omega constrained to that profile; the resulting compiler
+implements full Omega. This hosted dependency replaces a historical tower of
+external implementation-language dependencies.
 
-The repeated Omega does not claim self-hosting proves correctness. A defect in
-bootstrap Omega can reproduce into production Omega. Canonical meaning routes,
+The bridge may run slowly and lower the product compiler conservatively. It
+must compile the `Ωself` source that implements the production optimizer and
+advanced lowering, but need not run those passes itself. A further product
+rebuild can optimize the compiler binary and add fixed-point evidence; it is
+optional for functionality and dependency closure.
+
+The hosted edge does not claim self-hosting proves correctness. A defect in
+`omega-bootstrap` can reproduce into production Omega. Canonical meaning routes,
 artifact reconstruction, proof checking, operational cross-checks, and
 translation validation supply the assurance.
 
@@ -30,7 +36,7 @@ translation validation supply the assurance.
 | **Alpha** | 21-opcode raw executor and native seed | written semantics, conformance, audited x64/arm64 realizations |
 | **Beta** | small structured compiler language with Omega-shaped state graphs | `bc` self-host, language corpus, source-to-artifact refinement (incomplete for the whole compiler) |
 | **Gamma** | pure ADTs, matching, types, and fuel-bounded definitional meaning | interpreter/type-checker gates and meaning corpora |
-| **Delta** | systems/compiler-host language that can build bootstrap Omega | self-host, native corpus, Delta-to-Gamma meaning diamond |
+| **Delta** | independent systems/compiler-host language that can build `omega-bootstrap` | self-host, native corpus, Delta-to-Gamma meaning diamond |
 
 The Greek names and order are fixed language roles. The Alpha assembler now
 lives at `bootstrap/rungs/alpha/assembler/`; historical `compiler/beta` is only
@@ -72,16 +78,22 @@ attached derivations. Proof search and optimization remain untrusted producers.
 See [`bootstrap/assurance/proof-kernel/README.md`](../bootstrap/assurance/proof-kernel/README.md) and
 [`wiki/architecture/bootstrap_lattice/proof_kernel.md`](../wiki/architecture/bootstrap_lattice/proof_kernel.md).
 
-## Psi and the two Omega compilers
+## Psi, omega-bootstrap, and production Omega
 
 Psi owns Omega source semantics through terminal portable IR. Omega consumes
 terminal Psi and performs target realization and native emission.
 
-The hosted build has two stages:
+The hosted build has two source surfaces:
 
-1. Delta builds the minimal conforming Psi/Omega path and produces bootstrap
-   Omega.
-2. Bootstrap Omega compiles the full optimizing compiler from Omega source.
+1. Delta source implements `omega-bootstrap`, including exact `Ωself`
+   acceptance and the optimizer/lowering functionality needed for the product.
+2. `omega-bootstrap` compiles the `Ωself`-constrained Omega product source into
+   the full optimizing compiler. That compiler's own binary may be
+   conservatively lowered until an optional self-rebuild.
+
+`Ωself` has no private semantics and is not another language rung. The feature
+budget and enforcement contract live in
+[`self_hosting_profile.md`](../wiki/architecture/bootstrap_lattice/self_hosting_profile.md).
 
 The current Rust implementation remains a migration/reference producer under
 `bootstrap/onramps/omega-rust/{psi,omega}/` while that hosted path matures.
@@ -106,10 +118,11 @@ correctness. Trust comes from explicit, independently checked boundaries:
   canonical meaning.
 
 Rust is removed first from meaning and checking, where it affects soundness, and
-later from producers, where it affects self-sufficiency. The Delta-built Omega
-compiler is the point at which an external compiler can be omitted entirely;
-the Omega-built production compiler improves performance rather than closing a
-new language dependency.
+later from producers, where it affects self-sufficiency. The current Rust
+Psi/Omega compiler may remain maintained in parallel as a differential
+reference, but it grants no authority and is never required to bootstrap or
+release the product. `omega-bootstrap` is the point at which an external
+compiler can be omitted entirely.
 
 ## Entry points
 

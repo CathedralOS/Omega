@@ -12,6 +12,6 @@ independent of the language used to produce an artifact.
   Rust producer and executable reference. It is not Delta's semantic authority.
 
 The lower-rung Delta-to-Gamma route under [`../../omega0/meaning/`](../../omega0/meaning/)
-defines the meaning profile being widened toward the first Omega compiler.
+defines the meaning profile being widened toward `omega-bootstrap`.
 `compiler/delta` and `compiler/delta-rs` remain historical compatibility paths;
 new gates use the `delta` and `delta-rs` roles from `bootstrap/paths.sh`.

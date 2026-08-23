@@ -2,28 +2,39 @@
 
 [Lattice overview](bootstrap_lattice.md) | [Delta language rung](rungs/delta.md)
 
-Omega is the product language and toolchain, not another Greek bootstrap rung. Psi owns source
-processing through terminal portable IR; Omega consumes that IR and performs
-target realization, optimization, and native emission. Today the working
-implementations are primarily Rust. The bootstrap destination has two compiler
-artifacts for the same Omega language:
+Omega is the product language and toolchain, not another Greek bootstrap rung.
+Psi owns source processing through terminal portable IR; Omega consumes that IR
+and performs target realization, optimization, and native emission. Today the
+working implementations are primarily Rust. The hosted destination has one
+profile-limited bridge compiler and one production compiler:
 
 ```text
-Delta → Omega (simple, Delta-built) → Omega (optimized, Omega-built)
+Delta → omega-bootstrap (accepts Ωself) → omega (implements full Ω)
 ```
 
-The first compiler contains the Psi source/semantic path and enough target
-realization to compile conforming Omega programs. It deliberately omits advanced
-optimization and may compile slowly or emit slow code. The second is the full
-production compiler written in Omega and built by the first.
+`omega-bootstrap` is written in Delta and contains only the Psi/Omega input
+surface required by the exact production source closure. It is permitted to
+reject proofs, dependent/linear types, and any other Omega construct absent from
+that closure. Accepted constructs retain exact Omega semantics; this is not a
+bootstrap dialect. The production compiler is written in Omega constrained to
+that `Ωself` profile and implements the full specification for users.
+
+The bridge binary may run slowly and lower the production compiler
+conservatively. It must compile the `Ωself` source that implements the product
+optimizer and advanced lowering, but need not duplicate those passes. A further
+production self-rebuild can optimize the compiler binary; it is optional
+evidence, not a required dependency.
 
 The distinction is architectural:
 
 - Alpha, Beta, Gamma, and Delta form the small language chain used to build the
-  first Omega compiler from the audited seed.
-- The Delta-built Omega compiler is a valid self-sufficient endpoint.
-- That compiler then builds the optimized Omega compiler from Omega source. The
-  repeated Omega is a self-host edge, not another language rung.
+  bridge compiler from the audited seed. Delta is independent, not an Omega
+  subset requirement.
+- `Ωself` is a mechanically enforced Omega source profile, not Epsilon or
+  another language rung.
+- The bridge compiler builds the full optimizing production compiler once from
+  the exact `Ωself` source manifest; that compiler's own binary may initially be
+  conservative.
 - The Psi-aware artifact verifier reconstructs the obligations imposed by an
   exact terminal-Psi module; the [proof kernel](proof_kernel.md) independently
   checks the certificate derivations that discharge those obligations.
@@ -35,24 +46,29 @@ The distinction is architectural:
   `bootstrap/onramps/omega-rust/apps/omega-cli/` is its user-facing executable.
 - `compiler/{psi,omega}/` is reserved for the eventual Omega-written product
   source. Those roots are placeholders today, not a compiler source tree.
-- `bootstrap/omega0/` owns Rust-free meaning, current Delta-written compiler
-  slices/profiles, and bootstrap validation; it has no alias at the product root.
+- `bootstrap/omega0/` is the current transitional path for Rust-free meaning,
+  Delta-written bridge-compiler slices/profiles, and bootstrap validation. Its
+  architectural role is `omega-bootstrap`; the obsolete `omega0` label is not
+  a compiler generation or language claim.
 - `bootstrap/rungs/delta/` owns the bootstrap language corpus and Delta-written
   compiler; `bootstrap/onramps/delta-rust/` is its disposable Rust producer.
-  Together their current gates are growing toward the simple bootstrap Omega
-  compiler without assigning language ownership to Rust.
+  Together their current gates are growing toward `omega-bootstrap` without
+  assigning language ownership to Rust.
 
 All Rust bootstrap/reference producers now live under explicitly suffixed
 `bootstrap/onramps/` directories. In particular, the current Psi/Omega crates
 do not claim the permanent unsuffixed product roots. See the [repository
 structure](repository_structure.md).
 
-Self-hosting does not by itself prove compiler correctness. A defect in bootstrap
-Omega can reproduce while it builds production Omega. The value of this shape is
-dependency closure: one checked self-host edge replaces a historical tower of
-external implementation-language dependencies. Semantic correctness still comes
-from the canonical meaning route, reconstructed proof obligations, derivation
-checking, and translation validation across that edge.
+Hosting does not by itself prove compiler correctness. A defect in
+`omega-bootstrap` can reproduce while it builds production Omega. The value of
+this shape is dependency closure: one checked hosted edge replaces a historical
+tower of external implementation-language dependencies. Semantic correctness
+still comes from the canonical meaning route, reconstructed proof obligations,
+derivation checking, and translation validation across that edge.
+
+The exact distinction between Delta's literal specification and `Ωself` is
+defined in [`self_hosting_profile.md`](self_hosting_profile.md).
 
 The current Rust `psi-terminal-verifier` demonstrates the artifact-aware half:
 it validates canonical terminal Psi, reconstructs its exact obligation set,
@@ -65,7 +81,7 @@ ledger; Rust agreement grants no authority. Local operation denotations and
 canonical goals come from restricted declarative schemas, while algebraic
 reduction is untrusted and must emit a checked proof of the unchanged goal.
 
-Bootstrap-Omega hosting and the Omega self-build are tracked in
+Bridge hosting and the one required production compile are tracked in
 [`TASKS_BOOTSTRAP.md`](../../../TASKS_BOOTSTRAP.md). Native refinement evidence
 and terminal-ledger migration remain product-assurance work under P3 in
 [`TASKS.md`](../../../TASKS.md).
@@ -99,7 +115,8 @@ prefix rejects. A Delta-written backend consumes that module
 and emits the canonical 8 KiB Linux x86-64 ELF without an assembler or linker;
 its output is byte-identical to the production lowering and malformed input
 produces no output. O0 is therefore closed end to end. Generalizing that source
-and artifact path into the first spec-compliant Omega compiler remains open.
+and artifact path into the `Ωself` bridge compiler remains open; general
+full-Omega acceptance is not a requirement of that artifact.
 
 O1 is the first variable rather than fixture-shaped step: one bounded
 statement table accepts 0–16 literal `write_line` operations followed by one

@@ -1,7 +1,9 @@
 # Omega product source
 
 This root is reserved for the eventual Omega-written target-lowering,
-optimization, and artifact-emission implementation.
+optimization, and artifact-emission half of the production compiler. Its source
+closure is constrained to `Ωself` and compiled by `omega-bootstrap`; those
+product passes are not duplicated in the bridge.
 
 The current Rust implementation is explicitly transitional and lives at
 `bootstrap/onramps/omega-rust/omega/`. Do not place new Rust crates here.

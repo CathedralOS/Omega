@@ -14,16 +14,24 @@ this overview.
 ```text
 Alpha → Beta → Gamma → Delta
                            ↓
-              Omega (Delta-built, simple)
+              omega-bootstrap (accepts Ωself)
                            ↓
-              Omega (Omega-built, optimized)
+              omega (full optimizing compiler; own binary may be conservative)
 ```
 
-The languages become increasingly capable. Delta builds a deliberately simple,
-spec-compliant Omega compiler. That compiler is a valid self-sufficient endpoint,
-although it may compile slowly and emit minimally optimized code. It then builds
-the full optimizing compiler from Omega source. The repeated Omega is one
-self-host dependency, not another language rung.
+The languages become increasingly capable. Delta is an independent, robust
+compiler-host language with C-like power and Omega-shaped conventions where
+useful; it is not required to be an Omega subset. Delta source builds
+`omega-bootstrap`, which accepts only the exact Omega self-hosting profile
+`Ωself`. The production compiler source is normal Omega constrained to that
+profile and implements the complete Omega specification. `Ωself` is not another
+language rung or dialect.
+
+The bridge binary may run slowly and lower the production compiler
+conservatively. It must compile the `Ωself` source that implements the product
+optimizer and advanced lowering, but need not implement those passes itself. A
+later product self-rebuild can optimize the compiler binary and add fixed-point
+evidence; it is not required for full functionality or dependency closure.
 
 The proof kernel is orthogonal to this chain. It has independent Beta and Gamma
 implementations and checks certificates emitted at multiple stages.
@@ -44,13 +52,13 @@ compatibility symlinks.
 | `bootstrap/rungs/gamma/` (compatibility: `compiler/gamma`) | Gamma language, interpreter, and type checker | `bootstrap/rungs/gamma/` |
 | `bootstrap/rungs/delta/` (compatibility: `compiler/delta`, Delta samples through `compiler/delta-rs`) | Delta language corpus, Delta-written compiler, and lattice-built artifacts | `bootstrap/rungs/delta/` |
 
-### Assurance and bootstrap Omega
+### Assurance and the bootstrap bridge
 
 | Canonical or transitional source | Role | Canonical owner |
 | --- | --- | --- |
 | `bootstrap/assurance/proof-kernel/{implementations,tools,corpus,gates}/` (compatibility: `compiler/proof-kernel`) | cross-cutting derivation checking, tools, corpora, and gates | `bootstrap/assurance/proof-kernel/` |
 | `bootstrap/assurance/refinement/{beta,omega0}/` (compatibility entries remain under Alpha and Omega0 gates) | cross-rung source/meaning-to-artifact obligation reconstruction and checking | `bootstrap/assurance/refinement/` |
-| `bootstrap/omega0/` | Rust-free meaning, current first-Omega compiler slices/contracts, and gates | `bootstrap/omega0/` |
+| `bootstrap/omega0/` (transitional name; target role `omega-bootstrap`) | Rust-free meaning, current bridge-compiler slices/contracts, and gates | `bootstrap/omega0/` pending mechanical rename |
 | `bootstrap/corpus/` (compatibility: `compiler/lattice-corpus`) | fixtures shared across lattice seams | `bootstrap/corpus/` |
 
 ### Reference producers and future product implementations
@@ -83,29 +91,29 @@ compatibility symlinks.
 - Delta is the final small bootstrap language. The admitted D0/O1 compiler
   profile elaborates to Gamma through the lower-rung route; every future profile
   extension must preserve that coverage or fail closed.
-- The next compiler dependency closure is Delta → bootstrap Omega → production
-  Omega. Bootstrap Omega needs correctness and language coverage, not advanced
-  optimization.
+- The next compiler dependency closure is Delta → `omega-bootstrap` → production
+  Omega. The bridge needs exact `Ωself` coverage and correct conservative output,
+  not general full-Omega input acceptance or the product optimizer itself.
 
 > **Immediate closure:** finish the Alpha-rooted `bc` blockwise correspondence
 > check described under [Cross-rung assurance work](#cross-rung-assurance-work).
 > Omega-profile growth follows the actual production Omega source tree and must
 > carry its direct-artifact and Rust-free-meaning coverage in the same milestone.
 
-## Delta → first Omega readiness
+## Delta → omega-bootstrap → production Omega readiness
 
 **Present status: compiler-capable with O0 and the variable O1 vertical slice
-closed, but not Omega-bootstrap-ready.** Delta has proved that it can host a
+closed, but not `Ωself`-bootstrap-ready.** Delta has proved that it can host a
 substantial compiler and carry a bounded family of Omega source shapes through
 canonical meaning to runnable artifacts, but it has not yet implemented the
-Omega compiler.
+bridge compiler.
 `bootstrap/rungs/delta/samples/lowermachine.alp` is a real
 Delta-written Delta-to-ARM64 compiler: it self-compiles to a fixed point and its
 output is swept against the Rust reference over the sample corpus. This proves
 the basic compiler-host vocabulary—mutable arenas, parsing, recursive calls,
 sum types, state-machine control flow, byte I/O, and code emission.
 
-That evidence is necessary but is not the first Omega compiler:
+That evidence is necessary but is not yet `omega-bootstrap`:
 
 - The Delta-written O0/O1 slice implements its frozen lexer, parser, exact
   name/type/count checks, direct canonical terminal-Psi emission, and a direct
@@ -121,15 +129,17 @@ That evidence is necessary but is not the first Omega compiler:
 - The Rust `gamma_emit.rs` Delta-to-Gamma route is incomplete for the whole
   implemented language and remains a trusted Rust dependency while the
   Rust-free route is widened.
-- The exact bootstrappable Omega source profile sufficient to express the
-  production Omega compiler has not been frozen.
+- Delta's complete literal specification has not yet been frozen as the robust,
+  independent compiler-host language required by `main.delta`.
+- The exact `Ωself` profile sufficient to express the production Omega compiler
+  and every transitive build dependency has not been frozen.
 
 ### Permitted Delta bootstrap concessions
 
-Delta is a bootstrap implementation language, not the product language. It may
-therefore use deliberately plain facilities that make the first Omega compiler
-practical, without first reproducing Omega's final allocation and container
-model:
+Delta is an independent bootstrap implementation language, not the product
+language. It may therefore use deliberately plain facilities that make
+`omega-bootstrap` practical, without first reproducing Omega's final allocation
+and container model:
 
 - Permit runtime-sized allocations from an explicit, fixed backing extent
   supplied at compiler startup. A deterministic bump allocator or paged arena
@@ -145,8 +155,8 @@ model:
   be deterministic and preserved as an auditable artifact.
 - Permit direct, conservative lowering and poor generated code. Parallelism,
   advanced register allocation, optimization, incremental compilation, and the
-  production `PagedArena` architecture are explicitly not gates for the first
-  Omega artifact.
+  production `PagedArena` architecture are explicitly not gates for
+  `omega-bootstrap`.
 
 These are implementation concessions, not holes in meaning. Allocation,
 exhaustion, input assembly, and any host boundary used to create the backing
@@ -329,14 +339,36 @@ or prescribe work inside the Rust on-ramp or the eventual product compiler.
     and AArch64 images plus replayed installation records. Matching Linux hosts
     execute the image and compare stdout/status; other hosts validate both
     complete image formats without pretending to execute them.
-- [ ] **Derive and freeze the production-self-host acceptance profile.** This is
-  blocked on `OMEGA-PRODUCT-COMPILER-SOURCE` in `TASKS.md`; standard-library and
-  sample `.omg` files cannot substitute for that exact source tree. Once it
-  exists, freeze only the language surface the product compiler actually uses.
-- [ ] **Implement the first Omega compiler in Delta.** Grow the canary into the
-  deliberately simple, spec-compliant compiler. Prefer direct and auditable
-  stages over porting the production optimizer or the entire current Rust
-  architecture.
+- [ ] **Freeze Delta's literal compiler-host specification.** Delta is an
+  independent, robust C-like language with an Omega-shaped surface where that
+  improves consistency; it is not required to be valid Omega. Specify the
+  exact integer, memory, allocation, aggregate, control-flow, module, and FFI
+  contracts needed to implement `omega-bootstrap`, including deterministic
+  failure and fixed-backing-allocation behavior. The current D0 profile remains
+  valid closed evidence for the slices already implemented, not a claim that
+  the final Delta language is frozen.
+- [ ] **Derive and freeze the Omega self-hosting profile (`Ωself`).** This is the
+  ordinary-Omega source profile used by the production compiler implementation,
+  not a language, dialect, or lattice rung. It is blocked on
+  `OMEGA-PRODUCT-COMPILER-SOURCE` in `TASKS.md`; standard-library and sample
+  `.omg` files cannot substitute for the exact compiler source closure.
+  - [ ] Publish the complete self-host manifest, including every transitive
+    library, generated source, macro/build-time input, and compile-time tool
+    imported by the production compiler.
+  - [ ] Freeze a mechanically enforced feature allowlist from that manifest.
+    Presumptively omit proofs/math syntax and linear/dependent types; retain
+    ordinary named fields, payload-bearing enums, and basic generics unless
+    implementation evidence says otherwise. Decide concrete domains, advanced
+    generic facilities, numeric/schema field tags, and complex transition
+    payloads from measured compiler-source need rather than aesthetic symmetry.
+  - [ ] Add positive closure gates and one negative canary per rejected feature
+    so the profile cannot expand accidentally.
+- [ ] **Implement `omega-bootstrap` in Delta.** Grow the current canary into a
+  compiler whose accepted input is exactly `Ωself`, whose accepted semantics
+  agree with full Omega, and which rejects unsupported Omega features clearly.
+  It need not accept the full Omega language or optimize the product compiler's
+  own binary. Keep stages direct and auditable, and compile the `Ωself` source
+  that implements the full product optimizer and advanced lowering correctly.
   - [x] Close execution of the full current `lowermachine` through canonical
     Gamma meaning. Allocation profiling identified evaluator-private tail-call
     argument lists—not the translated compiler's persistent arrays—as the arena
@@ -360,34 +392,37 @@ or prescribe work inside the Rust on-ramp or the eventual product compiler.
     and compare several generated cases against the shared product codec and
     lowering. Terminal vocabulary 25 already represents this slice; no new
     language ruling is required.
-  - [ ] Grow subsequent monotonic profiles from requirements of the actual
-    Omega-source production compiler. Each profile must add its frontend,
-    terminal representation, direct artifact path, lower-rung meaning coverage,
-    diagnostics, and negative controls as one vertical capability—not a matrix
-    of hard-coded sample permutations.
+  - [ ] Grow subsequent vertical slices from requirements of the actual
+    Omega-source production compiler. O0/O1 remain canaries rather than a
+    normative language ancestry for `Ωself`. Each admitted capability must add
+    its frontend, terminal representation, direct artifact path, lower-rung
+    meaning coverage, diagnostics, and negative controls as one vertical
+    capability—not a matrix of hard-coded sample permutations.
     This item owns only the Delta/bootstrap implementation and its lattice
     gates. Any required product Psi/Omega or Rust-reference implementation work
     is tracked in `TASKS.md`.
     Every newly admitted construct must elaborate through the Rust-free meaning
     route or reject before entering the compiler; `gamma_emit.rs` remains a
     differential reference only.
-- [ ] **Validate Delta → Omega.** Gate representative language coverage,
-  negative diagnostics, deterministic artifacts, meaning agreement, and the
-  relevant proof/translation-validation seams.
-- [ ] **Compile production Omega from Omega source.** Use the Delta-built
-  compiler to produce the optimized Omega compiler, then validate the self-build
-  edge against canonical meaning. The Delta-built compiler remains a supported
-  slow, unoptimized endpoint.
-  - [ ] Build and validate both artifacts explicitly: Delta-built simple Omega,
-    then Omega-built optimizing Omega. Stopping after the first remains a valid
-    supported configuration.
+- [ ] **Validate Delta → `omega-bootstrap`.** Gate exact `Ωself` coverage,
+  excluded-feature diagnostics, deterministic artifacts, meaning agreement,
+  conservative lowering behavior, and the relevant proof/translation-validation
+  seams. The Rust compiler may remain a differential oracle, but is never an
+  authority or bootstrap/release dependency.
+- [ ] **Compile the production Omega compiler once.** Use the Delta-built
+  `omega-bootstrap` compiler on the exact `Ωself` source manifest to produce a
+  compiler that accepts and implements the full Omega specification, including
+  its production optimizer and lowering pipeline. The resulting compiler binary
+  may itself be conservatively generated.
+  Validate that artifact against canonical meaning and the full conformance
+  suites. An optional product-compiler rebuild is useful fixed-point and
+  reproducibility evidence, but is not another required rung or dependency.
 
 The O0/O1 vertical path is closed through a direct, lattice-written x86-64 ELF.
-The next evidence boundary is to grow that frozen slice into the
-deliberately simple Omega compiler while widening direct artifact emission and
-the used-Delta meaning profile only as the compiler source requires. Those
-requirements, rather than a wholesale Delta redesign, determine which
-additional facilities the bootstrap actually needs.
+The next evidence boundary is to grow that frozen slice into
+`omega-bootstrap`, widening Delta and direct artifact emission only as the exact
+`Ωself` compiler-source closure requires. Neither the canary profile nor the
+bridge compiler is a promise to accept full Omega.
 
 ## Cross-rung assurance work
 
@@ -1028,8 +1063,13 @@ additional facilities the bootstrap actually needs.
 - [x] Split the former `beta-lang-py` directory by responsibility: executable
   Beta meaning under the Beta rung and symbolic reconstruction under assurance.
   Remove its obsolete backend and facade gate; compatibility wrappers remain.
-- [x] Move first-Omega work to `bootstrap/omega0/` and shared seam fixtures to
-  `bootstrap/corpus/`.
+- [x] Move the former first-Omega/bridge work to `bootstrap/omega0/` and shared
+  seam fixtures to `bootstrap/corpus/`.
+- [ ] Mechanically rename the transitional `bootstrap/omega0/` path and its
+  user-facing artifact names to `bootstrap/omega-bootstrap/` after the current
+  O0/O1 gate references are inventoried. Preserve compatibility wrappers only
+  where external callers still require them; do not encode an architectural
+  `Omega0` rung in the replacement layout.
 - [x] Move the current Rust Psi/Omega compiler and CLI out of unsuffixed product
   roots and into `bootstrap/onramps/omega-rust/{psi,omega,apps/omega-cli}/`.
 - [x] Reserve `compiler/{psi,omega}/` for the eventual Omega-written product
@@ -1042,15 +1082,18 @@ additional facilities the bootstrap actually needs.
    checking.
 2. Keep Delta's Rust-free meaning route as a rolling invariant: every newly
    admitted compiler construct lands with native/meaning differential coverage.
-3. Once `OMEGA-PRODUCT-COMPILER-SOURCE` is complete in `TASKS.md`, derive the
-   bootstrap acceptance profile from the code that must actually self-host.
+3. Freeze Delta's literal compiler-host contract; once
+   `OMEGA-PRODUCT-COMPILER-SOURCE` is complete in `TASKS.md`, derive and gate
+   `Ωself` from its complete transitive source closure.
 4. Grow proof-kernel capability and its operational seams only in lockstep with
    real obligation classes.
 5. Build translation-validation evidence for native compiler outputs.
-6. Grow the closed O0/O1 vertical path—source through direct ELF—into the
-   deliberately simple, spec-compliant Omega compiler.
-7. Use the resulting bootstrap Omega compiler to build and validate the full
-   optimizing Omega compiler from Omega source.
+6. Grow the closed O0/O1 vertical path—source through direct ELF—into
+   `omega-bootstrap`, accepting exactly `Ωself` and carrying enough lowering and
+   optimization to perform the required hosted compile.
+7. Use `omega-bootstrap` once to build and validate the full optimizing Omega
+   compiler from the `Ωself` production source manifest. Treat any later
+   product self-rebuild as optional assurance evidence, not another rung.
 
 This ordering follows D1–D6. Producer optimization does not outrank removal of a
 trusted Rust meaning or verification dependency.

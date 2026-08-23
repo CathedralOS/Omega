@@ -124,9 +124,9 @@ proved.
 
 ## Producer and self-host boundaries
 
-The Delta-built bootstrap Omega compiler and the Omega-built production compiler
+The Delta-built `omega-bootstrap` compiler and the production Omega compiler
 may both emit certificates. Neither compiler decides whether its own evidence is
-valid. A bug in bootstrap Omega can reproduce into production Omega, but it
+valid. A bug in the bridge can reproduce into production Omega, but it
 cannot forge a derivation accepted by an independent sound kernel or choose a
 different artifact obligation when canonical reconstruction is in place.
 

@@ -25,7 +25,7 @@ The overview's "Two roles for Rust" is the ordering law. Made concrete, per arti
 | cold-started `bc` artifact vs `bc.beta` | **trusted compilation edge** | **OPEN** — the Alpha-rooted fixed point and persisted artifact exist; complete lower-rooted source-to-artifact refinement does not. |
 | `interp.beta` / `typeck.beta` (γ meaning) | **trusted base** | **DEAD** — Beta, on the seed lineage. |
 | Delta's **meaning** (`gamma_emit.rs`) | **trusted base** | **MIGRATING** — the Beta-written `omega2gamma` route and Gamma execution cover the admitted D0/O1 compiler profile. `gamma_emit.rs` is a differential reference there; each future profile extension must bring lower-rung meaning with it. |
-| Psi/Omega's **meaning** | **trusted base** | Follows the same elaboration discipline through the Delta-built bootstrap compiler and the Omega self-build edge. |
+| Psi/Omega's **meaning** | **trusted base** | Follows the same elaboration discipline through `omega-bootstrap` and the hosted production compile. |
 | `beta-rust`, `delta-rust`, `bootstrap/onramps/omega-rust/` (producers) | **untrusted producer** | **DEFERRABLE** — replaced for self-sufficiency, not soundness. The current Rust compiler remains the executable reference producer during migration. |
 
 **Policy:** no work removes Rust from a *producer* merely for pedigree while Rust
@@ -174,37 +174,53 @@ that grants an artifact authority.
 - Close every compiler edge with lower-rooted source-to-artifact refinement.
 - Keep differential/reference implementations only where their bug-finding value
   justifies their maintenance cost.
+- In particular, retain the current Rust Psi/Omega compiler as a maintained
+  parallel reference while useful, but never make its agreement, availability,
+  or output a bootstrap authority or release dependency.
 
-## D6 — The language spine reaches Omega through Delta; Omega then rebuilds itself. The proof kernel is orthogonal.
+## D6 — Delta builds a profile-limited Omega compiler; that compiler builds the full product. The proof kernel is orthogonal.
 
-**Ratified 2026-08-04; clarified 2026-08-22.** The small bootstrap
-languages form the audited spine:
+**Ratified 2026-08-04; superseded and clarified 2026-08-23.** The small
+bootstrap languages form the audited spine:
 
 ```text
 Alpha → Beta → Gamma → Delta
 ```
 
-Delta is the systems/compiler-host rung. Its job is to build a deliberately
-simple, spec-compliant Omega compiler from the audited seed. That bootstrap
-compiler need not contain the production optimizer or advanced lowering
-pipeline; it must compile the language correctly. It then compiles the full
-Omega compiler written in Omega:
+Delta is the systems/compiler-host rung and an independent language. It should
+be robust, C-like in systems power, and Omega-shaped where consistency is cheap;
+it is not required to be a syntactic or semantic Omega subset.
+
+Delta source builds `omega-bootstrap`. That compiler is intentionally
+spec-incomplete: it accepts only the Omega self-hosting profile `Ωself`, rejects
+everything else, and gives accepted programs their exact normal Omega meaning.
+The production compiler source and all of its transitive dependencies are
+deliberately constrained to `Ωself`, while the resulting production compiler
+implements the complete Omega specification:
 
 ```text
 Alpha → Beta → Gamma → Delta
                            ↓
-              Omega (Delta-built, simple)
+              omega-bootstrap (Delta-built, accepts Ωself)
                            ↓
-              Omega (Omega-built, optimized)
+              omega (full optimizing compiler; own binary may be conservative)
 ```
 
-The repeated Omega is deliberate. These are two compiler artifacts for the same
-language, not two additional language rungs. The first is a valid stopping point
-for a self-sufficient system, although compilation and generated code may be
-slow. The second replaces a historical tower of implementation-language
-dependencies with one ordinary self-host edge. As with every self-host, a defect
-in the first Omega compiler can reproduce into the second; proof, meaning, and
-translation-validation gates remain responsible for detecting that defect.
+`Ωself` is a source profile, not an Epsilon language or another rung. It inherits
+Omega semantics and has no private syntax. The bootstrap compiler is not a
+general Omega endpoint merely because it compiles the production source. A
+compiler can implement proofs, dependent types, and the rest of full Omega
+without using those features in its own implementation.
+
+There is one required hosted compile. `omega-bootstrap` may be slow and may
+lower the production compiler conservatively. It must compile the `Ωself`
+source that implements the production optimizer and advanced lowering, but it
+does not implement or run those product passes during this build. The resulting
+compiler has full optimizing functionality even if its own binary is not yet
+optimized. A later production self-rebuild may optimize that binary and provide
+fixed-point/reproducibility evidence; it is not an architectural dependency. As
+with every hosted edge, a defect can reproduce; proof, meaning, and
+translation-validation gates remain responsible for detecting it.
 
 `bootstrap/onramps/delta-rust/` is Delta's disposable Rust implementation;
 `bootstrap/rungs/delta/` owns the language corpus, the self-hosted
@@ -220,14 +236,19 @@ validation gates; it removes the false claim that proof checking is a language
 stage between Gamma and Delta.
 
 Psi remains the source-semantics and terminal-portable-IR owner inside the Omega
-product toolchain. The minimal Psi/Omega path needed to accept and compile Omega
-source is first hosted from Delta; the complete production compiler is then
-built from Omega source by the Delta-built Omega compiler. Neither Psi nor either
-Omega compiler artifact is another Greek bootstrap language.
+product toolchain. `omega-bootstrap` hosts only the Psi/Omega path required by
+the exact `Ωself` source closure. Terminal Psi tools, interpreters, proof-facing
+source features, and other product breadth are outside that closure unless the
+production compiler imports them. Neither Psi nor either compiler artifact is
+another Greek bootstrap language.
 
-The remaining Rust implementations are retained producers or references while
-this two-stage hosted path matures; the Beta compiler's default construction
-and downstream use are already Alpha-rooted.
+The current Rust Psi/Omega compiler remains a maintained reference and
+differential producer while its bug-finding value justifies the cost. It grants
+no authority and is never a bootstrap or release dependency. The Beta compiler's
+default construction and downstream use are already Alpha-rooted.
+
+The exact Delta and `Ωself` feature budgets are governed by
+[`self_hosting_profile.md`](self_hosting_profile.md).
 
 ---
 
@@ -239,13 +260,13 @@ and downstream use are already Alpha-rooted.
 α  assembler .... written in α-asm, run by α; self-hosts                                [derived from α]
 β  bc ........... Beta compiler in Beta; self-hosts; whole-artifact refinement open      [D5 work]
 γ  interpreter .. interp.beta (+ typeck): the canonical MEANING substrate               [Rust-free]
-δ  systems ...... compiler-host language; meaning elaborates δ → γ                      [D2; Rust removal active]
-                  builds a simple, spec-compliant Omega compiler                          [bootstrap producer]
+δ  systems ...... independent compiler-host language; meaning elaborates δ → γ           [D2; Rust removal active]
+                  builds omega-bootstrap from Delta source                                [bootstrap producer]
 
 proof kernel .... check.beta + checker.gamma; cross-cutting derivation checker           [Rust-free, audited]
-Omega₀ .......... Delta-built bootstrap compiler; correct but minimally optimized         [valid endpoint]
-Omega₁ .......... Omega₀ builds the full Omega-source production compiler                 [self-host edge]
-Psi ............. source semantics + terminal IR inside both Omega compiler products      [not a rung]
+omega-bootstrap . accepts exact Ωself and rejects the rest; may itself run slowly         [hosted bridge]
+omega ........... full optimizing compiler; own binary may be conservative                 [one hosted compile]
+Psi ............. source semantics + terminal IR inside both compiler products            [not a rung]
 ```
 
 **What "provable" buys at the top:** in the completed architecture, a certificate
@@ -269,12 +290,15 @@ close it.
    `gamma_emit.rs` remains a differential reference producer. *(D1.)*
 3. **Grow the proof kernel and its seams in lockstep** — no capability without its paired seam. *(D4)*
 4. **Translation-validation backend** — per-compile refinement certs. *(D3 north star, later.)*
-5. **Establish the production Omega source tree and its acceptance profile** —
-   derive bootstrap requirements from the compiler that must actually self-host,
-   not from samples or speculative convenience. *(D6.)*
-6. **Build bootstrap Omega from Delta** — host the minimal spec-compliant
-   Psi/Omega path needed to compile Omega source. Optimization is not a gate for
-   this artifact. *(D2/D6, later.)*
-7. **Use bootstrap Omega to build production Omega** — compile the full
-   Omega-source optimizer/lowering pipeline, then apply the normal meaning and
-   translation-validation gates to the self-host edge. *(D3/D6, later.)*
+5. **Establish the production Omega source tree and `Ωself`** — publish its
+   deterministic dependency closure, derive the smallest robust source profile,
+   and mechanically reject excluded features. *(D6.)*
+6. **Finish Delta and build `omega-bootstrap`** — implement the exact `Ωself`
+   frontend/semantic path and correct conservative lowering needed for the one
+   hosted production build. Compile, rather than duplicate, the product
+   optimizer and advanced lowering source. Do not require unrelated full-Omega
+   source or tool surfaces. *(D2/D6, later.)*
+7. **Build production Omega once** — compile the `Ωself`-constrained Omega
+   source into the full optimizing compiler, then apply the normal meaning and
+   translation-validation gates. Its own binary may be conservative; a further
+   self-rebuild that optimizes it is optional. *(D3/D6, later.)*

@@ -2,7 +2,7 @@
 
 > **Status: DIRECTION + a working vertical slice.** The audited bootstrap spine is
 > `Alpha → Beta → Gamma → Delta`; the complete build lattice continues
-> `→ Omega (Delta-built) → Omega (Omega-built)`. Alpha through Gamma exist on the audited
+> `→ omega-bootstrap (accepts Ωself) → omega (implements full Ω)`. Alpha through Gamma exist on the audited
 > lineage; the Delta rung's native corpus, self-hosting compiler, and meaning
 > diamond exist while the full Rust-free hosting path remains under construction.
 > The proof kernel is a cross-cutting assurance service, independently
@@ -15,8 +15,8 @@
 
 This is the architecture for how the Psi/Omega toolchain rebuilds *itself*: a
 tower of increasingly capable languages rising from a tiny hand-audited seed.
-Delta builds a simple, spec-compliant Omega compiler; that compiler builds the
-full optimizing Omega compiler from Omega source. It is separate
+Delta builds a profile-limited bridge compiler; that compiler builds the full
+optimizing Omega compiler from deliberately constrained Omega source. It is separate
 from two things it is easy to confuse it with:
 
 - **What Omega means** — the language semantics. Owned by the
@@ -157,8 +157,8 @@ absurdly slow, and that is fine; it is the semantic spine, not the production
 path:
 
 ```text
-bootstrap Omega compiler hosted in Delta
-  full Omega compiler built by bootstrap Omega
+omega-bootstrap hosted in Delta
+  full Omega compiler built by omega-bootstrap from Ωself source
   Delta meaning elaborated to Gamma
   Gamma interpreted by a Beta program
   Beta compiled to Alpha
@@ -228,22 +228,28 @@ bootstrap rung adds **one coherent idea** and is implemented in the rung below.
 The [proof kernel](proof_kernel.md) and the [Psi/Omega toolchain](omega_toolchain.md)
 are connected nodes in the architecture, not additional rungs in this table.
 
-The build continues through two artifacts implementing the same Omega language:
+The build continues through a bridge compiler and the production compiler:
 
 ```text
 Alpha → Beta → Gamma → Delta
                            ↓
-              Omega (Delta-built bootstrap compiler)
+              omega-bootstrap (Delta-built, accepts Ωself)
                            ↓
-              Omega (Omega-built production compiler)
+              omega (full optimizing compiler; own binary may be conservative)
 ```
 
-The first Omega deliberately favors simple, auditable lowering over optimization.
-It is required to be spec-compliant and is a viable final compiler when build
-speed and generated-code quality are not priorities. The second compiler is the
-full Omega-source implementation with advanced lowering and optimization. This
-single self-host edge replaces a historical chain of implementation-language
-dependencies; it does not create another language or proof-checking rung.
+Delta is independent rather than an Omega subset. `Ωself` is not another
+language rung: it is the mechanically enforced set of normal Omega constructs
+used by the exact production compiler source closure. `omega-bootstrap` may
+reject every other Omega construct, but accepted programs keep exact Omega
+semantics. The production compiler source uses `Ωself` while implementing the
+complete language for users.
+
+The bridge binary may itself be slow and may lower the production compiler
+conservatively. It compiles the `Ωself` source that implements the product
+optimizer and advanced lowering rather than duplicating those passes. A further
+production self-rebuild can optimize the compiler binary and is optional. See
+[`self_hosting_profile.md`](self_hosting_profile.md).
 
 ## How today's work fits
 
@@ -362,10 +368,14 @@ architecture questions:
 - **Certificate coverage** — continue extending the shared, versioned
   proposition and derivation shape without changing the kernel/artifact-verifier
   responsibility split.
-- **Delta sufficiency** — implement the exact subset required to build the
-  spec-compliant bootstrap Omega compiler from the audited spine.
-- **Omega self-build** — use that bootstrap compiler to build and validate the
-  full optimizing Omega compiler from Omega source.
+- **Delta sufficiency** — finish the independent, robust compiler-host language
+  and the exact source facilities used by `main.delta`.
+- **Omega self-hosting profile** — derive and enforce `Ωself` from the exact
+  production compiler dependency manifest, with explicit exclusions and
+  negative gates.
+- **Hosted product build** — use `omega-bootstrap` once to build and validate
+  the full optimizing compiler from `Ωself`-constrained Omega source. Its own
+  binary may remain conservatively lowered until an optional rebuild.
 
 ## Rung Questions
 

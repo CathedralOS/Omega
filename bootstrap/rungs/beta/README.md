@@ -14,7 +14,7 @@ The lower-rooted replacement is complete under
 exact pinned surface, builds `bc.beta`, reaches a byte-identical self-hosted fixed
 point, and reconstructs the persisted platform-independent
 [`artifacts/bc.tape`](artifacts/README.md). That artifact passes the whole Beta
-corpus and is consumed by the downstream proof-kernel, Gamma, Delta, Omega0, and
+corpus and is consumed by the downstream proof-kernel, Gamma, Delta, bridge, and
 refinement gates. The Rust producer remains diagnostic/on-ramp history.
 
 ```
