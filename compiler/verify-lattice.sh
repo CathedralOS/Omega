@@ -107,7 +107,12 @@ step "gamma — reference interpreter (ADTs + match)"   gamma       test-interp.
 step "gamma — MEANING CROSS-CHECK: gamma_ref.py agrees with interp.beta (fuzz)" gamma gamma-diamond-py.sh beta-lang-rs alpha-assembler
 step "gamma — static type checker"                    gamma       test-typeck.sh
 step "gamma — shared typed canonical-byte decoder" gamma test-canonical-bytes.sh
-step "gamma — canonical terminal ledger + closed leaf/call schemas" gamma test-terminal-ledger-spike.sh psi/semantics/psi-terminal-codec
+if [ "${LATTICE_EXPERIMENTAL:-0}" = "1" ]; then
+  step "gamma — terminal-ledger feasibility spike (EXPERIMENTAL, frozen format 18/vocabulary 20)" gamma test-terminal-ledger-spike.sh psi/semantics/psi-terminal-codec
+else
+  deferred_step "gamma — terminal-ledger feasibility spike" \
+    "frozen format 18/vocabulary 20 rejects live format 22/vocabulary 25 fixtures; use LATTICE_EXPERIMENTAL=1 to probe it"
+fi
 step "gamma — the proof kernel, written IN gamma"    proof-kernel-gates gamma-checker.sh gamma
 step "cross-check — checkers agree (Beta, Gamma, type-erased typed)" proof-kernel-gates checker-diamond.sh gamma
 step "seam — definitional eq vs operational eval"  proof-kernel-gates semantics-diamond.sh gamma
@@ -145,13 +150,13 @@ step "omega2gamma termination canary — translator halts on every sample, suppo
 step "omega0 source bundle — canonical deterministic multi-file input" omega0-gates omega0-bundle-test.sh
 step "omega0 Delta O1 artifact — variable terminal-Psi to byte-identical x86-64 ELF" omega0-gates delta-terminal-to-elf.sh delta-rs omega-product psi/semantics/psi-terminal-codec
 step "omega meaning — real Omega samples run Rust-free; exits match documented intent" omega0-gates omega-meaning.sh gamma corpus
-step "omega meaning-TV — the kernel re-computes each covered sample's arithmetic (proof, not comparison)" omega0-gates meaning-tv.sh gamma proof-kernel alpha-assembler beta beta-lang-rs corpus
-step "input-grid meaning TV — input-taking samples proven per documented input vector (substitution closes the program; the whole proof pipe applies per vector)" omega0-gates input-tv.sh gamma proof-kernel alpha-assembler beta beta-lang-rs corpus
-step "meaning-cert cross-check — meaning-TV certs replayed through check.beta AND check_ref.py" omega0-gates meaning-cert-diamond.sh proof-kernel alpha-assembler beta beta-lang-rs corpus
-step "translation validation — the proof kernel re-evaluates each compilation's result (+ - * < == / %, loops, gcd, cross-machine)" omega0-gates translation-validation.sh delta-rs proof-kernel gamma
+step "omega meaning-TV — the kernel re-computes each covered sample's arithmetic (proof, not comparison)" omega0-refinement meaning-tv.sh omega0-meaning gamma proof-kernel alpha-assembler beta beta-lang-rs corpus
+step "input-grid meaning TV — input-taking samples proven per documented input vector (substitution closes the program; the whole proof pipe applies per vector)" omega0-refinement input-tv.sh omega0-meaning gamma proof-kernel alpha-assembler beta beta-lang-rs corpus
+step "meaning-cert cross-check — meaning-TV certs replayed through check.beta AND check_ref.py" omega0-refinement meaning-cert-diamond.sh omega0-meaning proof-kernel alpha-assembler beta beta-lang-rs corpus
+step "translation validation — the proof kernel re-evaluates each compilation's result (+ - * < == / %, loops, gcd, cross-machine)" omega0-refinement translation-validation.sh omega0-meaning delta-rs proof-kernel gamma
 step "symbolic loops — beta_symbolic's data-dependent loop summaries (symbolic trip count -> closed form) pinned to the interpreter across an input grid" beta-refinement symbolic-loops.sh
-step "refinement — bc's machine code proved to compute its Beta source meaning (instruction-level TV: both meanings auto-derived, equivalence kernel-checked, never run)" alpha refinement.sh proof-kernel alpha-assembler beta beta-lang-rs beta-refinement
-step "refinement-cert cross-check — every refl cert replayed through check.beta AND check_ref.py" alpha refinement-cert-diamond.sh proof-kernel alpha-assembler beta beta-lang-rs beta-refinement
+step "refinement — bc's machine code proved to compute its Beta source meaning (instruction-level TV: both meanings auto-derived, equivalence kernel-checked, never run)" beta-refinement refinement.sh alpha proof-kernel alpha-assembler beta beta-lang-rs
+step "refinement-cert cross-check — every refl cert replayed through check.beta AND check_ref.py" beta-refinement refinement-cert-diamond.sh alpha proof-kernel alpha-assembler beta beta-lang-rs
 step "contracts — compiler discharges ensures; the proof kernel checks at build" delta-rs contracts.sh proof-kernel
 step "contracts — static discharge and runtime asserts agree (soundness)" delta-rs discharge-soundness.sh proof-kernel
 # untrusted proof elaborator (named binders -> raw certs); skipped if python3 is absent

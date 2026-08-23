@@ -35,7 +35,8 @@ bootstrap/
       corpus/               proofs, negative controls, and seam fixtures
       gates/                soundness, cross-check, and operational-seam gates
     refinement/
-      beta/                 symbolic Beta obligation reconstruction + gates
+      beta/                 Beta-source/Alpha-artifact reconstruction + gates
+      omega0/               Omega0 meaning/artifact reconstruction + TV gates
 
   omega0/                   Delta-built, simple first Omega compiler
     meaning/                Rust-free Omega/Psi meaning route used by Omega0
@@ -114,12 +115,13 @@ temporary wrappers where needed:
 | --- | --- |
 | `bootstrap/rungs/alpha/` (compatibility: `compiler/alpha`, historical `compiler/beta`) | `bootstrap/rungs/alpha/` — complete |
 | `bootstrap/rungs/beta/` (compatibility: `compiler/beta-lang`) | `bootstrap/rungs/beta/` — complete |
-| `compiler/gamma/` | `bootstrap/rungs/gamma/` |
-| lattice-built Delta sources/artifacts in `compiler/delta*/` | `bootstrap/rungs/delta/` |
-| `compiler/beta-rs/`, `compiler/beta-lang-rs/`, Rust portion of `compiler/delta-rs/` | `bootstrap/onramps/`, separated by produced role |
+| `bootstrap/rungs/gamma/` (compatibility: `compiler/gamma`) | `bootstrap/rungs/gamma/` — complete |
+| `bootstrap/rungs/delta/` (compatibility: `compiler/delta`, Delta samples through `compiler/delta-rs`) | `bootstrap/rungs/delta/` — complete |
+| `bootstrap/onramps/delta-rust/` (compatibility: `compiler/delta-rs`) | `bootstrap/onramps/delta-rust/` — complete |
+| `compiler/beta-rs/`, `compiler/beta-lang-rs/` | `bootstrap/onramps/`, separated by produced role |
 | `bootstrap/assurance/proof-kernel/` (compatibility: `compiler/proof-kernel`) | `bootstrap/assurance/proof-kernel/{implementations,tools,corpus,gates}/` — complete |
-| Beta Python symbolic tools | `bootstrap/assurance/refinement/beta/` — complete |
-| other refinement scripts spread across Alpha and Omega0 | `bootstrap/assurance/refinement/` |
+| Beta-source/Alpha-artifact refinement tools (compatibility entries under Alpha) | `bootstrap/assurance/refinement/beta/` — complete |
+| Omega0 meaning/artifact TV encoders and gates (compatibility entries under Omega0 gates) | `bootstrap/assurance/refinement/omega0/` — complete |
 | `bootstrap/omega0/` (compatibility: `compiler/omega`) | `bootstrap/omega0/{meaning,compiler,gates}/` — complete |
 | `bootstrap/corpus/` (compatibility: `compiler/lattice-corpus`) | `bootstrap/corpus/` — complete |
 | `compiler/psi-rs/`, `compiler/omega-rs/` | `compiler/psi/`, `compiler/omega/` |

@@ -37,16 +37,19 @@ implementation of the generic proof kernel is small and auditable.
 
 ## Current repository reality
 
-- `compiler/gamma/interp.beta` — canonical pure, fuel-bounded interpreter;
-- `compiler/gamma/typeck.beta` — static checker for `Int`, declared ADTs,
+- `bootstrap/rungs/gamma/interp.beta` — canonical pure, fuel-bounded interpreter;
+- `bootstrap/rungs/gamma/typeck.beta` — static checker for `Int`, declared ADTs,
   functions, constructors, and matches;
 - `bootstrap/assurance/proof-kernel/implementations/gamma/` — independent
   proof-kernel implementations hosted by Gamma, owned by assurance rather than
   the language rung;
-- `compiler/gamma/canonical-bytes/` and `terminal-codec-primitives/` — reusable
-  typed canonical-byte decoding layers;
-- `compiler/gamma/terminal-ledger-spike/` — bounded feasibility work for the
-  terminal-Psi semantic-ledger generator.
+- `bootstrap/rungs/gamma/canonical-bytes/` and
+  `terminal-codec-primitives/` — reusable typed canonical-byte decoding layers;
+- `bootstrap/rungs/gamma/terminal-ledger-spike/` — bounded artifact-assurance
+  feasibility work frozen at terminal format 18/vocabulary 20, not a Gamma
+  language definition or part of Gamma meaning; the live product is now format
+  22/vocabulary 25 and the stale positive-fixture gate remains open maintenance;
+- `compiler/gamma` — temporary compatibility symlink to the canonical owner.
 
 The exact spike sizes, supported operation cohorts, and gate counts belong in
 the spike's own README and live task status, not in this durable rung definition.
@@ -58,6 +61,12 @@ directory implement the older compiler-first imperative language. It has fixed
 variables, mutation, `if`/`while`, and decimal I/O. It remains a compatibility
 and differential-testing artifact only. It does not define Gamma and must not
 grow into a parallel meaning path.
+
+The parked implementation and ledger spike remain byte-for-byte co-located
+during this mechanical ownership move so existing entry points keep working.
+That transitional proximity grants neither artifact semantic authority. The
+imperative implementation may be retired or retained as a compatibility oracle;
+the cross-cutting ledger experiment can move with later assurance consolidation.
 
 ## Implementation frontiers
 

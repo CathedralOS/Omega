@@ -202,8 +202,11 @@ dependencies with one ordinary self-host edge. As with every self-host, a defect
 in the first Omega compiler can reproduce into the second; proof, meaning, and
 translation-validation gates remain responsible for detecting that defect.
 
-`compiler/delta-rs/` is Delta's disposable Rust implementation; the self-hosted
-`lowermachine.alp` and meaning diamond remain its principal gates.
+`bootstrap/onramps/delta-rust/` is Delta's disposable Rust implementation;
+`bootstrap/rungs/delta/` owns the language corpus, the self-hosted
+`lowermachine.alp`, and lattice-built artifacts. `compiler/delta-rs` and
+`compiler/delta` are compatibility paths. The self-host and meaning diamond
+remain principal gates.
 
 The certificate checker is renamed the **proof kernel**. Its canonical owner is
 `bootstrap/assurance/proof-kernel/`; `compiler/proof-kernel` is a compatibility

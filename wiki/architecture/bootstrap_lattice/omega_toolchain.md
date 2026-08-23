@@ -33,8 +33,10 @@ The distinction is architectural:
 - `compiler/omega-rs/` is the current production compiler and executable reference.
 - `bootstrap/omega0/` owns Rust-free meaning, first-compiler source/contracts,
   and bootstrap validation. `compiler/omega/` is a compatibility path.
-- `compiler/delta-rs/` is the bootstrap language on-ramp growing toward building
-  the simple bootstrap Omega compiler.
+- `bootstrap/rungs/delta/` owns the bootstrap language corpus and Delta-written
+  compiler; `bootstrap/onramps/delta-rust/` is its disposable Rust producer.
+  Together their current gates are growing toward the simple bootstrap Omega
+  compiler without assigning language ownership to Rust.
 
 The remaining historical paths are the host-language-suffixed product and
 on-ramp directories. Target product ownership is `compiler/psi/` plus

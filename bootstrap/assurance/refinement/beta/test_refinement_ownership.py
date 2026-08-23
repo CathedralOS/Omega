@@ -27,6 +27,8 @@ class BetaRefinementOwnershipTests(unittest.TestCase):
     def test_reconstruction_and_parser_have_distinct_canonical_owners(self):
         self.assertEqual(Path(beta_symbolic.__file__).resolve().parent, HERE)
         self.assertEqual(Path(beta_parser.__file__).resolve().parent, REFERENCE)
+        self.assertEqual((HERE / 'alpha_symbolic.py').resolve().parent, HERE)
+        self.assertEqual((HERE / 'alpha_refinement_check.py').resolve().parent, HERE)
 
     def test_reconstruction_does_not_import_a_compiler_backend(self):
         tree = ast.parse((HERE / 'beta_symbolic.py').read_text())
@@ -45,6 +47,25 @@ class BetaRefinementOwnershipTests(unittest.TestCase):
         facade = ROOT / 'compiler/beta-lang-py'
         self.assertFalse((facade / 'bc2.py').exists())
         self.assertFalse((facade / 'independent-floor.sh').exists())
+
+    def test_alpha_compatibility_entries_resolve_to_assurance(self):
+        alpha = ROOT / 'bootstrap/rungs/alpha'
+        for entry in (
+            'REFINEMENT.md',
+            'alpha_refinement_check.py',
+            'alpha_symbolic.py',
+            'refinement.sh',
+            'refinement-cert-diamond.sh',
+            'refinement-samples',
+        ):
+            legacy = alpha / entry
+            self.assertTrue(legacy.is_symlink(), entry)
+            self.assertEqual(legacy.resolve().parent, HERE, entry)
+
+        self.assertTrue((alpha / 'SEMANTICS.md').is_file())
+        self.assertTrue((alpha / 'alpha_ref.py').is_file())
+        self.assertFalse((HERE / 'SEMANTICS.md').exists())
+        self.assertFalse((HERE / 'alpha_ref.py').exists())
 
 
 if __name__ == '__main__':

@@ -155,7 +155,7 @@ bug-finding evidence while the soundness bridge matures:
   through **both** and requires identical verdicts. This agreement is not DDC
   and does not itself prove either checker sound.
 - [`implementations/gamma/checker_typed.gamma`](implementations/gamma/checker_typed.gamma) is that Gamma checker
-  fully annotated, and Gamma's own static type checker (`../../../compiler/gamma/typeck.beta`) accepts
+  fully annotated, and Gamma's own static type checker (`../../rungs/gamma/typeck.beta`) accepts
   it — so the trust anchor's *code* is shown statically type-safe.
 
 The logic is now **first-order intuitionistic predicate logic with induction**: all
