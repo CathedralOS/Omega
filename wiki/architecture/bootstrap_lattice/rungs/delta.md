@@ -101,8 +101,9 @@ explicit boundary surfaces and remain in the platform trust ledger.
 ## Open work
 
 - Complete the Rust-free Delta implementation and keep its self-host fixed point.
-- Finish Delta's robust literal specification and the exact facilities required
-  by `main.delta`; do not force subset compatibility with Omega.
+- Finish Delta's robust literal specification and prove that the complete
+  `omega-bootstrap` Delta source closure fits it; do not force subset
+  compatibility with Omega.
 - Build `omega-bootstrap` with exact `Ωself` acceptance and enough conservative
   lowering to compile the source that implements the production optimizer and
   advanced lowering; do not duplicate those product passes in Delta.

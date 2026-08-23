@@ -19,6 +19,17 @@ that closure. Accepted constructs retain exact Omega semantics; this is not a
 bootstrap dialect. The production compiler is written in Omega constrained to
 that `Ωself` profile and implements the full specification for users.
 
+Three separate properties are involved:
+
+- `omega-bootstrap` is intentionally incomplete in Omega input coverage;
+- it is exact, not approximate, for every program its published compositional
+  profile admits; and
+- the production `omega` it builds accepts and implements full Omega, even
+  though that compiler executable may itself have been lowered conservatively.
+
+The exact compiler-source manifest demonstrates closure under `Ωself`; it must
+not become a whitelist of files, statement counts, or syntax-tree shapes.
+
 The bridge binary may run slowly and lower the production compiler
 conservatively. It must compile the `Ωself` source that implements the product
 optimizer and advanced lowering, but need not duplicate those passes. A further

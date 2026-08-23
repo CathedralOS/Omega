@@ -55,13 +55,18 @@ Remaining:
   contains no Rust implementation under the
   reserved product roots. Publish a deterministic manifest of every transitive
   compiler module, library, generated/compile-time source, build input, and tool
-  imported by that build. Keep this source closure within the ordinary-Omega
-  `Ωself` profile once it is derived: using a deliberately narrow set of Omega
-  features in the compiler implementation does not narrow the language the
-  resulting compiler implements. Deriving, enforcing, and closing `Ωself` and
-  the Delta-built `omega-bootstrap` compiler are tracked separately in
-  `TASKS_BOOTSTRAP.md`; product Psi/Omega implementation work must not be added
-  there.
+  imported by that build. Develop against the conservative working policy in
+  `wiki/architecture/bootstrap_lattice/self_hosting_profile.md`; this task does
+  not wait for Delta v1 or a frozen `Ωself`. Once the exact source closure
+  exists, jointly derive the profile: for each disputed source feature, either
+  refactor it away or propose its measured bootstrap and assurance cost. Keep
+  the final closure within that ordinary-Omega profile. The manifest is closure
+  evidence, not permission for `omega-bootstrap` to whitelist particular files
+  or AST shapes. Using a deliberately narrow set of Omega features in the
+  compiler implementation does not narrow the language the resulting compiler
+  implements. Deriving, enforcing, and closing `Ωself` and the Delta-built
+  `omega-bootstrap` compiler are tracked separately in `TASKS_BOOTSTRAP.md`;
+  product Psi/Omega implementation work must not be added there.
 
 ## Execution order
 

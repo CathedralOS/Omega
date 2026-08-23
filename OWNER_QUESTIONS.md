@@ -11,7 +11,7 @@ Code, canaries, and settled documentation must cite a stable named decision or
 the governing guide section rather than an owner-question number. A settled
 decision's durable identity does not change when this queue is pruned.
 
-Last pruned: 2026-08-22.
+Last pruned: 2026-08-23.
 
 ## Q1 — How does a target package declare a nominal foreign endpoint?
 
@@ -134,14 +134,18 @@ or expose a callback-address-shaped semantic field.
 
 ## Q5 — What exact language contract constitutes Delta v1?
 
-Delta must be a stable, independent compiler-host language before it hosts
-`omega-bootstrap`; it is not an Omega subset. The frozen D0 profile proves that
-the current slices can use a bounded surface, but it deliberately does not
-settle Delta's language. The Rust reference currently accepts scalar spellings
-whose execution is still uniformly `i32`, target backends disagree on some
-arithmetic domains and division edges, boundary declarations are partly
-hardwired, and ordered source concatenation substitutes for a source-unit
-contract. Those are not a specification.
+The architectural frame is already settled: Delta must be a stable, independent,
+robust C-like compiler-host language before it hosts `omega-bootstrap`; it is
+not an Omega subset, although Omega-shaped syntax is preferred where cheap.
+Runtime-sized allocation from explicit fixed backing, typed/indexed arenas,
+bulk reclamation, and specified exhaustion are permitted. The unresolved ruling
+is the literal Delta-v1 contract. The frozen D0 profile proves that the current
+slices can use a bounded surface, but it deliberately does not settle Delta's
+language. The Rust reference currently accepts scalar spellings whose execution
+is still uniformly `i32`, target backends disagree on some arithmetic domains
+and division edges, boundary declarations are partly hardwired, and ordered
+source concatenation substitutes for a source-unit contract. Those are not a
+specification.
 
 Choose one versioned Delta-v1 contract. The ruling must jointly settle:
 
@@ -170,10 +174,11 @@ Recommended direction: freeze a deliberately small, versioned systems language
 around the already self-hosted core: `i32` plus `u8` storage, deterministic
 two's-complement arithmetic with explicit Trapping/Wrapping/Saturating domains,
 checked arrays and integer-offset arenas, predictable records and payload sums,
-state machines/loops/recursion, one canonical source-bundle format, and a closed
-byte-I/O/process boundary. Keep host pointers, ambient heap allocation,
-individual `free`, GC, threads, atomics, native modules, mixed field-plus-case
-data, and proof-only/refinement syntax outside v1 unless an identified
-compiler-host requirement outweighs their lower-rung assurance cost. Treat
-backend parameter counts and storage ceilings as checked implementation-profile
-limits unless the ruling intentionally makes them portable language limits.
+state machines/loops/recursion, runtime-sized reservations from one explicit
+fixed-backing allocator, one canonical source-bundle format, and a closed
+byte-I/O/process boundary. Keep ambient host pointers and allocation, individual
+`free`, GC, threads, atomics, native modules, mixed field-plus-case data, and
+proof-only/refinement syntax outside v1 unless an identified compiler-host
+requirement outweighs their lower-rung assurance cost. Treat backend parameter
+counts and storage ceilings as checked implementation-profile limits unless the
+ruling intentionally makes them portable language limits.

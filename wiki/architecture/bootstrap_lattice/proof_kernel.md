@@ -20,9 +20,10 @@ product-specific `psi-proof-kernel` remains under Psi semantics; it checks Psi
 judgments and is not this generic bootstrap derivation checker.
 
 ```text
-Alpha → Beta → Gamma → Delta → Omega → Omega   build lattice
-              ↘       ↙
-                proof kernel                   assurance service
+Alpha → Beta → Gamma → Delta                   language spine
+              ↘       ↙       ↓
+                proof kernel   omega-bootstrap → production omega
+                assurance      hosted compiler edge
 ```
 
 ## Judgment
