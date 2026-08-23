@@ -191,6 +191,15 @@ are valuable teeth, but they do not yet establish the quantified observation:
   its actual prelude/main entry relation, carries return 1 to `main.ready`, and
   composes return 0 through `main` to canonical `Halt(253)` with empty output,
   without yet assigning the typed SourceBytes exhaustion identity;
+- its cursor-leaf phase imports that successful source segment and proves
+  conditional exact summaries for `cbyte`, `adv`, and `is_space`: a
+  nonnegative signed `CUR<LEN` selects the zero-extended `SRC[CUR]` byte,
+  `LEN<=CUR` selects zero without a source load, bounded `adv` changes only
+  `CUR` to `CUR+1<=LEN`, and whitespace is exactly `{32,9,10,13}`. In-range
+  NUL deliberately shares cbyte's numeric-zero result with logical end. Exact
+  selected-procedure local, memory, transition, and event ownership is
+  exhaustive; composing these clauses through the comment and whitespace loops
+  remains open;
 - its BC11 grammar-composition pass further partitions every raw-store source
   address into 31 aligned fixed compiler globals, one exact source-buffer
   `base + n` spelling, and two exact local-name-table `base + s * 8` spellings;

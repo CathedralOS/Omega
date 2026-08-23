@@ -212,7 +212,8 @@ cat "$GATE_DIR/bc-block-control.alpha" \
   "$GATE_DIR/bc-slurp-summary.alpha" \
   "$GATE_DIR/bc-main-slurp-bridge.alpha" \
   "$GATE_DIR/bc-write-str-summary.alpha" \
-  "$GATE_DIR/bc-fixed-emitter-summary.alpha" > "$T/control-check.alpha"
+  "$GATE_DIR/bc-fixed-emitter-summary.alpha" \
+  "$GATE_DIR/bc-cursor-leaf-summary.alpha" > "$T/control-check.alpha"
 "$ASM" < "$T/control-check.alpha" > "$T/control-check.tape"
 stamp_seed "$T/control-check.tape" "$SEED" "$T/control-check" >/dev/null
 
@@ -309,6 +310,35 @@ sed 's/imm r23, 21226                ; checked exclusive end/imm r23, 21225     
 "$ASM" < "$T/fixed-emit-wrong-end.alpha" > "$T/fixed-emit-wrong-end.tape"
 stamp_seed "$T/fixed-emit-wrong-end.tape" "$SEED" "$T/fixed-emit-wrong-end" >/dev/null
 
+# Phase-isolated cursor-leaf teeth preserve the exact procedures and preceding
+# summaries while severing source-index provenance, reversing the cbyte miss
+# partition, admitting a zero cursor delta, dropping CR, or classifying the
+# complement as whitespace in only the new relational phase.
+sed 's/imm r21, 1                    ; checked SRC index from local i/imm r21, 2                    ; checked SRC index from local i/' \
+  "$T/control-check.alpha" > "$T/cursor-cbyte-wrong-index.alpha"
+"$ASM" < "$T/cursor-cbyte-wrong-index.alpha" > "$T/cursor-cbyte-wrong-index.tape"
+stamp_seed "$T/cursor-cbyte-wrong-index.tape" "$SEED" "$T/cursor-cbyte-wrong-index" >/dev/null
+sed 's/imm r2, 2                    ; checked miss relation LEN<=CUR/imm r2, 1                    ; checked miss relation LEN<=CUR/' \
+  "$T/control-check.alpha" > "$T/cursor-cbyte-wrong-boundary.alpha"
+"$ASM" < "$T/cursor-cbyte-wrong-boundary.alpha" > "$T/cursor-cbyte-wrong-boundary.tape"
+stamp_seed "$T/cursor-cbyte-wrong-boundary.tape" "$SEED" "$T/cursor-cbyte-wrong-boundary" >/dev/null
+sed 's/imm r2, 1                    ; checked CUR increment delta/imm r2, 0                    ; checked CUR increment delta/' \
+  "$T/control-check.alpha" > "$T/cursor-adv-zero-delta.alpha"
+"$ASM" < "$T/cursor-adv-zero-delta.alpha" > "$T/cursor-adv-zero-delta.tape"
+stamp_seed "$T/cursor-adv-zero-delta.tape" "$SEED" "$T/cursor-adv-zero-delta" >/dev/null
+sed 's/imm r21, 1                    ; checked CR is whitespace/imm r21, 0                    ; checked CR is whitespace/' \
+  "$T/control-check.alpha" > "$T/cursor-space-drop-cr.alpha"
+"$ASM" < "$T/cursor-space-drop-cr.alpha" > "$T/cursor-space-drop-cr.tape"
+stamp_seed "$T/cursor-space-drop-cr.tape" "$SEED" "$T/cursor-space-drop-cr" >/dev/null
+sed 's/imm r20, 2                    ; checked other-result kind/imm r20, 1                    ; checked other-result kind/' \
+  "$T/control-check.alpha" > "$T/cursor-space-zero-is-space.alpha"
+"$ASM" < "$T/cursor-space-zero-is-space.alpha" > "$T/cursor-space-zero-is-space.tape"
+stamp_seed "$T/cursor-space-zero-is-space.tape" "$SEED" "$T/cursor-space-zero-is-space" >/dev/null
+sed 's/imm r23, 17                   ; checked exclusive local row/imm r23, 16                   ; checked exclusive local row/' \
+  "$T/control-check.alpha" > "$T/cursor-effect-undercount.alpha"
+"$ASM" < "$T/cursor-effect-undercount.alpha" > "$T/cursor-effect-undercount.tape"
+stamp_seed "$T/cursor-effect-undercount.tape" "$SEED" "$T/cursor-effect-undercount" >/dev/null
+
 # Phase-isolated tooth: leave the exact source, tape, witness, and every prior
 # checker phase unchanged, but underreport the prelude fp owner. Adjust only the
 # derived-map subtotal so rejection must come from the exhaustive equality scan.
@@ -399,7 +429,8 @@ cat "$GATE_DIR/bc-block-control.alpha" \
   "$GATE_DIR/bc-slurp-summary.alpha" \
   "$GATE_DIR/bc-main-slurp-bridge.alpha" \
   "$GATE_DIR/bc-write-str-summary.alpha" \
-  "$GATE_DIR/bc-fixed-emitter-summary.alpha" > "$T/flat-check.alpha"
+  "$GATE_DIR/bc-fixed-emitter-summary.alpha" \
+  "$GATE_DIR/bc-cursor-leaf-summary.alpha" > "$T/flat-check.alpha"
 "$ASM" < "$T/flat-check.alpha" > "$T/flat-check.tape"
 stamp_seed "$T/flat-check.tape" "$SEED" "$T/flat-check" >/dev/null
 
@@ -526,6 +557,16 @@ for fixed_emit_tooth in fixed-emit-wrong-row fixed-emit-wrong-continuation fixed
   set -e
   if [ "$fixed_emit_tooth_status" != 1 ] || [ -s "$T/stdout" ]; then
     echo "bc block control FAIL — $fixed_emit_tooth was not rejected" >&2
+    exit 1
+  fi
+done
+for cursor_leaf_tooth in cursor-cbyte-wrong-index cursor-cbyte-wrong-boundary cursor-adv-zero-delta cursor-space-drop-cr cursor-space-zero-is-space cursor-effect-undercount; do
+  set +e
+  "$T/$cursor_leaf_tooth" < "$T/control.bundle" > "$T/stdout"
+  cursor_leaf_tooth_status=$?
+  set -e
+  if [ "$cursor_leaf_tooth_status" != 1 ] || [ -s "$T/stdout" ]; then
+    echo "bc block control FAIL — $cursor_leaf_tooth was not rejected" >&2
     exit 1
   fi
 done
@@ -728,4 +769,4 @@ for mutation in call-retarget read-register write-register helper-write emit-byt
   fi
 done
 
-echo "bc block control/effects: 70 proc / 355 block / 291 transition; 613 effect sites / 829 fixed emit bytes; 113 __write_str calls instantiated from one length-ranked exact-output summary; emit_prelude/write_str ordered summaries = 55+132 bytes; 78 frame slots / 27 parameter stores / 134 call pops; 169 local loads / 73 local stores; 61 raw loads = 54 fixed-safe + 5 SRC-indexed + 2 table-indexed / 34 raw stores; cursor-zero slurp segment/value/termination summary composed from root through main.ready or halt(253); 581 literals / 55 arithmetic / 180 comparison primitives; 235 binary / 134 argument / 34 store-address pushes; syntax-directed composition / relative temporary peak 2; three ranged Alpha operands transferred; all 607 stores partitioned / 70 call-cut frames summarized; 64-row counter contexts; absolute B_bc1 stack <=12720 explicit bytes / <=662 hidden returns; all 2630 explicit-stack effects and 687 artifact effects owned ($(wc -c < "$T/control-check.tape" | tr -d ' ')-byte Alpha checker tape)"
+echo "bc block control/effects: 70 proc / 355 block / 291 transition; 613 effect sites / 829 fixed emit bytes; 113 __write_str calls instantiated from one length-ranked exact-output summary; emit_prelude/write_str ordered summaries = 55+132 bytes; cbyte/adv/is_space exact conditional leaf summaries; 78 frame slots / 27 parameter stores / 134 call pops; 169 local loads / 73 local stores; 61 raw loads = 54 fixed-safe + 5 SRC-indexed + 2 table-indexed / 34 raw stores; cursor-zero slurp segment/value/termination summary composed from root through main.ready or halt(253); 581 literals / 55 arithmetic / 180 comparison primitives; 235 binary / 134 argument / 34 store-address pushes; syntax-directed composition / relative temporary peak 2; three ranged Alpha operands transferred; all 607 stores partitioned / 70 call-cut frames summarized; 64-row counter contexts; absolute B_bc1 stack <=12720 explicit bytes / <=662 hidden returns; all 2630 explicit-stack effects and 687 artifact effects owned ($(wc -c < "$T/control-check.tape" | tr -d ' ')-byte Alpha checker tape)"
