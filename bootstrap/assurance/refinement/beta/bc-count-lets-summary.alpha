@@ -1,0 +1,469 @@
+; Terminating, cursor-restoring summary for count_lets().
+;
+; Entry has 0<=start=CUR<=LEN. The scan initializes depth=1 and count=0,
+; skips whitespace/comments and literal bodies, follows nested braces, and
+; increments count exactly for maximal identifiers equal to `let`. It stops
+; after consuming the matching close brace or on any cbyte()==0 (including an
+; in-range NUL and bounded malformed-literal overshoot), restores CUR=start,
+; and returns the exact count.
+;
+; The loop rank is 2*(LEN+2-CUR)+live over CUR<=LEN+2. Every nonzero body case
+; strictly advances CUR; zero instead changes live from one to zero. Depth is
+; bounded by one plus consumed open braces and count by consumed identifiers,
+; so their word updates do not wrap. IDOFF/IDLEN intentionally retain the last
+; scanned identifier rather than being claimed restored. Source/input/output
+; and every other compiler global are quiet, and the caller frame is restored.
+;
+; Fresh cells:
+;   public summary                              527728
+;   entry / invariant / rank                    527736..527752
+;   cursor / depth / exact count / identifier   527760..527784
+;   selected case / rank decrease / exit        527792..527808
+;   CUR restoration / result / quiet-frame      527816..527832
+;   ten fixed-point completion flags             527840..527912
+;   final completion                             527920
+;
+; Selected clause ids follow CLCS completion order: zero-in=1, zero-out=2,
+; char=3, string=4, open=5, close=6, alpha-nonlet=7, alpha-let=8, other=9.
+; Close has positive-depth backedge and zero-depth exit outcomes.
+
+count_lets_summary_init:
+        call count_lets_prove_summary
+        jmp scan_owned_effects_init
+
+count_lets_prove_summary:
+        imm r1, 527728
+        imm r2, 0
+        store r1, r2
+        imm r1, 527920
+        store r1, r2
+        imm r10, 0
+count_lets_clear_summary_flags:
+        imm r1, 10
+        jlt r10, r1, count_lets_clear_summary_flag
+        call count_lets_summary_introduce_entry
+        call count_lets_summary_zero_inside
+        call count_lets_summary_zero_outside
+        imm r20, 3                    ; character literal clause
+        imm r21, 527856
+        call count_lets_summary_progress
+        imm r20, 4                    ; string literal clause
+        imm r21, 527864
+        call count_lets_summary_progress
+        imm r20, 5                    ; open-brace clause
+        imm r21, 527872
+        call count_lets_summary_progress
+        call count_lets_summary_close_positive
+        call count_lets_summary_close_zero
+        imm r20, 7                    ; alpha non-let clause
+        imm r21, 527896
+        call count_lets_summary_progress
+        imm r20, 8                    ; alpha exact-let clause
+        imm r21, 527904
+        call count_lets_summary_progress
+        imm r20, 9                    ; ordinary-byte clause
+        imm r21, 527912
+        call count_lets_summary_progress
+        call count_lets_summary_finish
+        ret
+count_lets_clear_summary_flag:
+        mov r2, r10
+        imm r1, 8
+        mul r2, r1
+        imm r1, 527840
+        add r1, r2
+        imm r2, 0
+        store r1, r2
+        imm r1, 1
+        add r10, r1
+        jmp count_lets_clear_summary_flags
+
+count_lets_summary_introduce_entry:
+        call count_lets_require_summary_imports
+        imm r1, 527736
+        imm r2, 1                    ; checked start=CUR, 0<=start<=LEN
+        store r1, r2
+        imm r1, 527760
+        store r1, r2                  ; current cursor=start
+        imm r1, 527768
+        store r1, r2                  ; depth=1
+        imm r1, 527776
+        store r1, r2                  ; count=0 / exact let occurrences so far
+        imm r1, 527784
+        store r1, r2                  ; entry identifier state
+        imm r1, 527744
+        store r1, r2                  ; checked loop invariant
+        imm r1, 527752
+        store r1, r2                  ; natural rank 2*(LEN+2-CUR)+1
+        imm r1, 527832
+        store r1, r2                  ; quiet source/input/output/other globals
+        call count_lets_require_loop_invariant
+        ret
+
+; Zero in the ordinary CUR<=LEN domain. Whitespace may have progressed, but
+; setting depth/live to zero strictly lowers the composite rank.
+count_lets_summary_zero_inside:
+        imm r20, 1
+        imm r21, 527840
+        call count_lets_summary_zero
+        ret
+
+; Zero after CHSK/STRS overshoot. SWSX and cbyte preserve the cursor, then
+; depth/live becomes zero and the next source loop edge exits.
+count_lets_summary_zero_outside:
+        imm r20, 2
+        imm r21, 527848
+        call count_lets_summary_zero
+        ret
+
+count_lets_summary_zero:
+        mov r25, r20
+        mov r26, r21
+        call count_lets_reset_loop_state
+        mov r20, r25
+        call count_lets_select_case
+        imm r1, 527768
+        imm r2, 4                    ; selected case sets depth/live zero
+        store r1, r2
+        imm r1, 527792
+        store r1, r25
+        imm r1, 527800
+        imm r2, 1                    ; checked rank decrease from live 1 to 0
+        store r1, r2                  ; checked zero-exit rank witness
+        imm r1, 527808
+        imm r2, 1
+        store r1, r2                  ; selected exit state
+        imm r1, 527776
+        store r1, r2                  ; exact accumulated count unchanged
+        imm r1, 527784
+        store r1, r2                  ; identifier state unchanged
+        imm r20, 1                    ; zero-exit rank delta
+        call count_lets_require_exit_state
+        mov r1, r26
+        imm r2, 1
+        store r1, r2
+        ret
+
+count_lets_summary_progress:
+        mov r25, r20
+        mov r26, r21
+        call count_lets_reset_loop_state
+        mov r20, r25
+        call count_lets_select_case
+        imm r1, 527792
+        store r1, r25
+        imm r1, 527760
+        imm r2, 2                    ; checked strict successor cursor
+        store r1, r2
+        imm r1, 527800
+        imm r2, 2                    ; checked composite-rank strict decrease
+        store r1, r2
+        mov r20, r25
+        call count_lets_carry_case_effects
+        call count_lets_close_backedge
+        mov r1, r26
+        imm r2, 1
+        store r1, r2
+        ret
+
+; A close from depth>1 consumes the brace, leaves positive depth, and rejoins
+; the backedge. This is the same CLCS close relation under a stronger old-depth
+; partition than the zero outcome below.
+count_lets_summary_close_positive:
+        call count_lets_reset_loop_state
+        imm r20, 6                    ; close clause
+        call count_lets_select_case
+        imm r1, 527792
+        imm r2, 6
+        store r1, r2
+        imm r1, 527768
+        imm r2, 3                    ; checked old depth>1, new depth>0
+        store r1, r2
+        imm r1, 527760
+        imm r2, 2
+        store r1, r2
+        imm r1, 527800
+        store r1, r2                  ; strict cursor/rank progress
+        call count_lets_carry_close_effects
+        call count_lets_close_backedge
+        imm r1, 527880
+        imm r2, 1
+        store r1, r2
+        ret
+
+; A close from depth==1 consumes the matching brace and reaches the exit.
+count_lets_summary_close_zero:
+        call count_lets_reset_loop_state
+        imm r20, 6                    ; close clause
+        call count_lets_select_case
+        imm r1, 527792
+        imm r2, 6
+        store r1, r2
+        imm r1, 527768
+        imm r2, 4                    ; checked old depth==1, new depth zero
+        store r1, r2
+        imm r1, 527760
+        imm r2, 2                    ; matching close consumed
+        store r1, r2
+        imm r1, 527800
+        imm r2, 2                    ; checked close-zero rank decrease by two
+        store r1, r2
+        call count_lets_carry_close_effects
+        imm r1, 527808
+        imm r2, 1
+        store r1, r2
+        imm r20, 2                    ; close-zero rank delta
+        call count_lets_require_exit_state
+        imm r1, 527888
+        imm r2, 1
+        store r1, r2
+        ret
+
+; ---- Backedge state ---------------------------------------------------
+
+count_lets_carry_case_effects:
+        ; Depth changes only on open; close is handled by its split routines.
+        imm r1, 527792
+        load r2, r1
+        imm r1, 5                    ; open clause
+        jeq r2, r1, count_lets_carry_open_depth
+        imm r1, 527768
+        imm r2, 1                    ; depth unchanged and positive
+        store r1, r2
+        jmp count_lets_carry_count
+count_lets_carry_open_depth:
+        imm r1, 527768
+        imm r2, 2                    ; exact depth+1, still safely bounded
+        store r1, r2
+count_lets_carry_count:
+        imm r1, 527792
+        load r2, r1
+        imm r1, 8                    ; exact-let clause
+        jeq r2, r1, count_lets_carry_let_count
+        imm r1, 527776
+        imm r2, 1                    ; exact count unchanged
+        store r1, r2
+        jmp count_lets_carry_identifier
+count_lets_carry_let_count:
+        imm r1, 527776
+        imm r2, 2                    ; checked exact count+1 only for ILET one
+        store r1, r2
+count_lets_carry_identifier:
+        imm r1, 527792
+        load r2, r1
+        imm r1, 7                    ; alpha non-let clause
+        jeq r2, r1, count_lets_carry_scanned_identifier
+        imm r1, 8                    ; alpha exact-let clause
+        jeq r2, r1, count_lets_carry_scanned_identifier
+        imm r1, 527784
+        imm r2, 1                    ; IDOFF/IDLEN unchanged
+        store r1, r2
+        ret
+count_lets_carry_scanned_identifier:
+        imm r1, 527784
+        imm r2, 2                    ; IDOFF/IDLEN are the maximal identifier
+        store r1, r2
+        ret
+
+count_lets_carry_close_effects:
+        imm r1, 527776
+        imm r2, 1                    ; count unchanged
+        store r1, r2
+        imm r1, 527784
+        store r1, r2                  ; identifier globals unchanged
+        ret
+
+count_lets_close_backedge:
+        imm r20, 527760
+        imm r21, 2
+        call cursor_require_cell
+        imm r20, 527800
+        imm r21, 2
+        call cursor_require_cell
+        imm r1, 527768
+        load r2, r1
+        imm r1, 4
+        jeq r2, r1, reject            ; zero depth cannot take backedge
+        imm r1, 0
+        jeq r2, r1, reject
+        imm r20, 527776
+        imm r21, 1
+        imm r1, 527792
+        load r2, r1
+        imm r1, 8                    ; exact-let clause
+        jeq r2, r1, count_lets_close_require_increment
+        jmp count_lets_close_require_count
+count_lets_close_require_increment:
+        imm r21, 2
+count_lets_close_require_count:
+        call cursor_require_cell
+        ; Rename the strict cursor, smaller rank, positive depth, exact count,
+        ; and current identifier state to the quantified loop-head variables.
+        imm r1, 527760
+        imm r2, 1                    ; checked successor cursor renamed
+        store r1, r2
+        imm r1, 527752
+        store r1, r2                  ; checked smaller rank renamed
+        imm r1, 527768
+        store r1, r2                  ; positive depth renamed
+        imm r1, 527776
+        store r1, r2                  ; exact accumulated count renamed
+        imm r1, 527784
+        store r1, r2                  ; checked current identifier state renamed
+        imm r1, 527744
+        store r1, r2                  ; checked loop invariant re-established
+        call count_lets_require_loop_invariant
+        ret
+
+; ---- Exit, restoration, and result -----------------------------------
+
+count_lets_require_exit_state:
+        mov r21, r20
+        imm r20, 527800
+        call cursor_require_cell
+        imm r20, 527768
+        imm r21, 4
+        call cursor_require_cell
+        imm r20, 527808
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 527832
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 527776
+        imm r21, 1                    ; terminal count state retained
+        call cursor_require_cell
+        imm r20, 527784
+        imm r21, 1                    ; terminal identifier state retained
+        call cursor_require_cell
+        ret
+
+count_lets_summary_finish:
+        imm r10, 0
+count_lets_finish_flag_loop:
+        imm r1, 10
+        jlt r10, r1, count_lets_finish_flag
+        ; Exact done-block local load/store writes the stable entry start back
+        ; to CUR, then returns the exact accumulated let count.
+        imm r1, 527816
+        imm r2, 1                    ; checked CUR restored to entry start
+        store r1, r2
+        imm r1, 527824
+        store r1, r2                  ; checked return exact let count
+        imm r1, 527832
+        store r1, r2                  ; quiet other state / restored frame
+        imm r20, 527816
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 527824
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 527832
+        imm r21, 1
+        call cursor_require_cell
+        imm r1, 527920
+        imm r2, 1
+        store r1, r2
+        imm r1, 527728
+        imm r2, 1129206867            ; CNTS
+        store r1, r2
+        ret
+count_lets_finish_flag:
+        mov r2, r10
+        imm r1, 8
+        mul r2, r1
+        imm r1, 527840
+        add r1, r2
+        load r2, r1
+        imm r1, 1
+        jeq r2, r1, count_lets_finish_flag_next
+        jmp reject
+count_lets_finish_flag_next:
+        imm r1, 1
+        add r10, r1
+        jmp count_lets_finish_flag_loop
+
+; ---- Imports and selections ------------------------------------------
+
+count_lets_require_summary_imports:
+        imm r20, 527576
+        imm r21, 1129071443           ; CLCS
+        call cursor_require_cell
+        imm r20, 527584
+        imm r21, 1                    ; case schema body domain
+        call cursor_require_cell
+        ret
+
+count_lets_require_loop_invariant:
+        imm r20, 527736
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 527744
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 527752
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 527760
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 527768
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 527776
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 527784
+        imm r21, 1                    ; checked current identifier state
+        call cursor_require_cell
+        ret
+
+; Every clause is a separate quantified use of the same loop-head invariant.
+; Reintroduce its abstract current-state tags instead of inheriting mutations
+; left by the preceding proof clause.
+count_lets_reset_loop_state:
+        imm r20, 527736
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 527584
+        imm r21, 1
+        call cursor_require_cell
+        imm r1, 527744
+        imm r2, 1
+        store r1, r2
+        imm r1, 527752
+        store r1, r2
+        imm r1, 527760
+        store r1, r2
+        imm r1, 527768
+        store r1, r2
+        imm r1, 527776
+        store r1, r2
+        imm r1, 527784
+        store r1, r2
+        call count_lets_require_loop_invariant
+        ret
+
+count_lets_select_case:
+        mov r25, r20
+        imm r1, 1
+        jlt r25, r1, reject
+        imm r1, 10
+        jlt r25, r1, count_lets_select_case_in_range
+        jmp reject
+count_lets_select_case_in_range:
+        mov r2, r25
+        imm r1, 1
+        sub r2, r1
+        imm r1, 8
+        mul r2, r1
+        imm r1, 527656              ; CLCS completion for selected case
+        add r1, r2
+        load r2, r1
+        imm r1, 1
+        jeq r2, r1, count_lets_select_case_ok
+        jmp reject
+count_lets_select_case_ok:
+        imm r1, 527792
+        store r1, r25
+        ret

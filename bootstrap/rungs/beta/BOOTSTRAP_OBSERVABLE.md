@@ -267,7 +267,11 @@ are valuable teeth, but they do not yet establish the quantified observation:
   and a trailing string escape through LEN+1, while the string loop's natural
   LEN+1-CUR rank decreases on every ordinary/escape backedge. Exact procedures
   37..38, calls, returns, expressions, frames, and exhaustive ownership anchor
-  those clauses. The outer depth/count scan remains to be composed;
+  those clauses. The composed procedure-39 fixed point then exhausts all body
+  byte cases under `2*(LEN+2-CUR)+live`, tracks nested brace depth, increments
+  only for maximal identifiers equal to `let`, carries the last IDOFF/IDLEN,
+  consumes the matching close or stops on cbyte zero, restores entry CUR, and
+  returns the exact count. The `nparams+count` capacity guard remains;
 - no total `parse_proc` claim is currently made. Malformed procedure bodies can
   make `gen_stmts` diverge while emitting—for example when an unrecognized byte
   is never consumed—so closure requires maximal Return-or-Diverge and finite/

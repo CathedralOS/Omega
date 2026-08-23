@@ -20,6 +20,7 @@ SOURCE="$OMEGA_PATH_BETA/bc.beta"
 ARTIFACT="$OMEGA_PATH_BETA/artifacts/bc.tape"
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
+. "$GATE_DIR/bc-count-lets-teeth.sh"
 
 # The persisted compiler supplies only a location hint.  Require its Alpha text
 # to assemble to the exact committed artifact before deriving that hint.
@@ -229,7 +230,11 @@ cat "$GATE_DIR/bc-block-control.alpha" \
   "$GATE_DIR/bc-let-keyword-shape.alpha" \
   "$GATE_DIR/bc-let-keyword-summary.alpha" \
   "$GATE_DIR/bc-literal-skip-shape.alpha" \
-  "$GATE_DIR/bc-literal-skip-summary.alpha" > "$T/control-check.alpha"
+  "$GATE_DIR/bc-literal-skip-summary.alpha" \
+  "$GATE_DIR/bc-count-lets-control-shape.alpha" \
+  "$GATE_DIR/bc-count-lets-data-shape.alpha" \
+  "$GATE_DIR/bc-count-lets-cases.alpha" \
+  "$GATE_DIR/bc-count-lets-summary.alpha" > "$T/control-check.alpha"
 "$ASM" < "$T/control-check.alpha" > "$T/control-check.tape"
 stamp_seed "$T/control-check.tape" "$SEED" "$T/control-check" >/dev/null
 
@@ -811,6 +816,7 @@ sed 's/store r1, r2                  ; checked smaller rank renamed/store r1, r1
   "$T/control-check.alpha" > "$T/literal-skip-wrong-backedge-rename.alpha"
 "$ASM" < "$T/literal-skip-wrong-backedge-rename.alpha" > "$T/literal-skip-wrong-backedge-rename.tape"
 stamp_seed "$T/literal-skip-wrong-backedge-rename.tape" "$SEED" "$T/literal-skip-wrong-backedge-rename" >/dev/null
+count_lets_build_teeth
 
 # Phase-isolated tooth: leave the exact source, tape, witness, and every prior
 # checker phase unchanged, but underreport the prelude fp owner. Adjust only the
@@ -919,7 +925,11 @@ cat "$GATE_DIR/bc-block-control.alpha" \
   "$GATE_DIR/bc-let-keyword-shape.alpha" \
   "$GATE_DIR/bc-let-keyword-summary.alpha" \
   "$GATE_DIR/bc-literal-skip-shape.alpha" \
-  "$GATE_DIR/bc-literal-skip-summary.alpha" > "$T/flat-check.alpha"
+  "$GATE_DIR/bc-literal-skip-summary.alpha" \
+  "$GATE_DIR/bc-count-lets-control-shape.alpha" \
+  "$GATE_DIR/bc-count-lets-data-shape.alpha" \
+  "$GATE_DIR/bc-count-lets-cases.alpha" \
+  "$GATE_DIR/bc-count-lets-summary.alpha" > "$T/flat-check.alpha"
 "$ASM" < "$T/flat-check.alpha" > "$T/flat-check.tape"
 stamp_seed "$T/flat-check.tape" "$SEED" "$T/flat-check" >/dev/null
 
@@ -1149,6 +1159,7 @@ for literal_skip_tooth in literal-skip-wrong-char-guard literal-skip-wrong-char-
     exit 1
   fi
 done
+count_lets_reject_teeth
 coherent_ranged_mutant slurp-cap
 coherent_ranged_mutant declare-cap
 coherent_ranged_mutant nloc-step
@@ -1348,4 +1359,4 @@ for mutation in call-retarget read-register write-register helper-write emit-byt
   fi
 done
 
-echo "bc block control/effects: 70 proc / 355 block / 291 transition; 613 effect sites / 829 fixed emit bytes; 113 __write_str calls instantiated from one length-ranked exact-output summary; main.ready composes emit_prelude/write_str/skip_ws into the exact 187-byte prefix, then a reusable main.loop split sends normalized zero to halt(0) and nonzero to main.body without consuming it; byte classifiers digit/alpha/alnum are exact over all 256 cbyte values, terminating read_ident returns their maximal prefix, id_char/is_let recognize the exact let slice, literal skippers terminate honestly through bounded malformed tails, nonzero expect normalizes then conditionally consumes one delimiter, and declare either appends the identifier slot or records numeric status 252 at capacity; cbyte/adv/is_space leaf summaries compose through terminating skip_ws_step/skip_ws loops; 78 frame slots / 27 parameter stores / 134 call pops; 169 local loads / 73 local stores; 61 raw loads = 54 fixed-safe + 5 SRC-indexed + 2 table-indexed / 34 raw stores; cursor-zero slurp segment/value/termination summary composed from root through main.ready or halt(253); 581 literals / 55 arithmetic / 180 comparison primitives; 235 binary / 134 argument / 34 store-address pushes; syntax-directed composition / relative temporary peak 2; three ranged Alpha operands transferred; all 607 stores partitioned / 70 call-cut frames summarized; 64-row counter contexts; absolute B_bc1 stack <=12720 explicit bytes / <=662 hidden returns; all 2630 explicit-stack effects and 687 artifact effects owned ($(wc -c < "$T/control-check.tape" | tr -d ' ')-byte Alpha checker tape)"
+echo "bc block control/effects: 70 proc / 355 block / 291 transition; 613 effect sites / 829 fixed emit bytes; 113 __write_str calls instantiated from one length-ranked exact-output summary; main.ready composes emit_prelude/write_str/skip_ws into the exact 187-byte prefix, then a reusable main.loop split sends normalized zero to halt(0) and nonzero to main.body without consuming it; byte classifiers digit/alpha/alnum are exact over all 256 cbyte values, terminating read_ident returns their maximal prefix, id_char/is_let recognize the exact let slice, literal skippers terminate honestly through bounded malformed tails, count_lets terminates with exact nested-body let count and restored entry CUR, nonzero expect normalizes then conditionally consumes one delimiter, and declare either appends the identifier slot or records numeric status 252 at capacity; cbyte/adv/is_space leaf summaries compose through terminating skip_ws_step/skip_ws loops; 78 frame slots / 27 parameter stores / 134 call pops; 169 local loads / 73 local stores; 61 raw loads = 54 fixed-safe + 5 SRC-indexed + 2 table-indexed / 34 raw stores; cursor-zero slurp segment/value/termination summary composed from root through main.ready or halt(253); 581 literals / 55 arithmetic / 180 comparison primitives; 235 binary / 134 argument / 34 store-address pushes; syntax-directed composition / relative temporary peak 2; three ranged Alpha operands transferred; all 607 stores partitioned / 70 call-cut frames summarized; 64-row counter contexts; absolute B_bc1 stack <=12720 explicit bytes / <=662 hidden returns; all 2630 explicit-stack effects and 687 artifact effects owned ($(wc -c < "$T/control-check.tape" | tr -d ' ')-byte Alpha checker tape)"

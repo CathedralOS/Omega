@@ -32,7 +32,7 @@ literal_skip_summary_init:
         call literal_skip_prove_extended_adv
         call literal_skip_prove_char
         call literal_skip_prove_string
-        jmp scan_owned_effects_init
+        jmp count_lets_shape_init
 
 ; ---- Bounded out-of-range adv consequence -----------------------------
 
