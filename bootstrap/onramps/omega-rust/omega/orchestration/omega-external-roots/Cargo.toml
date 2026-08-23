@@ -18,6 +18,7 @@ psi-layout-plans = { path = "../../../psi/foundation/psi-layout-plans" }
 psi-core = { path = "../../../psi/foundation/psi-core" }
 psi-language-semantics = { path = "../../../psi/foundation/psi-language-semantics" }
 psi-terminal = { path = "../../../psi/representations/psi-terminal" }
+psi-terminal-codec = { path = "../../../psi/semantics/psi-terminal-codec" }
 psi-terminal-fixed-fuel = { path = "../../../psi/semantics/psi-terminal-fixed-fuel" }
 
 [dev-dependencies]

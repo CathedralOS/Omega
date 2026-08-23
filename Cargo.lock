@@ -564,6 +564,7 @@ dependencies = [
  "psi-language-semantics",
  "psi-layout-plans",
  "psi-terminal",
+ "psi-terminal-codec",
  "psi-terminal-fixed-fuel",
 ]
 
