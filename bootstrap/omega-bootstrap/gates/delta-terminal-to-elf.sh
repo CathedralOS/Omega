@@ -140,7 +140,8 @@ A
 EOF
 fi
 
-python3 - "$T/terminal.psi" "$T/truncated.psi" "$T/tampered.psi" "$T/trailing.psi" <<'PY'
+python3 - "$T/terminal.psi" "$T/truncated.psi" "$T/tampered.psi" \
+  "$T/trailing.psi" "$T/root-schema-tampered.psi" <<'PY'
 import pathlib
 import sys
 source = pathlib.Path(sys.argv[1]).read_bytes()
@@ -149,9 +150,20 @@ tampered = bytearray(source)
 tampered[0] ^= 1
 pathlib.Path(sys.argv[3]).write_bytes(tampered)
 pathlib.Path(sys.argv[4]).write_bytes(source + b"\0")
+
+# Exit boundary identity (147 bytes), then attachment, scalar parameters,
+# structural parameters, result, and requirements. O0/O1 must publish an empty
+# program-local-root-introduction schema table at the following u32.
+prefix = b"named-callable(path(Console::exit_process)"
+assert source.count(prefix) == 1
+schema_count = source.index(prefix) + 147 + 18
+assert source[schema_count:schema_count + 4] == b"\0\0\0\0"
+schema_tampered = bytearray(source)
+schema_tampered[schema_count] = 1
+pathlib.Path(sys.argv[5]).write_bytes(schema_tampered)
 PY
 
-for bad in truncated tampered trailing; do
+for bad in truncated tampered trailing root-schema-tampered; do
   set +e
   "$T/backend" < "$T/$bad.psi" > "$T/$bad.elf"
   STATUS=$?

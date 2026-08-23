@@ -94,7 +94,7 @@ fn canonical_o0_agrees_from_terminal_meaning_through_runnable_linux_image() {
     let semantic = fixture_bytes();
     let proof = encode_proof_bundle(&ProofBundle::default()).expect("canonical empty proof");
     let profile = AdmissionProfile::default();
-    let decoded = decode_module(&semantic).expect("decode canonical vocabulary-25 O0 fixture");
+    let decoded = decode_module(&semantic).expect("decode canonical vocabulary-26 O0 fixture");
     let (write_boundary, exit_boundary) = o0_boundaries(&decoded);
 
     let mut meaning = O0Meaning::new(Some(write_boundary), exit_boundary);

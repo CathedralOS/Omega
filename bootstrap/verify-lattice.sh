@@ -137,7 +137,7 @@ step "omega2gamma termination canary — translator halts on every sample, suppo
 step "lowermachine meaning — real compiler executes through Gamma; exact state/tree/source ceilings fail closed" omega-bootstrap-gates lowermachine-meaning.sh delta-rs gamma
 step "omega-bootstrap source bundle — canonical deterministic multi-file input" omega-bootstrap-gates omega-bootstrap-bundle-test.sh
 step "omega-bootstrap Delta O1 artifact — variable terminal-Psi to byte-identical x86-64 ELF" omega-bootstrap-gates delta-terminal-to-elf.sh delta-rs omega-rust psi-rust/semantics/psi-terminal-codec
-step "omega-bootstrap Delta O1 self-host composite — lowermachine-built frontend/backend compose through terminal vocabulary 25 to exact ELF" omega-bootstrap-gates delta-o1-selfhost-composite.sh delta-rs omega-rust psi-rust/semantics/psi-terminal-codec
+step "omega-bootstrap Delta O1 self-host composite — lowermachine-built frontend/backend compose through terminal vocabulary 26 to exact ELF" omega-bootstrap-gates delta-o1-selfhost-composite.sh delta-rs omega-rust psi-rust/semantics/psi-terminal-codec
 step "omega-bootstrap Delta O1 artifact meaning (RUST-FREE) — exact native vs omega2gamma.beta->interp.beta images" omega-bootstrap-gates delta-terminal-to-elf-meaning.sh delta-rs gamma omega-rust psi-rust/semantics/psi-terminal-codec
 step "omega meaning — real Omega samples run Rust-free; exits match documented intent" omega-bootstrap-gates omega-meaning.sh gamma corpus
 step "omega meaning-TV — the kernel re-computes each covered sample's arithmetic (proof, not comparison)" omega-bootstrap-refinement meaning-tv.sh omega-bootstrap-meaning gamma proof-kernel alpha-assembler beta corpus
