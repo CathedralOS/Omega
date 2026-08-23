@@ -3,6 +3,7 @@
 use psi_core::{Proposition, PropositionContext, ScalarTerm};
 use psi_proof_kernel::{ProofNode, ProofRule};
 
+use super::super::super::super::affine_custody::DefinitionIndex;
 use super::super::relation;
 
 #[allow(clippy::too_many_arguments)]
@@ -15,6 +16,7 @@ pub(super) fn prove(
     replacement: &ScalarTerm,
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
+    definitions: &mut DefinitionIndex,
     equality: ProofNode,
 ) -> Option<ProofNode> {
     let (endpoint, relation) = if old == goal_left {
@@ -36,6 +38,7 @@ pub(super) fn prove(
         replacement.integer_value().is_some(),
         assumptions,
         semantic_axioms,
+        definitions,
     )?;
     Some(ProofNode {
         conclusion: goal.clone(),

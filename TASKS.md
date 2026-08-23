@@ -1494,21 +1494,26 @@ Owners:
 Remaining:
 
 - **PSIIR.** Extend terminal Psi only as complete vertical slices: canonical
-  Mixed-shift proof reconstruction now builds one verifier-invocation-owned
-  affine/cast-spine index, caches exact root/target definition frontiers and
-  literal landings, and filters unreachable or source-order-invalid candidates
-  before kernel replay. Ownership is explicit through one mutable index; no
-  interior-mutability cache, concurrency, or viewer suppression hides the
-  search. The focused warm regression fell from the recorded >100 seconds
-  (and a fresh >55-second cutoff) to 8.68 seconds while preserving the same
-  317 obligations, proof encode/decode, independent verification, and tamper
-  rejection; the full terminal-verifier suite remains green.
   encoding, independent obligation reconstruction and verification,
   interpretation, fixed fuel, Omega lowering, native evidence, artifact/image
   custody, and installation must move together. The detailed accepted
   vocabulary and current fences live in
   [`terminal_psi.md`](wiki/architecture/pipeline/terminal_psi.md); do not
   duplicate its operation-by-operation ledger here.
+
+  Producer and verifier proof reconstruction independently own one mutable,
+  invocation-local affine/cast index. Both cache exact definition frontiers,
+  target-filtered words, cast spines, and literal landings; the producer also
+  memoizes completed affine subproofs before independent kernel replay. No
+  shared proof authority, global cache, concurrency, or viewer suppression
+  hides the search. The
+  producer-side index closes the previously omitted half of this performance
+  slice: the exhaustive mixed-nominal source regression now completes instead
+  of exceeding a 120-second lowering cutoff, while the canonical mixed-shift
+  artifact retains its 317 obligations, proof codec round trip, independent
+  verification, and tamper rejection. Keep performance claims scoped to the
+  measured producer or verifier phase; the earlier 8.68-second verifier result
+  was not an end-to-end producer baseline.
 
   The accepted baseline covers bounded scalar/direct and structural/content
   calls, guarded crash continuations, structural results, fixed-array custody,

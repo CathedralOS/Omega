@@ -24,7 +24,7 @@ pub(super) fn prove_from_root(
     goal: &Proposition,
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
-    definitions: &DefinitionIndex,
+    definitions: &mut DefinitionIndex,
     root: &ScalarTerm,
     root_bound: ProofNode,
 ) -> Option<ProofNode> {

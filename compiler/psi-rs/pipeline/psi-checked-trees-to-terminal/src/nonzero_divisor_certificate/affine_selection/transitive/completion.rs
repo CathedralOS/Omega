@@ -14,7 +14,7 @@ pub(super) fn prove(
     goal: &Proposition,
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
-    definitions: &DefinitionIndex,
+    definitions: &mut DefinitionIndex,
     left: &ScalarTerm,
     right: &ScalarTerm,
     left_proof: ProofNode,

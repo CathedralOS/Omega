@@ -3,8 +3,8 @@
 use psi_core::{Proposition, PropositionContext, ScalarTerm};
 use psi_proof_kernel::{ProofNode, ProofRule};
 
-use super::super::super::super::super::affine_selection;
 use super::super::super::super::super::integer_evidence::Citation;
+use super::super::super::super::super::{affine_custody::DefinitionIndex, affine_selection};
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn prove(
@@ -17,6 +17,7 @@ pub(super) fn prove(
     endpoint: usize,
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
+    definitions: &mut DefinitionIndex,
     inner_citation: Citation,
     inner_equality: &Proposition,
     outer_citation: Citation,
@@ -27,7 +28,13 @@ pub(super) fn prove(
     } else {
         Proposition::LessOrEqual(goal_left.clone(), target_alias.clone())
     };
-    let affine = affine_selection::prove(context, &relation, assumptions, semantic_axioms)?;
+    let affine = affine_selection::prove_with_definitions(
+        context,
+        &relation,
+        assumptions,
+        semantic_axioms,
+        definitions,
+    )?;
     let middle_relation = if endpoint == 0 {
         Proposition::LessOrEqual(middle_alias.clone(), goal_right.clone())
     } else {

@@ -20,7 +20,7 @@ pub(super) fn prove_transitively_alias_substituted_affine_bound(
     goal: &Proposition,
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
-    definitions: &DefinitionIndex,
+    definitions: &mut DefinitionIndex,
 ) -> Option<ProofNode> {
     alias::prove(context, goal, assumptions, semantic_axioms, definitions)
 }
@@ -30,7 +30,7 @@ pub(super) fn prove_transitively_reconstructed_affine_bound(
     goal: &Proposition,
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
-    definitions: &DefinitionIndex,
+    definitions: &mut DefinitionIndex,
 ) -> Option<ProofNode> {
     TwoCitationChains::new(assumptions, semantic_axioms).find(
         |left, right, left_proof, right_proof| {

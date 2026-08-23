@@ -12,7 +12,7 @@ pub(super) fn prove(
     goal: &Proposition,
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
-    definitions: &DefinitionIndex,
+    definitions: &mut DefinitionIndex,
 ) -> Option<ProofNode> {
     candidates::find(assumptions, semantic_axioms, |root, root_bound| {
         affine_custody::prove_from_root(

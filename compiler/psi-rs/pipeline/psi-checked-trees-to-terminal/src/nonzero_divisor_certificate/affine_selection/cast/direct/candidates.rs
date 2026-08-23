@@ -1,10 +1,9 @@
 //! Ordered direct cast-to-affine candidates for production.
 
-use psi_core::{Proposition, PropositionContext, ScalarTerm, ScalarType};
+use psi_core::{Proposition, PropositionContext, ScalarType};
 use psi_proof_kernel::ProofNode;
 
 use super::super::super::super::affine_custody::DefinitionIndex;
-use super::super::super::super::cast_custody;
 use super::completion;
 
 pub(super) fn prove(
@@ -12,17 +11,14 @@ pub(super) fn prove(
     goal: &Proposition,
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
-    definitions: &DefinitionIndex,
+    definitions: &mut DefinitionIndex,
 ) -> Option<ProofNode> {
-    semantic_axioms.iter().find_map(|axiom| {
-        let Proposition::Equal(cast_root, ScalarTerm::IntegerExactCast { .. }) = axiom else {
-            return None;
-        };
+    let cast_roots = definitions.cast_roots().cloned().collect::<Vec<_>>();
+    cast_roots.iter().find_map(|cast_root| {
         let ScalarType::Integer(cast_type) = cast_root.scalar_type() else {
             return None;
         };
-        let (source, _) = cast_custody::source_root(cast_root, semantic_axioms)?;
-        let cast_word = cast_custody::definition_axioms(&source, cast_root, semantic_axioms)?;
+        let (source, cast_word) = definitions.cast_spine(cast_root)?;
         let last_cast = *cast_word.last()?;
         assumptions
             .iter()

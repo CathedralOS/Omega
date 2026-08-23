@@ -3,6 +3,8 @@
 use psi_core::{Proposition, PropositionContext};
 use psi_proof_kernel::ProofNode;
 
+use super::super::super::affine_custody::DefinitionIndex;
+
 use super::super::super::integer_evidence::cited_facts;
 
 mod completion;
@@ -12,6 +14,7 @@ pub(super) fn prove(
     goal: &Proposition,
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
+    definitions: &mut DefinitionIndex,
 ) -> Option<ProofNode> {
     let Proposition::LessOrEqual(goal_left, goal_right) = goal else {
         return None;
@@ -34,6 +37,7 @@ pub(super) fn prove(
                 replacement,
                 assumptions,
                 semantic_axioms,
+                definitions,
                 citation.proof(fact),
             ) {
                 return Some(proof);
