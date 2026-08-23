@@ -17,6 +17,7 @@ use super::{
     VERIFIER_LIB_SOURCE, VERIFIER_SOURCE, VERIFIER_VALIDATION_SOURCE, ValidatedTerminalTrustGraph,
     validate_terminal_trust_graph,
 };
+use crate::FORMAT_MARKER;
 use psi_terminal_semantics::{
     CallCompositionSemanticRow, OperationSemanticCustody, OperationSemanticRow,
     ProofBearingScalarSemanticRow, StructuralEffectSemanticRow,
@@ -24,6 +25,32 @@ use psi_terminal_semantics::{
     exact_structural_effect_semantic_row_in, validate_call_composition_semantic_rows,
     validate_proof_bearing_scalar_semantic_rows, validate_structural_effect_semantic_rows,
 };
+
+fn terminal_vocabulary_version() -> String {
+    format!(
+        "terminal-vocabulary-{}",
+        psi_terminal::VocabularyMarker::CURRENT.get()
+    )
+}
+
+fn canonical_terminal_bytes_identity() -> &'static str {
+    "root:canonical-terminal-bytes-format-23-vocabulary-26"
+}
+
+fn canonical_terminal_bytes_version() -> String {
+    format!(
+        "PSITERM-format-{FORMAT_MARKER}-vocabulary-{}",
+        psi_terminal::VocabularyMarker::CURRENT.get()
+    )
+}
+
+fn canonical_proof_calculus_identity() -> &'static str {
+    "root:canonical-proof-calculus-format-19"
+}
+
+fn canonical_proof_calculus_version() -> String {
+    format!("proof-bundle-format-{}", crate::proof_bundle::FORMAT_MARKER)
+}
 
 pub(super) fn build_current_terminal_trust_graph()
 -> Result<ValidatedTerminalTrustGraph, TrustGraphError> {
@@ -47,7 +74,7 @@ fn registered_roots() -> Vec<TrustDependencyNode> {
             TrustDependencyKind::RegisteredRoot,
             TrustDependencyStatus::Registered,
             "terminal-Psi abstract operational semantics",
-            "terminal-vocabulary-1",
+            terminal_vocabulary_version(),
             "Psi language architecture",
             "portable terminal-Psi execution before native refinement",
             "Portable PCC bottoms out in the abstract terminal execution model.",
@@ -56,11 +83,11 @@ fn registered_roots() -> Vec<TrustDependencyNode> {
             &[("psi-terminal/module.rs", TERMINAL_MODEL_SOURCE)],
         ),
         TrustDependencyNode::new(
-            "root:canonical-proof-calculus-v15",
+            canonical_proof_calculus_identity(),
             TrustDependencyKind::RegisteredRoot,
             TrustDependencyStatus::Registered,
             "terminal-Psi proof bundle and primitive calculus",
-            "proof-bundle-format-18",
+            canonical_proof_calculus_version(),
             "Psi proof-kernel architecture",
             "portable terminal-Psi proof checking",
             "The current small proof calculus is an explicit registered semantic root.",
@@ -84,11 +111,11 @@ fn registered_roots() -> Vec<TrustDependencyNode> {
             ],
         ),
         TrustDependencyNode::new(
-            "root:canonical-terminal-bytes-v15",
+            canonical_terminal_bytes_identity(),
             TrustDependencyKind::RegisteredRoot,
             TrustDependencyStatus::Registered,
             "canonical terminal-Psi semantic bytes",
-            "PSITERM-format-16",
+            canonical_terminal_bytes_version(),
             "Psi terminal codec architecture",
             "canonical terminal-Psi byte vocabulary",
             "Artifact identity and authoritative reconstruction begin at exact canonical bytes.",
@@ -127,7 +154,7 @@ fn proof_kernel_node() -> TrustDependencyNode {
         "The current Rust kernel remains trusted until the independent low-rung checker closes the diamond.",
         TrustAcceptingPolicy::ExplicitMigrationTrust,
         dependencies(&[
-            "root:canonical-proof-calculus-v15",
+            canonical_proof_calculus_identity(),
             "root:explicit-rust-migration-policy",
         ]),
         &[
@@ -153,13 +180,13 @@ fn decoder_node() -> TrustDependencyNode {
         TrustDependencyKind::TrustedImplementation,
         TrustDependencyStatus::TrustedJudgment,
         "Rust canonical terminal-Psi byte decoder and structural validation",
-        "PSITERM-format-16-rust-decoder-v1",
+        format!("{}-rust-decoder-v1", canonical_terminal_bytes_version()),
         "psi-terminal-codec",
         "canonical bytes through validated TerminalModule",
         "The final low generator begins at bytes; the current Rust decoder must remain visible until then.",
         TrustAcceptingPolicy::ExplicitMigrationTrust,
         dependencies(&[
-            "root:canonical-terminal-bytes-v15",
+            canonical_terminal_bytes_identity(),
             "root:explicit-rust-migration-policy",
         ]),
         &[("psi-terminal-codec/lib.rs", CODEC_SOURCE)],

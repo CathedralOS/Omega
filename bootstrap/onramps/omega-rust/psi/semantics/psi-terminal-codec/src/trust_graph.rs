@@ -403,12 +403,19 @@ mod tests {
                 .count(),
             4
         );
+        let proof_calculus_identity = format!(
+            "root:canonical-proof-calculus-format-{}",
+            crate::proof_bundle::FORMAT_MARKER
+        );
         let proof_calculus = graph
             .nodes()
             .iter()
-            .find(|node| node.identity() == "root:canonical-proof-calculus-v15")
+            .find(|node| node.identity() == proof_calculus_identity)
             .expect("current proof-calculus root");
-        assert_eq!(proof_calculus.version(), "proof-bundle-format-18");
+        assert_eq!(
+            proof_calculus.version(),
+            format!("proof-bundle-format-{}", crate::proof_bundle::FORMAT_MARKER)
+        );
         let rust_kernel = graph
             .nodes()
             .iter()
@@ -418,7 +425,25 @@ mod tests {
         assert!(
             rust_kernel
                 .dependencies()
-                .contains(&"root:canonical-proof-calculus-v15".to_owned())
+                .contains(&proof_calculus_identity)
+        );
+        let terminal_bytes_identity = format!(
+            "root:canonical-terminal-bytes-format-{}-vocabulary-{}",
+            crate::FORMAT_MARKER,
+            psi_terminal::VocabularyMarker::CURRENT.get()
+        );
+        let terminal_bytes = graph
+            .nodes()
+            .iter()
+            .find(|node| node.identity() == terminal_bytes_identity)
+            .expect("current canonical-terminal-bytes root");
+        assert_eq!(
+            terminal_bytes.version(),
+            format!(
+                "PSITERM-format-{}-vocabulary-{}",
+                crate::FORMAT_MARKER,
+                psi_terminal::VocabularyMarker::CURRENT.get()
+            )
         );
         assert_eq!(
             graph

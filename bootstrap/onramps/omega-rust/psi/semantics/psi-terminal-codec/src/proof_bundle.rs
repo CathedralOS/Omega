@@ -25,7 +25,7 @@ use wire::{Reader, Writer};
 
 const MAGIC: &[u8; 8] = b"PSIPRF\0\0";
 /// Single current pre-release proof vocabulary marker.
-const FORMAT_MARKER: u16 = 19;
+pub(crate) const FORMAT_MARKER: u16 = 19;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-proof-bundle-fingerprint\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
