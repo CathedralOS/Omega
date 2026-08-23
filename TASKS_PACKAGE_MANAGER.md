@@ -312,6 +312,15 @@ Completed:
   parser, resolves through existing local/Git resolver policy, and preserves
   parse failures separately from source-resolution failures.
 
+- **OMEGA-AUDIT-SOURCE-CLI.** Expose resolver-owned source identity audit
+  through the Rust on-ramp `omega` binary before install/update mutation.
+
+  Done 2026-08-23: `omega audit source <locator> [--rev <rev>] [--cache-dir
+  <dir>]` resolves local paths and Git locators through the package source
+  audit API, prints source kind, locator, requested/resolved revision evidence,
+  content identity, file count, and byte count, and exits without editing
+  `build.omg` or writing `omega.lock`.
+
 - **SOURCE-CACHE-POLICY-LOCATOR-API.** Add the command seam that combines
   source locator parsing with resolver-owned source-cache policy records.
 
@@ -373,8 +382,8 @@ Remaining:
   Remaining after `LOCAL-SOURCE-IDENTITY`, `GIT-SOURCE-IDENTITY`, and
   `SOURCE-CACHE-POLICY-RECORDS`, `SOURCE-REQUEST-PARSING`,
   `REMOTE-FIXTURE-RESOLUTION-TESTS`, and
-  `SOURCE-CACHE-POLICY-LOCATOR-API`: add install-command integration and lock
-  wiring.
+  `SOURCE-CACHE-POLICY-LOCATOR-API`, and `OMEGA-AUDIT-SOURCE-CLI`: add
+  install-command integration and lock wiring.
 
   Acceptance: `omega install alias <source>` resolves a candidate to an exact
   commit/tree or local content identity and stores it in an isolated source
