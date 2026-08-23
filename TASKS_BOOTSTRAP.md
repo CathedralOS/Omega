@@ -427,6 +427,15 @@ additional facilities the bootstrap actually needs.
       and reserves output before the publication pass. The focused gate covers
       four live arguments, nested calls, late-entry `main`, name/arity failures,
       malformed-late empty output, and every new bounded table's exhaustion.
+    - [x] Extend it with Slice C: all six comparison operators (signed ordering,
+      full-width equality) and Beta's procedure-scoped `state` blocks plus
+      guarded/unconditional `to` edges.
+      The validation pass freezes and resolves state targets before publication;
+      Beta-unspellable generated labels prevent source collisions. Checked limits
+      are 64 states/transitions per procedure and 512 globally. The focused gate
+      covers signed/nested comparisons, optional guard grouping, forward/backward
+      flow, loops, fallthrough, scoping, adversarial names, and exact/overflow
+      capacity boundaries.
   - [ ] Persist the resulting lattice-built `bc` artifact, run its self-build and
     Beta corpus gates, then switch proof-kernel, Gamma, Delta, and Omega gates
     away from the ephemeral Rust-produced `bc0`.

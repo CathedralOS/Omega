@@ -92,7 +92,7 @@ step "Beta  — language compiler (on-ramp) + corpus"   beta-rust test.sh
 step "bc    — Beta compiler in Beta self-hosts"       beta   selfhost.sh
 step "bc    — per-feature gate"                       beta   test.sh
 step "bc    — checked source-arena exhaustion"        beta   source-exhaustion.sh beta-rust alpha-assembler
-step "bc    — Alpha-written cold-start compiler Slices A-B" beta cold-start/test.sh alpha alpha-assembler
+step "bc    — Alpha-written cold-start compiler Slices A-C" beta cold-start/test.sh alpha alpha-assembler
 step "bc    — CORRECTNESS: reference interpreter (beta_interp.py) == compile+run, random programs" beta-reference beta-correctness-fuzz.sh beta-rust alpha-assembler
 step "bc    — EXHAUSTIVE I/O: interpret == compile+run over ALL 256 input bytes per program" beta-reference beta-io-exhaust.sh beta-rust alpha-assembler
 step "proof kernel — certificate checker"                    proof-kernel-gates test.sh
