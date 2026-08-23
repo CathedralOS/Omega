@@ -86,10 +86,11 @@ binds all 61 raw loads (56 word, five byte) and 34 raw stores (33 word, one byte
 to exact Alpha width/opcode/register sites. Every store also checks the immediate
 16-byte address pop. Same-width load/store-width substitutions, register
 changes, pop-step changes, duplicate sites, and reordered BCT8 records retain
-valid Alpha framing and reject. The reduced ranged-store phase below closes the
-Beta-source address/alignment/bounds premise for three stores only; transfer to
-the Alpha operands, stored/loaded values, all raw loads, and general address
-correspondence remain open.
+valid Alpha framing and reject. The reduced phases below close the Beta-source
+address intervals and transfer the three selected address operands under a
+valid callee entry frame. Ranged payload values, other raw loads, general
+address correspondence, and global establishment of the selected frame/
+machine-memory preconditions remain open.
 
 `bc-expr-primitives.alpha` extends that same source scan and BCT8 witness with
 all 581 decimal/character literals and all 55 arithmetic operators (`+`, `-`,
@@ -160,9 +161,29 @@ global, explicit-stack, and hidden-return regions. Three coherent
 source/artifact/witness mutations pass a projection ending immediately before
 this schema/induction phase and fail the full checker; an independent
 underreported-loop mutation reaches and fails backedge closure. This is a
-source-semantic lemma plus static artifact macro custody, not yet a transfer of
-`n`/`s` through Alpha frame slots. The stored `c`/IDOFF/IDLEN values, every
-raw-load bound, live frame values, and general local contents remain open.
+source-semantic lemma plus static artifact macro custody; its machine transfer
+is the following phase. The stored `c`/IDOFF/IDLEN values, every raw-load bound,
+whole-artifact live-frame invariant, and general local contents remain open.
+
+`bc-ranged-store-transfer.alpha` then rejoins only the selected local, memory,
+primitive, push, frame, temporary-peak, and address-class rows. Exact lowering
+chains carry `slurp.n` to the SRC store operand, snapshot machine `NLOC` into
+`declare.s`, carry it to both name-table operands, and write `s+1` back to
+machine `NLOC`; the two zero roots are joined when reached. A two-cell executable
+tag/interval stack derives the selected `+`, `*`, staged addresses, store pops,
+and exact operand ranges rather than relying only on row custody. An independent
+decoded-CFG fixed point over the two call-free procedures propagates exact relative `r15`,
+current/caller `r14`, and saved-fp facts, rejects nonidentical merges, pins a
+32-byte maximum, and requires all selected returns to restore the entry pair.
+Consequently the three Alpha address operands obey the source intervals
+conditional on an aligned entry `(r15,r14)=(S,F)` with
+`524320 <= S <= F <= 1048576`; `declare` additionally assumes actual machine
+`NLOC` equals source `NLOC` in `[0,1024]`. Wrong-row, wrong-value-tag, and
+shallow-frame checker teeth reject. This does not yet prove that every
+whole-compiler invocation establishes those preconditions; lifting the BCT9
+potentials requires actual `NLOC`, depth-counter, and saved-frame transfer
+across all calls and both reset paths. Ranged payloads `c`/IDOFF/IDLEN, all
+other raw loads, and their bounds remain open.
 
 `bc_call_bounds.py` emits the untrusted compact BCS9 potential tables consumed
 by `bc-call-bounds.alpha`. The Alpha phase independently resolves all 310
@@ -176,10 +197,11 @@ equation. The conservative root summary is at most 12,720 explicit-stack bytes
 and 662 hidden returns, comfortably inside the `B_bc1` extents; underreported
 probe and root witnesses reject. This proves the finite call recurrence and its
 numeric margin conditional on isolation of the depth counters and saved-frame
-words. The later source induction shows that the three ranged source families
-avoid those locations; their Alpha value transfer, the intended fixed counter
-writes, carried depth/frame values, and the absolute stack obligation remain
-open, as do local/return values, reachability, and terminal/trace
+words. The later selected-callee phase shows that the three ranged Alpha
+operands avoid those locations conditional on valid frame and machine-`NLOC`
+entry relations. Establishing those relations globally, the intended fixed
+counter writes, carried depth/frame values, and the absolute stack obligation
+remain open, as do general local/return values, reachability, and terminal/trace
 correspondence.
 
 `bc-stack-register-custody.alpha` then transfers the earlier responsibility-
@@ -191,7 +213,7 @@ scan requires that map to equal exactly the 2,630 starts which write `r14` or
 `r15` or address memory through `r15`: 324 writes to `r14`, 1,430 writes to
 `r15`, and 1,129 stack-addressed memory accesses, with 253 saved-frame loads in
 both the first and third totals. This closes exhaustive static custody of the
-artifact's explicit-stack effects. The following induction makes the three
-ranged source families numerically disjoint from the reserved stack and counter
-regions, but their Alpha operand transfer and carried stack/frame values remain
-open.
+artifact's explicit-stack effects. The following phases prove the ranged source
+intervals and their selected Alpha operands, then a conditional decoded-frame
+lemma for the two call-free procedures. Whole-artifact carried stack/frame and
+depth-counter values remain open.

@@ -508,7 +508,8 @@ additional facilities the bootstrap actually needs.
       address-pop macro. Width/register/pop-step mutations and malformed BCT8
       locations reject while retaining valid instruction framing. Address and
       value correspondence, aliasing, alignment, and the 64 MiB bounds proof
-      remain open.
+      remain open at this flat phase; the later selected phase closes three
+      address operands and the machine-`NLOC` load/update relation conditionally.
     - [x] Classify every raw-store source address into the compiler's exact
       address families. The BC11 grammar-composition phase independently pins
       31 aligned fixed-global word addresses in `[2097064, 2097145)`, the sole
@@ -536,12 +537,31 @@ additional facilities the bootstrap actually needs.
       closure. This closes the source-semantic premise, not its transfer through
       Alpha frame slots, the stored values, any raw load, or general frame/local
       values.
-    - [ ] Transfer the three source interval facts to the exact Alpha store
-      operands with a selective joint frame/local simulation. It must carry
-      `slurp.n`, `declare.s`, and `NLOC` through the already owned fp-relative
-      loads/stores and address push/pop macros while proving `r14`/`r15` stay in
-      the reserved explicit-stack region. Until then the compiled store bounds
-      and absolute `B_bc1` stack theorem remain conditional.
+    - [x] Transfer the three source interval facts to the exact Alpha store
+      operands under a valid selected-callee entry frame. A witness-free Alpha
+      phase rejoins the canonical local, memory, primitive, push, frame, peak,
+      and address-class rows for `slurp` and `declare`. Their exact PC chains
+      carry `n` to `SRC+n`, snapshot machine `NLOC` into `s`, carry `s` to both
+      table addresses, and write `s+1` back to machine `NLOC`; both zero roots
+      are joined when reached. A two-cell executable tag/interval domain checks
+      the actual `+`, `*`, address staging, and store pops. A decoded-CFG fixed
+      point rejects calls and nonidentical merges, derives maximum relative
+      depth 32, protects the saved fp word, and requires every selected return
+      to restore `(r15,r14)=(S,F)`.
+      Thus the three compiled operands are bounded whenever the aligned entry
+      pair satisfies `524320 <= S <= F <= 1048576` and `declare` entry machine
+      `NLOC` corresponds to source `NLOC` in `[0,1024]`. Wrong local/PC and value-
+      tag joins plus a 24-byte underreported frame reject only in this phase.
+      Stored `c`/IDOFF/IDLEN values, the other raw loads, and establishment of
+      both entry preconditions by every dynamic caller remain open.
+    - [ ] Lift the checked call potentials to a whole-artifact carried stack,
+      saved-fp, and depth-counter invariant. It must transfer the actual
+      `EXPRDEPTH`/`BLOCKDEPTH` guards and updates, carry machine `NLOC` through
+      both reset paths and every `declare` entry/update, prove every call
+      establishes its callee's aligned entry frame, and show every return
+      restores its caller while `524288 <= r15 <= r14 <= 1048576`. Only then
+      does the existing 12,720-byte potential close absolute `B_bc1`
+      explicit-stack safety.
     - [x] Keep comparison lookahead inside the logical source arena. `cmp_op`
       now advances through the existing `cbyte()` bounds check and restores CUR
       when a single `=` is not a comparison, instead of directly reading
@@ -617,10 +637,11 @@ additional facilities the bootstrap actually needs.
       underreported probe and root certificates reject. This closes the static
       call graph, finite recurrence, and numerical margin conditional on the
       two depth counters and saved-frame words retaining their source/ABI
-      values. The later source induction proves that the three ranged source
-      families avoid those locations, but their Alpha value transfer, the
-      intended fixed counter writes, carried counter/frame values, absolute
-      `B_bc1` stack safety, return values, and reachability remain open.
+      values. The later selective transfer excludes the three ranged Alpha
+      operands under valid frame and machine-`NLOC` entry relations, but
+      establishing those relations globally, the intended fixed counter writes,
+      carried counter/frame values, absolute `B_bc1` stack safety, return values,
+      and reachability remain open.
     - [x] Give every explicit-stack register effect one lower-rooted artifact
       owner. A fresh BC11 per-PC map is derived only from the already checked
       prelude, 70 prologues, 253 epilogues, and 403 push/pop roots, with
@@ -632,9 +653,9 @@ additional facilities the bootstrap actually needs.
       source, artifact, witness, and all preceding phases unchanged; it rejects
       only at the exhaustive owner/effect equality scan. This closes static
       stack-effect custody, not the dynamic frame/value invariant. The following
-      phase closes the Beta-source ranged-address premise; its Alpha transfer
-      plus carried frame, saved-fp, depth-counter, and general local values
-      remain open.
+      next two phases close the Beta-source ranged-address premise and its
+      conditional selected-callee Alpha transfer. Whole-artifact carried frame,
+      saved-fp, depth-counter, and general local values remain open.
     - [x] Freeze supported resource profile `B_bc1` and make its source-side
       ceilings checked. `bc.beta` now refuses a 1,025th name slot, fifth live
       parameter/argument, and expression or nested-block depth 65 before any

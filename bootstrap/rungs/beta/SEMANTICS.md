@@ -196,7 +196,11 @@ stream admitted by `B_bc1`.
   temporary-stack balance, and pins exact `bc.beta`'s peak at two words.
   A final reduced induction checks the complete Beta-source `slurp`/`declare`
   store slices, proving the nonwrapping SRC/NAMEOFF/NAMELEN premise for all
-  three ranged stores. Transfer through compiled frame slots remains open.
+  three ranged stores. A witness-free selected-row join transfers those three
+  address operands through the exact compiled slots with an executable selected
+  tag/interval domain and proves conditional 32-byte frame restoration for the
+  two call-free procedures. Whole-artifact establishment of the frame and
+  machine-`NLOC` entry relations remains open.
 
 These gates are evidence. Whole-compiler closure still requires a checked
 forward simulation from these source transitions to Alpha small steps, including

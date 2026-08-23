@@ -203,7 +203,8 @@ cat "$GATE_DIR/bc-block-control.alpha" \
   "$GATE_DIR/bc-expr-composition.alpha" \
   "$GATE_DIR/bc-call-bounds.alpha" \
   "$GATE_DIR/bc-stack-register-custody.alpha" \
-  "$GATE_DIR/bc-ranged-store-bounds.alpha" > "$T/control-check.alpha"
+  "$GATE_DIR/bc-ranged-store-bounds.alpha" \
+  "$GATE_DIR/bc-ranged-store-transfer.alpha" > "$T/control-check.alpha"
 "$ASM" < "$T/control-check.alpha" > "$T/control-check.tape"
 stamp_seed "$T/control-check.tape" "$SEED" "$T/control-check" >/dev/null
 
@@ -229,6 +230,21 @@ sed '/ranged_interval_loop_candidate:/,/call ranged_interval_store/{s/imm r22, 1
 "$ASM" < "$T/ranged-underreported-loop.alpha" > "$T/ranged-underreported-loop.tape"
 stamp_seed "$T/ranged-underreported-loop.tape" "$SEED" "$T/ranged-underreported-loop" >/dev/null
 
+# Phase-isolated transfer teeth: misjoin n's address use to c's PC, or
+# underreport the selected procedures' real 32-byte relative frame depth.
+sed '/; slurp locals:/,/; declare snapshot/{s/imm r24, 446/imm r24, 503/;}' \
+  "$T/control-check.alpha" > "$T/transfer-wrong-local.alpha"
+"$ASM" < "$T/transfer-wrong-local.alpha" > "$T/transfer-wrong-local.tape"
+stamp_seed "$T/transfer-wrong-local.tape" "$SEED" "$T/transfer-wrong-local" >/dev/null
+sed '/transfer_frame_push:/,/jmp transfer_frame_next3/{s/imm r1, 33/imm r1, 25/;}' \
+  "$T/control-check.alpha" > "$T/transfer-shallow-frame.alpha"
+"$ASM" < "$T/transfer-shallow-frame.alpha" > "$T/transfer-shallow-frame.tape"
+stamp_seed "$T/transfer-shallow-frame.tape" "$SEED" "$T/transfer-shallow-frame" >/dev/null
+sed '/transfer_value_add_src_now:/,/call transfer_value_set/{s/imm r20, 5/imm r20, 10/;}' \
+  "$T/control-check.alpha" > "$T/transfer-wrong-value-tag.alpha"
+"$ASM" < "$T/transfer-wrong-value-tag.alpha" > "$T/transfer-wrong-value-tag.tape"
+stamp_seed "$T/transfer-wrong-value-tag.tape" "$SEED" "$T/transfer-wrong-value-tag" >/dev/null
+
 # Preserve a diagnostic projection of the immediately preceding flat-custody
 # phase.  The same-valued composition witness below must pass this projection
 # and fail only once grammar-directed recursive ordering is enabled.
@@ -243,7 +259,8 @@ cat "$GATE_DIR/bc-block-control.alpha" \
   "$T/bc-stack-pushes-flat.alpha" \
   "$GATE_DIR/bc-call-bounds.alpha" \
   "$GATE_DIR/bc-stack-register-custody.alpha" \
-  "$GATE_DIR/bc-ranged-store-bounds.alpha" > "$T/flat-check.alpha"
+  "$GATE_DIR/bc-ranged-store-bounds.alpha" \
+  "$GATE_DIR/bc-ranged-store-transfer.alpha" > "$T/flat-check.alpha"
 "$ASM" < "$T/flat-check.alpha" > "$T/flat-check.tape"
 stamp_seed "$T/flat-check.tape" "$SEED" "$T/flat-check" >/dev/null
 
@@ -353,6 +370,30 @@ if [ "$ranged_underreported_loop_status" != 1 ] || [ -s "$T/stdout" ]; then
   echo "bc block control FAIL — underreported ranged loop invariant was not rejected" >&2
   exit 1
 fi
+set +e
+"$T/transfer-wrong-local" < "$T/control.bundle" > "$T/stdout"
+transfer_wrong_local_status=$?
+set -e
+if [ "$transfer_wrong_local_status" != 1 ] || [ -s "$T/stdout" ]; then
+  echo "bc block control FAIL — wrong ranged-store local transfer was not rejected" >&2
+  exit 1
+fi
+set +e
+"$T/transfer-shallow-frame" < "$T/control.bundle" > "$T/stdout"
+transfer_shallow_frame_status=$?
+set -e
+if [ "$transfer_shallow_frame_status" != 1 ] || [ -s "$T/stdout" ]; then
+  echo "bc block control FAIL — underreported selected frame depth was not rejected" >&2
+  exit 1
+fi
+set +e
+"$T/transfer-wrong-value-tag" < "$T/control.bundle" > "$T/stdout"
+transfer_wrong_value_tag_status=$?
+set -e
+if [ "$transfer_wrong_value_tag_status" != 1 ] || [ -s "$T/stdout" ]; then
+  echo "bc block control FAIL — wrong ranged-store value tag was not rejected" >&2
+  exit 1
+fi
 flat_case() { # label input
   set +e
   "$T/flat-check" < "$2" > "$T/stdout"
@@ -459,4 +500,4 @@ for mutation in call-retarget read-register write-register helper-write emit-byt
   fi
 done
 
-echo "bc block control/effects: 70 proc / 355 block / 291 transition; 613 effect sites / 829 fixed emit bytes; 78 frame slots / 27 parameter stores / 134 call pops; 169 local loads / 73 local stores; 61 raw loads / 34 raw stores; 581 literals / 55 arithmetic / 180 comparison primitives; 235 binary / 134 argument / 34 store-address pushes; syntax-directed composition / relative temporary peak 2; three ranged source intervals checked; source-derived call bound <=12720 explicit bytes / <=662 hidden returns; all 2630 explicit-stack effects and 687 artifact effects owned ($(wc -c < "$T/control-check.tape" | tr -d ' ')-byte Alpha checker tape)"
+echo "bc block control/effects: 70 proc / 355 block / 291 transition; 613 effect sites / 829 fixed emit bytes; 78 frame slots / 27 parameter stores / 134 call pops; 169 local loads / 73 local stores; 61 raw loads / 34 raw stores; 581 literals / 55 arithmetic / 180 comparison primitives; 235 binary / 134 argument / 34 store-address pushes; syntax-directed composition / relative temporary peak 2; three ranged Alpha operands conditionally transferred / selected frames <=32 bytes; source-derived call bound <=12720 explicit bytes / <=662 hidden returns; all 2630 explicit-stack effects and 687 artifact effects owned ($(wc -c < "$T/control-check.tape" | tr -d ' ')-byte Alpha checker tape)"
