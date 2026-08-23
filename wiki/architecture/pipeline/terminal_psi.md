@@ -200,10 +200,12 @@ read/write authority. Content-independent place projections and metadata reads
 remain available, while loads, readable reborrows, takes, swaps, and
 read-modify-write reject.
 
-The August 2026 front-end checkpoint retains this access mode through typed
-identity and then rejects it during semantic validation. Terminal production
-must remain unreachable until its explicit access carrier and verifier rules
-land; physical pointer-layout equivalence is not permission equivalence.
+The August 2026 front-end checkpoint retains this access mode through checked
+whole-value and fixed-byte-element replacement, including dynamic indexes whose
+ordinary range obligations are proven. Dynamic writes remain conservatively
+collection-wide in caller-visible mutation summaries. Terminal production must
+remain unreachable until its explicit access carrier and verifier rules land;
+physical pointer-layout equivalence is not permission equivalence.
 
 Each write-only event names its exact loan occurrence, projected logical place,
 physical write footprint, and outcome guard. Verification invalidates facts

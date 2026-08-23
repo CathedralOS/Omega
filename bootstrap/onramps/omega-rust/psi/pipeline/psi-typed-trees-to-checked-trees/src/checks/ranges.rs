@@ -41,6 +41,19 @@ pub(crate) fn check_indexed_accesses(
         let loop_invariant_facts = collect_loop_invariant_facts(program, machine, call_frames);
         for state in program.machine_states(machine) {
             let mut facts = RangeFacts::new(&field_lengths);
+            // State parameters are stable named places for the duration of
+            // the state, just like locals introduced by `let`. Retain a
+            // literal fixed-array referee's length even through a reference
+            // access mode so ordinary index checking—not an access-mode-
+            // specific gate—owns every dynamic bounds obligation.
+            for parameter in program.state_parameters(state) {
+                facts.define_local(
+                    parameter.symbol,
+                    parameter.name.to_string(),
+                    fixed_array_type_length(program, parameter.type_reference),
+                    None,
+                );
+            }
             seed_field_integer_facts(program, &mut facts, machine);
             seed_machine_requires(program, &mut facts, machine);
             seed_state_argument_facts(&mut facts, state, &state_argument_facts);

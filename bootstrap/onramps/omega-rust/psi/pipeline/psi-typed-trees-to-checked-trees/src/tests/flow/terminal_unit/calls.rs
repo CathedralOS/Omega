@@ -1024,7 +1024,7 @@ fn fences_dynamic_fixed_array_projection_for_direct_unit_calls() {
         data Helper {}
         machine Helper::run(ticket: Ticket) {}
 
-        data Root { index: u64; }
+        data Root { index: u64 [0..=1]; }
         machine Root::enter(&self, tickets: [Ticket; 2])
         {
             Helper::run(tickets[self.index]);

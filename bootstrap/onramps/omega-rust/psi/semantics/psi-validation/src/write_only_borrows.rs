@@ -124,28 +124,34 @@ fn validate_statement(
             validate_expression(program, machine, state, fact.expression, roots, diagnostics)
         }
         StatementNode::Assignment(assignment) => {
-            match direct_write_only_root(program, assignment.target, roots) {
-                Some(_) => {}
-                None if fixed_byte_element_assignment_target(program, assignment.target, roots)
-                    .is_some() => {}
-                None if expression_mentions_write_only_root(program, assignment.target, roots) => {
-                    diagnose_unsupported_write_only_assignment_target(
-                        program,
-                        machine,
-                        state,
-                        assignment.target,
-                        roots,
-                        diagnostics,
-                    );
-                }
-                None => validate_expression(
+            if direct_write_only_root(program, assignment.target, roots).is_some() {
+                // Whole-value replacement observes no prior content.
+            } else if let Some(index) =
+                write_only_byte_element_assignment_index(program, assignment.target, roots)
+            {
+                // The normal range checker separately proves a dynamic index
+                // is in bounds. This gate owns only non-observation: the index
+                // expression must not recover information from the write-only
+                // referent.
+                validate_expression(program, machine, state, index, roots, diagnostics);
+            } else if expression_mentions_write_only_root(program, assignment.target, roots) {
+                diagnose_unsupported_write_only_assignment_target(
                     program,
                     machine,
                     state,
                     assignment.target,
                     roots,
                     diagnostics,
-                ),
+                );
+            } else {
+                validate_expression(
+                    program,
+                    machine,
+                    state,
+                    assignment.target,
+                    roots,
+                    diagnostics,
+                );
             }
             validate_expression(
                 program,
@@ -196,21 +202,24 @@ fn validate_statement(
     }
 }
 
-fn fixed_byte_element_assignment_target<'a>(
+fn write_only_byte_element_assignment_index(
     program: &TypedTrees,
     expression: ExpressionHandle,
-    roots: &'a [WriteOnlyRoot],
-) -> Option<&'a WriteOnlyRoot> {
+    roots: &[WriteOnlyRoot],
+) -> Option<ExpressionHandle> {
     let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) else {
         return None;
     };
     let root = direct_write_only_root(program, indexed.collection, roots)?;
     let length = fixed_byte_array_length(program, root.referee)?;
-    let ExpressionNode::Integer(index) = program.expression_table.expression(indexed.index) else {
-        return None;
-    };
-    let index = usize::try_from(index.value_i64()?).ok()?;
-    (index < length).then_some(root)
+    match program.expression_table.expression(indexed.index) {
+        ExpressionNode::Range(_) => None,
+        ExpressionNode::Integer(index) => {
+            let index = usize::try_from(index.value_i64()?).ok()?;
+            (index < length).then_some(indexed.index)
+        }
+        _ => Some(indexed.index),
+    }
 }
 
 fn diagnose_unsupported_write_only_assignment_target(
@@ -232,17 +241,17 @@ fn diagnose_unsupported_write_only_assignment_target(
                 Some(_) => "the literal index is outside the fixed byte array",
                 None => "the literal index is outside the supported index range",
             },
-            _ => "the index must be a literal for this milestone",
+            _ => "the index expression is not an admissible byte-element place",
         };
         diagnostics.push(Diagnostic::error(format!(
-            "machine `{machine}` state `{state}` writes through unsupported projection of write-only byte array `{}`; {detail}; only whole-array replacement and statically in-bounds literal element replacement are accepted",
+            "machine `{machine}` state `{state}` writes through unsupported projection of write-only byte array `{}`; {detail}; whole-array replacement and proven-in-bounds element replacement are accepted",
             root.name,
         )));
         return;
     }
 
     diagnostics.push(Diagnostic::error(format!(
-        "machine `{machine}` state `{state}` projects or observes a write-only parameter in an assignment target; the current `&write` slice permits whole-root replacement and statically in-bounds literal element replacement for fixed byte arrays"
+        "machine `{machine}` state `{state}` projects or observes a write-only parameter in an assignment target; the current `&write` slice permits whole-root replacement and proven-in-bounds element replacement for fixed byte arrays"
     )));
 }
 
