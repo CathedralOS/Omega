@@ -1,0 +1,12 @@
+// PASS canary: a runtime byte index is content-independent and may write
+// through `&write` when its ordinary declared range proves it in bounds.
+
+machine fill(bytes: &write [u8; 4], index: u64 [0..=3]) {
+    bytes[index] = 1;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

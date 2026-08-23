@@ -25,25 +25,31 @@ fn write_only_aggregate_projection_is_rejected() {
         .join("\n");
     assert!(
         combined.contains("unrestricted primitive scalars and fixed byte arrays")
-            && combined.contains("statically in-bounds literal element replacement"),
+            && combined.contains("proven-in-bounds element replacement"),
         "expected directed aggregate and projection diagnostics, got:\n{combined}"
     );
 }
 
 #[test]
-fn write_only_dynamic_byte_index_is_rejected() {
-    let canary = fail_canary("borrow/write_only_dynamic_byte_index");
-    let diagnostics =
-        check_canary(&canary).expect_err("dynamic write-only byte projection must remain gated");
+fn write_only_proven_dynamic_byte_index_is_accepted() {
+    let canary = pass_canary("borrow/write_only_dynamic_byte_index");
+    check_canary(&canary)
+        .expect("a proven-in-bounds dynamic write-only byte projection should be checked");
+}
+
+#[test]
+fn write_only_unbounded_dynamic_byte_index_is_rejected() {
+    let canary = fail_canary("borrow/write_only_unbounded_dynamic_byte_index");
+    let diagnostics = check_canary(&canary)
+        .expect_err("an unbounded dynamic write-only byte projection must reject");
     let combined = diagnostics
         .iter()
         .map(ToString::to_string)
         .collect::<Vec<_>>()
         .join("\n");
     assert!(
-        combined.contains("write-only byte array `bytes`")
-            && combined.contains("index must be a literal for this milestone"),
-        "expected directed dynamic-index diagnostic, got:\n{combined}"
+        combined.contains("cannot prove index `index` is within length 4"),
+        "expected the ordinary range-proof diagnostic, got:\n{combined}"
     );
 }
 

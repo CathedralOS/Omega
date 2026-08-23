@@ -4709,17 +4709,19 @@ Owners:
   mutable whole place to `&write` for an unrestricted primitive scalar or fixed
   byte array, replace the whole referent, and forward the loan only through an
   explicit `&write` argument. A checked fixed byte array additionally permits
-  statically in-bounds literal element replacement; its canonical mutation
-  place and caller-visible write frame retain the exact `FixedIndex`, while
-  dynamic indexes remain conservatively collection-wide and reject at the
-  current semantic gate. Observation, readable widening, implicit `&mut`
+  literal or dynamic element replacement after the ordinary range checker
+  proves the index in bounds. Literal mutation and caller-visible write frames
+  retain the exact `FixedIndex`; a dynamic index retains its runtime expression
+  internally and conservatively invalidates the whole collection in the
+  caller-visible frame. Observation, readable widening, implicit `&mut`
   attenuation, ranges, general aggregate projection, and bodyless/provider
   declarations reject with directed diagnostics. Focused parser, semantic
   pass/fail, exact-place/frame, checked-loan, and checked-to-state-to-control
   remap tests pin the live slices.
 
   Remaining work is the broader executable access discipline: add
-  content-independent aggregate, dynamic-index, and byte-range projection,
+  content-independent aggregate and byte-range projection, finer symbolic
+  dynamic-index footprints,
   reject take/swap/read-modify-write, content-driven projection,
   non-discardable displacement, and invariant restoration that depends on
   reading the referent, and retain exact per-outcome write footprints so

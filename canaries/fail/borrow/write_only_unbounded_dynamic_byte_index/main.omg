@@ -1,4 +1,4 @@
-// FAIL canary: dynamic byte indexes need the later range/footprint milestone.
+// FAIL canary: write-only access does not bypass the ordinary index proof.
 
 machine fill(bytes: &write [u8; 4], index: u64) {
     bytes[index] = 1;
