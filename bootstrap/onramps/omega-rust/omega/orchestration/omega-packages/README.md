@@ -55,6 +55,7 @@ omega-packages/
 |-- README.md
 |-- src/
 |   |-- lib.rs
+|   |-- audit.rs           # Resolved graph audit reporting.
 |   |-- source.rs          # Source specs, URL/path identity, immutable pins.
 |   |-- resolver.rs        # Fetch/cache boundary and transport receipts.
 |   |-- manifest.rs        # Package capability manifest model.
@@ -83,6 +84,9 @@ should use those pins rather than branch names.
 ## Current Slices
 
 - `commands`: internal source-audit command API for local and Git requests.
+- `audit`: resolved package-graph audit over locks and manifests, including
+  dependency paths for exported service reach and fail-closed consistency
+  checks.
 - `manifest`: canonical package/alias names, normalized package capability
   manifests, stable JSON, SHA-256 fingerprints, and manifest diffs.
 - `diff`: severity-ranked manifest deltas with concrete reviewer guidance for
