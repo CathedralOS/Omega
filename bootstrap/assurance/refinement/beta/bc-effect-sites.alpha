@@ -364,10 +364,9 @@ helper_pc_covered:
         jeq r2, r3, require_effect_eof
         jmp reject
 require_effect_eof:
-        read r0
-        imm r1, 0
-        jlt r0, r1, validate_prelude
-        jmp reject
+        ; BCT9 appends finite call-bound potentials after the last location.
+        ; Their reader re-establishes EOF before returning to validation.
+        jmp call_bounds_read_init
 
 ; The only non-source call/halt is the exact 31-byte root prelude.
 validate_prelude:

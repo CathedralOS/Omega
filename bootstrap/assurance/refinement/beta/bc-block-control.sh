@@ -103,8 +103,19 @@ SOURCE_LEN=$(wc -c < "$SOURCE" | tr -d ' ')
 TAPE_LEN=$(wc -c < "$ARTIFACT" | tr -d ' ')
 u32_file "$SOURCE_LEN" "$T/source.len"
 u32_file "$TAPE_LEN" "$T/tape.len"
+python3 "$GATE_DIR/bc_call_bounds.py" \
+  --repo "$OMEGA_REPO_ROOT" \
+  --source "$SOURCE" \
+  --output "$T/call-bounds.witness" \
+  --underreport-probe-output "$T/call-bounds-probe.witness" \
+  --underreport-root-output "$T/call-bounds-root.witness"
 make_bundle() { # tape witness output
-  cat "$T/source.len" "$SOURCE" "$T/tape.len" "$1" "$2" > "$3"
+  cat "$T/source.len" "$SOURCE" "$T/tape.len" "$1" "$2" \
+    "$T/call-bounds.witness" > "$3"
+}
+make_bounds_bundle() { # bounds-witness output
+  cat "$T/source.len" "$SOURCE" "$T/tape.len" "$ARTIFACT" \
+    "$T/control.witness" "$1" > "$2"
 }
 make_bundle "$ARTIFACT" "$T/control.witness" "$T/control.bundle"
 make_bundle "$ARTIFACT" "$T/operand.witness" "$T/operand.bundle"
@@ -125,6 +136,8 @@ make_bundle "$ARTIFACT" "$T/composition-argument-order.witness" "$T/composition-
 make_bundle "$ARTIFACT" "$T/composition-store-order.witness" "$T/composition-store-order.bundle"
 make_bundle "$ARTIFACT" "$T/duplicate-push.witness" "$T/duplicate-push.bundle"
 make_bundle "$ARTIFACT" "$T/cross-block-push.witness" "$T/cross-block-push.bundle"
+make_bounds_bundle "$T/call-bounds-probe.witness" "$T/call-bounds-probe.bundle"
+make_bounds_bundle "$T/call-bounds-root.witness" "$T/call-bounds-root.bundle"
 
 cp "$ARTIFACT" "$T/retarget.tape"
 RETARGET_OFFSET=$(dd if="$T/retarget.patch" bs=1 count=4 2>/dev/null | od -An -tu4 | tr -d ' ')
@@ -187,7 +200,8 @@ cat "$GATE_DIR/bc-block-control.alpha" \
   "$GATE_DIR/bc-memory-sites.alpha" \
   "$GATE_DIR/bc-expr-primitives.alpha" \
   "$GATE_DIR/bc-stack-pushes.alpha" \
-  "$GATE_DIR/bc-expr-composition.alpha" > "$T/control-check.alpha"
+  "$GATE_DIR/bc-expr-composition.alpha" \
+  "$GATE_DIR/bc-call-bounds.alpha" > "$T/control-check.alpha"
 "$ASM" < "$T/control-check.alpha" > "$T/control-check.tape"
 stamp_seed "$T/control-check.tape" "$SEED" "$T/control-check" >/dev/null
 
@@ -202,7 +216,8 @@ cat "$GATE_DIR/bc-block-control.alpha" \
   "$GATE_DIR/bc-local-access.alpha" \
   "$GATE_DIR/bc-memory-sites.alpha" \
   "$GATE_DIR/bc-expr-primitives.alpha" \
-  "$T/bc-stack-pushes-flat.alpha" > "$T/flat-check.alpha"
+  "$T/bc-stack-pushes-flat.alpha" \
+  "$GATE_DIR/bc-call-bounds.alpha" > "$T/flat-check.alpha"
 "$ASM" < "$T/flat-check.alpha" > "$T/flat-check.tape"
 stamp_seed "$T/flat-check.tape" "$SEED" "$T/flat-check" >/dev/null
 
@@ -218,6 +233,8 @@ case_run() { # label expected-status input
 }
 
 case_run "whole compiler control skeleton" 0 "$T/control.bundle"
+case_run "underreported rejected recursive probe" 1 "$T/call-bounds-probe.bundle"
+case_run "underreported root stack bound" 1 "$T/call-bounds-root.bundle"
 flat_case() { # label input
   set +e
   "$T/flat-check" < "$2" > "$T/stdout"
@@ -324,4 +341,4 @@ for mutation in call-retarget read-register write-register helper-write emit-byt
   fi
 done
 
-echo "bc block control/effects: 70 proc / 355 block / 291 transition; 612 effect sites / 829 fixed emit bytes; 78 frame slots / 27 parameter stores / 134 call pops; 169 local loads / 73 local stores; 62 raw loads / 33 raw stores; 582 literals / 57 arithmetic / 180 comparison primitives; 237 binary / 134 argument / 33 store-address pushes; syntax-directed composition / relative temporary peak 2; all 686 artifact effects owned ($(wc -c < "$T/control-check.tape" | tr -d ' ')-byte Alpha checker tape)"
+echo "bc block control/effects: 70 proc / 355 block / 291 transition; 612 effect sites / 829 fixed emit bytes; 78 frame slots / 27 parameter stores / 134 call pops; 169 local loads / 73 local stores; 62 raw loads / 33 raw stores; 582 literals / 57 arithmetic / 180 comparison primitives; 237 binary / 134 argument / 33 store-address pushes; syntax-directed composition / relative temporary peak 2; source-derived call bound <=12720 explicit bytes / <=662 hidden returns; all 686 artifact effects owned ($(wc -c < "$T/control-check.tape" | tr -d ' ')-byte Alpha checker tape)"

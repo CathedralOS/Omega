@@ -14,7 +14,10 @@
 ; active procedure frames and input-dependent recursive call depth remain open.
 
 ; Private globals occupy 524800..524952.  A bounded five-word parser save stack
-; begins at 9961472, beyond all preceding source/witness/owner tables.
+; begins at 9961472, beyond all preceding source/witness/owner tables.  The
+; later call-bound phase reuses two values reconstructed here: the relative
+; temporary height at each effect event is stored at 10035200, and each
+; procedure's local temporary high-water mark is stored at 10043392.
 
 composition_scan_init:
         imm r0, 0
@@ -679,6 +682,17 @@ composition_call_reserve_args:
         jlt r3, r2, reject
         store r1, r2
 composition_call_record:
+        ; Preserve the stack height before this call begins evaluating/staging
+        ; its own arguments.  For an ordinary call this is the exact temporary
+        ; height still live across the eventual Alpha call instruction.
+        mov r2, r20
+        imm r1, 8
+        mul r2, r1
+        imm r1, 10035200
+        add r2, r1
+        imm r1, 524912
+        load r3, r1
+        store r2, r3
         imm r24, 0                      ; parsed argument count
         call composition_save_push
         imm r20, 40
@@ -1133,9 +1147,24 @@ composition_stack_push:
         imm r1, 524920
         load r3, r1
         jlt r3, r2, composition_stack_new_peak
-        ret
+        jmp composition_stack_proc_peak
 composition_stack_new_peak:
         store r1, r2
+composition_stack_proc_peak:
+        ; parsed-procedure count is incremented before its body is composed.
+        imm r1, 524808
+        load r3, r1
+        imm r4, 1
+        sub r3, r4
+        imm r4, 8
+        mul r3, r4
+        imm r4, 10043392
+        add r3, r4
+        load r4, r3
+        jlt r4, r2, composition_stack_proc_new_peak
+        ret
+composition_stack_proc_new_peak:
+        store r3, r2
         ret
 composition_stack_pop:
         imm r1, 524912
@@ -1393,5 +1422,5 @@ composition_count_peak:
         imm r1, 524920
         load r2, r1
         imm r3, 2
-        jeq r2, r3, scan_owned_effects_init
+        jeq r2, r3, call_bounds_resolve_specials
         jmp reject

@@ -188,6 +188,15 @@ are valuable teeth, but they do not yet establish the quantified observation:
   same-valued literal, argument-push, and store-push permutations reject here;
   absolute stack bounds, dynamic frames and leaf/callee values remain open, as
   does order between byte-identical complete same-block statements/effects;
+- its BCT9 call-bound phase reconstructs all 309 ordinary source call edges,
+  checked frame weights, per-call temporary heights, and the 113 fixed-emit
+  helper calls. It checks finite 64-level expression/block recurrences, the
+  rejected depth-65 probe costs, and the 19-level signed-positive `emit_dec`
+  rank, deriving conservative root bounds of 12,720 explicit-stack bytes and
+  662 hidden returns. These establish the numerical margin conditional on
+  isolation of the depth counters and saved-frame words; raw-memory
+  bounds/aliasing must still exclude corruption of those locations before
+  absolute `B_bc1` stack safety is transferred;
 - Alpha out-of-range memory remains undefined in `alpha/SEMANTICS.md` and must be
   excluded by independently checked `B_bc1` bounds before whole-artifact closure
   (or Alpha must be hardened independently);

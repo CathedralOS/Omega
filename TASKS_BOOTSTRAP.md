@@ -560,6 +560,24 @@ additional facilities the bootstrap actually needs.
       correspondence remain open. Byte-identical complete statements/effects
       within one block may still be mutually swappable until cross-statement
       artifact order is closed by the blockwise simulation.
+    - [x] Reconstruct the finite whole-compiler call recurrence below `bc`.
+      The BCT9 Alpha phase resolves all 309 ordinary source calls to the 70
+      independently scanned procedures, derives every checked prologue weight,
+      records the exact grammar-reconstructed temporary height at each call,
+      and includes all 113 synthesized fixed-emit helper calls. It recognizes
+      the complete `gen_expr`, `gen_stmts`, and signed-positive `/ 10`
+      `emit_dec` ranking schemas, explicitly charges the rejected depth-65
+      probe frame and guard temporary, and checks untrusted 64-level
+      expression/block plus root summary potentials edge by edge. The resulting
+      conservative root bounds are 12,720 explicit-stack bytes and 662 hidden
+      returns, respectively below the reserved 524,288 bytes and 8,192 returns;
+      underreported probe and root certificates reject. This closes the static
+      call graph, finite recurrence, and numerical margin conditional on the
+      two depth counters and saved-frame words retaining their source/ABI
+      values. Absolute `B_bc1` stack safety remains part of the blockwise
+      simulation until raw-memory bounds/aliasing prove unrelated stores cannot
+      corrupt those locations; carried local values, return values, and
+      reachability also remain open.
     - [x] Freeze supported resource profile `B_bc1` and make its source-side
       ceilings checked. `bc.beta` now refuses a 1,025th name slot, fifth live
       parameter/argument, and expression or nested-block depth 65 before any
