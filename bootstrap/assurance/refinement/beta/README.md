@@ -140,3 +140,20 @@ summaries, reachability, or terminal/trace correspondence.
 Identical complete same-block statements/effects can still be mutually
 swappable when every owned macro is byte-for-byte identical; cross-statement
 artifact order is part of the remaining blockwise simulation.
+
+`bc_call_bounds.py` emits the untrusted compact BCS9 potential tables consumed
+by `bc-call-bounds.alpha`. The Alpha phase independently resolves all 309
+ordinary calls among the 70 source procedures, derives frame bytes from the
+already checked prologues, and reuses grammar-reconstructed per-call temporary
+heights and per-procedure peaks. It computes stopped reachability around the
+only three recursive cutpoints, checks the exact `gen_expr`/`gen_stmts` counter
+schemas and `emit_dec` signed-positive `/ 10` schema, charges the rejected 65th
+probe including its guard comparison temporary, and validates every potential
+equation. The conservative root summary is at most 12,720 explicit-stack bytes
+and 662 hidden returns, comfortably inside the `B_bc1` extents; underreported
+probe and root witnesses reject. This proves the finite call recurrence and its
+numeric margin conditional on isolation of the depth counters and saved-frame
+words. Raw-memory bounds/aliasing must still show that unrelated stores cannot
+corrupt those locations before the absolute stack obligation is closed.
+Carried local/return values, reachability, and terminal/trace correspondence
+also remain open.

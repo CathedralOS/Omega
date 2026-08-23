@@ -29,7 +29,7 @@ OPS = {
     "write": (0x12, "r"), "call": (0x13, "x"), "ret": (0x14, ""),
 }
 ESC = {"n": 10, "t": 9, "r": 13, "0": 0, "\\": 92, "'": 39, '"': 34}
-MAGIC = 0x38544342  # little-endian "BCT8"
+MAGIC = 0x39544342  # little-endian "BCT9"
 
 EVENT_CALL = 1
 EVENT_READ = 2
