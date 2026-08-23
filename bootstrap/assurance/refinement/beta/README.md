@@ -344,3 +344,20 @@ bytes. Wrong loaded-byte provenance, zero rank delta, broken backedge renaming,
 an underreported byte total, and a non-start cost-path step reject only in this
 phase. This supplies per-event trace clauses, not global reachability or output
 order.
+
+`bc-fixed-emitter-summary.alpha` consumes those clauses for the two fixed-output
+procedures reached at the start of `main.ready`. It chains every inline-literal
+jump from the preceding helper-call continuation, requires the final
+continuation to begin the exact epilogue, and concatenates event rows 311..315
+into `emit_prelude`'s 55 bytes and rows 221..232 into `emit_write_str`'s 132
+bytes. Independent region and source-table scans exclude extra calls, direct
+I/O, halts, trap operations, transitions, locals, and raw-memory actions. Both
+procedures therefore terminate, preserve the input cursor and compiler
+heap/raw state, restore `r14`/`r15` and
+the caller frame, and append exactly their Beta literals in order;
+caller-clobbered `r0..r3` and reclaimed stack bytes are not preserved. Each
+supplied end is the next canonical block PC, and an all-block scan proves each
+procedure owns exactly one block. A wrong first row, eight-byte call
+continuation, underreported prelude total, or wrong procedure end rejects only
+in this phase. Reachability from `main.ready` and the combined 187-byte prefix
+are the next composition step.

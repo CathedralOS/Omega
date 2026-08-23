@@ -159,7 +159,10 @@ are valuable teeth, but they do not yet establish the quantified observation:
   helper macro. A following relational phase proves the helper's exact
   `M[p:p+len]` output and decreasing length rank once, then instantiates it at
   all 113 checked emit rows / 829 literal bytes; these conditional per-event
-  clauses do not yet prove reachability or the complete ordered output trace;
+  clauses do not yet prove reachability or the complete ordered output trace.
+  Two one-block procedure summaries now order the 55-byte `emit_prelude` and
+  132-byte `emit_write_str` traces and prove their termination/restoration, but
+  composing those calls from `main.ready` remains open;
 - its source-derived frame phase checks all 70 prologues, 78 parameter/local
   slots, 27 parameter stores, callee arities, and 134 immediate pre-call pops;
   a source-name/slot phase additionally binds all 169 local reads and 73

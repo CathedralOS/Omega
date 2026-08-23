@@ -738,6 +738,18 @@ additional facilities the bootstrap actually needs.
         underreported aggregate length, and a non-start cost-path step reject
         only in this phase. These are conditional per-event clauses; blockwise
         reachability/order remains.
+      - [x] Concatenate the fixed-output clauses inside `emit_prelude` and
+        `emit_write_str`. Exact Alpha continuations chain source-ordered rows
+        311..315 into 55 bytes and rows 221..232 into 132 bytes, then enter each
+        checked epilogue. Independent region/source scans exclude extra calls,
+        direct I/O, halts, trap operations, transitions, locals, and raw-memory
+        actions. Their supplied ends equal the next canonical block PCs, and an
+        all-block scan proves each procedure owns exactly one block. Both
+        terminate, preserve the input cursor and compiler heap/raw state, and
+        restore the caller frame; result registers and reclaimed stack bytes
+        remain caller-clobbered. A wrong first event, eight-byte continuation,
+        underreported total, and wrong end reject only here. Composing these
+        summaries from `main.ready` into the 187-byte prefix remains open.
       - [ ] **DESIGN BLOCKED — observation ruling required:** define how the
         theorem assigns typed `Exhaust(ResourceKind, limit, requested)` to the
         exact resource-guard paths whose program-level result is only 252/253.

@@ -211,7 +211,8 @@ cat "$GATE_DIR/bc-block-control.alpha" \
   "$GATE_DIR/bc-stack-potential-lift.alpha" \
   "$GATE_DIR/bc-slurp-summary.alpha" \
   "$GATE_DIR/bc-main-slurp-bridge.alpha" \
-  "$GATE_DIR/bc-write-str-summary.alpha" > "$T/control-check.alpha"
+  "$GATE_DIR/bc-write-str-summary.alpha" \
+  "$GATE_DIR/bc-fixed-emitter-summary.alpha" > "$T/control-check.alpha"
 "$ASM" < "$T/control-check.alpha" > "$T/control-check.tape"
 stamp_seed "$T/control-check.tape" "$SEED" "$T/control-check" >/dev/null
 
@@ -287,6 +288,26 @@ sed 's/imm r20, 70                   ; checked positive cost step/imm r20, 69   
   "$T/control-check.alpha" > "$T/write-str-wrong-cost.alpha"
 "$ASM" < "$T/write-str-wrong-cost.alpha" > "$T/write-str-wrong-cost.tape"
 stamp_seed "$T/write-str-wrong-cost.tape" "$SEED" "$T/write-str-wrong-cost" >/dev/null
+
+# Phase-isolated fixed-emitter teeth preserve every per-event helper clause but
+# break source-order selection, the inter-event call continuation, or one exact
+# procedure total in only the new concatenation phase.
+sed 's/imm r20, 311                  ; checked first prelude event/imm r20, 312                  ; checked first prelude event/' \
+  "$T/control-check.alpha" > "$T/fixed-emit-wrong-row.alpha"
+"$ASM" < "$T/fixed-emit-wrong-row.alpha" > "$T/fixed-emit-wrong-row.tape"
+stamp_seed "$T/fixed-emit-wrong-row.tape" "$SEED" "$T/fixed-emit-wrong-row" >/dev/null
+sed 's/imm r3, 9                    ; checked call continuation width/imm r3, 8                    ; checked call continuation width/' \
+  "$T/control-check.alpha" > "$T/fixed-emit-wrong-continuation.alpha"
+"$ASM" < "$T/fixed-emit-wrong-continuation.alpha" > "$T/fixed-emit-wrong-continuation.tape"
+stamp_seed "$T/fixed-emit-wrong-continuation.tape" "$SEED" "$T/fixed-emit-wrong-continuation" >/dev/null
+sed 's/imm r22, 55                   ; checked prelude byte total/imm r22, 54                   ; checked prelude byte total/' \
+  "$T/control-check.alpha" > "$T/fixed-emit-wrong-total.alpha"
+"$ASM" < "$T/fixed-emit-wrong-total.alpha" > "$T/fixed-emit-wrong-total.tape"
+stamp_seed "$T/fixed-emit-wrong-total.tape" "$SEED" "$T/fixed-emit-wrong-total" >/dev/null
+sed 's/imm r23, 21226                ; checked exclusive end/imm r23, 21225                ; checked exclusive end/' \
+  "$T/control-check.alpha" > "$T/fixed-emit-wrong-end.alpha"
+"$ASM" < "$T/fixed-emit-wrong-end.alpha" > "$T/fixed-emit-wrong-end.tape"
+stamp_seed "$T/fixed-emit-wrong-end.tape" "$SEED" "$T/fixed-emit-wrong-end" >/dev/null
 
 # Phase-isolated tooth: leave the exact source, tape, witness, and every prior
 # checker phase unchanged, but underreport the prelude fp owner. Adjust only the
@@ -377,7 +398,8 @@ cat "$GATE_DIR/bc-block-control.alpha" \
   "$GATE_DIR/bc-stack-potential-lift.alpha" \
   "$GATE_DIR/bc-slurp-summary.alpha" \
   "$GATE_DIR/bc-main-slurp-bridge.alpha" \
-  "$GATE_DIR/bc-write-str-summary.alpha" > "$T/flat-check.alpha"
+  "$GATE_DIR/bc-write-str-summary.alpha" \
+  "$GATE_DIR/bc-fixed-emitter-summary.alpha" > "$T/flat-check.alpha"
 "$ASM" < "$T/flat-check.alpha" > "$T/flat-check.tape"
 stamp_seed "$T/flat-check.tape" "$SEED" "$T/flat-check" >/dev/null
 
@@ -494,6 +516,16 @@ for write_str_tooth in write-str-wrong-byte write-str-zero-rank write-str-wrong-
   set -e
   if [ "$write_str_tooth_status" != 1 ] || [ -s "$T/stdout" ]; then
     echo "bc block control FAIL — $write_str_tooth was not rejected" >&2
+    exit 1
+  fi
+done
+for fixed_emit_tooth in fixed-emit-wrong-row fixed-emit-wrong-continuation fixed-emit-wrong-total fixed-emit-wrong-end; do
+  set +e
+  "$T/$fixed_emit_tooth" < "$T/control.bundle" > "$T/stdout"
+  fixed_emit_tooth_status=$?
+  set -e
+  if [ "$fixed_emit_tooth_status" != 1 ] || [ -s "$T/stdout" ]; then
+    echo "bc block control FAIL — $fixed_emit_tooth was not rejected" >&2
     exit 1
   fi
 done
@@ -696,4 +728,4 @@ for mutation in call-retarget read-register write-register helper-write emit-byt
   fi
 done
 
-echo "bc block control/effects: 70 proc / 355 block / 291 transition; 613 effect sites / 829 fixed emit bytes; 113 __write_str calls instantiated from one length-ranked exact-output summary; 78 frame slots / 27 parameter stores / 134 call pops; 169 local loads / 73 local stores; 61 raw loads = 54 fixed-safe + 5 SRC-indexed + 2 table-indexed / 34 raw stores; cursor-zero slurp segment/value/termination summary composed from root through main.ready or halt(253); 581 literals / 55 arithmetic / 180 comparison primitives; 235 binary / 134 argument / 34 store-address pushes; syntax-directed composition / relative temporary peak 2; three ranged Alpha operands transferred; all 607 stores partitioned / 70 call-cut frames summarized; 64-row counter contexts; absolute B_bc1 stack <=12720 explicit bytes / <=662 hidden returns; all 2630 explicit-stack effects and 687 artifact effects owned ($(wc -c < "$T/control-check.tape" | tr -d ' ')-byte Alpha checker tape)"
+echo "bc block control/effects: 70 proc / 355 block / 291 transition; 613 effect sites / 829 fixed emit bytes; 113 __write_str calls instantiated from one length-ranked exact-output summary; emit_prelude/write_str ordered summaries = 55+132 bytes; 78 frame slots / 27 parameter stores / 134 call pops; 169 local loads / 73 local stores; 61 raw loads = 54 fixed-safe + 5 SRC-indexed + 2 table-indexed / 34 raw stores; cursor-zero slurp segment/value/termination summary composed from root through main.ready or halt(253); 581 literals / 55 arithmetic / 180 comparison primitives; 235 binary / 134 argument / 34 store-address pushes; syntax-directed composition / relative temporary peak 2; three ranged Alpha operands transferred; all 607 stores partitioned / 70 call-cut frames summarized; 64-row counter contexts; absolute B_bc1 stack <=12720 explicit bytes / <=662 hidden returns; all 2630 explicit-stack effects and 687 artifact effects owned ($(wc -c < "$T/control-check.tape" | tr -d ' ')-byte Alpha checker tape)"
