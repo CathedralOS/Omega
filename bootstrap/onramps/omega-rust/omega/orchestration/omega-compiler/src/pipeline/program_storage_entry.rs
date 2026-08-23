@@ -7,7 +7,13 @@
 //! prologue, and only then consumes admitted extent grants.
 
 use omega_calling_conventions::{ValidatedBoundaryEntryPlan, ValuePlacement};
+use omega_effects::ComponentEraEntryLedger;
 use omega_effects::provider_plan::ServiceEntryAuthorityFlow;
+use omega_external_roots::{
+    EstablishedProgramLocalRoot, InstalledProgramLocalRootSubject,
+    ProgramLocalExtentMaterializationPlan, ProgramLocalExtentRegistry,
+    ProgramLocalRootEpochRuntime, ProgramLocalRootInstallationLedger,
+};
 use omega_instruction_selection::DerivedBoundaryEntryStorage;
 use psi_extents::{
     Extent, ExtentLoan, ExtentRootGrant, OwnedExtentPartition, ValidatedExtentGeometry,
@@ -1136,6 +1142,33 @@ pub struct RecordedProgramStorageInstallation {
     roots: InstalledProgramStorageRoots,
 }
 
+/// Recorded installation of roots introduced from exact installed
+/// program-local occurrences.
+///
+/// The registry is deliberately owned beside the Extents rather than hidden
+/// behind their copyable origin rows. It retains both lifecycle leases through
+/// record retry, receiver partitioning, and every borrowed observation of the
+/// installation. No API releases the raw roots without their account owner.
+#[derive(Debug)]
+pub struct RecordedProgramLocalStorageInstallation<'root, 'code> {
+    roots: InstalledProgramStorageRoots,
+    registry: ProgramLocalExtentRegistry<'root, 'code>,
+}
+
+impl<'root, 'code> RecordedProgramLocalStorageInstallation<'root, 'code> {
+    pub const fn roots(&self) -> &InstalledProgramStorageRoots {
+        &self.roots
+    }
+
+    pub const fn registry(&self) -> &ProgramLocalExtentRegistry<'root, 'code> {
+        &self.registry
+    }
+
+    pub fn installation_record(&self) -> ProgramStorageInstallationRecord {
+        self.roots.installation_record()
+    }
+}
+
 impl RecordedProgramStorageInstallation {
     pub const fn roots(&self) -> &InstalledProgramStorageRoots {
         &self.roots
@@ -1368,6 +1401,31 @@ pub struct ProgramEntryReceiverPlacementRecord {
     alignment: u64,
     initial_storage_offset: u64,
     lineage_root: psi_extents::ExtentLineageId,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ProgramEntryReceiverPlacementGeometry {
+    type_identity: String,
+    base: u64,
+    length: u64,
+    alignment: u64,
+    initial_storage_offset: u64,
+}
+
+impl ProgramEntryReceiverPlacementGeometry {
+    fn bind_lineage(
+        self,
+        lineage_root: psi_extents::ExtentLineageId,
+    ) -> ProgramEntryReceiverPlacementRecord {
+        ProgramEntryReceiverPlacementRecord {
+            type_identity: self.type_identity,
+            base: self.base,
+            length: self.length,
+            alignment: self.alignment,
+            initial_storage_offset: self.initial_storage_offset,
+            lineage_root,
+        }
+    }
 }
 
 impl ProgramEntryReceiverPlacementRecord {
@@ -1992,44 +2050,15 @@ fn install_program_storage_entry_roots_unrecorded(
         }
     }
 
-    let image_geometry = match ValidatedExtentGeometry::check(image.base, image.length) {
-        Ok(geometry) => geometry,
-        Err(diagnostic) => {
-            return Err(Box::new(ProgramStorageRootInstallationError {
-                binding,
-                image,
-                initial_storage,
-                diagnostic: ProgramStorageEntryDiagnostic(format!(
-                    "image root does not satisfy Extent::Granted no_wrap: {diagnostic}"
-                )),
-            }));
-        }
-    };
-    let storage_geometry = match ValidatedExtentGeometry::check(
-        initial_storage.base,
-        initial_storage.length,
-    ) {
-        Ok(geometry) => geometry,
-        Err(diagnostic) => {
-            return Err(Box::new(ProgramStorageRootInstallationError {
-                binding,
-                image,
-                initial_storage,
-                diagnostic: ProgramStorageEntryDiagnostic(format!(
-                    "initial-storage root does not satisfy Extent::Granted no_wrap: {diagnostic}"
-                )),
-            }));
-        }
-    };
-
-    let receiver_placement = match binding.receiver.as_ref() {
-        Some(receiver) => match receiver_placement(
-            receiver,
+    let (image_geometry, storage_geometry, receiver_placement) =
+        match validate_program_storage_entry_geometry(
+            &binding,
+            image.base,
+            image.length,
             initial_storage.base,
             initial_storage.length,
-            initial_storage.grant.lineage_root(),
         ) {
-            Ok(placement) => Some(placement),
+            Ok(validated) => validated,
             Err(diagnostic) => {
                 return Err(Box::new(ProgramStorageRootInstallationError {
                     binding,
@@ -2038,12 +2067,62 @@ fn install_program_storage_entry_roots_unrecorded(
                     diagnostic,
                 }));
             }
-        },
-        None => None,
-    };
+        };
 
     let image = image.grant.mint_validated(image_geometry);
     let initial_storage = initial_storage.grant.mint_validated(storage_geometry);
+    Ok(assemble_program_storage_entry_extents(
+        binding,
+        provider_invocation,
+        image,
+        initial_storage,
+        receiver_placement,
+    ))
+}
+
+fn validate_program_storage_entry_geometry(
+    binding: &ProgramStorageEntryPlanBinding,
+    image_base: u64,
+    image_length: u64,
+    storage_base: u64,
+    storage_length: u64,
+) -> Result<
+    (
+        ValidatedExtentGeometry,
+        ValidatedExtentGeometry,
+        Option<ProgramEntryReceiverPlacementGeometry>,
+    ),
+    ProgramStorageEntryDiagnostic,
+> {
+    let image_geometry =
+        ValidatedExtentGeometry::check(image_base, image_length).map_err(|diagnostic| {
+            ProgramStorageEntryDiagnostic(format!(
+                "image root does not satisfy Extent::Granted no_wrap: {diagnostic}"
+            ))
+        })?;
+    let storage_geometry =
+        ValidatedExtentGeometry::check(storage_base, storage_length).map_err(|diagnostic| {
+            ProgramStorageEntryDiagnostic(format!(
+                "initial-storage root does not satisfy Extent::Granted no_wrap: {diagnostic}"
+            ))
+        })?;
+    let receiver_placement = binding
+        .receiver
+        .as_ref()
+        .map(|receiver| receiver_placement(receiver, storage_base, storage_length))
+        .transpose()?;
+    Ok((image_geometry, storage_geometry, receiver_placement))
+}
+
+fn assemble_program_storage_entry_extents(
+    binding: ProgramStorageEntryPlanBinding,
+    provider_invocation: Option<ProgramStorageEntryProviderInvocation>,
+    image: Extent,
+    initial_storage: Extent,
+    receiver_placement: Option<ProgramEntryReceiverPlacementGeometry>,
+) -> InstalledProgramStorageRoots {
+    let receiver_placement =
+        receiver_placement.map(|placement| placement.bind_lineage(initial_storage.lineage_root()));
     let initial_storage_record = ProgramStorageInstalledExtentRecord::from_extent(&initial_storage);
     let (initial_storage, receiver_storage) = match receiver_placement {
         Some(placement) if placement.length != 0 => {
@@ -2080,14 +2159,14 @@ fn install_program_storage_entry_roots_unrecorded(
         None => (Some(initial_storage), None),
     };
 
-    Ok(InstalledProgramStorageRoots {
+    InstalledProgramStorageRoots {
         binding,
         provider_invocation,
         image,
         initial_storage,
         receiver_storage,
         initial_storage_record,
-    })
+    }
 }
 
 fn validate_physical_provider_root(
@@ -2112,8 +2191,7 @@ fn receiver_placement(
     plan: &ProgramEntryReceiverStoragePlan,
     storage_base: u64,
     storage_length: u64,
-    lineage_root: psi_extents::ExtentLineageId,
-) -> Result<ProgramEntryReceiverPlacementRecord, ProgramStorageEntryDiagnostic> {
+) -> Result<ProgramEntryReceiverPlacementGeometry, ProgramStorageEntryDiagnostic> {
     let alignment = u64::try_from(plan.byte_alignment).map_err(|_| {
         ProgramStorageEntryDiagnostic(
             "entry receiver alignment does not fit the target address model".into(),
@@ -2146,14 +2224,222 @@ fn receiver_placement(
             "initial storage cannot reserve the selected entry receiver: aligned range {offset}..{end} exceeds {storage_length} bytes"
         )));
     }
-    Ok(ProgramEntryReceiverPlacementRecord {
+    Ok(ProgramEntryReceiverPlacementGeometry {
         type_identity: plan.type_identity.clone(),
         base: aligned_base,
         length,
         alignment,
         initial_storage_offset: offset,
-        lineage_root,
     })
+}
+
+/// Establish, materialize, install, and record the exact two program-local
+/// roots supplied by one generated program-entry activation.
+///
+/// Preflight precedes the atomic cohort transition, so geometry or receiver
+/// rejection leaves both occurrences dormant. Each later failure carrier
+/// returns custody in the representation valid for that phase.
+#[allow(clippy::too_many_arguments)]
+pub fn establish_program_storage_entry_program_local_roots<'root, 'code>(
+    artifact_directory: &Path,
+    binding: ProgramStorageEntryPlanBinding,
+    installation: &mut ProgramLocalRootInstallationLedger,
+    runtime: &mut ProgramLocalRootEpochRuntime<'root, 'code>,
+    lifecycle: &ComponentEraEntryLedger,
+    image_subject: InstalledProgramLocalRootSubject<'root, 'code>,
+    image_plan: ProgramLocalExtentMaterializationPlan,
+    initial_storage_subject: InstalledProgramLocalRootSubject<'root, 'code>,
+    initial_storage_plan: ProgramLocalExtentMaterializationPlan,
+) -> Result<
+    RecordedProgramLocalStorageInstallation<'root, 'code>,
+    ProgramLocalStorageInstallationHandoffError<'root, 'code>,
+> {
+    let subjects = vec![image_subject, initial_storage_subject];
+    let plans = [image_plan, initial_storage_plan];
+    let preflight = validate_program_local_plan_role(binding.image(), &plans[0])
+        .and_then(|()| validate_program_local_plan_role(binding.initial_storage(), &plans[1]))
+        .and_then(|()| {
+            validate_program_storage_entry_geometry(
+                &binding,
+                plans[0].base(),
+                plans[0].length(),
+                plans[1].base(),
+                plans[1].length(),
+            )
+            .map(|_| ())
+        });
+    if let Err(diagnostic) = preflight {
+        return Err(ProgramLocalStorageInstallationHandoffError::Subject(
+            Box::new(ProgramLocalStorageSubjectHandoffError {
+                binding,
+                subjects,
+                plans,
+                diagnostic,
+            }),
+        ));
+    }
+
+    let established = match installation.establish_batch(runtime, lifecycle, subjects) {
+        Ok(established) => established,
+        Err(error) => {
+            let diagnostic = error.diagnostic().clone();
+            return Err(ProgramLocalStorageInstallationHandoffError::Subject(
+                Box::new(ProgramLocalStorageSubjectHandoffError {
+                    binding,
+                    subjects: (*error).into_subjects(),
+                    plans,
+                    diagnostic: ProgramStorageEntryDiagnostic(diagnostic.0),
+                }),
+            ));
+        }
+    };
+    let [image, initial_storage]: [EstablishedProgramLocalRoot<'root, 'code>; 2] = established
+        .try_into()
+        .expect("two generated program-storage subjects establish two exact accounts");
+    install_established_program_storage_entry_program_local_roots(
+        artifact_directory,
+        binding,
+        [
+            (image, plans[0].clone()),
+            (initial_storage, plans[1].clone()),
+        ],
+    )
+}
+
+/// Install two already-established accounts. This is also the retry boundary
+/// after materialization rejection; it never replays cohort establishment.
+pub fn install_established_program_storage_entry_program_local_roots<'root, 'code>(
+    artifact_directory: &Path,
+    binding: ProgramStorageEntryPlanBinding,
+    inputs: [(
+        EstablishedProgramLocalRoot<'root, 'code>,
+        ProgramLocalExtentMaterializationPlan,
+    ); 2],
+) -> Result<
+    RecordedProgramLocalStorageInstallation<'root, 'code>,
+    ProgramLocalStorageInstallationHandoffError<'root, 'code>,
+> {
+    let [image, initial_storage] = &inputs;
+    let validation = validate_program_local_plan_role(binding.image(), &image.1)
+        .and_then(|()| {
+            validate_program_local_plan_role(binding.initial_storage(), &initial_storage.1)
+        })
+        .and_then(|()| validate_program_local_account_role(&binding, binding.image(), &image.0))
+        .and_then(|()| {
+            validate_program_local_account_role(
+                &binding,
+                binding.initial_storage(),
+                &initial_storage.0,
+            )
+        })
+        .and_then(|()| validate_program_local_account_pair(&image.0, &initial_storage.0));
+    let (_, _, receiver_placement) = match validation.and_then(|()| {
+        validate_program_storage_entry_geometry(
+            &binding,
+            image.1.base(),
+            image.1.length(),
+            initial_storage.1.base(),
+            initial_storage.1.length(),
+        )
+    }) {
+        Ok(validated) => validated,
+        Err(diagnostic) => {
+            return Err(ProgramLocalStorageInstallationHandoffError::Account(
+                Box::new(ProgramLocalStorageAccountHandoffError {
+                    binding,
+                    inputs: Vec::from(inputs),
+                    diagnostic,
+                }),
+            ));
+        }
+    };
+
+    let mut registry = ProgramLocalExtentRegistry::new();
+    let extents = match registry.materialize_batch(Vec::from(inputs)) {
+        Ok(extents) => extents,
+        Err(error) => {
+            let diagnostic = error.diagnostic().clone();
+            return Err(ProgramLocalStorageInstallationHandoffError::Account(
+                Box::new(ProgramLocalStorageAccountHandoffError {
+                    binding,
+                    inputs: (*error).into_inputs(),
+                    diagnostic: ProgramStorageEntryDiagnostic(diagnostic.0),
+                }),
+            ));
+        }
+    };
+    let [image, initial_storage]: [Extent; 2] = extents
+        .try_into()
+        .expect("two exact program-local accounts materialize two Extents");
+    let roots = assemble_program_storage_entry_extents(
+        binding,
+        None,
+        image,
+        initial_storage,
+        receiver_placement,
+    );
+    record_program_local_storage_installation(artifact_directory, roots, registry)
+}
+
+fn validate_program_local_plan_role(
+    parameter: &ProgramStorageEntryParameter,
+    plan: &ProgramLocalExtentMaterializationPlan,
+) -> Result<(), ProgramStorageEntryDiagnostic> {
+    if plan.carrier_identity() != parameter.parameter_type_identity()
+        || plan.qualification_identity() != parameter.domain()
+    {
+        return Err(ProgramStorageEntryDiagnostic(format!(
+            "program-local Extent plan for semantic parameter {} substituted its exact carrier or qualification",
+            parameter.parameter_index()
+        )));
+    }
+    Ok(())
+}
+
+fn validate_program_local_account_role(
+    binding: &ProgramStorageEntryPlanBinding,
+    parameter: &ProgramStorageEntryParameter,
+    root: &EstablishedProgramLocalRoot<'_, '_>,
+) -> Result<(), ProgramStorageEntryDiagnostic> {
+    let prebinding = root.prebinding();
+    if prebinding.requirement_identity() != binding.requirement_identity()
+        || prebinding.identity().slot() != binding.root_slot()
+        || usize::try_from(prebinding.argument_index()).ok() != Some(parameter.parameter_index())
+        || usize::try_from(prebinding.source_parameter_position()).ok()
+            != Some(parameter.parameter_index())
+        || prebinding.carrier_identity() != parameter.parameter_type_identity()
+        || prebinding.qualification_identity() != parameter.domain()
+    {
+        return Err(ProgramStorageEntryDiagnostic(format!(
+            "established program-local account does not belong to exact program-storage parameter {}",
+            parameter.parameter_index()
+        )));
+    }
+    Ok(())
+}
+
+fn validate_program_local_account_pair(
+    image: &EstablishedProgramLocalRoot<'_, '_>,
+    initial_storage: &EstablishedProgramLocalRoot<'_, '_>,
+) -> Result<(), ProgramStorageEntryDiagnostic> {
+    let image_occurrence = image.occurrence_identity();
+    let storage_occurrence = initial_storage.occurrence_identity();
+    if image_occurrence == storage_occurrence
+        || image_occurrence.prebinding().installed_code()
+            != storage_occurrence.prebinding().installed_code()
+        || image_occurrence.prebinding().root() != storage_occurrence.prebinding().root()
+        || image_occurrence.prebinding().slot() != storage_occurrence.prebinding().slot()
+        || image_occurrence.lifecycle_ledger() != storage_occurrence.lifecycle_ledger()
+        || image_occurrence.lifecycle_epoch() != storage_occurrence.lifecycle_epoch()
+        || image.invocation() != initial_storage.invocation()
+        || image.subject_place() == initial_storage.subject_place()
+    {
+        return Err(ProgramStorageEntryDiagnostic(
+            "program-storage roots must be distinct positions from one exact installed entry activation and lifecycle epoch"
+                .into(),
+        ));
+    }
+    Ok(())
 }
 
 /// Install two already-established program-local program-storage roots and emit the
@@ -2288,6 +2574,27 @@ fn record_program_storage_installation(
     }
 }
 
+fn record_program_local_storage_installation<'root, 'code>(
+    artifact_directory: &Path,
+    roots: InstalledProgramStorageRoots,
+    registry: ProgramLocalExtentRegistry<'root, 'code>,
+) -> Result<
+    RecordedProgramLocalStorageInstallation<'root, 'code>,
+    ProgramLocalStorageInstallationHandoffError<'root, 'code>,
+> {
+    let record = roots.installation_record();
+    match super::artifacts::write_program_storage_installation_record(artifact_directory, &record) {
+        Ok(()) => Ok(RecordedProgramLocalStorageInstallation { roots, registry }),
+        Err(diagnostic) => Err(ProgramLocalStorageInstallationHandoffError::Record(
+            Box::new(ProgramLocalStorageRecordEmissionError {
+                roots,
+                registry,
+                diagnostic,
+            }),
+        )),
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProgramStorageEntryDiagnostic(pub String);
 
@@ -2298,6 +2605,162 @@ impl std::fmt::Display for ProgramStorageEntryDiagnostic {
 }
 
 impl std::error::Error for ProgramStorageEntryDiagnostic {}
+
+/// A generated program-local handoff failed before establishment, after
+/// establishment, or after installation while persisting its audit record.
+/// Each variant retains the exact linear inputs owned at that phase.
+#[derive(Debug)]
+pub enum ProgramLocalStorageInstallationHandoffError<'root, 'code> {
+    Subject(Box<ProgramLocalStorageSubjectHandoffError<'root, 'code>>),
+    Account(Box<ProgramLocalStorageAccountHandoffError<'root, 'code>>),
+    Record(Box<ProgramLocalStorageRecordEmissionError<'root, 'code>>),
+}
+
+impl std::fmt::Display for ProgramLocalStorageInstallationHandoffError<'_, '_> {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Subject(error) => std::fmt::Display::fmt(error, formatter),
+            Self::Account(error) => std::fmt::Display::fmt(error, formatter),
+            Self::Record(error) => std::fmt::Display::fmt(error, formatter),
+        }
+    }
+}
+
+impl std::error::Error for ProgramLocalStorageInstallationHandoffError<'_, '_> {}
+
+/// Rejection before the installed entry subjects have been established.
+/// The two subjects and their materialization plans remain available to the
+/// generated bridge; no program-local root occurrence was introduced.
+#[derive(Debug)]
+pub struct ProgramLocalStorageSubjectHandoffError<'root, 'code> {
+    binding: ProgramStorageEntryPlanBinding,
+    subjects: Vec<InstalledProgramLocalRootSubject<'root, 'code>>,
+    plans: [ProgramLocalExtentMaterializationPlan; 2],
+    diagnostic: ProgramStorageEntryDiagnostic,
+}
+
+impl<'root, 'code> ProgramLocalStorageSubjectHandoffError<'root, 'code> {
+    pub const fn diagnostic(&self) -> &ProgramStorageEntryDiagnostic {
+        &self.diagnostic
+    }
+
+    pub fn into_parts(
+        self,
+    ) -> (
+        ProgramStorageEntryPlanBinding,
+        Vec<InstalledProgramLocalRootSubject<'root, 'code>>,
+        [ProgramLocalExtentMaterializationPlan; 2],
+    ) {
+        (self.binding, self.subjects, self.plans)
+    }
+}
+
+impl std::fmt::Display for ProgramLocalStorageSubjectHandoffError<'_, '_> {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(&self.diagnostic, formatter)
+    }
+}
+
+impl std::error::Error for ProgramLocalStorageSubjectHandoffError<'_, '_> {}
+
+/// Rejection after the entry cohort has established its exact root accounts
+/// but before those accounts have become installed Extent values. Retrying
+/// this carrier never replays cohort establishment.
+#[derive(Debug)]
+pub struct ProgramLocalStorageAccountHandoffError<'root, 'code> {
+    binding: ProgramStorageEntryPlanBinding,
+    inputs: Vec<(
+        EstablishedProgramLocalRoot<'root, 'code>,
+        ProgramLocalExtentMaterializationPlan,
+    )>,
+    diagnostic: ProgramStorageEntryDiagnostic,
+}
+
+impl<'root, 'code> ProgramLocalStorageAccountHandoffError<'root, 'code> {
+    pub const fn diagnostic(&self) -> &ProgramStorageEntryDiagnostic {
+        &self.diagnostic
+    }
+
+    pub fn into_parts(
+        self,
+    ) -> (
+        ProgramStorageEntryPlanBinding,
+        Vec<(
+            EstablishedProgramLocalRoot<'root, 'code>,
+            ProgramLocalExtentMaterializationPlan,
+        )>,
+    ) {
+        (self.binding, self.inputs)
+    }
+
+    pub fn retry(
+        self,
+        artifact_directory: &Path,
+    ) -> Result<
+        RecordedProgramLocalStorageInstallation<'root, 'code>,
+        ProgramLocalStorageInstallationHandoffError<'root, 'code>,
+    > {
+        let inputs = self
+            .inputs
+            .try_into()
+            .expect("program-storage account rejection always retains two exact inputs");
+        install_established_program_storage_entry_program_local_roots(
+            artifact_directory,
+            self.binding,
+            inputs,
+        )
+    }
+}
+
+impl std::fmt::Display for ProgramLocalStorageAccountHandoffError<'_, '_> {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(&self.diagnostic, formatter)
+    }
+}
+
+impl std::error::Error for ProgramLocalStorageAccountHandoffError<'_, '_> {}
+
+/// Installed program-local roots and their account registry retained across
+/// an audit-artifact write failure. A successful retry is the only route back
+/// to a usable installation aggregate.
+#[derive(Debug)]
+pub struct ProgramLocalStorageRecordEmissionError<'root, 'code> {
+    roots: InstalledProgramStorageRoots,
+    registry: ProgramLocalExtentRegistry<'root, 'code>,
+    diagnostic: psi_diagnostics::Diagnostic,
+}
+
+impl<'root, 'code> ProgramLocalStorageRecordEmissionError<'root, 'code> {
+    pub const fn diagnostic(&self) -> &psi_diagnostics::Diagnostic {
+        &self.diagnostic
+    }
+
+    pub const fn roots(&self) -> &InstalledProgramStorageRoots {
+        &self.roots
+    }
+
+    pub const fn registry(&self) -> &ProgramLocalExtentRegistry<'root, 'code> {
+        &self.registry
+    }
+
+    pub fn retry(
+        self,
+        artifact_directory: &Path,
+    ) -> Result<
+        RecordedProgramLocalStorageInstallation<'root, 'code>,
+        ProgramLocalStorageInstallationHandoffError<'root, 'code>,
+    > {
+        record_program_local_storage_installation(artifact_directory, self.roots, self.registry)
+    }
+}
+
+impl std::fmt::Display for ProgramLocalStorageRecordEmissionError<'_, '_> {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(&self.diagnostic, formatter)
+    }
+}
+
+impl std::error::Error for ProgramLocalStorageRecordEmissionError<'_, '_> {}
 
 #[derive(Debug)]
 pub struct ProgramStorageRootInstallationError {
