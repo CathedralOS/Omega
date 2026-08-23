@@ -218,7 +218,14 @@ are valuable teeth, but they do not yet establish the quantified observation:
   then establish the sole jump to PC 51262 with 187 ordered output bytes,
   unchanged successful source/input relation, restored main frame, and `CUR`
   at the first nontrivia byte, logical end, or in-range NUL. The next
-  simulation frontier is the `main.loop` token test;
+  phase closes the `main.loop` token test;
+- its loop-entry phase instantiates cbyte at the normalized cursor and rejoins
+  the exact `!= 0` value flow. An in-range NUL or logical end returns through
+  main to canonical `Halt(0)` with the ordered 187-byte trace and restored root
+  pair; an in-range nonzero byte reaches `main.body` without being consumed.
+  Both outcomes preserve external input, the successful source relation,
+  cursor, and compiler globals. Exact block/expression/effect censuses close
+  every row in the loop block; the next nonterminal frontier is `parse_proc`;
 - its BC11 grammar-composition pass further partitions every raw-store source
   address into 31 aligned fixed compiler globals, one exact source-buffer
   `base + n` spelling, and two exact local-name-table `base + s * 8` spellings;

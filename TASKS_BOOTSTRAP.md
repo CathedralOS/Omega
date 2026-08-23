@@ -806,6 +806,24 @@ additional facilities the bootstrap actually needs.
         target, or event census only in this phase. This advances the
         simulation frontier to the first `main.loop` token test; it does not
         choose the typed observation projection below.
+      - [x] Split the first root-reachable `main.loop` token test. Exact event
+        608 calls `cbyte` at PC 51262 with zero arity/ambient height, stages its
+        return at push row 233, compares it to literal zero at primitive row
+        809, and rejoins guarded transition 288. Three conditional partitions
+        remain distinct: an in-range NUL and logical end both take the checked
+        zero continuation, materialize return zero, restore the root pair, and
+        reach canonical `Halt(0)` with the exact ordered 187-byte trace; an
+        in-range nonzero byte reaches `main.body` at PC 51405 without consuming
+        it. All preserve external input, the successful source segment,
+        normalized cursor, and compiler globals; the body path retains the
+        active main frame. Whole-table scans prove block 352 owns exactly
+        primitive rows 809..811, push row 233, transition 288, events 608..609,
+        and no local/raw-memory rows; its decoded region has exactly one call
+        and one return. Ten phase-isolated variants reject a wrong call
+        continuation, comparison operator, zero target, end/nonzero clause,
+        zero result, halt payload, body cutpoint, primitive census, or event
+        census. The next nonterminal frontier is the `parse_proc` call from
+        `main.body`; typed exhaustion remains independently blocked below.
       - [ ] **DESIGN BLOCKED — observation ruling required:** define how the
         theorem assigns typed `Exhaust(ResourceKind, limit, requested)` to the
         exact resource-guard paths whose program-level result is only 252/253.

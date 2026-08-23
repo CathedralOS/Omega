@@ -446,3 +446,25 @@ sever the bridge clause, first continuation, second theorem import, prefix
 total, epsilon ordering, loop target, or exclusive event row; each rejects only
 in this phase. The next blockwise frontier is the `main.loop` cbyte/token split,
 not the independently blocked typed-exhaustion projection.
+
+`bc-main-loop-entry-summary.alpha` closes that token split without entering
+`parse_proc`. From the published root cutpoint, event 608 is the exact
+zero-argument/zero-ambient `cbyte` call at PC 51262 with continuation 51271.
+Push row 233 stages its return, literal row 810 supplies zero, comparison row
+809 is exactly `!=`, and guarded transition 288 selects `main.body` at PC
+51405. Literal row 811 plus the exact main epilogue supplies the other path,
+returning through the root call continuation to `halt r0` at PC 29.
+
+The relational proof keeps all three cbyte cases explicit. An in-range NUL and
+the miss case—equal to logical end under the carried `CUR<=LEN` domain—both
+produce canonical `Halt(0)` with the ordered 187-byte prefix and restored root
+pair. An in-range nonzero byte reaches `main.body` without changing `CUR`.
+Every case preserves external input, `SRC[0:LEN]`, the normalized cursor, and
+compiler globals; the body case retains the active main frame. A whole-table
+block census closes primitive rows 809..811 and push row 233 in addition to the
+existing local/memory/transition/event census, while the decoded block scan
+finds exactly one call and one return and excludes direct I/O, halt, and
+arithmetic traps. Ten isolated teeth sever one continuation, comparison,
+guard target, cbyte-case association, selected result, halt payload, body
+cutpoint, or row census; each rejects only here. The next simulation frontier
+is the root-reachable `parse_proc` call and its procedure summary.
