@@ -4,7 +4,7 @@ This file freezes the first executable contracts for the Delta-built Omega
 compiler. It is bootstrap-owned and is not a product Omega language
 specification.
 
-Two profile versions are intentionally tracked separately:
+Three bootstrap contracts are intentionally tracked separately:
 
 - **Delta/Omega0 implementation profile D0** is the language in which Omega0
   must be written. It is frozen now so the compiler does not acquire facilities
@@ -12,19 +12,20 @@ Two profile versions are intentionally tracked separately:
 - **Omega canary acceptance profile O0** is the first input Omega0 must accept.
   It is frozen now as a vertical proof of the pipeline, not falsely presented as
   sufficient to express the future production compiler.
+- **Omega variable acceptance profile O1** is the first table-driven source
+  slice. It is a monotonic extension of O0, frozen at explicit statement and
+  storage ceilings below.
 
 The production-self-host acceptance profile remains open until the production
 compiler has an Omega source tree. It will be the smallest monotonic extension
-of O0 that accepts that exact source. Sufficiency cannot be established from the
+of O1 that accepts that exact source. Sufficiency cannot be established from the
 current Rust product implementation.
 
-The next implementation milestone is intentionally recorded separately from a
-frozen profile. **O1** will generalize the O0 body to a bounded sequence of zero
-or more literal `write_line` statements followed by exactly one literal
-`exit_process`. One table-driven frontend, terminal emitter, and direct backend
-must handle every admitted statement count. Its exact resource ceilings become
-part of this contract when the implementation and exhaustion gates land; until
-then O1 is planned, not claimed.
+O1 generalizes the O0 body to a bounded sequence of zero or more literal
+`write_line` statements followed by exactly one literal `exit_process`. One
+table-driven frontend, terminal emitter, and direct backend handle every
+admitted statement count. This is still far smaller than the eventual
+production-self-host profile.
 
 ## D0 — Delta implementation profile for Omega0
 
@@ -112,8 +113,9 @@ operations, and type-check their receiver and arguments. Duplicate declarations,
 unknown names, wrong receiver types, wrong argument types/counts, malformed
 strings, and a missing entry are negative gates.
 
-`../../../compiler/delta-rs/samples/omega0-frontend.alp` now implements that
-front end in D0.
+[`omega0-frontend.alp`](omega0-frontend.alp) now implements that front end in
+D0. `compiler/delta-rs/samples/omega0-frontend.alp` is a compatibility symlink
+for the transitional on-ramp.
 It accepts exactly one canonical bundled source, retains at most 2,048 source
 bytes with checked exhaustion, validates the complete source as UTF-8, and uses
 a streaming lexer rather than a token arena. Fixed O0 names use ASCII
@@ -167,13 +169,14 @@ ordinary `write_byte`, byte-identical to the shared-codec vocabulary-25 fixture.
 It uses no private terminal representation or artifact buffer; incomplete output
 is never accepted because every truncated prefix fails canonical decoding.
 
-The exact O0 artifact edge is also Delta-written:
+The direct artifact edge is also Delta-written:
 [`omega0-terminal-to-elf.alp`](omega0-terminal-to-elf.alp) consumes the frozen
 terminal module and emits the canonical 8 KiB Linux x86-64 ELF directly. It has
-no assembler, linker, signing, or object-format host dependency. This decoder is
-intentionally O0-specific, but it retains every admitted literal up to the O0
-limit and every nonnegative `i32` exit operand. It must grow with later profiles
-rather than be presented as the production Omega backend.
+no assembler, linker, signing, or object-format host dependency. The decoder is
+intentionally limited to O1, retaining every admitted literal up to O1's count
+and aggregate-text limits plus every nonnegative `i32` exit operand. It must
+grow with later profiles rather than be presented as the production Omega
+backend.
 
 The frontend is covered by the canonical lower-rung meaning route for its used
 profile. Native execution, Delta-written `lowermachine`, and the Beta-written
@@ -189,7 +192,7 @@ optimization. Those features enter later numbered acceptance profiles only when
 required by the Omega-source production compiler or a deliberate conformance
 slice.
 
-## O1 — planned variable straight-line console profile
+## O1 — variable straight-line console profile
 
 O1 is the monotonic replacement for O0's exact two-statement body:
 
@@ -200,15 +203,23 @@ self.console.exit_process(<nonnegative i32 literal>); // exactly one, last
 ```
 
 It does not add a new language construct or terminal-Psi vocabulary. Vocabulary
-25 and the product pipeline already support ordered literal places and Unit
-operations. The implementation work is to replace the Delta frontend and direct
-ELF backend's exact-count decoders with checked statement storage, dense ID
-allocation, variable canonical counts, ordered operation emission, and complete
+25 and the product pipeline support ordered literal places and Unit operations.
+The Delta frontend and direct ELF backend use checked statement storage, dense
+IDs, variable canonical counts, ordered operation emission, and complete
 preflight of source/table/text/image exhaustion before artifact publication.
 
-Acceptance must cover 0, 1, 2, and many writes through the same code path;
+The frozen O1 ceilings are one source of at most 2,048 bytes, at most 16
+`write_line` statements, and at most 1,024 aggregate decoded literal bytes.
+Exceeding a declared storage/image ceiling reports checked exhaustion; malformed
+or out-of-profile source reports semantic rejection. Neither case may publish a
+partial terminal module or native image.
+
+Acceptance covers 0, 1, 2, and 16 writes through the same code path;
 aggregate stdout and newline order; the exact exit status; byte identity with
 the shared codec/lowering for representative cases; canonical meaning; and
 rejection of bad ordering, a non-final or duplicate exit, trailing operations,
-and every declared resource ceiling. O1 remains a small vertical compiler slice,
-not the production-self-host profile.
+and every declared resource ceiling. The frontend's native and Delta-self-host
+gates and the backend's exact-product-image gate close those source/artifact
+claims. The lower-rung `omega2gamma.beta` route still needs its compiler-scale
+expansion fixed before O1 meaning coverage can be claimed. O1 remains a small
+vertical compiler slice, not the production-self-host profile.

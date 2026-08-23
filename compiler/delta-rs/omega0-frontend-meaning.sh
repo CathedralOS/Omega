@@ -1,5 +1,5 @@
 #!/usr/bin/env sh
-# O0 FRONTEND MEANING — run the Delta-written O0 frontend through the
+# O0/O1 FRONTEND MEANING — run the Delta-written frontend through the
 # Beta-written omega2gamma elaborator and canonical Gamma interpreter.
 set -e
 GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
@@ -32,7 +32,8 @@ build_beta "$OMEGA_PATH_OMEGA0/meaning/omega2gamma.beta" "$T/elaborate.exe" \
 build_beta "$OMEGA_PATH_GAMMA/interp.beta" "$T/interp.exe" \
   || { echo "omega0 frontend meaning FAIL — Gamma interpreter build"; exit 1; }
 
-"$T/elaborate.exe" < samples/omega0-frontend.alp > "$T/frontend.gamma"
+FRONTEND="$OMEGA_PATH_OMEGA0/compiler/omega0-frontend.alp"
+"$T/elaborate.exe" < "$FRONTEND" > "$T/frontend.gamma"
 [ -s "$T/frontend.gamma" ] && ! grep -q 'E2G-UNSUPPORTED' "$T/frontend.gamma" \
   || { echo "omega0 frontend meaning FAIL — frontend elaboration unsupported"; exit 1; }
 
@@ -70,6 +71,14 @@ run_gamma() {
 
 bundle_program "$OMEGA_PATH_CORPUS/cli_mvp/main.omg" "$T/canonical.gamma"
 run_gamma "canonical cli_mvp retained-operand digest" "$T/canonical.gamma" 107
+
+printf 'use omega::language::std::console; data Main{console:Console;} machine Main::main(&mut self){self.console.exit_process(7);}' > "$T/zero-write.omg"
+bundle_program "$T/zero-write.omg" "$T/zero-write.gamma"
+run_gamma "O1 zero-write body" "$T/zero-write.gamma" 7
+
+printf 'use omega::language::std::console; data Main{console:Console;} machine Main::main(&mut self){self.console.write_line("A");self.console.write_line("BC");self.console.exit_process(3);}' > "$T/two-write.omg"
+bundle_program "$T/two-write.omg" "$T/two-write.gamma"
+run_gamma "O1 two ordered writes" "$T/two-write.gamma" 201
 
 # Teeth: a syntactically valid bundle whose source names an operation outside O0
 # must follow the frontend's semantic rejection path, not merely execute safely.

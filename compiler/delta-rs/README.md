@@ -34,20 +34,24 @@ DELTA_ARCH=aarch64 cargo run -- samples/shape.alp out  # macOS arm64; ./out ; ec
 
 ## Status
 
-- **Omega0 frontend canary — DONE for native/self-host/lower-rung meaning.**
-  `samples/omega0-frontend.alp` is the first Delta-written Omega compiler slice:
+- **Omega0 frontend O1 — DONE for native/self-host and direct artifacts; O1
+  lower-rung meaning remains open.**
+  `../../bootstrap/omega0/compiler/omega0-frontend.alp` is the canonical first
+  Delta-written Omega compiler slice (`samples/omega0-frontend.alp` is a
+  compatibility symlink):
   canonical one-source bundle decoding, checked source storage, complete UTF-8
-  validation, streaming lexing, exact parsing/name/type/count checks for O0, and
-  retained `write_line` bytes plus `exit_process` `i32`. Its focused gate covers
-  the acceptance/rejection matrix and recompiles the frontend through
-  Delta-written `lowermachine`; both boundary operands affect the observed
-  success digest. `omega0-frontend-meaning.sh` independently elaborates it with
-  the Beta-written `omega2gamma.beta` and executes it with Gamma's canonical
-  interpreter, pinning the canonical digest, semantic rejection, and multi-slot
-  method-state threading. Direct canonical terminal-Psi emission is also
-  complete and checked by the shared decoder/verifier. Its output is published
+  validation, streaming lexing, and exact O0/O1 parsing/name/type/count checks,
+  retaining 0–16 ordered `write_line` literals plus one final `exit_process`
+  `i32`. Its focused gate covers the acceptance/rejection matrix and recompiles
+  the frontend through Delta-written `lowermachine`; every operand affects the
+  observed success digest. The prior O0 slice is independently covered through
+  the Beta-written `omega2gamma.beta` and Gamma's canonical interpreter,
+  pinning its canonical digest, semantic rejection, and multi-slot method-state
+  threading. The generalized source does not yet elaborate compactly enough to
+  claim that lower-rung evidence for O1. Direct canonical terminal-Psi emission
+  is complete and checked by the shared decoder/verifier. Its output is published
   only through same-directory staging, persistence, canonical decode, expected
-  identity binding, and atomic rename. The resulting O0 fixture is checked from
+  identity binding, and atomic rename. Resulting O1 fixtures are checked from
   canonical terminal meaning through deterministic Linux x86-64/AArch64 images,
   installation replay, and native execution on a matching Linux host.
 

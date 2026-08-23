@@ -1,11 +1,13 @@
-// Delta-written O0 terminal-Psi -> Linux x86-64 ELF backend.
+// Delta-written O1 terminal-Psi -> Linux x86-64 ELF backend.
 //
-// Input is the vocabulary-25 O0 terminal-module shape emitted by
-// omega0-frontend.alp. The decoder mirrors that canonical schema, retains the
-// literal bytes and nonnegative i32 exit operand, and rejects malformed,
-// truncated, extended, or out-of-profile input before emitting any byte.
+// Input is the vocabulary-25 O1 terminal-module shape emitted by
+// omega0-frontend.alp: zero to sixteen literal write_line calls followed by one
+// nonnegative i32 exit_process call. The decoder mirrors that canonical schema,
+// retains at most 1,024 aggregate literal bytes and every literal span, and
+// rejects malformed, truncated, extended, or out-of-profile input before
+// emitting any byte.
 // Success emits one deterministic import-free ELF64 image and exits 0.
-// Malformed input exits 251; literal storage exhaustion exits 252.
+// Malformed input exits 251; table, literal, or image exhaustion exits 252.
 boundary trait Console {
     machine read_byte() -> i32;
     machine write_byte(byte: i32);
@@ -15,7 +17,10 @@ boundary trait Console {
 data Main {
     console: Console;
     status: i32; c: i32; i: i32;
-    text_len: i32; exit0: i32; exit1: i32; exit2: i32; exit3: i32; text_size: i32;
+    word: i32; has_writes: i32; write_count: i32; write_index: i32;
+    text_used: i32; text_start: i32; text_len: i32;
+    exit0: i32; exit1: i32; exit2: i32; exit3: i32; text_size: i32;
+    write_starts: [i32; 16]; write_lengths: [i32; 16];
     text: [u8; 1024];
 }
 
@@ -36,6 +41,14 @@ machine Main::expect_u32(&mut self, expected: i32) {
     self.expect_byte((expected >> 8) & 255);
     self.expect_byte((expected >> 16) & 255);
     self.expect_byte((expected >> 24) & 255);
+}
+
+machine Main::read_small_u32(&mut self) {
+    self.c = read_byte();
+    transition self.c < 0 { true -> bad() false -> value() }
+    state value() { self.word = self.c; self.expect_zeroes(3); transition 0 { _ -> done() } }
+    state bad() { self.status = 251; transition 0 { _ -> done() } }
+    state done() { }
 }
 
 machine Main::expect_id(&mut self, expected: i32) {
@@ -128,14 +141,23 @@ machine Main::read_text(&mut self) {
     transition self.c < 0 { true -> bad() false -> low() }
     state low() { self.text_len = self.c; self.c = read_byte(); transition self.c < 0 { true -> bad() false -> high() } }
     state high() { self.text_len = self.text_len + self.c * 256; self.expect_byte(0); self.expect_byte(0); transition self.status == 0 { true -> capacity() false -> done() } }
-    state capacity() { transition self.text_len <= 1024 { true -> setup() false -> exhausted() } }
-    state setup() { self.i = 0; transition 0 { _ -> loop() } }
+    state capacity() { transition self.text_len <= 1024 - self.text_used { true -> setup() false -> exhausted() } }
+    state setup() {
+        self.write_starts[self.write_index] = self.text_used;
+        self.write_lengths[self.write_index] = self.text_len;
+        self.i = 0;
+        transition 0 { _ -> loop() }
+    }
     state loop() { transition self.i < self.text_len { true -> byte() false -> done() } }
     state byte() { self.c = read_byte(); transition self.c < 0 { true -> bad() false -> store() } }
-    state store() { self.text[self.i] = self.c; self.i = self.i + 1; transition 0 { _ -> loop() } }
+    state store() { self.text[self.text_used + self.i] = self.c; self.i = self.i + 1; transition 0 { _ -> loop() } }
     state bad() { self.status = 251; transition 0 { _ -> done() } }
     state exhausted() { self.status = 252; transition 0 { _ -> done() } }
-    state done() { }
+    state done() {
+        transition self.status == 0 { true -> retained() false -> finish() }
+    }
+    state retained() { self.text_used = self.text_used + self.text_len; self.write_index = self.write_index + 1; transition 0 { _ -> finish() } }
+    state finish() { }
 }
 
 machine Main::read_exit_code(&mut self) {
@@ -155,31 +177,60 @@ machine Main::decode_terminal_module(&mut self) {
     self.expect_byte(69); self.expect_byte(82); self.expect_byte(77); self.expect_byte(0);
     self.expect_u16(22); self.expect_u16(25); self.expect_id(1);
 
-    self.expect_u32(2);
+    // A zero-write closure has no byte-sequence type or write_line boundary.
+    // One-or-more writes share the O0 structural envelope.
+    self.read_small_u32();
+    transition self.status == 0 { true -> structural_type_count() false -> done() }
+    state structural_type_count() {
+        transition self.word {
+            1 -> no_writes()
+            2 -> with_writes()
+            _ -> bad()
+        }
+    }
+    state no_writes() { self.has_writes = 0; transition 0 { _ -> main_type() } }
+    state with_writes() { self.has_writes = 1; transition 0 { _ -> main_type() } }
+    state main_type() {
     self.expect_id(1); self.expect_u32(17); self.expect_main_identity();
     self.expect_byte(1); self.expect_u32(1);
     self.expect_id(1); self.expect_u32(7); self.expect_console_field();
     self.expect_byte(1); self.expect_byte(3); self.expect_u32(20); self.expect_console_type_identity();
-    self.expect_id(2); self.expect_u32(27); self.expect_bytes_type_identity();
-    self.expect_byte(4); self.expect_byte(1);
+        transition self.has_writes { 1 -> bytes_type() _ -> module_tail() }
+    }
+    state bytes_type() {
+        self.expect_id(2); self.expect_u32(27); self.expect_bytes_type_identity();
+        self.expect_byte(4); self.expect_byte(1);
+        transition 0 { _ -> module_tail() }
+    }
+    state module_tail() {
 
     self.expect_u32(0);
     self.expect_u32(1); self.expect_id(1); self.expect_u32(7); self.expect_console_service(); self.expect_u32(0);
     self.expect_u32(1); self.expect_id(1);
     self.expect_u32(0);
 
-    self.expect_u32(2);
+        transition self.has_writes { 1 -> two_boundaries() _ -> one_boundary() }
+    }
+    state two_boundaries() { self.expect_u32(2); transition 0 { _ -> exit_boundary() } }
+    state one_boundary() { self.expect_u32(1); transition 0 { _ -> exit_boundary() } }
+    state exit_boundary() {
     self.expect_id(1); self.expect_u32(147); self.expect_exit_boundary_identity();
     self.expect_byte(0);
     self.expect_u32(1); self.expect_byte(2); self.expect_byte(1); self.expect_u16(32);
     self.expect_u32(0); self.expect_byte(0); self.expect_u32(0); self.expect_u32(1); self.expect_id(1);
 
+        transition self.has_writes { 1 -> write_boundary() _ -> declarations() }
+    }
+    state write_boundary() {
     self.expect_id(2); self.expect_u32(160); self.expect_write_boundary_identity();
     self.expect_byte(0);
     self.expect_u32(0);
     self.expect_u32(1); self.expect_id(1); self.expect_u32(0); self.expect_byte(0);
     self.expect_id(2); self.expect_byte(1); self.expect_u32(0);
     self.expect_byte(0); self.expect_u32(0); self.expect_u32(1); self.expect_id(1);
+        transition 0 { _ -> declarations() }
+    }
+    state declarations() {
 
     self.expect_u32(0); self.expect_u32(0); self.expect_u32(0);
     self.expect_u32(0); self.expect_u32(0); self.expect_u32(0);
@@ -188,34 +239,92 @@ machine Main::decode_terminal_module(&mut self) {
 
     self.expect_id(1); self.expect_byte(1); self.expect_id(1);
     self.expect_u32(0); self.expect_u32(0); self.expect_byte(0);
-    self.expect_u32(3);
-    self.expect_id(2); self.expect_byte(5); self.expect_id(1); self.expect_id(1); self.expect_id(1);
+        self.read_small_u32();
+        transition self.status == 0 { true -> place_count() false -> done() }
+    }
+    state place_count() {
+        transition self.has_writes { 1 -> write_place_count() _ -> no_write_place_count() }
+    }
+    state no_write_place_count() {
+        transition self.word == 1 { true -> provider_places() false -> bad() }
+    }
+    state write_place_count() {
+        transition self.word >= 3 { true -> bounded_place_count() false -> bad() }
+    }
+    state bounded_place_count() {
+        self.write_count = self.word - 2;
+        transition self.write_count <= 16 { true -> provider_places() false -> exhausted() }
+    }
+    state provider_places() {
+        transition self.has_writes { 1 -> exit_provider_with_writes() _ -> exit_provider_only() }
+    }
+    state exit_provider_only() {
+        self.expect_id(1); self.expect_byte(5); self.expect_id(1); self.expect_id(1); self.expect_id(1);
+        transition 0 { _ -> machine_tail() }
+    }
+    state exit_provider_with_writes() {
+        self.expect_id(2); self.expect_byte(5); self.expect_id(1); self.expect_id(1); self.expect_id(1);
+        transition 0 { _ -> write_provider() }
+    }
+    state write_provider() {
     self.expect_id(3); self.expect_byte(5); self.expect_id(1); self.expect_id(1); self.expect_id(2);
-    self.expect_id(4); self.expect_byte(4); self.expect_u32(0); self.expect_id(2);
+        self.i = 0;
+        transition 0 { _ -> literal_places() }
+    }
+    state literal_places() {
+        transition self.i < self.write_count { true -> literal_place() false -> machine_tail() }
+    }
+    state literal_place() {
+        self.expect_id(4 + self.i); self.expect_byte(4); self.expect_u32(self.i); self.expect_id(2);
+        self.i = self.i + 1;
+        transition self.status == 0 { true -> literal_places() false -> done() }
+    }
+    state machine_tail() {
     self.expect_u32(0);
     self.expect_u32(1); self.expect_id(1);
     self.expect_u32(0); self.expect_u32(0); self.expect_u32(0);
     self.expect_id(1); self.expect_u32(1);
 
-    self.expect_id(1); self.expect_u32(0); self.expect_u32(4);
-    self.expect_id(1); self.expect_byte(0); self.expect_byte(40); self.expect_id(4);
-    self.read_text();
-
-    self.expect_id(2); self.expect_byte(0); self.expect_byte(35); self.expect_id(2);
-    self.expect_u32(0);
-    self.expect_u32(1); self.expect_id(4); self.expect_u32(0);
-    self.expect_u32(0); self.expect_u32(0);
-
-    self.expect_id(3); self.expect_byte(1); self.expect_id(1);
+        self.expect_id(1); self.expect_u32(0); self.expect_u32(self.write_count * 2 + 2);
+        self.write_index = 0;
+        transition 0 { _ -> literal_operations() }
+    }
+    state literal_operations() {
+        transition self.write_index < self.write_count { true -> literal_operation() false -> write_setup() }
+    }
+    state literal_operation() {
+        self.expect_id(1 + self.write_index); self.expect_byte(0); self.expect_byte(40); self.expect_id(4 + self.write_index);
+        self.read_text();
+        transition self.status == 0 { true -> literal_operations() false -> done() }
+    }
+    state write_setup() { self.write_index = 0; transition 0 { _ -> write_operations() } }
+    state write_operations() {
+        transition self.write_index < self.write_count { true -> write_operation() false -> exit_constant() }
+    }
+    state write_operation() {
+        self.expect_id(self.write_count + 1 + self.write_index); self.expect_byte(0); self.expect_byte(35); self.expect_id(2);
+        self.expect_u32(0);
+        self.expect_u32(1); self.expect_id(4 + self.write_index); self.expect_u32(0);
+        self.expect_u32(0); self.expect_u32(0);
+        self.write_index = self.write_index + 1;
+        transition self.status == 0 { true -> write_operations() false -> done() }
+    }
+    state exit_constant() {
+    self.expect_id(self.write_count * 2 + 1); self.expect_byte(1); self.expect_id(1);
     self.expect_byte(2); self.expect_byte(1); self.expect_u16(32);
     self.expect_byte(1); self.expect_byte(1); self.read_exit_code();
 
-    self.expect_id(4); self.expect_byte(0); self.expect_byte(35); self.expect_id(1);
+    self.expect_id(self.write_count * 2 + 2); self.expect_byte(0); self.expect_byte(35); self.expect_id(1);
     self.expect_u32(1); self.expect_id(1);
     self.expect_u32(0); self.expect_u32(0); self.expect_u32(0);
 
     self.expect_byte(5); self.expect_id(1); self.expect_u32(0);
     self.expect_id(1); self.expect_u32(0); self.expect_u32(0); self.expect_u32(0);
+        transition 0 { _ -> done() }
+    }
+    state bad() { self.status = 251; transition 0 { _ -> done() } }
+    state exhausted() { self.status = 252; transition 0 { _ -> done() } }
+    state done() { }
 }
 
 machine Main::check_eof(&mut self) {
@@ -283,28 +392,58 @@ machine Main::emit_write_line(&mut self) {
     self.i = 0;
     transition 0 { _ -> literal_loop() }
     state literal_loop() { transition self.i < self.text_len { true -> literal_byte() false -> newline() } }
-    state literal_byte() { write_byte(self.text[self.i]); self.i = self.i + 1; transition 0 { _ -> literal_loop() } }
+    state literal_byte() { write_byte(self.text[self.text_start + self.i]); self.i = self.i + 1; transition 0 { _ -> literal_loop() } }
     state newline() { write_byte(10); }
 }
 
 machine Main::emit_exit(&mut self) {
     write_byte(191); write_byte(self.exit0); write_byte(self.exit1); write_byte(self.exit2); write_byte(self.exit3);
     write_byte(184); self.emit_u32(231);
-    write_byte(15); write_byte(5); write_byte(15); write_byte(11); write_byte(195);
+    write_byte(15); write_byte(5); write_byte(15); write_byte(11);
+    // The product's zero-write single-effect function has no nominal return
+    // byte after its nonreturning exit tail. Positive-write functions retain
+    // the canonical return byte following the trap.
+    transition self.write_count > 0 { true -> return_byte() false -> done() }
+    state return_byte() { write_byte(195); transition 0 { _ -> done() } }
+    state done() { }
 }
 
 machine Main::emit_elf(&mut self) {
-    self.text_size = 68 + self.text_len;
     self.emit_elf_header(); self.emit_program_headers(); self.emit_zeroes(3920);
-    self.emit_write_line(); self.emit_exit();
-    self.emit_zeroes(4096 - self.text_size);
+    self.write_index = 0;
+    transition 0 { _ -> writes() }
+    state writes() { transition self.write_index < self.write_count { true -> write() false -> exit() } }
+    state write() {
+        self.text_start = self.write_starts[self.write_index];
+        self.text_len = self.write_lengths[self.write_index];
+        self.emit_write_line();
+        self.write_index = self.write_index + 1;
+        transition 0 { _ -> writes() }
+    }
+    state exit() { self.emit_exit(); self.emit_zeroes(4096 - self.text_size); }
+}
+
+machine Main::preflight(&mut self) {
+    // Each write loop is 53 bytes plus its literal. The zero-write closure's
+    // single-effect exit tail is 14 bytes; positive-write functions retain the
+    // product's nominal return byte and therefore use 15.
+    self.text_size = self.write_count * 53 + self.text_used + 14;
+    transition self.write_count > 0 { true -> return_byte() false -> capacity() }
+    state return_byte() { self.text_size = self.text_size + 1; transition 0 { _ -> capacity() } }
+    state capacity() {
+    transition self.text_size <= 4096 { true -> done() false -> exhausted() }
+    }
+    state exhausted() { self.status = 252; transition 0 { _ -> done() } }
+    state done() { }
 }
 
 machine Main::main(&mut self) {
-    self.status = 0; self.text_len = 0;
+    self.status = 0; self.has_writes = 0; self.write_count = 0;
+    self.write_index = 0; self.text_used = 0; self.text_len = 0;
     self.decode_terminal_module();
     transition self.status == 0 { true -> eof() false -> reject() }
-    state eof() { self.check_eof(); transition self.status == 0 { true -> accepted() false -> reject() } }
+    state eof() { self.check_eof(); transition self.status == 0 { true -> preflight() false -> reject() } }
+    state preflight() { self.preflight(); transition self.status == 0 { true -> accepted() false -> reject() } }
     state accepted() { self.emit_elf(); self.console.exit_process(0); }
     state reject() { self.console.exit_process(self.status); }
 }

@@ -148,6 +148,9 @@ story.
   that source uses it.
   - [x] Freeze Delta implementation profile D0 and Omega vertical-canary profile
     O0 in `bootstrap/omega0/compiler/BOOTSTRAP_PROFILES.md`.
+  - [x] Freeze O1 at 0–16 literal writes, 1 final nonnegative-i32 exit, 2,048
+    source bytes, and 1,024 aggregate decoded literal bytes. The same
+    table-driven frontend/emitter/backend handles every admitted count.
   - [ ] Freeze the production-self-host Omega profile against the actual Omega
     compiler source tree. No such source tree exists yet, so O0 must not be
     mislabeled as sufficient evidence.
@@ -189,6 +192,10 @@ story.
   - [ ] Generalize direct object/image emission only as the accepted Omega0
     source profile grows; do not count the fixed O0 decoder as the complete
     compiler backend.
+    - [x] Generalize the direct Linux x86-64 image edge for O1. Canonical
+      0/1/2/16-write terminal modules reproduce the product images byte for
+      byte; 17 writes, 1,200 aggregate bytes, malformed input, and truncation
+      reject before emitting any image byte.
 - [ ] **Complete meaning for the used Delta profile.** Replace trusted Rust in
   the Delta-to-Gamma route for every construct used by the first Omega compiler,
   including allocation and exhaustion. Preserve native-versus-meaning
@@ -214,6 +221,12 @@ story.
       preserves semantic rejection at 251. The focused gate pins multi-slot
       void/value method-state threading, bounded per-machine capacity, and the
       private chunked carrier used only for compiler-sized scalar arrays.
+    - [ ] Re-establish the frontend meaning gate for O1 after compacting the
+      elaborator. The generalized frontend produced no Gamma output within the
+      focused 85-second limit, so its new zero/two-write cases are present but
+      intentionally not claimed as passing evidence. The default lattice suite
+      reports this edge as deferred instead of entering that known-unbounded
+      route; `LATTICE_EXPERIMENTAL=1` opts into probing it.
 - [x] **Build a vertical Omega canary in Delta.** A Delta-written program must
   accept a small Omega source file, perform name/type checks, lower through the
   chosen terminal-Psi path, and produce a runnable artifact whose behavior
@@ -318,13 +331,13 @@ story.
   deliberately simple, spec-compliant compiler. Prefer direct and auditable
   stages over porting the production optimizer or the entire current Rust
   architecture.
-  - [ ] Implement O1 as the first genuinely variable source slice: preserve the
+  - [x] Implement O1 as the first genuinely variable source slice: preserve the
     O0 declaration/entry shell, accept a bounded sequence of zero or more
     literal `write_line` statements followed by exactly one literal
     `exit_process`, and reject an exit anywhere but the end. One statement-
     table parser/emitter/backend loop must handle 0, 1, 2, and many writes; do
     not encode source-count permutations as separate paths or fixtures.
-  - [ ] Generalize terminal-Psi emission and direct ELF lowering together for
+  - [x] Generalize terminal-Psi emission and direct ELF lowering together for
     O1. Allocate dense variable place/operation IDs, preserve ordered effects,
     preflight all declared table/text/image ceilings before publishing bytes,
     and compare several generated cases against the shared product codec and
@@ -444,7 +457,7 @@ additional facilities the bootstrap actually needs.
 - [x] **Move first-Omega work out of the product namespace.** Place the existing
   Rust-free meaning/refinement experiments and future Delta compiler source in
   `bootstrap/omega0/`, split into `meaning/`, `compiler/`, and `gates/`.
-  - [ ] Promote the Delta-written O0 frontend from the transitional
+  - [x] Promote the Delta-written O0/O1 frontend from the transitional
     `compiler/delta-rs/samples/omega0-frontend.alp` path to
     `bootstrap/omega0/compiler/`; retain a compatibility entry only while Delta
     on-ramp gates still require it.
