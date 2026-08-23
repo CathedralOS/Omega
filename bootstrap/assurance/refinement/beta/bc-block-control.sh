@@ -201,6 +201,7 @@ cat "$GATE_DIR/bc-block-control.alpha" \
   "$GATE_DIR/bc-expr-primitives.alpha" \
   "$GATE_DIR/bc-stack-pushes.alpha" \
   "$GATE_DIR/bc-expr-composition.alpha" \
+  "$GATE_DIR/bc-raw-load-families.alpha" \
   "$GATE_DIR/bc-call-bounds.alpha" \
   "$GATE_DIR/bc-stack-register-custody.alpha" \
   "$GATE_DIR/bc-ranged-store-bounds.alpha" \
@@ -210,6 +211,14 @@ cat "$GATE_DIR/bc-block-control.alpha" \
   "$GATE_DIR/bc-stack-potential-lift.alpha" > "$T/control-check.alpha"
 "$ASM" < "$T/control-check.alpha" > "$T/control-check.tape"
 stamp_seed "$T/control-check.tape" "$SEED" "$T/control-check" >/dev/null
+
+# Phase-isolated fixed-load tooth: keep the exact source, artifact, witness,
+# grammar counts, and every prior phase unchanged while omitting one load-class
+# owner.  The exhaustive 95-row family scan must find the unclassified load.
+sed '/call composition_load_parse_fixed/{n;s/imm r6, 1/imm r6, 0/;}' \
+  "$T/control-check.alpha" > "$T/load-missing-class.alpha"
+"$ASM" < "$T/load-missing-class.alpha" > "$T/load-missing-class.tape"
+stamp_seed "$T/load-missing-class.tape" "$SEED" "$T/load-missing-class" >/dev/null
 
 # Phase-isolated tooth: leave the exact source, tape, witness, and every prior
 # checker phase unchanged, but underreport the prelude fp owner. Adjust only the
@@ -314,6 +323,7 @@ cat "$GATE_DIR/bc-block-control.alpha" \
   "$GATE_DIR/bc-expr-primitives.alpha" \
   "$GATE_DIR/bc-stack-pushes.alpha" \
   "$GATE_DIR/bc-expr-composition.alpha" \
+  "$GATE_DIR/bc-raw-load-families.alpha" \
   "$GATE_DIR/bc-call-bounds.alpha" \
   "$T/bc-stack-register-pre-ranged.alpha" > "$T/pre-ranged-check.alpha"
 "$ASM" < "$T/pre-ranged-check.alpha" > "$T/pre-ranged-check.tape"
@@ -378,6 +388,14 @@ coherent_ranged_mutant() { # label
 }
 
 case_run "whole compiler control skeleton" 0 "$T/control.bundle"
+set +e
+"$T/load-missing-class" < "$T/control.bundle" > "$T/stdout"
+load_missing_class_status=$?
+set -e
+if [ "$load_missing_class_status" != 1 ] || [ -s "$T/stdout" ]; then
+  echo "bc block control FAIL — missing fixed raw-load class was not rejected" >&2
+  exit 1
+fi
 coherent_ranged_mutant slurp-cap
 coherent_ranged_mutant declare-cap
 coherent_ranged_mutant nloc-step
@@ -577,4 +595,4 @@ for mutation in call-retarget read-register write-register helper-write emit-byt
   fi
 done
 
-echo "bc block control/effects: 70 proc / 355 block / 291 transition; 613 effect sites / 829 fixed emit bytes; 78 frame slots / 27 parameter stores / 134 call pops; 169 local loads / 73 local stores; 61 raw loads / 34 raw stores; 581 literals / 55 arithmetic / 180 comparison primitives; 235 binary / 134 argument / 34 store-address pushes; syntax-directed composition / relative temporary peak 2; three ranged Alpha operands transferred; all 607 stores partitioned / 70 call-cut frames summarized; 64-row counter contexts; absolute B_bc1 stack <=12720 explicit bytes / <=662 hidden returns; all 2630 explicit-stack effects and 687 artifact effects owned ($(wc -c < "$T/control-check.tape" | tr -d ' ')-byte Alpha checker tape)"
+echo "bc block control/effects: 70 proc / 355 block / 291 transition; 613 effect sites / 829 fixed emit bytes; 78 frame slots / 27 parameter stores / 134 call pops; 169 local loads / 73 local stores; 61 raw loads = 54 fixed-safe + 5 SRC-indexed + 2 table-indexed / 34 raw stores; 581 literals / 55 arithmetic / 180 comparison primitives; 235 binary / 134 argument / 34 store-address pushes; syntax-directed composition / relative temporary peak 2; three ranged Alpha operands transferred; all 607 stores partitioned / 70 call-cut frames summarized; 64-row counter contexts; absolute B_bc1 stack <=12720 explicit bytes / <=662 hidden returns; all 2630 explicit-stack effects and 687 artifact effects owned ($(wc -c < "$T/control-check.tape" | tr -d ' ')-byte Alpha checker tape)"

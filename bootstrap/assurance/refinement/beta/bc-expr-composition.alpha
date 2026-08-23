@@ -13,7 +13,9 @@
 ; This is a parametric expression-stack result, not the absolute B_bc1 bound:
 ; active procedure frames and input-dependent recursive call depth remain open.
 
-; Private globals occupy 524800..524952.  A bounded five-word parser save stack
+; Private globals occupy 524800..524952.  Raw-load classification counters use
+; 525424..525440 and per-memory-row class/address tables use fresh space at
+; 16924672/16926720.  A bounded five-word parser save stack
 ; begins at 9961472, beyond all preceding source/witness/owner tables.  The
 ; later call-bound phase reuses two values reconstructed here: the relative
 ; temporary height at each effect event is stored at 10035200, and each
@@ -61,6 +63,12 @@ composition_scan_init:
         store r1, r0                    ; fixed-global raw-store addresses
         imm r1, 525088
         store r1, r0                    ; guarded ranged raw-store addresses
+        imm r1, 525424
+        store r1, r0                    ; fixed-global raw loads
+        imm r1, 525432
+        store r1, r0                    ; indexed SRC raw loads
+        imm r1, 525440
+        store r1, r0                    ; indexed name-table raw loads
         jmp composition_program_loop
 
 composition_program_loop:
@@ -631,6 +639,8 @@ composition_factor_memory:
         call composition_save_push
         imm r20, 91
         call composition_expect_char
+        call composition_save_peek
+        call composition_validate_load_address
         call composition_parse_expr
         imm r20, 93
         call composition_expect_char
@@ -1468,6 +1478,164 @@ composition_store_literal_done:
         store r1, r25
         ret
 
+; Classify the exact address expression of load row r20 without consuming it
+; for the ordinary grammar composer.  The seven indexed rows are pinned to
+; their complete current source spellings; all other loads must be aligned
+; literal compiler globals.  Class 1=fixed, 2=SRC, 3=name table.
+composition_validate_load_address:
+        imm r1, 525448
+        store r1, r20                   ; saved memory row
+        imm r1, 524304
+        load r2, r1
+        imm r1, 525456
+        store r1, r2                    ; saved address-expression cursor
+        imm r1, 13
+        jeq r20, r1, composition_load_cbyte
+        imm r1, 21
+        jeq r20, r1, composition_load_id_char
+        imm r1, 44
+        jeq r20, r1, composition_load_namelen
+        imm r1, 46
+        jeq r20, r1, composition_load_nameoff
+        imm r1, 49
+        jeq r20, r1, composition_load_src_a
+        imm r1, 50
+        jeq r20, r1, composition_load_src_b
+        imm r1, 54
+        jeq r20, r1, composition_load_src_off
+        call composition_load_parse_fixed
+        imm r6, 1
+        mov r7, r8
+        imm r1, 525424
+        jmp composition_load_record
+composition_load_cbyte:
+        imm r20, composition_load_cbyte_literal
+        imm r21, 11
+        call composition_store_require_literal
+        imm r6, 2
+        imm r7, 0
+        imm r1, 525432
+        jmp composition_load_record
+composition_load_id_char:
+        imm r20, composition_load_id_char_literal
+        imm r21, 27
+        call composition_store_require_literal
+        imm r6, 2
+        imm r7, 0
+        imm r1, 525432
+        jmp composition_load_record
+composition_load_namelen:
+        imm r20, composition_load_namelen_literal
+        imm r21, 15
+        call composition_store_require_literal
+        imm r6, 3
+        imm r7, 0
+        imm r1, 525440
+        jmp composition_load_record
+composition_load_nameoff:
+        imm r20, composition_load_nameoff_literal
+        imm r21, 15
+        call composition_store_require_literal
+        imm r6, 3
+        imm r7, 0
+        imm r1, 525440
+        jmp composition_load_record
+composition_load_src_a:
+        imm r20, composition_load_src_a_literal
+        imm r21, 15
+        call composition_store_require_literal
+        imm r6, 2
+        imm r7, 0
+        imm r1, 525432
+        jmp composition_load_record
+composition_load_src_b:
+        imm r20, composition_load_src_b_literal
+        imm r21, 15
+        call composition_store_require_literal
+        imm r6, 2
+        imm r7, 0
+        imm r1, 525432
+        jmp composition_load_record
+composition_load_src_off:
+        imm r20, composition_load_src_off_literal
+        imm r21, 17
+        call composition_store_require_literal
+        imm r6, 2
+        imm r7, 0
+        imm r1, 525432
+composition_load_record:
+        load r2, r1
+        imm r3, 1
+        add r2, r3
+        store r1, r2
+        imm r1, 525448
+        load r2, r1
+        imm r3, 8
+        mul r2, r3
+        imm r1, 16924672
+        add r1, r2
+        load r3, r1
+        imm r4, 0
+        jeq r3, r4, composition_load_record_new
+        jmp reject
+composition_load_record_new:
+        store r1, r6
+        imm r1, 16926720
+        add r1, r2
+        store r1, r7
+        imm r1, 525456
+        load r2, r1
+        imm r1, 524304
+        store r1, r2
+        ret
+
+; Parse one exact unsigned decimal address followed by the closing bracket.
+; Fixed loads are restricted to the ten aligned compiler-global cells.
+composition_load_parse_fixed:
+        call skip_trivia
+        imm r8, 0
+        imm r9, 0
+composition_load_fixed_digit_loop:
+        call current_byte
+        imm r1, 48
+        jlt r0, r1, composition_load_fixed_digits_done
+        imm r1, 58
+        jlt r0, r1, composition_load_fixed_digit
+composition_load_fixed_digits_done:
+        imm r1, 1
+        jeq r9, r1, composition_load_fixed_range
+        jmp reject
+composition_load_fixed_digit:
+        imm r1, 10
+        mul r8, r1
+        imm r1, 48
+        sub r0, r1
+        add r8, r0
+        imm r9, 1
+        call advance_one
+        jmp composition_load_fixed_digit_loop
+composition_load_fixed_range:
+        imm r1, 2097064
+        jlt r8, r1, reject
+        imm r1, 2097145
+        jlt r8, r1, composition_load_fixed_aligned
+        jmp reject
+composition_load_fixed_aligned:
+        mov r0, r8
+        imm r1, 8
+        mod r0, r1
+        imm r1, 0
+        jeq r0, r1, composition_load_fixed_close
+        jmp reject
+composition_load_fixed_close:
+        call skip_trivia
+        call current_byte
+        imm r1, 93
+        jeq r0, r1, composition_load_fixed_done
+        jmp reject
+composition_load_fixed_done:
+        ret
+
 composition_skip_char:
         call advance_one                 ; opening quote
         call current_byte
@@ -1605,7 +1773,25 @@ composition_count_ranged_stores:
         imm r1, 525088
         load r2, r1
         imm r3, 3
-        jeq r2, r3, call_bounds_resolve_specials
+        jeq r2, r3, composition_count_fixed_loads
+        jmp reject
+composition_count_fixed_loads:
+        imm r1, 525424
+        load r2, r1
+        imm r3, 54
+        jeq r2, r3, composition_count_src_loads
+        jmp reject
+composition_count_src_loads:
+        imm r1, 525432
+        load r2, r1
+        imm r3, 5
+        jeq r2, r3, composition_count_name_loads
+        jmp reject
+composition_count_name_loads:
+        imm r1, 525440
+        load r2, r1
+        imm r3, 2
+        jeq r2, r3, raw_load_family_init
         jmp reject
 
 composition_store_source_literal:
@@ -1614,3 +1800,17 @@ composition_store_nameoff_literal:
         db "3145728 + s * 8"
 composition_store_namelen_literal:
         db "3153920 + s * 8"
+composition_load_cbyte_literal:
+        db "2097152 + i"
+composition_load_id_char_literal:
+        db "2097152 + word[2097120] + k"
+composition_load_namelen_literal:
+        db "3153920 + i * 8"
+composition_load_nameoff_literal:
+        db "3145728 + i * 8"
+composition_load_src_a_literal:
+        db "2097152 + a + k"
+composition_load_src_b_literal:
+        db "2097152 + b + k"
+composition_load_src_off_literal:
+        db "2097152 + off + k"
