@@ -70,3 +70,10 @@ omega-packages/
 
 The CLI should remain a thin adapter. It should parse command arguments and
 delegate behavior here.
+
+## Current Slices
+
+- `manifest`: canonical package/alias names, normalized package capability
+  manifests, stable JSON, SHA-256 fingerprints, and manifest diffs.
+- `source`: local-path source identity with deterministic hashing, `.git`
+  directory exclusion, traversal limits, and symlink escape rejection.
