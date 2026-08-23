@@ -489,8 +489,18 @@ additional facilities the bootstrap actually needs.
       arguments into `r0..r1` in exact reverse-stack order. Structurally valid
       frame-size, fp-register, parameter-offset/register, pop-order, and
       pop-step mutations reject. This proves static allocation and handoff
-      conditional on staged values; argument pushes/values, local access
-      correspondence, live stack depth, and dynamic frame contents remain open.
+      conditional on staged values; argument pushes/values, live stack depth,
+      and dynamic frame contents remain open.
+    - [x] Bind every function-scoped local access to its source slot. The BCT3
+      Alpha phase independently records all 27 parameters and 51 `let`
+      declarations, resolves exact source names, distinguishes assignment
+      targets from comparison operands and calls, and checks 169 reads plus 73
+      `let`/assignment writes against their 19-byte fp-relative macros.
+      Valid-slot retargets, frame-base changes, same-width load/store swaps,
+      duplicate locations, and reordered witnesses reject while remaining
+      structurally valid. Static slot/opcode custody is closed; carried values,
+      definite assignment, expression evaluation, argument pushes, and dynamic
+      aliasing remain open.
     - [x] Freeze supported resource profile `B_bc1` and make its source-side
       ceilings checked. `bc.beta` now refuses a 1,025th name slot, fifth live
       parameter/argument, and expression or nested-block depth 65 before any
