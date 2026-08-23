@@ -1,0 +1,11 @@
+// FAIL canary: dynamic byte indexes need the later range/footprint milestone.
+
+machine fill(bytes: &write [u8; 4], index: u64) {
+    bytes[index] = 1;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

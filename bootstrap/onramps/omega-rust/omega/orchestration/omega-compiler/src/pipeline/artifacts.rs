@@ -583,6 +583,11 @@ fn program_storage_entry_manifest_json(
     if let Some(physical) = binding.physical_contract() {
         output.push_str("{\"status\": \"planned_not_invoked\", \"requirement\": ");
         push_json_string(&mut output, physical.requirement_identity());
+        output.push_str(", \"target_package\": ");
+        push_json_string(&mut output, physical.target_package_identity());
+        output.push_str(", \"target_package_fingerprint\": \"");
+        push_normalized_identity(&mut output, physical.target_package_fingerprint());
+        output.push('"');
         output.push_str(", \"calling_plan_fingerprint\": \"");
         push_normalized_identity(&mut output, physical.calling_plan_fingerprint());
         output.push_str("\", \"parameter_type_identities\": [");

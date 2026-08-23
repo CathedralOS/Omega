@@ -10,6 +10,8 @@ use omega_calling_conventions::BoundaryEntryPlan;
 pub struct ProgramEntryPhysicalContractPlan {
     target_slot: omega_target::ProgramEntrySlotDeclaration,
     requirement_identity: String,
+    target_package: omega_target::ProgramEntryPhysicalContractPackage,
+    target_package_fingerprint: u64,
     parameter_type_identities: Vec<String>,
     result_type_identity: String,
     calling_plan_fingerprint: u64,
@@ -20,6 +22,8 @@ impl ProgramEntryPhysicalContractPlan {
     pub(crate) fn new(
         target_slot: omega_target::ProgramEntrySlotDeclaration,
         requirement_identity: String,
+        target_package: omega_target::ProgramEntryPhysicalContractPackage,
+        target_package_fingerprint: u64,
         parameter_type_identities: Vec<String>,
         result_type_identity: String,
         calling_plan_fingerprint: u64,
@@ -30,6 +34,7 @@ impl ProgramEntryPhysicalContractPlan {
         };
         if target_slot.owner != omega_target::TargetProfile::UefiX64
             || physical_requirement != "UefiPhysicalEntry::enter"
+            || target_slot.physical_contract_package != Some(target_package)
             || target_slot.physical_calling_convention
                 != Some(omega_target::ProgramEntryCallingConvention::MicrosoftX64)
         {
@@ -42,6 +47,7 @@ impl ProgramEntryPhysicalContractPlan {
             || parameter_type_identities.len() != 2
             || parameter_type_identities.iter().any(String::is_empty)
             || result_type_identity.is_empty()
+            || target_package_fingerprint == 0
             || calling_plan_fingerprint == 0
         {
             return Err(
@@ -61,6 +67,8 @@ impl ProgramEntryPhysicalContractPlan {
         Ok(Self {
             target_slot,
             requirement_identity,
+            target_package,
+            target_package_fingerprint,
             parameter_type_identities,
             result_type_identity,
             calling_plan_fingerprint,
@@ -74,6 +82,18 @@ impl ProgramEntryPhysicalContractPlan {
 
     pub fn requirement_identity(&self) -> &str {
         &self.requirement_identity
+    }
+
+    pub const fn target_package(&self) -> omega_target::ProgramEntryPhysicalContractPackage {
+        self.target_package
+    }
+
+    pub const fn target_package_identity(&self) -> &'static str {
+        self.target_package.manifest_identity()
+    }
+
+    pub const fn target_package_fingerprint(&self) -> u64 {
+        self.target_package_fingerprint
     }
 
     pub fn parameter_type_identities(&self) -> &[String] {

@@ -54,16 +54,16 @@ data InterruptAcknowledgement [linear] {
 // One stable semantic requirement owns inbound acknowledgement establishment.
 // Platform interrupt roots inherit this requirement. Installation—not an
 // ordinary call—turns the exact non-self parameter route into an introduction.
-// The current PortIo row is a temporary bootstrap contract. The settled
-// surface migrates both this entry and complete below to distinct
-// `reaches <= MachineControl + PortIo` installation rows; implementation is
-// tracked under BOUNDED-INSTALLATION-REACH-ROWS.
+// Entry and completion own distinct installation-selected reach rows beneath
+// the same conservative hardware-access ceiling. Installation resolves this
+// entry row to the selected provider's exact reach; provider/token lineage,
+// never equality of the two rows, binds completion to the same execution.
 pub domain InterruptAcknowledgement::Pending
 established by InterruptEntry::enter;
 
 pub boundary trait InterruptEntry {
     machine enter(acknowledgement: InterruptAcknowledgement in Pending)
-    reaches PortIo;
+    reaches <= MachineControl + PortIo;
 }
 
 boundary machine InterruptAcknowledgement::complete(self)

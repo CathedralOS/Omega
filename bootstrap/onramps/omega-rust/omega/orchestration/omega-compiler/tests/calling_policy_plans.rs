@@ -302,6 +302,19 @@ fn source_interrupt_policy_publishes_and_selects_the_complete_entry_plan() {
     assert_eq!(entry.name, "enter");
     assert_eq!(entry.requirement_owner, "InterruptEntry");
     assert!(entry.requirement_identity.contains("InterruptEntry"));
+    let entry_reach = checked
+        .selected_provider_plans()
+        .installation_reach_resolution(&entry.requirement_identity)
+        .expect("the installed interrupt entry must resolve its bounded reach row");
+    assert_eq!(
+        entry_reach.upper_bound,
+        ["MachineControl".to_owned(), "PortIo".to_owned()]
+    );
+    assert_eq!(
+        entry_reach.resolved_row,
+        ["PortIo".to_owned()],
+        "the PIC-shaped test provider refines the conservative hardware ceiling to PortIo"
+    );
     let [acknowledgement] = entry.parameter_type_identities.as_slice() else {
         panic!("timer root must bind its acknowledgement parameter identity");
     };
@@ -527,7 +540,7 @@ fn program_storage_entry_publishes_both_core_owned_root_positions() {
     let main_path = write_program(
         "program-storage-entry",
         include_str!(
-            "../../../../../../../../../canaries/pass/build/uefi_program_entry_storage_roots/main.omg"
+            "../../../../../../../canaries/pass/build/uefi_program_entry_storage_roots/main.omg"
         ),
     );
     let checked = compile_to_checked(&main_path, None)
@@ -1515,7 +1528,7 @@ fn receiver_free_whole_root_authority_binds_exact_continuation_abi() {
     let _ = fs::remove_dir_all(&directory);
     fs::create_dir_all(&directory).expect("create free program-storage project");
     let source = include_str!(
-        "../../../../../../../../../canaries/pass/build/uefi_program_entry_storage_roots/main.omg"
+        "../../../../../../../canaries/pass/build/uefi_program_entry_storage_roots/main.omg"
     );
     let prefix = source
         .split_once("data Boot {")

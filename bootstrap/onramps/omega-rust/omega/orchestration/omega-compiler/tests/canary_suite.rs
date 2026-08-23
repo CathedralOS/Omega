@@ -182,6 +182,10 @@ const CROSS_TARGET_FAIL_CANARIES: &[(&str, &str)] = &[
     ("build/unknown_program_entry_binding", "windows_x64"),
     ("build/uefi_program_entry_missing_storage_roots", "uefi_x64"),
     ("build/uefi_program_entry_unqualified_image", "uefi_x64"),
+    (
+        "build/uefi_program_entry_local_physical_contract",
+        "uefi_x64",
+    ),
     ("build/uefi_program_entry_wrong_calling_policy", "uefi_x64"),
     (
         "collections/deep_nested_runtime_indexed_write_rejected",
@@ -3731,6 +3735,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "build/unknown_program_entry_binding",
     "build/uefi_program_entry_missing_storage_roots",
     "build/uefi_program_entry_unqualified_image",
+    "build/uefi_program_entry_local_physical_contract",
     "build/uefi_program_entry_wrong_calling_policy",
     "providers/slot_plan_ambiguous",
     "providers/provider_type_slot_ambiguous",

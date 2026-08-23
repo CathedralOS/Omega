@@ -7,6 +7,13 @@ fn write_only_whole_scalar_replace_and_forward_are_accepted() {
 }
 
 #[test]
+fn write_only_fixed_byte_elements_are_accepted() {
+    let canary = pass_canary("borrow/write_only_fixed_byte_element");
+    check_canary(&canary)
+        .expect("literal fixed-byte-array replacement and exact forwarding should be checked");
+}
+
+#[test]
 fn write_only_aggregate_projection_is_rejected() {
     let canary = fail_canary("borrow/write_only_reference_operation_gate");
     let diagnostics =
@@ -17,9 +24,76 @@ fn write_only_aggregate_projection_is_rejected() {
         .collect::<Vec<_>>()
         .join("\n");
     assert!(
-        combined.contains("whole, unrestricted primitive scalars")
-            && combined.contains("whole-root replacement"),
+        combined.contains("unrestricted primitive scalars and fixed byte arrays")
+            && combined.contains("statically in-bounds literal element replacement"),
         "expected directed aggregate and projection diagnostics, got:\n{combined}"
+    );
+}
+
+#[test]
+fn write_only_dynamic_byte_index_is_rejected() {
+    let canary = fail_canary("borrow/write_only_dynamic_byte_index");
+    let diagnostics =
+        check_canary(&canary).expect_err("dynamic write-only byte projection must remain gated");
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("write-only byte array `bytes`")
+            && combined.contains("index must be a literal for this milestone"),
+        "expected directed dynamic-index diagnostic, got:\n{combined}"
+    );
+}
+
+#[test]
+fn write_only_byte_index_must_be_statically_in_bounds() {
+    let canary = fail_canary("borrow/write_only_byte_index_out_of_bounds");
+    let diagnostics =
+        check_canary(&canary).expect_err("out-of-bounds write-only byte projection must reject");
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("write-only byte array `bytes`")
+            && combined.contains("literal index is outside the fixed byte array"),
+        "expected directed fixed-index bounds diagnostic, got:\n{combined}"
+    );
+}
+
+#[test]
+fn write_only_byte_range_is_rejected() {
+    let canary = fail_canary("borrow/write_only_byte_range");
+    let diagnostics = check_canary(&canary).expect_err("write-only byte ranges must remain gated");
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("write-only byte array `bytes`")
+            && combined.contains("range projection is not implemented"),
+        "expected directed byte-range diagnostic, got:\n{combined}"
+    );
+}
+
+#[test]
+fn write_only_fixed_byte_observation_is_rejected() {
+    let canary = fail_canary("borrow/write_only_byte_observation");
+    let diagnostics =
+        check_canary(&canary).expect_err("write-only fixed-byte observation must reject");
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("reads through index projection of write-only parameter `bytes`")
+            && combined.contains("never observation"),
+        "expected directed indexed non-observation diagnostic, got:\n{combined}"
     );
 }
 

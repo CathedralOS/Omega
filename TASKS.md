@@ -454,15 +454,28 @@ Remaining:
   Unit entries and explicit exit providers rather than restoring the legacy
   entry seam or inventing fake GUI authority.
 - **UEFI-PHYSICAL-SEMANTIC-ENTRY — implement the settled two-surface bridge.**
-  The contract-retention slice is complete. Normalized target and artifact
-  identity now keep `UefiPhysicalEntry::enter`, its exact two input types,
-  `EfiStatus` result, and evaluated Microsoft-x64 plan distinct from the
-  semantic `ProgramStorageEntry::enter` continuation. Physical and semantic
-  plan conflation, missing/duplicate plans, wrong calling policy, and missing
-  physical result reject. Manifests report this contract as
-  `planned_not_invoked`; receiver-bound semantic bridges may omit receiver-free
-  wrapper evidence only under their exact checked receiver/activation-loan
-  predicate.
+  The target-package and contract-retention slices are complete. The UEFI
+  physical types, `UefiPhysicalEntry::enter`, calling policy, and boundary
+  schema now live in the exact toolchain-owned `uefi_x64` target package rather
+  than in application fixtures. `omega-target` selects that package through a
+  closed identity; compilation checks toolchain provenance plus canonical
+  package-relative source membership, then retains the package fingerprint in
+  the physical plan and manifest. Application-authored lookalikes reject.
+  Normalized target and artifact identity keep the physical requirement, its
+  exact two input types, `EfiStatus` result, and evaluated Microsoft-x64 plan
+  distinct from the semantic `ProgramStorageEntry::enter` continuation.
+  Physical and semantic plan conflation, missing/duplicate plans, wrong calling
+  policy, and missing physical result reject. Manifests still report this
+  contract as `planned_not_invoked`; receiver-bound semantic bridges may omit
+  receiver-free wrapper evidence only under their exact checked receiver/
+  activation-loan predicate.
+
+  **Design-blocked at the next composition edge:** the target declaration does
+  not yet fix the exact source-level bootstrap-adapter callable/signature and
+  selection form or the physical-result map that converts adapter/application
+  outcomes to `EfiStatus`. Do not emit a shell by hardcoding either relation;
+  once those two owner-level shapes are settled, argument/result marshalling,
+  shell emission, and relocation are engineering work.
 
   Remaining: keep `EfiSystemTable` as a private
   validated native layout beneath lifecycle-scoped providers and
@@ -4685,28 +4698,35 @@ Owners:
   an authored correlation to terminal completion claims; an Omega-only bridge
   would invent custody semantics.
 - **WRITE-ONLY-BORROW — finish the settled `&write T` access mode.** The first
-  checked whole-scalar rung is live. The parser accepts `&write T`,
+  checked whole-value and fixed-byte-element rungs are live. The parser accepts
+  `&write T`,
   `&'a write T`, `&write self`, and expression-form `&write place`; syntax,
   resolved, typed, checked, state, and control representations retain exact
   shared/mutable/write-only access through one closed `Borrow` node and access
   enums, with no compatibility dereference that can erase the mode. Display,
   snapshots, matching, normalized identity, loans, and call-access facts keep
   it distinct. Checked Omega bodies may explicitly attenuate an exclusive
-  mutable whole place to `&write` for an unrestricted primitive scalar, replace
-  that whole scalar, and forward the loan only through an explicit `&write`
-  argument. Observation, readable widening, implicit `&mut` attenuation,
-  projection, aggregate content, and bodyless/provider declarations reject
-  with directed diagnostics. Focused parser, semantic pass/fail, checked-loan,
-  and checked-to-state-to-control remap tests pin the slice.
+  mutable whole place to `&write` for an unrestricted primitive scalar or fixed
+  byte array, replace the whole referent, and forward the loan only through an
+  explicit `&write` argument. A checked fixed byte array additionally permits
+  statically in-bounds literal element replacement; its canonical mutation
+  place and caller-visible write frame retain the exact `FixedIndex`, while
+  dynamic indexes remain conservatively collection-wide and reject at the
+  current semantic gate. Observation, readable widening, implicit `&mut`
+  attenuation, ranges, general aggregate projection, and bodyless/provider
+  declarations reject with directed diagnostics. Focused parser, semantic
+  pass/fail, exact-place/frame, checked-loan, and checked-to-state-to-control
+  remap tests pin the live slices.
 
   Remaining work is the broader executable access discipline: add
-  content-independent aggregate and byte-range projection, reject
-  take/swap/read-modify-write, content-driven projection, non-discardable
-  displacement, and invariant restoration that depends on reading the
-  referent, and retain exact per-outcome write footprints so untouched ranges
-  and their facts survive. Carry the admitted operation set through provider
-  selection, canonical plans, Terminal Psi, both execution engines, and native
-  ABI lowering. Opaque providers still need a specified, implementation-pinned
+  content-independent aggregate, dynamic-index, and byte-range projection,
+  reject take/swap/read-modify-write, content-driven projection,
+  non-discardable displacement, and invariant restoration that depends on
+  reading the referent, and retain exact per-outcome write footprints so
+  untouched ranges and their facts survive. Carry the admitted operation set
+  through provider selection, canonical plans, Terminal Psi, both execution
+  engines, and native ABI lowering. Opaque providers still need a specified,
+  implementation-pinned
   non-observation judgment; do not infer one from ABI shape. Migrate byte-output
   boundary surfaces only after that gate exists, and never reinterpret
   `&write` as vacant storage or typed construction.
@@ -6564,15 +6584,18 @@ state through a raw address.
   - **Constraints:** `+` is union. Do not infer one shared row from equal sets or
     add negation, subtraction, lower bounds, exclusive-or, named row variables,
     or cross-requirement correlation.
-- Migrate both `InterruptEntry::enter` and
-  `InterruptAcknowledgement::complete` from the temporary hardcoded `PortIo`
-  ceiling to distinct bounded installation rows beneath
-  `MachineControl + PortIo`. Bind entry/completion coherence through the exact
-  installed provider execution, acknowledgement policy, operation, and token
-  lineage rather than row equality. PIC completion resolves to `PortIo`;
-  LAPIC/x2APIC completion resolves to `MachineControl`. Checked and terminal
-  artifacts retain the selected provider, operation, bound, resolved row, and
-  refinement evidence without granting authority from reach.
+- `InterruptEntry::enter` now publishes its own bounded installation row beneath
+  `MachineControl + PortIo`; the PIC-shaped provider-plan canary proves that the
+  conservative bound resolves to the selected provider's exact `PortIo` row.
+  Migrate `InterruptAcknowledgement::complete` from its temporary hardcoded
+  `PortIo` ceiling to a distinct bounded row. That top-level boundary operation
+  still needs the same abstract-row representation and installation-resolution
+  carriage already live for trait requirements. Bind entry/completion coherence
+  through the exact installed provider execution, acknowledgement policy,
+  operation, and token lineage rather than row equality. PIC completion resolves
+  to `PortIo`; LAPIC/x2APIC completion resolves to `MachineControl`. Checked and
+  terminal artifacts retain the selected provider, operation, bound, resolved
+  row, and refinement evidence without granting authority from reach.
 
 Acceptance: QEMU installs Cathedral-owned memory/interrupt structures, reports
 timer ticks over owned serial output, and halts between ticks. No customer-shaped

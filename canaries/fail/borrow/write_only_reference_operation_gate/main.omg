@@ -1,8 +1,13 @@
-// FAIL canary: aggregates and projections remain outside the checked
-// whole-scalar milestone.
+// FAIL canary: general aggregate projection remains outside the checked
+// fixed-byte-array milestone.
 
-machine fill(bytes: &write [u8; 4]) {
-    bytes[0] = 1;
+data Pair {
+    left: u8;
+    right: u8;
+}
+
+machine fill(pair: &write Pair) {
+    pair.left = 1;
 }
 
 data Main {

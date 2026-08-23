@@ -221,6 +221,15 @@ fn uefi_program_entry_retains_exact_storage_root_binding() {
     assert!(physical.parameter_type_identities()[1].contains("EfiSystemTable"));
     assert!(physical.result_type_identity().contains("EfiStatus"));
     assert_eq!(
+        physical.target_package(),
+        omega_target::ProgramEntryPhysicalContractPackage::UefiX64
+    );
+    assert_eq!(
+        physical.target_package_identity(),
+        "omega::language::std::targets::uefi_x64::entry"
+    );
+    assert_ne!(physical.target_package_fingerprint(), 0);
+    assert_eq!(
         physical.boundary_entry_plan().call.policy,
         omega_calling_conventions::CallingPolicy::MicrosoftX64
     );
@@ -346,6 +355,10 @@ fn uefi_program_entry_retains_exact_storage_root_binding() {
     assert!(manifest.contains("\"semantic_continuation_calling_plan_fingerprint\""));
     assert!(manifest.contains("\"physical_contract\""));
     assert!(manifest.contains("\"status\": \"planned_not_invoked\""));
+    assert!(
+        manifest.contains("\"target_package\": \"omega::language::std::targets::uefi_x64::entry\"")
+    );
+    assert!(manifest.contains("\"target_package_fingerprint\": \"0x"));
     assert!(manifest.contains("UefiPhysicalEntry"));
     assert!(manifest.contains("EfiStatus"));
     assert!(manifest.contains("\"physical_shell_emitted\": false"));
