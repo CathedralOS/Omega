@@ -202,13 +202,13 @@ or prescribe work inside the Rust on-ramp or the eventual product compiler.
 - [x] **Close the Delta-written artifact path for O0/O1.** Emit the canonical
   image directly, without an unrecorded assembler or linker dependency.
   - [x] Close the exact O0 canary edge with
-    `bootstrap/omega-bootstrap/compiler/omega-bootstrap-terminal-to-elf.alp`. It consumes the
-    vocabulary-25 O0 terminal shape, retains the variable literal and
-    nonnegative `i32` exit operand, and emits a deterministic 8 KiB Linux x86-64
-    ELF directly, with no host assembler or linker. The gate proves canonical
-    byte identity with the production image, operand-variant emission, and
-    empty-output rejection for truncation, fixed-field tampering, and trailing
-    input.
+    `bootstrap/omega-bootstrap/compiler/omega-bootstrap-terminal-to-elf.alp`.
+    It consumes the vocabulary-26 O0 terminal shape, retains the variable
+    literal and nonnegative `i32` exit operand, and emits a deterministic 8 KiB
+    Linux x86-64 ELF directly, with no host assembler or linker. The gate proves
+    canonical byte identity with the production image, operand-variant
+    emission, and empty-output rejection for truncation, fixed-field tampering,
+    and trailing input.
   - [x] Generalize the direct Linux x86-64 image edge for O1. Canonical
     0/1/2/16-write terminal modules reproduce the product images byte for
     byte; 17 writes, 1,200 aggregate bytes, malformed input, and truncation
@@ -216,7 +216,7 @@ or prescribe work inside the Rust on-ramp or the eventual product compiler.
   - [x] Gate the frozen O1 compiler-program composition through Delta's
     `lowermachine`. Both `omega-bootstrap-frontend.alp` and
     `omega-bootstrap-terminal-to-elf.alp` are recompiled through the Delta-written
-    compiler, then bundle → vocabulary-25 terminal Psi → ELF reproduces the
+    compiler, then bundle → vocabulary-26 terminal Psi → ELF reproduces the
     independent product terminal and image bytes for 0/1/2/16 writes; semantic
     rejection and every frontend/backend O1 exhaustion boundary publish no
     partial artifact. This is a deliberately partial dependency-closure claim:
@@ -224,6 +224,11 @@ or prescribe work inside the Rust on-ramp or the eventual product compiler.
     on-ramp, and native assembly/signing still uses Darwin `clang`/`codesign`.
     It does not claim the production Omega compiler exists or a Rust-free
     compiler lineage.
+  - [x] Resynchronize the frozen O0/O1 bridge with terminal format 23 and
+    vocabulary 26. The program-local-root schema addition advances the
+    pre-release envelope but introduces no roots for these Console boundaries;
+    the Delta frontend emits, and the Delta backend requires, the exact empty
+    schema table before each published-service ceiling.
 - [x] **Complete lower-rung meaning for the current D0/O1 profile.** Cover every
   admitted construct, including allocation and exhaustion, through the
   Delta-to-Gamma route and preserve native-versus-meaning differential gates.
@@ -313,7 +318,7 @@ or prescribe work inside the Rust on-ramp or the eventual product compiler.
         shared codec only as conformance evidence, not as a bootstrap producer.
       - [x] Add the Delta emitter using ordinary checked `write_byte` output and
         explicit length/integer encoding. Its emitted bytes must decode and
-        verify through the shared vocabulary-25 path and must be byte-identical
+        verify through the shared vocabulary-26 path and must be byte-identical
         to the frozen canonical fixture for the same retained operands.
       - [x] Gate custody perturbations independently: changing any literal byte,
         its length, the newline-producing call order, or the exit scalar must
@@ -333,7 +338,7 @@ or prescribe work inside the Rust on-ramp or the eventual product compiler.
     artifact acceptance.
   - [x] Gate the runnable O0 artifact: exact output plus newline, requested
     low-byte exit status, deterministic bytes, and canonical-meaning agreement.
-    The published vocabulary-25 fixture is decoded and verified with the empty
+    The published vocabulary-26 fixture is decoded and verified with the empty
     proof bundle, executed by canonical terminal meaning, and lowered with
     exact requirement-matched provider executions to deterministic Linux x86-64
     and AArch64 images plus replayed installation records. Matching Linux hosts
@@ -415,7 +420,7 @@ or prescribe work inside the Rust on-ramp or the eventual product compiler.
     O1. Allocate dense variable place/operation IDs, preserve ordered effects,
     preflight all declared table/text/image ceilings before publishing bytes,
     and compare several generated cases against the shared product codec and
-    lowering. Terminal vocabulary 25 already represents this slice; no new
+    lowering. Terminal vocabulary 26 already represents this slice; no new
     language ruling is required.
   - [ ] Grow subsequent vertical slices from requirements of the actual
     Omega-source production compiler. O0/O1 remain canaries rather than a

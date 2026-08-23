@@ -42,15 +42,16 @@ representation.
 ### Boundary-argument realization fence
 
 Ordinary in-module and bodyless boundary calls both carry positional scalar
-arguments. In current terminal-Psi vocabulary 25, `BoundaryMachineDeclaration` declares
-ordered scalar parameter types and `BoundaryCall` carries the matching ordered
-`ValueId` arguments alongside its structural lane. Canonical encoding binds
+arguments. In current terminal-Psi vocabulary 26,
+`BoundaryMachineDeclaration` declares ordered scalar parameter types and
+`BoundaryCall` carries the matching ordered `ValueId` arguments alongside its
+structural lane. Canonical encoding binds
 both orders; validation checks exact arity, definition, dominance, and type;
 interpretation evaluates the scalar values before invoking the effect handler;
 and Omega abstract lowering preserves them without reinterpretation. The
 optional primitive scalar remains the independent result lane.
 
-Vocabulary 25 also admits a first-class immutable borrowed byte-sequence shape,
+Vocabulary 26 also admits a first-class immutable borrowed byte-sequence shape,
 an exact raw-octet literal establishment, and that local literal as a structural
 argument to a bodyless boundary. The codec, verifier, and interpreter preserve
 all bytes, including non-UTF-8 payloads. Psi syntax, resolved, typed, and checked
@@ -58,7 +59,7 @@ trees own that exact payload, and checked-to-terminal lowering establishes its
 borrowed place before passing the same place to the bodyless call. In-module and
 nonliteral forwarding remain fenced.
 
-Vocabulary 25 also closes the O0 provider-backed attachment specialization. The
+Vocabulary 26 also closes the O0 provider-backed attachment specialization. The
 machine retains `attachment: Some(Main)`, its relevant `console` field retains
 the exact erased provider identity, and sorted `ProviderAttachment` roots bind
 that field to precisely the bodyless boundaries called through it. Validation
@@ -2734,8 +2735,9 @@ to 4,982 typed Gamma lines / 198,971 bytes / 423 functions with maximum source
 nesting 25. Its closed row tables eliminated per-operation builder branches;
 most remaining repetition came from Gamma's monomorphic decoder-result types,
 not the semantic schema. That format-bound implementation was retired when its
-format-18/vocabulary-20 decoder fell behind the live format-22/vocabulary-25
-artifact. Git commit `a5cfd83cc` and its follow-ups retain the executable
+format-18/vocabulary-20 decoder fell behind the then-live
+format-22/vocabulary-25 artifact. Git commit `a5cfd83cc` and its follow-ups
+retain the executable
 provenance; dead source is not carried as a parallel verifier.
 
 The reusable result now lives in production's closed 40-row inventory: 32
