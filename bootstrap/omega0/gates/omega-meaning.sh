@@ -142,6 +142,7 @@ om atomics_cross             # 70 — AtomicU32 single-threaded desugar: store=f
 
 # feature tests (constructs not isolated by any committed sample):
 omt cross_data               # 63 — Counter::bump/get unify self.value with Main's self.counter.value
+omt bitwise_byte_mask        # 44 — compiler-profile nonnegative `x & 255` byte extraction
 
 echo "omega meaning (Omega samples run Rust-free via omega2gamma.beta -> interp.beta): $PASS ok, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1

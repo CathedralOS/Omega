@@ -49,6 +49,21 @@ case "$retired" in
     FAIL=$((FAIL+1)); echo "  FAIL retired terminates block : no explicit refusal";;
 esac
 
+# Single `&` must never be silently truncated. The compiler profile admits only
+# the nonnegative byte mask `x & 255`; every broader bitwise form remains an
+# explicit unsupported edge until Gamma has a general bitvector meaning.
+unsupported_band=$(printf '%s\n' \
+  'use omega::language::std::console;' \
+  'data Main { console: Console; }' \
+  'machine Main::main(&mut self) { self.console.exit_process(12 & 10); }' \
+  | "$T/omega2gamma.exe" 2>/dev/null)
+case "$unsupported_band" in
+  *E2G-UNSUPPORTED-bitwise-and*)
+    PASS=$((PASS+1)); echo "  ok   general bitwise-and : refused explicitly";;
+  *)
+    FAIL=$((FAIL+1)); echo "  FAIL general bitwise-and : no explicit refusal";;
+esac
+
 for d in "${OMEGA_PATH_CORPUS}"/*/; do
   s=$(basename "$d")
   [ -f "$d/main.omg" ] || continue
