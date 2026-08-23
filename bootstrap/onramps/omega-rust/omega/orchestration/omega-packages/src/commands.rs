@@ -82,6 +82,12 @@ pub enum PackageGraphAuditCommandError {
     Graph(PackageGraphAuditError),
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PackageSourceAuditCommandError {
+    Parse(PackageSourceRequestParseError),
+    Resolve(SourceResolveError),
+}
+
 impl PackageSourceAudit {
     pub fn to_text(&self) -> String {
         let mut report = String::new();
@@ -196,6 +202,18 @@ pub fn audit_package_source(
             })
         }
     }
+}
+
+pub fn audit_package_source_locator(
+    locator: impl Into<String>,
+    rev: Option<String>,
+    cache_dir: impl AsRef<Path>,
+    limits: LocalSourceLimits,
+) -> Result<PackageSourceAudit, PackageSourceAuditCommandError> {
+    let request =
+        PackageSourceRequest::parse(locator, rev).map_err(PackageSourceAuditCommandError::Parse)?;
+    audit_package_source(request, cache_dir, limits)
+        .map_err(PackageSourceAuditCommandError::Resolve)
 }
 
 pub fn audit_package_graph_from_lock(
@@ -380,6 +398,46 @@ mod tests {
 
         let _ = std::fs::remove_dir_all(&root);
         let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[test]
+    fn source_audit_command_parses_and_audits_local_locator() {
+        let root = temp_root("local-locator");
+        let cache = temp_root("local-locator-cache");
+        std::fs::create_dir_all(&root).expect("create local package");
+        std::fs::write(root.join("main.omg"), "machine Main::main() {}\n").expect("write source");
+
+        let audit = audit_package_source_locator(
+            root.display().to_string(),
+            None,
+            &cache,
+            LocalSourceLimits::default(),
+        )
+        .expect("audit local locator");
+
+        assert_eq!(audit.source_kind, "local-path");
+        assert_eq!(audit.file_count, 1);
+
+        let _ = std::fs::remove_dir_all(&root);
+        let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[test]
+    fn source_audit_command_reports_parse_errors_before_resolving() {
+        assert_eq!(
+            audit_package_source_locator(
+                "./fixtures/packages/file-journal",
+                Some("HEAD".to_owned()),
+                temp_root("unused-cache"),
+                LocalSourceLimits::default()
+            ),
+            Err(PackageSourceAuditCommandError::Parse(
+                PackageSourceRequestParseError::LocalSourceCannotUseRevision {
+                    locator: "./fixtures/packages/file-journal".to_owned(),
+                    rev: "HEAD".to_owned(),
+                }
+            ))
+        );
     }
 
     #[test]

@@ -224,6 +224,14 @@ Completed:
   candidate lock only when policy admits the update. Rejected updates produce a
   plan without a candidate lock.
 
+- **PACKAGE-SOURCE-AUDIT-LOCATOR-API.** Add the command seam that combines
+  source locator parsing with resolver-owned source audit.
+
+  Done 2026-08-23: `omega-packages` exposes a source-audit API that accepts a
+  locator string plus optional revision, reuses the centralized source-request
+  parser, resolves through existing local/Git resolver policy, and preserves
+  parse failures separately from source-resolution failures.
+
 Remaining:
 
 - **PACKAGE-CAPABILITY-MANIFEST.** Define the normalized manifest produced for
