@@ -10,12 +10,13 @@ that the cold-started artifact corresponds to `bc.beta`; complete lower-rooted
 source-to-artifact validation remains open.
 
 The lower-rooted replacement has begun in
-[`cold-start/`](cold-start/README.md). Its first two Alpha-written compiler
+[`cold-start/`](cold-start/README.md). Its first three Alpha-written compiler
 slices handle bounded source capture and output, multiple framed procedures,
 parameters, locals, assignment, nested/forward calls, literals, comments, and
-precedence-correct arithmetic entirely through the audited Alpha path. It
-deliberately does not replace `bc0` until the exact `bc.beta` profile, self-build,
-and whole Beta corpus are closed.
+precedence-correct arithmetic/comparisons plus procedure-scoped `state`/`to`
+control flow entirely through the audited Alpha path. It deliberately does not
+replace `bc0` until the exact `bc.beta` profile, self-build, and whole Beta corpus
+are closed.
 
 ```
 bc.beta       the Beta compiler, in Beta:  reads .beta on stdin, emits Alpha asm

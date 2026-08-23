@@ -1,9 +1,12 @@
-; bc-alpha.alpha — Alpha-written cold-start compiler for Beta Slices A-B.
+; bc-alpha.alpha — Alpha-written cold-start compiler for Beta Slices A-C.
 ;
 ; Accepted source:
 ;   proc IDENT(PARAMS) { STATEMENT* }
 ;   STATEMENT := 'let' IDENT '=' EXPR | IDENT '=' EXPR | 'return' EXPR
-;   EXPR := TERM (('+' | '-') TERM)*
+;              | 'state' IDENT '{' STATEMENT* '}'
+;              | 'to' IDENT ('when' EXPR)?
+;   EXPR := SUM (('<'|'>'|'=='|'!='|'<='|'>=') SUM)?
+;   SUM := TERM (('+' | '-') TERM)*
 ;   TERM := FACTOR (('*' | '/' | '%') FACTOR)*
 ;   FACTOR := DECIMAL | CHAR | IDENT | IDENT(ARGS) | '(' EXPR ')'
 ;
@@ -21,7 +24,11 @@
 ;   524440 CURPROCLEN 524448 CURPROCINDEX 524456 ARGCOUNT
 ;   524464 TMPSTART  524472 TMPLEN     524480 PROC_CURSOR
 ;   524488 TARGET_SLOT/scan flag      524496 SCAN
-;   524504 CMPLEN
+;   524504 CMPLEN    524536 LABEL_COUNT
+;   524544 LABEL_A   524552 LABEL_B   524560 INVERT
+;   524568 STATE_COUNT 524576 EDGE_COUNT 524584 ASSIGN_SLOT
+;   524592 PROC_STATE_COUNT 524600 PROC_EDGE_COUNT
+;   524608 STATE_CURSOR 524616 EDGE_CURSOR 524624 CALL_CURSOR
 ; Buffers:
 ;   1048576 SOURCE (1048576-byte checked compiler extent)
 ;   2097152 decimal output scratch
@@ -29,6 +36,9 @@
 ;   550000 CALL_TABLE (512 x 24: start, len, argc)
 ;   600000 SLOT_TABLE (64 x 16: start, len)
 ;   610000 NAME_STACK (64 x 24: start, len, argc)
+;   620000 CMP_STACK (65 x 8: comparison opcode at depths 0..64)
+;   630000 STATE_TABLE (512 x 24: start, len, proc index)
+;   680000 EDGE_TABLE (512 x 24: start, len, proc index)
 
 ; ---------------- entry and checked slurp ----------------
         imm   r6, 0
@@ -61,6 +71,10 @@ source_done:
         imm   r0, 524408
         store r0, r1
         imm   r0, 524416
+        store r0, r1
+        imm   r0, 524568
+        store r0, r1
+        imm   r0, 524576
         store r0, r1
         call  parse_program
         imm   r0, 524304
@@ -98,6 +112,14 @@ parse_program:
         imm   r0, 524480
         imm   r1, 0
         store r0, r1
+        imm   r0, 524536
+        store r0, r1
+        imm   r0, 524608
+        store r0, r1
+        imm   r0, 524616
+        store r0, r1
+        imm   r0, 524624
+        store r0, r1
         imm   r0, out_program_prelude
         imm   r1, 50
         call  emit_fixed
@@ -115,8 +137,11 @@ pp_loop:
 pp_finish:
         imm   r0, 524312
         load  r0, r0
-        jnz   r0, pp_return
+        jnz   r0, pp_check_publication
         call  validate_program
+        ret
+pp_check_publication:
+        call  check_publication_tables
 pp_return:
         ret
 
@@ -147,6 +172,10 @@ parse_proc:
         jnz   r0, ppr_return
         imm   r0, 524424
         imm   r1, 0
+        store r0, r1
+        imm   r0, 524592
+        store r0, r1
+        imm   r0, 524600
         store r0, r1
         call  peek_token_char
         imm   r1, 41
@@ -243,11 +272,19 @@ parse_statement:
         imm   r1, 3
         call  match_literal
         jnz   r0, ps_let
+        imm   r0, kw_state
+        imm   r1, 5
+        call  match_literal
+        jnz   r0, ps_state
+        imm   r0, kw_to
+        imm   r1, 2
+        call  match_literal
+        jnz   r0, ps_to
         call  parse_identifier
         call  error_value
         jnz   r0, ps_done
         call  lookup_name
-        imm   r1, 524488
+        imm   r1, 524584
         store r1, r0
         call  error_value
         jnz   r0, ps_done
@@ -258,7 +295,7 @@ parse_statement:
         call  parse_expr
         call  error_value
         jnz   r0, ps_done
-        imm   r0, 524488
+        imm   r0, 524584
         load  r0, r0
         call  emit_store_slot
         ret
@@ -305,11 +342,148 @@ ps_return_stmt:
         imm   r0, out_epilogue
         imm   r1, 50
         call  emit_fixed
+        ret
+ps_state:
+        call  parse_identifier
+        call  error_value
+        jnz   r0, ps_done
+        imm   r0, 524312
+        load  r0, r0
+        jnz   r0, ps_state_select
+        call  add_state
+        jmp   ps_state_checked
+ps_state_select:
+        call  select_state
+ps_state_checked:
+        call  error_value
+        jnz   r0, ps_done
+ps_state_emit:
+        call  emit_state_label
+        imm   r0, 123
+        call  expect_char
+        call  error_value
+        jnz   r0, ps_done
+ps_state_body:
+        call  peek_token_char
+        imm   r1, 125
+        jeq   r0, r1, ps_state_done
+        call  parse_statement
+        call  error_value
+        jnz   r0, ps_done
+        jmp   ps_state_body
+ps_state_done:
+        imm   r0, 125
+        call  expect_char
+        ret
+ps_to:
+        call  parse_identifier
+        call  error_value
+        jnz   r0, ps_done
+        imm   r0, 524320
+        load  r1, r0
+        imm   r0, 524464
+        store r0, r1
+        imm   r0, 524328
+        load  r1, r0
+        imm   r0, 524472
+        store r0, r1
+        imm   r0, 524312
+        load  r0, r0
+        jnz   r0, ps_to_select
+        call  add_edge
+        jmp   ps_to_checked
+ps_to_select:
+        call  select_edge
+ps_to_checked:
+        call  error_value
+        jnz   r0, ps_done
+ps_to_guard:
+        imm   r0, kw_when
+        imm   r1, 4
+        call  match_literal
+        jnz   r0, ps_to_when
+        call  restore_tmp_name
+        call  emit_jump_target
+        ret
+ps_to_when:
+        call  parse_expr
+        call  error_value
+        jnz   r0, ps_done
+        call  restore_tmp_name
+        call  emit_guarded_target
 ps_done:
         ret
 
 ; ---------------- expression parser and Alpha lowering ----------------
 parse_expr:
+        call  parse_sum
+        call  error_value
+        jnz   r0, px_return
+        call  peek_token_char
+        imm   r1, 60
+        jeq   r0, r1, px_lt
+        imm   r1, 62
+        jeq   r0, r1, px_gt
+        imm   r1, 61
+        jeq   r0, r1, px_eq
+        imm   r1, 33
+        jeq   r0, r1, px_ne
+        ret
+px_lt:
+        call  consume_one
+        call  peek_raw_char
+        imm   r1, 61
+        jeq   r0, r1, px_le
+        imm   r6, 0
+        jmp   px_right
+px_le:
+        call  consume_one
+        imm   r6, 4
+        jmp   px_right
+px_gt:
+        call  consume_one
+        call  peek_raw_char
+        imm   r1, 61
+        jeq   r0, r1, px_ge
+        imm   r6, 1
+        jmp   px_right
+px_ge:
+        call  consume_one
+        imm   r6, 5
+        jmp   px_right
+px_eq:
+        call  consume_one
+        imm   r0, 61
+        call  expect_raw_char
+        call  error_value
+        jnz   r0, px_return
+        imm   r6, 2
+        jmp   px_right
+px_ne:
+        call  consume_one
+        imm   r0, 61
+        call  expect_raw_char
+        call  error_value
+        jnz   r0, px_return
+        imm   r6, 3
+px_right:
+        mov   r7, r6
+        imm   r0, 524392
+        load  r6, r0
+        imm   r0, 8
+        mul   r0, r6
+        imm   r1, 620000
+        add   r0, r1
+        store r0, r7
+        call  emit_push
+        call  parse_sum
+        call  error_value
+        jnz   r0, px_return
+        call  emit_comparison
+px_return:
+        ret
+
+parse_sum:
         call  parse_term
         call  error_value
         jnz   r0, pe_return
@@ -515,6 +689,215 @@ emit_store_slot:
         call  emit_unsigned
         imm   r0, out_store_slot_b
         imm   r1, 23
+        call  emit_fixed
+        ret
+
+restore_tmp_name:
+        imm   r0, 524464
+        load  r1, r0
+        imm   r0, 524320
+        store r0, r1
+        imm   r0, 524472
+        load  r1, r0
+        imm   r0, 524328
+        store r0, r1
+        ret
+
+; Emit `$S<procedure-index>$<NAME>`. `$` is impossible in a Beta identifier,
+; so scoped state labels cannot collide with any user-authored label.
+emit_scoped_ref:
+        imm   r0, out_state_prefix
+        imm   r1, 2
+        call  emit_fixed
+        imm   r0, 524448
+        load  r0, r0
+        call  emit_unsigned
+        imm   r0, out_scope_sep
+        imm   r1, 1
+        call  emit_fixed
+        imm   r0, 524320
+        load  r0, r0
+        imm   r1, 524328
+        load  r1, r1
+        call  emit_span
+        ret
+
+emit_state_label:
+        call  emit_scoped_ref
+        imm   r0, out_label_suffix
+        imm   r1, 2
+        call  emit_fixed
+        ret
+
+emit_jump_target:
+        imm   r0, out_jump
+        imm   r1, 4
+        call  emit_fixed
+        call  emit_scoped_ref
+        imm   r0, out_newline
+        imm   r1, 1
+        call  emit_fixed
+        ret
+
+emit_guarded_target:
+        imm   r0, 524536
+        load  r6, r0
+        imm   r0, 524544
+        store r0, r6
+        imm   r1, 1
+        add   r6, r1
+        imm   r0, 524536
+        store r0, r6
+        imm   r0, out_guard_false
+        imm   r1, 6
+        call  emit_fixed
+        imm   r0, 524544
+        load  r0, r0
+        call  emit_internal_ref
+        imm   r0, out_newline
+        imm   r1, 1
+        call  emit_fixed
+        call  emit_jump_target
+        imm   r0, 524544
+        load  r0, r0
+        call  emit_internal_ref
+        imm   r0, out_label_suffix
+        imm   r1, 2
+        call  emit_fixed
+        ret
+
+; Emit the reserved, Beta-unspellable Alpha label `$L<decimal>`.
+emit_internal_ref:
+        mov   r7, r0
+        imm   r0, out_internal_prefix
+        imm   r1, 2
+        call  emit_fixed
+        mov   r0, r7
+        call  emit_unsigned
+        ret
+
+emit_comparison:
+        imm   r0, out_cmp_pop
+        imm   r1, 33
+        call  emit_fixed
+        imm   r0, 524536
+        load  r6, r0
+        imm   r0, 524544
+        store r0, r6
+        imm   r1, 1
+        add   r6, r1
+        imm   r0, 524552
+        store r0, r6
+        add   r6, r1
+        imm   r0, 524536
+        store r0, r6
+        imm   r0, 524560
+        imm   r1, 0
+        store r0, r1
+        imm   r0, 524392
+        load  r6, r0
+        imm   r0, 8
+        mul   r0, r6
+        imm   r1, 620000
+        add   r0, r1
+        load  r6, r0
+        imm   r0, 0
+        jeq   r6, r0, ecmp_lt
+        imm   r0, 1
+        jeq   r6, r0, ecmp_gt
+        imm   r0, 2
+        jeq   r6, r0, ecmp_eq
+        imm   r0, 3
+        jeq   r6, r0, ecmp_ne
+        imm   r0, 4
+        jeq   r6, r0, ecmp_le
+        jmp   ecmp_ge
+ecmp_lt:
+        imm   r0, out_cmp_lt
+        imm   r1, 10
+        call  emit_fixed
+        jmp   ecmp_branch_done
+ecmp_gt:
+        imm   r0, out_cmp_gt
+        imm   r1, 10
+        call  emit_fixed
+        jmp   ecmp_branch_done
+ecmp_eq:
+        imm   r0, out_cmp_eq
+        imm   r1, 10
+        call  emit_fixed
+        jmp   ecmp_branch_done
+ecmp_ne:
+        imm   r0, 524560
+        imm   r1, 1
+        store r0, r1
+        imm   r0, out_cmp_eq
+        imm   r1, 10
+        call  emit_fixed
+        jmp   ecmp_branch_done
+ecmp_le:
+        imm   r0, 524560
+        imm   r1, 1
+        store r0, r1
+        imm   r0, out_cmp_gt
+        imm   r1, 10
+        call  emit_fixed
+        jmp   ecmp_branch_done
+ecmp_ge:
+        imm   r0, 524560
+        imm   r1, 1
+        store r0, r1
+        imm   r0, out_cmp_lt
+        imm   r1, 10
+        call  emit_fixed
+ecmp_branch_done:
+        imm   r0, 524544
+        load  r0, r0
+        call  emit_internal_ref
+        imm   r0, out_newline
+        imm   r1, 1
+        call  emit_fixed
+        imm   r0, 524560
+        load  r0, r0
+        jnz   r0, ecmp_inverted
+        imm   r0, out_false_jump
+        imm   r1, 13
+        call  emit_fixed
+        jmp   ecmp_fall_done
+ecmp_inverted:
+        imm   r0, out_true_jump
+        imm   r1, 13
+        call  emit_fixed
+ecmp_fall_done:
+        imm   r0, 524552
+        load  r0, r0
+        call  emit_internal_ref
+        imm   r0, out_newline
+        imm   r1, 1
+        call  emit_fixed
+        imm   r0, 524544
+        load  r0, r0
+        call  emit_internal_ref
+        imm   r0, out_label_suffix
+        imm   r1, 2
+        call  emit_fixed
+        imm   r0, 524560
+        load  r0, r0
+        jnz   r0, ecmp_hit_false
+        imm   r0, out_imm_true
+        imm   r1, 9
+        call  emit_fixed
+        jmp   ecmp_hit_done
+ecmp_hit_false:
+        imm   r0, out_imm_false
+        imm   r1, 9
+        call  emit_fixed
+ecmp_hit_done:
+        imm   r0, 524552
+        load  r0, r0
+        call  emit_internal_ref
+        imm   r0, out_label_suffix
+        imm   r1, 2
         call  emit_fixed
         ret
 
@@ -1065,12 +1448,26 @@ finish_call:
         add   r7, r1
         imm   r0, 524312
         load  r0, r0
-        jnz   r0, fc_emit_args
+        jnz   r0, fc_select
         mov   r0, r7
         call  add_call
+        jmp   fc_call_checked
+fc_select:
+        mov   r0, r7
+        call  select_call
+fc_call_checked:
         call  error_value
         jnz   r0, fc_return
 fc_emit_args:
+        imm   r0, 524392
+        load  r6, r0
+        imm   r1, 1
+        sub   r6, r1
+        imm   r0, 24
+        mul   r0, r6
+        imm   r1, 610000
+        mov   r7, r0
+        add   r7, r1
         imm   r0, 16
         add   r0, r7
         load  r6, r0
@@ -1150,6 +1547,269 @@ add_call:
         ret
 ac_error:
         call  set_error
+        ret
+
+add_state:
+        call  name_is_reserved
+        jnz   r0, ast_error
+        imm   r0, 524592
+        load  r6, r0
+        imm   r1, 64
+        jeq   r6, r1, ast_error
+        imm   r0, 524568
+        load  r7, r0
+        imm   r1, 512
+        jeq   r7, r1, ast_error
+        imm   r0, 524496
+        imm   r1, 0
+        store r0, r1
+ast_scan:
+        imm   r0, 524496
+        load  r6, r0
+        jlt   r6, r7, ast_compare
+        jmp   ast_add
+ast_compare:
+        imm   r0, 24
+        mul   r0, r6
+        imm   r1, 630000
+        add   r0, r1
+        mov   r5, r0
+        imm   r1, 16
+        add   r0, r1
+        load  r1, r0
+        imm   r0, 524448
+        load  r2, r0
+        jeq   r1, r2, ast_compare_name
+        jmp   ast_next
+ast_compare_name:
+        mov   r0, r5
+        call  name_equals_record
+        jnz   r0, ast_error
+ast_next:
+        imm   r0, 524496
+        load  r6, r0
+        imm   r1, 1
+        add   r6, r1
+        store r0, r6
+        jmp   ast_scan
+ast_add:
+        imm   r0, 24
+        mul   r0, r7
+        imm   r1, 630000
+        add   r0, r1
+        imm   r1, 524320
+        load  r2, r1
+        store r0, r2
+        imm   r1, 8
+        add   r0, r1
+        imm   r1, 524328
+        load  r2, r1
+        store r0, r2
+        imm   r1, 8
+        add   r0, r1
+        imm   r1, 524448
+        load  r2, r1
+        store r0, r2
+        imm   r0, 524568
+        imm   r1, 1
+        add   r7, r1
+        store r0, r7
+        imm   r0, 524592
+        load  r6, r0
+        add   r6, r1
+        store r0, r6
+        ret
+ast_error:
+        call  set_error
+        ret
+
+add_edge:
+        call  name_is_reserved
+        jnz   r0, ae_error
+        imm   r0, 524600
+        load  r7, r0
+        imm   r1, 64
+        jeq   r7, r1, ae_error
+        imm   r0, 524576
+        load  r6, r0
+        imm   r1, 512
+        jeq   r6, r1, ae_error
+        imm   r0, 24
+        mul   r0, r6
+        imm   r1, 680000
+        add   r0, r1
+        imm   r1, 524320
+        load  r2, r1
+        store r0, r2
+        imm   r1, 8
+        add   r0, r1
+        imm   r1, 524328
+        load  r2, r1
+        store r0, r2
+        imm   r1, 8
+        add   r0, r1
+        imm   r1, 524448
+        load  r2, r1
+        store r0, r2
+        imm   r0, 524576
+        imm   r1, 1
+        add   r6, r1
+        store r0, r6
+        imm   r0, 524600
+        load  r7, r0
+        add   r7, r1
+        store r0, r7
+        ret
+ae_error:
+        call  set_error
+        ret
+
+select_state:
+        imm   r0, 524608
+        load  r6, r0
+        imm   r0, 524568
+        load  r7, r0
+        jlt   r6, r7, sst_have
+        jmp   sst_error
+sst_have:
+        imm   r0, 24
+        mul   r0, r6
+        imm   r1, 630000
+        add   r0, r1
+        mov   r5, r0
+        imm   r1, 16
+        add   r0, r1
+        load  r1, r0
+        imm   r0, 524448
+        load  r2, r0
+        jeq   r1, r2, sst_name
+        jmp   sst_error
+sst_name:
+        mov   r0, r5
+        call  name_equals_record
+        jz    r0, sst_error
+        imm   r0, 524608
+        load  r6, r0
+        imm   r1, 1
+        add   r6, r1
+        store r0, r6
+        ret
+sst_error:
+        call  set_error
+        ret
+
+select_edge:
+        imm   r0, 524616
+        load  r6, r0
+        imm   r0, 524576
+        load  r7, r0
+        jlt   r6, r7, sed_have
+        jmp   sed_error
+sed_have:
+        imm   r0, 24
+        mul   r0, r6
+        imm   r1, 680000
+        add   r0, r1
+        mov   r5, r0
+        imm   r1, 16
+        add   r0, r1
+        load  r1, r0
+        imm   r0, 524448
+        load  r2, r0
+        jeq   r1, r2, sed_name
+        jmp   sed_error
+sed_name:
+        mov   r0, r5
+        call  name_equals_record
+        jz    r0, sed_error
+        imm   r0, 524616
+        load  r6, r0
+        imm   r1, 1
+        add   r6, r1
+        store r0, r6
+        ret
+sed_error:
+        call  set_error
+        ret
+
+; Input r0 points at the active NAME_STACK record.
+select_call:
+        mov   r5, r0
+        load  r1, r5
+        imm   r0, 524320
+        store r0, r1
+        imm   r0, 8
+        add   r0, r5
+        load  r1, r0
+        imm   r0, 524328
+        store r0, r1
+        imm   r0, 16
+        add   r0, r5
+        load  r1, r0
+        imm   r0, 524456
+        store r0, r1
+        imm   r0, 524624
+        load  r6, r0
+        imm   r0, 524416
+        load  r7, r0
+        jlt   r6, r7, scl_have
+        jmp   scl_error
+scl_have:
+        imm   r0, 24
+        mul   r0, r6
+        imm   r1, 550000
+        add   r0, r1
+        mov   r5, r0
+        call  name_equals_record
+        jz    r0, scl_error
+        imm   r0, 16
+        add   r0, r5
+        load  r1, r0
+        imm   r0, 524456
+        load  r2, r0
+        jeq   r1, r2, scl_ok
+        jmp   scl_error
+scl_ok:
+        imm   r0, 524624
+        load  r6, r0
+        imm   r1, 1
+        add   r6, r1
+        store r0, r6
+        ret
+scl_error:
+        call  set_error
+        ret
+
+check_publication_tables:
+        imm   r0, 524480
+        load  r1, r0
+        imm   r0, 524408
+        load  r2, r0
+        jeq   r1, r2, cpt_calls
+        jmp   cpt_error
+cpt_calls:
+        imm   r0, 524624
+        load  r1, r0
+        imm   r0, 524416
+        load  r2, r0
+        jeq   r1, r2, cpt_states
+        jmp   cpt_error
+cpt_states:
+        imm   r0, 524608
+        load  r1, r0
+        imm   r0, 524568
+        load  r2, r0
+        jeq   r1, r2, cpt_edges
+        jmp   cpt_error
+cpt_edges:
+        imm   r0, 524616
+        load  r1, r0
+        imm   r0, 524576
+        load  r2, r0
+        jeq   r1, r2, cpt_done
+cpt_error:
+        call  set_error
+cpt_done:
         ret
 
 name_is_reserved:
@@ -1260,7 +1920,7 @@ vp_call_loop:
         imm   r0, 524416
         load  r7, r0
         jlt   r6, r7, vp_call_check
-        ret
+        jmp   ve_begin
 vp_call_check:
         imm   r0, 24
         mul   r0, r6
@@ -1319,6 +1979,77 @@ vp_call_valid:
         add   r6, r1
         store r0, r6
         jmp   vp_call_loop
+ve_begin:
+        imm   r0, 524496
+        imm   r1, 0
+        store r0, r1
+ve_loop:
+        imm   r0, 524496
+        load  r6, r0
+        imm   r0, 524576
+        load  r7, r0
+        jlt   r6, r7, ve_check
+        ret
+ve_check:
+        imm   r0, 24
+        mul   r0, r6
+        imm   r1, 680000
+        mov   r5, r0
+        add   r5, r1
+        load  r1, r5
+        imm   r0, 524320
+        store r0, r1
+        imm   r0, 8
+        add   r0, r5
+        load  r1, r0
+        imm   r0, 524328
+        store r0, r1
+        imm   r0, 16
+        add   r0, r5
+        load  r1, r0
+        imm   r0, 524456
+        store r0, r1
+        imm   r0, 524488
+        imm   r1, 0
+        store r0, r1
+ve_state_loop:
+        imm   r0, 524488
+        load  r6, r0
+        imm   r0, 524568
+        load  r7, r0
+        jlt   r6, r7, ve_state_check
+        jmp   vp_error
+ve_state_check:
+        imm   r0, 24
+        mul   r0, r6
+        imm   r1, 630000
+        add   r0, r1
+        mov   r5, r0
+        imm   r1, 16
+        add   r0, r1
+        load  r1, r0
+        imm   r0, 524456
+        load  r2, r0
+        jeq   r1, r2, ve_state_name
+        jmp   ve_state_next
+ve_state_name:
+        mov   r0, r5
+        call  name_equals_record
+        jnz   r0, ve_valid
+ve_state_next:
+        imm   r0, 524488
+        load  r6, r0
+        imm   r1, 1
+        add   r6, r1
+        store r0, r6
+        jmp   ve_state_loop
+ve_valid:
+        imm   r0, 524496
+        load  r6, r0
+        imm   r1, 1
+        add   r6, r1
+        store r0, r6
+        jmp   ve_loop
 vp_error:
         call  set_error
         ret
@@ -1584,9 +2315,25 @@ st_done:
 
 peek_token_char:
         call  skip_trivia
+peek_raw_char:
         imm   r0, 524296
         load  r0, r0
         call  source_char_at_or_eof
+        ret
+
+; Input r0=required adjacent byte. Unlike expect_char, do not consume trivia.
+expect_raw_char:
+        imm   r1, 524360
+        store r1, r0
+        call  peek_raw_char
+        mov   r2, r0
+        imm   r1, 524360
+        load  r1, r1
+        jeq   r2, r1, erc_ok
+        call  set_error
+        ret
+erc_ok:
+        call  consume_one
         ret
 
 consume_one:
@@ -1857,3 +2604,31 @@ out_call:
         db "call "
 out_newline:
         db "\n"
+out_internal_prefix:
+        db "$L"
+out_state_prefix:
+        db "$S"
+out_scope_sep:
+        db "$"
+out_label_suffix:
+        db ":\n"
+out_jump:
+        db "jmp "
+out_guard_false:
+        db "jz r0,"
+out_cmp_pop:
+        db "\nload r1,r15\nimm r2,8\nadd r15,r2\n"
+out_cmp_lt:
+        db "jlt r1,r0,"
+out_cmp_gt:
+        db "jlt r0,r1,"
+out_cmp_eq:
+        db "jeq r1,r0,"
+out_false_jump:
+        db "imm r0,0\njmp "
+out_true_jump:
+        db "imm r0,1\njmp "
+out_imm_false:
+        db "imm r0,0\n"
+out_imm_true:
+        db "imm r0,1\n"

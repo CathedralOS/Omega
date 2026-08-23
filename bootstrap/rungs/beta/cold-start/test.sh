@@ -1,5 +1,5 @@
 #!/usr/bin/env sh
-# Focused gate for the first two Alpha-written Beta compiler slices.
+# Focused gate for the first three Alpha-written Beta compiler slices.
 set -eu
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
@@ -36,7 +36,7 @@ accept() {
     printf '%s\n' "$source" | "$TMP/bc-alpha" > /dev/null
     status=$?
     set -e
-    echo "FAIL $name: compiler rejected valid Slices-A-B source (status $status)" >&2
+    echo "FAIL $name: compiler rejected valid Slices-A-C source (status $status)" >&2
     fail=$((fail + 1))
     return
   fi
@@ -89,6 +89,37 @@ accept assignment 'proc main() { let x = 10 x = x + 32 return x }' 42
 accept forward_call 'proc main() { return double(21) } proc double(x) { return x + x }' 42
 accept nested_calls 'proc main() { return add(mul(2, 3), 4) } proc add(a, b) { return a + b } proc mul(a, b) { return a * b }' 10
 accept four_parameters 'proc sum(a, b, c, d) { let x = c * 10 + d return a + b + x } proc main() { return sum(1, 2, 3, 9) }' 42
+accept less_true 'proc main() { return 1 < 2 }' 1
+accept less_false 'proc main() { return 2 < 1 }' 0
+accept greater_true 'proc main() { return 2 > 1 }' 1
+accept greater_false 'proc main() { return 2 > 2 }' 0
+accept equal_true 'proc main() { return 2 == 2 }' 1
+accept equal_false 'proc main() { return 2 == 3 }' 0
+accept not_equal_true 'proc main() { return 2 != 3 }' 1
+accept not_equal_false 'proc main() { return 2 != 2 }' 0
+accept less_equal_true 'proc main() { return 2 <= 2 }' 1
+accept less_equal_false 'proc main() { return 3 <= 2 }' 0
+accept greater_equal_true 'proc main() { return 3 >= 2 }' 1
+accept greater_equal_false 'proc main() { return 2 >= 3 }' 0
+accept signed_comparison 'proc main() { return (0 - 1) < 0 }' 1
+accept comparison_precedence 'proc main() { return 1 + 2 * 3 == 7 }' 1
+accept nested_comparison 'proc main() { return 1 < (2 == 2) }' 0
+accept nested_comparison_left 'proc main() { return (1 < 2) == 1 }' 1
+accept state_jump 'proc main() { state start { to done } state done { return 42 } }' 42
+accept guarded_true 'proc main() { let a = 5 state start { to yes when a < 10 return 0 } state yes { return 42 } }' 42
+accept guarded_grouped 'proc main() { let a = 5 state start { to yes when (a < 10) return 0 } state yes { return 42 } }' 42
+accept guarded_false 'proc main() { let a = 15 state start { to yes when a < 10 return 7 } state yes { return 42 } }' 7
+accept state_loop 'proc main() { let n = 10 let s = 0 let i = 1 state loop { to body when i <= n return s } state body { s = s + i i = i + 1 to loop } }' 55
+accept scoped_states 'proc main() { return f() } proc f() { state same { return 42 } } proc g() { state same { return 1 } }' 42
+accept shared_state_spelling 'proc main() { let shared = 1 state shared { return 42 } }' 42
+accept adversarial_labels 'proc main() { state main { return _L0() } } proc _L0() { state foo__bar { return 42 } } proc foo__bar() { return 0 }' 42
+
+if cmp -s "$TMP/guarded_true.alpha" "$TMP/guarded_grouped.alpha"; then
+  pass=$((pass + 1))
+else
+  echo "FAIL guard_parentheses: optional grouping changed emitted Alpha" >&2
+  fail=$((fail + 1))
+fi
 
 printf '%s' 'imm r15,1048576
 imm r14,1048576
@@ -134,6 +165,14 @@ reject unknown_call 'proc main() { return nope() }'
 reject arity_mismatch 'proc main() { return f(1) } proc f(a, b) { return a + b }'
 reject five_parameters 'proc main() { return 0 } proc f(a, b, c, d, e) { return a }'
 reject five_arguments 'proc main() { return f(1, 2, 3, 4, 5) } proc f(a, b, c, d) { return a }'
+reject single_equal_expression 'proc main() { return 1 = 1 }'
+reject single_bang_expression 'proc main() { return 1 ! 2 }'
+reject chained_comparison 'proc main() { return 1 < 2 < 3 }'
+reject split_less_equal 'proc main() { return 1 < = 2 }'
+reject unknown_state 'proc main() { to nowhere return 0 }'
+reject duplicate_state 'proc main() { state x { return 1 } state x { return 2 } }'
+reject cross_proc_state 'proc main() { to x return 0 } proc f() { state x { return 1 } }'
+reject reserved_state 'proc main() { state state { return 0 } }'
 reject decimal_extent 'proc main() { return 1234567890 }'
 reject bad_character "proc main() { return '\\x' }"
 long_ident=$(awk 'BEGIN { for (i = 0; i < 65; i++) printf "a" }')
@@ -154,6 +193,22 @@ many_calls=$(awk 'BEGIN { printf "proc main() { return zero()"; for (i = 1; i < 
 reject call_extent "$many_calls"
 many_procs=$(awk 'BEGIN { print "proc main() { return 0 }"; for (i = 0; i < 128; i++) printf "proc p%d() { return %d }\n", i, i }')
 reject procedure_extent "$many_procs"
+states_64=$(awk 'BEGIN { printf "proc main() {"; for (i = 0; i < 64; i++) printf " state s%d { }", i; print " return 0 }" }')
+accept state_proc_limit "$states_64" 0
+states_65=$(awk 'BEGIN { printf "proc main() {"; for (i = 0; i < 65; i++) printf " state s%d { }", i; print " return 0 }" }')
+reject state_proc_extent "$states_65"
+states_512=$(awk 'BEGIN { for (p = 0; p < 8; p++) { if (p == 0) printf "proc main() {"; else printf "proc p%d() {", p; for (i = 0; i < 64; i++) printf " state s%d { }", i; print " return 0 }" } }')
+accept state_global_limit "$states_512" 0
+states_513="$states_512 proc extra() { state overflow { return 0 } }"
+reject state_global_extent "$states_513"
+edges_64=$(awk 'BEGIN { printf "proc main() {"; for (i = 0; i < 64; i++) printf " to done"; print " state done { return 0 } }" }')
+accept edge_proc_limit "$edges_64" 0
+edges_65=$(awk 'BEGIN { printf "proc main() {"; for (i = 0; i < 65; i++) printf " to done"; print " state done { return 0 } }" }')
+reject edge_proc_extent "$edges_65"
+edges_512=$(awk 'BEGIN { for (p = 0; p < 8; p++) { if (p == 0) printf "proc main() {"; else printf "proc p%d() {", p; for (i = 0; i < 64; i++) printf " to done"; print " state done { return 0 } }" } }')
+accept edge_global_limit "$edges_512" 0
+edges_513="$edges_512 proc extra_edges() { to done state done { return 0 } }"
+reject edge_global_extent "$edges_513"
 
 # Pin the compiler-owned source extent: exactly 1 MiB is accepted, while the
 # next byte is observed before any table write or output publication.
@@ -181,5 +236,5 @@ else
   fail=$((fail + 1))
 fi
 
-echo "bc Alpha cold start Slices A-B: $pass passed, $fail failed ($(wc -c < "$TMP/bc-alpha.tape" | tr -d ' ')-byte compiler tape)"
+echo "bc Alpha cold start Slices A-C: $pass passed, $fail failed ($(wc -c < "$TMP/bc-alpha.tape" | tr -d ' ')-byte compiler tape)"
 [ "$fail" -eq 0 ]
