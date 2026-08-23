@@ -24,6 +24,7 @@ trap 'rm -rf "$T"' EXIT
 . "$GATE_DIR/bc-parse-parameter-teeth.sh"
 . "$GATE_DIR/bc-parse-capacity-teeth.sh"
 . "$GATE_DIR/bc-emit-ident-teeth.sh"
+. "$GATE_DIR/bc-emit-dec-teeth.sh"
 
 # The persisted compiler supplies only a location hint.  Require its Alpha text
 # to assemble to the exact committed artifact before deriving that hint.
@@ -243,7 +244,9 @@ cat "$GATE_DIR/bc-block-control.alpha" \
   "$GATE_DIR/bc-parse-parameter-summary.alpha" \
   "$GATE_DIR/bc-parse-capacity-summary.alpha" \
   "$GATE_DIR/bc-emit-ident-shape.alpha" \
-  "$GATE_DIR/bc-emit-ident-summary.alpha" > "$T/control-check.alpha"
+  "$GATE_DIR/bc-emit-ident-summary.alpha" \
+  "$GATE_DIR/bc-emit-dec-shape.alpha" \
+  "$GATE_DIR/bc-emit-dec-summary.alpha" > "$T/control-check.alpha"
 "$ASM" < "$T/control-check.alpha" > "$T/control-check.tape"
 stamp_seed "$T/control-check.tape" "$SEED" "$T/control-check" >/dev/null
 
@@ -841,6 +844,7 @@ count_lets_build_teeth
 parse_parameter_build_teeth
 parse_capacity_build_teeth
 emit_ident_build_teeth
+emit_dec_build_teeth
 
 # Phase-isolated tooth: leave the exact source, tape, witness, and every prior
 # checker phase unchanged, but underreport the prelude fp owner. Adjust only the
@@ -959,7 +963,9 @@ cat "$GATE_DIR/bc-block-control.alpha" \
   "$GATE_DIR/bc-parse-parameter-summary.alpha" \
   "$GATE_DIR/bc-parse-capacity-summary.alpha" \
   "$GATE_DIR/bc-emit-ident-shape.alpha" \
-  "$GATE_DIR/bc-emit-ident-summary.alpha" > "$T/flat-check.alpha"
+  "$GATE_DIR/bc-emit-ident-summary.alpha" \
+  "$GATE_DIR/bc-emit-dec-shape.alpha" \
+  "$GATE_DIR/bc-emit-dec-summary.alpha" > "$T/flat-check.alpha"
 "$ASM" < "$T/flat-check.alpha" > "$T/flat-check.tape"
 stamp_seed "$T/flat-check.tape" "$SEED" "$T/flat-check" >/dev/null
 
@@ -1192,6 +1198,7 @@ count_lets_reject_teeth
 parse_parameter_reject_teeth
 parse_capacity_reject_teeth
 emit_ident_reject_teeth
+emit_dec_reject_teeth
 coherent_ranged_mutant slurp-cap
 coherent_ranged_mutant declare-cap
 coherent_ranged_mutant nloc-step

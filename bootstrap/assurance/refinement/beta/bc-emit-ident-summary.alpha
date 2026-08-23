@@ -20,7 +20,7 @@
 emit_ident_summary_init:
         call emit_ident_require_shape
         call emit_ident_prove_summary
-        jmp scan_owned_effects_init
+        jmp emit_dec_summary_init
 
 emit_ident_prove_summary:
         imm r1, 528192

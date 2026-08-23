@@ -647,6 +647,29 @@ Seventeen isolated canaries cover exact artifact joins, direct-write count,
 slice/guard premises, byte and trace extension, rank/backedge renaming, and the
 terminal result. Shape, meaning, and teeth remain separate files below 9 KB.
 
+`bc-emit-dec-shape.alpha` and `bc-emit-dec-summary.alpha` close the bounded
+decimal-output leaf used by procedure prologues and parameter stores. The exact
+shape binds procedure 40's four blocks, `n>=10` split, sole recursive call and
+argument, post-child continuation, direct digit write, explicit/synthetic
+returns, 16-byte frame, locals, division/remainder/addition, pushes, and full
+effect/expression/decoded censuses. The decoded scan requires exactly one call,
+one write, two returns, one division, one remainder, and seven target stores.
+Conditional `DECS` is deliberately limited to `0<=n<=8192`: the checker
+executes all 8,193 inputs and validates `q=n/10`, `r=n%10`,
+`n=10*q+r`, digit byte `48+r`, and the decimal-phase decrease. A four-phase
+induction selects the base/recursive guard outcomes, passes exact q through the
+checked argument push, consumes the immediately preceding child phase, and
+requires child output before the current digit. Thus it appends canonical
+decimal bytes without a leading zero, returns zero, restores the caller, and
+preserves compiler state apart from output. Twenty-three isolated canaries live
+in a 6.7 KB harness; shape and meaning remain 9.9 KB and 11.9 KB. Seven
+induction-only canaries seed the separately tested arithmetic certificate rather
+than replaying all 8,193 rows; canonical and arithmetic variants retain the
+real sweep. Independent shape/meaning review was clean, and the complete gate
+passes with a 198,975-byte checker tape. BCT9's conservative full-word resource
+ceiling is reused only for global stack safety, not misrepresented as decimal
+value semantics.
+
 The eventual `parse_proc` theorem must be maximal, not universally terminating.
 For malformed input, an unrecognized body byte such as `@` can survive both
 `gen_stmt` and the number fallback without cursor progress while `gen_stmts`

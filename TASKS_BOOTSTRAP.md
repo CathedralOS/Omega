@@ -983,9 +983,20 @@ additional facilities the bootstrap actually needs.
             on the byte-writing backedge. Seventeen isolated canaries pin the
             artifact joins, direct-write census, slice premise, guard split,
             exact byte/trace extension, successor/rank renaming, and stop.
-          - [ ] Prove `emit_dec(n)` appends canonical ASCII decimal bytes for
-            the bounded values used by the prefix (through 8192), using its
-            checked `/10` recursion and at-most-19-digit rank.
+          - [x] Prove `emit_dec(n)` appends canonical ASCII decimal bytes for
+            every bounded prefix value `0<=n<=8192`. Exact procedure-40 shape
+            binds its four blocks, `n>=10` split, recursive call/argument and
+            continuation, direct digit write, returns, frame, arithmetic,
+            pushes, and exhaustive rows. The separate `DECS` meaning executes
+            all 8,193 quotient/remainder cases, checking reconstruction,
+            digit encoding, and the one-phase decrease, then composes a
+            four-phase child-before-digit output induction. It returns zero,
+            restores the caller, preserves compiler state apart from output,
+            and needs at most four activations in this domain. Twenty-three
+            isolated canaries cover exact shape, the complete arithmetic
+            sweep, guard/rank split, recursive value/continuation/order, and
+            terminal frame. No full signed-word claim is inferred from BCT9's
+            older conservative 19-activation resource bound.
           - [ ] Compose fixed strings with `emit_dec` for exact
             `emit_proc_prologue(nslots)` and `emit_param_store(k)` summaries.
           - [ ] Bridge PCAP's saved name/parameter/slot values into blocks
