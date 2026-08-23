@@ -752,10 +752,12 @@ proc cmp_op() {
     state eq { to do_eq when (c == '=')  return 0 - 1 }
     state do_eq {
         let i = word[2097144]
-        to eq_eq when (byte[2097152 + i + 1] == '=')
+        adv()
+        to eq_eq when (cbyte() == '=')
+        word[2097144] = i
         return 0 - 1
     }
-    state eq_eq { adv()  adv()  return 2 }
+    state eq_eq { adv()  return 2 }
 }
 
 ; r0 = right operand; pop left into r0 (right into r1), branch-materialize 0/1.

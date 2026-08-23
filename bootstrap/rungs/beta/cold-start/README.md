@@ -66,8 +66,8 @@ refinement remains a separate assurance task.
 ## Full-source target profile
 
 The target is pinned to the current `bc.beta` source, SHA-256
-`8beb76feda2783e6597998e5e7b41889c049faa2f604e627aead0f9d2b0cdbc8`:
-32,045 bytes, 5,809 tokens, 70 procedures, at most two parameters or call
+`f844d33e29814f1280bbeee2bf599db2bded2fb9469a7f1bfc870fac522c326d`:
+32,064 bytes, 5,810 tokens, 70 procedures, at most two parameters or call
 arguments, five frame slots, seventeen states and twenty-four transitions per
 procedure, expression depth five, and identifier length eighteen. Across the
 source it has 285 states, 291 transitions, and 180 comparison nodes. It uses

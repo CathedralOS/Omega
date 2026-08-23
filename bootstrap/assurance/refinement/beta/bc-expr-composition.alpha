@@ -42,10 +42,10 @@ composition_scan_init:
         imm r1, 524864
         store r1, r0                    ; next binary push (full index)
         imm r1, 524872
-        imm r2, 237
+        imm r2, 235
         store r1, r2                    ; next argument push (full index)
         imm r1, 524880
-        imm r2, 371
+        imm r2, 369
         store r1, r2                    ; next store-address push (full index)
         imm r1, 524888
         store r1, r0                    ; current expression end pc
@@ -684,7 +684,7 @@ composition_call_reserve_args:
         load r23, r1                    ; category base/full index
         mov r2, r23
         add r2, r22
-        imm r3, 371
+        imm r3, 369
         jlt r3, r2, reject
         store r1, r2
 composition_call_record:
@@ -797,7 +797,7 @@ composition_compose_event_two:
 composition_take_primitive:
         imm r1, 524824
         load r0, r1
-        imm r2, 819
+        imm r2, 816
         jlt r0, r2, composition_take_primitive_row
         jmp reject
 composition_take_primitive_row:
@@ -818,7 +818,7 @@ composition_take_primitive_value:
 composition_take_primitive_kind:
         imm r1, 524824
         load r0, r1
-        imm r2, 819
+        imm r2, 816
         jlt r0, r2, composition_take_primitive_kind_row
         jmp reject
 composition_take_primitive_kind_row:
@@ -908,7 +908,7 @@ composition_take_memory_block:
 composition_take_event:
         imm r1, 524848
         load r0, r1
-        imm r2, 612
+        imm r2, 613
         jlt r0, r2, composition_take_event_row
         jmp reject
 composition_take_event_row:
@@ -984,7 +984,7 @@ composition_take_store_push:
 composition_take_push_counter:
         mov r5, r1                     ; preserve selected category counter
         load r0, r1
-        imm r2, 404
+        imm r2, 403
         jlt r0, r2, composition_take_push_row
         jmp reject
 composition_take_push_row:
@@ -1304,10 +1304,10 @@ composition_decimal_advance:
         jmp composition_decimal_loop
 
 ; Classify the exact source address of store site r20 without consuming it for
-; the ordinary expression composer.  Exact bc.beta has 30 fixed compiler-global
+; the ordinary expression composer.  Exact bc.beta has 31 fixed compiler-global
 ; word stores and three guarded ranged stores: the source byte capture plus the
 ; paired local-name tables.  The latter spellings are pinned here; their
-; induction/guard schemas are checked by the following BCT10 phase.
+; induction/guard schemas remain a blockwise abstract-interpretation obligation.
 composition_validate_store_address:
         imm r1, 524304
         load r2, r1
@@ -1500,7 +1500,7 @@ composition_count_blocks:
 composition_count_primitives:
         imm r1, 524824
         load r2, r1
-        imm r3, 819
+        imm r3, 816
         jeq r2, r3, composition_count_accesses
         jmp reject
 composition_count_accesses:
@@ -1518,7 +1518,7 @@ composition_count_memory:
 composition_count_events:
         imm r1, 524848
         load r2, r1
-        imm r3, 612
+        imm r3, 613
         jeq r2, r3, composition_count_transitions
         jmp reject
 composition_count_transitions:
@@ -1530,19 +1530,19 @@ composition_count_transitions:
 composition_count_binary_pushes:
         imm r1, 524864
         load r2, r1
-        imm r3, 237
+        imm r3, 235
         jeq r2, r3, composition_count_argument_pushes
         jmp reject
 composition_count_argument_pushes:
         imm r1, 524872
         load r2, r1
-        imm r3, 371
+        imm r3, 369
         jeq r2, r3, composition_count_store_pushes
         jmp reject
 composition_count_store_pushes:
         imm r1, 524880
         load r2, r1
-        imm r3, 404
+        imm r3, 403
         jeq r2, r3, composition_count_save_stack
         jmp reject
 composition_count_save_stack:
@@ -1560,7 +1560,7 @@ composition_count_peak:
 composition_count_fixed_stores:
         imm r1, 525080
         load r2, r1
-        imm r3, 30
+        imm r3, 31
         jeq r2, r3, composition_count_ranged_stores
         jmp reject
 composition_count_ranged_stores:

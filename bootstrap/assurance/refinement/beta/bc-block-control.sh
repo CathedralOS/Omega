@@ -211,7 +211,7 @@ stamp_seed "$T/control-check.tape" "$SEED" "$T/control-check" >/dev/null
 # derived-map subtotal so rejection must come from the exhaustive equality scan.
 sed \
   -e '/imm r0, 10/{n;s/call stack_owner_mark/call stack_owner_skip_mark/;}' \
-  -e '/stack_owner_count:/,/stack_scan_init/{s/imm r3, 2634/imm r3, 2633/;}' \
+  -e '/stack_owner_count:/,/stack_scan_init/{s/imm r3, 2630/imm r3, 2629/;}' \
   "$T/control-check.alpha" > "$T/stack-missing-owner.alpha"
 "$ASM" < "$T/stack-missing-owner.alpha" > "$T/stack-missing-owner.tape"
 stamp_seed "$T/stack-missing-owner.tape" "$SEED" "$T/stack-missing-owner" >/dev/null
@@ -361,4 +361,4 @@ for mutation in call-retarget read-register write-register helper-write emit-byt
   fi
 done
 
-echo "bc block control/effects: 70 proc / 355 block / 291 transition; 612 effect sites / 829 fixed emit bytes; 78 frame slots / 27 parameter stores / 134 call pops; 169 local loads / 73 local stores; 62 raw loads / 33 raw stores; 582 literals / 57 arithmetic / 180 comparison primitives; 237 binary / 134 argument / 33 store-address pushes; syntax-directed composition / relative temporary peak 2; source-derived call bound <=12720 explicit bytes / <=662 hidden returns; all 2634 explicit-stack effects and 686 artifact effects owned ($(wc -c < "$T/control-check.tape" | tr -d ' ')-byte Alpha checker tape)"
+echo "bc block control/effects: 70 proc / 355 block / 291 transition; 613 effect sites / 829 fixed emit bytes; 78 frame slots / 27 parameter stores / 134 call pops; 169 local loads / 73 local stores; 61 raw loads / 34 raw stores; 581 literals / 55 arithmetic / 180 comparison primitives; 235 binary / 134 argument / 34 store-address pushes; syntax-directed composition / relative temporary peak 2; source-derived call bound <=12720 explicit bytes / <=662 hidden returns; all 2630 explicit-stack effects and 687 artifact effects owned ($(wc -c < "$T/control-check.tape" | tr -d ' ')-byte Alpha checker tape)"

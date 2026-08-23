@@ -432,9 +432,9 @@ additional facilities the bootstrap actually needs.
       capacity boundaries.
     - [x] Complete Slice D with nested byte/word memory, call statements,
       `read_byte`/`write_byte`, and decoded fixed-string `emit`. The Alpha-written
-      compiler now accepts all 32,045 pinned source bytes and emits valid Alpha.
+      compiler now accepts all 32,064 pinned source bytes and emits valid Alpha.
   - [x] Adopt the resulting lattice-built `bc` artifact throughout the bootstrap.
-    - [x] Persist the 51,647-byte platform-independent fixed-point `bc.tape` and
+    - [x] Persist the 51,602-byte platform-independent fixed-point `bc.tape` and
       gate byte-for-byte reconstruction, another self-build generation, and the
       complete retained Beta corpus through it. No Rust producer is in its
       construction lineage.
@@ -470,10 +470,10 @@ additional facilities the bootstrap actually needs.
       Expression/data effects, dynamic calls/returns, output traces, terminal
       classes, and cyclic progress remain open.
     - [x] Bind every source effect site to the exact artifact below `bc`. The
-      same Alpha process now owns 309 ordinary calls, two `read_byte` sites, five
+      same Alpha process now owns 310 ordinary calls, two `read_byte` sites, five
       `write_byte` sites, 113 fixed-string emits carrying 829 decoded bytes, and
       183 explicit returns. Exact prelude/helper/fallthrough accounting gives
-      one owner to all 423 artifact calls, two reads, six writes, 254 returns,
+      one owner to all 424 artifact calls, two reads, six writes, 254 returns,
       and the sole halt. Emit sites check jump-skipped bytes, pointer, length,
       helper target, and the exact helper loop. Valid-entry call retargets,
       I/O register/opcode changes, helper mutations, unreachable literal edits,
@@ -485,7 +485,7 @@ additional facilities the bootstrap actually needs.
       separate Alpha module in the same checker process derives 27 parameters
       and 51 function-scoped `let`s, then validates all 70 base prologues, 47
       nonempty allocations covering 78 slots, and 27 ordered parameter stores.
-      All 309 ordinary calls match their source callee arity and pop 134 staged
+      All 310 ordinary calls match their source callee arity and pop 134 staged
       arguments into `r0..r1` in exact reverse-stack order. Structurally valid
       frame-size, fp-register, parameter-offset/register, pop-order, and
       pop-step mutations reject. This proves static allocation and handoff
@@ -503,15 +503,15 @@ additional facilities the bootstrap actually needs.
       aliasing remain open.
     - [x] Bind every raw memory operation to its source width and artifact site.
       The same Alpha process classifies matching source brackets and checks 56
-      word loads, six byte loads, 32 word stores, and one byte store against
+      word loads, five byte loads, 33 word stores, and one byte store against
       exact opcodes/registers; each store additionally owns its immediate
       address-pop macro. Width/register/pop-step mutations and malformed BCT8
       locations reject while retaining valid instruction framing. Address and
       value correspondence, aliasing, alignment, and the 64 MiB bounds proof
       remain open.
     - [x] Classify every raw-store source address into the compiler's exact
-      address families. The BC10 grammar-composition phase independently pins
-      30 aligned fixed-global word addresses in `[2097064, 2097145)`, the sole
+      address families. The BC11 grammar-composition phase independently pins
+      31 aligned fixed-global word addresses in `[2097064, 2097145)`, the sole
       source-byte store spelling `2097152 + n`, and the paired local-name-table
       spellings `3145728 + s * 8` and `3153920 + s * 8`. A store moved between
       fixed and ranged families, an unaligned/out-of-window fixed address, or a
@@ -519,13 +519,23 @@ additional facilities the bootstrap actually needs.
       closes the finite source-site classification only: the guards and carried
       `n`/`s` values, disjointness from the explicit stack and depth counters,
       and all raw-load bounds remain blockwise-simulation obligations.
+    - [x] Keep comparison lookahead inside the logical source arena. `cmp_op`
+      now advances through the existing `cbyte()` bounds check and restores CUR
+      when a single `=` is not a comparison, instead of directly reading
+      `SRC[i+1]`. The exact-capacity regression varies only whitespace so that
+      `NAMEOFF[0].low` is `=` versus `>`, keeps the same trailing malformed
+      single-`=` bytes, and requires identical Alpha with no synthetic equality
+      branch. This deliberately changes the frozen compiler observable for
+      malformed exact-capacity streams; it is not equivalence to the prior
+      artifact. It removes the former address-3145728 source/name overlap
+      without claiming the remaining span/load value invariants.
     - [x] Bind source literals and arithmetic primitives to exact lowering
-      macros. The BCT8 Alpha phase independently scans all 582 decimal/character
-      literals and 57 `+`/`-`/`*`/`/`/`%` operators. It checks exact
+      macros. The BCT8 Alpha phase independently scans all 581 decimal/character
+      literals and 55 `+`/`-`/`*`/`/`/`%` operators. It checks exact
       `imm r0,value` sites and exact 22-byte left-value-pop/operator macros. An
       independent artifact inventory reserves the 360 comparison-result and 113
-      fixed-emit address immediates, then requires ownership of all 582 remaining
-      literal candidates and all 57 arithmetic macros. Structurally valid
+      fixed-emit address immediates, then requires ownership of all 581 remaining
+      literal candidates and all 55 arithmetic macros. Structurally valid
       literal value/register, same-valued synthetic-site retarget, arithmetic
       opcode/register, pop-step, duplicate-location, and reordered-record
       mutations reject. This flat phase leaves recursive expression
@@ -543,10 +553,10 @@ additional facilities the bootstrap actually needs.
       staged operands; this flat phase leaves recursive value composition,
       reachability, identical-site ordering, and dynamic stack bounds open.
     - [x] Bind every source-required data-stack push to an exact artifact macro.
-      The BCT8 phase reconstructs 237 binary-left pushes, 134 left-to-right
-      ordinary-call argument pushes, and 33 store-address pushes from the
+      The BCT8 phase reconstructs 235 binary-left pushes, 134 left-to-right
+      ordinary-call argument pushes, and 34 store-address pushes from the
       already independent primitive, arity, and memory tables. It validates all
-      404 exact 16-byte macros and exhaustively owns every decoded artifact
+      403 exact 16-byte macros and exhaustively owns every decoded artifact
       occurrence. Stack-step/register/value/opcode, duplicate-location, and
       cross-block witness mutations retain Alpha framing and reject. Since the
       macro bytes are identical across categories, this proves block-local
@@ -571,7 +581,7 @@ additional facilities the bootstrap actually needs.
       within one block may still be mutually swappable until cross-statement
       artifact order is closed by the blockwise simulation.
     - [x] Reconstruct the finite whole-compiler call recurrence below `bc`.
-      The BCT9 Alpha phase resolves all 309 ordinary source calls to the 70
+      The BCT9 Alpha phase resolves all 310 ordinary source calls to the 70
       independently scanned procedures, derives every checked prologue weight,
       records the exact grammar-reconstructed temporary height at each call,
       and includes all 113 synthesized fixed-emit helper calls. It recognizes
@@ -589,11 +599,11 @@ additional facilities the bootstrap actually needs.
       corrupt those locations; carried local values, return values, and
       reachability also remain open.
     - [x] Give every explicit-stack register effect one lower-rooted artifact
-      owner. A fresh BC10 per-PC map is derived only from the already checked
-      prelude, 70 prologues, 253 epilogues, and 404 push/pop roots, with
+      owner. A fresh BC11 per-PC map is derived only from the already checked
+      prelude, 70 prologues, 253 epilogues, and 403 push/pop roots, with
       duplicates rejected. An independent scan of all decoded starts proves
-      exact equality with 2,634 instructions: 324 writes to `r14`, 1,432 writes
-      to `r15`, and 1,131 memory accesses through `r15` (the 253 saved-frame
+      exact equality with 2,630 instructions: 324 writes to `r14`, 1,430 writes
+      to `r15`, and 1,129 memory accesses through `r15` (the 253 saved-frame
       loads overlap the first and third totals). A phase-isolated checker
       variant underreports the fixed prelude owner while keeping the exact
       source, artifact, witness, and all preceding phases unchanged; it rejects

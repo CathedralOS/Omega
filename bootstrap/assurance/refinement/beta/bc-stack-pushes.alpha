@@ -1,8 +1,8 @@
 ; Complete data-stack push custody for the whole-bc BCT8 checker.
 ;
 ; Source records are reconstructed from the already independent primitive,
-; call-arity, and raw-memory tables: 237 binary-left pushes, 134 ordinary-call
-; argument pushes, and 33 store-address pushes. Every lowering uses the same
+; call-arity, and raw-memory tables: 235 binary-left pushes, 134 ordinary-call
+; argument pushes, and 34 store-address pushes. Every lowering uses the same
 ; exact 16-byte macro, so this phase proves block-local multiset/shape custody.
 ;
 ; Source block: 9437184. Kind: 9445376. Witness PC: 9453568.
@@ -11,7 +11,7 @@
 build_stack_push_sources_init:
         imm r10, 0
 build_binary_push_sources:
-        imm r1, 819
+        imm r1, 816
         jlt r10, r1, build_binary_push_source_one
         jmp build_argument_push_sources_init
 build_binary_push_source_one:
@@ -40,7 +40,7 @@ build_binary_push_source_next:
 build_argument_push_sources_init:
         imm r10, 0
 build_argument_push_sources:
-        imm r1, 612
+        imm r1, 613
         jlt r10, r1, build_argument_push_source_event
         jmp build_store_push_sources_init
 build_argument_push_source_event:
@@ -149,13 +149,13 @@ increment_stack_push_kind:
 check_stack_push_source_counts:
         imm r1, 524752
         load r2, r1
-        imm r3, 404
+        imm r3, 403
         jeq r2, r3, check_binary_push_source_count
         jmp reject
 check_binary_push_source_count:
         imm r1, 524760
         load r2, r1
-        imm r3, 237
+        imm r3, 235
         jeq r2, r3, check_argument_push_source_count
         jmp reject
 check_argument_push_source_count:
@@ -167,14 +167,14 @@ check_argument_push_source_count:
 check_store_push_source_count:
         imm r1, 524776
         load r2, r1
-        imm r3, 33
+        imm r3, 34
         jeq r2, r3, resolve_init
         jmp reject
 
 read_stack_push_pcs_init:
         imm r10, 0
 read_stack_push_pc:
-        imm r1, 404
+        imm r1, 403
         jlt r10, r1, read_stack_push_pc_one
         jmp read_helper_pc
 read_stack_push_pc_one:
@@ -233,7 +233,7 @@ stack_push_pc_store:
 validate_stack_pushes_init:
         imm r10, 0
 validate_stack_push_loop:
-        imm r1, 404
+        imm r1, 403
         jlt r10, r1, validate_stack_push_one
         jmp scan_stack_push_artifact_init
 validate_stack_push_one:
@@ -301,7 +301,7 @@ scan_stack_push_artifact_next:
 scan_stack_push_artifact_count:
         imm r1, 524784
         load r2, r1
-        imm r3, 404
+        imm r3, 403
         jeq r2, r3, composition_scan_init
         jmp reject
 
