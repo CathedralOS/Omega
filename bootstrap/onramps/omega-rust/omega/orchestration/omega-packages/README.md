@@ -131,5 +131,6 @@ cargo test -p omega-packages --test remote_fixtures -- --ignored --test-threads=
   non-source capability manifest deltas with review guidance, and admits
   capability-changing updates only with exact matching review receipts. It can
   also produce a non-mutating lock update plan that assembles a candidate lock
-  only after policy admission. The command seam can read the current lock file
-  plus an optional standalone receipt file before returning the plan.
+  only after policy admission and candidate graph audit. The command seam can
+  read the current lock file plus an optional standalone receipt file before
+  returning the plan.
