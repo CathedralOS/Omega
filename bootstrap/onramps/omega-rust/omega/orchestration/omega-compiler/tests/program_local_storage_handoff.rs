@@ -1,0 +1,948 @@
+use std::collections::BTreeSet;
+use std::fs;
+use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
+
+use omega_calling_conventions::{
+    ArrivalContextId, ArrivalContextRealization, CallSignature, CallingPolicy, EntryStackEpoch,
+    EntryStackRealization, EntryStackStage, MachineRegister, MachineState, MachineStateSet,
+    RegisterSet, StackDomainRef, StateFootprintEvidence, ValueShape,
+    evaluate_ordinary_boundary_entry_plan, validate_entry_stack_realization,
+};
+use omega_compiler::{
+    PROGRAM_STORAGE_INSTALLATION_ARTIFACT, ProgramLocalStorageInstallationHandoffError,
+    SelectedProgramStorageEntryPlan, bind_program_storage_entry_plan,
+    establish_program_storage_entry_program_local_roots,
+    install_established_program_storage_entry_program_local_roots,
+    program_storage_installation_record_json,
+};
+use omega_effects::provider_plan::{
+    ServiceEntryAuthorityFlow, ServiceEntryClaim, ServiceMethod, ServiceSchema,
+};
+use omega_effects::{
+    ComponentEraCandidate, ComponentEraEntryLedger, ComponentEraLedgerId,
+    ComponentEraPublicationReceipt, ExecutableTcbManifest, ExecutableTcbProfile,
+    ExecutableTcbProfileAcceptance, ExecutionScope, IncompleteScopePolicy,
+    ProgramLocalRootEpochLeaseId, ScopeCompleteness, evaluate_executable_tcb_profile,
+};
+use omega_executable_installation::{
+    AdmissionReceiptId, Artifact, ArtifactAdmissionEvidence, ArtifactContentId, ArtifactEntry,
+    ArtifactId, CodePlacementAuthority, CodePlacementId, EntrySetId, FinalValidationCertificate,
+    FinalValidationId, InstallAuthority, InstallationAudience, InstallationReceipt,
+    InstallationScopeId, InstalledCode, InstalledCodeId, MachineContractSetId, MachineFootprintId,
+    MaterializationReceipt, PlacementPlanId, RelocationSetId, WxEnforcement, admit_executable,
+    install_validated, materialize_admitted_artifact, materialize_and_freeze,
+    validate_final_placement,
+};
+use omega_external_roots::*;
+use omega_instruction_selection::derive_boundary_entry_storage;
+use omega_terminal_installation_evidence::TerminalFuelAttributionEvidence;
+use psi_extents::{
+    AddressSpaceId, ExtentDiagnostic, ExtentLineageId, ExtentProvenanceId, ExtentProviderIssuance,
+    ExtentRightId, ExtentRights, ExtentRootGrant, MappingEraId,
+};
+use psi_layout_plans::{
+    ArtifactInstallationScopeId, EntryStubId, PlacementAddressRange, PlacementConstraints,
+    PlacementPhase, PlacementSite,
+};
+use psi_proof_kernel::AdmissionProfile;
+use psi_terminal::{
+    BoundaryMachineDeclaration, StructuralDomainDeclaration, StructuralDomainRequirement,
+    StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralTypeDeclaration, StructuralTypeShape, TerminalModule,
+    TerminalRootServiceReach, VocabularyMarker, program_local_root_introduction_identity,
+};
+
+static TEMP_ID: AtomicU64 = AtomicU64::new(1);
+
+#[derive(Debug)]
+struct TestTerminalObject {
+    identity: psi_terminal::TerminalPsiIdentity,
+    entry: psi_core::MachineId,
+    bytes: Vec<u8>,
+}
+
+impl TerminalObjectEvidence for TestTerminalObject {
+    fn terminal_psi(&self) -> psi_terminal::TerminalPsiIdentity {
+        self.identity
+    }
+
+    fn target(&self) -> omega_target::NativeTarget {
+        omega_target::NativeTarget::linux_x64()
+    }
+
+    fn text_bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+
+    fn function_text_offset(&self, machine: psi_core::MachineId) -> Option<usize> {
+        (machine == self.entry).then_some(16)
+    }
+
+    fn fuel_attribution(&self) -> Vec<TerminalFuelAttributionEvidence> {
+        Vec::new()
+    }
+}
+
+fn normalized<T, E: std::fmt::Debug>(identity: u64, constructor: fn(u64) -> Result<T, E>) -> T {
+    constructor(identity).expect("normalized test identity")
+}
+
+fn extent_id<T>(identity: u64, constructor: fn(u64) -> Result<T, ExtentDiagnostic>) -> T {
+    normalized(identity, constructor)
+}
+
+fn root_id<T>(identity: u64, constructor: fn(u64) -> Result<T, ExternalRootDiagnostic>) -> T {
+    normalized(identity, constructor)
+}
+
+fn install_id<T>(
+    identity: u64,
+    constructor: fn(u64) -> Result<T, omega_executable_installation::InstallationDiagnostic>,
+) -> T {
+    normalized(identity, constructor)
+}
+
+fn temp_directory(label: &str) -> PathBuf {
+    std::env::temp_dir().join(format!(
+        "omega-program-local-{label}-{}-{}",
+        std::process::id(),
+        TEMP_ID.fetch_add(1, Ordering::Relaxed)
+    ))
+}
+
+fn placement_constraints() -> PlacementConstraints {
+    PlacementConstraints::new(
+        Some(PlacementAddressRange::new(0x1000, 0x1_0000).expect("placement range")),
+        4096,
+        PlacementPhase::PostHandoff,
+        None,
+        Some(
+            ArtifactInstallationScopeId::from_normalized_identity(61).expect("installation scope"),
+        ),
+    )
+    .expect("placement constraints")
+}
+
+fn extent_provider_issuance(seed: u64) -> ExtentProviderIssuance {
+    let base = seed * 16;
+    ExtentProviderIssuance::from_normalized_identities([
+        base + 1,
+        base + 2,
+        base + 3,
+        base + 4,
+        base + 5,
+        base + 6,
+        base + 7,
+        base + 8,
+        base + 9,
+        base + 10,
+        base + 11,
+        base + 12,
+        base + 13,
+    ])
+    .expect("provider issuance")
+}
+
+fn installed_code(entry: EntryStubId) -> InstalledCode {
+    let constraints = placement_constraints();
+    let artifact = Artifact::from_canonical_decode(
+        install_id(1, ArtifactId::from_normalized_identity),
+        install_id(11, ArtifactContentId::from_normalized_identity),
+        omega_target::Architecture::X86_64,
+        vec![0; 64],
+        install_id(30, MachineContractSetId::from_normalized_identity),
+        install_id(31, MachineFootprintId::from_normalized_identity),
+        install_id(32, PlacementPlanId::from_normalized_identity),
+        constraints.clone(),
+        install_id(33, EntrySetId::from_normalized_identity),
+        vec![ArtifactEntry::from_canonical_decode(entry, 16)],
+        install_id(34, RelocationSetId::from_normalized_identity),
+        Vec::new(),
+    )
+    .expect("artifact");
+    let admitted = admit_executable(
+        &artifact,
+        ArtifactAdmissionEvidence::from_validator(
+            install_id(40, AdmissionReceiptId::from_normalized_identity),
+            &artifact,
+            true,
+        ),
+    )
+    .expect("admitted artifact");
+    let rights = ExtentRights::from_normalized_identities([extent_id(
+        51,
+        ExtentRightId::from_normalized_identity,
+    )]);
+    let extent = ExtentRootGrant::from_admitted_provider(
+        extent_provider_issuance(100),
+        extent_id(100, ExtentLineageId::from_normalized_identity),
+        extent_id(50, AddressSpaceId::from_normalized_identity),
+        rights.clone(),
+        extent_id(52, ExtentProvenanceId::from_normalized_identity),
+        extent_id(53, MappingEraId::from_normalized_identity),
+    )
+    .mint(0x1000, 4096)
+    .expect("placement extent");
+    let placement = CodePlacementAuthority::from_admitted_provider(
+        install_id(100, CodePlacementId::from_normalized_identity),
+        install_id(61, InstallationScopeId::from_normalized_identity),
+        InstallationAudience::FutureFetcher,
+        &extent,
+        rights,
+        constraints,
+        PlacementSite {
+            base_address: 0x1000,
+            phase: PlacementPhase::PostHandoff,
+            machine_regime: None,
+            installation_scope: Some(
+                ArtifactInstallationScopeId::from_normalized_identity(61)
+                    .expect("installation scope"),
+            ),
+        },
+    )
+    .claim(extent)
+    .expect("placement");
+    let materialized = materialize_admitted_artifact(&admitted, &placement, |_| None)
+        .expect("materialized artifact");
+    let frozen = materialize_and_freeze(
+        &admitted,
+        placement,
+        materialized.clone(),
+        MaterializationReceipt::from_materialized(
+            &materialized,
+            install_id(71, MachineFootprintId::from_normalized_identity),
+            true,
+        ),
+    )
+    .expect("frozen placement");
+    let certificate = FinalValidationCertificate::from_validator(
+        install_id(180, FinalValidationId::from_normalized_identity),
+        &frozen,
+        true,
+    );
+    let validated = validate_final_placement(frozen, &certificate).expect("validated placement");
+    let authority = InstallAuthority::from_admitted_provider(&validated);
+    let receipt = InstallationReceipt::from_provider(
+        install_id(300, InstalledCodeId::from_normalized_identity),
+        &validated,
+        true,
+        WxEnforcement::HardwareEnforced,
+    );
+    install_validated(validated, authority, receipt).expect("installed code")
+}
+
+fn boundary() -> omega_calling_conventions::ValidatedBoundaryEntryPlan {
+    evaluate_ordinary_boundary_entry_plan(
+        CallingPolicy::SystemVAMD64,
+        &CallSignature {
+            parameters: vec![ValueShape::integer(16, 8), ValueShape::integer(16, 8)],
+            result: None,
+        },
+    )
+    .expect("two-position boundary")
+}
+
+fn fixed_fuel() -> ComposedFuelDemand {
+    let schedule = FuelScheduleIdentity::new(1).expect("fuel schedule");
+    let summary = FixedFuelProviderSummary::from_admitted_provider(
+        root_id(30, ProviderFuelSummaryId::from_normalized_identity),
+        root_id(2, RootProviderId::from_normalized_identity),
+        schedule,
+        7,
+        BTreeSet::new(),
+        root_id(
+            40,
+            ProviderFuelValidationReceiptId::from_normalized_identity,
+        ),
+    );
+    compose_fixed_fuel(summary.identity, [&summary]).expect("fixed fuel")
+}
+
+fn stack_demand(
+    root: ExternalRootId,
+    provider: RootProviderId,
+    relation: NestingRelationId,
+    boundary: &omega_calling_conventions::ValidatedBoundaryEntryPlan,
+    code: &InstalledCode,
+    entry: EntryStubId,
+) -> BoundEpochStackComposition {
+    let realization = validate_entry_stack_realization(EntryStackRealization {
+        contexts: vec![ArrivalContextRealization {
+            context: ArrivalContextId::new(1).expect("arrival context"),
+            epochs: vec![EntryStackEpoch {
+                stage: EntryStackStage::Body,
+                active_domain: StackDomainRef::Interrupted,
+                occupancy_by_domain: Vec::new(),
+                nesting: boundary.plan().state.preemption,
+            }],
+        }],
+    })
+    .expect("stack realization");
+    let summary = ProviderStackSummary::from_admitted_provider(
+        root,
+        provider,
+        boundary.plan().state.stack,
+        64,
+        16,
+        root_id(49, StackValidationReceiptId::from_normalized_identity),
+    );
+    let contexts = admit_opaque_arrival_context_set(
+        &summary,
+        boundary,
+        code,
+        entry,
+        vec![ArrivalContextId::new(1).expect("arrival context")],
+        root_id(48, StackValidationReceiptId::from_normalized_identity),
+    )
+    .expect("arrival contexts");
+    let bound = bind_opaque_adapter_stack_realization(
+        &summary,
+        boundary,
+        code,
+        entry,
+        realization,
+        contexts,
+    )
+    .expect("bound stack");
+    compose_bound_entry_stack_epochs(
+        &StackNestingRelation {
+            identity: relation,
+            edges: BTreeSet::new(),
+        },
+        [&bound],
+    )
+    .expect("stack composition")
+}
+
+fn install_program_entry_root<'code>(
+    code: &'code mut InstalledCode,
+    entry: EntryStubId,
+    requirement_identity: &str,
+) -> (InstalledRootLedger, InstalledExternalRoot<'code>) {
+    let boundary = boundary();
+    let root = root_id(1, ExternalRootId::from_normalized_identity);
+    let provider = root_id(2, RootProviderId::from_normalized_identity);
+    let relation = root_id(6, NestingRelationId::from_normalized_identity);
+    let candidate = ExternalRootCandidate {
+        identity: root,
+        entry,
+        provider,
+        provider_plan: root_id(55, ProviderPlanId::from_normalized_identity),
+        requirement_identity: requirement_identity.into(),
+        entry_claims: vec![
+            ExternalRootEntryClaim {
+                parameter_index: 0,
+                domain: "Extent::Granted".into(),
+                effective_carry: psi_language_semantics::CarryPolicy::STRICT,
+            },
+            ExternalRootEntryClaim {
+                parameter_index: 1,
+                domain: "Extent::Granted".into(),
+                effective_carry: psi_language_semantics::CarryPolicy::STRICT,
+            },
+        ],
+        acknowledgement_parameter_index: None,
+        interrupt_mask_guard_claim: None,
+        service_reach: ResolvedRootServiceReach::from_selected_provider_closure(
+            Vec::new(),
+            Vec::new(),
+            &omega_effects::SelectedProviderPlanFacts::default(),
+        )
+        .expect("empty root reach"),
+        effects: [root_id(3, RootEffectId::from_normalized_identity)]
+            .into_iter()
+            .collect(),
+        trust_receipts: [root_id(4, TrustReceiptId::from_normalized_identity)]
+            .into_iter()
+            .collect(),
+        nesting_relation: relation,
+        acknowledgement_policy: Some(root_id(
+            7,
+            AcknowledgementPolicyId::from_normalized_identity,
+        )),
+        stack: StackResourceColumn {
+            ceiling_bytes: 8192,
+            realization: stack_demand(root, provider, relation, &boundary, code, entry),
+            validation_receipt: root_id(50, StackValidationReceiptId::from_normalized_identity),
+        },
+        logical_fuel: LogicalFuelResourceColumn {
+            schedule: FuelScheduleIdentity::new(1).expect("fuel schedule"),
+            provision: root_id(53, FuelProvisionId::from_normalized_identity),
+            ceiling_units: 64,
+            realization: fixed_fuel(),
+            validation_receipt: root_id(51, FuelValidationReceiptId::from_normalized_identity),
+        },
+        machine_state: MachineStateResourceColumn {
+            realization: StateFootprintEvidence::new(
+                RegisterSet::new([MachineRegister::X86Rax]),
+                MachineStateSet::new([MachineState::Flags]),
+            ),
+            validation_receipt: root_id(52, StateValidationReceiptId::from_normalized_identity),
+        },
+        component_pins: [ComponentVersionPin {
+            contract: root_id(8, ComponentContractId::from_normalized_identity),
+            artifact: root_id(9, ComponentArtifactId::from_normalized_identity),
+            provider: root_id(10, ComponentProviderId::from_normalized_identity),
+            version: root_id(11, ComponentVersionPinId::from_normalized_identity),
+        }]
+        .into_iter()
+        .collect(),
+    };
+    let validated = validate_external_root(candidate, &boundary).expect("root validation");
+    let slot = RootSlotAuthority::for_target_program_entry(
+        omega_target::TargetProfile::UefiX64.program_entry_slot(),
+    )
+    .expect("target slot");
+    let execution = ProviderExecution::from_admitted_provider(
+        root_id(54, ProviderExecutionId::from_normalized_identity),
+        &validated,
+        Some(OpaqueProviderExitAssurance::AcceptedClaim {
+            realization: omega_calling_conventions::ProviderExitRealization {
+                control: validated.boundary().call.entry_control,
+                restored_state: validated.boundary().state.restored_state,
+            },
+            validation_receipt: root_id(4, TrustReceiptId::from_normalized_identity),
+        }),
+    )
+    .expect("provider execution");
+    let admission = RootAdmission::from_admitted_provider(
+        root_id(22, RootAdmissionId::from_normalized_identity),
+        &validated,
+        &execution,
+        code,
+        &slot,
+        validated.candidate().trust_receipts.iter().copied(),
+    )
+    .expect("root admission");
+    let mut ledger = InstalledRootLedger::claim(code).expect("root ledger");
+    let installed = ledger
+        .install(code, validated, slot, admission)
+        .expect("installed root");
+    let required = verify_target_required_root_slot_closure(
+        omega_target::TargetProfile::UefiX64,
+        [TargetRequiredRootSlotSelection::for_program_entry(
+            omega_target::TargetProfile::UefiX64.program_entry_slot(),
+            entry,
+            requirement_identity,
+        )
+        .expect("required slot selection")],
+    )
+    .expect("required slot closure");
+    ledger
+        .seal_required_root_slot_closure(required)
+        .expect("installed required closure");
+    (ledger, installed)
+}
+
+fn terminal_module(requirement_identity: &str) -> TerminalModule {
+    let entry = psi_core::MachineId::new(1).expect("machine identity");
+    let carrier = psi_core::StructuralTypeId::new(1).expect("carrier identity");
+    let domain = psi_core::StructuralDomainId::new(1).expect("domain identity");
+    let algebra = psi_core::ContentAlgebra {
+        kind: psi_core::ContentAlgebraKind::IntervalSet,
+        parameter: "Nat".into(),
+    };
+    let capacity = psi_core::ProgramLocalCapacityExpression::IntervalSet(vec![(
+        psi_core::ProgramLocalCapacityScalar::SubjectField(vec!["base".into()]),
+        psi_core::ProgramLocalCapacityScalar::Add(
+            Box::new(psi_core::ProgramLocalCapacityScalar::SubjectField(vec![
+                "base".into(),
+            ])),
+            Box::new(psi_core::ProgramLocalCapacityScalar::SubjectField(vec![
+                "length".into(),
+            ])),
+        ),
+    )]);
+    let schemas = (0..2)
+        .map(|position| {
+            let mut schema = psi_terminal::ProgramLocalRootIntroductionSchema {
+                argument_index: position,
+                source_parameter_position: position,
+                qualification: domain,
+                carrier,
+                projection: psi_core::ContentProjectionIdentity {
+                    domain: psi_core::ContentDomainId::new(1).expect("content domain"),
+                    projection_fingerprint:
+                        psi_language_semantics::content::terminal_projection_fingerprint(
+                            &algebra, &capacity,
+                        ),
+                },
+                algebra: algebra.clone(),
+                capacity: capacity.clone(),
+                identity: 0,
+            };
+            schema.identity = program_local_root_introduction_identity(
+                requirement_identity,
+                "Extent::Granted",
+                "Extent",
+                &schema,
+            );
+            schema
+        })
+        .collect::<Vec<_>>();
+    TerminalModule {
+        vocabulary_marker: VocabularyMarker::CURRENT,
+        entry,
+        structural_types: vec![StructuralTypeDeclaration {
+            id: carrier,
+            identity: "Extent".into(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![
+                    StructuralFieldDeclaration {
+                        id: psi_core::StructuralFieldId::new(1).expect("base field"),
+                        identity: "base".into(),
+                        relevance: psi_terminal::BindingRelevance::Relevant,
+                        field_type: StructuralFieldType::Scalar(psi_core::ScalarType::Integer(
+                            psi_core::IntegerType::new(psi_core::IntegerSign::Unsigned, 64)
+                                .expect("u64"),
+                        )),
+                    },
+                    StructuralFieldDeclaration {
+                        id: psi_core::StructuralFieldId::new(2).expect("length field"),
+                        identity: "length".into(),
+                        relevance: psi_terminal::BindingRelevance::Relevant,
+                        field_type: StructuralFieldType::Scalar(psi_core::ScalarType::Integer(
+                            psi_core::IntegerType::new(psi_core::IntegerSign::Unsigned, 64)
+                                .expect("u64"),
+                        )),
+                    },
+                ],
+            },
+        }],
+        structural_domains: vec![StructuralDomainDeclaration {
+            id: domain,
+            semantic_domain: psi_core::DomainSemanticId::new(1).expect("semantic domain"),
+            identity: "Extent::Granted".into(),
+            carrier,
+        }],
+        services: Vec::new(),
+        root_service_reach: TerminalRootServiceReach::default(),
+        boundary_machines: vec![BoundaryMachineDeclaration {
+            id: psi_core::BoundaryMachineId::new(1).expect("boundary identity"),
+            identity: requirement_identity.into(),
+            attachment: None,
+            scalar_parameters: Vec::new(),
+            structural_parameters: (0u32..2)
+                .map(|position| StructuralParameterDeclaration {
+                    place: psi_core::PlaceId::new(u64::from(position) + 1)
+                        .expect("parameter place"),
+                    position,
+                    is_self: false,
+                    structural_type: carrier,
+                    multiplicity: StructuralMultiplicity::Linear,
+                    qualifications: vec![domain],
+                })
+                .collect(),
+            result: None,
+            requires: (0u32..2)
+                .map(|argument_index| StructuralDomainRequirement {
+                    argument_index,
+                    domain,
+                })
+                .collect(),
+            program_local_root_introductions: schemas,
+            published_service_ceiling: Vec::new(),
+        }],
+        provider_candidates: Vec::new(),
+        float_meaning_projections: Vec::new(),
+        float_meaning_equalities: Vec::new(),
+        proposition_declarations: Vec::new(),
+        proposition_applications: Vec::new(),
+        evidence_terms: Vec::new(),
+        evidence_contract_lanes: Vec::new(),
+        proof_output_calls: Vec::new(),
+        closed_conformance_applications: Vec::new(),
+        machines: vec![psi_terminal::TerminalMachine {
+            id: entry,
+            attachment: None,
+            parameters: Vec::new(),
+            structural_parameters: Vec::new(),
+            result: psi_terminal::TerminalMachineResult::Unit,
+            structural_places: Vec::new(),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
+            content_entry_claims: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
+            entry: psi_core::BlockId::new(1).expect("block"),
+            blocks: vec![psi_terminal::Block {
+                id: psi_core::BlockId::new(1).expect("block"),
+                parameters: Vec::new(),
+                operations: Vec::new(),
+                terminator: psi_terminal::Terminator::ReturnUnit {
+                    edge: psi_core::EdgeId::new(1).expect("edge"),
+                    trivial_affine_discards: Vec::new(),
+                },
+            }],
+            contract: psi_terminal::MachineContract {
+                id: psi_core::ContractId::new(1).expect("contract"),
+                crash_routes: Vec::new(),
+                requires: Vec::new(),
+                ensures: Vec::new(),
+            },
+        }],
+    }
+}
+
+fn terminal_catalog(
+    module: &TerminalModule,
+) -> psi_terminal_codec::VerifiedProgramLocalRootProducerCatalog {
+    let verified = psi_terminal_verifier::verify_module(
+        module,
+        &psi_terminal_verifier::ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("terminal module verifies");
+    psi_terminal_codec::VerifiedProgramLocalRootProducerCatalog::from_verified(&verified)
+        .expect("program-local catalog")
+}
+
+fn tcb_acceptance(seed: u64) -> ExecutableTcbProfileAcceptance {
+    evaluate_executable_tcb_profile(
+        &ExecutableTcbManifest {
+            known_entries: Vec::new(),
+            completeness: ScopeCompleteness::Complete {
+                scope: ExecutionScope::CallerAddressSpace,
+                selected_provider_closure_identity: seed,
+                opaque_closure_evidence: Vec::new(),
+                runtime_closure_evidence: Vec::new(),
+            },
+        },
+        &ExecutableTcbProfile {
+            name: format!("program-storage-test-{seed}"),
+            scope: ExecutionScope::CallerAddressSpace,
+            allow_static_current_artifact_checked_bodies: true,
+            exact_allowances: Vec::new(),
+            incomplete_scope: IncompleteScopePolicy::Reject,
+        },
+    )
+    .expect("TCB acceptance")
+}
+
+fn lifecycle(installed_code: u64, requirement_identity: &str) -> ComponentEraEntryLedger {
+    let mut ledger = ComponentEraEntryLedger::new(
+        ComponentEraLedgerId::from_normalized_identity(730).expect("lifecycle ledger"),
+        "ProgramStorageBinding/v1".into(),
+        requirement_identity.into(),
+        2,
+        tcb_acceptance(730),
+    )
+    .expect("lifecycle");
+    let candidate = ComponentEraCandidate {
+        era_identity: 10,
+        artifact_instance_identity: installed_code,
+        binding_contract_identity: "ProgramStorageBinding/v1".into(),
+        entry_contract_identity: requirement_identity.into(),
+        entry_plan_identity: "program-storage-entry-plan".into(),
+        entry_plan_admission_receipt_identity: "program-storage-entry-plan-receipt".into(),
+        executable_tcb_acceptance: tcb_acceptance(10),
+    };
+    let receipt =
+        ComponentEraPublicationReceipt::from_runtime(110, &ledger, &candidate, true, false);
+    ledger.publish(candidate, receipt).expect("publish era");
+    ledger
+}
+
+fn binding(requirement_identity: &str) -> omega_compiler::ProgramStorageEntryPlanBinding {
+    let boundary = boundary();
+    let claims = (0..2)
+        .map(|parameter_index| ServiceEntryClaim {
+            parameter_index,
+            domain: "Extent::Granted".into(),
+            predicate_body: psi_language_semantics::DomainPredicateBody::Present,
+            effective_carry: psi_language_semantics::CarryPolicy::STRICT,
+            authority_flow: ServiceEntryAuthorityFlow::Accepts,
+        })
+        .collect();
+    let schema = ServiceSchema {
+        trait_name: "UefiApplication".into(),
+        methods: vec![ServiceMethod {
+            name: "enter".into(),
+            requirement_owner: "ProgramStorageEntry".into(),
+            requirement_identity: requirement_identity.into(),
+            parameter_count: 2,
+            parameter_type_identities: vec![
+                "Extent in Extent::Granted".into(),
+                "Extent in Extent::Granted".into(),
+            ],
+            entry_claims: claims,
+            has_result: false,
+            result_type_identity: None,
+            result_claims: Vec::new(),
+            service_reach: Vec::new(),
+            synchronous_invocations: Vec::new(),
+            may_suspend: false,
+            may_block: false,
+            terminates_guarantee: false,
+            termination_premises: Vec::new(),
+            calling_plan_fingerprint: Some(boundary.contract_fingerprint()),
+        }],
+    };
+    let selected = SelectedProgramStorageEntryPlan::from_target_slot(
+        omega_target::TargetProfile::UefiX64.program_entry_slot(),
+        schema,
+        requirement_identity.to_owned(),
+    )
+    .expect("selected entry plan");
+    let shape = ValueShape::integer(16, 8);
+    let storage =
+        derive_boundary_entry_storage(boundary.plan(), &[(0, shape), (16, shape)], None, None)
+            .expect("entry capture storage");
+    bind_program_storage_entry_plan(&selected, &boundary, &storage)
+        .expect("program storage binding")
+}
+
+fn subject<'root, 'code>(
+    root: &'root InstalledExternalRoot<'code>,
+    position: u32,
+    place: u64,
+    base: u64,
+    length: u64,
+) -> InstalledProgramLocalRootSubject<'root, 'code> {
+    InstalledProgramLocalRootSubject::from_generated_entry(
+        root,
+        ProgramLocalRootEntryInvocationId::from_normalized_identity(900).expect("invocation"),
+        position,
+        position,
+        "Extent::Granted",
+        "Extent",
+        ProgramLocalRootSubjectPlaceId::from_normalized_identity(place).expect("subject place"),
+        [
+            ProgramLocalRootScalarBinding::subject_field(
+                ["base"],
+                psi_numerics::bignum::BigInt::from_u64(base),
+            )
+            .expect("base scalar"),
+            ProgramLocalRootScalarBinding::subject_field(
+                ["length"],
+                psi_numerics::bignum::BigInt::from_u64(length),
+            )
+            .expect("length scalar"),
+        ],
+    )
+    .expect("installed subject")
+}
+
+fn extent_plan(base: u64, length: u64, domain: &str) -> ProgramLocalExtentMaterializationPlan {
+    ProgramLocalExtentMaterializationPlan::new(
+        "Extent",
+        domain,
+        "Nat",
+        base,
+        length,
+        extent_id(1000, AddressSpaceId::from_normalized_identity),
+        ExtentRights::from_normalized_identities([
+            extent_id(1001, ExtentRightId::from_normalized_identity),
+            extent_id(1002, ExtentRightId::from_normalized_identity),
+        ]),
+        extent_id(1003, ExtentProvenanceId::from_normalized_identity),
+        extent_id(1004, MappingEraId::from_normalized_identity),
+    )
+    .expect("extent materialization plan")
+}
+
+fn assert_origin(
+    origin: psi_extents::ExtentProgramLocalOrigin,
+    root_slot: RootSlotId,
+    schema_identity: u64,
+    subject_place: u64,
+) {
+    assert_eq!(origin.installed_code(), 300);
+    assert_eq!(origin.external_root(), 1);
+    assert_eq!(origin.root_slot(), root_slot.normalized_identity());
+    assert_eq!(origin.schema_identity(), schema_identity);
+    assert_eq!(origin.lifecycle_ledger(), 730);
+    assert_eq!(origin.lifecycle_epoch(), 10);
+    assert_eq!(origin.entry_invocation(), 900);
+    assert_eq!(origin.subject_place(), subject_place);
+}
+
+#[test]
+fn generated_program_entry_retains_two_exact_program_local_accounts_through_recovery() {
+    let requirement_identity = "ProgramStorageEntry::enter/test-v1";
+    let entry = EntryStubId::from_normalized_identity(1).expect("entry identity");
+    let mut code = installed_code(entry);
+    let installed_code_identity = code.identity().normalized_identity();
+    let module = terminal_module(requirement_identity);
+    let catalog = terminal_catalog(&module);
+    let terminal = TestTerminalObject {
+        identity: psi_terminal_codec::terminal_psi_identity(&module).expect("terminal identity"),
+        entry: module.entry,
+        bytes: vec![0; 64],
+    };
+    let (mut root_ledger, root) =
+        install_program_entry_root(&mut code, entry, requirement_identity);
+    let mut installation = root_ledger
+        .claim_program_local_root_installation_ledger()
+        .expect("program-local installation ledger");
+    let mut prebindings = installation
+        .prebind(&catalog, &terminal, &root)
+        .expect("two program-storage prebindings");
+    prebindings.sort_by_key(|prebinding| prebinding.source_parameter_position());
+    assert_eq!(prebindings.len(), 2);
+    let schema_identities = [
+        prebindings[0].identity().schema_identity(),
+        prebindings[1].identity().schema_identity(),
+    ];
+    let mut lifecycle = lifecycle(installed_code_identity, requirement_identity);
+    let members = prebindings
+        .into_iter()
+        .enumerate()
+        .map(|(index, prebinding)| {
+            let lease = lifecycle
+                .acquire_program_local_root_epoch_lease(
+                    ProgramLocalRootEpochLeaseId::from_normalized_identity(800 + index as u64)
+                        .expect("lease identity"),
+                    10,
+                    requirement_identity,
+                )
+                .expect("epoch lease");
+            ProgramLocalRootCohortMember::new(prebinding.identity(), &root, lease)
+        })
+        .collect::<Vec<_>>();
+    let cohort = installation
+        .seal_epoch_cohort(&lifecycle, members)
+        .expect("two-position epoch cohort");
+    assert_eq!(cohort.occurrences().len(), 2);
+    let mut runtime = cohort.into_runtime();
+
+    let image_subject = subject(&root, 0, 901, 0x2000, 0x400);
+    let storage_subject = subject(&root, 1, 902, 0x9000, 0x1000);
+    let artifact_directory = temp_directory("record-collision");
+    let initial = establish_program_storage_entry_program_local_roots(
+        &artifact_directory,
+        binding(requirement_identity),
+        &mut installation,
+        &mut runtime,
+        &lifecycle,
+        image_subject,
+        extent_plan(0x2000, 0x400, "Wrong::Domain"),
+        storage_subject,
+        extent_plan(0x9000, 0x1000, "Extent::Granted"),
+    )
+    .expect_err("plan-role preflight rejects before establishment");
+    let ProgramLocalStorageInstallationHandoffError::Subject(initial) = initial else {
+        panic!("preflight rejection must retain subjects")
+    };
+    assert!(initial.diagnostic().0.contains("substituted"));
+    assert_eq!(runtime.pending_occurrences().len(), 2);
+    let (binding, subjects, _) = initial.into_parts();
+    let [image_subject, storage_subject]: [_; 2] = subjects
+        .try_into()
+        .expect("subject rejection returns two positions");
+
+    fs::write(&artifact_directory, "not a directory").expect("create record-path collision");
+    let after_establishment = establish_program_storage_entry_program_local_roots(
+        &artifact_directory,
+        binding,
+        &mut installation,
+        &mut runtime,
+        &lifecycle,
+        image_subject,
+        extent_plan(0x2100, 0x400, "Extent::Granted"),
+        storage_subject,
+        extent_plan(0x9000, 0x1000, "Extent::Granted"),
+    )
+    .expect_err("resident capacity mismatch rejects materialization");
+    let ProgramLocalStorageInstallationHandoffError::Account(after_establishment) =
+        after_establishment
+    else {
+        panic!("materialization rejection must retain established accounts")
+    };
+    assert!(after_establishment.diagnostic().0.contains("capacity"));
+    assert_eq!(runtime.pending_occurrences().len(), 0);
+    let (binding, mut inputs) = after_establishment.into_parts();
+    inputs.sort_by_key(|(account, _)| account.prebinding().source_parameter_position());
+    let [(image, _), (storage, _)]: [_; 2] = inputs
+        .try_into()
+        .expect("account rejection returns two positions");
+
+    let record_failure = install_established_program_storage_entry_program_local_roots(
+        &artifact_directory,
+        binding,
+        [
+            (image, extent_plan(0x2000, 0x400, "Extent::Granted")),
+            (storage, extent_plan(0x9000, 0x1000, "Extent::Granted")),
+        ],
+    )
+    .expect_err("record collision retains installed roots and registry");
+    let ProgramLocalStorageInstallationHandoffError::Record(record_failure) = record_failure else {
+        panic!("valid materialization must reach record emission")
+    };
+    assert_eq!(record_failure.registry().held_accounts(), 2);
+    assert_eq!(record_failure.roots().image().base(), 0x2000);
+    assert_eq!(
+        record_failure
+            .roots()
+            .initial_storage()
+            .expect("whole storage")
+            .base(),
+        0x9000
+    );
+    fs::remove_file(&artifact_directory).expect("remove record collision");
+    let recorded = record_failure
+        .retry(&artifact_directory)
+        .expect("record retry preserves registry custody");
+    assert_eq!(recorded.registry().held_accounts(), 2);
+
+    let image = recorded.roots().image();
+    let storage = recorded
+        .roots()
+        .initial_storage()
+        .expect("receiver-free storage remains whole");
+    assert_eq!((image.base(), image.length()), (0x2000, 0x400));
+    assert_eq!((storage.base(), storage.length()), (0x9000, 0x1000));
+    assert_origin(
+        image.origin().program_local().expect("program-local image"),
+        recorded.roots().binding().root_slot(),
+        schema_identities[0],
+        901,
+    );
+    assert_origin(
+        storage
+            .origin()
+            .program_local()
+            .expect("program-local storage"),
+        recorded.roots().binding().root_slot(),
+        schema_identities[1],
+        902,
+    );
+
+    let record = recorded.installation_record();
+    let json = program_storage_installation_record_json(&record);
+    for expected in [
+        "\"kind\": \"program_local\"",
+        "\"role\": \"image\", \"parameter_index\": 0",
+        "\"role\": \"initial_storage\", \"parameter_index\": 1",
+        "\"installed_code\": \"0x000000000000012c\"",
+        "\"external_root\": \"0x0000000000000001\"",
+        "\"lifecycle_ledger\": \"0x00000000000002da\"",
+        "\"lifecycle_epoch\": \"0x000000000000000a\"",
+        "\"entry_invocation\": \"0x0000000000000384\"",
+        "\"subject_place\": \"0x0000000000000385\"",
+        "\"subject_place\": \"0x0000000000000386\"",
+    ] {
+        assert!(
+            json.contains(expected),
+            "missing audit row {expected}: {json}"
+        );
+    }
+    for schema_identity in schema_identities {
+        assert!(
+            json.contains(&format!(
+                "\"schema_identity\": \"0x{schema_identity:016x}\""
+            )),
+            "audit omitted exact producer schema: {json}"
+        );
+    }
+    assert!(json.contains(&format!(
+        "\"root_slot\": \"0x{:016x}\"",
+        recorded.roots().binding().root_slot().normalized_identity()
+    )));
+    let emitted =
+        fs::read_to_string(artifact_directory.join(PROGRAM_STORAGE_INSTALLATION_ARTIFACT))
+            .expect("read installation audit");
+    assert_eq!(emitted, json);
+    fs::remove_dir_all(&artifact_directory).expect("remove test artifacts");
+}

@@ -777,9 +777,16 @@ Remaining:
   resulting account registry beside the installed image/storage Extents. Its
   failure carriers retain the exact subjects, established accounts, or installed
   roots plus registry appropriate to the failed phase, and record retry cannot
-  release raw roots without their account owner. Generated-entry batch,
-  record-retry, and installation-aggregate canaries plus removal of the
-  transitional passive-grant audit helper remain open. The
+  release raw roots without their account owner. The binding now retains the
+  bare `Extent` carrier independently from the qualified interface type, so a
+  verified producer schema is never compared with `Extent in Granted` as if
+  those were the same identity. A real installed-entry canary seals one UEFI
+  root with the two exact producer positions and covers atomic subject
+  preflight, returned-account materialization retry, record retry, the
+  two-account installation aggregate, and exact audit origins. Removal of the
+  transitional passive-grant audit helper remains open until receiver
+  activation and receiver-free continuation binding carry the registry through
+  their downstream custody stages. The
   target vocabulary currently exposes one required `ProgramEntry`; expand it
   to an enumerable required-slot set before claiming a finite multi-member-slot
   canary rather than synthesizing test-only target rows.

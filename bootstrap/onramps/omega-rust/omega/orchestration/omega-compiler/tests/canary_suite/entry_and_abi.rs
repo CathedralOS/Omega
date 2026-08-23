@@ -282,6 +282,7 @@ fn uefi_program_entry_retains_exact_storage_root_binding() {
         panic!("UEFI source signature must retain two visible declaration rows")
     };
     assert_eq!(image.visible_parameter_index(), 0);
+    assert_eq!(binding.image().carrier_identity(), "Extent");
     assert_eq!(
         image.role(),
         omega_compiler::ProgramStorageEntryRootRole::Image
@@ -291,6 +292,7 @@ fn uefi_program_entry_retains_exact_storage_root_binding() {
         binding.image().parameter_type_identity()
     );
     assert_eq!(initial_storage.visible_parameter_index(), 1);
+    assert_eq!(binding.initial_storage().carrier_identity(), "Extent");
     assert_eq!(
         initial_storage.role(),
         omega_compiler::ProgramStorageEntryRootRole::InitialStorage
@@ -344,6 +346,7 @@ fn uefi_program_entry_retains_exact_storage_root_binding() {
     assert!(manifest.contains("\"role\": \"image\""));
     assert!(manifest.contains("\"role\": \"initial_storage\""));
     assert!(manifest.contains("\"domain\": \"Extent::Granted\""));
+    assert!(manifest.contains("\"carrier_identity\": \"Extent\""));
     assert!(manifest.contains("\"copy_stack_byte_offset\": 32"));
     assert!(manifest.contains("\"copy_stack_byte_offset\": 48"));
     assert!(manifest.contains("\"status\": \"reservation_required\""));
