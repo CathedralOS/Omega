@@ -65,9 +65,11 @@ omega-packages/
 |   |-- build_omg.rs       # Guided `build.omg` dependency edits.
 |   `-- commands.rs        # install/update/audit orchestration entrypoints.
 `-- tests/
+    |-- local_fixture_graph.rs
     |-- install.rs
     |-- update.rs
-    `-- audit.rs
+    |-- audit.rs
+    `-- remote_fixtures.rs
 ```
 
 The CLI should remain a thin adapter. It should parse command arguments and
