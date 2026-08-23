@@ -47,10 +47,17 @@ fn main() {
         audit(raw_arguments);
         return;
     }
+    if first_argument
+        .as_deref()
+        .is_some_and(|first| first == "review")
+    {
+        review(raw_arguments);
+        return;
+    }
 
     let Some(arguments) = parse_arguments() else {
         eprintln!(
-            "usage: omega [--check] [--build-dir <dir>] [--target <name>] <root.omg>\n       omega inspect-terminal --machine <qualified> [--target <name>] <root.omg>\n       omega audit source <locator> [--rev <rev>] [--cache-dir <dir>]\n       omega audit packages [--lock <omega.lock>] --manifest <manifest.json>...\n       omega refresh-samples [samples-dir]"
+            "usage: omega [--check] [--build-dir <dir>] [--target <name>] <root.omg>\n       omega inspect-terminal --machine <qualified> [--target <name>] <root.omg>\n       omega audit source <locator> [--rev <rev>] [--cache-dir <dir>]\n       omega audit packages [--lock <omega.lock>] --manifest <manifest.json>...\n       omega review capability-change --old-manifest <manifest.json> --new-manifest <manifest.json> --reviewer <id> --reason <text> --out <receipt.json>\n       omega refresh-samples [samples-dir]"
         );
         std::process::exit(2);
     };
@@ -141,6 +148,77 @@ fn audit_packages(arguments: impl Iterator<Item = std::ffi::OsString>) {
     }
 }
 
+fn review(arguments: impl Iterator<Item = std::ffi::OsString>) {
+    let mut arguments = arguments;
+    let Some(subcommand) = arguments.next() else {
+        eprintln!(
+            "usage: omega review capability-change --old-manifest <manifest.json> --new-manifest <manifest.json> --reviewer <id> --reason <text> --out <receipt.json>"
+        );
+        std::process::exit(2);
+    };
+    if subcommand != "capability-change" {
+        eprintln!("unknown review command `{}`", subcommand.to_string_lossy());
+        eprintln!(
+            "usage: omega review capability-change --old-manifest <manifest.json> --new-manifest <manifest.json> --reviewer <id> --reason <text> --out <receipt.json>"
+        );
+        std::process::exit(2);
+    }
+    review_capability_change(arguments);
+}
+
+fn review_capability_change(arguments: impl Iterator<Item = std::ffi::OsString>) {
+    let Some(arguments) = parse_review_capability_change_arguments(arguments) else {
+        eprintln!(
+            "usage: omega review capability-change --old-manifest <manifest.json> --new-manifest <manifest.json> --reviewer <id> --reason <text> --out <receipt.json>"
+        );
+        std::process::exit(2);
+    };
+    let old_manifest = match omega_packages::PackageCapabilityManifest::read_from_path(
+        &arguments.old_manifest_path,
+    ) {
+        Ok(manifest) => manifest,
+        Err(error) => {
+            eprintln!(
+                "cannot read old package manifest {}: {error:?}",
+                arguments.old_manifest_path.display()
+            );
+            std::process::exit(1);
+        }
+    };
+    let new_manifest = match omega_packages::PackageCapabilityManifest::read_from_path(
+        &arguments.new_manifest_path,
+    ) {
+        Ok(manifest) => manifest,
+        Err(error) => {
+            eprintln!(
+                "cannot read new package manifest {}: {error:?}",
+                arguments.new_manifest_path.display()
+            );
+            std::process::exit(1);
+        }
+    };
+    let command = match omega_packages::create_capability_change_review(
+        &old_manifest,
+        &new_manifest,
+        arguments.reviewer,
+        arguments.reason,
+    ) {
+        Ok(command) => command,
+        Err(error) => {
+            eprintln!("cannot create capability-change receipt: {error:?}");
+            std::process::exit(1);
+        }
+    };
+    if let Err(error) = command.receipt.write_to_path(&arguments.out_path) {
+        eprintln!(
+            "cannot write capability-change receipt {}: {error:?}",
+            arguments.out_path.display()
+        );
+        std::process::exit(1);
+    }
+    print!("{}", command.to_text());
+}
+
 fn inspect_terminal(arguments: impl Iterator<Item = std::ffi::OsString>) {
     let Some(arguments) = parse_inspect_terminal_arguments(arguments) else {
         eprintln!(
@@ -219,6 +297,74 @@ struct AuditSourceArguments {
     locator: String,
     rev: Option<String>,
     cache_dir: PathBuf,
+}
+
+struct ReviewCapabilityChangeArguments {
+    old_manifest_path: PathBuf,
+    new_manifest_path: PathBuf,
+    reviewer: String,
+    reason: String,
+    out_path: PathBuf,
+}
+
+fn parse_review_capability_change_arguments(
+    mut arguments: impl Iterator<Item = std::ffi::OsString>,
+) -> Option<ReviewCapabilityChangeArguments> {
+    let mut old_manifest_path = None;
+    let mut new_manifest_path = None;
+    let mut reviewer = None;
+    let mut reason = None;
+    let mut out_path = None;
+    while let Some(argument) = arguments.next() {
+        if argument == "--old-manifest" {
+            if old_manifest_path.is_some() {
+                return None;
+            }
+            old_manifest_path = arguments.next().map(PathBuf::from);
+            old_manifest_path.as_ref()?;
+            continue;
+        }
+        if argument == "--new-manifest" {
+            if new_manifest_path.is_some() {
+                return None;
+            }
+            new_manifest_path = arguments.next().map(PathBuf::from);
+            new_manifest_path.as_ref()?;
+            continue;
+        }
+        if argument == "--reviewer" {
+            if reviewer.is_some() {
+                return None;
+            }
+            reviewer = arguments.next().and_then(|value| value.into_string().ok());
+            reviewer.as_ref()?;
+            continue;
+        }
+        if argument == "--reason" {
+            if reason.is_some() {
+                return None;
+            }
+            reason = arguments.next().and_then(|value| value.into_string().ok());
+            reason.as_ref()?;
+            continue;
+        }
+        if argument == "--out" {
+            if out_path.is_some() {
+                return None;
+            }
+            out_path = arguments.next().map(PathBuf::from);
+            out_path.as_ref()?;
+            continue;
+        }
+        return None;
+    }
+    Some(ReviewCapabilityChangeArguments {
+        old_manifest_path: old_manifest_path?,
+        new_manifest_path: new_manifest_path?,
+        reviewer: reviewer?,
+        reason: reason?,
+        out_path: out_path?,
+    })
 }
 
 fn parse_audit_source_arguments(

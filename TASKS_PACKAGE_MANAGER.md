@@ -181,6 +181,16 @@ Completed:
   exact old/new source identities and manifest delta fingerprints, and returns
   reviewer-facing diff text without choosing final receipt storage.
 
+- **OMEGA-REVIEW-CAPABILITY-CHANGE-CLI.** Expose explicit capability-change
+  receipt creation through the Rust on-ramp `omega` binary.
+
+  Done 2026-08-23: `omega review capability-change --old-manifest
+  <manifest.json> --new-manifest <manifest.json> --reviewer <id> --reason
+  <text> --out <receipt.json>` reads strict package manifest files, rejects
+  no-op, source-only, and package-mismatched updates, writes the exact
+  standalone review receipt requested by the caller, and prints the
+  reviewer-facing diff summary without editing `build.omg` or `omega.lock`.
+
 - **LOCAL-PACKAGE-FIXTURE-CORPUS.** Add the first local package corpus for
   resolver, install, update, and audit tests.
 
@@ -537,8 +547,9 @@ Remaining:
   Remaining after `CAPABILITY-REVIEW-RECEIPT-MODEL`,
   `REVIEWED-UPDATE-ADMISSION`, and
   `CAPABILITY-CHANGE-RECEIPT-PERSISTENCE`, and
-  `CAPABILITY-CHANGE-REVIEW-COMMAND-API`: wire receipt creation/loading into
-  `omega update` and persist accepted receipts in or beside `omega.lock`.
+  `CAPABILITY-CHANGE-REVIEW-COMMAND-API`, and
+  `OMEGA-REVIEW-CAPABILITY-CHANGE-CLI`: wire receipt loading into `omega
+  update` and persist accepted receipts in or beside `omega.lock`.
 
   Acceptance: higher-capability updates require an acceptance receipt. New
   root-memory, DMA/IOMMU, executable-installation, interrupt-publication,
