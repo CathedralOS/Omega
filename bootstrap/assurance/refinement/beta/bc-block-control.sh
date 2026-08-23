@@ -225,7 +225,9 @@ cat "$GATE_DIR/bc-block-control.alpha" \
   "$GATE_DIR/bc-expect-shape.alpha" \
   "$GATE_DIR/bc-expect-summary.alpha" \
   "$GATE_DIR/bc-declare-shape.alpha" \
-  "$GATE_DIR/bc-declare-summary.alpha" > "$T/control-check.alpha"
+  "$GATE_DIR/bc-declare-summary.alpha" \
+  "$GATE_DIR/bc-let-keyword-shape.alpha" \
+  "$GATE_DIR/bc-let-keyword-summary.alpha" > "$T/control-check.alpha"
 "$ASM" < "$T/control-check.alpha" > "$T/control-check.tape"
 stamp_seed "$T/control-check.tape" "$SEED" "$T/control-check" >/dev/null
 
@@ -697,6 +699,57 @@ sed 's/imm r2, 2                    ; checked successful return is s/imm r2, 1  
 "$ASM" < "$T/declare-wrong-room-return.alpha" > "$T/declare-wrong-room-return.tape"
 stamp_seed "$T/declare-wrong-room-return.tape" "$SEED" "$T/declare-wrong-room-return" >/dev/null
 
+# Phase-isolated let-keyword teeth break id_char bounds/addressing, one exact
+# short-circuit row, or an exhaustive keyword theorem branch.
+sed 's/imm r24, 5963               ; checked is_let length guard/imm r24, 5964               ; checked is_let length guard/' \
+  "$T/control-check.alpha" > "$T/let-keyword-wrong-length-guard.alpha"
+"$ASM" < "$T/let-keyword-wrong-length-guard.alpha" > "$T/let-keyword-wrong-length-guard.tape"
+stamp_seed "$T/let-keyword-wrong-length-guard.tape" "$SEED" "$T/let-keyword-wrong-length-guard" >/dev/null
+sed 's/imm r26, 6063               ; checked let\[0\] continuation/imm r26, 6064               ; checked let[0] continuation/' \
+  "$T/control-check.alpha" > "$T/let-keyword-wrong-continuation.alpha"
+"$ASM" < "$T/let-keyword-wrong-continuation.alpha" > "$T/let-keyword-wrong-continuation.tape"
+stamp_seed "$T/let-keyword-wrong-continuation.tape" "$SEED" "$T/let-keyword-wrong-continuation" >/dev/null
+sed 's/imm r23, 2097120             ; checked id_char IDOFF/imm r23, 2097112             ; checked id_char IDOFF/' \
+  "$T/control-check.alpha" > "$T/let-keyword-wrong-idoff.alpha"
+"$ASM" < "$T/let-keyword-wrong-idoff.alpha" > "$T/let-keyword-wrong-idoff.tape"
+stamp_seed "$T/let-keyword-wrong-idoff.tape" "$SEED" "$T/let-keyword-wrong-idoff" >/dev/null
+sed 's/imm r23, 2097112             ; checked is_let IDLEN/imm r23, 2097120             ; checked is_let IDLEN/' \
+  "$T/control-check.alpha" > "$T/let-keyword-wrong-idlen.alpha"
+"$ASM" < "$T/let-keyword-wrong-idlen.alpha" > "$T/let-keyword-wrong-idlen.tape"
+stamp_seed "$T/let-keyword-wrong-idlen.tape" "$SEED" "$T/let-keyword-wrong-idlen" >/dev/null
+sed 's/imm r23, 0                   ; checked let index zero/imm r23, 1                   ; checked let index zero/' \
+  "$T/control-check.alpha" > "$T/let-keyword-wrong-index.alpha"
+"$ASM" < "$T/let-keyword-wrong-index.alpha" > "$T/let-keyword-wrong-index.tape"
+stamp_seed "$T/let-keyword-wrong-index.tape" "$SEED" "$T/let-keyword-wrong-index" >/dev/null
+sed 's/imm r23, 108                 ; '\''l'\''/imm r23, 107                 ; '\''l'\''/' \
+  "$T/control-check.alpha" > "$T/let-keyword-wrong-l.alpha"
+"$ASM" < "$T/let-keyword-wrong-l.alpha" > "$T/let-keyword-wrong-l.tape"
+stamp_seed "$T/let-keyword-wrong-l.tape" "$SEED" "$T/let-keyword-wrong-l" >/dev/null
+sed 's/imm r23, 6392               ; checked let\[2\] argument/imm r23, 6393               ; checked let[2] argument/' \
+  "$T/control-check.alpha" > "$T/let-keyword-wrong-argument.alpha"
+"$ASM" < "$T/let-keyword-wrong-argument.alpha" > "$T/let-keyword-wrong-argument.tape"
+stamp_seed "$T/let-keyword-wrong-argument.tape" "$SEED" "$T/let-keyword-wrong-argument" >/dev/null
+sed 's/imm r29, 46                  ; checked exclusive is_let event row/imm r29, 45                  ; checked exclusive is_let event row/' \
+  "$T/control-check.alpha" > "$T/let-keyword-event-undercount.alpha"
+"$ASM" < "$T/let-keyword-event-undercount.alpha" > "$T/let-keyword-event-undercount.tape"
+stamp_seed "$T/let-keyword-event-undercount.tape" "$SEED" "$T/let-keyword-event-undercount" >/dev/null
+sed 's/imm r23, 116                 ; checked exclusive let primitive row/imm r23, 115                 ; checked exclusive let primitive row/' \
+  "$T/control-check.alpha" > "$T/let-keyword-primitive-undercount.alpha"
+"$ASM" < "$T/let-keyword-primitive-undercount.alpha" > "$T/let-keyword-primitive-undercount.tape"
+stamp_seed "$T/let-keyword-primitive-undercount.tape" "$SEED" "$T/let-keyword-primitive-undercount" >/dev/null
+sed 's/imm r2, 1                    ; checked call-specific k bound/imm r2, 0                    ; checked call-specific k bound/' \
+  "$T/control-check.alpha" > "$T/let-keyword-drop-k-bound.alpha"
+"$ASM" < "$T/let-keyword-drop-k-bound.alpha" > "$T/let-keyword-drop-k-bound.tape"
+stamp_seed "$T/let-keyword-drop-k-bound.tape" "$SEED" "$T/let-keyword-drop-k-bound" >/dev/null
+sed 's/imm r2, 1                    ; checked IDLEN != 3 short circuit/imm r2, 2                    ; checked IDLEN != 3 short circuit/' \
+  "$T/control-check.alpha" > "$T/let-keyword-wrong-length-clause.alpha"
+"$ASM" < "$T/let-keyword-wrong-length-clause.alpha" > "$T/let-keyword-wrong-length-clause.tape"
+stamp_seed "$T/let-keyword-wrong-length-clause.tape" "$SEED" "$T/let-keyword-wrong-length-clause" >/dev/null
+sed 's/store r1, r2                  ; checked exact let returns one/store r1, r1                  ; checked exact let returns one/' \
+  "$T/control-check.alpha" > "$T/let-keyword-wrong-result.alpha"
+"$ASM" < "$T/let-keyword-wrong-result.alpha" > "$T/let-keyword-wrong-result.tape"
+stamp_seed "$T/let-keyword-wrong-result.tape" "$SEED" "$T/let-keyword-wrong-result" >/dev/null
+
 # Phase-isolated tooth: leave the exact source, tape, witness, and every prior
 # checker phase unchanged, but underreport the prelude fp owner. Adjust only the
 # derived-map subtotal so rejection must come from the exhaustive equality scan.
@@ -800,7 +853,9 @@ cat "$GATE_DIR/bc-block-control.alpha" \
   "$GATE_DIR/bc-expect-shape.alpha" \
   "$GATE_DIR/bc-expect-summary.alpha" \
   "$GATE_DIR/bc-declare-shape.alpha" \
-  "$GATE_DIR/bc-declare-summary.alpha" > "$T/flat-check.alpha"
+  "$GATE_DIR/bc-declare-summary.alpha" \
+  "$GATE_DIR/bc-let-keyword-shape.alpha" \
+  "$GATE_DIR/bc-let-keyword-summary.alpha" > "$T/flat-check.alpha"
 "$ASM" < "$T/flat-check.alpha" > "$T/flat-check.tape"
 stamp_seed "$T/flat-check.tape" "$SEED" "$T/flat-check" >/dev/null
 
@@ -1010,6 +1065,16 @@ for declare_tooth in declare-wrong-guard declare-wrong-snapshot declare-wrong-ca
     exit 1
   fi
 done
+for let_keyword_tooth in let-keyword-wrong-length-guard let-keyword-wrong-continuation let-keyword-wrong-idoff let-keyword-wrong-idlen let-keyword-wrong-index let-keyword-wrong-l let-keyword-wrong-argument let-keyword-event-undercount let-keyword-primitive-undercount let-keyword-drop-k-bound let-keyword-wrong-length-clause let-keyword-wrong-result; do
+  set +e
+  "$T/$let_keyword_tooth" < "$T/control.bundle" > "$T/stdout"
+  let_keyword_tooth_status=$?
+  set -e
+  if [ "$let_keyword_tooth_status" != 1 ] || [ -s "$T/stdout" ]; then
+    echo "bc block control FAIL — $let_keyword_tooth was not rejected" >&2
+    exit 1
+  fi
+done
 coherent_ranged_mutant slurp-cap
 coherent_ranged_mutant declare-cap
 coherent_ranged_mutant nloc-step
@@ -1209,4 +1274,4 @@ for mutation in call-retarget read-register write-register helper-write emit-byt
   fi
 done
 
-echo "bc block control/effects: 70 proc / 355 block / 291 transition; 613 effect sites / 829 fixed emit bytes; 113 __write_str calls instantiated from one length-ranked exact-output summary; main.ready composes emit_prelude/write_str/skip_ws into the exact 187-byte prefix, then a reusable main.loop split sends normalized zero to halt(0) and nonzero to main.body without consuming it; byte classifiers digit/alpha/alnum are exact over all 256 cbyte values, terminating read_ident returns their maximal prefix, nonzero expect normalizes then conditionally consumes one delimiter, and declare either appends the identifier slot or records numeric status 252 at capacity; cbyte/adv/is_space leaf summaries compose through terminating skip_ws_step/skip_ws loops; 78 frame slots / 27 parameter stores / 134 call pops; 169 local loads / 73 local stores; 61 raw loads = 54 fixed-safe + 5 SRC-indexed + 2 table-indexed / 34 raw stores; cursor-zero slurp segment/value/termination summary composed from root through main.ready or halt(253); 581 literals / 55 arithmetic / 180 comparison primitives; 235 binary / 134 argument / 34 store-address pushes; syntax-directed composition / relative temporary peak 2; three ranged Alpha operands transferred; all 607 stores partitioned / 70 call-cut frames summarized; 64-row counter contexts; absolute B_bc1 stack <=12720 explicit bytes / <=662 hidden returns; all 2630 explicit-stack effects and 687 artifact effects owned ($(wc -c < "$T/control-check.tape" | tr -d ' ')-byte Alpha checker tape)"
+echo "bc block control/effects: 70 proc / 355 block / 291 transition; 613 effect sites / 829 fixed emit bytes; 113 __write_str calls instantiated from one length-ranked exact-output summary; main.ready composes emit_prelude/write_str/skip_ws into the exact 187-byte prefix, then a reusable main.loop split sends normalized zero to halt(0) and nonzero to main.body without consuming it; byte classifiers digit/alpha/alnum are exact over all 256 cbyte values, terminating read_ident returns their maximal prefix, id_char/is_let recognize the exact let slice, nonzero expect normalizes then conditionally consumes one delimiter, and declare either appends the identifier slot or records numeric status 252 at capacity; cbyte/adv/is_space leaf summaries compose through terminating skip_ws_step/skip_ws loops; 78 frame slots / 27 parameter stores / 134 call pops; 169 local loads / 73 local stores; 61 raw loads = 54 fixed-safe + 5 SRC-indexed + 2 table-indexed / 34 raw stores; cursor-zero slurp segment/value/termination summary composed from root through main.ready or halt(253); 581 literals / 55 arithmetic / 180 comparison primitives; 235 binary / 134 argument / 34 store-address pushes; syntax-directed composition / relative temporary peak 2; three ranged Alpha operands transferred; all 607 stores partitioned / 70 call-cut frames summarized; 64-row counter contexts; absolute B_bc1 stack <=12720 explicit bytes / <=662 hidden returns; all 2630 explicit-stack effects and 687 artifact effects owned ($(wc -c < "$T/control-check.tape" | tr -d ' ')-byte Alpha checker tape)"

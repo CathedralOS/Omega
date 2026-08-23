@@ -1,0 +1,432 @@
+; Exact source/artifact shape for id_char(k) and is_let().
+;
+; This module owns only the identifier byte-load leaf and the four-stage `let`
+; keyword recognizer: CFG, calls/arguments, locals, memory, primitives, pushes,
+; frames, epilogues, and exhaustive row/decoded-region censuses. Relational
+; identifier-slice and keyword meaning lives in the adjacent module.
+
+let_keyword_require_shape:
+        ; id_char has one parameter; is_let has none.
+        imm r20, 7151616
+        imm r21, 13
+        imm r22, 1
+        call transfer_require_cell
+        imm r20, 7159808
+        imm r21, 13
+        imm r22, 1
+        call transfer_require_cell
+        imm r20, 13
+        call call_bounds_frame_bytes
+        imm r1, 16
+        jeq r0, r1, let_keyword_shape_is_let_frame
+        jmp reject
+let_keyword_shape_is_let_frame:
+        imm r20, 7151616
+        imm r21, 14
+        imm r22, 0
+        call transfer_require_cell
+        imm r20, 7159808
+        imm r21, 14
+        imm r22, 0
+        call transfer_require_cell
+        imm r20, 14
+        call call_bounds_frame_bytes
+        imm r1, 8
+        jeq r0, r1, let_keyword_shape_blocks
+        jmp reject
+
+let_keyword_shape_blocks:
+        imm r20, 47
+        imm r21, 5634
+        call slurp_summary_require_block_pc
+        imm r20, 47
+        imm r21, 47
+        imm r22, 13
+        call cursor_require_proc_blocks
+
+        imm r20, 48
+        imm r21, 5846
+        call slurp_summary_require_block_pc
+        imm r20, 49
+        imm r21, 5865
+        call slurp_summary_require_block_pc
+        imm r20, 50
+        imm r21, 6012
+        call slurp_summary_require_block_pc
+        imm r20, 51
+        imm r21, 6197
+        call slurp_summary_require_block_pc
+        imm r20, 52
+        imm r21, 6382
+        call slurp_summary_require_block_pc
+        imm r20, 53
+        imm r21, 6567
+        call slurp_summary_require_block_pc
+        imm r20, 48
+        imm r21, 53
+        imm r22, 14
+        call cursor_require_proc_blocks
+        call let_keyword_require_transitions
+        call let_keyword_require_events
+        call let_keyword_require_data
+        call let_keyword_require_censuses
+        ret
+
+let_keyword_require_transitions:
+        imm r20, 36
+        imm r21, 49
+        imm r22, 1
+        imm r23, 50
+        imm r24, 5963               ; checked is_let length guard
+        call slurp_summary_require_transition
+        imm r20, 37
+        imm r21, 50
+        imm r22, 1
+        imm r23, 51
+        imm r24, 6148
+        call slurp_summary_require_transition
+        imm r20, 38
+        imm r21, 51
+        imm r22, 1
+        imm r23, 52
+        imm r24, 6333
+        call slurp_summary_require_transition
+        imm r20, 39
+        imm r21, 52
+        imm r22, 1
+        imm r23, 53
+        imm r24, 6518
+        call slurp_summary_require_transition
+        ret
+
+let_keyword_require_events:
+        imm r20, 37
+        imm r21, 47
+        imm r22, 5
+        imm r23, 5825
+        call slurp_summary_require_event
+        imm r20, 5806
+        imm r21, 5825
+        call slurp_summary_require_epilogue
+        imm r20, 5826
+        imm r21, 5845
+        call slurp_summary_require_epilogue
+
+        imm r20, 39
+        imm r21, 50
+        imm r22, 6054
+        imm r23, 1
+        imm r24, 0
+        imm r25, 5634
+        imm r26, 6063               ; checked let[0] continuation
+        call summary_require_call_site
+        imm r20, 41
+        imm r21, 51
+        imm r22, 6239
+        imm r23, 1
+        imm r24, 0
+        imm r25, 5634
+        imm r26, 6248               ; checked let[1] continuation
+        call summary_require_call_site
+        imm r20, 43
+        imm r21, 52
+        imm r22, 6424
+        imm r23, 1
+        imm r24, 0
+        imm r25, 5634
+        imm r26, 6433               ; checked let[2] continuation
+        call summary_require_call_site
+
+        imm r20, 38
+        imm r21, 49
+        imm r22, 5
+        imm r23, 6011
+        call slurp_summary_require_event
+        imm r20, 40
+        imm r21, 50
+        imm r22, 5
+        imm r23, 6196
+        call slurp_summary_require_event
+        imm r20, 42
+        imm r21, 51
+        imm r22, 5
+        imm r23, 6381
+        call slurp_summary_require_event
+        imm r20, 44
+        imm r21, 52
+        imm r22, 5
+        imm r23, 6566
+        call slurp_summary_require_event
+        imm r20, 45
+        imm r21, 53
+        imm r22, 5
+        imm r23, 6596
+        call slurp_summary_require_event
+        imm r20, 5992
+        imm r21, 6011
+        call slurp_summary_require_epilogue
+        imm r20, 6177
+        imm r21, 6196
+        call slurp_summary_require_epilogue
+        imm r20, 6362
+        imm r21, 6381
+        call slurp_summary_require_epilogue
+        imm r20, 6547
+        imm r21, 6566
+        call slurp_summary_require_epilogue
+        imm r20, 6577
+        imm r21, 6596
+        call slurp_summary_require_epilogue
+        imm r20, 6597
+        imm r21, 6616
+        call slurp_summary_require_epilogue
+        ret
+
+let_keyword_require_data:
+        ; id_char slot-zero k and IDOFF/source-byte loads.
+        imm r20, 33
+        imm r21, 47
+        imm r22, 1
+        imm r23, 0
+        imm r24, 5762
+        call transfer_require_local
+        imm r20, 21
+        imm r21, 47
+        imm r22, 1
+        imm r23, 1
+        imm r24, 5803
+        call transfer_require_memory
+        imm r20, 22
+        imm r21, 47
+        imm r22, 1
+        imm r23, 8
+        imm r24, 5721
+        call transfer_require_memory
+        imm r20, 23
+        imm r21, 49
+        imm r22, 1
+        imm r23, 8
+        imm r24, 5875
+        call transfer_require_memory
+
+        imm r20, 95
+        imm r21, 47
+        imm r22, 1
+        imm r23, 2097152             ; SRC base
+        imm r24, 5685
+        call transfer_require_primitive
+        imm r20, 96
+        imm r21, 47
+        imm r22, 2
+        imm r23, 3                   ; base+IDOFF
+        imm r24, 5724
+        call transfer_require_primitive
+        imm r20, 97
+        imm r21, 47
+        imm r22, 1
+        imm r23, 2097120             ; checked id_char IDOFF
+        imm r24, 5711
+        call transfer_require_primitive
+        imm r20, 98
+        imm r21, 47
+        imm r22, 2
+        imm r23, 3                   ; +k
+        imm r24, 5781
+        call transfer_require_primitive
+
+        ; is_let length and byte comparisons, including every return literal.
+        imm r20, 99
+        imm r21, 49
+        imm r22, 1
+        imm r23, 2097112             ; checked is_let IDLEN
+        imm r24, 5865
+        call transfer_require_primitive
+        imm r20, 100
+        imm r21, 49
+        imm r22, 3
+        imm r23, 10
+        imm r24, 5904
+        call transfer_require_primitive
+        imm r20, 101
+        imm r21, 49
+        imm r22, 1
+        imm r23, 3
+        imm r24, 5894
+        call transfer_require_primitive
+        imm r20, 102
+        imm r21, 49
+        imm r22, 1
+        imm r23, 0
+        imm r24, 5982
+        call transfer_require_primitive
+        imm r20, 103
+        imm r21, 50
+        imm r22, 1
+        imm r23, 0                   ; checked let index zero
+        imm r24, 6012
+        call transfer_require_primitive
+        imm r20, 104
+        imm r21, 50
+        imm r22, 3
+        imm r23, 10
+        imm r24, 6089
+        call transfer_require_primitive
+        imm r20, 105
+        imm r21, 50
+        imm r22, 1
+        imm r23, 108                 ; 'l'
+        imm r24, 6079
+        call transfer_require_primitive
+        imm r20, 106
+        imm r21, 50
+        imm r22, 1
+        imm r23, 0
+        imm r24, 6167
+        call transfer_require_primitive
+        imm r20, 107
+        imm r21, 51
+        imm r22, 1
+        imm r23, 1                   ; checked let index one
+        imm r24, 6197
+        call transfer_require_primitive
+        imm r20, 108
+        imm r21, 51
+        imm r22, 3
+        imm r23, 10
+        imm r24, 6274
+        call transfer_require_primitive
+        imm r20, 109
+        imm r21, 51
+        imm r22, 1
+        imm r23, 101                 ; 'e'
+        imm r24, 6264
+        call transfer_require_primitive
+        imm r20, 110
+        imm r21, 51
+        imm r22, 1
+        imm r23, 0
+        imm r24, 6352
+        call transfer_require_primitive
+        imm r20, 111
+        imm r21, 52
+        imm r22, 1
+        imm r23, 2                   ; checked let index two
+        imm r24, 6382
+        call transfer_require_primitive
+        imm r20, 112
+        imm r21, 52
+        imm r22, 3
+        imm r23, 10
+        imm r24, 6459
+        call transfer_require_primitive
+        imm r20, 113
+        imm r21, 52
+        imm r22, 1
+        imm r23, 116                 ; 't'
+        imm r24, 6449
+        call transfer_require_primitive
+        imm r20, 114
+        imm r21, 52
+        imm r22, 1
+        imm r23, 0
+        imm r24, 6537
+        call transfer_require_primitive
+        imm r20, 115
+        imm r21, 53
+        imm r22, 1
+        imm r23, 1
+        imm r24, 6567
+        call transfer_require_primitive
+
+        imm r20, 27
+        imm r21, 47
+        imm r22, 1
+        imm r23, 5695
+        call transfer_require_push
+        imm r20, 28
+        imm r21, 47
+        imm r22, 1
+        imm r23, 5746
+        call transfer_require_push
+        imm r20, 29
+        imm r21, 49
+        imm r22, 1
+        imm r23, 5878
+        call transfer_require_push
+        imm r20, 30
+        imm r21, 50
+        imm r22, 1
+        imm r23, 6063
+        call transfer_require_push
+        imm r20, 31
+        imm r21, 51
+        imm r22, 1
+        imm r23, 6248
+        call transfer_require_push
+        imm r20, 32
+        imm r21, 52
+        imm r22, 1
+        imm r23, 6433
+        call transfer_require_push
+        imm r20, 240
+        imm r21, 50
+        imm r22, 2
+        imm r23, 6022               ; checked let[0] argument
+        call transfer_require_push
+        imm r20, 241
+        imm r21, 51
+        imm r22, 2
+        imm r23, 6207               ; checked let[1] argument
+        call transfer_require_push
+        imm r20, 242
+        imm r21, 52
+        imm r22, 2
+        imm r23, 6392               ; checked let[2] argument
+        call transfer_require_push
+        ret
+
+let_keyword_require_censuses:
+        imm r20, 47
+        imm r21, 47
+        imm r22, 33
+        imm r23, 34
+        imm r24, 21
+        imm r25, 23
+        imm r26, 36
+        imm r27, 36
+        imm r28, 37
+        imm r29, 38
+        call cursor_require_effect_census
+        imm r20, 48
+        imm r21, 53
+        imm r22, 34
+        imm r23, 34
+        imm r24, 23
+        imm r25, 24
+        imm r26, 36
+        imm r27, 40
+        imm r28, 38
+        imm r29, 46                  ; checked exclusive is_let event row
+        call cursor_require_effect_census
+        imm r20, 47
+        imm r21, 53
+        imm r22, 95
+        imm r23, 116                 ; checked exclusive let primitive row
+        imm r24, 27
+        imm r25, 33
+        imm r26, 240
+        imm r27, 243
+        imm r28, 0
+        imm r29, 0
+        call summary_require_expr_census
+        imm r20, 5634
+        imm r21, 5846
+        imm r22, 0
+        imm r23, 2
+        call skip_scan_call_region
+        imm r20, 5846
+        imm r21, 6617
+        imm r22, 3
+        imm r23, 6
+        call skip_scan_call_region
+        ret

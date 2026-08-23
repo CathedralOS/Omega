@@ -23,7 +23,7 @@
 declare_summary_init:
         call declare_require_shape
         call declare_prove_summary
-        jmp scan_owned_effects_init
+        jmp let_keyword_summary_init
 
 declare_prove_summary:
         imm r1, 527064

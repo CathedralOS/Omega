@@ -550,10 +550,22 @@ and restore the frame. Twelve isolated teeth cover shape, capacity/status and
 payload values, row closure, and both branch relations. The modules are 9.3 KB
 and 6.6 KB.
 
+`bc-let-keyword-shape.alpha` and `bc-let-keyword-summary.alpha` close the exact
+keyword predicate needed by `count_lets`. The shape phase covers `id_char` and
+`is_let` procedures 13..14: blocks/guards, the indexed byte load, three
+argument calls and continuations, every return/epilogue, frames, and exhaustive
+local/memory/primitive/push/event/decoded ownership. Conditional `IDCH` admits
+only `0<=k<IDLEN` and returns `SRC[IDOFF+k]`. `ILET` uses its exact IDLEN==3
+guard before any byte access, then proves all length, `l`, `e`, `t`, and success
+short-circuit cases; it returns one exactly for the identifier `let`. Both are
+quiet and restore callers. Twelve isolated teeth cover bounds/addressing,
+calls/arguments/constants/censuses, and branch meaning. The modules are 11.3 KB
+and 9.5 KB, keeping artifact and relational responsibilities separate.
+
 The eventual `parse_proc` theorem must be maximal, not universally terminating.
 For malformed input, an unrecognized body byte such as `@` can survive both
 `gen_stmt` and the number fallback without cursor progress while `gen_stmts`
 keeps emitting. The honest contract is therefore Return-or-Diverge with exact
 finite/infinite output behavior. The next engineering milestones are the
-parameter loop and `count_lets`; the existing typed status-252 projection is
-the only language-design blocker in this area.
+literal skippers, `count_lets`, and the parameter loop; the existing typed
+status-252 projection is the only language-design blocker in this area.
