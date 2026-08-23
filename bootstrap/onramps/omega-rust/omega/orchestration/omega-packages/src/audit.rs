@@ -453,9 +453,11 @@ mod tests {
 
         assert_eq!(
             audit_package_graph(&lock, &[root_manifest, child_manifest]),
-            Err(PackageGraphAuditError::UnreachablePackage {
-                package: "file-journal".to_owned()
-            })
+            Err(PackageGraphAuditError::InvalidLock(vec![
+                PackageLockValidationError::UnreachablePackage {
+                    package: "file-journal".to_owned()
+                }
+            ]))
         );
     }
 }

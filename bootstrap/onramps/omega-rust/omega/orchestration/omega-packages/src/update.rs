@@ -372,7 +372,7 @@ pub fn decide_reviewed_package_update(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::lock::{LockedDependency, LockedPackage};
+    use crate::lock::{LockedDependency, LockedPackage, PackageLockValidationError};
     use crate::manifest::{AliasName, DependencyAlias, PackageName, SourceIdentity};
     use crate::review::CapabilityChangeReceipt;
 
@@ -608,10 +608,12 @@ mod tests {
                 &package("file-journal"),
                 None,
             ),
-            Err(PackageLockUpdatePlanError::CandidateGraph(
-                PackageGraphAuditError::UnreachablePackage {
-                    package: "arithmetic-kernels".to_owned(),
-                }
+            Err(PackageLockUpdatePlanError::CandidateLock(
+                PackageLockAssemblyError::InvalidClosure(vec![
+                    PackageLockValidationError::UnreachablePackage {
+                        package: "arithmetic-kernels".to_owned(),
+                    },
+                ]),
             ))
         );
     }
