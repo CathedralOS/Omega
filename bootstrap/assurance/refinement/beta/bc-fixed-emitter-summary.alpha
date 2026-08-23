@@ -1,0 +1,437 @@
+; Exact trace summaries for bc.emit_prelude and bc.emit_write_str.
+;
+; The preceding phase gives each fixed emit event a conditional helper trace
+; clause.  These two call-free source procedures contain only ordered emit
+; statements, so this phase joins those clauses along the exact Alpha control
+; chain instead of expanding 187 byte writes:
+;
+;   emit_prelude   rows 311..315 -> 55 bytes
+;   emit_write_str rows 221..232 -> 132 bytes
+;
+; Each inline-literal jump begins at the preceding call continuation; the final
+; continuation begins the checked epilogue.  Direct region scans prove there
+; are no other calls, input reads, direct writes, halts, or arithmetic traps.
+; Source tables prove there are no local/raw-memory actions or transitions.
+; Hence both procedures terminate, preserve the input cursor and compiler
+; heap/raw state, restore r14/r15 and the caller frame, and append exactly their
+; Beta emit literals in source order.  Caller-saved r0..r3 and reclaimed
+; stack/hidden-return scratch are deliberately outside that preservation claim.
+;
+; Fresh cells:
+;   next Alpha pc / output length     525888/525896
+;   event count / next event row      525904/525912
+;   ordered-output token / block      525920/525928
+;   exclusive end pc                  525936
+;   prelude/write-str theorem tokens  525944/525952
+
+fixed_emitter_summary_init:
+        call fixed_emit_prove_write_str
+        call fixed_emit_prove_prelude
+        jmp scan_owned_effects_init
+
+fixed_emit_prove_write_str:
+        imm r20, 29                   ; procedure
+        imm r21, 147                  ; entry block
+        imm r22, 20599                ; entry pc
+        imm r23, 21226                ; checked exclusive end
+        imm r24, 221                  ; first event row
+        call fixed_emit_begin
+
+        imm r20, 221
+        call fixed_emit_append
+        imm r20, 222
+        call fixed_emit_append
+        imm r20, 223
+        call fixed_emit_append
+        imm r20, 224
+        call fixed_emit_append
+        imm r20, 225
+        call fixed_emit_append
+        imm r20, 226
+        call fixed_emit_append
+        imm r20, 227
+        call fixed_emit_append
+        imm r20, 228
+        call fixed_emit_append
+        imm r20, 229
+        call fixed_emit_append
+        imm r20, 230
+        call fixed_emit_append
+        imm r20, 231
+        call fixed_emit_append
+        imm r20, 232
+        call fixed_emit_append
+
+        imm r20, 233                  ; exclusive event row
+        imm r21, 12                   ; event count
+        imm r22, 132                  ; exact output bytes
+        call fixed_emit_finish
+        imm r1, 525952
+        imm r2, 1465008983            ; WSTW
+        store r1, r2
+        ret
+
+fixed_emit_prove_prelude:
+        imm r20, 41                   ; procedure
+        imm r21, 208                  ; entry block
+        imm r22, 29619                ; entry pc
+        imm r23, 29903                ; exclusive end
+        imm r24, 311                  ; first event row
+        call fixed_emit_begin
+
+        imm r20, 311                  ; checked first prelude event
+        call fixed_emit_append
+        imm r20, 312
+        call fixed_emit_append
+        imm r20, 313
+        call fixed_emit_append
+        imm r20, 314
+        call fixed_emit_append
+        imm r20, 315
+        call fixed_emit_append
+
+        imm r20, 316                  ; exclusive event row
+        imm r21, 5                    ; event count
+        imm r22, 55                   ; checked prelude byte total
+        call fixed_emit_finish
+        imm r1, 525944
+        imm r2, 1279607365            ; EMIP
+        store r1, r2
+        ret
+
+; Begin procedure proc/block/entry/end/first-event in r20..r24.
+fixed_emit_begin:
+        mov r25, r20
+        mov r26, r21
+        mov r27, r22
+        mov r28, r23
+        mov r29, r24
+
+        imm r20, 7151616
+        mov r21, r25
+        imm r22, 0
+        call transfer_require_cell
+        imm r20, 7159808
+        mov r21, r25
+        imm r22, 0
+        call transfer_require_cell
+        mov r20, r25
+        call call_bounds_frame_bytes
+        imm r1, 8
+        jeq r0, r1, fixed_emit_begin_block_proc
+        jmp reject
+fixed_emit_begin_block_proc:
+        imm r20, 3145728
+        mov r21, r26
+        mov r22, r25
+        call transfer_require_cell
+        imm r20, 3178496
+        mov r21, r26
+        imm r22, 0
+        call transfer_require_cell
+        mov r20, r26
+        mov r21, r27
+        call slurp_summary_require_block_pc
+        ; The next canonical block begins exactly at the supplied exclusive
+        ; end, and this procedure owns no second block anywhere in the table.
+        mov r2, r26
+        imm r1, 1
+        add r2, r1
+        imm r3, 355
+        jlt r2, r3, fixed_emit_begin_next_pc
+        jmp reject
+fixed_emit_begin_next_pc:
+        imm r3, 8
+        mul r2, r3
+        imm r3, 3235840
+        add r3, r2
+        load r4, r3
+        jeq r4, r28, fixed_emit_begin_unique_proc
+        jmp reject
+fixed_emit_begin_unique_proc:
+        mov r20, r25
+        mov r21, r26
+        call fixed_emit_require_unique_block
+
+        ; The zero-slot checked prologue is 19 bytes before the first inline
+        ; literal jump. Initialize an empty ordered trace at that continuation.
+        mov r2, r27
+        imm r1, 19
+        add r2, r1
+        imm r1, 525888
+        store r1, r2
+        imm r1, 525896
+        imm r2, 0
+        store r1, r2
+        imm r1, 525904
+        store r1, r2
+        imm r1, 525912
+        store r1, r29
+        imm r1, 525920
+        store r1, r29                 ; empty Rows[first:first]
+        imm r1, 525928
+        store r1, r26
+        imm r1, 525936
+        store r1, r28
+
+        mov r20, r26
+        call fixed_emit_require_source_quiet
+        mov r20, r27
+        mov r21, r28
+        call fixed_emit_scan_region
+        ret
+
+; Procedure r20 must own exactly block r21 among all 355 parsed blocks.
+fixed_emit_require_unique_block:
+        mov r25, r20
+        mov r26, r21
+        imm r10, 0
+        imm r11, 0
+fixed_emit_unique_loop:
+        imm r1, 355
+        jlt r10, r1, fixed_emit_unique_row
+        imm r3, 1                    ; exact procedure block count
+        jeq r11, r3, fixed_emit_unique_done
+        jmp reject
+fixed_emit_unique_row:
+        mov r2, r10
+        imm r1, 8
+        mul r2, r1
+        imm r1, 3145728
+        add r1, r2
+        load r3, r1
+        jeq r3, r25, fixed_emit_unique_match
+        jmp fixed_emit_unique_next
+fixed_emit_unique_match:
+        jeq r10, r26, fixed_emit_unique_count
+        jmp reject
+fixed_emit_unique_count:
+        imm r1, 1
+        add r11, r1
+fixed_emit_unique_next:
+        imm r1, 1
+        add r10, r1
+        jmp fixed_emit_unique_loop
+fixed_emit_unique_done:
+        ret
+
+; Append exact event row r20 to the ordered output token.
+fixed_emit_append:
+        mov r25, r20
+        imm r1, 525912
+        load r2, r1
+        jeq r2, r25, fixed_emit_append_block
+        jmp reject
+fixed_emit_append_block:
+        mov r26, r25
+        imm r1, 8
+        mul r26, r1
+        imm r1, 7077888
+        add r1, r26
+        load r2, r1
+        imm r1, 525928
+        load r3, r1
+        jeq r2, r3, fixed_emit_append_clause
+        jmp reject
+fixed_emit_append_clause:
+        mov r20, r25
+        call write_str_require_emit_event
+        mov r27, r0                  ; literal p
+        mov r28, r1                  ; literal len
+
+        ; The next executable pc must be this event's inline-data jump p-9.
+        mov r2, r27
+        imm r3, 9
+        sub r2, r3
+        imm r1, 525888
+        load r3, r1
+        jeq r2, r3, fixed_emit_append_length
+        jmp reject
+fixed_emit_append_length:
+        imm r1, 525896
+        load r2, r1
+        add r2, r28
+        store r1, r2
+        imm r1, 525904
+        load r2, r1
+        imm r3, 1
+        add r2, r3
+        store r1, r2
+
+        ; Advance the ordered Rows[first:row+1] token and exact continuation.
+        mov r29, r25
+        imm r3, 1
+        add r29, r3
+        imm r1, 525912
+        store r1, r29
+        imm r1, 525920
+        store r1, r29
+        imm r1, 7135232
+        add r1, r26
+        load r2, r1                  ; call pc
+        imm r3, 9                    ; checked call continuation width
+        add r2, r3
+        imm r1, 525888
+        store r1, r2
+        ret
+
+; Finish expected exclusive-row/count/length in r20..r22.
+fixed_emit_finish:
+        mov r25, r20
+        mov r26, r21
+        mov r27, r22
+        imm r1, 525912
+        load r2, r1
+        jeq r2, r25, fixed_emit_finish_token
+        jmp reject
+fixed_emit_finish_token:
+        imm r1, 525920
+        load r2, r1
+        jeq r2, r25, fixed_emit_finish_count
+        jmp reject
+fixed_emit_finish_count:
+        imm r1, 525904
+        load r2, r1
+        jeq r2, r26, fixed_emit_finish_length
+        jmp reject
+fixed_emit_finish_length:
+        imm r1, 525896
+        load r2, r1
+        jeq r2, r27, fixed_emit_finish_epilogue
+        jmp reject
+fixed_emit_finish_epilogue:
+        imm r1, 525936
+        load r2, r1                  ; exclusive end
+        mov r3, r2
+        imm r4, 20
+        sub r3, r4                   ; epilogue start
+        imm r1, 525888
+        load r4, r1
+        jeq r4, r3, fixed_emit_finish_ret
+        jmp reject
+fixed_emit_finish_ret:
+        mov r20, r3
+        mov r21, r2
+        imm r1, 1
+        sub r21, r1                  ; exact ret pc
+        call slurp_summary_require_epilogue
+        ret
+
+; No source transition, local access, or raw-memory action belongs to block r20.
+fixed_emit_require_source_quiet:
+        mov r25, r20
+        imm r10, 0
+fixed_emit_transition_loop:
+        imm r1, 291
+        jlt r10, r1, fixed_emit_transition_row
+        imm r10, 0
+        jmp fixed_emit_local_loop
+fixed_emit_transition_row:
+        mov r2, r10
+        imm r1, 8
+        mul r2, r1
+        imm r1, 3215360
+        add r1, r2
+        load r3, r1
+        jeq r3, r25, reject
+        imm r1, 1
+        add r10, r1
+        jmp fixed_emit_transition_loop
+fixed_emit_local_loop:
+        imm r1, 242
+        jlt r10, r1, fixed_emit_local_row
+        imm r10, 0
+        jmp fixed_emit_memory_loop
+fixed_emit_local_row:
+        mov r2, r10
+        imm r1, 8
+        mul r2, r1
+        imm r1, 7168000
+        add r1, r2
+        load r3, r1
+        jeq r3, r25, reject
+        imm r1, 1
+        add r10, r1
+        jmp fixed_emit_local_loop
+fixed_emit_memory_loop:
+        imm r1, 95
+        jlt r10, r1, fixed_emit_memory_row
+        ret
+fixed_emit_memory_row:
+        mov r2, r10
+        imm r1, 8
+        mul r2, r1
+        imm r1, 7602176
+        add r1, r2
+        load r3, r1
+        jeq r3, r25, reject
+        imm r1, 1
+        add r10, r1
+        jmp fixed_emit_memory_loop
+
+; Scan [r20,r21): only the selected helper calls plus one final ret may be
+; effectful. Reject direct I/O, halt, division, remainder, or hidden extra call.
+; Expected call count follows from the procedure block.
+fixed_emit_scan_region:
+        mov r25, r20
+        mov r26, r21
+        imm r27, 0                   ; calls
+        imm r28, 0                   ; returns
+fixed_emit_region_loop:
+        jlt r25, r26, fixed_emit_region_pc
+        imm r1, 1
+        jeq r28, r1, fixed_emit_region_call_expected
+        jmp reject
+fixed_emit_region_call_expected:
+        imm r1, 20599
+        jeq r20, r1, fixed_emit_region_write_calls
+        imm r1, 29619
+        jeq r20, r1, fixed_emit_region_prelude_calls
+        jmp reject
+fixed_emit_region_write_calls:
+        imm r1, 12
+        jmp fixed_emit_region_call_count
+fixed_emit_region_prelude_calls:
+        imm r1, 5
+fixed_emit_region_call_count:
+        jeq r27, r1, fixed_emit_region_done
+        jmp reject
+fixed_emit_region_pc:
+        imm r1, 4194304
+        add r1, r25
+        loadb r2, r1
+        imm r3, 1
+        jeq r2, r3, fixed_emit_region_start
+        jmp fixed_emit_region_next
+fixed_emit_region_start:
+        imm r1, 2097152
+        add r1, r25
+        loadb r2, r1
+        imm r3, 19
+        jeq r2, r3, fixed_emit_region_call
+        imm r3, 20
+        jeq r2, r3, fixed_emit_region_ret
+        imm r3, 0
+        jeq r2, r3, reject
+        imm r3, 6
+        jeq r2, r3, reject
+        imm r3, 7
+        jeq r2, r3, reject
+        imm r3, 17
+        jeq r2, r3, reject
+        imm r3, 18
+        jeq r2, r3, reject
+        jmp fixed_emit_region_next
+fixed_emit_region_call:
+        imm r1, 1
+        add r27, r1
+        jmp fixed_emit_region_next
+fixed_emit_region_ret:
+        imm r1, 1
+        add r28, r1
+fixed_emit_region_next:
+        imm r1, 1
+        add r25, r1
+        jmp fixed_emit_region_loop
+fixed_emit_region_done:
+        ret
