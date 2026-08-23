@@ -763,8 +763,32 @@ additional facilities the bootstrap actually needs.
         all local/memory/transition/event rows plus decoded quiet-region scans.
         Source-index detachment, a reversed boundary partition, zero cursor
         progress, dropped CR, a whitespace complement, and an effect
-        undercount reject only in this phase. Composition into `skip_ws_step`
-        and its two terminating cursor loops remains open.
+        undercount reject only in this phase. The following milestone composes
+        these deliberately reusable leaves through both whitespace loops.
+      - [x] Compose `cbyte`, `adv`, and `is_space` through `skip_ws_step` and
+        `skip_ws`. The step theorem carries cbyte's return through the exact
+        local-`c` store/load and `is_space` argument handoff, then publishes
+        four exact cases: whitespace advances once and returns one; an ordinary
+        nonspace/nonsemicolon byte (including numeric zero) preserves the
+        cursor and returns zero; a semicolon comment consumes at least its
+        opener and returns one at an unconsumed LF or zero at logical end/NUL.
+        The two comment-loop `cbyte` calls are proved deterministic at the same
+        cursor. A mandatory first semicolon iteration and every later
+        nonzero/non-LF iteration invoke bounded `adv`; `LEN-CUR` decreases by
+        one on each inner backedge, then capture-avoiding successor-to-current
+        renaming rechecks the cursor/rank/domain invariant. The outer loop repeats only the two
+        result-one/strict-progress clauses, so the same natural rank terminates
+        it at the first ordinary byte, logical end, or in-range NUL. Exact call
+        targets/continuations, events, local/primitive/push rows, transitions,
+        epilogues, whole-table effect censuses, and decoded quiet regions are
+        rejoined. Sixteen phase-isolated variants reject wrong continuation,
+        argument/local provenance, cursor equality, LF/zero result, inner or
+        outer progress, result-zero backedge, event custody, a dropped domain,
+        a detached opening semicolon, zero rank premises, and broken inner or
+        outer successor renaming. The source
+        comment “1 if it did” is intentionally not used as semantics: a
+        zero-ended comment consumes its opener but returns zero. Composing these
+        summaries with the two fixed emitters from `main.ready` remains open.
       - [ ] **DESIGN BLOCKED — observation ruling required:** define how the
         theorem assigns typed `Exhaust(ResourceKind, limit, requested)` to the
         exact resource-guard paths whose program-level result is only 252/253.

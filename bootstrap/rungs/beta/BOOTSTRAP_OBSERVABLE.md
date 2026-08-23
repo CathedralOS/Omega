@@ -198,8 +198,17 @@ are valuable teeth, but they do not yet establish the quantified observation:
   `CUR` to `CUR+1<=LEN`, and whitespace is exactly `{32,9,10,13}`. In-range
   NUL deliberately shares cbyte's numeric-zero result with logical end. Exact
   selected-procedure local, memory, transition, and event ownership is
-  exhaustive; composing these clauses through the comment and whitespace loops
-  remains open;
+  exhaustive; the clauses remain modular inputs to the following loop phase;
+- its whitespace-composition phase carries those leaf meanings through the
+  exact `skip_ws_step` local/argument/call continuations and proves four cases:
+  whitespace returns one after one advance, ordinary input/zero returns zero
+  unchanged, and a semicolon comment returns one at an unconsumed LF or zero at
+  logical end/NUL after consuming at least its opener. The two comment cbyte
+  calls share one cursor; `LEN-CUR` decreases on each inner continuation and on
+  every result-one outer `skip_ws` backedge, with each successor cursor/rank
+  pair capture-renamed and rechecked at its cutpoint. Both procedures terminate without
+  input/output or source mutation, changing no compiler global except `CUR`;
+  root composition from `main.ready` remains open;
 - its BC11 grammar-composition pass further partitions every raw-store source
   address into 31 aligned fixed compiler globals, one exact source-buffer
   `base + n` spelling, and two exact local-name-table `base + s * 8` spellings;
