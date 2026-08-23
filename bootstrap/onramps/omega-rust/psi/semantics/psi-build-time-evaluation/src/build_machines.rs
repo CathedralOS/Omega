@@ -7,7 +7,9 @@
 use psi_checked_interpreter::{BuildTimeValue, MeasuredEvaluation};
 use psi_typed_trees::TypedTrees;
 
-pub use psi_checked_interpreter::FilesystemAccess as BuildMachineFilesystemAccess;
+pub use psi_checked_interpreter::{
+    FilesystemAccess as BuildMachineFilesystemAccess, FsGrants as BuildMachineFilesystemGrants,
+};
 
 /// Explicit execution authority supplied by build orchestration.
 ///

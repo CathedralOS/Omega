@@ -1,8 +1,8 @@
 //! The GRANTED build.omg round trip (owner answers #2/#4, OWNER_QUESTIONS
 //! 2026-07-11i; gate landed 2026-07-11j): a build machine with a declared
 //! `FilesystemHost` service ceiling runs at compile time through the granted
-//! interpreter entry (real filesystem, unscoped -- permissions explicitly
-//! de-scoped by the owner) and stages an asset itself, while the augmented
+//! interpreter entry (real filesystem, scoped to source reads and build-dir
+//! writes) and stages an asset itself, while the augmented
 //! Build's image facts flow into the pipeline. Console rows (#5) are
 //! served: a declared `Console` boundary write passes the gate, the
 //! granted evaluator serves it, and the bytes flush to the compiler's
@@ -27,9 +27,10 @@ fn declared_filesystem_build_machine_stages_at_compile_time() {
     let project =
         std::env::temp_dir().join(format!("omega-build-config-granted-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&project);
-    std::fs::create_dir_all(project.join("stage")).expect("create project dirs");
+    let build_dir = project.join("build");
+    let stage = build_dir.join("stage");
+    std::fs::create_dir_all(&stage).expect("create project dirs");
 
-    let stage = project.join("stage");
     std::fs::write(
         project.join("build.omg"),
         format!(
@@ -84,7 +85,6 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     )
     .expect("write main.omg");
 
-    let build_dir = project.join("build");
     let checked = compile_to_checked(&project.join("main.omg"), Some(profile.target_name()))
         .expect("checked build evaluation should succeed");
     assert_eq!(checked.selected_program_entry_machine(), Some("Main::main"));
@@ -119,6 +119,75 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
         "expected the staged program to exit 70, got {:?}\nstderr:\n{}",
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = std::fs::remove_dir_all(&project);
+}
+
+#[test]
+fn declared_filesystem_build_machine_cannot_write_under_source_root() {
+    let profile = omega_target::TargetProfile::host();
+    let project = std::env::temp_dir().join(format!(
+        "omega-build-config-scoped-deny-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&project);
+    std::fs::create_dir_all(project.join("stage")).expect("create project dirs");
+
+    let forbidden = project.join("stage/blocked.bin");
+    std::fs::write(
+        project.join("build.omg"),
+        format!(
+            r#"use omega::language::std::filesystem_host;
+
+target {target} {{}}
+
+data Subsystem {{ case Console; case Gui; case EfiApplication; case Unspecified(value: u16); }}
+data Build {{ subsystem: Subsystem; freestanding: bool; }}
+
+data SourceWriter {{
+    fs: FilesystemHost;
+    fd: i32;
+}}
+
+machine SourceWriter::build(&mut self, b: &mut Build)
+reaches
+    FilesystemHost
+{{
+    b.roots.bind({root_owner}::ProgramEntry, Main::main);
+    self.fd = self.fs.create("{forbidden}", 438);
+    b.freestanding = false;
+}}
+"#,
+            // Forward slashes so the embedded path lexes on windows too.
+            forbidden = forbidden.display().to_string().replace('\\', "/"),
+            target = profile.target_name(),
+            root_owner = profile.root_slot_owner_name(),
+        ),
+    )
+    .expect("write build.omg");
+    std::fs::write(
+        project.join("main.omg"),
+        r#"use omega::language::std::console;
+data Main { console: Console; }
+machine Main::main(&mut self) { self.console.exit_process(70); }
+"#,
+    )
+    .expect("write main.omg");
+
+    compile(CompileOptions {
+        root_path: PathBuf::from(project.join("main.omg")),
+        build_dir: Some(project.join("build")),
+        target_name: Some(profile.target_name().to_owned()),
+        write_output: false,
+    })
+    .expect(
+        "declared filesystem build.omg should compile while denied source write returns fd < 0",
+    );
+
+    assert!(
+        !forbidden.exists(),
+        "scoped build machine filesystem access must deny source-tree writes before touching disk"
     );
 
     let _ = std::fs::remove_dir_all(&project);
