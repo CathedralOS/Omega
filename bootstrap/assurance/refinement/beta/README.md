@@ -534,10 +534,26 @@ source/input/output and other compiler globals. Eleven isolated teeth exercise
 the calls, slot/comparison, censuses, delimiter premise, match-range fact, and
 both cursor outcomes. The modules are 4.3 KB and 6.7 KB.
 
+`bc-declare-shape.alpha` and `bc-declare-summary.alpha` reuse the earlier
+ranged-store/NLOC and identifier-slice work to close procedure 34. The shape
+module pins its three blocks, room guard, local `s` snapshot, seven word-memory
+sites, nineteen primitives, binary/store-address pushes, both explicit and the
+synthetic epilogue, 16-byte frame, and exhaustive quiet-region/table ownership.
+The conditional `DCLS` theorem snapshots actual/source NLOC as `s` in
+`[0,1024]`. With room it stores IDOFF/IDLEN in NAMEOFF[s]/NAMELEN[s], advances
+NLOC to `s+1`, preserves RESOURCE_FAIL, and returns `s`. At capacity the domain
+forces `s=1024`; tables and NLOC stay unchanged, numeric RESOURCE_FAIL becomes
+252, and the result is zero. The theorem deliberately does not assign a typed
+resource kind to that shared numeric status. Both paths terminate, emit
+nothing, preserve source/input/CUR/identifier globals and other compiler state,
+and restore the frame. Twelve isolated teeth cover shape, capacity/status and
+payload values, row closure, and both branch relations. The modules are 9.3 KB
+and 6.6 KB.
+
 The eventual `parse_proc` theorem must be maximal, not universally terminating.
 For malformed input, an unrecognized body byte such as `@` can survive both
 `gen_stmt` and the number fallback without cursor progress while `gen_stmts`
 keeps emitting. The honest contract is therefore Return-or-Diverge with exact
-finite/infinite output behavior. The next engineering milestone is the
-`declare`/parameter-loop/`count_lets` cluster; the existing typed status-252
-projection is the only language-design blocker in this area.
+finite/infinite output behavior. The next engineering milestones are the
+parameter loop and `count_lets`; the existing typed status-252 projection is
+the only language-design blocker in this area.
