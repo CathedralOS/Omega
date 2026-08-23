@@ -540,9 +540,28 @@ fn program_storage_entry_publishes_both_core_owned_root_positions() {
         .expect("UEFI application entry trait");
     let schema = omega_effects::provider_plan::ServiceSchema::from_typed(&checked.typed, entry)
         .expect("program-storage entry schema");
-    let [method] = schema.methods.as_slice() else {
-        panic!("a process-entry trait must inherit one stable core requirement");
-    };
+    let method = schema
+        .methods
+        .iter()
+        .find(|method| method.requirement_owner == "ProgramStorageEntry")
+        .expect("entry schema retains the semantic storage requirement");
+    let physical = schema
+        .methods
+        .iter()
+        .find(|method| method.requirement_owner == "UefiPhysicalEntry")
+        .expect("entry schema retains the distinct physical UEFI requirement");
+    assert_eq!(schema.methods.len(), 2);
+    assert_eq!(physical.name, "enter");
+    assert_eq!(physical.parameter_type_identities.len(), 2);
+    assert!(physical.parameter_type_identities[0].contains("EfiImageHandle"));
+    assert!(physical.parameter_type_identities[1].contains("EfiSystemTable"));
+    assert!(
+        physical
+            .result_type_identity
+            .as_deref()
+            .is_some_and(|identity| identity.contains("EfiStatus"))
+    );
+    assert_ne!(physical.requirement_identity, method.requirement_identity);
     assert_eq!(method.requirement_owner, "ProgramStorageEntry");
     assert_eq!(method.name, "enter");
     assert_eq!(method.parameter_type_identities.len(), 2);
@@ -593,7 +612,7 @@ fn program_storage_entry_publishes_both_core_owned_root_positions() {
         schema: selected_schema.clone(),
     };
     let generic_error = selected_provider
-        .entry_claims(&selected_provider.schema.methods[0].requirement_identity)
+        .entry_claims(&requirement_identity)
         .expect_err("predicate-bearing roots require their specialized installer");
     assert!(generic_error.0.contains("predicate obligations"));
     let hosted_error = SelectedProgramStorageEntryPlan::from_target_slot(
@@ -1097,7 +1116,7 @@ fn program_storage_entry_publishes_both_core_owned_root_positions() {
         local_roots
             .diagnostic()
             .0
-            .contains("not issued by the selected physical entry provider invocation")
+            .contains("not issued by the selected root-provider invocation")
     );
     let wrong_invocation = install_program_storage_entry_provider_invocation(
         &physical_artifact_directory,
@@ -1116,7 +1135,7 @@ fn program_storage_entry_publishes_both_core_owned_root_positions() {
         wrong_invocation
             .diagnostic()
             .0
-            .contains("selected physical entry provider, plan, and invocation")
+            .contains("selected root provider, plan, and invocation")
     );
 
     let (physical_image, provider_issuance) =
@@ -1322,7 +1341,7 @@ fn program_storage_entry_publishes_both_core_owned_root_positions() {
     let physical_record =
         fs::read_to_string(physical_artifact_directory.join(PROGRAM_STORAGE_INSTALLATION_ARTIFACT))
             .expect("read physical-provider installation record");
-    assert!(physical_record.contains("\"physical_provider_invocation\": {"));
+    assert!(physical_record.contains("\"root_provider_invocation\": {"));
     assert!(physical_record.contains("\"provider\": \"0x0000000000000442\""));
     assert!(physical_record.contains("\"provider_plan\": \"0x000000000000005a\""));
     assert!(physical_record.contains("\"invocation\": \"0x0000000000000385\""));
@@ -1803,7 +1822,7 @@ machine build(builder: &mut Build) {
         .expect("written bridge manifest");
     assert!(entry_manifest.contains("\"emitted_wrapper_evidence\": {"));
     assert!(entry_manifest.contains("\"final_call_bytes\": [232,"));
-    assert!(entry_manifest.contains("\"physical_arrival\": {"));
+    assert!(entry_manifest.contains("\"semantic_wrapper_arrival\": {"));
     assert!(entry_manifest.contains("\"pointer_register\": \"X86Rcx\""));
     assert!(entry_manifest.contains("\"pointer_register\": \"X86Rdx\""));
     assert!(entry_manifest.contains("\"status\": \"pending_runtime_installation\""));

@@ -72,6 +72,7 @@ pub struct ProgramStorageEntryPlanBinding {
     initial_storage: ProgramStorageEntryParameter,
     receiver: Option<ProgramEntryReceiverStoragePlan>,
     source_signature: Option<super::SelectedProgramEntrySourceSignature>,
+    physical_contract: Option<super::ProgramEntryPhysicalContractPlan>,
 }
 
 impl ProgramStorageEntryPlanBinding {
@@ -103,6 +104,13 @@ impl ProgramStorageEntryPlanBinding {
     /// entry before backend lowering. This is not a value or authority carrier.
     pub const fn source_signature(&self) -> Option<&super::SelectedProgramEntrySourceSignature> {
         self.source_signature.as_ref()
+    }
+
+    /// Target-fixed physical environment contract retained independently from
+    /// this semantic root-installation plan. Lower-level semantic tests may
+    /// omit it; production UEFI selection must retain it.
+    pub const fn physical_contract(&self) -> Option<&super::ProgramEntryPhysicalContractPlan> {
+        self.physical_contract.as_ref()
     }
 
     /// Attach the concrete layout of a receiver whose exclusive source shape
@@ -181,6 +189,7 @@ pub struct SelectedProgramStorageEntryPlan {
     root_slot: omega_external_roots::RootSlotId,
     requirement_identity: String,
     schema: omega_effects::provider_plan::ServiceSchema,
+    physical_contract: Option<super::ProgramEntryPhysicalContractPlan>,
 }
 
 impl SelectedProgramStorageEntryPlan {
@@ -193,7 +202,7 @@ impl SelectedProgramStorageEntryPlan {
             || slot.schema != omega_target::ProgramEntrySchema::ProgramStorageApplication
             || slot.visible_parameters
                 != omega_target::ProgramEntryVisibleParameters::ImageAndInitialStorage
-            || slot.arrival_requirement
+            || slot.semantic_arrival_requirement
                 != format!("{PROGRAM_STORAGE_ENTRY_OWNER}::{PROGRAM_STORAGE_ENTRY_METHOD}")
         {
             return Err(ProgramStorageEntryDiagnostic(format!(
@@ -258,7 +267,26 @@ impl SelectedProgramStorageEntryPlan {
             root_slot,
             requirement_identity,
             schema,
+            physical_contract: None,
         })
+    }
+
+    pub(crate) fn with_physical_contract(
+        mut self,
+        physical_contract: super::ProgramEntryPhysicalContractPlan,
+    ) -> Result<Self, ProgramStorageEntryDiagnostic> {
+        if physical_contract.target_slot() != self.target_slot {
+            return Err(ProgramStorageEntryDiagnostic(
+                "physical entry contract belongs to a different target slot".into(),
+            ));
+        }
+        if self.physical_contract.is_some() {
+            return Err(ProgramStorageEntryDiagnostic(
+                "selected program-storage entry already has a physical contract".into(),
+            ));
+        }
+        self.physical_contract = Some(physical_contract);
+        Ok(self)
     }
 
     pub const fn root_slot(&self) -> omega_external_roots::RootSlotId {
@@ -276,6 +304,10 @@ impl SelectedProgramStorageEntryPlan {
     pub fn requirement_identity(&self) -> &str {
         &self.requirement_identity
     }
+
+    pub const fn physical_contract(&self) -> Option<&super::ProgramEntryPhysicalContractPlan> {
+        self.physical_contract.as_ref()
+    }
 }
 
 /// Provider-admitted authority and the runtime geometry presented at one
@@ -288,8 +320,8 @@ pub struct ProgramStorageRootInput {
     length: u64,
 }
 
-/// Exact selected physical-provider occurrence authorized to supply both
-/// roots for one generated program-entry bridge invocation.
+/// Exact selected root-provider occurrence authorized to supply both roots
+/// for one generated program-entry bridge invocation.
 ///
 /// Image and initial-storage roots may carry different route, capacity, and
 /// qualification evidence, but they must originate from this same selected
@@ -348,6 +380,13 @@ impl ProgramStorageEntryNativeBridgePlan {
         self.binding.source_signature()
     }
 
+    /// Retained target-fixed launch contract. This is plan identity only: the
+    /// current bridge emits the inner semantic wrapper and does not claim a
+    /// physical shell, bootstrap invocation, or firmware-supplied values.
+    pub const fn physical_contract(&self) -> Option<&super::ProgramEntryPhysicalContractPlan> {
+        self.binding.physical_contract()
+    }
+
     /// Address-free semantic root/receiver handoff retained for the future
     /// generated wrapper. This does not claim an outbound call ABI or body.
     pub const fn wrapper_transfer(
@@ -384,6 +423,34 @@ impl ProgramStorageEntryNativeBridgePlan {
     ) -> Option<&super::program_storage_wrapper_body::ProgramStorageEntryWrapperBodyTemplatePlan>
     {
         self.wrapper_body_template.as_ref()
+    }
+
+    /// The only admitted native bridge without the receiver-free wrapper
+    /// template: an exact checked mutable receiver is provisioned and passed
+    /// through the continuation ABI as its activation loan.
+    pub fn is_receiver_bound_without_wrapper_template(&self) -> bool {
+        let (Some(storage), Some(source), Some(abi)) = (
+            self.binding.receiver(),
+            self.source_signature(),
+            self.continuation_abi(),
+        ) else {
+            return false;
+        };
+        self.wrapper_body_template.is_none()
+            && self.continuation_inbound.is_none()
+            && matches!(
+                source.receiver(),
+                super::ProgramEntrySourceReceiverSignature::ProvisionedMutable {
+                    normalized_type_identity,
+                } if normalized_type_identity == storage.type_identity()
+            )
+            && matches!(
+                abi.receiver(),
+                super::ProgramStorageEntryContinuationReceiverAbiPlan::BorrowedActivationLoan {
+                    storage: abi_storage,
+                    ..
+                } if abi_storage == storage
+            )
     }
 
     /// Exact placed-region and relocated-call evidence retained only after the
@@ -934,8 +1001,7 @@ impl ProgramStorageEntryProviderInvocation {
             != invocation.provider_plan().normalized_identity()
         {
             return Err(ProgramStorageEntryDiagnostic(
-                "physical entry issuance does not belong to the compiler-selected provider plan"
-                    .into(),
+                "root issuance does not belong to the compiler-selected provider plan".into(),
             ));
         }
         validate_selected_provider_binding(binding, selected)?;
@@ -978,14 +1044,13 @@ fn validate_selected_provider_binding(
         .collect::<Vec<_>>();
     let [method] = matching_methods.as_slice() else {
         return Err(ProgramStorageEntryDiagnostic(
-            "selected physical entry provider does not implement the bound arrival requirement exactly once"
+            "selected root provider does not implement the bound semantic arrival requirement exactly once"
                 .into(),
         ));
     };
     if method.calling_plan_fingerprint != Some(binding.boundary_contract_fingerprint) {
         return Err(ProgramStorageEntryDiagnostic(
-            "selected physical entry provider calling plan does not match the generated bridge binding"
-                .into(),
+            "selected root provider calling plan does not match the semantic bridge binding".into(),
         ));
     }
     Ok(())
@@ -1738,6 +1803,7 @@ pub fn bind_program_storage_entry_plan(
         initial_storage,
         receiver: None,
         source_signature: None,
+        physical_contract: selected.physical_contract.clone(),
     })
 }
 
@@ -2041,12 +2107,12 @@ fn validate_physical_provider_root(
 ) -> Result<(), ProgramStorageEntryDiagnostic> {
     let Some(issuance) = input.grant.origin().provider_issuance() else {
         return Err(ProgramStorageEntryDiagnostic(format!(
-            "{role} root is not issued by the selected physical entry provider invocation"
+            "{role} root is not issued by the selected root-provider invocation"
         )));
     };
     if !selected.matches(issuance) {
         return Err(ProgramStorageEntryDiagnostic(format!(
-            "{role} root does not belong to the selected physical entry provider, plan, and invocation"
+            "{role} root does not belong to the selected root provider, plan, and invocation"
         )));
     }
     Ok(())
@@ -2134,7 +2200,7 @@ pub fn install_program_storage_entry_roots(
     record_program_storage_installation(artifact_directory, roots)
 }
 
-/// Install the two roots supplied by one exact selected physical-provider
+/// Install the two roots supplied by one exact selected root-provider
 /// invocation and retain that occurrence identity through audit and entry
 /// activation.
 ///
@@ -2211,7 +2277,7 @@ fn validate_compiler_provisioned_root(
 ) -> Result<(), ProgramStorageEntryDiagnostic> {
     if input.grant.origin().compiler_provisioning().is_none() {
         return Err(ProgramStorageEntryDiagnostic(format!(
-            "{role} root is provider-issued; use the selected physical-provider invocation installer"
+            "{role} root is provider-issued; use the selected root-provider invocation installer"
         )));
     }
     Ok(())

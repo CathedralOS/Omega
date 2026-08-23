@@ -1,6 +1,28 @@
 use omega::language::core::extent;
 use omega::language::std::calling;
 
+// Target-owned physical launch surface. These values are retained only in the
+// physical entry contract; the selected source continuation never receives
+// them as hidden parameters.
+repr native
+data EfiImageHandle {
+    raw: addr;
+}
+
+boundary data EfiSystemTable;
+
+repr native
+data EfiStatus {
+    code: u64;
+}
+
+boundary trait UefiPhysicalEntry {
+    machine enter(
+        image_handle: EfiImageHandle,
+        system_table: &EfiSystemTable
+    ) -> EfiStatus;
+}
+
 data UefiX86_64 { }
 UefiX86_64CallingPolicy: UefiX86_64 satisfies CallingPolicy;
 
@@ -9,16 +31,28 @@ machine UefiX86_64::plan(
 ) -> BoundaryPlanResult
     satisfies CallingPolicy::plan
 {
-    transition signature.parameter_count == 2 && !signature.has_result {
-        true -> accept(
-            signature,
-            signature.parameters[0],
-            signature.parameters[1]
-        )
+    transition signature.parameter_count == 2 {
+        true -> select_surface(signature)
         _ -> reject()
     }
 
-    state accept(
+    state select_surface(signature: BoundarySignature) -> BoundaryPlanResult {
+        transition signature.has_result {
+            true -> accept_physical(
+                signature,
+                signature.parameters[0],
+                signature.parameters[1],
+                signature.result
+            )
+            _ -> accept_semantic(
+                signature,
+                signature.parameters[0],
+                signature.parameters[1]
+            )
+        }
+    }
+
+    state accept_semantic(
         signature: BoundarySignature,
         image: u64,
         initial_storage: u64
@@ -86,6 +120,79 @@ machine UefiX86_64::plan(
         BoundaryPlanResult::Accepted { plan: output }
     }
 
+    state accept_physical(
+        signature: BoundarySignature,
+        image_handle: u64,
+        system_table: u64,
+        status: u64
+    ) -> BoundaryPlanResult {
+        transition image_handle < 256 && system_table < 256 && status < 256 {
+            true -> build_physical(signature, image_handle, system_table, status)
+            _ -> reject()
+        }
+    }
+
+    state build_physical(
+        signature: BoundarySignature,
+        image_handle: u64,
+        system_table: u64,
+        status: u64
+    ) -> BoundaryPlanResult {
+        let mut output: BoundaryEntryPlan;
+        output.call.convention = CallingConvention::MicrosoftX64;
+        output.call.parameter_count = 2;
+
+        output.call.parameters[0].shape.class = AbiValueClass::Integer;
+        output.call.parameters[0].shape.byte_size = signature.shapes[image_handle].byte_size;
+        output.call.parameters[0].shape.alignment = signature.shapes[image_handle].alignment;
+        output.call.parameters[0].location_count = 1;
+        output.call.parameters[0].locations[0] = ValueLocation::Register {
+            register: MachineRegister::X86Rcx,
+            value_byte_offset: 0,
+            byte_size: signature.shapes[image_handle].byte_size,
+        };
+
+        output.call.parameters[1].shape.class = AbiValueClass::Integer;
+        output.call.parameters[1].shape.byte_size = signature.shapes[system_table].byte_size;
+        output.call.parameters[1].shape.alignment = signature.shapes[system_table].alignment;
+        output.call.parameters[1].location_count = 1;
+        output.call.parameters[1].locations[0] = ValueLocation::Register {
+            register: MachineRegister::X86Rdx,
+            value_byte_offset: 0,
+            byte_size: signature.shapes[system_table].byte_size,
+        };
+
+        output.call.has_result = true;
+        output.call.result.shape.class = AbiValueClass::Integer;
+        output.call.result.shape.byte_size = signature.shapes[status].byte_size;
+        output.call.result.shape.alignment = signature.shapes[status].alignment;
+        output.call.result.location_count = 1;
+        output.call.result.locations[0] = ValueLocation::Register {
+            register: MachineRegister::X86Rax,
+            value_byte_offset: 0,
+            byte_size: signature.shapes[status].byte_size,
+        };
+
+        output.call.ordinary_clobbers.register_count = 7;
+        output.call.ordinary_clobbers.registers[0] = MachineRegister::X86Rax;
+        output.call.ordinary_clobbers.registers[1] = MachineRegister::X86Rcx;
+        output.call.ordinary_clobbers.registers[2] = MachineRegister::X86Rdx;
+        output.call.ordinary_clobbers.registers[3] = MachineRegister::X86R8;
+        output.call.ordinary_clobbers.registers[4] = MachineRegister::X86R9;
+        output.call.ordinary_clobbers.registers[5] = MachineRegister::X86R10;
+        output.call.ordinary_clobbers.registers[6] = MachineRegister::X86R11;
+        output.call.stack_alignment = 16;
+        output.call.shadow_bytes = 32;
+        output.call.entry_control = EntryControl::CallReturn;
+
+        output.state.initial_regime = MachineRegime::X86Long64;
+        output.state.permitted_transitive_use.general_registers = true;
+        output.state.permitted_transitive_use.flags = true;
+        output.state.stack = EntryStack::ProviderSelected;
+        output.state.preemption = Preemption::NotApplicable;
+        BoundaryPlanResult::Accepted { plan: output }
+    }
+
     state reject() -> BoundaryPlanResult {
         BoundaryPlanResult::Rejected {
             reason: CallingPolicyRejection {
@@ -95,7 +202,7 @@ machine UefiX86_64::plan(
     }
 }
 
-boundary trait UefiApplication: ProgramStorageEntry + Calling<UefiX86_64> {
+boundary trait UefiApplication: ProgramStorageEntry + UefiPhysicalEntry + Calling<UefiX86_64> {
 }
 
 data Boot {

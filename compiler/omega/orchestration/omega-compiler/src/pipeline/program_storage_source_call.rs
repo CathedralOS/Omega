@@ -264,7 +264,7 @@ fn plan_from_facts(
         || target_slot.schema != omega_target::ProgramEntrySchema::ProgramStorageApplication
         || target_slot.visible_parameters
             != omega_target::ProgramEntryVisibleParameters::ImageAndInitialStorage
-        || target_slot.calling_convention
+        || target_slot.semantic_calling_convention
             != Some(omega_target::ProgramEntryCallingConvention::MicrosoftX64)
         || omega_calling_conventions::CallingPolicy::native_for_target(target)
             != omega_calling_conventions::CallingPolicy::MicrosoftX64

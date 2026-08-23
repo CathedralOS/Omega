@@ -263,7 +263,7 @@ pub(crate) fn validate_selected_program_entry_shape(
         == omega_target::ProgramEntryVisibleParameters::ImageAndInitialStorage
         && visible.len() == 2
     {
-        match arrival_requirement_contract(typed, selected.slot.arrival_requirement) {
+        match arrival_requirement_contract(typed, selected.slot.semantic_arrival_requirement) {
             Ok(required) if required.parameters.len() == visible.len() => {
                 for (index, (actual, required)) in
                     visible.iter().zip(required.parameters.iter()).enumerate()
@@ -287,7 +287,7 @@ pub(crate) fn validate_selected_program_entry_shape(
                 "target root slot `{}::{}` selects arrival requirement `{}` with {} visible parameters, but its target schema declares {}",
                 selected.slot.owner.root_slot_owner_name(),
                 selected.slot.slot_name,
-                selected.slot.arrival_requirement,
+                selected.slot.semantic_arrival_requirement,
                 required.parameters.len(),
                 visible.len(),
             ))),
@@ -357,24 +357,35 @@ pub(crate) fn validate_selected_program_entry_shape(
     .map_err(|diagnostic| vec![Diagnostic::error(diagnostic)])
 }
 
+pub(crate) struct SelectedProgramEntryCallingPlans {
+    pub(crate) semantic_boundary_entry_plan: omega_calling_conventions::BoundaryEntryPlan,
+    pub(crate) storage_entry: super::program_storage_entry::SelectedProgramStorageEntryPlan,
+}
+
 pub(crate) fn validate_selected_program_entry_calling_plan(
     typed: &TypedTrees,
     selected: SelectedProgramEntry<'_>,
     realizations: &[super::calling_policy_plans::BoundaryCallingPlanRealization],
-) -> Result<
-    Option<(
-        omega_calling_conventions::BoundaryEntryPlan,
-        super::program_storage_entry::SelectedProgramStorageEntryPlan,
-    )>,
-    Vec<Diagnostic>,
-> {
-    let (Some(schema_name), Some(required_convention)) = (
+) -> Result<Option<SelectedProgramEntryCallingPlans>, Vec<Diagnostic>> {
+    let (
+        Some(schema_name),
+        Some(physical_requirement),
+        Some(physical_convention),
+        Some(semantic_convention),
+    ) = (
         selected.slot.boundary_schema,
-        selected.slot.calling_convention,
-    ) else {
-        if selected.slot.boundary_schema.is_some() || selected.slot.calling_convention.is_some() {
+        selected.slot.physical_arrival_requirement,
+        selected.slot.physical_calling_convention,
+        selected.slot.semantic_calling_convention,
+    )
+    else {
+        if selected.slot.boundary_schema.is_some()
+            || selected.slot.physical_arrival_requirement.is_some()
+            || selected.slot.physical_calling_convention.is_some()
+            || selected.slot.semantic_calling_convention.is_some()
+        {
             return Err(vec![Diagnostic::error(format!(
-                "target root slot `{}::{}` has an incomplete boundary-schema calling-policy declaration",
+                "target root slot `{}::{}` has an incomplete two-surface entry declaration",
                 selected.slot.owner.root_slot_owner_name(),
                 selected.slot.slot_name,
             ))]);
@@ -394,35 +405,74 @@ pub(crate) fn validate_selected_program_entry_calling_plan(
             schemas.len(),
         ))]);
     };
-    let arrival = arrival_requirement_contract(typed, selected.slot.arrival_requirement)
+    let semantic = arrival_requirement_contract(typed, selected.slot.semantic_arrival_requirement)
         .map_err(|diagnostic| vec![diagnostic])?;
-    let matching = realizations
+    let physical = arrival_requirement_contract(typed, physical_requirement)
+        .map_err(|diagnostic| vec![diagnostic])?;
+    if semantic.signature == physical.signature
+        || semantic.requirement_identity == physical.requirement_identity
+    {
+        return Err(vec![Diagnostic::error(format!(
+            "target root slot `{}::{}` conflates physical requirement `{physical_requirement}` with semantic requirement `{}`",
+            selected.slot.owner.root_slot_owner_name(),
+            selected.slot.slot_name,
+            selected.slot.semantic_arrival_requirement,
+        ))]);
+    }
+    let semantic_matching = realizations
         .iter()
         .filter(|realization| {
             realization.boundary_trait == schema.symbol
-                && realization.requirement_machine == arrival.signature
+                && realization.requirement_machine == semantic.signature
         })
         .collect::<Vec<_>>();
-    let [realization] = matching.as_slice() else {
+    let [semantic_realization] = semantic_matching.as_slice() else {
         return Err(vec![Diagnostic::error(format!(
-            "target boundary schema `{schema_name}` retains {} evaluated calling plans for `{}` instead of exactly one",
-            matching.len(),
-            selected.slot.arrival_requirement,
+            "target boundary schema `{schema_name}` retains {} evaluated calling plans for semantic requirement `{}` instead of exactly one",
+            semantic_matching.len(),
+            selected.slot.semantic_arrival_requirement,
         ))]);
     };
-    let expected = match required_convention {
+    let physical_matching = realizations
+        .iter()
+        .filter(|realization| {
+            realization.boundary_trait == schema.symbol
+                && realization.requirement_machine == physical.signature
+        })
+        .collect::<Vec<_>>();
+    let [physical_realization] = physical_matching.as_slice() else {
+        return Err(vec![Diagnostic::error(format!(
+            "target boundary schema `{schema_name}` retains {} evaluated calling plans for physical requirement `{physical_requirement}` instead of exactly one",
+            physical_matching.len(),
+        ))]);
+    };
+    let expected_physical = match physical_convention {
         omega_target::ProgramEntryCallingConvention::MicrosoftX64 => {
             omega_calling_conventions::CallingPolicy::MicrosoftX64
         }
     };
-    if realization.boundary_entry_plan.call.policy != expected {
+    if physical_realization.boundary_entry_plan.call.policy != expected_physical {
         return Err(vec![Diagnostic::error(format!(
-            "target boundary schema `{schema_name}` evaluates `{}` with {:?}, but `{}::{}` requires {:?}",
-            selected.slot.arrival_requirement,
-            realization.boundary_entry_plan.call.policy,
+            "target boundary schema `{schema_name}` evaluates physical requirement `{physical_requirement}` with {:?}, but `{}::{}` requires {:?}",
+            physical_realization.boundary_entry_plan.call.policy,
             selected.slot.owner.root_slot_owner_name(),
             selected.slot.slot_name,
-            expected,
+            expected_physical,
+        ))]);
+    }
+    let expected_semantic = match semantic_convention {
+        omega_target::ProgramEntryCallingConvention::MicrosoftX64 => {
+            omega_calling_conventions::CallingPolicy::MicrosoftX64
+        }
+    };
+    if semantic_realization.boundary_entry_plan.call.policy != expected_semantic {
+        return Err(vec![Diagnostic::error(format!(
+            "target boundary schema `{schema_name}` evaluates semantic requirement `{}` with {:?}, but `{}::{}` requires {:?}",
+            selected.slot.semantic_arrival_requirement,
+            semantic_realization.boundary_entry_plan.call.policy,
+            selected.slot.owner.root_slot_owner_name(),
+            selected.slot.slot_name,
+            expected_semantic,
         ))]);
     }
     let service_schema = omega_effects::provider_plan::ServiceSchema::from_typed(typed, schema)
@@ -435,13 +485,34 @@ pub(crate) fn validate_selected_program_entry_calling_plan(
         super::program_storage_entry::SelectedProgramStorageEntryPlan::from_target_slot(
             selected.slot,
             service_schema,
-            arrival.requirement_identity,
+            semantic.requirement_identity,
         )
         .map_err(|diagnostic| vec![Diagnostic::error(diagnostic.to_string())])?;
-    Ok(Some((
-        realization.boundary_entry_plan.clone(),
+    let result_type_identity = physical.result_type_identity.ok_or_else(|| {
+        vec![Diagnostic::error(format!(
+            "physical entry requirement `{physical_requirement}` has no result"
+        ))]
+    })?;
+    let physical_contract = super::ProgramEntryPhysicalContractPlan::new(
+        selected.slot,
+        physical.requirement_identity,
+        physical
+            .parameters
+            .into_iter()
+            .map(|parameter| parameter.identity.into_string())
+            .collect(),
+        result_type_identity.into_string(),
+        physical_realization.fingerprint,
+        physical_realization.boundary_entry_plan.clone(),
+    )
+    .map_err(|diagnostic| vec![Diagnostic::error(diagnostic)])?;
+    let storage_entry = storage_entry
+        .with_physical_contract(physical_contract.clone())
+        .map_err(|diagnostic| vec![Diagnostic::error(diagnostic.to_string())])?;
+    Ok(Some(SelectedProgramEntryCallingPlans {
+        semantic_boundary_entry_plan: semantic_realization.boundary_entry_plan.clone(),
         storage_entry,
-    )))
+    }))
 }
 
 struct ArrivalRequirementParameterType {
@@ -455,6 +526,7 @@ struct ArrivalRequirementContract {
     signature: psi_symbols::SymbolHandle,
     requirement_identity: String,
     parameters: Vec<ArrivalRequirementParameterType>,
+    result_type_identity: Option<psi_typed_trees::type_identity::NormalizedTypeIdentity>,
 }
 
 /// Resolve the target declaration back to its core-owned typed requirement.
@@ -507,6 +579,10 @@ fn arrival_requirement_contract(
                 is_mutable: parameter.is_mutable,
             })
             .collect(),
+        result_type_identity: signature
+            .return_type
+            .is_valid()
+            .then(|| typed.normalized_type_identity(signature.return_type)),
     })
 }
 

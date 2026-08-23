@@ -61,12 +61,21 @@ pub struct ProgramEntrySlotDeclaration {
     pub owner: TargetProfile,
     pub slot_name: &'static str,
     pub schema: ProgramEntrySchema,
-    pub arrival_requirement: &'static str,
+    /// Stable semantic installation edge. This is never the platform ABI.
+    pub semantic_arrival_requirement: &'static str,
+    /// Target-fixed physical environment arrival. Hosted compatibility
+    /// profiles retain `None` until their two-surface entry bridge lands.
+    pub physical_arrival_requirement: Option<&'static str>,
     /// Source boundary schema whose evaluated Calling<C> plan owns the
     /// physical entry contract. `None` marks a profile not yet migrated from
     /// its hosted compatibility bridge.
     pub boundary_schema: Option<&'static str>,
-    pub calling_convention: Option<ProgramEntryCallingConvention>,
+    /// Calling convention for the target-fixed physical arrival.
+    pub physical_calling_convention: Option<ProgramEntryCallingConvention>,
+    /// Private ABI used by the generated bridge to call the selected semantic
+    /// continuation. It is deliberately distinct from physical arrival even
+    /// when both currently select Microsoft x64.
+    pub semantic_calling_convention: Option<ProgramEntryCallingConvention>,
     pub visible_parameters: ProgramEntryVisibleParameters,
     pub receiver: ProgramEntryReceiverProvisioning,
 }
@@ -155,16 +164,27 @@ impl TargetProfile {
     }
 
     pub const fn program_entry_slot(self) -> ProgramEntrySlotDeclaration {
-        let (schema, visible_parameters, boundary_schema, calling_convention) = match self {
+        let (
+            schema,
+            visible_parameters,
+            boundary_schema,
+            physical_arrival_requirement,
+            physical_calling_convention,
+            semantic_calling_convention,
+        ) = match self {
             Self::UefiX64 => (
                 ProgramEntrySchema::ProgramStorageApplication,
                 ProgramEntryVisibleParameters::ImageAndInitialStorage,
                 Some("UefiApplication"),
+                Some("UefiPhysicalEntry::enter"),
+                Some(ProgramEntryCallingConvention::MicrosoftX64),
                 Some(ProgramEntryCallingConvention::MicrosoftX64),
             ),
             _ => (
                 ProgramEntrySchema::HostedApplication,
                 ProgramEntryVisibleParameters::None,
+                None,
+                None,
                 None,
                 None,
             ),
@@ -173,9 +193,11 @@ impl TargetProfile {
             owner: self,
             slot_name: "ProgramEntry",
             schema,
-            arrival_requirement: "ProgramStorageEntry::enter",
+            semantic_arrival_requirement: "ProgramStorageEntry::enter",
+            physical_arrival_requirement,
             boundary_schema,
-            calling_convention,
+            physical_calling_convention,
+            semantic_calling_convention,
             visible_parameters,
             receiver: ProgramEntryReceiverProvisioning::NoneOrProvisionedZii,
         }
@@ -291,9 +313,13 @@ mod tests {
         assert_eq!(slot.owner, TargetProfile::WindowsX64);
         assert_eq!(slot.slot_name, "ProgramEntry");
         assert_eq!(slot.schema, ProgramEntrySchema::HostedApplication);
-        assert_eq!(slot.arrival_requirement, "ProgramStorageEntry::enter");
+        assert_eq!(
+            slot.semantic_arrival_requirement,
+            "ProgramStorageEntry::enter"
+        );
         assert_eq!(slot.boundary_schema, None);
-        assert_eq!(slot.calling_convention, None);
+        assert_eq!(slot.physical_calling_convention, None);
+        assert_eq!(slot.semantic_calling_convention, None);
         assert_eq!(slot.visible_parameters, ProgramEntryVisibleParameters::None);
     }
 
@@ -303,7 +329,15 @@ mod tests {
         assert_eq!(slot.schema, ProgramEntrySchema::ProgramStorageApplication);
         assert_eq!(slot.boundary_schema, Some("UefiApplication"));
         assert_eq!(
-            slot.calling_convention,
+            slot.physical_arrival_requirement,
+            Some("UefiPhysicalEntry::enter")
+        );
+        assert_eq!(
+            slot.physical_calling_convention,
+            Some(super::ProgramEntryCallingConvention::MicrosoftX64)
+        );
+        assert_eq!(
+            slot.semantic_calling_convention,
             Some(super::ProgramEntryCallingConvention::MicrosoftX64)
         );
         assert_eq!(

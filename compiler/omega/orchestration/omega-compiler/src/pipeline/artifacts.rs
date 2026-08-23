@@ -389,11 +389,11 @@ pub fn program_storage_installation_record_json(
         "{\n  \"authority\": \"non_authoritative_audit_record\",\n  \"installation_status\": \"completed\",\n  \"root_slot\": \"",
     );
     push_normalized_identity(&mut output, binding.root_slot().normalized_identity());
-    output.push_str("\",\n  \"requirement\": ");
+    output.push_str("\",\n  \"semantic_requirement\": ");
     push_json_string(&mut output, binding.requirement_identity());
-    output.push_str(",\n  \"calling_plan_fingerprint\": \"");
+    output.push_str(",\n  \"semantic_continuation_calling_plan_fingerprint\": \"");
     push_normalized_identity(&mut output, binding.boundary_contract_fingerprint());
-    output.push_str("\",\n  \"physical_provider_invocation\": ");
+    output.push_str("\",\n  \"root_provider_invocation\": ");
     if let Some(invocation) = record.provider_invocation() {
         output.push_str("{\"provider\": \"");
         push_normalized_identity(&mut output, invocation.provider().normalized_identity());
@@ -572,14 +572,33 @@ fn program_storage_entry_manifest_json(
         "0x{:016x}",
         binding.root_slot().normalized_identity()
     ));
-    output.push_str("\",\n  \"requirement\": ");
+    output.push_str("\",\n  \"semantic_requirement\": ");
     push_json_string(&mut output, binding.requirement_identity());
-    output.push_str(",\n  \"calling_plan_fingerprint\": \"");
+    output.push_str(",\n  \"semantic_continuation_calling_plan_fingerprint\": \"");
     output.push_str(&format!(
         "0x{:016x}",
         binding.boundary_contract_fingerprint()
     ));
-    output.push_str("\",\n  \"parameters\": [\n    ");
+    output.push_str("\",\n  \"physical_contract\": ");
+    if let Some(physical) = binding.physical_contract() {
+        output.push_str("{\"status\": \"planned_not_invoked\", \"requirement\": ");
+        push_json_string(&mut output, physical.requirement_identity());
+        output.push_str(", \"calling_plan_fingerprint\": \"");
+        push_normalized_identity(&mut output, physical.calling_plan_fingerprint());
+        output.push_str("\", \"parameter_type_identities\": [");
+        for (index, identity) in physical.parameter_type_identities().iter().enumerate() {
+            if index > 0 {
+                output.push_str(", ");
+            }
+            push_json_string(&mut output, identity);
+        }
+        output.push_str("], \"result_type_identity\": ");
+        push_json_string(&mut output, physical.result_type_identity());
+        output.push_str(", \"physical_shell_emitted\": false, \"bootstrap_invoked\": false}");
+    } else {
+        output.push_str("null");
+    }
+    output.push_str(",\n  \"semantic_parameters\": [\n    ");
     push_program_storage_parameter_json(&mut output, "image", binding.image());
     output.push_str(",\n    ");
     push_program_storage_parameter_json(&mut output, "initial_storage", binding.initial_storage());
@@ -607,7 +626,7 @@ fn program_storage_entry_manifest_json(
     push_json_string(&mut output, bridge.continuation_machine());
     output.push_str(", \"state\": ");
     push_json_string(&mut output, bridge.continuation_state());
-    output.push_str("},\n    \"selected_physical_provider_plan\": ");
+    output.push_str("},\n    \"selected_root_provider_plan\": ");
     if let Some(provider) = bridge.selected_provider() {
         output.push('"');
         push_normalized_identity(&mut output, provider.identity.normalized_identity());
@@ -646,7 +665,7 @@ fn program_storage_entry_manifest_json(
             }
             output.push_str(&byte.to_string());
         }
-        output.push_str("], \"physical_arrival\": ");
+        output.push_str("], \"semantic_wrapper_arrival\": ");
         push_program_storage_arrival_json(&mut output, evidence.arrival());
         output.push_str(", \"compiler_text_derivation_fingerprint\": \"");
         push_normalized_identity(

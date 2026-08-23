@@ -989,7 +989,7 @@ pub(crate) fn selected_program_storage_source_extent_value_layout(
         || slot.schema != omega_target::ProgramEntrySchema::ProgramStorageApplication
         || slot.visible_parameters
             != omega_target::ProgramEntryVisibleParameters::ImageAndInitialStorage
-        || slot.calling_convention
+        || slot.semantic_calling_convention
             != Some(omega_target::ProgramEntryCallingConvention::MicrosoftX64)
     {
         return Err(

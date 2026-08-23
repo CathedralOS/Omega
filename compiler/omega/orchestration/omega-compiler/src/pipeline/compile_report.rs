@@ -341,9 +341,13 @@ impl CompileReport {
                 .map(super::ProgramStorageEntryNativeBridgePlan::binding),
         ) && program_storage_emission_matches_output_kind(
             self.output_kind,
-            self.program_storage_entry_bridge
-                .as_ref()
-                .map(|bridge| bridge.emitted_wrapper_evidence().is_some()),
+            self.program_storage_entry_bridge.as_ref().map(|bridge| {
+                (
+                    bridge.wrapper_body_template().is_some(),
+                    bridge.is_receiver_bound_without_wrapper_template(),
+                    bridge.emitted_wrapper_evidence().is_some(),
+                )
+            }),
         ) && retained_entry_boundary_matches_publication(
             self.output_kind,
             self.executable_publication
@@ -447,14 +451,15 @@ fn optional_exact_pair_matches<T: PartialEq>(left: Option<&T>, right: Option<&T>
 
 fn program_storage_emission_matches_output_kind(
     output_kind: CompileOutputKind,
-    bridge_has_emitted_evidence: Option<bool>,
+    bridge_emission: Option<(bool, bool, bool)>,
 ) -> bool {
-    match (output_kind, bridge_has_emitted_evidence) {
+    match (output_kind, bridge_emission) {
         (_, None) => true,
-        (CompileOutputKind::CheckOnly, Some(false)) => true,
-        (CompileOutputKind::NativeExecutable, Some(true)) => true,
-        (CompileOutputKind::CheckOnly, Some(true))
-        | (CompileOutputKind::NativeExecutable, Some(false))
+        (CompileOutputKind::CheckOnly, Some((_, _, false))) => true,
+        (CompileOutputKind::NativeExecutable, Some((true, false, true)))
+        | (CompileOutputKind::NativeExecutable, Some((false, true, false))) => true,
+        (CompileOutputKind::CheckOnly, Some((_, _, true)))
+        | (CompileOutputKind::NativeExecutable, Some(_))
         | (CompileOutputKind::ObjectContainer, Some(_)) => false,
     }
 }
@@ -568,27 +573,35 @@ mod tests {
         }
         assert!(super::program_storage_emission_matches_output_kind(
             CompileOutputKind::CheckOnly,
-            Some(false),
+            Some((true, false, false)),
         ));
         assert!(!super::program_storage_emission_matches_output_kind(
             CompileOutputKind::CheckOnly,
-            Some(true),
+            Some((true, false, true)),
         ));
         assert!(super::program_storage_emission_matches_output_kind(
             CompileOutputKind::NativeExecutable,
-            Some(true),
+            Some((true, false, true)),
+        ));
+        assert!(super::program_storage_emission_matches_output_kind(
+            CompileOutputKind::NativeExecutable,
+            Some((false, true, false)),
         ));
         assert!(!super::program_storage_emission_matches_output_kind(
             CompileOutputKind::NativeExecutable,
-            Some(false),
+            Some((true, false, false)),
+        ));
+        assert!(!super::program_storage_emission_matches_output_kind(
+            CompileOutputKind::NativeExecutable,
+            Some((false, false, false)),
         ));
         assert!(!super::program_storage_emission_matches_output_kind(
             CompileOutputKind::ObjectContainer,
-            Some(false),
+            Some((false, true, false)),
         ));
         assert!(!super::program_storage_emission_matches_output_kind(
             CompileOutputKind::ObjectContainer,
-            Some(true),
+            Some((true, false, true)),
         ));
         for output_kind in [
             CompileOutputKind::CheckOnly,

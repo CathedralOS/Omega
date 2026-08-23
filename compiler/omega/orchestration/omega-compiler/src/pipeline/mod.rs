@@ -13,6 +13,7 @@ mod float_intrinsic_dispatch;
 pub mod frontend;
 mod operator_adapter_dispatch;
 mod output;
+mod program_entry_physical;
 mod program_entry_source_signature;
 mod program_storage_continuation_inbound;
 mod program_storage_emitted_argument_binding;
@@ -59,6 +60,7 @@ pub use compiler::{
     compile_with_test_entry_worker_count_and_artifact_policy,
     compile_with_worker_count_and_artifact_policy,
 };
+pub use program_entry_physical::ProgramEntryPhysicalContractPlan;
 pub use program_entry_source_signature::{
     ProgramEntrySourceExtentFieldLayout, ProgramEntrySourceExtentFieldRole,
     ProgramEntrySourceExtentValueLayout, ProgramEntrySourceReceiverSignature,
