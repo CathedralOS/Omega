@@ -1,0 +1,150 @@
+; Finite byte-case reconstruction for parse_char().
+;
+; This module owns only the two complete 0..255 partitions used by the
+; procedure56 semantic summary: ordinary versus backslash, and the ordered
+; n/t/r/0/default escape mapping. Path, cursor, tail, and return composition
+; remain in bc-parse-char-summary.alpha.
+
+; Exhaust the exact first comparison partition over every CBLE byte.
+parse_char_sweep_first_byte:
+        imm r10, 0
+        imm r11, 0                   ; all rows
+        imm r12, 0                   ; ordinary rows
+        imm r13, 0                   ; sole backslash row
+parse_char_first_sweep_loop:
+        imm r1, 256
+        jlt r10, r1, parse_char_first_sweep_row
+        imm r1, 256
+        jeq r11, r1, parse_char_first_sweep_ordinary_count
+        jmp reject
+parse_char_first_sweep_ordinary_count:
+        imm r1, 255
+        jeq r12, r1, parse_char_first_sweep_escape_count
+        jmp reject
+parse_char_first_sweep_escape_count:
+        imm r1, 1
+        jeq r13, r1, parse_char_first_sweep_complete
+        jmp reject
+parse_char_first_sweep_row:
+        imm r1, 92                   ; exact backslash discriminator
+        jeq r10, r1, parse_char_first_sweep_escape
+        imm r1, 1
+        add r12, r1
+        jmp parse_char_first_sweep_next
+parse_char_first_sweep_escape:
+        imm r1, 92                   ; independent exact backslash byte
+        jeq r10, r1, parse_char_first_sweep_escape_exact
+        jmp reject
+parse_char_first_sweep_escape_exact:
+        imm r1, 1
+        add r13, r1
+parse_char_first_sweep_next:
+        imm r1, 1
+        add r10, r1
+        add r11, r1
+        jmp parse_char_first_sweep_loop
+parse_char_first_sweep_complete:
+        imm r1, 529560
+        imm r2, 256
+        store r1, r2
+        imm r1, 529568
+        imm r2, 255
+        store r1, r2
+        imm r1, 529576
+        imm r2, 1
+        store r1, r2
+        ret
+
+; Exhaust source's ordered n/t/r/0/default mapping and compare an independent
+; direct specification for all 256 escaped byte values.
+parse_char_sweep_escape_byte:
+        imm r10, 0
+        imm r11, 0
+        imm r12, 0                   ; four recognized rows
+        imm r13, 0                   ; 252 default rows
+parse_char_escape_sweep_loop:
+        imm r1, 256
+        jlt r10, r1, parse_char_escape_sweep_row
+        imm r1, 256
+        jeq r11, r1, parse_char_escape_sweep_recognized_count
+        jmp reject
+parse_char_escape_sweep_recognized_count:
+        imm r1, 4
+        jeq r12, r1, parse_char_escape_sweep_default_count
+        jmp reject
+parse_char_escape_sweep_default_count:
+        imm r1, 252
+        jeq r13, r1, parse_char_escape_sweep_complete
+        jmp reject
+parse_char_escape_sweep_row:
+        mov r16, r10
+        imm r1, 110
+        jeq r10, r1, parse_char_escape_source_n
+        imm r1, 116
+        jeq r10, r1, parse_char_escape_source_t
+        imm r1, 114
+        jeq r10, r1, parse_char_escape_source_r
+        imm r1, 48
+        jeq r10, r1, parse_char_escape_source_zero
+        imm r1, 1
+        add r13, r1
+        jmp parse_char_escape_source_done
+parse_char_escape_source_n:
+        imm r16, 10
+        jmp parse_char_escape_source_recognized
+parse_char_escape_source_t:
+        imm r16, 9
+        jmp parse_char_escape_source_recognized
+parse_char_escape_source_r:
+        imm r16, 13
+        jmp parse_char_escape_source_recognized
+parse_char_escape_source_zero:
+        imm r16, 0
+parse_char_escape_source_recognized:
+        imm r1, 1
+        add r12, r1
+parse_char_escape_source_done:
+        imm r1, 529720
+        store r1, r16
+        mov r17, r10
+        imm r1, 110
+        jeq r10, r1, parse_char_escape_spec_n
+        imm r1, 116
+        jeq r10, r1, parse_char_escape_spec_t
+        imm r1, 114
+        jeq r10, r1, parse_char_escape_spec_r
+        imm r1, 48
+        jeq r10, r1, parse_char_escape_spec_zero
+        jmp parse_char_escape_spec_done
+parse_char_escape_spec_n:
+        imm r17, 10
+        jmp parse_char_escape_spec_done
+parse_char_escape_spec_t:
+        imm r17, 9
+        jmp parse_char_escape_spec_done
+parse_char_escape_spec_r:
+        imm r17, 13
+        jmp parse_char_escape_spec_done
+parse_char_escape_spec_zero:
+        imm r17, 0
+parse_char_escape_spec_done:
+        imm r1, 529728
+        store r1, r17
+        imm r20, 529720
+        imm r21, 529728
+        call classifier_require_equal_cells
+        imm r1, 1
+        add r10, r1
+        add r11, r1
+        jmp parse_char_escape_sweep_loop
+parse_char_escape_sweep_complete:
+        imm r1, 529584
+        imm r2, 256
+        store r1, r2
+        imm r1, 529592
+        imm r2, 4
+        store r1, r2
+        imm r1, 529600
+        imm r2, 252
+        store r1, r2
+        ret

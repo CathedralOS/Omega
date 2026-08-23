@@ -9,10 +9,10 @@
 ; Its loop rank is LEN+1-CUR over the invariant CUR<=LEN+1.
 ;
 ; Both procedures return zero, emit nothing, preserve source/input and every
-; compiler global except CUR, and restore the caller frame.  ADVX is a local
+; compiler global except CUR, and restore the caller frame.  ADVX is a reusable
 ; auxiliary consequence of adv's exact body for 0<=CUR<=CAP+1; it permits the
-; two bounded malformed-tail advances without pretending ADVE's CUR<LEN clause
-; applies out of range.
+; bounded malformed-tail advances here and in parse_char without pretending
+; ADVE's CUR<LEN clause applies out of range.
 ;
 ; Fresh cells:
 ;   public ADVX / CHSK / STRS                  527320/527352/527360

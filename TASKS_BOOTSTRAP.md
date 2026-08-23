@@ -1190,11 +1190,23 @@ bridge compiler is a promise to accept full Omega.
               semantics. Twenty-four isolated canaries cover shape, censuses,
               digit/range/same-cursor joins, wrap, return, and backedge facts;
               the focused checker is 225,147 bytes.
-            - [ ] Close the finite acyclic `parse_char` escape partition with
-              exact cursor consumption and byte result. Include ordinary,
-              recognized escape, unrecognized escape, logical-end, and
-              truncated closing-quote tails; do not assume the two final
-              `adv()` calls are in range or silently require a closing quote.
+            - [x] Close the finite acyclic `parse_char` escape partition with
+              exact cursor consumption and byte result. Procedure 56's eleven
+              blocks, fourteen transitions, six calls, local/expression rows,
+              epilogues, and decoded quiet footprint are lower-rooted.
+              Conditional `PCHR` partitions all 256 first bytes and all 256
+              escaped bytes, returning ordinary bytes unchanged and mapping
+              `n/t/r/0` to `10/9/13/0` while preserving every unrecognized
+              escaped byte. The two final advances import reusable `ADVX`, so
+              ordinary and escape paths finish at exact entry deltas three and
+              four without assuming either advance is in range or validating
+              a closing quote. Separate checked clauses distinguish boundary
+              zero from in-range NUL for both cbyte observations and retain
+              exact `LEN+1`/`LEN+2` malformed-tail outcomes. Thirty-eight
+              isolated canaries cover shape, censuses, byte partitions,
+              mappings, consumed observation/branch/fin joins, cursor deltas,
+              no-close behavior, and the four hit-versus-boundary provenance
+              clauses; the focused checker is 235,255 bytes.
             - [ ] Close the remaining finite lexical/value leaves: exact fixed
               keyword recognizers, `is_muldiv`, `is_addsub`, `cmp_op`, and
               conditional `name_eq`/`lookup` over the already-carried bounded

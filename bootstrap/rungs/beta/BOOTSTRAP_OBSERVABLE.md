@@ -350,8 +350,19 @@ are valuable teeth, but they do not yet establish the quantified observation:
   fold by `10*V+d` modulo 2^64, and advances once with strict `LEN-j` decrease.
   Ten exact digit-offset cases and zero-wrap/high-bit probes forbid silently
   strengthening the theorem to signed or nonwrapping arithmetic. This clause
-  gives no `parse_char`, canonical literal, decimal-output, or expression-SCC
-  meaning;
+  gives no canonical literal, decimal-output, or expression-SCC meaning;
+- its conditional `parse_char` summary checks procedure 56's exact eleven
+  blocks, escape guards, six cursor-leaf calls, local/expression rows,
+  frame/epilogues, and decoded quiet footprint. From an in-range opening quote,
+  all 256 first bytes split into ordinary and backslash paths; all 256 escaped
+  bytes implement the ordered `n/t/r/0/default` mapping. Ordinary bytes are
+  returned unchanged at final cursor `i+3`; recognized escapes return
+  `10/9/13/0`, unrecognized escapes preserve their byte, and escape paths end
+  at `i+4`. The two final advances use the bounded unconditional `ADVX`
+  consequence and never validate a closing quote. Explicit logical-end and
+  truncated-tail clauses distinguish boundary zero from in-range NUL at both
+  observations and retain exact `LEN+1`/`LEN+2` outcomes. This clause gives no
+  canonical character-literal syntax or expression-SCC meaning;
 - no total `parse_proc` claim is currently made. Malformed procedure bodies can
   make `gen_stmts` diverge while emitting—for example when an unrecognized byte
   is never consumed—so closure requires maximal Return-or-Diverge and finite/
