@@ -1,7 +1,7 @@
 use crate::audit::{PackageGraphAudit, PackageGraphAuditError, audit_package_graph};
 use crate::diff::{ManifestDelta, ManifestDiff, diff_package_capability_manifests};
 use crate::install::{PackageInstallPlan, PackageInstallPlanError, plan_package_install};
-use crate::lock::{PackageLock, PackageLockPersistenceError};
+use crate::lock::{PackageLock, PackageLockAssemblyError, PackageLockPersistenceError};
 use crate::manifest::{
     AliasName, PackageCapabilityManifest, PackageCapabilityManifestPersistenceError, PackageName,
 };
@@ -75,6 +75,13 @@ pub struct PackageGraphAuditCommand {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PackageLockAssemblyCommand {
+    pub out_path: PathBuf,
+    pub lock: PackageLock,
+    pub audit: PackageGraphAudit,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageInstallPlanCommand {
     pub lock_path: PathBuf,
     pub plan: PackageInstallPlan,
@@ -99,6 +106,24 @@ impl PackageGraphAuditCommand {
         let mut report = String::new();
         report.push_str("lock: ");
         report.push_str(&self.lock_path.display().to_string());
+        report.push('\n');
+        report.push_str(&self.audit.to_text());
+        report
+    }
+}
+
+impl PackageLockAssemblyCommand {
+    pub fn to_text(&self) -> String {
+        let mut report = String::new();
+        report.push_str("package lock assembled\n");
+        report.push_str("out: ");
+        report.push_str(&self.out_path.display().to_string());
+        report.push('\n');
+        report.push_str("root package: ");
+        report.push_str(self.lock.root_package.as_str());
+        report.push('\n');
+        report.push_str("lock fingerprint: ");
+        report.push_str(&self.lock.fingerprint());
         report.push('\n');
         report.push_str(&self.audit.to_text());
         report
@@ -173,6 +198,17 @@ pub enum PackageGraphAuditFromPathsCommandError {
         error: PackageCapabilityManifestPersistenceError,
     },
     Graph(PackageGraphAuditError),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PackageLockAssemblyFromPathsCommandError {
+    Manifest {
+        path: PathBuf,
+        error: PackageCapabilityManifestPersistenceError,
+    },
+    Assembly(PackageLockAssemblyError),
+    Graph(PackageGraphAuditError),
+    Write(PackageLockPersistenceError),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -409,6 +445,42 @@ fn read_manifest_paths(
             })
         })
         .collect()
+}
+
+fn read_manifest_paths_for_lock_assembly(
+    manifest_paths: &[PathBuf],
+) -> Result<Vec<PackageCapabilityManifest>, PackageLockAssemblyFromPathsCommandError> {
+    manifest_paths
+        .iter()
+        .map(|path| {
+            PackageCapabilityManifest::read_from_path(path).map_err(|error| {
+                PackageLockAssemblyFromPathsCommandError::Manifest {
+                    path: path.clone(),
+                    error,
+                }
+            })
+        })
+        .collect()
+}
+
+pub fn assemble_package_lock_from_paths(
+    root_package: &PackageName,
+    manifest_paths: &[PathBuf],
+    out_path: impl AsRef<Path>,
+) -> Result<PackageLockAssemblyCommand, PackageLockAssemblyFromPathsCommandError> {
+    let out_path = out_path.as_ref();
+    let manifests = read_manifest_paths_for_lock_assembly(manifest_paths)?;
+    let lock = PackageLock::from_manifests(root_package.clone(), &manifests)
+        .map_err(PackageLockAssemblyFromPathsCommandError::Assembly)?;
+    let audit = audit_package_graph(&lock, &manifests)
+        .map_err(PackageLockAssemblyFromPathsCommandError::Graph)?;
+    lock.write_to_path(out_path)
+        .map_err(PackageLockAssemblyFromPathsCommandError::Write)?;
+    Ok(PackageLockAssemblyCommand {
+        out_path: out_path.to_path_buf(),
+        lock,
+        audit,
+    })
 }
 
 pub fn plan_package_install_from_lock(
@@ -910,6 +982,69 @@ mod tests {
             Err(PackageGraphAuditFromPathsCommandError::Manifest { path, .. })
                 if path == manifest_path
         ));
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn lock_assembly_command_reads_manifests_writes_lock_and_audits() {
+        let root = temp_root("lock-assembly-paths");
+        std::fs::create_dir_all(&root).expect("create lock temp");
+        let out_path = root.join("omega.lock");
+        let root_manifest_path = root.join("graph-workbench.package.json");
+        let child_manifest_path = root.join("file-journal.package.json");
+        let mut root_manifest = manifest("graph-workbench");
+        root_manifest
+            .dependency_aliases
+            .push(dependency("file_journal", "file-journal"));
+        let mut child_manifest = manifest("file-journal");
+        child_manifest
+            .exported_service_reach
+            .push("FilesystemHost".to_owned());
+        root_manifest
+            .write_to_path(&root_manifest_path)
+            .expect("write root manifest");
+        child_manifest
+            .write_to_path(&child_manifest_path)
+            .expect("write child manifest");
+
+        let command = assemble_package_lock_from_paths(
+            &package("graph-workbench"),
+            &[root_manifest_path.clone(), child_manifest_path.clone()],
+            &out_path,
+        )
+        .expect("assemble lock command should succeed");
+        let written = PackageLock::read_from_path(&out_path).expect("read written lock");
+        let text = command.to_text();
+
+        assert_eq!(command.out_path, out_path);
+        assert_eq!(written.root_package, package("graph-workbench"));
+        assert_eq!(written.packages.len(), 2);
+        assert!(text.contains("package lock assembled"));
+        assert!(text.contains("lock fingerprint: "));
+        assert!(text.contains("FilesystemHost via graph-workbench -> file-journal"));
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn lock_assembly_command_rejects_bad_manifest_without_writing_lock() {
+        let root = temp_root("lock-assembly-bad-manifest");
+        std::fs::create_dir_all(&root).expect("create lock temp");
+        let manifest_path = root.join("bad.package.json");
+        let out_path = root.join("omega.lock");
+        std::fs::write(&manifest_path, "{").expect("write bad manifest");
+
+        assert!(matches!(
+            assemble_package_lock_from_paths(
+                &package("graph-workbench"),
+                std::slice::from_ref(&manifest_path),
+                &out_path,
+            ),
+            Err(PackageLockAssemblyFromPathsCommandError::Manifest { path, .. })
+                if path == manifest_path
+        ));
+        assert!(!out_path.exists());
 
         let _ = std::fs::remove_dir_all(&root);
     }

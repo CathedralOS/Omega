@@ -61,10 +61,17 @@ fn main() {
         plan(raw_arguments);
         return;
     }
+    if first_argument
+        .as_deref()
+        .is_some_and(|first| first == "lock")
+    {
+        lock(raw_arguments);
+        return;
+    }
 
     let Some(arguments) = parse_arguments() else {
         eprintln!(
-            "usage: omega [--check] [--build-dir <dir>] [--target <name>] <root.omg>\n       omega inspect-terminal --machine <qualified> [--target <name>] <root.omg>\n       omega audit source <locator> [--rev <rev>] [--cache-dir <dir>]\n       omega audit source-cache-policy <locator> [--rev <rev>] [--cache-dir <dir>]\n       omega audit packages [--lock <omega.lock>] --manifest <manifest.json>...\n       omega review capability-change --old-manifest <manifest.json> --new-manifest <manifest.json> --reviewer <id> --reason <text> --out <receipt.json>\n       omega plan install --lock <omega.lock> --current-manifest <manifest.json>... --candidate-manifest <manifest.json>... --alias <alias> --package <package>\n       omega plan update --lock <omega.lock> --current-manifest <manifest.json>... --candidate-manifest <manifest.json>... --package <package> [--receipt <receipt.json>]\n       omega refresh-samples [samples-dir]"
+            "usage: omega [--check] [--build-dir <dir>] [--target <name>] <root.omg>\n       omega inspect-terminal --machine <qualified> [--target <name>] <root.omg>\n       omega audit source <locator> [--rev <rev>] [--cache-dir <dir>]\n       omega audit source-cache-policy <locator> [--rev <rev>] [--cache-dir <dir>]\n       omega audit packages [--lock <omega.lock>] --manifest <manifest.json>...\n       omega review capability-change --old-manifest <manifest.json> --new-manifest <manifest.json> --reviewer <id> --reason <text> --out <receipt.json>\n       omega plan install --lock <omega.lock> --current-manifest <manifest.json>... --candidate-manifest <manifest.json>... --alias <alias> --package <package>\n       omega plan update --lock <omega.lock> --current-manifest <manifest.json>... --candidate-manifest <manifest.json>... --package <package> [--receipt <receipt.json>]\n       omega lock assemble --root-package <package> --manifest <manifest.json>... --out <omega.lock>\n       omega refresh-samples [samples-dir]"
         );
         std::process::exit(2);
     };
@@ -184,6 +191,53 @@ fn audit_packages(arguments: impl Iterator<Item = std::ffi::OsString>) {
         }
         Err(error) => {
             eprintln!("cannot audit packages: {error:?}");
+            std::process::exit(1);
+        }
+    }
+}
+
+fn lock(arguments: impl Iterator<Item = std::ffi::OsString>) {
+    let mut arguments = arguments;
+    let Some(subcommand) = arguments.next() else {
+        eprintln!(
+            "usage: omega lock assemble --root-package <package> --manifest <manifest.json>... --out <omega.lock>"
+        );
+        std::process::exit(2);
+    };
+    if subcommand != "assemble" {
+        eprintln!("unknown lock command `{}`", subcommand.to_string_lossy());
+        eprintln!(
+            "usage: omega lock assemble --root-package <package> --manifest <manifest.json>... --out <omega.lock>"
+        );
+        std::process::exit(2);
+    }
+    lock_assemble(arguments);
+}
+
+fn lock_assemble(arguments: impl Iterator<Item = std::ffi::OsString>) {
+    let Some(arguments) = parse_lock_assemble_arguments(arguments) else {
+        eprintln!(
+            "usage: omega lock assemble --root-package <package> --manifest <manifest.json>... --out <omega.lock>"
+        );
+        std::process::exit(2);
+    };
+    let root_package = match omega_packages::PackageName::parse(arguments.root_package) {
+        Ok(package) => package,
+        Err(error) => {
+            eprintln!("{error}");
+            std::process::exit(2);
+        }
+    };
+    match omega_packages::assemble_package_lock_from_paths(
+        &root_package,
+        &arguments.manifest_paths,
+        &arguments.out_path,
+    ) {
+        Ok(command) => {
+            print!("{}", command.to_text());
+        }
+        Err(error) => {
+            eprintln!("cannot assemble package lock: {error:?}");
             std::process::exit(1);
         }
     }
@@ -464,6 +518,12 @@ struct AuditSourceArguments {
     cache_dir: PathBuf,
 }
 
+struct LockAssembleArguments {
+    root_package: String,
+    manifest_paths: Vec<PathBuf>,
+    out_path: PathBuf,
+}
+
 struct PlanInstallArguments {
     lock_path: PathBuf,
     current_manifest_paths: Vec<PathBuf>,
@@ -486,6 +546,46 @@ struct ReviewCapabilityChangeArguments {
     reviewer: String,
     reason: String,
     out_path: PathBuf,
+}
+
+fn parse_lock_assemble_arguments(
+    mut arguments: impl Iterator<Item = std::ffi::OsString>,
+) -> Option<LockAssembleArguments> {
+    let mut root_package = None;
+    let mut manifest_paths = Vec::new();
+    let mut out_path = None;
+    while let Some(argument) = arguments.next() {
+        if argument == "--root-package" {
+            if root_package.is_some() {
+                return None;
+            }
+            root_package = arguments.next().and_then(|value| value.into_string().ok());
+            root_package.as_ref()?;
+            continue;
+        }
+        if argument == "--manifest" {
+            let manifest_path = arguments.next().map(PathBuf::from)?;
+            manifest_paths.push(manifest_path);
+            continue;
+        }
+        if argument == "--out" {
+            if out_path.is_some() {
+                return None;
+            }
+            out_path = arguments.next().map(PathBuf::from);
+            out_path.as_ref()?;
+            continue;
+        }
+        return None;
+    }
+    if manifest_paths.is_empty() {
+        return None;
+    }
+    Some(LockAssembleArguments {
+        root_package: root_package?,
+        manifest_paths,
+        out_path: out_path?,
+    })
 }
 
 fn parse_plan_install_arguments(

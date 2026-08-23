@@ -279,6 +279,18 @@ Completed:
   build observation class, dependency aliases, and trust receipt identities.
   Assembly rejects duplicate manifest packages and open dependency edges.
 
+- **OMEGA-LOCK-ASSEMBLE-MANIFEST-FILE-CLI.** Expose a file-backed package-lock
+  assembly surface through the Rust on-ramp `omega` binary before compiler
+  manifest derivation and full install/update mutation.
+
+  Done 2026-08-23: `omega lock assemble --root-package <package> --manifest
+  <manifest.json>... --out <omega.lock>` reads strict package capability
+  manifest files, assembles a closed and reachable package lock rooted at the
+  requested package, graph-audits the result, writes the explicit output lock
+  atomically, and prints the lock fingerprint plus graph audit summary. It does
+  not derive manifests, execute dependency `build.omg`, edit `build.omg`, or
+  choose final install/update mutation semantics.
+
 - **PACKAGE-LOCK-UPDATE-PLAN.** Add a non-mutating update dry-run plan for
   future `omega update` wiring.
 
@@ -382,9 +394,11 @@ Remaining:
   trust/admission receipts.
 
   Remaining after `PACKAGE-MANIFEST-MODEL` and
-  `PACKAGE-MANIFEST-PERSISTENCE`: wire compiler evidence extraction so
-  compiling one package emits the manifest rather than requiring tests or
-  callers to construct it manually.
+  `PACKAGE-MANIFEST-PERSISTENCE`: settle the owner question "What exact checked
+  evidence defines a package capability manifest?", then wire compiler evidence
+  extraction so compiling one package emits the manifest rather than requiring
+  tests or callers to construct it manually. The existing executable
+  capability manifest is entry-oriented and is not a package manifest.
 
   Acceptance: compiling one package can emit a deterministic machine-readable
   package capability manifest and a concise human diff. Equal source/evidence
@@ -397,8 +411,10 @@ Remaining:
   Remaining after `PACKAGE-LOCK-MODEL`,
   `PACKAGE-LOCK-CLOSURE-VALIDATION`, `PACKAGE-LOCK-PERSISTENCE`, and
   `PACKAGE-LOCK-ASSEMBLY-FROM-MANIFESTS`, and
-  `PACKAGE-LOCK-REACHABILITY-VALIDATION`: wire compiler/package admission
-  output into the existing `omega.lock` artifact.
+  `PACKAGE-LOCK-REACHABILITY-VALIDATION`, and
+  `OMEGA-LOCK-ASSEMBLE-MANIFEST-FILE-CLI`: settle the package-manifest evidence
+  boundary, then wire compiler/package admission output into the default
+  `omega.lock` artifact without requiring explicit manifest-file arguments.
 
   Acceptance: the lock records exact repository revisions/content identities,
   package manifest fingerprints, dependency edges, build observation verdicts,
@@ -444,7 +460,9 @@ Remaining:
   candidate passes policy.
 
   Remaining after `PACKAGE-LOCK-INSTALL-PLAN`, `PACKAGE-PLAN-COMMAND-APIS`,
-  and `OMEGA-PLAN-INSTALL-UPDATE-CLI`: wire source resolution,
+  and `OMEGA-PLAN-INSTALL-UPDATE-CLI`: settle package-manifest evidence,
+  `build.omg` dependency API, review-receipt placement, and dependency
+  `build.omg` admission sequence, then wire source resolution,
   package-admission manifest derivation, `build.omg` alias/pin editing, and
   lock persistence around the install plan.
 
@@ -460,7 +478,9 @@ Remaining:
   `PACKAGE-LOCK-UPDATE-PLAN`, `CAPABILITY-CHANGE-RECEIPT-PERSISTENCE`, and
   `PACKAGE-PLAN-COMMAND-APIS`, and
   `UPDATE-PLAN-CANDIDATE-GRAPH-AUDIT`, and
-  `OMEGA-PLAN-INSTALL-UPDATE-CLI`: wire candidate resolution,
+  `OMEGA-PLAN-INSTALL-UPDATE-CLI`: settle package-manifest evidence,
+  `build.omg` dependency API, review-receipt placement, and dependency
+  `build.omg` admission sequence, then wire candidate resolution,
   package-admission manifest derivation, `build.omg` pin editing, and lock
   persistence around the update decision.
 
@@ -474,9 +494,9 @@ Remaining:
   `PACKAGE-GRAPH-AUDIT-CORE`, `PACKAGE-GRAPH-AUDIT-DETAILS`, and
   `PACKAGE-GRAPH-AUDIT-COMMAND-API`, and
   `PACKAGE-GRAPH-AUDIT-MANIFEST-FILE-API`, and
-  `OMEGA-AUDIT-PACKAGES-MANIFEST-FILE-CLI`: derive package manifests for a
-  resolved graph and make the default `omega audit packages` flow find them
-  without explicit manifest-file arguments.
+  `OMEGA-AUDIT-PACKAGES-MANIFEST-FILE-CLI`: settle package-manifest evidence,
+  derive package manifests for a resolved graph, and make the default `omega
+  audit packages` flow find them without explicit manifest-file arguments.
 
   Acceptance: `omega audit packages` prints the resolved graph, source pins,
   service reach, build observation classes, provider origins, trust receipts,
@@ -575,7 +595,8 @@ Remaining:
   `CAPABILITY-CHANGE-RECEIPT-PERSISTENCE`, and
   `CAPABILITY-CHANGE-REVIEW-COMMAND-API`, and
   `OMEGA-REVIEW-CAPABILITY-CHANGE-CLI`: wire receipt loading into `omega
-  update` and persist accepted receipts in or beside `omega.lock`.
+  update` and persist accepted receipts in or beside `omega.lock` once receipt
+  placement is settled.
 
   Acceptance: higher-capability updates require an acceptance receipt. New
   root-memory, DMA/IOMMU, executable-installation, interrupt-publication,
@@ -586,9 +607,10 @@ Remaining:
   unrelated capabilities in separate packages and publish reach ceilings on
   public APIs.
 
-  Remaining after `AUTHOR-GUIDANCE-DIFF-MODEL`: surface this guidance through
-  package-admission, `omega install`, `omega update`, and `omega audit
-  packages` once those flows derive package manifests.
+  Remaining after `AUTHOR-GUIDANCE-DIFF-MODEL`: settle package-manifest
+  evidence, then surface this guidance through package-admission, `omega
+  install`, `omega update`, and `omega audit packages` once those flows derive
+  package manifests.
 
   Acceptance: a package that adds a public service row, build-host service,
   provider requirement, or authority-flow verb gets a concrete audit message
