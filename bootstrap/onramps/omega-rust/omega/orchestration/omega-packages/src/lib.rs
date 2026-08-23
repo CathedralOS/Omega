@@ -10,6 +10,7 @@
 mod audit;
 mod commands;
 mod diff;
+mod install;
 mod json;
 mod lock;
 mod manifest;
@@ -29,6 +30,7 @@ pub use commands::{
     audit_package_source_locator, resolve_source_cache_record_locator,
 };
 pub use diff::{ManifestDelta, ManifestDiff, ManifestSeverity, diff_package_capability_manifests};
+pub use install::{PackageInstallPlan, PackageInstallPlanError, plan_package_install};
 pub use lock::{
     LockedDependency, LockedPackage, PackageLock, PackageLockAssemblyError, PackageLockParseError,
     PackageLockPersistenceError, PackageLockValidationError,

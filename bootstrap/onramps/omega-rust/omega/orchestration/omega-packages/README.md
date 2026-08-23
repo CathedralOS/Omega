@@ -59,6 +59,7 @@ omega-packages/
 |   |-- source.rs          # Source specs, URL/path identity, immutable pins.
 |   |-- resolver.rs        # Fetch/cache boundary and transport receipts.
 |   |-- manifest.rs        # Package capability manifest model.
+|   |-- install.rs         # Non-mutating install plan/admission preview.
 |   |-- json.rs            # Strict internal JSON parser for machine artifacts.
 |   |-- lock.rs            # Full package-closure lock artifact.
 |   |-- diff.rs            # Capability-manifest comparison and severity.
@@ -105,6 +106,10 @@ cargo test -p omega-packages --test remote_fixtures -- --ignored --test-threads=
 - `diff`: severity-ranked manifest deltas with concrete reviewer guidance for
   public service, build-host service, provider-requirement, and capability-flow
   changes.
+- `install`: non-mutating install plan assembly for future `omega install`
+  wiring. It validates the current graph, verifies the root candidate manifest
+  binds the requested alias to the requested package, assembles and audits the
+  candidate lock, and reports newly added package identities.
 - `lock`: machine-written package closure records with resolved source
   identity, manifest fingerprints, dependency aliases, trust receipts, stable
   JSON, lock fingerprints, closure validation, and strict lock-file

@@ -232,6 +232,15 @@ Completed:
   candidate lock only when policy admits the update. Rejected updates produce a
   plan without a candidate lock.
 
+- **PACKAGE-LOCK-INSTALL-PLAN.** Add a non-mutating install dry-run plan for
+  future `omega install` wiring.
+
+  Done 2026-08-23: `omega-packages` can validate the current package graph,
+  reject an already-bound root dependency alias, require candidate
+  compiler-supplied manifests to bind the requested alias to the requested
+  package, assemble and audit a candidate package lock, and report newly added
+  package identities without editing `build.omg` or writing `omega.lock`.
+
 - **PACKAGE-SOURCE-AUDIT-LOCATOR-API.** Add the command seam that combines
   source locator parsing with resolver-owned source audit.
 
@@ -320,6 +329,10 @@ Remaining:
   source, derives the package capability manifest, previews the graph/capability
   diff, and writes the dependency binding plus lock entry only after the
   candidate passes policy.
+
+  Remaining after `PACKAGE-LOCK-INSTALL-PLAN`: wire source resolution,
+  package-admission manifest derivation, `build.omg` alias/pin editing, and
+  lock persistence around the install plan.
 
   Acceptance: adding a dependency produces a pinned alias in `build.omg`, an
   updated lock entry, and an audit summary that names new reachable services,
