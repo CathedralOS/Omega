@@ -200,6 +200,7 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
     )
     .expect("result boundary plan");
     let mut result_candidate = candidate.clone();
+    result_candidate.requirement_identity = "KeyboardController::read_status".into();
     result_candidate.stack.realization = stack_for(&result_boundary_plan);
     let result_validated = validate_external_root(result_candidate, &result_boundary_plan)
         .expect("result root validation");
