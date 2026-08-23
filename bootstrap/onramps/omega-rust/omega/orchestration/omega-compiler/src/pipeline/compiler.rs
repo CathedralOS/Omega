@@ -597,8 +597,16 @@ impl Compiler {
         // build.omg's augmenting `build(b: &mut Build)` machine, evaluated at
         // build time. When present it is AUTHORITATIVE; the legacy in-source
         // `target { subsystem }` word is the fallback until its removal.
-        let computed_build_config =
-            crate::pipeline::build_config::compute_build_config(&typed, &build_file_machine_names)?;
+        let build_machine_filesystem_scope =
+            crate::pipeline::build_config::BuildMachineFilesystemScope::for_root(
+                &self.options.root_path,
+                self.options.build_dir(),
+            );
+        let computed_build_config = crate::pipeline::build_config::compute_build_config(
+            &typed,
+            &build_file_machine_names,
+            &build_machine_filesystem_scope,
+        )?;
         let build_evaluation_usage = computed_build_config.evaluation_usage;
         let build_config = computed_build_config.config;
         let selected_program_entry = crate::pipeline::build_config::selected_program_entry_machine(

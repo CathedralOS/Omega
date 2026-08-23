@@ -134,8 +134,20 @@ fn compile_to_checked_inner(
     )?;
     let boundary_calling_plan_realizations =
         crate::pipeline::calling_policy_plans::compute_boundary_calling_plans(&mut typed)?;
-    let computed_build_config =
-        crate::pipeline::build_config::compute_build_config(&typed, &build_file_machine_names)?;
+    let build_machine_filesystem_scope =
+        crate::pipeline::build_config::BuildMachineFilesystemScope::for_root(
+            root_path,
+            root_path
+                .parent()
+                .filter(|parent| !parent.as_os_str().is_empty())
+                .map(|parent| parent.join("build"))
+                .unwrap_or_else(|| std::path::PathBuf::from("build")),
+        );
+    let computed_build_config = crate::pipeline::build_config::compute_build_config(
+        &typed,
+        &build_file_machine_names,
+        &build_machine_filesystem_scope,
+    )?;
     let build_evaluation_usage = computed_build_config.evaluation_usage;
     let build_config = computed_build_config.config;
     // A semantic-only checked compilation has no selected target and therefore

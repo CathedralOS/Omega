@@ -29,13 +29,55 @@
 //!   selects the exact source entry and performs no name-based discovery.
 
 use psi_build_time_evaluation::{
-    BuildMachineExecutionMode, BuildMachineFilesystemAccess, BuildTimeValue,
-    PreparedBuildMachineProgram,
+    BuildMachineExecutionMode, BuildMachineFilesystemAccess, BuildMachineFilesystemGrants,
+    BuildTimeValue, PreparedBuildMachineProgram,
 };
 use psi_diagnostics::Diagnostic;
 use psi_typed_trees::TypedTrees;
+use std::path::{Path, PathBuf};
 
 const BUILD_MACHINE: &str = "build";
+
+/// Host filesystem authority granted to an admitted `build.omg` machine.
+///
+/// Source roots are read-only. The build directory is the only write root and
+/// also permits read-back through the checked interpreter's `RealScoped`
+/// contract.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct BuildMachineFilesystemScope {
+    source_root: PathBuf,
+    build_dir: PathBuf,
+}
+
+impl BuildMachineFilesystemScope {
+    pub(crate) fn for_root(root_path: &Path, build_dir: PathBuf) -> Self {
+        let source_root = root_path
+            .parent()
+            .filter(|parent| !parent.as_os_str().is_empty())
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|| PathBuf::from("."));
+        Self {
+            source_root,
+            build_dir,
+        }
+    }
+
+    fn grants(&self) -> BuildMachineFilesystemGrants {
+        BuildMachineFilesystemGrants {
+            read_roots: vec![self.source_root.clone()],
+            write_roots: vec![self.build_dir.clone()],
+        }
+    }
+
+    fn ensure_write_roots(&self) -> Result<(), Vec<Diagnostic>> {
+        std::fs::create_dir_all(&self.build_dir).map_err(|error| {
+            vec![Diagnostic::error(format!(
+                "failed to create build machine filesystem write root `{}`: {error}",
+                self.build_dir.display()
+            ))]
+        })
+    }
+}
 
 /// The image facts the pipeline consumes, extracted from the augmented
 /// `Build`. ZII: the default IS the zero value's meaning.
@@ -726,6 +768,7 @@ pub(crate) fn is_build_machine(
 pub(crate) fn compute_build_config(
     typed: &TypedTrees,
     build_file_machines: &[String],
+    filesystem_scope: &BuildMachineFilesystemScope,
 ) -> Result<ComputedBuildConfig, Vec<Diagnostic>> {
     let prepared = PreparedBuildMachineProgram::prepare(typed)?;
     let typed = prepared.typed();
@@ -841,8 +884,9 @@ pub(crate) fn compute_build_config(
     let execution_mode = if transitive.is_empty() {
         BuildMachineExecutionMode::Pure
     } else {
+        filesystem_scope.ensure_write_roots()?;
         BuildMachineExecutionMode::Granted {
-            filesystem: BuildMachineFilesystemAccess::RealUnscoped,
+            filesystem: BuildMachineFilesystemAccess::RealScoped(filesystem_scope.grants()),
         }
     };
     let measured = psi_build_time_evaluation::evaluate_build_machine_arguments_measured(
