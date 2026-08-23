@@ -8,7 +8,7 @@
 # implementations/gamma/checker.gamma verify the certificate — so the omega SOURCE contract (not a hand-picked goal) is proven,
 # three ways, with NO hand-authored proof. contract2proof --perturb succs the conclusion RHS into a
 # well-formed FALSE proposition, which the prover must fail to prove (or, if it emits something, all three
-# checkers reject). This is omega-rs's obligations concept: obligations discharged automatically.
+# checkers reject). This is omega's obligations concept: obligations discharged automatically.
 OMEGA_GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 if [ -z "${OMEGA_REPO_ROOT:-}" ]; then
   OMEGA_REPO_ROOT=$OMEGA_GATE_DIR

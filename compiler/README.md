@@ -85,9 +85,9 @@ The hosted build has two stages:
 
 The current Rust implementations remain migration/reference producers while
 that hosted path matures. `bootstrap/omega0/` owns the Rust-free meaning,
-first-compiler source/contracts, and validation gates; `compiler/omega/` is its
-compatibility path. `compiler/omega-rs/` and
-`compiler/psi-rs/` contain the current production implementations.
+first-compiler source/contracts, and validation gates. `compiler/omega/` and
+`compiler/psi/` are the physical roots of the current production
+implementations; neither doubles as a bootstrap compatibility path.
 
 ## Trust and verification
 
@@ -122,8 +122,8 @@ sh bootstrap/assurance/proof-kernel/gates/test.sh
 
 Architecture and standing decisions live in
 [`wiki/architecture/bootstrap_lattice/`](../wiki/architecture/bootstrap_lattice/).
-The current flat `compiler/` directory is migration state; the role-based target
-layout is documented in
+The product roots now have role-based names. Remaining bootstrap compatibility
+entries under `compiler/` are migration state documented in
 [`repository_structure.md`](../wiki/architecture/bootstrap_lattice/repository_structure.md).
 Live bootstrap work belongs in [`TASKS_BOOTSTRAP.md`](../TASKS_BOOTSTRAP.md),
 while broader product work belongs in [`TASKS.md`](../TASKS.md). Exact corpus and

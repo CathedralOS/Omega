@@ -9,7 +9,8 @@ with equivalence certificates cross-checked by the available checker implementat
 view the pillar earned: **which of its techniques carry first to the simple
 Delta-built Omega compiler and then across the Omega self-build edge.**
 
-`omega-rs` (untouched reference producer, per D1) already sketches the destination in
+The current `compiler/omega/` implementation (untouched reference producer, per
+D1) already sketches the destination in
 `semantics/psi-proof`: `obligations.rs` (proof obligations attached to compilation), `boundary.rs`
 (boundary obligations at capability seams), `lemmas.rs`, `checker.rs`. The lattice's job is to reach that
 shape with *its own trust story* — obligations discharged by certificates the independent low-rung proof kernel checks, not by a
@@ -37,7 +38,7 @@ shape with *its own trust story* — obligations discharged by certificates the 
 2. **Compound values.** Peano nats + pairs + streams got us here; Omega's structs/cases/strings need a
    principled value encoding in the meaning language (likely constructor families again — but the *evaluator*
    work is substantial).
-3. **Obligation generation.** `omega-rs` attaches obligations during compilation. The lattice's analogue is
+3. **Obligation generation.** `compiler/omega/` attaches obligations during compilation. The lattice's analogue is
    the elaboration route (D2): `omega2gamma` should eventually *emit certificates alongside code* the way
    delta's convergence certifiers do — the proof-carrying-Omega target. Today's TV gate re-evaluates
    results; the climb is from "results checked" to "compilation obligations discharged."

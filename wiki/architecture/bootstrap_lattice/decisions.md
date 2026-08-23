@@ -10,7 +10,8 @@ overview says "emergent / to be decided," the calls here are the decision.
 
 Format: each decision is **D#**, states the call, the rationale, and the resulting
 policy. Decisions bind the construction; they do not touch language *meaning*
-(owned by the language guide) nor `omega-rs` (the untouched reference producer).
+(owned by the language guide) nor the current product implementation under
+`compiler/omega/` (the untouched reference producer).
 
 ---
 
@@ -25,7 +26,7 @@ The overview's "Two roles for Rust" is the ordering law. Made concrete, per arti
 | `interp.beta` / `typeck.beta` (γ meaning) | **trusted base** | **DEAD** — Beta, on the seed lineage. |
 | Delta's **meaning** (`gamma_emit.rs`) | **trusted base** | **DYING** — the broad Beta-written `omega2gamma` route and Gamma execution path exist, including checked D0 storage and real byte-I/O certifiers; exact coverage of the eventual Omega0 Delta source remains open. |
 | Psi/Omega's **meaning** | **trusted base** | Follows the same elaboration discipline through the Delta-built bootstrap compiler and the Omega self-build edge. |
-| `beta-rust`, `delta-rust`, `omega-rs` (producers) | **untrusted producer** | **DEFERRABLE** — killed for self-sufficiency, not soundness. `omega-rs` stays untouched as the reference producer. |
+| `beta-rust`, `delta-rust`, `compiler/omega/` (producers) | **untrusted producer** | **DEFERRABLE** — killed for self-sufficiency, not soundness. The current product compiler stays untouched as the reference producer. |
 
 **Policy:** no work removes Rust from a *producer* merely for pedigree while Rust
 still sits in any meaning/checker or while an upstream artifact that builds those
@@ -89,7 +90,7 @@ backdoored output would fail its own refinement check.
   agreement with the Rust-free meaning) and are explicitly **outside the soundness
   base** for proofs about source.
 - **North star:** per-compile refinement certificates (the backend as a checked
-  producer). This is where `omega-rs`'s "certs about real binaries vs a hardware
+  producer). This is where `compiler/omega/`'s "certs about real binaries vs a hardware
   model" ambition rejoins the lattice.
 
 ## D4 — The soundness bridge is built empirically via SEAMS now; every proof-kernel capability ships a paired seam.

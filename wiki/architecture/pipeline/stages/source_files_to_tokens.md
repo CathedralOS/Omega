@@ -14,14 +14,14 @@ Primary responsibility: preserve source identity and split text into tokens.
 
 ## Implementation Map
 
-- `compiler/psi-rs/foundation/psi-source` owns loaded-source records and maps,
+- `compiler/psi/foundation/psi-source` owns loaded-source records and maps,
   source identities, byte-span coordinates, and source-backed text.
-- `compiler/psi-rs/foundation/psi-diagnostics` owns source-addressable
-  diagnostics, and `compiler/psi-rs/foundation/psi-source-loader` owns root-file
+- `compiler/psi/foundation/psi-diagnostics` owns source-addressable
+  diagnostics, and `compiler/psi/foundation/psi-source-loader` owns root-file
   loading.
-- `compiler/psi-rs/representations/psi-tokens` owns token kinds, text, and
+- `compiler/psi/representations/psi-tokens` owns token kinds, text, and
   streams.
-- `compiler/psi-rs/pipeline/psi-source-files-to-tokens` owns the implementation
+- `compiler/psi/pipeline/psi-source-files-to-tokens` owns the implementation
   files below. Every workspace harness uses this Psi stage directly.
 - `lexer.rs` owns token dispatch, source-span slicing, token construction, comments, whitespace, identifiers, keywords, and punctuation.
 - `lexer/numbers.rs` owns numeric literal scanning and lexical metadata such as base, suffix presence, and incomplete numeric parts.

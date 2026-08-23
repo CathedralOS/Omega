@@ -23,10 +23,12 @@ from two things it is easy to confuse it with:
   [language guide](../../language_guide/language_guide.md) and the
   [design briefs](../../design_briefs/). The lattice must *preserve* that
   meaning; it does not define it.
-- **How Omega compiles today** — the current Rust compiler `omega-rs`. Owned by
+- **How Omega compiles today** — the current Rust implementation under
+  `compiler/omega/`. Owned by
   [Repository Layout](../repository_layout.md) and
   [Pipeline Architecture](../pipeline/pipeline.md). In this architecture
-  `omega-rs` is a *role*, not a rival (see [How today's work fits](#how-todays-work-fits)).
+  the product compiler is a *role*, not a rival (see
+  [How today's work fits](#how-todays-work-fits)).
 
 ## The one idea: trust by checking, not by pedigree
 
@@ -252,7 +254,7 @@ This architecture does not demote the existing docs; it assigns roles.
 
 - **Language docs** (`language_guide/`, `design_briefs/`) own **meaning**. The
   lattice preserves it. Authoritative, unchanged.
-- **`omega-rs`** (`pipeline/`, `repository_layout`) is the **current fast,
+- **`compiler/omega/`** (`pipeline/`, `repository_layout`) is the **current fast,
   untrusted producer** and today's executable reference for the language. In this
   architecture it sits on the *machine* side; it is progressively replaced by
   lattice-built rungs and, in the end-state, its output is *checked* rather than
@@ -295,7 +297,7 @@ different roles:
   result is authoritative. Until that route lands, every Rust verifier,
   reduction family, and denotation rule it supplies is named explicitly as a
   versioned trusted dependency.
-- **Rust as the producer** (`omega-rs`, the optimizing compiler) is, once a
+- **Rust as the producer** (`compiler/omega/`, the optimizing compiler) is, once a
   complete verifier-plus-kernel route exists, *outside the soundness base*. It
   still dies — for self-sufficiency — but it is the **deferrable** kill; a
   verified, Rust-built compiler output is a fine interim state.

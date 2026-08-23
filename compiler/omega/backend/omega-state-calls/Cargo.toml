@@ -1,0 +1,31 @@
+[package]
+name = "omega-state-calls"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_state_calls"
+path = "src/lib.rs"
+
+[dependencies]
+psi-checked-trees = { path = "../../../psi/representations/psi-checked-trees" }
+omega-control-flow = { path = "../../representations/omega-control-flow" }
+omega-core = { path = "../../foundation/omega-core" }
+psi-arena = { path = "../../../psi/foundation/psi-arena" }
+psi-symbols = { path = "../../../psi/foundation/psi-symbols" }
+omega-platform-interface = { path = "../omega-platform-interface" }
+omega-state-graph = { path = "../../representations/omega-state-graph" }
+
+[dev-dependencies]
+omega-calling-conventions = { path = "../../foundation/omega-calling-conventions" }
+omega-checked-trees-to-state-graph = { path = "../../pipeline/omega-checked-trees-to-state-graph" }
+omega-platform-interface = { path = "../omega-platform-interface" }
+psi-symbol-resolved-trees-to-typed-trees = { path = "../../../psi/pipeline/psi-symbol-resolved-trees-to-typed-trees" }
+psi-source-files-to-tokens = { path = "../../../psi/pipeline/psi-source-files-to-tokens" }
+omega-state-graph-to-control-flow = { path = "../../pipeline/omega-state-graph-to-control-flow" }
+psi-syntax-trees-to-symbol-resolved-trees = { path = "../../../psi/pipeline/psi-syntax-trees-to-symbol-resolved-trees" }
+omega-target = { path = "../../foundation/omega-target" }
+psi-tokens-to-syntax-trees = { path = "../../../psi/pipeline/psi-tokens-to-syntax-trees" }
+psi-typed-trees-to-checked-trees = { path = "../../../psi/pipeline/psi-typed-trees-to-checked-trees" }
+psi-validation = { path = "../../../psi/semantics/psi-validation" }

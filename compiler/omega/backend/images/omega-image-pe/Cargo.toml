@@ -1,0 +1,16 @@
+[package]
+name = "omega-image-pe"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_image_pe"
+path = "src/lib.rs"
+
+[dependencies]
+omega-calling-conventions = { path = "../../../foundation/omega-calling-conventions" }
+psi-arena = { path = "../../../../psi/foundation/psi-arena" }
+psi-diagnostics = { path = "../../../../psi/foundation/psi-diagnostics" }
+omega-image = { path = "../omega-image" }
+omega-object-file = { path = "../../object/omega-object-file" }

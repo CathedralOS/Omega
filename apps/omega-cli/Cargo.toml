@@ -10,12 +10,12 @@ path = "src/main.rs"
 test = false
 
 [dependencies]
-omega-compiler = { path = "../../compiler/omega-rs/orchestration/omega-compiler" }
-omega-core = { path = "../../compiler/omega-rs/foundation/omega-core" }
-omega-target = { path = "../../compiler/omega-rs/foundation/omega-target" }
-psi-checked-trees-to-terminal = { path = "../../compiler/psi-rs/pipeline/psi-checked-trees-to-terminal" }
-psi-core = { path = "../../compiler/psi-rs/foundation/psi-core" }
-psi-proof-kernel = { path = "../../compiler/psi-rs/semantics/psi-proof-kernel" }
-psi-terminal = { path = "../../compiler/psi-rs/representations/psi-terminal" }
-psi-terminal-fixed-fuel = { path = "../../compiler/psi-rs/semantics/psi-terminal-fixed-fuel" }
-psi-terminal-verifier = { path = "../../compiler/psi-rs/semantics/psi-terminal-verifier" }
+omega-compiler = { path = "../../compiler/omega/orchestration/omega-compiler" }
+omega-core = { path = "../../compiler/omega/foundation/omega-core" }
+omega-target = { path = "../../compiler/omega/foundation/omega-target" }
+psi-checked-trees-to-terminal = { path = "../../compiler/psi/pipeline/psi-checked-trees-to-terminal" }
+psi-core = { path = "../../compiler/psi/foundation/psi-core" }
+psi-proof-kernel = { path = "../../compiler/psi/semantics/psi-proof-kernel" }
+psi-terminal = { path = "../../compiler/psi/representations/psi-terminal" }
+psi-terminal-fixed-fuel = { path = "../../compiler/psi/semantics/psi-terminal-fixed-fuel" }
+psi-terminal-verifier = { path = "../../compiler/psi/semantics/psi-terminal-verifier" }

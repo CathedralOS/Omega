@@ -3,7 +3,7 @@
 # `terminates by s -> Slice::Length;`
 # clause on a machine is a proof obligation: every recursive self-call must STRICTLY DECREASE the measure,
 # so the recursion is well-founded and the machine halts on ALL inputs (not just the ones the meaning route
-# happens to run). omega-rs discharges termination obligations statically; this gate does the proof-kernel analogue
+# happens to run). omega discharges termination obligations statically; this gate does the proof-kernel analogue
 # for the Slice::Length measure with tail recursion on `s[1..]`.
 #
 # All such machines share ONE measure-decrease fact: for a nonempty slice s = cons(h, t), the recursion is

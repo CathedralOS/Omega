@@ -1,1 +1,0 @@
-../../bootstrap/omega0/gates/translation-validation.sh

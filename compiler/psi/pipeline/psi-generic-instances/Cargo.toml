@@ -1,0 +1,27 @@
+[package]
+name = "psi-generic-instances"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "psi_generic_instances"
+path = "src/lib.rs"
+
+[dependencies]
+psi-arena = { path = "../../foundation/psi-arena" }
+psi-diagnostics = { path = "../../foundation/psi-diagnostics" }
+psi-language-semantics = { path = "../../foundation/psi-language-semantics" }
+psi-numerics = { path = "../../foundation/psi-numerics" }
+psi-syntax-trees = { path = "../../representations/psi-syntax-trees" }
+
+[dev-dependencies]
+omega-checked-trees-to-state-graph = { path = "../../../omega/pipeline/omega-checked-trees-to-state-graph" }
+omega-layout = { path = "../../../omega/backend/omega-layout" }
+omega-target = { path = "../../../omega/foundation/omega-target" }
+psi-checked-trees = { path = "../../representations/psi-checked-trees" }
+psi-source-files-to-tokens = { path = "../psi-source-files-to-tokens" }
+psi-symbol-resolved-trees-to-typed-trees = { path = "../psi-symbol-resolved-trees-to-typed-trees" }
+psi-syntax-trees-to-symbol-resolved-trees = { path = "../psi-syntax-trees-to-symbol-resolved-trees" }
+psi-tokens-to-syntax-trees = { path = "../psi-tokens-to-syntax-trees" }
+psi-typed-trees-to-checked-trees = { path = "../psi-typed-trees-to-checked-trees" }

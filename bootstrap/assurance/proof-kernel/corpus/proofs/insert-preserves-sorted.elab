@@ -1,4 +1,4 @@
-; insert-preserves-sorted.elab — the CENTRAL theorem of insertion-sort correctness (Lean-pole; omega-rs Sorted
+; insert-preserves-sorted.elab — the CENTRAL theorem of insertion-sort correctness (Lean-pole; omega Sorted
 ; views "do not exist"):  forall l x. sorted(l)=True -> sorted(insert(l,x))=True. Recursive-boolean Sorted + a
 ; total-order le (user Bool) + insertion insert. Proof: induction on l; Nil -> sorted([x])=True; Cons y ys ->
 ; CASE on le(x,y) (booldec): if True, insert prepends x and sorted = and(le(x,y)=T, sorted(l)=hyp); if False

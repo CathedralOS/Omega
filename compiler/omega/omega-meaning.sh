@@ -1,1 +1,0 @@
-../../bootstrap/omega0/gates/omega-meaning.sh

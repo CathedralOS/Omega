@@ -50,8 +50,8 @@ fi
 : "${OMEGA_PATH_OMEGA0_GATES:=$OMEGA_PATH_OMEGA0/gates}"
 : "${OMEGA_PATH_OMEGA0_REFINEMENT:=$OMEGA_PATH_REFINEMENT_ROOT/omega0}"
 : "${OMEGA_PATH_CORPUS:=$OMEGA_PATH_BOOTSTRAP_ROOT/corpus}"
-: "${OMEGA_PATH_PSI_PRODUCT:=$OMEGA_PATH_COMPILER_ROOT/psi-rs}"
-: "${OMEGA_PATH_OMEGA_PRODUCT:=$OMEGA_PATH_COMPILER_ROOT/omega-rs}"
+: "${OMEGA_PATH_PSI_PRODUCT:=$OMEGA_PATH_COMPILER_ROOT/psi}"
+: "${OMEGA_PATH_OMEGA_PRODUCT:=$OMEGA_PATH_COMPILER_ROOT/omega}"
 
 export OMEGA_REPO_ROOT OMEGA_PATH_COMPILER_ROOT OMEGA_PATH_BOOTSTRAP_ROOT
 export OMEGA_PATH_RUNGS_ROOT OMEGA_PATH_ONRAMPS_ROOT OMEGA_PATH_ASSURANCE_ROOT OMEGA_PATH_REFINEMENT_ROOT
@@ -92,15 +92,15 @@ omega_bootstrap_path() {
     proof-kernel-beta) printf '%s\n' "$OMEGA_PATH_PROOF_KERNEL_BETA" ;;
     proof-kernel-reference) printf '%s\n' "$OMEGA_PATH_PROOF_KERNEL_REFERENCE" ;;
     proof-kernel-gamma) printf '%s\n' "$OMEGA_PATH_PROOF_KERNEL_GAMMA" ;;
-    omega0|omega) printf '%s\n' "$OMEGA_PATH_OMEGA0" ;;
+    omega0) printf '%s\n' "$OMEGA_PATH_OMEGA0" ;;
     omega0-meaning) printf '%s\n' "$OMEGA_PATH_OMEGA0_MEANING" ;;
     omega0-compiler) printf '%s\n' "$OMEGA_PATH_OMEGA0_COMPILER" ;;
     omega0-gates) printf '%s\n' "$OMEGA_PATH_OMEGA0_GATES" ;;
     corpus|lattice-corpus) printf '%s\n' "$OMEGA_PATH_CORPUS" ;;
     psi) printf '%s\n' "$OMEGA_PATH_PSI_PRODUCT" ;;
     psi/*) printf '%s/%s\n' "$OMEGA_PATH_PSI_PRODUCT" "${1#psi/}" ;;
-    omega-product) printf '%s\n' "$OMEGA_PATH_OMEGA_PRODUCT" ;;
-    omega-product/*) printf '%s/%s\n' "$OMEGA_PATH_OMEGA_PRODUCT" "${1#omega-product/}" ;;
+    omega) printf '%s\n' "$OMEGA_PATH_OMEGA_PRODUCT" ;;
+    omega/*) printf '%s/%s\n' "$OMEGA_PATH_OMEGA_PRODUCT" "${1#omega/}" ;;
     /*) printf '%s\n' "$1" ;;
     *)
       echo "bootstrap paths: unknown repository role: $1" >&2

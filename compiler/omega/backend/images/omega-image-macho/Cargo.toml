@@ -1,0 +1,17 @@
+[package]
+name = "omega-image-macho"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_image_macho"
+path = "src/lib.rs"
+
+[dependencies]
+psi-arena = { path = "../../../../psi/foundation/psi-arena" }
+psi-diagnostics = { path = "../../../../psi/foundation/psi-diagnostics" }
+omega-image = { path = "../omega-image" }
+omega-calling-conventions = { path = "../../../foundation/omega-calling-conventions" }
+
+sha2 = "0.10"

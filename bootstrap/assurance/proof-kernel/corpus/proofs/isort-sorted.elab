@@ -1,5 +1,5 @@
 ; isort-sorted.elab — INSERTION SORT PRODUCES A SORTED LIST (the sortedness half of insertion-sort correctness;
-; the Lean-pole result omega-rs's Sorted views cannot express):  forall l. sorted(isort l)=True. isort = fold insert:
+; the Lean-pole result omega's Sorted views cannot express):  forall l. sorted(isort l)=True. isort = fold insert:
 ; isort(Nil)=Nil, isort(Cons h t)=insert(isort t, h). Proof: induction on l; Nil -> sorted(Nil)=True; Cons h t ->
 ; sorted(insert(isort t, h))=True by insert-preserves-sorted at (isort t, h) applied to the IH sorted(isort t)=True.
 ; Self-contained: the full order/bool/insert machinery inlined as haves (through cruxL and insert-preserves-sorted).

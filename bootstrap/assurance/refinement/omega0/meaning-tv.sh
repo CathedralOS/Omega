@@ -22,8 +22,8 @@
 # ERASURE (omega2gamma drops `in Saturating`/`Wrapping`; sound exactly where the domains agree with
 # plain arithmetic — every subtraction site carries a kernel-checked no-underflow witness, ult(a,b)=0
 # directly or d+b=a on the witnessed path; additive/multiplicative sites stay in-range by the value
-# walls; ℤ-mode samples model Wrapping soundly while |values| < 2^31). omega-rs's obligations.rs
-# concept, discharged by the lattice's own anchor. BOUNDARY RANGE (omega-rs boundary.rs): every value
+# walls; ℤ-mode samples model Wrapping soundly while |values| < 2^31). omega's obligations.rs
+# concept, discharged by the lattice's own anchor. BOUNDARY RANGE (omega boundary.rs): every value
 # crossing the process boundary — the exit code and each stdout byte — carries a kernel-checked byte-range
 # witness n + (255-n) = 255 (mode-uniform addition; a >255 value refuses fail-closed instead of masking).
 # STRUCTURAL RESULTS (cli_mvp): a sample whose final value is a constructor tree gets a structural claim —

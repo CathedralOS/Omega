@@ -1,1 +1,0 @@
-../../bootstrap/omega0/gates/omega2gamma-termination.sh

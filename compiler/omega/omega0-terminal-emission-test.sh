@@ -1,1 +1,0 @@
-../../bootstrap/omega0/gates/omega0-terminal-emission-test.sh

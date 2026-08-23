@@ -1,0 +1,18 @@
+[package]
+name = "omega-control-flow"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_control_flow"
+path = "src/lib.rs"
+
+[dependencies]
+psi-arena = { path = "../../../psi/foundation/psi-arena" }
+psi-symbols = { path = "../../../psi/foundation/psi-symbols" }
+psi-checked-trees = { path = "../../../psi/representations/psi-checked-trees" }
+psi-facts = { path = "../../../psi/representations/psi-facts" }
+psi-language-semantics = { path = "../../../psi/foundation/psi-language-semantics" }
+psi-numerics = { path = "../../../psi/foundation/psi-numerics" }
+psi-typed-trees = { path = "../../../psi/representations/psi-typed-trees" }

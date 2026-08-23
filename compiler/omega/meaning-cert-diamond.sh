@@ -1,1 +1,0 @@
-../../bootstrap/omega0/gates/meaning-cert-diamond.sh

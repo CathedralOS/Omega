@@ -1,1 +1,0 @@
-../../bootstrap/omega0/compiler/omega0_bundle.py
