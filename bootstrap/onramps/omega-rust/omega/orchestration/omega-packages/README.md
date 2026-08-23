@@ -81,7 +81,7 @@ delegate behavior here.
   changes.
 - `lock`: machine-written package closure records with resolved source
   identity, manifest fingerprints, dependency aliases, trust receipts, stable
-  JSON, and lock fingerprints.
+  JSON, lock fingerprints, and closure validation.
 - `review`: deterministic capability-change review receipts bound to exact
   source identities, manifest fingerprints, accepted diff sections, reviewer,
   and reason.
