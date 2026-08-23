@@ -297,6 +297,14 @@ are valuable teeth, but they do not yet establish the quantified observation:
   anchor the theorem; the byte branch decreases `len-k`. Decimal emission,
   prologue/parameter emitters, and the outer procedure-prefix loop remain to be
   composed;
+- its bounded decimal-output leaf gives `emit_dec(n)` exact meaning for every
+  `0<=n<=8192`: it appends canonical ASCII decimal bytes, returns zero,
+  restores its caller, and otherwise preserves compiler state. The checker
+  executes all 8,193 quotient/remainder cases, including reconstruction, digit
+  range, and decreasing decimal phase, then binds them to exact procedure-40
+  control and a four-phase recursive-child-before-digit output induction. The
+  older 19-activation resource ceiling is not treated as full-word value
+  semantics. Prologue/parameter emitters and their outer loop remain open;
 - no total `parse_proc` claim is currently made. Malformed procedure bodies can
   make `gen_stmts` diverge while emitting—for example when an unrecognized byte
   is never consumed—so closure requires maximal Return-or-Diverge and finite/
