@@ -63,7 +63,14 @@ python3 "$GATE_DIR/bc_block_control_map.py" \
   --local-load-opcode-patch-output "$T/local-load-opcode.patch" \
   --local-store-opcode-patch-output "$T/local-store-opcode.patch" \
   --duplicate-local-witness-output "$T/duplicate-local.witness" \
-  --noncanonical-local-witness-output "$T/noncanonical-local.witness"
+  --noncanonical-local-witness-output "$T/noncanonical-local.witness" \
+  --memory-load-width-patch-output "$T/memory-load-width.patch" \
+  --memory-store-width-patch-output "$T/memory-store-width.patch" \
+  --memory-load-register-patch-output "$T/memory-load-register.patch" \
+  --memory-store-register-patch-output "$T/memory-store-register.patch" \
+  --memory-pop-step-patch-output "$T/memory-pop-step.patch" \
+  --duplicate-memory-witness-output "$T/duplicate-memory.witness" \
+  --noncanonical-memory-witness-output "$T/noncanonical-memory.witness"
 
 # The untrusted mapper never writes the source/tape portion of checker input.
 # Assemble every bundle here from the exact repository source and artifact.
@@ -86,6 +93,8 @@ make_bundle "$ARTIFACT" "$T/duplicate-event.witness" "$T/duplicate-event.bundle"
 make_bundle "$ARTIFACT" "$T/noncanonical-event.witness" "$T/noncanonical-event.bundle"
 make_bundle "$ARTIFACT" "$T/duplicate-local.witness" "$T/duplicate-local.bundle"
 make_bundle "$ARTIFACT" "$T/noncanonical-local.witness" "$T/noncanonical-local.bundle"
+make_bundle "$ARTIFACT" "$T/duplicate-memory.witness" "$T/duplicate-memory.bundle"
+make_bundle "$ARTIFACT" "$T/noncanonical-memory.witness" "$T/noncanonical-memory.bundle"
 
 cp "$ARTIFACT" "$T/retarget.tape"
 RETARGET_OFFSET=$(dd if="$T/retarget.patch" bs=1 count=4 2>/dev/null | od -An -tu4 | tr -d ' ')
@@ -121,11 +130,17 @@ apply_tape_patch local-store-slot
 apply_tape_patch local-base
 apply_tape_patch local-load-opcode
 apply_tape_patch local-store-opcode
+apply_tape_patch memory-load-width
+apply_tape_patch memory-store-width
+apply_tape_patch memory-load-register
+apply_tape_patch memory-store-register
+apply_tape_patch memory-pop-step
 
 cat "$GATE_DIR/bc-block-control.alpha" \
   "$GATE_DIR/bc-effect-sites.alpha" \
   "$GATE_DIR/bc-frame-shape.alpha" \
-  "$GATE_DIR/bc-local-access.alpha" > "$T/control-check.alpha"
+  "$GATE_DIR/bc-local-access.alpha" \
+  "$GATE_DIR/bc-memory-sites.alpha" > "$T/control-check.alpha"
 "$ASM" < "$T/control-check.alpha" > "$T/control-check.tape"
 stamp_seed "$T/control-check.tape" "$SEED" "$T/control-check" >/dev/null
 
@@ -171,6 +186,13 @@ case_run "same-width local load/store opcode" 1 "$T/local-load-opcode.bundle"
 case_run "same-width local store/load opcode" 1 "$T/local-store-opcode.bundle"
 case_run "duplicate local access location" 1 "$T/duplicate-local.bundle"
 case_run "noncanonical local access order" 1 "$T/noncanonical-local.bundle"
+case_run "raw memory load width" 1 "$T/memory-load-width.bundle"
+case_run "raw memory store width" 1 "$T/memory-store-width.bundle"
+case_run "raw memory load register" 1 "$T/memory-load-register.bundle"
+case_run "raw memory store register" 1 "$T/memory-store-register.bundle"
+case_run "raw memory store pop step" 1 "$T/memory-pop-step.bundle"
+case_run "duplicate raw memory location" 1 "$T/duplicate-memory.bundle"
+case_run "noncanonical raw memory order" 1 "$T/noncanonical-memory.bundle"
 
 # Show that the negative control has teeth beyond the pre-existing structural
 # obligation: its changed target is another real instruction boundary, so the
@@ -194,7 +216,7 @@ if [ "$structure_status" != 0 ] || [ -s "$T/stdout" ]; then
   exit 1
 fi
 
-for mutation in call-retarget read-register write-register helper-write emit-byte emit-length emit-pointer emit-helper orphan-io frame-size saved-fp frame-base param-offset param-register call-pop-order call-pop-step local-load-slot local-store-slot local-base local-load-opcode local-store-opcode; do
+for mutation in call-retarget read-register write-register helper-write emit-byte emit-length emit-pointer emit-helper orphan-io frame-size saved-fp frame-base param-offset param-register call-pop-order call-pop-step local-load-slot local-store-slot local-base local-load-opcode local-store-opcode memory-load-width memory-store-width memory-load-register memory-store-register memory-pop-step; do
   set +e
   "$T/structure-check" < "$T/$mutation.tape" > "$T/stdout"
   structure_status=$?
@@ -205,4 +227,4 @@ for mutation in call-retarget read-register write-register helper-write emit-byt
   fi
 done
 
-echo "bc block control/effects: 70 proc / 355 block / 291 transition; 612 effect sites / 829 fixed emit bytes; 78 frame slots / 27 parameter stores / 134 call pops; 169 local loads / 73 local stores; all 686 artifact effects owned ($(wc -c < "$T/control-check.tape" | tr -d ' ')-byte Alpha checker tape)"
+echo "bc block control/effects: 70 proc / 355 block / 291 transition; 612 effect sites / 829 fixed emit bytes; 78 frame slots / 27 parameter stores / 134 call pops; 169 local loads / 73 local stores; 62 raw loads / 33 raw stores; all 686 artifact effects owned ($(wc -c < "$T/control-check.tape" | tr -d ' ')-byte Alpha checker tape)"

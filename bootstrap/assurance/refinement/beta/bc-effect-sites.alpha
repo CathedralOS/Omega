@@ -1,4 +1,4 @@
-; BCT3 effect-site extension for bc-block-control.alpha.
+; BCT4 effect-site extension for bc-block-control.alpha.
 ;
 ; This fragment is concatenated with the common checker before assembly.  It
 ; reuses that process's exact source scan, block table, tape bytes, and decoded
@@ -231,7 +231,7 @@ emit_literal_restore:
         store r1, r2
         ret
 
-; Read the canonical source-order event locations after the BCT3 control sites.
+; Read the canonical source-order event locations after the BCT4 control sites.
 ; Before the common decoder's secondary phase, add each compiler-synthesized
 ; fallthrough epilogue as a root.  Many are semantically unreachable because a
 ; source block returns first, but they are still effectful bytes in the exact

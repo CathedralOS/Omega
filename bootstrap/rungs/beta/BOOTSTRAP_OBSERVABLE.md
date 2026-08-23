@@ -161,6 +161,9 @@ are valuable teeth, but they do not yet establish the quantified observation:
   a source-name/slot phase additionally binds all 169 local reads and 73
   `let`/assignment writes to exact fp-relative macros; the earlier argument
   pushes/values, local access values, and live stack-depth bound remain open;
+- its raw-memory phase binds 62 source loads and 33 stores to exact byte/word
+  opcodes and registers, including each store's immediate address pop, but does
+  not yet relate address/value expressions or prove the 64 MiB access bounds;
 - Alpha out-of-range memory remains undefined in `alpha/SEMANTICS.md` and must be
   excluded by independently checked `B_bc1` bounds before whole-artifact closure
   (or Alpha must be hardened independently);

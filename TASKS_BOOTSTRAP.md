@@ -491,7 +491,7 @@ additional facilities the bootstrap actually needs.
       pop-step mutations reject. This proves static allocation and handoff
       conditional on staged values; argument pushes/values, live stack depth,
       and dynamic frame contents remain open.
-    - [x] Bind every function-scoped local access to its source slot. The BCT3
+    - [x] Bind every function-scoped local access to its source slot. The BCT4
       Alpha phase independently records all 27 parameters and 51 `let`
       declarations, resolves exact source names, distinguishes assignment
       targets from comparison operands and calls, and checks 169 reads plus 73
@@ -501,6 +501,14 @@ additional facilities the bootstrap actually needs.
       structurally valid. Static slot/opcode custody is closed; carried values,
       definite assignment, expression evaluation, argument pushes, and dynamic
       aliasing remain open.
+    - [x] Bind every raw memory operation to its source width and artifact site.
+      The same Alpha process classifies matching source brackets and checks 56
+      word loads, six byte loads, 32 word stores, and one byte store against
+      exact opcodes/registers; each store additionally owns its immediate
+      address-pop macro. Width/register/pop-step mutations and malformed BCT4
+      locations reject while retaining valid instruction framing. Address and
+      value correspondence, aliasing, alignment, and the 64 MiB bounds proof
+      remain open.
     - [x] Freeze supported resource profile `B_bc1` and make its source-side
       ceilings checked. `bc.beta` now refuses a 1,025th name slot, fifth live
       parameter/argument, and expression or nested-block depth 65 before any
