@@ -29,7 +29,13 @@ OPS = {
     "write": (0x12, "r"), "call": (0x13, "x"), "ret": (0x14, ""),
 }
 ESC = {"n": 10, "t": 9, "r": 13, "0": 0, "\\": 92, "'": 39, '"': 34}
-MAGIC = 0x31435442  # little-endian "BCT1"
+MAGIC = 0x32544342  # little-endian "BCT2"
+
+EVENT_CALL = 1
+EVENT_READ = 2
+EVENT_WRITE = 3
+EVENT_EMIT = 4
+EVENT_RETURN = 5
 
 
 @dataclass(frozen=True)
@@ -48,6 +54,15 @@ class Item:
     operands: tuple[str, ...]
     offset: int
     size: int
+
+
+@dataclass(frozen=True)
+class Event:
+    kind: int
+    name: str
+    literal: bytes
+    node_id: int
+    block_index: int
 
 
 def load_parser(repo: Path):
@@ -82,6 +97,107 @@ def source_blocks(repo: Path, source: bytes) -> list[Block]:
             blocks.append(Block(proc_index, proc_name, state_name,
                                 f"{proc_name}__{state_name}", transitions))
     return blocks
+
+
+def source_events(repo: Path, source: bytes) -> tuple[list, list[Event], dict[int, list[Event]]]:
+    """Return lexical events plus each procedure's lowering-order events.
+
+    The witness is canonical by source order.  Calls lower after their arguments,
+    so the second traversal retains node identity while recovering artifact order.
+    Both traversals are untrusted hints; the Alpha checker independently scans the
+    source sites and validates every suggested instruction.
+    """
+    parser = load_parser(repo)
+    ast = parser.Parser(parser.lex(source.decode("utf-8"))).parse()
+    lexical: list[Event] = []
+    event_by_node: dict[int, Event] = {}
+    lowering_by_proc: dict[int, list[Event]] = {}
+    block_index = 0
+
+    def add(kind: int, name: str, literal: bytes, node, block: int) -> None:
+        event = Event(kind, name, literal, id(node), block)
+        lexical.append(event)
+        event_by_node[id(node)] = event
+
+    def lex_expr(expr, block: int) -> None:
+        if expr[0] == "call":
+            name = expr[1]
+            kind = EVENT_READ if name == "read_byte" else (
+                EVENT_WRITE if name == "write_byte" else EVENT_CALL
+            )
+            add(kind, name, b"", expr, block)
+            for argument in expr[2]:
+                lex_expr(argument, block)
+        elif expr[0] == "bin":
+            lex_expr(expr[2], block)
+            lex_expr(expr[3], block)
+        elif expr[0] == "mem":
+            lex_expr(expr[2], block)
+
+    def lex_stmt(stmt, block: int) -> None:
+        kind = stmt[0]
+        if kind in ("let", "assign"):
+            lex_expr(stmt[2], block)
+        elif kind == "return":
+            add(EVENT_RETURN, "", b"", stmt, block)
+            lex_expr(stmt[1], block)
+        elif kind == "goto":
+            if stmt[2] is not None:
+                lex_expr(stmt[2], block)
+        elif kind == "memset":
+            lex_expr(stmt[2], block)
+            lex_expr(stmt[3], block)
+        elif kind == "emit":
+            literal = decoded_string('"' + stmt[1] + '"')
+            add(EVENT_EMIT, "emit", literal, stmt, block)
+        elif kind == "callstmt":
+            lex_expr(stmt[1], block)
+
+    def lower_expr(expr, output: list[Event]) -> None:
+        if expr[0] == "call":
+            for argument in expr[2]:
+                lower_expr(argument, output)
+            output.append(event_by_node[id(expr)])
+        elif expr[0] == "bin":
+            lower_expr(expr[2], output)
+            lower_expr(expr[3], output)
+        elif expr[0] == "mem":
+            lower_expr(expr[2], output)
+
+    def lower_stmt(stmt, output: list[Event]) -> None:
+        kind = stmt[0]
+        if kind in ("let", "assign"):
+            lower_expr(stmt[2], output)
+        elif kind == "return":
+            lower_expr(stmt[1], output)
+            output.append(event_by_node[id(stmt)])
+        elif kind == "goto":
+            if stmt[2] is not None:
+                lower_expr(stmt[2], output)
+        elif kind == "memset":
+            lower_expr(stmt[2], output)
+            lower_expr(stmt[3], output)
+        elif kind == "emit":
+            output.append(event_by_node[id(stmt)])
+        elif kind == "callstmt":
+            lower_expr(stmt[1], output)
+
+    for proc_index, proc in enumerate(ast):
+        lowering: list[Event] = []
+        entry_block = block_index
+        block_index += 1
+        for stmt in proc[3]:
+            if stmt[0] == "state":
+                state_block = block_index
+                block_index += 1
+                for inner in stmt[2]:
+                    lex_stmt(inner, state_block)
+                    lower_stmt(inner, lowering)
+            else:
+                lex_stmt(stmt, entry_block)
+                lower_stmt(stmt, lowering)
+        lowering_by_proc[proc_index] = lowering
+    return ast, lexical, lowering_by_proc
 
 
 def strip_comment(line: str) -> str:
@@ -212,20 +328,72 @@ def locate(blocks: list[Block], assembly: str):
                 transition_pcs.append(jump.offset)
             transition_jmps.append(jump.offset)
             target_indices.append(target_index)
-    return block_pcs, transition_pcs, transition_jmps, target_indices, guarded_count
+    return (items, labels, block_pcs, transition_pcs, transition_jmps,
+            target_indices, guarded_count)
+
+
+def locate_events(ast: list, lexical: list[Event], lowering_by_proc: dict[int, list[Event]],
+                  items: list[Item], labels: dict[str, int], tape_len: int) -> tuple[list[int], int]:
+    by_node = {event.node_id: index for index, event in enumerate(lexical)}
+    pcs = [-1] * len(lexical)
+    proc_starts = [labels[proc[1]] for proc in ast]
+    for proc_index, proc in enumerate(ast):
+        start = proc_starts[proc_index]
+        end = proc_starts[proc_index + 1] if proc_index + 1 < len(proc_starts) else tape_len
+        candidates = [
+            item for item in items
+            if item.kind == "ins" and start <= item.offset < end
+            and item.name in {"call", "read", "write", "ret"}
+        ]
+        expected = lowering_by_proc[proc_index]
+        if len(candidates) != len(expected) + 1:
+            raise ValueError(
+                f"{proc[1]} effect accounting: {len(candidates)} instructions "
+                f"for {len(expected)} source events plus fallthrough ret"
+            )
+        if candidates[-1].name != "ret" or candidates[-1].offset + 1 != end:
+            raise ValueError(f"{proc[1]} lacks canonical final fallthrough ret")
+        for event, item in zip(expected, candidates[:-1]):
+            if event.kind == EVENT_CALL:
+                valid = item.name == "call" and item.operands == (event.name,)
+            elif event.kind == EVENT_READ:
+                valid = item.name == "read" and item.operands == ("r0",)
+            elif event.kind == EVENT_WRITE:
+                valid = item.name == "write" and item.operands == ("r0",)
+            elif event.kind == EVENT_EMIT:
+                valid = item.name == "call" and item.operands == ("__write_str",)
+            else:
+                valid = item.name == "ret"
+            if not valid:
+                raise ValueError(
+                    f"{proc[1]} source event {event} does not match Alpha item {item}"
+                )
+            pcs[by_node[event.node_id]] = item.offset
+    if any(pc < 0 for pc in pcs):
+        raise ValueError("not every source effect site received an Alpha location")
+    return pcs, labels["__write_str"]
 
 
 def u32(value: int) -> bytes:
     return struct.pack("<I", value)
 
 
-def witness(block_pcs: list[int], transition_pcs: list[int], proc_count: int,
+def witness(block_pcs: list[int], transition_pcs: list[int], event_pcs: list[int],
+            events: list[Event], helper_pc: int, proc_count: int,
             guarded_count: int) -> bytes:
+    counts = {kind: sum(event.kind == kind for event in events)
+              for kind in range(EVENT_CALL, EVENT_RETURN + 1)}
     return b"".join([
         u32(MAGIC), u32(proc_count), u32(len(block_pcs)),
         u32(len(transition_pcs)), u32(guarded_count),
+        u32(len(events)), u32(counts[EVENT_CALL]), u32(counts[EVENT_READ]),
+        u32(counts[EVENT_WRITE]), u32(counts[EVENT_EMIT]),
+        u32(counts[EVENT_RETURN]),
+        u32(sum(len(event.literal) for event in events)),
         *(u32(pc) for pc in block_pcs),
         *(u32(pc) for pc in transition_pcs),
+        *(u32(pc) for pc in event_pcs),
+        u32(helper_pc),
     ])
 
 
@@ -241,16 +409,35 @@ def main() -> None:
     ap.add_argument("--duplicate-witness-output", type=Path)
     ap.add_argument("--missing-witness-output", type=Path)
     ap.add_argument("--noncanonical-witness-output", type=Path)
+    ap.add_argument("--call-retarget-patch-output", type=Path)
+    ap.add_argument("--read-register-patch-output", type=Path)
+    ap.add_argument("--write-register-patch-output", type=Path)
+    ap.add_argument("--helper-write-patch-output", type=Path)
+    ap.add_argument("--emit-byte-patch-output", type=Path)
+    ap.add_argument("--emit-length-patch-output", type=Path)
+    ap.add_argument("--emit-pointer-patch-output", type=Path)
+    ap.add_argument("--emit-helper-patch-output", type=Path)
+    ap.add_argument("--orphan-io-patch-output", type=Path)
+    ap.add_argument("--duplicate-event-witness-output", type=Path)
+    ap.add_argument("--noncanonical-event-witness-output", type=Path)
     args = ap.parse_args()
 
     source = args.source.read_bytes()
     tape = bytearray(args.tape.read_bytes())
     blocks = source_blocks(args.repo, source)
-    block_pcs, transition_pcs, jump_pcs, target_indices, guarded_count = locate(
+    ast, events, lowering_by_proc = source_events(args.repo, source)
+    (items, labels, block_pcs, transition_pcs, jump_pcs,
+     target_indices, guarded_count) = locate(
         blocks, args.assembly.read_text(encoding="ascii")
     )
+    event_pcs, helper_pc = locate_events(
+        ast, events, lowering_by_proc, items, labels, len(tape)
+    )
     proc_count = len({block.proc_index for block in blocks})
-    canonical = witness(block_pcs, transition_pcs, proc_count, guarded_count)
+    canonical = witness(
+        block_pcs, transition_pcs, event_pcs, events, helper_pc,
+        proc_count, guarded_count,
+    )
     args.output.write_bytes(canonical)
 
     if args.retarget_patch_output:
@@ -290,14 +477,16 @@ def main() -> None:
         else:
             raise ValueError("no opcode-looking operand byte found for mutation")
         args.operand_witness_output.write_bytes(
-            witness(changed, transition_pcs, proc_count, guarded_count)
+            witness(changed, transition_pcs, event_pcs, events, helper_pc,
+                    proc_count, guarded_count)
         )
 
     if args.duplicate_witness_output:
         changed = list(block_pcs)
         changed[1] = changed[0]
         args.duplicate_witness_output.write_bytes(
-            witness(changed, transition_pcs, proc_count, guarded_count)
+            witness(changed, transition_pcs, event_pcs, events, helper_pc,
+                    proc_count, guarded_count)
         )
 
     if args.missing_witness_output:
@@ -322,7 +511,61 @@ def main() -> None:
             changed[pair_index + 1], changed[pair_index]
         )
         args.noncanonical_witness_output.write_bytes(
-            witness(block_pcs, changed, proc_count, guarded_count)
+            witness(block_pcs, changed, event_pcs, events, helper_pc,
+                    proc_count, guarded_count)
+        )
+
+    def patch(path: Path | None, offset: int, payload: bytes) -> None:
+        if path:
+            path.write_bytes(struct.pack("<I", offset) + payload)
+
+    ordinary_index = next(i for i, event in enumerate(events)
+                          if event.kind == EVENT_CALL and event.name != "main")
+    ordinary = events[ordinary_index]
+    alternate_proc = next(proc for proc in ast if proc[1] != ordinary.name)
+    patch(args.call_retarget_patch_output, event_pcs[ordinary_index] + 1,
+          struct.pack("<Q", labels[alternate_proc[1]]))
+
+    read_index = next(i for i, event in enumerate(events) if event.kind == EVENT_READ)
+    write_index = next(i for i, event in enumerate(events) if event.kind == EVENT_WRITE)
+    patch(args.read_register_patch_output, event_pcs[read_index] + 1, b"\x01")
+    patch(args.write_register_patch_output, event_pcs[write_index] + 1, b"\x01")
+    patch(args.orphan_io_patch_output, event_pcs[read_index], bytes([OPS["write"][0]]))
+
+    helper_write = helper_pc + 24
+    patch(args.helper_write_patch_output, helper_write + 1, b"\x00")
+
+    emit_index = next(i for i, event in enumerate(events)
+                      if event.kind == EVENT_EMIT and event.literal)
+    emit_pc = event_pcs[emit_index]
+    literal_addr = struct.unpack_from("<Q", tape, emit_pc - 18)[0]
+    literal_len = struct.unpack_from("<Q", tape, emit_pc - 8)[0]
+    if literal_len != len(events[emit_index].literal):
+        raise ValueError("emit literal length does not match its source event")
+    patch(args.emit_byte_patch_output, literal_addr,
+          bytes([tape[literal_addr] ^ 1]))
+    patch(args.emit_length_patch_output, emit_pc - 8,
+          struct.pack("<Q", literal_len + 1))
+    patch(args.emit_pointer_patch_output, emit_pc - 18,
+          struct.pack("<Q", literal_addr + 1))
+    patch(args.emit_helper_patch_output, emit_pc + 1,
+          struct.pack("<Q", labels[alternate_proc[1]]))
+
+    if args.duplicate_event_witness_output:
+        changed = list(event_pcs)
+        changed[1] = changed[0]
+        args.duplicate_event_witness_output.write_bytes(
+            witness(block_pcs, transition_pcs, changed, events, helper_pc,
+                    proc_count, guarded_count)
+        )
+    if args.noncanonical_event_witness_output:
+        changed = list(event_pcs)
+        pair = next(i for i in range(len(events) - 1)
+                    if events[i].kind != events[i + 1].kind)
+        changed[pair], changed[pair + 1] = changed[pair + 1], changed[pair]
+        args.noncanonical_event_witness_output.write_bytes(
+            witness(block_pcs, transition_pcs, changed, events, helper_pc,
+                    proc_count, guarded_count)
         )
 
 

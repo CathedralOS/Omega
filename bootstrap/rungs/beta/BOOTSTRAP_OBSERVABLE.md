@@ -151,6 +151,11 @@ are valuable teeth, but they do not yet establish the quantified observation:
 - the lower-rooted control-skeleton checker binds every exact source entry/state
   block and `to` site to decoded Alpha instruction starts and successor shapes,
   including guarded fallthrough, but not statement-local data/trace simulation;
+- the same lower-rooted process gives every source call, return, read, write, and
+  fixed-string emit site exact artifact custody, accounts for every effectful
+  artifact opcode, and checks all 829 fixed literal bytes plus their output
+  helper macro; it does not yet prove argument/value correspondence, dynamic
+  frame behavior, reachability, or the complete ordered output trace;
 - Alpha out-of-range memory remains undefined in `alpha/SEMANTICS.md` and must be
   excluded by independently checked `B_bc1` bounds before whole-artifact closure
   (or Alpha must be hardened independently);

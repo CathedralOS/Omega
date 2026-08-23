@@ -1,12 +1,11 @@
-; Bounded whole-bc control-skeleton checker.
+; Bounded whole-bc control/effect correspondence checker, common core.
 ;
 ; Input is [u32 source length][bc.beta bytes][u32 tape length][bc.tape bytes]
-; followed by an untrusted BCT1 location witness.  This checker independently
+; followed by an untrusted BCT2 location witness.  This checker independently
 ; lexes proc/state/to/when from the source, resolves each state target by exact
 ; byte-string equality, and checks the corresponding Alpha jmp or
-; jz-fallthrough-jmp successors in the tape.  It deliberately says nothing
-; about expressions, data, calls, returns, output, terminal behavior, or
-; termination.
+; jz-fallthrough-jmp successors in the tape.  bc-effect-sites.alpha extends the
+; same process with source effect-site custody and fixed-string emit macros.
 ;
 ; Exit 0 accepts; exit 1 rejects.
 ;
@@ -52,6 +51,20 @@ scan_init:
         store r1, r0                    ; current proc
         imm r1, 524352
         store r1, r0                    ; current block
+        imm r1, 524456
+        store r1, r0                    ; source effect-event count
+        imm r1, 524464
+        store r1, r0                    ; ordinary call count
+        imm r1, 524472
+        store r1, r0                    ; read count
+        imm r1, 524480
+        store r1, r0                    ; write count
+        imm r1, 524488
+        store r1, r0                    ; emit count
+        imm r1, 524496
+        store r1, r0                    ; explicit return count
+        imm r1, 524504
+        store r1, r0                    ; decoded emit byte count
 
 scan_loop:
         call skip_trivia
@@ -134,6 +147,14 @@ scan_ident:
         call ident_is_to
         imm r1, 1
         jeq r0, r1, found_to
+        call ident_is_return
+        imm r1, 1
+        jeq r0, r1, found_return
+        jmp maybe_call_event
+
+found_return:
+        imm r4, 5
+        call add_effect_event
         jmp scan_loop
 
 found_proc:
@@ -260,6 +281,49 @@ count_guards:
         imm r1, 524336
         load r2, r1
         imm r3, 180
+        jeq r2, r3, count_effect_events
+        jmp reject
+
+count_effect_events:
+        imm r1, 524456
+        load r2, r1
+        imm r3, 612
+        jeq r2, r3, count_effect_calls
+        jmp reject
+count_effect_calls:
+        imm r1, 524464
+        load r2, r1
+        imm r3, 309
+        jeq r2, r3, count_effect_reads
+        jmp reject
+count_effect_reads:
+        imm r1, 524472
+        load r2, r1
+        imm r3, 2
+        jeq r2, r3, count_effect_writes
+        jmp reject
+count_effect_writes:
+        imm r1, 524480
+        load r2, r1
+        imm r3, 5
+        jeq r2, r3, count_effect_emits
+        jmp reject
+count_effect_emits:
+        imm r1, 524488
+        load r2, r1
+        imm r3, 113
+        jeq r2, r3, count_effect_returns
+        jmp reject
+count_effect_returns:
+        imm r1, 524496
+        load r2, r1
+        imm r3, 183
+        jeq r2, r3, count_effect_emit_bytes
+        jmp reject
+count_effect_emit_bytes:
+        imm r1, 524504
+        load r2, r1
+        imm r3, 829
         jeq r2, r3, resolve_init
         jmp reject
 
@@ -328,7 +392,7 @@ resolve_found:
 
 read_witness:
         call read_u32
-        imm r1, 826496066              ; BCT1
+        imm r1, 844383042              ; BCT2
         jeq r0, r1, witness_proc_count
         jmp reject
 witness_proc_count:
@@ -349,6 +413,41 @@ witness_transition_count:
 witness_guard_count:
         call read_u32
         imm r1, 180
+        jeq r0, r1, witness_effect_count
+        jmp reject
+witness_effect_count:
+        call read_u32
+        imm r1, 612
+        jeq r0, r1, witness_call_count
+        jmp reject
+witness_call_count:
+        call read_u32
+        imm r1, 309
+        jeq r0, r1, witness_read_count
+        jmp reject
+witness_read_count:
+        call read_u32
+        imm r1, 2
+        jeq r0, r1, witness_write_count
+        jmp reject
+witness_write_count:
+        call read_u32
+        imm r1, 5
+        jeq r0, r1, witness_emit_count
+        jmp reject
+witness_emit_count:
+        call read_u32
+        imm r1, 113
+        jeq r0, r1, witness_return_count
+        jmp reject
+witness_return_count:
+        call read_u32
+        imm r1, 183
+        jeq r0, r1, witness_emit_byte_count
+        jmp reject
+witness_emit_byte_count:
+        call read_u32
+        imm r1, 829
         jeq r0, r1, read_block_pcs_init
         jmp reject
 
@@ -363,7 +462,7 @@ read_block_pc:
         imm r1, 524448
         imm r2, 1
         store r1, r2
-        jmp cfg_work_loop
+        jmp enqueue_fallthrough_roots_init
 read_block_pc_one:
         call read_u32
         mov r14, r0
@@ -431,7 +530,7 @@ read_transition_pcs_init:
 read_transition_pc:
         imm r1, 291
         jlt r10, r1, read_transition_pc_one
-        jmp require_eof
+        jmp read_effect_pcs_init
 read_transition_pc_one:
         call read_u32
         mov r14, r0
@@ -600,12 +699,6 @@ transition_ok:
         imm r1, 1
         add r10, r1
         jmp read_transition_pc
-
-require_eof:
-        read r0
-        imm r1, 0
-        jlt r0, r1, accept
-        jmp reject
 
 ; Reconstruct the reachable Alpha instruction-start set from pc zero.  This is
 ; intentionally in the same lower-rooted process as the correspondence checks;
