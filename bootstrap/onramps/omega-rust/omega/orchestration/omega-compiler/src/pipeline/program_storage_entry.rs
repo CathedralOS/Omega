@@ -22,6 +22,7 @@ use std::path::Path;
 
 const PROGRAM_STORAGE_ENTRY_OWNER: &str = "ProgramStorageEntry";
 const PROGRAM_STORAGE_ENTRY_METHOD: &str = "enter";
+const EXTENT_CARRIER: &str = "Extent";
 const GRANTED_DOMAIN: &str = "Extent::Granted";
 const IMAGE_PARAMETER_INDEX: usize = 0;
 const INITIAL_STORAGE_PARAMETER_INDEX: usize = 1;
@@ -30,6 +31,7 @@ const INITIAL_STORAGE_PARAMETER_INDEX: usize = 1;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProgramStorageEntryParameter {
     parameter_index: usize,
+    carrier_identity: String,
     parameter_type_identity: String,
     domain: String,
     effective_carry: psi_language_semantics::CarryPolicy,
@@ -41,6 +43,12 @@ pub struct ProgramStorageEntryParameter {
 impl ProgramStorageEntryParameter {
     pub const fn parameter_index(&self) -> usize {
         self.parameter_index
+    }
+
+    /// Bare semantic carrier independently retained from the qualified
+    /// interface type. Program-local producer schemas name this identity.
+    pub fn carrier_identity(&self) -> &str {
+        &self.carrier_identity
     }
 
     pub fn parameter_type_identity(&self) -> &str {
@@ -2014,6 +2022,7 @@ fn bind_parameter(
     }
     Ok(ProgramStorageEntryParameter {
         parameter_index,
+        carrier_identity: EXTENT_CARRIER.into(),
         parameter_type_identity: method.parameter_type_identities[parameter_index].clone(),
         domain: claim.domain.clone(),
         effective_carry: claim.effective_carry,
@@ -2385,7 +2394,7 @@ fn validate_program_local_plan_role(
     parameter: &ProgramStorageEntryParameter,
     plan: &ProgramLocalExtentMaterializationPlan,
 ) -> Result<(), ProgramStorageEntryDiagnostic> {
-    if plan.carrier_identity() != parameter.parameter_type_identity()
+    if plan.carrier_identity() != parameter.carrier_identity()
         || plan.qualification_identity() != parameter.domain()
     {
         return Err(ProgramStorageEntryDiagnostic(format!(
@@ -2407,7 +2416,7 @@ fn validate_program_local_account_role(
         || usize::try_from(prebinding.argument_index()).ok() != Some(parameter.parameter_index())
         || usize::try_from(prebinding.source_parameter_position()).ok()
             != Some(parameter.parameter_index())
-        || prebinding.carrier_identity() != parameter.parameter_type_identity()
+        || prebinding.carrier_identity() != parameter.carrier_identity()
         || prebinding.qualification_identity() != parameter.domain()
     {
         return Err(ProgramStorageEntryDiagnostic(format!(

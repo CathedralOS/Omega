@@ -74,3 +74,9 @@ omega-visualizations = { path = "../omega-visualizations" }
 [dev-dependencies]
 psi-facts = { path = "../../../psi/representations/psi-facts" }
 psi-validation = { path = "../../../psi/semantics/psi-validation" }
+psi-core = { path = "../../../psi/foundation/psi-core" }
+psi-terminal = { path = "../../../psi/representations/psi-terminal" }
+psi-terminal-codec = { path = "../../../psi/semantics/psi-terminal-codec" }
+psi-terminal-verifier = { path = "../../../psi/semantics/psi-terminal-verifier" }
+psi-proof-kernel = { path = "../../../psi/semantics/psi-proof-kernel" }
+omega-terminal-installation-evidence = { path = "../../representations/omega-terminal-installation-evidence" }

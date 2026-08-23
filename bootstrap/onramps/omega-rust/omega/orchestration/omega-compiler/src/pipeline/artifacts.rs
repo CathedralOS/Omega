@@ -782,6 +782,8 @@ fn push_program_storage_parameter_json(
     output.push_str(&parameter.parameter_index().to_string());
     output.push_str(", \"type_identity\": ");
     push_json_string(output, parameter.parameter_type_identity());
+    output.push_str(", \"carrier_identity\": ");
+    push_json_string(output, parameter.carrier_identity());
     output.push_str(", \"domain\": ");
     push_json_string(output, parameter.domain());
     output.push_str(", \"effective_carry\": ");
