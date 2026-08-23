@@ -1539,6 +1539,53 @@ fn program_local_root_module() -> TerminalModule {
     }
 }
 
+fn program_local_extent_module() -> TerminalModule {
+    let mut module = program_local_root_module();
+    let algebra = psi_core::ContentAlgebra {
+        kind: psi_core::ContentAlgebraKind::IntervalSet,
+        parameter: "Nat".into(),
+    };
+    let capacity = psi_core::ProgramLocalCapacityExpression::IntervalSet(vec![(
+        psi_core::ProgramLocalCapacityScalar::SubjectField(vec!["base".into()]),
+        psi_core::ProgramLocalCapacityScalar::Add(
+            Box::new(psi_core::ProgramLocalCapacityScalar::SubjectField(vec![
+                "base".into(),
+            ])),
+            Box::new(psi_core::ProgramLocalCapacityScalar::SubjectField(vec![
+                "length".into(),
+            ])),
+        ),
+    )]);
+    let schema = &mut module.boundary_machines[0].program_local_root_introductions[0];
+    schema.algebra = algebra;
+    schema.capacity = capacity;
+    schema.projection.projection_fingerprint =
+        psi_language_semantics::content::terminal_projection_fingerprint(
+            &schema.algebra,
+            &schema.capacity,
+        );
+    schema.identity = program_local_root_introduction_identity(
+        "TestRoot::entry",
+        "Region::Owned",
+        "Region",
+        schema,
+    );
+    let psi_terminal::StructuralTypeShape::Record { fields } =
+        &mut module.structural_types[0].shape
+    else {
+        panic!("program-local test carrier is a record")
+    };
+    fields.push(StructuralFieldDeclaration {
+        id: psi_core::StructuralFieldId::new(2).expect("base field identity"),
+        identity: "base".into(),
+        relevance: psi_terminal::BindingRelevance::Relevant,
+        field_type: StructuralFieldType::Scalar(psi_core::ScalarType::Integer(
+            psi_core::IntegerType::new(psi_core::IntegerSign::Unsigned, 64).expect("u64 type"),
+        )),
+    });
+    module
+}
+
 fn program_local_terminal_object(module: &TerminalModule) -> TestTerminalObject {
     TestTerminalObject {
         identity: psi_terminal_codec::terminal_psi_identity(module)
@@ -1689,6 +1736,39 @@ fn program_local_subject<'root, 'code>(
         scalars,
     )
     .expect("exact installed program-local subject")
+}
+
+fn program_local_extent_subject<'root, 'code>(
+    root: &'root InstalledExternalRoot<'code>,
+    invocation: u64,
+    subject_place: u64,
+    base: u64,
+    length: u64,
+) -> InstalledProgramLocalRootSubject<'root, 'code> {
+    InstalledProgramLocalRootSubject::from_generated_entry(
+        root,
+        ProgramLocalRootEntryInvocationId::from_normalized_identity(invocation)
+            .expect("entry invocation identity"),
+        0,
+        0,
+        "Region::Owned",
+        "Region",
+        ProgramLocalRootSubjectPlaceId::from_normalized_identity(subject_place)
+            .expect("subject place identity"),
+        [
+            ProgramLocalRootScalarBinding::subject_field(
+                ["base"],
+                psi_numerics::bignum::BigInt::from_u64(base),
+            )
+            .expect("natural base field"),
+            ProgramLocalRootScalarBinding::subject_field(
+                ["length"],
+                psi_numerics::bignum::BigInt::from_u64(length),
+            )
+            .expect("natural length field"),
+        ],
+    )
+    .expect("exact installed program-local Extent subject")
 }
 
 fn join_program_local<'root, 'code>(
@@ -2004,6 +2084,163 @@ fn installed_subject_establishes_exact_capacity_lineage_once_and_pins_the_epoch(
     installation
         .retire_established(established, &mut lifecycle)
         .expect("the exact lifecycle retires the root");
+    assert_eq!(lifecycle.program_local_root_authority_holds(10), Some(0));
+}
+
+#[test]
+fn program_local_extent_registry_retains_exact_account_through_split_and_retirement() {
+    let entry = entry_id(1);
+    let mut code = installed_code(1, entry);
+    let code_identity = code.identity().normalized_identity();
+    let module = program_local_extent_module();
+    let catalog = program_local_root_catalog(&module);
+    let terminal = program_local_terminal_object(&module);
+    let (mut root_ledger, root, _open_root) =
+        install_program_local_required_root(&mut code, entry, vec![program_local_claim()]);
+    let mut installation = root_ledger
+        .claim_program_local_root_installation_ledger()
+        .expect("sole program-local cohort verifier");
+    let [prebinding] = installation
+        .prebind(&catalog, &terminal, &root)
+        .expect("verified installed Extent prebinding")
+        .try_into()
+        .expect("one producer schema");
+    let mut lifecycle = program_local_lifecycle(780, 10, code_identity, "TestRoot::entry");
+    let lease = program_local_epoch_lease(&mut lifecycle, 880, 10, "TestRoot::entry");
+    let mut runtime = installation
+        .seal_epoch_cohort(
+            &lifecycle,
+            [ProgramLocalRootCohortMember::new(
+                prebinding.identity(),
+                &root,
+                lease,
+            )],
+        )
+        .expect("exact Extent epoch cohort")
+        .into_runtime();
+    let established = installation
+        .establish(
+            &mut runtime,
+            &lifecycle,
+            program_local_extent_subject(&root, 980, 1080, 0x4000, 0x100),
+        )
+        .expect("exact interval subject establishes its root");
+    let plan = ProgramLocalExtentMaterializationPlan::new(
+        "Region",
+        "Region::Owned",
+        "Nat",
+        0x4000,
+        0x100,
+        extent_id(10, AddressSpaceId::from_normalized_identity),
+        ExtentRights::from_normalized_identities([
+            extent_id(100, ExtentRightId::from_normalized_identity),
+            extent_id(101, ExtentRightId::from_normalized_identity),
+        ]),
+        extent_id(20, ExtentProvenanceId::from_normalized_identity),
+        extent_id(30, MappingEraId::from_normalized_identity),
+    )
+    .expect("checked Extent materialization plan");
+    let mut registry = ProgramLocalExtentRegistry::new();
+    let extent = registry
+        .materialize(established, plan)
+        .expect("established interval materializes one Extent");
+    let origin = extent
+        .program_local_origin()
+        .expect("passive program-local origin");
+    assert_eq!(origin.installed_code(), code_identity);
+    assert_eq!(origin.lifecycle_ledger(), 780);
+    assert_eq!(origin.lifecycle_epoch(), 10);
+    assert_eq!(origin.entry_invocation(), 980);
+    assert_eq!(origin.subject_place(), 1080);
+    assert_eq!(registry.held_accounts(), 1);
+    assert_eq!(lifecycle.program_local_root_authority_holds(10), Some(1));
+
+    let (lower, upper) = extent.split_at(0x40).expect("split program-local Extent");
+    let rejected = registry
+        .retire(lower, &mut installation, &mut lifecycle)
+        .expect_err("a split descendant cannot retire the account");
+    assert!(rejected.diagnostic().0.contains("recombined root"));
+    let lower = (*rejected).into_extent();
+    assert_eq!(registry.held_accounts(), 1);
+    let extent = lower.merge(upper).expect("recombine exact root Extent");
+
+    let mut substituted = program_local_lifecycle(781, 10, code_identity, "TestRoot::entry");
+    let rejected = registry
+        .retire(extent, &mut installation, &mut substituted)
+        .expect_err("a foreign lifecycle cannot release the retained occurrence");
+    assert!(rejected.diagnostic().0.contains("lifecycle lease"));
+    let extent = (*rejected).into_extent();
+    assert_eq!(registry.held_accounts(), 1);
+    registry
+        .retire(extent, &mut installation, &mut lifecycle)
+        .expect("exact recombined root releases its lifecycle account");
+    assert_eq!(registry.held_accounts(), 0);
+    assert_eq!(lifecycle.program_local_root_authority_holds(10), Some(0));
+}
+
+#[test]
+fn counted_program_local_capacity_cannot_mint_an_extent() {
+    let entry = entry_id(1);
+    let mut code = installed_code(1, entry);
+    let code_identity = code.identity().normalized_identity();
+    let module = program_local_root_module();
+    let catalog = program_local_root_catalog(&module);
+    let terminal = program_local_terminal_object(&module);
+    let (mut root_ledger, root, _open_root) =
+        install_program_local_required_root(&mut code, entry, vec![program_local_claim()]);
+    let mut installation = root_ledger
+        .claim_program_local_root_installation_ledger()
+        .expect("sole program-local cohort verifier");
+    let [prebinding] = installation
+        .prebind(&catalog, &terminal, &root)
+        .expect("verified installed counted prebinding")
+        .try_into()
+        .expect("one producer schema");
+    let mut lifecycle = program_local_lifecycle(782, 10, code_identity, "TestRoot::entry");
+    let lease = program_local_epoch_lease(&mut lifecycle, 882, 10, "TestRoot::entry");
+    let mut runtime = installation
+        .seal_epoch_cohort(
+            &lifecycle,
+            [ProgramLocalRootCohortMember::new(
+                prebinding.identity(),
+                &root,
+                lease,
+            )],
+        )
+        .expect("counted epoch cohort")
+        .into_runtime();
+    let established = installation
+        .establish(
+            &mut runtime,
+            &lifecycle,
+            program_local_subject(&root, 982, 1082, Some(8)),
+        )
+        .expect("counted root establishes");
+    let plan = ProgramLocalExtentMaterializationPlan::new(
+        "Region",
+        "Region::Owned",
+        "ByteUnit",
+        0x5000,
+        9,
+        extent_id(10, AddressSpaceId::from_normalized_identity),
+        ExtentRights::none(),
+        extent_id(20, ExtentProvenanceId::from_normalized_identity),
+        extent_id(30, MappingEraId::from_normalized_identity),
+    )
+    .expect("syntactically valid Extent plan");
+    let mut registry = ProgramLocalExtentRegistry::new();
+    let rejected = registry
+        .materialize(established, plan)
+        .expect_err("counted authority has no one-Extent interpretation");
+    assert!(rejected.diagnostic().0.contains("counted"));
+    let [(established, _)]: [(EstablishedProgramLocalRoot<'_, '_>, _); 1] = (*rejected)
+        .into_inputs()
+        .try_into()
+        .expect("rejection returns the exact account and plan");
+    assert_eq!(registry.held_accounts(), 0);
+    installation
+        .retire_established(established, &mut lifecycle)
+        .expect("rejected materialization returns retireable account");
     assert_eq!(lifecycle.program_local_root_authority_holds(10), Some(0));
 }
 

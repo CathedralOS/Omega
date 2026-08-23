@@ -21,7 +21,7 @@ use omega_compiler::{
 };
 use omega_instruction_selection::derive_boundary_entry_storage;
 use psi_extents::{
-    AddressSpaceId, ExtentCompilerProvisioning, ExtentDiagnostic, ExtentLineageId,
+    AddressSpaceId, ExtentDiagnostic, ExtentLineageId, ExtentProgramLocalOrigin,
     ExtentProvenanceId, ExtentRightId, ExtentRights, ExtentRootGrant, MappingEraId,
 };
 use std::fs;
@@ -883,16 +883,17 @@ fn program_storage_entry_publishes_both_core_owned_root_positions() {
     let local_installed = install_program_storage_entry_roots(
         &local_artifact_directory,
         installation.binding().clone(),
-        compiler_root_input(201, 0x2000, 0x400),
-        compiler_root_input(202, 0x9000, 0x1000),
+        synthetic_program_local_root_input(201, 0x2000, 0x400),
+        synthetic_program_local_root_input(202, 0x9000, 0x1000),
     )
     .expect("installed local roots use the same generic two-grant installer");
     let local_json =
         program_storage_installation_record_json(&local_installed.installation_record());
-    assert!(local_json.contains("\"kind\": \"compiler_provisioned\""));
-    assert!(local_json.contains("\"provision\": \"0x0000000000000c91\""));
-    assert!(local_json.contains("\"owner\": \"0x0000000000000c92\""));
-    assert!(local_json.contains("\"sealed_declaration\": \"0x0000000000000c93\""));
+    assert!(local_json.contains("\"kind\": \"program_local\""));
+    assert!(local_json.contains("\"installed_code\": \"0x0000000000000c91\""));
+    assert!(local_json.contains("\"external_root\": \"0x0000000000000c92\""));
+    assert!(local_json.contains("\"root_slot\": \"0x0000000000000c93\""));
+    assert!(local_json.contains("\"lifecycle_epoch\": \"0x0000000000000c96\""));
     assert!(local_json.contains("\"rights\": [\"0x00000000000000cc\", \"0x00000000000000cd\"]"));
 
     let blocked_artifact_directory = main_path
@@ -904,8 +905,8 @@ fn program_storage_entry_publishes_both_core_owned_root_positions() {
     let failed_record = install_program_storage_entry_roots(
         &blocked_artifact_directory,
         installation.binding().clone(),
-        compiler_root_input(301, 0x3000, 0x400),
-        compiler_root_input(302, 0xa000, 0x1000),
+        synthetic_program_local_root_input(301, 0x3000, 0x400),
+        synthetic_program_local_root_input(302, 0xa000, 0x1000),
     )
     .expect_err("installed roots must remain sealed when record emission fails");
     let ProgramStorageInstallationHandoffError::Record(failed_record) = failed_record else {
@@ -940,8 +941,8 @@ fn program_storage_entry_publishes_both_core_owned_root_positions() {
     let rejected = install_program_storage_entry_roots(
         &receiver_artifact_directory,
         receiver_binding,
-        compiler_root_input(401, 0x4000, 0x400),
-        compiler_root_input(402, 0x8003, 11),
+        synthetic_program_local_root_input(401, 0x4000, 0x400),
+        synthetic_program_local_root_input(402, 0x8003, 11),
     )
     .expect_err("receiver alignment and capacity must validate before grant consumption");
     let ProgramStorageInstallationHandoffError::Rejected(rejected) = rejected else {
@@ -1118,10 +1119,10 @@ fn program_storage_entry_publishes_both_core_owned_root_positions() {
         physical_binding.clone(),
         &selected_provider,
         provider_issuance,
-        compiler_root_input(505, 0x5000, 0x400),
-        compiler_root_input(506, 0x9003, 0x20),
+        synthetic_program_local_root_input(505, 0x5000, 0x400),
+        synthetic_program_local_root_input(506, 0x9003, 0x20),
     )
-    .expect_err("the physical bridge cannot consume compiler-provisioned roots");
+    .expect_err("the physical bridge cannot consume program-local roots");
     let ProgramStorageInstallationHandoffError::Rejected(local_roots) = local_roots else {
         panic!("local provisioning must reject before record emission")
     };
@@ -1842,8 +1843,8 @@ machine build(builder: &mut Build) {
     let installation = install_program_storage_entry_roots(
         &build_dir,
         bridge.binding().clone(),
-        compiler_root_input(701, 0x1000, 0x800),
-        compiler_root_input(702, 0x8000, 0x2000),
+        synthetic_program_local_root_input(701, 0x1000, 0x800),
+        synthetic_program_local_root_input(702, 0x8000, 0x2000),
     )
     .expect("install exact receiver-free roots");
     let alternate_source = fs::read_to_string(directory.join("main.omg"))
@@ -2306,29 +2307,35 @@ fn emitted_program_storage_bridge(
     .expect("synthetic emitted bridge should retain exact continuation identity")
 }
 
-fn compiler_root_input(lineage: u64, base: u64, length: u64) -> ProgramStorageRootInput {
+fn synthetic_program_local_root_input(
+    lineage: u64,
+    base: u64,
+    length: u64,
+) -> ProgramStorageRootInput {
     fn extent_id<T>(identity: u64, constructor: fn(u64) -> Result<T, ExtentDiagnostic>) -> T {
         constructor(identity).expect("normalized extent identity")
     }
 
-    let provisioning_base = lineage * 16;
-    let provisioning = ExtentCompilerProvisioning::from_normalized_identities([
-        provisioning_base + 1,
-        provisioning_base + 2,
-        provisioning_base + 3,
-        provisioning_base + 4,
-        provisioning_base + 5,
-        provisioning_base + 6,
+    let origin_base = lineage * 16;
+    let origin = ExtentProgramLocalOrigin::from_normalized_identities([
+        origin_base + 1,
+        origin_base + 2,
+        origin_base + 3,
+        origin_base + 4,
+        origin_base + 5,
+        origin_base + 6,
+        origin_base + 7,
+        origin_base + 8,
     ])
-    .expect("normalized compiler provisioning");
+    .expect("normalized program-local origin");
     let rights = ExtentRights::from_normalized_identities([
         extent_id(205, ExtentRightId::from_normalized_identity),
         extent_id(204, ExtentRightId::from_normalized_identity),
     ]);
 
     ProgramStorageRootInput::new(
-        ExtentRootGrant::from_compiler_provisioning(
-            provisioning,
+        ExtentRootGrant::from_established_program_local(
+            origin,
             extent_id(lineage, ExtentLineageId::from_normalized_identity),
             extent_id(100, AddressSpaceId::from_normalized_identity),
             rights,

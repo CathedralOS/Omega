@@ -96,9 +96,6 @@ normalized_extent_identity!(ExtentProviderInvocationId, "extent-provider-invocat
 normalized_extent_identity!(ExtentEstablishmentRouteId, "extent-establishment-route");
 normalized_extent_identity!(ExtentCapacityId, "extent-capacity");
 normalized_extent_identity!(ExtentQualificationId, "extent-qualification");
-normalized_extent_identity!(ExtentCompilerProvisionId, "extent-compiler-provision");
-normalized_extent_identity!(ExtentLocalOwnerId, "extent-local-owner");
-normalized_extent_identity!(ExtentSealedDeclarationId, "extent-sealed-declaration");
 normalized_extent_identity!(
     ExtentContentInterpretationId,
     "extent-content-interpretation"
@@ -331,107 +328,111 @@ impl ExtentProviderIssuance {
     }
 }
 
-/// Transitional compiler-owned evidence for one program-local authority
-/// account.
+/// Passive identity of one exact established program-local root occurrence.
 ///
-/// The settled source model authorizes introduction through an exact domain
-/// route at a statically enumerable installed parameter position; it has no
-/// sealed provision declaration. The existing `sealed_declaration` identity is
-/// retained only until this carrier migrates to the reconstructed
-/// route-position/capacity schema and concrete installation occurrence. This
-/// record deliberately carries no external backing, custody, or provider
-/// correspondence.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct ExtentCompilerProvisioning {
-    provision: ExtentCompilerProvisionId,
-    owner: ExtentLocalOwnerId,
-    sealed_declaration: ExtentSealedDeclarationId,
-    establishment_route: ExtentEstablishmentRouteId,
-    capacity: ExtentCapacityId,
-    qualification: ExtentQualificationId,
+/// This copyable descriptor is suitable for lineage comparison and audit only.
+/// It is not establishment authority: the orchestration layer must retain the
+/// non-copyable installed occurrence and lifecycle lease for as long as any
+/// Extent carrying this identity remains live.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ExtentProgramLocalOrigin {
+    installed_code: u64,
+    external_root: u64,
+    root_slot: u64,
+    schema_identity: u64,
+    lifecycle_ledger: u64,
+    lifecycle_epoch: u64,
+    entry_invocation: u64,
+    subject_place: u64,
 }
 
-impl ExtentCompilerProvisioning {
-    pub fn from_normalized_identities(identities: [u64; 6]) -> Result<Self, ExtentDiagnostic> {
+impl ExtentProgramLocalOrigin {
+    pub fn from_normalized_identities(identities: [u64; 8]) -> Result<Self, ExtentDiagnostic> {
         let [
-            provision,
-            owner,
-            declaration,
-            route,
-            capacity,
-            qualification,
+            installed_code,
+            external_root,
+            root_slot,
+            schema_identity,
+            lifecycle_ledger,
+            lifecycle_epoch,
+            entry_invocation,
+            subject_place,
         ] = identities;
-        Ok(Self::from_sealed_declaration(
-            ExtentCompilerProvisionId::from_normalized_identity(provision)?,
-            ExtentLocalOwnerId::from_normalized_identity(owner)?,
-            ExtentSealedDeclarationId::from_normalized_identity(declaration)?,
-            ExtentEstablishmentRouteId::from_normalized_identity(route)?,
-            ExtentCapacityId::from_normalized_identity(capacity)?,
-            ExtentQualificationId::from_normalized_identity(qualification)?,
-        ))
-    }
-
-    pub const fn from_sealed_declaration(
-        provision: ExtentCompilerProvisionId,
-        owner: ExtentLocalOwnerId,
-        sealed_declaration: ExtentSealedDeclarationId,
-        establishment_route: ExtentEstablishmentRouteId,
-        capacity: ExtentCapacityId,
-        qualification: ExtentQualificationId,
-    ) -> Self {
-        Self {
-            provision,
-            owner,
-            sealed_declaration,
-            establishment_route,
-            capacity,
-            qualification,
+        for (identity, label) in [
+            (installed_code, "installed-code"),
+            (external_root, "external-root"),
+            (root_slot, "root-slot"),
+            (schema_identity, "program-local schema"),
+            (lifecycle_ledger, "component lifecycle ledger"),
+            (lifecycle_epoch, "component lifecycle epoch"),
+            (entry_invocation, "entry invocation"),
+            (subject_place, "subject place"),
+        ] {
+            nonzero_identity(identity, label)?;
         }
+        Ok(Self {
+            installed_code,
+            external_root,
+            root_slot,
+            schema_identity,
+            lifecycle_ledger,
+            lifecycle_epoch,
+            entry_invocation,
+            subject_place,
+        })
     }
 
-    pub const fn provision(self) -> ExtentCompilerProvisionId {
-        self.provision
+    pub const fn installed_code(self) -> u64 {
+        self.installed_code
     }
 
-    pub const fn owner(self) -> ExtentLocalOwnerId {
-        self.owner
+    pub const fn external_root(self) -> u64 {
+        self.external_root
     }
 
-    pub const fn sealed_declaration(self) -> ExtentSealedDeclarationId {
-        self.sealed_declaration
+    pub const fn root_slot(self) -> u64 {
+        self.root_slot
     }
 
-    pub const fn establishment_route(self) -> ExtentEstablishmentRouteId {
-        self.establishment_route
+    pub const fn schema_identity(self) -> u64 {
+        self.schema_identity
     }
 
-    pub const fn capacity(self) -> ExtentCapacityId {
-        self.capacity
+    pub const fn lifecycle_ledger(self) -> u64 {
+        self.lifecycle_ledger
     }
 
-    pub const fn qualification(self) -> ExtentQualificationId {
-        self.qualification
+    pub const fn lifecycle_epoch(self) -> u64 {
+        self.lifecycle_epoch
+    }
+
+    pub const fn entry_invocation(self) -> u64 {
+        self.entry_invocation
+    }
+
+    pub const fn subject_place(self) -> u64 {
+        self.subject_place
     }
 }
 
 /// The only two origins permitted to create a fresh Extent authority account.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ExtentRootOrigin {
-    CompilerProvisioned(ExtentCompilerProvisioning),
+    ProgramLocal(ExtentProgramLocalOrigin),
     ProviderIssued(ExtentProviderIssuance),
 }
 
 impl ExtentRootOrigin {
-    pub const fn compiler_provisioning(self) -> Option<ExtentCompilerProvisioning> {
+    pub const fn program_local(self) -> Option<ExtentProgramLocalOrigin> {
         match self {
-            Self::CompilerProvisioned(provisioning) => Some(provisioning),
+            Self::ProgramLocal(origin) => Some(origin),
             Self::ProviderIssued(_) => None,
         }
     }
 
     pub const fn provider_issuance(self) -> Option<ExtentProviderIssuance> {
         match self {
-            Self::CompilerProvisioned(_) => None,
+            Self::ProgramLocal(_) => None,
             Self::ProviderIssued(issuance) => Some(issuance),
         }
     }
@@ -439,9 +440,10 @@ impl ExtentRootOrigin {
 
 /// One-shot authority to mint exactly one root extent.
 ///
-/// Compiler code constructs this from one of the two sealed root origins.
+/// Compiler code constructs this from one of the two exact root origins.
 /// Omega source never receives a constructor for either this grant or `Extent`
-/// itself.
+/// itself. Program-local callers must additionally retain the exact installed
+/// occurrence account; this grant carries only its passive origin descriptor.
 #[derive(Debug, PartialEq, Eq)]
 pub struct ExtentRootGrant {
     origin: ExtentRootOrigin,
@@ -457,7 +459,7 @@ pub struct ExtentRootGrant {
 /// custody of that content transfers with the Extent.
 ///
 /// This grant is deliberately non-`Clone` and can only be emitted while
-/// consuming a provider-issued [`ExtentRootGrant`]. Compiler-provisioned local
+/// consuming a provider-issued [`ExtentRootGrant`]. Program-local
 /// capacity cannot acquire provider content validity through this route.
 #[derive(Debug, PartialEq, Eq)]
 pub struct ProviderExistingContentGrant {
@@ -567,8 +569,9 @@ impl ExtentRootGrant {
         }
     }
 
-    pub const fn from_compiler_provisioning(
-        provisioning: ExtentCompilerProvisioning,
+    #[doc(hidden)]
+    pub const fn from_established_program_local(
+        origin: ExtentProgramLocalOrigin,
         lineage: ExtentLineageId,
         address_space: AddressSpaceId,
         rights: ExtentRights,
@@ -576,7 +579,7 @@ impl ExtentRootGrant {
         era: MappingEraId,
     ) -> Self {
         Self {
-            origin: ExtentRootOrigin::CompilerProvisioned(provisioning),
+            origin: ExtentRootOrigin::ProgramLocal(origin),
             lineage,
             address_space,
             rights,
@@ -636,8 +639,7 @@ impl ExtentRootGrant {
             return Err(ExistingContentMintError {
                 grant: self,
                 diagnostic: ExtentDiagnostic(
-                    "compiler-provisioned roots cannot issue provider existing-content evidence"
-                        .into(),
+                    "program-local roots cannot issue provider existing-content evidence".into(),
                 ),
             });
         }
@@ -750,12 +752,18 @@ impl Extent {
         self.origin.provider_issuance()
     }
 
-    pub const fn compiler_provisioning(&self) -> Option<ExtentCompilerProvisioning> {
-        self.origin.compiler_provisioning()
+    pub const fn program_local_origin(&self) -> Option<ExtentProgramLocalOrigin> {
+        self.origin.program_local()
     }
 
     pub const fn lineage_root(&self) -> ExtentLineageId {
         self.lineage.root
+    }
+
+    /// Whether this value is the exact unsplit root of its passive lineage.
+    /// This is report/retirement structure only; it never establishes origin.
+    pub fn is_lineage_root(&self) -> bool {
+        self.lineage.path.is_empty()
     }
 
     pub fn split_at(self, lower_length: u64) -> Result<(Self, Self), SplitError> {
@@ -984,7 +992,7 @@ fn validate_merge(first: &Extent, second: &Extent) -> Result<(), ExtentDiagnosti
     }
     if first.origin != second.origin {
         return Err(ExtentDiagnostic(
-            "merge requires identical sealed root-origin evidence".into(),
+            "merge requires identical exact root-origin evidence".into(),
         ));
     }
     let Some((first_branch, first_parent)) = first.lineage.path.split_last() else {
@@ -1122,8 +1130,8 @@ impl<'a> ExtentLoan<'a> {
         self.origin().provider_issuance()
     }
 
-    pub const fn compiler_provisioning(&self) -> Option<ExtentCompilerProvisioning> {
-        self.origin().compiler_provisioning()
+    pub const fn program_local_origin(&self) -> Option<ExtentProgramLocalOrigin> {
+        self.origin().program_local()
     }
 
     pub const fn lineage_root(&self) -> ExtentLineageId {
@@ -1770,17 +1778,19 @@ mod tests {
         .expect("normalized provider issuance")
     }
 
-    fn local_provisioning(seed: u64) -> ExtentCompilerProvisioning {
-        let base = seed * 8;
-        ExtentCompilerProvisioning::from_normalized_identities([
+    fn program_local_origin(seed: u64) -> ExtentProgramLocalOrigin {
+        let base = seed * 16;
+        ExtentProgramLocalOrigin::from_normalized_identities([
             base + 1,
             base + 2,
             base + 3,
             base + 4,
             base + 5,
             base + 6,
+            base + 7,
+            base + 8,
         ])
-        .expect("normalized compiler provisioning")
+        .expect("normalized program-local origin")
     }
 
     fn rights(identities: &[u64]) -> ExtentRights {
@@ -1807,9 +1817,9 @@ mod tests {
         )
     }
 
-    fn local_root_grant(lineage: u64, provision: u64) -> ExtentRootGrant {
-        ExtentRootGrant::from_compiler_provisioning(
-            local_provisioning(provision),
+    fn local_root_grant(lineage: u64, origin: u64) -> ExtentRootGrant {
+        ExtentRootGrant::from_established_program_local(
+            program_local_origin(origin),
             id(lineage, ExtentLineageId::from_normalized_identity),
             id(10, AddressSpaceId::from_normalized_identity),
             rights(&[100, 101]),
@@ -1997,22 +2007,22 @@ mod tests {
     }
 
     #[test]
-    fn compiler_provisioned_local_roots_conserve_their_sealed_origin() {
+    fn program_local_roots_conserve_their_exact_occurrence_origin() {
         let root = local_root_grant(7, 3)
             .mint(0x2000, 64)
-            .expect("compiler-provisioned root");
+            .expect("program-local root");
         assert_eq!(root.provider_issuance(), None);
-        assert_eq!(root.compiler_provisioning(), Some(local_provisioning(3)));
+        assert_eq!(root.program_local_origin(), Some(program_local_origin(3)));
 
         let loan = root.loan(8, 8).expect("local root loan");
-        assert_eq!(loan.compiler_provisioning(), Some(local_provisioning(3)));
+        assert_eq!(loan.program_local_origin(), Some(program_local_origin(3)));
         drop(loan);
 
         let (lower, upper) = root.split_at(32).expect("local root split");
         let restored = lower.merge(upper).expect("local root rejoin");
         assert_eq!(
-            restored.compiler_provisioning(),
-            Some(local_provisioning(3))
+            restored.program_local_origin(),
+            Some(program_local_origin(3))
         );
     }
 
@@ -2028,7 +2038,7 @@ mod tests {
     }
 
     #[test]
-    fn independent_sealed_local_provisions_never_recompose() {
+    fn independent_program_local_occurrences_never_recompose() {
         let first = local_root_grant(1, 1)
             .mint(0, 32)
             .expect("first local root");
@@ -2038,7 +2048,7 @@ mod tests {
 
         let error = first
             .merge(second)
-            .expect_err("equal lineage and geometry cannot erase local provision");
+            .expect_err("equal lineage and geometry cannot erase local occurrence");
         assert!(error.diagnostic().0.contains("root-origin"));
     }
 
@@ -2132,7 +2142,7 @@ mod tests {
     }
 
     #[test]
-    fn compiler_root_cannot_mint_provider_existing_content_authority() {
+    fn program_local_root_cannot_mint_provider_existing_content_authority() {
         let error = local_root_grant(85, 86)
             .mint_provider_existing_content(
                 0x9000,
@@ -2143,12 +2153,12 @@ mod tests {
                 id(89, ExtentContentCustodyReceiptId::from_normalized_identity),
             )
             .expect_err("local capacity cannot assert provider-held content");
-        assert!(error.diagnostic().0.contains("compiler-provisioned"));
+        assert!(error.diagnostic().0.contains("program-local"));
         let extent = error
             .into_grant()
             .mint(0x9000, 64)
             .expect("rejected content route returns the root grant");
-        assert!(extent.compiler_provisioning().is_some());
+        assert!(extent.program_local_origin().is_some());
     }
 
     fn external_grant(

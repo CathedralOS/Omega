@@ -889,17 +889,19 @@ mod tests {
         .expect("normalized provider issuance")
     }
 
-    fn local_provisioning(seed: u64) -> ExtentCompilerProvisioning {
-        let base = seed * 8;
-        ExtentCompilerProvisioning::from_normalized_identities([
+    fn program_local_origin(seed: u64) -> ExtentProgramLocalOrigin {
+        let base = seed * 16;
+        ExtentProgramLocalOrigin::from_normalized_identities([
             base + 1,
             base + 2,
             base + 3,
             base + 4,
             base + 5,
             base + 6,
+            base + 7,
+            base + 8,
         ])
-        .expect("normalized compiler provisioning")
+        .expect("normalized program-local origin")
     }
 
     fn rights(identities: &[u64]) -> ExtentRights {
@@ -939,8 +941,8 @@ mod tests {
         provenance: u64,
         extent_rights: &[u64],
     ) -> Extent {
-        ExtentRootGrant::from_compiler_provisioning(
-            local_provisioning(provision),
+        ExtentRootGrant::from_established_program_local(
+            program_local_origin(provision),
             id(lineage, ExtentLineageId::from_normalized_identity),
             id(space, AddressSpaceId::from_normalized_identity),
             rights(extent_rights),
@@ -1105,7 +1107,7 @@ mod tests {
     }
 
     #[test]
-    fn owned_mapping_round_trips_compiler_provisioned_origins() {
+    fn owned_mapping_round_trips_program_local_origins() {
         let source = local_extent(1, 11, 0x1000, 10, 20, &[100]);
         let destination = local_extent(2, 12, 0xffff_8000_0000_0000, 11, 22, &[200]);
         let pending = map_owned(
@@ -1117,11 +1119,11 @@ mod tests {
         .expect("local owned map candidate");
         assert_eq!(
             pending.source_origin(),
-            ExtentRootOrigin::CompilerProvisioned(local_provisioning(1))
+            ExtentRootOrigin::ProgramLocal(program_local_origin(1))
         );
         assert_eq!(
             pending.mapped_origin(),
-            ExtentRootOrigin::CompilerProvisioned(local_provisioning(2))
+            ExtentRootOrigin::ProgramLocal(program_local_origin(2))
         );
 
         let receipt = activate(&pending);
@@ -1133,14 +1135,14 @@ mod tests {
             .expect("translations released")
             .into_parts();
         assert_eq!(
-            destination.compiler_provisioning(),
-            Some(local_provisioning(2))
+            destination.program_local_origin(),
+            Some(program_local_origin(2))
         );
         assert_eq!(
             source
                 .expect("owned local source returned")
-                .compiler_provisioning(),
-            Some(local_provisioning(1))
+                .program_local_origin(),
+            Some(program_local_origin(1))
         );
     }
 
