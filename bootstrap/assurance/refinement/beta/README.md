@@ -22,3 +22,12 @@ rebuild or depend on the disposable Rust Beta producer.
 
 Run `ownership-test.sh`, `symbolic-loops.sh`, `refinement.sh`, and
 `refinement-cert-diamond.sh` from any working directory.
+
+`bc-artifact-structure.alpha` is the first whole-artifact obligation checker
+rooted below `bc`. It walks the reachable control-flow graph of the persisted
+Alpha tape, permits jump-skipped inline data, and rejects unknown/truncated or
+overlapping instructions plus invalid direct targets. Its focused gate includes
+mutated negative controls and the exact tape-hole payload boundary. This closes
+instruction framing and direct-control-target reconstruction only; memory
+bounds, call/return discipline, complete stream semantics, and terminal-class
+correspondence remain open.

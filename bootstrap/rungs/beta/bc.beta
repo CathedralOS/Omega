@@ -3,8 +3,8 @@
 ; Reads Beta source on stdin, emits Alpha assembly on stdout — the same job as the
 ; Rust on-ramp (beta-rust), but written in Beta itself. It compiles its OWN
 ; source to a fixed point (selfhost.sh): bc(bc.beta) assembles to a compiler that
-; reproduces bc(bc.beta) byte-for-byte, so from that compiler on, Rust is out of
-; the lineage — it only cold-started the very first bc.
+; reproduces bc(bc.beta) byte-for-byte. The persisted artifact is reconstructed
+; by the exact Alpha-written cold-start compiler; Rust is absent from its lineage.
 ;
 ; Implements the whole Beta language (LANGUAGE.md): arithmetic; let/assign/vars;
 ; the six comparisons; CFG state/transition control flow (`state` basic blocks linked
@@ -26,6 +26,8 @@
 ;   2097136 LEN    source length       2097128 NLOC   declared local count
 ;   2097120 IDOFF  last ident offset    2097112 IDLEN  last ident length
 ;   2097104 LBL    label counter        2097096 CURPROC off  2097088 CURPROC len
+;   2097080 EXPRDEPTH                   2097072 RESOURCE_FAIL (0 or exit 252)
+;   2097064 BLOCKDEPTH
 ;   3145728 NAMEOFF[i] (word)          3153920 NAMELEN[i] (word)   ; i = slot
 
 ; ---------------- reading the source ----------------
@@ -41,6 +43,9 @@ proc slurp() {
         word[2097144] = 0        ; CUR
         word[2097128] = 0        ; NLOC
         word[2097104] = 0        ; LBL (label counter)
+        word[2097080] = 0        ; EXPRDEPTH
+        word[2097072] = 0        ; RESOURCE_FAIL
+        word[2097064] = 0        ; BLOCKDEPTH
         return 1
     }
 }
@@ -366,13 +371,20 @@ proc gen_call() {            ; f(args): callee name is in IDOFF/IDLEN, cursor at
         to argsdone
     }
     state argbody {
+        to argroom when (nargs < 4)
+        word[2097072] = 252
+        return 0
+    }
+    state argroom {
         gen_expr()                 ; stage each arg onto the data stack, left to right
+        to argfailed when (word[2097072] != 0)
         emit_push()
         nargs = nargs + 1
         skip_ws()
         to comma when (cbyte() == ',')
         to argloop
     }
+    state argfailed { return 0 }
     state comma { adv()  skip_ws()  to argloop }
     state argsdone {
         adv()                          ; consume ')'
@@ -402,10 +414,13 @@ proc parse_number() {
 
 proc declare() {             ; declare a local named by IDOFF/IDLEN; return its slot
     let s = word[2097128]                          ; NLOC
+    state room { to write when (s < 1024)  word[2097072] = 252  return 0 }
+    state write {
     word[3145728 + s * 8] = word[2097120]          ; NAMEOFF[s] = IDOFF
     word[3153920 + s * 8] = word[2097112]          ; NAMELEN[s] = IDLEN
     word[2097128] = s + 1
     return s
+    }
 }
 
 proc name_eq(i) {            ; does local i's name match the current IDOFF/IDLEN?
@@ -790,14 +805,25 @@ proc emit_cmp(code) {
 }
 
 proc gen_expr() {
+    let depth = word[2097080]
+    state room { to enter when (depth < 64)  word[2097072] = 252  return 0 }
+    state enter {
+        word[2097080] = depth + 1
+        to generate
+    }
+    state generate {
     gen_sum()
     skip_ws()
     let code = cmp_op()
-    state chk { to do_cmp when (code >= 0)  return 0 }
+        to do_cmp when (code >= 0)
+        word[2097080] = word[2097080] - 1
+        return 0
+    }
     state do_cmp {
         emit_push()
         gen_sum()
         emit_cmp(code)
+        word[2097080] = word[2097080] - 1
         return 0
     }
 }
@@ -805,10 +831,18 @@ proc gen_expr() {
 ; ---------------- statements ----------------
 
 proc gen_stmts() {               ; parse statements until '}', consume the '}'
-    skip_ws()
+    let depth = word[2097064]
+    state room { to enter when (depth < 64)  word[2097072] = 252  return 0 }
+    state enter {
+        word[2097064] = depth + 1
+        skip_ws()
+        to loop
+    }
     state loop {
+        to exhausted when (word[2097072] != 0)
         to body when (cbyte() != '}')
         adv()
+        word[2097064] = word[2097064] - 1
         return 0
     }
     state body {
@@ -817,7 +851,8 @@ proc gen_stmts() {               ; parse statements until '}', consume the '}'
         skip_ws()
         to loop
     }
-    state eof { return 0 }
+    state eof { word[2097064] = word[2097064] - 1  return 0 }
+    state exhausted { word[2097064] = word[2097064] - 1  return 0 }
 }
 
 proc gen_block() {               ; { statements }
@@ -885,11 +920,13 @@ proc gen_stmt() {
         skip_ws()
         read_ident()             ; the new local's name
         slot = declare()
+        to letfailed when (word[2097072] != 0)
         expect('=')
         gen_expr()
         emit_store_slot(slot)
         return 0
     }
+    state letfailed { return 0 }
     state k_return { to do_return when (is_return() == 1)  to k_state }
     state do_return { gen_expr()  emit_epilogue()  return 0 }
     state k_state { to do_state when (is_state() == 1)  to k_to }
@@ -929,18 +966,30 @@ proc parse_proc() {
         to pdone
     }
     state pbody {
+        to paramroom when (word[2097128] < 4)
+        word[2097072] = 252
+        return 0
+    }
+    state paramroom {
         read_ident()
         declare()
+        to paramfailed when (word[2097072] != 0)
         skip_ws()
         to pcomma when (cbyte() == ',')
         to ploop
     }
+    state paramfailed { return 0 }
     state pcomma { adv()  skip_ws()  to ploop }
     state pdone {
         adv()                    ; consume ')'
         let nparams = word[2097128]  ; NLOC after the params
         expect('{')
         let nslots = nparams + count_lets()
+        to slotsready when (nslots <= 1024)
+        word[2097072] = 252
+        return 0
+    }
+    state slotsready {
         emit_ident_at(nameoff, namelen)
         emit(":\n")
         emit_proc_prologue(nslots)
@@ -972,5 +1021,11 @@ proc main() {
         to body when (cbyte() != 0)
         return 0
     }
-    state body { parse_proc()  skip_ws()  to loop }
+    state body {
+        parse_proc()
+        to resource when (word[2097072] != 0)
+        skip_ws()
+        to loop
+    }
+    state resource { return word[2097072] }
 }

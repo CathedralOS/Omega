@@ -1,0 +1,282 @@
+; Lower-rooted structural verifier for an Alpha tape supplied on stdin.
+;
+; Starting at byte zero, walk the statically reachable control-flow graph. Every
+; reachable instruction must be completely encoded inside the tape; every direct
+; branch/call target and fallthrough must start an instruction; and no two
+; reachable instructions may overlap. Unreachable bytes are permitted because
+; Alpha programs use jump-skipped inline data.
+;
+; Exit 0: structurally valid. Exit 1: malformed. Exit 253: input exceeds the
+; committed 256 KiB tape-hole payload (262,140 bytes after its length prefix).
+;
+; Memory map (all within Alpha's fixed 64 MiB):
+;   globals     524288 .. 524343
+;   source     1048576 .. 1310715  (262140 bytes)
+;   coverage   1310720 .. 1572859  (0 unseen, 1 instruction start, 2 operand)
+;   queued     1572864 .. 1835003  (one byte per possible instruction start)
+;   worklist   1835008 .. 3932127  (262140 word entries)
+
+; Globals: LEN HEAD TAIL PC OP NEXT ILEN
+
+        ; Read and retain the complete candidate tape before checking it.
+        imm   r0, 1048576       ; destination
+        imm   r1, 0             ; length
+read_loop:
+        read  r2
+        imm   r3, 0
+        jlt   r2, r3, read_done
+        imm   r3, 262140
+        jlt   r1, r3, read_store
+        imm   r0, 253
+        halt  r0
+read_store:
+        storeb r0, r2
+        imm   r3, 1
+        add   r0, r3
+        add   r1, r3
+        jmp   read_loop
+
+read_done:
+        imm   r3, 524288
+        store r3, r1            ; LEN
+        imm   r4, 1
+        jlt   r1, r4, reject    ; an empty tape has no entry instruction
+
+        ; Queue entry pc zero.
+        imm   r3, 1572864
+        imm   r4, 1
+        storeb r3, r4
+        imm   r3, 1835008
+        imm   r4, 0
+        store r3, r4
+        imm   r3, 524296
+        store r3, r4            ; HEAD = 0
+        imm   r3, 524304
+        imm   r4, 1
+        store r3, r4            ; TAIL = 1
+
+work_loop:
+        imm   r3, 524296
+        load  r1, r3            ; head
+        imm   r3, 524304
+        load  r2, r3            ; tail
+        jlt   r1, r2, work_item
+        imm   r0, 0
+        halt  r0
+
+work_item:
+        ; pc = worklist[head++]
+        mov   r4, r1
+        imm   r5, 8
+        mul   r4, r5
+        imm   r5, 1835008
+        add   r4, r5
+        load  r6, r4
+        imm   r4, 1
+        add   r1, r4
+        imm   r3, 524296
+        store r3, r1
+
+        ; Queue insertion already checked this, but pin the invariant locally.
+        imm   r7, 0
+        jlt   r6, r7, reject
+        imm   r3, 524288
+        load  r8, r3
+        jlt   r6, r8, pc_in_range
+        jmp   reject
+pc_in_range:
+        imm   r3, 1310720
+        add   r3, r6
+        loadb r9, r3
+        imm   r10, 0
+        jeq   r9, r10, pc_uncovered
+        jmp   reject
+pc_uncovered:
+        imm   r3, 1048576
+        add   r3, r6
+        loadb r7, r3            ; opcode
+        imm   r10, 21
+        jlt   r7, r10, opcode_known
+        jmp   reject
+
+opcode_known:
+        ; Derive the exact encoded instruction length from the closed opcode set.
+        imm   r10, 1
+        jlt   r7, r10, len_2    ; halt
+        imm   r10, 2
+        jlt   r7, r10, len_10   ; imm
+        imm   r10, 12
+        jlt   r7, r10, len_3    ; mov through store
+        imm   r10, 13
+        jlt   r7, r10, len_9    ; jmp
+        imm   r10, 15
+        jlt   r7, r10, len_10   ; jz, jnz
+        imm   r10, 17
+        jlt   r7, r10, len_11   ; jlt, jeq
+        imm   r10, 19
+        jlt   r7, r10, len_2    ; read, write
+        imm   r10, 20
+        jlt   r7, r10, len_9    ; call
+        imm   r11, 1            ; ret
+        jmp   length_ready
+len_2:
+        imm   r11, 2
+        jmp   length_ready
+len_3:
+        imm   r11, 3
+        jmp   length_ready
+len_9:
+        imm   r11, 9
+        jmp   length_ready
+len_10:
+        imm   r11, 10
+        jmp   length_ready
+len_11:
+        imm   r11, 11
+
+length_ready:
+        ; Freeze the current item across enqueue calls.
+        imm   r3, 524312
+        store r3, r6            ; PC
+        imm   r3, 524320
+        store r3, r7            ; OP
+        imm   r3, 524336
+        store r3, r11           ; ILEN
+        mov   r12, r6
+        add   r12, r11          ; exclusive instruction end / fallthrough
+        imm   r3, 524328
+        store r3, r12           ; NEXT
+        imm   r3, 524288
+        load  r8, r3
+        jlt   r8, r12, reject   ; complete instruction must fit
+
+        ; Claim every byte. A previously queued interior target is an overlap
+        ; even if it has not yet been processed.
+        imm   r13, 0
+cover_loop:
+        jlt   r13, r11, cover_byte
+        jmp   dispatch
+cover_byte:
+        mov   r14, r6
+        add   r14, r13
+        imm   r3, 1310720
+        add   r3, r14
+        loadb r9, r3
+        imm   r10, 0
+        jeq   r9, r10, cover_empty
+        jmp   reject
+cover_empty:
+        jeq   r13, r10, cover_start
+        imm   r4, 1572864
+        add   r4, r14
+        loadb r5, r4
+        jeq   r5, r10, cover_operand
+        jmp   reject
+cover_operand:
+        imm   r5, 2
+        storeb r3, r5
+        jmp   cover_next
+cover_start:
+        imm   r5, 1
+        storeb r3, r5
+cover_next:
+        imm   r5, 1
+        add   r13, r5
+        jmp   cover_loop
+
+dispatch:
+        imm   r3, 524320
+        load  r7, r3
+        imm   r10, 0
+        jeq   r7, r10, work_loop    ; halt
+        imm   r10, 20
+        jeq   r7, r10, work_loop    ; ret; call fallthroughs cover return sites
+        imm   r10, 12
+        jeq   r7, r10, direct_jmp
+        imm   r10, 13
+        jeq   r7, r10, conditional_2
+        imm   r10, 14
+        jeq   r7, r10, conditional_2
+        imm   r10, 15
+        jeq   r7, r10, conditional_3
+        imm   r10, 16
+        jeq   r7, r10, conditional_3
+        imm   r10, 19
+        jeq   r7, r10, direct_call
+        jmp   enqueue_fallthrough
+
+direct_jmp:
+        imm   r13, 1
+        jmp   load_direct_target
+conditional_2:
+        imm   r13, 2
+        jmp   load_conditional_target
+conditional_3:
+        imm   r13, 3
+        jmp   load_conditional_target
+direct_call:
+        imm   r13, 1
+        jmp   load_conditional_target
+
+load_conditional_target:
+        imm   r3, 524312
+        load  r6, r3
+        imm   r3, 1048576
+        add   r3, r6
+        add   r3, r13
+        load  r0, r3
+        call  enqueue
+enqueue_fallthrough:
+        imm   r3, 524328
+        load  r0, r3
+        call  enqueue
+        jmp   work_loop
+
+load_direct_target:
+        imm   r3, 524312
+        load  r6, r3
+        imm   r3, 1048576
+        add   r3, r6
+        add   r3, r13
+        load  r0, r3
+        call  enqueue
+        jmp   work_loop
+
+; enqueue(r0): require a target in [0,LEN), and add each pc at most once.
+enqueue:
+        imm   r1, 0
+        jlt   r0, r1, reject
+        imm   r3, 524288
+        load  r2, r3
+        jlt   r0, r2, enqueue_in_range
+        jmp   reject
+enqueue_in_range:
+        imm   r3, 1572864
+        add   r3, r0
+        loadb r4, r3
+        imm   r5, 0
+        jeq   r4, r5, enqueue_new
+        ret
+enqueue_new:
+        imm   r4, 1
+        storeb r3, r4
+        imm   r3, 524304
+        load  r5, r3            ; tail
+        imm   r6, 262140
+        jlt   r5, r6, enqueue_room
+        jmp   reject
+enqueue_room:
+        mov   r7, r5
+        imm   r8, 8
+        mul   r7, r8
+        imm   r8, 1835008
+        add   r7, r8
+        store r7, r0
+        imm   r7, 1
+        add   r5, r7
+        store r3, r5
+        ret
+
+reject:
+        imm   r0, 1
+        halt  r0

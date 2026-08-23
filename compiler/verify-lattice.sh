@@ -90,9 +90,10 @@ step "alpha — REFERENCE: asm_ref.py agrees with the lattice assembler over the
 step "alpha — disposable Rust assembler producer agrees with the lattice assembler" alpha-assembler-rust test.sh alpha-assembler
 step "bc    — Alpha-written cold-start compiler surface" beta cold-start/test.sh alpha alpha-assembler
 step "bc    — Alpha-rooted full source, artifact fixed point, corpus" beta cold-start/full-source.sh alpha alpha-assembler
+step "bc    — lower-rooted artifact framing + direct-target obligations" beta-refinement bc-artifact-structure.sh alpha beta alpha-assembler
 step "bc    — Beta compiler in Beta self-hosts"       beta   selfhost.sh
 step "bc    — per-feature gate"                       beta   test.sh
-step "bc    — checked source-arena exhaustion"        beta   source-exhaustion.sh alpha-assembler
+step "bc    — checked compiler resource profile"      beta   source-exhaustion.sh alpha-assembler
 step "bc    — CORRECTNESS: reference interpreter (beta_interp.py) == compile+run, random programs" beta-reference beta-correctness-fuzz.sh beta alpha-assembler
 step "bc    — EXHAUSTIVE I/O: interpret == compile+run over ALL 256 input bytes per program" beta-reference beta-io-exhaust.sh beta alpha-assembler
 step "Beta/Rust — DIAGNOSTIC on-ramp + corpus"         beta-rust test.sh beta

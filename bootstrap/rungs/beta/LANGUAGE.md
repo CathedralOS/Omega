@@ -3,6 +3,7 @@
 > The small structured systems layer above Alpha assembly. `bc.beta` implements
 > this surface and self-hosts; the rung name and place in
 > `Alpha → Beta → Gamma → Delta` are fixed by bootstrap decision D6.
+> Runtime meaning is fixed separately by [`SEMANTICS.md`](SEMANTICS.md).
 
 ## What it is
 

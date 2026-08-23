@@ -19,7 +19,7 @@ as diagnostic/on-ramp history and is not in this artifact's lineage.
 Regenerate deliberately with `cold-start/rebuild-artifact.sh`; commit a changed
 tape only together with the source/compiler change and a green full-source gate.
 
-The committed artifact is 48,653 bytes. Its SHA-256 digest is
-`ac9642444eda09a66b3566615f181377add80abd935cbbeb73bfc5b008c4f666`.
+The committed artifact is 51,647 bytes. Its SHA-256 digest is
+`e491073e0a27d50fb429d6f2a24158029ab5d8baa98e8855a4bd8771768c104b`.
 The reconstruction gate's byte comparison is authoritative for repository
 identity; the digest is recorded for convenient audit and transport checks.

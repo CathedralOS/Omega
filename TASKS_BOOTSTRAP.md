@@ -60,7 +60,7 @@ lattice and `compiler/` for the product implementation.
 | `bootstrap/onramps/alpha-assembler-rust/` (compatibility: `compiler/beta-rs`) | disposable/reference Rust producer of Alpha VM tapes from Alpha assembly | moved and separated from Beta-language ownership |
 | `bootstrap/onramps/beta-rust/` (compatibility: `compiler/beta-lang-rs`) | Beta-language disposable/reference Rust producer | moved and separated from rung ownership |
 | `bootstrap/rungs/beta/reference/` | executable Beta reference meaning and semantic fuzzing | moved; `compiler/beta-lang-py` forwards compatibility entry points |
-| `bootstrap/assurance/refinement/beta/` | complete Beta-source/Alpha-artifact symbolic reconstruction and gates | moved |
+| `bootstrap/assurance/refinement/beta/` | fragmentary symbolic reconstruction plus whole-artifact obligation checkers | moved |
 | `compiler/psi/`, `compiler/omega/` | current production Psi/Omega implementations | `compiler/psi/`, `compiler/omega/` |
 
 ## Current architectural state
@@ -405,8 +405,8 @@ additional facilities the bootstrap actually needs.
   - [x] Specify the compiler observable as the complete output byte stream plus
     halt, trap, divergence, and checked resource exhaustion—not merely an exit
     byte or a finite set of executions. `bootstrap/rungs/beta/BOOTSTRAP_OBSERVABLE.md`
-    fixes the quantified input/resource profile, maximal trace, terminal
-    classifications, and independently reconstructed closure obligation.
+    fixes maximal traces, terminal classifications, independently reconstructed
+    closure obligations, and the first exact supported profile `B_bc1`.
   - [x] Make `bc.beta` reject source-arena exhaustion before it can overwrite
     adjacent compiler tables or emit a truncated Alpha assembly artifact. The
     exact 1 MiB boundary and empty-output failure projection are gated.
@@ -439,9 +439,9 @@ additional facilities the bootstrap actually needs.
       capacity boundaries.
     - [x] Complete Slice D with nested byte/word memory, call statements,
       `read_byte`/`write_byte`, and decoded fixed-string `emit`. The Alpha-written
-      compiler now accepts all 30,307 pinned source bytes and emits valid Alpha.
+      compiler now accepts all 32,045 pinned source bytes and emits valid Alpha.
   - [x] Adopt the resulting lattice-built `bc` artifact throughout the bootstrap.
-    - [x] Persist the 48,653-byte platform-independent fixed-point `bc.tape` and
+    - [x] Persist the 51,647-byte platform-independent fixed-point `bc.tape` and
       gate byte-for-byte reconstruction, another self-build generation, and the
       complete retained Beta corpus through it. No Rust producer is in its
       construction lineage.
@@ -453,9 +453,31 @@ additional facilities the bootstrap actually needs.
     with authority rooted below `bc`, including output bytes and every terminal
     classification in `BOOTSTRAP_OBSERVABLE.md`; fixed-point identity and the
     retained corpus remain supporting evidence, not this proof.
+    - [x] Add the first lower-rooted whole-artifact structural checker in Alpha.
+      It independently walks reachable instructions in `bc.tape`, permits
+      jump-skipped inline data, proves instruction framing and direct target
+      boundaries, rejects overlap/unknown/truncation/range mutations, and pins
+      the exact 262,140-byte tape-hole payload. This does not yet prove dynamic
+      memory bounds, call/return discipline, output semantics, or termination.
+    - [x] Freeze supported resource profile `B_bc1` and make its source-side
+      ceilings checked. `bc.beta` now refuses a 1,025th name slot, fifth live
+      parameter/argument, and expression or nested-block depth 65 before any
+      compiler-owned overlap. The focused gate pins exact/+1 boundaries,
+      statuses 252/253, empty source-exhaustion output, and deterministic maximal
+      prefixes for later structural exhaustion.
+    - [x] Write the canonical small-step Beta source semantics needed by the
+      relation: left-to-right expressions/calls, CFG fallthrough/transitions,
+      finite byte memory, byte I/O, wrapping/signed arithmetic, and maximal
+      halt/trap/exhaustion/divergence observations. The Python interpreter is
+      now explicitly finite-run regression evidence rather than authority for
+      sparse memory or its step cap.
+    - [ ] Reconstruct and check the blockwise forward simulation from the exact
+      parsed `bc.beta` CFG to the decoded Alpha CFG. Cover stack/memory bounds,
+      call/return frames, streamed output, terminal classes, and cyclic progress;
+      do not expand the current closed-form symbolic branch tree.
   - [x] Enlarge the x64 seed's former 32 KiB image extent before claiming
     cross-platform closure; both committed seeds now reserve 256 KiB, sufficient
-    for the current roughly 48 KiB self-hosted tape.
+    for the current roughly 52 KiB self-hosted tape.
 - [x] **Make gate paths relocatable.** Replace hard-coded sibling-relative paths
   with a single repository-root/path helper so ownership moves can be mechanical
   and independently reviewable.
@@ -593,6 +615,8 @@ sh bootstrap/onramps/alpha-assembler-rust/test.sh
 sh bootstrap/onramps/beta-rust/test.sh  # diagnostic producer only
 sh bootstrap/rungs/beta/cold-start/test.sh
 sh bootstrap/rungs/beta/cold-start/full-source.sh
+sh bootstrap/rungs/beta/source-exhaustion.sh
+sh bootstrap/assurance/refinement/beta/bc-artifact-structure.sh
 sh bootstrap/rungs/beta/selfhost.sh
 sh bootstrap/rungs/beta/test.sh
 sh bootstrap/rungs/gamma/test-interp.sh
