@@ -11,13 +11,16 @@ use omega_calling_conventions::{
     validate_entry_stack_realization, validate_x86_64_installed_hardware_entry_facts,
 };
 use omega_effects::provider_plan::{
-    ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod, ServiceSchema,
+    ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod,
+    ServiceProgressEstablishmentRoute, ServiceProgressEstablishmentRouteKind,
+    ServiceProgressPremise, ServiceProgressSubject, ServiceSchema,
 };
 use omega_effects::{
-    ComponentEraCandidate, ComponentEraEntryLedger, ComponentEraLedgerId,
-    ComponentEraPublicationReceipt, ExecutableTcbManifest, ExecutableTcbProfile,
-    ExecutableTcbProfileAcceptance, ExecutionScope, IncompleteScopePolicy,
-    ProgramLocalRootEpochLeaseId, ScopeCompleteness, evaluate_executable_tcb_profile,
+    CheckedComponentProgressDemand, ComponentEraCandidate, ComponentEraEntryLedger,
+    ComponentEraLedgerId, ComponentEraPublicationReceipt, ComponentProgressManifest,
+    ExecutableTcbManifest, ExecutableTcbProfile, ExecutableTcbProfileAcceptance, ExecutionScope,
+    IncompleteScopePolicy, ProgramLocalRootEpochLeaseId, ScopeCompleteness,
+    SelectedProviderPlanFacts, evaluate_executable_tcb_profile,
 };
 use omega_executable_installation::{
     AdmissionReceiptId, Artifact, ArtifactAdmissionEvidence, ArtifactContentId, ArtifactEntry,
@@ -4349,4 +4352,481 @@ fn cathedral_first_timer_profile_is_five_fixed_one_shot_nodes() {
     let error = compose_fixed_fuel(root_identity, [&timer, &acknowledge, &clock, &return_path])
         .expect_err("a timer provider cannot omit its wake summary");
     assert!(error.0.contains("missing"));
+}
+
+fn progress_installation_fixture() -> (
+    SelectedProviderPlanFacts,
+    ComponentProgressManifest,
+    u64,
+    u64,
+    ServiceProgressEstablishmentRoute,
+) {
+    let route = ServiceProgressEstablishmentRoute {
+        kind: ServiceProgressEstablishmentRouteKind::BoundaryRequirement,
+        requirement_identity: "SchedulerAdmission::grant_weak_fair#exact".into(),
+    };
+    let scheduler = ProviderPlan {
+        name: "scheduler-plan".into(),
+        provider_type: "SchedulerProvider".into(),
+        target: "test".into(),
+        schema: ServiceSchema {
+            trait_name: "Scheduler".into(),
+            methods: vec![ServiceMethod {
+                name: "wait".into(),
+                requirement_owner: "Scheduler".into(),
+                requirement_identity: "Scheduler::wait#exact".into(),
+                service_reach: vec!["Scheduler".into()],
+                may_suspend: true,
+                terminates_guarantee: true,
+                termination_premises: vec![ServiceProgressPremise {
+                    profile: "SchedulerHandle::WeakFair".into(),
+                    subject: ServiceProgressSubject::ProviderReceiver,
+                    subject_projections: vec!["queue".into()],
+                    establishment_routes: vec![route.clone()],
+                }],
+                ..ServiceMethod::default()
+            }],
+        },
+        rows: vec![ProviderPlanRow {
+            method: "wait".into(),
+            requirement_identity: "Scheduler::wait#exact".into(),
+            binding: ProviderBinding::CompilerIntrinsic {
+                machine: "TestScheduler::wait".into(),
+            },
+        }],
+        origin_package: "omega::test".into(),
+    };
+    let admission = ProviderPlan {
+        name: "scheduler-admission-plan".into(),
+        provider_type: "SchedulerAdmissionProvider".into(),
+        target: "test".into(),
+        schema: ServiceSchema {
+            trait_name: "SchedulerAdmission".into(),
+            methods: vec![ServiceMethod {
+                name: "grant_weak_fair".into(),
+                requirement_owner: "SchedulerAdmission".into(),
+                requirement_identity: route.requirement_identity.clone(),
+                parameter_count: 1,
+                parameter_type_identities: vec!["SchedulerHandle".into()],
+                has_result: true,
+                result_type_identity: Some("SchedulerHandle in WeakFair".into()),
+                service_reach: vec!["SchedulerAdmission".into()],
+                terminates_guarantee: true,
+                ..ServiceMethod::default()
+            }],
+        },
+        rows: vec![ProviderPlanRow {
+            method: "grant_weak_fair".into(),
+            requirement_identity: route.requirement_identity.clone(),
+            binding: ProviderBinding::CompilerIntrinsic {
+                machine: "TestSchedulerAdmission::grant_weak_fair".into(),
+            },
+        }],
+        origin_package: "omega::test".into(),
+    };
+    let scheduler_identity = scheduler.identity_fingerprint();
+    let admission_identity = admission.identity_fingerprint();
+    let selected = SelectedProviderPlanFacts::from_selection(
+        &[scheduler, admission],
+        &["scheduler-plan".into(), "scheduler-admission-plan".into()],
+    )
+    .expect("exact selected provider closure");
+    let manifest = ComponentProgressManifest::bind(
+        "Application::start".into(),
+        &selected,
+        vec![CheckedComponentProgressDemand {
+            provider_service_identity: "Scheduler".into(),
+            requirement_identity: "Scheduler::wait#exact".into(),
+            profile_identity: "SchedulerHandle::WeakFair".into(),
+            subject_projections: vec!["queue".into()],
+            origin_callable_identity: "Application::start".into(),
+            origin_state_identity: "Application::start::entry".into(),
+            statement_ordinal: 4,
+            call_ordinal: 1,
+        }],
+    )
+    .expect("component progress manifest");
+    (
+        selected,
+        manifest,
+        scheduler_identity,
+        admission_identity,
+        route,
+    )
+}
+
+fn provider_occurrence_binding(
+    code: &InstalledCode,
+    plan: u64,
+    receipt: u64,
+    occurrence: u64,
+    provider: &str,
+) -> ProviderOccurrencePlanBinding {
+    ProviderOccurrencePlanBinding::new(
+        plan,
+        ProviderOccurrenceInstallationReceipt::from_provider(
+            root_id(
+                receipt,
+                ProviderOccurrenceInstallationReceiptId::from_normalized_identity,
+            ),
+            code,
+            root_id(
+                occurrence,
+                InstalledProviderOccurrenceId::from_normalized_identity,
+            ),
+            provider,
+        ),
+    )
+}
+
+fn admitted_progress_receipt(
+    ledger: &mut InstalledRootLedger,
+    code: &InstalledCode,
+    subject: u64,
+    issuer: u64,
+    issuer_plan: u64,
+    seed: u64,
+    route: ServiceProgressEstablishmentRoute,
+) -> AdmittedProgressProfileEstablishment {
+    ledger
+        .admit_progress_profile_establishment(
+            ProgressProfileEstablishmentAttestation::from_provider(
+                root_id(
+                    seed,
+                    ProgressProfileEstablishmentReceiptId::from_normalized_identity,
+                ),
+                code,
+                root_id(
+                    subject,
+                    InstalledProviderOccurrenceId::from_normalized_identity,
+                ),
+                root_id(
+                    issuer,
+                    InstalledProviderOccurrenceId::from_normalized_identity,
+                ),
+                issuer_plan,
+                root_id(
+                    seed + 1,
+                    ProgressProfileGrantInvocationId::from_normalized_identity,
+                ),
+                "SchedulerHandle::WeakFair",
+                vec!["queue".into()],
+                route,
+            ),
+        )
+        .expect("admitted establishment receipt")
+}
+
+#[test]
+fn component_progress_seals_against_distinct_exact_subject_and_issuer_occurrences() {
+    let (selected, manifest, scheduler_plan, admission_plan, route) =
+        progress_installation_fixture();
+    let mut code = installed_code(54_000, entry_id(54_001));
+    let mut ledger = InstalledRootLedger::claim(&mut code).expect("installation registry");
+    ledger
+        .seal_provider_occurrence_closure(
+            &selected,
+            [
+                provider_occurrence_binding(
+                    &code,
+                    scheduler_plan,
+                    54_010,
+                    54_020,
+                    "SchedulerProvider",
+                ),
+                provider_occurrence_binding(
+                    &code,
+                    admission_plan,
+                    54_011,
+                    54_021,
+                    "SchedulerAdmissionProvider",
+                ),
+            ],
+        )
+        .expect("installed provider closure");
+    let receipt = admitted_progress_receipt(
+        &mut ledger,
+        &code,
+        54_020,
+        54_021,
+        admission_plan,
+        54_030,
+        route,
+    );
+    assert_ne!(receipt.subject(), receipt.issuer());
+
+    let demand = ComponentProgressDemandIdentity::from_demand(&manifest.pending()[0]);
+    let acceptance = ledger
+        .seal_component_progress(
+            manifest.clone(),
+            [ComponentProgressReceiptBinding::new(
+                demand,
+                receipt.clone(),
+            )],
+        )
+        .expect("exact component progress closure");
+    assert_eq!(acceptance.manifest(), &manifest);
+    assert_eq!(acceptance.receipts().collect::<Vec<_>>(), vec![&receipt]);
+    assert_ne!(acceptance.fingerprint(), 0);
+}
+
+#[test]
+fn component_progress_sealing_is_transactional_and_receipt_facts_are_reusable() {
+    let (selected, _, scheduler_plan, admission_plan, route) = progress_installation_fixture();
+    let demands = [(4, 1), (9, 2)]
+        .into_iter()
+        .map(
+            |(statement_ordinal, call_ordinal)| CheckedComponentProgressDemand {
+                provider_service_identity: "Scheduler".into(),
+                requirement_identity: "Scheduler::wait#exact".into(),
+                profile_identity: "SchedulerHandle::WeakFair".into(),
+                subject_projections: vec!["queue".into()],
+                origin_callable_identity: "Application::start".into(),
+                origin_state_identity: "Application::start::entry".into(),
+                statement_ordinal,
+                call_ordinal,
+            },
+        )
+        .collect::<Vec<_>>();
+    let manifest = ComponentProgressManifest::bind("Application::start".into(), &selected, demands)
+        .expect("two-demand manifest");
+    let mut code = installed_code(55_000, entry_id(55_001));
+    let mut ledger = InstalledRootLedger::claim(&mut code).expect("installation registry");
+    ledger
+        .seal_provider_occurrence_closure(
+            &selected,
+            [
+                provider_occurrence_binding(
+                    &code,
+                    scheduler_plan,
+                    55_010,
+                    55_020,
+                    "SchedulerProvider",
+                ),
+                provider_occurrence_binding(
+                    &code,
+                    admission_plan,
+                    55_011,
+                    55_021,
+                    "SchedulerAdmissionProvider",
+                ),
+            ],
+        )
+        .expect("installed provider closure");
+    let receipt = admitted_progress_receipt(
+        &mut ledger,
+        &code,
+        55_020,
+        55_021,
+        admission_plan,
+        55_030,
+        route,
+    );
+
+    let missing = ledger
+        .seal_component_progress(
+            manifest.clone(),
+            [ComponentProgressReceiptBinding::new(
+                ComponentProgressDemandIdentity::from_demand(&manifest.pending()[0]),
+                receipt.clone(),
+            )],
+        )
+        .expect_err("partial closure must reject");
+    assert!(missing.diagnostic().0.contains("exactly cover"));
+
+    let bindings = manifest
+        .pending()
+        .iter()
+        .map(|demand| {
+            ComponentProgressReceiptBinding::new(
+                ComponentProgressDemandIdentity::from_demand(demand),
+                receipt.clone(),
+            )
+        })
+        .collect::<Vec<_>>();
+    let acceptance = ledger
+        .seal_component_progress(manifest, bindings)
+        .expect("corrected retry succeeds without burning acceptance");
+    assert_eq!(acceptance.receipts().count(), 2);
+}
+
+#[test]
+fn provider_occurrence_and_progress_route_admission_fail_closed() {
+    let (selected, _, scheduler_plan, admission_plan, route) = progress_installation_fixture();
+    let mut code = installed_code(56_000, entry_id(56_001));
+    let other_code = installed_code_with_fill(56_000, entry_id(56_001), 1);
+    let mut ledger = InstalledRootLedger::claim(&mut code).expect("installation registry");
+    let error = ledger
+        .seal_provider_occurrence_closure(
+            &selected,
+            [
+                provider_occurrence_binding(
+                    &other_code,
+                    scheduler_plan,
+                    56_010,
+                    56_020,
+                    "SchedulerProvider",
+                ),
+                provider_occurrence_binding(
+                    &code,
+                    admission_plan,
+                    56_011,
+                    56_021,
+                    "SchedulerAdmissionProvider",
+                ),
+            ],
+        )
+        .expect_err("colliding compact IDs cannot substitute exact installed evidence");
+    assert!(error.0.contains("different installed-code"));
+
+    ledger
+        .seal_provider_occurrence_closure(
+            &selected,
+            [
+                provider_occurrence_binding(
+                    &code,
+                    scheduler_plan,
+                    56_010,
+                    56_020,
+                    "SchedulerProvider",
+                ),
+                provider_occurrence_binding(
+                    &code,
+                    admission_plan,
+                    56_011,
+                    56_021,
+                    "SchedulerAdmissionProvider",
+                ),
+            ],
+        )
+        .expect("failed closure did not mutate the ledger");
+    let wrong_route = ServiceProgressEstablishmentRoute {
+        requirement_identity: "SchedulerAdmission::grant_other#exact".into(),
+        ..route
+    };
+    let error = ledger
+        .admit_progress_profile_establishment(
+            ProgressProfileEstablishmentAttestation::from_provider(
+                root_id(
+                    56_030,
+                    ProgressProfileEstablishmentReceiptId::from_normalized_identity,
+                ),
+                &code,
+                root_id(
+                    56_020,
+                    InstalledProviderOccurrenceId::from_normalized_identity,
+                ),
+                root_id(
+                    56_021,
+                    InstalledProviderOccurrenceId::from_normalized_identity,
+                ),
+                admission_plan,
+                root_id(
+                    56_031,
+                    ProgressProfileGrantInvocationId::from_normalized_identity,
+                ),
+                "SchedulerHandle::WeakFair",
+                vec!["queue".into()],
+                wrong_route,
+            ),
+        )
+        .expect_err("issuer plan must realize the exact route");
+    assert!(error.diagnostic().0.contains("exact requirement"));
+}
+
+#[test]
+fn progress_receipt_identity_and_grant_invocation_cannot_be_rebound() {
+    let (selected, _, scheduler_plan, admission_plan, route) = progress_installation_fixture();
+    let mut code = installed_code(57_000, entry_id(57_001));
+    let mut ledger = InstalledRootLedger::claim(&mut code).expect("installation registry");
+    ledger
+        .seal_provider_occurrence_closure(
+            &selected,
+            [
+                provider_occurrence_binding(
+                    &code,
+                    scheduler_plan,
+                    57_010,
+                    57_020,
+                    "SchedulerProvider",
+                ),
+                provider_occurrence_binding(
+                    &code,
+                    admission_plan,
+                    57_011,
+                    57_021,
+                    "SchedulerAdmissionProvider",
+                ),
+            ],
+        )
+        .expect("installed provider closure");
+    let receipt_identity = root_id(
+        57_030,
+        ProgressProfileEstablishmentReceiptId::from_normalized_identity,
+    );
+    let invocation = root_id(
+        57_031,
+        ProgressProfileGrantInvocationId::from_normalized_identity,
+    );
+    let attestation = |receipt, invocation, profile: &str| {
+        ProgressProfileEstablishmentAttestation::from_provider(
+            receipt,
+            &code,
+            root_id(
+                57_020,
+                InstalledProviderOccurrenceId::from_normalized_identity,
+            ),
+            root_id(
+                57_021,
+                InstalledProviderOccurrenceId::from_normalized_identity,
+            ),
+            admission_plan,
+            invocation,
+            profile,
+            vec!["queue".into()],
+            route.clone(),
+        )
+    };
+    let admitted = ledger
+        .admit_progress_profile_establishment(attestation(
+            receipt_identity,
+            invocation,
+            "SchedulerHandle::WeakFair",
+        ))
+        .expect("first receipt admission");
+    assert_eq!(
+        ledger
+            .admit_progress_profile_establishment(attestation(
+                receipt_identity,
+                invocation,
+                "SchedulerHandle::WeakFair",
+            ))
+            .expect("exact replay is idempotent"),
+        admitted
+    );
+    let divergent = ledger
+        .admit_progress_profile_establishment(attestation(
+            receipt_identity,
+            invocation,
+            "SchedulerHandle::StrongFair",
+        ))
+        .expect_err("one receipt identity cannot name another profile");
+    assert!(divergent.diagnostic().0.contains("divergent evidence"));
+    let second_receipt = root_id(
+        57_032,
+        ProgressProfileEstablishmentReceiptId::from_normalized_identity,
+    );
+    let duplicate_invocation = ledger
+        .admit_progress_profile_establishment(attestation(
+            second_receipt,
+            invocation,
+            "SchedulerHandle::WeakFair",
+        ))
+        .expect_err("one grant invocation cannot mint another receipt");
+    assert!(
+        duplicate_invocation
+            .diagnostic()
+            .0
+            .contains("grant invocation")
+    );
 }

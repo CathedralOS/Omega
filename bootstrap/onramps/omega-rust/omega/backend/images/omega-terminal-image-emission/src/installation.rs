@@ -64,7 +64,7 @@ use structural_scalar_codec::{
 };
 use wire_codec::{Reader, decode_boolean, push_u16, push_u32, push_u64};
 
-pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 33;
+pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 34;
 const MAGIC: &[u8; 8] = b"PSIINST\0";
 
 /// Exact normalized identity of one provider plan selected for this
@@ -83,6 +83,26 @@ impl SelectedProviderPlanIdentity {
 
     pub const fn get(self) -> u64 {
         self.0.get()
+    }
+}
+
+/// Canonical report identities for one opaque component-progress acceptance.
+/// The actual acceptance remains installation-owned and must be presented
+/// again before publication; this projection merely prevents the terminal
+/// artifact from shedding or substituting the accepted manifest.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TerminalInstalledComponentProgress {
+    manifest: NonZeroU64,
+    acceptance: NonZeroU64,
+}
+
+impl TerminalInstalledComponentProgress {
+    pub const fn manifest_identity(self) -> u64 {
+        self.manifest.get()
+    }
+
+    pub const fn acceptance_identity(self) -> u64 {
+        self.acceptance.get()
     }
 }
 
@@ -142,6 +162,7 @@ pub struct TerminalInstallationRecord {
     subsystem: Option<u16>,
     profile_decision: ProfileDecisionId,
     selected_provider_plans: Vec<SelectedProviderPlanIdentity>,
+    component_progress: Option<TerminalInstalledComponentProgress>,
     functions: Vec<TerminalInstalledFunction>,
     structural_returns: Vec<TerminalInstalledStructuralReturn>,
     internal_unit_calls: Vec<TerminalInstalledInternalUnitCall>,
@@ -171,6 +192,10 @@ impl TerminalInstallationRecord {
 
     pub fn selected_provider_plans(&self) -> &[SelectedProviderPlanIdentity] {
         &self.selected_provider_plans
+    }
+
+    pub const fn component_progress(&self) -> Option<TerminalInstalledComponentProgress> {
+        self.component_progress
     }
 
     pub fn boundary_settlements(&self) -> &[TerminalObjectBoundarySettlement] {
@@ -281,6 +306,31 @@ where
         + ?Sized
         + 'execution,
 {
+    build_terminal_installation_record_with_evidence(
+        image,
+        profile_decision,
+        provider_executions,
+        None,
+    )
+}
+
+/// Build the terminal installation record while committing one already
+/// admitted component-progress closure into artifact identity. The evidence
+/// trait exposes report identities only; runtime publication must still
+/// retain and replay the opaque acceptance owned by orchestration.
+pub fn build_terminal_installation_record_with_evidence<'execution, Execution>(
+    image: &TerminalExecutableImage,
+    profile_decision: ProfileDecisionId,
+    provider_executions: impl IntoIterator<Item = &'execution Execution>,
+    component_progress: Option<
+        &dyn omega_terminal_installation_evidence::TerminalComponentProgressAcceptanceEvidence,
+    >,
+) -> Result<TerminalInstallationRecord, TerminalInstallationError>
+where
+    Execution: omega_terminal_installation_evidence::TerminalProviderExecutionEvidence
+        + ?Sized
+        + 'execution,
+{
     let compiler_text_validation = image
         .output()
         .compiler_text_validation
@@ -319,12 +369,26 @@ where
     if admitted_executions != required_executions {
         return Err(TerminalInstallationError::ProviderExecutionClosureMismatch);
     }
+    let component_progress = component_progress
+        .map(|acceptance| {
+            let manifest = NonZeroU64::new(acceptance.component_progress_manifest_identity())
+                .ok_or(TerminalInstallationError::ZeroComponentProgressManifestIdentity)?;
+            let acceptance =
+                NonZeroU64::new(acceptance.component_progress_acceptance_identity())
+                    .ok_or(TerminalInstallationError::ZeroComponentProgressAcceptanceIdentity)?;
+            Ok(TerminalInstalledComponentProgress {
+                manifest,
+                acceptance,
+            })
+        })
+        .transpose()?;
     let record = TerminalInstallationRecord {
         terminal_psi: image.terminal_psi(),
         target: image.target(),
         subsystem: image.subsystem(),
         profile_decision,
         selected_provider_plans: selected_provider_plans.into_iter().collect(),
+        component_progress,
         functions: image
             .functions()
             .iter()
@@ -580,6 +644,7 @@ pub fn decode_terminal_installation_record(
         target,
         subsystem,
         profile_decision,
+        component_progress,
         image,
         compiler_text_validation,
     } = decode_installation_header(&mut reader)?;
@@ -600,6 +665,7 @@ pub fn decode_terminal_installation_record(
         subsystem,
         profile_decision,
         selected_provider_plans,
+        component_progress,
         functions,
         structural_returns,
         internal_unit_calls,
@@ -2259,6 +2325,8 @@ pub enum TerminalInstallationError {
     UnsupportedTarget(NativeTarget),
     TargetPointerFactNotRepresentable,
     ZeroProfileDecision,
+    ZeroComponentProgressManifestIdentity,
+    ZeroComponentProgressAcceptanceIdentity,
     ZeroProviderPlan,
     DuplicateProviderExecution,
     NonCanonicalProviderPlanOrder,

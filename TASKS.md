@@ -6780,10 +6780,23 @@ compiler concept is introduced.
   after checked artifacts are available; selected-plan, authorized-route, or
   trust-report identity is never treated as an establishment receipt.
 
-  Remaining TPR6-B: bind each pending row to the exact installed provider
-  occurrence and one non-forgeable admitted `ProgressProfile` establishment
-  receipt whose route matches the retained authorized set, then remove the
-  temporary final-output rejection. Independently add authored
+  TPR6-B now seals the complete selected-plan set to exact provider
+  occurrences under the one installation registry, admits a progress receipt
+  only after replaying its distinct subject and issuer occurrences, exact
+  boundary route, and one grant invocation, and closes the component manifest
+  transactionally. Receipt facts may serve several matching call sites but
+  cannot be rebound by compact identity, profile, route, occurrence, or
+  invocation. Terminal installation format 34 commits the manifest and opaque
+  acceptance identities into the canonical installation bytes, which the
+  terminal artifact manifest already fingerprints.
+
+  Remaining TPR6-B engineering: make runnable component-era publication
+  consume and retain that opaque acceptance, then retire the legacy compiler's
+  temporary final-output rejection. The current `write_output` lane publishes
+  a native executable directly and carries neither the manifest nor an
+  installation acceptance, so removing the fence there would erase the
+  obligation; selected plans and authorized routes remain insufficient.
+  Independently add authored
   qualification-preserving correspondence beyond direct parameter/field
   identity. `QualificationEvidence` retains evidence kind and source
   declaration but not an exact source-place relation; unknown, indexed, local,

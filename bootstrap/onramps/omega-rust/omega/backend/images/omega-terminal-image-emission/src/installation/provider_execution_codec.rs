@@ -1,4 +1,4 @@
-//! Canonical format-33 codec for admitted provider-execution evidence.
+//! Canonical format-34 codec for admitted provider-execution evidence.
 //!
 //! Both enclosing settlements and nested completion-custody rows use this
 //! exact five-identity grammar. Admission and closure validation remain in the

@@ -1,4 +1,4 @@
-//! Little-endian format-33 byte primitives.
+//! Little-endian format-34 byte primitives.
 //!
 //! All higher-level installation codecs share this bounds-checked cursor and
 //! these canonical scalar writers, preserving their existing error order.
