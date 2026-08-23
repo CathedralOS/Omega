@@ -38,12 +38,12 @@ for t in cargo clang codesign; do command -v "$t" >/dev/null 2>&1 || { echo "ome
 
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 
-# Rust-free steady execution: alpha seed -> beta assembler -> bc -> {interp.exe, omega2gamma.exe}
-. "${OMEGA_PATH_ALPHA}"/seed_env.sh
+# Rust-free steady execution via the persisted lattice Beta compiler artifact.
+. "${OMEGA_PATH_BETA}"/artifact_env.sh
 SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
 ASM="${OMEGA_PATH_BETA_ASSEMBLER}"/$BETA_SEED
-( cd "${OMEGA_PATH_BETA_COMPILER_RUST}" && sh build.sh "${OMEGA_PATH_BETA}"/bc.beta >/dev/null ) || { echo "omega kernel diamond FAIL — bc build"; exit 1; }
-BC="${OMEGA_PATH_BETA_COMPILER_RUST}"/build/bc.exe
+stamp_beta_compiler "$T/bc.exe" >/dev/null || { echo "omega kernel diamond FAIL — Beta compiler artifact"; exit 1; }
+BC="$T/bc.exe"
 build_beta() { # src.beta  ->  out.exe   (bc -> assemble -> stamp)
   "$BC" < "$1" > "$T/b.asm" 2>/dev/null && "$ASM" < "$T/b.asm" > "$T/b.tape" 2>/dev/null \
     && stamp_seed "$T/b.tape" "$SEED" "$2" >/dev/null 2>&1

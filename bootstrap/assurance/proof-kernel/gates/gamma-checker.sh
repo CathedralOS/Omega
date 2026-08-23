@@ -17,14 +17,15 @@ if [ -z "${OMEGA_REPO_ROOT:-}" ]; then
   unset OMEGA_PATH_PARENT
 fi
 . "$OMEGA_REPO_ROOT/bootstrap/paths.sh" || exit $?
+. "$OMEGA_PATH_BETA/artifact_env.sh" || exit $?
 cd "$OMEGA_PATH_PROOF_KERNEL"
 . "${OMEGA_PATH_ALPHA}"/seed_env.sh
 SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
 ASM="${OMEGA_PATH_BETA_ASSEMBLER}"/$BETA_SEED
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
+stamp_beta_compiler "$T/bc.exe" >/dev/null
 
-( cd "${OMEGA_PATH_BETA_COMPILER_RUST}" && sh build.sh "${OMEGA_PATH_BETA}"/bc.beta >/dev/null ) || { echo "bc build failed"; exit 1; }
-"${OMEGA_PATH_BETA_COMPILER_RUST}"/build/bc.exe < "${OMEGA_PATH_GAMMA}"/interp.beta > "$T/g.asm" || { echo "bc(interp.beta) failed"; exit 1; }
+"$T/bc.exe" < "${OMEGA_PATH_GAMMA}"/interp.beta > "$T/g.asm" || { echo "bc(interp.beta) failed"; exit 1; }
 "$ASM" < "$T/g.asm" > "$T/g.tape" || { echo "assemble failed"; exit 1; }
 stamp_seed "$T/g.tape" "$SEED" "$T/g.exe" >/dev/null 2>&1
 DEFS=$(cat implementations/gamma/checker.gamma)

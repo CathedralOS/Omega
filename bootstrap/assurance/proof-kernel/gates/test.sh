@@ -17,16 +17,17 @@ if [ -z "${OMEGA_REPO_ROOT:-}" ]; then
   unset OMEGA_PATH_PARENT
 fi
 . "$OMEGA_REPO_ROOT/bootstrap/paths.sh" || exit $?
+. "$OMEGA_PATH_BETA/artifact_env.sh" || exit $?
 cd "$OMEGA_PATH_PROOF_KERNEL"
 . "${OMEGA_PATH_ALPHA}"/seed_env.sh
 SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
 ASM="${OMEGA_PATH_BETA_ASSEMBLER}"/$BETA_SEED
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
+stamp_beta_compiler "$T/bc.exe" >/dev/null
 
-# build a .beta program with bc (cold-start bc through the on-ramp once)
-( cd "${OMEGA_PATH_BETA_COMPILER_RUST}" && sh build.sh "${OMEGA_PATH_BETA}"/bc.beta >/dev/null ) || { echo "bc build failed"; exit 1; }
+# Build .beta programs with the canonical lattice-built bc artifact.
 buildbc() { # src.beta -> $T/out.exe
-  "${OMEGA_PATH_BETA_COMPILER_RUST}"/build/bc.exe < "$1" > "$T/p.asm" || { echo "bc($1) failed"; exit 1; }
+  "$T/bc.exe" < "$1" > "$T/p.asm" || { echo "bc($1) failed"; exit 1; }
   "$ASM" < "$T/p.asm" > "$T/p.tape" || { echo "assemble $1 failed"; exit 1; }
   stamp_seed "$T/p.tape" "$SEED" "$2" >/dev/null 2>&1
   echo "$1 tape: $(wc -c < "$T/p.tape" | tr -d ' ') B (compiled by bc)"

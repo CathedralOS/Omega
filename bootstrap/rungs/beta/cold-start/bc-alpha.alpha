@@ -1,14 +1,17 @@
-; bc-alpha.alpha — Alpha-written cold-start compiler for Beta Slices A-C.
+; bc-alpha.alpha — complete Alpha-written cold-start compiler for Beta.
 ;
 ; Accepted source:
 ;   proc IDENT(PARAMS) { STATEMENT* }
 ;   STATEMENT := 'let' IDENT '=' EXPR | IDENT '=' EXPR | 'return' EXPR
 ;              | 'state' IDENT '{' STATEMENT* '}'
 ;              | 'to' IDENT ('when' EXPR)?
+;              | ('byte'|'word') '[' EXPR ']' '=' EXPR
+;              | IDENT '(' ARGS ')' | 'emit' '(' STRING ')'
 ;   EXPR := SUM (('<'|'>'|'=='|'!='|'<='|'>=') SUM)?
 ;   SUM := TERM (('+' | '-') TERM)*
 ;   TERM := FACTOR (('*' | '/' | '%') FACTOR)*
-;   FACTOR := DECIMAL | CHAR | IDENT | IDENT(ARGS) | '(' EXPR ')'
+;   FACTOR := DECIMAL | CHAR | IDENT | IDENT(ARGS)
+;           | ('byte'|'word') '[' EXPR ']' | '(' EXPR ')'
 ;
 ; Whitespace and `;` line comments are accepted between tokens. Decimal
 ; literals are deliberately capped at nine digits in this first slice. Character
@@ -29,6 +32,7 @@
 ;   524568 STATE_COUNT 524576 EDGE_COUNT 524584 ASSIGN_SLOT
 ;   524592 PROC_STATE_COUNT 524600 PROC_EDGE_COUNT
 ;   524608 STATE_CURSOR 524616 EDGE_CURSOR 524624 CALL_CURSOR
+;   524640 STORE_WIDTH
 ; Buffers:
 ;   1048576 SOURCE (1048576-byte checked compiler extent)
 ;   2097152 decimal output scratch
@@ -37,6 +41,7 @@
 ;   600000 SLOT_TABLE (64 x 16: start, len)
 ;   610000 NAME_STACK (64 x 24: start, len, argc)
 ;   620000 CMP_STACK (65 x 8: comparison opcode at depths 0..64)
+;   621000 WIDTH_STACK (64 x 8: nested memory-load widths)
 ;   630000 STATE_TABLE (512 x 24: start, len, proc index)
 ;   680000 EDGE_TABLE (512 x 24: start, len, proc index)
 
@@ -280,9 +285,24 @@ parse_statement:
         imm   r1, 2
         call  match_literal
         jnz   r0, ps_to
+        imm   r0, kw_byte
+        imm   r1, 4
+        call  match_literal
+        jnz   r0, ps_store_byte
+        imm   r0, kw_word
+        imm   r1, 4
+        call  match_literal
+        jnz   r0, ps_store_word
+        imm   r0, kw_emit
+        imm   r1, 4
+        call  match_literal
+        jnz   r0, ps_emit
         call  parse_identifier
         call  error_value
         jnz   r0, ps_done
+        call  peek_token_char
+        imm   r1, 40
+        jeq   r0, r1, ps_call_stmt
         call  lookup_name
         imm   r1, 524584
         store r1, r0
@@ -298,6 +318,9 @@ parse_statement:
         imm   r0, 524584
         load  r0, r0
         call  emit_store_slot
+        ret
+ps_call_stmt:
+        call  pf_call
         ret
 ps_let:
         call  parse_identifier
@@ -411,6 +434,48 @@ ps_to_when:
         jnz   r0, ps_done
         call  restore_tmp_name
         call  emit_guarded_target
+        ret
+ps_store_byte:
+        imm   r0, 524640
+        imm   r1, 1
+        store r0, r1
+        jmp   ps_store
+ps_store_word:
+        imm   r0, 524640
+        imm   r1, 8
+        store r0, r1
+ps_store:
+        imm   r0, 91
+        call  expect_char
+        call  error_value
+        jnz   r0, ps_done
+        call  parse_expr
+        call  error_value
+        jnz   r0, ps_done
+        imm   r0, 93
+        call  expect_char
+        call  error_value
+        jnz   r0, ps_done
+        imm   r0, 61
+        call  expect_char
+        call  error_value
+        jnz   r0, ps_done
+        call  emit_push
+        call  parse_expr
+        call  error_value
+        jnz   r0, ps_done
+        call  emit_memory_store
+        ret
+ps_emit:
+        imm   r0, 40
+        call  expect_char
+        call  error_value
+        jnz   r0, ps_done
+        call  parse_emit_string
+        call  error_value
+        jnz   r0, ps_done
+        imm   r0, 41
+        call  expect_char
 ps_done:
         ret
 
@@ -564,6 +629,14 @@ pt_return:
         ret
 
 parse_factor:
+        imm   r0, kw_byte
+        imm   r1, 4
+        call  match_literal
+        jnz   r0, pf_load_byte
+        imm   r0, kw_word
+        imm   r1, 4
+        call  match_literal
+        jnz   r0, pf_load_word
         call  peek_token_char
         imm   r1, 40
         jeq   r0, r1, pf_paren
@@ -602,6 +675,29 @@ pf_char:
         ret
 pf_decimal:
         call  parse_decimal
+        ret
+pf_load_byte:
+        imm   r0, 1
+        call  push_load_width
+        jmp   pf_load
+pf_load_word:
+        imm   r0, 8
+        call  push_load_width
+pf_load:
+        call  error_value
+        jnz   r0, pf_return
+        imm   r0, 91
+        call  expect_char
+        call  error_value
+        jnz   r0, pf_return
+        call  parse_expr
+        call  error_value
+        jnz   r0, pf_return
+        imm   r0, 93
+        call  expect_char
+        call  error_value
+        jnz   r0, pf_return
+        call  finish_memory_load
         ret
 pf_identifier:
         call  parse_identifier
@@ -689,6 +785,69 @@ emit_store_slot:
         call  emit_unsigned
         imm   r0, out_store_slot_b
         imm   r1, 23
+        call  emit_fixed
+        ret
+
+; Input r0 is 1 or 8. Memory-load brackets consume one checked expression
+; depth so nested byte[word[...]] forms cannot overwrite the outer width.
+push_load_width:
+        mov   r7, r0
+        imm   r0, 524392
+        load  r6, r0
+        imm   r1, 64
+        jeq   r6, r1, plw_error
+        imm   r0, 8
+        mul   r0, r6
+        imm   r1, 621000
+        add   r0, r1
+        store r0, r7
+        imm   r0, 524392
+        imm   r1, 1
+        add   r6, r1
+        store r0, r6
+        ret
+plw_error:
+        call  set_error
+        ret
+
+finish_memory_load:
+        imm   r0, 524392
+        load  r6, r0
+        imm   r1, 1
+        sub   r6, r1
+        store r0, r6
+        imm   r0, 8
+        mul   r0, r6
+        imm   r1, 621000
+        add   r0, r1
+        load  r6, r0
+        imm   r0, 1
+        jeq   r6, r0, fml_byte
+        imm   r0, out_load_word
+        imm   r1, 12
+        call  emit_fixed
+        ret
+fml_byte:
+        imm   r0, out_load_byte
+        imm   r1, 13
+        call  emit_fixed
+        ret
+
+emit_memory_store:
+        imm   r0, out_pop_r1
+        imm   r1, 33
+        call  emit_fixed
+        imm   r0, 524640
+        load  r0, r0
+        imm   r1, 1
+        jeq   r0, r1, ems_byte
+        imm   r0, out_store_word
+        imm   r1, 12
+        call  emit_fixed
+        ret
+ems_byte:
+        imm   r0, out_store_byte
+        imm   r1, 13
         call  emit_fixed
         ret
 
@@ -1037,6 +1196,74 @@ pc_closed:
 pc_error:
         call  set_error
 pc_return:
+        ret
+
+parse_emit_string:
+        imm   r0, 34
+        call  expect_char
+        call  error_value
+        jnz   r0, pes_return
+pes_loop:
+        call  peek_raw_char
+        imm   r1, 0
+        jlt   r0, r1, pes_error
+        imm   r1, 34
+        jeq   r0, r1, pes_close
+        imm   r1, 92
+        jeq   r0, r1, pes_escape
+        mov   r7, r0
+        call  consume_one
+        jmp   pes_emit
+pes_escape:
+        call  consume_one
+        call  peek_raw_char
+        imm   r1, 0
+        jlt   r0, r1, pes_error
+        imm   r1, 110
+        jeq   r0, r1, pes_newline
+        imm   r1, 116
+        jeq   r0, r1, pes_tab
+        imm   r1, 114
+        jeq   r0, r1, pes_cr
+        imm   r1, 48
+        jeq   r0, r1, pes_zero
+        imm   r1, 92
+        jeq   r0, r1, pes_literal_escape
+        imm   r1, 34
+        jeq   r0, r1, pes_literal_escape
+        jmp   pes_error
+pes_newline:
+        imm   r7, 10
+        jmp   pes_escape_done
+pes_tab:
+        imm   r7, 9
+        jmp   pes_escape_done
+pes_cr:
+        imm   r7, 13
+        jmp   pes_escape_done
+pes_zero:
+        imm   r7, 0
+        jmp   pes_escape_done
+pes_literal_escape:
+        mov   r7, r0
+pes_escape_done:
+        call  consume_one
+pes_emit:
+        imm   r0, out_imm_prefix
+        imm   r1, 7
+        call  emit_fixed
+        mov   r0, r7
+        call  emit_unsigned
+        imm   r0, out_emit_write
+        imm   r1, 10
+        call  emit_fixed
+        jmp   pes_loop
+pes_close:
+        call  consume_one
+pes_return:
+        ret
+pes_error:
+        call  set_error
         ret
 
 ; Input r6 is a source cursor. Return byte in r0 or set ERROR at EOF.
@@ -1446,6 +1673,22 @@ finish_call:
         imm   r1, 610000
         mov   r7, r0
         add   r7, r1
+        load  r1, r7
+        imm   r0, 524320
+        store r0, r1
+        imm   r0, 8
+        add   r0, r7
+        load  r1, r0
+        imm   r0, 524328
+        store r0, r1
+        imm   r0, kw_read_byte
+        imm   r1, 9
+        call  name_equals_literal
+        jnz   r0, fc_read_byte
+        imm   r0, kw_write_byte
+        imm   r1, 10
+        call  name_equals_literal
+        jnz   r0, fc_write_byte
         imm   r0, 524312
         load  r0, r0
         jnz   r0, fc_select
@@ -1508,12 +1751,40 @@ fc_emit_call:
         imm   r0, out_newline
         imm   r1, 1
         call  emit_fixed
+        jmp   fc_leave
+fc_read_byte:
+        imm   r0, 16
+        add   r0, r7
+        load  r0, r0
+        jnz   r0, fc_builtin_error
+        imm   r0, out_read_byte
+        imm   r1, 8
+        call  emit_fixed
+        jmp   fc_leave
+fc_write_byte:
+        imm   r0, 16
+        add   r0, r7
+        load  r0, r0
+        imm   r1, 1
+        jeq   r0, r1, fc_write_ok
+        jmp   fc_builtin_error
+fc_write_ok:
+        imm   r0, out_pop_r0
+        imm   r1, 33
+        call  emit_fixed
+        imm   r0, out_write_byte
+        imm   r1, 9
+        call  emit_fixed
+fc_leave:
         imm   r0, 524392
         load  r1, r0
         imm   r2, 1
         sub   r1, r2
         store r0, r1
 fc_return:
+        ret
+fc_builtin_error:
+        call  set_error
         ret
 
 ; r0 points at a NAME_STACK record.
@@ -2554,6 +2825,10 @@ kw_word:
         db "word"
 kw_emit:
         db "emit"
+kw_read_byte:
+        db "read_byte"
+kw_write_byte:
+        db "write_byte"
 kw_main:
         db "main"
 out_program_prelude:
@@ -2592,6 +2867,14 @@ out_store_slot_a:
         db "\nmov r1,r14\nimm r2,"
 out_store_slot_b:
         db "\nsub r1,r2\nstore r1,r0\n"
+out_load_byte:
+        db "\nloadb r0,r0\n"
+out_load_word:
+        db "\nload r0,r0\n"
+out_store_byte:
+        db "storeb r1,r0\n"
+out_store_word:
+        db "store r1,r0\n"
 out_pop_r3:
         db "\nload r3,r15\nimm r5,8\nadd r15,r5\n"
 out_pop_r2:
@@ -2602,6 +2885,12 @@ out_pop_r0:
         db "\nload r0,r15\nimm r5,8\nadd r15,r5\n"
 out_call:
         db "call "
+out_read_byte:
+        db "read r0\n"
+out_write_byte:
+        db "write r0\n"
+out_emit_write:
+        db "\nwrite r0\n"
 out_newline:
         db "\n"
 out_internal_prefix:

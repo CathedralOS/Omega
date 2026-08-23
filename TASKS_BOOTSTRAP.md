@@ -68,8 +68,9 @@ lattice and `compiler/` for the product implementation.
 - Alpha has written small-step semantics, conformance tests, and two independent
   native seeds.
 - Beta's `bc.beta` self-hosts. Its fixed point establishes dependency closure;
-  complete lower-rooted validation of the Rust-cold-started `bc` artifact
-  against `bc.beta` remains open.
+  the persisted artifact is now reconstructed entirely through Alpha and used by
+  downstream gates. Complete lower-rooted validation of that artifact against
+  `bc.beta` remains open.
 - Gamma's canonical surface is the functional interpreter-first language. The
   imperative `gamma.alpha` language is parked compatibility material.
 - The proof kernel is implemented independently in Beta and Gamma. It checks
@@ -397,10 +398,10 @@ additional facilities the bootstrap actually needs.
 
 ## Repository-structure work packages
 
-- [ ] **Close the `bc` cold-start edge without DDC.** Build the seed Beta
-  compiler through the preceding audited rung or validate the complete artifact
-  against `bc.beta` using authority rooted below `bc`. Fixed-point or
-  cross-compiler byte agreement is not acceptance evidence.
+- [ ] **Close the `bc` source-correspondence edge without DDC.** The seed Beta
+  compiler is now built through the preceding audited rung; validate the
+  complete artifact against `bc.beta` using authority rooted below `bc`.
+  Fixed-point or cross-compiler byte agreement is not acceptance evidence.
   - [x] Specify the compiler observable as the complete output byte stream plus
     halt, trap, divergence, and checked resource exhaustion—not merely an exit
     byte or a finite set of executions. `bootstrap/rungs/beta/BOOTSTRAP_OBSERVABLE.md`
@@ -409,7 +410,7 @@ additional facilities the bootstrap actually needs.
   - [x] Make `bc.beta` reject source-arena exhaustion before it can overwrite
     adjacent compiler tables or emit a truncated Alpha assembly artifact. The
     exact 1 MiB boundary and empty-output failure projection are gated.
-  - [ ] Implement the exact `bc.beta` bootstrap profile in an Alpha-written Beta
+  - [x] Implement the exact `bc.beta` bootstrap profile in an Alpha-written Beta
     compiler assembled and run only through the audited Alpha/Beta seed path.
     The current Python symbolic model cannot cover `bc.beta`'s data-dependent
     branching, word memory, or full-stream emission and is not this authority.
@@ -436,9 +437,22 @@ additional facilities the bootstrap actually needs.
       covers signed/nested comparisons, optional guard grouping, forward/backward
       flow, loops, fallthrough, scoping, adversarial names, and exact/overflow
       capacity boundaries.
-  - [ ] Persist the resulting lattice-built `bc` artifact, run its self-build and
-    Beta corpus gates, then switch proof-kernel, Gamma, Delta, and Omega gates
-    away from the ephemeral Rust-produced `bc0`.
+    - [x] Complete Slice D with nested byte/word memory, call statements,
+      `read_byte`/`write_byte`, and decoded fixed-string `emit`. The Alpha-written
+      compiler now accepts all 30,307 pinned source bytes and emits valid Alpha.
+  - [x] Adopt the resulting lattice-built `bc` artifact throughout the bootstrap.
+    - [x] Persist the 48,653-byte platform-independent fixed-point `bc.tape` and
+      gate byte-for-byte reconstruction, another self-build generation, and the
+      complete retained Beta corpus through it. No Rust producer is in its
+      construction lineage.
+    - [x] Switch proof-kernel, Gamma, Delta, Omega0, and refinement gates away
+      from their ephemeral Rust-produced `bc0` setup to the shared artifact
+      loader, retaining Rust comparisons only where explicitly diagnostic.
+  - [ ] Discharge whole-compiler source correspondence for the exact persisted
+    artifact. Reconstruct the complete observable from `bc.beta` and the tape
+    with authority rooted below `bc`, including output bytes and every terminal
+    classification in `BOOTSTRAP_OBSERVABLE.md`; fixed-point identity and the
+    retained corpus remain supporting evidence, not this proof.
   - [x] Enlarge the x64 seed's former 32 KiB image extent before claiming
     cross-platform closure; both committed seeds now reserve 256 KiB, sufficient
     for the current roughly 48 KiB self-hosted tape.
@@ -553,7 +567,8 @@ additional facilities the bootstrap actually needs.
 
 ## Execution order
 
-1. Close the `bc` cold-start source-to-artifact edge with lower-rooted checking.
+1. Close the Alpha-rooted `bc` source-correspondence edge with lower-rooted
+   checking.
 2. Finish Delta's Rust-free meaning route and preserve the native/meaning
    differential gates.
 3. Grow proof-kernel capability and its operational seams only in lockstep with
@@ -575,7 +590,9 @@ Run from the repository root:
 sh compiler/verify-lattice.sh
 sh bootstrap/rungs/alpha/assembler/selfhost.sh
 sh bootstrap/onramps/alpha-assembler-rust/test.sh
-sh bootstrap/onramps/beta-rust/test.sh
+sh bootstrap/onramps/beta-rust/test.sh  # diagnostic producer only
+sh bootstrap/rungs/beta/cold-start/test.sh
+sh bootstrap/rungs/beta/cold-start/full-source.sh
 sh bootstrap/rungs/beta/selfhost.sh
 sh bootstrap/rungs/beta/test.sh
 sh bootstrap/rungs/gamma/test-interp.sh

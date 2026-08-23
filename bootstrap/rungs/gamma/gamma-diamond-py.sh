@@ -23,14 +23,15 @@ if [ -z "${OMEGA_REPO_ROOT:-}" ]; then
   unset OMEGA_PATH_PARENT
 fi
 . "$OMEGA_REPO_ROOT/bootstrap/paths.sh" || exit $?
+. "$OMEGA_PATH_BETA/artifact_env.sh" || exit $?
 cd "$OMEGA_GATE_DIR"
 command -v python3 >/dev/null 2>&1 || { echo "gamma diamond (py): skipped (python3 absent)"; exit 0; }
 . "${OMEGA_PATH_ALPHA}"/seed_env.sh
 SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
 ASM="${OMEGA_PATH_BETA_ASSEMBLER}"/$BETA_SEED
-( cd "${OMEGA_PATH_BETA_COMPILER_RUST}" && sh build.sh "${OMEGA_PATH_BETA}"/bc.beta >/dev/null 2>&1 ) || { echo "gamma diamond (py): bc build failed"; exit 1; }
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
-"${OMEGA_PATH_BETA_COMPILER_RUST}"/build/bc.exe < interp.beta > "$T/g.asm" 2>/dev/null && "$ASM" < "$T/g.asm" > "$T/g.tape" 2>/dev/null \
+stamp_beta_compiler "$T/bc.exe" >/dev/null
+"$T/bc.exe" < interp.beta > "$T/g.asm" 2>/dev/null && "$ASM" < "$T/g.asm" > "$T/g.tape" 2>/dev/null \
   && stamp_seed "$T/g.tape" "$SEED" "$T/g.exe" >/dev/null 2>&1 || { echo "gamma diamond (py): interp build failed"; exit 1; }
 G="$T/g.exe"
 

@@ -11,7 +11,7 @@ while [ ! -f "$OMEGA_REPO_ROOT/bootstrap/paths.sh" ]; do
   OMEGA_REPO_ROOT=$PARENT
 done
 . "$OMEGA_REPO_ROOT/bootstrap/paths.sh"
-. "$OMEGA_PATH_ALPHA/seed_env.sh"
+. "$OMEGA_PATH_BETA/artifact_env.sh"
 cd "$OMEGA_REPO_ROOT"
 
 command -v cargo >/dev/null 2>&1 || { echo "delta O1 artifact meaning: skipped (cargo absent)"; exit 0; }
@@ -36,9 +36,9 @@ else
     "$OMEGA_PATH_OMEGA0/compiler/omega0-terminal-to-elf.alp" "$T/backend" >/dev/null
 fi
 
-( cd "$OMEGA_PATH_BETA_COMPILER_RUST" && sh build.sh "$OMEGA_PATH_BETA/bc.beta" >/dev/null ) \
-  || { echo "delta O1 artifact meaning FAIL — bc build"; exit 1; }
-BC="$OMEGA_PATH_BETA_COMPILER_RUST/build/bc.exe"
+stamp_beta_compiler "$T/bc.exe" >/dev/null \
+  || { echo "delta O1 artifact meaning FAIL — Beta compiler artifact"; exit 1; }
+BC="$T/bc.exe"
 ASM="$OMEGA_PATH_BETA_ASSEMBLER/$BETA_SEED"
 build_beta() {
   "$BC" < "$1" > "$T/program.asm" 2>/dev/null \

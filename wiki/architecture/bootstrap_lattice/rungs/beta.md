@@ -24,10 +24,12 @@ Beta compiles structurally to Alpha assembly, which the Alpha assembler lowers
 to a tape governed by Alpha's written semantics. The steady-state compiler is
 `bootstrap/rungs/beta/bc.beta`, written in Beta and self-hosted to a byte-identical
 fixed point. The first compiler was cold-started by the disposable
-`bootstrap/onramps/beta-rust/` producer; the current
-artifact still needs complete lower-rooted validation against `bc.beta`. A fixed
-point proves deterministic dependency closure, not compiler correctness or
-source correspondence. DDC is not an architectural closure mechanism.
+`bootstrap/onramps/beta-rust/` producer. The current persisted artifact is
+instead reconstructed by the Alpha-written cold-start compiler and contains no
+Rust producer in its lineage; it still needs complete lower-rooted validation
+against `bc.beta`. A fixed point proves deterministic dependency closure, not
+compiler correctness or source correspondence. DDC is not an architectural
+closure mechanism.
 
 The Alpha assembler formerly lived in `compiler/beta/`, but it is an Alpha tool:
 it is written in Alpha assembly and translates Alpha assembly to Alpha tapes.
@@ -46,7 +48,7 @@ memory.
 
 - `bootstrap/rungs/alpha/assembler/assembler.alpha` — self-hosting Alpha assembler;
 - `bootstrap/rungs/beta/bc.beta` — self-hosting Beta compiler;
-- `bootstrap/onramps/beta-rust/` — retained Rust cold-start/reference producer
+- `bootstrap/onramps/beta-rust/` — retained Rust diagnostic/reference producer
   (`compiler/beta-lang-rs` is a compatibility path);
 - `bootstrap/rungs/beta/reference/` — executable Python reference meaning,
   parser, and semantic fuzzing;
@@ -56,9 +58,10 @@ memory.
   discipline over Alpha;
 - `bootstrap/rungs/beta/LANGUAGE.md` — current Beta surface.
 
-`bootstrap/rungs/beta/selfhost.sh` and `test.sh` gate the fixed point and language
-behavior. The comparison-only Python compiler and DDC gate were removed because
-they added no unique semantic or lower-rooted refinement coverage.
+`bootstrap/rungs/beta/cold-start/full-source.sh`, `selfhost.sh`, and `test.sh`
+gate reconstruction, the fixed point, and language behavior. The comparison-only
+Python compiler and DDC gate were removed because they added no unique semantic
+or lower-rooted refinement coverage.
 
 ## Implementation frontiers
 

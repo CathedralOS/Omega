@@ -28,12 +28,12 @@ if [ -z "${OMEGA_REPO_ROOT:-}" ]; then
 fi
 . "$OMEGA_REPO_ROOT/bootstrap/paths.sh" || exit $?
 cd "$OMEGA_GATE_DIR"
-. "${OMEGA_PATH_ALPHA}"/seed_env.sh
+. "${OMEGA_PATH_BETA}"/artifact_env.sh
 SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
 ASM="${OMEGA_PATH_BETA_ASSEMBLER}"/$BETA_SEED
-( cd "${OMEGA_PATH_BETA_COMPILER_RUST}" && sh build.sh "${OMEGA_PATH_BETA}"/bc.beta >/dev/null ) || { echo "omega-meaning FAIL — bc build"; exit 1; }
-b() { "${OMEGA_PATH_BETA_COMPILER_RUST}"/build/bc.exe < "$1" > "$T/x.asm" 2>/dev/null && "$ASM" < "$T/x.asm" > "$T/x.tape" 2>/dev/null && stamp_seed "$T/x.tape" "$SEED" "$2" >/dev/null 2>&1; }
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
+stamp_beta_compiler "$T/bc.exe" >/dev/null || { echo "omega-meaning FAIL — Beta compiler artifact"; exit 1; }
+b() { "$T/bc.exe" < "$1" > "$T/x.asm" 2>/dev/null && "$ASM" < "$T/x.asm" > "$T/x.tape" 2>/dev/null && stamp_seed "$T/x.tape" "$SEED" "$2" >/dev/null 2>&1; }
 b "${OMEGA_PATH_OMEGA0}/meaning/omega2gamma.beta" "$T/omega2gamma.exe" \
   || { echo "omega-meaning FAIL — build omega2gamma.beta"; exit 1; }
 b "${OMEGA_PATH_GAMMA}"/interp.beta      "$T/interp.exe" || { echo "omega-meaning FAIL — build interp.beta"; exit 1; }

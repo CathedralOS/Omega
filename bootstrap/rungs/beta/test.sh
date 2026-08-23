@@ -1,7 +1,8 @@
 #!/usr/bin/env sh
-# Gate for bc.beta — the Beta compiler written in Beta. Builds bc (via the Rust
-# on-ramp), then uses bc AS a compiler: feeds it whole `proc main() { ... }`
-# programs, assembles + runs bc's emitted asm, and checks the exit code.
+# Gate for bc.beta — the Beta compiler written in Beta. Stamps the persisted
+# Alpha-rooted compiler artifact, then uses bc AS a compiler: feeds it whole
+# `proc main() { ... }` programs, assembles + runs bc's emitted asm, and checks
+# the exit code.
 #   slice 1  : arithmetic (return <expr>)
 #   slice 2a : + let locals, assignment, variable references
 OMEGA_GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
@@ -22,14 +23,22 @@ cd "$OMEGA_GATE_DIR"
 . "${OMEGA_PATH_ALPHA}"/seed_env.sh
 SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
 ASM="${OMEGA_PATH_BETA_ASSEMBLER}"/$BETA_SEED
+T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 
-# build bc.exe = the bc.beta compiler, lowered through the on-ramp
-( cd "${OMEGA_PATH_BETA_COMPILER_RUST}" && sh build.sh "${OMEGA_PATH_BETA}"/bc.beta >/dev/null ) || { echo "bc build failed"; exit 1; }
-BC="${OMEGA_PATH_BETA_COMPILER_RUST}"/build/bc.exe
-echo "bc tape: $(wc -c < "${OMEGA_PATH_BETA_COMPILER_RUST}"/build/bc.tape | tr -d ' ') B (hole $HOLE_SIZE)"
+# An explicit executable remains injectable for producer diagnostics. The
+# default and authoritative route is the persisted lattice artifact.
+if [ -n "${BETA_COMPILER_EXE:-}" ]; then
+  [ -x "$BETA_COMPILER_EXE" ] || { echo "bc compiler is not executable: $BETA_COMPILER_EXE"; exit 1; }
+  BC=$BETA_COMPILER_EXE
+  echo "bc compiler: injected executable"
+else
+  . "$OMEGA_PATH_BETA/artifact_env.sh"
+  BC="$T/bc.exe"
+  stamp_beta_compiler "$BC" >/dev/null || { echo "bc artifact stamp failed"; exit 1; }
+  echo "bc compiler: persisted lattice artifact ($(wc -c < "$BETA_COMPILER_TAPE" | tr -d ' ') B)"
+fi
 
 PASS=0; FAIL=0
-T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 ret() { # full-program  expected   (compile + assemble + run, check exit code)
   printf '%s\n' "$1" | "$BC" > "$T/p.asm" 2>/dev/null
   "$ASM" < "$T/p.asm" > "$T/p.tape" 2>/dev/null

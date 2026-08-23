@@ -30,11 +30,12 @@ command -v python3 >/dev/null 2>&1 || { echo "contracts SKIP — no python3 (nee
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 
 # 1. build the proof kernel (trust anchor), exactly as the lattice does
-. "${OMEGA_PATH_ALPHA}"/seed_env.sh
+. "${OMEGA_PATH_BETA}"/artifact_env.sh
 SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
 ASM="${OMEGA_PATH_BETA_ASSEMBLER}"/$BETA_SEED
-( cd "${OMEGA_PATH_BETA_COMPILER_RUST}" && sh build.sh "${OMEGA_PATH_BETA}"/bc.beta >/dev/null ) || { echo "contracts FAIL — bc build"; exit 1; }
-if "${OMEGA_PATH_BETA_COMPILER_RUST}"/build/bc.exe < "${OMEGA_PATH_PROOF_KERNEL}"/implementations/beta/check.beta > "$T/c.asm" 2>/dev/null \
+stamp_beta_compiler "$T/bc.exe" >/dev/null \
+  || { echo "contracts FAIL — Beta compiler artifact"; exit 1; }
+if "$T/bc.exe" < "${OMEGA_PATH_PROOF_KERNEL}"/implementations/beta/check.beta > "$T/c.asm" 2>/dev/null \
    && "$ASM" < "$T/c.asm" > "$T/c.tape" 2>/dev/null \
    && stamp_seed "$T/c.tape" "$SEED" "$T/check.exe" >/dev/null 2>&1; then :; else
   echo "contracts FAIL — could not build the proof kernel"; exit 1; fi

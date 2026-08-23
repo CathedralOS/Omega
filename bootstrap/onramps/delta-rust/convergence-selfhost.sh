@@ -33,12 +33,13 @@ for t in cargo clang codesign; do command -v "$t" >/dev/null 2>&1 || { echo "sel
 
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 
-# 1. the trust anchor: the proof kernel, built via alpha -> beta -> bc (identical to convergence.sh)
-. "${OMEGA_PATH_ALPHA}"/seed_env.sh
+# 1. the trust anchor: the proof kernel, built via the persisted lattice Beta compiler
+. "${OMEGA_PATH_BETA}"/artifact_env.sh
 SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
 ASM="${OMEGA_PATH_BETA_ASSEMBLER}"/$BETA_SEED
-( cd "${OMEGA_PATH_BETA_COMPILER_RUST}" && sh build.sh "${OMEGA_PATH_BETA}"/bc.beta >/dev/null ) || { echo "self-hosted convergence FAIL — bc build"; exit 1; }
-if "${OMEGA_PATH_BETA_COMPILER_RUST}"/build/bc.exe < "${OMEGA_PATH_PROOF_KERNEL}"/implementations/beta/check.beta > "$T/c.asm" 2>/dev/null \
+stamp_beta_compiler "$T/bc.exe" >/dev/null \
+  || { echo "self-hosted convergence FAIL — Beta compiler artifact"; exit 1; }
+if "$T/bc.exe" < "${OMEGA_PATH_PROOF_KERNEL}"/implementations/beta/check.beta > "$T/c.asm" 2>/dev/null \
    && "$ASM" < "$T/c.asm" > "$T/c.tape" 2>/dev/null \
    && stamp_seed "$T/c.tape" "$SEED" "$T/check.exe" >/dev/null 2>&1; then :; else
   echo "self-hosted convergence FAIL — could not build the proof kernel"; exit 1; fi

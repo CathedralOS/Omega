@@ -24,13 +24,14 @@ if [ -z "${OMEGA_REPO_ROOT:-}" ]; then
   unset OMEGA_PATH_PARENT
 fi
 . "$OMEGA_REPO_ROOT/bootstrap/paths.sh" || exit $?
+. "$OMEGA_PATH_BETA/artifact_env.sh" || exit $?
 cd "$OMEGA_PATH_PROOF_KERNEL"
 . "${OMEGA_PATH_ALPHA}"/seed_env.sh
 SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
 ASM="${OMEGA_PATH_BETA_ASSEMBLER}"/$BETA_SEED
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
-( cd "${OMEGA_PATH_BETA_COMPILER_RUST}" && sh build.sh "${OMEGA_PATH_BETA}"/bc.beta >/dev/null ) || { echo "bc build failed"; exit 1; }
-b() { "${OMEGA_PATH_BETA_COMPILER_RUST}"/build/bc.exe < "$1" > "$T/x.asm" && "$ASM" < "$T/x.asm" > "$T/x.tape" && stamp_seed "$T/x.tape" "$SEED" "$2" >/dev/null 2>&1; }
+stamp_beta_compiler "$T/bc.exe" >/dev/null
+b() { "$T/bc.exe" < "$1" > "$T/x.asm" && "$ASM" < "$T/x.asm" > "$T/x.tape" && stamp_seed "$T/x.tape" "$SEED" "$2" >/dev/null 2>&1; }
 b implementations/beta/check.beta "$T/check.exe"            || { echo "build implementations/beta/check.beta failed"; exit 1; }
 b "${OMEGA_PATH_GAMMA}"/interp.beta "$T/interp.exe" || { echo "build interp.beta failed"; exit 1; }
 # gamma operational defs: plus/mult + eqn (Nat eq); append/length + leq (List eq).

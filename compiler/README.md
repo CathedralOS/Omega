@@ -40,7 +40,7 @@ compatibility path.
 The disposable Rust producer of Alpha VM tapes lives at
 `bootstrap/onramps/alpha-assembler-rust/`; historical `compiler/beta-rs` is
 only its compatibility path and has no Beta-language role.
-The disposable Beta-language cold-start producer lives at
+The disposable Beta-language diagnostic/reference producer lives at
 `bootstrap/onramps/beta-rust/`; `compiler/beta-lang-rs` is its compatibility
 path.
 Delta's language corpus, Delta-written compiler, and lattice-built artifacts

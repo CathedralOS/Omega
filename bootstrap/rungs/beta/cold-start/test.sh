@@ -1,5 +1,5 @@
 #!/usr/bin/env sh
-# Focused gate for the first three Alpha-written Beta compiler slices.
+# Focused gate for the complete Alpha-written Beta compiler surface.
 set -eu
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
@@ -36,7 +36,7 @@ accept() {
     printf '%s\n' "$source" | "$TMP/bc-alpha" > /dev/null
     status=$?
     set -e
-    echo "FAIL $name: compiler rejected valid Slices-A-C source (status $status)" >&2
+    echo "FAIL $name: compiler rejected valid Beta source (status $status)" >&2
     fail=$((fail + 1))
     return
   fi
@@ -54,6 +54,32 @@ accept() {
     pass=$((pass + 1))
   else
     echo "FAIL $name: expected exit $expected, got $actual" >&2
+    fail=$((fail + 1))
+  fi
+}
+
+accept_io() {
+  name=$1
+  source=$2
+  input=$3
+  expected_status=$4
+  expected_output=$5
+  if ! printf '%s\n' "$source" | "$TMP/bc-alpha" > "$TMP/$name.alpha" ||
+     ! "$ASSEMBLER" < "$TMP/$name.alpha" > "$TMP/$name.tape"; then
+    echo "FAIL $name: compiler or assembler rejected valid I/O source" >&2
+    fail=$((fail + 1))
+    return
+  fi
+  stamp_seed "$TMP/$name.tape" "$SEED" "$TMP/$name" >/dev/null
+  set +e
+  printf '%s' "$input" | "$TMP/$name" > "$TMP/$name.stdout"
+  actual_status=$?
+  set -e
+  printf '%b' "$expected_output" > "$TMP/$name.expected"
+  if [ "$actual_status" = "$expected_status" ] && cmp -s "$TMP/$name.stdout" "$TMP/$name.expected"; then
+    pass=$((pass + 1))
+  else
+    echo "FAIL $name: expected status $expected_status and output bytes $(od -An -tu1 "$TMP/$name.expected"), got status $actual_status and $(od -An -tu1 "$TMP/$name.stdout")" >&2
     fail=$((fail + 1))
   fi
 }
@@ -113,6 +139,13 @@ accept state_loop 'proc main() { let n = 10 let s = 0 let i = 1 state loop { to 
 accept scoped_states 'proc main() { return f() } proc f() { state same { return 42 } } proc g() { state same { return 1 } }' 42
 accept shared_state_spelling 'proc main() { let shared = 1 state shared { return 42 } }' 42
 accept adversarial_labels 'proc main() { state main { return _L0() } } proc _L0() { state foo__bar { return 42 } } proc foo__bar() { return 0 }' 42
+accept byte_memory 'proc main() { let b = 2097152 byte[b] = 65 byte[b + 1] = 66 return byte[b] + byte[b + 1] }' 131
+accept word_memory 'proc main() { let b = 2097152 word[b] = 42 return word[b] }' 42
+accept nested_memory 'proc main() { let b = 2097152 word[b] = b + 16 byte[b + 16] = 77 return byte[word[b]] }' 77
+accept call_statement 'proc main() { let b = 2097152 touch(b) return word[b] } proc touch(p) { word[p] = 42 return 0 }' 42
+accept_io byte_io 'proc main() { let c = read_byte() write_byte(c + 1) return c }' A 65 B
+accept_io emit_text 'proc main() { emit("A\n") return 42 }' '' 42 'A\n'
+accept_io emit_empty 'proc main() { emit("") return 7 }' '' 7 ''
 
 if cmp -s "$TMP/guarded_true.alpha" "$TMP/guarded_grouped.alpha"; then
   pass=$((pass + 1))
@@ -173,6 +206,13 @@ reject unknown_state 'proc main() { to nowhere return 0 }'
 reject duplicate_state 'proc main() { state x { return 1 } state x { return 2 } }'
 reject cross_proc_state 'proc main() { to x return 0 } proc f() { state x { return 1 } }'
 reject reserved_state 'proc main() { state state { return 0 } }'
+reject read_arity 'proc main() { return read_byte(1) }'
+reject write_arity_zero 'proc main() { return write_byte() }'
+reject write_arity_two 'proc main() { return write_byte(1, 2) }'
+reject bad_memory_load 'proc main() { return byte[1 }'
+reject bad_memory_store 'proc main() { word[1] 42 return 0 }'
+reject unterminated_emit 'proc main() { emit("unterminated) return 0 }'
+reject bad_emit_escape 'proc main() { emit("bad\x") return 0 }'
 reject decimal_extent 'proc main() { return 1234567890 }'
 reject bad_character "proc main() { return '\\x' }"
 long_ident=$(awk 'BEGIN { for (i = 0; i < 65; i++) printf "a" }')
@@ -185,6 +225,14 @@ i=0
 while [ "$i" -lt 65 ]; do deep="${deep})"; i=$((i + 1)); done
 deep="${deep} }"
 reject nesting_extent "$deep"
+deep_load='proc main() { return '
+i=0
+while [ "$i" -lt 65 ]; do deep_load="${deep_load}word["; i=$((i + 1)); done
+deep_load="${deep_load}2097152"
+i=0
+while [ "$i" -lt 65 ]; do deep_load="${deep_load}]"; i=$((i + 1)); done
+deep_load="${deep_load} }"
+reject load_nesting_extent "$deep_load"
 wide=$(awk 'BEGIN { printf "proc main() { return 1"; for (i = 0; i < 12000; i++) printf "+1"; print " }" }')
 reject output_extent "$wide"
 many_slots=$(awk 'BEGIN { printf "proc main() {"; for (i = 0; i < 65; i++) printf " let v%d = %d", i, i; print " return 0 }" }')
@@ -236,5 +284,5 @@ else
   fail=$((fail + 1))
 fi
 
-echo "bc Alpha cold start Slices A-C: $pass passed, $fail failed ($(wc -c < "$TMP/bc-alpha.tape" | tr -d ' ')-byte compiler tape)"
+echo "bc Alpha cold start complete surface: $pass passed, $fail failed ($(wc -c < "$TMP/bc-alpha.tape" | tr -d ' ')-byte compiler tape)"
 [ "$fail" -eq 0 ]

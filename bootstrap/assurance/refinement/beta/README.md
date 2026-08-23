@@ -16,6 +16,9 @@ conformance.
 The shared parser and concrete interpreter remain under
 `bootstrap/rungs/beta/reference/`. Reconstruction may consume that meaning
 surface, but it neither compiles Beta nor grants an artifact authority.
+Support binaries are compiled with the persisted lattice-built `bc.tape`
+through `bootstrap/rungs/beta/artifact_env.sh`; the refinement owner does not
+rebuild or depend on the disposable Rust Beta producer.
 
 Run `ownership-test.sh`, `symbolic-loops.sh`, `refinement.sh`, and
 `refinement-cert-diamond.sh` from any working directory.
