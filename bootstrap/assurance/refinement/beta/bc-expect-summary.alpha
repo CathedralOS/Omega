@@ -21,7 +21,7 @@
 expect_summary_init:
         call expect_require_shape
         call expect_prove_summary
-        jmp scan_owned_effects_init
+        jmp declare_summary_init
 
 expect_prove_summary:
         imm r1, 526960

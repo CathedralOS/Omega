@@ -887,6 +887,22 @@ additional facilities the bootstrap actually needs.
           composed; both new modules remain below 7 KB.
         - [ ] Close `declare`, the bounded parameter loop, literal-aware
           cursor-restoring `count_lets`, and both pre-output status-252 returns.
+          - [x] Prove conditional `declare`. Exact procedure-34 shape closes
+            its three blocks, room guard, local `s` snapshot, seven fixed/ranged
+            memory sites, complete primitive and split-push rows, returns,
+            epilogues, 16-byte frame, and exhaustive quiet-region censuses. The
+            separate `DCLS` meaning imports the already-checked actual/source
+            `NLOC` interval and identifier-slice schema. For `s<=1023` it stores
+            IDOFF/IDLEN in the paired table entry, writes `NLOC=s+1`, preserves
+            resource status, and returns `s`; at `s=1024` it leaves NLOC/tables
+            unchanged, writes numeric `RESOURCE_FAIL=252`, and returns zero.
+            It makes no typed-exhaustion claim. Twelve isolated variants sever
+            the guard/snapshot, capacity/status/payloads, table closure, or one
+            branch relation. Shape and meaning remain below 10 KB and 7 KB.
+          - [ ] Compose the at-most-four parameter loop from read_ident,
+            expect, declare, and the fifth-parameter status-252 guard.
+          - [ ] Prove literal-aware, terminating `count_lets` and restoration of
+            its entry cursor; compose its slot-capacity status-252 guard.
         - [ ] Compose the deterministic procedure prefix: name, `":\n"`,
           prologue, and `nparams` parameter stores under `nslots<=1024`.
         - [ ] Give `gen_stmts`/`gen_stmt`/expression recursion maximal finite or

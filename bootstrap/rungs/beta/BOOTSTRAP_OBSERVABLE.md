@@ -248,8 +248,15 @@ are valuable teeth, but they do not yet establish the quantified observation:
   in-range NUL, preserves it, while a nonzero match proves an in-range byte and
   advances exactly once. Both paths return zero and are quiet apart from that
   possible CUR change. Exact CFG/call/local/expression/frame and exhaustive
-  ownership joins bind the theorem to procedure 24. The declare/parameter-loop/
-  count_lets cluster is the next frontier;
+  ownership joins bind the theorem to procedure 24;
+- its symbol-table insertion phase gives `declare` conditional meaning for
+  actual/source NLOC in `[0,1024]` and the current identifier slice. With room,
+  the paired NAMEOFF/NAMELEN entry receives IDOFF/IDLEN, NLOC becomes `s+1`,
+  and the result is `s`. At capacity, tables/NLOC stay unchanged, numeric
+  RESOURCE_FAIL becomes 252, and the result is zero. Exact CFG, local, memory,
+  expression, frame, and exhaustive ownership joins bind both cases to
+  procedure 34. No typed resource kind is inferred from 252. The parameter
+  loop and cursor-restoring count_lets are the next frontier;
 - no total `parse_proc` claim is currently made. Malformed procedure bodies can
   make `gen_stmts` diverge while emitting—for example when an unrecognized byte
   is never consumed—so closure requires maximal Return-or-Diverge and finite/

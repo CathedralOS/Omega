@@ -223,7 +223,9 @@ cat "$GATE_DIR/bc-block-control.alpha" \
   "$GATE_DIR/bc-read-ident-shape.alpha" \
   "$GATE_DIR/bc-read-ident-summary.alpha" \
   "$GATE_DIR/bc-expect-shape.alpha" \
-  "$GATE_DIR/bc-expect-summary.alpha" > "$T/control-check.alpha"
+  "$GATE_DIR/bc-expect-summary.alpha" \
+  "$GATE_DIR/bc-declare-shape.alpha" \
+  "$GATE_DIR/bc-declare-summary.alpha" > "$T/control-check.alpha"
 "$ASM" < "$T/control-check.alpha" > "$T/control-check.tape"
 stamp_seed "$T/control-check.tape" "$SEED" "$T/control-check" >/dev/null
 
@@ -644,6 +646,57 @@ sed 's/imm r2, 1                    ; checked nonzero match entails CUR<LEN/imm 
 "$ASM" < "$T/expect-drop-match-range.alpha" > "$T/expect-drop-match-range.tape"
 stamp_seed "$T/expect-drop-match-range.tape" "$SEED" "$T/expect-drop-match-range" >/dev/null
 
+# Phase-isolated declare teeth break exact guard/value/table closure or one
+# branch of the conditional insertion/resource relation.
+sed 's/imm r24, 24313               ; checked declare room guard/imm r24, 24314               ; checked declare room guard/' \
+  "$T/control-check.alpha" > "$T/declare-wrong-guard.alpha"
+"$ASM" < "$T/declare-wrong-guard.alpha" > "$T/declare-wrong-guard.tape"
+stamp_seed "$T/declare-wrong-guard.tape" "$SEED" "$T/declare-wrong-guard" >/dev/null
+sed 's/imm r24, 24190               ; checked NLOC snapshot into s/imm r24, 24191               ; checked NLOC snapshot into s/' \
+  "$T/control-check.alpha" > "$T/declare-wrong-snapshot.alpha"
+"$ASM" < "$T/declare-wrong-snapshot.alpha" > "$T/declare-wrong-snapshot.tape"
+stamp_seed "$T/declare-wrong-snapshot.tape" "$SEED" "$T/declare-wrong-snapshot" >/dev/null
+sed 's/imm r23, 1024                ; checked declare capacity/imm r23, 1023                ; checked declare capacity/' \
+  "$T/control-check.alpha" > "$T/declare-wrong-capacity.alpha"
+"$ASM" < "$T/declare-wrong-capacity.alpha" > "$T/declare-wrong-capacity.tape"
+stamp_seed "$T/declare-wrong-capacity.tape" "$SEED" "$T/declare-wrong-capacity" >/dev/null
+sed 's/imm r23, 252                 ; checked declare exhaustion status/imm r23, 253                 ; checked declare exhaustion status/' \
+  "$T/control-check.alpha" > "$T/declare-wrong-status.alpha"
+"$ASM" < "$T/declare-wrong-status.alpha" > "$T/declare-wrong-status.tape"
+stamp_seed "$T/declare-wrong-status.tape" "$SEED" "$T/declare-wrong-status" >/dev/null
+sed 's/imm r23, 2097120             ; IDOFF payload/imm r23, 2097128             ; IDOFF payload/' \
+  "$T/control-check.alpha" > "$T/declare-wrong-idoff.alpha"
+"$ASM" < "$T/declare-wrong-idoff.alpha" > "$T/declare-wrong-idoff.tape"
+stamp_seed "$T/declare-wrong-idoff.tape" "$SEED" "$T/declare-wrong-idoff" >/dev/null
+sed 's/imm r23, 2097112             ; IDLEN payload/imm r23, 2097120             ; IDLEN payload/' \
+  "$T/control-check.alpha" > "$T/declare-wrong-idlen.alpha"
+"$ASM" < "$T/declare-wrong-idlen.alpha" > "$T/declare-wrong-idlen.tape"
+stamp_seed "$T/declare-wrong-idlen.tape" "$SEED" "$T/declare-wrong-idlen" >/dev/null
+sed 's/imm r25, 44                  ; checked exclusive declare memory row/imm r25, 43                  ; checked exclusive declare memory row/' \
+  "$T/control-check.alpha" > "$T/declare-memory-undercount.alpha"
+"$ASM" < "$T/declare-memory-undercount.alpha" > "$T/declare-memory-undercount.tape"
+stamp_seed "$T/declare-memory-undercount.tape" "$SEED" "$T/declare-memory-undercount" >/dev/null
+sed 's/imm r23, 451                 ; checked exclusive declare primitive row/imm r23, 450                 ; checked exclusive declare primitive row/' \
+  "$T/control-check.alpha" > "$T/declare-primitive-undercount.alpha"
+"$ASM" < "$T/declare-primitive-undercount.alpha" > "$T/declare-primitive-undercount.tape"
+stamp_seed "$T/declare-primitive-undercount.tape" "$SEED" "$T/declare-primitive-undercount" >/dev/null
+sed 's/imm r2, 1                    ; checked full-table return zero/imm r2, 2                    ; checked full-table return zero/' \
+  "$T/control-check.alpha" > "$T/declare-wrong-full-return.alpha"
+"$ASM" < "$T/declare-wrong-full-return.alpha" > "$T/declare-wrong-full-return.tape"
+stamp_seed "$T/declare-wrong-full-return.tape" "$SEED" "$T/declare-wrong-full-return" >/dev/null
+sed 's/imm r2, 1                    ; checked 0<=s<=1023 table index/imm r2, 0                    ; checked 0<=s<=1023 table index/' \
+  "$T/control-check.alpha" > "$T/declare-drop-table-bound.alpha"
+"$ASM" < "$T/declare-drop-table-bound.alpha" > "$T/declare-drop-table-bound.tape"
+stamp_seed "$T/declare-drop-table-bound.tape" "$SEED" "$T/declare-drop-table-bound" >/dev/null
+sed 's/imm r2, 2                    ; checked NLOC=s+1 in \[1,1024\]/imm r2, 1                    ; checked NLOC=s+1 in [1,1024]/' \
+  "$T/control-check.alpha" > "$T/declare-wrong-nloc-update.alpha"
+"$ASM" < "$T/declare-wrong-nloc-update.alpha" > "$T/declare-wrong-nloc-update.tape"
+stamp_seed "$T/declare-wrong-nloc-update.tape" "$SEED" "$T/declare-wrong-nloc-update" >/dev/null
+sed 's/imm r2, 2                    ; checked successful return is s/imm r2, 1                    ; checked successful return is s/' \
+  "$T/control-check.alpha" > "$T/declare-wrong-room-return.alpha"
+"$ASM" < "$T/declare-wrong-room-return.alpha" > "$T/declare-wrong-room-return.tape"
+stamp_seed "$T/declare-wrong-room-return.tape" "$SEED" "$T/declare-wrong-room-return" >/dev/null
+
 # Phase-isolated tooth: leave the exact source, tape, witness, and every prior
 # checker phase unchanged, but underreport the prelude fp owner. Adjust only the
 # derived-map subtotal so rejection must come from the exhaustive equality scan.
@@ -745,7 +798,9 @@ cat "$GATE_DIR/bc-block-control.alpha" \
   "$GATE_DIR/bc-read-ident-shape.alpha" \
   "$GATE_DIR/bc-read-ident-summary.alpha" \
   "$GATE_DIR/bc-expect-shape.alpha" \
-  "$GATE_DIR/bc-expect-summary.alpha" > "$T/flat-check.alpha"
+  "$GATE_DIR/bc-expect-summary.alpha" \
+  "$GATE_DIR/bc-declare-shape.alpha" \
+  "$GATE_DIR/bc-declare-summary.alpha" > "$T/flat-check.alpha"
 "$ASM" < "$T/flat-check.alpha" > "$T/flat-check.tape"
 stamp_seed "$T/flat-check.tape" "$SEED" "$T/flat-check" >/dev/null
 
@@ -942,6 +997,16 @@ for expect_tooth in expect-wrong-skip-continuation expect-wrong-cbyte-continuati
   set -e
   if [ "$expect_tooth_status" != 1 ] || [ -s "$T/stdout" ]; then
     echo "bc block control FAIL — $expect_tooth was not rejected" >&2
+    exit 1
+  fi
+done
+for declare_tooth in declare-wrong-guard declare-wrong-snapshot declare-wrong-capacity declare-wrong-status declare-wrong-idoff declare-wrong-idlen declare-memory-undercount declare-primitive-undercount declare-wrong-full-return declare-drop-table-bound declare-wrong-nloc-update declare-wrong-room-return; do
+  set +e
+  "$T/$declare_tooth" < "$T/control.bundle" > "$T/stdout"
+  declare_tooth_status=$?
+  set -e
+  if [ "$declare_tooth_status" != 1 ] || [ -s "$T/stdout" ]; then
+    echo "bc block control FAIL — $declare_tooth was not rejected" >&2
     exit 1
   fi
 done
@@ -1144,4 +1209,4 @@ for mutation in call-retarget read-register write-register helper-write emit-byt
   fi
 done
 
-echo "bc block control/effects: 70 proc / 355 block / 291 transition; 613 effect sites / 829 fixed emit bytes; 113 __write_str calls instantiated from one length-ranked exact-output summary; main.ready composes emit_prelude/write_str/skip_ws into the exact 187-byte prefix, then a reusable main.loop split sends normalized zero to halt(0) and nonzero to main.body without consuming it; byte classifiers digit/alpha/alnum are exact over all 256 cbyte values, terminating read_ident returns their maximal prefix, and nonzero expect normalizes then conditionally consumes one delimiter; cbyte/adv/is_space leaf summaries compose through terminating skip_ws_step/skip_ws loops; 78 frame slots / 27 parameter stores / 134 call pops; 169 local loads / 73 local stores; 61 raw loads = 54 fixed-safe + 5 SRC-indexed + 2 table-indexed / 34 raw stores; cursor-zero slurp segment/value/termination summary composed from root through main.ready or halt(253); 581 literals / 55 arithmetic / 180 comparison primitives; 235 binary / 134 argument / 34 store-address pushes; syntax-directed composition / relative temporary peak 2; three ranged Alpha operands transferred; all 607 stores partitioned / 70 call-cut frames summarized; 64-row counter contexts; absolute B_bc1 stack <=12720 explicit bytes / <=662 hidden returns; all 2630 explicit-stack effects and 687 artifact effects owned ($(wc -c < "$T/control-check.tape" | tr -d ' ')-byte Alpha checker tape)"
+echo "bc block control/effects: 70 proc / 355 block / 291 transition; 613 effect sites / 829 fixed emit bytes; 113 __write_str calls instantiated from one length-ranked exact-output summary; main.ready composes emit_prelude/write_str/skip_ws into the exact 187-byte prefix, then a reusable main.loop split sends normalized zero to halt(0) and nonzero to main.body without consuming it; byte classifiers digit/alpha/alnum are exact over all 256 cbyte values, terminating read_ident returns their maximal prefix, nonzero expect normalizes then conditionally consumes one delimiter, and declare either appends the identifier slot or records numeric status 252 at capacity; cbyte/adv/is_space leaf summaries compose through terminating skip_ws_step/skip_ws loops; 78 frame slots / 27 parameter stores / 134 call pops; 169 local loads / 73 local stores; 61 raw loads = 54 fixed-safe + 5 SRC-indexed + 2 table-indexed / 34 raw stores; cursor-zero slurp segment/value/termination summary composed from root through main.ready or halt(253); 581 literals / 55 arithmetic / 180 comparison primitives; 235 binary / 134 argument / 34 store-address pushes; syntax-directed composition / relative temporary peak 2; three ranged Alpha operands transferred; all 607 stores partitioned / 70 call-cut frames summarized; 64-row counter contexts; absolute B_bc1 stack <=12720 explicit bytes / <=662 hidden returns; all 2630 explicit-stack effects and 687 artifact effects owned ($(wc -c < "$T/control-check.tape" | tr -d ' ')-byte Alpha checker tape)"
