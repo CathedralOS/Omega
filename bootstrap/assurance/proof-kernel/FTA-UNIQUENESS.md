@@ -1,7 +1,7 @@
 # The road to FTA *uniqueness* (the proof-kernel corpus's headline frontier)
 
 The **existence** half of the fundamental theorem of arithmetic is in the gate
-(`proofs/fundamental-theorem-arithmetic.elab`: every `n>0` is a product of a list of primes).
+(`corpus/proofs/fundamental-theorem-arithmetic.elab`: every `n>0` is a product of a list of primes).
 The **uniqueness** half — *that factorization is unique up to order* — is the corpus's remaining
 headline target. This note inventories what is already proved, identifies the single missing
 construct, and specifies the plan, so the (careful, trust-anchor-touching) work can be picked up
@@ -14,7 +14,7 @@ and a list-permutation relation `Perm`:
 
 > **FTA uniqueness.**  `ProdIs(L1,n) & ProdIs(L2,n) & allPrime(L1) & allPrime(L2) → Perm(L1,L2)`.
 
-## What is already proved (all in `proofs/`, all checked by the seed-rooted anchor)
+## What is already proved (all in `corpus/proofs/`, all checked by the seed-rooted anchor)
 
 The *pure* lemmas the uniqueness induction needs are **all present**:
 
@@ -62,7 +62,7 @@ and `ProdIs` (rel 778) already are. The standard 4-rule presentation (the multis
    Gotcha banked: the list argument of `permswap` is an individual/list **term**, so it is parsed with
    `parse_nat` (the misleadingly-named general term parser, handles `nil`/`cons`), NOT `parse_term`
    (which is the proof parser and starts with `expect('(')`). Validated with 5 positive + 3 negative
-   raw certs; `elab.py` got the four matching keyword cases. `proofs/perm-refl.elab` lands (∀L. Perm(L,L)
+   raw certs; `tools/elab.py` got the four matching keyword cases. `corpus/proofs/perm-refl.elab` lands (∀L. Perm(L,L)
    by `listind`: nil→permnil, cons→permskip on the IH). elab-test now **206 ok**; full lattice VERIFIED.
 2. **`checker.gamma`** (+ `checker_typed.gamma`) — ✅ DONE. The four rules mirrored in the pattern-match
    style (`((Permnil) (Rel 779 Lnil Lnil))`, `((Permskip x pf) …)`, `((Permswap x y r) …)`,
@@ -73,7 +73,7 @@ and `ProdIs` (rel 778) already are. The standard 4-rule presentation (the multis
    is closed: Perm is a full three-checker predicate, exactly like Mem/ProdIs.
 3. **Re-verified**: `test-typeck.sh` 23/0, `checker-diamond.sh` 89/0 (+ 89/0 typed), `elab-test.sh` 206/0,
    full `verify-lattice.sh` VERIFIED.
-4. ✅ `perm-front` (`proofs/perm-front.elab`): `∀p L. Mem(p,L) → ∃L'. Perm(cons p L', L)` — a list member
+4. ✅ `perm-front` (`corpus/proofs/perm-front.elab`): `∀p L. Mem(p,L) → ∃L'. Perm(cons p L', L)` — a list member
    can be permuted to the head. Proved by LIST induction + Mem inversion, *constructing* the permutation
    (permswap∘permskip via permtrans; perm-refl for the head case). **Key design fact this confirms: Perm
    needs NO eliminator.** `perm-sym` and "Perm preserves product" would require induction on a Perm
@@ -84,7 +84,7 @@ and `ProdIs` (rel 778) already are. The standard 4-rule presentation (the multis
    from comm + assoc + cong-left + trans). `mul-swap-mid` is exactly the rearrangement the surgery's
    `Mem(p,t)` case needs: `n = h*m0 = h*(p*q) = p*(h*q)`. NOTE the witnesses must be SHARED, so the
    surgery cannot be decomposed into separate Perm / ProdIs / allPrime lemmas — it is one combined lemma.
-6. ✅ The **ProdIs-carrying surgery** (`proofs/prodis-extract-member.elab`):
+6. ✅ The **ProdIs-carrying surgery** (`corpus/proofs/prodis-extract-member.elab`):
    `∀p L n. Mem(p,L) & ProdIs(L,n) → ∃q L'. (n = p*q) & ProdIs(L',q) & Perm(cons p L', L)`.
    `perm-front`'s list induction threading the product: `prodconsinv` splits `ProdIs(cons h t,n)` into
    `n=h*m0 ∧ ProdIs(t,m0)`; the `p=h` and `Mem(p,t)` cases rebuild `q` and `L'` so product and permutation
@@ -96,7 +96,7 @@ and `ProdIs` (rel 778) already are. The standard 4-rule presentation (the multis
    built arithmetic-free in the same two cases (`p=h`: `memtail`; `Mem(p,t)`: `memcons` + `memhead`/`memtail`
    on the IH's 4th conjunct), over the same shared witness. FTA uniqueness derives `allPrime(L')` from this
    plus `allPrime(L)`. `prodis-extract-member.elab` is now the full 4-conjunct lemma.
-8. ✅ **GENERAL FTA UNIQUENESS — DONE** (`proofs/fta-uniqueness.elab`):
+8. ✅ **GENERAL FTA UNIQUENESS — DONE** (`corpus/proofs/fta-uniqueness.elab`):
    `∀L1 L2 n. ProdIs(L1,n) & ProdIs(L2,n) & allPrime(L1) & allPrime(L2) → Perm(L1,L2)`.
    KEY SIMPLIFICATION over the plan above: **plain LIST induction on L1** works — the IH applies to the
    tail `t1` (with the surgery's `L2'` and the shared cofactor `m1`), so NO fuel/strong induction is needed.

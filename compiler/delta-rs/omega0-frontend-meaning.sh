@@ -27,7 +27,7 @@ build_beta() {
     && "$ASM" < "$T/program.asm" > "$T/program.tape" 2>/dev/null \
     && stamp_seed "$T/program.tape" "$SEED" "$2" >/dev/null 2>&1
 }
-build_beta "$OMEGA_PATH_OMEGA0/omega2gamma.beta" "$T/elaborate.exe" \
+build_beta "$OMEGA_PATH_OMEGA0/meaning/omega2gamma.beta" "$T/elaborate.exe" \
   || { echo "omega0 frontend meaning FAIL — omega2gamma build"; exit 1; }
 build_beta "$OMEGA_PATH_GAMMA/interp.beta" "$T/interp.exe" \
   || { echo "omega0 frontend meaning FAIL — Gamma interpreter build"; exit 1; }
@@ -39,7 +39,8 @@ build_beta "$OMEGA_PATH_GAMMA/interp.beta" "$T/interp.exe" \
 bundle_program() {
   source=$1
   destination=$2
-  python3 "$OMEGA_PATH_OMEGA0/omega0_bundle.py" pack main.omg="$source" > "$T/input.bundle"
+  python3 "$OMEGA_PATH_OMEGA0/compiler/omega0_bundle.py" pack \
+    main.omg="$source" > "$T/input.bundle"
   bytes=$(od -An -tu1 < "$T/input.bundle" | tr ' ' '\n' | grep -vE '^$' | tr '\n' ' ')
   reverse=""
   for byte in $bytes; do reverse="$byte $reverse"; done

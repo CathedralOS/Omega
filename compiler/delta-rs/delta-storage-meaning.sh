@@ -35,7 +35,7 @@ build_beta() {
     && stamp_seed "$T/program.tape" "$SEED" "$2" >/dev/null 2>&1
 }
 
-build_beta ${OMEGA_PATH_OMEGA0}/omega2gamma.beta "$T/elaborate.exe" \
+build_beta "${OMEGA_PATH_OMEGA0}/meaning/omega2gamma.beta" "$T/elaborate.exe" \
   || { echo "delta storage meaning FAIL — omega2gamma build"; exit 1; }
 build_beta "${OMEGA_PATH_GAMMA}"/interp.beta "$T/interp.exe" \
   || { echo "delta storage meaning FAIL — Gamma interpreter build"; exit 1; }

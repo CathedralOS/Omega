@@ -47,9 +47,9 @@ lattice and `compiler/` for the product implementation.
 
 | Canonical or transitional source | Role | Target owner |
 | --- | --- | --- |
-| `bootstrap/assurance/proof-kernel/` (compatibility: `compiler/proof-kernel`) plus transitional Gamma checker sources | cross-cutting derivation checking, tools, corpora, and gates | canonical owner moved; internal implementation/tool/corpus/gate split open |
+| `bootstrap/assurance/proof-kernel/{implementations,tools,corpus,gates}/` (compatibility: `compiler/proof-kernel`) | cross-cutting derivation checking, tools, corpora, and gates | moved and split by responsibility |
 | refinement tooling spread across `alpha/`, `omega/`, and Python helpers | source-to-artifact obligation reconstruction and checking | `bootstrap/assurance/refinement/` |
-| `compiler/omega/` | Rust-free first-Omega meaning/refinement experiments | `bootstrap/omega0/` |
+| `bootstrap/omega0/` (compatibility: `compiler/omega`) | Rust-free meaning, first-Omega compiler source/contracts, and gates | moved and split by responsibility |
 | `compiler/lattice-corpus/` | fixtures shared across lattice seams | `bootstrap/corpus/` |
 
 ### Transitional and product implementations
@@ -57,9 +57,8 @@ lattice and `compiler/` for the product implementation.
 | Canonical or transitional source | Role | Target owner |
 | --- | --- | --- |
 | `compiler/beta-rs/`, `compiler/beta-lang-rs/`, Rust producer portion of `compiler/delta-rs/` | Alpha-assembler, Beta-language, and Delta disposable/reference on-ramps | `bootstrap/onramps/`, separated by produced role |
-| semantic and symbolic portions of `compiler/beta-lang-py/` | Beta meaning/refinement references | Beta reference or refinement owner, not a Python-named peer rung |
-| `compiler/beta-lang-py/beta_parser.py` | shared untrusted Beta source recognition | narrowest Beta reference/refinement owner needing it |
-| compiler portion of `compiler/beta-lang-py/bc2.py` | optional differential backend | retain only for unique diagnostics |
+| `bootstrap/rungs/beta/reference/` | executable Beta reference meaning and semantic fuzzing | moved; `compiler/beta-lang-py` forwards compatibility entry points |
+| `bootstrap/assurance/refinement/beta/` | symbolic/refinement reconstruction and gates | moved |
 | `compiler/psi-rs/`, `compiler/omega-rs/` | current production Psi/Omega implementations | `compiler/psi/`, `compiler/omega/` |
 
 ## Current architectural state
@@ -96,11 +95,11 @@ sum types, state-machine control flow, byte I/O, and code emission.
 That evidence is necessary but is not the first Omega compiler:
 
 - The Delta-written O0 slice implements its frozen lexer, parser, exact
-  name/type/count checks, and direct canonical terminal-Psi emission for one
-  console shape. It is not yet a general Omega frontend or a complete
-  Delta-written Omega backend.
-- The Delta-written native path emits ARM64 assembly and still uses external
-  `clang` and `codesign` to obtain a runnable image.
+  name/type/count checks, direct canonical terminal-Psi emission, and a direct
+  x86-64 ELF backend for one console shape. It is not yet a general Omega
+  frontend or a complete Delta-written Omega backend.
+- Delta's general self-host path emits ARM64 assembly and still uses external
+  `clang` and `codesign`. The exact O0 terminal-to-ELF edge no longer does.
 - `lowermachine.alp` is a large, effectively single-source compiler. Its source
   and table capacities are still bounded by explicit backing extents, but input
   and compiler tables now use checked logical byte/typed arenas rather than one
@@ -148,7 +147,7 @@ story.
   Omega-source production compiler; it need not accept every convenience before
   that source uses it.
   - [x] Freeze Delta implementation profile D0 and Omega vertical-canary profile
-    O0 in `compiler/omega/BOOTSTRAP_PROFILES.md`.
+    O0 in `bootstrap/omega0/compiler/BOOTSTRAP_PROFILES.md`.
   - [ ] Freeze the production-self-host Omega profile against the actual Omega
     compiler source tree. No such source tree exists yet, so O0 must not be
     mislabeled as sufficient evidence.
@@ -168,17 +167,28 @@ story.
     reserved typed extent. The self-build remains an assembly-byte fixed point,
     the native corpus remains green, and source exhaustion still exits before a
     truncated prefix can be compiled.
-- [x] **Choose and gate source packaging.** `compiler/omega/OMEGA0_BUNDLE.md`
+- [x] **Choose and gate source packaging.** `bootstrap/omega0/compiler/OMEGA0_BUNDLE.md`
   defines the canonical, length-delimited version-1 multi-source artifact.
   Its gate covers deterministic ordering, exact byte preservation, canonical
   paths, and malformed/truncated input rejection. The packer is untrusted; the
   Delta streaming decoder canary implements the same acceptance contract with
   explicit local-storage exhaustion and is gated natively and through the
   Rust-free meaning route.
-- [ ] **Close the Delta-written artifact path.** Either emit the canonical
+- [ ] **Close the general Delta-written artifact path.** Either emit the canonical
   object/image format directly or add a small lattice-built assembler/linker
   path. `clang`/`codesign` may remain development conveniences but cannot be an
   unrecorded dependency of the claimed closed bootstrap.
+  - [x] Close the exact O0 canary edge with
+    `bootstrap/omega0/compiler/omega0-terminal-to-elf.alp`. It consumes the
+    vocabulary-25 O0 terminal shape, retains the variable literal and
+    nonnegative `i32` exit operand, and emits a deterministic 8 KiB Linux x86-64
+    ELF directly, with no host assembler or linker. The gate proves canonical
+    byte identity with the production image, operand-variant emission, and
+    empty-output rejection for truncation, fixed-field tampering, and trailing
+    input.
+  - [ ] Generalize direct object/image emission only as the accepted Omega0
+    source profile grows; do not count the fixed O0 decoder as the complete
+    compiler backend.
 - [ ] **Complete meaning for the used Delta profile.** Replace trusted Rust in
   the Delta-to-Gamma route for every construct used by the first Omega compiler,
   including allocation and exhaustion. Preserve native-versus-meaning
@@ -187,7 +197,7 @@ story.
     Beta-written `omega2gamma.beta` elaborator and Gamma interpreter, with a
     source perturbation that changes the observed result.
   - [x] Exercise byte input/output and real Delta certifiers through the same
-    Rust-free route in `compiler/omega/convergence-reference.sh`.
+    Rust-free route in `bootstrap/omega0/gates/convergence-reference.sh`.
   - [ ] Audit the eventual Omega0 Delta source against D0 and make every construct
     either elaborate through the lower-rung route or reject before it can enter
     the compiler. Keep `gamma_emit.rs` only as a reference differential producer.
@@ -309,10 +319,11 @@ story.
   edge against canonical meaning. The Delta-built compiler remains a supported
   slow, unoptimized endpoint.
 
-The first vertical canary is closed. The next evidence boundary is to grow that
-frozen slice into the deliberately simple Omega compiler while separately
-closing the lattice-built object/image path and the used-Delta meaning profile.
-Those requirements, rather than a wholesale Delta redesign, determine which
+The first vertical canary is closed through a direct, lattice-written x86-64
+ELF. The next evidence boundary is to grow that frozen slice into the
+deliberately simple Omega compiler while widening direct artifact emission and
+the used-Delta meaning profile only as the compiler source requires. Those
+requirements, rather than a wholesale Delta redesign, determine which
 additional facilities the bootstrap actually needs.
 
 ## Repository-structure work packages
@@ -359,27 +370,33 @@ additional facilities the bootstrap actually needs.
     `compiler/beta-lang/` to `bootstrap/rungs/beta/` independently of the Alpha
     assembler compatibility path. Canonical gates use the `beta` path role;
     `compiler/beta-lang` remains a compatibility symlink.
-- [ ] **Split proof-kernel responsibilities.** Separate Beta/Gamma/reference
+- [x] **Split proof-kernel responsibilities.** Separate Beta/Gamma/reference
   checker implementations, untrusted proof tooling, corpora, and gates under
   `bootstrap/assurance/proof-kernel/`.
   - [x] Move the generic proof-kernel tree to its assurance owner and preserve
     `compiler/proof-kernel` only as a compatibility symlink. Canonical path
     roles and lattice hashes no longer treat it as a compiler rung.
-  - [ ] Separate checker implementations, tools, corpora, and gates inside the
+  - [x] Separate checker implementations, tools, corpora, and gates inside the
     assurance owner; move the Gamma checker implementation from its transitional
     language-rung path without changing Gamma's language semantics.
-- [ ] **Split `beta-lang-py` by role.** Retain the interpreter, symbolic evaluator,
-  and useful fuzzing under Beta/refinement owners. Retain the optional `bc2.py`
-  compiler backend only while it provides unique differential coverage.
+- [x] **Split `beta-lang-py` by role.** Retain the interpreter, symbolic evaluator,
+  and useful fuzzing under Beta/refinement owners; remove compiler-comparison
+  code that provides no unique semantic or refinement coverage.
   - [x] Extract source recognition into `beta_parser.py`. The interpreter,
     symbolic evaluator, exhaustive-I/O checker, and loop-summary checker now
-    share it without importing compiler code; `bc2.py` re-exports the same
-    parser only for compatibility. Its `bc.beta` assembly remains byte-identical.
+    share it without importing compiler code. The reference and refinement
+    owners import the same recognizer without acquiring a compiler dependency.
   - [x] Remove the retired DDC comparison gate. Compiler diversity is neither a
     repository role nor a prerequisite for closing the `bc` refinement edge.
-- [ ] **Move first-Omega work out of the product namespace.** Place the existing
+  - [x] Move executable reference meaning and semantic fuzzing to
+    `bootstrap/rungs/beta/reference/`; move symbolic reconstruction to
+    `bootstrap/assurance/refinement/beta/`; retain only compatibility wrappers
+    under `compiler/beta-lang-py/`.
+  - [x] Remove `bc2.py` and its comparison-only gate after confirming they add
+    no unique semantic, refinement, or lattice coverage.
+- [x] **Move first-Omega work out of the product namespace.** Place the existing
   Rust-free meaning/refinement experiments and future Delta compiler source in
-  `bootstrap/omega0/`.
+  `bootstrap/omega0/`, split into `meaning/`, `compiler/`, and `gates/`.
 - [ ] **Rename product roots last.** Move `psi-rs`/`omega-rs` to role-based
   `compiler/psi`/`compiler/omega` only after Cargo paths and documentation can be
   changed atomically. The architecture must not depend on their current host
@@ -393,10 +410,8 @@ additional facilities the bootstrap actually needs.
 3. Grow proof-kernel capability and its operational seams only in lockstep with
    real obligation classes.
 4. Build translation-validation evidence for native compiler outputs.
-5. Continue the Delta → first Omega vertical canary through canonical terminal
-   emission, target boundary realization, and runnable-artifact agreement; the
-   initial D0/O0 profiles, source packaging, storage, and frontend slice now
-   exist.
+5. Grow the closed O0 vertical canary—source through direct ELF—into the
+   deliberately simple, spec-compliant Omega compiler.
 6. Use the resulting bootstrap Omega compiler to build and validate the full
    optimizing Omega compiler from Omega source.
 
@@ -414,8 +429,8 @@ sh bootstrap/rungs/beta/selfhost.sh
 sh bootstrap/rungs/beta/test.sh
 sh compiler/gamma/test-interp.sh
 sh compiler/gamma/test-typeck.sh
-sh compiler/gamma/test-checker.sh
-sh bootstrap/assurance/proof-kernel/test.sh
+sh bootstrap/assurance/proof-kernel/gates/gamma-checker.sh
+sh bootstrap/assurance/proof-kernel/gates/test.sh
 ```
 
 The current Delta-written ARM64 path additionally uses these platform-specific
@@ -431,10 +446,11 @@ sh compiler/delta-rs/convergence-selfhost.sh
 The current Rust-free Omega kernel/meaning experiments are gated separately:
 
 ```sh
-sh compiler/omega/kernel-diamond.sh
-sh compiler/omega/omega-meaning.sh
-sh compiler/omega/meaning-cert-diamond.sh
-sh compiler/omega/translation-validation.sh
+sh bootstrap/omega0/gates/kernel-diamond.sh
+sh bootstrap/omega0/gates/omega-meaning.sh
+sh bootstrap/omega0/gates/meaning-cert-diamond.sh
+sh bootstrap/omega0/gates/translation-validation.sh
+sh bootstrap/omega0/gates/delta-terminal-to-elf.sh
 sh compiler/delta-rs/omega0-frontend-meaning.sh
 ```
 

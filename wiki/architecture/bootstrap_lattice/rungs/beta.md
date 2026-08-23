@@ -46,14 +46,17 @@ memory.
 - `bootstrap/rungs/alpha/assembler/assembler.alpha` — self-hosting Alpha assembler;
 - `bootstrap/rungs/beta/bc.beta` — self-hosting Beta compiler;
 - `compiler/beta-lang-rs/` — retained Rust cold-start/reference producer;
-- `compiler/beta-lang-py/` — historical mixed Python reference/refinement tools;
+- `bootstrap/rungs/beta/reference/` — executable Python reference meaning,
+  parser, and semantic fuzzing;
+- `bootstrap/assurance/refinement/beta/` — symbolic/refinement reconstruction;
+- `compiler/beta-lang-py/` — compatibility forwarding entry points only;
 - `bootstrap/rungs/beta/CALLING_CONVENTION.md` — Beta's frame and register
   discipline over Alpha;
 - `bootstrap/rungs/beta/LANGUAGE.md` — current Beta surface.
 
 `bootstrap/rungs/beta/selfhost.sh` and `test.sh` gate the fixed point and language
-behavior. The legacy Python compiler-comparison script is optional diagnostic
-scaffolding, not a principal lattice gate.
+behavior. The comparison-only Python compiler and DDC gate were removed because
+they added no unique semantic or lower-rooted refinement coverage.
 
 ## Implementation frontiers
 

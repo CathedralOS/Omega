@@ -29,7 +29,11 @@ REPO_ROOT = os.environ.get('OMEGA_REPO_ROOT')
 if not REPO_ROOT:
     REPO_ROOT = find_repo_root(HERE)
 BETA_REFERENCE = os.environ.get(
-    'OMEGA_PATH_BETA_REFERENCE', os.path.join(REPO_ROOT, 'compiler', 'beta-lang-py'))
+    'OMEGA_PATH_BETA_REFERENCE',
+    os.path.join(REPO_ROOT, 'bootstrap', 'rungs', 'beta', 'reference'))
+BETA_REFINEMENT = os.environ.get(
+    'OMEGA_PATH_BETA_REFINEMENT',
+    os.path.join(REPO_ROOT, 'bootstrap', 'assurance', 'refinement', 'beta'))
 BETA_RUST = os.environ.get(
     'OMEGA_PATH_BETA_RUST', os.path.join(REPO_ROOT, 'compiler', 'beta-lang-rs'))
 PROOF_KERNEL = os.environ.get(
@@ -37,6 +41,7 @@ PROOF_KERNEL = os.environ.get(
     os.path.join(REPO_ROOT, 'bootstrap', 'assurance', 'proof-kernel'))
 sys.path.insert(0, HERE)
 sys.path.insert(0, BETA_REFERENCE)
+sys.path.insert(0, BETA_REFINEMENT)
 import alpha_symbolic as S
 import beta_symbolic as B                              # source-side symbolic evaluator (the auto-derived meaning)
 import beta_interp                                     # concrete Beta interpreter (pins the source meaning)
@@ -47,7 +52,7 @@ import refinement_nested_gen                            # random NESTED loops (r
 import refinement_fork_gen                              # random BRANCHING programs (conditional terms)
 from beta_parser import lex, Parser
 ALPHA_REF = os.path.join(HERE, 'alpha_ref.py')
-PROVER = os.path.join(PROOF_KERNEL, 'prover.py')
+PROVER = os.path.join(PROOF_KERNEL, 'tools', 'prover.py')
 CHECK = sys.argv[1]
 BC = sys.argv[2] if len(sys.argv) > 2 else None       # bc.exe — enables the real-bc-output samples
 ASM = sys.argv[3] if len(sys.argv) > 3 else None      # the Alpha assembler executable

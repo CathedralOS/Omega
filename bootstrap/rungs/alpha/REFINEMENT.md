@@ -21,7 +21,8 @@ meaning differs, and the proof would fail.
 
 ## Architecture — two independent symbolic evaluators, kernel-checked equal
 
-The certificate is a diamond with the trust anchor (`proof-kernel/check.beta`) at the point:
+The certificate is a diamond with the trust anchor
+(`bootstrap/assurance/proof-kernel/implementations/beta/check.beta`) at the point:
 
 ```
       Beta source P ──beta_symbolic──▶  M = ⟦P⟧_Beta  (a closed-form term over the inputs)
@@ -35,7 +36,7 @@ The certificate is a diamond with the trust anchor (`proof-kernel/check.beta`) a
 ```
 
 Both symbolic evaluators are **UNTRUSTED and checked**, exactly like the other `*_ref` / `*_symbolic` tools
-(`alpha_ref.py`, `asm_ref.py`, `bc2.py`, `gamma_ref.py`, `check_ref.py`). Two independent checks make a bug in
+(`alpha_ref.py`, `asm_ref.py`, `gamma_ref.py`, `check_ref.py`). Two independent checks make a bug in
 either evaluator — or a real miscompile — surface loudly:
 
 1. **Differential pinning.** `C` evaluated at random inputs must equal what the actual bytecode does on the
@@ -259,18 +260,19 @@ A symbolic trip count `n` can't be unrolled. Both sides recognize the loop and r
 | File | Role |
 | --- | --- |
 | `alpha_symbolic.py` | UNTRUSTED: symbolically executes an alpha tape → the compiled meaning `C`. Dual concrete-int / Peano-term values; concrete-addressed memory + call/ret; loop summarization. |
-| `../../../compiler/beta-lang-py/beta_parser.py` | UNTRUSTED: shared Beta source recognition used by the reference and refinement tools; it does not load a compiler backend. |
-| `../../../compiler/beta-lang-py/beta_symbolic.py` | UNTRUSTED: symbolically evaluates a Beta source → the source meaning `M`. The source-side dual; reuses the shared `beta_parser` syntax tree. |
+| `../beta/reference/beta_parser.py` | UNTRUSTED: shared Beta source recognition used by the reference and refinement tools; it does not load a compiler backend. |
+| `../../assurance/refinement/beta/beta_symbolic.py` | UNTRUSTED: symbolically evaluates a Beta source → the source meaning `M`. The source-side dual; reuses the shared `beta_parser` syntax tree. |
 | `alpha_refinement_check.py` | The gate driver: derives `C`/`M`, differentially pins each, proves `(= C M)`. Curated samples + three fuzz spaces. |
 | `refinement_fuzz_gen.py` | random straight-line arithmetic programs |
 | `refinement_loop_gen.py` | random data-dependent counter loops (`<` / `<=`) |
 | `refinement_compose_gen.py` | random pre-loop + loop + post-loop compositions |
 | `refinement.sh` | builds `check.beta` + `bc`, runs the driver; the lattice step |
 | `refinement-samples/*.beta` | curated end-to-end samples (muln, countn, tri, muln_le, …) |
-| `../../../compiler/beta-lang-py/symbolic_loop_check.py` + `symbolic-loops.sh` | source-side soundness gate: `beta_symbolic`'s loop summaries pinned to `beta_interp` over an input grid |
+| `../../assurance/refinement/beta/symbolic_loop_check.py` + `symbolic-loops.sh` | source-side soundness gate: `beta_symbolic`'s loop summaries pinned to `../beta/reference/beta_interp.py` over an input grid |
 
 ## Reference producers (never run in the trusted lineage)
 
 `alpha_ref.py` (the alpha VM in Python) and `beta_interp.py` (the Beta interpreter) are the ground-truth
 references the two symbolic evaluators are pinned against. `proof-kernel/prover.py` searches for the equality proof;
-`proof-kernel/check.beta` (the trust anchor) validates it.
+`bootstrap/assurance/proof-kernel/implementations/beta/check.beta` (the trust
+anchor) validates it.

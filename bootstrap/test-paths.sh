@@ -27,6 +27,14 @@ physical_dir() {
   fail "historical Beta language variable does not resolve to the Beta owner"
 [ "$OMEGA_PATH_PROOF_KERNEL" = "$OMEGA_REPO_ROOT/bootstrap/assurance/proof-kernel" ] ||
   fail "proof-kernel owner is $OMEGA_PATH_PROOF_KERNEL"
+[ "$OMEGA_PATH_PROOF_KERNEL_GATES" = "$OMEGA_PATH_PROOF_KERNEL/gates" ] ||
+  fail "proof-kernel gate owner is $OMEGA_PATH_PROOF_KERNEL_GATES"
+[ "$OMEGA_PATH_BETA_REFERENCE" = "$OMEGA_PATH_BETA/reference" ] ||
+  fail "Beta reference owner is $OMEGA_PATH_BETA_REFERENCE"
+[ "$OMEGA_PATH_BETA_REFINEMENT" = "$OMEGA_REPO_ROOT/bootstrap/assurance/refinement/beta" ] ||
+  fail "Beta refinement owner is $OMEGA_PATH_BETA_REFINEMENT"
+[ "$OMEGA_PATH_OMEGA0" = "$OMEGA_REPO_ROOT/bootstrap/omega0" ] ||
+  fail "Omega0 owner is $OMEGA_PATH_OMEGA0"
 
 [ -L "$OMEGA_REPO_ROOT/compiler/alpha" ] ||
   fail "compiler/alpha is not a temporary compatibility symlink"
@@ -57,5 +65,13 @@ physical_dir() {
   fail "beta-lang compatibility role lookup disagrees with the manifest"
 [ "$(omega_bootstrap_path proof-kernel)" = "$OMEGA_PATH_PROOF_KERNEL" ] ||
   fail "proof-kernel role lookup disagrees with the manifest"
+[ "$(omega_bootstrap_path proof-kernel-gates)" = "$OMEGA_PATH_PROOF_KERNEL_GATES" ] ||
+  fail "proof-kernel-gates role lookup disagrees with the manifest"
+[ "$(omega_bootstrap_path beta-reference)" = "$OMEGA_PATH_BETA_REFERENCE" ] ||
+  fail "beta-reference role lookup disagrees with the manifest"
+[ "$(omega_bootstrap_path beta-refinement)" = "$OMEGA_PATH_BETA_REFINEMENT" ] ||
+  fail "beta-refinement role lookup disagrees with the manifest"
+[ "$(omega_bootstrap_path omega0-gates)" = "$OMEGA_PATH_OMEGA0/gates" ] ||
+  fail "omega0-gates role lookup disagrees with the manifest"
 
-echo "bootstrap paths OK — language rungs and proof assurance have canonical owners"
+echo "bootstrap paths OK — rungs, assurance roles, and Omega0 have canonical owners"

@@ -107,7 +107,7 @@ that — this is the part to get right before writing any code:
   This keeps the gamma checker a pure fold and is why the two checkers can disagree on
   *representation* while the diamond still forces them to agree on every *verdict*.
 
-- **`proof-kernel/eq.beta`** — the same `FAPP` arm in its `normalize` (stateful, like check.beta),
+- **`implementations/beta/eq.beta`** — the same `FAPP` arm in its `normalize` (stateful, like check.beta),
   so the **semantics diamond** (`semantics-diamond.sh`) keeps cross-checking definitional `=`.
 
 That representational split is the single most important thing to settle up front: it

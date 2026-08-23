@@ -1,0 +1,310 @@
+// Delta-written O0 terminal-Psi -> Linux x86-64 ELF backend.
+//
+// Input is the vocabulary-25 O0 terminal-module shape emitted by
+// omega0-frontend.alp. The decoder mirrors that canonical schema, retains the
+// literal bytes and nonnegative i32 exit operand, and rejects malformed,
+// truncated, extended, or out-of-profile input before emitting any byte.
+// Success emits one deterministic import-free ELF64 image and exits 0.
+// Malformed input exits 251; literal storage exhaustion exits 252.
+boundary trait Console {
+    machine read_byte() -> i32;
+    machine write_byte(byte: i32);
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    status: i32; c: i32; i: i32;
+    text_len: i32; exit0: i32; exit1: i32; exit2: i32; exit3: i32; text_size: i32;
+    text: [u8; 1024];
+}
+
+machine Main::expect_byte(&mut self, expected: i32) {
+    transition self.status == 0 { true -> read() false -> done() }
+    state read() { self.c = read_byte(); transition self.c == expected { true -> done() false -> bad() } }
+    state bad() { self.status = 251; }
+    state done() { }
+}
+
+machine Main::expect_u16(&mut self, expected: i32) {
+    self.expect_byte(expected & 255);
+    self.expect_byte((expected >> 8) & 255);
+}
+
+machine Main::expect_u32(&mut self, expected: i32) {
+    self.expect_byte(expected & 255);
+    self.expect_byte((expected >> 8) & 255);
+    self.expect_byte((expected >> 16) & 255);
+    self.expect_byte((expected >> 24) & 255);
+}
+
+machine Main::expect_id(&mut self, expected: i32) {
+    self.expect_u32(expected);
+    self.expect_u32(0);
+}
+
+machine Main::expect_zeroes(&mut self, count: i32) {
+    self.i = 0;
+    transition self.status == 0 { true -> loop() false -> done() }
+    state loop() { transition self.i < count { true -> byte() false -> done() } }
+    state byte() { self.expect_byte(0); self.i = self.i + 1; transition self.status == 0 { true -> loop() false -> done() } }
+    state done() { }
+}
+
+machine Main::expect_main_identity(&mut self) {
+    self.expect_byte(110); self.expect_byte(97); self.expect_byte(109); self.expect_byte(101); self.expect_byte(100); self.expect_byte(40); self.expect_byte(110); self.expect_byte(97);
+    self.expect_byte(109); self.expect_byte(101); self.expect_byte(40); self.expect_byte(77); self.expect_byte(97); self.expect_byte(105); self.expect_byte(110); self.expect_byte(41);
+    self.expect_byte(41);
+}
+
+machine Main::expect_console_field(&mut self) {
+    self.expect_byte(99); self.expect_byte(111); self.expect_byte(110); self.expect_byte(115); self.expect_byte(111); self.expect_byte(108); self.expect_byte(101);
+}
+
+machine Main::expect_console_type_identity(&mut self) {
+    self.expect_byte(110); self.expect_byte(97); self.expect_byte(109); self.expect_byte(101); self.expect_byte(100); self.expect_byte(40); self.expect_byte(110); self.expect_byte(97);
+    self.expect_byte(109); self.expect_byte(101); self.expect_byte(40); self.expect_byte(67); self.expect_byte(111); self.expect_byte(110); self.expect_byte(115); self.expect_byte(111);
+    self.expect_byte(108); self.expect_byte(101); self.expect_byte(41); self.expect_byte(41);
+}
+
+machine Main::expect_bytes_type_identity(&mut self) {
+    self.expect_byte(114); self.expect_byte(101); self.expect_byte(102); self.expect_byte(40); self.expect_byte(115); self.expect_byte(108); self.expect_byte(105); self.expect_byte(99);
+    self.expect_byte(101); self.expect_byte(40); self.expect_byte(110); self.expect_byte(97); self.expect_byte(109); self.expect_byte(101); self.expect_byte(100); self.expect_byte(40);
+    self.expect_byte(110); self.expect_byte(97); self.expect_byte(109); self.expect_byte(101); self.expect_byte(40); self.expect_byte(117); self.expect_byte(56); self.expect_byte(41);
+    self.expect_byte(41); self.expect_byte(41); self.expect_byte(41);
+}
+
+machine Main::expect_console_service(&mut self) {
+    self.expect_byte(67); self.expect_byte(111); self.expect_byte(110); self.expect_byte(115); self.expect_byte(111); self.expect_byte(108); self.expect_byte(101);
+}
+
+machine Main::expect_exit_boundary_identity(&mut self) {
+    self.expect_byte(110); self.expect_byte(97); self.expect_byte(109); self.expect_byte(101); self.expect_byte(100); self.expect_byte(45); self.expect_byte(99); self.expect_byte(97);
+    self.expect_byte(108); self.expect_byte(108); self.expect_byte(97); self.expect_byte(98); self.expect_byte(108); self.expect_byte(101); self.expect_byte(40); self.expect_byte(112);
+    self.expect_byte(97); self.expect_byte(116); self.expect_byte(104); self.expect_byte(40); self.expect_byte(67); self.expect_byte(111); self.expect_byte(110); self.expect_byte(115);
+    self.expect_byte(111); self.expect_byte(108); self.expect_byte(101); self.expect_byte(58); self.expect_byte(58); self.expect_byte(101); self.expect_byte(120); self.expect_byte(105);
+    self.expect_byte(116); self.expect_byte(95); self.expect_byte(112); self.expect_byte(114); self.expect_byte(111); self.expect_byte(99); self.expect_byte(101); self.expect_byte(115);
+    self.expect_byte(115); self.expect_byte(41); self.expect_byte(44); self.expect_byte(112); self.expect_byte(97); self.expect_byte(114); self.expect_byte(97); self.expect_byte(109);
+    self.expect_byte(101); self.expect_byte(116); self.expect_byte(101); self.expect_byte(114); self.expect_byte(115); self.expect_byte(40); self.expect_byte(112); self.expect_byte(97);
+    self.expect_byte(114); self.expect_byte(97); self.expect_byte(109); self.expect_byte(101); self.expect_byte(116); self.expect_byte(101); self.expect_byte(114); self.expect_byte(92);
+    self.expect_byte(40); self.expect_byte(115); self.expect_byte(101); self.expect_byte(108); self.expect_byte(102); self.expect_byte(92); self.expect_byte(40); self.expect_byte(110);
+    self.expect_byte(111); self.expect_byte(92); self.expect_byte(41); self.expect_byte(92); self.expect_byte(44); self.expect_byte(109); self.expect_byte(117); self.expect_byte(116);
+    self.expect_byte(97); self.expect_byte(98); self.expect_byte(108); self.expect_byte(101); self.expect_byte(92); self.expect_byte(40); self.expect_byte(110); self.expect_byte(111);
+    self.expect_byte(92); self.expect_byte(41); self.expect_byte(92); self.expect_byte(44); self.expect_byte(99); self.expect_byte(111); self.expect_byte(110); self.expect_byte(115);
+    self.expect_byte(116); self.expect_byte(92); self.expect_byte(40); self.expect_byte(110); self.expect_byte(111); self.expect_byte(92); self.expect_byte(41); self.expect_byte(92);
+    self.expect_byte(44); self.expect_byte(110); self.expect_byte(97); self.expect_byte(109); self.expect_byte(101); self.expect_byte(100); self.expect_byte(92); self.expect_byte(40);
+    self.expect_byte(110); self.expect_byte(97); self.expect_byte(109); self.expect_byte(101); self.expect_byte(92); self.expect_byte(40); self.expect_byte(105); self.expect_byte(51);
+    self.expect_byte(50); self.expect_byte(92); self.expect_byte(41); self.expect_byte(92); self.expect_byte(41); self.expect_byte(92); self.expect_byte(41); self.expect_byte(41);
+    self.expect_byte(44); self.expect_byte(114); self.expect_byte(101); self.expect_byte(115); self.expect_byte(117); self.expect_byte(108); self.expect_byte(116); self.expect_byte(45);
+    self.expect_byte(100); self.expect_byte(105); self.expect_byte(115); self.expect_byte(112); self.expect_byte(97); self.expect_byte(116); self.expect_byte(99); self.expect_byte(104);
+    self.expect_byte(40); self.expect_byte(41); self.expect_byte(41);
+}
+
+machine Main::expect_write_boundary_identity(&mut self) {
+    self.expect_byte(110); self.expect_byte(97); self.expect_byte(109); self.expect_byte(101); self.expect_byte(100); self.expect_byte(45); self.expect_byte(99); self.expect_byte(97);
+    self.expect_byte(108); self.expect_byte(108); self.expect_byte(97); self.expect_byte(98); self.expect_byte(108); self.expect_byte(101); self.expect_byte(40); self.expect_byte(112);
+    self.expect_byte(97); self.expect_byte(116); self.expect_byte(104); self.expect_byte(40); self.expect_byte(67); self.expect_byte(111); self.expect_byte(110); self.expect_byte(115);
+    self.expect_byte(111); self.expect_byte(108); self.expect_byte(101); self.expect_byte(58); self.expect_byte(58); self.expect_byte(119); self.expect_byte(114); self.expect_byte(105);
+    self.expect_byte(116); self.expect_byte(101); self.expect_byte(95); self.expect_byte(108); self.expect_byte(105); self.expect_byte(110); self.expect_byte(101); self.expect_byte(41);
+    self.expect_byte(44); self.expect_byte(112); self.expect_byte(97); self.expect_byte(114); self.expect_byte(97); self.expect_byte(109); self.expect_byte(101); self.expect_byte(116);
+    self.expect_byte(101); self.expect_byte(114); self.expect_byte(115); self.expect_byte(40); self.expect_byte(112); self.expect_byte(97); self.expect_byte(114); self.expect_byte(97);
+    self.expect_byte(109); self.expect_byte(101); self.expect_byte(116); self.expect_byte(101); self.expect_byte(114); self.expect_byte(92); self.expect_byte(40); self.expect_byte(115);
+    self.expect_byte(101); self.expect_byte(108); self.expect_byte(102); self.expect_byte(92); self.expect_byte(40); self.expect_byte(110); self.expect_byte(111); self.expect_byte(92);
+    self.expect_byte(41); self.expect_byte(92); self.expect_byte(44); self.expect_byte(109); self.expect_byte(117); self.expect_byte(116); self.expect_byte(97); self.expect_byte(98);
+    self.expect_byte(108); self.expect_byte(101); self.expect_byte(92); self.expect_byte(40); self.expect_byte(110); self.expect_byte(111); self.expect_byte(92); self.expect_byte(41);
+    self.expect_byte(92); self.expect_byte(44); self.expect_byte(99); self.expect_byte(111); self.expect_byte(110); self.expect_byte(115); self.expect_byte(116); self.expect_byte(92);
+    self.expect_byte(40); self.expect_byte(110); self.expect_byte(111); self.expect_byte(92); self.expect_byte(41); self.expect_byte(92); self.expect_byte(44); self.expect_byte(114);
+    self.expect_byte(101); self.expect_byte(102); self.expect_byte(92); self.expect_byte(40); self.expect_byte(115); self.expect_byte(108); self.expect_byte(105); self.expect_byte(99);
+    self.expect_byte(101); self.expect_byte(92); self.expect_byte(40); self.expect_byte(110); self.expect_byte(97); self.expect_byte(109); self.expect_byte(101); self.expect_byte(100);
+    self.expect_byte(92); self.expect_byte(40); self.expect_byte(110); self.expect_byte(97); self.expect_byte(109); self.expect_byte(101); self.expect_byte(92); self.expect_byte(40);
+    self.expect_byte(117); self.expect_byte(56); self.expect_byte(92); self.expect_byte(41); self.expect_byte(92); self.expect_byte(41); self.expect_byte(92); self.expect_byte(41);
+    self.expect_byte(92); self.expect_byte(41); self.expect_byte(92); self.expect_byte(41); self.expect_byte(41); self.expect_byte(44); self.expect_byte(114); self.expect_byte(101);
+    self.expect_byte(115); self.expect_byte(117); self.expect_byte(108); self.expect_byte(116); self.expect_byte(45); self.expect_byte(100); self.expect_byte(105); self.expect_byte(115);
+    self.expect_byte(112); self.expect_byte(97); self.expect_byte(116); self.expect_byte(99); self.expect_byte(104); self.expect_byte(40); self.expect_byte(41); self.expect_byte(41);
+}
+
+machine Main::read_text(&mut self) {
+    self.c = read_byte();
+    transition self.c < 0 { true -> bad() false -> low() }
+    state low() { self.text_len = self.c; self.c = read_byte(); transition self.c < 0 { true -> bad() false -> high() } }
+    state high() { self.text_len = self.text_len + self.c * 256; self.expect_byte(0); self.expect_byte(0); transition self.status == 0 { true -> capacity() false -> done() } }
+    state capacity() { transition self.text_len <= 1024 { true -> setup() false -> exhausted() } }
+    state setup() { self.i = 0; transition 0 { _ -> loop() } }
+    state loop() { transition self.i < self.text_len { true -> byte() false -> done() } }
+    state byte() { self.c = read_byte(); transition self.c < 0 { true -> bad() false -> store() } }
+    state store() { self.text[self.i] = self.c; self.i = self.i + 1; transition 0 { _ -> loop() } }
+    state bad() { self.status = 251; transition 0 { _ -> done() } }
+    state exhausted() { self.status = 252; transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::read_exit_code(&mut self) {
+    self.c = read_byte();
+    transition self.c < 0 { true -> bad() false -> byte0() }
+    state byte0() { self.exit0 = self.c; self.c = read_byte(); transition self.c < 0 { true -> bad() false -> byte1() } }
+    state byte1() { self.exit1 = self.c; self.c = read_byte(); transition self.c < 0 { true -> bad() false -> byte2() } }
+    state byte2() { self.exit2 = self.c; self.c = read_byte(); transition self.c < 0 { true -> bad() false -> range() } }
+    state range() { transition self.c < 128 { true -> byte3() false -> bad() } }
+    state byte3() { self.exit3 = self.c; self.expect_zeroes(12); transition 0 { _ -> done() } }
+    state bad() { self.status = 251; transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::decode_terminal_module(&mut self) {
+    self.expect_byte(80); self.expect_byte(83); self.expect_byte(73); self.expect_byte(84);
+    self.expect_byte(69); self.expect_byte(82); self.expect_byte(77); self.expect_byte(0);
+    self.expect_u16(22); self.expect_u16(25); self.expect_id(1);
+
+    self.expect_u32(2);
+    self.expect_id(1); self.expect_u32(17); self.expect_main_identity();
+    self.expect_byte(1); self.expect_u32(1);
+    self.expect_id(1); self.expect_u32(7); self.expect_console_field();
+    self.expect_byte(1); self.expect_byte(3); self.expect_u32(20); self.expect_console_type_identity();
+    self.expect_id(2); self.expect_u32(27); self.expect_bytes_type_identity();
+    self.expect_byte(4); self.expect_byte(1);
+
+    self.expect_u32(0);
+    self.expect_u32(1); self.expect_id(1); self.expect_u32(7); self.expect_console_service(); self.expect_u32(0);
+    self.expect_u32(1); self.expect_id(1);
+    self.expect_u32(0);
+
+    self.expect_u32(2);
+    self.expect_id(1); self.expect_u32(147); self.expect_exit_boundary_identity();
+    self.expect_byte(0);
+    self.expect_u32(1); self.expect_byte(2); self.expect_byte(1); self.expect_u16(32);
+    self.expect_u32(0); self.expect_byte(0); self.expect_u32(0); self.expect_u32(1); self.expect_id(1);
+
+    self.expect_id(2); self.expect_u32(160); self.expect_write_boundary_identity();
+    self.expect_byte(0);
+    self.expect_u32(0);
+    self.expect_u32(1); self.expect_id(1); self.expect_u32(0); self.expect_byte(0);
+    self.expect_id(2); self.expect_byte(1); self.expect_u32(0);
+    self.expect_byte(0); self.expect_u32(0); self.expect_u32(1); self.expect_id(1);
+
+    self.expect_u32(0); self.expect_u32(0); self.expect_u32(0);
+    self.expect_u32(0); self.expect_u32(0); self.expect_u32(0);
+    self.expect_u32(0); self.expect_u32(0); self.expect_u32(0);
+    self.expect_u32(1);
+
+    self.expect_id(1); self.expect_byte(1); self.expect_id(1);
+    self.expect_u32(0); self.expect_u32(0); self.expect_byte(0);
+    self.expect_u32(3);
+    self.expect_id(2); self.expect_byte(5); self.expect_id(1); self.expect_id(1); self.expect_id(1);
+    self.expect_id(3); self.expect_byte(5); self.expect_id(1); self.expect_id(1); self.expect_id(2);
+    self.expect_id(4); self.expect_byte(4); self.expect_u32(0); self.expect_id(2);
+    self.expect_u32(0);
+    self.expect_u32(1); self.expect_id(1);
+    self.expect_u32(0); self.expect_u32(0); self.expect_u32(0);
+    self.expect_id(1); self.expect_u32(1);
+
+    self.expect_id(1); self.expect_u32(0); self.expect_u32(4);
+    self.expect_id(1); self.expect_byte(0); self.expect_byte(40); self.expect_id(4);
+    self.read_text();
+
+    self.expect_id(2); self.expect_byte(0); self.expect_byte(35); self.expect_id(2);
+    self.expect_u32(0);
+    self.expect_u32(1); self.expect_id(4); self.expect_u32(0);
+    self.expect_u32(0); self.expect_u32(0);
+
+    self.expect_id(3); self.expect_byte(1); self.expect_id(1);
+    self.expect_byte(2); self.expect_byte(1); self.expect_u16(32);
+    self.expect_byte(1); self.expect_byte(1); self.read_exit_code();
+
+    self.expect_id(4); self.expect_byte(0); self.expect_byte(35); self.expect_id(1);
+    self.expect_u32(1); self.expect_id(1);
+    self.expect_u32(0); self.expect_u32(0); self.expect_u32(0);
+
+    self.expect_byte(5); self.expect_id(1); self.expect_u32(0);
+    self.expect_id(1); self.expect_u32(0); self.expect_u32(0); self.expect_u32(0);
+}
+
+machine Main::check_eof(&mut self) {
+    transition self.status == 0 { true -> read() false -> done() }
+    state read() { self.c = read_byte(); transition self.c < 0 { true -> done() false -> bad() } }
+    state bad() { self.status = 251; }
+    state done() { }
+}
+
+machine Main::emit_u16(&mut self, value: i32) {
+    write_byte(value & 255); write_byte((value >> 8) & 255);
+}
+
+machine Main::emit_u32(&mut self, value: i32) {
+    write_byte(value & 255); write_byte((value >> 8) & 255);
+    write_byte((value >> 16) & 255); write_byte((value >> 24) & 255);
+}
+
+machine Main::emit_u64(&mut self, value: i32) {
+    self.emit_u32(value); self.emit_u32(0);
+}
+
+machine Main::emit_zeroes(&mut self, count: i32) {
+    self.i = 0;
+    transition self.i < count { true -> byte() false -> done() }
+    state byte() { write_byte(0); self.i = self.i + 1; transition self.i < count { true -> byte() false -> done() } }
+    state done() { }
+}
+
+machine Main::emit_elf_header(&mut self) {
+    write_byte(127); write_byte(69); write_byte(76); write_byte(70);
+    write_byte(2); write_byte(1); write_byte(1); write_byte(0); self.emit_zeroes(8);
+    self.emit_u16(2); self.emit_u16(62); self.emit_u32(1);
+    self.emit_u64(4198400); self.emit_u64(64); self.emit_u64(0); self.emit_u32(0);
+    self.emit_u16(64); self.emit_u16(56); self.emit_u16(2);
+    self.emit_u16(0); self.emit_u16(0); self.emit_u16(0);
+}
+
+machine Main::emit_program_headers(&mut self) {
+    // One read+execute segment covering headers and text.
+    self.emit_u32(1); self.emit_u32(5); self.emit_u64(0);
+    self.emit_u64(4194304); self.emit_u64(4194304);
+    self.emit_u64(4096 + self.text_size); self.emit_u64(4096 + self.text_size); self.emit_u64(4096);
+    // Empty read+write data segment retained by the canonical ELF image layout.
+    self.emit_u32(1); self.emit_u32(6); self.emit_u64(8192);
+    self.emit_u64(4202496); self.emit_u64(4202496);
+    self.emit_u64(0); self.emit_u64(0); self.emit_u64(4096);
+}
+
+machine Main::emit_write_line(&mut self) {
+    // mov edi,1; lea rsi,[rip+40]; mov edx,text_len+1
+    write_byte(191); self.emit_u32(1);
+    write_byte(72); write_byte(141); write_byte(53); self.emit_u32(40);
+    write_byte(186); self.emit_u32(self.text_len + 1);
+    // Retry SYS_write; trap on nonpositive progress.
+    write_byte(184); self.emit_u32(1); write_byte(15); write_byte(5);
+    write_byte(72); write_byte(133); write_byte(192);
+    write_byte(15); write_byte(142); self.emit_u32(17);
+    write_byte(72); write_byte(1); write_byte(198);
+    write_byte(72); write_byte(41); write_byte(194);
+    write_byte(15); write_byte(133); self.emit_u32(0 - 28);
+    // Jump over trap and inline literal+newline.
+    write_byte(233); self.emit_u32(self.text_len + 3);
+    write_byte(15); write_byte(11);
+    self.i = 0;
+    transition 0 { _ -> literal_loop() }
+    state literal_loop() { transition self.i < self.text_len { true -> literal_byte() false -> newline() } }
+    state literal_byte() { write_byte(self.text[self.i]); self.i = self.i + 1; transition 0 { _ -> literal_loop() } }
+    state newline() { write_byte(10); }
+}
+
+machine Main::emit_exit(&mut self) {
+    write_byte(191); write_byte(self.exit0); write_byte(self.exit1); write_byte(self.exit2); write_byte(self.exit3);
+    write_byte(184); self.emit_u32(231);
+    write_byte(15); write_byte(5); write_byte(15); write_byte(11); write_byte(195);
+}
+
+machine Main::emit_elf(&mut self) {
+    self.text_size = 68 + self.text_len;
+    self.emit_elf_header(); self.emit_program_headers(); self.emit_zeroes(3920);
+    self.emit_write_line(); self.emit_exit();
+    self.emit_zeroes(4096 - self.text_size);
+}
+
+machine Main::main(&mut self) {
+    self.status = 0; self.text_len = 0;
+    self.decode_terminal_module();
+    transition self.status == 0 { true -> eof() false -> reject() }
+    state eof() { self.check_eof(); transition self.status == 0 { true -> accepted() false -> reject() } }
+    state accepted() { self.emit_elf(); self.console.exit_process(0); }
+    state reject() { self.console.exit_process(self.status); }
+}

@@ -33,7 +33,7 @@ T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
 ASM="${OMEGA_PATH_BETA_ASSEMBLER}"/$BETA_SEED
 ( cd "${OMEGA_PATH_BETA_RUST}" && sh build.sh "${OMEGA_PATH_BETA}"/bc.beta >/dev/null ) || { echo "contracts FAIL — bc build"; exit 1; }
-if "${OMEGA_PATH_BETA_RUST}"/build/bc.exe < "${OMEGA_PATH_PROOF_KERNEL}"/check.beta > "$T/c.asm" 2>/dev/null \
+if "${OMEGA_PATH_BETA_RUST}"/build/bc.exe < "${OMEGA_PATH_PROOF_KERNEL}"/implementations/beta/check.beta > "$T/c.asm" 2>/dev/null \
    && "$ASM" < "$T/c.asm" > "$T/c.tape" 2>/dev/null \
    && stamp_seed "$T/c.tape" "$SEED" "$T/check.exe" >/dev/null 2>&1; then :; else
   echo "contracts FAIL — could not build the proof kernel"; exit 1; fi
@@ -45,7 +45,7 @@ cargo build -q 2>/dev/null || { echo "contracts FAIL — cargo build"; exit 1; }
 # every certificate; self-contained (refl/witness) certs simply ignore its defs. The proofs are SEARCHED by
 # the prover (prover-contract-lib.py), not hand-written -- "automation discharges, the kernel checks": each
 # library def is validated by check.beta along with the citation below.
-python3 "${OMEGA_PATH_PROOF_KERNEL}"/prover-contract-lib.py > "$T/lib" 2>/dev/null \
+python3 "${OMEGA_PATH_PROOF_KERNEL}"/tools/prover-contract-lib.py > "$T/lib" 2>/dev/null \
   || { echo "contracts FAIL — building the lemma library"; exit 1; }
 LIB=$(cat "$T/lib")
 

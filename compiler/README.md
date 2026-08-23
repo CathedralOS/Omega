@@ -41,8 +41,8 @@ compatibility path.
 ## Proof kernel
 
 The proof kernel is a cross-cutting assurance service, not a language rung.
-`bootstrap/assurance/proof-kernel/check.beta` and
-`compiler/gamma/checker.gamma` are
+`bootstrap/assurance/proof-kernel/implementations/beta/check.beta` and
+`bootstrap/assurance/proof-kernel/implementations/gamma/checker.gamma` are
 separately written implementations checked against shared positive, negative,
 cross-check, fuzz, and operational-seam gates. Their agreement is useful
 evidence while the soundness bridge matures; it is not DDC and does not replace
@@ -74,8 +74,9 @@ The hosted build has two stages:
 2. Bootstrap Omega compiles the full optimizing compiler from Omega source.
 
 The current Rust implementations remain migration/reference producers while
-that hosted path matures. `compiler/omega/` contains Rust-free meaning and
-translation-validation experiments. `compiler/omega-rs/` and
+that hosted path matures. `bootstrap/omega0/` owns the Rust-free meaning,
+first-compiler source/contracts, and validation gates; `compiler/omega/` is its
+compatibility path. `compiler/omega-rs/` and
 `compiler/psi-rs/` contain the current production implementations.
 
 ## Trust and verification
@@ -106,7 +107,7 @@ sh compiler/verify-lattice.sh
 sh bootstrap/rungs/beta/selfhost.sh
 sh compiler/gamma/test-interp.sh
 sh compiler/gamma/test-typeck.sh
-sh bootstrap/assurance/proof-kernel/test.sh
+sh bootstrap/assurance/proof-kernel/gates/test.sh
 ```
 
 Architecture and standing decisions live in

@@ -148,13 +148,12 @@ DDC. Close it by building the seed Beta compiler through the preceding audited
 rung or by validating the complete `bc` artifact against `bc.beta` with authority
 rooted below `bc`.
 
-The dedicated `compiler/beta-lang-py` DDC gate has been removed. Shared source
-recognition now lives in `beta_parser.py` without importing compiler code; the
-optional `bc2.py` differential backend may remain as an untrusted reference
-tool while it provides unique diagnostic value. Its results have no authority
-and do not close an architectural proof obligation. Useful
-interpreter and symbolic-evaluation code in that directory should be retained
-by role when the repository is reorganized.
+The dedicated `compiler/beta-lang-py` DDC gate and `bc2.py` backend have been
+removed because they supplied no unique semantic or refinement coverage. Shared
+source recognition and executable meaning now live under
+`bootstrap/rungs/beta/reference/`; symbolic reconstruction lives under
+`bootstrap/assurance/refinement/beta/`. `compiler/beta-lang-py/` is compatibility
+plumbing only.
 
 Independent Alpha realizations and independent proof-kernel implementations are
 not DDC. They are conformance and soundness cross-checks against explicit
@@ -207,8 +206,8 @@ translation-validation gates remain responsible for detecting that defect.
 `lowermachine.alp` and meaning diamond remain its principal gates.
 
 The certificate checker is renamed the **proof kernel**. Its canonical owner is
-`bootstrap/assurance/proof-kernel/`; `compiler/proof-kernel` is a temporary
-compatibility path. It remains a trusted assurance service with
+`bootstrap/assurance/proof-kernel/`; `compiler/proof-kernel` is a compatibility
+path. It remains a trusted assurance service with
 Beta and Gamma implementations. The rename changes neither its authority nor its
 validation gates; it removes the false claim that proof checking is a language
 stage between Gamma and Delta.

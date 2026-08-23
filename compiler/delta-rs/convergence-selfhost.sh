@@ -37,14 +37,14 @@ T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
 ASM="${OMEGA_PATH_BETA_ASSEMBLER}"/$BETA_SEED
 ( cd "${OMEGA_PATH_BETA_RUST}" && sh build.sh "${OMEGA_PATH_BETA}"/bc.beta >/dev/null ) || { echo "self-hosted convergence FAIL — bc build"; exit 1; }
-if "${OMEGA_PATH_BETA_RUST}"/build/bc.exe < "${OMEGA_PATH_PROOF_KERNEL}"/check.beta > "$T/c.asm" 2>/dev/null \
+if "${OMEGA_PATH_BETA_RUST}"/build/bc.exe < "${OMEGA_PATH_PROOF_KERNEL}"/implementations/beta/check.beta > "$T/c.asm" 2>/dev/null \
    && "$ASM" < "$T/c.asm" > "$T/c.tape" 2>/dev/null \
    && stamp_seed "$T/c.tape" "$SEED" "$T/check.exe" >/dev/null 2>&1; then :; else
   echo "self-hosted convergence FAIL — could not build the proof kernel"; exit 1; fi
 
 # 1b. the PROOF LIBRARY (bounds-2d=30, lt-le-trans=34, mult-overflow=66) for the library-citing certifiers.
 HAVE_LIB=0
-if command -v python3 >/dev/null 2>&1 && python3 "${OMEGA_PATH_PROOF_KERNEL}"/gen-lib2d.py > "$T/lib2d.proof" 2>/dev/null; then HAVE_LIB=1; fi
+if command -v python3 >/dev/null 2>&1 && python3 "${OMEGA_PATH_PROOF_KERNEL}"/tools/gen-lib2d.py > "$T/lib2d.proof" 2>/dev/null; then HAVE_LIB=1; fi
 
 # 2. the SELF-HOSTED Delta compiler: lowermachine, lowered by the backend, then used to compile certify-*.
 #    lmx emits arm64 asm to stdout; clang assembles + signs it. (No DELTA_ARCH backend on the certified path.)

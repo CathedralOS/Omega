@@ -29,7 +29,7 @@ DELTA_ARCH=aarch64 ./target/debug/delta samples/omega0-frontend.alp "$T/frontend
 PASS=0
 FAIL=0
 bundle_one() {
-  python3 "$OMEGA_PATH_OMEGA0/omega0_bundle.py" pack main.omg="$1" > "$2"
+  python3 "$OMEGA_PATH_OMEGA0/compiler/omega0_bundle.py" pack main.omg="$1" > "$2"
 }
 run_bundle() {
   label=$1 input=$2 expected=$3
@@ -86,7 +86,8 @@ printf '\377' >> "$T/invalid-utf8.omg"
 printf '");self.console.exit_process(0);}' >> "$T/invalid-utf8.omg"
 run_source "invalid UTF-8" "$T/invalid-utf8.omg" 251
 
-python3 "$OMEGA_PATH_OMEGA0/omega0_bundle.py" pack a.omg="$T/variant.omg" b.omg="$T/variant.omg" > "$T/multi.bundle"
+python3 "$OMEGA_PATH_OMEGA0/compiler/omega0_bundle.py" pack \
+  a.omg="$T/variant.omg" b.omg="$T/variant.omg" > "$T/multi.bundle"
 run_bundle "multiple sources outside O0" "$T/multi.bundle" 251
 
 dd if=/dev/zero of="$T/oversize.omg" bs=2049 count=1 2>/dev/null

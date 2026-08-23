@@ -62,7 +62,7 @@ context's hypotheses are one binder deeper, so their individual-variable indices
   `CTXN`; `ctx_push` records `IDEP` per hypothesis (parallel array at `4718592`); `gen`
   does `IDEP++ / infer / IDEP--`; and `hyp` lookup returns `shift_prop(stored, IDEP −
   stored_idep, 0)`. The old conservative `free_ivp` reject in `gen` is gone.
-- **`gamma/checker.gamma`** and **`gamma/checker_typed.gamma`** — purely functional:
+- **`implementations/gamma/checker.gamma`** and **`implementations/gamma/checker_typed.gamma`** — purely functional:
   `(Gen pf) → All (infer pf (shiftctx ctx))`, where `shiftctx` maps `shiftp · 1 0` over the
   context. `ctxclean` is no longer consulted.
 
