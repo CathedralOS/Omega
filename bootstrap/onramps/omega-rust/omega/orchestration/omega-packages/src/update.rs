@@ -225,6 +225,7 @@ pub enum PackageLockUpdatePlanError {
     TargetNotLocked { package: String },
     Admission(PackageUpdateAdmissionError),
     CandidateLock(PackageLockAssemblyError),
+    CandidateGraph(PackageGraphAuditError),
 }
 
 pub fn decide_default_package_update(
@@ -299,10 +300,12 @@ pub fn plan_package_lock_update(
     .map_err(PackageLockUpdatePlanError::Admission)?;
 
     let candidate_lock = if decision.is_admitted() {
-        Some(
+        let candidate_lock =
             PackageLock::from_manifests(current_lock.root_package.clone(), candidate_manifests)
-                .map_err(PackageLockUpdatePlanError::CandidateLock)?,
-        )
+                .map_err(PackageLockUpdatePlanError::CandidateLock)?;
+        audit_package_graph(&candidate_lock, candidate_manifests)
+            .map_err(PackageLockUpdatePlanError::CandidateGraph)?;
+        Some(candidate_lock)
     } else {
         None
     };
@@ -587,6 +590,30 @@ mod tests {
             plan.decision,
             PackageUpdateDecision::RejectManifestChange { .. }
         ));
+    }
+
+    #[test]
+    fn lock_update_plan_rejects_unreachable_candidate_package() {
+        let current_child = manifest("file-journal", "commit:old");
+        let (current_lock, current_manifests) = root_and_child_manifests(current_child);
+        let candidate_child = manifest("file-journal", "commit:new");
+        let (_, mut candidate_manifests) = root_and_child_manifests(candidate_child);
+        candidate_manifests.push(manifest("arithmetic-kernels", "commit:math"));
+
+        assert_eq!(
+            plan_package_lock_update(
+                &current_lock,
+                &current_manifests,
+                &candidate_manifests,
+                &package("file-journal"),
+                None,
+            ),
+            Err(PackageLockUpdatePlanError::CandidateGraph(
+                PackageGraphAuditError::UnreachablePackage {
+                    package: "arithmetic-kernels".to_owned(),
+                }
+            ))
+        );
     }
 
     #[test]

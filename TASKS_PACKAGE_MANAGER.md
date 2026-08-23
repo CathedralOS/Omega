@@ -250,6 +250,14 @@ Completed:
   planning, and return install/update plan text without editing `build.omg` or
   writing `omega.lock`.
 
+- **UPDATE-PLAN-CANDIDATE-GRAPH-AUDIT.** Ensure non-mutating update plans fail
+  closed if the admitted candidate lock is not graph-auditable.
+
+  Done 2026-08-23: `plan_package_lock_update` now audits the assembled
+  candidate lock before returning it and rejects unreachable or otherwise
+  graph-invalid candidate package closures instead of handing a bad lock to
+  later CLI persistence.
+
 - **PACKAGE-SOURCE-AUDIT-LOCATOR-API.** Add the command seam that combines
   source locator parsing with resolver-owned source audit.
 
@@ -354,7 +362,8 @@ Remaining:
 
   Remaining after `DEFAULT-UPDATE-ADMISSION` and
   `PACKAGE-LOCK-UPDATE-PLAN`, `CAPABILITY-CHANGE-RECEIPT-PERSISTENCE`, and
-  `PACKAGE-PLAN-COMMAND-APIS`: wire candidate resolution,
+  `PACKAGE-PLAN-COMMAND-APIS`, and
+  `UPDATE-PLAN-CANDIDATE-GRAPH-AUDIT`: wire candidate resolution,
   package-admission manifest derivation, `build.omg` pin editing, and lock
   persistence around the update decision.
 
