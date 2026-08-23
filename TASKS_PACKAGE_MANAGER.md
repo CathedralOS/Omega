@@ -117,7 +117,16 @@ Completed:
   Done 2026-08-23: `omega-packages` validates that a package lock contains its
   root package, has no duplicate package entries, has no duplicate dependency
   aliases within a package, has no dependency edges to packages absent from the
-  closure, and retains non-empty source identities and manifest fingerprints.
+  closure, retains non-empty source identities and manifest fingerprints, and
+  contains only packages reachable from the root package.
+
+- **PACKAGE-LOCK-REACHABILITY-VALIDATION.** Move graph reachability into lock
+  closure validation before any lock read/write path can accept an unreachable
+  package row.
+
+  Done 2026-08-23: `PackageLock::validate_closure`, lock persistence, lock
+  assembly, and graph audit now reject package entries that are not reachable
+  from the lock root through dependency aliases.
 
 - **PACKAGE-LOCK-PERSISTENCE.** Add strict lock artifact read/write support
   before install/update mutates `omega.lock`.
@@ -302,7 +311,8 @@ Remaining:
 
   Remaining after `PACKAGE-LOCK-MODEL`,
   `PACKAGE-LOCK-CLOSURE-VALIDATION`, `PACKAGE-LOCK-PERSISTENCE`, and
-  `PACKAGE-LOCK-ASSEMBLY-FROM-MANIFESTS`: wire compiler/package admission
+  `PACKAGE-LOCK-ASSEMBLY-FROM-MANIFESTS`, and
+  `PACKAGE-LOCK-REACHABILITY-VALIDATION`: wire compiler/package admission
   output into the existing `omega.lock` artifact.
 
   Acceptance: the lock records exact repository revisions/content identities,

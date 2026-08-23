@@ -42,6 +42,9 @@ pub enum PackageLockValidationError {
         alias: String,
         dependency: String,
     },
+    UnreachablePackage {
+        package: String,
+    },
     MissingSourceIdentity {
         package: String,
     },
@@ -206,6 +209,29 @@ impl PackageLock {
                         dependency: dependency.package.as_str().to_owned(),
                     });
                 }
+            }
+        }
+        if package_names.contains(self.root_package.as_str()) {
+            let mut reachable = BTreeSet::new();
+            let mut pending = vec![self.root_package.as_str().to_owned()];
+            while let Some(package_name) = pending.pop() {
+                if !reachable.insert(package_name.clone()) {
+                    continue;
+                }
+                if let Some(package) = self
+                    .packages
+                    .iter()
+                    .find(|package| package.package.as_str() == package_name)
+                {
+                    for dependency in &package.dependencies {
+                        pending.push(dependency.package.as_str().to_owned());
+                    }
+                }
+            }
+            for package in package_names.difference(&reachable) {
+                errors.push(PackageLockValidationError::UnreachablePackage {
+                    package: (*package).to_owned(),
+                });
             }
         }
 
@@ -1010,6 +1036,25 @@ mod tests {
 
         assert!(
             errors.contains(&PackageLockValidationError::DuplicatePackage {
+                package: "file-journal".to_owned()
+            })
+        );
+    }
+
+    #[test]
+    fn lock_validation_rejects_unreachable_package() {
+        let mut lock = PackageLock::new(package("graph-workbench"));
+        lock.packages = vec![
+            locked_package("graph-workbench"),
+            locked_package("file-journal"),
+        ];
+
+        let errors = lock
+            .validate_closure()
+            .expect_err("unreachable package must reject");
+
+        assert!(
+            errors.contains(&PackageLockValidationError::UnreachablePackage {
                 package: "file-journal".to_owned()
             })
         );

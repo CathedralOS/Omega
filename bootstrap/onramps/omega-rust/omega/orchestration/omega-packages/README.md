@@ -113,8 +113,8 @@ cargo test -p omega-packages --test remote_fixtures -- --ignored --test-threads=
   can read the current lock file before returning the plan.
 - `lock`: machine-written package closure records with resolved source
   identity, manifest fingerprints, dependency aliases, trust receipts, stable
-  JSON, lock fingerprints, closure validation, and strict lock-file
-  persistence. Locks can be assembled from compiler-supplied package
+  JSON, lock fingerprints, closed-and-reachable closure validation, and strict
+  lock-file persistence. Locks can be assembled from compiler-supplied package
   capability manifests before writing.
 - `review`: deterministic capability-change review receipts bound to exact
   source identities, manifest fingerprints, accepted diff sections, reviewer,
