@@ -30,7 +30,7 @@ stack_potential_lift_init:
         call stack_lift_check_block_contexts
         call stack_lift_check_root_contexts
         call stack_lift_instantiate_main
-        jmp scan_owned_effects_init
+        jmp slurp_summary_init
 
 ; The emitted program starts its explicit stack/frame pair at one MiB, calls
 ; the independently resolved main procedure, then halts with main's r0.

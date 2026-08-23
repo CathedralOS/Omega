@@ -88,9 +88,9 @@ to exact Alpha width/opcode/register sites. Every store also checks the immediat
 changes, pop-step changes, duplicate sites, and reordered BCT8 records retain
 valid Alpha framing and reject. The reduced phases below close the Beta-source
 address intervals and transfer the three selected address operands under a
-valid callee entry frame. Ranged payload values, other raw loads, general
-address correspondence, and global establishment of the selected frame/
-machine-memory preconditions remain open.
+valid callee entry frame. IDOFF/IDLEN and name-table payload values, other raw
+loads, general address correspondence, and global establishment of the selected
+frame/machine-memory preconditions remain open.
 
 `bc-raw-load-families.alpha` consumes a new grammar-derived classification of
 all 61 loads: 54 aligned literal compiler-global words, five indexed SRC bytes,
@@ -177,8 +177,9 @@ source/artifact/witness mutations pass a projection ending immediately before
 this schema/induction phase and fail the full checker; an independent
 underreported-loop mutation reaches and fails backedge closure. This is a
 source-semantic lemma plus static artifact macro custody; its machine transfer
-is the following phase. The stored `c`/IDOFF/IDLEN values, every raw-load bound,
-whole-artifact live-frame invariant, and general local contents remain open.
+is the following phase. At this point the stored `c`/IDOFF/IDLEN values, every
+raw-load bound, whole-artifact live-frame invariant, and general local contents
+remain open.
 
 `bc-ranged-store-transfer.alpha` then rejoins only the selected local, memory,
 primitive, push, frame, temporary-peak, and address-class rows. Exact lowering
@@ -197,8 +198,9 @@ conditional on an aligned entry `(r15,r14)=(S,F)` with
 shallow-frame checker teeth reject. This does not yet prove that every
 whole-compiler invocation establishes those preconditions by itself; the later
 counter/frame/potential lift now supplies actual `NLOC`, depth-counter, and
-saved-frame transfer across all calls and both reset paths. Ranged payloads
-`c`/IDOFF/IDLEN, all other raw loads, and their bounds remain open.
+saved-frame transfer across all calls and both reset paths. The later
+cursor-zero `slurp` summary closes its stored `c`/input-prefix relation;
+IDOFF/IDLEN, the seven indexed raw loads, and their span bounds remain open.
 
 `bc-counter-transfer.alpha` adds a witness-free selected-value premise for the
 two bounded recursion counters and resource status. It rejoins the exact Alpha
@@ -284,3 +286,27 @@ underreported procedure peak, and underreported final root each reject in their
 own phase. This closes absolute `B_bc1` stack safety, not general raw-load/local/
 return values, dynamic reachability, termination, or terminal/trace
 correspondence.
+
+`bc-slurp-summary.alpha` is the first blockwise relational value proof. It is a
+cursor-zero conditional summary: both meanings enter `slurp` with cursor zero,
+the same finite input, an empty output trace, and a compatible checked frame.
+The phase rejoins all five blocks, four transitions, ten local actions, eight
+stores, two reads, two explicit returns, and the exact selected value macros.
+Its executable induction carries `n`, `Input(n)` versus EOF, the common cursor,
+and one compact segment token `SRC[0:n] = input[0:n]`. The sole extension rule
+requires the exact `SRC+n` endpoint and `Input(n)` payload at PC 538 before it
+mints the `n+1` segment; the local increment and second read close both
+backedge outcomes through an explicit capture-avoiding tag rename.
+`1048576-n` decreases on every cycle, and an exhaustive
+effect scan proves the procedure emits no bytes and has no ordinary calls.
+
+Consequently inputs of at most 1 MiB return 1 with the complete input copied,
+LEN set, and CUR/NLOC/LBL/EXPRDEPTH/RESOURCE_FAIL/BLOCKDEPTH zero. Larger inputs
+consume exactly 1 MiB+1 bytes, return 0 with the first 1 MiB copied, and do not
+execute those resets. Both exits preserve other regions, restore the caller
+pair, avoid traps/out-of-bounds access, emit nothing, and terminate. Checker
+teeth derive the endpoint payload from the wrong local, erase the rank
+decrement, break the backedge rename, or feed zero rather than n to LEN; each
+rejects only in this phase. This is a conditional procedure summary, not proof
+that `main` establishes its entry relation, the status-253 composition, or a
+typed `Exhaust(SourceBytes,...)` observation.

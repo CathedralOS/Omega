@@ -208,7 +208,8 @@ cat "$GATE_DIR/bc-block-control.alpha" \
   "$GATE_DIR/bc-frame-summary.alpha" \
   "$GATE_DIR/bc-ranged-store-transfer.alpha" \
   "$GATE_DIR/bc-counter-transfer.alpha" \
-  "$GATE_DIR/bc-stack-potential-lift.alpha" > "$T/control-check.alpha"
+  "$GATE_DIR/bc-stack-potential-lift.alpha" \
+  "$GATE_DIR/bc-slurp-summary.alpha" > "$T/control-check.alpha"
 "$ASM" < "$T/control-check.alpha" > "$T/control-check.tape"
 stamp_seed "$T/control-check.tape" "$SEED" "$T/control-check" >/dev/null
 
@@ -219,6 +220,27 @@ sed '/call composition_load_parse_fixed/{n;s/imm r6, 1/imm r6, 0/;}' \
   "$T/control-check.alpha" > "$T/load-missing-class.alpha"
 "$ASM" < "$T/load-missing-class.alpha" > "$T/load-missing-class.tape"
 stamp_seed "$T/load-missing-class.tape" "$SEED" "$T/load-missing-class" >/dev/null
+
+# Phase-isolated slurp-summary teeth mutate only the checker proof script. The
+# first derives the endpoint payload from n instead of c, the second admits a
+# zero rank delta, the third breaks backedge renaming, and the fourth feeds zero
+# rather than n to LEN.
+sed 's/imm r20, 4                    ; derived c payload kind/imm r20, 2                    ; derived c payload kind/' \
+  "$T/control-check.alpha" > "$T/slurp-wrong-payload.alpha"
+"$ASM" < "$T/slurp-wrong-payload.alpha" > "$T/slurp-wrong-payload.tape"
+stamp_seed "$T/slurp-wrong-payload.tape" "$SEED" "$T/slurp-wrong-payload" >/dev/null
+sed 's/imm r3, 1                     ; checked inverse-successor delta/imm r3, 0                     ; checked inverse-successor delta/' \
+  "$T/control-check.alpha" > "$T/slurp-zero-rank.alpha"
+"$ASM" < "$T/slurp-zero-rank.alpha" > "$T/slurp-zero-rank.tape"
+stamp_seed "$T/slurp-zero-rank.tape" "$SEED" "$T/slurp-zero-rank" >/dev/null
+sed 's/imm r2, 2                    ; checked renamed cursor successor/imm r2, 1                    ; checked renamed cursor successor/' \
+  "$T/control-check.alpha" > "$T/slurp-wrong-rename.alpha"
+"$ASM" < "$T/slurp-wrong-rename.alpha" > "$T/slurp-wrong-rename.tape"
+stamp_seed "$T/slurp-wrong-rename.tape" "$SEED" "$T/slurp-wrong-rename" >/dev/null
+sed 's/call slurp_sv_load_n             ; checked LEN payload flow/call slurp_sv_zero               ; checked LEN payload flow/' \
+  "$T/control-check.alpha" > "$T/slurp-wrong-len.alpha"
+"$ASM" < "$T/slurp-wrong-len.alpha" > "$T/slurp-wrong-len.tape"
+stamp_seed "$T/slurp-wrong-len.tape" "$SEED" "$T/slurp-wrong-len" >/dev/null
 
 # Phase-isolated tooth: leave the exact source, tape, witness, and every prior
 # checker phase unchanged, but underreport the prelude fp owner. Adjust only the
@@ -306,7 +328,8 @@ cat "$GATE_DIR/bc-block-control.alpha" \
   "$GATE_DIR/bc-frame-summary.alpha" \
   "$GATE_DIR/bc-ranged-store-transfer.alpha" \
   "$GATE_DIR/bc-counter-transfer.alpha" \
-  "$GATE_DIR/bc-stack-potential-lift.alpha" > "$T/flat-check.alpha"
+  "$GATE_DIR/bc-stack-potential-lift.alpha" \
+  "$GATE_DIR/bc-slurp-summary.alpha" > "$T/flat-check.alpha"
 "$ASM" < "$T/flat-check.alpha" > "$T/flat-check.tape"
 stamp_seed "$T/flat-check.tape" "$SEED" "$T/flat-check" >/dev/null
 
@@ -396,6 +419,16 @@ if [ "$load_missing_class_status" != 1 ] || [ -s "$T/stdout" ]; then
   echo "bc block control FAIL — missing fixed raw-load class was not rejected" >&2
   exit 1
 fi
+for slurp_tooth in slurp-wrong-payload slurp-zero-rank slurp-wrong-rename slurp-wrong-len; do
+  set +e
+  "$T/$slurp_tooth" < "$T/control.bundle" > "$T/stdout"
+  slurp_tooth_status=$?
+  set -e
+  if [ "$slurp_tooth_status" != 1 ] || [ -s "$T/stdout" ]; then
+    echo "bc block control FAIL — $slurp_tooth was not rejected" >&2
+    exit 1
+  fi
+done
 coherent_ranged_mutant slurp-cap
 coherent_ranged_mutant declare-cap
 coherent_ranged_mutant nloc-step
@@ -595,4 +628,4 @@ for mutation in call-retarget read-register write-register helper-write emit-byt
   fi
 done
 
-echo "bc block control/effects: 70 proc / 355 block / 291 transition; 613 effect sites / 829 fixed emit bytes; 78 frame slots / 27 parameter stores / 134 call pops; 169 local loads / 73 local stores; 61 raw loads = 54 fixed-safe + 5 SRC-indexed + 2 table-indexed / 34 raw stores; 581 literals / 55 arithmetic / 180 comparison primitives; 235 binary / 134 argument / 34 store-address pushes; syntax-directed composition / relative temporary peak 2; three ranged Alpha operands transferred; all 607 stores partitioned / 70 call-cut frames summarized; 64-row counter contexts; absolute B_bc1 stack <=12720 explicit bytes / <=662 hidden returns; all 2630 explicit-stack effects and 687 artifact effects owned ($(wc -c < "$T/control-check.tape" | tr -d ' ')-byte Alpha checker tape)"
+echo "bc block control/effects: 70 proc / 355 block / 291 transition; 613 effect sites / 829 fixed emit bytes; 78 frame slots / 27 parameter stores / 134 call pops; 169 local loads / 73 local stores; 61 raw loads = 54 fixed-safe + 5 SRC-indexed + 2 table-indexed / 34 raw stores; cursor-zero slurp segment/value/termination summary; 581 literals / 55 arithmetic / 180 comparison primitives; 235 binary / 134 argument / 34 store-address pushes; syntax-directed composition / relative temporary peak 2; three ranged Alpha operands transferred; all 607 stores partitioned / 70 call-cut frames summarized; 64-row counter contexts; absolute B_bc1 stack <=12720 explicit bytes / <=662 hidden returns; all 2630 explicit-stack effects and 687 artifact effects owned ($(wc -c < "$T/control-check.tape" | tr -d ' ')-byte Alpha checker tape)"
