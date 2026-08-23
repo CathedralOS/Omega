@@ -209,7 +209,8 @@ cat "$GATE_DIR/bc-block-control.alpha" \
   "$GATE_DIR/bc-ranged-store-transfer.alpha" \
   "$GATE_DIR/bc-counter-transfer.alpha" \
   "$GATE_DIR/bc-stack-potential-lift.alpha" \
-  "$GATE_DIR/bc-slurp-summary.alpha" > "$T/control-check.alpha"
+  "$GATE_DIR/bc-slurp-summary.alpha" \
+  "$GATE_DIR/bc-main-slurp-bridge.alpha" > "$T/control-check.alpha"
 "$ASM" < "$T/control-check.alpha" > "$T/control-check.tape"
 stamp_seed "$T/control-check.tape" "$SEED" "$T/control-check" >/dev/null
 
@@ -241,6 +242,26 @@ sed 's/call slurp_sv_load_n             ; checked LEN payload flow/call slurp_sv
   "$T/control-check.alpha" > "$T/slurp-wrong-len.alpha"
 "$ASM" < "$T/slurp-wrong-len.alpha" > "$T/slurp-wrong-len.tape"
 stamp_seed "$T/slurp-wrong-len.tape" "$SEED" "$T/slurp-wrong-len" >/dev/null
+
+# Phase-isolated main/slurp bridge teeth retain the exact source, artifact,
+# slurp theorem, and every preceding phase.  They respectively sever the
+# returned-r0/local association, admit zero==one, and relabel status 253 as 252.
+sed 's/call main_slurp_value_load_local             ; checked returned-r0 flow/call main_slurp_value_one                   ; checked returned-r0 flow/' \
+  "$T/control-check.alpha" > "$T/main-slurp-wrong-local.alpha"
+"$ASM" < "$T/main-slurp-wrong-local.alpha" > "$T/main-slurp-wrong-local.tape"
+stamp_seed "$T/main-slurp-wrong-local.tape" "$SEED" "$T/main-slurp-wrong-local" >/dev/null
+sed 's/imm r21, 0                    ; checked zero != one result/imm r21, 1                    ; checked zero != one result/' \
+  "$T/control-check.alpha" > "$T/main-slurp-wrong-branch.alpha"
+"$ASM" < "$T/main-slurp-wrong-branch.alpha" > "$T/main-slurp-wrong-branch.tape"
+stamp_seed "$T/main-slurp-wrong-branch.tape" "$SEED" "$T/main-slurp-wrong-branch" >/dev/null
+sed 's/imm r20, 253                  ; checked concrete failure value/imm r20, 252                  ; checked concrete failure value/' \
+  "$T/control-check.alpha" > "$T/main-slurp-wrong-status.alpha"
+"$ASM" < "$T/main-slurp-wrong-status.alpha" > "$T/main-slurp-wrong-status.tape"
+stamp_seed "$T/main-slurp-wrong-status.tape" "$SEED" "$T/main-slurp-wrong-status" >/dev/null
+sed 's/imm r1, 525744                ; import success clause/imm r1, 525752                ; import success clause/' \
+  "$T/control-check.alpha" > "$T/main-slurp-wrong-clause.alpha"
+"$ASM" < "$T/main-slurp-wrong-clause.alpha" > "$T/main-slurp-wrong-clause.tape"
+stamp_seed "$T/main-slurp-wrong-clause.tape" "$SEED" "$T/main-slurp-wrong-clause" >/dev/null
 
 # Phase-isolated tooth: leave the exact source, tape, witness, and every prior
 # checker phase unchanged, but underreport the prelude fp owner. Adjust only the
@@ -329,7 +350,8 @@ cat "$GATE_DIR/bc-block-control.alpha" \
   "$GATE_DIR/bc-ranged-store-transfer.alpha" \
   "$GATE_DIR/bc-counter-transfer.alpha" \
   "$GATE_DIR/bc-stack-potential-lift.alpha" \
-  "$GATE_DIR/bc-slurp-summary.alpha" > "$T/flat-check.alpha"
+  "$GATE_DIR/bc-slurp-summary.alpha" \
+  "$GATE_DIR/bc-main-slurp-bridge.alpha" > "$T/flat-check.alpha"
 "$ASM" < "$T/flat-check.alpha" > "$T/flat-check.tape"
 stamp_seed "$T/flat-check.tape" "$SEED" "$T/flat-check" >/dev/null
 
@@ -426,6 +448,16 @@ for slurp_tooth in slurp-wrong-payload slurp-zero-rank slurp-wrong-rename slurp-
   set -e
   if [ "$slurp_tooth_status" != 1 ] || [ -s "$T/stdout" ]; then
     echo "bc block control FAIL — $slurp_tooth was not rejected" >&2
+    exit 1
+  fi
+done
+for main_slurp_tooth in main-slurp-wrong-local main-slurp-wrong-branch main-slurp-wrong-status main-slurp-wrong-clause; do
+  set +e
+  "$T/$main_slurp_tooth" < "$T/control.bundle" > "$T/stdout"
+  main_slurp_tooth_status=$?
+  set -e
+  if [ "$main_slurp_tooth_status" != 1 ] || [ -s "$T/stdout" ]; then
+    echo "bc block control FAIL — $main_slurp_tooth was not rejected" >&2
     exit 1
   fi
 done
@@ -628,4 +660,4 @@ for mutation in call-retarget read-register write-register helper-write emit-byt
   fi
 done
 
-echo "bc block control/effects: 70 proc / 355 block / 291 transition; 613 effect sites / 829 fixed emit bytes; 78 frame slots / 27 parameter stores / 134 call pops; 169 local loads / 73 local stores; 61 raw loads = 54 fixed-safe + 5 SRC-indexed + 2 table-indexed / 34 raw stores; cursor-zero slurp segment/value/termination summary; 581 literals / 55 arithmetic / 180 comparison primitives; 235 binary / 134 argument / 34 store-address pushes; syntax-directed composition / relative temporary peak 2; three ranged Alpha operands transferred; all 607 stores partitioned / 70 call-cut frames summarized; 64-row counter contexts; absolute B_bc1 stack <=12720 explicit bytes / <=662 hidden returns; all 2630 explicit-stack effects and 687 artifact effects owned ($(wc -c < "$T/control-check.tape" | tr -d ' ')-byte Alpha checker tape)"
+echo "bc block control/effects: 70 proc / 355 block / 291 transition; 613 effect sites / 829 fixed emit bytes; 78 frame slots / 27 parameter stores / 134 call pops; 169 local loads / 73 local stores; 61 raw loads = 54 fixed-safe + 5 SRC-indexed + 2 table-indexed / 34 raw stores; cursor-zero slurp segment/value/termination summary composed from root through main.ready or halt(253); 581 literals / 55 arithmetic / 180 comparison primitives; 235 binary / 134 argument / 34 store-address pushes; syntax-directed composition / relative temporary peak 2; three ranged Alpha operands transferred; all 607 stores partitioned / 70 call-cut frames summarized; 64-row counter contexts; absolute B_bc1 stack <=12720 explicit bytes / <=662 hidden returns; all 2630 explicit-stack effects and 687 artifact effects owned ($(wc -c < "$T/control-check.tape" | tr -d ' ')-byte Alpha checker tape)"

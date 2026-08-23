@@ -13,8 +13,9 @@
 ; admits only exact endpoint address SRC+n and payload Input(n), extending the
 ; segment to n+1; the reread closes both successor cases.  The rank CAP-n drops
 ; on every backedge.  This proves a slurp procedure summary given its checked
-; entry relation; establishing that relation from main, main's 253 projection,
-; and typed Exhaust identity remain later obligations.
+; entry relation.  The following bridge establishes that relation from main and
+; composes main's 253 projection; typed Exhaust identity remains a design
+; ruling.
 ;
 ; Symbolic-state globals (fresh after preceding phases):
 ;   n tag/lo/hi          525464/525472/525480
@@ -27,6 +28,7 @@
 ;   selected Alpha value kind/payload 525584/525592
 ;   selected value-stack top/kind/payload 525600/525608/525616
 ;   popped address kind/payload 525624/525632; done-store count 525640
+;   published success/oversize clauses 525744/525752
 ;
 ; Index tags: 1=N, 2=N+1, 3=N+2. Value kinds: 1=SRC constant,
 ; 2=index, 3=SRC+index, 4=Input(index), 5=zero, 6=one, 7=fixed address.
@@ -36,7 +38,7 @@ slurp_summary_init:
         call slurp_summary_require_shape
         call slurp_summary_scan_effects
         call slurp_summary_prove_induction
-        jmp scan_owned_effects_init
+        jmp main_slurp_bridge_init
 
 ; ---- Exact selected source/artifact closure -----------------------------
 
@@ -648,6 +650,14 @@ slurp_summary_epilogue_ret_linked:
 ; ---- Executable relational induction -----------------------------------
 
 slurp_summary_prove_induction:
+        ; Public theorem clauses start absent.  They are minted only after the
+        ; corresponding derived state below has been rechecked in full.
+        imm r1, 525744
+        imm r2, 0
+        store r1, r2
+        imm r1, 525752
+        store r1, r2
+
         ; Root invocation starts with empty related source/input segments,
         ; equal input cursor zero, and equal empty output.
         imm r20, 1                    ; N
@@ -700,6 +710,7 @@ slurp_summary_prove_induction:
         imm r21, 2
         call slurp_summary_set_read_byte
         call slurp_summary_prove_full_exit
+        call slurp_summary_publish_oversize
 
         ; False equality edge refines N to [0,CAP-1]. Symbolically execute the
         ; exact Alpha chain at PCs 420..538: SRC literal, address push, local n,
@@ -767,6 +778,8 @@ slurp_summary_prove_induction:
         call slurp_summary_set_read_eof
         call slurp_summary_require_loop_eof
         call slurp_summary_prove_done_exit
+        call slurp_summary_publish_success
+        call slurp_summary_require_published
         ret
 
 ; n tag/lo/hi in r20..r22.
@@ -1444,6 +1457,115 @@ slurp_summary_done_result:
         imm r21, 1
         call slurp_sv_require_current
         call slurp_summary_require_empty_output
+        ret
+
+; Publish the oversized-input clause only from the exact full-exit state:
+; len>N at N=CAP, cursor=N+1, prefix length N, result zero, no reset stores,
+; and epsilon output.  Magic value two distinguishes it from success.
+slurp_summary_publish_oversize:
+        imm r20, 525464
+        imm r21, 1                    ; N tag
+        call slurp_summary_require_state_cell
+        imm r20, 525472
+        imm r21, 1048576              ; N lower endpoint
+        call slurp_summary_require_state_cell
+        imm r20, 525480
+        imm r21, 1048576              ; N upper endpoint
+        call slurp_summary_require_state_cell
+        imm r20, 525488
+        imm r21, 1                    ; segment length=N
+        call slurp_summary_require_state_cell
+        imm r20, 525496
+        imm r21, 1                    ; pending Input(N)
+        call slurp_summary_require_state_cell
+        imm r20, 525504
+        imm r21, 1
+        call slurp_summary_require_state_cell
+        imm r20, 525512
+        imm r21, 2                    ; cursor=N+1
+        call slurp_summary_require_state_cell
+        imm r20, 525568
+        imm r21, 1                    ; finite len>N
+        call slurp_summary_require_state_cell
+        imm r20, 525576
+        imm r21, 1
+        call slurp_summary_require_state_cell
+        imm r20, 525584
+        imm r21, 5                    ; selected zero
+        call slurp_summary_require_state_cell
+        imm r20, 525592
+        imm r21, 0
+        call slurp_summary_require_state_cell
+        imm r20, 525640
+        imm r21, 0                    ; done resets did not execute
+        call slurp_summary_require_state_cell
+        call slurp_summary_require_empty_output
+        imm r1, 525752
+        imm r2, 2
+        store r1, r2                  ; publish oversize clause
+        ret
+
+; Publish the successful-input clause only after the generic EOF exit covers
+; the entire 0<=N<=CAP interval: len=cursor=segment=N, all seven done stores,
+; result one, and epsilon output.  The carried segment token supplies the exact
+; copied prefix; the selected stores supply LEN=N and all six resets.
+slurp_summary_publish_success:
+        imm r20, 525464
+        imm r21, 1                    ; N tag
+        call slurp_summary_require_state_cell
+        imm r20, 525472
+        imm r21, 0                    ; quantified lower endpoint
+        call slurp_summary_require_state_cell
+        imm r20, 525480
+        imm r21, 1048576              ; quantified upper endpoint
+        call slurp_summary_require_state_cell
+        imm r20, 525488
+        imm r21, 1                    ; segment length=N
+        call slurp_summary_require_state_cell
+        imm r20, 525496
+        imm r21, 2                    ; EOF at N
+        call slurp_summary_require_state_cell
+        imm r20, 525504
+        imm r21, 1
+        call slurp_summary_require_state_cell
+        imm r20, 525512
+        imm r21, 1                    ; cursor=N
+        call slurp_summary_require_state_cell
+        imm r20, 525568
+        imm r21, 2                    ; finite len=N
+        call slurp_summary_require_state_cell
+        imm r20, 525576
+        imm r21, 1
+        call slurp_summary_require_state_cell
+        imm r20, 525584
+        imm r21, 6                    ; selected one
+        call slurp_summary_require_state_cell
+        imm r20, 525592
+        imm r21, 1
+        call slurp_summary_require_state_cell
+        imm r20, 525640
+        imm r21, 7                    ; LEN plus six resets
+        call slurp_summary_require_state_cell
+        call slurp_summary_require_empty_output
+        imm r1, 525744
+        imm r2, 1
+        store r1, r2                  ; publish success clause
+        ret
+
+; Require one internal symbolic-state cell at address r20 to equal r21.
+slurp_summary_require_state_cell:
+        load r2, r20
+        jeq r2, r21, slurp_summary_require_ok
+        jmp reject
+
+; Reaching the caller-facing bridge requires both independently keyed clauses.
+slurp_summary_require_published:
+        imm r20, 525744
+        imm r21, 1
+        call slurp_summary_require_state_cell
+        imm r20, 525752
+        imm r21, 2
+        call slurp_summary_require_state_cell
         ret
 
 ; Require current selected kind/payload r20/r21.

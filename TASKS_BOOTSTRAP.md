@@ -600,8 +600,9 @@ additional facilities the bootstrap actually needs.
       emit nothing, avoid traps/OOB, and terminate. Wrong endpoint payload,
       zero rank decrement, broken backedge renaming, and wrong LEN-value-flow
       teeth reject only here.
-      Composing return 0 with `main`'s host status 253 and assigning typed
-      SourceBytes exhaustion remain terminal-summary/ruling obligations.
+      The following root bridge now composes return 0 through `main` to the
+      canonical `Halt(253)` observation. Assigning that path the typed
+      SourceBytes exhaustion identity remains an observation ruling.
     - [x] Keep comparison lookahead inside the logical source arena. `cmp_op`
       now advances through the existing `cbyte()` bounds check and restores CUR
       when a single `=` is not a comparison, instead of directly reading
@@ -714,6 +715,18 @@ additional facilities the bootstrap actually needs.
       parsed `bc.beta` CFG to the decoded Alpha CFG. Cover stack/memory bounds,
       call/return frames, streamed output, terminal classes, and cyclic progress;
       do not expand the current closed-form symbolic branch tree.
+      - [x] Compose the cursor-zero slurp summary from the exact program root
+        through main's storage guard. The Alpha phase rejoins the effect-free
+        prelude/main prefix, zero-ambient safe frame, call/continuation, returned
+        value's exact local store/load and equality flow, guarded edge, failure
+        epilogue, and prelude halt. Success reaches `main.ready` with slurp's
+        source segment/reset/empty-output footprint; source oversize terminates
+        with the exact concrete `Halt(253)` observation and empty trace. Wrong
+        local provenance, reversed zero/one branch flow, status relabeling, and
+        cross-clause import reject only in this phase. The imported success and
+        oversize clauses are published by the slurp induction only after their
+        length/cursor/segment/reset/result states are rechecked. This does not
+        choose the typed observation projection below.
       - [ ] **DESIGN BLOCKED — observation ruling required:** define how the
         theorem assigns typed `Exhaust(ResourceKind, limit, requested)` to the
         exact resource-guard paths whose program-level result is only 252/253.

@@ -310,3 +310,22 @@ decrement, break the backedge rename, or feed zero rather than n to LEN; each
 rejects only in this phase. This is a conditional procedure summary, not proof
 that `main` establishes its entry relation, the status-253 composition, or a
 typed `Exhaust(SourceBytes,...)` observation.
+
+`bc-main-slurp-bridge.alpha` discharges the first two of those remaining root
+obligations without changing the observation model. It rejoins the exact
+prelude, main/slurp call at PC 51045, zero-ambient checked frame, `storage_ok`
+store/load, equality macro, guarded transition, failure epilogue, and prelude
+halt. The slurp phase publishes separately keyed success and oversize theorem
+clauses only after rechecking each clause's input-length partition, cursor,
+segment, reset-store count, selected result, and output invariant; the bridge
+must import those clauses rather than supplying a raw 0/1 result. The only
+dynamically executed prefix before slurp is effect-free, so the
+canonical cursor-zero/epsilon-output initial relation is the procedure's actual
+entry relation. The selected-value proof then carries slurp's 0/1 result through
+local slot zero: one reaches `main.ready` at PC 51226 with the successful slurp
+footprint, while zero materializes 253, restores both caller pairs, and reaches
+`halt r0` at PC 29 with empty output. The selected suffix has no input/output,
+nested call, division, or remainder. Wrong local provenance, reversed equality,
+status relabeling, and cross-clause import reject only in this phase. This proves the concrete
+`Halt(253)` projection for source oversize; whether that projection is exposed
+as typed `Exhaust(SourceBytes,1048576,1048577)` is still a design ruling.
