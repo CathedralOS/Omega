@@ -7,7 +7,8 @@
 //! or prove native execution.
 
 use super::{
-    ProgramEntrySourceExtentFieldRole, ProgramStorageEntryDiagnostic, ProgramStorageEntryRootRole,
+    ProgramEntrySourceExtentFieldRole, ProgramLocalStorageCustody, ProgramLocalStorageCustodyError,
+    ProgramStorageEntryDiagnostic, ProgramStorageEntryRootRole,
     ProgramStorageEntryWholeRootOperandCarrier,
 };
 use omega_calling_conventions::{IndirectPointerLocation, MachineRegister};
@@ -103,6 +104,25 @@ pub fn plan_program_storage_entry_wrapper_caller_frame(
             operands,
             diagnostic,
         }),
+    }
+}
+
+pub fn plan_program_local_storage_entry_wrapper_caller_frame<'root, 'code>(
+    custody: ProgramLocalStorageCustody<'root, 'code, ProgramStorageEntryWholeRootOperandCarrier>,
+) -> Result<
+    ProgramLocalStorageCustody<'root, 'code, ProgramStorageEntryWrapperCallerFramePlan>,
+    ProgramLocalStorageCustodyError<'root, 'code, ProgramStorageEntryWholeRootOperandCarrier>,
+> {
+    let (operands, registry) = custody.into_parts();
+    match plan_program_storage_entry_wrapper_caller_frame(operands) {
+        Ok(frame) => Ok(ProgramLocalStorageCustody::new(frame, registry)),
+        Err(error) => {
+            let diagnostic = error.diagnostic().clone();
+            Err(ProgramLocalStorageCustodyError::new(
+                ProgramLocalStorageCustody::new(error.into_operands(), registry),
+                diagnostic,
+            ))
+        }
     }
 }
 

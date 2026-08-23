@@ -252,6 +252,7 @@ fn provider_module() -> TerminalModule {
             structural_parameters: Vec::new(),
             result: None,
             requires: Vec::new(),
+            program_local_root_introductions: Vec::new(),
             published_service_ceiling: vec![service],
         }],
         provider_candidates: vec![

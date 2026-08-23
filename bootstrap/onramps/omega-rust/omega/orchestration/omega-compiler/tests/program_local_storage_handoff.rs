@@ -10,11 +10,18 @@ use omega_calling_conventions::{
     evaluate_ordinary_boundary_entry_plan, validate_entry_stack_realization,
 };
 use omega_compiler::{
-    PROGRAM_STORAGE_INSTALLATION_ARTIFACT, ProgramLocalStorageInstallationHandoffError,
-    SelectedProgramStorageEntryPlan, bind_program_storage_entry_plan,
+    CompileOptions, PROGRAM_STORAGE_INSTALLATION_ARTIFACT,
+    ProgramLocalStorageInstallationHandoffError,
+    ProgramLocalStorageRecordedWholeRootArgumentRecovery, SelectedProgramStorageEntryPlan,
+    bind_program_local_storage_entry_emitted_whole_root_arguments,
+    bind_program_local_storage_entry_whole_root_logical_values,
+    bind_program_local_storage_entry_whole_root_operands, bind_program_storage_entry_plan,
+    bind_recorded_program_local_storage_entry_whole_root_arguments, compile,
     establish_program_storage_entry_program_local_roots,
     install_established_program_storage_entry_program_local_roots,
+    plan_program_local_storage_entry_wrapper_caller_frame,
     program_storage_installation_record_json,
+    reserve_program_local_storage_entry_outgoing_stack_frame,
 };
 use omega_effects::provider_plan::{
     ServiceEntryAuthorityFlow, ServiceEntryClaim, ServiceMethod, ServiceSchema,
@@ -693,6 +700,69 @@ fn binding(requirement_identity: &str) -> omega_compiler::ProgramStorageEntryPla
         .expect("program storage binding")
 }
 
+fn compiled_receiver_free_bridge(
+    label: &str,
+) -> (PathBuf, omega_compiler::ProgramStorageEntryNativeBridgePlan) {
+    let directory = temp_directory(&format!("compiled-{label}"));
+    fs::create_dir_all(&directory).expect("create compiled entry project");
+    let source = include_str!(
+        "../../../../../../../canaries/pass/build/uefi_program_entry_storage_roots/main.omg"
+    );
+    let prefix = source
+        .split_once("data Boot {")
+        .expect("UEFI canary retains its Boot declaration")
+        .0;
+    fs::write(
+        directory.join("main.omg"),
+        format!(
+            r#"{prefix}data Boot {{ }}
+
+machine Boot::{label}(
+    image: Extent in Granted,
+    initial_storage: Extent in Granted
+) {{
+    transition {{
+        _ -> retain(image as Extent, initial_storage as Extent)
+    }}
+
+    state retain(image: Extent, initial_storage: Extent) {{
+        transition {{
+            _ -> retain(image, initial_storage)
+        }}
+    }}
+}}
+"#
+        ),
+    )
+    .expect("write receiver-free source");
+    fs::write(
+        directory.join("build.omg"),
+        format!(
+            r#"target uefi_x64 {{
+}}
+
+machine build(builder: &mut Build) {{
+    builder.subsystem = Subsystem::EfiApplication;
+    builder.freestanding = true;
+    builder.roots.bind(uefi_x86_64::ProgramEntry, Boot::{label});
+}}
+"#
+        ),
+    )
+    .expect("write receiver-free build root");
+    let bridge = compile(CompileOptions {
+        root_path: directory.join("main.omg"),
+        build_dir: Some(directory.join("build")),
+        target_name: Some("uefi_x64".into()),
+        write_output: true,
+    })
+    .expect("compile receiver-free entry")
+    .program_storage_entry_bridge()
+    .cloned()
+    .expect("compiled entry bridge");
+    (directory, bridge)
+}
+
 fn subject<'root, 'code>(
     root: &'root InstalledExternalRoot<'code>,
     position: u32,
@@ -760,11 +830,12 @@ fn assert_origin(
 
 #[test]
 fn generated_program_entry_retains_two_exact_program_local_accounts_through_recovery() {
-    let requirement_identity = "ProgramStorageEntry::enter/test-v1";
+    let (compiled_directory, exact_bridge) = compiled_receiver_free_bridge("launch");
+    let requirement_identity = exact_bridge.binding().requirement_identity().to_owned();
     let entry = EntryStubId::from_normalized_identity(1).expect("entry identity");
     let mut code = installed_code(entry);
     let installed_code_identity = code.identity().normalized_identity();
-    let module = terminal_module(requirement_identity);
+    let module = terminal_module(&requirement_identity);
     let catalog = terminal_catalog(&module);
     let terminal = TestTerminalObject {
         identity: psi_terminal_codec::terminal_psi_identity(&module).expect("terminal identity"),
@@ -772,7 +843,7 @@ fn generated_program_entry_retains_two_exact_program_local_accounts_through_reco
         bytes: vec![0; 64],
     };
     let (mut root_ledger, root) =
-        install_program_entry_root(&mut code, entry, requirement_identity);
+        install_program_entry_root(&mut code, entry, &requirement_identity);
     let mut installation = root_ledger
         .claim_program_local_root_installation_ledger()
         .expect("program-local installation ledger");
@@ -785,7 +856,7 @@ fn generated_program_entry_retains_two_exact_program_local_accounts_through_reco
         prebindings[0].identity().schema_identity(),
         prebindings[1].identity().schema_identity(),
     ];
-    let mut lifecycle = lifecycle(installed_code_identity, requirement_identity);
+    let mut lifecycle = lifecycle(installed_code_identity, &requirement_identity);
     let members = prebindings
         .into_iter()
         .enumerate()
@@ -795,7 +866,7 @@ fn generated_program_entry_retains_two_exact_program_local_accounts_through_reco
                     ProgramLocalRootEpochLeaseId::from_normalized_identity(800 + index as u64)
                         .expect("lease identity"),
                     10,
-                    requirement_identity,
+                    &requirement_identity,
                 )
                 .expect("epoch lease");
             ProgramLocalRootCohortMember::new(prebinding.identity(), &root, lease)
@@ -812,7 +883,7 @@ fn generated_program_entry_retains_two_exact_program_local_accounts_through_reco
     let artifact_directory = temp_directory("record-collision");
     let initial = establish_program_storage_entry_program_local_roots(
         &artifact_directory,
-        binding(requirement_identity),
+        exact_bridge.binding().clone(),
         &mut installation,
         &mut runtime,
         &lifecycle,
@@ -944,5 +1015,174 @@ fn generated_program_entry_retains_two_exact_program_local_accounts_through_reco
         fs::read_to_string(artifact_directory.join(PROGRAM_STORAGE_INSTALLATION_ARTIFACT))
             .expect("read installation audit");
     assert_eq!(emitted, json);
+
+    let (other_directory, other_bridge) = compiled_receiver_free_bridge("alternate");
+    let rejected =
+        bind_recorded_program_local_storage_entry_whole_root_arguments(recorded, &other_bridge)
+            .expect_err("a local installation cannot bind another entry");
+    assert!(
+        rejected
+            .diagnostic()
+            .0
+            .contains("exact program-storage bridge binding")
+    );
+    let ProgramLocalStorageRecordedWholeRootArgumentRecovery::RecordedInstallation(recorded) =
+        rejected.into_recovery()
+    else {
+        panic!("borrowed preflight must return the intact local installation")
+    };
+    assert_eq!(recorded.registry().held_accounts(), 2);
+
+    let arguments =
+        bind_recorded_program_local_storage_entry_whole_root_arguments(recorded, &exact_bridge)
+            .expect("exact local installation binds its receiver-free ABI");
+    assert_eq!(arguments.registry().held_accounts(), 2);
+    assert_eq!(arguments.stage().arguments().len(), 2);
+    let emitted_arguments =
+        bind_program_local_storage_entry_emitted_whole_root_arguments(arguments, &exact_bridge)
+            .expect("local roots retain custody through emitted wrapper binding");
+    assert_eq!(emitted_arguments.registry().held_accounts(), 2);
+    let values = bind_program_local_storage_entry_whole_root_logical_values(
+        emitted_arguments.into_arguments(),
+    )
+    .expect("local roots retain custody through logical values");
+    assert_eq!(values.registry().held_accounts(), 2);
+    assert_eq!(values.stage().values()[0].base(), 0x2000);
+    let operands = bind_program_local_storage_entry_whole_root_operands(values)
+        .expect("local roots retain custody through operand encoding");
+    assert_eq!(operands.registry().held_accounts(), 2);
+    let caller_frame = plan_program_local_storage_entry_wrapper_caller_frame(operands)
+        .expect("local roots retain custody through caller-frame planning");
+    assert_eq!(caller_frame.registry().held_accounts(), 2);
+    let reserved = reserve_program_local_storage_entry_outgoing_stack_frame(caller_frame)
+        .expect("local roots retain custody through outgoing-frame reservation");
+    assert_eq!(reserved.registry().held_accounts(), 2);
+    assert_eq!(reserved.stage().frame_byte_count(), 72);
     fs::remove_dir_all(&artifact_directory).expect("remove test artifacts");
+    fs::remove_dir_all(compiled_directory).expect("remove compiled entry project");
+    fs::remove_dir_all(other_directory).expect("remove alternate entry project");
+}
+
+#[test]
+fn program_local_receiver_activation_never_releases_roots_without_their_registry() {
+    let requirement_identity = "ProgramStorageEntry::enter/receiver-v1";
+    let entry = EntryStubId::from_normalized_identity(1).expect("entry identity");
+    let mut code = installed_code(entry);
+    let installed_code_identity = code.identity().normalized_identity();
+    let module = terminal_module(requirement_identity);
+    let catalog = terminal_catalog(&module);
+    let terminal = TestTerminalObject {
+        identity: psi_terminal_codec::terminal_psi_identity(&module).expect("terminal identity"),
+        entry: module.entry,
+        bytes: vec![0; 64],
+    };
+    let (mut root_ledger, root) =
+        install_program_entry_root(&mut code, entry, requirement_identity);
+    let mut installation = root_ledger
+        .claim_program_local_root_installation_ledger()
+        .expect("program-local installation ledger");
+    let mut prebindings = installation
+        .prebind(&catalog, &terminal, &root)
+        .expect("two program-storage prebindings");
+    prebindings.sort_by_key(|prebinding| prebinding.source_parameter_position());
+    let mut lifecycle = lifecycle(installed_code_identity, requirement_identity);
+    let members = prebindings
+        .into_iter()
+        .enumerate()
+        .map(|(index, prebinding)| {
+            let lease = lifecycle
+                .acquire_program_local_root_epoch_lease(
+                    ProgramLocalRootEpochLeaseId::from_normalized_identity(820 + index as u64)
+                        .expect("lease identity"),
+                    10,
+                    requirement_identity,
+                )
+                .expect("epoch lease");
+            ProgramLocalRootCohortMember::new(prebinding.identity(), &root, lease)
+        })
+        .collect::<Vec<_>>();
+    let cohort = installation
+        .seal_epoch_cohort(&lifecycle, members)
+        .expect("two-position epoch cohort");
+    let mut runtime = cohort.into_runtime();
+    let receiver_binding = binding(requirement_identity)
+        .with_checked_receiver_layout(
+            "&mut Boot".into(),
+            omega_layout::TypeLayout {
+                size: 8,
+                alignment: 8,
+            },
+        )
+        .expect("checked receiver layout");
+    let artifact_directory = temp_directory("receiver-custody");
+    let recorded = establish_program_storage_entry_program_local_roots(
+        &artifact_directory,
+        receiver_binding,
+        &mut installation,
+        &mut runtime,
+        &lifecycle,
+        subject(&root, 0, 911, 0x3000, 0x400),
+        extent_plan(0x3000, 0x400, "Extent::Granted"),
+        subject(&root, 1, 912, 0x9003, 0x20),
+        extent_plan(0x9003, 0x20, "Extent::Granted"),
+    )
+    .expect("receiver-bearing local installation");
+    assert_eq!(recorded.registry().held_accounts(), 2);
+
+    let release = recorded
+        .into_roots()
+        .expect_err("receiver roots cannot bypass activation");
+    assert!(release.diagnostic().0.contains("zeroed and activated"));
+    let recorded = release.into_custody();
+    assert_eq!(recorded.registry().held_accounts(), 2);
+
+    let mut bytes = [0xa5; 8];
+    let wrong_base = recorded
+        .activate_receiver(0x9007, &mut bytes)
+        .expect_err("wrong base rejects without touching storage");
+    assert_eq!(bytes, [0xa5; 8]);
+    let recorded = wrong_base.into_custody();
+    assert_eq!(recorded.registry().held_accounts(), 2);
+
+    let mut short = [0xa5; 7];
+    let wrong_length = recorded
+        .activate_receiver(0x9008, &mut short)
+        .expect_err("wrong length rejects without touching storage");
+    assert_eq!(short, [0xa5; 7]);
+    let recorded = wrong_length.into_custody();
+    assert_eq!(recorded.registry().held_accounts(), 2);
+
+    let mut bytes = [0xa5; 8];
+    let mut activation = recorded
+        .activate_receiver(0x9008, &mut bytes)
+        .expect("exact mapping activates the local receiver");
+    assert_eq!(activation.registry().held_accounts(), 2);
+    assert_eq!(activation.receiver(), &[0; 8]);
+    activation.receiver()[3] = 70;
+    let roots = activation.finish();
+    assert_eq!(roots.registry().held_accounts(), 2);
+    assert!(roots.stage().initial_storage().is_none());
+    let receiver = roots
+        .stage()
+        .receiver_storage()
+        .expect("receiver partition remains attached");
+    assert_eq!(
+        receiver
+            .storage()
+            .map(|extent| (extent.base(), extent.length())),
+        Some((0x9008, 8))
+    );
+    assert_eq!(
+        receiver
+            .before()
+            .map(|extent| (extent.base(), extent.length())),
+        Some((0x9003, 5))
+    );
+    assert_eq!(
+        receiver
+            .after()
+            .map(|extent| (extent.base(), extent.length())),
+        Some((0x9010, 0x13))
+    );
+    fs::remove_dir_all(artifact_directory).expect("remove receiver artifacts");
 }

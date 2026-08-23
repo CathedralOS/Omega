@@ -7,9 +7,9 @@
 //! firmware supplied the roots, invoked the wrapper, or executed native code.
 
 use super::{
-    ProgramStorageEntryDiagnostic, ProgramStorageEntryEmittedWrapperEvidence,
-    ProgramStorageEntryNativeBridgePlan, ProgramStorageEntryRootRole,
-    ProgramStorageEntryWholeRootArgumentCarrier,
+    ProgramLocalStorageCustody, ProgramLocalStorageCustodyError, ProgramStorageEntryDiagnostic,
+    ProgramStorageEntryEmittedWrapperEvidence, ProgramStorageEntryNativeBridgePlan,
+    ProgramStorageEntryRootRole, ProgramStorageEntryWholeRootArgumentCarrier,
 };
 /// Non-cloneable installed authority plus the exact final wrapper certificate
 /// that is capable of forwarding its two ordinary values to the selected
@@ -18,6 +18,19 @@ use super::{
 pub struct ProgramStorageEntryEmittedWholeRootArgumentCarrier {
     arguments: ProgramStorageEntryWholeRootArgumentCarrier,
     emitted_wrapper: ProgramStorageEntryEmittedWrapperEvidence,
+}
+
+impl<'root, 'code>
+    ProgramLocalStorageCustody<'root, 'code, ProgramStorageEntryEmittedWholeRootArgumentCarrier>
+{
+    /// Return to the argument stage after the emitted-wrapper check without
+    /// separating the local account owner.
+    pub fn into_arguments(
+        self,
+    ) -> ProgramLocalStorageCustody<'root, 'code, ProgramStorageEntryWholeRootArgumentCarrier> {
+        let (emitted, registry) = self.into_parts();
+        ProgramLocalStorageCustody::new(emitted.into_arguments(), registry)
+    }
 }
 
 impl ProgramStorageEntryEmittedWholeRootArgumentCarrier {
@@ -52,6 +65,26 @@ pub fn bind_program_storage_entry_emitted_whole_root_arguments(
             arguments,
             diagnostic,
         }),
+    }
+}
+
+pub fn bind_program_local_storage_entry_emitted_whole_root_arguments<'root, 'code>(
+    custody: ProgramLocalStorageCustody<'root, 'code, ProgramStorageEntryWholeRootArgumentCarrier>,
+    bridge: &ProgramStorageEntryNativeBridgePlan,
+) -> Result<
+    ProgramLocalStorageCustody<'root, 'code, ProgramStorageEntryEmittedWholeRootArgumentCarrier>,
+    ProgramLocalStorageCustodyError<'root, 'code, ProgramStorageEntryWholeRootArgumentCarrier>,
+> {
+    let (arguments, registry) = custody.into_parts();
+    match bind_program_storage_entry_emitted_whole_root_arguments(arguments, bridge) {
+        Ok(emitted) => Ok(ProgramLocalStorageCustody::new(emitted, registry)),
+        Err(error) => {
+            let diagnostic = error.diagnostic().clone();
+            Err(ProgramLocalStorageCustodyError::new(
+                ProgramLocalStorageCustody::new(error.into_arguments(), registry),
+                diagnostic,
+            ))
+        }
     }
 }
 

@@ -7,8 +7,8 @@
 
 use super::{
     ProgramEntrySourceExtentFieldRole, ProgramEntrySourceExtentValueLayout,
-    ProgramStorageEntryDiagnostic, ProgramStorageEntryRootRole,
-    ProgramStorageEntryWholeRootArgumentCarrier,
+    ProgramLocalStorageCustody, ProgramLocalStorageCustodyError, ProgramStorageEntryDiagnostic,
+    ProgramStorageEntryRootRole, ProgramStorageEntryWholeRootArgumentCarrier,
 };
 
 #[derive(Debug)]
@@ -81,6 +81,25 @@ pub fn bind_program_storage_entry_whole_root_logical_values(
             arguments,
             diagnostic,
         }),
+    }
+}
+
+pub fn bind_program_local_storage_entry_whole_root_logical_values<'root, 'code>(
+    custody: ProgramLocalStorageCustody<'root, 'code, ProgramStorageEntryWholeRootArgumentCarrier>,
+) -> Result<
+    ProgramLocalStorageCustody<'root, 'code, ProgramStorageEntryWholeRootLogicalValueCarrier>,
+    ProgramLocalStorageCustodyError<'root, 'code, ProgramStorageEntryWholeRootArgumentCarrier>,
+> {
+    let (arguments, registry) = custody.into_parts();
+    match bind_program_storage_entry_whole_root_logical_values(arguments) {
+        Ok(values) => Ok(ProgramLocalStorageCustody::new(values, registry)),
+        Err(error) => {
+            let diagnostic = error.diagnostic().clone();
+            Err(ProgramLocalStorageCustodyError::new(
+                ProgramLocalStorageCustody::new(error.into_arguments(), registry),
+                diagnostic,
+            ))
+        }
     }
 }
 

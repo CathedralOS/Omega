@@ -769,6 +769,7 @@ mod tests {
             ranking_view: HandleSpan::empty(),
             ranking_view_arguments: HandleSpan::empty(),
             ranking_range: psi_syntax_trees::expression::ExpressionHandle::invalid(),
+            service_reach_is_installation_bound: false,
             service_reaches: HandleSpan::empty(),
             invokes: HandleSpan::empty(),
             suspends: false,
