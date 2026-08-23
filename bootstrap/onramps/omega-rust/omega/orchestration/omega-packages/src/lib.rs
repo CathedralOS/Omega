@@ -48,7 +48,9 @@ pub use manifest::{
     QualificationRoute, ReproducibilityEvidence, SourceIdentity, TrustReceipt,
 };
 pub use resolver::{
-    SourceCachePolicyRecord, SourceCacheRequest, SourceCacheVerdict, resolve_source_cache_record,
+    SourceCachePolicyRecord, SourceCachePolicyRecordParseError,
+    SourceCachePolicyRecordPersistenceError, SourceCacheRequest, SourceCacheVerdict,
+    resolve_source_cache_record,
 };
 pub use review::{
     AcceptedManifestDelta, CAPABILITY_CHANGE_RECEIPT_SCHEMA_VERSION, CapabilityChangeReceipt,

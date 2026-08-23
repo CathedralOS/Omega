@@ -121,6 +121,16 @@ Completed:
   policy, path-containment policy, rejection reason, stable JSON, and a
   SHA-256 record fingerprint.
 
+- **SOURCE-CACHE-POLICY-PERSISTENCE.** Add strict source-cache policy record
+  parsing and file persistence before install/lock wiring consumes resolver
+  evidence.
+
+  Done 2026-08-23: `omega-packages` can parse source-cache policy record JSON
+  with strict schema-version, required/unknown field, verdict, optional
+  string, and integer checks; read/write standalone record files through
+  same-directory temporary files and atomic rename; and preserve deterministic
+  record fingerprints across read/write round trips.
+
 - **PACKAGE-LOCK-CLOSURE-VALIDATION.** Add fail-closed validation for assembled
   package lock closures before compiler/CLI lock wiring.
 
@@ -370,10 +380,11 @@ Completed:
   mutation.
 
   Done 2026-08-23: `omega audit source-cache-policy <locator> [--rev <rev>]
-  [--cache-dir <dir>]` resolves local paths and Git locators through the
-  source-cache policy API and prints the deterministic JSON policy record,
-  including accepted or rejected verdict, limits, submodule policy, path
-  policy, cache path, source identity, and content counts when available.
+  [--cache-dir <dir>] [--out <record.json>]` resolves local paths and Git
+  locators through the source-cache policy API and prints the deterministic
+  JSON policy record, including accepted or rejected verdict, limits, submodule
+  policy, path policy, cache path, source identity, and content counts when
+  available. With `--out`, it writes the exact record to the requested path.
 
 - **LOCAL-FIXTURE-GRAPH-AUDIT-COVERAGE.** Exercise graph audit against the
   checked-in local package corpus.
@@ -430,8 +441,8 @@ Remaining:
   identity before package code is loaded.
 
   Remaining after `LOCAL-SOURCE-IDENTITY`, `GIT-SOURCE-IDENTITY`, and
-  `SOURCE-CACHE-POLICY-RECORDS`, `SOURCE-REQUEST-PARSING`,
-  `REMOTE-FIXTURE-RESOLUTION-TESTS`, and
+  `SOURCE-CACHE-POLICY-RECORDS`, `SOURCE-CACHE-POLICY-PERSISTENCE`,
+  `SOURCE-REQUEST-PARSING`, `REMOTE-FIXTURE-RESOLUTION-TESTS`, and
   `SOURCE-CACHE-POLICY-LOCATOR-API`, and `OMEGA-AUDIT-SOURCE-CLI`, and
   `OMEGA-AUDIT-SOURCE-CACHE-POLICY-CLI`: add install-command integration and
   lock wiring.
