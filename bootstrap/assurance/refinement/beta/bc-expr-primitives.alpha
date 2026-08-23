@@ -1,4 +1,4 @@
-; Literal, arithmetic, and comparison primitive custody for the whole-bc BCT6
+; Literal, arithmetic, and comparison primitive custody for the whole-bc BCT7
 ; checker. The common scanner records source-order literals and operators; the
 ; untrusted witness supplies only their Alpha locations.
 ;
@@ -202,7 +202,7 @@ read_expr_primitive_pcs_init:
 read_expr_primitive_pc:
         imm r1, 819
         jlt r10, r1, read_expr_primitive_pc_one
-        jmp read_helper_pc
+        jmp read_stack_push_pcs_init
 read_expr_primitive_pc_one:
         call read_u32
         mov r14, r0
@@ -642,7 +642,7 @@ scan_expr_artifact_arithmetic_count:
         imm r1, 524736
         load r2, r1
         imm r3, 57
-        jeq r2, r3, scan_owned_effects_init
+        jeq r2, r3, validate_stack_pushes_init
         jmp reject
 
 ; Input r14 is an instruction start. Return 1 for the exact common arithmetic
