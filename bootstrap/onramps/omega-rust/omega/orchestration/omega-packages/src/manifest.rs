@@ -1,5 +1,8 @@
+use crate::json::{JsonParseError, JsonParser, JsonValue};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
+use std::fs;
+use std::path::{Path, PathBuf};
 
 pub const PACKAGE_CAPABILITY_MANIFEST_SCHEMA_VERSION: u32 = 1;
 
@@ -132,6 +135,21 @@ pub struct PackageCapabilityManifest {
     pub reproducibility: Vec<ReproducibilityEvidence>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PackageCapabilityManifestParseError {
+    InvalidJson { message: String },
+    MissingField { field: String },
+    UnexpectedField { field: String },
+    InvalidField { field: String, message: String },
+    UnsupportedSchemaVersion { found: u32, supported: u32 },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PackageCapabilityManifestPersistenceError {
+    Io { path: PathBuf, message: String },
+    Parse(PackageCapabilityManifestParseError),
+}
+
 impl PackageCapabilityManifest {
     pub fn new(package: PackageName, source: SourceIdentity) -> Self {
         Self {
@@ -190,6 +208,131 @@ impl PackageCapabilityManifest {
         self.clone().normalized()
     }
 
+    pub fn from_json(json: &str) -> Result<Self, PackageCapabilityManifestParseError> {
+        let value = JsonParser::new(json)
+            .parse()
+            .map_err(package_manifest_json_error)?;
+        let root = value_object(&value, "$")?;
+        ensure_fields(
+            root,
+            "$",
+            &[
+                "schema_version",
+                "package",
+                "source",
+                "public_api_contract_identity",
+                "dependency_aliases",
+                "exported_service_reach",
+                "build_machine",
+                "provider_requirements",
+                "provider_selections",
+                "routed_qualifications",
+                "capability_flows",
+                "unresolved_installation_reaches",
+                "trust_receipts",
+                "reproducibility",
+            ],
+        )?;
+        let schema_version = value_u32(field(root, "schema_version", "$")?, "$.schema_version")?;
+        if schema_version != PACKAGE_CAPABILITY_MANIFEST_SCHEMA_VERSION {
+            return Err(
+                PackageCapabilityManifestParseError::UnsupportedSchemaVersion {
+                    found: schema_version,
+                    supported: PACKAGE_CAPABILITY_MANIFEST_SCHEMA_VERSION,
+                },
+            );
+        }
+        let mut manifest = Self {
+            schema_version,
+            package: parse_package_name(
+                value_string(field(root, "package", "$")?, "$.package")?,
+                "$.package",
+            )?,
+            source: parse_source_identity(field(root, "source", "$")?, "$.source")?,
+            public_api_contract_identity: optional_string(
+                field(root, "public_api_contract_identity", "$")?,
+                "$.public_api_contract_identity",
+            )?,
+            dependency_aliases: parse_dependency_aliases(
+                field(root, "dependency_aliases", "$")?,
+                "$.dependency_aliases",
+            )?,
+            exported_service_reach: parse_string_array(
+                field(root, "exported_service_reach", "$")?,
+                "$.exported_service_reach",
+            )?,
+            build_machine: parse_build_machine(
+                field(root, "build_machine", "$")?,
+                "$.build_machine",
+            )?,
+            provider_requirements: parse_provider_requirements(
+                field(root, "provider_requirements", "$")?,
+                "$.provider_requirements",
+            )?,
+            provider_selections: parse_provider_selections(
+                field(root, "provider_selections", "$")?,
+                "$.provider_selections",
+            )?,
+            routed_qualifications: parse_qualification_routes(
+                field(root, "routed_qualifications", "$")?,
+                "$.routed_qualifications",
+            )?,
+            capability_flows: parse_capability_flows(
+                field(root, "capability_flows", "$")?,
+                "$.capability_flows",
+            )?,
+            unresolved_installation_reaches: parse_installation_reaches(
+                field(root, "unresolved_installation_reaches", "$")?,
+                "$.unresolved_installation_reaches",
+            )?,
+            trust_receipts: parse_trust_receipts(
+                field(root, "trust_receipts", "$")?,
+                "$.trust_receipts",
+            )?,
+            reproducibility: parse_reproducibility(
+                field(root, "reproducibility", "$")?,
+                "$.reproducibility",
+            )?,
+        };
+        manifest = manifest.normalized();
+        Ok(manifest)
+    }
+
+    pub fn read_from_path(
+        path: impl AsRef<Path>,
+    ) -> Result<Self, PackageCapabilityManifestPersistenceError> {
+        let path = path.as_ref();
+        let contents = fs::read_to_string(path).map_err(|error| {
+            PackageCapabilityManifestPersistenceError::Io {
+                path: path.to_path_buf(),
+                message: error.to_string(),
+            }
+        })?;
+        Self::from_json(&contents).map_err(PackageCapabilityManifestPersistenceError::Parse)
+    }
+
+    pub fn write_to_path(
+        &self,
+        path: impl AsRef<Path>,
+    ) -> Result<(), PackageCapabilityManifestPersistenceError> {
+        let path = path.as_ref();
+        let temp_path = temporary_manifest_path(path, self);
+        fs::write(&temp_path, self.to_json()).map_err(|error| {
+            PackageCapabilityManifestPersistenceError::Io {
+                path: temp_path.clone(),
+                message: error.to_string(),
+            }
+        })?;
+        if let Err(error) = fs::rename(&temp_path, path) {
+            let _ = fs::remove_file(&temp_path);
+            return Err(PackageCapabilityManifestPersistenceError::Io {
+                path: path.to_path_buf(),
+                message: error.to_string(),
+            });
+        }
+        Ok(())
+    }
+
     pub fn to_json(&self) -> String {
         let normalized = self.normalized_clone();
         let mut json = String::new();
@@ -235,6 +378,478 @@ impl PackageCapabilityManifest {
         json.push_str("\n}\n");
         json
     }
+}
+
+fn package_manifest_json_error(error: JsonParseError) -> PackageCapabilityManifestParseError {
+    match error {
+        JsonParseError::InvalidJson { message } => {
+            PackageCapabilityManifestParseError::InvalidJson { message }
+        }
+    }
+}
+
+fn parse_source_identity(
+    value: &JsonValue,
+    path: &str,
+) -> Result<SourceIdentity, PackageCapabilityManifestParseError> {
+    let fields = value_object(value, path)?;
+    ensure_fields(fields, path, &["kind", "locator", "resolved"])?;
+    Ok(SourceIdentity {
+        kind: value_string(field(fields, "kind", path)?, &format!("{path}.kind"))?.to_owned(),
+        locator: value_string(field(fields, "locator", path)?, &format!("{path}.locator"))?
+            .to_owned(),
+        resolved: value_string(
+            field(fields, "resolved", path)?,
+            &format!("{path}.resolved"),
+        )?
+        .to_owned(),
+    })
+}
+
+fn parse_dependency_aliases(
+    value: &JsonValue,
+    path: &str,
+) -> Result<Vec<DependencyAlias>, PackageCapabilityManifestParseError> {
+    value_array(value, path)?
+        .iter()
+        .enumerate()
+        .map(|(index, value)| parse_dependency_alias(value, &format!("{path}[{index}]")))
+        .collect()
+}
+
+fn parse_dependency_alias(
+    value: &JsonValue,
+    path: &str,
+) -> Result<DependencyAlias, PackageCapabilityManifestParseError> {
+    let fields = value_object(value, path)?;
+    ensure_fields(fields, path, &["alias", "package", "source_fingerprint"])?;
+    Ok(DependencyAlias {
+        alias: parse_alias_name(
+            value_string(field(fields, "alias", path)?, &format!("{path}.alias"))?,
+            &format!("{path}.alias"),
+        )?,
+        package: parse_package_name(
+            value_string(field(fields, "package", path)?, &format!("{path}.package"))?,
+            &format!("{path}.package"),
+        )?,
+        source_fingerprint: value_string(
+            field(fields, "source_fingerprint", path)?,
+            &format!("{path}.source_fingerprint"),
+        )?
+        .to_owned(),
+    })
+}
+
+fn parse_build_machine(
+    value: &JsonValue,
+    path: &str,
+) -> Result<BuildMachineManifest, PackageCapabilityManifestParseError> {
+    let fields = value_object(value, path)?;
+    ensure_fields(
+        fields,
+        path,
+        &["machine", "service_reach", "observation_class", "receipts"],
+    )?;
+    Ok(BuildMachineManifest {
+        machine: optional_string(field(fields, "machine", path)?, &format!("{path}.machine"))?,
+        service_reach: parse_string_array(
+            field(fields, "service_reach", path)?,
+            &format!("{path}.service_reach"),
+        )?,
+        observation_class: value_string(
+            field(fields, "observation_class", path)?,
+            &format!("{path}.observation_class"),
+        )?
+        .to_owned(),
+        receipts: parse_string_array(
+            field(fields, "receipts", path)?,
+            &format!("{path}.receipts"),
+        )?,
+    })
+}
+
+fn parse_provider_requirements(
+    value: &JsonValue,
+    path: &str,
+) -> Result<Vec<ProviderRequirement>, PackageCapabilityManifestParseError> {
+    value_array(value, path)?
+        .iter()
+        .enumerate()
+        .map(|(index, value)| parse_provider_requirement(value, &format!("{path}[{index}]")))
+        .collect()
+}
+
+fn parse_provider_requirement(
+    value: &JsonValue,
+    path: &str,
+) -> Result<ProviderRequirement, PackageCapabilityManifestParseError> {
+    let fields = value_object(value, path)?;
+    ensure_fields(fields, path, &["requirement", "service_reach"])?;
+    Ok(ProviderRequirement {
+        requirement: value_string(
+            field(fields, "requirement", path)?,
+            &format!("{path}.requirement"),
+        )?
+        .to_owned(),
+        service_reach: parse_string_array(
+            field(fields, "service_reach", path)?,
+            &format!("{path}.service_reach"),
+        )?,
+    })
+}
+
+fn parse_provider_selections(
+    value: &JsonValue,
+    path: &str,
+) -> Result<Vec<ProviderSelection>, PackageCapabilityManifestParseError> {
+    value_array(value, path)?
+        .iter()
+        .enumerate()
+        .map(|(index, value)| parse_provider_selection(value, &format!("{path}[{index}]")))
+        .collect()
+}
+
+fn parse_provider_selection(
+    value: &JsonValue,
+    path: &str,
+) -> Result<ProviderSelection, PackageCapabilityManifestParseError> {
+    let fields = value_object(value, path)?;
+    ensure_fields(
+        fields,
+        path,
+        &["requirement", "provider", "origin", "plan_identity"],
+    )?;
+    Ok(ProviderSelection {
+        requirement: value_string(
+            field(fields, "requirement", path)?,
+            &format!("{path}.requirement"),
+        )?
+        .to_owned(),
+        provider: value_string(
+            field(fields, "provider", path)?,
+            &format!("{path}.provider"),
+        )?
+        .to_owned(),
+        origin: value_string(field(fields, "origin", path)?, &format!("{path}.origin"))?.to_owned(),
+        plan_identity: value_string(
+            field(fields, "plan_identity", path)?,
+            &format!("{path}.plan_identity"),
+        )?
+        .to_owned(),
+    })
+}
+
+fn parse_qualification_routes(
+    value: &JsonValue,
+    path: &str,
+) -> Result<Vec<QualificationRoute>, PackageCapabilityManifestParseError> {
+    value_array(value, path)?
+        .iter()
+        .enumerate()
+        .map(|(index, value)| parse_qualification_route(value, &format!("{path}[{index}]")))
+        .collect()
+}
+
+fn parse_qualification_route(
+    value: &JsonValue,
+    path: &str,
+) -> Result<QualificationRoute, PackageCapabilityManifestParseError> {
+    let fields = value_object(value, path)?;
+    ensure_fields(fields, path, &["kind", "requirement", "evidence_identity"])?;
+    Ok(QualificationRoute {
+        kind: value_string(field(fields, "kind", path)?, &format!("{path}.kind"))?.to_owned(),
+        requirement: value_string(
+            field(fields, "requirement", path)?,
+            &format!("{path}.requirement"),
+        )?
+        .to_owned(),
+        evidence_identity: value_string(
+            field(fields, "evidence_identity", path)?,
+            &format!("{path}.evidence_identity"),
+        )?
+        .to_owned(),
+    })
+}
+
+fn parse_capability_flows(
+    value: &JsonValue,
+    path: &str,
+) -> Result<Vec<CapabilityFlowSummary>, PackageCapabilityManifestParseError> {
+    value_array(value, path)?
+        .iter()
+        .enumerate()
+        .map(|(index, value)| parse_capability_flow(value, &format!("{path}[{index}]")))
+        .collect()
+}
+
+fn parse_capability_flow(
+    value: &JsonValue,
+    path: &str,
+) -> Result<CapabilityFlowSummary, PackageCapabilityManifestParseError> {
+    let fields = value_object(value, path)?;
+    ensure_fields(fields, path, &["capability", "verb", "count"])?;
+    Ok(CapabilityFlowSummary {
+        capability: value_string(
+            field(fields, "capability", path)?,
+            &format!("{path}.capability"),
+        )?
+        .to_owned(),
+        verb: value_string(field(fields, "verb", path)?, &format!("{path}.verb"))?.to_owned(),
+        count: value_u64(field(fields, "count", path)?, &format!("{path}.count"))?,
+    })
+}
+
+fn parse_installation_reaches(
+    value: &JsonValue,
+    path: &str,
+) -> Result<Vec<InstallationBoundReach>, PackageCapabilityManifestParseError> {
+    value_array(value, path)?
+        .iter()
+        .enumerate()
+        .map(|(index, value)| parse_installation_reach(value, &format!("{path}[{index}]")))
+        .collect()
+}
+
+fn parse_installation_reach(
+    value: &JsonValue,
+    path: &str,
+) -> Result<InstallationBoundReach, PackageCapabilityManifestParseError> {
+    let fields = value_object(value, path)?;
+    ensure_fields(fields, path, &["requirement", "upper_bound", "resolved"])?;
+    Ok(InstallationBoundReach {
+        requirement: value_string(
+            field(fields, "requirement", path)?,
+            &format!("{path}.requirement"),
+        )?
+        .to_owned(),
+        upper_bound: parse_string_array(
+            field(fields, "upper_bound", path)?,
+            &format!("{path}.upper_bound"),
+        )?,
+        resolved: parse_string_array(
+            field(fields, "resolved", path)?,
+            &format!("{path}.resolved"),
+        )?,
+    })
+}
+
+fn parse_trust_receipts(
+    value: &JsonValue,
+    path: &str,
+) -> Result<Vec<TrustReceipt>, PackageCapabilityManifestParseError> {
+    value_array(value, path)?
+        .iter()
+        .enumerate()
+        .map(|(index, value)| parse_trust_receipt(value, &format!("{path}[{index}]")))
+        .collect()
+}
+
+fn parse_trust_receipt(
+    value: &JsonValue,
+    path: &str,
+) -> Result<TrustReceipt, PackageCapabilityManifestParseError> {
+    let fields = value_object(value, path)?;
+    ensure_fields(fields, path, &["kind", "subject", "identity"])?;
+    Ok(TrustReceipt {
+        kind: value_string(field(fields, "kind", path)?, &format!("{path}.kind"))?.to_owned(),
+        subject: value_string(field(fields, "subject", path)?, &format!("{path}.subject"))?
+            .to_owned(),
+        identity: value_string(
+            field(fields, "identity", path)?,
+            &format!("{path}.identity"),
+        )?
+        .to_owned(),
+    })
+}
+
+fn parse_reproducibility(
+    value: &JsonValue,
+    path: &str,
+) -> Result<Vec<ReproducibilityEvidence>, PackageCapabilityManifestParseError> {
+    value_array(value, path)?
+        .iter()
+        .enumerate()
+        .map(|(index, value)| parse_reproducibility_evidence(value, &format!("{path}[{index}]")))
+        .collect()
+}
+
+fn parse_reproducibility_evidence(
+    value: &JsonValue,
+    path: &str,
+) -> Result<ReproducibilityEvidence, PackageCapabilityManifestParseError> {
+    let fields = value_object(value, path)?;
+    ensure_fields(fields, path, &["kind", "verdict", "identity"])?;
+    Ok(ReproducibilityEvidence {
+        kind: value_string(field(fields, "kind", path)?, &format!("{path}.kind"))?.to_owned(),
+        verdict: value_string(field(fields, "verdict", path)?, &format!("{path}.verdict"))?
+            .to_owned(),
+        identity: value_string(
+            field(fields, "identity", path)?,
+            &format!("{path}.identity"),
+        )?
+        .to_owned(),
+    })
+}
+
+fn parse_string_array(
+    value: &JsonValue,
+    path: &str,
+) -> Result<Vec<String>, PackageCapabilityManifestParseError> {
+    value_array(value, path)?
+        .iter()
+        .enumerate()
+        .map(|(index, value)| value_string(value, &format!("{path}[{index}]")).map(str::to_owned))
+        .collect()
+}
+
+fn ensure_fields(
+    fields: &[(String, JsonValue)],
+    path: &str,
+    allowed: &[&str],
+) -> Result<(), PackageCapabilityManifestParseError> {
+    let actual = fields
+        .iter()
+        .map(|(name, _)| name.as_str())
+        .collect::<BTreeSet<_>>();
+    let expected = allowed.iter().copied().collect::<BTreeSet<_>>();
+    for name in actual.difference(&expected) {
+        return Err(PackageCapabilityManifestParseError::UnexpectedField {
+            field: format!("{path}.{name}"),
+        });
+    }
+    for name in expected.difference(&actual) {
+        return Err(PackageCapabilityManifestParseError::MissingField {
+            field: format!("{path}.{name}"),
+        });
+    }
+    Ok(())
+}
+
+fn field<'a>(
+    fields: &'a [(String, JsonValue)],
+    name: &str,
+    path: &str,
+) -> Result<&'a JsonValue, PackageCapabilityManifestParseError> {
+    fields
+        .iter()
+        .find(|(field_name, _)| field_name == name)
+        .map(|(_, value)| value)
+        .ok_or_else(|| PackageCapabilityManifestParseError::MissingField {
+            field: format!("{path}.{name}"),
+        })
+}
+
+fn value_object<'a>(
+    value: &'a JsonValue,
+    path: &str,
+) -> Result<&'a [(String, JsonValue)], PackageCapabilityManifestParseError> {
+    value
+        .as_object()
+        .ok_or_else(|| PackageCapabilityManifestParseError::InvalidField {
+            field: path.to_owned(),
+            message: "expected JSON object".to_owned(),
+        })
+}
+
+fn value_array<'a>(
+    value: &'a JsonValue,
+    path: &str,
+) -> Result<&'a [JsonValue], PackageCapabilityManifestParseError> {
+    value
+        .as_array()
+        .ok_or_else(|| PackageCapabilityManifestParseError::InvalidField {
+            field: path.to_owned(),
+            message: "expected JSON array".to_owned(),
+        })
+}
+
+fn value_string<'a>(
+    value: &'a JsonValue,
+    path: &str,
+) -> Result<&'a str, PackageCapabilityManifestParseError> {
+    match value {
+        JsonValue::String(value) => Ok(value),
+        _ => Err(PackageCapabilityManifestParseError::InvalidField {
+            field: path.to_owned(),
+            message: "expected JSON string".to_owned(),
+        }),
+    }
+}
+
+fn optional_string(
+    value: &JsonValue,
+    path: &str,
+) -> Result<Option<String>, PackageCapabilityManifestParseError> {
+    match value {
+        JsonValue::Null => Ok(None),
+        JsonValue::String(value) => Ok(Some(value.clone())),
+        _ => Err(PackageCapabilityManifestParseError::InvalidField {
+            field: path.to_owned(),
+            message: "expected JSON string or null".to_owned(),
+        }),
+    }
+}
+
+fn value_u32(value: &JsonValue, path: &str) -> Result<u32, PackageCapabilityManifestParseError> {
+    match value {
+        JsonValue::Number(value) => u32::try_from(*value).map_err(|error| {
+            PackageCapabilityManifestParseError::InvalidField {
+                field: path.to_owned(),
+                message: error.to_string(),
+            }
+        }),
+        _ => Err(PackageCapabilityManifestParseError::InvalidField {
+            field: path.to_owned(),
+            message: "expected JSON integer".to_owned(),
+        }),
+    }
+}
+
+fn value_u64(value: &JsonValue, path: &str) -> Result<u64, PackageCapabilityManifestParseError> {
+    match value {
+        JsonValue::Number(value) => Ok(*value),
+        _ => Err(PackageCapabilityManifestParseError::InvalidField {
+            field: path.to_owned(),
+            message: "expected JSON integer".to_owned(),
+        }),
+    }
+}
+
+fn parse_package_name(
+    value: &str,
+    path: &str,
+) -> Result<PackageName, PackageCapabilityManifestParseError> {
+    PackageName::parse(value).map_err(
+        |message| PackageCapabilityManifestParseError::InvalidField {
+            field: path.to_owned(),
+            message,
+        },
+    )
+}
+
+fn parse_alias_name(
+    value: &str,
+    path: &str,
+) -> Result<AliasName, PackageCapabilityManifestParseError> {
+    AliasName::parse(value).map_err(
+        |message| PackageCapabilityManifestParseError::InvalidField {
+            field: path.to_owned(),
+            message,
+        },
+    )
+}
+
+fn temporary_manifest_path(path: &Path, manifest: &PackageCapabilityManifest) -> PathBuf {
+    let file_name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("omega.package-manifest.json");
+    let temp_name = format!(
+        ".{file_name}.tmp-{}-{}",
+        std::process::id(),
+        manifest.fingerprint()
+    );
+    path.with_file_name(temp_name)
 }
 
 pub(crate) fn section_json(manifest: &PackageCapabilityManifest, section: &str) -> String {
@@ -563,6 +1178,18 @@ fn push_indent(json: &mut String, level: usize) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn temp_root(name: &str) -> PathBuf {
+        let stamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system clock")
+            .as_nanos();
+        std::env::temp_dir().join(format!(
+            "omega-package-manifest-{name}-{}-{stamp}",
+            std::process::id()
+        ))
+    }
 
     fn source() -> SourceIdentity {
         SourceIdentity {
@@ -570,6 +1197,62 @@ mod tests {
             locator: "https://github.com/CathedralOS/generated-table".to_owned(),
             resolved: "commit:012345".to_owned(),
         }
+    }
+
+    fn full_manifest() -> PackageCapabilityManifest {
+        let mut manifest = PackageCapabilityManifest::new(
+            PackageName::parse("generated-table").unwrap(),
+            source(),
+        );
+        manifest.public_api_contract_identity = Some("api:generated-table".to_owned());
+        manifest.dependency_aliases.push(DependencyAlias {
+            alias: AliasName::parse("file_journal").unwrap(),
+            package: PackageName::parse("file-journal").unwrap(),
+            source_fingerprint: "source:file-journal".to_owned(),
+        });
+        manifest.exported_service_reach = vec!["FilesystemHost".to_owned(), "Console".to_owned()];
+        manifest.build_machine.machine = Some("Build::main".to_owned());
+        manifest.build_machine.service_reach = vec!["FilesystemHost".to_owned()];
+        manifest.build_machine.observation_class = "receipted".to_owned();
+        manifest.build_machine.receipts = vec!["receipt:build-inputs".to_owned()];
+        manifest.provider_requirements.push(ProviderRequirement {
+            requirement: "FileJournalProvider".to_owned(),
+            service_reach: vec!["FilesystemHost".to_owned()],
+        });
+        manifest.provider_selections.push(ProviderSelection {
+            requirement: "FileJournalProvider".to_owned(),
+            provider: "HostFileJournal".to_owned(),
+            origin: "root-build".to_owned(),
+            plan_identity: "plan:file-journal".to_owned(),
+        });
+        manifest.routed_qualifications.push(QualificationRoute {
+            kind: "provider".to_owned(),
+            requirement: "FileJournalProvider".to_owned(),
+            evidence_identity: "route:file-journal".to_owned(),
+        });
+        manifest.capability_flows.push(CapabilityFlowSummary {
+            capability: "File".to_owned(),
+            verb: "returns".to_owned(),
+            count: 1,
+        });
+        manifest
+            .unresolved_installation_reaches
+            .push(InstallationBoundReach {
+                requirement: "JournalBackend".to_owned(),
+                upper_bound: vec!["FilesystemHost".to_owned()],
+                resolved: vec!["FilesystemHost".to_owned()],
+            });
+        manifest.trust_receipts.push(TrustReceipt {
+            kind: "review".to_owned(),
+            subject: "filesystem".to_owned(),
+            identity: "receipt:filesystem".to_owned(),
+        });
+        manifest.reproducibility.push(ReproducibilityEvidence {
+            kind: "source-cache".to_owned(),
+            verdict: "accepted".to_owned(),
+            identity: "source-cache:generated-table".to_owned(),
+        });
+        manifest
     }
 
     #[test]
@@ -609,5 +1292,56 @@ mod tests {
 
         assert_eq!(left.to_json(), right.to_json());
         assert_eq!(left.fingerprint(), right.fingerprint());
+    }
+
+    #[test]
+    fn manifest_json_parse_round_trip_is_normalized() {
+        let manifest = full_manifest();
+
+        let parsed =
+            PackageCapabilityManifest::from_json(&manifest.to_json()).expect("parse manifest JSON");
+
+        assert_eq!(parsed.to_json(), manifest.to_json());
+        assert_eq!(parsed.fingerprint(), manifest.fingerprint());
+    }
+
+    #[test]
+    fn manifest_read_write_round_trip_uses_strict_parser() {
+        let manifest = full_manifest();
+        let root = temp_root("read-write");
+        let path = root.join("package-manifest.json");
+        std::fs::create_dir_all(&root).expect("create manifest dir");
+
+        manifest.write_to_path(&path).expect("write manifest");
+        let read = PackageCapabilityManifest::read_from_path(&path).expect("read manifest");
+
+        assert_eq!(read.to_json(), manifest.to_json());
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn manifest_parse_rejects_unknown_schema_or_bad_package_name() {
+        let mut json = full_manifest().to_json();
+        json = json.replacen("\"schema_version\": 1", "\"schema_version\": 99", 1);
+        assert_eq!(
+            PackageCapabilityManifest::from_json(&json),
+            Err(
+                PackageCapabilityManifestParseError::UnsupportedSchemaVersion {
+                    found: 99,
+                    supported: PACKAGE_CAPABILITY_MANIFEST_SCHEMA_VERSION,
+                }
+            )
+        );
+
+        let bad_package = full_manifest().to_json().replacen(
+            "\"package\": \"generated-table\"",
+            "\"package\": \"generated_table\"",
+            1,
+        );
+        assert!(matches!(
+            PackageCapabilityManifest::from_json(&bad_package),
+            Err(PackageCapabilityManifestParseError::InvalidField { field, .. })
+                if field == "$.package"
+        ));
     }
 }
