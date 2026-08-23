@@ -353,6 +353,16 @@ Completed:
   source-request parser, resolves through existing local/Git source-cache
   policy records, and preserves parse failures separately from policy records.
 
+- **OMEGA-AUDIT-SOURCE-CACHE-POLICY-CLI.** Expose resolver-owned source-cache
+  policy records through the Rust on-ramp `omega` binary before install/update
+  mutation.
+
+  Done 2026-08-23: `omega audit source-cache-policy <locator> [--rev <rev>]
+  [--cache-dir <dir>]` resolves local paths and Git locators through the
+  source-cache policy API and prints the deterministic JSON policy record,
+  including accepted or rejected verdict, limits, submodule policy, path
+  policy, cache path, source identity, and content counts when available.
+
 - **LOCAL-FIXTURE-GRAPH-AUDIT-COVERAGE.** Exercise graph audit against the
   checked-in local package corpus.
 
@@ -406,8 +416,9 @@ Remaining:
   Remaining after `LOCAL-SOURCE-IDENTITY`, `GIT-SOURCE-IDENTITY`, and
   `SOURCE-CACHE-POLICY-RECORDS`, `SOURCE-REQUEST-PARSING`,
   `REMOTE-FIXTURE-RESOLUTION-TESTS`, and
-  `SOURCE-CACHE-POLICY-LOCATOR-API`, and `OMEGA-AUDIT-SOURCE-CLI`: add
-  install-command integration and lock wiring.
+  `SOURCE-CACHE-POLICY-LOCATOR-API`, and `OMEGA-AUDIT-SOURCE-CLI`, and
+  `OMEGA-AUDIT-SOURCE-CACHE-POLICY-CLI`: add install-command integration and
+  lock wiring.
 
   Acceptance: `omega install alias <source>` resolves a candidate to an exact
   commit/tree or local content identity and stores it in an isolated source

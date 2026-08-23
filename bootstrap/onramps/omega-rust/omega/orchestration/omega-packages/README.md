@@ -144,6 +144,7 @@ The Rust on-ramp `omega` binary exposes read-only package/source audit paths:
 
 ```text
 omega audit source <locator> [--rev <rev>] [--cache-dir <dir>]
+omega audit source-cache-policy <locator> [--rev <rev>] [--cache-dir <dir>]
 omega audit packages [--lock <omega.lock>] --manifest <manifest.json>...
 omega review capability-change --old-manifest <manifest.json> --new-manifest <manifest.json> --reviewer <id> --reason <text> --out <receipt.json>
 omega plan install --lock <omega.lock> --current-manifest <manifest.json>... --candidate-manifest <manifest.json>... --alias <alias> --package <package>
@@ -151,10 +152,11 @@ omega plan update --lock <omega.lock> --current-manifest <manifest.json>... --ca
 ```
 
 The source audit resolves a local/Git locator to content identity and reports
-the resolved commit/tree when applicable. The package graph audit requires
-precomputed package capability manifest files. The review command writes an
-explicit standalone capability-change receipt to the requested path. The plan
-commands read an existing lock plus explicit current/candidate manifest files
-and print install/update admission plans. These commands do not derive package
-manifests, execute dependency `build.omg`, edit `build.omg`, or write
-`omega.lock`.
+the resolved commit/tree when applicable. The source-cache-policy audit prints
+the deterministic cache policy record, including rejected verdicts. The package
+graph audit requires precomputed package capability manifest files. The review
+command writes an explicit standalone capability-change receipt to the
+requested path. The plan commands read an existing lock plus explicit
+current/candidate manifest files and print install/update admission plans.
+These commands do not derive package manifests, execute dependency `build.omg`,
+edit `build.omg`, or write `omega.lock`.
