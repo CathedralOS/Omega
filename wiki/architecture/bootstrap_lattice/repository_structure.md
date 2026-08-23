@@ -24,6 +24,10 @@ bootstrap/
     alpha-assembler-rust/   disposable/reference Alpha assembler producer
     beta-rust/              disposable/reference Beta producer
     delta-rust/             disposable/reference Delta producer
+    omega-rust/
+      apps/omega-cli/       current Rust development command
+      psi/                  current Rust source/semantic producer
+      omega/                current Rust target/backend producer
 
   assurance/
     proof-kernel/
@@ -46,14 +50,14 @@ bootstrap/
   corpus/                   programs shared across multiple bootstrap seams
 
 compiler/
-  psi/                      production target-neutral Psi implementation
-  omega/                    production target/backend Omega implementation
+  psi/                      eventual Omega-written target-neutral Psi source
+  omega/                    eventual Omega-written optimizer/backend source
 ```
 
-The names describe responsibility. They deliberately do not promise that the
-implementation is Rust, Python, or any other language. During migration an
-on-ramp may retain an implementation-language suffix, but no standing
-architecture depends on that suffix.
+Product-root names describe responsibility rather than host language. On-ramp
+names deliberately expose their external implementation language and temporary
+status. The current Rust compiler therefore does not occupy the unsuffixed
+product roots.
 
 ## Ownership rules
 
@@ -70,9 +74,15 @@ architecture depends on that suffix.
 - `bootstrap/omega0/` owns work and artifacts toward the first Delta-built Omega
   compiler and the minimum Psi/Omega path it needs. It is not the production
   compiler and is not another language rung.
-- `compiler/psi/` and `compiler/omega/` own the product implementation. The
-  product-specific `psi-proof-kernel` checks Psi judgments and admissions; it is
-  distinct from the bootstrap derivation checker under `bootstrap/assurance/`.
+- `bootstrap/onramps/omega-rust/` owns the current working Rust compiler as an
+  untrusted migration/reference producer. It is removable once the hosted
+  compiler closes.
+- `compiler/psi/` and `compiler/omega/` are reserved for the eventual
+  Omega-written product source. Their placeholder READMEs are not a compiler
+  implementation and do not freeze the bootstrap acceptance profile.
+- The Rust producer's `psi-proof-kernel` checks Psi judgments and admissions;
+  it is distinct from the bootstrap derivation checker under
+  `bootstrap/assurance/`.
 - Shared corpora belong at the narrowest common owner. A fixture used by several
   rungs or assurance seams belongs in `bootstrap/corpus/`, not in whichever gate
   happened to be written first.
@@ -120,13 +130,15 @@ and its remaining compatibility paths are:
 | `bootstrap/onramps/delta-rust/` (compatibility: `compiler/delta-rs`) | `bootstrap/onramps/delta-rust/` — complete |
 | `bootstrap/onramps/alpha-assembler-rust/` (compatibility: `compiler/beta-rs`) | `bootstrap/onramps/alpha-assembler-rust/` — complete |
 | `bootstrap/onramps/beta-rust/` (compatibility: `compiler/beta-lang-rs`) | `bootstrap/onramps/beta-rust/` — complete |
+| current Rust Psi/Omega compiler and CLI | `bootstrap/onramps/omega-rust/` — complete |
 | `bootstrap/assurance/proof-kernel/` (compatibility: `compiler/proof-kernel`) | `bootstrap/assurance/proof-kernel/{implementations,tools,corpus,gates}/` — complete |
 | Beta-source/Alpha-artifact refinement tools (compatibility entries under Alpha) | `bootstrap/assurance/refinement/beta/` — complete |
 | Omega0 meaning/artifact TV encoders and gates (compatibility entries under Omega0 gates) | `bootstrap/assurance/refinement/omega0/` — complete |
 | `bootstrap/omega0/` | placement under `bootstrap/omega0/{meaning,compiler,gates}/` — complete; compiler implementation remains open |
 | `bootstrap/corpus/` (compatibility: `compiler/lattice-corpus`) | `bootstrap/corpus/` — complete |
-| `compiler/psi/`, `compiler/omega/` | `compiler/psi/`, `compiler/omega/` — complete physical product roots |
+| eventual Omega-written Psi/Omega compiler | `compiler/{psi,omega}/` — roots reserved; implementation open |
 
-`compiler/` now means the product compiler; `bootstrap/` means how that product
-is rebuilt from the seed. No canonical directory is grouped solely by the host
-language of temporary tooling.
+`compiler/` means source intended to survive in the self-hosted product;
+`bootstrap/` contains both the seed-built construction and explicitly named
+external-language on-ramps. No temporary Rust producer occupies an unsuffixed
+product root.

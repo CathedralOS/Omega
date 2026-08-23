@@ -1,7 +1,7 @@
 # `compiler/beta-lang-py/` — compatibility facade
 
-This is not a canonical Python peer compiler rung. It preserves historical
-entry points while the retained tools live with their actual owners:
+This compatibility facade preserves historical entry points while the retained
+tools live with their actual owners:
 
 - executable Beta meaning and semantic gates:
   `bootstrap/rungs/beta/reference/`;
@@ -12,5 +12,5 @@ Every executable or module here is a narrow forwarding wrapper. New callers
 must use the canonical role paths. The former `bc2.py` backend and its
 `independent-floor.sh` composition were removed: neither was a lattice gate,
 and all canonical behavior they touched already has focused interpreter,
-assembler-reference, and VM-reference coverage. Keeping them would maintain a
-second compiler without closing the lower-rooted `bc` refinement obligation.
+assembler-reference, and VM-reference coverage. They did not close the
+lower-rooted `bc` refinement obligation.

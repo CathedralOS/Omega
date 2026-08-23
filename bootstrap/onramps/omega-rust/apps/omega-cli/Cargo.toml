@@ -1,0 +1,21 @@
+[package]
+name = "omega-cli"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[[bin]]
+name = "omega"
+path = "src/main.rs"
+test = false
+
+[dependencies]
+omega-compiler = { path = "../../omega/orchestration/omega-compiler" }
+omega-core = { path = "../../omega/foundation/omega-core" }
+omega-target = { path = "../../omega/foundation/omega-target" }
+psi-checked-trees-to-terminal = { path = "../../psi/pipeline/psi-checked-trees-to-terminal" }
+psi-core = { path = "../../psi/foundation/psi-core" }
+psi-proof-kernel = { path = "../../psi/semantics/psi-proof-kernel" }
+psi-terminal = { path = "../../psi/representations/psi-terminal" }
+psi-terminal-fixed-fuel = { path = "../../psi/semantics/psi-terminal-fixed-fuel" }
+psi-terminal-verifier = { path = "../../psi/semantics/psi-terminal-verifier" }

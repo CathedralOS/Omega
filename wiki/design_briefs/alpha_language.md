@@ -85,7 +85,6 @@ The following ideas from the earlier design are no longer active:
 - Alpha as a syntactic subset of Omega;
 - an Alpha compiler written in Alpha;
 - fixed compiler AST/token/symbol capacities as Alpha language semantics;
-- cross-compiler byte identity as the trust mechanism;
 - a Rust Alpha compiler as the planned source of the steady-state seed.
 
 Useful fixed-buffer and trap-on-failure instincts survive at the appropriate

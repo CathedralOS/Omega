@@ -53,7 +53,7 @@ compatibility symlinks.
 | `bootstrap/omega0/` | Rust-free meaning, current first-Omega compiler slices/contracts, and gates | `bootstrap/omega0/` |
 | `bootstrap/corpus/` (compatibility: `compiler/lattice-corpus`) | fixtures shared across lattice seams | `bootstrap/corpus/` |
 
-### Reference producers and product implementations
+### Reference producers and future product implementations
 
 | Canonical or transitional source | Role | Canonical owner |
 | --- | --- | --- |
@@ -62,7 +62,8 @@ compatibility symlinks.
 | `bootstrap/onramps/beta-rust/` (compatibility: `compiler/beta-lang-rs`) | Beta-language disposable/reference Rust producer | `bootstrap/onramps/beta-rust/` |
 | `bootstrap/rungs/beta/reference/` | executable Beta reference meaning and semantic fuzzing | `bootstrap/rungs/beta/reference/`; `compiler/beta-lang-py` forwards compatibility entry points |
 | `bootstrap/assurance/refinement/beta/` | fragmentary symbolic reconstruction plus whole-artifact obligation checkers | `bootstrap/assurance/refinement/beta/` |
-| `compiler/psi/`, `compiler/omega/` | current production Psi/Omega implementations | `compiler/psi/`, `compiler/omega/` |
+| `bootstrap/onramps/omega-rust/` | current working Rust Psi/Omega compiler and CLI; migration/reference producer | `bootstrap/onramps/omega-rust/` |
+| `compiler/{psi,omega}/` | eventual Omega-written product compiler source | reserved product roots; implementation remains open |
 
 ## Current architectural state
 
@@ -403,7 +404,7 @@ additional facilities the bootstrap actually needs.
 - [ ] **Close the `bc` source-correspondence edge by checked refinement.** The seed Beta
   compiler is now built through the preceding audited rung; validate the
   complete artifact against `bc.beta` using authority rooted below `bc`.
-  Fixed-point or cross-compiler byte agreement is not acceptance evidence.
+  A fixed point alone is not acceptance evidence.
   - [x] Specify the compiler observable as the complete output byte stream plus
     halt, trap, divergence, and checked resource exhaustion—not merely an exit
     byte or a finite set of executions. `bootstrap/rungs/beta/BOOTSTRAP_OBSERVABLE.md`
@@ -491,11 +492,14 @@ additional facilities the bootstrap actually needs.
   `bootstrap/assurance/`, without assigning either role to a language rung.
 - [x] Split the former `beta-lang-py` directory by responsibility: executable
   Beta meaning under the Beta rung and symbolic reconstruction under assurance.
-  Remove its comparison-only compiler and gate; compatibility wrappers remain.
+  Remove its obsolete backend and facade gate; compatibility wrappers remain.
 - [x] Move first-Omega work to `bootstrap/omega0/` and shared seam fixtures to
   `bootstrap/corpus/`.
-- [x] Establish `compiler/psi/` and `compiler/omega/` as the physical product
-  roots. Product ownership no longer encodes the current host language.
+- [x] Move the current Rust Psi/Omega compiler and CLI out of unsuffixed product
+  roots and into `bootstrap/onramps/omega-rust/{psi,omega,apps/omega-cli}/`.
+- [x] Reserve `compiler/{psi,omega}/` for the eventual Omega-written product
+  compiler. The placeholder roots do not satisfy the open production-source
+  task above.
 
 ## Execution order
 
@@ -521,7 +525,7 @@ trusted Rust meaning or verification dependency.
 Run from the repository root:
 
 ```sh
-sh compiler/verify-lattice.sh
+sh bootstrap/verify-lattice.sh
 sh bootstrap/rungs/alpha/assembler/selfhost.sh
 sh bootstrap/onramps/alpha-assembler-rust/test.sh
 sh bootstrap/onramps/beta-rust/test.sh  # diagnostic producer only

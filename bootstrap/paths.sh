@@ -50,6 +50,9 @@ fi
 : "${OMEGA_PATH_OMEGA0_GATES:=$OMEGA_PATH_OMEGA0/gates}"
 : "${OMEGA_PATH_OMEGA0_REFINEMENT:=$OMEGA_PATH_REFINEMENT_ROOT/omega0}"
 : "${OMEGA_PATH_CORPUS:=$OMEGA_PATH_BOOTSTRAP_ROOT/corpus}"
+: "${OMEGA_PATH_OMEGA_RUST_ONRAMP_ROOT:=$OMEGA_PATH_ONRAMPS_ROOT/omega-rust}"
+: "${OMEGA_PATH_PSI_RUST:=$OMEGA_PATH_OMEGA_RUST_ONRAMP_ROOT/psi}"
+: "${OMEGA_PATH_OMEGA_RUST:=$OMEGA_PATH_OMEGA_RUST_ONRAMP_ROOT/omega}"
 : "${OMEGA_PATH_PSI_PRODUCT:=$OMEGA_PATH_COMPILER_ROOT/psi}"
 : "${OMEGA_PATH_OMEGA_PRODUCT:=$OMEGA_PATH_COMPILER_ROOT/omega}"
 
@@ -64,6 +67,7 @@ export OMEGA_PATH_PROOF_KERNEL_BETA OMEGA_PATH_PROOF_KERNEL_REFERENCE OMEGA_PATH
 export OMEGA_PATH_OMEGA0 OMEGA_PATH_CORPUS
 export OMEGA_PATH_OMEGA0_MEANING OMEGA_PATH_OMEGA0_COMPILER OMEGA_PATH_OMEGA0_GATES
 export OMEGA_PATH_OMEGA0_REFINEMENT
+export OMEGA_PATH_OMEGA_RUST_ONRAMP_ROOT OMEGA_PATH_PSI_RUST OMEGA_PATH_OMEGA_RUST
 export OMEGA_PATH_PSI_PRODUCT OMEGA_PATH_OMEGA_PRODUCT
 
 # omega_bootstrap_path ROLE
@@ -97,6 +101,11 @@ omega_bootstrap_path() {
     omega0-compiler) printf '%s\n' "$OMEGA_PATH_OMEGA0_COMPILER" ;;
     omega0-gates) printf '%s\n' "$OMEGA_PATH_OMEGA0_GATES" ;;
     corpus|lattice-corpus) printf '%s\n' "$OMEGA_PATH_CORPUS" ;;
+    omega-rust-onramp) printf '%s\n' "$OMEGA_PATH_OMEGA_RUST_ONRAMP_ROOT" ;;
+    psi-rust) printf '%s\n' "$OMEGA_PATH_PSI_RUST" ;;
+    psi-rust/*) printf '%s/%s\n' "$OMEGA_PATH_PSI_RUST" "${1#psi-rust/}" ;;
+    omega-rust) printf '%s\n' "$OMEGA_PATH_OMEGA_RUST" ;;
+    omega-rust/*) printf '%s/%s\n' "$OMEGA_PATH_OMEGA_RUST" "${1#omega-rust/}" ;;
     psi) printf '%s\n' "$OMEGA_PATH_PSI_PRODUCT" ;;
     psi/*) printf '%s/%s\n' "$OMEGA_PATH_PSI_PRODUCT" "${1#psi/}" ;;
     omega) printf '%s\n' "$OMEGA_PATH_OMEGA_PRODUCT" ;;

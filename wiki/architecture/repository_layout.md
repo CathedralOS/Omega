@@ -35,13 +35,12 @@ object-file writers, the linker crates, and Wasm/RISC-V ISA crates) are still
 folded into other crates or do not exist yet. They are placement intent, not
 current packages.
 
-> **Ownership boundary.** The target physical split is `bootstrap/` for the
-> audited seed-to-Omega construction and `compiler/` for the product Psi/Omega
-> implementation. That split and the role-based product-root rename are now
-> physical. Within the product, `compiler/psi/` owns
-> parsing and target-neutral semantics through terminal Psi, while
-> `compiler/omega/` owns provider, ABI, target, artifact, and execution
-> machinery. Bootstrap gates resolve cross-owner locations through the
+> **Ownership boundary.** The current Cargo implementation is explicitly an
+> external-language producer under `bootstrap/onramps/omega-rust/`. Its `psi/`
+> half implements parsing and target-neutral semantics through terminal Psi;
+> its `omega/` half implements provider, ABI, target, artifact, and execution
+> machinery. `compiler/{psi,omega}/` is reserved for the eventual Omega-written
+> product source. Bootstrap gates resolve cross-owner locations through the
 > role manifest in `bootstrap/paths.sh`; new cross-owner sibling-relative paths
 > are rejected. The tree below documents the current Cargo/product structure;
 > the retained compatibility inventory is documented in the
@@ -54,9 +53,12 @@ Omega/
 |-- Cargo.toml
 |-- README.md
 |-- apps/
-|   `-- [CRATE] omega-cli/                              # User-facing `omega` command.
+|   `-- README.md                                         # Reserved hosted product entrypoints.
 |
-|-- compiler/
+|-- bootstrap/onramps/omega-rust/
+|   |-- apps/
+|   |   `-- [CRATE] omega-cli/                            # Current Rust `omega` development command.
+|   |
 |   |-- psi/                                         # Psi owns target-neutral semantics through terminal Psi.
 |   |   |-- foundation/
 |   |   |   |-- [CRATE] psi-access-plans/               # Normalized placed-view access semantics.
@@ -176,6 +178,10 @@ Omega/
 |           |-- [CRATE] omega-native-differential-test/    # Cross-layer Psi-interpreter/native differential tests only.
 |           `-- [CRATE] omega-visualizations/             # Visualization/dump views of pipeline artifacts.
 |
+|-- compiler/
+|   |-- psi/                                               # Reserved for Omega-written Psi source.
+|   `-- omega/                                             # Reserved for Omega-written backend/optimizer source.
+|
 |-- omega/
 |   |-- language/
 |   |   |-- core/                                       # Always-available language package.
@@ -221,9 +227,10 @@ Omega/
 
 ### Front Door
 
-- `apps/` crates stay thin. They parse user intent and call compiler services.
-  Today `apps/` holds only `omega-cli`; the language-server and docs-generator
-  apps are not yet separate crates.
+- Product `apps/` stay thin. They parse user intent and call compiler services.
+  The root is reserved today; the current Rust `omega-cli` lives with its
+  producer under `bootstrap/onramps/omega-rust/apps/`. The language-server and
+  docs-generator are not yet separate applications.
 - `orchestration/` sequences phases, owns artifacts and the top-level
   check/build API (`omega-compiler`, `omega-backend-pipeline`, `omega-artifacts`,
   `omega-visualizations`), and keeps source loading coherent. Session/options and
@@ -255,15 +262,17 @@ Omega/
 
 ### Semantic Ownership
 
-- `compiler/psi/` owns Omega-file parsing and all target-neutral language
-  meaning through terminal Psi. Psi crates must not depend on Omega crates;
-  the architecture test enforces that firewall.
+- The Psi role owns Omega-file parsing and all target-neutral language meaning
+  through terminal Psi. Its current Rust realization is
+  `bootstrap/onramps/omega-rust/psi/`. Psi crates must not depend on Omega
+  crates; the architecture test enforces that firewall.
 - Existing target-neutral `omega-*` crates are migration inputs, not a second
   permanent frontend. Move or rename them under Psi ownership as terminal
   vertical slices replace their source-shaped handles.
-- `compiler/omega/` begins its long-term semantic consumption at terminal
+- The Omega backend role begins its long-term semantic consumption at terminal
   Psi and owns provider installation, ABI/storage realization, optimization,
-  target lowering, and native execution machinery. Psi owns both transitional
+  target lowering, and native execution machinery. Its current Rust realization
+  is `bootstrap/onramps/omega-rust/omega/`. Psi owns both transitional
   checked-tree reference execution and canonical terminal-Psi interpretation;
   Omega contains only the cross-layer native differential-test harness. That
   harness keeps shared artifact decoding, verified lowering, and native image

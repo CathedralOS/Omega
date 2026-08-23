@@ -70,8 +70,7 @@ The sound baseline is source-distributed, host-compiled code:
 
 This remains conditional on trusting the compiler or independently checking
 the admitted proof/certificate. Lower-rooted bootstrap refinement and
-proof-carrying code are upgrades to that TCB story; cross-compiler agreement is
-only diagnostic evidence. Installation
+proof-carrying code are upgrades to that TCB story. Installation
 prevents injection. Backward-edge return integrity in checked Omega follows
 from memory safety plus non-addressable compiler-owned live and parked control
 state; WCSU proves sufficient stack capacity. Forward-edge indirect targeting

@@ -19,8 +19,9 @@ Ownership is explicit: `meaning/` contains the Rust-free meaning route,
 private fixtures. Cross-rung meaning/artifact obligation reconstruction lives
 under `bootstrap/assurance/refinement/omega0/`; compatibility symlinks in `gates/`
 preserve historical entry points.
-The former top-level compatibility directory was retired so `compiler/omega/`
-can exclusively own the production compiler.
+The former top-level compatibility directory was retired so this bootstrap
+compiler cannot be confused with either the current Rust on-ramp or the
+reserved `compiler/{psi,omega}/` product roots.
 
 ## What exists here
 

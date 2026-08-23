@@ -10,8 +10,8 @@ compiler under `../../rungs/beta/cold-start/` now reconstructs the persisted
 self-hosted artifact without Rust, and downstream gates consume that artifact.
 This crate is no longer a bootstrap dependency. It remains useful as an explicit
 diagnostic/reference producer while complete lower-rooted validation of the
-Alpha-rooted `bc` artifact is built. Fixed-point or producer agreement proves
-neither source-to-artifact correctness nor semantic authority.
+Alpha-rooted `bc` artifact is built. Successful production and a fixed point
+prove neither source-to-artifact correctness nor semantic authority.
 
 > Naming: `bootstrap/onramps/beta-rust` is the canonical Beta-language producer.
 > `compiler/beta-lang-rs` is its compatibility path. The historical
@@ -66,8 +66,7 @@ seed-stamp. Needs `cargo`.
 
 The self-check passed and the Beta-written compiler superseded this on-ramp.
 Changes to the Beta surface must update `bc.beta`, its language gates, and the
-canonical Beta meaning/refinement route. Agreement with this Rust implementation
-or another compiler is diagnostic, not semantic authority.
+canonical Beta meaning/refinement route.
 
 See [`../../rungs/beta/LANGUAGE.md`](../../rungs/beta/LANGUAGE.md) for the language surface, and run
 `sh test.sh` to verify the retained example and calculator corpus end to end.
