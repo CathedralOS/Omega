@@ -1,0 +1,12 @@
+[package]
+name = "omega-packages"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_packages"
+path = "src/lib.rs"
+
+[dependencies]
+sha2 = "0.10.9"
