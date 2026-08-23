@@ -111,6 +111,14 @@ Completed:
   policy, path-containment policy, rejection reason, stable JSON, and a
   SHA-256 record fingerprint.
 
+- **PACKAGE-LOCK-CLOSURE-VALIDATION.** Add fail-closed validation for assembled
+  package lock closures before compiler/CLI lock wiring.
+
+  Done 2026-08-23: `omega-packages` validates that a package lock contains its
+  root package, has no duplicate package entries, has no duplicate dependency
+  aliases within a package, has no dependency edges to packages absent from the
+  closure, and retains non-empty source identities and manifest fingerprints.
+
 Remaining:
 
 - **PACKAGE-CAPABILITY-MANIFEST.** Define the normalized manifest produced for
@@ -128,8 +136,9 @@ Remaining:
   trust receipts only to the full package closure without making it a second
   hand-authored manifest.
 
-  Remaining after `PACKAGE-LOCK-MODEL`: wire compiler/package admission output
-  into the existing `omega.lock` artifact and enforce closure consistency.
+  Remaining after `PACKAGE-LOCK-MODEL` and
+  `PACKAGE-LOCK-CLOSURE-VALIDATION`: wire compiler/package admission output
+  into the existing `omega.lock` artifact.
 
   Acceptance: the lock records exact repository revisions/content identities,
   package manifest fingerprints, dependency edges, build observation verdicts,

@@ -22,6 +22,31 @@ pub struct LockedPackage {
     pub trust_receipts: Vec<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PackageLockValidationError {
+    MissingRootPackage {
+        package: String,
+    },
+    DuplicatePackage {
+        package: String,
+    },
+    DuplicateDependencyAlias {
+        package: String,
+        alias: String,
+    },
+    MissingDependencyPackage {
+        package: String,
+        alias: String,
+        dependency: String,
+    },
+    MissingSourceIdentity {
+        package: String,
+    },
+    MissingManifestFingerprint {
+        package: String,
+    },
+}
+
 impl LockedPackage {
     pub fn normalized(mut self) -> Self {
         self.dependencies.sort();
@@ -68,6 +93,61 @@ impl PackageLock {
 
     pub fn package(&self, package: &PackageName) -> Option<&LockedPackage> {
         self.packages.iter().find(|entry| &entry.package == package)
+    }
+
+    pub fn validate_closure(&self) -> Result<(), Vec<PackageLockValidationError>> {
+        let mut errors = Vec::new();
+        let mut package_names = BTreeSet::new();
+        for package in &self.packages {
+            if !package_names.insert(package.package.as_str().to_owned()) {
+                errors.push(PackageLockValidationError::DuplicatePackage {
+                    package: package.package.as_str().to_owned(),
+                });
+            }
+            if package.source_identity.is_empty() {
+                errors.push(PackageLockValidationError::MissingSourceIdentity {
+                    package: package.package.as_str().to_owned(),
+                });
+            }
+            if package.manifest_fingerprint.is_empty() {
+                errors.push(PackageLockValidationError::MissingManifestFingerprint {
+                    package: package.package.as_str().to_owned(),
+                });
+            }
+
+            let mut aliases = BTreeSet::new();
+            for dependency in &package.dependencies {
+                if !aliases.insert(dependency.alias.as_str().to_owned()) {
+                    errors.push(PackageLockValidationError::DuplicateDependencyAlias {
+                        package: package.package.as_str().to_owned(),
+                        alias: dependency.alias.as_str().to_owned(),
+                    });
+                }
+            }
+        }
+
+        if !package_names.contains(self.root_package.as_str()) {
+            errors.push(PackageLockValidationError::MissingRootPackage {
+                package: self.root_package.as_str().to_owned(),
+            });
+        }
+        for package in &self.packages {
+            for dependency in &package.dependencies {
+                if !package_names.contains(dependency.package.as_str()) {
+                    errors.push(PackageLockValidationError::MissingDependencyPackage {
+                        package: package.package.as_str().to_owned(),
+                        alias: dependency.alias.as_str().to_owned(),
+                        dependency: dependency.package.as_str().to_owned(),
+                    });
+                }
+            }
+        }
+
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
+        }
     }
 
     pub fn to_json(&self) -> String {
@@ -313,5 +393,119 @@ mod tests {
 
         assert!(lock.package(&package("file-journal")).is_some());
         assert!(PackageName::parse("file_journal").is_err());
+    }
+
+    #[test]
+    fn lock_validation_accepts_closed_package_graph() {
+        let mut root = locked_package("graph-workbench");
+        root.dependencies.push(LockedDependency {
+            alias: alias("file_journal"),
+            package: package("file-journal"),
+        });
+        let mut lock = PackageLock::new(package("graph-workbench"));
+        lock.packages = vec![root, locked_package("file-journal")];
+
+        assert_eq!(lock.validate_closure(), Ok(()));
+    }
+
+    #[test]
+    fn lock_validation_rejects_missing_root_package() {
+        let mut lock = PackageLock::new(package("graph-workbench"));
+        lock.packages = vec![locked_package("file-journal")];
+
+        let errors = lock
+            .validate_closure()
+            .expect_err("missing root must reject");
+
+        assert!(
+            errors.contains(&PackageLockValidationError::MissingRootPackage {
+                package: "graph-workbench".to_owned()
+            })
+        );
+    }
+
+    #[test]
+    fn lock_validation_rejects_duplicate_packages() {
+        let mut lock = PackageLock::new(package("file-journal"));
+        lock.packages = vec![
+            locked_package("file-journal"),
+            locked_package("file-journal"),
+        ];
+
+        let errors = lock
+            .validate_closure()
+            .expect_err("duplicate package must reject");
+
+        assert!(
+            errors.contains(&PackageLockValidationError::DuplicatePackage {
+                package: "file-journal".to_owned()
+            })
+        );
+    }
+
+    #[test]
+    fn lock_validation_rejects_duplicate_alias_and_missing_dependency_target() {
+        let mut root = locked_package("graph-workbench");
+        root.dependencies = vec![
+            LockedDependency {
+                alias: alias("file_journal"),
+                package: package("file-journal"),
+            },
+            LockedDependency {
+                alias: alias("file_journal"),
+                package: package("network-overreach"),
+            },
+        ];
+        let mut lock = PackageLock::new(package("graph-workbench"));
+        lock.packages = vec![root];
+
+        let errors = lock
+            .validate_closure()
+            .expect_err("bad dependency closure must reject");
+
+        assert!(
+            errors.contains(&PackageLockValidationError::DuplicateDependencyAlias {
+                package: "graph-workbench".to_owned(),
+                alias: "file_journal".to_owned(),
+            })
+        );
+        assert!(
+            errors.contains(&PackageLockValidationError::MissingDependencyPackage {
+                package: "graph-workbench".to_owned(),
+                alias: "file_journal".to_owned(),
+                dependency: "file-journal".to_owned(),
+            })
+        );
+        assert!(
+            errors.contains(&PackageLockValidationError::MissingDependencyPackage {
+                package: "graph-workbench".to_owned(),
+                alias: "file_journal".to_owned(),
+                dependency: "network-overreach".to_owned(),
+            })
+        );
+    }
+
+    #[test]
+    fn lock_validation_rejects_missing_source_and_manifest_identity() {
+        let mut locked = locked_package("file-journal");
+        locked.source_identity.clear();
+        locked.manifest_fingerprint.clear();
+        let mut lock = PackageLock::new(package("file-journal"));
+        lock.packages = vec![locked];
+
+        let errors = lock
+            .validate_closure()
+            .expect_err("missing identities must reject");
+
+        assert!(
+            errors.contains(&PackageLockValidationError::MissingSourceIdentity {
+                package: "file-journal".to_owned(),
+            })
+        );
+        assert!(
+            errors.contains(&PackageLockValidationError::MissingManifestFingerprint {
+                package: "file-journal".to_owned(),
+            })
+        );
     }
 }
