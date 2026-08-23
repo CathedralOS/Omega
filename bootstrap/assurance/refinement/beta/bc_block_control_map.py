@@ -29,7 +29,7 @@ OPS = {
     "write": (0x12, "r"), "call": (0x13, "x"), "ret": (0x14, ""),
 }
 ESC = {"n": 10, "t": 9, "r": 13, "0": 0, "\\": 92, "'": 39, '"': 34}
-MAGIC = 0x34544342  # little-endian "BCT4"
+MAGIC = 0x35544342  # little-endian "BCT5"
 
 EVENT_CALL = 1
 EVENT_READ = 2
@@ -40,6 +40,8 @@ ACCESS_LOAD = 1
 ACCESS_STORE = 2
 MEMORY_LOAD = 1
 MEMORY_STORE = 2
+PRIMITIVE_LITERAL = 1
+PRIMITIVE_ARITHMETIC = 2
 
 
 @dataclass(frozen=True)
@@ -82,6 +84,14 @@ class LocalAccess:
 class MemorySite:
     kind: int
     width: int
+    node_id: int
+    block_index: int
+
+
+@dataclass(frozen=True)
+class ExprPrimitive:
+    kind: int
+    value: int
     node_id: int
     block_index: int
 
@@ -139,6 +149,9 @@ def source_events(repo: Path, source: bytes):
     memory_sites: list[MemorySite] = []
     memory_by_node: dict[int, MemorySite] = {}
     memory_lowering_by_proc: dict[int, list[MemorySite]] = {}
+    primitives: list[ExprPrimitive] = []
+    primitive_by_node: dict[int, ExprPrimitive] = {}
+    primitive_lowering_by_proc: dict[int, list[ExprPrimitive]] = {}
     block_index = 0
     current_slots: dict[str, int] = {}
 
@@ -197,6 +210,28 @@ def source_events(repo: Path, source: bytes):
             lex_memory_expr(expr[2], block)
             lex_memory_expr(expr[3], block)
 
+    arithmetic_codes = {"+": 3, "-": 4, "*": 5, "/": 6, "%": 7}
+
+    def add_primitive(kind: int, value: int, node, block: int) -> None:
+        primitive = ExprPrimitive(kind, value, id(node), block)
+        primitives.append(primitive)
+        primitive_by_node[id(node)] = primitive
+
+    def lex_primitive_expr(expr, block: int) -> None:
+        if expr[0] == "num":
+            add_primitive(PRIMITIVE_LITERAL, expr[1], expr, block)
+        elif expr[0] == "bin":
+            lex_primitive_expr(expr[2], block)
+            if expr[1] in arithmetic_codes:
+                add_primitive(PRIMITIVE_ARITHMETIC,
+                              arithmetic_codes[expr[1]], expr, block)
+            lex_primitive_expr(expr[3], block)
+        elif expr[0] == "call":
+            for argument in expr[2]:
+                lex_primitive_expr(argument, block)
+        elif expr[0] == "mem":
+            lex_primitive_expr(expr[2], block)
+
     def lex_stmt(stmt, block: int) -> None:
         kind = stmt[0]
         if kind in ("let", "assign"):
@@ -250,6 +285,20 @@ def source_events(repo: Path, source: bytes):
             lower_memory_expr(expr[2], output)
             lower_memory_expr(expr[3], output)
 
+    def lower_primitive_expr(expr, output: list[ExprPrimitive]) -> None:
+        if expr[0] == "num":
+            output.append(primitive_by_node[id(expr)])
+        elif expr[0] == "bin":
+            lower_primitive_expr(expr[2], output)
+            lower_primitive_expr(expr[3], output)
+            if expr[1] in arithmetic_codes:
+                output.append(primitive_by_node[id(expr)])
+        elif expr[0] == "call":
+            for argument in expr[2]:
+                lower_primitive_expr(argument, output)
+        elif expr[0] == "mem":
+            lower_primitive_expr(expr[2], output)
+
     def lower_stmt(stmt, output: list[Event]) -> None:
         kind = stmt[0]
         if kind in ("let", "assign"):
@@ -273,6 +322,7 @@ def source_events(repo: Path, source: bytes):
         lowering: list[Event] = []
         access_lowering: list[LocalAccess] = []
         memory_lowering: list[MemorySite] = []
+        primitive_lowering: list[ExprPrimitive] = []
         entry_block = block_index
         block_index += 1
 
@@ -328,16 +378,35 @@ def source_events(repo: Path, source: bytes):
                 lex_memory_expr(stmt[1], block)
                 lower_memory_expr(stmt[1], memory_lowering)
 
+        def primitive_stmt(stmt, block: int) -> None:
+            kind = stmt[0]
+            expressions = []
+            if kind in ("let", "assign"):
+                expressions = [stmt[2]]
+            elif kind == "return":
+                expressions = [stmt[1]]
+            elif kind == "goto" and stmt[2] is not None:
+                expressions = [stmt[2]]
+            elif kind == "memset":
+                expressions = [stmt[2], stmt[3]]
+            elif kind == "callstmt":
+                expressions = [stmt[1]]
+            for expression in expressions:
+                lex_primitive_expr(expression, block)
+                lower_primitive_expr(expression, primitive_lowering)
+
         for stmt in proc[3]:
             if stmt[0] == "state":
                 state_block = block_index
                 block_index += 1
                 for inner in stmt[2]:
+                    primitive_stmt(inner, state_block)
                     memory_stmt(inner, state_block)
                     access_stmt(inner, state_block)
                     lex_stmt(inner, state_block)
                     lower_stmt(inner, lowering)
             else:
+                primitive_stmt(stmt, entry_block)
                 memory_stmt(stmt, entry_block)
                 access_stmt(stmt, entry_block)
                 lex_stmt(stmt, entry_block)
@@ -345,8 +414,10 @@ def source_events(repo: Path, source: bytes):
         lowering_by_proc[proc_index] = lowering
         access_lowering_by_proc[proc_index] = access_lowering
         memory_lowering_by_proc[proc_index] = memory_lowering
+        primitive_lowering_by_proc[proc_index] = primitive_lowering
     return (ast, lexical, lowering_by_proc, accesses,
-            access_lowering_by_proc, memory_sites, memory_lowering_by_proc)
+            access_lowering_by_proc, memory_sites, memory_lowering_by_proc,
+            primitives, primitive_lowering_by_proc)
 
 
 def strip_comment(line: str) -> str:
@@ -613,6 +684,73 @@ def locate_memory_sites(ast: list, lexical: list[MemorySite],
     return pcs
 
 
+def locate_expr_primitives(ast: list, lexical: list[ExprPrimitive],
+                           lowering_by_proc: dict[int, list[ExprPrimitive]],
+                           items: list[Item], labels: dict[str, int],
+                           tape_len: int) -> list[int]:
+    by_node = {primitive.node_id: index
+               for index, primitive in enumerate(lexical)}
+    pcs = [-1] * len(lexical)
+    proc_starts = [labels[proc[1]] for proc in ast]
+    for proc_index, proc in enumerate(ast):
+        start = proc_starts[proc_index]
+        end = proc_starts[proc_index + 1] if proc_index + 1 < len(proc_starts) else tape_len
+        ins = [item for item in items
+               if item.kind == "ins" and start <= item.offset < end]
+        comparison_ranges: list[tuple[int, int]] = []
+        arithmetic: list[tuple[int, int]] = []
+        for index in range(len(ins) - 4):
+            a, b, c, d, e = ins[index:index + 5]
+            base = (
+                a.name == "mov" and a.operands == ("r1", "r0")
+                and b.name == "load" and b.operands == ("r0", "r15")
+                and c.name == "imm" and c.operands == ("r5", "8")
+                and d.name == "add" and d.operands == ("r15", "r5")
+                and a.offset + 3 == b.offset
+                and b.offset + 3 == c.offset
+                and c.offset + 10 == d.offset
+                and d.offset + 3 == e.offset
+            )
+            if not base:
+                continue
+            if e.name in {"add", "sub", "mul", "div", "mod"} \
+                    and e.operands == ("r0", "r1"):
+                arithmetic.append((a.offset, OPS[e.name][0]))
+            elif e.name in {"jlt", "jeq"}:
+                comparison_ranges.append((a.offset, a.offset + 59))
+
+        candidates: list[tuple[int, int, int]] = [
+            (pc, PRIMITIVE_ARITHMETIC, opcode) for pc, opcode in arithmetic
+        ]
+        for item in ins:
+            if item.name != "imm" or item.operands[0] != "r0":
+                continue
+            try:
+                value = int(item.operands[1])
+            except ValueError:
+                continue
+            if any(lo <= item.offset < hi for lo, hi in comparison_ranges):
+                continue
+            candidates.append((item.offset, PRIMITIVE_LITERAL, value))
+        candidates.sort()
+        expected = lowering_by_proc[proc_index]
+        if len(candidates) != len(expected):
+            raise ValueError(
+                f"{proc[1]} expression primitive accounting: "
+                f"{len(candidates)} sites for {len(expected)} source primitives"
+            )
+        for primitive, (pc, kind, value) in zip(expected, candidates):
+            if kind != primitive.kind or value != primitive.value:
+                raise ValueError(
+                    f"{proc[1]} source primitive {primitive} does not match "
+                    f"Alpha site {(pc, kind, value)}"
+                )
+            pcs[by_node[primitive.node_id]] = pc
+    if any(pc < 0 for pc in pcs):
+        raise ValueError("not every source expression primitive received an Alpha location")
+    return pcs
+
+
 def u32(value: int) -> bytes:
     return struct.pack("<I", value)
 
@@ -620,7 +758,8 @@ def u32(value: int) -> bytes:
 def witness(block_pcs: list[int], transition_pcs: list[int], event_pcs: list[int],
             events: list[Event], access_pcs: list[int],
             accesses: list[LocalAccess], memory_pcs: list[int],
-            memory_sites: list[MemorySite], helper_pc: int, proc_count: int,
+            memory_sites: list[MemorySite], primitive_pcs: list[int],
+            primitives: list[ExprPrimitive], helper_pc: int, proc_count: int,
             guarded_count: int) -> bytes:
     counts = {kind: sum(event.kind == kind for event in events)
               for kind in range(EVENT_CALL, EVENT_RETURN + 1)}
@@ -639,11 +778,15 @@ def witness(block_pcs: list[int], transition_pcs: list[int], event_pcs: list[int
         u32(sum(site.kind == MEMORY_STORE for site in memory_sites)),
         u32(sum(site.width == 1 for site in memory_sites)),
         u32(sum(site.width == 8 for site in memory_sites)),
+        u32(len(primitives)),
+        u32(sum(p.kind == PRIMITIVE_LITERAL for p in primitives)),
+        u32(sum(p.kind == PRIMITIVE_ARITHMETIC for p in primitives)),
         *(u32(pc) for pc in block_pcs),
         *(u32(pc) for pc in transition_pcs),
         *(u32(pc) for pc in event_pcs),
         *(u32(pc) for pc in access_pcs),
         *(u32(pc) for pc in memory_pcs),
+        *(u32(pc) for pc in primitive_pcs),
         u32(helper_pc),
     ])
 
@@ -692,13 +835,22 @@ def main() -> None:
     ap.add_argument("--memory-pop-step-patch-output", type=Path)
     ap.add_argument("--duplicate-memory-witness-output", type=Path)
     ap.add_argument("--noncanonical-memory-witness-output", type=Path)
+    ap.add_argument("--literal-value-patch-output", type=Path)
+    ap.add_argument("--literal-register-patch-output", type=Path)
+    ap.add_argument("--arithmetic-opcode-patch-output", type=Path)
+    ap.add_argument("--arithmetic-pop-step-patch-output", type=Path)
+    ap.add_argument("--arithmetic-register-patch-output", type=Path)
+    ap.add_argument("--duplicate-primitive-witness-output", type=Path)
+    ap.add_argument("--noncanonical-primitive-witness-output", type=Path)
+    ap.add_argument("--synthetic-literal-witness-output", type=Path)
     args = ap.parse_args()
 
     source = args.source.read_bytes()
     tape = bytearray(args.tape.read_bytes())
     blocks = source_blocks(args.repo, source)
     (ast, events, lowering_by_proc, accesses, access_lowering_by_proc,
-     memory_sites, memory_lowering_by_proc) = source_events(args.repo, source)
+     memory_sites, memory_lowering_by_proc, primitives,
+     primitive_lowering_by_proc) = source_events(args.repo, source)
     (items, labels, block_pcs, transition_pcs, jump_pcs,
      target_indices, guarded_count) = locate(
         blocks, args.assembly.read_text(encoding="ascii")
@@ -713,10 +865,13 @@ def main() -> None:
         ast, memory_sites, memory_lowering_by_proc, items, labels, len(tape),
         access_pcs,
     )
+    primitive_pcs = locate_expr_primitives(
+        ast, primitives, primitive_lowering_by_proc, items, labels, len(tape)
+    )
     proc_count = len({block.proc_index for block in blocks})
     canonical = witness(
         block_pcs, transition_pcs, event_pcs, events, access_pcs, accesses,
-        memory_pcs, memory_sites, helper_pc,
+        memory_pcs, memory_sites, primitive_pcs, primitives, helper_pc,
         proc_count, guarded_count,
     )
     args.output.write_bytes(canonical)
@@ -759,7 +914,8 @@ def main() -> None:
             raise ValueError("no opcode-looking operand byte found for mutation")
         args.operand_witness_output.write_bytes(
             witness(changed, transition_pcs, event_pcs, events, access_pcs,
-                    accesses, memory_pcs, memory_sites, helper_pc,
+                    accesses, memory_pcs, memory_sites, primitive_pcs,
+                    primitives, helper_pc,
                     proc_count, guarded_count)
         )
 
@@ -768,7 +924,8 @@ def main() -> None:
         changed[1] = changed[0]
         args.duplicate_witness_output.write_bytes(
             witness(changed, transition_pcs, event_pcs, events, access_pcs,
-                    accesses, memory_pcs, memory_sites, helper_pc,
+                    accesses, memory_pcs, memory_sites, primitive_pcs,
+                    primitives, helper_pc,
                     proc_count, guarded_count)
         )
 
@@ -795,7 +952,8 @@ def main() -> None:
         )
         args.noncanonical_witness_output.write_bytes(
             witness(block_pcs, changed, event_pcs, events, access_pcs,
-                    accesses, memory_pcs, memory_sites, helper_pc,
+                    accesses, memory_pcs, memory_sites, primitive_pcs,
+                    primitives, helper_pc,
                     proc_count, guarded_count)
         )
 
@@ -840,7 +998,8 @@ def main() -> None:
         changed[1] = changed[0]
         args.duplicate_event_witness_output.write_bytes(
             witness(block_pcs, transition_pcs, changed, events, access_pcs,
-                    accesses, memory_pcs, memory_sites, helper_pc,
+                    accesses, memory_pcs, memory_sites, primitive_pcs,
+                    primitives, helper_pc,
                     proc_count, guarded_count)
         )
     if args.noncanonical_event_witness_output:
@@ -850,7 +1009,8 @@ def main() -> None:
         changed[pair], changed[pair + 1] = changed[pair + 1], changed[pair]
         args.noncanonical_event_witness_output.write_bytes(
             witness(block_pcs, transition_pcs, changed, events, access_pcs,
-                    accesses, memory_pcs, memory_sites, helper_pc,
+                    accesses, memory_pcs, memory_sites, primitive_pcs,
+                    primitives, helper_pc,
                     proc_count, guarded_count)
         )
 
@@ -912,7 +1072,8 @@ def main() -> None:
         changed[1] = changed[0]
         args.duplicate_local_witness_output.write_bytes(
             witness(block_pcs, transition_pcs, event_pcs, events, changed,
-                    accesses, memory_pcs, memory_sites, helper_pc,
+                    accesses, memory_pcs, memory_sites, primitive_pcs,
+                    primitives, helper_pc,
                     proc_count, guarded_count)
         )
     if args.noncanonical_local_witness_output:
@@ -923,7 +1084,8 @@ def main() -> None:
         changed[pair], changed[pair + 1] = changed[pair + 1], changed[pair]
         args.noncanonical_local_witness_output.write_bytes(
             witness(block_pcs, transition_pcs, event_pcs, events, changed,
-                    accesses, memory_pcs, memory_sites, helper_pc,
+                    accesses, memory_pcs, memory_sites, primitive_pcs,
+                    primitives, helper_pc,
                     proc_count, guarded_count)
         )
 
@@ -947,7 +1109,8 @@ def main() -> None:
         changed[1] = changed[0]
         args.duplicate_memory_witness_output.write_bytes(
             witness(block_pcs, transition_pcs, event_pcs, events, access_pcs,
-                    accesses, changed, memory_sites, helper_pc,
+                    accesses, changed, memory_sites, primitive_pcs,
+                    primitives, helper_pc,
                     proc_count, guarded_count)
         )
     if args.noncanonical_memory_witness_output:
@@ -958,8 +1121,101 @@ def main() -> None:
         changed[pair], changed[pair + 1] = changed[pair + 1], changed[pair]
         args.noncanonical_memory_witness_output.write_bytes(
             witness(block_pcs, transition_pcs, event_pcs, events, access_pcs,
-                    accesses, changed, memory_sites, helper_pc,
+                    accesses, changed, memory_sites, primitive_pcs,
+                    primitives, helper_pc,
                     proc_count, guarded_count)
+        )
+
+    literal_index = next(i for i, primitive in enumerate(primitives)
+                         if primitive.kind == PRIMITIVE_LITERAL)
+    literal_pc = primitive_pcs[literal_index]
+    literal_value = primitives[literal_index].value
+    patch(args.literal_value_patch_output, literal_pc + 2,
+          struct.pack("<Q", (literal_value + 1) & ((1 << 64) - 1)))
+    patch(args.literal_register_patch_output, literal_pc + 1, b"\x01")
+
+    arithmetic_index = next(i for i, primitive in enumerate(primitives)
+                            if primitive.kind == PRIMITIVE_ARITHMETIC)
+    arithmetic_pc = primitive_pcs[arithmetic_index]
+    arithmetic_opcode = primitives[arithmetic_index].value
+    alternate_opcode = OPS["sub"][0] if arithmetic_opcode != OPS["sub"][0] \
+        else OPS["add"][0]
+    patch(args.arithmetic_opcode_patch_output, arithmetic_pc + 19,
+          bytes([alternate_opcode]))
+    patch(args.arithmetic_pop_step_patch_output, arithmetic_pc + 8,
+          struct.pack("<Q", 16))
+    patch(args.arithmetic_register_patch_output, arithmetic_pc + 20, b"\x01")
+
+    if args.duplicate_primitive_witness_output:
+        changed = list(primitive_pcs)
+        changed[1] = changed[0]
+        args.duplicate_primitive_witness_output.write_bytes(
+            witness(block_pcs, transition_pcs, event_pcs, events, access_pcs,
+                    accesses, memory_pcs, memory_sites, changed, primitives,
+                    helper_pc, proc_count, guarded_count)
+        )
+    if args.noncanonical_primitive_witness_output:
+        changed = list(primitive_pcs)
+        pair = next(
+            i for i in range(len(primitives) - 1)
+            if (primitives[i].kind, primitives[i].value)
+            != (primitives[i + 1].kind, primitives[i + 1].value)
+        )
+        changed[pair], changed[pair + 1] = changed[pair + 1], changed[pair]
+        args.noncanonical_primitive_witness_output.write_bytes(
+            witness(block_pcs, transition_pcs, event_pcs, events, access_pcs,
+                    accesses, memory_pcs, memory_sites, changed, primitives,
+                    helper_pc, proc_count, guarded_count)
+        )
+    if args.synthetic_literal_witness_output:
+        ins_by_offset = {item.offset: item for item in items
+                         if item.kind == "ins"}
+        comparison_results: set[int] = set()
+        for item in ins_by_offset.values():
+            if item.name != "mov" or item.operands != ("r1", "r0"):
+                continue
+            load = ins_by_offset.get(item.offset + 3)
+            step = ins_by_offset.get(item.offset + 6)
+            pop = ins_by_offset.get(item.offset + 16)
+            branch = ins_by_offset.get(item.offset + 19)
+            if not (
+                load and load.name == "load"
+                and load.operands == ("r0", "r15")
+                and step and step.name == "imm"
+                and step.operands == ("r5", "8")
+                and pop and pop.name == "add"
+                and pop.operands == ("r15", "r5")
+                and branch and branch.name in {"jlt", "jeq"}
+            ):
+                continue
+            comparison_results.update((item.offset + 30, item.offset + 49))
+
+        replacement = None
+        for index, primitive in enumerate(primitives):
+            if primitive.kind != PRIMITIVE_LITERAL:
+                continue
+            start = block_pcs[primitive.block_index]
+            end = (block_pcs[primitive.block_index + 1]
+                   if primitive.block_index + 1 < len(block_pcs) else len(tape))
+            for pc in sorted(comparison_results):
+                candidate = ins_by_offset.get(pc)
+                if not start <= pc < end or candidate is None:
+                    continue
+                if (candidate.name == "imm"
+                        and candidate.operands[0] == "r0"
+                        and int(candidate.operands[1]) == primitive.value):
+                    replacement = (index, pc)
+                    break
+            if replacement:
+                break
+        if replacement is None:
+            raise ValueError("no same-valued synthetic comparison literal mutation")
+        changed = list(primitive_pcs)
+        changed[replacement[0]] = replacement[1]
+        args.synthetic_literal_witness_output.write_bytes(
+            witness(block_pcs, transition_pcs, event_pcs, events, access_pcs,
+                    accesses, memory_pcs, memory_sites, changed, primitives,
+                    helper_pc, proc_count, guarded_count)
         )
 
 

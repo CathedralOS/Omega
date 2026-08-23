@@ -2,7 +2,7 @@
 ;
 ; The common source scan calls these routines while its exact proc/let/call
 ; tokens are live.  Procedure parameter/slot tables start at 7151616; call
-; arities are stored beside the BCT4 event table at 7143424.
+; arities are stored beside the BCT5 event table at 7143424.
 
 scan_proc_signature:
         call skip_trivia

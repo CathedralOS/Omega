@@ -1,4 +1,4 @@
-; Raw byte/word memory-site custody for the whole-bc BCT4 checker.
+; Raw byte/word memory-site custody for the whole-bc BCT5 checker.
 ;
 ; Source sites are classified by matching brackets without consuming their
 ; address/value expressions from the outer scan. Metadata starts at 7602176;
@@ -210,7 +210,7 @@ read_memory_site_pcs_init:
 read_memory_site_pc:
         imm r1, 95
         jlt r10, r1, read_memory_site_pc_one
-        jmp read_helper_pc
+        jmp read_expr_primitive_pcs_init
 read_memory_site_pc_one:
         call read_u32
         mov r14, r0
@@ -269,7 +269,7 @@ validate_memory_sites_init:
 validate_memory_site_loop:
         imm r1, 95
         jlt r10, r1, validate_memory_site_one
-        jmp scan_owned_effects_init
+        jmp validate_expr_primitives_init
 validate_memory_site_one:
         mov r12, r10
         imm r1, 8

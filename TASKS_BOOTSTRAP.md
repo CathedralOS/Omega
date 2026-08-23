@@ -491,7 +491,7 @@ additional facilities the bootstrap actually needs.
       pop-step mutations reject. This proves static allocation and handoff
       conditional on staged values; argument pushes/values, live stack depth,
       and dynamic frame contents remain open.
-    - [x] Bind every function-scoped local access to its source slot. The BCT4
+    - [x] Bind every function-scoped local access to its source slot. The BCT5
       Alpha phase independently records all 27 parameters and 51 `let`
       declarations, resolves exact source names, distinguishes assignment
       targets from comparison operands and calls, and checks 169 reads plus 73
@@ -505,10 +505,24 @@ additional facilities the bootstrap actually needs.
       The same Alpha process classifies matching source brackets and checks 56
       word loads, six byte loads, 32 word stores, and one byte store against
       exact opcodes/registers; each store additionally owns its immediate
-      address-pop macro. Width/register/pop-step mutations and malformed BCT4
+      address-pop macro. Width/register/pop-step mutations and malformed BCT5
       locations reject while retaining valid instruction framing. Address and
       value correspondence, aliasing, alignment, and the 64 MiB bounds proof
       remain open.
+    - [x] Bind source literals and arithmetic primitives to exact lowering
+      macros. The BCT5 Alpha phase independently scans all 582 decimal/character
+      literals and 57 `+`/`-`/`*`/`/`/`%` operators. It checks exact
+      `imm r0,value` sites and exact 22-byte left-value-pop/operator macros. An
+      independent artifact inventory reserves the 360 comparison-result and 113
+      fixed-emit address immediates, then requires ownership of all 582 remaining
+      literal candidates and all 57 arithmetic macros. Structurally valid
+      literal value/register, same-valued synthetic-site retarget, arithmetic
+      opcode/register, pop-step, duplicate-location, and reordered-record
+      mutations reject. Comparison meaning, argument pushes, recursive
+      expression value composition, arithmetic traps, and dynamic stack bounds
+      remain open. Identical same-valued primitives within one block remain
+      mutually swappable, so this phase claims block-local multiset/shape custody
+      rather than unique per-occurrence provenance.
     - [x] Freeze supported resource profile `B_bc1` and make its source-side
       ceilings checked. `bc.beta` now refuses a 1,025th name slot, fifth live
       parameter/argument, and expression or nested-block depth 65 before any

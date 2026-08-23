@@ -1,7 +1,7 @@
 ; Bounded whole-bc control/effect correspondence checker, common core.
 ;
 ; Input is [u32 source length][bc.beta bytes][u32 tape length][bc.tape bytes]
-; followed by an untrusted BCT4 location witness.  This checker independently
+; followed by an untrusted BCT5 location witness.  This checker independently
 ; lexes proc/state/to/when from the source, resolves each state target by exact
 ; byte-string equality, and checks the corresponding Alpha jmp or
 ; jz-fallthrough-jmp successors in the tape.  bc-effect-sites.alpha extends the
@@ -93,6 +93,18 @@ scan_init:
         store r1, r0                    ; byte-width memory site count
         imm r1, 524680
         store r1, r0                    ; word-width memory site count
+        imm r1, 524696
+        store r1, r0                    ; expression primitive count
+        imm r1, 524704
+        store r1, r0                    ; literal primitive count
+        imm r1, 524712
+        store r1, r0                    ; arithmetic primitive count
+        imm r1, 524720
+        store r1, r0                    ; artifact comparison-macro count
+        imm r1, 524728
+        store r1, r0                    ; artifact literal-candidate count
+        imm r1, 524736
+        store r1, r0                    ; artifact arithmetic-macro count
 
 scan_loop:
         call skip_trivia
@@ -109,12 +121,51 @@ scan_byte:
         imm r6, 34                      ; string
         jeq r5, r6, skip_string
         imm r6, 39                      ; char literal
-        jeq r5, r6, skip_char
+        jeq r5, r6, scan_char_primitive
         mov r20, r5
         call is_ident_start
         imm r1, 1
         jeq r0, r1, scan_ident
+        imm r6, 48
+        jlt r5, r6, scan_arithmetic_operator
+        imm r6, 58
+        jlt r5, r6, scan_decimal_primitive
+scan_arithmetic_operator:
+        imm r6, 43
+        jeq r5, r6, scan_arithmetic_add
+        imm r6, 45
+        jeq r5, r6, scan_arithmetic_sub
+        imm r6, 42
+        jeq r5, r6, scan_arithmetic_mul
+        imm r6, 47
+        jeq r5, r6, scan_arithmetic_div
+        imm r6, 37
+        jeq r5, r6, scan_arithmetic_mod
         call advance_one
+        jmp scan_loop
+
+scan_char_primitive:
+        call record_char_primitive
+        jmp scan_loop
+scan_decimal_primitive:
+        call record_decimal_primitive
+        jmp scan_loop
+scan_arithmetic_add:
+        imm r7, 3
+        jmp scan_arithmetic_primitive
+scan_arithmetic_sub:
+        imm r7, 4
+        jmp scan_arithmetic_primitive
+scan_arithmetic_mul:
+        imm r7, 5
+        jmp scan_arithmetic_primitive
+scan_arithmetic_div:
+        imm r7, 6
+        jmp scan_arithmetic_primitive
+scan_arithmetic_mod:
+        imm r7, 7
+scan_arithmetic_primitive:
+        call record_arithmetic_primitive
         jmp scan_loop
 
 skip_string:
@@ -137,30 +188,6 @@ string_escape:
         call advance_one
         jmp string_loop
 string_done:
-        call advance_one
-        jmp scan_loop
-
-skip_char:
-        call advance_one
-        call current_byte
-        imm r1, 0
-        jlt r0, r1, reject
-        imm r1, 92
-        jeq r0, r1, char_escape
-        call advance_one
-        jmp char_close
-char_escape:
-        call advance_one
-        call current_byte
-        imm r1, 0
-        jlt r0, r1, reject
-        call advance_one
-char_close:
-        call current_byte
-        imm r1, 39
-        jeq r0, r1, char_done
-        jmp reject
-char_done:
         call advance_one
         jmp scan_loop
 
@@ -459,6 +486,24 @@ count_memory_words:
         imm r1, 524680
         load r2, r1
         imm r3, 88
+        jeq r2, r3, count_expr_primitives
+        jmp reject
+count_expr_primitives:
+        imm r1, 524696
+        load r2, r1
+        imm r3, 639
+        jeq r2, r3, count_literal_primitives
+        jmp reject
+count_literal_primitives:
+        imm r1, 524704
+        load r2, r1
+        imm r3, 582
+        jeq r2, r3, count_arithmetic_primitives
+        jmp reject
+count_arithmetic_primitives:
+        imm r1, 524712
+        load r2, r1
+        imm r3, 57
         jeq r2, r3, resolve_init
         jmp reject
 
@@ -527,7 +572,7 @@ resolve_found:
 
 read_witness:
         call read_u32
-        imm r1, 877937474              ; BCT4
+        imm r1, 894714690              ; BCT5
         jeq r0, r1, witness_proc_count
         jmp reject
 witness_proc_count:
@@ -623,6 +668,21 @@ witness_memory_byte_count:
 witness_memory_word_count:
         call read_u32
         imm r1, 88
+        jeq r0, r1, witness_primitive_count
+        jmp reject
+witness_primitive_count:
+        call read_u32
+        imm r1, 639
+        jeq r0, r1, witness_literal_count
+        jmp reject
+witness_literal_count:
+        call read_u32
+        imm r1, 582
+        jeq r0, r1, witness_arithmetic_count
+        jmp reject
+witness_arithmetic_count:
+        call read_u32
+        imm r1, 57
         jeq r0, r1, read_block_pcs_init
         jmp reject
 
