@@ -505,10 +505,26 @@ bounds, source opcode/boundary, argument/call association, and exhaustive row
 custody. Shared joins, loop meaning, classifier shape, and classifier meaning
 are each below 20 KB rather than accumulating another monolithic checker file.
 
+`bc-read-ident-shape.alpha` and `bc-read-ident-summary.alpha` compose those
+classifiers through procedure 12. The shape module checks all four blocks and
+three transitions, the lexically inverted cbyte/is_alnum event rows and exact
+continuations, the adv call, both epilogues, its 8-byte frame, five fixed-global
+word sites, nine primitives, five split-family pushes, and exhaustive row and
+decoded-region censuses. The semantic theorem `RIDS` does not require a hidden
+“starts with alpha” premise: for every cursor in the successful source segment
+it returns the maximal (possibly empty) alnum prefix. It stores entry CUR in
+IDOFF, stops before the first non-alnum/logical-end/in-range-NUL byte, stores
+exit CUR minus IDOFF in IDLEN, returns zero, and restores the frame. Alnum-true
+implies cbyte hit an in-range nonzero byte, so adv decreases the natural
+`LEN-CUR` rank on the only backedge. Source/input/output and other compiler
+globals remain unchanged. Twelve isolated teeth cover calls and argument flow,
+fixed addresses and subtraction, row closure, rank, renaming, and stop meaning;
+the two new modules are 7.3 KB and 9.5 KB.
+
 The eventual `parse_proc` theorem must be maximal, not universally terminating.
 For malformed input, an unrecognized body byte such as `@` can survive both
 `gen_stmt` and the number fallback without cursor progress while `gen_stmts`
 keeps emitting. The honest contract is therefore Return-or-Diverge with exact
-finite/infinite output behavior. The next engineering milestone is terminating
-`read_ident`, followed by `expect`; the existing typed status-252 projection is
-the only language-design blocker in this area.
+finite/infinite output behavior. The next engineering milestone is `expect`;
+the existing typed status-252 projection is the only language-design blocker
+in this area.

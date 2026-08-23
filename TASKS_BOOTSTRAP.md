@@ -856,9 +856,21 @@ additional facilities the bootstrap actually needs.
           opcode/boundary, or row undercount only in this phase. Artifact shape,
           relational meaning, and reusable table joins live in separate modules
           below 20 KB each.
-        - [ ] Prove terminating `read_ident`: set `IDOFF` to entry `CUR`, repeat
+        - [x] Prove terminating `read_ident`: set `IDOFF` to entry `CUR`, repeat
           cbyte/alnum/adv with rank `LEN-CUR`, and set
-          `IDLEN=CUR-IDOFF` at the first non-alnum byte/end/NUL.
+          `IDLEN=CUR-IDOFF` at the first non-alnum byte/end/NUL. The exact-shape
+          module closes procedure 12's four blocks, transitions, lexically
+          inverted nested-call rows, continuations, frame, fixed-global word
+          accesses, epilogues, primitives, split push families, and complete
+          row/decoded-region censuses. The separate `RIDS` meaning is valid for
+          every `0<=CUR<=LEN`, returns the maximal alnum prefix (possibly
+          empty), proves true classification entails an in-range nonzero byte,
+          and closes the sole backedge by a strict `LEN-CUR` decrease and
+          capture-avoiding successor renaming. It preserves source/input/output
+          and all other compiler globals, returns zero, and restores the caller
+          frame. Twelve isolated variants sever exact artifact joins, global
+          addresses/subtraction, row closure, rank, renaming, or stop meaning;
+          both responsibility-local modules remain below 10 KB.
         - [ ] Prove nonzero-delimiter `expect(ch)`: normalize whitespace, then
           advance exactly once on a matching byte and otherwise preserve the
           normalized cursor. Instantiate `parse_proc`'s `(` and `{` calls.
