@@ -27,7 +27,7 @@
 classifier_summary_init:
         call classifier_require_shape
         call classifier_prove_byte_domain
-        jmp scan_owned_effects_init
+        jmp read_ident_summary_init
 
 ; ---- Exhaustive byte-domain relational meaning ----------------------
 

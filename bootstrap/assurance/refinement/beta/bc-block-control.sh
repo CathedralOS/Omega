@@ -219,7 +219,9 @@ cat "$GATE_DIR/bc-block-control.alpha" \
   "$GATE_DIR/bc-summary-combinators.alpha" \
   "$GATE_DIR/bc-main-loop-entry-summary.alpha" \
   "$GATE_DIR/bc-classifier-shape.alpha" \
-  "$GATE_DIR/bc-classifier-summary.alpha" > "$T/control-check.alpha"
+  "$GATE_DIR/bc-classifier-summary.alpha" \
+  "$GATE_DIR/bc-read-ident-shape.alpha" \
+  "$GATE_DIR/bc-read-ident-summary.alpha" > "$T/control-check.alpha"
 "$ASM" < "$T/control-check.alpha" > "$T/control-check.tape"
 stamp_seed "$T/control-check.tape" "$SEED" "$T/control-check" >/dev/null
 
@@ -542,6 +544,57 @@ sed 's/imm r23, 95                  ; checked underscore/imm r23, 94            
 "$ASM" < "$T/classifier-wrong-underscore.alpha" > "$T/classifier-wrong-underscore.tape"
 stamp_seed "$T/classifier-wrong-underscore.tape" "$SEED" "$T/classifier-wrong-underscore" >/dev/null
 
+# Phase-isolated read_ident teeth break exact calls/argument flow, fixed-global
+# addresses, subtraction, table closure, or the terminating scan relation.
+sed 's/imm r26, 5303               ; checked read_ident cbyte continuation/imm r26, 5304               ; checked read_ident cbyte continuation/' \
+  "$T/control-check.alpha" > "$T/read-ident-wrong-cbyte-continuation.alpha"
+"$ASM" < "$T/read-ident-wrong-cbyte-continuation.alpha" > "$T/read-ident-wrong-cbyte-continuation.tape"
+stamp_seed "$T/read-ident-wrong-cbyte-continuation.tape" "$SEED" "$T/read-ident-wrong-cbyte-continuation" >/dev/null
+sed 's/imm r26, 5344               ; checked read_ident alnum continuation/imm r26, 5345               ; checked read_ident alnum continuation/' \
+  "$T/control-check.alpha" > "$T/read-ident-wrong-alnum-continuation.alpha"
+"$ASM" < "$T/read-ident-wrong-alnum-continuation.alpha" > "$T/read-ident-wrong-alnum-continuation.tape"
+stamp_seed "$T/read-ident-wrong-alnum-continuation.tape" "$SEED" "$T/read-ident-wrong-alnum-continuation" >/dev/null
+sed 's/imm r23, 5303               ; checked cbyte-to-alnum argument/imm r23, 5304               ; checked cbyte-to-alnum argument/' \
+  "$T/control-check.alpha" > "$T/read-ident-wrong-argument.alpha"
+"$ASM" < "$T/read-ident-wrong-argument.alpha" > "$T/read-ident-wrong-argument.tape"
+stamp_seed "$T/read-ident-wrong-argument.tape" "$SEED" "$T/read-ident-wrong-argument" >/dev/null
+sed 's/imm r23, 2097120             ; checked IDOFF address/imm r23, 2097121             ; checked IDOFF address/' \
+  "$T/control-check.alpha" > "$T/read-ident-wrong-idoff.alpha"
+"$ASM" < "$T/read-ident-wrong-idoff.alpha" > "$T/read-ident-wrong-idoff.tape"
+stamp_seed "$T/read-ident-wrong-idoff.tape" "$SEED" "$T/read-ident-wrong-idoff" >/dev/null
+sed 's/imm r23, 2097112             ; checked IDLEN address/imm r23, 2097113             ; checked IDLEN address/' \
+  "$T/control-check.alpha" > "$T/read-ident-wrong-idlen.alpha"
+"$ASM" < "$T/read-ident-wrong-idlen.alpha" > "$T/read-ident-wrong-idlen.tape"
+stamp_seed "$T/read-ident-wrong-idlen.tape" "$SEED" "$T/read-ident-wrong-idlen" >/dev/null
+sed 's/imm r23, 4                   ; checked CUR-IDOFF subtraction/imm r23, 3                   ; checked CUR-IDOFF subtraction/' \
+  "$T/control-check.alpha" > "$T/read-ident-wrong-subtraction.alpha"
+"$ASM" < "$T/read-ident-wrong-subtraction.alpha" > "$T/read-ident-wrong-subtraction.tape"
+stamp_seed "$T/read-ident-wrong-subtraction.tape" "$SEED" "$T/read-ident-wrong-subtraction" >/dev/null
+sed 's/imm r25, 21                  ; checked exclusive read_ident memory row/imm r25, 20                  ; checked exclusive read_ident memory row/' \
+  "$T/control-check.alpha" > "$T/read-ident-memory-undercount.alpha"
+"$ASM" < "$T/read-ident-memory-undercount.alpha" > "$T/read-ident-memory-undercount.tape"
+stamp_seed "$T/read-ident-memory-undercount.tape" "$SEED" "$T/read-ident-memory-undercount" >/dev/null
+sed 's/imm r29, 37                  ; checked exclusive read_ident event row/imm r29, 36                  ; checked exclusive read_ident event row/' \
+  "$T/control-check.alpha" > "$T/read-ident-event-undercount.alpha"
+"$ASM" < "$T/read-ident-event-undercount.alpha" > "$T/read-ident-event-undercount.tape"
+stamp_seed "$T/read-ident-event-undercount.tape" "$SEED" "$T/read-ident-event-undercount" >/dev/null
+sed 's/imm r23, 95                  ; checked exclusive read_ident primitive row/imm r23, 94                  ; checked exclusive read_ident primitive row/' \
+  "$T/control-check.alpha" > "$T/read-ident-primitive-undercount.alpha"
+"$ASM" < "$T/read-ident-primitive-undercount.alpha" > "$T/read-ident-primitive-undercount.tape"
+stamp_seed "$T/read-ident-primitive-undercount.tape" "$SEED" "$T/read-ident-primitive-undercount" >/dev/null
+sed 's/imm r2, 1                    ; checked read_ident rank decrease/imm r2, 0                    ; checked read_ident rank decrease/' \
+  "$T/control-check.alpha" > "$T/read-ident-zero-rank.alpha"
+"$ASM" < "$T/read-ident-zero-rank.alpha" > "$T/read-ident-zero-rank.tape"
+stamp_seed "$T/read-ident-zero-rank.tape" "$SEED" "$T/read-ident-zero-rank" >/dev/null
+sed 's/imm r2, 2                    ; checked read_ident successor renaming/imm r2, 1                    ; checked read_ident successor renaming/' \
+  "$T/control-check.alpha" > "$T/read-ident-wrong-rename.alpha"
+"$ASM" < "$T/read-ident-wrong-rename.alpha" > "$T/read-ident-wrong-rename.tape"
+stamp_seed "$T/read-ident-wrong-rename.tape" "$SEED" "$T/read-ident-wrong-rename" >/dev/null
+sed 's/imm r2, 1                    ; checked first non-alnum\/end\/NUL stop/imm r2, 2                    ; checked first non-alnum\/end\/NUL stop/' \
+  "$T/control-check.alpha" > "$T/read-ident-wrong-stop.alpha"
+"$ASM" < "$T/read-ident-wrong-stop.alpha" > "$T/read-ident-wrong-stop.tape"
+stamp_seed "$T/read-ident-wrong-stop.tape" "$SEED" "$T/read-ident-wrong-stop" >/dev/null
+
 # Phase-isolated tooth: leave the exact source, tape, witness, and every prior
 # checker phase unchanged, but underreport the prelude fp owner. Adjust only the
 # derived-map subtotal so rejection must come from the exhaustive equality scan.
@@ -639,7 +692,9 @@ cat "$GATE_DIR/bc-block-control.alpha" \
   "$GATE_DIR/bc-summary-combinators.alpha" \
   "$GATE_DIR/bc-main-loop-entry-summary.alpha" \
   "$GATE_DIR/bc-classifier-shape.alpha" \
-  "$GATE_DIR/bc-classifier-summary.alpha" > "$T/flat-check.alpha"
+  "$GATE_DIR/bc-classifier-summary.alpha" \
+  "$GATE_DIR/bc-read-ident-shape.alpha" \
+  "$GATE_DIR/bc-read-ident-summary.alpha" > "$T/flat-check.alpha"
 "$ASM" < "$T/flat-check.alpha" > "$T/flat-check.tape"
 stamp_seed "$T/flat-check.tape" "$SEED" "$T/flat-check" >/dev/null
 
@@ -816,6 +871,16 @@ for classifier_tooth in classifier-drop-domain classifier-digit-spec-bound class
   set -e
   if [ "$classifier_tooth_status" != 1 ] || [ -s "$T/stdout" ]; then
     echo "bc block control FAIL — $classifier_tooth was not rejected" >&2
+    exit 1
+  fi
+done
+for read_ident_tooth in read-ident-wrong-cbyte-continuation read-ident-wrong-alnum-continuation read-ident-wrong-argument read-ident-wrong-idoff read-ident-wrong-idlen read-ident-wrong-subtraction read-ident-memory-undercount read-ident-event-undercount read-ident-primitive-undercount read-ident-zero-rank read-ident-wrong-rename read-ident-wrong-stop; do
+  set +e
+  "$T/$read_ident_tooth" < "$T/control.bundle" > "$T/stdout"
+  read_ident_tooth_status=$?
+  set -e
+  if [ "$read_ident_tooth_status" != 1 ] || [ -s "$T/stdout" ]; then
+    echo "bc block control FAIL — $read_ident_tooth was not rejected" >&2
     exit 1
   fi
 done
@@ -1018,4 +1083,4 @@ for mutation in call-retarget read-register write-register helper-write emit-byt
   fi
 done
 
-echo "bc block control/effects: 70 proc / 355 block / 291 transition; 613 effect sites / 829 fixed emit bytes; 113 __write_str calls instantiated from one length-ranked exact-output summary; main.ready composes emit_prelude/write_str/skip_ws into the exact 187-byte prefix, then a reusable main.loop split sends normalized zero to halt(0) and nonzero to main.body without consuming it; byte classifiers digit/alpha/alnum are exact over all 256 cbyte values; cbyte/adv/is_space leaf summaries compose through terminating skip_ws_step/skip_ws loops; 78 frame slots / 27 parameter stores / 134 call pops; 169 local loads / 73 local stores; 61 raw loads = 54 fixed-safe + 5 SRC-indexed + 2 table-indexed / 34 raw stores; cursor-zero slurp segment/value/termination summary composed from root through main.ready or halt(253); 581 literals / 55 arithmetic / 180 comparison primitives; 235 binary / 134 argument / 34 store-address pushes; syntax-directed composition / relative temporary peak 2; three ranged Alpha operands transferred; all 607 stores partitioned / 70 call-cut frames summarized; 64-row counter contexts; absolute B_bc1 stack <=12720 explicit bytes / <=662 hidden returns; all 2630 explicit-stack effects and 687 artifact effects owned ($(wc -c < "$T/control-check.tape" | tr -d ' ')-byte Alpha checker tape)"
+echo "bc block control/effects: 70 proc / 355 block / 291 transition; 613 effect sites / 829 fixed emit bytes; 113 __write_str calls instantiated from one length-ranked exact-output summary; main.ready composes emit_prelude/write_str/skip_ws into the exact 187-byte prefix, then a reusable main.loop split sends normalized zero to halt(0) and nonzero to main.body without consuming it; byte classifiers digit/alpha/alnum are exact over all 256 cbyte values and terminating read_ident returns their maximal prefix; cbyte/adv/is_space leaf summaries compose through terminating skip_ws_step/skip_ws loops; 78 frame slots / 27 parameter stores / 134 call pops; 169 local loads / 73 local stores; 61 raw loads = 54 fixed-safe + 5 SRC-indexed + 2 table-indexed / 34 raw stores; cursor-zero slurp segment/value/termination summary composed from root through main.ready or halt(253); 581 literals / 55 arithmetic / 180 comparison primitives; 235 binary / 134 argument / 34 store-address pushes; syntax-directed composition / relative temporary peak 2; three ranged Alpha operands transferred; all 607 stores partitioned / 70 call-cut frames summarized; 64-row counter contexts; absolute B_bc1 stack <=12720 explicit bytes / <=662 hidden returns; all 2630 explicit-stack effects and 687 artifact effects owned ($(wc -c < "$T/control-check.tape" | tr -d ' ')-byte Alpha checker tape)"

@@ -1,0 +1,264 @@
+; Exact source/artifact shape for read_ident.
+;
+; This module owns only procedure 12's four blocks, three transitions, calls,
+; return/epilogues, fixed-global word accesses, expression primitives, split
+; push families, frame, and decoded-region census.  The adjacent semantic
+; module owns termination and the identifier-slice relation.
+
+read_ident_require_shape:
+        ; No parameters or locals: only the saved-frame word is live.
+        imm r20, 7151616
+        imm r21, 12
+        imm r22, 0
+        call transfer_require_cell
+        imm r20, 7159808
+        imm r21, 12
+        imm r22, 0
+        call transfer_require_cell
+        imm r20, 12
+        call call_bounds_frame_bytes
+        imm r1, 8
+        jeq r0, r1, read_ident_shape_blocks
+        jmp reject
+
+read_ident_shape_blocks:
+        imm r20, 43
+        imm r21, 5217
+        call slurp_summary_require_block_pc
+        imm r20, 44
+        imm r21, 5294
+        call slurp_summary_require_block_pc
+        imm r20, 45
+        imm r21, 5457
+        call slurp_summary_require_block_pc
+        imm r20, 46
+        imm r21, 5475
+        call slurp_summary_require_block_pc
+        imm r20, 43
+        imm r21, 46
+        imm r22, 12
+        call cursor_require_proc_blocks
+        call read_ident_require_transitions
+        call read_ident_require_events
+        call read_ident_require_memory
+        call read_ident_require_primitives
+        call read_ident_require_pushes
+        call read_ident_require_censuses
+        ret
+
+read_ident_require_transitions:
+        ; loop: alnum -> body, otherwise done; body returns to loop.
+        imm r20, 33
+        imm r21, 44
+        imm r22, 1
+        imm r23, 45
+        imm r24, 5429               ; checked alnum-true guard
+        call slurp_summary_require_transition
+        imm r20, 34
+        imm r21, 44
+        imm r22, 0
+        imm r23, 46
+        imm r24, 5448
+        call slurp_summary_require_transition
+        imm r20, 35
+        imm r21, 45
+        imm r22, 0
+        imm r23, 44
+        imm r24, 5466
+        call slurp_summary_require_transition
+        ret
+
+read_ident_require_events:
+        ; Lexical rows 33/34 are inverted in PC order: source nesting records
+        ; is_alnum before its cbyte argument.
+        imm r20, 34
+        imm r21, 44
+        imm r22, 5294
+        imm r23, 0
+        imm r24, 0
+        imm r25, 1609
+        imm r26, 5303               ; checked read_ident cbyte continuation
+        call summary_require_call_site
+        imm r20, 33
+        imm r21, 44
+        imm r22, 5335
+        imm r23, 1
+        imm r24, 0
+        imm r25, 3282
+        imm r26, 5344               ; checked read_ident alnum continuation
+        call summary_require_call_site
+        imm r20, 35
+        imm r21, 45
+        imm r22, 5457
+        imm r23, 0
+        imm r24, 0
+        imm r25, 1939
+        imm r26, 5466               ; checked read_ident adv continuation
+        call summary_require_call_site
+
+        imm r20, 36
+        imm r21, 46
+        imm r22, 5
+        imm r23, 5613
+        call slurp_summary_require_event
+        imm r20, 5594
+        imm r21, 5613
+        call slurp_summary_require_epilogue
+        imm r20, 5614
+        imm r21, 5633
+        call slurp_summary_require_epilogue
+        ret
+
+read_ident_require_memory:
+        ; IDOFF=CUR at entry; IDLEN=CUR-IDOFF on exit.  Row order follows
+        ; lexical source ownership rather than emitted PC order.
+        imm r20, 16
+        imm r21, 43
+        imm r22, 2
+        imm r23, 8
+        imm r24, 5291
+        call transfer_require_memory
+        imm r20, 17
+        imm r21, 43
+        imm r22, 1
+        imm r23, 8
+        imm r24, 5272
+        call transfer_require_memory
+        imm r20, 18
+        imm r21, 46
+        imm r22, 2
+        imm r23, 8
+        imm r24, 5581
+        call transfer_require_memory
+        imm r20, 19
+        imm r21, 46
+        imm r22, 1
+        imm r23, 8
+        imm r24, 5511
+        call transfer_require_memory
+        imm r20, 20
+        imm r21, 46
+        imm r22, 1
+        imm r23, 8
+        imm r24, 5540
+        call transfer_require_memory
+        ret
+
+read_ident_require_primitives:
+        ; row/block/kind/value-or-opcode/PC.
+        imm r20, 86
+        imm r21, 43
+        imm r22, 1
+        imm r23, 2097120             ; checked IDOFF address
+        imm r24, 5236
+        call transfer_require_primitive
+        imm r20, 87
+        imm r21, 43
+        imm r22, 1
+        imm r23, 2097144             ; CUR address
+        imm r24, 5262
+        call transfer_require_primitive
+        imm r20, 88
+        imm r21, 44
+        imm r22, 3
+        imm r23, 10                  ; alnum result == 1
+        imm r24, 5370
+        call transfer_require_primitive
+        imm r20, 89
+        imm r21, 44
+        imm r22, 1
+        imm r23, 1
+        imm r24, 5360
+        call transfer_require_primitive
+        imm r20, 90
+        imm r21, 46
+        imm r22, 1
+        imm r23, 2097112             ; checked IDLEN address
+        imm r24, 5475
+        call transfer_require_primitive
+        imm r20, 91
+        imm r21, 46
+        imm r22, 1
+        imm r23, 2097144
+        imm r24, 5501
+        call transfer_require_primitive
+        imm r20, 92
+        imm r21, 46
+        imm r22, 2
+        imm r23, 4                   ; checked CUR-IDOFF subtraction
+        imm r24, 5543
+        call transfer_require_primitive
+        imm r20, 93
+        imm r21, 46
+        imm r22, 1
+        imm r23, 2097120
+        imm r24, 5530
+        call transfer_require_primitive
+        imm r20, 94
+        imm r21, 46
+        imm r22, 1
+        imm r23, 0                   ; return zero
+        imm r24, 5584
+        call transfer_require_primitive
+        ret
+
+read_ident_require_pushes:
+        imm r20, 25
+        imm r21, 44
+        imm r22, 1
+        imm r23, 5344
+        call transfer_require_push
+        imm r20, 26
+        imm r21, 46
+        imm r22, 1
+        imm r23, 5514
+        call transfer_require_push
+        imm r20, 239
+        imm r21, 44
+        imm r22, 2
+        imm r23, 5303               ; checked cbyte-to-alnum argument
+        call transfer_require_push
+        imm r20, 379
+        imm r21, 43
+        imm r22, 3
+        imm r23, 5246
+        call transfer_require_push
+        imm r20, 380
+        imm r21, 46
+        imm r22, 3
+        imm r23, 5485
+        call transfer_require_push
+        ret
+
+read_ident_require_censuses:
+        ; No local slots occur between the surrounding rows 32 and 33.
+        imm r20, 43
+        imm r21, 46
+        imm r22, 33
+        imm r23, 33
+        imm r24, 16
+        imm r25, 21                  ; checked exclusive read_ident memory row
+        imm r26, 33
+        imm r27, 36
+        imm r28, 33
+        imm r29, 37                  ; checked exclusive read_ident event row
+        call cursor_require_effect_census
+
+        imm r20, 43
+        imm r21, 46
+        imm r22, 86
+        imm r23, 95                  ; checked exclusive read_ident primitive row
+        imm r24, 25
+        imm r25, 27
+        imm r26, 239
+        imm r27, 240
+        imm r28, 379
+        imm r29, 381
+        call summary_require_expr_census
+
+        imm r20, 5217
+        imm r21, 5634
+        imm r22, 3
+        imm r23, 2
+        call skip_scan_call_region
+        ret

@@ -235,7 +235,14 @@ are valuable teeth, but they do not yet establish the quantified observation:
   matches the exact signed-compare CFGs to independent specifications for
   digit `[48,58)`, alpha underscore/`[65,91)`/`[97,123)`, and their alnum union.
   Exact split push-family, call, frame, effect, and decoded-region joins prove
-  quiet termination and caller restoration. `read_ident` is the next frontier;
+  quiet termination and caller restoration;
+- its identifier-scan phase composes cbyte/alnum/adv into a terminating maximal-
+  prefix theorem for every normalized cursor. It sets IDOFF to entry CUR,
+  consumes exactly the alnum bytes, stops before the first non-alnum, logical
+  end, or in-range NUL, and sets IDLEN to exit CUR minus IDOFF. The only
+  backedge strictly decreases `LEN-CUR`; exact calls, fixed-global accesses,
+  arithmetic, push families, frame, effects, and decoded-region ownership bind
+  the relation to procedure 12. `expect` is the next frontier;
 - no total `parse_proc` claim is currently made. Malformed procedure bodies can
   make `gen_stmts` diverge while emitting—for example when an unrecognized byte
   is never consumed—so closure requires maximal Return-or-Diverge and finite/
