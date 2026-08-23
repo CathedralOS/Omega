@@ -35,14 +35,16 @@ use psi_language_semantics::{
     BlockingInterface, BlockingPlan, BlockingSummary, CarryAddress, CarryCpu, CarryHostThread,
     CarryPolicy, CarrySuspension, MachineSupplyMode, MachineTerminationPlan, PermissionAccess,
     PermissionClaimIdentity, PermissionEventKind, PermissionEventSource, PermissionProvenance,
-    QualificationEvidenceOrigin, RankingViewId, RankingWitness, SemanticDomainId,
+    QualificationEvidenceOrigin, RankingViewId, RankingWitness, ReferenceAccess, SemanticDomainId,
     SuspensionInterface, SuspensionPlan, SuspensionSummary, TerminationGuarantee,
     TerminationInterface,
 };
 use psi_symbols::SymbolHandle;
 use psi_typed_trees::data::{MachineParameterContract, TypeParameter, TypeParameterKind};
 use psi_typed_trees::domain::DomainDefinition;
-use psi_typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCastExpression};
+use psi_typed_trees::expression::{
+    ExpressionHandle, ExpressionNode, TableBorrowExpression, TableCastExpression,
+};
 use psi_typed_trees::machine::Machine;
 use psi_typed_trees::name::Identifier;
 use psi_typed_trees::operator::OperatorDefinition;
@@ -470,7 +472,10 @@ fn vacuous_qualification_fixture() -> (
     let statement_expression = program
         .typed
         .expression_table
-        .insert(ExpressionNode::Borrow(cast_expression));
+        .insert(ExpressionNode::Borrow(TableBorrowExpression {
+            target: cast_expression,
+            access: ReferenceAccess::Shared,
+        }));
     for (machine, state, machine_name, state_name) in [
         (machine_symbol, state_symbol, "Main::main", "main"),
         (

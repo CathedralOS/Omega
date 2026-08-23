@@ -179,9 +179,11 @@ admitted grant/receipt. Public termination contracts author premise schemas
 through ordinary requirements such as `requires scheduler in WeakFair`;
 checked calls instantiate those schemas by exact argument substitution.
 Derived instances must match a published schema, an exact local receipt, or a
-build-bound provider premise in the component manifest. The profiles do not
-entail proof facts, and general trace logic and profile entailment remain
-deferred.
+build-bound provider premise in the component manifest. Provider schemas and
+component demands retain the profile owner's exact closed `established by`
+requirement routes so admission can check which receipt issuers are authorized;
+the route catalog is never itself a receipt. The profiles do not entail proof
+facts, and general trace logic and profile entailment remain deferred.
 
 The ranking witness is excluded from published contract identity. Swapping one
 valid view for another revalidates the implementation and proof cache only;
