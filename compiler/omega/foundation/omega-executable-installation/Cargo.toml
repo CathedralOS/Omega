@@ -1,0 +1,14 @@
+[package]
+name = "omega-executable-installation"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_executable_installation"
+path = "src/lib.rs"
+
+[dependencies]
+psi-extents = { path = "../../../psi/foundation/psi-extents" }
+psi-layout-plans = { path = "../../../psi/foundation/psi-layout-plans" }
+omega-target = { path = "../omega-target" }

@@ -1,0 +1,13 @@
+[package]
+name = "omega-calling-conventions"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_calling_conventions"
+path = "src/lib.rs"
+
+[dependencies]
+psi-arena = { path = "../../../psi/foundation/psi-arena" }
+omega-target = { path = "../omega-target" }

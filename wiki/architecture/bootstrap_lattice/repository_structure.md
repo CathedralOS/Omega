@@ -123,9 +123,9 @@ temporary wrappers where needed:
 | `bootstrap/assurance/proof-kernel/` (compatibility: `compiler/proof-kernel`) | `bootstrap/assurance/proof-kernel/{implementations,tools,corpus,gates}/` — complete |
 | Beta-source/Alpha-artifact refinement tools (compatibility entries under Alpha) | `bootstrap/assurance/refinement/beta/` — complete |
 | Omega0 meaning/artifact TV encoders and gates (compatibility entries under Omega0 gates) | `bootstrap/assurance/refinement/omega0/` — complete |
-| `bootstrap/omega0/` (compatibility: `compiler/omega`) | `bootstrap/omega0/{meaning,compiler,gates}/` — complete |
+| `bootstrap/omega0/` | `bootstrap/omega0/{meaning,compiler,gates}/` — complete; the conflicting product-root compatibility path is retired |
 | `bootstrap/corpus/` (compatibility: `compiler/lattice-corpus`) | `bootstrap/corpus/` — complete |
-| `compiler/psi-rs/`, `compiler/omega-rs/` | `compiler/psi/`, `compiler/omega/` |
+| `compiler/psi/`, `compiler/omega/` | `compiler/psi/`, `compiler/omega/` — complete physical product roots |
 
 The migration is complete when `compiler/` means the product compiler,
 `bootstrap/` means how that product is rebuilt from the seed, and no directory

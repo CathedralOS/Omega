@@ -1,0 +1,18 @@
+[package]
+name = "omega-runtime-dispatch-loop"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "omega_runtime_dispatch_loop"
+path = "src/lib.rs"
+
+[dependencies]
+psi-checked-trees = { path = "../../../psi/representations/psi-checked-trees" }
+omega-control-flow = { path = "../../representations/omega-control-flow" }
+omega-core = { path = "../../foundation/omega-core" }
+psi-arena = { path = "../../../psi/foundation/psi-arena" }
+omega-runtime-bodies = { path = "../omega-runtime-bodies" }
+omega-state-dispatch = { path = "../omega-state-dispatch" }
+omega-state-graph = { path = "../../representations/omega-state-graph" }
+omega-state-guards = { path = "../omega-state-guards" }

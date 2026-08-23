@@ -68,17 +68,17 @@ Must not own:
 
 The implementation should make typed semantic surfaces visible by file:
 
-- `compiler/psi-rs/pipeline/psi-symbol-resolved-trees-to-typed-trees` owns the
+- `compiler/psi/pipeline/psi-symbol-resolved-trees-to-typed-trees` owns the
   stage implementation. All workspace consumers invoke it directly.
 
-- `compiler/psi-rs/foundation/psi-language-semantics` owns canonical
+- `compiler/psi/foundation/psi-language-semantics` owns canonical
   const-value atoms and normalized wire scalar ranges used by typed
   normalization.
-- `compiler/psi-rs/foundation/{psi-extents,psi-layout-plans,psi-access-plans}`
+- `compiler/psi/foundation/{psi-extents,psi-layout-plans,psi-access-plans}`
   own the normalized author-selected geometry and placed-access semantics that
   typed `Placed<P, T>` surfaces retain. Concrete ABI selection and target
   lowering remain Omega-owned.
-- `compiler/psi-rs/representations/psi-typed-trees` owns the typed source
+- `compiler/psi/representations/psi-typed-trees` owns the typed source
   representation. Consumers depend on this Psi owner directly.
 
 - `lowerer.rs` owns stage entry and the top-level lowering conveyor. Behavior

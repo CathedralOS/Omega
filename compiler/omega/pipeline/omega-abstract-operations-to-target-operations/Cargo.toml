@@ -1,0 +1,22 @@
+[package]
+name = "omega-abstract-operations-to-target-operations"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_abstract_operations_to_target_operations"
+path = "src/lib.rs"
+
+[dependencies]
+omega-abstract-operations = { path = "../../representations/omega-abstract-operations" }
+omega-calling-conventions = { path = "../../foundation/omega-calling-conventions" }
+psi-arena = { path = "../../../psi/foundation/psi-arena" }
+psi-symbols = { path = "../../../psi/foundation/psi-symbols" }
+omega-platform-interface = { path = "../../backend/omega-platform-interface" }
+omega-target = { path = "../../foundation/omega-target" }
+omega-target-operations = { path = "../../representations/omega-target-operations" }
+
+[dev-dependencies]
+omega-control-flow = { path = "../../representations/omega-control-flow" }
+psi-language-semantics = { path = "../../../psi/foundation/psi-language-semantics" }

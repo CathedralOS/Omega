@@ -1,0 +1,22 @@
+[package]
+name = "omega-object-file-planning"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_object_file_planning"
+path = "src/lib.rs"
+
+[dependencies]
+omega-calling-conventions = { path = "../../../foundation/omega-calling-conventions" }
+omega-control-flow = { path = "../../../representations/omega-control-flow" }
+psi-arena = { path = "../../../../psi/foundation/psi-arena" }
+psi-symbols = { path = "../../../../psi/foundation/psi-symbols" }
+psi-diagnostics = { path = "../../../../psi/foundation/psi-diagnostics" }
+omega-layout = { path = "../../omega-layout" }
+omega-machine-bytes = { path = "../../../representations/omega-machine-bytes" }
+omega-machine-program = { path = "../../../representations/omega-machine-program" }
+omega-object-file = { path = "../omega-object-file" }
+omega-target = { path = "../../../foundation/omega-target" }
+omega-target-operations = { path = "../../../representations/omega-target-operations" }

@@ -69,20 +69,20 @@ Must not own:
 
 The implementation should stay split by identity task:
 
-- `compiler/psi-rs/pipeline/psi-syntax-trees-to-symbol-resolved-trees` owns the
+- `compiler/psi/pipeline/psi-syntax-trees-to-symbol-resolved-trees` owns the
   stage implementation. All workspace consumers invoke it directly.
 
-- `compiler/psi-rs/pipeline/psi-generic-instances` owns the pre-resolution
+- `compiler/psi/pipeline/psi-generic-instances` owns the pre-resolution
   closed-instance and contextual-construction normalization used by that stage
   and by Psi-owned probe frontends. Its public entry consumes one syntax tree
   and returns the normalized tree; the in-place elaborator is private. Omega
   orchestration may sequence that Psi entry while the larger frontend conveyor
   is split, but cannot own or extend the language elaboration.
 
-- `compiler/psi-rs/representations/psi-symbol-resolved-trees` owns the stage
+- `compiler/psi/representations/psi-symbol-resolved-trees` owns the stage
   output.
 
-- `compiler/psi-rs/foundation/psi-language-semantics` owns the resolved
+- `compiler/psi/foundation/psi-language-semantics` owns the resolved
   semantic identities, service/domain tables, machine supply/termination
   plans, establishment routes, and byte-sequence predicate vocabulary carried
   by this stage.

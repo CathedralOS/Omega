@@ -1,0 +1,20 @@
+[package]
+name = "omega-data-planning"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_data_planning"
+path = "src/lib.rs"
+
+[dependencies]
+omega-calling-conventions = { path = "../../foundation/omega-calling-conventions" }
+psi-checked-trees = { path = "../../../psi/representations/psi-checked-trees" }
+omega-control-flow = { path = "../../representations/omega-control-flow" }
+omega-platform-interface = { path = "../omega-platform-interface" }
+omega-runtime-branching = { path = "../omega-runtime-branching" }
+omega-runtime-text = { path = "../omega-runtime-text" }
+omega-state-storage = { path = "../omega-state-storage" }
+omega-state-values = { path = "../omega-state-values" }
+omega-target-operations = { path = "../../representations/omega-target-operations" }

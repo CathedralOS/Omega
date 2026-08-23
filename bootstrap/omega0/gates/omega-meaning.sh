@@ -9,7 +9,7 @@
 # remains a separate open edge. Each sample's exit code must equal the "Expected exit: N"
 # its header documents — the language's stated intent for that program.
 #
-# omega-rs (the Rust reference producer) is NOT in this loop; it remains the untrusted fast
+# omega (the Rust reference producer) is NOT in this loop; it remains the untrusted fast
 # compiler this meaning is one day checked against (translation validation, decision D3). The
 # subset grows exactly as omega2gamma's surface grows; samples outside it simply aren't listed.
 # Needs no cargo/clang — only bc. No `set -e`: exit codes are data here.

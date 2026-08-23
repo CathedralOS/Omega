@@ -1,1 +1,0 @@
-../../bootstrap/omega0/compiler/BOOTSTRAP_PROFILES.md

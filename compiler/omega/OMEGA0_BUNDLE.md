@@ -1,1 +1,0 @@
-../../bootstrap/omega0/compiler/OMEGA0_BUNDLE.md

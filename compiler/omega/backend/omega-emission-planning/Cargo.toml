@@ -1,0 +1,37 @@
+[package]
+name = "omega-emission-planning"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_emission_planning"
+path = "src/lib.rs"
+
+[dependencies]
+omega-backend-report-types = { path = "../../foundation/omega-backend-report-types" }
+omega-calling-conventions = { path = "../../foundation/omega-calling-conventions" }
+psi-checked-trees = { path = "../../../psi/representations/psi-checked-trees" }
+omega-control-flow = { path = "../../representations/omega-control-flow" }
+psi-arena = { path = "../../../psi/foundation/psi-arena" }
+psi-symbols = { path = "../../../psi/foundation/psi-symbols" }
+omega-image-emission = { path = "../images/omega-image-emission" }
+omega-layout = { path = "../omega-layout" }
+omega-machine-bytes = { path = "../../representations/omega-machine-bytes" }
+omega-machine-instructions = { path = "../../representations/omega-machine-instructions" }
+omega-object-file = { path = "../object/omega-object-file" }
+omega-platform-interface = { path = "../omega-platform-interface" }
+omega-runtime-bodies = { path = "../omega-runtime-bodies" }
+omega-runtime-branching = { path = "../omega-runtime-branching" }
+omega-runtime-dispatch-loop = { path = "../omega-runtime-dispatch-loop" }
+omega-runtime-storage = { path = "../omega-runtime-storage" }
+omega-runtime-text = { path = "../omega-runtime-text" }
+omega-state-calls = { path = "../omega-state-calls" }
+omega-state-graph = { path = "../../representations/omega-state-graph" }
+omega-state-guards = { path = "../omega-state-guards" }
+omega-state-schedule = { path = "../omega-state-schedule" }
+omega-state-storage = { path = "../omega-state-storage" }
+omega-state-values = { path = "../omega-state-values" }
+omega-target = { path = "../../foundation/omega-target" }
+omega-target-operations = { path = "../../representations/omega-target-operations" }
+psi-typed-trees = { path = "../../../psi/representations/psi-typed-trees" }

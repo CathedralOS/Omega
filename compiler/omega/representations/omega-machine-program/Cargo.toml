@@ -1,0 +1,17 @@
+[package]
+name = "omega-machine-program"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_machine_program"
+path = "src/lib.rs"
+
+[dependencies]
+omega-calling-conventions = { path = "../../foundation/omega-calling-conventions" }
+omega-control-flow = { path = "../omega-control-flow" }
+psi-arena = { path = "../../../psi/foundation/psi-arena" }
+psi-language-core = { path = "../../../psi/foundation/psi-language-core" }
+omega-target = { path = "../../foundation/omega-target" }
+omega-target-operations = { path = "../omega-target-operations" }

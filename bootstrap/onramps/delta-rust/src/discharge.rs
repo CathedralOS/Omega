@@ -32,7 +32,7 @@
 // id 5) -- `return L + R` vs `ensures result == R + L` discharges as `(inst (inst (use 5) R) L)`,
 // a multi-argument lemma instantiated at both site terms.
 // This is exactly how a real verified compiler discharges an obligation: cite a proven lemma
-// at the site terms. (omega-rs's entailment engine does the same with its fact/lemma base.)
+// at the site terms. (omega's entailment engine does the same with its fact/lemma base.)
 //
 // de Bruijn: the cert binds each parameter with `All` (proof `gen`). Under the P binders a
 // parameter is `(v i)` (shift 0). The existential adds one more binder, so inside it params

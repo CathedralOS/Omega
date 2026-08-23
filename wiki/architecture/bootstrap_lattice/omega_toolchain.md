@@ -30,9 +30,9 @@ The distinction is architectural:
 
 ## Current repository roles
 
-- `compiler/omega-rs/` is the current production compiler and executable reference.
+- `compiler/omega/` is the current production compiler and executable reference.
 - `bootstrap/omega0/` owns Rust-free meaning, first-compiler source/contracts,
-  and bootstrap validation. `compiler/omega/` is a compatibility path.
+  and bootstrap validation; it has no alias at the product root.
 - `bootstrap/rungs/delta/` owns the bootstrap language corpus and Delta-written
   compiler; `bootstrap/onramps/delta-rust/` is its disposable Rust producer.
   Together their current gates are growing toward the simple bootstrap Omega
@@ -40,9 +40,9 @@ The distinction is architectural:
 
 The Rust bootstrap producers now live under role-named `bootstrap/onramps/`
 directories; their historical `compiler/*-rs` names are compatibility paths.
-The remaining host-language-suffixed canonical roots are product migration
-state. Target product ownership is `compiler/psi/` plus `compiler/omega/`. See the
-[repository structure](repository_structure.md).
+Product ownership is now physically `compiler/psi/` plus `compiler/omega/` and
+does not encode the current implementation language. See the [repository
+structure](repository_structure.md).
 
 Self-hosting does not by itself prove compiler correctness. A defect in bootstrap
 Omega can reproduce while it builds production Omega. The value of this shape is

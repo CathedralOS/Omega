@@ -1,0 +1,16 @@
+[package]
+name = "omega-state-dispatch"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_state_dispatch"
+path = "src/lib.rs"
+
+[dependencies]
+psi-checked-trees = { path = "../../../psi/representations/psi-checked-trees" }
+omega-control-flow = { path = "../../representations/omega-control-flow" }
+omega-core = { path = "../../foundation/omega-core" }
+psi-arena = { path = "../../../psi/foundation/psi-arena" }
+omega-state-graph = { path = "../../representations/omega-state-graph" }

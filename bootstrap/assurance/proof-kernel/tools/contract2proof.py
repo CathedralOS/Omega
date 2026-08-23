@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # contract2proof.py — translate an Omega CONTRACT machine (requires/ensures) into the kernel proposition
 # it obligates, in PROVER syntax, so prover.py can DISCHARGE it automatically and the trust anchor check
-# the certificate. This is the source-contract half of proof-carrying Omega (omega-rs's obligations/
+# the certificate. This is the source-contract half of proof-carrying Omega (omega's obligations/
 # contracts concept): `machine M(params) requires R ensures E {}` asserts `∀params. R... -> E...`.
 #
 # Reads samples/math_proofs/main.omg on stdin; prints `NAME<TAB>PROP` per machine for the fragment it
@@ -140,7 +140,7 @@ _MOD = re.compile(r'(\w+|\([^()]*\))\s*%\s*(\d+)')
 def lift_modulo(reqs, enss, params):
     # Model `EXPR % K` (K a positive constant) as a fresh variable carrying the modulo operator's RANGE FACT
     # `fresh < K` (a nonnegative remainder is strictly below the divisor). The prover has no `%`, and the trust
-    # core needs none: the ensures is discharged against the operator's postcondition -- exactly how omega-rs
+    # core needs none: the ensures is discharged against the operator's postcondition -- exactly how omega
     # bounds an operator result. Each distinct `EXPR % K` becomes one fresh param + one `fresh < K` antecedent,
     # substituted textually into every requires/ensures line so the normal clause machinery handles the rest.
     seen, extra_params, extra_reqs = {}, [], []

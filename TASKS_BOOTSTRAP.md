@@ -49,7 +49,7 @@ lattice and `compiler/` for the product implementation.
 | --- | --- | --- |
 | `bootstrap/assurance/proof-kernel/{implementations,tools,corpus,gates}/` (compatibility: `compiler/proof-kernel`) | cross-cutting derivation checking, tools, corpora, and gates | moved and split by responsibility |
 | `bootstrap/assurance/refinement/{beta,omega0}/` (compatibility entries remain under Alpha and Omega0 gates) | cross-rung source/meaning-to-artifact obligation reconstruction and checking | moved and split by checked edge |
-| `bootstrap/omega0/` (compatibility: `compiler/omega`) | Rust-free meaning, first-Omega compiler source/contracts, and gates | moved and split by responsibility |
+| `bootstrap/omega0/` | Rust-free meaning, first-Omega compiler source/contracts, and gates | moved and split by responsibility |
 | `bootstrap/corpus/` (compatibility: `compiler/lattice-corpus`) | fixtures shared across lattice seams | moved |
 
 ### Transitional and product implementations
@@ -61,7 +61,7 @@ lattice and `compiler/` for the product implementation.
 | `bootstrap/onramps/beta-rust/` (compatibility: `compiler/beta-lang-rs`) | Beta-language disposable/reference Rust producer | moved and separated from rung ownership |
 | `bootstrap/rungs/beta/reference/` | executable Beta reference meaning and semantic fuzzing | moved; `compiler/beta-lang-py` forwards compatibility entry points |
 | `bootstrap/assurance/refinement/beta/` | complete Beta-source/Alpha-artifact symbolic reconstruction and gates | moved |
-| `compiler/psi-rs/`, `compiler/omega-rs/` | current production Psi/Omega implementations | `compiler/psi/`, `compiler/omega/` |
+| `compiler/psi/`, `compiler/omega/` | current production Psi/Omega implementations | `compiler/psi/`, `compiler/omega/` |
 
 ## Current architectural state
 
@@ -521,11 +521,12 @@ additional facilities the bootstrap actually needs.
 - [x] **Move the shared lattice corpus to `bootstrap/corpus/`.** Proof-kernel,
   Omega0, and Delta gates use the canonical `corpus` role; the historical
   `compiler/lattice-corpus` path is a compatibility symlink only.
-- [ ] **Rename product roots last.** Move `psi-rs`/`omega-rs` to role-based
-  `compiler/psi`/`compiler/omega` only after Cargo paths and documentation can be
-  changed atomically. That move also retires the temporary `compiler/omega`
-  Omega0 compatibility path so the product owner can take the canonical name.
-  The architecture must not depend on the current host implementation language.
+- [x] **Rename product roots last.** The production implementations now occupy
+  the physical, role-based `compiler/psi/` and `compiler/omega/` roots. Cargo
+  paths, repository-aware tests, path ownership, and documentation moved in the
+  same checkpoint. The conflicting Omega0 compatibility directory was retired;
+  its canonical owner remains `bootstrap/omega0/`. Product ownership no longer
+  encodes the current host implementation language.
 
 ## Execution order
 

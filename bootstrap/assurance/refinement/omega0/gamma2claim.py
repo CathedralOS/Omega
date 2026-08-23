@@ -197,7 +197,7 @@ def run(src, zpair, binary=False):
     fuel = [FUEL]
     vcs = []                               # SAFETY OBLIGATIONS: one kernel-checked claim per / and % site —
                                            # iszero(divisor) reduces to 0, i.e. the kernel re-computes the
-                                           # divisor and confirms the division cannot trap (omega-rs's
+                                           # divisor and confirms the division cannot trap (omega's
                                            # obligations.rs concept, discharged by the lattice's own anchor)
     ctors = {}                             # constructor name -> (cid, arity): fresh ids for structural claims
 
@@ -228,7 +228,7 @@ def run(src, zpair, binary=False):
     DIRECT_MUL = 400                       # ~400 unfolds; check.beta alone handles ~2000) so every cert
                                            # is decidable by ALL three checkers, not just the anchor
 
-    def boundary_vc(n):                    # BOUNDARY-RANGE OBLIGATION (omega-rs boundary.rs's concept):
+    def boundary_vc(n):                    # BOUNDARY-RANGE OBLIGATION (omega boundary.rs's concept):
         if n < 0 or n > 255:               # a value crossing the process boundary (exit code, stdout
             raise Out('boundary value %d outside the byte range' % n)   # byte) must BE a byte. The
         d = 255 - n                        # kernel checks n + (255-n) = 255 — an addition witness that

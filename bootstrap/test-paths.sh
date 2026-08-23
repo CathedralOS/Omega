@@ -55,6 +55,14 @@ physical_dir() {
   fail "Omega0 owner is $OMEGA_PATH_OMEGA0"
 [ "$OMEGA_PATH_CORPUS" = "$OMEGA_REPO_ROOT/bootstrap/corpus" ] ||
   fail "shared lattice corpus owner is $OMEGA_PATH_CORPUS"
+[ "$OMEGA_PATH_PSI_PRODUCT" = "$OMEGA_REPO_ROOT/compiler/psi" ] ||
+  fail "Psi product owner is $OMEGA_PATH_PSI_PRODUCT"
+[ "$OMEGA_PATH_OMEGA_PRODUCT" = "$OMEGA_REPO_ROOT/compiler/omega" ] ||
+  fail "Omega product owner is $OMEGA_PATH_OMEGA_PRODUCT"
+[ -d "$OMEGA_PATH_PSI_PRODUCT" ] && [ ! -L "$OMEGA_PATH_PSI_PRODUCT" ] ||
+  fail "Psi product owner is not a physical directory"
+[ -d "$OMEGA_PATH_OMEGA_PRODUCT" ] && [ ! -L "$OMEGA_PATH_OMEGA_PRODUCT" ] ||
+  fail "Omega product owner is not a physical directory"
 
 [ -L "$OMEGA_REPO_ROOT/compiler/alpha" ] ||
   fail "compiler/alpha is not a temporary compatibility symlink"
@@ -150,11 +158,21 @@ done
   fail "delta role lookup disagrees with the manifest"
 [ "$(omega_bootstrap_path delta-rs)" = "$OMEGA_PATH_DELTA_RUST" ] ||
   fail "delta-rs role lookup disagrees with the manifest"
+[ "$(omega_bootstrap_path omega0)" = "$OMEGA_PATH_OMEGA0" ] ||
+  fail "omega0 role lookup disagrees with the manifest"
 [ "$(omega_bootstrap_path omega0-gates)" = "$OMEGA_PATH_OMEGA0/gates" ] ||
   fail "omega0-gates role lookup disagrees with the manifest"
 [ "$(omega_bootstrap_path corpus)" = "$OMEGA_PATH_CORPUS" ] ||
   fail "corpus role lookup disagrees with the manifest"
 [ "$(omega_bootstrap_path lattice-corpus)" = "$OMEGA_PATH_CORPUS" ] ||
   fail "lattice-corpus compatibility role lookup disagrees with the manifest"
+[ "$(omega_bootstrap_path psi)" = "$OMEGA_PATH_PSI_PRODUCT" ] ||
+  fail "psi role lookup disagrees with the product owner"
+[ "$(omega_bootstrap_path psi/foundation)" = "$OMEGA_PATH_PSI_PRODUCT/foundation" ] ||
+  fail "psi subpath lookup disagrees with the product owner"
+[ "$(omega_bootstrap_path omega)" = "$OMEGA_PATH_OMEGA_PRODUCT" ] ||
+  fail "omega role lookup disagrees with the product owner"
+[ "$(omega_bootstrap_path omega/backend)" = "$OMEGA_PATH_OMEGA_PRODUCT/backend" ] ||
+  fail "omega subpath lookup disagrees with the product owner"
 
-echo "bootstrap paths OK — rungs, on-ramps, assurance roles, Omega0, and shared corpus have canonical owners"
+echo "bootstrap paths OK — bootstrap roles and physical Psi/Omega product roots have canonical owners"

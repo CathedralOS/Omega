@@ -37,14 +37,14 @@ current packages.
 
 > **Ownership boundary.** The target physical split is `bootstrap/` for the
 > audited seed-to-Omega construction and `compiler/` for the product Psi/Omega
-> implementation. Today both still live under `compiler/`; that is migration
-> state, not placement intent. Within the product, `compiler/psi-rs/` owns
+> implementation. That split and the role-based product-root rename are now
+> physical. Within the product, `compiler/psi/` owns
 > parsing and target-neutral semantics through terminal Psi, while
-> `compiler/omega-rs/` owns provider, ABI, target, artifact, and execution
-> machinery. Bootstrap gates resolve these transitional locations through the
+> `compiler/omega/` owns provider, ABI, target, artifact, and execution
+> machinery. Bootstrap gates resolve cross-owner locations through the
 > role manifest in `bootstrap/paths.sh`; new cross-owner sibling-relative paths
 > are rejected. The tree below documents the current Cargo/product structure;
-> physical migration is tracked in
+> remaining bootstrap compatibility cleanup is tracked in
 > [TASKS_BOOTSTRAP.md](../../TASKS_BOOTSTRAP.md).
 
 ```text
@@ -55,7 +55,7 @@ Omega/
 |   `-- [CRATE] omega-cli/                              # User-facing `omega` command.
 |
 |-- compiler/
-|   |-- psi-rs/                                         # Psi owns target-neutral semantics through terminal Psi.
+|   |-- psi/                                         # Psi owns target-neutral semantics through terminal Psi.
 |   |   |-- foundation/
 |   |   |   |-- [CRATE] psi-access-plans/               # Normalized placed-view access semantics.
 |   |   |   |-- [CRATE] psi-arena/                      # Generic typed arena storage for Psi source representations.
@@ -96,82 +96,83 @@ Omega/
 |   |       |-- [CRATE] psi-terminal-verifier/          # Module validation and reconstructed-obligation checking.
 |   |       `-- [CRATE] psi-terminal-interpreter/       # Fuel-bounded reference execution of verified terminal artifacts.
 |   |
-|   |-- foundation/
-|   |   `-- [CRATE] omega-core/                         # Omega execution/build utilities.
-|   |
-|   |-- representations/
-|   |   |-- [CRATE] omega-effects/                      # Omega provider bindings, selection, and admission.
-|   |   |-- [CRATE] omega-state-graph/                  # Explicit machine/state graph for proof and scheduling.
-|   |   |-- [CRATE] omega-control-flow/                 # Control-flow/data-flow graph.
-|   |   |-- [CRATE] omega-abstract-operations/          # Target-independent abstract operations with virtual registers.
-|   |   |-- [CRATE] omega-terminal-abstract-operations/ # Source-independent terminal-Psi lowering requirements.
-|   |   |-- [CRATE] omega-terminal-installation-evidence/ # Read-only projections of orchestration-owned admission evidence.
-|   |   |-- [CRATE] omega-terminal-target-operations/  # Target-aware operations for the clean terminal-Psi lane.
-|   |   |-- [CRATE] omega-terminal-assigned-target-operations/ # Assigned homes for the clean terminal-Psi lane.
-|   |   |-- [CRATE] omega-target-operations/            # Target-aware operations after legalization and selection.
-|   |   |-- [CRATE] omega-assigned-target-operations/   # Target-aware operations after register and stack assignment.
-|   |   |-- [CRATE] omega-machine-instructions/         # Final symbolic machine instructions before encoding.
-|   |   |-- [CRATE] omega-machine-program/              # Machine-program artifact assembled from target operations.
-|   |   |-- [CRATE] omega-machine-bytes/                # Encoded machine bytes.
-|   |   `-- [CRATE] omega-backend-plan/                 # Backend planning data shared across lowering stages.
-|   |
-|   |-- pipeline/
-|   |   |-- [CRATE] omega-checked-trees-to-state-graph/                      # Checked trees to explicit machine/state graph.
-|   |   |-- [CRATE] omega-state-graph-to-control-flow/                       # State graph to control-flow/data-flow graph.
-|   |   |-- [CRATE] omega-control-flow-to-abstract-operations/               # Lower control flow into target-independent abstract operations with virtual registers.
-|   |   |-- [CRATE] omega-abstract-operations-to-target-operations/          # Normalize, legalize, and lower abstract operations into target-aware forms.
-|   |   |-- [CRATE] omega-terminal-target-operations-to-assigned-target-operations/ # Assign clean terminal-Psi register and spill homes.
-|   |   |-- [CRATE] omega-target-operations-to-assigned-target-operations/   # Assign registers, stack slots, and calling-convention homes to target-aware operations.
-|   |   |-- [CRATE] omega-assigned-target-operations-to-machine-instructions/ # Convert assigned target-aware operations into final symbolic machine instructions.
-|   |   `-- [CRATE] omega-target-operations-to-machine-program/              # Assemble target operations into a machine-program artifact.
-|   |
-|   |-- backend/
-|   |   |-- [CRATE] omega-target/                       # Target triples, cpu/features, os/env/object format matrix.
-|   |   |-- [CRATE] omega-runtime-abi/                  # Backend-ABI carrier shapes (fat descriptors, slices, text windows) and their accessors.
-|   |   |-- [CRATE] omega-data-planning/                # Data/section planning for emitted program data.
-|   |   |-- [CRATE] omega-platform-interface/           # ABI-facing OS/platform imports, host surfaces, loader facts.
-|   |   |-- [CRATE] omega-state-calls/                  # State-machine call lowering surface.
-|   |   |-- [CRATE] omega-state-storage/               # State storage layout and slot lowering.
-|   |   |-- [CRATE] omega-state-values/               # State value lowering and materialization.
-|   |   |-- [CRATE] omega-state-schedule/             # State scheduling into backend form.
-|   |   |-- [CRATE] omega-state-dispatch/             # State dispatch lowering.
-|   |   |-- [CRATE] omega-state-guards/               # State guard/condition lowering.
-|   |   |-- [CRATE] omega-runtime-text/               # Runtime text-window carrier lowering.
-|   |   |-- [CRATE] omega-runtime-bodies/             # Runtime body/state-body lowering.
-|   |   |-- [CRATE] omega-runtime-storage/            # Runtime storage surfaces.
-|   |   |-- [CRATE] omega-runtime-branching/          # Runtime branch lowering.
-|   |   |-- [CRATE] omega-runtime-dispatch-loop/      # Runtime dispatch-loop lowering.
-|   |   |-- [CRATE] omega-calling-conventions/        # ABI rules for registers, stack, parameter/return passing.
-|   |   |-- [CRATE] omega-layout/                     # Type layout, alignments, field offsets, calling-convention records.
-|   |   |-- [CRATE] omega-instruction-selection/      # Shared instruction selection framework.
-|   |   |-- [CRATE] omega-emission-planning/          # Section/symbol plans before machine emission.
-|   |   |-- [CRATE] omega-machine-emission/           # Final machine program to encoded bytes.
-|   |   |-- [CRATE] omega-backend-report/             # Backend summaries and reports.
-|   |   |
-|   |   |-- instruction_set_architectures/
-|   |   |   |-- [CRATE] omega-isa-aarch64/            # AArch64 instruction defs, encodings, lowering hooks.
-|   |   |   `-- [CRATE] omega-isa-x86_64/             # x86_64 instruction defs, encodings, lowering hooks.
-|   |   |
-|   |   |-- object/
-|   |   |   |-- [CRATE] omega-object-file/            # Shared object-file representation: sections, symbols, relocations.
-|   |   |   |-- [CRATE] omega-object-file-planning/   # Builds section and symbol plans before object-file or image writing.
-|   |   |   `-- [CRATE] omega-relocations/            # Builds relocation records over selected and machine instructions.
-|   |   |
-|   |   `-- images/
-|   |       |-- [CRATE] omega-image/                  # Shared final image data model and fixup helpers.
-|   |       |-- [CRATE] omega-image-emission/         # Selects the final executable image writer for a target.
-|   |       |-- [CRATE] omega-terminal-image-emission/ # Clean terminal-Psi object/image emission and typed installation record.
-|   |       |-- [CRATE] omega-image-elf/              # Final ELF image layout, program headers, loaders.
-|   |       |-- [CRATE] omega-image-macho/            # Final Mach-O image layout, load commands, fixups.
-|   |       `-- [CRATE] omega-image-pe/               # Final PE image layout, directories, imports, relocations.
-|   |
-|   `-- orchestration/
-|       |-- [CRATE] omega-artifacts/                  # Phase artifact data and text/binary dumping.
-|       |-- [CRATE] omega-backend-pipeline/           # Backend phase sequencing at the orchestration edge.
-|       |-- [CRATE] omega-compiler/                   # Top-level check/build API used by cli/tests.
-|       |-- [CRATE] omega-external-roots/             # Installed provider/root execution, receipts, and resource evidence.
-|       |-- [CRATE] omega-native-differential-test/    # Cross-layer Psi-interpreter/native differential tests only.
-|       `-- [CRATE] omega-visualizations/             # Visualization/dump views of pipeline artifacts.
+|   `-- omega/                                           # Omega owns target realization and native emission.
+|       |-- foundation/
+|       |   `-- [CRATE] omega-core/                         # Omega execution/build utilities.
+|       |
+|       |-- representations/
+|       |   |-- [CRATE] omega-effects/                      # Omega provider bindings, selection, and admission.
+|       |   |-- [CRATE] omega-state-graph/                  # Explicit machine/state graph for proof and scheduling.
+|       |   |-- [CRATE] omega-control-flow/                 # Control-flow/data-flow graph.
+|       |   |-- [CRATE] omega-abstract-operations/          # Target-independent abstract operations with virtual registers.
+|       |   |-- [CRATE] omega-terminal-abstract-operations/ # Source-independent terminal-Psi lowering requirements.
+|       |   |-- [CRATE] omega-terminal-installation-evidence/ # Read-only projections of orchestration-owned admission evidence.
+|       |   |-- [CRATE] omega-terminal-target-operations/  # Target-aware operations for the clean terminal-Psi lane.
+|       |   |-- [CRATE] omega-terminal-assigned-target-operations/ # Assigned homes for the clean terminal-Psi lane.
+|       |   |-- [CRATE] omega-target-operations/            # Target-aware operations after legalization and selection.
+|       |   |-- [CRATE] omega-assigned-target-operations/   # Target-aware operations after register and stack assignment.
+|       |   |-- [CRATE] omega-machine-instructions/         # Final symbolic machine instructions before encoding.
+|       |   |-- [CRATE] omega-machine-program/              # Machine-program artifact assembled from target operations.
+|       |   |-- [CRATE] omega-machine-bytes/                # Encoded machine bytes.
+|       |   `-- [CRATE] omega-backend-plan/                 # Backend planning data shared across lowering stages.
+|       |
+|       |-- pipeline/
+|       |   |-- [CRATE] omega-checked-trees-to-state-graph/                      # Checked trees to explicit machine/state graph.
+|       |   |-- [CRATE] omega-state-graph-to-control-flow/                       # State graph to control-flow/data-flow graph.
+|       |   |-- [CRATE] omega-control-flow-to-abstract-operations/               # Lower control flow into target-independent abstract operations with virtual registers.
+|       |   |-- [CRATE] omega-abstract-operations-to-target-operations/          # Normalize, legalize, and lower abstract operations into target-aware forms.
+|       |   |-- [CRATE] omega-terminal-target-operations-to-assigned-target-operations/ # Assign clean terminal-Psi register and spill homes.
+|       |   |-- [CRATE] omega-target-operations-to-assigned-target-operations/   # Assign registers, stack slots, and calling-convention homes to target-aware operations.
+|       |   |-- [CRATE] omega-assigned-target-operations-to-machine-instructions/ # Convert assigned target-aware operations into final symbolic machine instructions.
+|       |   `-- [CRATE] omega-target-operations-to-machine-program/              # Assemble target operations into a machine-program artifact.
+|       |
+|       |-- backend/
+|       |   |-- [CRATE] omega-target/                       # Target triples, cpu/features, os/env/object format matrix.
+|       |   |-- [CRATE] omega-runtime-abi/                  # Backend-ABI carrier shapes (fat descriptors, slices, text windows) and their accessors.
+|       |   |-- [CRATE] omega-data-planning/                # Data/section planning for emitted program data.
+|       |   |-- [CRATE] omega-platform-interface/           # ABI-facing OS/platform imports, host surfaces, loader facts.
+|       |   |-- [CRATE] omega-state-calls/                  # State-machine call lowering surface.
+|       |   |-- [CRATE] omega-state-storage/               # State storage layout and slot lowering.
+|       |   |-- [CRATE] omega-state-values/               # State value lowering and materialization.
+|       |   |-- [CRATE] omega-state-schedule/             # State scheduling into backend form.
+|       |   |-- [CRATE] omega-state-dispatch/             # State dispatch lowering.
+|       |   |-- [CRATE] omega-state-guards/               # State guard/condition lowering.
+|       |   |-- [CRATE] omega-runtime-text/               # Runtime text-window carrier lowering.
+|       |   |-- [CRATE] omega-runtime-bodies/             # Runtime body/state-body lowering.
+|       |   |-- [CRATE] omega-runtime-storage/            # Runtime storage surfaces.
+|       |   |-- [CRATE] omega-runtime-branching/          # Runtime branch lowering.
+|       |   |-- [CRATE] omega-runtime-dispatch-loop/      # Runtime dispatch-loop lowering.
+|       |   |-- [CRATE] omega-calling-conventions/        # ABI rules for registers, stack, parameter/return passing.
+|       |   |-- [CRATE] omega-layout/                     # Type layout, alignments, field offsets, calling-convention records.
+|       |   |-- [CRATE] omega-instruction-selection/      # Shared instruction selection framework.
+|       |   |-- [CRATE] omega-emission-planning/          # Section/symbol plans before machine emission.
+|       |   |-- [CRATE] omega-machine-emission/           # Final machine program to encoded bytes.
+|       |   |-- [CRATE] omega-backend-report/             # Backend summaries and reports.
+|       |   |
+|       |   |-- instruction_set_architectures/
+|       |   |   |-- [CRATE] omega-isa-aarch64/            # AArch64 instruction defs, encodings, lowering hooks.
+|       |   |   `-- [CRATE] omega-isa-x86_64/             # x86_64 instruction defs, encodings, lowering hooks.
+|       |   |
+|       |   |-- object/
+|       |   |   |-- [CRATE] omega-object-file/            # Shared object-file representation: sections, symbols, relocations.
+|       |   |   |-- [CRATE] omega-object-file-planning/   # Builds section and symbol plans before object-file or image writing.
+|       |   |   `-- [CRATE] omega-relocations/            # Builds relocation records over selected and machine instructions.
+|       |   |
+|       |   `-- images/
+|       |       |-- [CRATE] omega-image/                  # Shared final image data model and fixup helpers.
+|       |       |-- [CRATE] omega-image-emission/         # Selects the final executable image writer for a target.
+|       |       |-- [CRATE] omega-terminal-image-emission/ # Clean terminal-Psi object/image emission and typed installation record.
+|       |       |-- [CRATE] omega-image-elf/              # Final ELF image layout, program headers, loaders.
+|       |       |-- [CRATE] omega-image-macho/            # Final Mach-O image layout, load commands, fixups.
+|       |       `-- [CRATE] omega-image-pe/               # Final PE image layout, directories, imports, relocations.
+|       |
+|       `-- orchestration/
+|           |-- [CRATE] omega-artifacts/                  # Phase artifact data and text/binary dumping.
+|           |-- [CRATE] omega-backend-pipeline/           # Backend phase sequencing at the orchestration edge.
+|           |-- [CRATE] omega-compiler/                   # Top-level check/build API used by cli/tests.
+|           |-- [CRATE] omega-external-roots/             # Installed provider/root execution, receipts, and resource evidence.
+|           |-- [CRATE] omega-native-differential-test/    # Cross-layer Psi-interpreter/native differential tests only.
+|           `-- [CRATE] omega-visualizations/             # Visualization/dump views of pipeline artifacts.
 |
 |-- omega/
 |   |-- language/
@@ -252,13 +253,13 @@ Omega/
 
 ### Semantic Ownership
 
-- `compiler/psi-rs/` owns Omega-file parsing and all target-neutral language
+- `compiler/psi/` owns Omega-file parsing and all target-neutral language
   meaning through terminal Psi. Psi crates must not depend on Omega crates;
   the architecture test enforces that firewall.
 - Existing target-neutral `omega-*` crates are migration inputs, not a second
   permanent frontend. Move or rename them under Psi ownership as terminal
   vertical slices replace their source-shaped handles.
-- `compiler/omega-rs/` begins its long-term semantic consumption at terminal
+- `compiler/omega/` begins its long-term semantic consumption at terminal
   Psi and owns provider installation, ABI/storage realization, optimization,
   target lowering, and native execution machinery. Psi owns both transitional
   checked-tree reference execution and canonical terminal-Psi interpretation;

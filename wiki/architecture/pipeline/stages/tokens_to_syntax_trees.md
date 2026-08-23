@@ -19,24 +19,24 @@ source shape without turning nested syntax into scattered heap objects.
 
 ## Implementation Map
 
-- `compiler/psi-rs/representations/psi-syntax-trees` owns `SyntaxTrees`, its
+- `compiler/psi/representations/psi-syntax-trees` owns `SyntaxTrees`, its
   arena-backed tables, identity/snapshot materialization, and all source-shaped
   nodes.
-- `compiler/psi-rs/pipeline/psi-tokens-to-syntax-trees` owns the parser modules
+- `compiler/psi/pipeline/psi-tokens-to-syntax-trees` owns the parser modules
   listed below. Every workspace harness uses this Psi stage directly.
-- `compiler/psi-rs/foundation/psi-arena` owns the generic typed dense, paged,
+- `compiler/psi/foundation/psi-arena` owns the generic typed dense, paged,
   generational, hierarchy, and ordered-root arena storage required by source
   representations.
-- `compiler/psi-rs/foundation/psi-diagnostics` owns the target-neutral
+- `compiler/psi/foundation/psi-diagnostics` owns the target-neutral
   `PhaseSnapshot` contract used to materialize readable source-shaped trees.
-- `compiler/psi-rs/foundation/psi-language-core` owns the grammar-facing
+- `compiler/psi/foundation/psi-language-core` owns the grammar-facing
   multiplicity, data-supply, carry, domain-body, call-acknowledgement,
   atomic-ordering, cast-form, operator-spelling, and source-assembly contract
   vocabulary.
-- `compiler/psi-rs/foundation/psi-numerics` owns exact numeric meanings,
+- `compiler/psi/foundation/psi-numerics` owns exact numeric meanings,
   arithmetic-domain vocabulary, and integer/float literal payloads. Parser-side
   literal validation therefore remains target-neutral when the stage migrates.
-- `compiler/psi-rs/foundation/psi-symbols` owns shared symbol identities and
+- `compiler/psi/foundation/psi-symbols` owns shared symbol identities and
   hierarchy storage. This parser stage does not assign symbols, but later
   Psi-owned resolution can consume its source-shaped output without an Omega
   foundation dependency.

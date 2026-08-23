@@ -1,0 +1,16 @@
+[package]
+name = "omega-terminal-target-operations"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_terminal_target_operations"
+path = "src/lib.rs"
+
+[dependencies]
+omega-calling-conventions = { path = "../../foundation/omega-calling-conventions" }
+omega-target = { path = "../../foundation/omega-target" }
+omega-terminal-abstract-operations = { path = "../omega-terminal-abstract-operations" }
+psi-core = { path = "../../../psi/foundation/psi-core" }
+psi-terminal = { path = "../../../psi/representations/psi-terminal" }
