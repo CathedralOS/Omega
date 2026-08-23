@@ -9,10 +9,14 @@
 
 mod diff;
 mod manifest;
+mod source;
 
 pub use diff::{ManifestDelta, ManifestDiff, ManifestSeverity, diff_package_capability_manifests};
 pub use manifest::{
     AliasName, BuildMachineManifest, CapabilityFlowSummary, DependencyAlias,
     InstallationBoundReach, PackageCapabilityManifest, PackageName, ProviderRequirement,
     ProviderSelection, QualificationRoute, ReproducibilityEvidence, SourceIdentity, TrustReceipt,
+};
+pub use source::{
+    LocalSourceLimits, ResolvedLocalSource, SourceResolveError, resolve_local_source,
 };

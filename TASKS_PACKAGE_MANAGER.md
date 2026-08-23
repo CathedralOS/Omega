@@ -52,6 +52,14 @@ Completed:
   validate as snake_case, equal evidence renders byte-identical manifest JSON,
   and service-reach changes produce high-severity manifest diffs.
 
+- **LOCAL-SOURCE-IDENTITY.** Add the first resolver-owned local path identity
+  pass before network fetch support.
+
+  Done 2026-08-23: `omega-packages` can resolve a local source directory to a
+  deterministic SHA-256 content identity, skipping `.git`, enforcing file,
+  byte, and depth limits, and rejecting symlink escapes outside the package
+  root.
+
 Remaining:
 
 - **PACKAGE-CAPABILITY-MANIFEST.** Define the normalized manifest produced for
@@ -81,6 +89,9 @@ Remaining:
   and local paths first. Treat protocol and hosting provider as transport:
   GitHub, GitLab, SSH, HTTPS, and file paths all resolve to exact content
   identity before package code is loaded.
+
+  Remaining after `LOCAL-SOURCE-IDENTITY`: add Git transport, source-cache
+  storage, submodule policy, install-command integration, and lock wiring.
 
   Acceptance: `omega install alias <source>` resolves a candidate to an exact
   commit/tree or local content identity and stores it in an isolated source
