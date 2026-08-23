@@ -1,0 +1,21 @@
+// PASS canary: nested common-field paths through plain invariant-free records
+// are content-independent write-only places. Replacing the unrestricted leaf
+// observes neither that leaf nor any enclosing or sibling content.
+
+data Inner {
+    value: u8;
+}
+
+data Outer {
+    inner: Inner;
+}
+
+machine fill(outer: &write Outer) {
+    outer.inner.value = 1;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

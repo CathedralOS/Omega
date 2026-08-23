@@ -38,8 +38,8 @@ fn direct_unconstrained_primitive_record_field_is_writable() {
 }
 
 #[test]
-fn nested_record_field_write_remains_rejected() {
-    let rendered = rendered_rejection(
+fn nested_unconstrained_primitive_record_field_is_writable() {
+    lower_typed_trees(typed(
         r#"
             data Inner { value: u8; }
             data Outer { inner: Inner; }
@@ -48,9 +48,31 @@ fn nested_record_field_write_remains_rejected() {
                 outer.inner.value = 1;
             }
         "#,
+    ))
+    .expect("nested invariant-free record-field writes should lower");
+}
+
+#[test]
+fn nested_invariant_bearing_record_field_write_remains_rejected() {
+    let rendered = rendered_rejection(
+        r#"
+            data Inner
+            where
+                value <= limit,
+            {
+                value: u8;
+                limit: u8;
+            }
+            data Outer { inner: Inner; }
+
+            machine fill(outer: &write Outer) {
+                outer.inner.value = 1;
+            }
+        "#,
     );
     assert!(
-        rendered.contains("unsupported write-only projection") && rendered.contains("nested"),
+        rendered.contains("unsupported write-only projection")
+            && rendered.contains("invariant-free records"),
         "unexpected diagnostic: {rendered}"
     );
 }
@@ -68,7 +90,8 @@ fn constrained_record_field_write_remains_rejected() {
     );
     assert!(
         rendered.contains("unsupported write-only projection")
-            && rendered.contains("unconstrained unrestricted primitive"),
+            && rendered.contains("every field is relevant and unconstrained")
+            && rendered.contains("leaf is an unrestricted primitive"),
         "unexpected diagnostic: {rendered}"
     );
 }

@@ -4750,7 +4750,7 @@ Owners:
   an authored correlation to terminal completion claims; an Omega-only bridge
   would invent custody semantics.
 - **WRITE-ONLY-BORROW — finish the settled `&write T` access mode.** The first
-  checked whole-value, fixed-byte-element, and one-level record-field rungs are
+  checked whole-value, fixed-byte-element, and nested plain-record-field rungs are
   live. The parser accepts
   `&write T`,
   `&'a write T`, `&write self`, and expression-form `&write place`; syntax,
@@ -4767,12 +4767,14 @@ Owners:
   retain the exact `FixedIndex`; a dynamic index retains its runtime expression
   internally and conservatively invalidates the whole collection in the
   caller-visible frame. A non-generic checked record with no authored default
-  domain now admits replacement of one direct common field when that displaced
-  field is relevant, unconstrained, and an unrestricted primitive. The
-  ordinary mutation summary retains that exact field symbol. Whole-record
-  replacement still requires an unrestricted/discardable root. Observation,
-  readable widening, implicit `&mut` attenuation, ranges, nested or sum
-  projection, qualified fields, invariant-bearing records, and
+  domain now admits replacement through a finite common-field path when every
+  intermediate receiver is likewise a non-generic checked record with no
+  authored default domain, every selected field is relevant and unconstrained,
+  and the displaced leaf is an unrestricted primitive. The ordinary mutation
+  summary retains the complete exact field-symbol path. Whole-record replacement
+  still requires an unrestricted/discardable root. Observation, readable
+  widening, implicit `&mut` attenuation, ranges, sum projection, qualified
+  fields, invariant-bearing records, and
   bodyless/provider declarations reject with directed diagnostics. Focused
   parser, semantic pass/fail, exact-place/frame, checked-loan, and
   checked-to-state-to-control remap tests pin the live slices.

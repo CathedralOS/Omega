@@ -150,44 +150,65 @@ fn whole_root_replacement_is_supported(program: &TypedTrees, root: &WriteOnlyRoo
         })
 }
 
-/// Recognize exactly `root.common_field`, where the root is an admitted plain
-/// record and the displaced field is a relevant, unconstrained primitive.
-/// This is a store-place judgment only: expression traversal still rejects
-/// reading the same member, and a member receiver that is itself a projection
-/// remains outside this rung.
+/// Recognize `root.record_field...leaf`, where every receiver is an admitted
+/// plain record and every selected field is relevant and unconstrained. The
+/// final displaced leaf must be an unrestricted primitive. This is a
+/// store-place judgment only: expression traversal still rejects reading the
+/// same path, and sum payloads never enter this content-independent walk.
 fn write_only_record_field_assignment(
     program: &TypedTrees,
     expression: ExpressionHandle,
     roots: &[WriteOnlyRoot],
 ) -> bool {
-    let ExpressionNode::Member(member) = program.expression_table.expression(expression) else {
+    let mut cursor = expression;
+    let mut members = Vec::new();
+    while let ExpressionNode::Member(member) = program.expression_table.expression(cursor) {
+        if member.case_variant.is_some() {
+            return false;
+        }
+        members.push(cursor);
+        cursor = member.receiver;
+    }
+    let Some(root) = direct_write_only_root(program, cursor, roots) else {
         return false;
     };
-    if member.case_variant.is_some() {
+    if members.is_empty() {
         return false;
     }
-    let Some(root) = direct_write_only_root(program, member.receiver, roots) else {
-        return false;
-    };
-    let Some(definition) = write_only_record(program, root.referee) else {
-        return false;
-    };
-    let Some(field) = program
-        .data_members(definition)
-        .iter()
-        .find_map(|candidate| {
-            let DataMember::Field(field) = candidate else {
-                return None;
-            };
-            ((member.member_symbol.is_valid() && field.symbol == member.member_symbol)
-                || (!member.member_symbol.is_valid()
-                    && field.name.as_str() == member.member.as_str()))
-            .then_some(field)
-        })
-    else {
-        return false;
-    };
-    !field.relevance.is_erased() && is_unrestricted_scalar(program, field.type_reference)
+
+    let mut receiver_type = root.referee;
+    for (index, member_handle) in members.iter().rev().enumerate() {
+        let ExpressionNode::Member(member) = program.expression_table.expression(*member_handle)
+        else {
+            unreachable!("member path was collected above")
+        };
+        let Some(definition) = write_only_record(program, receiver_type) else {
+            return false;
+        };
+        let Some(field) = program
+            .data_members(definition)
+            .iter()
+            .find_map(|candidate| {
+                let DataMember::Field(field) = candidate else {
+                    return None;
+                };
+                ((member.member_symbol.is_valid() && field.symbol == member.member_symbol)
+                    || (!member.member_symbol.is_valid()
+                        && field.name.as_str() == member.member.as_str()))
+                .then_some(field)
+            })
+        else {
+            return false;
+        };
+        if field.relevance.is_erased() {
+            return false;
+        }
+        if index + 1 == members.len() {
+            return is_unrestricted_scalar(program, field.type_reference);
+        }
+        receiver_type = field.type_reference;
+    }
+    false
 }
 
 fn validate_statement(
@@ -206,7 +227,7 @@ fn validate_statement(
             if let Some(root) = direct_write_only_root(program, assignment.target, roots) {
                 if !whole_root_replacement_is_supported(program, root) {
                     diagnostics.push(Diagnostic::error(format!(
-                        "machine `{machine}` state `{state}` replaces whole write-only record `{}`; whole-root replacement requires a freely discardable root, so replace one eligible direct primitive field or declare and prove an unrestricted record instead",
+                        "machine `{machine}` state `{state}` replaces whole write-only record `{}`; whole-root replacement requires a freely discardable root, so replace one eligible primitive field through an invariant-free record path or declare and prove an unrestricted record instead",
                         root.name,
                     )));
                 }
@@ -214,8 +235,8 @@ fn validate_statement(
                 // content. Record roots additionally satisfy the explicit
                 // discardability check above.
             } else if write_only_record_field_assignment(program, assignment.target, roots) {
-                // One content-independent common-field store. The exact field
-                // place is retained by the ordinary checked mutation facts.
+                // One content-independent common-field-path store. The exact
+                // field place is retained by the ordinary checked mutation facts.
             } else if let Some(index) =
                 write_only_byte_element_assignment_index(program, assignment.target, roots)
             {
@@ -341,7 +362,7 @@ fn diagnose_unsupported_write_only_assignment_target(
     }
 
     diagnostics.push(Diagnostic::error(format!(
-        "machine `{machine}` state `{state}` writes through an unsupported write-only projection; accepted partial stores are a direct common field of a non-generic invariant-free record when the displaced field is an unconstrained unrestricted primitive, or a proven-in-bounds element of a fixed byte array; nested, sum-payload, qualified, invariant-dependent, range, take, swap, and read-modify-write operations remain rejected"
+        "machine `{machine}` state `{state}` writes through an unsupported write-only projection; accepted partial stores are a content-independent common-field path through non-generic invariant-free records when every field is relevant and unconstrained and the displaced leaf is an unrestricted primitive, or a proven-in-bounds element of a fixed byte array; sum-payload, qualified, invariant-dependent, range, take, swap, and read-modify-write operations remain rejected"
     )));
 }
 
@@ -408,7 +429,7 @@ fn validate_expression(
         ExpressionNode::Member(member) => {
             if let Some(root) = mentioned_write_only_root(program, member.receiver, roots) {
                 diagnostics.push(Diagnostic::error(format!(
-                    "machine `{machine}` state `{state}` reads field `{}` from write-only parameter `{}`; a direct eligible record field may be replaced as an assignment target, but write-only projection never grants observation",
+                    "machine `{machine}` state `{state}` reads field `{}` from write-only parameter `{}`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation",
                     member.member, root.name,
                 )));
             } else {
