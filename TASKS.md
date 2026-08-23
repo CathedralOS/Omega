@@ -6741,14 +6741,19 @@ compiler concept is introduced.
   TPR6-A now preserves call-specific provider-receiver demands separately from
   caller premises, closes them through the exact selected entry and checked-
   adapter call graph, joins each to one exact selected provider plan/schema
-  row, and stores the result in a canonical component-progress manifest. The
-  capability manifest only renders that carrier. Final/native composition
-  rejects pending rows after checked artifacts are available; selected-plan or
+  row, and stores the result in a canonical component-progress manifest. Each
+  provider premise now also retains the profile owner's exact normalized
+  `established by` requirement-route set; that set enters provider-plan and
+  component-manifest identity and is rendered for audit. These are authorized
+  establishment relationships, not receipts. The capability manifest only
+  renders the canonical carrier. Final/native composition rejects pending rows
+  after checked artifacts are available; selected-plan, authorized-route, or
   trust-report identity is never treated as an establishment receipt.
 
   Remaining TPR6-B: bind each pending row to the exact installed provider
-  occurrence and its admitted `ProgressProfile` establishment receipt, then
-  remove the temporary final-output rejection. Independently add authored
+  occurrence and one non-forgeable admitted `ProgressProfile` establishment
+  receipt whose route matches the retained authorized set, then remove the
+  temporary final-output rejection. Independently add authored
   qualification-preserving correspondence beyond direct parameter/field
   identity. `QualificationEvidence` retains evidence kind and source
   declaration but not an exact source-place relation; unknown, indexed, local,

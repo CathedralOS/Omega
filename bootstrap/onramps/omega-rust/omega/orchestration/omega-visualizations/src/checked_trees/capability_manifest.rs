@@ -159,6 +159,17 @@ pub fn capability_manifest_json_with_composition(
             }
             push_json_string(&mut json, projection);
         }
+        json.push_str("], \"authorized_establishment_routes\": [");
+        for (route_index, route) in demand.establishment_routes.iter().enumerate() {
+            if route_index > 0 {
+                json.push_str(", ");
+            }
+            json.push_str("{\"kind\": ");
+            push_json_string(&mut json, route.kind.as_str());
+            json.push_str(", \"requirement\": ");
+            push_json_string(&mut json, &route.requirement_identity);
+            json.push('}');
+        }
         json.push_str("], \"origin\": {\"machine\": ");
         push_json_string(&mut json, &demand.origin_machine);
         json.push_str(", \"state\": ");
@@ -274,6 +285,16 @@ fn capability_manifest_text_with_composition(
                 report.push('.');
                 report.push_str(&demand.subject_projections.join("."));
             }
+            report.push_str(" established by [");
+            for (index, route) in demand.establishment_routes.iter().enumerate() {
+                if index > 0 {
+                    report.push_str(", ");
+                }
+                report.push_str(route.kind.as_str());
+                report.push(':');
+                report.push_str(&route.requirement_identity);
+            }
+            report.push(']');
             report.push_str(" at ");
             report.push_str(&demand.origin_machine);
             report.push_str("::");
@@ -317,6 +338,7 @@ struct BuildBoundProgressManifest {
     requirement: String,
     profile: String,
     subject_projections: Vec<String>,
+    establishment_routes: Vec<omega_effects::provider_plan::ServiceProgressEstablishmentRoute>,
     origin_machine: String,
     origin_state: String,
     statement_ordinal: usize,
@@ -397,6 +419,7 @@ fn entry_capability_manifest(
             requirement: demand.requirement_identity.clone(),
             profile: demand.profile_identity.clone(),
             subject_projections: demand.subject_projections.clone(),
+            establishment_routes: demand.establishment_routes.clone(),
             origin_machine: demand.origin_callable_identity.clone(),
             origin_state: demand.origin_state_identity.clone(),
             statement_ordinal: demand.statement_ordinal,
@@ -835,6 +858,12 @@ mod tests {
                         profile: "WeakFair".into(),
                         subject: ServiceProgressSubject::ProviderReceiver,
                         subject_projections: Vec::new(),
+                        establishment_routes: vec![
+                            omega_effects::provider_plan::ServiceProgressEstablishmentRoute {
+                                kind: omega_effects::provider_plan::ServiceProgressEstablishmentRouteKind::BoundaryRequirement,
+                                requirement_identity: "SchedulerAdmission::grant#exact".into(),
+                            },
+                        ],
                     }],
                     calling_plan_fingerprint: None,
                 }],
@@ -878,6 +907,8 @@ mod tests {
         assert!(json.contains("\"provider_service\": \"Scheduler\""));
         assert!(json.contains("\"requirement\": \"Scheduler::wait#exact\""));
         assert!(json.contains("\"profile\": \"WeakFair\""));
+        assert!(json.contains("\"authorized_establishment_routes\""));
+        assert!(json.contains("\"requirement\": \"SchedulerAdmission::grant#exact\""));
         assert!(json.contains("\"provider_plan_identity\""));
         assert!(json.contains("\"component_progress_status\": \"pending\""));
         assert!(json.contains("\"component_progress_manifest_identity\""));

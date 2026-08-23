@@ -21,6 +21,7 @@ pub struct ComponentBuildBoundProgressDemand {
     pub requirement_identity: String,
     pub profile_identity: String,
     pub subject_projections: Vec<String>,
+    pub establishment_routes: Vec<crate::provider_plan::ServiceProgressEstablishmentRoute>,
     pub provider_plan_identity: u64,
     pub origin_callable_identity: String,
     pub origin_state_identity: String,
@@ -94,18 +95,25 @@ impl ComponentProgressManifest {
                         && premise.profile == demand.profile_identity
                         && premise.subject_projections == demand.subject_projections
                 })
-                .count();
-            if matching_premises != 1 {
+                .collect::<Vec<_>>();
+            let [premise] = matching_premises.as_slice() else {
                 return Err(format!(
-                    "build-bound progress demand `{}` / `{}` has {matching_premises} exact provider-receiver premise matches in selected provider plan `{}`; expected one",
-                    demand.requirement_identity, demand.profile_identity, plan.name
+                    "build-bound progress demand `{}` / `{}` has {} exact provider-receiver premise matches in selected provider plan `{}`; expected one",
+                    demand.requirement_identity,
+                    demand.profile_identity,
+                    matching_premises.len(),
+                    plan.name
                 ));
-            }
+            };
+            let mut establishment_routes = premise.establishment_routes.clone();
+            establishment_routes.sort();
+            establishment_routes.dedup();
             pending.push(ComponentBuildBoundProgressDemand {
                 provider_service_identity: demand.provider_service_identity,
                 requirement_identity: demand.requirement_identity,
                 profile_identity: demand.profile_identity,
                 subject_projections: demand.subject_projections,
+                establishment_routes,
                 provider_plan_identity: plan.identity_fingerprint(),
                 origin_callable_identity: demand.origin_callable_identity,
                 origin_state_identity: demand.origin_state_identity,
@@ -169,6 +177,11 @@ fn fingerprint(entry: &str, selected: u64, pending: &[ComponentBuildBoundProgres
         for projection in &demand.subject_projections {
             write(projection.as_bytes());
         }
+        write(&(demand.establishment_routes.len() as u64).to_le_bytes());
+        for route in &demand.establishment_routes {
+            write(route.kind.as_str().as_bytes());
+            write(route.requirement_identity.as_bytes());
+        }
         write(&demand.provider_plan_identity.to_le_bytes());
         write(demand.origin_callable_identity.as_bytes());
         write(demand.origin_state_identity.as_bytes());
@@ -182,8 +195,9 @@ fn fingerprint(entry: &str, selected: u64, pending: &[ComponentBuildBoundProgres
 mod tests {
     use super::*;
     use crate::provider_plan::{
-        ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod, ServiceProgressPremise,
-        ServiceSchema,
+        ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod,
+        ServiceProgressEstablishmentRoute, ServiceProgressEstablishmentRouteKind,
+        ServiceProgressPremise, ServiceSchema,
     };
 
     fn selected() -> SelectedProviderPlanFacts {
@@ -212,6 +226,10 @@ mod tests {
                         profile: "WeakFair".into(),
                         subject: ServiceProgressSubject::ProviderReceiver,
                         subject_projections: vec!["queue".into()],
+                        establishment_routes: vec![ServiceProgressEstablishmentRoute {
+                            kind: ServiceProgressEstablishmentRouteKind::BoundaryRequirement,
+                            requirement_identity: "SchedulerAdmission::grant#exact".into(),
+                        }],
                     }],
                     calling_plan_fingerprint: None,
                 }],
@@ -259,6 +277,10 @@ mod tests {
         .expect("ordering should not matter");
         assert_eq!(first, second);
         assert_eq!(first.pending().len(), 2);
+        assert_eq!(
+            first.pending()[0].establishment_routes[0].requirement_identity,
+            "SchedulerAdmission::grant#exact"
+        );
         assert_eq!(
             first.pending()[0].provider_plan_identity,
             selected.plans()[0].identity_fingerprint()

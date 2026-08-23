@@ -61,6 +61,59 @@ fn explicit_routed_progress_profile_validates() {
 }
 
 #[test]
+fn provider_progress_schema_retains_the_exact_authorized_establishment_route() {
+    let typed = typed_program_from_source(
+        r#"
+        boundary trait SchedulerRuntime {
+            machine wait(&self)
+            requires self in WeakFair
+            terminates;
+        }
+        domain SchedulerRuntime::WeakFair
+        satisfies ProgressProfile
+        established by SchedulerAdmission::grant;
+        boundary trait SchedulerAdmission {
+            machine grant(scheduler: SchedulerRuntime) -> SchedulerRuntime in WeakFair;
+        }
+        "#,
+    );
+    validate_program(&typed).expect("progress contracts should validate");
+
+    let runtime = typed
+        .traits()
+        .iter()
+        .find(|owner| owner.name.as_str() == "SchedulerRuntime")
+        .expect("runtime boundary trait");
+    let admission = typed
+        .traits()
+        .iter()
+        .find(|owner| owner.name.as_str() == "SchedulerAdmission")
+        .expect("admission boundary trait");
+    let grant = typed
+        .trait_machine_signatures(admission)
+        .iter()
+        .find(|requirement| requirement.name.as_str() == "grant")
+        .expect("grant requirement");
+    let grant_identity = typed
+        .normalized_trait_requirement_overload_identity(admission, grant)
+        .identity();
+    let schema = omega_effects::provider_plan::ServiceSchema::from_typed(&typed, runtime)
+        .expect("runtime provider schema");
+    let premise = &schema.methods[0].termination_premises[0];
+
+    assert_eq!(premise.profile, "SchedulerRuntime::WeakFair");
+    assert_eq!(premise.establishment_routes.len(), 1);
+    assert_eq!(
+        premise.establishment_routes[0].kind,
+        omega_effects::provider_plan::ServiceProgressEstablishmentRouteKind::BoundaryRequirement
+    );
+    assert_eq!(
+        premise.establishment_routes[0].requirement_identity,
+        grant_identity
+    );
+}
+
+#[test]
 fn progress_profile_rejects_predicates_missing_routes_and_checked_routes() {
     let cases = [
         (

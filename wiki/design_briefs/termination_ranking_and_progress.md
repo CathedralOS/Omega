@@ -246,12 +246,15 @@ identity fixed across selection.
 
 Durable provider-requirement artifacts retain those public schemas
 structurally: profile identity, provider-receiver or caller-parameter subject,
-and the exact subject projections. A provider-receiver subject is recorded as
-build-bound rather than rewritten as a caller parameter. Retention makes the
-dependency auditable; it does not discharge it. The canonical component
-manifest must still export each reachable build-bound instance, and final
-composition must resolve it against the exact selected provider occurrence and
-its admitted establishment receipt.
+the exact subject projections, and the profile owner's normalized closed
+`established by` requirement-route set. A provider-receiver subject is recorded
+as build-bound rather than rewritten as a caller parameter. The route set enters
+provider-plan and component-manifest identity, but it is only an authorization
+catalog: retention makes the dependency auditable and does not establish
+membership. The canonical component manifest must still export each reachable
+build-bound instance, and final composition must resolve it against the exact
+selected provider occurrence and one non-forgeable admitted establishment
+receipt issued through a retained authorized route.
 
 The normalized guarantee records the actual pinned premises, not merely the
 presence of `suspends` or `blocks` operational clauses. General machine-side

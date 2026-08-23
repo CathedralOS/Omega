@@ -86,6 +86,32 @@ pub struct ServiceProgressPremise {
     pub profile: String,
     pub subject: ServiceProgressSubject,
     pub subject_projections: Vec<String>,
+    /// Exact owner-authored relationships permitted to establish this
+    /// profile. A selected provider plan retains these declarations for
+    /// final composition, but none of them is itself an establishment
+    /// receipt.
+    pub establishment_routes: Vec<ServiceProgressEstablishmentRoute>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct ServiceProgressEstablishmentRoute {
+    pub kind: ServiceProgressEstablishmentRouteKind,
+    pub requirement_identity: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ServiceProgressEstablishmentRouteKind {
+    CheckedRequirement,
+    BoundaryRequirement,
+}
+
+impl ServiceProgressEstablishmentRouteKind {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::CheckedRequirement => "checked_requirement",
+            Self::BoundaryRequirement => "boundary_requirement",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -416,9 +442,61 @@ fn service_progress_premises(
                     .iter()
                     .map(|symbol| program.symbols.display_path(*symbol, "::"))
                     .collect(),
+                establishment_routes: service_progress_establishment_routes(
+                    program,
+                    premise.profile,
+                ),
             }
         })
         .collect()
+}
+
+fn service_progress_establishment_routes(
+    program: &psi_typed_trees::TypedTrees,
+    profile: psi_language_semantics::SemanticDomainId,
+) -> Vec<ServiceProgressEstablishmentRoute> {
+    let domain = program
+        .domain_definitions()
+        .iter()
+        .find(|domain| domain.semantic_id == profile)
+        .expect("normalized progress premise must name one declared profile domain");
+    debug_assert_eq!(
+        domain.classification,
+        Some(psi_language_semantics::DomainClassification::ProgressProfile)
+    );
+    let mut routes = domain
+        .establishment_routes
+        .iter()
+        .map(|route| {
+            let owner = program
+                .traits()
+                .iter()
+                .find(|owner| owner.symbol == route.source_symbol())
+                .expect("normalized progress establishment route must name one trait owner");
+            let requirement = program
+                .trait_machine_signatures(owner)
+                .iter()
+                .find(|requirement| requirement.symbol == route.requirement_symbol())
+                .expect("normalized progress establishment route must name one requirement");
+            let kind = match route {
+                psi_language_semantics::DomainEstablishmentRoute::CheckedRequirement { .. } => {
+                    ServiceProgressEstablishmentRouteKind::CheckedRequirement
+                }
+                psi_language_semantics::DomainEstablishmentRoute::BoundaryRequirement {
+                    ..
+                } => ServiceProgressEstablishmentRouteKind::BoundaryRequirement,
+            };
+            ServiceProgressEstablishmentRoute {
+                kind,
+                requirement_identity: program
+                    .normalized_trait_requirement_overload_identity(owner, requirement)
+                    .identity(),
+            }
+        })
+        .collect::<Vec<_>>();
+    routes.sort();
+    routes.dedup();
+    routes
 }
 
 fn service_entry_claims(
@@ -721,6 +799,16 @@ impl ProviderPlan {
                     },
                     premise.subject_projections.join("::")
                 ));
+                let mut establishment_routes =
+                    premise.establishment_routes.iter().collect::<Vec<_>>();
+                establishment_routes.sort();
+                for route in establishment_routes {
+                    rendered.push_str(&format!(
+                        "\nmtr:{}/{}",
+                        route.kind.as_str(),
+                        route.requirement_identity,
+                    ));
+                }
             }
             for parameter in &method.parameter_type_identities {
                 rendered.push_str("\nmp:");
@@ -877,6 +965,51 @@ impl ProviderPlan {
                     errors.push(format!(
                         "plan `{}` schema method `{}::{}` has a progress premise with no exact profile identity",
                         self.name, self.schema.trait_name, method.name,
+                    ));
+                }
+                if premise.establishment_routes.is_empty() {
+                    errors.push(format!(
+                        "plan `{}` schema method `{}::{}` progress premise `{}` has no authorized establishment route",
+                        self.name,
+                        self.schema.trait_name,
+                        method.name,
+                        premise.profile,
+                    ));
+                }
+                if premise
+                    .establishment_routes
+                    .iter()
+                    .any(|route| route.requirement_identity.is_empty())
+                {
+                    errors.push(format!(
+                        "plan `{}` schema method `{}::{}` progress premise `{}` has an establishment route with no exact requirement identity",
+                        self.name,
+                        self.schema.trait_name,
+                        method.name,
+                        premise.profile,
+                    ));
+                }
+                if premise.establishment_routes.iter().any(|route| {
+                    route.kind != ServiceProgressEstablishmentRouteKind::BoundaryRequirement
+                }) {
+                    errors.push(format!(
+                        "plan `{}` schema method `{}::{}` progress premise `{}` has a non-boundary establishment route",
+                        self.name,
+                        self.schema.trait_name,
+                        method.name,
+                        premise.profile,
+                    ));
+                }
+                let mut normalized_routes = premise.establishment_routes.clone();
+                normalized_routes.sort();
+                normalized_routes.dedup();
+                if normalized_routes.len() != premise.establishment_routes.len() {
+                    errors.push(format!(
+                        "plan `{}` schema method `{}::{}` progress premise `{}` repeats an establishment route",
+                        self.name,
+                        self.schema.trait_name,
+                        method.name,
+                        premise.profile,
                     ));
                 }
                 if let ServiceProgressSubject::Parameter(index) = premise.subject
@@ -1319,10 +1452,38 @@ mod tests {
             profile: "SchedulerHandle::WeakFair".to_owned(),
             subject: ServiceProgressSubject::Parameter(0),
             subject_projections: Vec::new(),
+            establishment_routes: vec![ServiceProgressEstablishmentRoute {
+                kind: ServiceProgressEstablishmentRouteKind::BoundaryRequirement,
+                requirement_identity: "SchedulerAdmission::grant#exact".to_owned(),
+            }],
         }];
         assert_ne!(
             premised.identity_fingerprint(),
             terminating.identity_fingerprint()
+        );
+        let mut changed_route = premised.clone();
+        changed_route.schema.methods[0].termination_premises[0].establishment_routes[0]
+            .requirement_identity = "SchedulerAdmission::grant_strong#exact".to_owned();
+        assert_ne!(
+            premised.identity_fingerprint(),
+            changed_route.identity_fingerprint(),
+            "the authorized establishment route must enter provider identity"
+        );
+        let mut two_routes = premised.clone();
+        two_routes.schema.methods[0].termination_premises[0]
+            .establishment_routes
+            .push(ServiceProgressEstablishmentRoute {
+                kind: ServiceProgressEstablishmentRouteKind::BoundaryRequirement,
+                requirement_identity: "SchedulerAdmission::accept_weak#exact".to_owned(),
+            });
+        let mut reversed_routes = two_routes.clone();
+        reversed_routes.schema.methods[0].termination_premises[0]
+            .establishment_routes
+            .reverse();
+        assert_eq!(
+            two_routes.identity_fingerprint(),
+            reversed_routes.identity_fingerprint(),
+            "route declaration order is presentation, not provider identity"
         );
         assert_ne!(
             suspending.identity_fingerprint(),
@@ -1335,6 +1496,46 @@ mod tests {
         assert_ne!(
             terminating.identity_fingerprint(),
             blocking.identity_fingerprint()
+        );
+    }
+
+    #[test]
+    fn progress_schema_rejects_missing_repeated_and_non_boundary_routes() {
+        let mut plan = windows_console_plan();
+        plan.schema.methods[0].terminates_guarantee = true;
+        plan.schema.methods[0].termination_premises = vec![ServiceProgressPremise {
+            profile: "SchedulerHandle::WeakFair".to_owned(),
+            subject: ServiceProgressSubject::Parameter(0),
+            subject_projections: Vec::new(),
+            establishment_routes: Vec::new(),
+        }];
+        assert!(
+            plan.validate_against_schema()
+                .iter()
+                .any(|error| error.contains("has no authorized establishment route"))
+        );
+
+        let route = ServiceProgressEstablishmentRoute {
+            kind: ServiceProgressEstablishmentRouteKind::BoundaryRequirement,
+            requirement_identity: "SchedulerAdmission::grant#exact".to_owned(),
+        };
+        plan.schema.methods[0].termination_premises[0].establishment_routes =
+            vec![route.clone(), route];
+        assert!(
+            plan.validate_against_schema()
+                .iter()
+                .any(|error| error.contains("repeats an establishment route"))
+        );
+
+        plan.schema.methods[0].termination_premises[0].establishment_routes =
+            vec![ServiceProgressEstablishmentRoute {
+                kind: ServiceProgressEstablishmentRouteKind::CheckedRequirement,
+                requirement_identity: "SchedulerAdmission::grant#exact".to_owned(),
+            }];
+        assert!(
+            plan.validate_against_schema()
+                .iter()
+                .any(|error| error.contains("non-boundary establishment route"))
         );
     }
 
