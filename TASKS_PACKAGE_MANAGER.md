@@ -163,6 +163,14 @@ Completed:
   recorded in `fixtures/packages/REMOTE_PINS.md`; remote acceptance tests should
   use those commits rather than branch names.
 
+- **PACKAGE-GRAPH-AUDIT-CORE.** Add the internal graph-audit core before CLI
+  exposure.
+
+  Done 2026-08-23: `omega-packages` can audit a validated package lock plus
+  supplied package manifests, reject invalid locks, missing/duplicate
+  manifests, manifest fingerprint drift, and unreachable lock entries, and
+  report dependency paths for exported service reach.
+
 Remaining:
 
 - **PACKAGE-CAPABILITY-MANIFEST.** Define the normalized manifest produced for
@@ -242,8 +250,9 @@ Remaining:
 
 - **OMEGA-AUDIT-PACKAGES.** Add a read-only audit command for the package graph.
 
-  Remaining after `PACKAGE-SOURCE-AUDIT-COMMAND-API`: derive package manifests
-  for a resolved graph and expose the graph audit through the `omega` CLI.
+  Remaining after `PACKAGE-SOURCE-AUDIT-COMMAND-API` and
+  `PACKAGE-GRAPH-AUDIT-CORE`: derive package manifests for a resolved graph
+  and expose the graph audit through the `omega` CLI.
 
   Acceptance: `omega audit packages` prints the resolved graph, source pins,
   service reach, build observation classes, provider origins, trust receipts,

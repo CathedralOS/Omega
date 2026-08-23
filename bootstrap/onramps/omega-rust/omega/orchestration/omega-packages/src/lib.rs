@@ -7,6 +7,7 @@
 //! manifests, lock evidence, and command workflow. Language-level evidence is
 //! derived elsewhere and passed in as normalized data.
 
+mod audit;
 mod commands;
 mod diff;
 mod lock;
@@ -16,6 +17,10 @@ mod review;
 mod source;
 mod update;
 
+pub use audit::{
+    PackageGraphAudit, PackageGraphAuditError, PackageGraphAuditPackage, PackageServiceReach,
+    audit_package_graph,
+};
 pub use commands::{PackageSourceAudit, PackageSourceRequest, audit_package_source};
 pub use diff::{ManifestDelta, ManifestDiff, ManifestSeverity, diff_package_capability_manifests};
 pub use lock::{
