@@ -2156,10 +2156,12 @@ fn receiver_placement(
     })
 }
 
-/// Install two compiler-provisioned program-storage roots and emit the
+/// Install two already-established program-local program-storage roots and emit the
 /// completion record before releasing the installed authority.
 ///
-/// This is the transitional installed program-local introduction seam.
+/// This is the transitional installed program-local handoff seam. Its caller
+/// must retain the exact account registry that established these passive
+/// Extent origins.
 /// Provider-issued physical roots
 /// must use [`install_program_storage_entry_provider_invocation`], which joins
 /// them to the compiler-selected provider plan and concrete invocation.
@@ -2172,8 +2174,8 @@ pub fn install_program_storage_entry_roots(
     image: ProgramStorageRootInput,
     initial_storage: ProgramStorageRootInput,
 ) -> Result<RecordedProgramStorageInstallation, ProgramStorageInstallationHandoffError> {
-    let validation = validate_compiler_provisioned_root("image", &image)
-        .and_then(|()| validate_compiler_provisioned_root("initial-storage", &initial_storage));
+    let validation = validate_program_local_root("image", &image)
+        .and_then(|()| validate_program_local_root("initial-storage", &initial_storage));
     if let Err(diagnostic) = validation {
         return Err(ProgramStorageInstallationHandoffError::Rejected(Box::new(
             ProgramStorageRootInstallationError {
@@ -2196,7 +2198,7 @@ pub fn install_program_storage_entry_roots(
 ///
 /// This is the production-facing installation carrier consumed by a generated
 /// bridge. It does not itself emit or invoke native code. Unlike the local
-/// provisioning seam, it rejects compiler-provisioned grants and roots from
+/// handoff seam, it rejects program-local grants and roots from
 /// another provider plan or invocation before consuming either grant.
 pub fn install_program_storage_entry_provider_invocation(
     artifact_directory: &Path,
@@ -2261,11 +2263,11 @@ pub fn install_and_activate_program_storage_entry_receiver<'mapping>(
         .map_err(ProgramStorageEntryBridgeError::Activation)
 }
 
-fn validate_compiler_provisioned_root(
+fn validate_program_local_root(
     role: &str,
     input: &ProgramStorageRootInput,
 ) -> Result<(), ProgramStorageEntryDiagnostic> {
-    if input.grant.origin().compiler_provisioning().is_none() {
+    if input.grant.origin().program_local().is_none() {
         return Err(ProgramStorageEntryDiagnostic(format!(
             "{role} root is provider-issued; use the selected root-provider invocation installer"
         )));

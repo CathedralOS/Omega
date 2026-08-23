@@ -669,12 +669,8 @@ Remaining:
   cardinality and lifecycle epoch during installation verification and derive,
   rather than trust, the aggregate for one installed artifact instance.
 
-  Migrate the current `ExtentCompilerProvisioning`/`sealed_declaration`
-  implementation carrier to route-position, capacity-schema, occurrence,
-  cardinality, and epoch identities. Preserve provider issuance as a distinct
-  admitted origin. The current installation seam only checks that provisioning
-  is present; it does not bind route, capacity, or qualification to a selected
-  parameter, and `MappingEraId` is not a lifecycle epoch. Terminal Psi must
+  Preserve provider issuance as a distinct admitted origin and keep
+  `MappingEraId` separate from lifecycle epoch. Terminal Psi must
   first provide the canonical requirement-position, qualification, projection/
   algebra, capacity/family-instance, and artifact-scope schema; installation can
   then join exact slot occurrences, cardinality, artifact instance, and epoch.
@@ -758,14 +754,28 @@ Remaining:
   planning, Terminal structural-domain/schema identity, and representation
   verification; one family application cannot substitute another. Contract-
   only indexed membership fails closed until proof facts retain that same exact
-  identity. The
-  existing Terminal unit-call conservation check already rejects an ordinary
+  identity. The legacy `ExtentCompilerProvisioning`/`sealed_declaration`
+  carrier has now been removed. `psi-extents` retains only a passive exact
+  program-local origin tuple (installed code/root/slot/schema, lifecycle
+  ledger/epoch, entry invocation, and runtime subject place), while
+  `omega-external-roots` owns the non-copyable account registry that retains
+  the installed occurrence and lifecycle lease. Materialization accepts only
+  one exact nonempty `u64` interval whose geometry, carrier, qualification, and
+  algebra match the established account; counted and separated capacities
+  reject transactionally. Split, loan, mapping, and merge retain the passive
+  origin, and retirement releases the account only for the exact recombined
+  root. Provider existing-content issuance remains unavailable to local roots.
+  Artifact audit rows now report exact program-local occurrence fields instead
+  of a fictitious provision declaration.
+
+  The existing Terminal unit-call conservation check already rejects an ordinary
   call whose callee would acquire a content claim absent from the caller; the
   routed source canary likewise emits producer schema only on the exact
   boundary requirement, and an explicit verifier regression rejects a claimed
-  result lineage with no bound entry parent. Migration of
-  `ExtentCompilerProvisioning` and artifact/installation aggregate canaries
-  remain open. The
+  result lineage with no bound entry parent. The generated program-entry handoff
+  still needs to own the registry beside installed image/storage Extents rather
+  than relying on the transitional audit helper's caller to retain it; batch,
+  record-retry, and installation aggregate canaries remain open. The
   target vocabulary currently exposes one required `ProgramEntry`; expand it
   to an enumerable required-slot set before claiming a finite multi-member-slot
   canary rather than synthesizing test-only target rows.

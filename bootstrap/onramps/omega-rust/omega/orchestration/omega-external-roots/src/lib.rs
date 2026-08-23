@@ -161,6 +161,8 @@ mod progress_profile_installation;
 pub use progress_profile_installation::*;
 mod program_local_roots;
 pub use program_local_roots::*;
+mod program_local_extents;
+pub use program_local_extents::*;
 mod required_root_slots;
 pub use required_root_slots::*;
 mod root_validation;

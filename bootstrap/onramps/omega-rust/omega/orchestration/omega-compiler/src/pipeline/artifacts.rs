@@ -535,25 +535,23 @@ fn push_extent_root_origin_json(output: &mut String, origin: psi_extents::Extent
             push_normalized_identity(output, invocation.qualification().normalized_identity());
             output.push_str("\"}}");
         }
-        psi_extents::ExtentRootOrigin::CompilerProvisioned(provisioning) => {
-            output.push_str("{\"kind\": \"compiler_provisioned\", \"provision\": \"");
-            push_normalized_identity(output, provisioning.provision().normalized_identity());
-            output.push_str("\", \"owner\": \"");
-            push_normalized_identity(output, provisioning.owner().normalized_identity());
-            output.push_str("\", \"sealed_declaration\": \"");
-            push_normalized_identity(
-                output,
-                provisioning.sealed_declaration().normalized_identity(),
-            );
-            output.push_str("\", \"establishment_route\": \"");
-            push_normalized_identity(
-                output,
-                provisioning.establishment_route().normalized_identity(),
-            );
-            output.push_str("\", \"capacity\": \"");
-            push_normalized_identity(output, provisioning.capacity().normalized_identity());
-            output.push_str("\", \"qualification\": \"");
-            push_normalized_identity(output, provisioning.qualification().normalized_identity());
+        psi_extents::ExtentRootOrigin::ProgramLocal(origin) => {
+            output.push_str("{\"kind\": \"program_local\", \"installed_code\": \"");
+            push_normalized_identity(output, origin.installed_code());
+            output.push_str("\", \"external_root\": \"");
+            push_normalized_identity(output, origin.external_root());
+            output.push_str("\", \"root_slot\": \"");
+            push_normalized_identity(output, origin.root_slot());
+            output.push_str("\", \"schema_identity\": \"");
+            push_normalized_identity(output, origin.schema_identity());
+            output.push_str("\", \"lifecycle_ledger\": \"");
+            push_normalized_identity(output, origin.lifecycle_ledger());
+            output.push_str("\", \"lifecycle_epoch\": \"");
+            push_normalized_identity(output, origin.lifecycle_epoch());
+            output.push_str("\", \"entry_invocation\": \"");
+            push_normalized_identity(output, origin.entry_invocation());
+            output.push_str("\", \"subject_place\": \"");
+            push_normalized_identity(output, origin.subject_place());
             output.push_str("\"}");
         }
     }
