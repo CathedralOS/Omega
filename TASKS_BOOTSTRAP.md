@@ -153,6 +153,10 @@ exhaustion, input assembly, and any host boundary used to create the backing
 extent must still have explicit semantics and appear in the trust/validation
 story.
 
+Product Psi/Omega implementation work belongs in `TASKS.md`. This file may name
+a required product interface as an input to a lattice gate, but it must not own
+or prescribe work inside the Rust on-ramp or the eventual product compiler.
+
 ### Work packages and acceptance gates
 
 - [x] **Freeze the current bootstrap profiles.** Record the Delta surface used
@@ -256,13 +260,6 @@ story.
   agrees with canonical meaning.
   - [x] Freeze the O0 console source contract and implement the Delta streaming
     decoder for its canonical multi-source input artifact.
-  - [x] Extend canonical terminal Psi boundary declarations and calls with exact
-    scalar parameter/argument lanes. Use ordered scalar parameter types on the
-    bodyless declaration and ordered scalar `ValueId` arguments on the call;
-    carry them through the checked-plan producer, canonical codec and vocabulary
-    bump (vocabulary 23), semantic call schema, verifier, interpreter effect,
-    and Omega abstract operation. Target lowering explicitly rejects nonempty
-    scalar boundary arguments until a real native realization exists.
   - [x] Implement the Delta O0 lexer/parser and complete its positive and
     name/type/count rejection matrix against the frozen source contract. The
     focused native gate covers canonical, variant, malformed, and exhaustion
@@ -275,29 +272,6 @@ story.
     boundary call. This is implementation work, not an unresolved language
     ruling, and it must use the shared terminal representation rather than an
     O0-private IR.
-    - [x] Add the first-class borrowed byte-sequence structural type, canonical
-      literal establishment/place, and generalized structural boundary-argument
-      source required by `write_line` (terminal vocabulary 25). Local literal
-      sources are admitted only at bodyless boundaries; in-module forwarding
-      and nonliteral native layout remain fail-closed.
-    - [x] Preserve literal bytes exactly in the canonical codec, verifier, and
-      interpreter, including non-UTF-8 bytes; fix the Psi lexer so `\xNN` adds
-      the requested byte instead of round-tripping it through Unicode. Syntax,
-      resolved, typed, and checked representations now own exact byte payloads;
-      the checked-to-terminal path establishes the borrowed literal and passes
-      the same place to the bodyless boundary call.
-    - [x] Preserve the same structural operand through Psi-to-Omega abstract,
-      target, assigned, machine, object, image, and installation custody. The
-      exact Linux literal-only realization uses import-free `write`, appends one
-      newline, retries short writes, and composes with `exit_group` in one Unit
-      body on x86-64 and AArch64. Nonliteral forwarding and Darwin/Windows remain
-      fail-closed.
-    - [x] Represent O0's `Main { console: Console }` attachment honestly. The
-      canonical specialization retains `attachment: Some(Main)`, the relevant
-      erased `console` provider field, and exact sorted provider roots for every
-      bodyless boundary used through that field. The verifier requires exact
-      root/call correspondence and rejects missing, ambiguous, forwarded, or
-      tampered shapes.
     - [x] Emit canonical terminal semantic bytes directly from Delta and gate
       them through the shared codec/verifier with the canonical empty proof
       bundle for proof-free O0. Do not route this milestone through the Rust
@@ -318,9 +292,6 @@ story.
         accepted. The direct emitter streams and has no artifact buffer to
         exhaust; source/text exhaustion occurs before output, and every partial
         prefix is rejected by the shared decoder.
-    - [x] No standalone semantic-plus-proof envelope is needed for this slice.
-      If a later profile needs one, add one generic length-delimited terminal
-      envelope rather than an O0-only container.
   - [x] **Close the Delta artifact-publication sink contract.** D0 `write_byte`
     returns `Unit`, so the compiler cannot observe a physical sink/short-write
     failure. The generic terminal-semantic publisher now gives the producer a
@@ -330,18 +301,6 @@ story.
     Truncation, malformed or substituted meaning, and producer failure preserve
     the previous accepted destination; successful producer exit alone is not
     artifact acceptance.
-  - [x] Implement a genuine target `exit_process(i32)` boundary realization.
-    Consume the preserved scalar argument; do not reinterpret it as a machine
-    return or route it through the metadata-only port settlement.
-    - [x] Close the first native slice with the import-free Linux `exit_group`
-      ABI (x86-64 first, with AArch64 byte validation where practical). Emit the
-      scalar value into the ABI argument register, record the exact consumed
-      value and nonempty settlement byte interval, and trap if the nominally
-      nonreturning syscall returns.
-    - [x] Keep Darwin and Windows fail-closed until terminal images can carry and
-      independently validate the required external import and relocation
-      evidence. Their hosted `_exit`/`ExitProcess` paths are not aliases for the
-      import-free Linux realization.
   - [x] Gate the runnable O0 artifact: exact output plus newline, requested
     low-byte exit status, deterministic bytes, and canonical-meaning agreement.
     The published vocabulary-25 fixture is decoded and verified with the empty
@@ -350,13 +309,10 @@ story.
     and AArch64 images plus replayed installation records. Matching Linux hosts
     execute the image and compare stdout/status; other hosts validate both
     complete image formats without pretending to execute them.
-- [ ] **Establish the production compiler as an Omega source tree and freeze its
-  acceptance profile.** The current compiler implementation is Rust;
-  standard-library and sample `.omg` files are not a compiler source tree and
-  cannot define the self-host profile.
-  - [ ] Establish the production compiler source tree under the product owners.
-  - [ ] Derive and freeze the production-self-host acceptance profile from that
-    exact source tree. The profile need not include unused language conveniences.
+- [ ] **Derive and freeze the production-self-host acceptance profile.** This is
+  blocked on `OMEGA-PRODUCT-COMPILER-SOURCE` in `TASKS.md`; standard-library and
+  sample `.omg` files cannot substitute for that exact source tree. Once it
+  exists, freeze only the language surface the product compiler actually uses.
 - [ ] **Implement the first Omega compiler in Delta.** Grow the canary into the
   deliberately simple, spec-compliant compiler. Prefer direct and auditable
   stages over porting the production optimizer or the entire current Rust
@@ -378,6 +334,9 @@ story.
     terminal representation, direct artifact path, lower-rung meaning coverage,
     diagnostics, and negative controls as one vertical capability—not a matrix
     of hard-coded sample permutations.
+    This item owns only the Delta/bootstrap implementation and its lattice
+    gates. Any required product Psi/Omega or Rust-reference implementation work
+    is tracked in `TASKS.md`.
     Every newly admitted construct must elaborate through the Rust-free meaning
     route or reject before entering the compiler; `gamma_emit.rs` remains a
     differential reference only.
@@ -507,8 +466,8 @@ additional facilities the bootstrap actually needs.
    checking.
 2. Keep Delta's Rust-free meaning route as a rolling invariant: every newly
    admitted compiler construct lands with native/meaning differential coverage.
-3. Establish the production Omega source tree and derive its bootstrap
-   acceptance profile from the code that must actually self-host.
+3. Once `OMEGA-PRODUCT-COMPILER-SOURCE` is complete in `TASKS.md`, derive the
+   bootstrap acceptance profile from the code that must actually self-host.
 4. Grow proof-kernel capability and its operational seams only in lockstep with
    real obligation classes.
 5. Build translation-validation evidence for native compiler outputs.

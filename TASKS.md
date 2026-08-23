@@ -36,6 +36,27 @@ Compiler validation and code generation may consume general plans. They must
 not acquire customer-shaped semantic types, lifecycle states, writers,
 scanners, or receipts.
 
+## Self-hosted product compiler
+
+Remaining:
+
+- **OMEGA-PRODUCT-COMPILER-SOURCE.** Establish the production compiler as
+  Omega source under `compiler/psi/` and `compiler/omega/`, with hosted product
+  entrypoints under `apps/`. Preserve the Psi/Omega ownership firewall: Psi owns
+  parsing and target-neutral semantics through terminal Psi; Omega owns
+  provider installation, optimization, target realization, and artifact
+  emission. The current implementation under
+  `bootstrap/onramps/omega-rust/` is a migration/reference producer, not the
+  source tree for this task.
+
+  Acceptance: the exact Omega source tree builds a working compiler, passes the
+  applicable product compiler and language suites, contains no Rust
+  implementation under the reserved product roots, and has a deterministic
+  source manifest from which the bootstrap lattice can derive its minimum
+  self-host acceptance profile. Deriving and closing that bootstrap profile is
+  tracked separately in `TASKS_BOOTSTRAP.md`; product Psi/Omega implementation
+  work must not be added there.
+
 ## Execution order
 
 The numbered groups express dependency order, not an exclusive assignment.
