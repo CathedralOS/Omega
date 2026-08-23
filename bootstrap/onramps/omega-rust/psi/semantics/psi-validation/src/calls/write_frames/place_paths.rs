@@ -1,10 +1,9 @@
 //! Frame-place path algebra for complete-or-opaque write summaries.
 //!
-//! Literal indexed projections retain their exact element identity. Dynamic
-//! indexes deliberately coarsen to their collection. That loss of identity is
-//! absorbing, so later member composition cannot invent a narrower
-//! caller-visible path. This leaf owns only path recovery and composition; it
-//! performs no call resolution or frame traversal.
+//! Indexed projections deliberately coarsen to their collection. That loss of
+//! element identity is absorbing, so later member composition cannot invent a
+//! narrower caller-visible path. This leaf owns only path recovery and
+//! composition; it performs no call resolution or frame traversal.
 
 use crate::arithmetic_domains;
 use psi_typed_trees::TypedTrees;
@@ -31,9 +30,9 @@ pub(super) fn append_place_suffix(base: &str, suffix: &str) -> String {
     format!("{base}{suffix}")
 }
 
-/// Recover a caller-visible place path. Literal indexes remain exact while
-/// dynamic indexed writes coarsen to their collection (`self.cells[i]` writes
-/// `self.cells`).
+/// Coarsen indexed writes to their collection (`self.cells[i]` writes
+/// `self.cells`). The string/path frame algebra deliberately does not retain
+/// element identity; structured mutation places own exact fixed-index facts.
 pub(super) fn coarse_place_path(
     program: &TypedTrees,
     expression: ExpressionHandle,
@@ -53,15 +52,7 @@ pub(super) fn frame_place_path(
         ExpressionNode::Borrow(inner) => frame_place_path(program, inner.target),
         ExpressionNode::Indexed(indexed) => {
             let mut collection = frame_place_path(program, indexed.collection)?;
-            if collection.precision == FramePathPrecision::Exact
-                && let ExpressionNode::Integer(index) =
-                    program.expression_table.expression(indexed.index)
-                && let Some(index) = index.value_u64()
-            {
-                collection.path = format!("{}[{index}]", collection.path);
-            } else {
-                collection.precision = FramePathPrecision::CollectionCoarse;
-            }
+            collection.precision = FramePathPrecision::CollectionCoarse;
             Some(collection)
         }
         ExpressionNode::Member(member) => {
@@ -109,7 +100,7 @@ mod tests {
     }
 
     #[test]
-    fn literal_index_retains_exact_frame_path() {
+    fn literal_index_is_collection_coarse_in_string_frame_path() {
         let mut program = TypedTrees::default();
         let collection = name(&mut program, "bytes");
         let index = program.expression_table.insert(ExpressionNode::Integer(
@@ -124,8 +115,8 @@ mod tests {
                 }));
 
         let path = frame_place_path(&program, indexed).expect("literal indexed place");
-        assert_eq!(path.path, "bytes[2]");
-        assert_eq!(path.precision, FramePathPrecision::Exact);
+        assert_eq!(path.path, "bytes");
+        assert_eq!(path.precision, FramePathPrecision::CollectionCoarse);
     }
 
     #[test]
