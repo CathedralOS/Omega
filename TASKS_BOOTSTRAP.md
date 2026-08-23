@@ -413,6 +413,13 @@ additional facilities the bootstrap actually needs.
     compiler assembled and run only through the audited Alpha/Beta seed path.
     The current Python symbolic model cannot cover `bc.beta`'s data-dependent
     branching, word memory, or full-stream emission and is not this authority.
+    - [x] Land Slice A under `bootstrap/rungs/beta/cold-start/`: an Alpha-written,
+      5 KiB compiler tape with checked 1 MiB input capture, two-pass
+      validate-before-publish parsing, source-span identifiers, comments,
+      decimal/character literals, and precedence-correct `+ - * / %` lowering.
+      Its focused gate covers valid execution, malformed empty-output rejection,
+      exact-limit acceptance, and one-byte-over checked exhaustion. This is the
+      first monotonic implementation slice, not the complete `bc.beta` profile.
   - [ ] Persist the resulting lattice-built `bc` artifact, run its self-build and
     Beta corpus gates, then switch proof-kernel, Gamma, Delta, and Omega gates
     away from the ephemeral Rust-produced `bc0`.
@@ -585,9 +592,10 @@ sh bootstrap/onramps/delta-rust/omega0-frontend-meaning.sh
 
 ## Persistent implementation facts
 
-- Both committed Alpha seeds have a 256 KiB tape hole. Build scripts still read
-  `compiler/alpha/seed_env.sh` so future platform realizations may declare their
-  audited capacity without embedding a universal assumption elsewhere.
+- Both committed Alpha seeds have a 256 KiB tape hole. Build scripts source the
+  canonical `bootstrap/rungs/alpha/seed_env.sh` owner through
+  `bootstrap/paths.sh`, so future platform realizations may declare their audited
+  capacity without embedding a universal assumption elsewhere.
 - The Alpha VM hidden stack stores return addresses. Beta maintains a separate
   explicit data stack with `r15` as stack pointer and `r14` as frame pointer.
 - Build fixed points establish determinism and dependency closure, not compiler

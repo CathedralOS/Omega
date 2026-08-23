@@ -152,9 +152,7 @@ class Parser:
             condition = None
             if self.peek() == ('word', 'when'):
                 self.nxt()
-                self.expect('op', '(')
                 condition = self.expr()
-                self.expect('op', ')')
             return ('goto', target, condition)
         if (
             token[0] == 'word'

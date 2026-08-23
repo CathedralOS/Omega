@@ -9,6 +9,13 @@ closes the steady-state execution dependency on Rust. It does not by itself prov
 that the cold-started artifact corresponds to `bc.beta`; complete lower-rooted
 source-to-artifact validation remains open.
 
+The lower-rooted replacement has begun in
+[`cold-start/`](cold-start/README.md). Its first Alpha-written compiler slice
+handles bounded source capture, identifiers, comments, return-only procedures,
+character/decimal literals, and precedence-correct arithmetic entirely through
+the audited Alpha path. It deliberately does not replace `bc0` until the exact
+`bc.beta` profile, self-build, and whole Beta corpus are closed.
+
 ```
 bc.beta       the Beta compiler, in Beta:  reads .beta on stdin, emits Alpha asm
 selfhost.sh   THE gate: bc compiles bc.beta -> bc1; assert bc1(bc.beta) == bc(bc.beta)

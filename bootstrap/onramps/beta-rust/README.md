@@ -36,10 +36,11 @@ seed-stamp. Needs `cargo`.
   the [calling convention](../../rungs/beta/CALLING_CONVENTION.md) generated mechanically.
   `double.beta` → 42, `calls.beta` (nested `add(mul(2,3),4)`) → 10.
 - **Slice 3 — control flow + locals: DONE.** Multi-statement bodies, `let` locals
-  (function-scoped frame slots), assignment, `if`/`else` and `while` (→ `jz`/`jmp`),
-  and the six comparisons (`< > == != <= >=`, materialized to 0/1). **Unlocks
-  recursion + loops:** `factorial.beta` → 120 and `fib.beta` → 55 match the hand
-  `.alpha` proofs; `sumto.beta` (while + let) → 55.
+  (function-scoped frame slots), assignment, `state` basic blocks, guarded or
+  unconditional `to` transitions (→ `jz`/`jmp`), and the six comparisons
+  (`< > == != <= >=`, materialized to 0/1). **Unlocks recursion + loops:**
+  `factorial.beta` → 120 and `fib.beta` → 55 match the hand `.alpha` proofs;
+  `sumto.beta` (a state loop with a local accumulator) → 55.
 - **Slice 4 — explicit memory: DONE.** `byte[addr]` / `word[addr]` load and store,
   lowered to `loadb`/`load`/`storeb`/`store`. Raw arrays/buffers, addresses managed
   by the programmer (above the data stack). `arrays.beta` (fill + sum `i*i`) → 30,
@@ -68,4 +69,4 @@ canonical Beta meaning/refinement route. Agreement with this Rust implementation
 or another compiler is diagnostic, not semantic authority.
 
 See [`../../rungs/beta/LANGUAGE.md`](../../rungs/beta/LANGUAGE.md) for the language surface, and run
-`sh test.sh` to verify the whole compiler end to end (8 examples + 9 calc cases).
+`sh test.sh` to verify the retained example and calculator corpus end to end.
