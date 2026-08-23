@@ -137,3 +137,16 @@ cargo test -p omega-packages --test remote_fixtures -- --ignored --test-threads=
   only after policy admission and candidate graph audit. The command seam can
   read the current lock file plus an optional standalone receipt file before
   returning the plan.
+
+## Current CLI Surface
+
+The Rust on-ramp `omega` binary exposes the read-only manifest-file graph audit
+path:
+
+```text
+omega audit packages [--lock <omega.lock>] --manifest <manifest.json>...
+```
+
+This command requires precomputed package capability manifest files. It does
+not derive package manifests, execute dependency `build.omg`, edit `build.omg`,
+or write `omega.lock`.

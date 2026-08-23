@@ -40,10 +40,17 @@ fn main() {
         inspect_terminal(raw_arguments);
         return;
     }
+    if first_argument
+        .as_deref()
+        .is_some_and(|first| first == "audit")
+    {
+        audit(raw_arguments);
+        return;
+    }
 
     let Some(arguments) = parse_arguments() else {
         eprintln!(
-            "usage: omega [--check] [--build-dir <dir>] [--target <name>] <root.omg>\n       omega inspect-terminal --machine <qualified> [--target <name>] <root.omg>\n       omega refresh-samples [samples-dir]"
+            "usage: omega [--check] [--build-dir <dir>] [--target <name>] <root.omg>\n       omega inspect-terminal --machine <qualified> [--target <name>] <root.omg>\n       omega audit packages [--lock <omega.lock>] --manifest <manifest.json>...\n       omega refresh-samples [samples-dir]"
         );
         std::process::exit(2);
     };
@@ -67,6 +74,45 @@ fn main() {
             std::process::exit(1);
         }
     };
+}
+
+fn audit(arguments: impl Iterator<Item = std::ffi::OsString>) {
+    let mut arguments = arguments;
+    let Some(subcommand) = arguments.next() else {
+        eprintln!(
+            "usage: omega audit packages [--lock <omega.lock>] --manifest <manifest.json>..."
+        );
+        std::process::exit(2);
+    };
+    if subcommand != "packages" {
+        eprintln!("unknown audit command `{}`", subcommand.to_string_lossy());
+        eprintln!(
+            "usage: omega audit packages [--lock <omega.lock>] --manifest <manifest.json>..."
+        );
+        std::process::exit(2);
+    }
+    audit_packages(arguments);
+}
+
+fn audit_packages(arguments: impl Iterator<Item = std::ffi::OsString>) {
+    let Some(arguments) = parse_audit_packages_arguments(arguments) else {
+        eprintln!(
+            "usage: omega audit packages [--lock <omega.lock>] --manifest <manifest.json>..."
+        );
+        std::process::exit(2);
+    };
+    match omega_packages::audit_package_graph_from_paths(
+        &arguments.lock_path,
+        &arguments.manifest_paths,
+    ) {
+        Ok(report) => {
+            print!("{}", report.to_text());
+        }
+        Err(error) => {
+            eprintln!("cannot audit packages: {error:?}");
+            std::process::exit(1);
+        }
+    }
 }
 
 fn inspect_terminal(arguments: impl Iterator<Item = std::ffi::OsString>) {
@@ -136,6 +182,41 @@ struct InspectTerminalArguments {
     machine: String,
     root_path: PathBuf,
     target_name: Option<String>,
+}
+
+struct AuditPackagesArguments {
+    lock_path: PathBuf,
+    manifest_paths: Vec<PathBuf>,
+}
+
+fn parse_audit_packages_arguments(
+    mut arguments: impl Iterator<Item = std::ffi::OsString>,
+) -> Option<AuditPackagesArguments> {
+    let mut lock_path = None;
+    let mut manifest_paths = Vec::new();
+    while let Some(argument) = arguments.next() {
+        if argument == "--lock" {
+            if lock_path.is_some() {
+                return None;
+            }
+            lock_path = arguments.next().map(PathBuf::from);
+            lock_path.as_ref()?;
+            continue;
+        }
+        if argument == "--manifest" {
+            let manifest_path = arguments.next().map(PathBuf::from)?;
+            manifest_paths.push(manifest_path);
+            continue;
+        }
+        return None;
+    }
+    if manifest_paths.is_empty() {
+        return None;
+    }
+    Some(AuditPackagesArguments {
+        lock_path: lock_path.unwrap_or_else(|| PathBuf::from("omega.lock")),
+        manifest_paths,
+    })
 }
 
 fn parse_inspect_terminal_arguments(
