@@ -510,6 +510,47 @@ impl ComponentEraEntryLedger {
         })
     }
 
+    /// Revalidate an issued lease at an establishment instant.
+    ///
+    /// Holding a lease pins lifecycle retirement, but does not keep an era
+    /// open for new introductions. A lease acquired before a routing switch
+    /// therefore cannot be used to establish fresh authority after its era has
+    /// begun closing.
+    pub fn validate_program_local_root_epoch_lease(
+        &self,
+        lease: &ProgramLocalRootEpochLease,
+    ) -> Result<(), String> {
+        let Some(record) = self
+            .eras
+            .iter()
+            .find(|record| record.candidate.era_identity == lease.era_identity)
+        else {
+            return Err("program-local root epoch lease names an era outside this ledger".into());
+        };
+        let exact = self.current_era == Some(lease.era_identity)
+            && record.state == ComponentEraEntryState::Open
+            && lease.ledger == self.identity
+            && lease.binding_contract_identity == self.binding_contract_identity
+            && lease.entry_contract_identity == self.entry_contract_identity
+            && lease.entry_contract_identity == record.candidate.entry_contract_identity
+            && lease.artifact_instance_identity == record.candidate.artifact_instance_identity
+            && lease.entry_plan_identity == record.candidate.entry_plan_identity
+            && lease.entry_plan_admission_receipt_identity
+                == record.candidate.entry_plan_admission_receipt_identity
+            && self
+                .issued_program_local_root_epoch_leases
+                .contains(&lease.identity)
+            && record
+                .program_local_root_epoch_leases
+                .contains(&lease.identity);
+        if !exact {
+            return Err(
+                "program-local root epoch lease is not live in the exact current open era".into(),
+            );
+        }
+        Ok(())
+    }
+
     /// Return one exact program-local root lifecycle hold.
     ///
     /// Rejection returns the opaque lease intact so the rightful ledger can
@@ -1011,8 +1052,17 @@ mod tests {
         assert_eq!(lease.era_identity(), 10);
         assert_eq!(lease.artifact_instance_identity(), 1_010);
         assert_eq!(ledger.program_local_root_authority_holds(10), Some(1));
+        ledger
+            .validate_program_local_root_epoch_lease(&lease)
+            .expect("issued lease is live in the current open era");
 
         publish(&mut ledger, 20, 101);
+        assert!(
+            ledger
+                .validate_program_local_root_epoch_lease(&lease)
+                .is_err(),
+            "a closing-era lease still pins retirement but cannot establish new authority"
+        );
         let closing = ledger
             .acquire_program_local_root_epoch_lease(lease_id(902), 10, "CodecEntry/v1")
             .expect_err("closing era");
