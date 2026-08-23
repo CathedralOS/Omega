@@ -34,7 +34,7 @@ class BetaParserTests(unittest.TestCase):
                 byte[x] = '\n'
                 emit("ok\\n")
                 helper(x, 1)
-                state loop { to done when (x >= 3) }
+                state loop { to done when x >= 3 }
                 state done { return helper(x, 1) }
             }
         '''
@@ -50,6 +50,13 @@ class BetaParserTests(unittest.TestCase):
             body[5],
             ('state', 'loop', [('goto', 'done', ('bin', '>=', ('var', 'x'), ('num', 3)))])
         )
+
+    def test_guard_parentheses_are_optional(self):
+        bare = 'proc main() { state start { to done when 1 + 2 == 3 } state done { return 0 } }'
+        grouped = 'proc main() { state start { to done when (1 + 2 == 3) } state done { return 0 } }'
+        bare_ast = beta_parser.Parser(beta_parser.lex(bare)).parse()
+        grouped_ast = beta_parser.Parser(beta_parser.lex(grouped)).parse()
+        self.assertEqual(bare_ast, grouped_ast)
 
     def test_reference_sources_have_no_backend_or_refinement_import(self):
         here = Path(__file__).resolve().parent

@@ -1,0 +1,895 @@
+; bc-alpha.alpha — Alpha-written cold-start compiler for Beta Slice A.
+;
+; Accepted source:
+;   proc IDENT() { return EXPR }
+;   EXPR := TERM (('+' | '-') TERM)*
+;   TERM := FACTOR (('*' | '/' | '%') FACTOR)*
+;   FACTOR := DECIMAL | CHAR | '(' EXPR ')'
+;
+; Whitespace and `;` line comments are accepted between tokens. Decimal
+; literals are deliberately capped at nine digits in this first slice. Character
+; literals accept printable bytes plus \n \t \r \0 \\ \'. The whole source is
+; validated before any output is published.
+;
+; Globals (i64):
+;   524288 LEN       524296 CUR       524304 ERROR     524312 EMIT
+;   524320 NAMESTART 524328 NAMELEN   524336 EXPECT    524344 EXPECTLEN
+;   524352 BOUNDARY  524360 EXPECTCHR 524368 NUMSTART  524376 NUMLEN
+;   524384 STAGE     524392 DEPTH     524400 OUTLEN
+; Buffers:
+;   1048576 SOURCE (1048576-byte checked compiler extent)
+;   2097152 decimal output scratch
+
+; ---------------- entry and checked slurp ----------------
+        imm   r6, 0
+read_source:
+        read  r0
+        imm   r1, 0
+        jlt   r0, r1, source_done
+        imm   r1, 1048576
+        jeq   r6, r1, source_too_large
+        imm   r2, 1048576
+        add   r2, r6
+        storeb r2, r0
+        imm   r1, 1
+        add   r6, r1
+        jmp   read_source
+source_done:
+        imm   r0, 524288
+        store r0, r6
+        imm   r0, 524296
+        imm   r1, 0
+        store r0, r1
+        imm   r0, 524304
+        store r0, r1
+        imm   r0, 524312
+        store r0, r1
+        imm   r0, 524392
+        store r0, r1
+        imm   r0, 524400
+        store r0, r1
+        call  parse_program
+        imm   r0, 524304
+        load  r0, r0
+        jnz   r0, invalid_source
+
+        ; The same parser runs again with publication enabled. The first pass
+        ; proved that this pass cannot discover a source error after output.
+        imm   r0, 524296
+        imm   r1, 0
+        store r0, r1
+        imm   r0, 524312
+        imm   r1, 1
+        store r0, r1
+        call  parse_program
+        imm   r0, 524304
+        load  r0, r0
+        jnz   r0, internal_error
+        imm   r0, 0
+        halt  r0
+source_too_large:
+        imm   r0, 2
+        halt  r0
+invalid_source:
+        halt  r0
+internal_error:
+        imm   r0, 3
+        halt  r0
+
+; ---------------- program ----------------
+parse_program:
+        imm   r0, 524384
+        imm   r1, 10
+        store r0, r1
+        imm   r0, kw_proc
+        imm   r1, 4
+        imm   r2, 1
+        call  expect_literal
+        call  error_value
+        jnz   r0, pp_return
+        imm   r0, 524384
+        imm   r1, 11
+        store r0, r1
+        call  parse_identifier
+        call  error_value
+        jnz   r0, pp_return
+        call  name_is_main
+        jz    r0, pp_name_error
+        imm   r0, 524384
+        imm   r1, 12
+        store r0, r1
+        imm   r0, 40
+        call  expect_char
+        call  error_value
+        jnz   r0, pp_return
+        imm   r0, 524384
+        imm   r1, 13
+        store r0, r1
+        imm   r0, 41
+        call  expect_char
+        call  error_value
+        jnz   r0, pp_return
+        imm   r0, 524384
+        imm   r1, 14
+        store r0, r1
+        imm   r0, 123
+        call  expect_char
+        call  error_value
+        jnz   r0, pp_return
+        imm   r0, 524384
+        imm   r1, 15
+        store r0, r1
+        imm   r0, kw_return
+        imm   r1, 6
+        imm   r2, 1
+        call  expect_literal
+        call  error_value
+        jnz   r0, pp_return
+
+        ; Emit the entry wrapper and procedure label only after the complete
+        ; validation pass has succeeded.
+        imm   r0, out_prelude_a
+        imm   r1, 21
+        call  emit_fixed
+        imm   r0, 524320
+        load  r0, r0
+        imm   r1, 524328
+        load  r1, r1
+        call  emit_span
+        imm   r0, out_prelude_b
+        imm   r1, 9
+        call  emit_fixed
+        imm   r0, 524320
+        load  r0, r0
+        imm   r1, 524328
+        load  r1, r1
+        call  emit_span
+        imm   r0, out_label_suffix
+        imm   r1, 2
+        call  emit_fixed
+
+        imm   r0, 524384
+        imm   r1, 16
+        store r0, r1
+        call  parse_expr
+        call  error_value
+        jnz   r0, pp_return
+        imm   r0, 524384
+        imm   r1, 17
+        store r0, r1
+        imm   r0, 125
+        call  expect_char
+        call  error_value
+        jnz   r0, pp_return
+        imm   r0, 524384
+        imm   r1, 18
+        store r0, r1
+        call  skip_trivia
+        imm   r0, 524296
+        load  r1, r0
+        imm   r0, 524288
+        load  r2, r0
+        jeq   r1, r2, pp_finish
+        call  set_error
+        ret
+pp_finish:
+        imm   r0, out_ret
+        imm   r1, 5
+        call  emit_fixed
+pp_return:
+        ret
+pp_name_error:
+        call  set_error
+        ret
+
+; ---------------- expression parser and Alpha lowering ----------------
+parse_expr:
+        call  parse_term
+        call  error_value
+        jnz   r0, pe_return
+pe_loop:
+        call  peek_token_char
+        imm   r1, 43
+        jeq   r0, r1, pe_add
+        imm   r1, 45
+        jeq   r0, r1, pe_sub
+        ret
+pe_add:
+        call  consume_one
+        call  emit_push
+        call  parse_term
+        call  error_value
+        jnz   r0, pe_return
+        imm   r0, out_pop_add
+        imm   r1, 53
+        call  emit_fixed
+        jmp   pe_loop
+pe_sub:
+        call  consume_one
+        call  emit_push
+        call  parse_term
+        call  error_value
+        jnz   r0, pe_return
+        imm   r0, out_pop_sub
+        imm   r1, 53
+        call  emit_fixed
+        jmp   pe_loop
+pe_return:
+        ret
+
+parse_term:
+        call  parse_factor
+        call  error_value
+        jnz   r0, pt_return
+pt_loop:
+        call  peek_token_char
+        imm   r1, 42
+        jeq   r0, r1, pt_mul
+        imm   r1, 47
+        jeq   r0, r1, pt_div
+        imm   r1, 37
+        jeq   r0, r1, pt_mod
+        ret
+pt_mul:
+        call  consume_one
+        call  emit_push
+        call  parse_factor
+        call  error_value
+        jnz   r0, pt_return
+        imm   r0, out_pop_mul
+        imm   r1, 53
+        call  emit_fixed
+        jmp   pt_loop
+pt_div:
+        call  consume_one
+        call  emit_push
+        call  parse_factor
+        call  error_value
+        jnz   r0, pt_return
+        imm   r0, out_pop_div
+        imm   r1, 53
+        call  emit_fixed
+        jmp   pt_loop
+pt_mod:
+        call  consume_one
+        call  emit_push
+        call  parse_factor
+        call  error_value
+        jnz   r0, pt_return
+        imm   r0, out_pop_mod
+        imm   r1, 53
+        call  emit_fixed
+        jmp   pt_loop
+pt_return:
+        ret
+
+parse_factor:
+        call  peek_token_char
+        imm   r1, 40
+        jeq   r0, r1, pf_paren
+        imm   r1, 39
+        jeq   r0, r1, pf_char
+        imm   r1, 48
+        jlt   r0, r1, pf_error
+        imm   r1, 58
+        jlt   r0, r1, pf_decimal
+        jmp   pf_error
+pf_paren:
+        call  consume_one
+        imm   r0, 524392
+        load  r1, r0
+        imm   r2, 64
+        jeq   r1, r2, pf_error
+        imm   r2, 1
+        add   r1, r2
+        store r0, r1
+        call  parse_expr
+        imm   r0, 524392
+        load  r1, r0
+        imm   r2, 1
+        sub   r1, r2
+        store r0, r1
+        call  error_value
+        jnz   r0, pf_return
+        imm   r0, 41
+        call  expect_char
+        ret
+pf_char:
+        call  parse_character
+        ret
+pf_decimal:
+        call  parse_decimal
+        ret
+pf_error:
+        call  set_error
+pf_return:
+        ret
+
+emit_push:
+        imm   r0, out_push
+        imm   r1, 34
+        call  emit_fixed
+        ret
+
+; ---------------- literals ----------------
+parse_decimal:
+        call  skip_trivia
+        imm   r0, 524296
+        load  r6, r0
+        imm   r7, 0
+pd_loop:
+        imm   r0, 524288
+        load  r1, r0
+        add   r1, r6
+        add   r1, r7
+        imm   r2, 1048576
+        add   r2, r6
+        add   r2, r7
+        imm   r3, 524288
+        load  r3, r3
+        mov   r4, r6
+        add   r4, r7
+        jlt   r4, r3, pd_have
+        jmp   pd_done
+pd_have:
+        loadb r5, r2
+        imm   r0, 48
+        jlt   r5, r0, pd_done
+        imm   r0, 58
+        jlt   r5, r0, pd_digit
+        jmp   pd_done
+pd_digit:
+        imm   r0, 9
+        jeq   r7, r0, pd_error
+        imm   r0, 1
+        add   r7, r0
+        jmp   pd_loop
+pd_done:
+        imm   r0, 0
+        jeq   r7, r0, pd_error
+        imm   r0, 524296
+        mov   r1, r6
+        add   r1, r7
+        store r0, r1
+        imm   r0, 524368
+        store r0, r6
+        imm   r0, 524376
+        store r0, r7
+        imm   r0, out_imm_prefix
+        imm   r1, 7
+        call  emit_fixed
+        imm   r0, 524368
+        load  r0, r0
+        imm   r1, 524376
+        load  r1, r1
+        call  emit_span
+        ret
+pd_error:
+        call  set_error
+        ret
+
+parse_character:
+        call  skip_trivia
+        imm   r0, 524296
+        load  r6, r0
+        imm   r0, 1
+        add   r6, r0
+        call  char_at_cursor
+        mov   r7, r0
+        call  error_value
+        jnz   r0, pc_return
+        imm   r1, 39
+        jeq   r7, r1, pc_error
+        imm   r1, 32
+        jlt   r7, r1, pc_error
+        imm   r1, 127
+        jlt   r7, r1, pc_plain
+        jmp   pc_error
+pc_plain:
+        imm   r1, 92
+        jeq   r7, r1, pc_escape
+        imm   r0, 1
+        add   r6, r0
+        jmp   pc_close
+pc_escape:
+        imm   r0, 1
+        add   r6, r0
+        call  char_at_cursor
+        mov   r7, r0
+        call  error_value
+        jnz   r0, pc_return
+        imm   r1, 110
+        jeq   r7, r1, pc_newline
+        imm   r1, 116
+        jeq   r7, r1, pc_tab
+        imm   r1, 114
+        jeq   r7, r1, pc_cr
+        imm   r1, 48
+        jeq   r7, r1, pc_zero
+        imm   r1, 92
+        jeq   r7, r1, pc_escaped_ok
+        imm   r1, 39
+        jeq   r7, r1, pc_escaped_ok
+        jmp   pc_error
+pc_newline:
+        imm   r7, 10
+        jmp   pc_escaped_ok
+pc_tab:
+        imm   r7, 9
+        jmp   pc_escaped_ok
+pc_cr:
+        imm   r7, 13
+        jmp   pc_escaped_ok
+pc_zero:
+        imm   r7, 0
+pc_escaped_ok:
+        imm   r0, 1
+        add   r6, r0
+pc_close:
+        call  char_at_cursor
+        mov   r2, r0
+        call  error_value
+        jnz   r0, pc_return
+        imm   r1, 39
+        jeq   r2, r1, pc_closed
+        jmp   pc_error
+pc_closed:
+        imm   r0, 1
+        add   r6, r0
+        imm   r0, 524296
+        store r0, r6
+        imm   r0, out_imm_prefix
+        imm   r1, 7
+        call  emit_fixed
+        mov   r0, r7
+        call  emit_unsigned
+        ret
+pc_error:
+        call  set_error
+pc_return:
+        ret
+
+; Input r6 is a source cursor. Return byte in r0 or set ERROR at EOF.
+char_at_cursor:
+        imm   r0, 524288
+        load  r1, r0
+        jlt   r6, r1, cac_have
+        call  set_error
+        imm   r0, 0
+        ret
+cac_have:
+        imm   r0, 1048576
+        add   r0, r6
+        loadb r0, r0
+        ret
+
+; ---------------- identifiers and token expectations ----------------
+parse_identifier:
+        call  skip_trivia
+        imm   r0, 524296
+        load  r6, r0
+        imm   r0, 524320
+        store r0, r6
+        call  source_char_at
+        call  is_ident_start
+        imm   r1, 1
+        jeq   r0, r1, pi_started
+        call  set_error
+        ret
+pi_started:
+        imm   r7, 0
+pi_loop:
+        imm   r0, 524320
+        load  r6, r0
+        mov   r0, r6
+        add   r0, r7
+        call  source_char_at_or_eof
+        imm   r1, 0
+        jlt   r0, r1, pi_done
+        call  is_ident_continue
+        imm   r1, 1
+        jeq   r0, r1, pi_more
+        jmp   pi_done
+pi_more:
+        imm   r0, 1
+        add   r7, r0
+        jmp   pi_loop
+pi_done:
+        imm   r0, 524320
+        load  r6, r0
+        imm   r0, 524328
+        store r0, r7
+        imm   r0, 524296
+        add   r6, r7
+        store r0, r6
+        ret
+
+name_is_main:
+        imm   r0, 524328
+        load  r1, r0
+        imm   r2, 4
+        jeq   r1, r2, nim_compare
+        imm   r0, 0
+        ret
+nim_compare:
+        imm   r6, 0
+nim_loop:
+        jlt   r6, r2, nim_byte
+        imm   r0, 1
+        ret
+nim_byte:
+        imm   r0, 524320
+        load  r0, r0
+        imm   r1, 1048576
+        add   r1, r0
+        add   r1, r6
+        loadb r3, r1
+        imm   r1, kw_main
+        add   r1, r6
+        loadb r4, r1
+        jeq   r3, r4, nim_next
+        imm   r0, 0
+        ret
+nim_next:
+        imm   r0, 1
+        add   r6, r0
+        jmp   nim_loop
+
+; Inputs r0=literal address, r1=length, r2=identifier-boundary flag.
+expect_literal:
+        imm   r3, 524336
+        store r3, r0
+        imm   r3, 524344
+        store r3, r1
+        imm   r3, 524352
+        store r3, r2
+        call  skip_trivia
+        imm   r3, 524296
+        load  r6, r3
+        imm   r7, 0
+el_loop:
+        imm   r3, 524344
+        load  r4, r3
+        jlt   r7, r4, el_compare
+        jmp   el_boundary
+el_compare:
+        imm   r3, 524296
+        load  r6, r3
+        mov   r0, r6
+        add   r0, r7
+        call  source_char_at_or_eof
+        imm   r1, 0
+        jlt   r0, r1, el_error
+        mov   r5, r0
+        imm   r3, 524336
+        load  r3, r3
+        add   r3, r7
+        loadb r4, r3
+        jeq   r5, r4, el_next
+        jmp   el_error
+el_next:
+        imm   r0, 1
+        add   r7, r0
+        jmp   el_loop
+el_boundary:
+        imm   r3, 524352
+        load  r3, r3
+        imm   r4, 0
+        jeq   r3, r4, el_commit
+        imm   r3, 524296
+        load  r6, r3
+        mov   r0, r6
+        add   r0, r7
+        call  source_char_at_or_eof
+        imm   r1, 0
+        jlt   r0, r1, el_commit
+        call  is_ident_continue
+        imm   r1, 1
+        jeq   r0, r1, el_error
+el_commit:
+        imm   r3, 524296
+        load  r6, r3
+        add   r6, r7
+        imm   r0, 524296
+        store r0, r6
+        ret
+el_error:
+        call  set_error
+        ret
+
+expect_char:
+        imm   r1, 524360
+        store r1, r0
+        call  skip_trivia
+        imm   r0, 524296
+        load  r6, r0
+        mov   r0, r6
+        call  source_char_at_or_eof
+        imm   r1, 0
+        jlt   r0, r1, ec_error
+        mov   r2, r0
+        imm   r1, 524360
+        load  r1, r1
+        jeq   r2, r1, ec_ok
+ec_error:
+        call  set_error
+        ret
+ec_ok:
+        imm   r0, 1
+        add   r6, r0
+        imm   r0, 524296
+        store r0, r6
+        ret
+
+; ---------------- source cursor helpers ----------------
+skip_trivia:
+        imm   r0, 524296
+        load  r6, r0
+st_loop:
+        mov   r0, r6
+        call  source_char_at_or_eof
+        imm   r1, 0
+        jlt   r0, r1, st_done
+        mov   r7, r0
+        imm   r1, 33
+        jlt   r7, r1, st_advance
+        imm   r1, 59
+        jeq   r7, r1, st_comment
+        jmp   st_done
+st_advance:
+        imm   r0, 1
+        add   r6, r0
+        jmp   st_loop
+st_comment:
+        imm   r0, 1
+        add   r6, r0
+st_comment_loop:
+        mov   r0, r6
+        call  source_char_at_or_eof
+        imm   r1, 0
+        jlt   r0, r1, st_done
+        imm   r1, 1
+        add   r6, r1
+        imm   r1, 10
+        jeq   r0, r1, st_loop
+        jmp   st_comment_loop
+st_done:
+        imm   r0, 524296
+        store r0, r6
+        ret
+
+peek_token_char:
+        call  skip_trivia
+        imm   r0, 524296
+        load  r0, r0
+        call  source_char_at_or_eof
+        ret
+
+consume_one:
+        imm   r0, 524296
+        load  r1, r0
+        imm   r2, 1
+        add   r1, r2
+        store r0, r1
+        ret
+
+; r0=source offset; return byte or -1.
+source_char_at_or_eof:
+        mov   r6, r0
+        imm   r1, 524288
+        load  r1, r1
+        jlt   r6, r1, scaoe_have
+        imm   r0, 0
+        imm   r1, 1
+        sub   r0, r1
+        ret
+scaoe_have:
+        imm   r0, 1048576
+        add   r0, r6
+        loadb r0, r0
+        ret
+
+; r6=source offset; return byte or set ERROR.
+source_char_at:
+        mov   r0, r6
+        call  source_char_at_or_eof
+        imm   r1, 0
+        jlt   r0, r1, sca_error
+        ret
+sca_error:
+        call  set_error
+        imm   r0, 0
+        ret
+
+is_ident_start:
+        mov   r6, r0
+        imm   r1, 95
+        jeq   r6, r1, iis_yes
+        imm   r1, 65
+        jlt   r6, r1, iis_no
+        imm   r1, 91
+        jlt   r6, r1, iis_yes
+        imm   r1, 97
+        jlt   r6, r1, iis_no
+        imm   r1, 123
+        jlt   r6, r1, iis_yes
+iis_no:
+        imm   r0, 0
+        ret
+iis_yes:
+        imm   r0, 1
+        ret
+
+is_ident_continue:
+        mov   r6, r0
+        call  is_ident_start
+        imm   r1, 1
+        jeq   r0, r1, iic_yes
+        imm   r1, 48
+        jlt   r6, r1, iic_no
+        imm   r1, 58
+        jlt   r6, r1, iic_yes
+iic_no:
+        imm   r0, 0
+        ret
+iic_yes:
+        imm   r0, 1
+        ret
+
+; ---------------- output helpers ----------------
+emit_fixed:
+        imm   r2, 524312
+        load  r2, r2
+        imm   r3, 0
+        jeq   r2, r3, ef_reserve
+        imm   r6, 0
+ef_loop:
+        jlt   r6, r1, ef_byte
+        ret
+ef_byte:
+        mov   r2, r0
+        add   r2, r6
+        loadb r3, r2
+        write r3
+        imm   r4, 1
+        add   r6, r4
+        jmp   ef_loop
+ef_done:
+        ret
+ef_reserve:
+        call  reserve_output
+        ret
+
+emit_span:
+        imm   r2, 524312
+        load  r2, r2
+        imm   r3, 0
+        jeq   r2, r3, es_reserve
+        imm   r6, 0
+es_loop:
+        jlt   r6, r1, es_byte
+        ret
+es_byte:
+        imm   r2, 1048576
+        add   r2, r0
+        add   r2, r6
+        loadb r3, r2
+        write r3
+        imm   r4, 1
+        add   r6, r4
+        jmp   es_loop
+es_done:
+        ret
+es_reserve:
+        call  reserve_output
+        ret
+
+emit_unsigned:
+        mov   r6, r0
+        imm   r7, 0
+        imm   r1, 0
+        jeq   r6, r1, eu_zero
+eu_digits:
+        mov   r0, r6
+        imm   r1, 10
+        mod   r0, r1
+        imm   r1, 48
+        add   r0, r1
+        imm   r2, 2097152
+        add   r2, r7
+        storeb r2, r0
+        imm   r1, 10
+        div   r6, r1
+        imm   r1, 1
+        add   r7, r1
+        imm   r1, 0
+        jeq   r6, r1, eu_write
+        jmp   eu_digits
+eu_zero:
+        imm   r1, 524312
+        load  r1, r1
+        imm   r2, 0
+        jeq   r1, r2, eu_reserve_one
+        imm   r0, 48
+        write r0
+        ret
+eu_write:
+        imm   r1, 524312
+        load  r1, r1
+        imm   r2, 0
+        jeq   r1, r2, eu_reserve_digits
+eu_write_loop:
+        imm   r1, 0
+        jeq   r7, r1, eu_done
+        imm   r1, 1
+        sub   r7, r1
+        imm   r2, 2097152
+        add   r2, r7
+        loadb r0, r2
+        write r0
+        jmp   eu_write_loop
+eu_reserve_one:
+        imm   r1, 1
+        call  reserve_output
+        ret
+eu_reserve_digits:
+        mov   r1, r7
+        call  reserve_output
+eu_done:
+        ret
+
+; Input r1=prospective byte count. Validation reserves against the Alpha
+; assembler's 1 MiB source region before any output is published.
+reserve_output:
+        imm   r2, 1048576
+        sub   r2, r1
+        imm   r3, 524400
+        load  r4, r3
+        jlt   r2, r4, ro_error
+        add   r4, r1
+        store r3, r4
+        ret
+ro_error:
+        call  set_error
+        ret
+
+set_error:
+        imm   r0, 524304
+        imm   r1, 524384
+        load  r1, r1
+        store r0, r1
+        ret
+error_value:
+        imm   r0, 524304
+        load  r0, r0
+        ret
+
+; ---------------- static output and keyword bytes ----------------
+kw_proc:
+        db "proc"
+kw_return:
+        db "return"
+kw_main:
+        db "main"
+out_prelude_a:
+        db "imm r15,1048576\ncall "
+out_prelude_b:
+        db "\nhalt r0\n"
+out_label_suffix:
+        db ":\n"
+out_imm_prefix:
+        db "imm r0,"
+out_push:
+        db "\nimm r1,8\nsub r15,r1\nstore r15,r0\n"
+out_pop_add:
+        db "\nload r1,r15\nimm r2,8\nadd r15,r2\nadd r1,r0\nmov r0,r1\n"
+out_pop_sub:
+        db "\nload r1,r15\nimm r2,8\nadd r15,r2\nsub r1,r0\nmov r0,r1\n"
+out_pop_mul:
+        db "\nload r1,r15\nimm r2,8\nadd r15,r2\nmul r1,r0\nmov r0,r1\n"
+out_pop_div:
+        db "\nload r1,r15\nimm r2,8\nadd r15,r2\ndiv r1,r0\nmov r0,r1\n"
+out_pop_mod:
+        db "\nload r1,r15\nimm r2,8\nadd r15,r2\nmod r1,r0\nmov r0,r1\n"
+out_ret:
+        db "\nret\n"
