@@ -2,10 +2,11 @@
 
 [Lattice overview](../bootstrap_lattice.md) | Prev: [Gamma](gamma.md) | Next: —
 
-> **Status: WORKING ON-RAMP.** `compiler/delta-rs/` is the disposable Rust
-> implementation. Its native corpus, self-hosting compiler, and Delta-to-Gamma
-> meaning diamond exist today. The implementation is still being moved fully
-> onto the audited bootstrap lineage.
+> **Status: WORKING RUNG.** `bootstrap/rungs/delta/` owns the language corpus,
+> Delta-written compiler, and lattice-built artifacts. The disposable Rust
+> producer lives separately under `bootstrap/onramps/delta-rust/`. Native,
+> self-hosting, and Delta-to-Gamma meaning gates exist today; exact lower-rung
+> coverage of the eventual Omega0 compiler remains open.
 
 Delta is the terminal small/Greek language rung in the bootstrap spine:
 
@@ -22,9 +23,11 @@ That compiler then builds the full optimizing Omega compiler from Omega source.
 
 ## Implementation
 
-- `compiler/delta-rs/` is the current Rust on-ramp and executable specification.
-- `compiler/delta-rs/samples/lowermachine.alp` is the self-hosting compiler
-  written in the language.
+- `bootstrap/rungs/delta/samples/` is the canonical executable language corpus.
+- `bootstrap/rungs/delta/samples/lowermachine.alp` is the self-hosting compiler
+  written in Delta.
+- `bootstrap/onramps/delta-rust/` is the current disposable Rust producer and
+  executable reference. `compiler/delta-rs` remains a compatibility symlink.
 - `DELTA_EMIT=gamma` exposes the Rust reference elaborator. The
   `delta-meaning-diamond.sh` gate compares it with native execution; it is useful
   regression evidence, not the final authority.
@@ -32,12 +35,12 @@ That compiler then builds the full optimizing Omega compiler from Omega source.
   the shared Delta/Omega machine surface. Gamma's `interp.beta` executes its
   result. Exact coverage of the Delta source eventually used by Omega0 remains
   the closure criterion.
-- `compiler/delta/` contains the checked-in bootstrap binaries produced by this
-  work.
-- `compiler/delta-rs/samples/bootstrap-storage.alp` is the first fixed-backing
+- `bootstrap/rungs/delta/build/` contains the checked-in bootstrap binaries
+  produced by this work. `compiler/delta` is a compatibility symlink.
+- `bootstrap/rungs/delta/samples/bootstrap-storage.alp` is the first fixed-backing
   storage profile canary. It uses checked integer-offset reservations and bulk
   reset without adding pointers or a general heap to Delta.
-- `compiler/delta-rs/delta-storage-meaning.sh` evaluates that canary and a
+- `bootstrap/onramps/delta-rust/delta-storage-meaning.sh` evaluates that canary and a
   perturbation through `omega2gamma.beta` and Gamma's `interp.beta`, without the
   Rust Gamma emitter defining the result.
 - `bootstrap/omega0/compiler/omega0-frontend.alp` is the first actual Omega0

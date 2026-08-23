@@ -88,7 +88,7 @@ reset(mark)
 Zero-sized allocations succeed at the aligned cursor. Successful allocations
 are deterministic, monotonic, aligned, and disjoint until a valid bulk reset.
 Handles are indices, not host addresses. The executable canary is
-[`../../../compiler/delta-rs/samples/bootstrap-storage.alp`](../../../compiler/delta-rs/samples/bootstrap-storage.alp).
+[`../../rungs/delta/samples/bootstrap-storage.alp`](../../rungs/delta/samples/bootstrap-storage.alp).
 The Delta-written `lowermachine.alp` now applies the same convention at compiler
 scale: one explicitly reserved typed extent is partitioned into integer-offset
 logical tables, while source bytes reserve contiguous cells at runtime in a
@@ -114,8 +114,10 @@ unknown names, wrong receiver types, wrong argument types/counts, malformed
 strings, and a missing entry are negative gates.
 
 [`omega0-frontend.alp`](omega0-frontend.alp) now implements that front end in
-D0. `compiler/delta-rs/samples/omega0-frontend.alp` is a compatibility symlink
-for the transitional on-ramp.
+D0. `bootstrap/rungs/delta/samples/omega0-frontend.alp` is a rung-local
+compatibility symlink for the shared compiler slice; the historical
+`compiler/delta-rs/samples/omega0-frontend.alp` entry resolves through the
+temporary on-ramp compatibility paths.
 It accepts exactly one canonical bundled source, retains at most 2,048 source
 bytes with checked exhaustion, validates the complete source as UTF-8, and uses
 a streaming lexer rather than a token arena. Fixed O0 names use ASCII

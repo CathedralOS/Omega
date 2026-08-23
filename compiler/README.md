@@ -37,6 +37,10 @@ lives at `bootstrap/rungs/alpha/assembler/`; historical `compiler/beta` is only
 a compatibility path. Beta proper is the language compiled by
 `bootstrap/rungs/beta/bc.beta`; `compiler/beta-lang` is also only a
 compatibility path.
+Delta's language corpus, Delta-written compiler, and lattice-built artifacts
+live under `bootstrap/rungs/delta/`; its disposable Rust producer lives under
+`bootstrap/onramps/delta-rust/`. Historical `compiler/delta` and
+`compiler/delta-rs` entries are compatibility paths.
 
 ## Proof kernel
 
@@ -105,8 +109,8 @@ new language dependency.
 ```sh
 sh compiler/verify-lattice.sh
 sh bootstrap/rungs/beta/selfhost.sh
-sh compiler/gamma/test-interp.sh
-sh compiler/gamma/test-typeck.sh
+sh bootstrap/rungs/gamma/test-interp.sh
+sh bootstrap/rungs/gamma/test-typeck.sh
 sh bootstrap/assurance/proof-kernel/gates/test.sh
 ```
 

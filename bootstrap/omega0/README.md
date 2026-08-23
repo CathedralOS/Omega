@@ -15,8 +15,10 @@ Alpha → Beta → Gamma → Delta
 
 Ownership is explicit: `meaning/` contains the Rust-free meaning route,
 `compiler/` contains the first-compiler profiles and source-bundle tooling, and
-`gates/` contains executable acceptance checks, their untrusted encoders, and
-their private fixtures.
+`gates/` contains executable acceptance and conformance checks plus their
+private fixtures. Cross-rung meaning/artifact obligation reconstruction lives
+under `bootstrap/assurance/refinement/omega0/`; temporary symlinks in `gates/`
+preserve historical entry points.
 `compiler/omega/` is a historical compatibility directory only.
 
 ## What exists here
@@ -28,9 +30,9 @@ their private fixtures.
   samples through that route.
 - [`gates/kernel-diamond.sh`](gates/kernel-diamond.sh) compares the supported kernel subset across current native
   and meaning implementations. It is a regression/coverage gate, not DDC.
-- `gates/meaning-tv.sh`, `gates/input-tv.sh`, and
-  `gates/translation-validation.sh` explore
-  artifact-bound claims and refinement evidence.
+- [`../assurance/refinement/omega0/`](../assurance/refinement/omega0/) owns the
+  meaning-TV, input-TV, translation-validation, and generated-certificate replay
+  gates and their untrusted encoders.
 - convergence and certificate gates run emitted evidence through the low-rung
   proof kernel and negative controls.
 - [`compiler/BOOTSTRAP_PROFILES.md`](compiler/BOOTSTRAP_PROFILES.md) freezes the Delta implementation profile for Omega0

@@ -3,9 +3,11 @@
 Alpha is the native execution floor of the lattice: a small, hand-written,
 hand-auditable VM checked against written semantics.
 This owner contains the per-platform seed binaries and audited listings, the
-written semantics and conformance tools, and the Alpha-written assembler. The
-seed audit boundary remains the binaries, listings, and semantics; colocated
-reference/refinement tools do not become trusted by placement.
+written semantics and conformance tools, the executable reference realization,
+and the Alpha-written assembler. Cross-rung Beta-to-Alpha refinement
+reconstruction lives under `bootstrap/assurance/refinement/beta/`; temporary
+symlinks here preserve its historical entry points without assigning it to the
+Alpha rung.
 
 ```
 alpha_x64_windows.exe    seed binary, x86-64 Windows PE   (audit THIS)
@@ -23,9 +25,8 @@ conformance.sh           executable companion: hand-built tapes pinning every op
 verify.sh                the per-platform acceptance gate: provenance + conformance + reproduction
 
 assembler/               Alpha-written assembler, self-host gate, reference cross-check, and examples
-refinement-samples/      Beta fixtures used by the transitional refinement tooling
-alpha_ref*.py            untrusted executable/reference semantics helpers
-refinement*.{sh,py}      transitional refinement gates awaiting the assurance split
+alpha_ref.py             untrusted executable reference realization of Alpha meaning
+refinement*              compatibility symlinks to cross-rung assurance tooling
 ```
 
 `sh verify.sh` runs the whole local trust check for the host's seed:
