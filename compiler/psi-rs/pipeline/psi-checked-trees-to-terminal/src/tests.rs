@@ -507,7 +507,7 @@ fn payloadless_sum_equality_lowers_to_case_membership_equivalence() {
         .expect("case-membership equality validates");
     let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module)
         .expect("case-membership module encodes");
-    assert_eq!(&bytes[8..10], &21_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &22_u16.to_le_bytes());
     assert_eq!(
         psi_terminal_codec::decode_module(&bytes),
         Ok(lowered.semantic_module.clone())
@@ -588,7 +588,7 @@ fn payload_bearing_sum_equality_uses_exact_case_payload_paths() {
         .expect("exact case-payload paths validate");
     let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module)
         .expect("payload-bearing sum module encodes");
-    assert_eq!(&bytes[8..10], &21_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &22_u16.to_le_bytes());
     assert_eq!(
         psi_terminal_codec::decode_module(&bytes),
         Ok(lowered.semantic_module.clone())
@@ -677,6 +677,19 @@ fn hard_root_checked_fixture() -> CheckedTrees {
         interface: ServiceReachInterface::PublishedCeiling(port_reach),
         checked_inferred: port_reach,
     };
+    checked.facts.service_reaches.machines.append_to_span(
+        &mut checked.facts.service_reaches.root_machines,
+        psi_checked_trees::MachineServiceReachRows {
+            machine: root,
+            interface: ServiceReachInterface::PublishedCeiling(port_reach),
+            published_ceiling: port_reach,
+            inferred_direct: port_reach,
+            inferred_transitive: port_reach,
+            effective: port_reach,
+            concrete_effective: port_reach,
+            ..Default::default()
+        },
+    );
     checked.facts.flow.terminal_machines = psi_checked_trees::CheckedTerminalMachineSelections {
         machines: vec![
             CheckedTerminalMachineSelection {

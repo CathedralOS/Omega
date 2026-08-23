@@ -37,6 +37,7 @@ mod frontier;
 mod machine;
 mod operations;
 mod propositions;
+mod root_service_reach;
 mod structural_operations;
 
 use call_graph::validate_call_graph;
@@ -151,6 +152,7 @@ fn validate_module_with_policy(
     if !registry.machines.contains(&module.entry) {
         return Err(ModuleError::UnknownEntryMachine(module.entry));
     }
+    root_service_reach::validate_root_service_reach_exact(module)?;
 
     Ok(())
 }
