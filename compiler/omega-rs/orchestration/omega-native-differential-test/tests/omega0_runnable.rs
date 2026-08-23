@@ -136,6 +136,15 @@ fn canonical_omega0_agrees_from_terminal_meaning_through_runnable_linux_image() 
         target_images.push((target, image.output().bytes.clone()));
     }
 
+    if let Ok(path) = std::env::var("OMEGA0_WRITE_X64_IMAGE") {
+        let bytes = &target_images
+            .iter()
+            .find(|(target, _)| target.architecture == omega_target::Architecture::X86_64)
+            .expect("x86-64 image")
+            .1;
+        std::fs::write(path, bytes).expect("write requested x86-64 O0 image");
+    }
+
     #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
     assert_native_observable(
         &target_images
@@ -209,7 +218,8 @@ fn native_o0_lowering_rejects_a_provider_admitted_for_another_requirement() {
 }
 
 fn fixture_bytes() -> Vec<u8> {
-    let hex = include_str!("../../../../omega/fixtures/omega0-terminal-v25.hex");
+    let hex =
+        include_str!("../../../../../bootstrap/omega0/gates/fixtures/omega0-terminal-v25.hex");
     let digits = hex
         .bytes()
         .filter(|byte| !byte.is_ascii_whitespace())

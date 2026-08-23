@@ -52,10 +52,11 @@ decoders, and the independent Gamma proof-kernel implementation safe to write.
 ```sh
 sh compiler/gamma/test-interp.sh
 sh compiler/gamma/test-typeck.sh
-sh compiler/gamma/test-checker.sh
+sh bootstrap/assurance/proof-kernel/gates/gamma-checker.sh
 ```
 
 Canonical typed examples live in `canonical-bytes/`,
 `terminal-codec-primitives/`, `terminal-ledger-spike/`, and
-`checker_typed.gamma`. The root `examples/*.gamma` corpus belongs to the parked
+`bootstrap/assurance/proof-kernel/implementations/gamma/checker_typed.gamma`.
+The root `examples/*.gamma` corpus belongs to the parked
 imperative compiler and must not be used as the canonical language definition.

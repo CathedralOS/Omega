@@ -40,8 +40,9 @@ implementation of the generic proof kernel is small and auditable.
 - `compiler/gamma/interp.beta` — canonical pure, fuel-bounded interpreter;
 - `compiler/gamma/typeck.beta` — static checker for `Int`, declared ADTs,
   functions, constructors, and matches;
-- `compiler/gamma/checker.gamma` and `checker_typed.gamma` — independent
-  proof-kernel implementations hosted by Gamma;
+- `bootstrap/assurance/proof-kernel/implementations/gamma/` — independent
+  proof-kernel implementations hosted by Gamma, owned by assurance rather than
+  the language rung;
 - `compiler/gamma/canonical-bytes/` and `terminal-codec-primitives/` — reusable
   typed canonical-byte decoding layers;
 - `compiler/gamma/terminal-ledger-spike/` — bounded feasibility work for the

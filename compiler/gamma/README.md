@@ -16,9 +16,8 @@ Principal artifacts:
 
 - `interp.beta` — canonical Gamma reference interpreter, written in Beta;
 - `typeck.beta` — monomorphic Gamma type checker, written in Beta;
-- `checker.gamma` and `checker_typed.gamma` — independent proof-kernel
-  implementations hosted by Gamma today; their target owner is
-  `bootstrap/assurance/proof-kernel/`, not the Gamma rung;
+- `bootstrap/assurance/proof-kernel/implementations/gamma/` — independent
+  proof-kernel implementations hosted by Gamma and owned by assurance;
 - `canonical-bytes/` — reusable typed byte-cursor primitives;
 - `terminal-codec-primitives/` — exact terminal-Psi codec primitives;
 - `terminal-ledger-spike/` — bounded canonical semantic-ledger feasibility work.
@@ -28,7 +27,7 @@ Run the principal gates from the repository root:
 ```sh
 sh compiler/gamma/test-interp.sh
 sh compiler/gamma/test-typeck.sh
-sh compiler/gamma/test-checker.sh
+sh bootstrap/assurance/proof-kernel/gates/gamma-checker.sh
 sh compiler/gamma/test-canonical-bytes.sh
 sh compiler/gamma/test-terminal-codec-primitives.sh
 sh compiler/gamma/test-terminal-ledger-spike.sh

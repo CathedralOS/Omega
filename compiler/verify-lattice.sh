@@ -91,63 +91,64 @@ step "Beta  — language compiler (on-ramp) + corpus"   beta-lang-rs test.sh
 step "bc    — Beta compiler in Beta self-hosts"       beta   selfhost.sh
 step "bc    — per-feature gate"                       beta   test.sh
 step "bc    — checked source-arena exhaustion"        beta   source-exhaustion.sh beta-lang-rs alpha-assembler
-step "bc    — CORRECTNESS: reference interpreter (beta_interp.py) == compile+run, random programs" beta-lang-py beta-correctness-fuzz.sh beta-lang-rs alpha-assembler
-step "bc    — EXHAUSTIVE I/O: interpret == compile+run over ALL 256 input bytes per program" beta-lang-py beta-io-exhaust.sh beta-lang-rs alpha-assembler
-step "proof kernel — certificate checker"                    proof-kernel       test.sh
-step "proof kernel — soundness battery (no false proof)"     proof-kernel       soundness.sh
-step "proof kernel — CROSS-CHECK: check_ref.py agrees on logic + equality + TV certs" proof-kernel check-ref-diamond.sh beta-lang-rs alpha-assembler
+step "bc    — CORRECTNESS: reference interpreter (beta_interp.py) == compile+run, random programs" beta-reference beta-correctness-fuzz.sh beta-lang-rs alpha-assembler
+step "bc    — EXHAUSTIVE I/O: interpret == compile+run over ALL 256 input bytes per program" beta-reference beta-io-exhaust.sh beta-lang-rs alpha-assembler
+step "proof kernel — certificate checker"                    proof-kernel-gates test.sh
+step "proof kernel — soundness battery (no false proof)"     proof-kernel-gates soundness.sh
+step "proof kernel — CROSS-CHECK: check_ref.py agrees on logic + equality + TV certs" proof-kernel-gates check-ref-diamond.sh beta-lang-rs alpha-assembler
 step "gamma — reference interpreter (ADTs + match)"   gamma       test-interp.sh
 step "gamma — MEANING CROSS-CHECK: gamma_ref.py agrees with interp.beta (fuzz)" gamma gamma-diamond-py.sh beta-lang-rs alpha-assembler
 step "gamma — static type checker"                    gamma       test-typeck.sh
 step "gamma — shared typed canonical-byte decoder" gamma test-canonical-bytes.sh
 step "gamma — canonical terminal ledger + closed leaf/call schemas" gamma test-terminal-ledger-spike.sh psi/semantics/psi-terminal-codec
-step "gamma — the proof kernel, written IN gamma"    gamma       test-checker.sh
-step "cross-check — checkers agree (Beta, Gamma, type-erased typed)" proof-kernel  checker-diamond.sh gamma
-step "seam — definitional eq vs operational eval"  proof-kernel       semantics-diamond.sh gamma
-step "seam — inductive universals vs operational eval" proof-kernel      induction-soundness.sh gamma
-step "seam — inductive predicates vs operational decision" proof-kernel   predicate-soundness.sh gamma
-step "seam — propositional logic vs classical truth-table"  proof-kernel   logic-soundness.sh gamma
-step "seam — corpus theorems: proved AND operationally true" proof-kernel soundness-sweep.sh gamma
-step "seam — FUZZ: random +/* defeq vs operational eval" proof-kernel     seam-fuzz.sh gamma
-step "seam — recx accumulator recursion vs independent evaluation (check.beta + check_ref + checker.gamma agree)" proof-kernel recx-soundness.sh gamma alpha-assembler beta beta-lang-rs
-step "seam — prodrec product eliminator cross-check: check.beta + check_ref + checker.gamma decide identically (guard + soundness controls rejected by all three)" proof-kernel prodrec-seam.sh gamma alpha-assembler beta beta-lang-rs
-step "contract discharge (omega source) — math_proofs requires/ensures translated to kernel propositions and proven by check.beta + check_ref + checker.gamma (perturbation rejected)" proof-kernel math-contracts.sh gamma alpha-assembler beta beta-lang-rs corpus
-step "termination discharge (omega source) — 'terminates by s -> Slice::Length' tail-recursion tied to a 3-checker measure-decrease lemma (reversed measure rejected)" proof-kernel termination-obligations.sh gamma alpha-assembler beta beta-lang-rs corpus
-step "forall-input theorem — count(xs,n)=len(xs)+n proven for ALL inputs by induction (check.beta + check_ref + checker.gamma; perturbation rejected)" proof-kernel forall-input.sh gamma alpha-assembler beta beta-lang-rs
-step "forall-input SAMPLE connection — a real sample's count loop tied to the ∀-input theorem: proven = len(s)+acc for EVERY input (not just documented vectors)" proof-kernel forall-sample.sh gamma alpha-assembler beta beta-lang-rs corpus
-step "checker cross-check — FUZZ: random props, check.beta vs checker.gamma" proof-kernel checker-diamond-fuzz.sh gamma
-step "logic cross-check — FUZZ: random propositional proofs, all 3 checkers" proof-kernel logic-diamond-fuzz.sh gamma
-step "predicate cross-check — FUZZ: random Mem/ProdIs/Perm proofs, all 3 checkers" proof-kernel predicate-diamond-fuzz.sh gamma
-step "predicate soundness — FUZZ: random predicates, kernel vs operational decision" proof-kernel predicate-soundness-fuzz.sh gamma
+step "gamma — the proof kernel, written IN gamma"    proof-kernel-gates gamma-checker.sh gamma
+step "cross-check — checkers agree (Beta, Gamma, type-erased typed)" proof-kernel-gates checker-diamond.sh gamma
+step "seam — definitional eq vs operational eval"  proof-kernel-gates semantics-diamond.sh gamma
+step "seam — inductive universals vs operational eval" proof-kernel-gates induction-soundness.sh gamma
+step "seam — inductive predicates vs operational decision" proof-kernel-gates predicate-soundness.sh gamma
+step "seam — propositional logic vs classical truth-table"  proof-kernel-gates logic-soundness.sh gamma
+step "seam — corpus theorems: proved AND operationally true" proof-kernel-gates soundness-sweep.sh gamma
+step "seam — FUZZ: random +/* defeq vs operational eval" proof-kernel-gates seam-fuzz.sh gamma
+step "seam — recx accumulator recursion vs independent evaluation (check.beta + check_ref + checker.gamma agree)" proof-kernel-gates recx-soundness.sh gamma alpha-assembler beta beta-lang-rs
+step "seam — prodrec product eliminator cross-check: check.beta + check_ref + checker.gamma decide identically (guard + soundness controls rejected by all three)" proof-kernel-gates prodrec-seam.sh gamma alpha-assembler beta beta-lang-rs
+step "contract discharge (omega source) — math_proofs requires/ensures translated to kernel propositions and proven by check.beta + check_ref + checker.gamma (perturbation rejected)" proof-kernel-gates math-contracts.sh gamma alpha-assembler beta beta-lang-rs corpus
+step "termination discharge (omega source) — 'terminates by s -> Slice::Length' tail-recursion tied to a 3-checker measure-decrease lemma (reversed measure rejected)" proof-kernel-gates termination-obligations.sh gamma alpha-assembler beta beta-lang-rs corpus
+step "forall-input theorem — count(xs,n)=len(xs)+n proven for ALL inputs by induction (check.beta + check_ref + checker.gamma; perturbation rejected)" proof-kernel-gates forall-input.sh gamma alpha-assembler beta beta-lang-rs
+step "forall-input SAMPLE connection — a real sample's count loop tied to the ∀-input theorem: proven = len(s)+acc for EVERY input (not just documented vectors)" proof-kernel-gates forall-sample.sh gamma alpha-assembler beta beta-lang-rs corpus
+step "checker cross-check — FUZZ: random props, check.beta vs checker.gamma" proof-kernel-gates checker-diamond-fuzz.sh gamma
+step "logic cross-check — FUZZ: random propositional proofs, all 3 checkers" proof-kernel-gates logic-diamond-fuzz.sh gamma
+step "predicate cross-check — FUZZ: random Mem/ProdIs/Perm proofs, all 3 checkers" proof-kernel-gates predicate-diamond-fuzz.sh gamma
+step "predicate soundness — FUZZ: random predicates, kernel vs operational decision" proof-kernel-gates predicate-soundness-fuzz.sh gamma
 step "delta — on-ramp compiles + RUNS its corpus"   delta-rs  test_aarch64.sh
 step "delta meaning — native exec vs gamma reference interpreter" delta-rs delta-meaning-diamond.sh gamma
 step "delta D0 storage meaning (RUST-FREE) — omega2gamma.beta -> interp.beta" delta-rs delta-storage-meaning.sh omega0 gamma
 step "omega0 Delta frontend — canonical bundle through lexer/parser/checker and Delta-written recompilation" delta-rs omega0-frontend-test.sh omega0 corpus
 step "omega0 Delta frontend meaning (RUST-FREE) — retained operands + semantic rejection through Gamma" delta-rs omega0-frontend-meaning.sh omega0 gamma corpus
-step "omega kernel cross-check (RUST-FREE) — native vs omega2gamma.beta->interp.beta" omega kernel-diamond.sh delta-rs gamma
+step "omega kernel cross-check (RUST-FREE) — native vs omega2gamma.beta->interp.beta" omega0-gates kernel-diamond.sh delta-rs gamma
 step "convergence — Delta emits a proof; the proof kernel checks it" delta-rs convergence.sh proof-kernel
 step "convergence (self-hosted) — the self-hosted compiler's certifiers, checked by the proof kernel" delta-rs convergence-selfhost.sh proof-kernel
 step "convergence (reference route) — certifier RUN on interp.beta; cert checked by check.beta" delta-rs convergence-reference.sh proof-kernel gamma
-step "convergence (RUST-FREE) — omega2gamma.beta->interp.beta; cert checked by check.beta" omega convergence-reference.sh delta-rs proof-kernel gamma
-step "omega2gamma termination canary — translator halts on every sample, supported or refused (no silent scan-forever)" omega omega2gamma-termination.sh alpha-assembler beta beta-lang-rs corpus
-step "omega0 source bundle — canonical deterministic multi-file input" omega omega0-bundle-test.sh
-step "omega meaning — real Omega samples run Rust-free; exits match documented intent" omega omega-meaning.sh gamma corpus
-step "omega meaning-TV — the kernel re-computes each covered sample's arithmetic (proof, not comparison)" omega meaning-tv.sh gamma proof-kernel alpha-assembler beta beta-lang-rs corpus
-step "input-grid meaning TV — input-taking samples proven per documented input vector (substitution closes the program; the whole proof pipe applies per vector)" omega input-tv.sh gamma proof-kernel alpha-assembler beta beta-lang-rs corpus
-step "meaning-cert cross-check — meaning-TV certs replayed through check.beta AND check_ref.py" omega meaning-cert-diamond.sh proof-kernel alpha-assembler beta beta-lang-rs corpus
-step "translation validation — the proof kernel re-evaluates each compilation's result (+ - * < == / %, loops, gcd, cross-machine)" omega translation-validation.sh delta-rs proof-kernel gamma
-step "symbolic loops — beta_symbolic's data-dependent loop summaries (symbolic trip count -> closed form) pinned to the interpreter across an input grid" beta-lang-py symbolic-loops.sh
-step "refinement — bc's machine code proved to compute its Beta source meaning (instruction-level TV: both meanings auto-derived, equivalence kernel-checked, never run)" alpha refinement.sh proof-kernel alpha-assembler beta beta-lang-rs beta-lang-py
-step "refinement-cert cross-check — every refl cert replayed through check.beta AND check_ref.py" alpha refinement-cert-diamond.sh proof-kernel alpha-assembler beta beta-lang-rs beta-lang-py
+step "convergence (RUST-FREE) — omega2gamma.beta->interp.beta; cert checked by check.beta" omega0-gates convergence-reference.sh delta-rs proof-kernel gamma
+step "omega2gamma termination canary — translator halts on every sample, supported or refused (no silent scan-forever)" omega0-gates omega2gamma-termination.sh alpha-assembler beta beta-lang-rs corpus
+step "omega0 source bundle — canonical deterministic multi-file input" omega0-gates omega0-bundle-test.sh
+step "omega0 Delta artifact — canonical terminal-Psi to byte-identical x86-64 ELF" omega0-gates delta-terminal-to-elf.sh delta-rs omega-product psi/semantics/psi-terminal-codec
+step "omega meaning — real Omega samples run Rust-free; exits match documented intent" omega0-gates omega-meaning.sh gamma corpus
+step "omega meaning-TV — the kernel re-computes each covered sample's arithmetic (proof, not comparison)" omega0-gates meaning-tv.sh gamma proof-kernel alpha-assembler beta beta-lang-rs corpus
+step "input-grid meaning TV — input-taking samples proven per documented input vector (substitution closes the program; the whole proof pipe applies per vector)" omega0-gates input-tv.sh gamma proof-kernel alpha-assembler beta beta-lang-rs corpus
+step "meaning-cert cross-check — meaning-TV certs replayed through check.beta AND check_ref.py" omega0-gates meaning-cert-diamond.sh proof-kernel alpha-assembler beta beta-lang-rs corpus
+step "translation validation — the proof kernel re-evaluates each compilation's result (+ - * < == / %, loops, gcd, cross-machine)" omega0-gates translation-validation.sh delta-rs proof-kernel gamma
+step "symbolic loops — beta_symbolic's data-dependent loop summaries (symbolic trip count -> closed form) pinned to the interpreter across an input grid" beta-refinement symbolic-loops.sh
+step "refinement — bc's machine code proved to compute its Beta source meaning (instruction-level TV: both meanings auto-derived, equivalence kernel-checked, never run)" alpha refinement.sh proof-kernel alpha-assembler beta beta-lang-rs beta-refinement
+step "refinement-cert cross-check — every refl cert replayed through check.beta AND check_ref.py" alpha refinement-cert-diamond.sh proof-kernel alpha-assembler beta beta-lang-rs beta-refinement
 step "contracts — compiler discharges ensures; the proof kernel checks at build" delta-rs contracts.sh proof-kernel
 step "contracts — static discharge and runtime asserts agree (soundness)" delta-rs discharge-soundness.sh proof-kernel
 # untrusted proof elaborator (named binders -> raw certs); skipped if python3 is absent
 if command -v python3 >/dev/null 2>&1; then
-  step "tool — proof elaborator (named binders -> check.beta)" proof-kernel elab-test.sh gamma
-  step "tool — proof-library cross-check (WHOLE corpus decided identically by check.beta AND check_ref.py; perturbations rejected)" proof-kernel proofs-crosscheck.sh gamma alpha-assembler beta beta-lang-rs
-  step "tool — elaborator/de-elaborator round-trip on the corpus" proof-kernel delab-roundtrip.sh gamma
-  step "tool — proof-search front line (prover discharges; check.beta validates)" proof-kernel prover-test.sh gamma
-  step "tool — prover certificate cross-check (accepted by check.beta AND checker.gamma)" proof-kernel prover-diamond.sh gamma
+  step "tool — proof elaborator (named binders -> check.beta)" proof-kernel-gates elab-test.sh gamma
+  step "tool — proof-library cross-check (WHOLE corpus decided identically by check.beta AND check_ref.py; perturbations rejected)" proof-kernel-gates proofs-crosscheck.sh gamma alpha-assembler beta beta-lang-rs
+  step "tool — elaborator/de-elaborator round-trip on the corpus" proof-kernel-gates delab-roundtrip.sh gamma
+  step "tool — proof-search front line (prover discharges; check.beta validates)" proof-kernel-gates prover-test.sh gamma
+  step "tool — prover certificate cross-check (accepted by check.beta AND checker.gamma)" proof-kernel-gates prover-diamond.sh gamma
 fi
 
 echo ""

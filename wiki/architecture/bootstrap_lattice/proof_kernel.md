@@ -12,9 +12,10 @@ through it, and it adds no stage between Gamma and Delta. It is an assurance
 service used by producers and artifact verifiers throughout the build lattice.
 
 Its canonical owner is `bootstrap/assurance/proof-kernel/`;
-`compiler/proof-kernel` is a temporary compatibility path. Separating the Beta,
-Gamma, and executable reference implementations from untrusted proof tooling,
-corpora, and gates inside that owner remains migration work. The
+`compiler/proof-kernel` is a compatibility path. Beta, Gamma, and executable
+reference implementations live under `implementations/`; untrusted automation,
+fixtures, and executable policy live under `tools/`, `corpus/`, and `gates/`.
+The
 product-specific `psi-proof-kernel` remains under Psi semantics; it checks Psi
 judgments and is not this generic bootstrap derivation checker.
 
@@ -41,10 +42,10 @@ they gain no authority by producing a candidate certificate.
 
 The principal low-rung implementations are:
 
-- `bootstrap/assurance/proof-kernel/check.beta` — logical proof checking in Beta;
-- `bootstrap/assurance/proof-kernel/eq.beta` — fuel-bounded definitional equality;
-- `compiler/gamma/checker.gamma` — independently written Gamma checker;
-- `compiler/gamma/checker_typed.gamma` — typed Gamma form checked by Gamma's
+- `bootstrap/assurance/proof-kernel/implementations/beta/check.beta` — logical proof checking in Beta;
+- `bootstrap/assurance/proof-kernel/implementations/beta/eq.beta` — fuel-bounded definitional equality;
+- `bootstrap/assurance/proof-kernel/implementations/gamma/checker.gamma` — independently written Gamma checker;
+- `bootstrap/assurance/proof-kernel/implementations/gamma/checker_typed.gamma` — typed Gamma form checked by Gamma's
   static type checker.
 
 They are separately written implementations of a shared calculus. Shared

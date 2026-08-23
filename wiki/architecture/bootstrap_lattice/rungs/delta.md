@@ -28,7 +28,7 @@ That compiler then builds the full optimizing Omega compiler from Omega source.
 - `DELTA_EMIT=gamma` exposes the Rust reference elaborator. The
   `delta-meaning-diamond.sh` gate compares it with native execution; it is useful
   regression evidence, not the final authority.
-- `compiler/omega/omega2gamma.beta` is the lower-rung, Rust-free elaborator for
+- `bootstrap/omega0/meaning/omega2gamma.beta` is the lower-rung, Rust-free elaborator for
   the shared Delta/Omega machine surface. Gamma's `interp.beta` executes its
   result. Exact coverage of the Delta source eventually used by Omega0 remains
   the closure criterion.
@@ -45,8 +45,11 @@ That compiler then builds the full optimizing Omega compiler from Omega source.
   lexes and parses the frozen O0 shape, performs its exact name/type/count
   checks, and retains the two console-boundary operands. Its focused gate also
   recompiles it through Delta-written `lowermachine`.
-- `compiler/omega/BOOTSTRAP_PROFILES.md` freezes the Delta D0 implementation
-  profile and Omega O0 vertical-canary input profile in their transitional home.
+- `bootstrap/omega0/compiler/BOOTSTRAP_PROFILES.md` freezes the Delta D0
+  implementation profile and Omega O0 vertical-canary input profile.
+- `bootstrap/omega0/compiler/omega0-terminal-to-elf.alp` is the first direct
+  artifact backend. It emits the exact O0 Linux x86-64 image without a host
+  assembler or linker; general Omega lowering remains open.
 
 ## Relationship to Psi and Omega
 

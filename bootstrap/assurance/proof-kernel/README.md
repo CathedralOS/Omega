@@ -6,20 +6,25 @@ Rust-free route to run it; this artifact decides whether supplied proof evidence
 is valid.
 
 This tree is assurance infrastructure rather than a compiler or language rung.
-`compiler/proof-kernel` remains a temporary compatibility path; canonical callers
-resolve the `proof-kernel` role through `bootstrap/paths.sh`. The later internal
-split into checker implementations, untrusted tooling, corpora, and gates remains
-separate work. See the
+`compiler/proof-kernel` remains a compatibility path; canonical callers
+resolve the `proof-kernel` role through `bootstrap/paths.sh`. Internal ownership is
+split by responsibility; the host language of a file does not determine its owner.
+See the
 [repository structure](../../../wiki/architecture/bootstrap_lattice/repository_structure.md).
 
 ```
-check.beta           a natural-deduction proof checker (validates LOGICAL proofs)
-eq.beta              a definitional-equality checker (validates COMPUTATIONAL claims)
-test.sh              the gate: bc compiles both, then they accept/reject certificates
-soundness.sh         adversarial battery — invalid certificates must ALL be rejected
-checker-diamond.sh   implementation cross-check: check.beta vs checker.gamma
-semantics-diamond.sh definitional equality vs the interpreter's operational eval
+implementations/
+  beta/              lattice-built logical and definitional-equality checkers
+  reference/         independent executable reference checker
+  gamma/             independent Gamma checker and its typed form
+tools/                untrusted elaboration, proof search, and certificate conversion
+corpus/               proof sources, shared libraries, and deterministic fuzz generators
+gates/                executable soundness, cross-check, and operational-seam policy
 ```
+
+Only checker implementations decide derivation validity. `tools/`, `corpus/`, and
+`gates/` may construct, translate, perturb, or replay evidence, but have no authority
+to make a certificate valid.
 
 Two complementary checkers — the two faces a real proof kernel needs. `check.beta` decides
 "does this certificate *prove* this proposition?"; `eq.beta` decides "do these two
@@ -100,18 +105,19 @@ echo '(-> (& P Q) P) (lam (& P Q) (fst (hyp 0)))' | check   # and-elim -> accept
 echo '(-> (All (-> (Pred 0 (v 0)) (Pred 1 (v 0)))) (-> (All (Pred 0 (v 0))) (All (Pred 1 (v 0))))) (lam (All (-> (Pred 0 (v 0)) (Pred 1 (v 0)))) (lam (All (Pred 0 (v 0))) (gen (app (inst (hyp 1) (v 0)) (inst (hyp 0) (v 0))))))' | check   # -> accept
 ```
 
-`sh test.sh` runs the battery across the whole logic — propositional (modus ponens,
+`sh gates/test.sh` runs the battery across the whole logic — propositional (modus ponens,
 currying, and-commutativity, or-elimination, composition, ex falso), arithmetic
 (`2+2=4`, `2*3=6` by computation), and first-order (∀-distribution, ∃-intro/elim,
 instantiation under nested quantifiers, binary relations) — with matched accept/reject
 pairs. Three further gates harden the trust anchor:
 
-- `sh soundness.sh` — a battery of *invalid* certificates that must all be rejected,
+- `sh gates/soundness.sh` — a battery of *invalid* certificates that must all be rejected,
   including classical tautologies (excluded middle, double-negation, Peirce, the
   drinker paradox) that have no constructive proof.
-- `sh checker-diamond.sh` — the same proofs through **two independent checkers**
-  (`check.beta` and `gamma/checker.gamma`); every verdict must agree.
-- `sh semantics-diamond.sh` — the checker's definitional `=` vs the interpreter's
+- `sh gates/checker-diamond.sh` — the same proofs through **two independent checkers**
+  (`implementations/beta/check.beta` and `implementations/gamma/checker.gamma`);
+  every verdict must agree.
+- `sh gates/semantics-diamond.sh` — the checker's definitional `=` vs the interpreter's
   operational evaluation, agreeing on every equation (the proof/meaning seam).
 
 ## The full stack
@@ -140,16 +146,16 @@ implementations. Gamma's algebraic data types + pattern matching keep one such
 implementation small and auditable. The implementations provide useful
 bug-finding evidence while the soundness bridge matures:
 
-- `check.beta` (this file) hand-encodes the term/type trees as tagged 3-word nodes in
+- [`implementations/beta/check.beta`](implementations/beta/check.beta) hand-encodes the term/type trees as tagged 3-word nodes in
   raw memory and decides everything with a CFG guard-state dispatch on integer tags
   (Beta is itself state-graph shaped, no if/while) — exactly the boilerplate that
   motivated the Gamma rung.
-- [`gamma/checker.gamma`](../../../compiler/gamma/checker.gamma) is the *same logic* as a dozen tiny
-  functions over algebraic data + pattern matching. `checker-diamond.sh` runs proofs
+- [`implementations/gamma/checker.gamma`](implementations/gamma/checker.gamma) is the *same logic* as a dozen tiny
+  functions over algebraic data + pattern matching. `gates/checker-diamond.sh` runs proofs
   through **both** and requires identical verdicts. This agreement is not DDC
   and does not itself prove either checker sound.
-- [`gamma/checker_typed.gamma`](../../../compiler/gamma/checker_typed.gamma) is that Gamma checker
-  fully annotated, and Gamma's own static type checker (`gamma/typeck.beta`) accepts
+- [`implementations/gamma/checker_typed.gamma`](implementations/gamma/checker_typed.gamma) is that Gamma checker
+  fully annotated, and Gamma's own static type checker (`../../../compiler/gamma/typeck.beta`) accepts
   it — so the trust anchor's *code* is shown statically type-safe.
 
 The logic is now **first-order intuitionistic predicate logic with induction**: all

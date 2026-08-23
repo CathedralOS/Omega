@@ -11,7 +11,8 @@ use psi_terminal_codec::{
 static TEST_NONCE: AtomicU64 = AtomicU64::new(0);
 
 fn canonical_bytes() -> Vec<u8> {
-    let hex = include_str!("../../../../omega/fixtures/omega0-terminal-v25.hex");
+    let hex =
+        include_str!("../../../../../bootstrap/omega0/gates/fixtures/omega0-terminal-v25.hex");
     let compact: String = hex
         .chars()
         .filter(|character| !character.is_whitespace())

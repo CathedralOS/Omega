@@ -6,7 +6,8 @@
 # asm_ref.py is a third, independent realization (Python, from the encoding + beta/README.md, not ported).
 # This gate assembles a corpus with BOTH the real assembler and asm_ref.py and asserts the bytecode tapes
 # are byte-identical — so the assembly step is pinned by two independent implementations, closing the gap
-# the way ${OMEGA_PATH_BETA_REFERENCE}/bc2.py closed it for bc. asm_ref.py is UNTRUSTED and checked; runtime never runs it.
+# much as the Beta interpreter independently checks `bc` behavior. asm_ref.py is
+# UNTRUSTED and checked; runtime never runs it.
 set -e
 OMEGA_GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 if [ -z "${OMEGA_REPO_ROOT:-}" ]; then
@@ -54,7 +55,7 @@ if [ -x "$BC" ]; then
   gen cmps 'proc main(){ let a=5 return (a<8)*7 + (a>8) + (a==5) }'
   gen mem  'proc main(){ let b=2097152 word[b]=42 return word[b] }'
   # the big one: the checker (assemble bc''s compilation of check.beta both ways)
-  if [ -f "${OMEGA_PATH_PROOF_KERNEL}"/check.beta ] && "$BC" < "${OMEGA_PATH_PROOF_KERNEL}"/check.beta > "$T/check.asm" 2>/dev/null; then
+  if [ -f "${OMEGA_PATH_PROOF_KERNEL}"/implementations/beta/check.beta ] && "$BC" < "${OMEGA_PATH_PROOF_KERNEL}"/implementations/beta/check.beta > "$T/check.asm" 2>/dev/null; then
     cmp_asm "bc: check.beta (the trust anchor)" "$T/check.asm"; fi
 else
   echo "  (skipped bc-compiled cases — bc not available)"

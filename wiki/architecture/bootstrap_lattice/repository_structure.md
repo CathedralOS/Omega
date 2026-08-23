@@ -16,6 +16,7 @@ bootstrap/
   rungs/
     alpha/                  written semantics + native seeds + Alpha assembler
     beta/                   Beta language + self-hosting compiler
+      reference/            executable reference meaning + semantic fuzzing
     gamma/                  Gamma language, interpreter, and type checker
     delta/                  Delta language + lattice-built compiler
 
@@ -33,7 +34,8 @@ bootstrap/
       tools/                elaboration, proof search, certificate utilities
       corpus/               proofs, negative controls, and seam fixtures
       gates/                soundness, cross-check, and operational-seam gates
-    refinement/             source/artifact obligation reconstruction + gates
+    refinement/
+      beta/                 symbolic Beta obligation reconstruction + gates
 
   omega0/                   Delta-built, simple first Omega compiler
     meaning/                Rust-free Omega/Psi meaning route used by Omega0
@@ -82,19 +84,20 @@ does not grant authority. Compiler outputs become acceptable through
 lower-rooted source-to-artifact refinement, not agreement between producers.
 See [D5](decisions.md#d5--checked-refinement-not-ddc-closes-compiler-provenance).
 
-The useful contents currently grouped under `compiler/beta-lang-py/` have three
-different destinations:
+The useful contents formerly grouped under `compiler/beta-lang-py/` now have
+role-based owners:
 
 | Current content | Actual role | Target owner |
 | --- | --- | --- |
-| `beta_interp.py` and semantic fuzzing | executable Beta reference meaning | `bootstrap/rungs/beta/reference/` or `bootstrap/assurance/refinement/beta/` |
+| `beta_interp.py` and semantic fuzzing | executable Beta reference meaning | `bootstrap/rungs/beta/reference/` |
 | `beta_symbolic.py` and symbolic-loop checks | untrusted refinement reconstruction | `bootstrap/assurance/refinement/beta/` |
-| `beta_parser.py` | shared untrusted Beta source recognition | narrowest Beta reference/refinement owner needing it |
-| compiler portion of `bc2.py` | optional differential backend | retain only for unique diagnostics |
+| `beta_parser.py` | shared untrusted Beta source recognition | `bootstrap/rungs/beta/reference/`, imported by refinement |
 
-The former byte-comparison DDC gate has been removed. It is not waiting on the
-`bc` cold-start refinement edge: that edge closes only through lower-rooted
-source-to-artifact checking.
+The former byte-comparison DDC gate and `bc2.py` backend have been removed after
+showing they provided no unique semantic or refinement coverage. The `bc`
+cold-start edge closes only through lower-rooted source-to-artifact checking.
+`compiler/beta-lang-py/` now contains compatibility forwarding entry points,
+not a canonical implementation owner.
 
 Python is an implementation detail of these tools, not their common owner.
 
@@ -114,9 +117,10 @@ temporary wrappers where needed:
 | `compiler/gamma/` | `bootstrap/rungs/gamma/` |
 | lattice-built Delta sources/artifacts in `compiler/delta*/` | `bootstrap/rungs/delta/` |
 | `compiler/beta-rs/`, `compiler/beta-lang-rs/`, Rust portion of `compiler/delta-rs/` | `bootstrap/onramps/`, separated by produced role |
-| `bootstrap/assurance/proof-kernel/` (compatibility: `compiler/proof-kernel`) + transitional Gamma checker sources | `bootstrap/assurance/proof-kernel/` — owner move complete; internal role split open |
-| refinement scripts spread across `alpha/`, `omega/`, and Python tools | `bootstrap/assurance/refinement/` |
-| `compiler/omega/` bootstrap experiments | `bootstrap/omega0/` |
+| `bootstrap/assurance/proof-kernel/` (compatibility: `compiler/proof-kernel`) | `bootstrap/assurance/proof-kernel/{implementations,tools,corpus,gates}/` — complete |
+| Beta Python symbolic tools | `bootstrap/assurance/refinement/beta/` — complete |
+| other refinement scripts spread across Alpha and Omega0 | `bootstrap/assurance/refinement/` |
+| `bootstrap/omega0/` (compatibility: `compiler/omega`) | `bootstrap/omega0/{meaning,compiler,gates}/` — complete |
 | `compiler/lattice-corpus/` | `bootstrap/corpus/` |
 | `compiler/psi-rs/`, `compiler/omega-rs/` | `compiler/psi/`, `compiler/omega/` |
 

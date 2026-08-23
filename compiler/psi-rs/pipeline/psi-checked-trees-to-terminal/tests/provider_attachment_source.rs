@@ -39,7 +39,8 @@ fn lowered() -> psi_checked_trees_to_terminal::LoweredTerminalPsi {
 }
 
 fn fixture_bytes() -> Vec<u8> {
-    let hex = include_str!("../../../../omega/fixtures/omega0-terminal-v25.hex");
+    let hex =
+        include_str!("../../../../../bootstrap/omega0/gates/fixtures/omega0-terminal-v25.hex");
     let digits = hex
         .bytes()
         .filter(|byte| !byte.is_ascii_whitespace())
