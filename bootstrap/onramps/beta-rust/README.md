@@ -1,19 +1,21 @@
-# `compiler/beta-lang-rs/` — the Beta compiler, throwaway Rust on-ramp
+# Beta Rust producer
 
 This is the retained Rust cold-start/reference compiler for the **Beta language**
 (not the assembler). It reads `.beta` source and emits **Alpha assembly**; the
-existing assembler (`../beta`) lowers that to a tape, which the seed runs.
+Alpha assembler (`../../rungs/alpha/assembler/`) lowers that to a tape, which
+the seed runs.
 
 Its original job was to discover and cold-start the language. The steady-state
-compiler now exists as `../beta-lang/bc.beta`, self-hosts, and is independently
+compiler now exists as `../../rungs/beta/bc.beta`, self-hosts, and is independently
 self-reproducing. This crate is no longer intended as a steady-state dependency.
 It remains useful as a reference producer while complete lower-rooted validation
 of the cold-started `bc` artifact is built. The fixed point alone proves
 dependency closure, not source-to-artifact correctness.
 
-> Naming: `beta-rs` is the on-ramp for the **assembler**; `beta-lang-rs` is the
-> on-ramp for the **language compiler**. (The long-view cleanup — the assembler is
-> really Alpha's assembler, freeing "beta" to mean the language — is deferred.)
+> Naming: `bootstrap/onramps/beta-rust` is the canonical Beta-language producer.
+> `compiler/beta-lang-rs` is its compatibility path. The historical
+> `compiler/beta-rs` path is separately retained for the canonical
+> `bootstrap/onramps/alpha-assembler-rust` producer.
 
 ## Build / run
 
@@ -31,7 +33,7 @@ seed-stamp. Needs `cargo`.
   `+ - * / %` and parentheses, lowered onto the data stack. `answer.beta` → 42.
 - **Slice 2 — procedures, parameters, calls: DONE.** Multiple `proc`s, ≤4
   params, calls in expressions, parameters addressed via the frame pointer — i.e.
-  the [calling convention](../beta-lang/CALLING_CONVENTION.md) generated mechanically.
+  the [calling convention](../../rungs/beta/CALLING_CONVENTION.md) generated mechanically.
   `double.beta` → 42, `calls.beta` (nested `add(mul(2,3),4)`) → 10.
 - **Slice 3 — control flow + locals: DONE.** Multi-statement bodies, `let` locals
   (function-scoped frame slots), assignment, `if`/`else` and `while` (→ `jz`/`jmp`),
@@ -65,5 +67,5 @@ Changes to the Beta surface must update `bc.beta`, its language gates, and the
 canonical Beta meaning/refinement route. Agreement with this Rust implementation
 or another compiler is diagnostic, not semantic authority.
 
-See [`../beta-lang/LANGUAGE.md`](../beta-lang/LANGUAGE.md) for the language surface, and run
+See [`../../rungs/beta/LANGUAGE.md`](../../rungs/beta/LANGUAGE.md) for the language surface, and run
 `sh test.sh` to verify the whole compiler end to end (8 examples + 9 calc cases).

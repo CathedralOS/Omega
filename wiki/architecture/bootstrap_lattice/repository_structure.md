@@ -118,7 +118,8 @@ temporary wrappers where needed:
 | `bootstrap/rungs/gamma/` (compatibility: `compiler/gamma`) | `bootstrap/rungs/gamma/` — complete |
 | `bootstrap/rungs/delta/` (compatibility: `compiler/delta`, Delta samples through `compiler/delta-rs`) | `bootstrap/rungs/delta/` — complete |
 | `bootstrap/onramps/delta-rust/` (compatibility: `compiler/delta-rs`) | `bootstrap/onramps/delta-rust/` — complete |
-| `compiler/beta-rs/`, `compiler/beta-lang-rs/` | `bootstrap/onramps/`, separated by produced role |
+| `bootstrap/onramps/alpha-assembler-rust/` (compatibility: `compiler/beta-rs`) | `bootstrap/onramps/alpha-assembler-rust/` — complete |
+| `bootstrap/onramps/beta-rust/` (compatibility: `compiler/beta-lang-rs`) | `bootstrap/onramps/beta-rust/` — complete |
 | `bootstrap/assurance/proof-kernel/` (compatibility: `compiler/proof-kernel`) | `bootstrap/assurance/proof-kernel/{implementations,tools,corpus,gates}/` — complete |
 | Beta-source/Alpha-artifact refinement tools (compatibility entries under Alpha) | `bootstrap/assurance/refinement/beta/` — complete |
 | Omega0 meaning/artifact TV encoders and gates (compatibility entries under Omega0 gates) | `bootstrap/assurance/refinement/omega0/` — complete |

@@ -22,6 +22,7 @@ fi
 # this manifest; gates do not encode the repository topology themselves.
 : "${OMEGA_PATH_ALPHA:=$OMEGA_PATH_RUNGS_ROOT/alpha}"
 : "${OMEGA_PATH_ALPHA_ASSEMBLER:=$OMEGA_PATH_ALPHA/assembler}"
+: "${OMEGA_PATH_ALPHA_ASSEMBLER_RUST:=$OMEGA_PATH_ONRAMPS_ROOT/alpha-assembler-rust}"
 # Historical compatibility name.  The assembler is an Alpha-tier tool; new
 # plumbing should use OMEGA_PATH_ALPHA_ASSEMBLER / the alpha-assembler role.
 : "${OMEGA_PATH_BETA_ASSEMBLER:=$OMEGA_PATH_ALPHA_ASSEMBLER}"
@@ -29,7 +30,10 @@ fi
 # Historical compatibility name.  New plumbing should use OMEGA_PATH_BETA /
 # the beta role for the language and its self-hosting compiler.
 : "${OMEGA_PATH_BETA_LANGUAGE:=$OMEGA_PATH_BETA}"
-: "${OMEGA_PATH_BETA_RUST:=$OMEGA_PATH_COMPILER_ROOT/beta-lang-rs}"
+# Canonical disposable producer for the Beta language compiler. The historical
+# variable and role remain accepted while external callers migrate.
+: "${OMEGA_PATH_BETA_COMPILER_RUST:=${OMEGA_PATH_BETA_RUST:-$OMEGA_PATH_ONRAMPS_ROOT/beta-rust}}"
+: "${OMEGA_PATH_BETA_RUST:=$OMEGA_PATH_BETA_COMPILER_RUST}"
 : "${OMEGA_PATH_BETA_REFERENCE:=$OMEGA_PATH_BETA/reference}"
 : "${OMEGA_PATH_BETA_REFINEMENT:=$OMEGA_PATH_REFINEMENT_ROOT/beta}"
 : "${OMEGA_PATH_GAMMA:=$OMEGA_PATH_RUNGS_ROOT/gamma}"
@@ -51,9 +55,10 @@ fi
 
 export OMEGA_REPO_ROOT OMEGA_PATH_COMPILER_ROOT OMEGA_PATH_BOOTSTRAP_ROOT
 export OMEGA_PATH_RUNGS_ROOT OMEGA_PATH_ONRAMPS_ROOT OMEGA_PATH_ASSURANCE_ROOT OMEGA_PATH_REFINEMENT_ROOT
-export OMEGA_PATH_ALPHA OMEGA_PATH_ALPHA_ASSEMBLER
+export OMEGA_PATH_ALPHA OMEGA_PATH_ALPHA_ASSEMBLER OMEGA_PATH_ALPHA_ASSEMBLER_RUST
 export OMEGA_PATH_BETA_ASSEMBLER OMEGA_PATH_BETA OMEGA_PATH_BETA_LANGUAGE
-export OMEGA_PATH_BETA_RUST OMEGA_PATH_BETA_REFERENCE OMEGA_PATH_BETA_REFINEMENT OMEGA_PATH_GAMMA
+export OMEGA_PATH_BETA_COMPILER_RUST OMEGA_PATH_BETA_RUST
+export OMEGA_PATH_BETA_REFERENCE OMEGA_PATH_BETA_REFINEMENT OMEGA_PATH_GAMMA
 export OMEGA_PATH_DELTA OMEGA_PATH_DELTA_RUST OMEGA_PATH_PROOF_KERNEL OMEGA_PATH_PROOF_KERNEL_GATES
 export OMEGA_PATH_PROOF_KERNEL_BETA OMEGA_PATH_PROOF_KERNEL_REFERENCE OMEGA_PATH_PROOF_KERNEL_GAMMA
 export OMEGA_PATH_OMEGA0 OMEGA_PATH_CORPUS
@@ -69,9 +74,11 @@ omega_bootstrap_path() {
     compiler) printf '%s\n' "$OMEGA_PATH_COMPILER_ROOT" ;;
     alpha) printf '%s\n' "$OMEGA_PATH_ALPHA" ;;
     alpha-assembler) printf '%s\n' "$OMEGA_PATH_ALPHA_ASSEMBLER" ;;
+    alpha-assembler-rust|beta-rs) printf '%s\n' "$OMEGA_PATH_ALPHA_ASSEMBLER_RUST" ;;
     beta-assembler) printf '%s\n' "$OMEGA_PATH_BETA_ASSEMBLER" ;;
     beta) printf '%s\n' "$OMEGA_PATH_BETA" ;;
     beta-lang) printf '%s\n' "$OMEGA_PATH_BETA_LANGUAGE" ;;
+    beta-rust) printf '%s\n' "$OMEGA_PATH_BETA_COMPILER_RUST" ;;
     beta-lang-rs) printf '%s\n' "$OMEGA_PATH_BETA_RUST" ;;
     beta-reference|beta-lang-py) printf '%s\n' "$OMEGA_PATH_BETA_REFERENCE" ;;
     refinement) printf '%s\n' "$OMEGA_PATH_REFINEMENT_ROOT" ;;

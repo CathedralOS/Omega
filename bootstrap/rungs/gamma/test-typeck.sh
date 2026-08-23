@@ -20,8 +20,8 @@ cd "$OMEGA_GATE_DIR"
 SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
 ASM="${OMEGA_PATH_BETA_ASSEMBLER}"/$BETA_SEED
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
-( cd "${OMEGA_PATH_BETA_RUST}" && sh build.sh "${OMEGA_PATH_BETA}"/bc.beta >/dev/null ) || { echo "bc build failed"; exit 1; }
-"${OMEGA_PATH_BETA_RUST}"/build/bc.exe < typeck.beta > "$T/tc.asm" || { echo "bc(typeck.beta) failed"; exit 1; }
+( cd "${OMEGA_PATH_BETA_COMPILER_RUST}" && sh build.sh "${OMEGA_PATH_BETA}"/bc.beta >/dev/null ) || { echo "bc build failed"; exit 1; }
+"${OMEGA_PATH_BETA_COMPILER_RUST}"/build/bc.exe < typeck.beta > "$T/tc.asm" || { echo "bc(typeck.beta) failed"; exit 1; }
 "$ASM" < "$T/tc.asm" > "$T/tc.tape" || { echo "assemble failed"; exit 1; }
 stamp_seed "$T/tc.tape" "$SEED" "$T/tc.exe" >/dev/null 2>&1
 

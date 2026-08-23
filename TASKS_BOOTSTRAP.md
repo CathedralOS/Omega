@@ -57,7 +57,8 @@ lattice and `compiler/` for the product implementation.
 | Canonical or transitional source | Role | Target owner |
 | --- | --- | --- |
 | `bootstrap/onramps/delta-rust/` (compatibility: `compiler/delta-rs`) | Delta disposable/reference Rust producer | moved and separated from rung ownership |
-| `compiler/beta-rs/`, `compiler/beta-lang-rs/` | Alpha-assembler and Beta-language disposable/reference on-ramps | `bootstrap/onramps/`, separated by produced role |
+| `bootstrap/onramps/alpha-assembler-rust/` (compatibility: `compiler/beta-rs`) | disposable/reference Rust producer of Alpha VM tapes from Alpha assembly | moved and separated from Beta-language ownership |
+| `bootstrap/onramps/beta-rust/` (compatibility: `compiler/beta-lang-rs`) | Beta-language disposable/reference Rust producer | moved and separated from rung ownership |
 | `bootstrap/rungs/beta/reference/` | executable Beta reference meaning and semantic fuzzing | moved; `compiler/beta-lang-py` forwards compatibility entry points |
 | `bootstrap/assurance/refinement/beta/` | complete Beta-source/Alpha-artifact symbolic reconstruction and gates | moved |
 | `compiler/psi-rs/`, `compiler/omega-rs/` | current production Psi/Omega implementations | `compiler/psi/`, `compiler/omega/` |
@@ -435,9 +436,20 @@ additional facilities the bootstrap actually needs.
     artifacts belong under `bootstrap/rungs/delta/`; the Rust producer belongs
     under `bootstrap/onramps/delta-rust/`. Preserve focused compatibility entry
     points while gates switch to path roles.
-  - [ ] Move the remaining Rust Alpha/Beta producers under
+  - [x] Move the remaining Rust Alpha/Beta producers under
     `bootstrap/onramps/`, separated by the artifact they produce. Their host
     language must not define their architectural ownership.
+    - [x] Move historical `compiler/beta-rs` to
+      `bootstrap/onramps/alpha-assembler-rust/`. It produces Alpha VM tapes from
+      Alpha assembly and has no Beta-language role; the old path and `beta-rs`
+      role are compatibility aliases. Its focused gate compares the Rust output
+      with the lattice-built assembler and pins malformed-input rejection.
+    - [x] Move historical `compiler/beta-lang-rs` to
+      `bootstrap/onramps/beta-rust/`. It produces Alpha assembly from Beta
+      source and has no ownership over the Beta language rung; the old path,
+      `beta-lang-rs` role, and `OMEGA_PATH_BETA_RUST` variable are compatibility
+      aliases. Canonical gates use the `beta-rust` role and
+      `OMEGA_PATH_BETA_COMPILER_RUST`.
   - [x] Consolidate remaining cross-rung refinement reconstruction under
     `bootstrap/assurance/refinement/`; leave rung-local semantics and
     conformance gates with their rung. The Beta source/Alpha artifact symbolic
@@ -511,6 +523,8 @@ Run from the repository root:
 ```sh
 sh compiler/verify-lattice.sh
 sh bootstrap/rungs/alpha/assembler/selfhost.sh
+sh bootstrap/onramps/alpha-assembler-rust/test.sh
+sh bootstrap/onramps/beta-rust/test.sh
 sh bootstrap/rungs/beta/selfhost.sh
 sh bootstrap/rungs/beta/test.sh
 sh bootstrap/rungs/gamma/test-interp.sh

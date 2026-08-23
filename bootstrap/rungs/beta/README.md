@@ -1,8 +1,8 @@
 # `bootstrap/rungs/beta/` — the Beta compiler, written in Beta (SELF-HOSTING)
 
 This is **slice 7 of the lattice, done**: the Beta-language compiler written *in
-Beta itself* (`bc.beta`), not in the throwaway Rust on-ramp
-(`../../../compiler/beta-lang-rs`) and
+Beta itself* (`bc.beta`), not in the throwaway Rust producer
+(`../../onramps/beta-rust/`) and
 not hand-written in assembly. **It self-hosts** — `bc` compiles its own source to a
 compiler that reproduces that compilation byte-for-byte (`selfhost.sh`). This
 closes the steady-state execution dependency on Rust. It does not by itself prove
@@ -19,7 +19,7 @@ source-exhaustion.sh  exact source-arena boundary + checked oversized-input fail
 ## How it bootstraps
 
 ```
-  bc.beta ──(beta-lang-rs, the Rust on-ramp)──▶ asm ──(assembler)──▶ bc.exe
+  bc.beta ──(beta-rust, the Rust on-ramp)──▶ asm ──(assembler)──▶ bc.exe
   program.beta ──(bc.exe)──▶ asm ──(assembler)──▶ tape ──▶ run
 ```
 
@@ -39,7 +39,7 @@ sh test.sh        # builds bc, compiles arithmetic programs with it, checks resu
 ## Status — SELF-HOSTING (slices 1–6 done)
 
 bc implements the whole Beta language and compiles its own source to a byte-for-byte
-fixed point. Built slice by slice, mirroring `beta-lang-rs`:
+fixed point. Built slice by slice, mirroring the `beta-rust` producer:
 
 | Slice | Adds | Notes |
 | --- | --- | --- |
@@ -89,5 +89,6 @@ The Beta compiler has a Rust-free steady-state execution path; complete
 lower-rooted validation of its cold-started artifact remains open. It builds
 Gamma's canonical interpreter and type checker; Gamma in turn supplies Delta's meaning substrate. The proof kernel
 is a cross-cutting service with independent Beta and Gamma implementations, not
-a later language rung. The Rust on-ramp (`../../../compiler/beta-lang-rs`) is outside the steady
-lineage and remains only as a documented cold-start/reference producer.
+a later language rung. The Rust producer (`../../onramps/beta-rust/`) is outside
+the steady lineage and remains only as a documented cold-start/reference
+producer. `compiler/beta-lang-rs` is a compatibility path.

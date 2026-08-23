@@ -1,7 +1,7 @@
 ; bc.beta — the Beta compiler, WRITTEN IN BETA.  *** SELF-HOSTING ***
 ;
 ; Reads Beta source on stdin, emits Alpha assembly on stdout — the same job as the
-; Rust on-ramp (beta-lang-rs), but written in Beta itself. It compiles its OWN
+; Rust on-ramp (beta-rust), but written in Beta itself. It compiles its OWN
 ; source to a fixed point (selfhost.sh): bc(bc.beta) assembles to a compiler that
 ; reproduces bc(bc.beta) byte-for-byte, so from that compiler on, Rust is out of
 ; the lineage — it only cold-started the very first bc.

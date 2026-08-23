@@ -19,9 +19,9 @@ fi
 . "$OMEGA_REPO_ROOT/bootstrap/paths.sh" || exit $?
 cd "$OMEGA_GATE_DIR"
 
-( cd "$OMEGA_PATH_BETA_RUST" && sh build.sh "$OMEGA_PATH_BETA/bc.beta" >/dev/null ) \
+( cd "$OMEGA_PATH_BETA_COMPILER_RUST" && sh build.sh "$OMEGA_PATH_BETA/bc.beta" >/dev/null ) \
   || { echo "bc source exhaustion FAIL — bc build"; exit 1; }
-BC="$OMEGA_PATH_BETA_RUST/build/bc.exe"
+BC="$OMEGA_PATH_BETA_COMPILER_RUST/build/bc.exe"
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 LIMIT=1048576
 

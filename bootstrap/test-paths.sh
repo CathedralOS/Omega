@@ -19,12 +19,18 @@ physical_dir() {
   fail "Alpha owner is $OMEGA_PATH_ALPHA"
 [ "$OMEGA_PATH_ALPHA_ASSEMBLER" = "$OMEGA_PATH_ALPHA/assembler" ] ||
   fail "Alpha assembler owner is $OMEGA_PATH_ALPHA_ASSEMBLER"
+[ "$OMEGA_PATH_ALPHA_ASSEMBLER_RUST" = "$OMEGA_REPO_ROOT/bootstrap/onramps/alpha-assembler-rust" ] ||
+  fail "Alpha assembler Rust on-ramp owner is $OMEGA_PATH_ALPHA_ASSEMBLER_RUST"
 [ "$OMEGA_PATH_BETA_ASSEMBLER" = "$OMEGA_PATH_ALPHA_ASSEMBLER" ] ||
   fail "historical assembler variable does not resolve to the Alpha owner"
 [ "$OMEGA_PATH_BETA" = "$OMEGA_REPO_ROOT/bootstrap/rungs/beta" ] ||
   fail "Beta owner is $OMEGA_PATH_BETA"
 [ "$OMEGA_PATH_BETA_LANGUAGE" = "$OMEGA_PATH_BETA" ] ||
   fail "historical Beta language variable does not resolve to the Beta owner"
+[ "$OMEGA_PATH_BETA_COMPILER_RUST" = "$OMEGA_REPO_ROOT/bootstrap/onramps/beta-rust" ] ||
+  fail "Beta Rust producer owner is $OMEGA_PATH_BETA_COMPILER_RUST"
+[ "$OMEGA_PATH_BETA_RUST" = "$OMEGA_PATH_BETA_COMPILER_RUST" ] ||
+  fail "historical Beta Rust variable does not resolve to the producer owner"
 [ "$OMEGA_PATH_GAMMA" = "$OMEGA_REPO_ROOT/bootstrap/rungs/gamma" ] ||
   fail "Gamma owner is $OMEGA_PATH_GAMMA"
 [ "$OMEGA_PATH_PROOF_KERNEL" = "$OMEGA_REPO_ROOT/bootstrap/assurance/proof-kernel" ] ||
@@ -54,8 +60,12 @@ physical_dir() {
   fail "compiler/alpha is not a temporary compatibility symlink"
 [ -L "$OMEGA_REPO_ROOT/compiler/beta" ] ||
   fail "compiler/beta is not a temporary compatibility symlink"
+[ -L "$OMEGA_REPO_ROOT/compiler/beta-rs" ] ||
+  fail "compiler/beta-rs is not a temporary compatibility symlink"
 [ -L "$OMEGA_REPO_ROOT/compiler/beta-lang" ] ||
   fail "compiler/beta-lang is not a temporary compatibility symlink"
+[ -L "$OMEGA_REPO_ROOT/compiler/beta-lang-rs" ] ||
+  fail "compiler/beta-lang-rs is not a temporary compatibility symlink"
 [ -L "$OMEGA_REPO_ROOT/compiler/gamma" ] ||
   fail "compiler/gamma is not a temporary compatibility symlink"
 [ -L "$OMEGA_REPO_ROOT/compiler/proof-kernel" ] ||
@@ -85,8 +95,12 @@ done
   fail "compiler/alpha does not resolve to the Alpha owner"
 [ "$(physical_dir "$OMEGA_REPO_ROOT/compiler/beta")" = "$(physical_dir "$OMEGA_PATH_ALPHA_ASSEMBLER")" ] ||
   fail "compiler/beta does not resolve to the Alpha assembler owner"
+[ "$(physical_dir "$OMEGA_REPO_ROOT/compiler/beta-rs")" = "$(physical_dir "$OMEGA_PATH_ALPHA_ASSEMBLER_RUST")" ] ||
+  fail "compiler/beta-rs does not resolve to the Alpha assembler Rust on-ramp"
 [ "$(physical_dir "$OMEGA_REPO_ROOT/compiler/beta-lang")" = "$(physical_dir "$OMEGA_PATH_BETA")" ] ||
   fail "compiler/beta-lang does not resolve to the Beta owner"
+[ "$(physical_dir "$OMEGA_REPO_ROOT/compiler/beta-lang-rs")" = "$(physical_dir "$OMEGA_PATH_BETA_COMPILER_RUST")" ] ||
+  fail "compiler/beta-lang-rs does not resolve to the Beta Rust producer"
 [ "$(physical_dir "$OMEGA_REPO_ROOT/compiler/gamma")" = "$(physical_dir "$OMEGA_PATH_GAMMA")" ] ||
   fail "compiler/gamma does not resolve to the Gamma owner"
 [ "$(physical_dir "$OMEGA_REPO_ROOT/compiler/proof-kernel")" = "$(physical_dir "$OMEGA_PATH_PROOF_KERNEL")" ] ||
@@ -104,12 +118,20 @@ done
   fail "alpha role lookup disagrees with the manifest"
 [ "$(omega_bootstrap_path alpha-assembler)" = "$OMEGA_PATH_ALPHA_ASSEMBLER" ] ||
   fail "alpha-assembler role lookup disagrees with the manifest"
+[ "$(omega_bootstrap_path alpha-assembler-rust)" = "$OMEGA_PATH_ALPHA_ASSEMBLER_RUST" ] ||
+  fail "alpha-assembler-rust role lookup disagrees with the manifest"
+[ "$(omega_bootstrap_path beta-rs)" = "$OMEGA_PATH_ALPHA_ASSEMBLER_RUST" ] ||
+  fail "beta-rs compatibility role lookup disagrees with the manifest"
 [ "$(omega_bootstrap_path beta-assembler)" = "$OMEGA_PATH_ALPHA_ASSEMBLER" ] ||
   fail "beta-assembler compatibility role lookup disagrees with the manifest"
 [ "$(omega_bootstrap_path beta)" = "$OMEGA_PATH_BETA" ] ||
   fail "beta role lookup disagrees with the manifest"
 [ "$(omega_bootstrap_path beta-lang)" = "$OMEGA_PATH_BETA" ] ||
   fail "beta-lang compatibility role lookup disagrees with the manifest"
+[ "$(omega_bootstrap_path beta-rust)" = "$OMEGA_PATH_BETA_COMPILER_RUST" ] ||
+  fail "beta-rust role lookup disagrees with the manifest"
+[ "$(omega_bootstrap_path beta-lang-rs)" = "$OMEGA_PATH_BETA_COMPILER_RUST" ] ||
+  fail "beta-lang-rs compatibility role lookup disagrees with the manifest"
 [ "$(omega_bootstrap_path gamma)" = "$OMEGA_PATH_GAMMA" ] ||
   fail "gamma role lookup disagrees with the manifest"
 [ "$(omega_bootstrap_path proof-kernel)" = "$OMEGA_PATH_PROOF_KERNEL" ] ||

@@ -56,10 +56,10 @@ hex read_eof      "11 00 00 00" ""                                              
 hex bad_opcode    "ff 00" ""                                                                     # unknown -> trap 132
 
 # --- REAL bc-compiled programs: call/ret/frames/recursion/memory/IO through actual generated code ---
-BC="${OMEGA_PATH_BETA_RUST}"/build/bc.exe
+BC="${OMEGA_PATH_BETA_COMPILER_RUST}"/build/bc.exe
 ASM="${OMEGA_PATH_ALPHA_ASSEMBLER}"/$BETA_SEED
 if command -v cargo >/dev/null 2>&1 && [ -x "$ASM" ]; then
-  [ -x "$BC" ] || ( cd "${OMEGA_PATH_BETA_RUST}" && sh build.sh "${OMEGA_PATH_BETA}"/bc.beta >/dev/null 2>&1 ) || true
+  [ -x "$BC" ] || ( cd "${OMEGA_PATH_BETA_COMPILER_RUST}" && sh build.sh "${OMEGA_PATH_BETA}"/bc.beta >/dev/null 2>&1 ) || true
 fi
 mkbeta() { "$BC" < "$1" > "$T/b.asm" 2>/dev/null && "$ASM" < "$T/b.asm" > "$T/$2.tape" 2>/dev/null; }
 if [ -x "$BC" ] && [ -x "$ASM" ]; then

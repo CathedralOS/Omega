@@ -4,7 +4,7 @@ elab.py — an UNTRUSTED proof elaborator for the proof certificate checker.
 
 The lattice's thesis is "trust by checking, not pedigree": only `check.beta` is trusted, so
 any tool that *produces* certificates may be arbitrarily clever and stays outside the trust
-path (like `beta-lang-rs` is throwaway scaffolding for `bc`). Writing certificates by hand
+path (like `beta-rust` is throwaway scaffolding for `bc`). Writing certificates by hand
 means counting de Bruijn indices for individual variables `(v N)` and hypotheses `(hyp N)`
 under nested binders — the dominant source of errors. This tool lets proofs be written with
 NAMED binders and compiles them to the exact raw syntax `check.beta` consumes.

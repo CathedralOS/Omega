@@ -20,11 +20,11 @@ ASM="$OMEGA_PATH_BETA_ASSEMBLER/$BETA_SEED"
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 
 command -v python3 >/dev/null 2>&1 || { echo "omega0 frontend meaning: python3 required" >&2; exit 2; }
-( cd "$OMEGA_PATH_BETA_RUST" && sh build.sh "$OMEGA_PATH_BETA/bc.beta" >/dev/null ) \
+( cd "$OMEGA_PATH_BETA_COMPILER_RUST" && sh build.sh "$OMEGA_PATH_BETA/bc.beta" >/dev/null ) \
   || { echo "omega0 frontend meaning FAIL — bc build"; exit 1; }
 
 build_beta() {
-  "$OMEGA_PATH_BETA_RUST/build/bc.exe" < "$1" > "$T/program.asm" 2>/dev/null \
+  "$OMEGA_PATH_BETA_COMPILER_RUST/build/bc.exe" < "$1" > "$T/program.asm" 2>/dev/null \
     && "$ASM" < "$T/program.asm" > "$T/program.tape" 2>/dev/null \
     && stamp_seed "$T/program.tape" "$SEED" "$2" >/dev/null 2>&1
 }

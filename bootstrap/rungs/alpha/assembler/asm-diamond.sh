@@ -27,7 +27,7 @@ cd "$OMEGA_GATE_DIR"
 command -v python3 >/dev/null 2>&1 || { echo "asm-diamond SKIP — no python3"; exit 0; }
 . "${OMEGA_PATH_ALPHA}"/seed_env.sh
 ASM="./$BETA_SEED"
-BC="${OMEGA_PATH_BETA_RUST}"/build/bc.exe
+BC="${OMEGA_PATH_BETA_COMPILER_RUST}"/build/bc.exe
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 PASS=0; FAIL=0
 
@@ -45,7 +45,7 @@ for ex in examples/*.alpha; do [ -f "$ex" ] && cmp_asm "example $(basename "$ex"
 
 # real bc-compiled programs — exercise every opcode + labels + comparisons + memory + I/O + db strings
 if command -v cargo >/dev/null 2>&1; then
-  ( cd "${OMEGA_PATH_BETA_RUST}" && sh build.sh "${OMEGA_PATH_BETA}"/bc.beta >/dev/null 2>&1 ) || true
+  ( cd "${OMEGA_PATH_BETA_COMPILER_RUST}" && sh build.sh "${OMEGA_PATH_BETA}"/bc.beta >/dev/null 2>&1 ) || true
 fi
 if [ -x "$BC" ]; then
   gen() { printf '%s\n' "$2" | "$BC" > "$T/$1.asm" 2>/dev/null && cmp_asm "bc: $1" "$T/$1.asm"; }

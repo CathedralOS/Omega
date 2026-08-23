@@ -12,7 +12,7 @@ OMEGA_REPO_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd -P)
 # this static scan prevents new topology-dependent cross-owner paths.
 sh "$SCRIPT_DIR/test-paths.sh"
 
-pattern='\.\./(alpha|beta|beta-lang|beta-lang-rs|beta-lang-py|gamma|delta-rs|proof-kernel|omega|omega-rs|lattice-corpus|psi-rs)(/|[^A-Za-z0-9_-]|$)'
+pattern='\.\./(alpha|beta|beta-rs|beta-lang|beta-lang-rs|beta-lang-py|gamma|delta-rs|proof-kernel|omega|omega-rs|lattice-corpus|psi-rs)(/|[^A-Za-z0-9_-]|$)'
 
 if command -v rg >/dev/null 2>&1; then
   violations=$(rg -n --glob '*.sh' --glob '*.py' \

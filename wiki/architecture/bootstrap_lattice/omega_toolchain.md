@@ -38,9 +38,10 @@ The distinction is architectural:
   Together their current gates are growing toward the simple bootstrap Omega
   compiler without assigning language ownership to Rust.
 
-The remaining historical paths are the host-language-suffixed product and
-on-ramp directories. Target product ownership is `compiler/psi/` plus
-`compiler/omega/`. See the
+The Rust bootstrap producers now live under role-named `bootstrap/onramps/`
+directories; their historical `compiler/*-rs` names are compatibility paths.
+The remaining host-language-suffixed canonical roots are product migration
+state. Target product ownership is `compiler/psi/` plus `compiler/omega/`. See the
 [repository structure](repository_structure.md).
 
 Self-hosting does not by itself prove compiler correctness. A defect in bootstrap

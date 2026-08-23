@@ -27,8 +27,8 @@ ASM="${OMEGA_PATH_BETA_ASSEMBLER}"/$BETA_SEED
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 
 # bc0: cold-start the Beta compiler through the Rust on-ramp
-( cd "${OMEGA_PATH_BETA_RUST}" && sh build.sh "${OMEGA_PATH_BETA}"/bc.beta >/dev/null ) || { echo "bc0 build failed"; exit 1; }
-BC0="${OMEGA_PATH_BETA_RUST}"/build/bc.exe
+( cd "${OMEGA_PATH_BETA_COMPILER_RUST}" && sh build.sh "${OMEGA_PATH_BETA}"/bc.beta >/dev/null ) || { echo "bc0 build failed"; exit 1; }
+BC0="${OMEGA_PATH_BETA_COMPILER_RUST}"/build/bc.exe
 
 # asm1 = bc0(bc.beta) ; assemble + stamp -> bc1
 "$BC0" < bc.beta > "$T/asm1" || { echo "bc0(bc.beta) failed"; exit 1; }

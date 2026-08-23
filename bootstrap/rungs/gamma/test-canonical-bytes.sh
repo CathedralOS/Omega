@@ -23,7 +23,7 @@ ASM="${OMEGA_PATH_BETA_ASSEMBLER}"/$BETA_SEED
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
 
-( cd "${OMEGA_PATH_BETA_RUST}" && sh build.sh "${OMEGA_PATH_BETA}"/bc.beta >/dev/null ) || {
+( cd "${OMEGA_PATH_BETA_COMPILER_RUST}" && sh build.sh "${OMEGA_PATH_BETA}"/bc.beta >/dev/null ) || {
   echo "canonical bytes: bc build failed" >&2
   exit 1
 }
@@ -31,7 +31,7 @@ trap 'rm -rf "$T"' EXIT
 build_beta_program() {
   source=$1
   output=$2
-  "${OMEGA_PATH_BETA_RUST}"/build/bc.exe < "$source" > "$T/program.asm"
+  "${OMEGA_PATH_BETA_COMPILER_RUST}"/build/bc.exe < "$source" > "$T/program.asm"
   "$ASM" < "$T/program.asm" > "$T/program.tape"
   stamp_seed "$T/program.tape" "$SEED" "$output" >/dev/null 2>&1
 }

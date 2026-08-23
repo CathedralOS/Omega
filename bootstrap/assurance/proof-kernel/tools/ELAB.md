@@ -17,7 +17,7 @@ output. The same logic applies to proof *construction*. `elab.py` is an **untrus
 front-end: it lets proofs be written with **named binders** and compiles them to the exact
 raw syntax `check.beta` consumes. A bug in the elaborator cannot make a false theorem pass —
 it can only emit a certificate the trusted, minimal checker then rejects. It sits outside
-the trust path entirely, exactly as `beta-lang-rs` was throwaway scaffolding for `bc`. The
+the trust path entirely, exactly as `beta-rust` was throwaway scaffolding for `bc`. The
 checker stays small and hand-auditable; the convenience lives elsewhere.
 
 ## The surface
