@@ -471,6 +471,150 @@ fn private_progress_dependencies_substitute_through_the_exact_helper_call() {
 }
 
 #[test]
+fn measured_entry_back_edge_retains_its_checked_termination_summary() {
+    let typed = typed_program_from_source(
+        r#"
+        machine countdown(remaining: u64) -> u64
+        terminates by remaining;
+        {
+            transition remaining > 0 {
+                true -> countdown(remaining - 1)
+                false -> 0
+            }
+        }
+        machine run(remaining: u64) -> u64
+        terminates
+        {
+            countdown(remaining)
+        }
+        "#,
+    );
+
+    let checked = psi_typed_trees_to_checked_trees::lower_typed_trees(typed)
+        .expect("the measured entry back-edge should validate");
+    let countdown = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "countdown")
+        .expect("countdown machine");
+    let plan = checked
+        .facts
+        .termination
+        .for_machine(countdown.symbol)
+        .expect("checked termination plan");
+    assert_eq!(
+        plan.checked_summary,
+        psi_language_semantics::TerminationGuarantee::Terminates {
+            premises: Vec::new(),
+        }
+    );
+    assert_eq!(
+        plan.implementation_witness
+            .as_ref()
+            .expect("measured recursion witness")
+            .view_path,
+        "Nat::Descending"
+    );
+    let run = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "run")
+        .expect("run machine");
+    assert_eq!(
+        checked
+            .facts
+            .termination
+            .for_machine(run.symbol)
+            .expect("wrapper termination plan")
+            .checked_summary,
+        psi_language_semantics::TerminationGuarantee::Terminates {
+            premises: Vec::new(),
+        }
+    );
+}
+
+#[test]
+fn measured_entry_back_edge_retains_exact_progress_subject_lineage() {
+    let typed = typed_program_from_source(
+        r#"
+        data SchedulerHandle {}
+        domain SchedulerHandle::WeakFair
+        satisfies ProgressProfile
+        established by SchedulerAdmission::grant;
+        boundary trait SchedulerAdmission {
+            machine grant(scheduler: SchedulerHandle) -> SchedulerHandle in WeakFair;
+        }
+        boundary trait SchedulerRuntime {
+            machine wait(scheduler: SchedulerHandle)
+            requires scheduler in WeakFair
+            terminates;
+        }
+        machine countdown(
+            runtime: &mut SchedulerRuntime,
+            scheduler: SchedulerHandle,
+            remaining: u64
+        )
+        requires scheduler in WeakFair
+        terminates by remaining;
+        {
+            runtime.wait(scheduler);
+            transition remaining > 0 {
+                true -> countdown(runtime, scheduler, remaining - 1)
+                false -> 0
+            }
+        }
+        "#,
+    );
+
+    let countdown = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "countdown")
+        .expect("countdown machine");
+    let scheduler_symbol = typed
+        .machine_states(countdown)
+        .first()
+        .and_then(|state| {
+            typed
+                .state_parameters(state)
+                .iter()
+                .find(|parameter| parameter.name.as_str() == "scheduler")
+        })
+        .expect("scheduler parameter")
+        .symbol;
+    let weak_fair = typed
+        .domain_definitions()
+        .iter()
+        .find(|domain| domain.name.as_str() == "SchedulerHandle::WeakFair")
+        .expect("weak-fair progress profile")
+        .semantic_id;
+
+    let checked = psi_typed_trees_to_checked_trees::lower_typed_trees(typed)
+        .expect("the measured entry back-edge should preserve its exact progress subject");
+    let countdown = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "countdown")
+        .expect("countdown machine");
+    let plan = checked
+        .facts
+        .termination
+        .for_machine(countdown.symbol)
+        .expect("checked termination plan");
+    let psi_language_semantics::TerminationGuarantee::Terminates { premises } =
+        &plan.checked_summary
+    else {
+        panic!("countdown should retain a checked termination summary")
+    };
+    let [premise] = premises.as_slice() else {
+        panic!("countdown should retain exactly one progress premise")
+    };
+    assert_eq!(premise.profile, weak_fair);
+    assert_eq!(premise.subject.root, scheduler_symbol);
+    assert!(premise.subject.projections.is_empty());
+}
+
+#[test]
 fn admitted_local_progress_receipt_discharges_the_selected_call_premise() {
     let typed = typed_program_from_source(
         r#"

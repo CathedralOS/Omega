@@ -193,6 +193,19 @@ fn target_state_index(
         TransitionTargetNode::Value(_) | TransitionTargetNode::Terminal => return None,
     };
 
+    named_transition_target_state_index(program, machine, target_symbol)
+}
+
+/// Resolve one named transition target to its state index inside `machine`.
+/// A transition back to the machine's declared entry names the machine symbol,
+/// while transitions to subordinate states name the state symbol. Ranking and
+/// progress analysis must share this normalization so an entry back-edge is
+/// not mistaken for a nested machine invocation.
+pub(super) fn named_transition_target_state_index(
+    program: &psi_typed_trees::TypedTrees,
+    machine: &psi_typed_trees::machine::Machine,
+    target_symbol: psi_symbols::SymbolHandle,
+) -> Option<usize> {
     if target_symbol == machine.symbol {
         let entry_name = machine
             .name

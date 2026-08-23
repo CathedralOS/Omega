@@ -6750,6 +6750,14 @@ compiler concept is introduced.
   binders remain pinned to their named requirement contract; private ranking
   witnesses remain outside public identity.
 
+  Checked progress and ranking now share one canonical target-state rule for
+  named local transitions. A back-edge to machine entry names the machine
+  symbol while a subordinate transition names its state symbol; both remain
+  edges within one activation. Progress-subject correspondence uses the same
+  resolved state's formal parameters, so measured entry recursion retains its
+  proven `Terminates` summary and exact premise lineage rather than falling to
+  `NoGuarantee`.
+
   TPR6-A now preserves call-specific provider-receiver demands separately from
   caller premises, closes them through the exact selected entry and checked-
   adapter call graph, joins each to one exact selected provider plan/schema

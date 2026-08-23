@@ -103,6 +103,14 @@ normalized machine contract independently records only the authored promise;
 omission therefore remains published `NoGuarantee`, so body inference cannot
 become interface authorship.
 
+Named transitions remain inside the current activation. A transition back to
+entry names the machine symbol while a transition to a subordinate state names
+the state symbol; ranking and checked-progress analysis normalize both through
+one target-state rule. The edge consumes the local ranking witness rather than
+instantiating the machine's still-forming summary as a nested call, while its
+actual arguments still correspond exactly to the resolved state's formal
+parameters for progress-subject lineage.
+
 The normalized enum, snapshots, and artifact discriminator spell this positive
 case `Terminates`. There is no second completion guarantee behind that name.
 
