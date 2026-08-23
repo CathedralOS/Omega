@@ -909,11 +909,10 @@ fn checked_provider_attachment_requirements(
             requirement.boundary.generation(),
         )
     });
-    if requirements
-        .windows(2)
-        .any(|pair| pair[0].boundary == pair[1].boundary)
-    {
-        return None;
-    }
+    // Provider attachment roots authorize exact requirements, not individual
+    // dynamic invocations. Repeated calls through the same checked field must
+    // therefore retain one canonical root after every call site has been
+    // independently matched above.
+    requirements.dedup_by_key(|requirement| requirement.boundary);
     Some(requirements)
 }

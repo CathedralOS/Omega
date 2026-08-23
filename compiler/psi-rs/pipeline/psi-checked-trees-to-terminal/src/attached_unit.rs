@@ -391,6 +391,7 @@ pub(super) fn lower_attached_unit_closure_including(
                 .collect::<Vec<_>>();
             called_boundaries
                 .sort_by_key(|boundary| (boundary.arena_index(), boundary.generation()));
+            called_boundaries.dedup();
             let specialized_boundaries = plan
                 .provider_attachment_requirements
                 .iter()

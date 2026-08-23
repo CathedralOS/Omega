@@ -1,5 +1,5 @@
 #!/usr/bin/env sh
-# Focused native acceptance gate for the Delta-written O0 front end.
+# Focused native acceptance gate for the Delta-written O0/O1 front end.
 set -e
 GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 if [ -z "${OMEGA_REPO_ROOT:-}" ]; then
@@ -24,7 +24,8 @@ command -v codesign >/dev/null 2>&1 || { echo "omega0 frontend: skipped (codesig
 
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 cargo build -q
-DELTA_ARCH=aarch64 ./target/debug/delta samples/omega0-frontend.alp "$T/frontend" >/dev/null
+FRONTEND="$OMEGA_PATH_OMEGA0/compiler/omega0-frontend.alp"
+DELTA_ARCH=aarch64 ./target/debug/delta "$FRONTEND" "$T/frontend" >/dev/null
 
 PASS=0
 FAIL=0
@@ -49,7 +50,64 @@ run_source() {
   run_bundle "$label" "$T/case.bundle" "$expected"
 }
 
+# The shared product lowerer owns terminal-Psi canonicality. Export the exact
+# 0/1/2/16-write references, then require the Delta emitter to agree byte for
+# byte rather than validating only its success digest.
+REFERENCE_DIR="$T/o1-terminal-references"
+(
+  cd "$OMEGA_REPO_ROOT"
+  OMEGA1_WRITE_TERMINAL_REFERENCES="$REFERENCE_DIR" \
+    cargo test -q -p psi-checked-trees-to-terminal \
+      --test provider_attachment_source \
+      straight_line_console_projection_accepts_zero_one_two_and_sixteen_writes -- --exact
+)
+reference_case() {
+  count=$1 expected=$2
+  {
+    printf 'use omega::language::std::console; data Main{console:Console;} machine Main::main(&mut self){'
+    index=0
+    while [ "$index" -lt "$count" ]; do
+      printf 'self.console.write_line("line-%02d");' "$index"
+      index=$((index + 1))
+    done
+    printf 'self.console.exit_process(%d);}' "$count"
+  } > "$T/reference.omg"
+  bundle_one "$T/reference.omg" "$T/reference.bundle"
+  set +e
+  "$T/frontend" < "$T/reference.bundle" > "$T/reference.terminal"
+  got=$?
+  set -e
+  if [ "$got" = "$expected" ] \
+      && cmp -s "$REFERENCE_DIR/writes-$count.terminal" "$T/reference.terminal"; then
+    PASS=$((PASS + 1))
+  else
+    FAIL=$((FAIL + 1))
+    echo "  FAIL O1 shared terminal reference writes=$count: exit $got, expected $expected"
+  fi
+}
+reference_case 0 0
+reference_case 1 64
+reference_case 2 129
+reference_case 16 86
+
 run_source "canonical cli_mvp" "$OMEGA_PATH_CORPUS/cli_mvp/main.omg" 107
+
+printf 'use omega::language::std::console; data Main{console:Console;} machine Main::main(&mut self){self.console.exit_process(7);}' > "$T/zero-write.omg"
+run_source "O1 zero writes" "$T/zero-write.omg" 7
+
+printf 'use omega::language::std::console; data Main{console:Console;} machine Main::main(&mut self){self.console.write_line("A");self.console.write_line("BC");self.console.exit_process(3);}' > "$T/two-write.omg"
+run_source "O1 two ordered writes" "$T/two-write.omg" 201
+
+{
+  printf 'use omega::language::std::console; data Main{console:Console;} machine Main::main(&mut self){'
+  write=0
+  while [ "$write" -lt 16 ]; do
+    printf 'self.console.write_line("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");'
+    write=$((write + 1))
+  done
+  printf 'self.console.exit_process(0);}'
+} > "$T/sixteen-write.omg"
+run_source "O1 sixteen writes and exact aggregate text ceiling" "$T/sixteen-write.omg" 141
 
 printf 'use omega::language::std::console; // import\ndata Main{console:Console;}machine Main::main(&mut self){self.console.write_line("A\\n");self.console.exit_process(2);}' > "$T/variant.omg"
 run_source "trivia, cooked escape, no final newline" "$T/variant.omg" 77
@@ -76,6 +134,7 @@ reject_source "exit_process missing argument" 'use omega::language::std::console
 reject_source "exit_process extra argument" 'use omega::language::std::console; data Main{console:Console;} machine Main::main(&mut self){self.console.write_line("x");self.console.exit_process(0,1);}'
 reject_source "exit_process wrong argument type" 'use omega::language::std::console; data Main{console:Console;} machine Main::main(&mut self){self.console.write_line("x");self.console.exit_process("0");}'
 reject_source "reversed effects" 'use omega::language::std::console; data Main{console:Console;} machine Main::main(&mut self){self.console.exit_process(0);self.console.write_line("x");}'
+reject_source "duplicate exit" 'use omega::language::std::console; data Main{console:Console;} machine Main::main(&mut self){self.console.exit_process(0);self.console.exit_process(1);}'
 reject_source "trailing construct" 'use omega::language::std::console; data Main{console:Console;} machine Main::main(&mut self){self.console.write_line("x");self.console.exit_process(0);} data Extra{}'
 reject_source "unterminated string" 'use omega::language::std::console; data Main{console:Console;} machine Main::main(&mut self){self.console.write_line("x);self.console.exit_process(0);}'
 reject_source "invalid escape" 'use omega::language::std::console; data Main{console:Console;} machine Main::main(&mut self){self.console.write_line("\q");self.console.exit_process(0);}'
@@ -98,6 +157,28 @@ dd if=/dev/zero bs=1 count=1025 2>/dev/null | tr '\000' x >> "$T/text-exhaust.om
 printf '");self.console.exit_process(0);}' >> "$T/text-exhaust.omg"
 run_source "checked decoded-string exhaustion" "$T/text-exhaust.omg" 252
 
+{
+  printf 'use omega::language::std::console; data Main{console:Console;} machine Main::main(&mut self){'
+  write=0
+  while [ "$write" -lt 17 ]; do
+    printf 'self.console.write_line("");'
+    write=$((write + 1))
+  done
+  printf 'self.console.exit_process(0);}'
+} > "$T/write-table-exhaust.omg"
+run_source "checked write table exhaustion" "$T/write-table-exhaust.omg" 252
+
+{
+  printf 'use omega::language::std::console; data Main{console:Console;} machine Main::main(&mut self){'
+  write=0
+  while [ "$write" -lt 15 ]; do
+    printf 'self.console.write_line("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");'
+    write=$((write + 1))
+  done
+  printf 'self.console.write_line("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");self.console.exit_process(0);}'
+} > "$T/aggregate-text-exhaust.omg"
+run_source "checked aggregate text exhaustion" "$T/aggregate-text-exhaust.omg" 252
+
 cp "$T/case.bundle" "$T/trailing.bundle"; printf x >> "$T/trailing.bundle"
 run_bundle "bundle trailing byte" "$T/trailing.bundle" 251
 
@@ -105,7 +186,7 @@ run_bundle "bundle trailing byte" "$T/trailing.bundle" 251
 # through the Delta-written lowermachine and require the resulting program to
 # preserve both an accepted observation and a semantic rejection.
 DELTA_ARCH=aarch64 ./target/debug/delta samples/lowermachine.alp "$T/lowermachine" >/dev/null
-"$T/lowermachine" < samples/omega0-frontend.alp > "$T/frontend-self.s"
+"$T/lowermachine" < "$FRONTEND" > "$T/frontend-self.s"
 clang -arch arm64 -o "$T/frontend-self" "$T/frontend-self.s"
 codesign -f -s - "$T/frontend-self" >/dev/null 2>&1
 bundle_one "$OMEGA_PATH_CORPUS/cli_mvp/main.omg" "$T/canonical.bundle"

@@ -30,7 +30,7 @@ OMEGA0_WRITE_VARIANT_TERMINAL="$T/variant-shared.psi" \
     source_projection_is_the_shared_o0_fixture_and_perturbations_fail_closed -- --exact
 cargo build -q --manifest-path "$OMEGA_PATH_DELTA_RUST/Cargo.toml"
 DELTA_ARCH=aarch64 "$OMEGA_PATH_DELTA_RUST/target/debug/delta" \
-  "$OMEGA_PATH_DELTA_RUST/samples/omega0-frontend.alp" "$T/frontend" >/dev/null
+  "$OMEGA_PATH_OMEGA0/compiler/omega0-frontend.alp" "$T/frontend" >/dev/null
 python3 "$OMEGA_PATH_OMEGA0/compiler/omega0_bundle.py" pack \
   main.omg="$OMEGA_PATH_CORPUS/cli_mvp/main.omg" > "$T/canonical.bundle"
 

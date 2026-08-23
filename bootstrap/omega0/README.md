@@ -41,16 +41,16 @@ their private fixtures.
   and conformance tools for that format.
 
 These are seed pieces for the first Omega compiler, not that compiler itself.
-The first Delta-written frontend slice lives at
-`../../compiler/delta-rs/samples/omega0-frontend.alp`: it decodes the canonical bundle,
-lexes, parses, resolves, and type/count-checks the frozen O0 console program
-while retaining its two boundary operands, then directly emits the canonical
-terminal-Psi bytes. [`compiler/omega0-terminal-to-elf.alp`](compiler/omega0-terminal-to-elf.alp)
-then emits the exact deterministic Linux x86-64 ELF directly, without a host
-assembler or linker. Its gate compares that image byte-for-byte with the
-production lowering and rejects malformed input before emitting any byte. This
-closes the frozen O0 canary, not general Omega checking or the future full
-Omega0 backend.
+[`compiler/omega0-frontend.alp`](compiler/omega0-frontend.alp) is the canonical
+Delta-written frontend source. It decodes the canonical bundle, lexes, parses,
+resolves, and type/count-checks O0 plus O1's variable straight-line console
+body, then emits canonical terminal-Psi bytes. The old Delta-sample path is a
+compatibility symlink. [`compiler/omega0-terminal-to-elf.alp`](compiler/omega0-terminal-to-elf.alp)
+accepts the same 0–16-write profile and emits a deterministic Linux x86-64 ELF
+directly, without a host assembler or linker. Focused gates compare terminal
+modules and images byte-for-byte with the shared product pipeline and reject
+malformed or exhausted inputs before emitting any byte. This closes O1, not
+general Omega checking or the future full Omega0 backend.
 
 ## Coverage boundary
 

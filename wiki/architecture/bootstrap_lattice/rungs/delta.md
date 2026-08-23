@@ -40,15 +40,16 @@ That compiler then builds the full optimizing Omega compiler from Omega source.
 - `compiler/delta-rs/delta-storage-meaning.sh` evaluates that canary and a
   perturbation through `omega2gamma.beta` and Gamma's `interp.beta`, without the
   Rust Gamma emitter defining the result.
-- `compiler/delta-rs/samples/omega0-frontend.alp` is the first actual Omega0
+- `bootstrap/omega0/compiler/omega0-frontend.alp` is the first actual Omega0
   compiler slice written in Delta. It decodes a canonical single-source bundle,
-  lexes and parses the frozen O0 shape, performs its exact name/type/count
-  checks, and retains the two console-boundary operands. Its focused gate also
-  recompiles it through Delta-written `lowermachine`.
+  lexes and parses the O0/O1 shape, performs exact name/type/count checks, and
+  retains a checked table of console-boundary operands. Its focused gate also
+  recompiles it through Delta-written `lowermachine`; the old Delta-sample path
+  is compatibility plumbing.
 - `bootstrap/omega0/compiler/BOOTSTRAP_PROFILES.md` freezes the Delta D0
   implementation profile and Omega O0 vertical-canary input profile.
 - `bootstrap/omega0/compiler/omega0-terminal-to-elf.alp` is the first direct
-  artifact backend. It emits the exact O0 Linux x86-64 image without a host
+  artifact backend. It emits exact O0/O1 Linux x86-64 images without a host
   assembler or linker; general Omega lowering remains open.
 
 ## Relationship to Psi and Omega

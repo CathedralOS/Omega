@@ -1,4 +1,6 @@
-use psi_core::{IntegerValue, StructuralPlaceKind};
+use psi_core::{
+    BoundaryMachineId, IntegerValue, OperationId, PlaceId, StructuralPlaceKind, ValueId,
+};
 use psi_proof_kernel::AdmissionProfile;
 use psi_source_files_to_tokens::Lexer;
 use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
@@ -23,6 +25,50 @@ const SOURCE: &str = r#"
         self.console.exit_process(0);
     }
 "#;
+
+fn straight_line_console_source(write_literals: &[String], exit_status: i32) -> String {
+    let writes = write_literals
+        .iter()
+        .map(|literal| format!("        self.console.write_line(\"{literal}\");\n"))
+        .collect::<String>();
+    format!(
+        r#"
+    boundary trait Console {{
+        machine write_line(text: &[u8])
+        reaches Console;
+        machine exit_process(return_code: i32)
+        reaches Console;
+    }}
+
+    data Main {{ console: Console; }}
+    machine Main::main(&mut self)
+    reaches Console
+    {{
+{writes}        self.console.exit_process({exit_status});
+    }}
+"#
+    )
+}
+
+fn numbered_literals(count: usize) -> Vec<String> {
+    (0..count).map(|index| format!("line-{index:02}")).collect()
+}
+
+fn numbered_stdout(count: usize) -> Vec<u8> {
+    (0..count)
+        .flat_map(|index| format!("line-{index:02}\n").into_bytes())
+        .collect()
+}
+
+fn hex_bytes(bytes: &[u8]) -> String {
+    const DIGITS: &[u8; 16] = b"0123456789abcdef";
+    let mut output = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        output.push(DIGITS[(byte >> 4) as usize] as char);
+        output.push(DIGITS[(byte & 0xf) as usize] as char);
+    }
+    output
+}
 
 fn lower_source(source: &str) -> psi_checked_trees_to_terminal::LoweredTerminalPsi {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
@@ -291,5 +337,177 @@ fn source_projection_is_the_shared_o0_fixture_and_perturbations_fail_closed() {
         let bytes = psi_terminal_codec::encode_module(&lower_source(&variant).semantic_module)
             .expect("encode requested shared-codec variant");
         std::fs::write(path, bytes).expect("write requested shared-codec variant");
+    }
+}
+
+#[test]
+fn straight_line_console_projection_accepts_zero_one_two_and_sixteen_writes() {
+    let mut exports = Vec::new();
+    for count in [0, 1, 2, 16] {
+        let source = straight_line_console_source(&numbered_literals(count), count as i32);
+        let lowered = lower_source(&source);
+        let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module)
+            .expect("encode representative straight-line console module");
+        let decoded = psi_terminal_codec::decode_module(&bytes)
+            .expect("decode representative straight-line console module");
+        psi_terminal_verifier::verify_module(
+            &decoded,
+            &lowered.proof_bundle,
+            &AdmissionProfile::default(),
+        )
+        .expect("representative straight-line console module verifies");
+
+        let entry = decoded
+            .machines
+            .iter()
+            .find(|machine| machine.id == decoded.entry)
+            .expect("entry machine");
+        let operations = &entry.blocks[0].operations;
+        assert_eq!(
+            operations
+                .iter()
+                .filter(|operation| matches!(
+                    operation.kind,
+                    OperationKind::EstablishByteSequenceLiteral { .. }
+                ))
+                .count(),
+            count
+        );
+        assert_eq!(
+            operations
+                .iter()
+                .filter(|operation| matches!(operation.kind, OperationKind::BoundaryCall { .. }))
+                .count(),
+            count + 1
+        );
+
+        let exit_boundary = decoded
+            .boundary_machines
+            .iter()
+            .find(|boundary| boundary.identity.contains("Console::exit_process"))
+            .expect("exit boundary")
+            .id;
+        assert_eq!(exit_boundary, BoundaryMachineId::new(1).unwrap());
+        let write_boundary = decoded
+            .boundary_machines
+            .iter()
+            .find(|boundary| boundary.identity.contains("Console::write_line"))
+            .map(|boundary| boundary.id);
+        assert_eq!(write_boundary.is_some(), count > 0);
+
+        let provider_roots = entry
+            .structural_places
+            .iter()
+            .filter(|place| matches!(place.kind, StructuralPlaceKind::ProviderAttachment { .. }))
+            .count();
+        assert_eq!(provider_roots, if count == 0 { 1 } else { 2 });
+        assert_eq!(operations.len(), count * 2 + 2);
+        if count > 0 {
+            let write_boundary = write_boundary.expect("write boundary for nonempty case");
+            assert_eq!(write_boundary, BoundaryMachineId::new(2).unwrap());
+            for index in 0..count {
+                let literal_place = PlaceId::new(4 + index as u64).unwrap();
+                assert!(matches!(
+                    &operations[index].kind,
+                    OperationKind::EstablishByteSequenceLiteral { destination, bytes }
+                        if *destination == literal_place
+                            && bytes == format!("line-{index:02}").as_bytes()
+                ));
+                assert_eq!(
+                    operations[index].id,
+                    OperationId::new(1 + index as u64).unwrap()
+                );
+                assert!(matches!(
+                    &operations[count + index].kind,
+                    OperationKind::BoundaryCall {
+                        boundary,
+                        arguments,
+                        structural_arguments,
+                        ..
+                    } if *boundary == write_boundary
+                        && arguments.is_empty()
+                        && structural_arguments.len() == 1
+                        && structural_arguments[0].place == literal_place
+                        && structural_arguments[0].path.is_empty()
+                ));
+            }
+        }
+        assert!(matches!(
+            &operations[count * 2].kind,
+            OperationKind::IntegerConstant { value: IntegerValue::Signed(value) }
+                if *value == count as i128
+        ));
+        assert!(matches!(
+            &operations[count * 2].result,
+            psi_terminal::OperationResult::Scalar(value) if value.id == ValueId::new(1).unwrap()
+        ));
+        assert!(matches!(
+            &operations[count * 2 + 1].kind,
+            OperationKind::BoundaryCall {
+                boundary,
+                arguments,
+                structural_arguments,
+                ..
+            } if *boundary == exit_boundary
+                && arguments.as_slice() == [ValueId::new(1).unwrap()]
+                && structural_arguments.is_empty()
+        ));
+
+        exports.push((
+            format!("writes-{count}"),
+            count,
+            count as i32,
+            numbered_stdout(count),
+            bytes,
+            true,
+        ));
+    }
+
+    if let Some(directory) = std::env::var_os("OMEGA1_WRITE_TERMINAL_REFERENCES") {
+        let directory = std::path::PathBuf::from(directory);
+        std::fs::create_dir_all(&directory).expect("create O1 terminal reference directory");
+        let oversized_literals = vec!["x".repeat(600), "y".repeat(600)];
+        for (name, literals, exit_status) in [
+            ("reject-writes-17", numbered_literals(17), 17),
+            ("reject-bytes-1200", oversized_literals, 23),
+        ] {
+            let source = straight_line_console_source(&literals, exit_status);
+            let lowered = lower_source(&source);
+            let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module)
+                .expect("encode out-of-profile canonical terminal reference");
+            psi_terminal_verifier::verify_module(
+                &lowered.semantic_module,
+                &lowered.proof_bundle,
+                &AdmissionProfile::default(),
+            )
+            .expect("out-of-profile terminal reference remains canonical product Psi");
+            let mut stdout = Vec::new();
+            for literal in &literals {
+                stdout.extend_from_slice(literal.as_bytes());
+                stdout.push(b'\n');
+            }
+            exports.push((
+                name.to_owned(),
+                literals.len(),
+                exit_status,
+                stdout,
+                bytes,
+                false,
+            ));
+        }
+
+        let mut manifest = String::from("case\to1_admitted\twrites\texit\tstdout_hex\tterminal\n");
+        for (name, count, exit_status, stdout, bytes, admitted) in exports {
+            let file = format!("{name}.terminal");
+            std::fs::write(directory.join(&file), bytes)
+                .expect("write requested O1 terminal reference");
+            manifest.push_str(&format!(
+                "{name}\t{}\t{count}\t{exit_status}\t{}\t{file}\n",
+                if admitted { 1 } else { 0 },
+                hex_bytes(&stdout)
+            ));
+        }
+        std::fs::write(directory.join("manifest.tsv"), manifest)
+            .expect("write requested O1 terminal reference manifest");
     }
 }
