@@ -76,8 +76,9 @@ delegate behavior here.
 
 Local package-manager fixtures live under `fixtures/packages/` at the repository
 root. They use normal kebab-case package names and are resolved as local source
-directories first. Once install/update/audit wiring is ready, the same contents
-should be mirrored to exact-pinned Git repositories under `CathedralOS`.
+directories first. Private GitHub mirrors under `CathedralOS` are recorded with
+exact initial commit pins in `fixtures/packages/REMOTE_PINS.md`; remote tests
+should use those pins rather than branch names.
 
 ## Current Slices
 
