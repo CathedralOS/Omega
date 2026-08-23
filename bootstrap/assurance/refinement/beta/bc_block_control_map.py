@@ -29,7 +29,7 @@ OPS = {
     "write": (0x12, "r"), "call": (0x13, "x"), "ret": (0x14, ""),
 }
 ESC = {"n": 10, "t": 9, "r": 13, "0": 0, "\\": 92, "'": 39, '"': 34}
-MAGIC = 0x35544342  # little-endian "BCT5"
+MAGIC = 0x36544342  # little-endian "BCT6"
 
 EVENT_CALL = 1
 EVENT_READ = 2
@@ -42,6 +42,7 @@ MEMORY_LOAD = 1
 MEMORY_STORE = 2
 PRIMITIVE_LITERAL = 1
 PRIMITIVE_ARITHMETIC = 2
+PRIMITIVE_COMPARISON = 3
 
 
 @dataclass(frozen=True)
@@ -211,6 +212,9 @@ def source_events(repo: Path, source: bytes):
             lex_memory_expr(expr[3], block)
 
     arithmetic_codes = {"+": 3, "-": 4, "*": 5, "/": 6, "%": 7}
+    comparison_codes = {
+        "<": 8, ">": 9, "==": 10, "!=": 11, "<=": 12, ">=": 13,
+    }
 
     def add_primitive(kind: int, value: int, node, block: int) -> None:
         primitive = ExprPrimitive(kind, value, id(node), block)
@@ -225,6 +229,9 @@ def source_events(repo: Path, source: bytes):
             if expr[1] in arithmetic_codes:
                 add_primitive(PRIMITIVE_ARITHMETIC,
                               arithmetic_codes[expr[1]], expr, block)
+            elif expr[1] in comparison_codes:
+                add_primitive(PRIMITIVE_COMPARISON,
+                              comparison_codes[expr[1]], expr, block)
             lex_primitive_expr(expr[3], block)
         elif expr[0] == "call":
             for argument in expr[2]:
@@ -292,6 +299,8 @@ def source_events(repo: Path, source: bytes):
             lower_primitive_expr(expr[2], output)
             lower_primitive_expr(expr[3], output)
             if expr[1] in arithmetic_codes:
+                output.append(primitive_by_node[id(expr)])
+            elif expr[1] in comparison_codes:
                 output.append(primitive_by_node[id(expr)])
         elif expr[0] == "call":
             for argument in expr[2]:
@@ -697,8 +706,10 @@ def locate_expr_primitives(ast: list, lexical: list[ExprPrimitive],
         end = proc_starts[proc_index + 1] if proc_index + 1 < len(proc_starts) else tape_len
         ins = [item for item in items
                if item.kind == "ins" and start <= item.offset < end]
+        ins_by_offset = {item.offset: item for item in ins}
         comparison_ranges: list[tuple[int, int]] = []
         arithmetic: list[tuple[int, int]] = []
+        comparisons: list[tuple[int, int]] = []
         for index in range(len(ins) - 4):
             a, b, c, d, e = ins[index:index + 5]
             base = (
@@ -718,10 +729,37 @@ def locate_expr_primitives(ast: list, lexical: list[ExprPrimitive],
                 arithmetic.append((a.offset, OPS[e.name][0]))
             elif e.name in {"jlt", "jeq"}:
                 comparison_ranges.append((a.offset, a.offset + 59))
+                fall = ins_by_offset.get(a.offset + 30)
+                taken = ins_by_offset.get(a.offset + 49)
+                if not (fall and taken and fall.name == "imm"
+                        and taken.name == "imm"
+                        and fall.operands[0] == "r0"
+                        and taken.operands[0] == "r0"):
+                    raise ValueError(
+                        f"{proc[1]} malformed comparison results at {a.offset}"
+                    )
+                shape = (e.name, e.operands[0], e.operands[1],
+                         int(fall.operands[1]), int(taken.operands[1]))
+                code_by_shape = {
+                    ("jlt", "r0", "r1", 0, 1): 8,
+                    ("jlt", "r1", "r0", 0, 1): 9,
+                    ("jeq", "r0", "r1", 0, 1): 10,
+                    ("jeq", "r0", "r1", 1, 0): 11,
+                    ("jlt", "r1", "r0", 1, 0): 12,
+                    ("jlt", "r0", "r1", 1, 0): 13,
+                }
+                if shape not in code_by_shape:
+                    raise ValueError(
+                        f"{proc[1]} unknown comparison shape {shape}"
+                    )
+                comparisons.append((a.offset, code_by_shape[shape]))
 
         candidates: list[tuple[int, int, int]] = [
             (pc, PRIMITIVE_ARITHMETIC, opcode) for pc, opcode in arithmetic
         ]
+        candidates.extend(
+            (pc, PRIMITIVE_COMPARISON, code) for pc, code in comparisons
+        )
         for item in ins:
             if item.name != "imm" or item.operands[0] != "r0":
                 continue
@@ -781,6 +819,7 @@ def witness(block_pcs: list[int], transition_pcs: list[int], event_pcs: list[int
         u32(len(primitives)),
         u32(sum(p.kind == PRIMITIVE_LITERAL for p in primitives)),
         u32(sum(p.kind == PRIMITIVE_ARITHMETIC for p in primitives)),
+        u32(sum(p.kind == PRIMITIVE_COMPARISON for p in primitives)),
         *(u32(pc) for pc in block_pcs),
         *(u32(pc) for pc in transition_pcs),
         *(u32(pc) for pc in event_pcs),
@@ -843,6 +882,11 @@ def main() -> None:
     ap.add_argument("--duplicate-primitive-witness-output", type=Path)
     ap.add_argument("--noncanonical-primitive-witness-output", type=Path)
     ap.add_argument("--synthetic-literal-witness-output", type=Path)
+    ap.add_argument("--comparison-opcode-patch-output", type=Path)
+    ap.add_argument("--comparison-operand-patch-output", type=Path)
+    ap.add_argument("--comparison-branch-target-patch-output", type=Path)
+    ap.add_argument("--comparison-result-patch-output", type=Path)
+    ap.add_argument("--comparison-pop-step-patch-output", type=Path)
     args = ap.parse_args()
 
     source = args.source.read_bytes()
@@ -1145,6 +1189,25 @@ def main() -> None:
     patch(args.arithmetic_pop_step_patch_output, arithmetic_pc + 8,
           struct.pack("<Q", 16))
     patch(args.arithmetic_register_patch_output, arithmetic_pc + 20, b"\x01")
+
+    comparison_index = next(i for i, primitive in enumerate(primitives)
+                            if primitive.kind == PRIMITIVE_COMPARISON)
+    comparison_pc = primitive_pcs[comparison_index]
+    comparison_opcode = tape[comparison_pc + 19]
+    alternate_comparison_opcode = (OPS["jeq"][0]
+                                   if comparison_opcode == OPS["jlt"][0]
+                                   else OPS["jlt"][0])
+    patch(args.comparison_opcode_patch_output, comparison_pc + 19,
+          bytes([alternate_comparison_opcode]))
+    patch(args.comparison_operand_patch_output, comparison_pc + 20,
+          bytes([tape[comparison_pc + 21], tape[comparison_pc + 20]]))
+    patch(args.comparison_branch_target_patch_output, comparison_pc + 22,
+          struct.pack("<Q", comparison_pc + 30))
+    comparison_fall = struct.unpack_from("<Q", tape, comparison_pc + 32)[0]
+    patch(args.comparison_result_patch_output, comparison_pc + 32,
+          struct.pack("<Q", comparison_fall ^ 1))
+    patch(args.comparison_pop_step_patch_output, comparison_pc + 8,
+          struct.pack("<Q", 16))
 
     if args.duplicate_primitive_witness_output:
         changed = list(primitive_pcs)
