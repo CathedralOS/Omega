@@ -773,9 +773,13 @@ Remaining:
   routed source canary likewise emits producer schema only on the exact
   boundary requirement, and an explicit verifier regression rejects a claimed
   result lineage with no bound entry parent. The generated program-entry handoff
-  still needs to own the registry beside installed image/storage Extents rather
-  than relying on the transitional audit helper's caller to retain it; batch,
-  record-retry, and installation aggregate canaries remain open. The
+  now preflights both exact positions before cohort establishment and owns the
+  resulting account registry beside the installed image/storage Extents. Its
+  failure carriers retain the exact subjects, established accounts, or installed
+  roots plus registry appropriate to the failed phase, and record retry cannot
+  release raw roots without their account owner. Generated-entry batch,
+  record-retry, and installation-aggregate canaries plus removal of the
+  transitional passive-grant audit helper remain open. The
   target vocabulary currently exposes one required `ProgramEntry`; expand it
   to an enumerable required-slot set before claiming a finite multi-member-slot
   canary rather than synthesizing test-only target rows.
