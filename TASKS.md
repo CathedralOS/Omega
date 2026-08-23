@@ -6732,6 +6732,9 @@ state through a raw address.
     the same closure: nominal static-machine calls retain their exact bounded
     requirement, primitive results no longer require an unrelated custody
     transfer, and codec/verifier canaries reject deletion, drift, or padding.
+    Boundary-operator provider slots remain independently validated against
+    their exact typed operator schemas and never enter this trait-only
+    installation-reach resolver.
     Installation-bound internal machines publish the conservative bound only
     inside their Terminal closure; ordinary private effectful machines still
     reject without an authored ceiling. Neither lowering nor verification

@@ -1288,6 +1288,22 @@ fn derive_selected_installation_reach_resolutions(
     let mut resolutions = Vec::new();
     let mut diagnostics = Vec::new();
     for plan in selected.plans() {
+        // Boundary operators share the provider-plan carrier, but they are
+        // compiler-owned operator slots rather than boundary-trait
+        // requirements. Candidate validation has already replayed their exact
+        // typed operator schema. Do not make the trait-only installation-reach
+        // pass reinterpret them as missing trait requirements.
+        let is_boundary_operator_plan = checked.typed.operators().iter().any(|operator| {
+            omega_effects::provider_plan::ServiceSchema::from_typed_operator(
+                &checked.typed,
+                operator,
+            )
+            .as_ref()
+                == Some(&plan.schema)
+        });
+        if is_boundary_operator_plan {
+            continue;
+        }
         for row in &plan.rows {
             let requirements = checked
                 .typed
