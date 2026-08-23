@@ -206,6 +206,15 @@ Completed:
   package manifests, runs the graph audit core, returns report text, and
   preserves distinct lock-persistence versus graph-consistency errors.
 
+- **PACKAGE-LOCK-ASSEMBLY-FROM-MANIFESTS.** Add a lock assembly helper for
+  compiler-supplied package manifests before full compiler/CLI lock wiring.
+
+  Done 2026-08-23: `omega-packages` can assemble a validated `PackageLock`
+  from a root package identity plus normalized package capability manifests.
+  Lock entries copy exact source kind/locator/identity, manifest fingerprints,
+  build observation class, dependency aliases, and trust receipt identities.
+  Assembly rejects duplicate manifest packages and open dependency edges.
+
 Remaining:
 
 - **PACKAGE-CAPABILITY-MANIFEST.** Define the normalized manifest produced for
@@ -224,8 +233,9 @@ Remaining:
   hand-authored manifest.
 
   Remaining after `PACKAGE-LOCK-MODEL`,
-  `PACKAGE-LOCK-CLOSURE-VALIDATION`, and `PACKAGE-LOCK-PERSISTENCE`: wire
-  compiler/package admission output into the existing `omega.lock` artifact.
+  `PACKAGE-LOCK-CLOSURE-VALIDATION`, `PACKAGE-LOCK-PERSISTENCE`, and
+  `PACKAGE-LOCK-ASSEMBLY-FROM-MANIFESTS`: wire compiler/package admission
+  output into the existing `omega.lock` artifact.
 
   Acceptance: the lock records exact repository revisions/content identities,
   package manifest fingerprints, dependency edges, build observation verdicts,

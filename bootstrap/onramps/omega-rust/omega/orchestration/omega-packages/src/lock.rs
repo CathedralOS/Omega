@@ -1,4 +1,4 @@
-use crate::manifest::{AliasName, PackageName};
+use crate::manifest::{AliasName, PackageCapabilityManifest, PackageName};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 use std::fs;
@@ -65,6 +65,12 @@ pub enum PackageLockPersistenceError {
     InvalidClosure(Vec<PackageLockValidationError>),
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PackageLockAssemblyError {
+    DuplicateManifest { package: String },
+    InvalidClosure(Vec<PackageLockValidationError>),
+}
+
 impl LockedPackage {
     pub fn normalized(mut self) -> Self {
         self.dependencies.sort();
@@ -111,6 +117,47 @@ impl PackageLock {
 
     pub fn package(&self, package: &PackageName) -> Option<&LockedPackage> {
         self.packages.iter().find(|entry| &entry.package == package)
+    }
+
+    pub fn from_manifests(
+        root_package: PackageName,
+        manifests: &[PackageCapabilityManifest],
+    ) -> Result<Self, PackageLockAssemblyError> {
+        let mut seen = BTreeSet::new();
+        let mut lock = Self::new(root_package);
+        for manifest in manifests {
+            let manifest = manifest.normalized_clone();
+            if !seen.insert(manifest.package.as_str().to_owned()) {
+                return Err(PackageLockAssemblyError::DuplicateManifest {
+                    package: manifest.package.as_str().to_owned(),
+                });
+            }
+            let manifest_fingerprint = manifest.fingerprint();
+            lock.packages.push(LockedPackage {
+                package: manifest.package,
+                source_kind: manifest.source.kind,
+                source_locator: manifest.source.locator,
+                source_identity: manifest.source.resolved,
+                manifest_fingerprint,
+                build_observation: manifest.build_machine.observation_class,
+                dependencies: manifest
+                    .dependency_aliases
+                    .into_iter()
+                    .map(|dependency| LockedDependency {
+                        alias: dependency.alias,
+                        package: dependency.package,
+                    })
+                    .collect(),
+                trust_receipts: manifest
+                    .trust_receipts
+                    .into_iter()
+                    .map(|receipt| receipt.identity)
+                    .collect(),
+            });
+        }
+        lock.validate_closure()
+            .map_err(PackageLockAssemblyError::InvalidClosure)?;
+        Ok(lock.normalized())
     }
 
     pub fn validate_closure(&self) -> Result<(), Vec<PackageLockValidationError>> {
@@ -870,6 +917,7 @@ fn format_sha256(bytes: &[u8]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::manifest::{DependencyAlias, SourceIdentity, TrustReceipt};
     use std::time::{SystemTime, UNIX_EPOCH};
 
     fn package(name: &str) -> PackageName {
@@ -891,6 +939,17 @@ mod tests {
             dependencies: Vec::new(),
             trust_receipts: Vec::new(),
         }
+    }
+
+    fn manifest(name: &str) -> PackageCapabilityManifest {
+        PackageCapabilityManifest::new(
+            package(name),
+            SourceIdentity {
+                kind: "git".to_owned(),
+                locator: format!("https://github.com/CathedralOS/{name}"),
+                resolved: format!("commit:{name}"),
+            },
+        )
     }
 
     fn test_lock() -> PackageLock {
@@ -1062,6 +1121,81 @@ mod tests {
 
         assert!(lock.package(&package("file-journal")).is_some());
         assert!(PackageName::parse("file_journal").is_err());
+    }
+
+    #[test]
+    fn lock_assembly_from_manifests_records_edges_and_receipts() {
+        let mut root = manifest("graph-workbench");
+        root.dependency_aliases.push(DependencyAlias {
+            alias: alias("file_journal"),
+            package: package("file-journal"),
+            source_fingerprint: "source:file-journal".to_owned(),
+        });
+        let mut child = manifest("file-journal");
+        child.trust_receipts.push(TrustReceipt {
+            kind: "review".to_owned(),
+            subject: "filesystem reach".to_owned(),
+            identity: "receipt:filesystem".to_owned(),
+        });
+
+        let lock =
+            PackageLock::from_manifests(package("graph-workbench"), &[child.clone(), root.clone()])
+                .expect("closed manifest set should assemble a lock");
+
+        assert_eq!(lock.validate_closure(), Ok(()));
+        let root_entry = lock
+            .package(&package("graph-workbench"))
+            .expect("root entry should exist");
+        assert_eq!(
+            root_entry.dependencies,
+            vec![LockedDependency {
+                alias: alias("file_journal"),
+                package: package("file-journal"),
+            }]
+        );
+        let child_entry = lock
+            .package(&package("file-journal"))
+            .expect("child entry should exist");
+        assert_eq!(
+            child_entry.trust_receipts,
+            vec!["receipt:filesystem".to_owned()]
+        );
+        assert_eq!(child_entry.manifest_fingerprint, child.fingerprint());
+    }
+
+    #[test]
+    fn lock_assembly_rejects_duplicate_manifest_package() {
+        let root = manifest("graph-workbench");
+
+        assert_eq!(
+            PackageLock::from_manifests(package("graph-workbench"), &[root.clone(), root]),
+            Err(PackageLockAssemblyError::DuplicateManifest {
+                package: "graph-workbench".to_owned()
+            })
+        );
+    }
+
+    #[test]
+    fn lock_assembly_rejects_open_dependency_edge() {
+        let mut root = manifest("graph-workbench");
+        root.dependency_aliases.push(DependencyAlias {
+            alias: alias("file_journal"),
+            package: package("file-journal"),
+            source_fingerprint: "source:file-journal".to_owned(),
+        });
+
+        let error = PackageLock::from_manifests(package("graph-workbench"), &[root])
+            .expect_err("missing dependency manifest must reject");
+
+        assert!(matches!(
+            error,
+            PackageLockAssemblyError::InvalidClosure(errors)
+                if errors.contains(&PackageLockValidationError::MissingDependencyPackage {
+                    package: "graph-workbench".to_owned(),
+                    alias: "file_journal".to_owned(),
+                    dependency: "file-journal".to_owned(),
+                })
+        ));
     }
 
     #[test]

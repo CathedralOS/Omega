@@ -28,7 +28,7 @@ pub use commands::{
 };
 pub use diff::{ManifestDelta, ManifestDiff, ManifestSeverity, diff_package_capability_manifests};
 pub use lock::{
-    LockedDependency, LockedPackage, PackageLock, PackageLockParseError,
+    LockedDependency, LockedPackage, PackageLock, PackageLockAssemblyError, PackageLockParseError,
     PackageLockPersistenceError, PackageLockValidationError,
 };
 pub use manifest::{
