@@ -554,6 +554,27 @@ const WHOLE_AGGREGATE_EQUALITY_SOURCE: &str = r#"
     }
 "#;
 
+const NESTED_PAYLOAD_SUM_EQUALITY_SOURCE: &str = r#"
+    trait Equatable {
+        machine equals(&self, rhs: &Self) -> bool;
+    }
+
+    data Message {
+        case Empty;
+        case Data(value: i32, checksum: i32);
+    }
+    MessageEquatable: Message satisfies Equatable;
+
+    data Envelope { active: bool; message: Message; }
+    EnvelopeEquatable: Envelope satisfies Equatable;
+
+    data Whole {}
+    machine Whole::enter(left: Envelope, right: Envelope)
+    crashes Abort
+        left == right
+    {}
+"#;
+
 const IEEE_FLOAT_AGGREGATE_EQUALITY_SOURCE: &str = r#"
     trait Equatable {
         machine equals(&self, rhs: &Self) -> bool;
@@ -4019,6 +4040,220 @@ fn whole_aggregate_equality_expands_and_reconstructs_end_to_end() {
             Err(psi_terminal_verifier::ModuleError::CallCrashContinuationsMismatch { .. })
         ),
         "unexpected aggregate equality validation result: {invalid_result:?}"
+    );
+}
+
+#[test]
+fn nested_payload_sum_equality_retains_exact_record_case_payload_paths_end_to_end() {
+    fn collect_paths(
+        proposition: &Proposition,
+        memberships: &mut Vec<(
+            psi_core::PlaceId,
+            Vec<CanonicalStructuralPathSegment>,
+            psi_core::StructuralCaseId,
+        )>,
+        integer_fields: &mut Vec<(psi_core::PlaceId, Vec<CanonicalStructuralPathSegment>)>,
+    ) {
+        match proposition {
+            Proposition::StructuralCaseMembership { subject, case } => {
+                memberships.push((subject.root(), subject.path().to_vec(), *case));
+            }
+            Proposition::Equal(_, ScalarTerm::IntegerEqual { left, right, .. }) => {
+                for operand in [left.as_ref(), right.as_ref()] {
+                    if let ScalarTerm::IntegerField { root, path, .. } = operand {
+                        integer_fields.push((*root, path.clone()));
+                    }
+                }
+            }
+            Proposition::Conjunction(children) | Proposition::Disjunction(children) => {
+                for child in children {
+                    collect_paths(child, memberships, integer_fields);
+                }
+            }
+            Proposition::Implication {
+                premise,
+                conclusion,
+            } => {
+                collect_paths(premise, memberships, integer_fields);
+                collect_paths(conclusion, memberships, integer_fields);
+            }
+            Proposition::Truth
+            | Proposition::Falsehood
+            | Proposition::Atom(_)
+            | Proposition::Equal(_, _)
+            | Proposition::LessThan(_, _)
+            | Proposition::LessOrEqual(_, _)
+            | Proposition::IeeeFloatComparison { .. }
+            | Proposition::ByteSequenceEqual { .. }
+            | Proposition::ContentConservation(_) => {}
+        }
+    }
+
+    fn redirect_right_payload_field(
+        proposition: &mut Proposition,
+        from: StructuralFieldId,
+        to: StructuralFieldId,
+    ) -> bool {
+        match proposition {
+            Proposition::Equal(_, ScalarTerm::IntegerEqual { right, .. }) => {
+                let ScalarTerm::IntegerField { path, .. } = right.as_mut() else {
+                    return false;
+                };
+                let Some(CanonicalStructuralPathSegment::Field(field)) = path.last_mut() else {
+                    return false;
+                };
+                if *field != from {
+                    return false;
+                }
+                *field = to;
+                true
+            }
+            Proposition::Conjunction(children) | Proposition::Disjunction(children) => children
+                .iter_mut()
+                .any(|child| redirect_right_payload_field(child, from, to)),
+            Proposition::Implication {
+                premise,
+                conclusion,
+            } => {
+                redirect_right_payload_field(premise, from, to)
+                    || redirect_right_payload_field(conclusion, from, to)
+            }
+            _ => false,
+        }
+    }
+
+    let tokens = Lexer::new(NESTED_PAYLOAD_SUM_EQUALITY_SOURCE)
+        .tokenize()
+        .expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Whole::enter")
+        .expect("whole Envelope equality lowers through its sum field");
+
+    let root = &lowered.semantic_module.machines[0];
+    let envelope = lowered
+        .semantic_module
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == root.structural_parameters[0].structural_type)
+        .expect("Envelope structural type");
+    let StructuralTypeShape::Record { fields } = &envelope.shape else {
+        panic!("Envelope is a record")
+    };
+    let message_field = fields
+        .iter()
+        .find(|field| field.identity == "message")
+        .expect("message field");
+    let StructuralFieldType::Structural(message_type) = message_field.field_type else {
+        panic!("message field names the nested structural sum")
+    };
+    let message = lowered
+        .semantic_module
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == message_type)
+        .expect("Message structural type");
+    let StructuralTypeShape::Sum { cases } = &message.shape else {
+        panic!("Message is a sum")
+    };
+    let data_case = cases
+        .iter()
+        .find(|case| case.identity == "Data")
+        .expect("Data case");
+    let value_field = data_case
+        .fields
+        .iter()
+        .find(|field| field.identity == "value")
+        .expect("value field");
+    let checksum_field = data_case
+        .fields
+        .iter()
+        .find(|field| field.identity == "checksum")
+        .expect("checksum field");
+
+    let [CrashRouteGuard::Predicate(root_route)] =
+        root.contract.crash_routes[0].alternatives.as_slice()
+    else {
+        panic!("whole Envelope equality publishes one predicate")
+    };
+    let mut root_memberships = Vec::new();
+    let mut root_fields = Vec::new();
+    collect_paths(
+        root_route.proposition(),
+        &mut root_memberships,
+        &mut root_fields,
+    );
+    assert_eq!(root_memberships.len(), 4);
+    assert!(root_memberships.iter().all(|(root_place, path, _)| {
+        [
+            root.structural_parameters[0].place,
+            root.structural_parameters[1].place,
+        ]
+        .contains(root_place)
+            && path == &[CanonicalStructuralPathSegment::Field(message_field.id)]
+    }));
+    assert_eq!(root_fields.len(), 4);
+    assert!(root_fields.iter().all(|(root_place, path)| {
+        [
+            root.structural_parameters[0].place,
+            root.structural_parameters[1].place,
+        ]
+        .contains(root_place)
+            && matches!(
+                path.as_slice(),
+                [
+                    CanonicalStructuralPathSegment::Field(message),
+                    CanonicalStructuralPathSegment::Case(case),
+                    CanonicalStructuralPathSegment::Field(field),
+                ] if *message == message_field.id
+                    && *case == data_case.id
+                    && [value_field.id, checksum_field.id].contains(field)
+            )
+    }));
+
+    let verified = psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("verifier accepts exact nested record-to-sum paths");
+    let fixed = derive_fixed_entry_fuel(&verified, lowered.semantic_module.entry)
+        .expect("nested equality has fixed fuel");
+    validate_fixed_entry_fuel(&verified, &fixed).expect("fixed fuel recomputes");
+    let semantics = encode_module(&lowered.semantic_module).expect("semantic encode");
+    assert_eq!(
+        decode_module(&semantics),
+        Ok(lowered.semantic_module.clone())
+    );
+    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("proof encode");
+    assert_eq!(
+        decode_proof_bundle(&proof),
+        Ok(lowered.proof_bundle.clone())
+    );
+
+    let mut redirected = lowered.semantic_module.clone();
+    let CrashRouteGuard::Predicate(predicate) =
+        &mut redirected.machines[0].contract.crash_routes[0].alternatives[0]
+    else {
+        unreachable!()
+    };
+    let mut proposition = predicate.proposition().clone();
+    let wrong_field = StructuralFieldId::new(u64::MAX).expect("nonzero redirected field");
+    assert!(redirect_right_payload_field(
+        &mut proposition,
+        value_field.id,
+        wrong_field,
+    ));
+    *predicate = CrashPredicateTerm::new(proposition);
+    let invalid_result = psi_terminal_verifier::validate_module(&redirected);
+    assert!(
+        matches!(
+            invalid_result,
+            Err(psi_terminal_verifier::ModuleError::InvalidIntegerFieldTerm { .. })
+        ),
+        "unexpected redirected nested payload validation result: {invalid_result:?}"
     );
 }
 

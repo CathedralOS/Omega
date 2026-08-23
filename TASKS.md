@@ -2043,12 +2043,18 @@ Remaining:
   Their intrinsic `==` is the canonical disjunction of per-case conjunctions:
   matching membership for both roots plus that case's exact payload-leaf
   equalities. `!=` is that complete equality proposition implying falsehood.
+  The same expansion is path-relative when an acyclic relevant record field
+  reaches the sum: the checked and Terminal paths retain every enclosing field
+  followed by the exact case and payload-field identities. Direct Unit-call
+  rebasing through a sum-bearing projection remains gated with runtime sum
+  projection and cleanup.
   Unknown or redirected case/field identities reject independently. Mixed
-  common-field/case shapes, nested or recursive payload expansion, address and
-  erased payload equality, and runtime sum layout remain fenced. Semantic codec
-  v18, proof-bundle v18, and installation-record v24 retain the structural
-  shapes, case-payload paths, and proposition. Continue with the fenced mixed,
-  nested, recursive, and erased aggregate cases. Concrete machine/state
+  common-field/case shapes, structural fields inside a case payload (including
+  further records or sums), recursive expansion, address and erased payload
+  equality, and runtime sum layout remain fenced. Semantic codec v18,
+  proof-bundle v18, and installation-record v24 retain the structural shapes,
+  case-payload paths, and proposition. Continue with the fenced mixed,
+  case-payload-nested, recursive, and erased aggregate cases. Concrete machine/state
   contracts plus domain/data predicates, trait invariants and signatures,
   machine-parameter requirements, and root/domain operator contracts now reject
   direct binary and named-float `Trapping` arithmetic plus direct Trapping
