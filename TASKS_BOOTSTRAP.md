@@ -266,7 +266,7 @@ or prescribe work inside the Rust on-ramp or the eventual product compiler.
       retained digest, zero/two-write dual-channel results, semantic rejection,
       and multi-slot method threading. It is part of the default lattice suite.
   - [x] Admit the current 695-state `lowermachine.alp` source to the Rust-free
-    elaboration route without claiming its execution is closed. State metadata
+    elaboration route with explicit capacity contracts. State metadata
     now has a checked 1,024-state-per-machine ceiling, state parameter rows have
     a checked four-parameter ceiling, and compiler-sized scalar arrays use a
     bounded persistent tree rather than materializing their full zero backing.
@@ -337,13 +337,17 @@ or prescribe work inside the Rust on-ramp or the eventual product compiler.
   deliberately simple, spec-compliant compiler. Prefer direct and auditable
   stages over porting the production optimizer or the entire current Rust
   architecture.
-  - [ ] Close execution of the full current `lowermachine` through canonical
-    Gamma meaning before treating it as a Rust-free compiler root. Marker-free
-    elaboration is already gated, but a tiny compile currently exhausts the
-    interpreter's fixed 48 MiB evaluation arena after parsing. Resolve that
-    evaluator/storage engineering cliff with an explicit bounded strategy and
-    a complete native-versus-Gamma status/stdout differential; do not silently
-    enlarge an undocumented arena or weaken exhaustion behavior.
+  - [x] Close execution of the full current `lowermachine` through canonical
+    Gamma meaning. Allocation profiling identified evaluator-private tail-call
+    argument lists—not the translated compiler's persistent arrays—as the arena
+    cliff. A checked 4 KiB scratch stack now carries pending evaluated arguments
+    without changing source-visible Gamma values. The translator also skips
+    quoted strings atomically while scanning states; previously the `//` in an
+    emitted banner hid the compiler's final 18 states. A block-final
+    `write_line` without `;` now stops at `}` instead of scanning into the next
+    machine. The focused gate compiles
+    `arith.alp` through the complete route and requires decoded status 0 plus all
+    800 output bytes to equal native execution (and a frozen SHA-256 everywhere).
   - [x] Implement O1 as the first genuinely variable source slice: preserve the
     O0 declaration/entry shell, accept a bounded sequence of zero or more
     literal `write_line` statements followed by exactly one literal

@@ -151,6 +151,21 @@ proc skip_ws() {
     state ceof { return 0 }
 }
 
+; Skip one raw quoted source string atomically for the state-declaration brace walk.
+; Without this, `//` or braces inside a literal are mistaken for comments or
+; structure and can hide every later state declaration.
+proc skip_string() {
+    adv()                              ; opening quote
+    state loop {
+        to done when (cbyte() == 0)
+        to close when (cbyte() == 34)  ; closing quote
+        adv()
+        to loop
+    }
+    state close { adv()  return 0 }
+    state done { return 0 }
+}
+
 proc skip_ident() {
     state loop {
         to body when (is_idchar(cbyte()) == 1)
@@ -1414,6 +1429,7 @@ proc emit_write_line() {
     state eatcl { adv()  to tsemi }
     state tsemi {
         to teof when (word[2097144] >= word[2097136])
+        to teof when (cbyte() == '}')
         to eatsemi when (cbyte() == ';')
         adv()
         to tsemi
@@ -2807,12 +2823,14 @@ proc scan_states(mi) {
         skip_ws()
         let c = cbyte()
         to eof when (c == 0)
+        to string when (c == 34)
         to closeb when (c == '}')
         to openb when (c == '{')
         to maybe when (depth == 0)
         adv()
         to loop
     }
+    state string { skip_string()  to loop }
     state closeb {
         to eof when (depth == 0)       ; machine close
         depth = depth - 1

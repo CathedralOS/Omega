@@ -250,7 +250,12 @@ machine, four parameters per state, and 524,288 cells for the private
 compiler-sized scalar-array carrier; exact state admission and the adjacent
 refusals are executable gates. The carrier is a depth-19 persistent tree with a
 compact all-zero root, so admission does not materialize the fixed backing.
-This closes an elaboration/capacity boundary only. Executing the resulting
-compiler on even the tiny arithmetic sample still exhausts the canonical Gamma
-interpreter's fixed evaluation arena, so no Rust-free whole-compiler execution
-or production-self-host claim follows from it.
+The canonical Gamma interpreter also executes the resulting compiler on the
+arithmetic sample: decoded status 0 and all 800 output bytes equal native Delta
+execution. The interpreter uses checked evaluator-private argument scratch
+instead of allocating a persistent Gamma list for every tail-call transfer, and
+the translator's state scanner treats quoted strings atomically so a literal
+`//` cannot hide later declarations. Block-final `write_line` also stops at the
+closing brace when the optional semicolon is absent. This closes whole-compiler
+meaning for the existing Delta compiler; it does not create the future Omega
+compiler or freeze the production-self-host profile.

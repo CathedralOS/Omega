@@ -12,7 +12,10 @@ array carrier. These are bounded execution properties of the canonical
 interpreter, not extra Gamma syntax; printed values and pattern matching retain
 the language definition in [`LANGUAGE.md`](LANGUAGE.md). Canonical source input
 has a checked 4 MiB ceiling; the adjacent byte exits 252 without evaluation or
-output rather than overlapping the function table.
+output rather than overlapping the function table. Evaluated call arguments use
+a checked 4 KiB interpreter-private scratch stack, and exhaustion exits 253
+without printing a partial result. Tail transfers therefore do not allocate
+source-visible persistent lists merely to move values between evaluator frames.
 
 The canonical implementation path is Rust-free:
 

@@ -36,7 +36,10 @@ depend on the Beta/Alpha return-stack depth. The interpreter may intern bounded
 integers and compact ordinary two-field `Cons` cells internally. It may likewise
 compact the ordinary `Node` and `Chunks` constructors used by the bootstrap
 translator's persistent-array carrier; matching and the canonical printed
-constructor tree are unchanged by those representations.
+constructor tree are unchanged by those representations. The canonical
+interpreter may also use bounded private scratch storage to transfer
+already-evaluated call arguments; those slots are never Gamma values and are
+released when the callee parameters are bound.
 
 ## Statically checked surface
 

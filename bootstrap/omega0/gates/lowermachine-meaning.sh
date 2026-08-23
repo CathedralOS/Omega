@@ -1,7 +1,6 @@
 #!/usr/bin/env sh
-# Focused lower-rung capacity evidence for the existing Delta lowermachine.
-# This gate proves elaboration and the large-array representation; it does not
-# claim that the complete lowermachine executes within Gamma's current arena.
+# Focused lower-rung meaning and capacity evidence for the existing Delta
+# lowermachine, including a complete tiny compile through canonical Gamma.
 set -eu
 
 GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
@@ -9,7 +8,7 @@ OMEGA_REPO_ROOT=$GATE_DIR
 while [ ! -f "$OMEGA_REPO_ROOT/bootstrap/paths.sh" ]; do
   PARENT=$(dirname -- "$OMEGA_REPO_ROOT")
   [ "$PARENT" != "$OMEGA_REPO_ROOT" ] || {
-    echo "lowermachine elaboration capacity: repository root not found" >&2
+    echo "lowermachine meaning: repository root not found" >&2
     exit 2
   }
   OMEGA_REPO_ROOT=$PARENT
@@ -20,7 +19,7 @@ cd "$OMEGA_REPO_ROOT"
 
 for TOOL in perl python3; do
   command -v "$TOOL" >/dev/null 2>&1 || {
-    echo "lowermachine elaboration capacity: $TOOL required" >&2
+    echo "lowermachine meaning: $TOOL required" >&2
     exit 2
   }
 done
@@ -29,7 +28,7 @@ T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
 
 stamp_beta_compiler "$T/bc.exe" >/dev/null || {
-  echo "lowermachine elaboration capacity: Beta compiler artifact unavailable" >&2
+  echo "lowermachine meaning: Beta compiler artifact unavailable" >&2
   exit 1
 }
 ASM="$OMEGA_PATH_BETA_ASSEMBLER/$BETA_SEED"
@@ -40,11 +39,11 @@ build_beta() {
 }
 
 build_beta "$OMEGA_PATH_OMEGA0/meaning/omega2gamma.beta" "$T/elaborate.exe" || {
-  echo "lowermachine elaboration capacity: omega2gamma build failed" >&2
+  echo "lowermachine meaning: omega2gamma build failed" >&2
   exit 1
 }
 build_beta "$OMEGA_PATH_GAMMA/interp.beta" "$T/interp.exe" || {
-  echo "lowermachine elaboration capacity: Gamma interpreter build failed" >&2
+  echo "lowermachine meaning: Gamma interpreter build failed" >&2
   exit 1
 }
 
@@ -54,18 +53,60 @@ perl -e 'alarm 10; exec @ARGV' "$T/elaborate.exe" \
 ELABORATE_STATUS=$?
 set -e
 [ "$ELABORATE_STATUS" -eq 0 ] || {
-  echo "lowermachine elaboration capacity: lowermachine elaboration exited $ELABORATE_STATUS" >&2
+  echo "lowermachine meaning: lowermachine elaboration exited $ELABORATE_STATUS" >&2
   exit 1
 }
 [ -s "$T/lowermachine.gamma" ] && ! grep -q 'E2G-UNSUPPORTED' "$T/lowermachine.gamma" || {
-  echo "lowermachine elaboration capacity: lowermachine was explicitly unsupported" >&2
+  echo "lowermachine meaning: lowermachine was explicitly unsupported" >&2
   exit 1
 }
 LOWERMACHINE_GAMMA_BYTES=$(wc -c < "$T/lowermachine.gamma" | tr -d ' ')
 [ "$LOWERMACHINE_GAMMA_BYTES" -le 262144 ] || {
-  echo "lowermachine elaboration capacity: Gamma output is $LOWERMACHINE_GAMMA_BYTES bytes" >&2
+  echo "lowermachine meaning: Gamma output is $LOWERMACHINE_GAMMA_BYTES bytes" >&2
   exit 1
 }
+
+python3 - "$T/lowermachine.gamma" "$OMEGA_PATH_DELTA/samples/arith.alp" \
+  "$T/lowermachine-arith.gamma" <<'PY'
+import pathlib
+import sys
+
+program = pathlib.Path(sys.argv[1]).read_text(encoding="ascii")
+source = pathlib.Path(sys.argv[2]).read_bytes()
+stdin = "Nil"
+for byte in reversed(source):
+    stdin = f"(Cons {byte} {stdin})"
+if program.count("STDIN") != 1:
+    raise SystemExit("lowermachine meaning: expected one STDIN placeholder")
+pathlib.Path(sys.argv[3]).write_text(program.replace("STDIN", stdin), encoding="ascii")
+PY
+
+set +e
+perl -e 'alarm 60; exec @ARGV' "$T/interp.exe" \
+  < "$T/lowermachine-arith.gamma" > "$T/lowermachine-arith.observation"
+LOWERMACHINE_INTERP_STATUS=$?
+set -e
+[ "$LOWERMACHINE_INTERP_STATUS" -eq 0 ] || {
+  echo "lowermachine meaning: Gamma execution exited $LOWERMACHINE_INTERP_STATUS" >&2
+  exit 1
+}
+LOWERMACHINE_GAMMA_STATUS=$(python3 "$OMEGA_PATH_OMEGA0/meaning/decode-gamma-output.py" \
+  "$T/lowermachine-arith.observation" "$T/lowermachine-arith.gamma.stdout")
+[ "$LOWERMACHINE_GAMMA_STATUS" -eq 0 ] || {
+  echo "lowermachine meaning: Gamma compiler status $LOWERMACHINE_GAMMA_STATUS" >&2
+  exit 1
+}
+python3 - "$T/lowermachine-arith.gamma.stdout" <<'PY'
+import hashlib
+import pathlib
+import sys
+
+artifact = pathlib.Path(sys.argv[1]).read_bytes()
+assert len(artifact) == 800
+assert hashlib.sha256(artifact).hexdigest() == (
+    "e66dd3be044a7003df1d84f3e6497309b881b0ebcbcfe002343bdedf7d0caa88"
+)
+PY
 
 write_state_source() {
   COUNT=$1
@@ -96,7 +137,7 @@ set -e
 [ "$STATES_1024_STATUS" -eq 0 ] \
   && [ -s "$T/states-1024.gamma" ] \
   && ! grep -q 'E2G-UNSUPPORTED' "$T/states-1024.gamma" || {
-    echo "lowermachine elaboration capacity: 1024-state boundary was not admitted" >&2
+    echo "lowermachine meaning: 1024-state boundary was not admitted" >&2
     exit 1
   }
 
@@ -108,7 +149,7 @@ STATES_1025_STATUS=$?
 set -e
 [ "$STATES_1025_STATUS" -eq 0 ] \
   && grep -q 'E2G-UNSUPPORTED-machine-state-capacity' "$T/states-1025.gamma" || {
-    echo "lowermachine elaboration capacity: 1025 states did not refuse explicitly" >&2
+    echo "lowermachine meaning: 1025 states did not refuse explicitly" >&2
     exit 1
   }
 
@@ -128,7 +169,7 @@ pathlib.Path(sys.argv[1]).write_text(
 PY
 "$T/elaborate.exe" < "$T/state-params-5.alp" > "$T/state-params-5.gamma"
 grep -q 'E2G-UNSUPPORTED-state-parameter-capacity' "$T/state-params-5.gamma" || {
-  echo "lowermachine elaboration capacity: five state parameters did not refuse explicitly" >&2
+  echo "lowermachine meaning: five state parameters did not refuse explicitly" >&2
   exit 1
 }
 
@@ -158,7 +199,7 @@ PY
 
 "$T/elaborate.exe" < "$T/tree-array.alp" > "$T/tree-array.gamma"
 [ -s "$T/tree-array.gamma" ] && ! grep -q 'E2G-UNSUPPORTED' "$T/tree-array.gamma" || {
-  echo "lowermachine elaboration capacity: 1024-cell tree array unsupported" >&2
+  echo "lowermachine meaning: 1024-cell tree array unsupported" >&2
   exit 1
 }
 set +e
@@ -167,13 +208,13 @@ perl -e 'alarm 20; exec @ARGV' "$T/interp.exe" \
 TREE_INTERP_STATUS=$?
 set -e
 [ "$TREE_INTERP_STATUS" -eq 0 ] || {
-  echo "lowermachine elaboration capacity: tree-array Gamma execution exited $TREE_INTERP_STATUS" >&2
+  echo "lowermachine meaning: tree-array Gamma execution exited $TREE_INTERP_STATUS" >&2
   exit 1
 }
 TREE_STATUS=$(python3 "$OMEGA_PATH_OMEGA0/meaning/decode-gamma-output.py" \
   "$T/tree-array.observation" "$T/tree-array.gamma.stdout")
 [ "$TREE_STATUS" -eq 42 ] || {
-  echo "lowermachine elaboration capacity: tree-array Gamma status $TREE_STATUS" >&2
+  echo "lowermachine meaning: tree-array Gamma status $TREE_STATUS" >&2
   exit 1
 }
 python3 - "$T/tree-array.gamma.stdout" <<'PY'
@@ -196,7 +237,7 @@ pathlib.Path(sys.argv[1]).write_text(
 PY
 "$T/elaborate.exe" < "$T/tree-too-large.alp" > "$T/tree-too-large.gamma"
 grep -q 'E2G-UNSUPPORTED-array-capacity' "$T/tree-too-large.gamma" || {
-  echo "lowermachine elaboration capacity: oversized tree did not refuse explicitly" >&2
+  echo "lowermachine meaning: oversized tree did not refuse explicitly" >&2
   exit 1
 }
 
@@ -204,12 +245,24 @@ case "$(uname -sm)" in
   "Darwin arm64")
     for TOOL in cargo clang codesign; do
       command -v "$TOOL" >/dev/null 2>&1 || {
-        echo "lowermachine elaboration capacity: skipped native tree differential ($TOOL absent)"
+        echo "lowermachine meaning: skipped native differentials ($TOOL absent)"
         TOOL_MISSING=1
       }
     done
     if [ "${TOOL_MISSING:-0}" -eq 0 ]; then
       cargo build -q --manifest-path "$OMEGA_PATH_DELTA_RUST/Cargo.toml"
+      DELTA_ARCH=aarch64 "$OMEGA_PATH_DELTA_RUST/target/debug/delta" \
+        "$OMEGA_PATH_DELTA/samples/lowermachine.alp" "$T/lowermachine.native" >/dev/null
+      set +e
+      "$T/lowermachine.native" < "$OMEGA_PATH_DELTA/samples/arith.alp" \
+        > "$T/lowermachine-arith.native.stdout"
+      LOWERMACHINE_NATIVE_STATUS=$?
+      set -e
+      [ "$LOWERMACHINE_NATIVE_STATUS" -eq "$LOWERMACHINE_GAMMA_STATUS" ] \
+        && cmp "$T/lowermachine-arith.native.stdout" "$T/lowermachine-arith.gamma.stdout" || {
+          echo "lowermachine meaning: native/Gamma compiler observation differs" >&2
+          exit 1
+        }
       DELTA_ARCH=aarch64 "$OMEGA_PATH_DELTA_RUST/target/debug/delta" \
         "$T/tree-array.alp" "$T/tree-array.native" >/dev/null
       set +e
@@ -218,12 +271,12 @@ case "$(uname -sm)" in
       set -e
       [ "$TREE_NATIVE_STATUS" -eq "$TREE_STATUS" ] \
         && cmp "$T/tree-array.native.stdout" "$T/tree-array.gamma.stdout" || {
-          echo "lowermachine elaboration capacity: native/Gamma tree-array observation differs" >&2
+          echo "lowermachine meaning: native/Gamma tree-array observation differs" >&2
           exit 1
         }
     fi
     ;;
-  *) echo "lowermachine elaboration capacity: native tree differential skipped on $(uname -sm)" ;;
+  *) echo "lowermachine meaning: native differentials skipped on $(uname -sm)" ;;
 esac
 
 python3 - "$T/source-exact.gamma" "$T/source-plus-one.gamma" <<'PY'
@@ -247,12 +300,42 @@ SOURCE_PLUS_ONE_STATUS=$?
 set -e
 [ "$SOURCE_EXACT_STATUS" -eq 42 ] \
   && [ "$(tr -d '\n' < "$T/source-exact.out")" = 42 ] || {
-    echo "lowermachine elaboration capacity: exact 4 MiB Gamma source was not admitted" >&2
+    echo "lowermachine meaning: exact 4 MiB Gamma source was not admitted" >&2
     exit 1
   }
 [ "$SOURCE_PLUS_ONE_STATUS" -eq 252 ] && [ ! -s "$T/source-plus-one.out" ] || {
-  echo "lowermachine elaboration capacity: 4 MiB+1 Gamma source did not exhaust cleanly" >&2
+  echo "lowermachine meaning: 4 MiB+1 Gamma source did not exhaust cleanly" >&2
   exit 1
 }
 
-echo "lowermachine elaboration capacity: $LOWERMACHINE_GAMMA_BYTES-byte marker-free elaboration, state/table capacity teeth, tree-array differential, and Gamma source bounds passed"
+python3 - "$T/args-exact.gamma" "$T/args-plus-one.gamma" <<'PY'
+import pathlib
+import sys
+
+def program(count: int) -> str:
+    params = " ".join(f"p{index}" for index in range(count))
+    return f"(def f ({params}) 42) (f " + "0 " * count + ")"
+
+pathlib.Path(sys.argv[1]).write_text(program(512), encoding="ascii")
+pathlib.Path(sys.argv[2]).write_text(program(513), encoding="ascii")
+PY
+
+set +e
+perl -e 'alarm 10; exec @ARGV' "$T/interp.exe" \
+  < "$T/args-exact.gamma" > "$T/args-exact.out"
+ARGS_EXACT_STATUS=$?
+perl -e 'alarm 10; exec @ARGV' "$T/interp.exe" \
+  < "$T/args-plus-one.gamma" > "$T/args-plus-one.out"
+ARGS_PLUS_ONE_STATUS=$?
+set -e
+[ "$ARGS_EXACT_STATUS" -eq 42 ] \
+  && [ "$(tr -d '\n' < "$T/args-exact.out")" = 42 ] || {
+    echo "lowermachine meaning: exact 512-value argument scratch was not admitted" >&2
+    exit 1
+  }
+[ "$ARGS_PLUS_ONE_STATUS" -eq 253 ] && [ ! -s "$T/args-plus-one.out" ] || {
+  echo "lowermachine meaning: 513 argument values did not exhaust cleanly" >&2
+  exit 1
+}
+
+echo "lowermachine meaning: $LOWERMACHINE_GAMMA_BYTES-byte marker-free elaboration, exact arith compile, state/tree/source/argument capacity teeth, and differentials passed"
