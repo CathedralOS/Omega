@@ -155,6 +155,14 @@ Completed:
   `main.omg`, package notes, and focused intent. `omega-packages` resolves all
   fixture directories as distinct local source identities in tests.
 
+- **REMOTE-PACKAGE-FIXTURE-MIRRORS.** Mirror the local package corpus to GitHub
+  under the `CathedralOS` organization for network/package-manager tests.
+
+  Done 2026-08-23: created private repositories for the eight fixture packages
+  under `CathedralOS` and pushed initial package contents. Exact commit pins are
+  recorded in `fixtures/packages/REMOTE_PINS.md`; remote acceptance tests should
+  use those commits rather than branch names.
+
 Remaining:
 
 - **PACKAGE-CAPABILITY-MANIFEST.** Define the normalized manifest produced for
@@ -257,9 +265,8 @@ where the host language requires identifiers (`generated_table` in Omega or
 Rust). Do not allow both spellings to name distinct packages in the same
 package namespace.
 
-Local package fixtures live under `fixtures/packages/`. The remote mirror task
-remains open until these contents are pushed to exact-pinned repositories under
-the GitHub `CathedralOS` organization.
+Local package fixtures live under `fixtures/packages/`; remote GitHub mirror
+pins live in `fixtures/packages/REMOTE_PINS.md`.
 
 - **arithmetic-kernels.** Library with checked proof/helper machines, no `build.omg`
   host reach, no boundary claims.

@@ -8,7 +8,7 @@ dependency aliases use snake_case where Omega identifiers require it.
 The first package-manager tests should use these directories through local path
 resolution. Once local install/update/audit flows work, mirror the same package
 contents into Git repositories under `CathedralOS` and pin tests to exact
-commits.
+commits. Current remote mirror pins are recorded in `REMOTE_PINS.md`.
 
 Packages:
 
@@ -21,4 +21,3 @@ Packages:
 - `capability-vault`: capability flow fixture for store/return/acquire/derive.
 - `graph-workbench`: root graph fixture depending on pure and capability-bearing
   packages.
-

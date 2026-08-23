@@ -200,6 +200,7 @@ different packages in the same package namespace.
   for every new capability.
 
 These packages are the acceptance corpus for `install`, `update`, and
-`audit packages`. The local corpus lives under `fixtures/packages/`. After
-local resolution works, mirror the same packages as Git repositories under
-`CathedralOS` and pin tests to exact commits.
+`audit packages`. The local corpus lives under `fixtures/packages/`. Private
+GitHub mirrors under `CathedralOS` are recorded with exact initial commit pins
+in `fixtures/packages/REMOTE_PINS.md`; remote tests should use those commits
+instead of branch names.
