@@ -3,7 +3,7 @@
 > **Status: DIRECTION + a working vertical slice.** The audited bootstrap spine is
 > `Alpha → Beta → Gamma → Delta`; the complete build lattice continues
 > `→ Omega (Delta-built) → Omega (Omega-built)`. Alpha through Gamma exist on the audited
-> lineage; the Delta on-ramp, native corpus, self-hosting compiler, and meaning
+> lineage; the Delta rung's native corpus, self-hosting compiler, and meaning
 > diamond exist while the full Rust-free hosting path remains under construction.
 > The proof kernel is a cross-cutting assurance service, independently
 > implemented in Beta and Gamma, rather than a language rung. One command checks
@@ -24,7 +24,7 @@ from two things it is easy to confuse it with:
   [design briefs](../../design_briefs/). The lattice must *preserve* that
   meaning; it does not define it.
 - **How Omega compiles today** — the current Rust implementation under
-  `compiler/omega/`. Owned by
+  `compiler/psi/` and `compiler/omega/`, exposed by `apps/omega-cli/`. Owned by
   [Repository Layout](../repository_layout.md) and
   [Pipeline Architecture](../pipeline/pipeline.md). In this architecture
   the product compiler is a *role*, not a rival (see
@@ -189,13 +189,10 @@ artifact ─────────────── proof/semantic checker
 - **Reference comparisons and independent implementations expose bugs, but do
   not replace a checked refinement claim.**
 
-This is why DDC is unnecessary here. DDC tries to establish source/binary
-correspondence by comparing two producers. This architecture establishes the
-stronger property directly: the exact artifact must refine the canonical
-meaning of the exact source, and the producer has no authority over the claim.
-Two correct producers may emit different bytes; two incorrect producers may
-agree. Cross-implementation comparisons remain useful engineering tests where
-cheap, but they are not trust edges and do not define the repository structure.
+Cross-implementation comparisons remain useful engineering tests where cheap,
+but they are not trust edges and do not define the repository structure.
+[D5](decisions.md#d5--direct-checked-refinement-closes-compiler-provenance)
+records why direct checked refinement is the provenance rule.
 
 ## The irreducible trust ledger
 
@@ -226,7 +223,7 @@ bootstrap rung adds **one coherent idea** and is implemented in the rung below.
 | [alpha](rungs/alpha.md) | raw computation: bytes, fixed-width arithmetic, bounded memory, load/store, branch, byte I/O, trap | native (hand-written per ISA); Alpha assembler written in Alpha | the VM's own small-step semantics ([`SEMANTICS.md`](../../../bootstrap/rungs/alpha/SEMANTICS.md)) | **EXISTS** — 21-opcode tape VM, audited x64/arm64 realizations, written semantics, conformance suite, and self-hosting Alpha assembler |
 | [beta](rungs/beta.md) | names + structure: a small structured systems language (procedures, locals, control flow, memory) | alpha | the Beta-language compiler, **written in Beta** (`bc.beta`), lowers to Alpha assembly | **EXISTS + SELF-HOSTS** — the Alpha-rooted fixed-point artifact exists and is used downstream; complete lower-rooted source-to-artifact validation remains open |
 | [gamma](rungs/gamma.md) | safe definitional computation: algebraic data, pattern matching, pure functions, fuel-bounded evaluation, a simple type system | beta | a Gamma reference interpreter written in Beta ([`interp.beta`](../../../bootstrap/rungs/gamma/interp.beta)) | **EXISTS** — fuel-bounded functional core, ADTs, pattern matching, and a static type checker; also hosts an independent proof-kernel implementation ([`checker.gamma`](../../../bootstrap/assurance/proof-kernel/implementations/gamma/checker.gamma)) |
-| [delta](rungs/delta.md) | compiler-host systems programming: mutation, ownership, regions, effects, boundaries | gamma | Delta-to-Gamma elaboration plus the Gamma reference interpreter | **WORKING ON-RAMP** — native corpus, self-hosting compiler, and meaning diamond exist; full Rust-free toolchain hosting remains open |
+| [delta](rungs/delta.md) | compiler-host systems programming: mutation, ownership, regions, effects, boundaries | gamma | Delta-to-Gamma elaboration plus the Gamma reference interpreter | **WORKING RUNG** — native corpus, self-hosting compiler, and meaning diamond exist; full Rust-free toolchain hosting remains open |
 
 The [proof kernel](proof_kernel.md) and the [Psi/Omega toolchain](omega_toolchain.md)
 are connected nodes in the architecture, not additional rungs in this table.
@@ -254,8 +251,8 @@ This architecture does not demote the existing docs; it assigns roles.
 
 - **Language docs** (`language_guide/`, `design_briefs/`) own **meaning**. The
   lattice preserves it. Authoritative, unchanged.
-- **`compiler/omega/`** (`pipeline/`, `repository_layout`) is the **current fast,
-  untrusted producer** and today's executable reference for the language. In this
+- **`compiler/psi/` + `compiler/omega/`** (`pipeline/`, `repository_layout`) form
+  the **current fast, untrusted producer** and today's executable reference for the language. In this
   architecture it sits on the *machine* side; it is progressively replaced by
   lattice-built rungs and, in the end-state, its output is *checked* rather than
   trusted. Its pipeline docs stay valid — they describe a real working artifact.
@@ -297,7 +294,7 @@ different roles:
   result is authoritative. Until that route lands, every Rust verifier,
   reduction family, and denotation rule it supplies is named explicitly as a
   versioned trusted dependency.
-- **Rust as the producer** (`compiler/omega/`, the optimizing compiler) is, once a
+- **Rust as the producer** (`compiler/psi/` plus `compiler/omega/`) is, once a
   complete verifier-plus-kernel route exists, *outside the soundness base*. It
   still dies — for self-sufficiency — but it is the **deferrable** kill; a
   verified, Rust-built compiler output is a fine interim state.

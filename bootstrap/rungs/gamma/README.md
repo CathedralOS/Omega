@@ -67,7 +67,7 @@ must not grow into a second meaning path.
 
 The parked files remain co-located for compatibility only. Their classification,
 not their host-language suffix or directory proximity, determines their
-architectural role. `compiler/gamma` is a temporary compatibility symlink to
+architectural role. `compiler/gamma` is a historical compatibility symlink to
 this directory.
 
 See [LANGUAGE.md](LANGUAGE.md) for the canonical surface and

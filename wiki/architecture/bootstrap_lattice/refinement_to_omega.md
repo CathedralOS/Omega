@@ -9,12 +9,13 @@ with equivalence certificates cross-checked by the available checker implementat
 view the pillar earned: **which of its techniques carry first to the simple
 Delta-built Omega compiler and then across the Omega self-build edge.**
 
-The current `compiler/omega/` implementation (untouched reference producer, per
-D1) already sketches the destination in
-`semantics/psi-proof`: `obligations.rs` (proof obligations attached to compilation), `boundary.rs`
-(boundary obligations at capability seams), `lemmas.rs`, `checker.rs`. The lattice's job is to reach that
-shape with *its own trust story* — obligations discharged by certificates the independent low-rung proof kernel checks, not by a
-244k-line Rust codebase we take on faith.
+The current product implementation under `compiler/psi/` and `compiler/omega/`
+already sketches the destination in
+`compiler/psi/semantics/psi-proof/src/`: `obligations.rs` (proof obligations
+attached to compilation), `boundary.rs` (boundary obligations at capability
+seams), `lemmas.rs`, and `checker.rs`. The lattice's job is to reach that shape
+with *its own trust story* — obligations discharged by certificates the
+independent low-rung proof kernel checks, not by trusting the Rust producer.
 
 ## What the refinement pillar proved transferable
 
@@ -38,7 +39,8 @@ shape with *its own trust story* — obligations discharged by certificates the 
 2. **Compound values.** Peano nats + pairs + streams got us here; Omega's structs/cases/strings need a
    principled value encoding in the meaning language (likely constructor families again — but the *evaluator*
    work is substantial).
-3. **Obligation generation.** `compiler/omega/` attaches obligations during compilation. The lattice's analogue is
+3. **Obligation generation.** `compiler/psi/semantics/psi-proof/` defines and
+   checks compilation obligations. The lattice's analogue is
    the elaboration route (D2): `omega2gamma` should eventually *emit certificates alongside code* the way
    delta's convergence certifiers do — the proof-carrying-Omega target. Today's TV gate re-evaluates
    results; the climb is from "results checked" to "compilation obligations discharged."
@@ -73,7 +75,7 @@ shape with *its own trust story* — obligations discharged by certificates the 
 
 Everything above obeys the standing decisions: D1 (Rust exits by role), D2
 (meaning by elaboration to Gamma), D3 (trust via proofs + translation
-validation), D5 (checked refinement rather than DDC), and D6 (Delta-built bootstrap Omega,
+validation), D5 (direct checked refinement), and D6 (Delta-built bootstrap Omega,
 then Omega-built production Omega). The first Omega may lower conservatively;
 the same method then validates the optimized self-host result against canonical
 meaning rather than trusting the bootstrap compiler's pedigree.

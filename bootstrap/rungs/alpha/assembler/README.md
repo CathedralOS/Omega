@@ -21,7 +21,7 @@ Rust and no numeric-opcode step in normal use.
 - `asm_ref.py` — an untrusted reference assembler in Python, written from the
   encoding rather than ported from `assembler.alpha`. `asm-diamond.sh` compares
   outputs over a corpus and is useful for catching encoder bugs. Agreement is
-  diagnostic evidence, not source-to-artifact authority, and is not DDC.
+  diagnostic evidence, not source-to-artifact authority.
 - `../../../onramps/alpha-assembler-rust/` (compatibility:
   `../../../../compiler/beta-rs/`) — a throwaway Rust on-ramp, used **only for a cold start**: minting the
   very first `beta_x64_windows.exe` when no assembler exists yet. Normal use never

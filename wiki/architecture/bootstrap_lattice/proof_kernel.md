@@ -51,7 +51,7 @@ The principal low-rung implementations are:
 They are separately written implementations of a shared calculus. Shared
 positive and negative corpora, cross-checks, fuzzers, and operational seams test
 that they decide the same judgments. Agreement is evidence while the formal
-soundness bridge matures; it is not DDC and does not grant either implementation
+soundness bridge matures; it does not grant either implementation
 authority over artifact-specific obligation reconstruction.
 
 ## Proof checking is not artifact verification

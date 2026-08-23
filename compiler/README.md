@@ -55,7 +55,7 @@ The proof kernel is a cross-cutting assurance service, not a language rung.
 `bootstrap/assurance/proof-kernel/implementations/gamma/checker.gamma` are
 separately written implementations checked against shared positive, negative,
 cross-check, fuzz, and operational-seam gates. Their agreement is useful
-evidence while the soundness bridge matures; it is not DDC and does not replace
+evidence while the soundness bridge matures; it does not replace
 artifact-specific refinement.
 
 The kernel answers only:
@@ -85,7 +85,7 @@ The hosted build has two stages:
 
 The current Rust implementations remain migration/reference producers while
 that hosted path matures. `bootstrap/omega0/` owns the Rust-free meaning,
-first-compiler source/contracts, and validation gates. `compiler/omega/` and
+current Delta-written compiler slices/profiles, and validation gates. `compiler/omega/` and
 `compiler/psi/` are the physical roots of the current production
 implementations; neither doubles as a bootstrap compatibility path.
 
@@ -122,8 +122,8 @@ sh bootstrap/assurance/proof-kernel/gates/test.sh
 
 Architecture and standing decisions live in
 [`wiki/architecture/bootstrap_lattice/`](../wiki/architecture/bootstrap_lattice/).
-The product roots now have role-based names. Remaining bootstrap compatibility
-entries under `compiler/` are migration state documented in
+The product roots now have role-based names. Retained historical compatibility
+entries under `compiler/` are documented in
 [`repository_structure.md`](../wiki/architecture/bootstrap_lattice/repository_structure.md).
 Live bootstrap work belongs in [`TASKS_BOOTSTRAP.md`](../TASKS_BOOTSTRAP.md),
 while broader product work belongs in [`TASKS.md`](../TASKS.md). Exact corpus and

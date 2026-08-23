@@ -152,8 +152,8 @@ bug-finding evidence while the soundness bridge matures:
   motivated the Gamma rung.
 - [`implementations/gamma/checker.gamma`](implementations/gamma/checker.gamma) is the *same logic* as a dozen tiny
   functions over algebraic data + pattern matching. `gates/checker-diamond.sh` runs proofs
-  through **both** and requires identical verdicts. This agreement is not DDC
-  and does not itself prove either checker sound.
+  through **both** and requires identical verdicts. This agreement does not
+  itself prove either checker sound.
 - [`implementations/gamma/checker_typed.gamma`](implementations/gamma/checker_typed.gamma) is that Gamma checker
   fully annotated, and Gamma's own static type checker (`../../rungs/gamma/typeck.beta`) accepts
   it — so the trust anchor's *code* is shown statically type-safe.

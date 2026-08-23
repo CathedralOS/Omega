@@ -151,5 +151,5 @@ are valuable teeth, but they do not yet establish the quantified observation:
 - divergence requires a checked progress/termination argument or a coinductive
   trace argument, not a timeout.
 
-No one of those gaps revives DDC. They are the concrete obligations of the one
-lower-rooted source-to-artifact refinement edge.
+Those are the concrete obligations of the lower-rooted source-to-artifact
+refinement edge.

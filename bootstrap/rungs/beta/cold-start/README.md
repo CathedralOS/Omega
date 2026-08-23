@@ -1,9 +1,9 @@
 # Alpha-written Beta cold start
 
-This directory grows the authoritative cold start for `bc.beta`: a Beta
+This directory contains the authoritative cold start for `bc.beta`: a Beta
 compiler written in Alpha and assembled/executed only through the audited Alpha
-seed and Alpha-written assembler. It replaces the Rust producer one bounded
-language slice at a time. It is not a second compiler maintained for DDC.
+seed and Alpha-written assembler. It accepts the complete pinned `bc.beta`
+surface and replaces the Rust producer in the canonical construction.
 
 ## Complete Beta surface
 

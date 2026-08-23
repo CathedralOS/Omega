@@ -37,8 +37,8 @@ DELTA_ARCH=aarch64 cargo run -- ../../rungs/delta/samples/shape.alp out  # macOS
 
 ## Status
 
-- **Omega0 frontend O1 — DONE for native/self-host and direct artifacts; O1
-  lower-rung meaning remains open.**
+- **Omega0 frontend O1 — DONE for native/self-host, direct artifacts, and the
+  current lower-rung observations.**
   `../../omega0/compiler/omega0-frontend.alp` is the canonical first
   Delta-written Omega compiler slice (`samples/omega0-frontend.alp` is a
   compatibility symlink):
@@ -47,12 +47,12 @@ DELTA_ARCH=aarch64 cargo run -- ../../rungs/delta/samples/shape.alp out  # macOS
   retaining 0–16 ordered `write_line` literals plus one final `exit_process`
   `i32`. Its focused gate covers the acceptance/rejection matrix and recompiles
   the frontend through Delta-written `lowermachine`; every operand affects the
-  observed success digest. The prior O0 slice is independently covered through
-  the Beta-written `omega2gamma.beta` and Gamma's canonical interpreter,
-  pinning its canonical digest, semantic rejection, and multi-slot method-state
-  threading. The generalized source does not yet elaborate compactly enough to
-  claim that lower-rung evidence for O1. Direct canonical terminal-Psi emission
-  is complete and checked by the shared decoder/verifier. Its output is published
+  observed success digest. The complete 40-machine O1 frontend also elaborates
+  through the Beta-written `omega2gamma.beta` and Gamma's canonical interpreter,
+  pinning canonical, zero-write, two-write, rejection, and multi-slot method-
+  state observations. An exact native-versus-Gamma comparison of every terminal
+  byte and exhaustion result remains follow-up work. Direct canonical terminal-
+  Psi emission is complete and checked by the shared decoder/verifier. Its output is published
   only through same-directory staging, persistence, canonical decode, expected
   identity binding, and atomic rename. Resulting O1 fixtures are checked from
   canonical terminal meaning through deterministic Linux x86-64/AArch64 images,

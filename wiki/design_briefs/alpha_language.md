@@ -46,8 +46,7 @@ tool above the VM and lives at `bootstrap/rungs/alpha/assembler/`;
 
 Identical tape, input, and declared execution parameters produce identical
 observable behavior. Determinism supports reproducible artifacts, fixed-point
-diagnostics, cache identity, and audit. It is not a correctness proof and exists
-independently of DDC.
+diagnostics, cache identity, and audit. It is not a correctness proof.
 
 The x64 Windows and arm64 macOS realizations run the same tapes and are checked
 against the same semantics and conformance corpus. Their agreement is valuable
@@ -86,7 +85,7 @@ The following ideas from the earlier design are no longer active:
 - Alpha as a syntactic subset of Omega;
 - an Alpha compiler written in Alpha;
 - fixed compiler AST/token/symbol capacities as Alpha language semantics;
-- DDC or cross-compiler byte identity as the trust mechanism;
+- cross-compiler byte identity as the trust mechanism;
 - a Rust Alpha compiler as the planned source of the steady-state seed.
 
 Useful fixed-buffer and trap-on-failure instincts survive at the appropriate

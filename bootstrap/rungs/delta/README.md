@@ -13,5 +13,5 @@ independent of the language used to produce an artifact.
 
 The lower-rung Delta-to-Gamma route under [`../../omega0/meaning/`](../../omega0/meaning/)
 defines the meaning profile being widened toward the first Omega compiler.
-`compiler/delta` and `compiler/delta-rs` remain temporary compatibility paths;
+`compiler/delta` and `compiler/delta-rs` remain historical compatibility paths;
 new gates use the `delta` and `delta-rs` roles from `bootstrap/paths.sh`.
