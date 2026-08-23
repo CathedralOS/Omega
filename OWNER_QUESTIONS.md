@@ -182,3 +182,89 @@ proof-only/refinement syntax outside v1 unless an identified compiler-host
 requirement outweighs their lower-rung assurance cost. Treat backend parameter
 counts and storage ceilings as checked implementation-profile limits unless the
 ruling intentionally makes them portable language limits.
+
+## Q6 — What is the exact authored `build.omg` dependency API?
+
+The package manager design is settled on `build.omg` as the authored source of
+truth for dependency aliases and pins, while `omega.lock` remains
+machine-written evidence. The current docs intentionally show only a likely
+shape. Full `omega install` editing cannot be implemented without choosing the
+actual Build vocabulary, normalized dependency-row identity, and unsupported
+source-edit fallback behavior.
+
+Choose the dependency-binding API and edit contract. It must:
+
+- bind one package-local alias to one exact source identity or revision request;
+- preserve the kebab-case package identity versus snake_case in-code alias
+  convention;
+- make the pin source-auditable without turning `omega.lock` into an authored
+  manifest;
+- define how `omega install` edits simple cases and what patch/proposal it
+  emits for unsupported `build.omg` patterns;
+- reject alias ambiguity, duplicate aliases, and spelling-equivalent package
+  identities (`foo-bar` versus `foo_bar`) fail-closed; and
+- leave root/provider selections under the same explicit `build.omg` authority
+  model rather than creating a second package language.
+
+Recommended direction: add a small first-class `Build.dependencies.bind(...)`
+vocabulary with typed `Source` constructors for local and Git sources, while
+keeping the CLI editor conservative: rewrite only canonical/simple rows and
+print a proposed patch otherwise.
+
+## Q7 — Where do package capability-change acceptance receipts live?
+
+The package manager can model capability-change receipts, but the persistence
+surface is still unsettled. Default `omega update` must reject manifest changes
+unless an exact review receipt is present, yet the design has not chosen
+whether that receipt is authored in `build.omg`, embedded in `omega.lock`, or
+stored as a separate signed artifact referenced by the lock.
+
+Choose the persistence and verification contract. It must:
+
+- bind the old/new source identities, old/new manifest fingerprints, reviewer,
+  reason, and accepted delta fingerprints;
+- prevent a dependency package from approving its own imported claims or
+  capability increases;
+- preserve `omega.lock` as machine-written resolved evidence, not an authored
+  policy file unless that is explicitly chosen;
+- define how signed or unsigned local review receipts compose with repository
+  history and CI;
+- make stale, mismatched, missing, duplicated, or overbroad receipts reject
+  before `build.omg` or lock mutation; and
+- support human and LLM audit workflows without requiring ambient trust in the
+  reviewer tool.
+
+Recommended direction: store review receipts as separate machine-readable
+artifacts referenced by `omega.lock`, with a local unsigned mode for early
+development and room for signed receipts later. Do not make dependency source
+able to manufacture or bless its own acceptance record.
+
+## Q8 — Does install run dependency `build.omg` immediately or preflight first?
+
+The security boundary is settled: resolver-owned retrieval precedes dependency
+execution, and dependency builds never inherit resolver or root-package
+authority. What remains open is the install/admission sequence. Running
+dependency `build.omg` immediately gives accurate generated-source and provider
+evidence but executes newly downloaded build code sooner. Static preflight first
+can reject obvious policy violations before execution, but may be incomplete
+for packages whose manifest depends on admitted build outputs.
+
+Choose the install-time dependency-build sequence. It must:
+
+- define what evidence can be derived before executing a downloaded
+  dependency's `build.omg`;
+- specify which build-host providers, if any, may be supplied during install
+  admission and how their scopes are derived;
+- keep resolver network/archive authority separate from package build network
+  authority;
+- decide whether generated Omega source is required before manifest
+  fingerprinting;
+- define failure UX for packages that need build execution to reveal their full
+  capability manifest; and
+- preserve deterministic lock/update behavior across local path, Git, and
+  future archive transports.
+
+Recommended direction: perform a static preflight over fetched source and
+`build.omg` dependency rows first, then run dependency `build.omg` only with
+package-scoped admitted providers to produce the final manifest. Record both
+the preflight verdict and final build observation in lock evidence.
