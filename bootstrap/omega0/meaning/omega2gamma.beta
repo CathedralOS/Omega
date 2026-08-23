@@ -30,11 +30,13 @@
 ; fields), case data (integer tags; (Pair tag payload) payloads with by-name field mapping), slices
 ; (local .len/[i]/[a..]/[a..b] via nth/drop/take, as_slice + postfix), value calls (whole-RHS and
 ; expression-embedded via hoist+source-rewrite), machine tail-call arms, value arms (literal/expression),
-; logical &&/|| layers, shifts as *2^k / /2^k, the compiler profile's
-; nonnegative byte mask `x & 255` as `x % 256`, max/min builtins, normative
+; logical &&/|| layers, standalone decimal shifts in [0,30] as *2^k / /2^k,
+; the compiler profile's nonnegative byte mask `x & 255` as `x % 256`, max/min
+; builtins, normative
 ; `terminates by measure -> Profile;` clause skip, dual-channel
 ; (Pair exit stdout) output convention. UNSUPPORTED constructs REFUSE with E2G-UNSUPPORTED markers —
-; incl. unknown self-field methods (atomics store/fetch_add/compare_exchange, ...): only exit_process /
+; incl. general single `|`/`^`, nonliteral/expression/out-of-range shifts, and unknown self-field methods
+; (atomics store/fetch_add/compare_exchange, ...): only exit_process /
 ; write_byte / write_line / real machine calls are recognized; anything else refuses (never silently
 ; treated as exit_process, which used to collapse a whole program to its first argument).
 ; stdout: write_byte(e)/write_line("s") accumulate LAST list slot `out` (cons-front): write_byte -> `(Cons e
@@ -865,6 +867,25 @@ proc parse_sum() {
     state sub { adv()  let bs = parse_product()  a = alloc(2, '-', a, bs)  to loop }
 }
 
+; The lower-rung shift meaning is deliberately narrower than Delta's general
+; bit-operator grammar: only one standalone decimal count in [0,30] is lowered
+; to multiplication/division by 2^k.  Keep this allowlist explicit so an
+; expression such as `x << 2 + 1` cannot be truncated to `x << 2`.
+proc shift_tail_ok() {
+    skip_ws()
+    let c = cbyte()
+    state c0 { to yes when (c == 0)    to c1 }
+    state c1 { to yes when (c == ')')  to c2 }
+    state c2 { to yes when (c == ']')  to c3 }
+    state c3 { to yes when (c == ';')  to c4 }
+    state c4 { to yes when (c == ',')  to c5 }
+    state c5 { to yes when (c == '}')  to c6 }
+    state c6 { to yes when (c == '{')  to c7 }
+    state c7 { to yes when (c == '&')  to c8 }
+    state c8 { to yes when (c == '|')  return 0 }
+    state yes { return 1 }
+}
+
 proc parse_cmp0() {
     let a = parse_sum()
     state loop {
@@ -884,12 +905,23 @@ proc parse_cmp0() {
         a = alloc(2, '<', a, bl)
         to loop
     }
-    state shl {                        ; a << k -> a * 2^k (constant shift; 2^k by squaring-free loop)
+    state shl {                        ; a << k -> a * 2^k for the admitted standalone literal k
         adv()
         skip_ws()
+        let shstart = word[2097144]
+        to shbad when (is_digit(cbyte()) == 0)
         let sk = parse_number()
+        to shbad when (sk > 30)
+        to shbad when (shift_tail_ok() == 0)
         let sp = 1
         to shle
+    }
+    state shbad {
+        word[2097144] = shstart
+        emit("E2G-UNSUPPORTED-shift ")
+        let she = parse_sum()          ; consume the complete rejected RHS so translation still terminates
+        a = alloc(0, 0, 0, 0)
+        to loop
     }
     state shle {
         to shld when (sk == 0)
@@ -907,10 +939,14 @@ proc parse_cmp0() {
         a = alloc(2, '>', a, bg)
         to loop
     }
-    state shr {                        ; a >> k -> a / 2^k (floor division; the Euclid witness covers it)
+    state shr {                        ; a >> k -> a / 2^k for the admitted standalone literal k
         adv()
         skip_ws()
+        shstart = word[2097144]
+        to shbad when (is_digit(cbyte()) == 0)
         let rk = parse_number()
+        to shbad when (rk > 30)
+        to shbad when (shift_tail_ok() == 0)
         let rp = 1
         to shre
     }
@@ -966,11 +1002,23 @@ proc parse_or() {
     state loop {
         skip_ws()
         to bar when (cbyte() == '|')
+        to xor when (cbyte() == '^')
         return a
     }
     state bar {
         to oo when (byte[2097152 + word[2097144] + 1] == '|')
-        return a
+        adv()
+        emit("E2G-UNSUPPORTED-bitwise-or ")
+        let bo = parse_and()           ; consume the rejected RHS; the marker poisons the Gamma output
+        a = alloc(0, 0, 0, 0)
+        to loop
+    }
+    state xor {
+        adv()
+        emit("E2G-UNSUPPORTED-bitwise-xor ")
+        let bx = parse_and()
+        a = alloc(0, 0, 0, 0)
+        to loop
     }
     state oo { adv()  adv()  let b = parse_and()  a = alloc(2, 'O', a, b)  to loop }
 }

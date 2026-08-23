@@ -35,6 +35,22 @@ stamp_beta_compiler "$T/bc.exe" >/dev/null \
 
 PASS=0; FAIL=0
 
+refuse_expr() { # label expression marker
+  label=$1
+  expression=$2
+  marker=$3
+  observed=$(printf '%s\n' \
+    'use omega::language::std::console;' \
+    'data Main { console: Console; }' \
+    "machine Main::main(&mut self) { let x: i32 = 3; self.console.exit_process($expression); }" \
+    | "$T/omega2gamma.exe" 2>/dev/null)
+  if printf '%s' "$observed" | grep -q "$marker"; then
+    PASS=$((PASS+1)); echo "  ok   $label : refused explicitly"
+  else
+    FAIL=$((FAIL+1)); echo "  FAIL $label : no explicit $marker refusal"
+  fi
+}
+
 # The retired block-form termination annotation used to make the translator
 # consume the following machine-body brace as annotation syntax. It must now
 # refuse explicitly rather than silently translating a different program.
@@ -64,6 +80,16 @@ case "$unsupported_band" in
   *)
     FAIL=$((FAIL+1)); echo "  FAIL general bitwise-and : no explicit refusal";;
 esac
+
+# The remaining single-character bit operators and broader shift grammar are
+# outside the currently admitted lower-rung profile. They must poison the
+# translation explicitly rather than leave CUR at the operator and silently
+# return the left operand (or truncate a shift count expression).
+refuse_expr "general bitwise-or"       "12 | 10"      "E2G-UNSUPPORTED-bitwise-or"
+refuse_expr "general bitwise-xor"      "12 ^ 10"      "E2G-UNSUPPORTED-bitwise-xor"
+refuse_expr "expression shift count"   "1 << 2 + 1"   "E2G-UNSUPPORTED-shift"
+refuse_expr "nonliteral shift count"   "1 << x"       "E2G-UNSUPPORTED-shift"
+refuse_expr "out-of-profile shift count" "8 >> 32"    "E2G-UNSUPPORTED-shift"
 
 for d in "${OMEGA_PATH_CORPUS}"/*/; do
   s=$(basename "$d")
