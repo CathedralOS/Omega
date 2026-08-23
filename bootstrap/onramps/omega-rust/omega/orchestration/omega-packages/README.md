@@ -72,6 +72,13 @@ omega-packages/
 The CLI should remain a thin adapter. It should parse command arguments and
 delegate behavior here.
 
+## Fixtures
+
+Local package-manager fixtures live under `fixtures/packages/` at the repository
+root. They use normal kebab-case package names and are resolved as local source
+directories first. Once install/update/audit wiring is ready, the same contents
+should be mirrored to exact-pinned Git repositories under `CathedralOS`.
+
 ## Current Slices
 
 - `commands`: internal source-audit command API for local and Git requests.

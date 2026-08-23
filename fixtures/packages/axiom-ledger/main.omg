@@ -1,0 +1,5 @@
+// Placeholder for accepted proof/boundary-claim package admission tests.
+machine trusted_zero() -> u64 {
+    return 0;
+}
+

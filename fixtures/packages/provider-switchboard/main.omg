@@ -1,0 +1,13 @@
+// Provider selection fixture.
+boundary trait ClockHost {
+    machine ticks() -> u64;
+}
+
+data Switchboard {
+    clock: ClockHost;
+}
+
+machine Switchboard::read_ticks(&mut self) -> u64 {
+    return self.clock.ticks();
+}
+

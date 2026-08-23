@@ -1,0 +1,9 @@
+// Intentionally over-declared network reach fixture.
+boundary trait NetworkHost {
+    machine send(endpoint: String, bytes: String);
+}
+
+machine local_format(value: u64) -> u64 {
+    return value;
+}
+

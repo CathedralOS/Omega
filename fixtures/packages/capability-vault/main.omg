@@ -1,0 +1,13 @@
+// Capability flow fixture.
+boundary trait SecretHost {
+    machine read_secret(name: String) -> String;
+}
+
+data Vault {
+    host: SecretHost;
+}
+
+machine Vault::return_host(&mut self) -> SecretHost {
+    return self.host;
+}
+

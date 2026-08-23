@@ -1,0 +1,13 @@
+// Public filesystem-reach fixture.
+boundary trait FilesystemHost {
+    machine append(path: String, bytes: String);
+}
+
+data Journal {
+    files: FilesystemHost;
+}
+
+machine Journal::append_line(&mut self, path: String, line: String) {
+    self.files.append(path, line);
+}
+
