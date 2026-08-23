@@ -628,6 +628,32 @@ Remaining:
   provider requirement, or authority-flow verb gets a concrete audit message
   explaining why dependents must review it.
 
+## Design-Gated Remainder
+
+The remaining package-manager work is intentionally blocked on owner-level
+language/compiler decisions rather than package-crate implementation choices:
+
+- `PACKAGE-CAPABILITY-MANIFEST` is gated by Q9, the checked evidence boundary
+  for package capability manifests.
+- `PACKAGE-LOCK-CLOSURE` default compiler/lock integration is gated by Q9,
+  because the lock closure must consume compiler-derived package manifests
+  rather than hand-authored manifest files.
+- `SOURCE-RESOLVER` install integration is gated by Q6 and Q8, because the
+  resolved source must become an authored `build.omg` dependency row and then
+  enter the dependency build/admission sequence.
+- `NO-AMBIENT-DEPENDENCY-EXECUTION` is gated by Q8, because dependency
+  `build.omg` execution order and admitted package-scoped build providers must
+  be settled before implementation can enforce isolation end to end.
+- `OMEGA-INSTALL` is gated by Q6, Q8, and Q9. It also depends on Q7 for the
+  final capability-change acceptance path around lock mutation.
+- `OMEGA-UPDATE` is gated by Q6, Q7, Q8, and Q9.
+- `OMEGA-AUDIT-PACKAGES` without explicit manifest files is gated by Q9 and
+  resolved graph discovery from the settled package-admission flow.
+- `CAPABILITY-CHANGE-REVIEW` final update integration is gated by Q7.
+- `AUTHOR-GUIDANCE` final UX integration is gated by Q9, because guidance must
+  surface through real package-admission/install/update/audit flows derived
+  from package manifests.
+
 ## Deferred
 
 - Version solving. Omega uses exact pins and explicit updates.
