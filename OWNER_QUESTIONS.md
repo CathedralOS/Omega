@@ -268,3 +268,48 @@ Recommended direction: perform a static preflight over fetched source and
 `build.omg` dependency rows first, then run dependency `build.omg` only with
 package-scoped admitted providers to produce the final manifest. Record both
 the preflight verdict and final build observation in lock evidence.
+
+## Q9 — What exact checked evidence defines a package capability manifest?
+
+The package-manager model requires one compiler-derived capability manifest per
+resolved package, including public API identity, exported service reach,
+dependency aliases, provider requirements and selections, routed
+qualifications, build-machine observation, unresolved installation-bound rows,
+capability-flow source rows, and trust/admission receipts. The compiler already
+emits an executable capability manifest for a selected entry machine, but that
+artifact is entry-oriented and intentionally reports no entry reach for
+entry-agnostic library checking. Reusing it as the package manifest would lose
+the package/public-library boundary that package admission is supposed to
+protect.
+
+Choose the package-admission evidence boundary and normalized extraction
+contract. It must:
+
+- derive package identity and source identity without hand-authored package
+  manifest files;
+- define the public API contract identity for a library package independently
+  of any selected executable entry;
+- compute exported service reach for every published callable or boundary
+  surface that dependents can name, not only one `ProgramEntry`;
+- retain exact dependency alias rows from `build.omg` once the dependency API
+  is settled;
+- record build-machine service reach, observation ceiling, realized observation
+  class, and receipts without treating build-host observations as semantic
+  proof evidence;
+- include provider requirements, selected provider plans, provider origins,
+  routed qualifications, accepted claims, and unresolved installation-bound
+  reach rows in a replayable normalized form;
+- emit capability-flow counts and source rows for public authority movement
+  (`uses`, `stores`, `acquires`, `returns`, `derives`) with enough provenance
+  for reviewer guidance;
+- reject open deferred proofs, spoofed boundary traits, fake math, missing
+  provider evidence, and unresolved installation-bound rows according to the
+  package-admission profile; and
+- produce byte-identical manifests for equal source/evidence across local path,
+  Git, and future archive transports.
+
+Recommended direction: add a package-admission compilation profile that walks
+the checked public package surface and selected build/provider evidence to emit
+one normalized package manifest. Keep the existing executable capability
+manifest as an entry artifact; do not reinterpret it as package evidence, and
+do not allow package authors to supply or patch the derived manifest by hand.

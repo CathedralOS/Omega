@@ -45,6 +45,21 @@ Psi remains responsible for source parsing and target-neutral semantic
 evidence. Omega orchestration is responsible for resolver authority,
 admission, audit presentation, lock records, and CLI workflow.
 
+## Open Design Gates
+
+The current crate deliberately stops before mutating `build.omg` or deriving
+package manifests from compiler output. The remaining gates are owner-level
+language/compiler decisions, not package-crate policy choices:
+
+- the exact authored `build.omg` dependency API and conservative edit contract;
+- the final storage and verification surface for capability-change review
+  receipts;
+- the install-time sequence for static preflight versus dependency
+  `build.omg` execution; and
+- the checked evidence boundary for package capability manifests. The existing
+  executable capability manifest is entry-oriented and must not be treated as
+  package admission evidence for libraries.
+
 ## Expected Structure
 
 The first crate boundary can stay deferred until APIs settle. When it becomes a
@@ -96,8 +111,9 @@ cargo test -p omega-packages --test remote_fixtures -- --ignored --test-threads=
   parsing for local paths, `file://`, HTTPS Git URLs, and SSH/scp-style Git
   locators. It also contains locator-backed source audit, locator-backed
   source-cache policy records, capability-change receipt creation,
-  lock-file backed install/update plan commands, and lock-file plus
-  manifest-file backed graph-audit command seams for future CLI wiring.
+  manifest-file backed lock assembly, lock-file backed install/update plan
+  commands, and lock-file plus manifest-file backed graph-audit command seams
+  for future CLI wiring.
 - `audit`: resolved package-graph audit over locks and manifests, including
   dependency paths for exported service reach and fail-closed consistency
   checks. Audit rows surface source identity, dependency aliases, provider
@@ -149,6 +165,7 @@ omega audit packages [--lock <omega.lock>] --manifest <manifest.json>...
 omega review capability-change --old-manifest <manifest.json> --new-manifest <manifest.json> --reviewer <id> --reason <text> --out <receipt.json>
 omega plan install --lock <omega.lock> --current-manifest <manifest.json>... --candidate-manifest <manifest.json>... --alias <alias> --package <package>
 omega plan update --lock <omega.lock> --current-manifest <manifest.json>... --candidate-manifest <manifest.json>... --package <package> [--receipt <receipt.json>]
+omega lock assemble --root-package <package> --manifest <manifest.json>... --out <omega.lock>
 ```
 
 The source audit resolves a local/Git locator to content identity and reports
@@ -158,5 +175,7 @@ graph audit requires precomputed package capability manifest files. The review
 command writes an explicit standalone capability-change receipt to the
 requested path. The plan commands read an existing lock plus explicit
 current/candidate manifest files and print install/update admission plans.
-These commands do not derive package manifests, execute dependency `build.omg`,
-edit `build.omg`, or write `omega.lock`.
+The lock assembly command writes only the explicit `--out` lock file from
+explicit manifest files after closure validation and graph audit. These
+commands do not derive package manifests, execute dependency `build.omg`, or
+edit `build.omg`.
