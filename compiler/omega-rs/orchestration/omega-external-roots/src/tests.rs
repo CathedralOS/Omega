@@ -239,6 +239,28 @@ fn body_domains(
     .expect("test stack-domain closure")
 }
 
+fn admitted_arrival_contexts(
+    summary: &ProviderStackSummary,
+    boundary: &ValidatedBoundaryEntryPlan,
+    code: &InstalledCode,
+    entry: EntryStubId,
+    contexts: &[u64],
+    receipt: StackValidationReceiptId,
+) -> AdmittedOpaqueArrivalContextSet {
+    admit_opaque_arrival_context_set(
+        summary,
+        boundary,
+        code,
+        entry,
+        contexts
+            .iter()
+            .map(|context| ArrivalContextId::new(*context).expect("arrival context"))
+            .collect(),
+        receipt,
+    )
+    .expect("admitted opaque arrival-context closure")
+}
+
 #[derive(Debug)]
 struct TestTerminalObject {
     identity: psi_terminal::TerminalPsiIdentity,
@@ -360,13 +382,21 @@ fn stack_demand(
         16,
         root_id(49, StackValidationReceiptId::from_normalized_identity),
     );
+    let contexts = admitted_arrival_contexts(
+        &summary,
+        boundary,
+        code,
+        entry,
+        &[1],
+        root_id(48, StackValidationReceiptId::from_normalized_identity),
+    );
     let bound = bind_opaque_adapter_stack_realization(
         &summary,
         boundary,
         code,
         entry,
         realization,
-        root_id(48, StackValidationReceiptId::from_normalized_identity),
+        contexts,
     )
     .expect("test epoch evidence binding");
     compose_bound_entry_stack_epochs(
@@ -638,13 +668,21 @@ fn opaque_epoch_realization_binds_exact_installed_entry_plan_and_body_evidence()
         })
         .expect("structurally valid epoch realization")
     };
+    let context_evidence = admitted_arrival_contexts(
+        &summary,
+        &boundary,
+        &code,
+        entry,
+        &[1],
+        root_id(0x816, StackValidationReceiptId::from_normalized_identity),
+    );
     let bound = bind_opaque_adapter_stack_realization(
         &summary,
         &boundary,
         &code,
         entry,
         realization(Preemption::NotApplicable),
-        root_id(0x816, StackValidationReceiptId::from_normalized_identity),
+        context_evidence.clone(),
     )
     .expect("opaque realization binds to exact installed root");
     let composition = compose_bound_entry_stack_epochs(
@@ -680,7 +718,7 @@ fn opaque_epoch_realization_binds_exact_installed_entry_plan_and_body_evidence()
         &code,
         entry,
         realization(Preemption::Nestable { maximum_depth: 2 }),
-        root_id(0x818, StackValidationReceiptId::from_normalized_identity),
+        context_evidence.clone(),
     )
     .expect_err("opaque epoch evidence cannot widen the published nesting ceiling");
     assert!(
@@ -689,15 +727,15 @@ fn opaque_epoch_realization_binds_exact_installed_entry_plan_and_body_evidence()
             .contains("widens the boundary plan's nesting ceiling")
     );
 
-    let error = bind_opaque_adapter_stack_realization(
+    let error = admit_opaque_arrival_context_set(
         &summary,
         &boundary,
         &code,
         entry_id(0x819),
-        realization(Preemption::NotApplicable),
+        vec![ArrivalContextId::new(1).expect("arrival context")],
         root_id(0x81a, StackValidationReceiptId::from_normalized_identity),
     )
-    .expect_err("opaque epoch evidence cannot name an absent installed entry");
+    .expect_err("opaque context evidence cannot name an absent installed entry");
     assert!(error.0.contains("names no exact installed entry"));
 
     let aarch64_boundary = evaluate_ordinary_boundary_entry_plan(
@@ -708,15 +746,15 @@ fn opaque_epoch_realization_binds_exact_installed_entry_plan_and_body_evidence()
         },
     )
     .expect("AArch64 boundary plan");
-    let error = bind_opaque_adapter_stack_realization(
+    let error = admit_opaque_arrival_context_set(
         &summary,
         &aarch64_boundary,
         &code,
         entry,
-        realization(Preemption::NotApplicable),
+        vec![ArrivalContextId::new(1).expect("arrival context")],
         root_id(0x81b, StackValidationReceiptId::from_normalized_identity),
     )
-    .expect_err("opaque epoch evidence cannot cross target architectures");
+    .expect_err("opaque context evidence cannot cross target architectures");
     assert!(
         error
             .0
@@ -741,7 +779,7 @@ fn opaque_epoch_realization_binds_exact_installed_entry_plan_and_body_evidence()
         &code,
         entry,
         wrong_body_domain,
-        root_id(0x81c, StackValidationReceiptId::from_normalized_identity),
+        context_evidence.clone(),
     )
     .expect_err("opaque epoch evidence cannot move the handler body to another stack");
     assert!(
@@ -749,6 +787,89 @@ fn opaque_epoch_realization_binds_exact_installed_entry_plan_and_body_evidence()
             .0
             .contains("body stack domain differs from the fixed boundary stack disposition")
     );
+
+    let omitted = admitted_arrival_contexts(
+        &summary,
+        &boundary,
+        &code,
+        entry,
+        &[2],
+        root_id(0x81d, StackValidationReceiptId::from_normalized_identity),
+    );
+    let error = bind_opaque_adapter_stack_realization(
+        &summary,
+        &boundary,
+        &code,
+        entry,
+        realization(Preemption::NotApplicable),
+        omitted,
+    )
+    .expect_err("an admitted but different opaque context set cannot license the realization");
+    assert!(error.0.contains("different context sets"));
+
+    let padded = admitted_arrival_contexts(
+        &summary,
+        &boundary,
+        &code,
+        entry,
+        &[1, 2],
+        root_id(0x81e, StackValidationReceiptId::from_normalized_identity),
+    );
+    let error = bind_opaque_adapter_stack_realization(
+        &summary,
+        &boundary,
+        &code,
+        entry,
+        realization(Preemption::NotApplicable),
+        padded,
+    )
+    .expect_err("a padded opaque context claim cannot license the realization");
+    assert!(error.0.contains("different context sets"));
+}
+
+#[test]
+fn opaque_arrival_context_admission_is_nonempty_unique_and_canonical() {
+    let entry = entry_id(0x831);
+    let code = installed_code(0x832, entry);
+    let boundary = interrupted_boundary();
+    let summary = ProviderStackSummary::from_admitted_provider(
+        root_id(0x833, ExternalRootId::from_normalized_identity),
+        root_id(0x834, RootProviderId::from_normalized_identity),
+        boundary.plan().state.stack,
+        64,
+        16,
+        root_id(0x835, StackValidationReceiptId::from_normalized_identity),
+    );
+    let receipt = root_id(0x836, StackValidationReceiptId::from_normalized_identity);
+
+    let empty =
+        admit_opaque_arrival_context_set(&summary, &boundary, &code, entry, Vec::new(), receipt)
+            .expect_err("an empty opaque arrival-context claim cannot be complete");
+    assert!(empty.0.contains("contains no context"));
+
+    let context = ArrivalContextId::new(1).expect("arrival context");
+    let duplicate = admit_opaque_arrival_context_set(
+        &summary,
+        &boundary,
+        &code,
+        entry,
+        vec![context, context],
+        receipt,
+    )
+    .expect_err("duplicate context identities are not a set");
+    assert!(duplicate.0.contains("repeats a context identity"));
+
+    let second = ArrivalContextId::new(2).expect("arrival context");
+    let admitted = admit_opaque_arrival_context_set(
+        &summary,
+        &boundary,
+        &code,
+        entry,
+        vec![second, context],
+        receipt,
+    )
+    .expect("input order does not change the admitted context set");
+    assert_eq!(admitted.contexts(), [context, second]);
 }
 
 #[test]
@@ -785,6 +906,14 @@ fn provider_selected_stack_closes_independently_in_each_arrival_context() {
         ],
     })
     .expect("context-specific body domains are structurally closed");
+    let context_evidence = admitted_arrival_contexts(
+        &summary,
+        &boundary,
+        &code,
+        entry,
+        &[2, 1],
+        root_id(0x826, StackValidationReceiptId::from_normalized_identity),
+    );
 
     let bound = bind_opaque_adapter_stack_realization(
         &summary,
@@ -792,7 +921,7 @@ fn provider_selected_stack_closes_independently_in_each_arrival_context() {
         &code,
         entry,
         realization,
-        root_id(0x826, StackValidationReceiptId::from_normalized_identity),
+        context_evidence,
     )
     .expect("provider-selected stack may close differently per arrival context");
     assert_eq!(

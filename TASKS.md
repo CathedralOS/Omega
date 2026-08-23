@@ -6700,19 +6700,20 @@ reach or trust, and private proof improvements do not change public identity.
   Each realization now retains an exact context-to-body-domain closure. Fixed
   public stack dispositions must agree in every context; `ProviderSelected`
   may close differently per context but may never remain unresolved. Opaque
-  adapters bind the realization, domain closure, body evidence, provider
-  receipt, boundary contract, and exact installed entry. Direct generated
-  entries bind the same facts to emitted Terminal evidence without a provider
-  receipt. The external-root ledger and canonical artifact report preserve the
-  complete contexts, epochs, body domains, per-domain demand, and evidence
-  origin behind compact fingerprints. The old scalar admitted composer is not
-  an admission path.
+  adapters now require one admitted complete context-set claim bound to the
+  root, provider, target, artifact, entry, boundary contract, and receipt; that
+  set must equal the realization's contexts, so a bare receipt cannot license
+  an omitted or padded epoch set. They also bind the domain closure and body
+  evidence. Direct generated entries bind the same facts to emitted Terminal
+  evidence without a provider receipt. The external-root ledger and canonical
+  artifact report preserve the complete contexts, epochs, body domains,
+  per-domain demand, and evidence origin behind compact fingerprints. The old
+  scalar admitted composer is not an admission path.
 
   Remaining: derive hardware-arrival epochs and body-domain closure from sealed
   target rules plus exact installation facts; derive nontrivial generated
-  adapter enter/exit epochs from emitted instructions; and prove each admitted
-  opaque arrival-context set complete. Add no architecture-specific frame
-  vocabulary to source.
+  adapter enter/exit epochs from emitted instructions. Add no
+  architecture-specific frame vocabulary to source.
 - **TR3-TR8:** finish whole-call-graph WCSU derivation, bind exact `StackPlan`
   evidence, reserve fixed nonmoving `StackLease`s, validate preservation and
   cancellation conformances, transfer arguments transactionally, lower

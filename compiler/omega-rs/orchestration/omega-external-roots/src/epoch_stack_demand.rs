@@ -37,13 +37,15 @@ pub struct EpochStackCompositionInput {
     pub body_wcsu_alignment: u64,
 }
 
-/// Exact admitted evidence for an opaque external-entry adapter's epoch plan.
+/// Provider-admitted claim that names the complete admissible arrival-context
+/// set for one exact opaque entry realization.
 ///
-/// The receipt attests the complete context/epoch set. Exact installed-code and
-/// boundary-plan identities keep that admission from being replayed for a
-/// different adapter, entry, target, or public stack contract.
+/// A receipt identity alone cannot establish completeness: without the bound
+/// set, the provider could omit a context whose stack transition is more
+/// demanding. Private identity fields prevent replay for another root,
+/// artifact, entry, target, or public boundary contract.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct OpaqueAdapterStackRealizationEvidence {
+pub struct AdmittedOpaqueArrivalContextSet {
     root: ExternalRootId,
     provider: RootProviderId,
     architecture: omega_target::Architecture,
@@ -52,9 +54,107 @@ pub struct OpaqueAdapterStackRealizationEvidence {
     artifact: ArtifactId,
     entry: EntryStubId,
     boundary_contract_fingerprint: u64,
+    contexts: Vec<ArrivalContextId>,
+    validation_receipt: StackValidationReceiptId,
+}
+
+impl AdmittedOpaqueArrivalContextSet {
+    pub fn contexts(&self) -> &[ArrivalContextId] {
+        &self.contexts
+    }
+
+    pub const fn validation_receipt(&self) -> StackValidationReceiptId {
+        self.validation_receipt
+    }
+
+    fn matches_installed_code_entry(
+        &self,
+        installed_code: &InstalledCode,
+        entry: EntryStubId,
+    ) -> bool {
+        self.architecture == installed_code.architecture()
+            && self.installed_code == installed_code.identity()
+            && self.installed_code_context == installed_code.receipt_context()
+            && self.artifact == installed_code.artifact()
+            && self.entry == entry
+    }
+
+    fn matches_installed_entry(
+        &self,
+        summary: &ProviderStackSummary,
+        boundary: &ValidatedBoundaryEntryPlan,
+        installed_code: &InstalledCode,
+        entry: EntryStubId,
+    ) -> bool {
+        self.root == summary.root
+            && self.provider == summary.provider
+            && self.matches_installed_code_entry(installed_code, entry)
+            && self.boundary_contract_fingerprint == boundary.contract_fingerprint()
+    }
+}
+
+/// Admit one opaque provider's complete arrival-context claim for an exact
+/// installed entry. The set is canonicalized here and must later equal the
+/// contexts carried by the provider's epoch realization.
+pub fn admit_opaque_arrival_context_set(
+    summary: &ProviderStackSummary,
+    boundary: &ValidatedBoundaryEntryPlan,
+    installed_code: &InstalledCode,
+    entry: EntryStubId,
+    mut contexts: Vec<ArrivalContextId>,
+    validation_receipt: StackValidationReceiptId,
+) -> Result<AdmittedOpaqueArrivalContextSet, ExternalRootDiagnostic> {
+    installed_code.selected_entry_target(entry).map_err(|_| {
+        ExternalRootDiagnostic(
+            "opaque arrival-context admission names no exact installed entry".into(),
+        )
+    })?;
+    if boundary.plan().state.initial_regime.architecture() != installed_code.architecture() {
+        return Err(ExternalRootDiagnostic(
+            "opaque arrival-context admission target differs from the installed artifact architecture"
+                .into(),
+        ));
+    }
+    if summary.stack != boundary.plan().state.stack {
+        return Err(ExternalRootDiagnostic(
+            "opaque arrival-context admission drifted from the boundary stack disposition".into(),
+        ));
+    }
+    contexts.sort();
+    if contexts.is_empty() {
+        return Err(ExternalRootDiagnostic(
+            "opaque arrival-context admission contains no context".into(),
+        ));
+    }
+    if contexts.windows(2).any(|pair| pair[0] == pair[1]) {
+        return Err(ExternalRootDiagnostic(
+            "opaque arrival-context admission repeats a context identity".into(),
+        ));
+    }
+    Ok(AdmittedOpaqueArrivalContextSet {
+        root: summary.root,
+        provider: summary.provider,
+        architecture: installed_code.architecture(),
+        installed_code: installed_code.identity(),
+        installed_code_context: installed_code.receipt_context(),
+        artifact: installed_code.artifact(),
+        entry,
+        boundary_contract_fingerprint: boundary.contract_fingerprint(),
+        contexts,
+        validation_receipt,
+    })
+}
+
+/// Exact admitted evidence for an opaque external-entry adapter's epoch plan.
+///
+/// The receipt attests the complete context/epoch set. Exact installed-code and
+/// boundary-plan identities keep that admission from being replayed for a
+/// different adapter, entry, target, or public stack contract.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OpaqueAdapterStackRealizationEvidence {
+    arrival_contexts: AdmittedOpaqueArrivalContextSet,
     body_domains: ValidatedEntryStackDomainClosure,
     realization: ValidatedEntryStackRealization,
-    validation_receipt: StackValidationReceiptId,
 }
 
 /// Exact compiler-derived evidence for a direct generated entry with no
@@ -99,49 +199,49 @@ impl AdapterStackRealizationEvidence {
     pub const fn root(&self) -> ExternalRootId {
         match self {
             Self::DirectGenerated(evidence) => evidence.root,
-            Self::OpaqueProvider(evidence) => evidence.root,
+            Self::OpaqueProvider(evidence) => evidence.root(),
         }
     }
 
     pub const fn provider(&self) -> RootProviderId {
         match self {
             Self::DirectGenerated(evidence) => evidence.provider,
-            Self::OpaqueProvider(evidence) => evidence.provider,
+            Self::OpaqueProvider(evidence) => evidence.provider(),
         }
     }
 
     pub const fn architecture(&self) -> omega_target::Architecture {
         match self {
             Self::DirectGenerated(evidence) => evidence.architecture,
-            Self::OpaqueProvider(evidence) => evidence.architecture,
+            Self::OpaqueProvider(evidence) => evidence.architecture(),
         }
     }
 
     pub const fn installed_code(&self) -> InstalledCodeId {
         match self {
             Self::DirectGenerated(evidence) => evidence.installed_code,
-            Self::OpaqueProvider(evidence) => evidence.installed_code,
+            Self::OpaqueProvider(evidence) => evidence.installed_code(),
         }
     }
 
     pub const fn artifact(&self) -> ArtifactId {
         match self {
             Self::DirectGenerated(evidence) => evidence.artifact,
-            Self::OpaqueProvider(evidence) => evidence.artifact,
+            Self::OpaqueProvider(evidence) => evidence.artifact(),
         }
     }
 
     pub const fn entry(&self) -> EntryStubId {
         match self {
             Self::DirectGenerated(evidence) => evidence.entry,
-            Self::OpaqueProvider(evidence) => evidence.entry,
+            Self::OpaqueProvider(evidence) => evidence.entry(),
         }
     }
 
     pub const fn boundary_contract_fingerprint(&self) -> u64 {
         match self {
             Self::DirectGenerated(evidence) => evidence.boundary_contract_fingerprint,
-            Self::OpaqueProvider(evidence) => evidence.boundary_contract_fingerprint,
+            Self::OpaqueProvider(evidence) => evidence.boundary_contract_fingerprint(),
         }
     }
 
@@ -170,7 +270,7 @@ impl AdapterStackRealizationEvidence {
     pub const fn validation_receipt(&self) -> Option<StackValidationReceiptId> {
         match self {
             Self::DirectGenerated(_) => None,
-            Self::OpaqueProvider(evidence) => Some(evidence.validation_receipt),
+            Self::OpaqueProvider(evidence) => Some(evidence.arrival_contexts.validation_receipt()),
         }
     }
 
@@ -196,27 +296,27 @@ impl AdapterStackRealizationEvidence {
 
 impl OpaqueAdapterStackRealizationEvidence {
     pub const fn root(&self) -> ExternalRootId {
-        self.root
+        self.arrival_contexts.root
     }
 
     pub const fn provider(&self) -> RootProviderId {
-        self.provider
+        self.arrival_contexts.provider
     }
 
     pub const fn architecture(&self) -> omega_target::Architecture {
-        self.architecture
+        self.arrival_contexts.architecture
     }
 
     pub const fn installed_code(&self) -> InstalledCodeId {
-        self.installed_code
+        self.arrival_contexts.installed_code
     }
 
     pub const fn artifact(&self) -> ArtifactId {
-        self.artifact
+        self.arrival_contexts.artifact
     }
 
     pub const fn entry(&self) -> EntryStubId {
-        self.entry
+        self.arrival_contexts.entry
     }
 
     pub const fn realization(&self) -> &ValidatedEntryStackRealization {
@@ -224,11 +324,11 @@ impl OpaqueAdapterStackRealizationEvidence {
     }
 
     pub const fn validation_receipt(&self) -> StackValidationReceiptId {
-        self.validation_receipt
+        self.arrival_contexts.validation_receipt()
     }
 
     pub const fn boundary_contract_fingerprint(&self) -> u64 {
-        self.boundary_contract_fingerprint
+        self.arrival_contexts.boundary_contract_fingerprint
     }
 
     pub(super) fn matches_installed_code_entry(
@@ -236,11 +336,8 @@ impl OpaqueAdapterStackRealizationEvidence {
         installed_code: &InstalledCode,
         entry: EntryStubId,
     ) -> bool {
-        self.architecture == installed_code.architecture()
-            && self.installed_code == installed_code.identity()
-            && self.installed_code_context == installed_code.receipt_context()
-            && self.artifact == installed_code.artifact()
-            && self.entry == entry
+        self.arrival_contexts
+            .matches_installed_code_entry(installed_code, entry)
     }
 
     fn matches_installed_entry(
@@ -250,7 +347,8 @@ impl OpaqueAdapterStackRealizationEvidence {
         boundary: &ValidatedBoundaryEntryPlan,
     ) -> bool {
         self.matches_installed_code_entry(installed_code, entry)
-            && self.boundary_contract_fingerprint == boundary.contract_fingerprint()
+            && self.arrival_contexts.boundary_contract_fingerprint
+                == boundary.contract_fingerprint()
     }
 }
 
@@ -294,8 +392,25 @@ pub fn bind_opaque_adapter_stack_realization(
     installed_code: &InstalledCode,
     entry: EntryStubId,
     realization: ValidatedEntryStackRealization,
-    validation_receipt: StackValidationReceiptId,
+    arrival_contexts: AdmittedOpaqueArrivalContextSet,
 ) -> Result<BoundEpochStackCompositionInput, ExternalRootDiagnostic> {
+    if !arrival_contexts.matches_installed_entry(summary, boundary, installed_code, entry) {
+        return Err(ExternalRootDiagnostic(
+            "opaque arrival-context evidence names a different installed root".into(),
+        ));
+    }
+    let realized_contexts = realization
+        .realization()
+        .contexts
+        .iter()
+        .map(|context| context.context)
+        .collect::<Vec<_>>();
+    if realized_contexts != arrival_contexts.contexts {
+        return Err(ExternalRootDiagnostic(
+            "opaque arrival-context evidence and epoch realization contain different context sets"
+                .into(),
+        ));
+    }
     let body_domains = body_domain_closure(boundary.plan().state.stack, &realization)?;
     validate_bound_adapter_realization(
         summary,
@@ -307,17 +422,9 @@ pub fn bind_opaque_adapter_stack_realization(
     )?;
 
     let realization_evidence = OpaqueAdapterStackRealizationEvidence {
-        root: summary.root,
-        provider: summary.provider,
-        architecture: installed_code.architecture(),
-        installed_code: installed_code.identity(),
-        installed_code_context: installed_code.receipt_context(),
-        artifact: installed_code.artifact(),
-        entry,
-        boundary_contract_fingerprint: boundary.contract_fingerprint(),
+        arrival_contexts,
         body_domains,
         realization: realization.clone(),
-        validation_receipt,
     };
     debug_assert!(realization_evidence.matches_installed_entry(installed_code, entry, boundary));
     Ok(BoundEpochStackCompositionInput {
