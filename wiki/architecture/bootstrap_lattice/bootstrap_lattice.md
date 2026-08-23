@@ -239,11 +239,12 @@ Alpha → Beta → Gamma → Delta
 ```
 
 Delta is independent rather than an Omega subset. `Ωself` is not another
-language rung: it is the mechanically enforced set of normal Omega constructs
-used by the exact production compiler source closure. `omega-bootstrap` may
-reject every other Omega construct, but accepted programs keep exact Omega
-semantics. The production compiler source uses `Ωself` while implementing the
-complete language for users.
+language rung: it is a mechanically enforced, compositional subset of ordinary
+Omega under which the exact production compiler source closure must fit. The
+source manifest proves closure; it is not a whitelist or a set of hard-coded
+AST shapes. `omega-bootstrap` may reject every Omega program outside that
+profile, but accepted programs keep exact Omega semantics. The production
+compiler source uses `Ωself` while implementing the complete language for users.
 
 The bridge binary may itself be slow and may lower the production compiler
 conservatively. It compiles the `Ωself` source that implements the product
@@ -369,7 +370,7 @@ architecture questions:
   proposition and derivation shape without changing the kernel/artifact-verifier
   responsibility split.
 - **Delta sufficiency** — finish the independent, robust compiler-host language
-  and the exact source facilities used by `main.delta`.
+  and prove the complete Delta source closure of `omega-bootstrap` fits it.
 - **Omega self-hosting profile** — derive and enforce `Ωself` from the exact
   production compiler dependency manifest, with explicit exclusions and
   negative gates.

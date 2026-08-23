@@ -212,6 +212,15 @@ general Omega endpoint merely because it compiles the production source. A
 compiler can implement proofs, dependent types, and the rest of full Omega
 without using those features in its own implementation.
 
+The profile is a compositional feature-and-resource subset, not an allowlist of
+particular source files or hard-coded compiler AST permutations. Its exact source
+manifest proves that the product compiler closes under the profile; the manifest
+does not replace general parsing, checking, lowering, diagnostics, or negative
+coverage for every admitted capability. Thus `omega-bootstrap` is deliberately
+incomplete in what Omega programs it accepts, but exact in the meaning of every
+program it does accept. The production compiler it builds is complete in the
+language it accepts and implements.
+
 There is one required hosted compile. `omega-bootstrap` may be slow and may
 lower the production compiler conservatively. It must compile the `Ωself`
 source that implements the production optimizer and advanced lowering, but it

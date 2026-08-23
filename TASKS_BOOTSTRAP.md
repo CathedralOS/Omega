@@ -33,6 +33,12 @@ optimizer and advanced lowering, but need not implement those passes itself. A
 later product self-rebuild can optimize the compiler binary and add fixed-point
 evidence; it is not required for full functionality or dependency closure.
 
+Do not conflate implementation language, accepted source, implemented language,
+and executable optimization quality. `omega-bootstrap` is written in Delta and
+accepts a compositional subset of Omega. The production compiler is written in
+that subset, accepts full Omega, and contains the full optimizer; only its own
+initial executable may be conservatively generated.
+
 The proof kernel is orthogonal to this chain. It has independent Beta and Gamma
 implementations and checks certificates emitted at multiple stages.
 
@@ -130,7 +136,8 @@ That evidence is necessary but is not yet `omega-bootstrap`:
   implemented language and remains a trusted Rust dependency while the
   Rust-free route is widened.
 - Delta's complete literal specification has not yet been frozen as the robust,
-  independent compiler-host language required by `main.delta`.
+  independent compiler-host language required by the complete
+  `omega-bootstrap` Delta source closure.
 - The exact `Ωself` profile sufficient to express the production Omega compiler
   and every transitive build dependency has not been frozen.
 
@@ -166,6 +173,21 @@ story.
 Product Psi/Omega implementation work belongs in `TASKS.md`. This file may name
 a required product interface as an input to a lattice gate, but it must not own
 or prescribe work inside the Rust on-ramp or the eventual product compiler.
+
+### Dependency split
+
+Two source efforts can proceed independently:
+
+- freeze Delta v1 and build reusable bridge-compiler infrastructure in Delta;
+- establish the Omega-written production compiler and publish its exact
+  transitive source manifest under `OMEGA-PRODUCT-COMPILER-SOURCE` in
+  `TASKS.md`.
+
+The manifest then permits `Ωself` to be derived and jointly frozen with the
+product source. The complete `omega-bootstrap` compiler depends on both Delta v1
+and that frozen profile. The hosted production compile depends on all three.
+O0/O1 vertical canaries may continue before those joins, but they must not invent
+language ancestry, source-shape special cases, or silent profile growth.
 
 ### Work packages and acceptance gates
 
@@ -344,16 +366,18 @@ or prescribe work inside the Rust on-ramp or the eventual product compiler.
     and AArch64 images plus replayed installation records. Matching Linux hosts
     execute the image and compare stdout/status; other hosts validate both
     complete image formats without pretending to execute them.
-- [ ] **Freeze Delta's literal compiler-host specification — DESIGN BLOCKED.**
+- [ ] **Freeze Delta's literal compiler-host specification — OWNER RULING
+  REQUIRED FOR THE LITERAL V1 CONTRACT.**
   Owner ruling:
   [OWNER_QUESTIONS Q5](OWNER_QUESTIONS.md#q5--what-exact-language-contract-constitutes-delta-v1).
-  Delta is an independent, robust C-like language with an Omega-shaped surface
-  where that improves consistency; it is not required to be valid Omega. Q5
-  must settle the exact source, integer, memory/representation, allocation,
-  aggregate, expression/control, failure, module/bundle, and closed-boundary
-  contracts. The current D0 profile remains valid closed evidence for the
-  slices already implemented, not a claim that the final Delta language is
-  frozen.
+  The architectural part is settled: Delta is an independent, robust C-like
+  language with an Omega-shaped surface where that improves consistency; it is
+  not required to be valid Omega, and runtime-sized allocation from explicit
+  fixed backing is permitted. Q5 owns only the remaining literal source,
+  integer, memory/representation, allocation, aggregate, expression/control,
+  failure, module/bundle, and closed-boundary contracts. The current D0 profile
+  remains valid closed evidence for the slices already implemented, not a claim
+  that the final Delta language is frozen.
   Once Q5 is ruled, the remaining work is bounded implementation rather than a
   product-language decision:
   - [ ] Publish versioned normative Delta grammar, static/dynamic semantics,
@@ -373,13 +397,13 @@ or prescribe work inside the Rust on-ramp or the eventual product compiler.
     negative canary per exclusion, boundary and fixed-backing exhaustion teeth,
     cross-target arithmetic/layout edges, and native/self-host/lower-rung
     differentials.
-  Final proof that these facilities suffice for the complete `main.delta` source
-  is a later `omega-bootstrap` implementation/validation obligation. It is not a
-  prerequisite for freezing Delta v1, and future `main.delta` pressure must not
-  silently widen the frozen language.
+  Final proof that these facilities suffice for the complete
+  `omega-bootstrap` Delta source closure is a later implementation/validation
+  obligation. It is not a prerequisite for freezing Delta v1, and future
+  bridge-source pressure must not silently widen the frozen language.
 - [ ] **Derive and freeze the Omega self-hosting profile (`Ωself`).** This is the
   ordinary-Omega source profile used by the production compiler implementation,
-  not a language, dialect, or lattice rung. It is blocked on
+  not a language, dialect, or lattice rung. It is blocked only on
   `OMEGA-PRODUCT-COMPILER-SOURCE` in `TASKS.md`; standard-library and sample
   `.omg` files cannot substitute for the exact compiler source closure.
   - [ ] Publish the complete self-host manifest, including every transitive
@@ -391,6 +415,12 @@ or prescribe work inside the Rust on-ramp or the eventual product compiler.
     implementation evidence says otherwise. Decide concrete domains, advanced
     generic facilities, numeric/schema field tags, and complex transition
     payloads from measured compiler-source need rather than aesthetic symmetry.
+    For each disputed capability, either refactor the product source to remove
+    it or admit it with its measured Delta implementation and assurance cost.
+  - [ ] Define `Ωself` as compositional syntax, static-semantics, resource, and
+    lowering rules. The exact compiler manifest must close under those rules,
+    but may not be recognized by file identity, statement count, or a matrix of
+    source/AST permutations.
   - [ ] Add positive closure gates and one negative canary per rejected feature
     so the profile cannot expand accidentally.
 - [ ] **Implement `omega-bootstrap` in Delta.** Grow the current canary into a
@@ -399,6 +429,9 @@ or prescribe work inside the Rust on-ramp or the eventual product compiler.
   It need not accept the full Omega language or optimize the product compiler's
   own binary. Keep stages direct and auditable, and compile the `Ωself` source
   that implements the full product optimizer and advanced lowering correctly.
+  - [ ] Publish one deterministic manifest for `omega-bootstrap`'s complete
+    Delta source closure and prove every transitive source unit is valid Delta
+    v1. `main.delta` is an entrypoint, not a substitute for this closure.
   - [x] Close execution of the full current `lowermachine` through canonical
     Gamma meaning. Allocation profiling identified evaluator-private tail-call
     argument lists—not the translated compiler's persistent arrays—as the arena
@@ -437,8 +470,10 @@ or prescribe work inside the Rust on-ramp or the eventual product compiler.
 - [ ] **Validate Delta → `omega-bootstrap`.** Gate exact `Ωself` coverage,
   excluded-feature diagnostics, deterministic artifacts, meaning agreement,
   conservative lowering behavior, and the relevant proof/translation-validation
-  seams. The Rust compiler may remain a differential oracle, but is never an
-  authority or bootstrap/release dependency.
+  seams. Include profile-wide compositional canaries so passing the exact
+  production source cannot hide source-shape specialization. The Rust compiler
+  may remain a differential oracle, but is never an authority or
+  bootstrap/release dependency.
 - [ ] **Compile the production Omega compiler once.** Use the Delta-built
   `omega-bootstrap` compiler on the exact `Ωself` source manifest to produce a
   compiler that accepts and implements the full Omega specification, including

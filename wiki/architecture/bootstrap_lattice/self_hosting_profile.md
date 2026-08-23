@@ -15,13 +15,24 @@ omega-bootstrap  ─────────────────▶  product
 ```
 
 Delta and `Ωself` are the only bootstrap feature choices left once the full
-Omega specification is fixed.
+Omega specification is fixed. Keep four questions separate:
+
+| Artifact | Written in | Accepts | Obligation |
+| --- | --- | --- | --- |
+| `omega-bootstrap` | Delta | the `Ωself` subset of ordinary Omega | compile every admitted program with exact Omega meaning; unsupported Omega rejects |
+| production `omega` | Omega source constrained to `Ωself` | full Omega | implement the complete language, optimizer, and lowering pipeline |
+| optional rebuilt `omega` | Omega source constrained to `Ωself` (the same source, now compiled by production `omega`) | full Omega | improve the compiler executable itself and add reproducibility evidence |
+
+The optional rebuild is not another language rung or bootstrap dependency.
+Likewise, a conservatively generated production-compiler executable may still
+contain and run the full optimizer when it compiles user programs.
 
 - **Delta** is an independent, robust compiler-host language. It may resemble
   Omega in spelling and shape, but it is not required to be an Omega subset.
-- **`Ωself`** is the Omega self-hosting source profile: a strict selection of
-  ordinary Omega programs and dependencies accepted by `omega-bootstrap`.
-  It introduces no syntax or semantics of its own.
+- **`Ωself`** is the Omega self-hosting source profile: a compositional subset
+  of ordinary Omega accepted by `omega-bootstrap`. It introduces no syntax or
+  semantics of its own. It is a feature-and-resource contract, not a whitelist
+  of the current compiler files or a collection of recognized AST shapes.
 - **Full Omega** is the language implemented by the resulting production
   compiler. A compiler can implement a feature without using that feature in
   its own source.
@@ -29,16 +40,19 @@ Omega specification is fixed.
 The bootstrap closure condition is therefore:
 
 ```text
-main.delta ∈ Delta
-main.omg and every transitive compiler dependency ∈ Ωself
-omega-bootstrap correctly compiles Ωself
+the complete omega-bootstrap source closure ∈ Delta v1
+the complete production-compiler source closure ∈ Ωself
+omega-bootstrap correctly compiles every input admitted by Ωself
 production omega correctly implements full Ω
 ```
 
-It is not necessary for `omega-bootstrap` to accept every Omega program. It
-must reject unsupported constructs rather than approximate them, and every
-construct it does accept has exactly its normal Omega meaning, ABI, layout, and
-artifact contract.
+It is not necessary for `omega-bootstrap` to accept every Omega program. Its
+acceptance completeness is deliberately limited; its semantic correctness is
+not. It must reject unsupported constructs rather than approximate them, and
+every construct it does accept has exactly its normal Omega meaning, ABI,
+layout, and artifact contract. General parsing, checking, and lowering rules
+must implement the admitted profile; matching the present source file, statement
+count, or syntax-tree permutation is not an implementation of `Ωself`.
 
 ## Delta design budget
 
@@ -71,11 +85,8 @@ Presumptively excluded from compiler source:
 
 - the mathematical proof/program surface;
 - linear and dependent types;
-- terminal-Psi-only declarations, interpreters, REPLs, and product tooling not
-  imported by the compiler build;
-- numeric/schema field tags such as `0:` when ordinary fields suffice;
-- transitions carrying complex values when a simple discriminant plus an
-  explicit context object expresses the same compiler state.
+- standalone terminal-Psi tools, interpreters, REPLs, and other product tooling
+  not imported by the compiler build.
 
 Presumptively retained because removing them is likely to make the compiler
 larger or less robust:
@@ -90,19 +101,24 @@ Candidates to decide from the actual source and a bootstrap-cost measurement:
 - concrete domains versus explicit compiler contexts;
 - domain polymorphism and arithmetic;
 - advanced generic constraints, specialization, or reflection;
-- complex transition payloads and schema-tagged data.
+- numeric/schema field tags such as `0:` versus ordinary named fields;
+- complex transition payloads versus a simple discriminant and explicit
+  compiler context;
+- mixed field-plus-case data versus separate record and sum-data types.
 
-For a retained feature, `omega-bootstrap` need implement only the valid Omega
-cases exercised by `Ωself`; the production compiler implements the complete
-feature. Simplified cases must preserve full Omega semantics. No bootstrap-only
-Omega dialect or private extension is permitted.
+For a retained feature, `omega-bootstrap` need implement the feature only within
+the structurally declared bounds of `Ωself`; the production compiler implements
+the complete feature. Those bounds must be general enough to compile any source
+that satisfies the published profile, not encoded as permutations of the
+current compiler source. Simplified cases must preserve full Omega semantics.
+No bootstrap-only Omega dialect or private extension is permitted.
 
 The selection rule is total cost, not the smallest feature count:
 
 ```text
-benefit and robustness in main.omg
+benefit and robustness in the production Omega source closure
 ──────────────────────────────────
-implementation + assurance cost in main.delta
+implementation + assurance cost in the omega-bootstrap Delta source closure
 ```
 
 Basic generics and payload enums are likely favorable. Proof syntax and
@@ -131,8 +147,19 @@ language functionality nor bootstrap dependency closure waits for it.
 ## Mechanical enforcement
 
 The production compiler task must publish one deterministic source/dependency
-manifest. The bootstrap gate must compile that exact closure under an explicit
-`Ωself` allowlist and reject an excluded-feature canary for every exclusion.
+manifest. That enables a joint freeze rather than a circular dependency:
+
+1. Write the product compiler under the conservative working policy and publish
+   its complete source closure.
+2. Measure each used feature against its benefit in the product source and its
+   implementation/assurance cost in Delta.
+3. Either refactor the product source to remove the feature or admit it to the
+   compositional `Ωself` contract.
+4. Freeze the source manifest and profile together, then enforce both
+   mechanically.
+
+The bootstrap gate must compile that exact closure under the explicit `Ωself`
+allowlist and reject an excluded-feature canary for every exclusion.
 The manifest includes compiler modules, compile-time code, build/module
 behavior, and runtime/library dependencies; hiding a feature in a library does
 not remove it from the bootstrap surface.
