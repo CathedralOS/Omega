@@ -5,7 +5,7 @@
 parse_char_summary_init:
         call parse_char_require_shape
         call parse_char_prove_summary
-        jmp scan_owned_effects_init
+        jmp operator_classifier_summary_init
 
 parse_char_prove_summary:
         call parse_char_reset_public

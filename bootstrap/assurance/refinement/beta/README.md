@@ -772,6 +772,23 @@ focused checker is 235,255 bytes. This does not prove
 canonical character literal syntax, the remaining lexical/value leaves, or
 the expression SCC.
 
+`bc-operator-classifier-shape.alpha` and
+`bc-operator-classifier-summary.alpha` close procedures 53..54. Exact shape
+binds blocks 234..242, transitions 178..185, events 379..382, locals 144..148,
+primitives 572..585, binary pushes 167..171, both 16-byte frames, all explicit
+and synthetic epilogues, and the decoded zero-call/six-return/nine-store quiet
+region at PCs 34977..35880. The decoded scanner formerly private to parse_char
+is now responsibility-neutral and shared by both leaves. `OMUL` and `OADD`
+evaluate source branch order and independently ordered membership tests for all
+256 bytes, requiring exact accepted/complement counts 3/253 and 2/254. The
+shape-fixed full-word `==` operations compare only literals below 256, so a
+separate checked complement proves every remaining Word returns zero. Thus
+`is_muldiv(c)` is one exactly for `*`, `/`, or `%`, and `is_addsub(c)` is one
+exactly for `+` or `-`; both otherwise return zero, emit nothing, preserve
+compiler state, and restore their one-slot frames. Twenty-four isolated
+canaries live in a 6.9 KB harness; shape and meaning are 10.0 KB and 9.6 KB,
+and `BC_BLOCK_FOCUS=operator-classifier` passes with a 239,992-byte checker.
+
 The eventual `parse_proc` theorem must be maximal, not universally terminating.
 For malformed input, an unrecognized body byte such as `@` can survive both
 `gen_stmt` and the number fallback without cursor progress while `gen_stmts`

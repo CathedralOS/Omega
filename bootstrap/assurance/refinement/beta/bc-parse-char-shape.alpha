@@ -433,12 +433,12 @@ parse_char_require_censuses:
         imm r22, 6                   ; four adv plus two cbyte calls
         imm r23, 2                   ; parse_char explicit and synthetic return
         imm r24, 12                  ; prologue/local/binary stores
-        call parse_char_scan_region
+        call exact_quiet_scan_region
         ret
 
 ; Exact decoded census for [r20,r21), rejecting direct I/O, halt, byte memory,
 ; division, and remainder. r22/r23/r24 are call/ret/store totals.
-parse_char_scan_region:
+exact_quiet_scan_region:
         mov r25, r20
         mov r26, r21
         mov r27, r22
@@ -447,33 +447,33 @@ parse_char_scan_region:
         imm r10, 0
         imm r11, 0
         imm r12, 0
-parse_char_scan_loop:
-        jlt r25, r26, parse_char_scan_pc
-        jeq r10, r27, parse_char_scan_rets
+exact_quiet_scan_loop:
+        jlt r25, r26, exact_quiet_scan_pc
+        jeq r10, r27, exact_quiet_scan_rets
         jmp reject
-parse_char_scan_rets:
-        jeq r11, r28, parse_char_scan_stores
+exact_quiet_scan_rets:
+        jeq r11, r28, exact_quiet_scan_stores
         jmp reject
-parse_char_scan_stores:
-        jeq r12, r29, parse_char_scan_done
+exact_quiet_scan_stores:
+        jeq r12, r29, exact_quiet_scan_done
         jmp reject
-parse_char_scan_pc:
+exact_quiet_scan_pc:
         imm r1, 4194304
         add r1, r25
         loadb r2, r1
         imm r3, 1
-        jeq r2, r3, parse_char_scan_start
-        jmp parse_char_scan_next
-parse_char_scan_start:
+        jeq r2, r3, exact_quiet_scan_start
+        jmp exact_quiet_scan_next
+exact_quiet_scan_start:
         imm r1, 2097152
         add r1, r25
         loadb r2, r1
         imm r3, 19
-        jeq r2, r3, parse_char_scan_call
+        jeq r2, r3, exact_quiet_scan_call
         imm r3, 20
-        jeq r2, r3, parse_char_scan_ret
+        jeq r2, r3, exact_quiet_scan_ret
         imm r3, 11
-        jeq r2, r3, parse_char_scan_store
+        jeq r2, r3, exact_quiet_scan_store
         imm r3, 0
         jeq r2, r3, reject
         imm r3, 6
@@ -488,21 +488,21 @@ parse_char_scan_start:
         jeq r2, r3, reject
         imm r3, 18
         jeq r2, r3, reject
-        jmp parse_char_scan_next
-parse_char_scan_call:
+        jmp exact_quiet_scan_next
+exact_quiet_scan_call:
         imm r1, 1
         add r10, r1
-        jmp parse_char_scan_next
-parse_char_scan_ret:
+        jmp exact_quiet_scan_next
+exact_quiet_scan_ret:
         imm r1, 1
         add r11, r1
-        jmp parse_char_scan_next
-parse_char_scan_store:
+        jmp exact_quiet_scan_next
+exact_quiet_scan_store:
         imm r1, 1
         add r12, r1
-parse_char_scan_next:
+exact_quiet_scan_next:
         imm r1, 1
         add r25, r1
-        jmp parse_char_scan_loop
-parse_char_scan_done:
+        jmp exact_quiet_scan_loop
+exact_quiet_scan_done:
         ret

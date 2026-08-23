@@ -363,6 +363,14 @@ are valuable teeth, but they do not yet establish the quantified observation:
   truncated-tail clauses distinguish boundary zero from in-range NUL at both
   observations and retain exact `LEN+1`/`LEN+2` outcomes. This clause gives no
   canonical character-literal syntax or expression-SCC meaning;
+- its total operator-classifier summaries bind procedures 53..54, exact blocks
+  234..242, transitions, source rows, frames/epilogues, and a decoded quiet
+  footprint. `is_muldiv` and `is_addsub` are exhaustively compared with
+  independent specifications on all 256 byte values, with exact one/zero counts
+  3/253 and 2/254. Every accepted literal is below 256 and every source
+  comparison is exact full-word equality, so a separate complement clause proves
+  all non-byte Words return zero. The resulting quiet/restored functions return
+  one exactly for `{*, /, %}` and `{+, -}`, respectively, and zero otherwise;
 - no total `parse_proc` claim is currently made. Malformed procedure bodies can
   make `gen_stmts` diverge while emitting—for example when an unrecognized byte
   is never consumed—so closure requires maximal Return-or-Diverge and finite/
