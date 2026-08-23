@@ -925,7 +925,7 @@ fn external_root_manifest_is_complete_normalized_and_address_free() {
         "body"
     );
     assert_eq!(
-        parsed["roots"][0]["resources"]["stack"]["summary_evidence"][0]["adapter_installed_code"],
+        parsed["roots"][0]["resources"]["stack"]["summary_evidence"][0]["entry_installed_code"],
         "0x000000000000012c"
     );
     assert_eq!(
@@ -933,17 +933,24 @@ fn external_root_manifest_is_complete_normalized_and_address_free() {
         "opaque_provider"
     );
     assert_eq!(
-        parsed["roots"][0]["resources"]["stack"]["summary_evidence"][0]["adapter_body_domains"][0]
-            ["context"],
+        parsed["roots"][0]["resources"]["stack"]["summary_evidence"][0]["arrival_origin"],
+        "opaque_provider"
+    );
+    assert_eq!(
+        parsed["roots"][0]["resources"]["stack"]["summary_evidence"][0]["target_arrival_rule_fingerprint"],
+        serde_json::Value::Null
+    );
+    assert_eq!(
+        parsed["roots"][0]["resources"]["stack"]["summary_evidence"][0]["body_domains"][0]["context"],
         "0x0000000000000001"
     );
     assert_eq!(
-        parsed["roots"][0]["resources"]["stack"]["summary_evidence"][0]["adapter_body_domains"][0]
-            ["domain"]["kind"],
+        parsed["roots"][0]["resources"]["stack"]["summary_evidence"][0]["body_domains"][0]["domain"]
+            ["kind"],
         "interrupted"
     );
     assert_eq!(
-        parsed["roots"][0]["resources"]["stack"]["summary_evidence"][0]["adapter_validation_receipt"],
+        parsed["roots"][0]["resources"]["stack"]["summary_evidence"][0]["opaque_validation_receipt"],
         "0x000000000000001e"
     );
     assert_eq!(

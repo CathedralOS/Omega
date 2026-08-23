@@ -162,6 +162,7 @@ pub struct InstalledEntryFactIdentity {
     pub target_profile: X86_64TargetProfileIdentity,
     pub artifact: u64,
     pub installed_code: u64,
+    pub entry: u64,
     pub entry_offset: u64,
     pub boundary_plan: u64,
 }
@@ -257,6 +258,7 @@ impl ValidatedX86_64InstalledHardwareEntryFacts {
 /// both the context-to-body-domain closure and the complete epoch realization.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct X86_64TargetDerivedHardwareArrival {
+    installed_identity: InstalledEntryFactIdentity,
     installed_facts_fingerprint: u64,
     body_domains: ValidatedEntryStackDomainClosure,
     realization: ValidatedEntryStackRealization,
@@ -264,6 +266,10 @@ pub struct X86_64TargetDerivedHardwareArrival {
 }
 
 impl X86_64TargetDerivedHardwareArrival {
+    pub const fn installed_identity(&self) -> InstalledEntryFactIdentity {
+        self.installed_identity
+    }
+
     pub const fn installed_facts_fingerprint(&self) -> u64 {
         self.installed_facts_fingerprint
     }
@@ -290,6 +296,7 @@ pub fn validate_x86_64_installed_hardware_entry_facts(
     if identity.target_profile != X86_64TargetProfileIdentity::LONG_MODE_INTERRUPT_GATES
         || identity.artifact == 0
         || identity.installed_code == 0
+        || identity.entry == 0
         || identity.boundary_plan == 0
     {
         return Err(PlanDiagnostic(
@@ -464,6 +471,7 @@ pub fn derive_x86_64_hardware_arrival(
     hash.u64(body_domains.fingerprint());
     hash.u64(realization.fingerprint());
     Ok(X86_64TargetDerivedHardwareArrival {
+        installed_identity: installed.facts.identity,
         installed_facts_fingerprint: installed.fingerprint,
         body_domains,
         realization,
@@ -509,6 +517,7 @@ fn fingerprint_x86_64_installed_facts(facts: &X86_64InstalledHardwareEntryFacts)
     hash.u64(facts.identity.target_profile.get());
     hash.u64(facts.identity.artifact);
     hash.u64(facts.identity.installed_code);
+    hash.u64(facts.identity.entry);
     hash.u64(facts.identity.entry_offset);
     hash.u64(facts.identity.boundary_plan);
     hash.u64(u64::from(facts.vector));
@@ -775,6 +784,7 @@ mod tests {
             target_profile: X86_64TargetProfileIdentity::LONG_MODE_INTERRUPT_GATES,
             artifact: 0x20,
             installed_code: 0x30,
+            entry: 0x31,
             entry_offset: 0,
             boundary_plan: 0x40,
         }

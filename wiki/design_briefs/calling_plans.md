@@ -981,6 +981,16 @@ receipt. That set must equal the contexts in its domain/epoch realization;
 neither a bare receipt nor a structurally valid subset establishes
 completeness. Generated and opaque origins remain distinct in artifact identity
 and reports. A bare byte count establishes nothing.
+
+The compiler's x86-64 rule derives the architectural frame from the exact
+installed vector, arrival mechanism, interrupted/entry privilege pair, and
+hardware stack selection. Same-privilege arrival retains three machine words;
+a privilege or IST switch retains five; the sealed exception-vector table adds
+the architectural error-code word. Installation metadata cannot supply the
+word count or an error-code Boolean. The bound realization records target
+arrival, adapter, and Terminal-body provenance independently, because those
+parts may have different authorities even when they compose into one epoch
+sequence.
 `ProviderSelected` must close in every admissible context to the interrupted
 domain or one exact provisioned domain before final composition; the selected
 domain need not be identical across contexts when a sealed target rule proves

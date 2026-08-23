@@ -19,7 +19,7 @@ use omega_executable_installation::{
     validate_final_placement,
 };
 use omega_external_roots::{
-    AdapterStackRealizationOrigin, AdmittedOpaqueFuelSuspensionFree,
+    AdapterStackRealizationOrigin, AdmittedOpaqueFuelSuspensionFree, ArrivalStackRealizationOrigin,
     DynamicFuelMeterValidationReceiptId, DynamicNativeFuelMeterPlan, ExternalRootCandidate,
     ExternalRootId, FixedFuelProviderSummary, FuelExhaustionTransferPlanId, FuelProvisionId,
     FuelSuspensionValidationReceiptId, FuelValidationReceiptId, InstalledRootLedger,
