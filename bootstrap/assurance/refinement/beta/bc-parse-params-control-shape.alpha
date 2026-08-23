@@ -1,0 +1,245 @@
+; Exact control/effect shape for parse_proc's parameter and capacity slice.
+;
+; This module owns blocks 339..344 semantically while rejoining all procedure-68
+; block PCs to bind their ownership. It closes transitions 274..281, ten calls,
+; three pre-output returns/epilogues, the 48-byte frame, exhaustive effect rows,
+; and decoded region [49368,50400). Local/memory/expression payloads are kept in
+; bc-parse-params-data-shape.alpha.
+
+parse_params_require_control_shape:
+        imm r20, 7151616
+        imm r21, 68
+        imm r22, 0
+        call transfer_require_cell
+        imm r20, 7159808
+        imm r21, 68
+        imm r22, 5
+        call transfer_require_cell
+        imm r20, 68
+        call call_bounds_frame_bytes
+        imm r1, 48
+        jeq r0, r1, parse_params_shape_blocks
+        jmp reject
+
+parse_params_shape_blocks:
+        imm r20, 338
+        imm r21, 48993
+        call slurp_summary_require_block_pc
+        imm r20, 339
+        imm r21, 49368
+        call slurp_summary_require_block_pc
+        imm r20, 340
+        imm r21, 49490
+        call slurp_summary_require_block_pc
+        imm r20, 341
+        imm r21, 49692
+        call slurp_summary_require_block_pc
+        imm r20, 342
+        imm r21, 49958
+        call slurp_summary_require_block_pc
+        imm r20, 343
+        imm r21, 49988
+        call slurp_summary_require_block_pc
+        imm r20, 344
+        imm r21, 50015
+        call slurp_summary_require_block_pc
+        imm r20, 345
+        imm r21, 50400
+        call slurp_summary_require_block_pc
+        imm r20, 346
+        imm r21, 50649
+        call slurp_summary_require_block_pc
+        imm r20, 347
+        imm r21, 50790
+        call slurp_summary_require_block_pc
+        imm r20, 348
+        imm r21, 50945
+        call slurp_summary_require_block_pc
+        imm r20, 338
+        imm r21, 348
+        imm r22, 68
+        call cursor_require_proc_blocks
+        call parse_params_require_transitions
+        call parse_params_require_events
+        call parse_params_require_control_census
+        ret
+
+parse_params_require_transitions:
+        imm r20, 274
+        imm r21, 339
+        imm r22, 1
+        imm r23, 340
+        imm r24, 49462              ; checked non-close parameter guard
+        call slurp_summary_require_transition
+        imm r20, 275
+        imm r21, 339
+        imm r22, 0
+        imm r23, 344
+        imm r24, 49481
+        call slurp_summary_require_transition
+        imm r20, 276
+        imm r21, 340
+        imm r22, 1
+        imm r23, 341
+        imm r24, 49588              ; checked NLOC<4 guard
+        call slurp_summary_require_transition
+        imm r20, 277
+        imm r21, 341
+        imm r22, 1
+        imm r23, 342
+        imm r24, 49808              ; checked declaration-status guard
+        call slurp_summary_require_transition
+        imm r20, 278
+        imm r21, 341
+        imm r22, 1
+        imm r23, 343
+        imm r24, 49930              ; checked comma guard
+        call slurp_summary_require_transition
+        imm r20, 279
+        imm r21, 341
+        imm r22, 0
+        imm r23, 339
+        imm r24, 49949
+        call slurp_summary_require_transition
+        imm r20, 280
+        imm r21, 343
+        imm r22, 0
+        imm r23, 339
+        imm r24, 50006
+        call slurp_summary_require_transition
+        imm r20, 281
+        imm r21, 344
+        imm r22, 1
+        imm r23, 345
+        imm r24, 50296              ; checked nslots<=1024 guard
+        call slurp_summary_require_transition
+        ret
+
+parse_params_require_events:
+        imm r20, 583
+        imm r21, 339
+        imm r22, 49368
+        imm r23, 0
+        imm r24, 0
+        imm r25, 1609
+        imm r26, 49377
+        call summary_require_call_site
+        imm r20, 584
+        imm r21, 340
+        imm r22, 5
+        imm r23, 49691
+        call slurp_summary_require_event
+
+        imm r20, 585
+        imm r21, 341
+        imm r22, 49692
+        imm r23, 0
+        imm r24, 0
+        imm r25, 5217
+        imm r26, 49701
+        call summary_require_call_site
+        imm r20, 586
+        imm r21, 341
+        imm r22, 49701
+        imm r23, 0
+        imm r24, 0
+        imm r25, 24145
+        imm r26, 49710              ; checked declare continuation
+        call summary_require_call_site
+        imm r20, 587
+        imm r21, 341
+        imm r22, 49827
+        imm r23, 0
+        imm r24, 0
+        imm r25, 4277
+        imm r26, 49836
+        call summary_require_call_site
+        imm r20, 588
+        imm r21, 341
+        imm r22, 49836
+        imm r23, 0
+        imm r24, 0
+        imm r25, 1609
+        imm r26, 49845
+        call summary_require_call_site
+        imm r20, 589
+        imm r21, 342
+        imm r22, 5
+        imm r23, 49987
+        call slurp_summary_require_event
+        imm r20, 590
+        imm r21, 343
+        imm r22, 49988
+        imm r23, 0
+        imm r24, 0
+        imm r25, 1939
+        imm r26, 49997
+        call summary_require_call_site
+        imm r20, 591
+        imm r21, 343
+        imm r22, 49997
+        imm r23, 0
+        imm r24, 0
+        imm r25, 4277
+        imm r26, 50006
+        call summary_require_call_site
+
+        imm r20, 592
+        imm r21, 344
+        imm r22, 50015
+        imm r23, 0
+        imm r24, 0
+        imm r25, 1939
+        imm r26, 50024              ; checked close-paren adv continuation
+        call summary_require_call_site
+        imm r20, 593
+        imm r21, 344
+        imm r22, 50098
+        imm r23, 1
+        imm r24, 0
+        imm r25, 17441
+        imm r26, 50107              ; checked expect-open continuation
+        call summary_require_call_site
+        imm r20, 594
+        imm r21, 344
+        imm r22, 50142
+        imm r23, 0
+        imm r24, 1
+        imm r25, 27433
+        imm r26, 50151              ; checked count_lets continuation
+        call summary_require_call_site
+        imm r20, 595
+        imm r21, 344
+        imm r22, 5
+        imm r23, 50399
+        call slurp_summary_require_event
+
+        imm r20, 49672
+        imm r21, 49691
+        call slurp_summary_require_epilogue
+        imm r20, 49968
+        imm r21, 49987
+        call slurp_summary_require_epilogue
+        imm r20, 50380
+        imm r21, 50399
+        call slurp_summary_require_epilogue
+        ret
+
+parse_params_require_control_census:
+        imm r20, 339
+        imm r21, 344
+        imm r22, 227
+        imm r23, 231
+        imm r24, 88
+        imm r25, 93
+        imm r26, 274
+        imm r27, 282                 ; checked exclusive params transition row
+        imm r28, 583
+        imm r29, 596                 ; checked exclusive params event row
+        call cursor_require_effect_census
+        imm r20, 49368
+        imm r21, 50400
+        imm r22, 10
+        imm r23, 3
+        call skip_scan_call_region
+        ret

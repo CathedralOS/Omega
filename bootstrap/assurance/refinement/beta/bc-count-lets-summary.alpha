@@ -29,7 +29,7 @@
 
 count_lets_summary_init:
         call count_lets_prove_summary
-        jmp scan_owned_effects_init
+        jmp parse_params_shape_init
 
 count_lets_prove_summary:
         imm r1, 527728

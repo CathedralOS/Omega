@@ -255,8 +255,16 @@ are valuable teeth, but they do not yet establish the quantified observation:
   and the result is `s`. At capacity, tables/NLOC stay unchanged, numeric
   RESOURCE_FAIL becomes 252, and the result is zero. Exact CFG, local, memory,
   expression, frame, and exhaustive ownership joins bind both cases to
-  procedure 34. No typed resource kind is inferred from 252. The parameter
-  loop and cursor-restoring count_lets are the next frontier;
+  procedure 34. No typed resource kind is inferred from 252;
+- its bounded parameter-loop phase starts at the post-`expect('('); skip_ws()`
+  cutpoint with the successful source segment, NLOC/status zero, and normalized
+  CUR. Each non-close room iteration stores the maximal possibly-empty
+  identifier through `declare`, optionally consumes a comma, and decreases
+  `4-NLOC`. A close exits with 0..4 exact parameter-table entries and leaves
+  `)` unconsumed; a fifth non-close writes numeric 252 and returns zero before
+  output. Exact procedure-68 blocks 339..344, transitions, calls, returns,
+  frame, expression/effect rows, and decoded ownership bind the conditional
+  theorem. The earlier opening-delimiter/name prefix remains to be composed;
 - its identifier-keyword leaf proves id_char reads exactly IDOFF+k under the
   checked identifier-slice bound and is_let returns one exactly for length-three
   bytes `let`. Exact short-circuit guards ensure no byte is loaded before the

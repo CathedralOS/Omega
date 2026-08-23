@@ -588,10 +588,34 @@ Twenty-four negative canaries are isolated in a 6.7 KB shell harness and sever
 shape, SWSX, malformed bounds, depth/count/rank joins, identifier carry,
 restoration, or result. The focused gate carries a 180,738-byte Alpha tape.
 
+`bc-parse-params-control-shape.alpha` and
+`bc-parse-params-data-shape.alpha` split procedure 68's parameter/capacity
+artifact slice by responsibility. The 6.8 KB control module binds blocks
+339..344 (and all procedure block PCs), transitions 274..281, ten calls, three
+pre-output returns/epilogues, the 48-byte frame, and exhaustive effect/decoded
+ownership. The 7.9 KB data module binds its locals, fixed memory sites,
+primitives, split push families, and exhaustive expression rows. The separate
+13.8 KB `PLOP` theorem begins at the checked post-`expect('('); skip_ws()`
+cutpoint with the successful source segment, NLOC zero, status zero, and a
+normalized cursor. Each non-close room iteration composes `RIDS` and the room
+clause of `DCLS`, then the exact skip_ws/cbyte and optional comma adv/skip_ws
+sequence. Even an empty identifier or absent comma increments NLOC, so
+`4-NLOC` strictly decreases on every backedge. A close remains unconsumed and
+exits with 0..4 exact parameter-table entries; a fifth non-close writes numeric
+252 and returns zero without output. The declaration-failure edge is
+unreachable under the stronger four-parameter guard. Eighteen negative
+canaries live in a separate 5.5 KB harness and sever exact shape, rooted source
+custody, terminal retention, separator normalization, status, rank, or
+renaming. Independent review found the correspondence clean, and the complete
+gate carries a 188,250-byte Alpha tape. The opening delimiter and earlier name
+scan are not manufactured by this conditional theorem; the deterministic
+procedure-prefix composition must establish that cutpoint.
+
 The eventual `parse_proc` theorem must be maximal, not universally terminating.
 For malformed input, an unrecognized body byte such as `@` can survive both
 `gen_stmt` and the number fallback without cursor progress while `gen_stmts`
 keeps emitting. The honest contract is therefore Return-or-Diverge with exact
 finite/infinite output behavior. The next engineering milestones are the
-`nparams+count_lets()` slot-capacity guard and parameter loop; the existing
-typed status-252 projection is the only language-design blocker in this area.
+`nparams+count_lets()` slot-capacity guard and deterministic procedure prefix;
+the existing typed status-252 projection is the only language-design blocker
+in this area.
