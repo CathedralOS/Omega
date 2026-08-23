@@ -31,9 +31,13 @@ pub use plans::{
 };
 pub use stack_realizations::{
     ArrivalContextId, ArrivalContextRealization, ArrivalContextStackDomain, EntryStackEpoch,
-    EntryStackRealization, EntryStackStage, StackDomainRef, StackOccupancy,
-    ValidatedEntryStackDomainClosure, ValidatedEntryStackRealization,
-    validate_entry_stack_domain_closure, validate_entry_stack_realization,
+    EntryStackRealization, EntryStackStage, InstalledEntryFactIdentity, StackDomainRef,
+    StackOccupancy, ValidatedEntryStackDomainClosure, ValidatedEntryStackRealization,
+    ValidatedX86_64InstalledHardwareEntryFacts, X86_64ArrivalMechanism, X86_64GateKind,
+    X86_64HardwareStackSelection, X86_64InstalledArrivalContext, X86_64InstalledHardwareEntryFacts,
+    X86_64TargetDerivedHardwareArrival, X86_64TargetProfileIdentity,
+    derive_x86_64_hardware_arrival, validate_entry_stack_domain_closure,
+    validate_entry_stack_realization, validate_x86_64_installed_hardware_entry_facts,
 };
 pub use windows::windows_import_library;
 
