@@ -241,6 +241,15 @@ Completed:
   package, assemble and audit a candidate package lock, and report newly added
   package identities without editing `build.omg` or writing `omega.lock`.
 
+- **PACKAGE-PLAN-COMMAND-APIS.** Add lock-file backed command seams for
+  non-mutating install and update plans before full CLI mutation.
+
+  Done 2026-08-23: `omega-packages` exposes command-style APIs that read the
+  current `omega.lock`, accept compiler-supplied current/candidate package
+  manifests, load an optional standalone capability-change receipt for update
+  planning, and return install/update plan text without editing `build.omg` or
+  writing `omega.lock`.
+
 - **PACKAGE-SOURCE-AUDIT-LOCATOR-API.** Add the command seam that combines
   source locator parsing with resolver-owned source audit.
 
@@ -330,9 +339,10 @@ Remaining:
   diff, and writes the dependency binding plus lock entry only after the
   candidate passes policy.
 
-  Remaining after `PACKAGE-LOCK-INSTALL-PLAN`: wire source resolution,
-  package-admission manifest derivation, `build.omg` alias/pin editing, and
-  lock persistence around the install plan.
+  Remaining after `PACKAGE-LOCK-INSTALL-PLAN` and
+  `PACKAGE-PLAN-COMMAND-APIS`: wire source resolution, package-admission
+  manifest derivation, `build.omg` alias/pin editing, and lock persistence
+  around the install plan.
 
   Acceptance: adding a dependency produces a pinned alias in `build.omg`, an
   updated lock entry, and an audit summary that names new reachable services,
@@ -343,9 +353,10 @@ Remaining:
   package capability manifest is unchanged.
 
   Remaining after `DEFAULT-UPDATE-ADMISSION` and
-  `PACKAGE-LOCK-UPDATE-PLAN`: wire candidate resolution, package-admission
-  manifest derivation, `build.omg` pin editing, and lock persistence around the
-  update decision.
+  `PACKAGE-LOCK-UPDATE-PLAN`, `CAPABILITY-CHANGE-RECEIPT-PERSISTENCE`, and
+  `PACKAGE-PLAN-COMMAND-APIS`: wire candidate resolution,
+  package-admission manifest derivation, `build.omg` pin editing, and lock
+  persistence around the update decision.
 
   Acceptance: changing source bytes with the same capability manifest updates
   the pin and lock. Any manifest delta rejects before changing `build.omg` or
