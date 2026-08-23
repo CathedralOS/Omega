@@ -179,6 +179,16 @@ Completed:
   `PackageSourceRequest`, reject empty locators, and reject revision arguments
   for local sources.
 
+- **REMOTE-FIXTURE-RESOLUTION-TESTS.** Add exact-pin tests for the private
+  GitHub package fixture mirrors without making normal CI depend on private
+  network access.
+
+  Done 2026-08-23: `omega-packages` has a `remote_fixtures` integration test
+  that validates `fixtures/packages/REMOTE_PINS.md` in normal test runs and an
+  ignored network test that resolves all eight private `CathedralOS` fixture
+  repositories by exact commit over SSH and verifies the fetched content
+  identity matches the checked-in local fixture.
+
 Remaining:
 
 - **PACKAGE-CAPABILITY-MANIFEST.** Define the normalized manifest produced for
@@ -214,8 +224,9 @@ Remaining:
   identity before package code is loaded.
 
   Remaining after `LOCAL-SOURCE-IDENTITY`, `GIT-SOURCE-IDENTITY`, and
-  `SOURCE-CACHE-POLICY-RECORDS` and `SOURCE-REQUEST-PARSING`: add
-  install-command integration and lock wiring.
+  `SOURCE-CACHE-POLICY-RECORDS`, `SOURCE-REQUEST-PARSING`, and
+  `REMOTE-FIXTURE-RESOLUTION-TESTS`: add install-command integration and lock
+  wiring.
 
   Acceptance: `omega install alias <source>` resolves a candidate to an exact
   commit/tree or local content identity and stores it in an isolated source

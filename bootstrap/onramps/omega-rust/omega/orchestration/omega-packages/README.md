@@ -79,7 +79,12 @@ Local package-manager fixtures live under `fixtures/packages/` at the repository
 root. They use normal kebab-case package names and are resolved as local source
 directories first. Private GitHub mirrors under `CathedralOS` are recorded with
 exact initial commit pins in `fixtures/packages/REMOTE_PINS.md`; remote tests
-should use those pins rather than branch names.
+should use those pins rather than branch names. The optional private-network
+smoke test is:
+
+```text
+cargo test -p omega-packages --test remote_fixtures -- --ignored --test-threads=1
+```
 
 ## Current Slices
 
