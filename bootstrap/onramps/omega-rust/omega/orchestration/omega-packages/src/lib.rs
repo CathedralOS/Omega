@@ -22,7 +22,9 @@ pub use audit::{
     audit_package_graph,
 };
 pub use commands::{
-    PackageSourceAudit, PackageSourceRequest, PackageSourceRequestParseError, audit_package_source,
+    PackageGraphAuditCommand, PackageGraphAuditCommandError, PackageSourceAudit,
+    PackageSourceRequest, PackageSourceRequestParseError, audit_package_graph_from_lock,
+    audit_package_source,
 };
 pub use diff::{ManifestDelta, ManifestDiff, ManifestSeverity, diff_package_capability_manifests};
 pub use lock::{

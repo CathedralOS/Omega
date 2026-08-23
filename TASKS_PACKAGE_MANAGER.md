@@ -198,6 +198,14 @@ Completed:
   receipts, and manifest trust receipts. Text output reports those fields for
   future `omega audit packages` CLI wrapping.
 
+- **PACKAGE-GRAPH-AUDIT-COMMAND-API.** Add the lock-file backed command seam
+  for future `omega audit packages` CLI wiring.
+
+  Done 2026-08-23: `omega-packages` exposes a command-style graph audit API
+  that reads and validates an `omega.lock` path, accepts compiler-supplied
+  package manifests, runs the graph audit core, returns report text, and
+  preserves distinct lock-persistence versus graph-consistency errors.
+
 Remaining:
 
 - **PACKAGE-CAPABILITY-MANIFEST.** Define the normalized manifest produced for
@@ -278,10 +286,10 @@ Remaining:
 
 - **OMEGA-AUDIT-PACKAGES.** Add a read-only audit command for the package graph.
 
-  Remaining after `PACKAGE-SOURCE-AUDIT-COMMAND-API` and
-  `PACKAGE-GRAPH-AUDIT-CORE` and `PACKAGE-GRAPH-AUDIT-DETAILS`: derive package
-  manifests for a resolved graph and expose the graph audit through the
-  `omega` CLI.
+  Remaining after `PACKAGE-SOURCE-AUDIT-COMMAND-API`,
+  `PACKAGE-GRAPH-AUDIT-CORE`, `PACKAGE-GRAPH-AUDIT-DETAILS`, and
+  `PACKAGE-GRAPH-AUDIT-COMMAND-API`: derive package manifests for a resolved
+  graph and expose the graph audit through the `omega` CLI.
 
   Acceptance: `omega audit packages` prints the resolved graph, source pins,
   service reach, build observation classes, provider origins, trust receipts,
