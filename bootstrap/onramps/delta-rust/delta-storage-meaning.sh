@@ -22,16 +22,16 @@ fi
 . "$OMEGA_REPO_ROOT/bootstrap/paths.sh" || exit $?
 cd "$OMEGA_GATE_DIR"
 SAMPLES="$OMEGA_PATH_DELTA/samples"
-. "${OMEGA_PATH_ALPHA}"/seed_env.sh
+. "${OMEGA_PATH_BETA}"/artifact_env.sh
 SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
 ASM="${OMEGA_PATH_BETA_ASSEMBLER}"/$BETA_SEED
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 
-( cd "${OMEGA_PATH_BETA_COMPILER_RUST}" && sh build.sh "${OMEGA_PATH_BETA}"/bc.beta >/dev/null ) \
-  || { echo "delta storage meaning FAIL — bc build"; exit 1; }
+stamp_beta_compiler "$T/bc.exe" >/dev/null \
+  || { echo "delta storage meaning FAIL — Beta compiler artifact"; exit 1; }
 
 build_beta() {
-  "${OMEGA_PATH_BETA_COMPILER_RUST}"/build/bc.exe < "$1" > "$T/program.asm" 2>/dev/null \
+  "$T/bc.exe" < "$1" > "$T/program.asm" 2>/dev/null \
     && "$ASM" < "$T/program.asm" > "$T/program.tape" 2>/dev/null \
     && stamp_seed "$T/program.tape" "$SEED" "$2" >/dev/null 2>&1
 }

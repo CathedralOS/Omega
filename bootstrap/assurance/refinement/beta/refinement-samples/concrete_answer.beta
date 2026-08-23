@@ -1,0 +1,4 @@
+; Concrete arithmetic refinement sample: 6 * 7 = 42.
+proc main() {
+    return 6 * 7
+}

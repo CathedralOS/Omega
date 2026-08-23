@@ -21,12 +21,13 @@ if [ -z "${OMEGA_REPO_ROOT:-}" ]; then
 fi
 . "$OMEGA_REPO_ROOT/bootstrap/paths.sh" || exit $?
 cd "$OMEGA_GATE_DIR"
-. "${OMEGA_PATH_ALPHA}"/seed_env.sh
+. "${OMEGA_PATH_BETA}"/artifact_env.sh
 SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
 ASM="${OMEGA_PATH_BETA_ASSEMBLER}"/$BETA_SEED
-( cd "${OMEGA_PATH_BETA_COMPILER_RUST}" && sh build.sh "${OMEGA_PATH_BETA}"/bc.beta >/dev/null 2>&1 ) || { echo "omega2gamma-termination FAIL — bc build"; exit 1; }
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
-"${OMEGA_PATH_BETA_COMPILER_RUST}"/build/bc.exe \
+stamp_beta_compiler "$T/bc.exe" >/dev/null \
+  || { echo "omega2gamma-termination FAIL — Beta compiler artifact"; exit 1; }
+"$T/bc.exe" \
   < "${OMEGA_PATH_OMEGA0}/meaning/omega2gamma.beta" > "$T/e.asm" 2>/dev/null \
   && "$ASM" < "$T/e.asm" > "$T/e.tape" 2>/dev/null \
   && stamp_seed "$T/e.tape" "$SEED" "$T/omega2gamma.exe" >/dev/null 2>&1 \

@@ -26,14 +26,15 @@ if [ -z "${OMEGA_REPO_ROOT:-}" ]; then
   unset OMEGA_PATH_PARENT
 fi
 . "$OMEGA_REPO_ROOT/bootstrap/paths.sh" || exit $?
+. "$OMEGA_PATH_BETA/artifact_env.sh" || exit $?
 cd "$OMEGA_PATH_PROOF_KERNEL"
 command -v python3 >/dev/null 2>&1 || { echo "prover-diamond: skipped (python3 absent)"; exit 0; }
 . "${OMEGA_PATH_ALPHA}"/seed_env.sh
 SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
 ASM="${OMEGA_PATH_BETA_ASSEMBLER}"/$BETA_SEED
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
-( cd "${OMEGA_PATH_BETA_COMPILER_RUST}" && sh build.sh "${OMEGA_PATH_BETA}"/bc.beta >/dev/null ) || { echo "bc build failed"; exit 1; }
-bcc() { "${OMEGA_PATH_BETA_COMPILER_RUST}"/build/bc.exe < "$1" > "$T/a.asm" && "$ASM" < "$T/a.asm" > "$T/a.tape" && stamp_seed "$T/a.tape" "$SEED" "$2" >/dev/null 2>&1; }
+stamp_beta_compiler "$T/bc.exe" >/dev/null
+bcc() { "$T/bc.exe" < "$1" > "$T/a.asm" && "$ASM" < "$T/a.asm" > "$T/a.tape" && stamp_seed "$T/a.tape" "$SEED" "$2" >/dev/null 2>&1; }
 bcc implementations/beta/check.beta "$T/check.exe"           || { echo "build implementations/beta/check.beta failed"; exit 1; }
 bcc "${OMEGA_PATH_GAMMA}"/interp.beta "$T/interp.exe" || { echo "build interp.beta failed"; exit 1; }
 DEFS=$(cat "${OMEGA_PATH_PROOF_KERNEL}"/implementations/gamma/checker.gamma)

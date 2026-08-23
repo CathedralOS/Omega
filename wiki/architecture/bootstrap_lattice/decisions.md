@@ -22,7 +22,7 @@ The overview's "Two roles for Rust" is the ordering law. Made concrete, per arti
 | Where Rust sits | Role | Status / plan |
 | --- | --- | --- |
 | `check.beta` / `checker.gamma` (the proof kernel) | **trusted base** | **DEAD** — Beta + Gamma implementations, cross-checked against shared seams. |
-| cold-started `bc` artifact vs `bc.beta` | **trusted compilation edge** | **OPEN** — fixed point exists; complete lower-rooted source-to-artifact refinement does not. |
+| cold-started `bc` artifact vs `bc.beta` | **trusted compilation edge** | **OPEN** — the Alpha-rooted fixed point and persisted artifact exist; complete lower-rooted source-to-artifact refinement does not. |
 | `interp.beta` / `typeck.beta` (γ meaning) | **trusted base** | **DEAD** — Beta, on the seed lineage. |
 | Delta's **meaning** (`gamma_emit.rs`) | **trusted base** | **DYING** — the broad Beta-written `omega2gamma` route and Gamma execution path exist, including checked D0 storage and real byte-I/O certifiers; exact coverage of the eventual Omega0 Delta source remains open. |
 | Psi/Omega's **meaning** | **trusted base** | Follows the same elaboration discipline through the Delta-built bootstrap compiler and the Omega self-build edge. |
@@ -142,14 +142,15 @@ artifacts, while two incorrect compilers may agree. Requiring byte identity
 between implementations unnecessarily creates a second compiler to maintain and
 conflates reproducibility with correctness.
 
-The current `bc` cold start still passes through
+The current `bc` cold start no longer passes through
 `bootstrap/onramps/beta-rust/` (`compiler/beta-lang-rs` is a compatibility
-path); its
-self-host fixed point establishes dependency closure, not source correspondence.
-That is an **unfinished lower-rooted refinement edge**, not a standing demand for
-DDC. Close it by building the seed Beta compiler through the preceding audited
-rung or by validating the complete `bc` artifact against `bc.beta` with authority
-rooted below `bc`.
+path). An Alpha-written compiler accepts the exact pinned `bc.beta` surface,
+reconstructs the persisted fixed-point tape, and runs the complete Beta corpus.
+That closes the external-producer dependency and establishes reproducible
+lineage; it does not by itself establish source correspondence. The latter is an
+**unfinished lower-rooted refinement edge**, not a standing demand for DDC.
+Close it by validating the complete `bc` artifact against `bc.beta` with
+authority rooted below `bc`.
 
 The dedicated `compiler/beta-lang-py` DDC gate and `bc2.py` backend have been
 removed because they supplied no unique semantic or refinement coverage. Shared
@@ -224,8 +225,9 @@ source is first hosted from Delta; the complete production compiler is then
 built from Omega source by the Delta-built Omega compiler. Neither Psi nor either
 Omega compiler artifact is another Greek bootstrap language.
 
-The Rust implementations remain current producers while this two-stage hosted
-path matures.
+The remaining Rust implementations are retained producers or references while
+this two-stage hosted path matures; the Beta compiler's default construction
+and downstream use are already Alpha-rooted.
 
 ---
 
@@ -256,10 +258,11 @@ does not close it.
 
 ## Execution order (binds the /loop)
 
-1. **Close the `bc` cold-start edge by checked refinement** — validate the
-   complete `bc` artifact against `bc.beta` with authority rooted below `bc`, or
-   build it through the preceding audited rung. The Python comparison path is
-   not the closure criterion. *(D3/D5)*
+1. **Close the `bc` correspondence edge by checked refinement** — the
+   Alpha-rooted construction and fixed-point artifact are complete; now validate
+   that exact artifact against `bc.beta` with authority rooted below `bc`. The
+   Python comparison path and byte-identical self-build are not the closure
+   criterion. *(D3/D5)*
 2. **Finish Delta's Rust-free meaning route** — retain the existing
    `omega2gamma.beta` → `interp.beta` coverage for state machines, self fields and
    calls, arrays, byte I/O, and D0 storage; close every construct used by the

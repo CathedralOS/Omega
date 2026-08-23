@@ -6,7 +6,8 @@
 #   compile   : bc compiles it to Alpha bytecode, which the seed VM runs
 # A disagreement means bc miscompiled the program (or the interpreter is wrong — either way, a loud signal
 # worth investigating, never a silent pass). Both are UNTRUSTED and checked against each other.
-# Deterministic (fixed base seed). Needs python3 + the bc/assembler build; skips cleanly otherwise.
+# Deterministic (fixed base seed). Needs python3 plus the persisted lattice bc
+# artifact and assembler; skips cleanly when the host cannot run them.
 OMEGA_GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 if [ -z "${OMEGA_REPO_ROOT:-}" ]; then
   OMEGA_REPO_ROOT=$OMEGA_GATE_DIR
@@ -23,15 +24,13 @@ fi
 . "$OMEGA_REPO_ROOT/bootstrap/paths.sh" || exit $?
 cd "$OMEGA_GATE_DIR"
 command -v python3 >/dev/null 2>&1 || { echo "beta correctness fuzz: skipped (python3 absent)"; exit 0; }
-command -v cargo   >/dev/null 2>&1 || { echo "beta correctness fuzz: skipped (no cargo for the on-ramp)"; exit 0; }
-. "${OMEGA_PATH_ALPHA}"/seed_env.sh
+. "${OMEGA_PATH_BETA}"/artifact_env.sh
 SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
 ASM="${OMEGA_PATH_BETA_ASSEMBLER}"/$BETA_SEED
-BC="${OMEGA_PATH_BETA_COMPILER_RUST}"/build/bc.exe
-( cd "${OMEGA_PATH_BETA_COMPILER_RUST}" && sh build.sh "${OMEGA_PATH_BETA}"/bc.beta >/dev/null 2>&1 ) || { echo "beta correctness fuzz: bc build failed"; exit 1; }
-[ -x "$BC" ] && [ -x "$ASM" ] || { echo "beta correctness fuzz: skipped (bc/assembler missing)"; exit 0; }
-
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
+BC="$T/bc.exe"
+stamp_beta_compiler "$BC" >/dev/null 2>&1 || { echo "beta correctness fuzz: lattice bc artifact unavailable"; exit 1; }
+[ -x "$ASM" ] || { echo "beta correctness fuzz: skipped (assembler missing)"; exit 0; }
 N=${1:-60}
 PASS=0; FAIL=0
 i=1

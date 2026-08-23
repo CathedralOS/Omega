@@ -1,16 +1,17 @@
 # Beta Rust producer
 
-This is the retained Rust cold-start/reference compiler for the **Beta language**
+This is the retained Rust diagnostic/reference compiler for the **Beta language**
 (not the assembler). It reads `.beta` source and emits **Alpha assembly**; the
 Alpha assembler (`../../rungs/alpha/assembler/`) lowers that to a tape, which
 the seed runs.
 
-Its original job was to discover and cold-start the language. The steady-state
-compiler now exists as `../../rungs/beta/bc.beta`, self-hosts, and is independently
-self-reproducing. This crate is no longer intended as a steady-state dependency.
-It remains useful as a reference producer while complete lower-rooted validation
-of the cold-started `bc` artifact is built. The fixed point alone proves
-dependency closure, not source-to-artifact correctness.
+Its original job was to discover and cold-start the language. The Alpha-written
+compiler under `../../rungs/beta/cold-start/` now reconstructs the persisted
+self-hosted artifact without Rust, and downstream gates consume that artifact.
+This crate is no longer a bootstrap dependency. It remains useful as an explicit
+diagnostic/reference producer while complete lower-rooted validation of the
+Alpha-rooted `bc` artifact is built. Fixed-point or producer agreement proves
+neither source-to-artifact correctness nor semantic authority.
 
 > Naming: `bootstrap/onramps/beta-rust` is the canonical Beta-language producer.
 > `compiler/beta-lang-rs` is its compatibility path. The historical

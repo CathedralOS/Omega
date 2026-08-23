@@ -28,7 +28,7 @@ fi
 . "$OMEGA_REPO_ROOT/bootstrap/paths.sh" || exit $?
 cd "$OMEGA_GATE_DIR"
 command -v python3 >/dev/null 2>&1 || { echo "diamond-py SKIP — no python3"; exit 0; }
-. ./seed_env.sh
+. "${OMEGA_PATH_BETA}/artifact_env.sh"
 SEED="$ALPHA_SEED"
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 PASS=0; FAIL=0
@@ -56,11 +56,9 @@ hex read_eof      "11 00 00 00" ""                                              
 hex bad_opcode    "ff 00" ""                                                                     # unknown -> trap 132
 
 # --- REAL bc-compiled programs: call/ret/frames/recursion/memory/IO through actual generated code ---
-BC="${OMEGA_PATH_BETA_COMPILER_RUST}"/build/bc.exe
+BC="$T/bc.exe"
 ASM="${OMEGA_PATH_ALPHA_ASSEMBLER}"/$BETA_SEED
-if command -v cargo >/dev/null 2>&1 && [ -x "$ASM" ]; then
-  [ -x "$BC" ] || ( cd "${OMEGA_PATH_BETA_COMPILER_RUST}" && sh build.sh "${OMEGA_PATH_BETA}"/bc.beta >/dev/null 2>&1 ) || true
-fi
+stamp_beta_compiler "$BC" >/dev/null 2>&1 || { echo "seed diamond: lattice bc artifact unavailable"; exit 1; }
 mkbeta() { "$BC" < "$1" > "$T/b.asm" 2>/dev/null && "$ASM" < "$T/b.asm" > "$T/$2.tape" 2>/dev/null; }
 if [ -x "$BC" ] && [ -x "$ASM" ]; then
   printf 'proc fact(n){ state c{ to r when (n>1) return 1 } state r{ return n*fact(n-1) } }\nproc main(){ return fact(5) }\n' > "$T/f.beta"

@@ -34,11 +34,6 @@ BETA_REFERENCE = os.environ.get(
 BETA_REFINEMENT = os.environ.get(
     'OMEGA_PATH_BETA_REFINEMENT',
     os.path.join(REPO_ROOT, 'bootstrap', 'assurance', 'refinement', 'beta'))
-BETA_RUST = os.environ.get(
-    'OMEGA_PATH_BETA_COMPILER_RUST',
-    os.environ.get(
-        'OMEGA_PATH_BETA_RUST',
-        os.path.join(REPO_ROOT, 'bootstrap', 'onramps', 'beta-rust')))
 PROOF_KERNEL = os.environ.get(
     'OMEGA_PATH_PROOF_KERNEL',
     os.path.join(REPO_ROOT, 'bootstrap', 'assurance', 'proof-kernel'))
@@ -137,10 +132,10 @@ AUTO_SAMPLES = [
     ("divmod    ((a/10)*10 + a%10)", "refinement-samples/divmod.beta"),
     ("divplus   (VAR divisor a/(b+1))", "refinement-samples/divplus.beta"),
     ("divguard  (GUARDED b!=0 ? a/b : 0)", "refinement-samples/divguard.beta"),
-    ("sumto(10) (concrete LOOP)",   os.path.join(BETA_RUST, "examples", "sumto.beta")),
-    ("fact(5)   (RECURSION)",       os.path.join(BETA_RUST, "examples", "factorial.beta")),
-    ("answer    (6*7)",             os.path.join(BETA_RUST, "examples", "answer.beta")),
-    ("double    (double(21))",      os.path.join(BETA_RUST, "examples", "double.beta")),
+    ("sumto(10) (concrete LOOP)",   "refinement-samples/concrete_sumto.beta"),
+    ("fact(5)   (RECURSION)",       "refinement-samples/concrete_factorial.beta"),
+    ("answer    (6*7)",             "refinement-samples/concrete_answer.beta"),
+    ("double    (double(21))",      "refinement-samples/concrete_double.beta"),
 ]
 
 def compile_beta_text(text):

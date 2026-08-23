@@ -9,14 +9,13 @@ closes the steady-state execution dependency on Rust. It does not by itself prov
 that the cold-started artifact corresponds to `bc.beta`; complete lower-rooted
 source-to-artifact validation remains open.
 
-The lower-rooted replacement has begun in
-[`cold-start/`](cold-start/README.md). Its first three Alpha-written compiler
-slices handle bounded source capture and output, multiple framed procedures,
-parameters, locals, assignment, nested/forward calls, literals, comments, and
-precedence-correct arithmetic/comparisons plus procedure-scoped `state`/`to`
-control flow entirely through the audited Alpha path. It deliberately does not
-replace `bc0` until the exact `bc.beta` profile, self-build, and whole Beta corpus
-are closed.
+The lower-rooted replacement is complete under
+[`cold-start/`](cold-start/README.md). The Alpha-written compiler covers the
+exact pinned surface, builds `bc.beta`, reaches a byte-identical self-hosted fixed
+point, and reconstructs the persisted platform-independent
+[`artifacts/bc.tape`](artifacts/README.md). That artifact passes the whole Beta
+corpus. The Rust producer remains diagnostic/on-ramp history; migration of every
+downstream gate to the lattice artifact is tracked explicitly.
 
 ```
 bc.beta       the Beta compiler, in Beta:  reads .beta on stdin, emits Alpha asm
@@ -28,16 +27,18 @@ source-exhaustion.sh  exact source-arena boundary + checked oversized-input fail
 ## How it bootstraps
 
 ```
-  bc.beta ──(beta-rust, the Rust on-ramp)──▶ asm ──(assembler)──▶ bc.exe
-  program.beta ──(bc.exe)──▶ asm ──(assembler)──▶ tape ──▶ run
+  bc-alpha.alpha ──(Alpha seed + Alpha assembler)──▶ cold-start compiler
+  bc.beta ──(cold-start compiler)──▶ asm ──(Alpha assembler)──▶ initial bc
+  bc.beta ──(initial bc, then one self-build)──▶ persisted fixed-point bc.tape
+  program.beta ──(persisted bc.tape)──▶ asm ──(Alpha assembler)──▶ tape ──▶ run
 ```
 
-`bc.exe` is a real Beta compiler with no Rust in *its* execution—only in the
-one-time lowering of `bc.beta`'s own text. The fixed-point gate has `bc.exe` compile
-`bc.beta` to a tape `T1`, and `T1` compiles `bc.beta` to `T2` with `T1 == T2` — a
-self-hosting fixed point, just like `../alpha/assembler/selfhost.sh` for the
-Rust on-ramp becomes architecturally discardable only when this artifact is also
-validated against canonical Beta meaning through a checker rooted below `bc`.
+The default gates stamp the persisted, platform-independent tape into the host's
+audited Alpha seed. `bootstrap/onramps/beta-rust/` remains available only as a
+diagnostic/reference producer; it is not in this construction lineage. The
+fixed-point equality establishes deterministic self-reproduction, not compiler
+correctness. Complete source-to-artifact refinement against canonical Beta
+meaning remains a separate open assurance edge.
 
 Run the gate:
 
@@ -94,10 +95,10 @@ the `db` directive itself.
 
 ## Role in the lattice
 
-The Beta compiler has a Rust-free steady-state execution path; complete
-lower-rooted validation of its cold-started artifact remains open. It builds
+The Beta compiler has a Rust-free cold-start and steady-state execution path;
+complete lower-rooted validation of its source correspondence remains open. It builds
 Gamma's canonical interpreter and type checker; Gamma in turn supplies Delta's meaning substrate. The proof kernel
 is a cross-cutting service with independent Beta and Gamma implementations, not
 a later language rung. The Rust producer (`../../onramps/beta-rust/`) is outside
-the steady lineage and remains only as a documented cold-start/reference
-producer. `compiler/beta-lang-rs` is a compatibility path.
+the lineage and remains only as a documented diagnostic/reference producer.
+`compiler/beta-lang-rs` is a compatibility path.

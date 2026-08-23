@@ -1,0 +1,7 @@
+; Concrete procedure-call refinement sample: double(21) = 42.
+proc main() {
+    return double(21)
+}
+proc double(x) {
+    return x + x
+}

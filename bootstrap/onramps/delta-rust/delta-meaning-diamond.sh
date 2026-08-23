@@ -34,12 +34,13 @@ for t in cargo clang codesign; do command -v "$t" >/dev/null 2>&1 || { echo "del
 
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 
-# the gamma reference interpreter (trust-lineage: alpha seed -> beta asm -> bc -> interp.exe)
-. "${OMEGA_PATH_ALPHA}"/seed_env.sh
+# the gamma reference interpreter, built by the persisted lattice Beta compiler
+. "${OMEGA_PATH_BETA}"/artifact_env.sh
 SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
 ASM="${OMEGA_PATH_BETA_ASSEMBLER}"/$BETA_SEED
-( cd "${OMEGA_PATH_BETA_COMPILER_RUST}" && sh build.sh "${OMEGA_PATH_BETA}"/bc.beta >/dev/null ) || { echo "delta-meaning diamond FAIL — bc build"; exit 1; }
-if "${OMEGA_PATH_BETA_COMPILER_RUST}"/build/bc.exe < "${OMEGA_PATH_GAMMA}"/interp.beta > "$T/i.asm" 2>/dev/null \
+stamp_beta_compiler "$T/bc.exe" >/dev/null \
+  || { echo "delta-meaning diamond FAIL — Beta compiler artifact"; exit 1; }
+if "$T/bc.exe" < "${OMEGA_PATH_GAMMA}"/interp.beta > "$T/i.asm" 2>/dev/null \
    && "$ASM" < "$T/i.asm" > "$T/i.tape" 2>/dev/null \
    && stamp_seed "$T/i.tape" "$SEED" "$T/interp.exe" >/dev/null 2>&1; then :; else
   echo "delta-meaning diamond FAIL — could not build interp.beta"; exit 1; fi

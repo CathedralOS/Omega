@@ -41,14 +41,17 @@ case "$(uname -sm)" in "Darwin arm64") ;; *) echo "translation-validation SKIP �
 for t in cargo clang codesign python3; do command -v "$t" >/dev/null 2>&1 || { echo "translation-validation SKIP — no $t"; exit 0; }; done
 
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
-. "${OMEGA_PATH_ALPHA}"/seed_env.sh
+. "${OMEGA_PATH_BETA}"/artifact_env.sh
 SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
 ASM="${OMEGA_PATH_BETA_ASSEMBLER}"/$BETA_SEED
-( cd "${OMEGA_PATH_BETA_COMPILER_RUST}" && sh build.sh "${OMEGA_PATH_BETA}"/bc.beta >/dev/null ) || { echo "translation-validation FAIL — bc build"; exit 1; }
-b() { "${OMEGA_PATH_BETA_COMPILER_RUST}"/build/bc.exe < "$1" > "$T/x.asm" 2>/dev/null && "$ASM" < "$T/x.asm" > "$T/x.tape" 2>/dev/null && stamp_seed "$T/x.tape" "$SEED" "$2" >/dev/null 2>&1; }
+BC="$T/bc.exe"
+stamp_beta_compiler "$BC" >/dev/null 2>&1 || { echo "translation-validation FAIL — lattice bc artifact"; exit 1; }
+b() { "$BC" < "$1" > "$T/x.asm" 2>/dev/null && "$ASM" < "$T/x.asm" > "$T/x.tape" 2>/dev/null && stamp_seed "$T/x.tape" "$SEED" "$2" >/dev/null 2>&1; }
 b "${OMEGA_PATH_OMEGA0}/meaning/omega2gamma.beta" "$T/o2g.exe" \
   || { echo "translation-validation FAIL — build omega2gamma.beta"; exit 1; }
 b "${OMEGA_PATH_PROOF_KERNEL}"/implementations/beta/check.beta  "$T/check.exe" || { echo "translation-validation FAIL — build check.beta"; exit 1; }
+# Intentional Rust exception: this diagnostic native leg exercises the current
+# disposable Delta producer; every Beta support binary above is lattice-built.
 ( cd "${OMEGA_PATH_DELTA_RUST}" && cargo build -q 2>/dev/null ) || { echo "translation-validation FAIL — cargo build"; exit 1; }
 BE="${OMEGA_PATH_DELTA_RUST}"/target/debug/delta
 
