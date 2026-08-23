@@ -59,10 +59,10 @@ sh bootstrap/rungs/gamma/test-typeck.sh
 sh bootstrap/assurance/proof-kernel/gates/gamma-checker.sh
 ```
 
-Typed Gamma consumers live in `canonical-bytes/`,
-`terminal-codec-primitives/`, `terminal-ledger-spike/`, and
+Typed Gamma consumers live in `canonical-bytes/`, the reusable grammar fragments
+under `terminal-codec-primitives/`, and
 `bootstrap/assurance/proof-kernel/implementations/gamma/checker_typed.gamma`.
-They exercise the language but do not define it. In particular, the terminal
-ledger is a frozen artifact-assurance experiment rather than Gamma meaning.
-The root `examples/*.gamma` corpus belongs to the parked
-imperative compiler and must not be used as the canonical language definition.
+They exercise the language but do not define it. The retired terminal-ledger
+prototype was artifact-assurance feasibility work, not Gamma meaning. The root
+`examples/*.gamma` corpus belongs to the parked imperative compiler and must not
+be used as the canonical language definition.

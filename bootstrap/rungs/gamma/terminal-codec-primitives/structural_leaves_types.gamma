@@ -1,6 +1,5 @@
-; Exact current v18 structural-leaf codec vocabulary.  These are byte grammar
-; carriers only: the bounded ledger spike does not import them and gains no new
-; semantic authority from this shared layer.
+; Structural-leaf byte-grammar carriers. They assign no semantic authority and
+; are independent of any complete terminal envelope or vocabulary marker.
 
 (data TerminalIeeeFloatComparisonKind
   (TerminalIeeeEqual)

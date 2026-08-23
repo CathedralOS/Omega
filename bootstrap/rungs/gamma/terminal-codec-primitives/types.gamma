@@ -1,9 +1,6 @@
 ; Shared terminal-codec result vocabulary layered over canonical Bytes.
 
 (data RUtf8 (RUtf8 Bytes Bytes) (RUtf8Bad))
-(data RTerminalHeader
-  (RTerminalHeader Int Bytes)                 ; vocabulary marker, unread tail
-  (RTerminalHeaderBad))
 (data TerminalSemanticId (TerminalSemanticId U64))
 (data ROptionalTerminalSemanticId
   (ROptionalTerminalSemanticIdNone Bytes)

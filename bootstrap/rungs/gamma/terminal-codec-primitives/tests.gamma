@@ -1,5 +1,5 @@
-; Focused executable contract for current terminal-codec envelope, scalars,
-; and canonical UTF-8 strings.
+; Focused executable contract for reusable terminal scalar/type/value,
+; structural-leaf, and canonical UTF-8 grammar fragments.
 
 (def bytes_equal ((left Bytes) (right Bytes)) Int
   (match left
@@ -27,50 +27,6 @@
 
 (def rutf8_bad ((result RUtf8)) Int
   (match result (RUtf8Bad 1) ((RUtf8 got rest) 0)))
-
-(def rheader_exact_one ((result RTerminalHeader) (tail Int)) Int
-  (match result
-    (RTerminalHeaderBad 0)
-    ((RTerminalHeader vocabulary rest)
-      (if (eq vocabulary 20)
-        (match rest
-          (BNil 0)
-          ((B h t) (if (eq h tail) (match t (BNil 1) ((B x xs) 0)) 0)))
-        0))))
-
-(def rheader_bad ((result RTerminalHeader)) Int
-  (match result
-    (RTerminalHeaderBad 1)
-    ((RTerminalHeader vocabulary rest) 0)))
-
-(def terminal_header_positive_test () Int
-  (rheader_exact_one
-    (read_terminal_header
-      (B 80 (B 83 (B 73 (B 84 (B 69 (B 82 (B 77 (B 0
-        (B 18 (B 0 (B 20 (B 0 (B 9 BNil))))))))))))))
-    9))
-
-(def terminal_header_negative_test () Int
-  (if (rheader_bad
-        (read_terminal_header
-          (B 81 (B 83 (B 73 (B 84 (B 69 (B 82 (B 77 (B 0
-            (B 18 (B 0 (B 20 (B 0 BNil))))))))))))))
-    (if (rheader_bad
-          (read_terminal_header
-            (B 80 (B 83 (B 73 (B 84 (B 69 (B 82 (B 77 (B 0
-              (B 17 (B 0 (B 20 (B 0 BNil))))))))))))))
-      (if (rheader_bad
-            (read_terminal_header
-              (B 80 (B 83 (B 73 (B 84 (B 69 (B 82 (B 77 (B 0
-                (B 18 (B 0 (B 19 (B 0 BNil))))))))))))))
-        (if (rheader_bad
-              (read_terminal_header
-                (B 80 (B 83 (B 73 (B 84 (B 69 (B 82 (B 77 (B 0
-                  (B 18 BNil)))))))))))
-          1 0)
-        0)
-      0)
-    0))
 
 (def rint_exact_one ((result RInt) (want Int) (tail Int)) Int
   (match result
@@ -725,9 +681,7 @@
     0))
 
 (def terminal_codec_primitives_self_test () Int
-  (if (terminal_header_positive_test)
-    (if (terminal_header_negative_test)
-      (if (terminal_scalar_positive_test)
+  (if (terminal_scalar_positive_test)
         (if (terminal_scalar_negative_test)
           (if (terminal_semantic_id_positive_test)
             (if (terminal_semantic_id_negative_test)
@@ -752,6 +706,4 @@
               0)
             0)
           0)
-        0)
-      0)
-    0))
+        0))

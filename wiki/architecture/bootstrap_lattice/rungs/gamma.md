@@ -48,11 +48,8 @@ implementation of the generic proof kernel is small and auditable.
   proof-kernel implementations hosted by Gamma, owned by assurance rather than
   the language rung;
 - `bootstrap/rungs/gamma/canonical-bytes/` and
-  `terminal-codec-primitives/` — reusable typed canonical-byte decoding layers;
-- `bootstrap/rungs/gamma/terminal-ledger-spike/` — bounded artifact-assurance
-  feasibility work frozen at terminal format 18/vocabulary 20, not a Gamma
-  language definition or part of Gamma meaning; the live product is now format
-  22/vocabulary 25 and the stale positive-fixture gate remains open maintenance;
+  `terminal-codec-primitives/` — reusable typed byte and terminal-grammar
+  fragments, without a fixed-version live terminal decoder;
 - `compiler/gamma` — temporary compatibility symlink to the canonical owner.
 
 The exact spike sizes, supported operation cohorts, and gate counts belong in
@@ -66,11 +63,11 @@ variables, mutation, `if`/`while`, and decimal I/O. It remains a compatibility
 and differential-testing artifact only. It does not define Gamma and must not
 grow into a parallel meaning path.
 
-The parked implementation and ledger spike remain byte-for-byte co-located
-during this mechanical ownership move so existing entry points keep working.
-That transitional proximity grants neither artifact semantic authority. The
-imperative implementation may be retired or retained as a compatibility oracle;
-the cross-cutting ledger experiment can move with later assurance consolidation.
+The parked implementation remains co-located only so existing compatibility
+entry points keep working. That transitional proximity grants no semantic
+authority. The old format-specific terminal-ledger prototype was retired after
+its feasibility result was absorbed into the production closed-row design; any
+future low-rung generator belongs to cross-cutting assurance, not this rung.
 
 ## Implementation frontiers
 

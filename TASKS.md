@@ -2067,15 +2067,15 @@ Remaining:
   Current migration inventory: the canonical proof synopsis now publishes one
   validated source-bound trust graph for the exact Rust decoder, proof kernel,
   verifier, eight sufficient-form reduction families, the current unproved
-  ledger framework, 35 closed leaf-schema rows, and three separate call-
-  composition rows covering all 38 `OperationKind` variants. Node
+  ledger framework, 36 closed leaf-schema rows, and four separate call-
+  composition rows covering all 40 `OperationKind` variants. Node
   digests bind the exact deciding Rust/specification bytes and explicit
   versions; the graph identity also binds every canonical dependency edge.
   Unknown, cyclic, unreachable, duplicate, malformed-root, and noncanonical
   graphs reject, and the current artifact closure reports `fully-derived false`.
   The first production Rust ledger slice now has one closed
-  `psi-terminal-semantics` table covering all 38 operation kinds and preserving
-  the 35 leaf / 3 call-composition custody split. Twenty goal-free scalar leaves
+  `psi-terminal-semantics` table covering all 40 operation kinds and preserving
+  the 36 leaf / 4 call-composition custody split. Twenty goal-free scalar leaves
   carry explicit result, operand, denotation, goal, fact, crash, fuel, and
   frontier axes and reconstruct their local equations through one generic
   interpreter. Exact lookup rejects missing or duplicate rows. The terminal
@@ -2083,27 +2083,29 @@ Remaining:
   maintaining independent operation matches. Structural/effect rows and
   call/control composition remain separate and are not promoted into the
   goal-free scalar table. The second production Rust ledger slice
-  now mirrors Gamma's separate exact-unique three-row structural/effect table:
-  Boolean field reads, port writes, and trivial affine-local establishment keep
-  result, custody, action, external-effect, fuel, and place-frontier axes
-  explicit. One generic interpreter emits distinct fact, effect, or frontier
-  observations; the verifier consumes its Boolean equation instead of
-  reconstructing that row independently. The trust graph consumes the same
-  table as 32 direct-denotation plus three structural/effect nodes while
-  preserving the 35 leaf / three call-composition operation-custody split.
+  now owns a separate exact-unique four-row structural/effect table: byte-
+  sequence literal establishment, Boolean field reads, port writes, and trivial
+  affine-local establishment keep result, custody, action, external-effect,
+  fuel, and place-frontier axes explicit. One generic interpreter emits distinct
+  fact, effect, or frontier observations; the verifier consumes its Boolean
+  equation instead of reconstructing that row independently. The trust graph
+  consumes the same table as 32 scalar-denotation plus four structural/effect
+  nodes while preserving the 36 leaf / four call-composition operation-custody
+  split.
   The modular verifier source split is also fully rebound into trust identities:
   evidence provenance, integer foundations, proof-bundle custody,
   reconstruction, and substitution bytes can no longer change outside the
   registered verifier/ledger dependency digests.
-  The third production Rust ledger slice now mirrors Gamma's exact-unique
-  three-row call-composition table. Scalar, structural Unit, and boundary calls
+  The third production Rust ledger slice now owns an exact-unique four-row
+  call-composition table. Scalar, structural Unit, structural-scalar, and
+  boundary calls
   retain independent target, result, argument, requirement, transfer, outcome,
   crash-route, evidence-lifetime, fuel, and frontier policies. The verifier's
   contract composition moved out of general operation reconstruction into one
   focused table-selected module; existing module validation still proves the
   concrete signature, movement, coverage, substitution, outcome, crash, and
   evidence invariants before composition. Call policy and implementation bytes
-  are both bound into the same three call trust nodes.
+  are both bound into the same four call trust nodes.
   The fourth production Rust ledger slice now owns the twelve proof-bearing
   scalar leaves in a separate exact-unique table. Exact cast, left/right shift,
   exact add/subtract/multiply, and exact/wrapping/saturating divide/remainder
@@ -3517,85 +3519,27 @@ Remaining:
   certificate conversion for the checked correlated result remains. No trusted
   reducer proposition is imported as proof
   authority and no partial exact row migrated. No schema, reducer,
-  semantic-operation, or other trust status is promoted; terminal `PSITERM\0`
-  codec v18, proof-bundle v18, installation record v24, and `fully-derived
-  false` remain unchanged.
-  The bounded Gamma spike is complete. It canonical-decodes four exact current
-  `PSITERM\0` v18 fixtures and audits a 54-row scalar ledger covering constants,
-  Boolean not/equality, integer equality/order, bitwise operations, strict
-  i8-to-i16 widening, partial i16-to-i8 exact cast, exact/wrapping shifts with
-  independently typed counts, and the complete
-  exact/wrapping/saturating add/subtract/multiply and divide/remainder cohorts,
-  signed toward-zero division, `MIN / -1`, conditional
-  equations, branch-local scope/invalidation, all-predecessor merge rejection
-  and acceptance, exact call-clause enumeration/substitution, and strict
-  justification ranks. A separate 3-row structural/effect ledger covers exact
-  relevant-Boolean field custody, affine-local establishment and retirement,
-  published port-service authority, the observable port-write effect, and the
-  three distinct place-frontier policies. Matching/asymmetric/malformed cases
-  agree between the Beta-written reference interpreter and the independent
-  Python evaluator.
-  The 1,983-byte fixture yields a 3,607-byte modeled ledger and 2,984-byte
-  prospective certificate; the 695-byte structural/effect fixture yields a
-  185-byte modeled ledger and 164-byte prospective certificate. A separate
-  697-byte fixture canonical-decodes exact `CallUnit` and `BoundaryCall`
-  custody, including qualified affine resources, structural requirements,
-  claim transfer, completion receipt, and boundary identity. The assembled
-  typed core is 4,982 lines / 198,971 bytes / 423 functions, with maximum
-  source nesting 25. Its PSITERM-neutral byte cursor, checked
-  `u8`/little-endian `u16`/`u32`, and exact low/high-half `u64` primitives are
-  now a separately gated 109-line reusable layer, including exact unsigned
-  `u64` order and an exact four-limb `u128` carrier. A separately gated
-  592-line terminal-codec layer owns the exact current
-  magic/format/vocabulary envelope
-  plus canonical Boolean, optional and required full-width semantic-ID carriers,
-  exact identity equality/order, and length-prefixed UTF-8 grammar, together
-  with the complete Boolean/fixed-signed/
-  fixed-unsigned/address scalar-type grammar and exact widths `1..=128`, plus
-  exact signed/unsigned 128-bit integer-value payloads; it
-  rejects header/scalar/type/value drift plus overlong, surrogate, out-of-range,
-  isolated-continuation, and truncated encodings. Its separate v18 structural-
-  leaf module additionally owns exact IEEE kind/format, byte-sequence carrier,
-  full-width canonical paths with exact case segments, and atomic proposition
-  tags `11`/`12`/`13`, including nonempty paths and canonical operand order. All
-  three bounded decoders consume
-  only the 302-line header/scalar/type/value subset; the structural-leaf module
-  remains independently gated and outside their claimed semantics. Scalar
-  declarations and boundary results now retain
-  the complete decoded type grammar; the bounded operation rows still admit
-  only Boolean/i8/i16. Integer-constant operations retain exact signed/unsigned
-  128-bit payloads until that row policy selects and narrows signed i8. The
-  bounded spike narrows identities to a zero high half only in explicit adapters
-  after complete decoding;
-  remaining recursive vocabulary and monomorphic type-specific results remain
-  spike-owned. The
-  bounded thirty-two-kind scalar leaf slice now resolves through five composed,
-  exact-unique policy-cohort schema tables: each row owns result shape,
-  denotation, goal, post-discharge fact, crash policy, fuel, and frontier
-  behavior, while calls remain separate coverage/substitution algebra.
-  Missing, duplicate, and altered table rows reject end to end without changing
-  either canonical ledger. The generator's known-value environment now
-  retains exact typed declarations rather than IDs alone: duplicate result
-  identities, operand-type drift, duplicate declarations, join-parameter
-  overlap, and call argument-type drift reject before row publication. The
-  structurally owned `EstablishTrivialAffineLocal` and
-  `BooleanStructuralField` plus effectful `PortWrite` now resolve through their
-  own exact-unique schema table and separate decoder/evaluator modules rather
-  than scalar-row permutations. Erased relevance, field/service/port drift,
-  cleanup drift, establishment-target drift, and missing affine retirement all
-  reject. The three call-composition definitions now live in their own
-  exact-unique table and one generic axis checker rather than three more
-  evaluator branches. Target/result custody, positional binder shape,
-  requirement coverage, capture-free substitution, claim/receipt transfer,
-  guarded outcomes, crash routes, evidence lifetime, fuel, and frontier policy
-  remain independently visible. The canonical scalar call consumes its row end
-  to end; canonical-byte Unit and boundary sites exercise the same checker.
-  Missing,
-  duplicate, cross-kind, weakened-evidence, wrong-requirement,
-  weakened-frontier, signature, state-version, move/reborrow, coverage,
-  substitution, outcome, crash, evidence-lifetime, raw identity, target,
-  argument, transfer, receipt, truncation, and trailing-byte drift reject. The
-  first Rust producer-modularity checkpoint is also complete. Structural Unit
+  semantic-operation, or other trust status is promoted; the current terminal
+  semantic, proof-bundle, and installation encodings remain unchanged, and the
+  accepted trust closure remains `fully-derived false`.
+  The historical bounded Gamma feasibility spike established that exact
+  canonical-byte decoding and ordered semantic-ledger reconstruction fit the
+  low rung without making the Rust verifier authoritative. Its final measured
+  checkpoint assembled to 4,982 typed Gamma lines / 198,971 bytes / 423
+  functions with maximum source nesting 25. Closed row tables eliminated
+  per-operation builder branches; Gamma's monomorphic decoder-result types
+  caused most remaining repetition. The format-bound implementation was retired
+  after its format-18/vocabulary-20 decoder fell behind the live artifact;
+  commit `a5cfd83cc` and its follow-ups retain the executable provenance. Its
+  reusable structure now lives in production's exact-unique 40-row inventory:
+  32 scalar denotations plus four structural/effect rows form 36 leaf rows, and
+  four call-composition rows remain a separate algebra with mutation coverage.
+  Reusable low-rung byte, scalar/type/value, UTF-8, and structural-leaf grammar
+  fragments remain gated without claiming a fixed terminal header or complete
+  live decoder. The full assurance-owned low generator, row proofs, and
+  composition bridges remain required; the retired spike marks no trust-graph
+  dependency derived. The first Rust producer-modularity checkpoint is also
+  complete. Structural Unit
   planning no longer owns the shared Boolean/integer convergence classifier
   body: that sufficient-form family and its forty focused tests live in
   dedicated `shared_convergence` modules. The six exact binary families and
