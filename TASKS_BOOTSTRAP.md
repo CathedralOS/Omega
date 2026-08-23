@@ -575,6 +575,15 @@ additional facilities the bootstrap actually needs.
       correspondence, reachability, and terminal/trace correspondence remain
       open; this is the absolute `B_bc1` stack-safety lemma, not whole-compiler
       closure.
+    - [x] Classify every raw-load address and close the complete fixed-global
+      family. The grammar-rooted Alpha pass partitions all 61 loads into 54
+      aligned literal word loads in `[2097064,2097152)`, five indexed SRC byte
+      loads, and two indexed name-table word loads. An exhaustive 95-row phase
+      admits no missing or store-side class and checks every fixed load's exact
+      adjacent `imm r0,address; load r0,r0` bytes. An omitted fixed-load class
+      rejects only in this phase. This proves address correspondence and 64 MiB
+      safety for all 54 fixed loads when reached; the seven indexed loads still
+      require the blockwise span/index relation.
     - [x] Keep comparison lookahead inside the logical source arena. `cmp_op`
       now advances through the existing `cbyte()` bounds check and restores CUR
       when a single `=` is not a comparison, instead of directly reading
@@ -687,6 +696,14 @@ additional facilities the bootstrap actually needs.
       parsed `bc.beta` CFG to the decoded Alpha CFG. Cover stack/memory bounds,
       call/return frames, streamed output, terminal classes, and cyclic progress;
       do not expand the current closed-form symbolic branch tree.
+      - [ ] **DESIGN BLOCKED — observation ruling required:** define how the
+        theorem assigns typed `Exhaust(ResourceKind, limit, requested)` to the
+        exact resource-guard paths whose program-level result is only 252/253.
+        Status 252 conflates name, parameter, argument, expression-depth, and
+        block-depth failures, so the typed identity cannot be reconstructed
+        from the numeric halt alone. This is an observation/projection ruling,
+        not a request for another Beta language feature; other simulation work
+        remains unblocked.
   - [x] Enlarge the x64 seed's former 32 KiB image extent before claiming
     cross-platform closure; both committed seeds now reserve 256 KiB, sufficient
     for the current roughly 52 KiB self-hosted tape.

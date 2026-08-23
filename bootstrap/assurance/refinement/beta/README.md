@@ -92,6 +92,16 @@ valid callee entry frame. Ranged payload values, other raw loads, general
 address correspondence, and global establishment of the selected frame/
 machine-memory preconditions remain open.
 
+`bc-raw-load-families.alpha` consumes a new grammar-derived classification of
+all 61 loads: 54 aligned literal compiler-global words, five indexed SRC bytes,
+and two indexed name-table words. It exhaustively rejoins all 95 memory rows,
+requires store rows to have no load class, and checks every fixed load's exact
+adjacent `imm r0,address; load r0,r0` artifact bytes. The literal window
+`[2097064,2097152)` is aligned, inside 64 MiB, and disjoint from the source and
+the already-bounded stacks. A missing fixed owner rejects in this phase. This
+closes address selection and bounds for the 54 fixed loads when reached; the
+five SRC and two table addresses deliberately remain indexed span obligations.
+
 `bc-expr-primitives.alpha` extends that same source scan and BCT8 witness with
 all 581 decimal/character literals and all 55 arithmetic operators (`+`, `-`,
 `*`, `/`, `%`). Each literal must be the exact `imm r0,value` instruction; each
@@ -143,6 +153,11 @@ summaries, reachability, or terminal/trace correspondence.
 Identical complete same-block statements/effects can still be mutually
 swappable when every owned macro is byte-for-byte identical; cross-statement
 artifact order is part of the remaining blockwise simulation.
+
+The same grammar pass now pins the complete spelling of the seven indexed
+raw-load expressions and parses every other load as an aligned fixed-global
+literal. The following exhaustive load-family phase, rather than lexical row
+position alone, consumes that classification.
 
 The BC11 composition pass also classifies all 34 raw-store address expressions
 without trusting the mapper: 31 are aligned fixed compiler-global words in

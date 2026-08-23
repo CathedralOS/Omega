@@ -172,6 +172,11 @@ are valuable teeth, but they do not yet establish the quantified observation:
   frame-summary, and potential-lift phases establish those selected entry
   relations globally; other raw loads, ranged payload values, and general
   address correspondence remain open;
+- its grammar-derived raw-load partition now classifies those 61 loads as 54
+  aligned fixed-global words, five indexed SRC bytes, and two indexed
+  name-table words. An exhaustive row scan checks the exact adjacent Alpha
+  immediate/load pair for every fixed-global site, closing all 54 fixed-load
+  bounds while leaving the seven indexed span/index relations open;
 - its BC11 grammar-composition pass further partitions every raw-store source
   address into 31 aligned fixed compiler globals, one exact source-buffer
   `base + n` spelling, and two exact local-name-table `base + s * 8` spellings;
