@@ -4,7 +4,7 @@
 # accept. This keeps the productivity tool honest: a bug in the elaborator that emitted a
 # malformed or wrong-indexed certificate would make implementations/beta/check.beta reject. The elaborator is
 # NOT in the trust path (it only produces certificates the minimal checker re-validates),
-# exactly as beta-lang-rs was throwaway scaffolding for bc.
+# exactly as beta-rust was throwaway scaffolding for bc.
 OMEGA_GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 if [ -z "${OMEGA_REPO_ROOT:-}" ]; then
   OMEGA_REPO_ROOT=$OMEGA_GATE_DIR
@@ -24,8 +24,8 @@ cd "$OMEGA_PATH_PROOF_KERNEL"
 SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
 ASM="${OMEGA_PATH_BETA_ASSEMBLER}"/$BETA_SEED
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
-( cd "${OMEGA_PATH_BETA_RUST}" && sh build.sh "${OMEGA_PATH_BETA}"/bc.beta >/dev/null ) || { echo "bc build failed"; exit 1; }
-"${OMEGA_PATH_BETA_RUST}"/build/bc.exe < implementations/beta/check.beta > "$T/p.asm" || { echo "bc(implementations/beta/check.beta) failed"; exit 1; }
+( cd "${OMEGA_PATH_BETA_COMPILER_RUST}" && sh build.sh "${OMEGA_PATH_BETA}"/bc.beta >/dev/null ) || { echo "bc build failed"; exit 1; }
+"${OMEGA_PATH_BETA_COMPILER_RUST}"/build/bc.exe < implementations/beta/check.beta > "$T/p.asm" || { echo "bc(implementations/beta/check.beta) failed"; exit 1; }
 "$ASM" < "$T/p.asm" > "$T/p.tape" || { echo "asm failed"; exit 1; }
 stamp_seed "$T/p.tape" "$SEED" "$T/check.exe" >/dev/null 2>&1
 PASS=0; FAIL=0

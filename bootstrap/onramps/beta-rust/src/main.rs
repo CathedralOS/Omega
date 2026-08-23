@@ -1,9 +1,10 @@
 // beta-lang — the Beta-language compiler, throwaway Rust on-ramp.
 //
 // Reads Beta source on stdin, writes Alpha assembly on stdout. The assembler
-// (../beta) lowers that to a tape; the seed runs it. This crate only discovers +
-// pins the Beta language ergonomically; the trusted Beta compiler is later
-// transcribed into Alpha assembly and this is discarded (like alpha-rs/beta-rs).
+// The canonical Alpha assembler lowers that to a tape; the seed runs it. This crate
+// only helped discover and pin the Beta language ergonomically. The Beta-written
+// compiler now self-hosts, so this Rust producer is retained only as optional
+// cold-start/reference tooling.
 // Deliberately dumb, index/arena-based, monomorphic Rust so the port is mechanical.
 //
 //   SLICE 1: `proc main() { return <arith> }`.
@@ -12,7 +13,7 @@
 //            blocks + guarded `to … when …` transitions — no if/while; loops are
 //            self-transitioning states)  ->  unlocks recursion + loops.
 //
-// Convention (see ../beta/CALLING_CONVENTION.md): control returns ride the VM's
+// Convention (see bootstrap/rungs/beta/CALLING_CONVENTION.md): control returns ride the VM's
 // hidden call/ret stack; data rides an explicit stack via r15 (sp), r14 = frame
 // pointer (fp). Params + locals are frame slots at [fp - 8 - 8*slot]; args in
 // r0..r3, result in r0. Locals are function-scoped (no block scoping yet).

@@ -30,11 +30,11 @@ command -v python3 >/dev/null 2>&1 || { echo "refinement-cert-diamond: skipped (
 . "${OMEGA_PATH_ALPHA}"/seed_env.sh
 SEED="${OMEGA_PATH_ALPHA}/$ALPHA_SEED"
 ASM="${OMEGA_PATH_ALPHA_ASSEMBLER}"/$BETA_SEED
-( cd "${OMEGA_PATH_BETA_RUST}" && sh build.sh "${OMEGA_PATH_BETA}"/bc.beta >/dev/null 2>&1 ) || { echo "bc build failed"; exit 1; }
+( cd "${OMEGA_PATH_BETA_COMPILER_RUST}" && sh build.sh "${OMEGA_PATH_BETA}"/bc.beta >/dev/null 2>&1 ) || { echo "bc build failed"; exit 1; }
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
-"${OMEGA_PATH_BETA_RUST}"/build/bc.exe < "${OMEGA_PATH_PROOF_KERNEL}"/implementations/beta/check.beta > "$T/c.asm" 2>/dev/null && "$ASM" < "$T/c.asm" > "$T/c.tape" 2>/dev/null \
+"${OMEGA_PATH_BETA_COMPILER_RUST}"/build/bc.exe < "${OMEGA_PATH_PROOF_KERNEL}"/implementations/beta/check.beta > "$T/c.asm" 2>/dev/null && "$ASM" < "$T/c.asm" > "$T/c.tape" 2>/dev/null \
   && stamp_seed "$T/c.tape" "$SEED" "$T/check.exe" >/dev/null 2>&1 || { echo "check.beta build failed"; exit 1; }
-"${OMEGA_PATH_BETA_RUST}"/build/bc.exe < "${OMEGA_PATH_GAMMA}"/interp.beta > "$T/i.asm" 2>/dev/null && "$ASM" < "$T/i.asm" > "$T/i.tape" 2>/dev/null \
+"${OMEGA_PATH_BETA_COMPILER_RUST}"/build/bc.exe < "${OMEGA_PATH_GAMMA}"/interp.beta > "$T/i.asm" 2>/dev/null && "$ASM" < "$T/i.asm" > "$T/i.tape" 2>/dev/null \
   && stamp_seed "$T/i.tape" "$SEED" "$T/interp.exe" >/dev/null 2>&1 || { echo "interp.beta build failed"; exit 1; }
 DEFS=$(cat "${OMEGA_PATH_PROOF_KERNEL}"/implementations/gamma/checker.gamma)
 
@@ -44,7 +44,7 @@ mkdir "$T/certs"
 # certs the prover-diamond already double-checks). The gate seeds its RNG, so the cert set is stable.
 REFINE_CERT_DIR="$T/certs" REFINE_FUZZ=0 REFINE_LOOP_FUZZ=6 REFINE_COMPOSE_FUZZ=0 REFINE_NESTED_FUZZ=4 \
   python3 "$OMEGA_PATH_BETA_REFINEMENT/alpha_refinement_check.py" \
-    "$T/check.exe" "${OMEGA_PATH_BETA_RUST}/build/bc.exe" "$ASM" >/dev/null \
+    "$T/check.exe" "${OMEGA_PATH_BETA_COMPILER_RUST}/build/bc.exe" "$ASM" >/dev/null \
   || { echo "refinement gate failed during cert emission"; exit 1; }
 
 PASS=0; FAIL=0; GPASS=0; GFAIL=0

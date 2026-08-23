@@ -37,6 +37,12 @@ lives at `bootstrap/rungs/alpha/assembler/`; historical `compiler/beta` is only
 a compatibility path. Beta proper is the language compiled by
 `bootstrap/rungs/beta/bc.beta`; `compiler/beta-lang` is also only a
 compatibility path.
+The disposable Rust producer of Alpha VM tapes lives at
+`bootstrap/onramps/alpha-assembler-rust/`; historical `compiler/beta-rs` is
+only its compatibility path and has no Beta-language role.
+The disposable Beta-language cold-start producer lives at
+`bootstrap/onramps/beta-rust/`; `compiler/beta-lang-rs` is its compatibility
+path.
 Delta's language corpus, Delta-written compiler, and lattice-built artifacts
 live under `bootstrap/rungs/delta/`; its disposable Rust producer lives under
 `bootstrap/onramps/delta-rust/`. Historical `compiler/delta` and

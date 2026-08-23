@@ -8,5 +8,5 @@ name = "beta-lang"
 path = "src/main.rs"
 
 # Empty workspace table => this is its own workspace root, so the parent Omega
-# workspace never absorbs this throwaway on-ramp (same trick as alpha-rs/beta-rs).
+# workspace never absorbs this throwaway on-ramp.
 [workspace]

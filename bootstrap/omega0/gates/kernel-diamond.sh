@@ -42,8 +42,8 @@ T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 . "${OMEGA_PATH_ALPHA}"/seed_env.sh
 SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
 ASM="${OMEGA_PATH_BETA_ASSEMBLER}"/$BETA_SEED
-( cd "${OMEGA_PATH_BETA_RUST}" && sh build.sh "${OMEGA_PATH_BETA}"/bc.beta >/dev/null ) || { echo "omega kernel diamond FAIL — bc build"; exit 1; }
-BC="${OMEGA_PATH_BETA_RUST}"/build/bc.exe
+( cd "${OMEGA_PATH_BETA_COMPILER_RUST}" && sh build.sh "${OMEGA_PATH_BETA}"/bc.beta >/dev/null ) || { echo "omega kernel diamond FAIL — bc build"; exit 1; }
+BC="${OMEGA_PATH_BETA_COMPILER_RUST}"/build/bc.exe
 build_beta() { # src.beta  ->  out.exe   (bc -> assemble -> stamp)
   "$BC" < "$1" > "$T/b.asm" 2>/dev/null && "$ASM" < "$T/b.asm" > "$T/b.tape" 2>/dev/null \
     && stamp_seed "$T/b.tape" "$SEED" "$2" >/dev/null 2>&1

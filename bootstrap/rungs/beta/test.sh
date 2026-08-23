@@ -24,9 +24,9 @@ SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
 ASM="${OMEGA_PATH_BETA_ASSEMBLER}"/$BETA_SEED
 
 # build bc.exe = the bc.beta compiler, lowered through the on-ramp
-( cd "${OMEGA_PATH_BETA_RUST}" && sh build.sh "${OMEGA_PATH_BETA}"/bc.beta >/dev/null ) || { echo "bc build failed"; exit 1; }
-BC="${OMEGA_PATH_BETA_RUST}"/build/bc.exe
-echo "bc tape: $(wc -c < "${OMEGA_PATH_BETA_RUST}"/build/bc.tape | tr -d ' ') B (hole $HOLE_SIZE)"
+( cd "${OMEGA_PATH_BETA_COMPILER_RUST}" && sh build.sh "${OMEGA_PATH_BETA}"/bc.beta >/dev/null ) || { echo "bc build failed"; exit 1; }
+BC="${OMEGA_PATH_BETA_COMPILER_RUST}"/build/bc.exe
+echo "bc tape: $(wc -c < "${OMEGA_PATH_BETA_COMPILER_RUST}"/build/bc.tape | tr -d ' ') B (hole $HOLE_SIZE)"
 
 PASS=0; FAIL=0
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT

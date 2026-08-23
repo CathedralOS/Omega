@@ -35,7 +35,10 @@ BETA_REFINEMENT = os.environ.get(
     'OMEGA_PATH_BETA_REFINEMENT',
     os.path.join(REPO_ROOT, 'bootstrap', 'assurance', 'refinement', 'beta'))
 BETA_RUST = os.environ.get(
-    'OMEGA_PATH_BETA_RUST', os.path.join(REPO_ROOT, 'compiler', 'beta-lang-rs'))
+    'OMEGA_PATH_BETA_COMPILER_RUST',
+    os.environ.get(
+        'OMEGA_PATH_BETA_RUST',
+        os.path.join(REPO_ROOT, 'bootstrap', 'onramps', 'beta-rust')))
 PROOF_KERNEL = os.environ.get(
     'OMEGA_PATH_PROOF_KERNEL',
     os.path.join(REPO_ROOT, 'bootstrap', 'assurance', 'proof-kernel'))

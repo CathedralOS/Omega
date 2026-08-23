@@ -25,7 +25,7 @@ The overview's "Two roles for Rust" is the ordering law. Made concrete, per arti
 | `interp.beta` / `typeck.beta` (γ meaning) | **trusted base** | **DEAD** — Beta, on the seed lineage. |
 | Delta's **meaning** (`gamma_emit.rs`) | **trusted base** | **DYING** — the broad Beta-written `omega2gamma` route and Gamma execution path exist, including checked D0 storage and real byte-I/O certifiers; exact coverage of the eventual Omega0 Delta source remains open. |
 | Psi/Omega's **meaning** | **trusted base** | Follows the same elaboration discipline through the Delta-built bootstrap compiler and the Omega self-build edge. |
-| `beta-lang-rs`, `delta-rs`, `omega-rs` (producers) | **untrusted producer** | **DEFERRABLE** — killed for self-sufficiency, not soundness. `omega-rs` stays untouched as the reference producer. |
+| `beta-rust`, `delta-rust`, `omega-rs` (producers) | **untrusted producer** | **DEFERRABLE** — killed for self-sufficiency, not soundness. `omega-rs` stays untouched as the reference producer. |
 
 **Policy:** no work removes Rust from a *producer* merely for pedigree while Rust
 still sits in any meaning/checker or while an upstream artifact that builds those
@@ -141,7 +141,9 @@ artifacts, while two incorrect compilers may agree. Requiring byte identity
 between implementations unnecessarily creates a second compiler to maintain and
 conflates reproducibility with correctness.
 
-The current `bc` cold start still passes through `compiler/beta-lang-rs/`; its
+The current `bc` cold start still passes through
+`bootstrap/onramps/beta-rust/` (`compiler/beta-lang-rs` is a compatibility
+path); its
 self-host fixed point establishes dependency closure, not source correspondence.
 That is an **unfinished lower-rooted refinement edge**, not a standing demand for
 DDC. Close it by building the seed Beta compiler through the preceding audited

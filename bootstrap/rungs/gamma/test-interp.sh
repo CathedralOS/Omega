@@ -22,8 +22,8 @@ SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
 ASM="${OMEGA_PATH_BETA_ASSEMBLER}"/$BETA_SEED
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 
-( cd "${OMEGA_PATH_BETA_RUST}" && sh build.sh "${OMEGA_PATH_BETA}"/bc.beta >/dev/null ) || { echo "bc build failed"; exit 1; }
-"${OMEGA_PATH_BETA_RUST}"/build/bc.exe < interp.beta > "$T/g.asm" || { echo "bc(interp.beta) failed"; exit 1; }
+( cd "${OMEGA_PATH_BETA_COMPILER_RUST}" && sh build.sh "${OMEGA_PATH_BETA}"/bc.beta >/dev/null ) || { echo "bc build failed"; exit 1; }
+"${OMEGA_PATH_BETA_COMPILER_RUST}"/build/bc.exe < interp.beta > "$T/g.asm" || { echo "bc(interp.beta) failed"; exit 1; }
 "$ASM" < "$T/g.asm" > "$T/g.tape" || { echo "assemble failed"; exit 1; }
 stamp_seed "$T/g.tape" "$SEED" "$T/g.exe" >/dev/null 2>&1
 echo "interp tape: $(wc -c < "$T/g.tape" | tr -d ' ') B (compiled by bc)"
