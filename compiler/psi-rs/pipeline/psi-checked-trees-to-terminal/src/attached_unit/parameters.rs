@@ -82,6 +82,48 @@ pub(crate) fn lower_published_service_ceiling(
     Ok(lowered)
 }
 
+pub(crate) fn lower_installation_machine_service_ceiling(
+    checked: &CheckedTrees,
+    machine: psi_symbols::SymbolHandle,
+    contract: ServiceReachPlan,
+    summary: ServiceReachSummary,
+    service_ids: &[(ServiceReachId, ServiceId)],
+) -> Result<Vec<ServiceId>, LoweringError> {
+    if let Some(reach) = checked.facts.service_reaches.for_machine(machine)
+        && matches!(contract.interface, ServiceReachInterface::InternalInferred)
+        && !reach.unresolved_installation_reaches.is_empty()
+    {
+        if contract.checked_inferred != summary.transitive
+            || reach.inferred_transitive != summary.transitive
+        {
+            return unsupported(
+                "installation-bound machine reach disagrees with its checked transitive row",
+            );
+        }
+        let source = checked
+            .facts
+            .service_reaches
+            .rows
+            .services(summary.transitive);
+        let mut lowered = source
+            .iter()
+            .map(|service| lookup_service_id(service_ids, *service))
+            .collect::<Result<Vec<_>, LoweringError>>()?;
+        lowered.sort();
+        lowered.dedup();
+        if lowered.len() != source.len() {
+            return unsupported("installation-bound service ceiling contains duplicates");
+        }
+        return Ok(lowered);
+    }
+    lower_published_service_ceiling(
+        &checked.facts.service_reaches.rows,
+        contract,
+        summary,
+        service_ids,
+    )
+}
+
 pub(crate) fn validate_transfer_shape(
     arguments: &[psi_checked_trees::CheckedUnitStructuralArgumentPlan],
     transfers: &[psi_checked_trees::CheckedUnitClaimTransferPlan],

@@ -132,6 +132,24 @@ const RESULT_BOUNDARY_CUSTODY_SOURCE: &str = r#"
     }
 "#;
 
+const RESULT_BOUNDARY_BOUNDED_REACH_SOURCE: &str = r#"
+    boundary trait MachineControl {}
+    boundary trait PortIo {}
+
+    boundary trait InterruptCompletion {
+        machine complete() -> bool
+        reaches <= MachineControl + PortIo;
+    }
+
+    data Root {}
+    machine Root::enter<machine Completion>() -> bool
+    where machine Completion satisfies InterruptCompletion::complete;
+    {
+        let accepted: bool = Completion();
+        accepted
+    }
+"#;
+
 const ORDINARY_INDEXED_CUSTODY_SOURCE: &str = r#"
     boundary trait PortIo {}
     data Receipt [linear] { value: u64; }
@@ -455,6 +473,89 @@ fn result_bearing_boundary_receipt_verifies_and_commits_only_after_success() {
     );
     assert_eq!(execution.live_claim_frontier().count(), 0);
     assert_eq!(execution.effects().len(), 1);
+}
+
+#[test]
+fn result_bearing_boundary_retains_exact_bounded_installation_reach() {
+    let tokens = Lexer::new(RESULT_BOUNDARY_BOUNDED_REACH_SOURCE)
+        .tokenize()
+        .expect("tokenize bounded result boundary");
+    let syntax = parse_syntax_trees(&tokens).expect("parse bounded result boundary");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve bounded result boundary");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type bounded result boundary");
+    let checked = lower_typed_trees(typed).expect("check bounded result boundary");
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::enter")
+        .expect("bounded result boundary should lower");
+    let module = &lowered.semantic_module;
+
+    assert!(module.root_service_reach.concrete.is_empty());
+    let [dependency] = module
+        .root_service_reach
+        .installation_dependencies
+        .as_slice()
+    else {
+        panic!("result-bearing root must retain one installation dependency")
+    };
+    assert!(
+        dependency
+            .requirement_identity
+            .contains("InterruptCompletion::complete")
+    );
+    let bound_names = dependency
+        .upper_bound
+        .iter()
+        .map(|service| {
+            module
+                .services
+                .iter()
+                .find(|declaration| declaration.id == *service)
+                .expect("bounded service is declared")
+                .identity
+                .as_str()
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(bound_names, ["MachineControl", "PortIo"]);
+
+    let semantic = encode_module(module).expect("bounded result boundary semantics encode");
+    assert_eq!(
+        decode_module(&semantic).expect("bounded result boundary semantics decode"),
+        *module
+    );
+    psi_terminal_verifier::verify_module(
+        module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("bounded result boundary verifies");
+
+    let mut missing = module.clone();
+    missing.root_service_reach.installation_dependencies.clear();
+    assert!(matches!(
+        psi_terminal_verifier::validate_module_representation(&missing),
+        Err(psi_terminal_verifier::ModuleError::RootConcreteServiceReachMismatch { .. })
+    ));
+
+    let mut drifted = module.clone();
+    drifted.root_service_reach.installation_dependencies[0]
+        .upper_bound
+        .pop();
+    assert!(matches!(
+        psi_terminal_verifier::validate_module_representation(&drifted),
+        Err(psi_terminal_verifier::ModuleError::InstallationReachBoundaryMismatch(_))
+    ));
+
+    let mut padded = module.clone();
+    let duplicate = *padded.root_service_reach.installation_dependencies[0]
+        .upper_bound
+        .last()
+        .expect("bounded row is nonempty");
+    padded.root_service_reach.installation_dependencies[0]
+        .upper_bound
+        .push(duplicate);
+    assert!(matches!(
+        psi_terminal_verifier::validate_module_representation(&padded),
+        Err(psi_terminal_verifier::ModuleError::DuplicatePublishedService { .. })
+    ));
 }
 
 #[test]

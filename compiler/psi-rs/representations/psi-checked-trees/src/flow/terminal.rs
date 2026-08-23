@@ -422,8 +422,8 @@ pub struct CheckedStructuralScalarParameterPlan {
 
 /// Source-handle-free checked plans for the first result-bearing bodyless
 /// boundary slice. One successful boundary invocation returns a primitive
-/// scalar while consuming the complete structural claim frontier carried by
-/// its arguments.
+/// scalar. When structural custody is present, the invocation also consumes
+/// the complete claim frontier carried by its arguments.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckedBoundaryScalarReturnPlans {
     pub structural_types: Vec<CheckedUnitStructuralTypePlan>,

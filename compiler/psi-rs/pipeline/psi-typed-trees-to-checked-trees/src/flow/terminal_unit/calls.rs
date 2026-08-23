@@ -155,7 +155,7 @@ pub(super) fn build_call_operation(
         });
     }
 
-    let static_boundaries = program
+    let mut static_boundaries = program
         .traits()
         .iter()
         .filter(|definition| definition.is_boundary)
@@ -164,10 +164,25 @@ pub(super) fn build_call_operation(
                 .trait_machine_signatures(definition)
                 .iter()
                 .filter(move |signature| signature.symbol == call.target_symbol)
-                .map(move |signature| (definition, signature))
+                .map(move |signature| (definition, signature, false))
         })
         .collect::<Vec<_>>();
-    if let [(definition, signature)] = static_boundaries.as_slice() {
+    if let Some((_, requirement)) = program.machine_parameter_signature(call.target_symbol) {
+        static_boundaries.extend(
+            program
+                .traits()
+                .iter()
+                .filter(|definition| definition.is_boundary)
+                .flat_map(|definition| {
+                    program
+                        .trait_machine_signatures(definition)
+                        .iter()
+                        .filter(move |signature| signature.symbol == requirement.symbol)
+                        .map(move |signature| (definition, signature, true))
+                }),
+        );
+    }
+    if let [(definition, signature, selected_parameter)] = static_boundaries.as_slice() {
         let arguments = crate::call_site_argument_expressions(program, &call_site);
         let source_parameters = program.state_signature_parameters(signature);
         let mut scalar_parameters = Vec::new();
@@ -211,14 +226,18 @@ pub(super) fn build_call_operation(
                 .iter()
                 .any(|parameter| parameter.is_self || parameter.is_const || parameter.is_mutable)
             || arguments.len() != source_parameters.len()
-            || !call.has_receiver
-            || (call.receiver_symbol != definition.symbol
-                && !provider_attachment_receiver_matches(
-                    program,
-                    machine,
-                    &call_site,
-                    definition.symbol,
-                ))
+            || if *selected_parameter {
+                call.has_receiver
+            } else {
+                !call.has_receiver
+                    || (call.receiver_symbol != definition.symbol
+                        && !provider_attachment_receiver_matches(
+                            program,
+                            machine,
+                            &call_site,
+                            definition.symbol,
+                        ))
+            }
             || match expected_boundary_result {
                 None => !is_unit(program, signature.return_type),
                 Some(expected) => {

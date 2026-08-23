@@ -47,6 +47,7 @@ pub(super) fn lower_boundary_scalar_return_machine(
         lower_boundary_scalar_domains(plans, plan, boundary, &type_ids)?;
     let (services, service_ids) =
         lower_boundary_scalar_services(checked, plan, boundary, *service_reach)?;
+    let root_service_reach = lower_root_service_reach(checked, plan.machine, &service_ids)?;
     let mut next_place = 1_u64;
     let parameters = lower_unit_parameters(
         &plan.structural_parameters,
@@ -238,8 +239,9 @@ pub(super) fn lower_boundary_scalar_return_machine(
             })
             .collect(),
         entry_claims,
-        published_service_ceiling: lower_published_service_ceiling(
-            &checked.facts.service_reaches.rows,
+        published_service_ceiling: lower_installation_machine_service_ceiling(
+            checked,
+            plan.machine,
             plan.contract_service_reach,
             plan.service_reach,
             &service_ids,
@@ -272,7 +274,7 @@ pub(super) fn lower_boundary_scalar_return_machine(
             structural_types,
             structural_domains,
             services,
-            root_service_reach: Default::default(),
+            root_service_reach,
             boundary_machines: vec![boundary_declaration],
             provider_candidates: Vec::new(),
             float_meaning_projections: Vec::new(),
@@ -368,8 +370,9 @@ fn lower_boundary_scalar_services(
 ) -> Result<(Vec<ServiceDeclaration>, Vec<(ServiceReachId, ServiceId)>), LoweringError> {
     let facts = &checked.facts.service_reaches;
     let mut selected = Vec::new();
-    collect_contract_services(
-        &facts.rows,
+    collect_installation_machine_contract_services(
+        checked,
+        machine.machine,
         machine.contract_service_reach,
         machine.service_reach,
         &mut selected,
