@@ -22,6 +22,7 @@ type MachineClauses = (
     // TPR3: argumented-view arguments (`-> Nat::IncreasingTo(limit)`).
     HandleSpan<psi_syntax_trees::expression::ExpressionHandle>,
     psi_syntax_trees::expression::ExpressionHandle,
+    bool,
     HandleSpan<Identifier>,
     HandleSpan<Identifier>,
     bool,
@@ -48,6 +49,7 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
     let mut ranking_view = HandleSpan::empty();
     let mut ranking_view_arguments = HandleSpan::empty();
     let mut ranking_range = psi_syntax_trees::expression::ExpressionHandle::invalid();
+    let mut service_reach_is_installation_bound = false;
     let mut service_start = Handle::invalid();
     let mut service_count = 0u32;
     let mut invokes_start = Handle::invalid();
@@ -117,6 +119,20 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
 
         if input.at_contextual("reaches") {
             input = input.take_contextual("reaches")?;
+            let service_count_before_clause = service_count;
+            if input.at_punctuation(PunctuationKind::LessEqual) {
+                if service_reach_is_installation_bound || service_count != 0 {
+                    return Err(input.error_here(
+                        "an installation-bound reach row must be declared once as `reaches <= Bound`",
+                    ));
+                }
+                service_reach_is_installation_bound = true;
+                input = input.take_punctuation(PunctuationKind::LessEqual, "<=")?;
+            } else if service_reach_is_installation_bound {
+                return Err(input.error_here(
+                    "an installation-bound reach bound cannot be combined with another `reaches` clause",
+                ));
+            }
             while !input.at_punctuation(PunctuationKind::LeftBrace)
                 && !input.at_punctuation(PunctuationKind::Semicolon)
                 && !input.at_contextual("requires")
@@ -149,6 +165,11 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
                 } else if input.at_punctuation(PunctuationKind::Plus) {
                     input = input.take_punctuation(PunctuationKind::Plus, "+")?;
                 }
+            }
+            if service_reach_is_installation_bound && service_count == service_count_before_clause {
+                return Err(input.error_here(
+                    "an installation-bound reach row requires a nonempty upper bound after `reaches <=`",
+                ));
             }
             continue;
         }
@@ -393,6 +414,7 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
             ranking_view,
             ranking_view_arguments,
             ranking_range,
+            service_reach_is_installation_bound,
             service_reaches,
             invokes,
             suspends,

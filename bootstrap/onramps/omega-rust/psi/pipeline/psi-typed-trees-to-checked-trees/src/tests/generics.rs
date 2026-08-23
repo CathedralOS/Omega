@@ -312,6 +312,58 @@ fn bounded_installation_reach_retains_exact_unresolved_requirement_through_check
 }
 
 #[test]
+fn top_level_bounded_reach_is_unresolved_not_concrete() {
+    let source = r#"
+        boundary trait MachineControl {}
+        boundary trait PortIo {}
+
+        boundary machine complete() -> u64
+        reaches <= MachineControl + PortIo;
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    assert!(
+        resolved
+            .machines
+            .iter()
+            .find(|machine| machine.name.as_str() == "complete")
+            .expect("resolved complete requirement")
+            .service_reach_is_installation_bound
+    );
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let complete = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "complete")
+        .expect("complete requirement");
+    let complete_symbol = complete.symbol;
+    let upper_bound = complete.service_reach_row;
+    assert!(complete.service_reach_is_installation_bound);
+
+    let checked = lower_typed_trees(typed).expect("bounded reach closure should check");
+    let complete_reach = checked
+        .facts
+        .service_reaches
+        .for_machine(complete_symbol)
+        .expect("complete reach facts");
+    let expected = [psi_effects::InstallationReachRequirement {
+        requirement: complete_symbol,
+        upper_bound,
+    }];
+    assert_eq!(complete_reach.unresolved_installation_reaches, expected);
+    assert!(
+        checked
+            .facts
+            .service_reaches
+            .rows
+            .services(complete_reach.concrete_effective)
+            .is_empty(),
+        "the abstract upper bound must not enter the requirement's concrete reach"
+    );
+}
+
+#[test]
 fn bounded_installation_reach_rejects_provider_outside_upper_bound() {
     let source = r#"
         boundary trait MachineControl {}

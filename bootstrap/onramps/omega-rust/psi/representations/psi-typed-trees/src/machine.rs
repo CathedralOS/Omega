@@ -20,6 +20,9 @@ pub struct Machine {
     pub termination_plan: psi_language_semantics::MachineTerminationPlan,
     /// EFX: normalized symbol-resolved boundary-service row.
     pub service_reach_row: psi_language_semantics::ServiceReachRowId,
+    /// The published row is an installation-selected upper bound rather than
+    /// a fixed callable ceiling.
+    pub service_reach_is_installation_bound: bool,
     pub lifetime_parameters: Vec<Identifier>,
     pub type_parameters: HandleSpan<crate::data::TypeParameter>,
     pub owned_data: HandleSpan<OwnedData>,
@@ -41,6 +44,7 @@ impl Default for Machine {
             supply_mode: psi_language_semantics::MachineSupplyMode::CheckedBody,
             termination_plan: psi_language_semantics::MachineTerminationPlan::default(),
             service_reach_row: psi_language_semantics::ServiceReachRowId::NULL,
+            service_reach_is_installation_bound: false,
             lifetime_parameters: Vec::new(),
             type_parameters: HandleSpan::empty(),
             owned_data: HandleSpan::empty(),

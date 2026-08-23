@@ -6574,10 +6574,12 @@ state through a raw address.
   runs in an ordinary task.
 - **BOUNDED-INSTALLATION-REACH-ROWS.** Implement bounded installation reach
   rows on installation-bound boundary requirements.
-  - **Live:** `reaches <= Bound` parses only on bodyless boundary-trait
-    requirements; syntax through typed snapshots retain the marker. Checked
-    inference propagates exact requirement dependencies separately from the
-    conservative bound and from concrete reach. Conformance rejects a provider
+  - **Live:** `reaches <= Bound` parses only on fresh bodyless boundary
+    requirements, whether declared as a boundary-trait requirement or as a
+    top-level `boundary machine`; syntax through typed snapshots retain the
+    marker. Checked inference propagates exact requirement dependencies
+    separately from the conservative bound and from concrete reach.
+    Conformance rejects a provider
     outside the bound. Provider selection derives and fingerprints each exact
     `InstallationReachResolution`. External-root admission now accepts only a
     `ResolvedRootServiceReach`, substitutes `concrete + selected rows`, rejects
@@ -6613,18 +6615,20 @@ state through a raw address.
   - **Constraints:** `+` is union. Do not infer one shared row from equal sets or
     add negation, subtraction, lower bounds, exclusive-or, named row variables,
     or cross-requirement correlation.
-- `InterruptEntry::enter` now publishes its own bounded installation row beneath
+- `InterruptEntry::enter` publishes its bounded installation row beneath
   `MachineControl + PortIo`; the PIC-shaped provider-plan canary proves that the
   conservative bound resolves to the selected provider's exact `PortIo` row.
-  Migrate `InterruptAcknowledgement::complete` from its temporary hardcoded
-  `PortIo` ceiling to a distinct bounded row. That top-level boundary operation
-  still needs the same abstract-row representation and installation-resolution
-  carriage already live for trait requirements. Bind entry/completion coherence
-  through the exact installed provider execution, acknowledgement policy,
-  operation, and token lineage rather than row equality. PIC completion resolves
-  to `PortIo`; LAPIC/x2APIC completion resolves to `MachineControl`. Checked and
-  terminal artifacts retain the selected provider, operation, bound, resolved
-  row, and refinement evidence without granting authority from reach.
+  Top-level boundary operations now carry the same abstract-row representation
+  and checked unresolved-row identity, but `InterruptAcknowledgement::complete`
+  remains temporarily hardcoded to `PortIo`: migrating it before provider
+  coherence is represented would make checked PIC implementations appear to
+  reach the full conservative union. Bind entry/completion coherence through
+  the exact installed provider execution, acknowledgement policy, operation,
+  and token lineage rather than row equality, then migrate completion to its
+  distinct bound. PIC completion resolves to `PortIo`; LAPIC/x2APIC completion
+  resolves to `MachineControl`. Checked and terminal artifacts retain the
+  selected provider, operation, bound, resolved row, and refinement evidence
+  without granting authority from reach.
 
 Acceptance: QEMU installs Cathedral-owned memory/interrupt structures, reports
 timer ticks over owned serial output, and halts between ticks. No customer-shaped

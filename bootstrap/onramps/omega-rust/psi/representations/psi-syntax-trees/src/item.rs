@@ -812,6 +812,10 @@ pub struct Machine {
     /// checker consumes ranges (never silently dropped).
     pub ranking_range: crate::expression::ExpressionHandle,
     pub service_reaches: HandleSpan<Identifier>,
+    /// `reaches <= Bound` on one top-level bodyless boundary requirement.
+    /// The written row is a conservative upper bound; installation supplies
+    /// the exact row selected for this requirement path.
+    pub service_reach_is_installation_bound: bool,
     /// Direct synchronous boundary bindings this callable may enter before
     /// returning. Bodyful machines infer this set and use an authored list as
     /// their published ceiling; bodyless surfaces must declare it exactly.

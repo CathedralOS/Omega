@@ -160,6 +160,8 @@ pub enum ItemSnapshot {
         terminates_guarantee: bool,
         ranking_subjects: Vec<ExpressionSnapshot>,
         ranking_view: Vec<IdentifierSnapshot>,
+        #[serde(skip_serializing_if = "is_false")]
+        service_reach_is_installation_bound: bool,
         service_reaches: Vec<IdentifierSnapshot>,
         invokes: Vec<IdentifierSnapshot>,
         suspends: bool,
@@ -1021,6 +1023,7 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
                     .items
                     .identifier_path_members(value.ranking_view),
             ),
+            service_reach_is_installation_bound: value.service_reach_is_installation_bound,
             service_reaches: snapshot_identifier_slice(
                 syntax_trees
                     .items

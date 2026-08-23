@@ -147,6 +147,11 @@ pub(super) fn parse_item<'tokens, 'source>(
     if input.at_keyword(KeywordKind::Machine) {
         let input = input.take_keyword(KeywordKind::Machine, "machine")?;
         let (item, rest) = parse_machine(syntax_trees, input)?;
+        if item.service_reach_is_installation_bound {
+            return Err(rest.error_here(
+                "`reaches <= Bound` is legal only on a top-level bodyless `boundary machine` requirement",
+            ));
+        }
         // PRV4 step 1: a bodyless machine is legal when it is an EXTERNAL
         // LEAF -- `satisfies Requirement via <Binding>;` -- whose realization
         // is the binding. Every other bodyless machine remains the accepted
@@ -255,6 +260,13 @@ pub(super) fn parse_item<'tokens, 'source>(
             let input = input.take_keyword(KeywordKind::Machine, "machine")?;
             let (mut item, rest) = parse_machine(syntax_trees, input)?;
             item.boundary = true;
+            if item.service_reach_is_installation_bound
+                && (!item.bodyless || !item.satisfies.is_empty())
+            {
+                return Err(rest.error_here(
+                    "`reaches <= Bound` is legal only on a top-level bodyless `boundary machine` requirement, not on a checked body or realization",
+                ));
+            }
             return Ok((Item::Machine(item), rest));
         }
         if input.at_contextual("operator") {
@@ -276,6 +288,11 @@ pub(super) fn parse_item<'tokens, 'source>(
         let (target, input) = input.take_identifier()?;
         let input = input.take_keyword(KeywordKind::Machine, "machine")?;
         let (mut machine, rest) = parse_machine(syntax_trees, input)?;
+        if machine.service_reach_is_installation_bound {
+            return Err(rest.error_here(
+                "`reaches <= Bound` is legal only on a top-level bodyless `boundary machine` requirement",
+            ));
+        }
         machine.target = Some(target);
         return Ok((Item::Machine(machine), rest));
     }
@@ -427,6 +444,11 @@ fn parse_conformance_body<'tokens, 'source>(
         let (member, rest) = if input.at_keyword(KeywordKind::Machine) {
             let after_machine = input.take_keyword(KeywordKind::Machine, "machine")?;
             let (mut machine, rest) = parse_machine(syntax_trees, after_machine)?;
+            if machine.service_reach_is_installation_bound {
+                return Err(rest.error_here(
+                    "`reaches <= Bound` is legal only on a top-level bodyless `boundary machine` requirement",
+                ));
+            }
             if machine.attached_data.is_some() {
                 return Err(input.error_here(
                     "a conformance-block machine names only its requirement slot; the enclosing conformance supplies the carrier",

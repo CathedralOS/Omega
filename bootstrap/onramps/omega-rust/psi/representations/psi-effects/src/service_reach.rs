@@ -114,6 +114,7 @@ struct MachineReachWork {
     symbol: SymbolHandle,
     published: Vec<ServiceReachId>,
     uses_published: bool,
+    installation_bound: bool,
     direct: Vec<ServiceReachId>,
     transitive: Vec<ServiceReachId>,
     concrete_direct: Vec<ServiceReachId>,
@@ -166,13 +167,23 @@ pub fn infer_service_reaches(
                     .service_reach_rows
                     .services(machine.service_reach_row)
                     .is_empty(),
+            installation_bound: machine.service_reach_is_installation_bound,
             direct: direct.clone(),
             transitive: direct,
             concrete_direct: concrete_direct.clone(),
             concrete_transitive: concrete_direct,
-            unresolved_installation_reaches: calls
-                .iter()
-                .flat_map(|(_, reach)| reach.unresolved_installation_reaches.iter().copied())
+            unresolved_installation_reaches: machine
+                .service_reach_is_installation_bound
+                .then_some(InstallationReachRequirement {
+                    requirement: machine.symbol,
+                    upper_bound: machine.service_reach_row,
+                })
+                .into_iter()
+                .chain(
+                    calls.iter().flat_map(|(_, reach)| {
+                        reach.unresolved_installation_reaches.iter().copied()
+                    }),
+                )
                 .collect(),
             calls,
         });
@@ -352,7 +363,7 @@ fn effective_services(machine: &MachineReachWork) -> &[ServiceReachId] {
 }
 
 fn concrete_effective_services(machine: &MachineReachWork) -> &[ServiceReachId] {
-    if machine.uses_published {
+    if machine.uses_published && !machine.installation_bound {
         &machine.published
     } else {
         &machine.concrete_transitive
