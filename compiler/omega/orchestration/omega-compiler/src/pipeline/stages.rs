@@ -36,6 +36,7 @@ pub(super) struct AssembledSyntax {
 pub(super) struct CheckedProgramSurface {
     pub(super) program: Arc<CheckedProgram>,
     pub(super) selected_provider_plans: Arc<omega_effects::SelectedProviderPlanFacts>,
+    pub(super) component_progress: Option<Arc<omega_effects::ComponentProgressManifest>>,
     pub(super) task_activations: Arc<omega_task_plans::TaskActivationPlanSet>,
     pub(super) callback_placements: Arc<[omega_backend_plan::BoundNominalCallbackPlacement]>,
 }
@@ -430,6 +431,7 @@ pub(super) fn typed_trees_to_checked_trees(
         Ok(CheckedProgramSurface {
             program: Arc::new(program),
             selected_provider_plans: Arc::new(omega_effects::SelectedProviderPlanFacts::default()),
+            component_progress: None,
             task_activations: Arc::new(omega_task_plans::TaskActivationPlanSet::default()),
             callback_placements: Arc::from([]),
         })

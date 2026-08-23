@@ -6605,38 +6605,29 @@ compiler concept is introduced.
   authored `stores` clauses or treat lifetime elision as evidence; Git carries
   individual evidence cohorts.
 - **TPR6 — finish subject-bearing progress-premise normalization and coverage.**
-  Explicit `satisfies ProgressProfile` classification is parsed, normalized,
-  retained on domain constraints, and checked as atomic, predicate-free, and
-  established through exact boundary requirements. Authored terminating
-  requirements now retain each public premise as an exact semantic profile plus
-  receiver-first parameter/field subject path, and that schema enters contract
-  and provider-plan identity. Checked lowering now instantiates those schemas
-  only from exact selected calls, substitutes identity-preserving parameter and
-  field paths through directly called private helpers to a fixed point, threads
-  exact subject identity through named-state transition arguments, checks
-  exported bodies against their authored schemas, and discharges exact locally
-  admitted qualification receipts. Merely carrying a qualified value adds no
-  premise. Pre-check build-time admission already rejects authored premises
-  anywhere in the reachable call closure before interpretation.
+  Public schemas, exact-call instantiation, private-helper and named-state
+  substitution, exported-body coverage, local admitted-receipt discharge, and
+  structured provider-plan/trust retention are implemented. Mentioning or
+  carrying a qualified value creates no premise; nominal static-machine
+  binders remain pinned to their named requirement contract; private ranking
+  witnesses remain outside public identity.
 
-  Provider requirement trust artifacts retain every public premise schema as
-  structured profile identity, exact provider-receiver or caller-parameter
-  subject, and field projections. Provider-receiver subjects remain explicitly
-  build-bound in the report; artifact generation neither drops them nor
-  pretends they are caller arguments.
+  TPR6-A now preserves call-specific provider-receiver demands separately from
+  caller premises, closes them through the exact selected entry and checked-
+  adapter call graph, joins each to one exact selected provider plan/schema
+  row, and stores the result in a canonical component-progress manifest. The
+  capability manifest only renders that carrier. Final/native composition
+  rejects pending rows after checked artifacts are available; selected-plan or
+  trust-report identity is never treated as an establishment receipt.
 
-  Remaining: carry the retained build-bound provider schemas into the canonical
-  component manifest for the exact reachable requirement closure, then
-  discharge each against the exact selected provider occurrence and admitted
-  establishment receipt at composition. The trust-report row is durable audit
-  preservation, not that discharge. Add authored qualification-preserving
-  correspondence beyond direct parameter/field identity; unknown, indexed,
-  and local correspondence remains fail closed. `QualificationEvidence`
-  currently retains the evidence kind and source declaration but no
-  source-place relation; add an exact contract/flow correspondence rather than
-  treating every `CheckedTransformation` as identity. Keep nominal
-  static-machine binder premises pinned to the named requirement contract and
-  ranking witnesses outside public identity.
+  Remaining TPR6-B: bind each pending row to the exact installed provider
+  occurrence and its admitted `ProgressProfile` establishment receipt, then
+  remove the temporary final-output rejection. Independently add authored
+  qualification-preserving correspondence beyond direct parameter/field
+  identity. `QualificationEvidence` retains evidence kind and source
+  declaration but not an exact source-place relation; unknown, indexed, local,
+  or generic `CheckedTransformation` correspondence remains fail closed until
+  an exact contract/flow carrier exists.
 Acceptance: contract axes normalize independently, wrappers cannot launder
 reach or trust, and private proof improvements do not change public identity.
 

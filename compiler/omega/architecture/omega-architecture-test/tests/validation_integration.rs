@@ -237,6 +237,108 @@ fn checked_progress_call_instantiates_and_covers_the_exact_public_subject() {
 }
 
 #[test]
+fn checked_progress_retains_provider_receiver_as_build_bound_demand() {
+    let typed = typed_program_from_source(
+        r#"
+        boundary trait SchedulerRuntime {
+            machine wait(&self)
+            requires self in WeakFair
+            terminates;
+        }
+        domain SchedulerRuntime::WeakFair
+        satisfies ProgressProfile
+        established by SchedulerAdmission::grant;
+        boundary trait SchedulerAdmission {
+            machine grant(scheduler: SchedulerRuntime) -> SchedulerRuntime in WeakFair;
+        }
+        machine helper(runtime: SchedulerRuntime in WeakFair)
+        {
+            runtime.wait();
+        }
+        machine process(runtime: SchedulerRuntime in WeakFair)
+        terminates
+        {
+            helper(runtime);
+        }
+        "#,
+    );
+
+    let checked = psi_typed_trees_to_checked_trees::lower_typed_trees(typed)
+        .expect("provider-receiver progress must remain a composition demand");
+    let process = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "process")
+        .expect("process machine");
+    let [demand] = checked
+        .facts
+        .termination
+        .build_bound_for_machine(process.symbol)
+    else {
+        panic!("process should retain one exact build-bound demand")
+    };
+    assert_eq!(demand.provider_service_identity, "SchedulerRuntime");
+    assert_eq!(demand.profile_identity, "SchedulerRuntime::WeakFair");
+    assert!(
+        demand
+            .requirement_identity
+            .contains("SchedulerRuntime::wait")
+    );
+    assert!(demand.subject_projections.is_empty());
+    assert!(
+        checked
+            .symbols
+            .display_path(demand.origin.machine, "::")
+            .contains("helper")
+    );
+}
+
+#[test]
+fn admitted_provider_receiver_receipt_removes_build_bound_demand() {
+    let typed = typed_program_from_source(
+        r#"
+        boundary trait SchedulerRuntime {
+            machine wait(&self)
+            requires self in WeakFair
+            terminates;
+        }
+        domain SchedulerRuntime::WeakFair
+        satisfies ProgressProfile
+        established by SchedulerAdmission::grant;
+        boundary trait SchedulerAdmission {
+            machine grant(scheduler: SchedulerRuntime) -> SchedulerRuntime in WeakFair
+            ensures result in SchedulerRuntime::WeakFair
+            terminates;
+        }
+        machine process(
+            admission: &mut SchedulerAdmission,
+            runtime: SchedulerRuntime
+        )
+        terminates
+        {
+            let granted: SchedulerRuntime in WeakFair = admission.grant(runtime);
+            granted.wait();
+        }
+        "#,
+    );
+
+    let checked = psi_typed_trees_to_checked_trees::lower_typed_trees(typed)
+        .expect("the exact local receipt should discharge provider progress");
+    let process = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "process")
+        .expect("process machine");
+    assert!(
+        checked
+            .facts
+            .termination
+            .build_bound_for_machine(process.symbol)
+            .is_empty()
+    );
+}
+
+#[test]
 fn checked_progress_call_rejects_an_unpublished_subject_dependency() {
     let typed = typed_program_from_source(
         r#"

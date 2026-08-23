@@ -9,7 +9,7 @@ pub fn capability_manifest_html(
     program: &CheckedTrees,
     selected_entry_machine: Option<&str>,
 ) -> String {
-    capability_manifest_html_with_selection(program, selected_entry_machine, None)
+    capability_manifest_html_with_composition(program, selected_entry_machine, None, None)
 }
 
 pub fn capability_manifest_html_with_selection(
@@ -17,9 +17,23 @@ pub fn capability_manifest_html_with_selection(
     selected_entry_machine: Option<&str>,
     selected: Option<&omega_effects::SelectedProviderPlanFacts>,
 ) -> String {
+    capability_manifest_html_with_composition(program, selected_entry_machine, selected, None)
+}
+
+pub fn capability_manifest_html_with_composition(
+    program: &CheckedTrees,
+    selected_entry_machine: Option<&str>,
+    selected: Option<&omega_effects::SelectedProviderPlanFacts>,
+    component_progress: Option<&omega_effects::ComponentProgressManifest>,
+) -> String {
     crate::phase_diagram::text_report_html(
         "capability_manifest",
-        &capability_manifest_text(program, selected_entry_machine, selected),
+        &capability_manifest_text_with_composition(
+            program,
+            selected_entry_machine,
+            selected,
+            component_progress,
+        ),
     )
 }
 
@@ -29,7 +43,7 @@ pub fn capability_manifest_json(
     program: &CheckedTrees,
     selected_entry_machine: Option<&str>,
 ) -> String {
-    capability_manifest_json_with_selection(program, selected_entry_machine, None)
+    capability_manifest_json_with_composition(program, selected_entry_machine, None, None)
 }
 
 pub fn capability_manifest_json_with_selection(
@@ -37,7 +51,21 @@ pub fn capability_manifest_json_with_selection(
     selected_entry_machine: Option<&str>,
     selected: Option<&omega_effects::SelectedProviderPlanFacts>,
 ) -> String {
-    let manifest = entry_capability_manifest(program, selected_entry_machine, selected);
+    capability_manifest_json_with_composition(program, selected_entry_machine, selected, None)
+}
+
+pub fn capability_manifest_json_with_composition(
+    program: &CheckedTrees,
+    selected_entry_machine: Option<&str>,
+    selected: Option<&omega_effects::SelectedProviderPlanFacts>,
+    component_progress: Option<&omega_effects::ComponentProgressManifest>,
+) -> String {
+    let manifest = entry_capability_manifest(
+        program,
+        selected_entry_machine,
+        selected,
+        component_progress,
+    );
 
     let mut json = String::new();
     json.push_str("{\n");
@@ -91,6 +119,57 @@ pub fn capability_manifest_json_with_selection(
     }
     json.push_str("],\n  \"may_block\": ");
     json.push_str(if manifest.may_block { "true" } else { "false" });
+    json.push_str(",\n  \"component_progress_manifest_identity\": ");
+    if let Some(identity) = manifest.component_progress_manifest_identity {
+        push_json_string(&mut json, &format!("{identity:#018x}"));
+    } else {
+        json.push_str("null");
+    }
+    json.push_str(",\n  \"component_progress_status\": ");
+    push_json_string(
+        &mut json,
+        if manifest.component_progress_manifest_identity.is_none() {
+            "unbound"
+        } else if manifest.build_bound_progress_demands.is_empty() {
+            "clear"
+        } else {
+            "pending"
+        },
+    );
+    json.push_str(",\n  \"build_bound_progress_demands\": [");
+    for (index, demand) in manifest.build_bound_progress_demands.iter().enumerate() {
+        if index > 0 {
+            json.push_str(", ");
+        }
+        json.push_str("{\"requirement\": ");
+        push_json_string(&mut json, &demand.requirement);
+        json.push_str(", \"provider_service\": ");
+        push_json_string(&mut json, &demand.provider_service);
+        json.push_str(", \"provider_plan_identity\": ");
+        push_json_string(
+            &mut json,
+            &format!("{:#018x}", demand.provider_plan_identity),
+        );
+        json.push_str(", \"profile\": ");
+        push_json_string(&mut json, &demand.profile);
+        json.push_str(", \"subject_projections\": [");
+        for (projection_index, projection) in demand.subject_projections.iter().enumerate() {
+            if projection_index > 0 {
+                json.push_str(", ");
+            }
+            push_json_string(&mut json, projection);
+        }
+        json.push_str("], \"origin\": {\"machine\": ");
+        push_json_string(&mut json, &demand.origin_machine);
+        json.push_str(", \"state\": ");
+        push_json_string(&mut json, &demand.origin_state);
+        json.push_str(", \"statement\": ");
+        json.push_str(&demand.statement_ordinal.to_string());
+        json.push_str(", \"call\": ");
+        json.push_str(&demand.call_ordinal.to_string());
+        json.push_str("}}");
+    }
+    json.push(']');
     json.push_str(",\n  \"capability_flows\": {");
     for (index, (kind, count)) in manifest.capability_flow_counts.iter().enumerate() {
         if index > 0 {
@@ -104,12 +183,27 @@ pub fn capability_manifest_json_with_selection(
     json
 }
 
+#[cfg(test)]
 fn capability_manifest_text(
     program: &CheckedTrees,
     selected_entry_machine: Option<&str>,
     selected: Option<&omega_effects::SelectedProviderPlanFacts>,
 ) -> String {
-    let manifest = entry_capability_manifest(program, selected_entry_machine, selected);
+    capability_manifest_text_with_composition(program, selected_entry_machine, selected, None)
+}
+
+fn capability_manifest_text_with_composition(
+    program: &CheckedTrees,
+    selected_entry_machine: Option<&str>,
+    selected: Option<&omega_effects::SelectedProviderPlanFacts>,
+    component_progress: Option<&omega_effects::ComponentProgressManifest>,
+) -> String {
+    let manifest = entry_capability_manifest(
+        program,
+        selected_entry_machine,
+        selected,
+        component_progress,
+    );
     let mut report = String::new();
 
     report.push_str("Executable Capability Manifest\n");
@@ -154,6 +248,43 @@ fn capability_manifest_text(
     report.push_str("may block:     ");
     report.push_str(if manifest.may_block { "yes" } else { "no" });
     report.push('\n');
+    report.push_str("component progress: ");
+    match manifest.component_progress_manifest_identity {
+        Some(identity) if manifest.build_bound_progress_demands.is_empty() => {
+            report.push_str(&format!("clear ({identity:#018x})\n"));
+        }
+        Some(identity) => report.push_str(&format!("pending ({identity:#018x})\n")),
+        None => report.push_str("unbound\n"),
+    }
+    report.push_str("build-bound progress: ");
+    if manifest.build_bound_progress_demands.is_empty() {
+        report.push_str("<none>\n");
+    } else {
+        report.push('\n');
+        for demand in &manifest.build_bound_progress_demands {
+            report.push_str("  ");
+            report.push_str(&demand.provider_service);
+            report.push_str("@");
+            report.push_str(&format!("{:#018x}", demand.provider_plan_identity));
+            report.push_str(" / ");
+            report.push_str(&demand.requirement);
+            report.push_str(" requires ");
+            report.push_str(&demand.profile);
+            if !demand.subject_projections.is_empty() {
+                report.push('.');
+                report.push_str(&demand.subject_projections.join("."));
+            }
+            report.push_str(" at ");
+            report.push_str(&demand.origin_machine);
+            report.push_str("::");
+            report.push_str(&demand.origin_state);
+            report.push(':');
+            report.push_str(&demand.statement_ordinal.to_string());
+            report.push(':');
+            report.push_str(&demand.call_ordinal.to_string());
+            report.push('\n');
+        }
+    }
     report.push_str("\nCapability Flow Counts\n");
     report.push_str("----------------------\n");
     for (kind, count) in manifest.capability_flow_counts {
@@ -174,7 +305,22 @@ struct EntryCapabilityManifest {
     installation_bound_reaches: Vec<InstallationBoundReachManifest>,
     may_suspend: bool,
     may_block: bool,
+    component_progress_manifest_identity: Option<u64>,
+    build_bound_progress_demands: Vec<BuildBoundProgressManifest>,
     capability_flow_counts: [(CapabilityFlowKind, usize); 5],
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct BuildBoundProgressManifest {
+    provider_service: String,
+    provider_plan_identity: u64,
+    requirement: String,
+    profile: String,
+    subject_projections: Vec<String>,
+    origin_machine: String,
+    origin_state: String,
+    statement_ordinal: usize,
+    call_ordinal: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -194,6 +340,7 @@ fn entry_capability_manifest(
     program: &CheckedTrees,
     selected_entry_machine: Option<&str>,
     selected: Option<&omega_effects::SelectedProviderPlanFacts>,
+    component_progress: Option<&omega_effects::ComponentProgressManifest>,
 ) -> EntryCapabilityManifest {
     let Some((machine_symbol, machine_name, state_name)) =
         entry_machine(program, selected_entry_machine)
@@ -205,6 +352,8 @@ fn entry_capability_manifest(
             installation_bound_reaches: Vec::new(),
             may_suspend: false,
             may_block: false,
+            component_progress_manifest_identity: None,
+            build_bound_progress_demands: Vec::new(),
             capability_flow_counts: capability_flow_counts(program),
         };
     };
@@ -239,6 +388,21 @@ fn entry_capability_manifest(
         .map(|definition| definition.name.clone())
         .collect();
     let installation_bound_reaches = installation_bound_reaches(program, reach, selected);
+    let build_bound_progress_demands = component_progress
+        .into_iter()
+        .flat_map(|manifest| manifest.pending())
+        .map(|demand| BuildBoundProgressManifest {
+            provider_service: demand.provider_service_identity.clone(),
+            provider_plan_identity: demand.provider_plan_identity,
+            requirement: demand.requirement_identity.clone(),
+            profile: demand.profile_identity.clone(),
+            subject_projections: demand.subject_projections.clone(),
+            origin_machine: demand.origin_callable_identity.clone(),
+            origin_state: demand.origin_state_identity.clone(),
+            statement_ordinal: demand.statement_ordinal,
+            call_ordinal: demand.call_ordinal,
+        })
+        .collect();
 
     let mut matching_suspensions = program
         .facts
@@ -275,6 +439,9 @@ fn entry_capability_manifest(
         installation_bound_reaches,
         may_suspend: suspension.plan.checked_may_suspend,
         may_block: blocking.plan.checked_may_block,
+        component_progress_manifest_identity: component_progress
+            .map(omega_effects::ComponentProgressManifest::normalized_identity),
+        build_bound_progress_demands,
         capability_flow_counts: capability_flow_counts(program),
     }
 }
@@ -396,10 +563,12 @@ fn entry_machine_named(
 #[cfg(test)]
 mod tests {
     use super::{
-        capability_manifest_json, capability_manifest_json_with_selection, capability_manifest_text,
+        capability_manifest_json, capability_manifest_json_with_composition,
+        capability_manifest_json_with_selection, capability_manifest_text,
     };
     use omega_effects::provider_plan::{
-        ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod, ServiceSchema,
+        ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod, ServiceProgressPremise,
+        ServiceProgressSubject, ServiceSchema,
     };
     use psi_checked_trees::{CheckedTrees, MachineContractPlan, MachineServiceReachRows};
     use psi_effects::InstallationReachRequirement;
@@ -636,6 +805,82 @@ mod tests {
         assert!(json.contains("\"service_reach\": []"));
         assert!(json.contains("\"may_suspend\": false"));
         assert!(json.contains("\"may_block\": false"));
+    }
+
+    #[test]
+    fn executable_manifest_renders_canonical_build_bound_progress_rows() {
+        let (program, _) = minimal_manifest_program();
+        let provider = ProviderPlan {
+            name: "scheduler".into(),
+            provider_type: "SchedulerProvider".into(),
+            target: "test".into(),
+            schema: ServiceSchema {
+                trait_name: "Scheduler".into(),
+                methods: vec![ServiceMethod {
+                    name: "wait".into(),
+                    requirement_owner: "Scheduler".into(),
+                    requirement_identity: "Scheduler::wait#exact".into(),
+                    parameter_count: 0,
+                    parameter_type_identities: Vec::new(),
+                    entry_claims: Vec::new(),
+                    has_result: false,
+                    result_type_identity: None,
+                    result_claims: Vec::new(),
+                    service_reach: vec!["Scheduler".into()],
+                    synchronous_invocations: Vec::new(),
+                    may_suspend: true,
+                    may_block: false,
+                    terminates_guarantee: true,
+                    termination_premises: vec![ServiceProgressPremise {
+                        profile: "WeakFair".into(),
+                        subject: ServiceProgressSubject::ProviderReceiver,
+                        subject_projections: Vec::new(),
+                    }],
+                    calling_plan_fingerprint: None,
+                }],
+            },
+            rows: vec![ProviderPlanRow {
+                method: "wait".into(),
+                requirement_identity: "Scheduler::wait#exact".into(),
+                binding: ProviderBinding::CheckedAdapter {
+                    machine: "SchedulerProvider::wait".into(),
+                },
+            }],
+            origin_package: "test".into(),
+        };
+        let selected = omega_effects::SelectedProviderPlanFacts::from_selection(
+            &[provider],
+            &["scheduler".into()],
+        )
+        .expect("selected provider");
+        let component = omega_effects::ComponentProgressManifest::bind(
+            "Application::launch#exact".into(),
+            &selected,
+            vec![omega_effects::CheckedComponentProgressDemand {
+                provider_service_identity: "Scheduler".into(),
+                requirement_identity: "Scheduler::wait#exact".into(),
+                profile_identity: "WeakFair".into(),
+                subject_projections: Vec::new(),
+                origin_callable_identity: "Application::launch#exact".into(),
+                origin_state_identity: "Application::launch::main".into(),
+                statement_ordinal: 2,
+                call_ordinal: 1,
+            }],
+        )
+        .expect("canonical component manifest");
+
+        let json = capability_manifest_json_with_composition(
+            &program,
+            Some("Application::launch"),
+            Some(&selected),
+            Some(&component),
+        );
+        assert!(json.contains("\"provider_service\": \"Scheduler\""));
+        assert!(json.contains("\"requirement\": \"Scheduler::wait#exact\""));
+        assert!(json.contains("\"profile\": \"WeakFair\""));
+        assert!(json.contains("\"provider_plan_identity\""));
+        assert!(json.contains("\"component_progress_status\": \"pending\""));
+        assert!(json.contains("\"component_progress_manifest_identity\""));
     }
 
     #[test]

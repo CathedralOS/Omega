@@ -16,6 +16,7 @@ pub struct CheckedCompilation {
     program: CheckedTrees,
     selected_program_entry_machine: Option<String>,
     selected_provider_plans: omega_effects::SelectedProviderPlanFacts,
+    component_progress: Option<omega_effects::ComponentProgressManifest>,
     task_activations: omega_task_plans::TaskActivationPlanSet,
     callback_placements: Vec<omega_backend_plan::BoundNominalCallbackPlacement>,
     build_evaluation_usage: Option<super::build_config::BuildEvaluationUsage>,
@@ -31,6 +32,10 @@ impl CheckedCompilation {
 
     pub const fn selected_provider_plans(&self) -> &omega_effects::SelectedProviderPlanFacts {
         &self.selected_provider_plans
+    }
+
+    pub const fn component_progress(&self) -> Option<&omega_effects::ComponentProgressManifest> {
+        self.component_progress.as_ref()
     }
 
     pub const fn task_activations(&self) -> &omega_task_plans::TaskActivationPlanSet {
@@ -137,14 +142,20 @@ fn compile_to_checked_inner(
     // no storage root. Authored bindings remain available in the evaluated
     // build configuration, but only an exact target selection may activate one
     // for interpreter or production execution.
-    let selected_program_entry_machine = match target_name {
+    let selected_program_entry_source_signature = match target_name {
         Some(target_name) => crate::pipeline::build_config::selected_program_entry_machine(
             &build_config,
             Some(target_name),
         )?
-        .map(|entry| entry.machine_name.to_owned()),
+        .map(|entry| {
+            crate::pipeline::build_config::validate_selected_program_entry_shape(&typed, entry)
+        })
+        .transpose()?,
         None => None,
     };
+    let selected_program_entry_machine = selected_program_entry_source_signature
+        .as_ref()
+        .map(|source| source.machine_name().to_owned());
     let target_provider_defaults = crate::pipeline::build_config::compute_target_provider_defaults(
         &typed,
         &target_default_machine_names,
@@ -192,6 +203,17 @@ fn compile_to_checked_inner(
             selected_provider_plan_facts,
             &build_config.grants,
         )?;
+    let component_progress = selected_program_entry_source_signature
+        .as_ref()
+        .map(|source| {
+            crate::pipeline::component_progress::build_component_progress_manifest(
+                checked_program,
+                &selected_provider_plan_facts,
+                source.machine_symbol(),
+                source.normalized_callable_identity().to_owned(),
+            )
+        })
+        .transpose()?;
     crate::pipeline::operator_adapter_dispatch::rewrite_selected_operator_adapter_calls(
         checked_program,
         &selected_provider_plan_facts,
@@ -218,6 +240,7 @@ fn compile_to_checked_inner(
         program: Arc::try_unwrap(checked.program).unwrap_or_else(|shared| (*shared).clone()),
         selected_program_entry_machine,
         selected_provider_plans: selected_provider_plan_facts,
+        component_progress,
         task_activations,
         callback_placements,
         build_evaluation_usage,

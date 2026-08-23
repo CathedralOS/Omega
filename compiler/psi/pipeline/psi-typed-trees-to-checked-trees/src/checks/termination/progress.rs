@@ -1,4 +1,6 @@
-use psi_checked_trees::{FlowCallFact, FlowFacts, FlowStateFact};
+use psi_checked_trees::{
+    BuildBoundProgressDemand, FlowCallFact, FlowFacts, FlowStateFact, ProgressDemandCallSite,
+};
 use psi_diagnostics::Diagnostic;
 use psi_facts::{FactPayload, FactPlace, PlaceRoot, PlaceSegment};
 use psi_language_semantics::{ProgressPremise, ProgressSubject, TerminationGuarantee};
@@ -12,25 +14,40 @@ use crate::{call_site_argument_expressions, call_target_parameters, find_call_si
 /// checked callees contribute their derived summary through a fixed point, so
 /// mentioning a qualified value does nothing while actually invoking a
 /// premise-bearing operation instantiates exactly that premise.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct CheckedProgressSummary {
+    pub(crate) machine: SymbolHandle,
+    pub(crate) guarantee: TerminationGuarantee,
+    pub(crate) build_bound_demands: Vec<BuildBoundProgressDemand>,
+}
+
 pub(crate) fn analyze_checked_progress(
     program: &psi_typed_trees::TypedTrees,
     flow: &FlowFacts,
     semantic: &psi_facts::FactPlan,
-) -> Result<Vec<(SymbolHandle, TerminationGuarantee)>, Vec<Diagnostic>> {
+) -> Result<Vec<CheckedProgressSummary>, Vec<Diagnostic>> {
     let mut summaries = program
         .machines()
         .iter()
-        .map(|machine| (machine.symbol, TerminationGuarantee::NoGuarantee))
+        .map(|machine| CheckedProgressSummary {
+            machine: machine.symbol,
+            guarantee: TerminationGuarantee::NoGuarantee,
+            build_bound_demands: Vec::new(),
+        })
         .collect::<Vec<_>>();
 
     loop {
         let previous = summaries.clone();
         for machine in program.machines() {
             let summary = derive_machine_summary(program, flow, semantic, machine, &previous)
-                .unwrap_or(TerminationGuarantee::NoGuarantee);
-            if let Some((_, retained)) = summaries
+                .unwrap_or_else(|| CheckedProgressSummary {
+                    machine: machine.symbol,
+                    guarantee: TerminationGuarantee::NoGuarantee,
+                    build_bound_demands: Vec::new(),
+                });
+            if let Some(retained) = summaries
                 .iter_mut()
-                .find(|(symbol, _)| *symbol == machine.symbol)
+                .find(|summary| summary.machine == machine.symbol)
             {
                 *retained = summary;
             }
@@ -50,9 +67,9 @@ pub(crate) fn analyze_checked_progress(
         if !super::infer_machine_checked_summary(program, machine).promises_termination() {
             continue;
         }
-        let Some((_, checked)) = summaries
+        let Some(checked) = summaries
             .iter()
-            .find(|(symbol, _)| *symbol == machine.symbol)
+            .find(|summary| summary.machine == machine.symbol)
         else {
             continue;
         };
@@ -69,7 +86,7 @@ pub(crate) fn analyze_checked_progress(
         };
         let TerminationGuarantee::Terminates {
             premises: checked_premises,
-        } = checked
+        } = &checked.guarantee
         else {
             diagnostics.push(Diagnostic::error(format!(
                 "cannot prove published termination for machine `{}`: its checked body reaches an operation without a usable termination guarantee",
@@ -101,14 +118,14 @@ fn derive_machine_summary(
     flow: &FlowFacts,
     semantic: &psi_facts::FactPlan,
     machine: &psi_typed_trees::machine::Machine,
-    summaries: &[(SymbolHandle, TerminationGuarantee)],
-) -> Option<TerminationGuarantee> {
+    summaries: &[CheckedProgressSummary],
+) -> Option<CheckedProgressSummary> {
     if !super::infer_machine_checked_summary(program, machine).promises_termination() {
-        return Some(TerminationGuarantee::NoGuarantee);
+        return Some(no_guarantee(machine.symbol));
     }
 
     if machine.supply_mode != psi_language_semantics::MachineSupplyMode::CheckedBody {
-        return Some(TerminationGuarantee::NoGuarantee);
+        return Some(no_guarantee(machine.symbol));
     }
 
     let parameter_lineage = state_parameter_lineage(program, flow, machine);
@@ -124,6 +141,7 @@ fn derive_machine_summary(
         })
         .unwrap_or_default();
     let mut premises = Vec::new();
+    let mut build_bound_demands: Vec<BuildBoundProgressDemand> = Vec::new();
     for (_, state_flow) in flow
         .control
         .states
@@ -137,14 +155,25 @@ fn derive_machine_summary(
                 // `parameter_lineage` above.
                 continue;
             }
-            let guarantee = selected_call_guarantee(program, call.target_symbol, summaries)?;
+            let selected = selected_call_summary(program, call.target_symbol, summaries)?;
+            for demand in selected.build_bound_demands {
+                if !build_bound_demands.contains(demand) {
+                    build_bound_demands.push(demand.clone());
+                }
+            }
             let TerminationGuarantee::Terminates {
                 premises: callee_premises,
-            } = guarantee
+            } = selected.guarantee
             else {
-                return Some(TerminationGuarantee::NoGuarantee);
+                return Some(no_guarantee(machine.symbol));
             };
             for callee_premise in callee_premises {
+                let build_bound_requirement = provider_receiver_requirement(
+                    program,
+                    call.receiver_symbol,
+                    call.target_symbol,
+                    callee_premise,
+                );
                 let local_instance =
                     instantiate_call_premise(program, machine, state_flow, call, callee_premise)?;
                 if admitted_receipt_covers(
@@ -157,14 +186,42 @@ fn derive_machine_summary(
                 ) {
                     continue;
                 }
+                if let Some((provider_service_identity, requirement_identity)) =
+                    &build_bound_requirement
+                {
+                    // A requirement receiver remains build-bound even when a
+                    // checked wrapper happens to hold it in one of its own
+                    // parameters. Rewriting it into that caller parameter
+                    // would lose the exact selected-provider subject class.
+                    let demand = BuildBoundProgressDemand {
+                        provider_service_identity: provider_service_identity.clone(),
+                        requirement_identity: requirement_identity.clone(),
+                        profile_identity: profile_label(program, callee_premise.profile),
+                        subject_projections: callee_premise
+                            .subject
+                            .projections
+                            .iter()
+                            .map(|symbol| program.symbols.display_path(*symbol, "::"))
+                            .collect(),
+                        origin: ProgressDemandCallSite {
+                            machine: machine.symbol,
+                            state: state_flow.state_symbol,
+                            statement_ordinal: call.statement_index,
+                            call_ordinal: call.call_ordinal,
+                        },
+                    };
+                    if !build_bound_demands.contains(&demand) {
+                        build_bound_demands.push(demand);
+                    }
+                    continue;
+                }
                 let instances = resolve_through_state_lineage(&parameter_lineage, local_instance)?;
                 for instance in instances {
                     if !entry_parameter_roots.contains(&instance.subject.root) {
-                        // A private local/build-bound subject cannot silently
-                        // become a caller premise. Local admitted receipts are
-                        // discharged above; manifest-bound provider discharge
-                        // is the remaining TPR6 slice.
-                        return Some(TerminationGuarantee::NoGuarantee);
+                        // Arbitrary local values still cannot become caller
+                        // premises. Only the exact provider receiver handled
+                        // above may defer its coverage to composition.
+                        return Some(no_guarantee(machine.symbol));
                     }
                     if !premises.contains(&instance) {
                         premises.push(instance);
@@ -174,16 +231,36 @@ fn derive_machine_summary(
         }
     }
 
-    Some(TerminationGuarantee::Terminates { premises })
+    Some(CheckedProgressSummary {
+        machine: machine.symbol,
+        guarantee: TerminationGuarantee::Terminates { premises },
+        build_bound_demands,
+    })
 }
 
-fn selected_call_guarantee<'a>(
+fn no_guarantee(machine: SymbolHandle) -> CheckedProgressSummary {
+    CheckedProgressSummary {
+        machine,
+        guarantee: TerminationGuarantee::NoGuarantee,
+        build_bound_demands: Vec::new(),
+    }
+}
+
+struct SelectedCallProgress<'a> {
+    guarantee: &'a TerminationGuarantee,
+    build_bound_demands: &'a [BuildBoundProgressDemand],
+}
+
+fn selected_call_summary<'a>(
     program: &'a psi_typed_trees::TypedTrees,
     target_symbol: SymbolHandle,
-    summaries: &'a [(SymbolHandle, TerminationGuarantee)],
-) -> Option<&'a TerminationGuarantee> {
+    summaries: &'a [CheckedProgressSummary],
+) -> Option<SelectedCallProgress<'a>> {
     if let Some((_, signature)) = program.machine_parameter_signature(target_symbol) {
-        return Some(&signature.termination_guarantee);
+        return Some(SelectedCallProgress {
+            guarantee: &signature.termination_guarantee,
+            build_bound_demands: &[],
+        });
     }
     if let Some(signature) = program.traits().iter().find_map(|trait_definition| {
         program
@@ -191,7 +268,10 @@ fn selected_call_guarantee<'a>(
             .iter()
             .find(|signature| signature.symbol == target_symbol)
     }) {
-        return Some(&signature.termination_guarantee);
+        return Some(SelectedCallProgress {
+            guarantee: &signature.termination_guarantee,
+            build_bound_demands: &[],
+        });
     }
     let target_machine = program.machines().iter().find(|candidate| {
         candidate.symbol == target_symbol
@@ -201,12 +281,65 @@ fn selected_call_guarantee<'a>(
                 .any(|state| state.symbol == target_symbol)
     })?;
     match &target_machine.termination_plan.interface {
-        psi_language_semantics::TerminationInterface::Published(guarantee) => Some(guarantee),
-        psi_language_semantics::TerminationInterface::InternalDerived => summaries
-            .iter()
-            .find(|(symbol, _)| *symbol == target_machine.symbol)
-            .map(|(_, guarantee)| guarantee),
+        psi_language_semantics::TerminationInterface::Published(guarantee) => {
+            let build_bound_demands = summaries
+                .iter()
+                .find(|summary| summary.machine == target_machine.symbol)
+                .map_or(&[] as &[BuildBoundProgressDemand], |summary| {
+                    summary.build_bound_demands.as_slice()
+                });
+            Some(SelectedCallProgress {
+                guarantee,
+                build_bound_demands,
+            })
+        }
+        psi_language_semantics::TerminationInterface::InternalDerived => {
+            let summary = summaries
+                .iter()
+                .find(|summary| summary.machine == target_machine.symbol)?;
+            Some(SelectedCallProgress {
+                guarantee: &summary.guarantee,
+                build_bound_demands: &summary.build_bound_demands,
+            })
+        }
     }
+}
+
+fn provider_receiver_requirement(
+    program: &psi_typed_trees::TypedTrees,
+    receiver_symbol: SymbolHandle,
+    target_symbol: SymbolHandle,
+    premise: &ProgressPremise,
+) -> Option<(String, String)> {
+    program.traits().iter().find_map(|owner| {
+        program
+            .trait_machine_signatures(owner)
+            .iter()
+            .find(|requirement| requirement.symbol == target_symbol)
+            .and_then(|requirement| {
+                program
+                    .state_signature_parameters(requirement)
+                    .iter()
+                    .find(|parameter| parameter.symbol == premise.subject.root)
+                    .filter(|parameter| parameter.is_self)
+                    .map(|_| {
+                        let provider_service =
+                            crate::flow::symbol_type_symbol(program, receiver_symbol)
+                                .and_then(|symbol| {
+                                    program.traits().iter().find(|candidate| {
+                                        candidate.is_boundary && candidate.symbol == symbol
+                                    })
+                                })
+                                .unwrap_or(owner);
+                        (
+                            provider_service.name.as_str().to_owned(),
+                            program
+                                .normalized_trait_requirement_overload_identity(owner, requirement)
+                                .identity(),
+                        )
+                    })
+            })
+    })
 }
 
 fn instantiate_call_premise(
