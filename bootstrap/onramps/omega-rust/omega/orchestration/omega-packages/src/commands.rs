@@ -5,7 +5,10 @@ use crate::lock::{PackageLock, PackageLockAssemblyError, PackageLockPersistenceE
 use crate::manifest::{
     AliasName, PackageCapabilityManifest, PackageCapabilityManifestPersistenceError, PackageName,
 };
-use crate::resolver::{SourceCachePolicyRecord, SourceCacheRequest, resolve_source_cache_record};
+use crate::resolver::{
+    SourceCachePolicyRecord, SourceCachePolicyRecordPersistenceError, SourceCacheRequest,
+    resolve_source_cache_record,
+};
 use crate::review::{
     CapabilityChangeReceipt, CapabilityChangeReceiptPersistenceError, CapabilityReviewError,
 };
@@ -248,6 +251,7 @@ pub enum PackageSourceAuditCommandError {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SourceCachePolicyCommandError {
     Parse(PackageSourceRequestParseError),
+    Write(SourceCachePolicyRecordPersistenceError),
 }
 
 impl PackageSourceAudit {
@@ -391,6 +395,20 @@ pub fn resolve_source_cache_record_locator(
         cache_dir,
         limits,
     ))
+}
+
+pub fn write_source_cache_record_locator(
+    locator: impl Into<String>,
+    rev: Option<String>,
+    cache_dir: impl AsRef<Path>,
+    limits: LocalSourceLimits,
+    out_path: impl AsRef<Path>,
+) -> Result<SourceCachePolicyRecord, SourceCachePolicyCommandError> {
+    let record = resolve_source_cache_record_locator(locator, rev, cache_dir, limits)?;
+    record
+        .write_to_path(out_path)
+        .map_err(SourceCachePolicyCommandError::Write)?;
+    Ok(record)
 }
 
 fn source_cache_request_from_package_request(request: PackageSourceRequest) -> SourceCacheRequest {
@@ -828,6 +846,32 @@ mod tests {
 
         let _ = std::fs::remove_dir_all(&root);
         let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[test]
+    fn source_cache_policy_command_writes_record_file() {
+        let root = temp_root("source-cache-policy-write-local");
+        let cache = temp_root("source-cache-policy-write-cache");
+        let out_path = temp_root("source-cache-policy-record").with_extension("json");
+        std::fs::create_dir_all(&root).expect("create local package");
+        std::fs::write(root.join("main.omg"), "machine Main::main() {}\n").expect("write source");
+
+        let record = write_source_cache_record_locator(
+            root.display().to_string(),
+            None,
+            &cache,
+            LocalSourceLimits::default(),
+            &out_path,
+        )
+        .expect("write source-cache policy record");
+        let written = SourceCachePolicyRecord::read_from_path(&out_path).expect("read record");
+
+        assert_eq!(written, record);
+        assert_eq!(written.verdict.as_str(), "accepted");
+
+        let _ = std::fs::remove_dir_all(&root);
+        let _ = std::fs::remove_dir_all(&cache);
+        let _ = std::fs::remove_file(&out_path);
     }
 
     #[test]
