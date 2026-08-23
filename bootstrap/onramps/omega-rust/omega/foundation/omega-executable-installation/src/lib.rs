@@ -795,6 +795,7 @@ pub fn install_validated(
         identity: receipt.installed,
         validated,
         wx: receipt.wx,
+        installation_registry_claimed: false,
     })
 }
 
@@ -823,6 +824,18 @@ pub struct InstalledCode {
     identity: InstalledCodeId,
     validated: ValidatedPlacement,
     wx: WxEnforcement,
+    installation_registry_claimed: bool,
+}
+
+/// One-shot authority to create the canonical installation-wide registry for
+/// one exact installed-code occurrence.
+///
+/// This value is deliberately opaque and non-clonable. Compact installation
+/// and artifact IDs are report keys only; equality retains the complete
+/// installed-code evidence, including the exact placement scope and bytes.
+#[derive(Debug, PartialEq, Eq)]
+pub struct InstallationRegistryAuthority {
+    installed: InstalledCodeEvidence,
 }
 
 /// Opaque provider-private words for one checked post-handoff entry writer.
@@ -1386,6 +1399,29 @@ impl InstalledCode {
         self.validated.frozen.artifact.artifact.0.identity
     }
 
+    /// Exact installation scope carried by this admitted placement.
+    pub const fn installation_scope(&self) -> InstallationScopeId {
+        self.validated.frozen.placement.scope
+    }
+
+    /// Issue the sole registry authority for this installed-code occurrence.
+    /// Dropping the authority does not reopen issuance: the burned claim is
+    /// retained by `InstalledCode` until that occurrence is retired.
+    pub fn claim_installation_registry(
+        &mut self,
+    ) -> Result<InstallationRegistryAuthority, InstallationDiagnostic> {
+        if self.installation_registry_claimed {
+            return Err(InstallationDiagnostic(
+                "installation registry authority was already issued for this installed-code occurrence"
+                    .into(),
+            ));
+        }
+        self.installation_registry_claimed = true;
+        Ok(InstallationRegistryAuthority {
+            installed: InstalledCodeEvidence::from_installed(self),
+        })
+    }
+
     /// Test whether this exact installed realization came from one
     /// relocation-free artifact whose canonical and frozen bytes both equal
     /// the expected bytes. The bytes remain provider-side: callers receive
@@ -1753,6 +1789,18 @@ impl InstalledCode {
                 .is_some(),
             RelocationTarget::Data(_) => false,
         }
+    }
+}
+
+impl InstallationRegistryAuthority {
+    pub const fn installation_scope(&self) -> InstallationScopeId {
+        self.installed.validated.scope
+    }
+
+    /// Replay the opaque authority against one exact installed realization.
+    /// This compares full evidence rather than normalized report identities.
+    pub fn matches(&self, installed: &InstalledCode) -> bool {
+        self.installed == InstalledCodeEvidence::from_installed(installed)
     }
 }
 

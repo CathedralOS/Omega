@@ -705,11 +705,23 @@ Remaining:
   once, successful retirement never re-enables it, and a later epoch is a
   deliberately fresh occurrence.
 
+  The installation prerequisite now has one canonical root registry per exact
+  installed-code occurrence. `InstalledCode` burns a non-clonable registry
+  authority once; the resulting ledger retains the complete installed-code
+  evidence and installation scope, rejects replay and cross-installation use,
+  and shares target `ProgramEntry` slot/owner identity derivation with compiler
+  selection. An opaque target-derived required-slot closure also rejects an
+  omitted, duplicate, extra, or cross-profile selection. This closure is
+  descriptive and cloneable, not authority, and it is not yet retained by the
+  installed artifact or consumed by the program-local cohort verifier.
+
   This joined occurrence still mints no lineage because the current count is a
   mutable snapshot: installation has not yet sealed the complete eligible slot
-  cohort. The next rung must freeze that exact cohort, reject omitted or later
-  same-epoch slots, and derive finite cardinality/aggregate from the closed set
-  before runtime subject/capacity establishment may introduce authority.
+  cohort. The next rung must retain the verified required-slot closure in the
+  exact installed artifact, join every required member to one installed root,
+  freeze that exact cohort, reject omitted or later same-epoch slots, and derive
+  finite cardinality/aggregate from the closed set before runtime
+  subject/capacity establishment may introduce authority.
   Runtime establishment remains open, as do migration of
   `ExtentCompilerProvisioning`, ordinary-call mint rejection, closed
   generic-family coverage, and artifact/installation aggregate canaries.

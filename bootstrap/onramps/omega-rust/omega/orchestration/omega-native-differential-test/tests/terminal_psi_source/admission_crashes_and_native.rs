@@ -1093,7 +1093,7 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
     assert!(decoded_stack_demand.ceiling_bytes() > 0);
     let entry_offset =
         u64::try_from(object_artifact.entry_function().text_offset).expect("call entry offset");
-    let (installed_code, entry_stub) = install_terminal_object(
+    let (mut installed_code, entry_stub) = install_terminal_object(
         &object_artifact,
         object_artifact.text_bytes().to_vec(),
         entry_offset,
@@ -1267,7 +1267,8 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
         [trust_receipt],
     )
     .expect("terminal-backed root admission");
-    let mut ledger = InstalledRootLedger::default();
+    let mut ledger =
+        InstalledRootLedger::claim(&mut installed_code).expect("canonical root ledger");
     let _installed_root = ledger
         .install(&installed_code, validated_root, slot, admission)
         .expect("terminal stack evidence should reach the installed-root report");

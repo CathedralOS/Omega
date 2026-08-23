@@ -250,17 +250,7 @@ impl SelectedProgramStorageEntryPlan {
             )));
         }
 
-        let canonical = format!(
-            "target-root-slot\n{}::{}",
-            slot.owner.root_slot_owner_name(),
-            slot.slot_name
-        );
-        let mut identity = 0xcbf29ce484222325u64;
-        for byte in canonical.bytes() {
-            identity ^= u64::from(byte);
-            identity = identity.wrapping_mul(0x100000001b3);
-        }
-        let root_slot = omega_external_roots::RootSlotId::from_normalized_identity(identity)
+        let root_slot = omega_external_roots::RootSlotId::for_target_program_entry(slot)
             .map_err(|diagnostic| ProgramStorageEntryDiagnostic(diagnostic.to_string()))?;
         Ok(Self {
             target_slot: slot,

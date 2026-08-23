@@ -15,8 +15,10 @@ use omega_calling_conventions::{
     EntryStack, MachineRegister, ProviderExitRealization, StateFootprintEvidence,
     ValidatedBoundaryEntryPlan,
 };
-pub use omega_executable_installation::{ArtifactId, InstalledCodeId};
-use omega_executable_installation::{InstalledCode, InstalledCodeContext};
+pub use omega_executable_installation::{ArtifactId, InstallationScopeId, InstalledCodeId};
+use omega_executable_installation::{
+    InstallationRegistryAuthority, InstalledCode, InstalledCodeContext,
+};
 pub use omega_terminal_installation_evidence::{
     NativeFuelContextLayout, NativeFuelTargetPlanProjection, SponsorContextTransport,
     TerminalObjectEvidence, TerminalStackDemandEvidence,
@@ -141,6 +143,8 @@ mod provider_execution;
 pub use provider_execution::*;
 mod program_local_roots;
 pub use program_local_roots::*;
+mod required_root_slots;
+pub use required_root_slots::*;
 mod root_validation;
 pub use root_validation::*;
 mod stack_demand;
@@ -303,6 +307,65 @@ impl RootSlotAuthority {
 
     pub const fn owner(&self) -> RootSlotOwnerId {
         self.owner
+    }
+
+    /// Canonical authority coordinates for one target-owned `ProgramEntry`
+    /// declaration. Target-slot identity is derived in one place; callers do
+    /// not restate a numeric slot or owner identity.
+    pub fn for_target_program_entry(
+        slot: omega_target::ProgramEntrySlotDeclaration,
+    ) -> Result<Self, ExternalRootDiagnostic> {
+        if slot != slot.owner.program_entry_slot() {
+            return Err(ExternalRootDiagnostic(
+                "target program-entry slot declaration does not match its owning profile".into(),
+            ));
+        }
+        Ok(Self {
+            slot: RootSlotId::for_target_program_entry(slot)?,
+            owner: RootSlotOwnerId::for_target_profile(slot.owner)?,
+        })
+    }
+}
+
+impl RootSlotId {
+    /// Derive the stable slot identity shared by build selection, installation,
+    /// and external-root verification.
+    pub fn for_target_program_entry(
+        slot: omega_target::ProgramEntrySlotDeclaration,
+    ) -> Result<Self, ExternalRootDiagnostic> {
+        if slot != slot.owner.program_entry_slot() {
+            return Err(ExternalRootDiagnostic(
+                "target program-entry slot declaration does not match its owning profile".into(),
+            ));
+        }
+        let canonical = format!(
+            "target-root-slot\n{}::{}",
+            slot.owner.root_slot_owner_name(),
+            slot.slot_name
+        );
+        Self::from_normalized_identity(fnv1a_identity(&canonical))
+    }
+}
+
+impl RootSlotOwnerId {
+    pub fn for_target_profile(
+        profile: omega_target::TargetProfile,
+    ) -> Result<Self, ExternalRootDiagnostic> {
+        let canonical = format!("target-root-slot-owner\n{}", profile.root_slot_owner_name());
+        Self::from_normalized_identity(fnv1a_identity(&canonical))
+    }
+}
+
+fn fnv1a_identity(value: &str) -> u64 {
+    let mut identity = 0xcbf2_9ce4_8422_2325_u64;
+    for byte in value.bytes() {
+        identity ^= u64::from(byte);
+        identity = identity.wrapping_mul(0x0000_0100_0000_01b3);
+    }
+    if identity == 0 {
+        0xcbf2_9ce4_8422_2325
+    } else {
+        identity
     }
 }
 
@@ -943,8 +1006,10 @@ pub struct CompletedInterruptEntry {
     pub acknowledgement_receipt: Option<InterruptAcknowledgementReceiptId>,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct InstalledRootLedger {
+    registry: InstallationRegistryAuthority,
+    installation_scope: InstallationScopeId,
     roots: BTreeMap<ExternalRootId, InstalledRootRecord>,
     root_evidence: BTreeMap<ExternalRootId, InstalledRootEvidence>,
     slots: BTreeSet<RootSlotId>,
@@ -954,6 +1019,30 @@ pub struct InstalledRootLedger {
 }
 
 impl InstalledRootLedger {
+    /// Claim the sole external-root registry for one exact installed-code
+    /// occurrence. The claim is burned in `InstalledCode`, so dropping this
+    /// ledger cannot recreate an empty ledger for the same installation.
+    pub fn claim(installed_code: &mut InstalledCode) -> Result<Self, ExternalRootDiagnostic> {
+        let registry = installed_code
+            .claim_installation_registry()
+            .map_err(|diagnostic| ExternalRootDiagnostic(diagnostic.0))?;
+        let installation_scope = registry.installation_scope();
+        Ok(Self {
+            registry,
+            installation_scope,
+            roots: BTreeMap::new(),
+            root_evidence: BTreeMap::new(),
+            slots: BTreeSet::new(),
+            active_interrupts: BTreeSet::new(),
+            entered_interrupts: BTreeSet::new(),
+            minted_acknowledgements: BTreeSet::new(),
+        })
+    }
+
+    pub const fn installation_scope(&self) -> InstallationScopeId {
+        self.installation_scope
+    }
+
     pub fn records(&self) -> impl Iterator<Item = &InstalledRootRecord> {
         self.roots.values()
     }
@@ -1202,6 +1291,20 @@ impl InstalledRootLedger {
                 diagnostic,
             }))
         };
+
+        if !self.registry.matches(installed_code)
+            || installed_code.installation_scope() != self.installation_scope
+        {
+            return reject(
+                ExternalRootDiagnostic(
+                    "external-root ledger does not belong to the exact installed-code occurrence and installation scope"
+                        .into(),
+                ),
+                root,
+                slot,
+                admission,
+            );
+        }
 
         if self.roots.contains_key(&root.candidate.identity) {
             return reject(
