@@ -57,6 +57,10 @@ composition_scan_init:
         store r1, r0                    ; relative temporary words live
         imm r1, 524920
         store r1, r0                    ; maximum temporary words live
+        imm r1, 525080
+        store r1, r0                    ; fixed-global raw-store addresses
+        imm r1, 525088
+        store r1, r0                    ; guarded ranged raw-store addresses
         jmp composition_program_loop
 
 composition_program_loop:
@@ -189,6 +193,8 @@ composition_stmt_memory:
         call composition_save_push
         imm r20, 91
         call composition_expect_char
+        call composition_save_peek
+        call composition_validate_store_address
         call composition_expr_begin
         call composition_parse_expr
         imm r20, 93
@@ -1297,6 +1303,133 @@ composition_decimal_advance:
         call advance_one
         jmp composition_decimal_loop
 
+; Classify the exact source address of store site r20 without consuming it for
+; the ordinary expression composer.  Exact bc.beta has 30 fixed compiler-global
+; word stores and three guarded ranged stores: the source byte capture plus the
+; paired local-name tables.  The latter spellings are pinned here; their
+; induction/guard schemas are checked by the following BCT10 phase.
+composition_validate_store_address:
+        imm r1, 524304
+        load r2, r1
+        imm r1, 525096
+        store r1, r2
+        imm r1, 0
+        jeq r20, r1, composition_store_source_range
+        imm r1, 39
+        jeq r20, r1, composition_store_nameoff_range
+        imm r1, 41
+        jeq r20, r1, composition_store_namelen_range
+        call composition_store_parse_fixed
+        imm r1, 525080
+        jmp composition_store_increment
+composition_store_source_range:
+        imm r20, composition_store_source_literal
+        imm r21, 11
+        call composition_store_require_literal
+        jmp composition_store_ranged_count
+composition_store_nameoff_range:
+        imm r20, composition_store_nameoff_literal
+        imm r21, 15
+        call composition_store_require_literal
+        jmp composition_store_ranged_count
+composition_store_namelen_range:
+        imm r20, composition_store_namelen_literal
+        imm r21, 15
+        call composition_store_require_literal
+composition_store_ranged_count:
+        imm r1, 525088
+composition_store_increment:
+        load r2, r1
+        imm r3, 1
+        add r2, r3
+        store r1, r2
+        imm r1, 525096
+        load r2, r1
+        imm r1, 524304
+        store r1, r2
+        ret
+
+composition_store_parse_fixed:
+        call skip_trivia
+        imm r8, 0
+        imm r9, 0
+composition_store_fixed_digit_loop:
+        call current_byte
+        imm r1, 48
+        jlt r0, r1, composition_store_fixed_digits_done
+        imm r1, 58
+        jlt r0, r1, composition_store_fixed_digit
+composition_store_fixed_digits_done:
+        imm r1, 1
+        jeq r9, r1, composition_store_fixed_range
+        jmp reject
+composition_store_fixed_digit:
+        imm r1, 10
+        mul r8, r1
+        imm r1, 48
+        sub r0, r1
+        add r8, r0
+        imm r9, 1
+        call advance_one
+        jmp composition_store_fixed_digit_loop
+composition_store_fixed_range:
+        imm r1, 2097064
+        jlt r8, r1, reject
+        imm r1, 2097145
+        jlt r8, r1, composition_store_fixed_aligned
+        jmp reject
+composition_store_fixed_aligned:
+        mov r0, r8
+        imm r1, 8
+        mod r0, r1
+        imm r1, 0
+        jeq r0, r1, composition_store_fixed_close
+        jmp reject
+composition_store_fixed_close:
+        call skip_trivia
+        call current_byte
+        imm r1, 93
+        jeq r0, r1, composition_store_fixed_done
+        jmp reject
+composition_store_fixed_done:
+        ret
+
+; Current source cursor must begin with checker-tape literal r20/r21 and be
+; followed only by trivia and the closing address bracket.  Cursor is restored.
+composition_store_require_literal:
+        imm r1, 524304
+        load r25, r1
+        imm r22, 0
+composition_store_literal_loop:
+        jlt r22, r21, composition_store_literal_byte
+        mov r23, r25
+        add r23, r21
+        imm r1, 524304
+        store r1, r23
+        call skip_trivia
+        call current_byte
+        imm r1, 93
+        jeq r0, r1, composition_store_literal_done
+        jmp reject
+composition_store_literal_byte:
+        imm r1, 1048576
+        add r1, r25
+        add r1, r22
+        loadb r2, r1
+        mov r1, r20
+        add r1, r22
+        loadb r3, r1
+        jeq r2, r3, composition_store_literal_next
+        jmp reject
+composition_store_literal_next:
+        imm r1, 1
+        add r22, r1
+        jmp composition_store_literal_loop
+composition_store_literal_done:
+        imm r1, 524304
+        store r1, r25
+        ret
+
 composition_skip_char:
         call advance_one                 ; opening quote
         call current_byte
@@ -1422,5 +1555,24 @@ composition_count_peak:
         imm r1, 524920
         load r2, r1
         imm r3, 2
+        jeq r2, r3, composition_count_fixed_stores
+        jmp reject
+composition_count_fixed_stores:
+        imm r1, 525080
+        load r2, r1
+        imm r3, 30
+        jeq r2, r3, composition_count_ranged_stores
+        jmp reject
+composition_count_ranged_stores:
+        imm r1, 525088
+        load r2, r1
+        imm r3, 3
         jeq r2, r3, call_bounds_resolve_specials
         jmp reject
+
+composition_store_source_literal:
+        db "2097152 + n"
+composition_store_nameoff_literal:
+        db "3145728 + s * 8"
+composition_store_namelen_literal:
+        db "3153920 + s * 8"

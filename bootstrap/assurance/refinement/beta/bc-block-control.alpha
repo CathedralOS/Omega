@@ -1,7 +1,7 @@
 ; Bounded whole-bc control/effect correspondence checker, common core.
 ;
 ; Input is [u32 source length][bc.beta bytes][u32 tape length][bc.tape bytes]
-; followed by an untrusted BCT9 location/bound witness.  This checker independently
+; followed by an untrusted BC10 location/bound witness.  This checker independently
 ; lexes proc/state/to/when from the source, resolves each state target by exact
 ; byte-string equality, and checks the corresponding Alpha jmp or
 ; jz-fallthrough-jmp successors in the tape.  bc-effect-sites.alpha extends the
@@ -610,7 +610,7 @@ resolve_found:
 
 read_witness:
         call read_u32
-        imm r1, 961823554              ; BCT9
+        imm r1, 808534850              ; BC10
         jeq r0, r1, witness_proc_count
         jmp reject
 witness_proc_count:
