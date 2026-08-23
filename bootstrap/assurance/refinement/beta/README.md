@@ -630,6 +630,23 @@ terminal outcomes. The 9.6 KB theorem passed independent review and the full
 assembling the historical mutation matrix, failing invalid theorem integrations
 quickly without removing any final canary.
 
+`bc-emit-ident-shape.alpha` and `bc-emit-ident-summary.alpha` close the first
+dynamic-output leaf needed after slotsready. Exact procedure-45 shape binds its
+three blocks, `k<len` guard and backedge, direct `write_byte`, explicit and
+synthetic returns, 32-byte frame, locals, indexed source load, primitives,
+pushes, and exhaustive effect/expression/decoded ownership. Because this leaf
+deliberately writes a byte, its decoded census separately requires exactly one
+direct output instead of misusing the shared quiet-region scanner. Conditional
+`EIDS` starts with the successful source segment and
+`0<=off<=off+len<=LEN`, carries an arbitrary prior trace plus
+`SRC[off:off+k]`, and treats the positive and false `k<len` outcomes as
+explicit premises. The byte branch appends the exact next source byte and
+strictly decreases `len-k`; the stop branch derives `k=len`, returns zero, and
+restores the caller while preserving source/input/CUR/compiler globals.
+Seventeen isolated canaries cover exact artifact joins, direct-write count,
+slice/guard premises, byte and trace extension, rank/backedge renaming, and the
+terminal result. Shape, meaning, and teeth remain separate files below 9 KB.
+
 The eventual `parse_proc` theorem must be maximal, not universally terminating.
 For malformed input, an unrecognized body byte such as `@` can survive both
 `gen_stmt` and the number fallback without cursor progress while `gen_stmts`

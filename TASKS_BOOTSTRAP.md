@@ -971,6 +971,25 @@ additional facilities the bootstrap actually needs.
               exhaustion kind is inferred from numeric 252.
         - [ ] Compose the deterministic procedure prefix: name, `":\n"`,
           prologue, and `nparams` parameter stores under `nslots<=1024`.
+          - [x] Prove the exact `emit_ident_at(off,len)` leaf. Procedure 45's
+            three blocks, guarded loop, direct byte output, explicit/synthetic
+            returns, locals, indexed source load, expressions, frame, and
+            exhaustive source/artifact censuses are checked independently.
+            Conditional `EIDS` starts from the successful source segment and
+            `0<=off<=off+len<=LEN`, appends exactly
+            `SRC[off:off+len]` to an arbitrary prior trace, and preserves
+            source/input/CUR/compiler globals while restoring the caller. Its
+            positive and false `k<len` clauses are explicit; `len-k` decreases
+            on the byte-writing backedge. Seventeen isolated canaries pin the
+            artifact joins, direct-write census, slice premise, guard split,
+            exact byte/trace extension, successor/rank renaming, and stop.
+          - [ ] Prove `emit_dec(n)` appends canonical ASCII decimal bytes for
+            the bounded values used by the prefix (through 8192), using its
+            checked `/10` recursion and at-most-19-digit rank.
+          - [ ] Compose fixed strings with `emit_dec` for exact
+            `emit_proc_prologue(nslots)` and `emit_param_store(k)` summaries.
+          - [ ] Bridge PCAP's saved name/parameter/slot values into blocks
+            345..347 and close the at-most-four parameter-store loop.
         - [ ] Give `gen_stmts`/`gen_stmt`/expression recursion maximal finite or
           infinite trace meaning. On a finite return, compose parse_proc's
           unconditional epilogue and return zero even when a nested resource
