@@ -222,6 +222,8 @@ the shared codec/lowering for representative cases; canonical meaning; and
 rejection of bad ordering, a non-final or duplicate exit, trailing operations,
 and every declared resource ceiling. The frontend's native and Delta-self-host
 gates and the backend's exact-product-image gate close those source/artifact
-claims. The lower-rung `omega2gamma.beta` route still needs its compiler-scale
-expansion fixed before O1 meaning coverage can be claimed. O1 remains a small
+claims. The lower-rung `omega2gamma.beta` route also executes the 40-machine
+frontend through Gamma and pins the O1 zero/two-write dual-channel results and
+semantic rejection. Its previously unbounded expansion was metadata-table
+aliasing at machine 25, not an inherent cost of the route. O1 remains a small
 vertical compiler slice, not the production-self-host profile.

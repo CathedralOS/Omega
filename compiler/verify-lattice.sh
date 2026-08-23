@@ -136,12 +136,7 @@ step "delta — on-ramp compiles + RUNS its corpus"   delta-rs  test_aarch64.sh
 step "delta meaning — native exec vs gamma reference interpreter" delta-rs delta-meaning-diamond.sh gamma
 step "delta D0 storage meaning (RUST-FREE) — omega2gamma.beta -> interp.beta" delta-rs delta-storage-meaning.sh omega0 gamma
 step "omega0 Delta O1 frontend — variable straight-line console profile through lexer/parser/checker and Delta-written recompilation" delta-rs omega0-frontend-test.sh omega0 corpus
-if [ "${LATTICE_EXPERIMENTAL:-0}" = "1" ]; then
-  step "omega0 Delta O1 frontend meaning (EXPERIMENTAL, RUST-FREE) — retained operands + semantic rejection through Gamma" delta-rs omega0-frontend-meaning.sh omega0 gamma corpus
-else
-  deferred_step "omega0 Delta O1 frontend meaning (RUST-FREE)" \
-    "compiler-scale omega2gamma expansion is an open task; use LATTICE_EXPERIMENTAL=1 to probe it"
-fi
+step "omega0 Delta O1 frontend meaning (RUST-FREE) — retained operands + dual-channel output + semantic rejection through Gamma" delta-rs omega0-frontend-meaning.sh omega0 gamma corpus
 step "omega kernel cross-check (RUST-FREE) — native vs omega2gamma.beta->interp.beta" omega0-gates kernel-diamond.sh delta-rs gamma
 step "convergence — Delta emits a proof; the proof kernel checks it" delta-rs convergence.sh proof-kernel
 step "convergence (self-hosted) — the self-hosted compiler's certifiers, checked by the proof kernel" delta-rs convergence-selfhost.sh proof-kernel
