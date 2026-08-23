@@ -44,7 +44,9 @@ current packages.
 > machinery. Bootstrap gates resolve cross-owner locations through the
 > role manifest in `bootstrap/paths.sh`; new cross-owner sibling-relative paths
 > are rejected. The tree below documents the current Cargo/product structure;
-> remaining bootstrap compatibility cleanup is tracked in
+> the retained compatibility inventory is documented in the
+> [bootstrap repository structure](bootstrap_lattice/repository_structure.md),
+> while active lattice work is tracked in
 > [TASKS_BOOTSTRAP.md](../../TASKS_BOOTSTRAP.md).
 
 ```text

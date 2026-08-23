@@ -1,7 +1,7 @@
 # `bootstrap/rungs/beta/` — the Beta compiler, written in Beta (SELF-HOSTING)
 
-This is **slice 7 of the lattice, done**: the Beta-language compiler written *in
-Beta itself* (`bc.beta`), not in the throwaway Rust producer
+This directory owns the complete Beta-language surface and its compiler written
+*in Beta itself* (`bc.beta`), not in the throwaway Rust producer
 (`../../onramps/beta-rust/`) and
 not hand-written in assembly. **It self-hosts** — `bc` compiles its own source to a
 compiler that reproduces that compilation byte-for-byte (`selfhost.sh`). This
@@ -14,14 +14,14 @@ The lower-rooted replacement is complete under
 exact pinned surface, builds `bc.beta`, reaches a byte-identical self-hosted fixed
 point, and reconstructs the persisted platform-independent
 [`artifacts/bc.tape`](artifacts/README.md). That artifact passes the whole Beta
-corpus. The Rust producer remains diagnostic/on-ramp history; migration of every
-downstream gate to the lattice artifact is tracked explicitly.
+corpus and is consumed by the downstream proof-kernel, Gamma, Delta, Omega0, and
+refinement gates. The Rust producer remains diagnostic/on-ramp history.
 
 ```
 bc.beta       the Beta compiler, in Beta:  reads .beta on stdin, emits Alpha asm
 selfhost.sh   THE gate: bc compiles bc.beta -> bc1; assert bc1(bc.beta) == bc(bc.beta)
-test.sh       per-feature gate: bc compiles + runs small programs across slices 1-6
-source-exhaustion.sh  exact source-arena boundary + checked oversized-input failure
+test.sh       language gate: bc compiles and runs the retained Beta corpus
+source-exhaustion.sh  exact B_bc1 compiler-resource boundaries and checked failures
 ```
 
 ## How it bootstraps

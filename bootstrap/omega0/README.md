@@ -17,7 +17,7 @@ Ownership is explicit: `meaning/` contains the Rust-free meaning route,
 `compiler/` contains the first-compiler profiles and source-bundle tooling, and
 `gates/` contains executable acceptance and conformance checks plus their
 private fixtures. Cross-rung meaning/artifact obligation reconstruction lives
-under `bootstrap/assurance/refinement/omega0/`; temporary symlinks in `gates/`
+under `bootstrap/assurance/refinement/omega0/`; compatibility symlinks in `gates/`
 preserve historical entry points.
 The former top-level compatibility directory was retired so `compiler/omega/`
 can exclusively own the production compiler.
@@ -30,7 +30,7 @@ can exclusively own the production compiler.
 - [`gates/omega-meaning.sh`](gates/omega-meaning.sh) exercises supported Omega
   samples through that route.
 - [`gates/kernel-diamond.sh`](gates/kernel-diamond.sh) compares the supported kernel subset across current native
-  and meaning implementations. It is a regression/coverage gate, not DDC.
+  and meaning implementations. It is a regression/coverage gate.
 - [`gates/delta-terminal-to-elf-meaning.sh`](gates/delta-terminal-to-elf-meaning.sh)
   compares the Delta backend's complete status and artifact bytes across native
   execution and the Rust-free Gamma meaning route, including malformed and

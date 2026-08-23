@@ -3,13 +3,13 @@
 [Lattice overview](bootstrap_lattice.md) | [Standing decisions](decisions.md) |
 [Product repository layout](../repository_layout.md)
 
-The repository must distinguish architectural role from implementation
-language. The current flat `compiler/` tree predates that distinction: language
-rungs, Rust on-ramps, Python reference tools, the proof kernel, bootstrap Omega
-experiments, and the production compiler appear as peers. That is an inventory,
-not a sound ownership model.
+The repository distinguishes architectural role from implementation language.
+The former flat `compiler/` inventory has been split: seed-built language rungs,
+external-language on-ramps, assurance, bootstrap Omega, and the product compiler
+now have separate owners. Compatibility symlinks preserve selected old entry
+points without restoring their old ownership.
 
-## Target structure
+## Canonical structure
 
 ```text
 bootstrap/
@@ -38,10 +38,10 @@ bootstrap/
       beta/                 Beta-source/Alpha-artifact reconstruction + gates
       omega0/               Omega0 meaning/artifact reconstruction + TV gates
 
-  omega0/                   Delta-built, simple first Omega compiler
+  omega0/                   work toward the Delta-built, simple first Omega compiler
     meaning/                Rust-free Omega/Psi meaning route used by Omega0
     compiler/               Delta source, bootstrap profiles, and source-bundle format
-    gates/                  Delta→Omega and Omega self-build validation
+    gates/                  current Delta→Omega validation; future self-build validation
 
   corpus/                   programs shared across multiple bootstrap seams
 
@@ -67,9 +67,9 @@ architecture depends on that suffix.
   proof kernel is not a compiler rung. Its trusted checker implementations,
   untrusted automation, corpora, and integration gates must be visibly
   separated.
-- `bootstrap/omega0/` owns the first Delta-built Omega artifact and the minimum
-  Psi/Omega path it needs. It is not the production compiler and is not another
-  language rung.
+- `bootstrap/omega0/` owns work and artifacts toward the first Delta-built Omega
+  compiler and the minimum Psi/Omega path it needs. It is not the production
+  compiler and is not another language rung.
 - `compiler/psi/` and `compiler/omega/` own the product implementation. The
   product-specific `psi-proof-kernel` checks Psi judgments and admissions; it is
   distinct from the bootstrap derivation checker under `bootstrap/assurance/`.
@@ -77,24 +77,24 @@ architecture depends on that suffix.
   rungs or assurance seams belongs in `bootstrap/corpus/`, not in whichever gate
   happened to be written first.
 
-## DDC is not a repository role
+## Reference tooling is not an ownership axis
 
-There is intentionally no `diversity/` or DDC branch. Independent
-implementations may exist as references or conformance tools, but multiplicity
+There is intentionally no owner for redundant compiler implementations.
+Independent implementations may exist as references or conformance tools, but multiplicity
 does not grant authority. Compiler outputs become acceptable through
 lower-rooted source-to-artifact refinement, not agreement between producers.
-See [D5](decisions.md#d5--checked-refinement-not-ddc-closes-compiler-provenance).
+See [D5](decisions.md#d5--direct-checked-refinement-closes-compiler-provenance).
 
 The useful contents formerly grouped under `compiler/beta-lang-py/` now have
 role-based owners:
 
-| Current content | Actual role | Target owner |
+| Former content / retained responsibility | Actual role | Canonical owner |
 | --- | --- | --- |
 | `beta_interp.py` and semantic fuzzing | executable Beta reference meaning | `bootstrap/rungs/beta/reference/` |
 | `beta_symbolic.py` and symbolic-loop checks | untrusted refinement reconstruction | `bootstrap/assurance/refinement/beta/` |
 | `beta_parser.py` | shared untrusted Beta source recognition | `bootstrap/rungs/beta/reference/`, imported by refinement |
 
-The former byte-comparison DDC gate and `bc2.py` backend have been removed after
+The former byte-comparison gate and `bc2.py` backend have been removed after
 showing they provided no unique semantic or refinement coverage. The `bc`
 cold-start edge closes only through lower-rooted source-to-artifact checking.
 `compiler/beta-lang-py/` now contains compatibility forwarding entry points,
@@ -102,14 +102,14 @@ not a canonical implementation owner.
 
 Python is an implementation detail of these tools, not their common owner.
 
-## Migration map
+## Canonical map and compatibility paths
 
 Gate scripts now resolve cross-owner dependencies through
 [`bootstrap/paths.sh`](../../../bootstrap/paths.sh), and
 [`bootstrap/check-path-hygiene.sh`](../../../bootstrap/check-path-hygiene.sh)
-rejects new named sibling-relative references. Broad moves may therefore update
-one role manifest instead of rewriting every gate. Migrate by ownership, keeping
-temporary wrappers where needed:
+rejects new named sibling-relative references. Broad moves can therefore update
+one role manifest instead of rewriting every gate. The completed ownership map
+and its remaining compatibility paths are:
 
 | Canonical or transitional source | Target role |
 | --- | --- |
@@ -123,10 +123,10 @@ temporary wrappers where needed:
 | `bootstrap/assurance/proof-kernel/` (compatibility: `compiler/proof-kernel`) | `bootstrap/assurance/proof-kernel/{implementations,tools,corpus,gates}/` — complete |
 | Beta-source/Alpha-artifact refinement tools (compatibility entries under Alpha) | `bootstrap/assurance/refinement/beta/` — complete |
 | Omega0 meaning/artifact TV encoders and gates (compatibility entries under Omega0 gates) | `bootstrap/assurance/refinement/omega0/` — complete |
-| `bootstrap/omega0/` | `bootstrap/omega0/{meaning,compiler,gates}/` — complete; the conflicting product-root compatibility path is retired |
+| `bootstrap/omega0/` | placement under `bootstrap/omega0/{meaning,compiler,gates}/` — complete; compiler implementation remains open |
 | `bootstrap/corpus/` (compatibility: `compiler/lattice-corpus`) | `bootstrap/corpus/` — complete |
 | `compiler/psi/`, `compiler/omega/` | `compiler/psi/`, `compiler/omega/` — complete physical product roots |
 
-The migration is complete when `compiler/` means the product compiler,
-`bootstrap/` means how that product is rebuilt from the seed, and no directory
-is grouped solely by the host language of temporary tooling.
+`compiler/` now means the product compiler; `bootstrap/` means how that product
+is rebuilt from the seed. No canonical directory is grouped solely by the host
+language of temporary tooling.

@@ -21,7 +21,7 @@ the implementation small.
 ## Implementation and meaning
 
 Beta's runtime meaning is fixed by its written small-step
-[`SEMANTICS.md`](../../../bootstrap/rungs/beta/SEMANTICS.md). Beta compiles
+[`SEMANTICS.md`](../../../../bootstrap/rungs/beta/SEMANTICS.md). Beta compiles
 structurally to Alpha assembly, which the Alpha assembler lowers to a tape
 governed by Alpha's written semantics. The steady-state compiler is
 `bootstrap/rungs/beta/bc.beta`, written in Beta and self-hosted to a byte-identical
@@ -30,8 +30,7 @@ fixed point. The first compiler was cold-started by the disposable
 instead reconstructed by the Alpha-written cold-start compiler and contains no
 Rust producer in its lineage; it still needs complete lower-rooted validation
 against `bc.beta`. A fixed point proves deterministic dependency closure, not
-compiler correctness or source correspondence. DDC is not an architectural
-closure mechanism.
+compiler correctness or source correspondence.
 
 The Alpha assembler formerly lived in `compiler/beta/`, but it is an Alpha tool:
 it is written in Alpha assembly and translates Alpha assembly to Alpha tapes.
@@ -64,7 +63,7 @@ memory.
 
 `bootstrap/rungs/beta/cold-start/full-source.sh`, `selfhost.sh`, and `test.sh`
 gate reconstruction, the fixed point, and language behavior. The comparison-only
-Python compiler and DDC gate were removed because they added no unique semantic
+Python compiler and gate were removed because they added no unique semantic
 or lower-rooted refinement coverage.
 
 ## Implementation frontiers

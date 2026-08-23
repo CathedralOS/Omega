@@ -10,8 +10,8 @@ overview says "emergent / to be decided," the calls here are the decision.
 
 Format: each decision is **D#**, states the call, the rationale, and the resulting
 policy. Decisions bind the construction; they do not touch language *meaning*
-(owned by the language guide) nor the current product implementation under
-`compiler/omega/` (the untouched reference producer).
+(owned by the language guide) nor prescribe the internals of the current product
+implementation under `compiler/psi/` and `compiler/omega/`.
 
 ---
 
@@ -24,9 +24,9 @@ The overview's "Two roles for Rust" is the ordering law. Made concrete, per arti
 | `check.beta` / `checker.gamma` (the proof kernel) | **trusted base** | **DEAD** — Beta + Gamma implementations, cross-checked against shared seams. |
 | cold-started `bc` artifact vs `bc.beta` | **trusted compilation edge** | **OPEN** — the Alpha-rooted fixed point and persisted artifact exist; complete lower-rooted source-to-artifact refinement does not. |
 | `interp.beta` / `typeck.beta` (γ meaning) | **trusted base** | **DEAD** — Beta, on the seed lineage. |
-| Delta's **meaning** (`gamma_emit.rs`) | **trusted base** | **DYING** — the broad Beta-written `omega2gamma` route and Gamma execution path exist, including checked D0 storage and real byte-I/O certifiers; exact coverage of the eventual Omega0 Delta source remains open. |
+| Delta's **meaning** (`gamma_emit.rs`) | **trusted base** | **MIGRATING** — the Beta-written `omega2gamma` route and Gamma execution cover the admitted D0/O1 compiler profile. `gamma_emit.rs` is a differential reference there; each future profile extension must bring lower-rung meaning with it. |
 | Psi/Omega's **meaning** | **trusted base** | Follows the same elaboration discipline through the Delta-built bootstrap compiler and the Omega self-build edge. |
-| `beta-rust`, `delta-rust`, `compiler/omega/` (producers) | **untrusted producer** | **DEFERRABLE** — killed for self-sufficiency, not soundness. The current product compiler stays untouched as the reference producer. |
+| `beta-rust`, `delta-rust`, `compiler/psi/`, `compiler/omega/` (producers) | **untrusted producer** | **DEFERRABLE** — replaced for self-sufficiency, not soundness. The current product compiler remains the executable reference producer during migration. |
 
 **Policy:** no work removes Rust from a *producer* merely for pedigree while Rust
 still sits in any meaning/checker or while an upstream artifact that builds those
@@ -114,10 +114,10 @@ evidence.
 small-step semantics — the formal bridge. Not attempted until the metatheory
 tooling exists; the seams are the standing substitute.
 
-## D5 — Checked refinement, not DDC, closes compiler provenance.
+## D5 — Direct checked refinement closes compiler provenance.
 
 **Supersedes the 2026-07-02 D5 ruling; ratified 2026-08-22.** Diverse double
-compilation is not a trust requirement of this architecture. DDC answers whether
+compilation (DDC) is not a trust requirement of this architecture. It asks whether
 a compiler binary corresponds to its source by comparing builds through another
 compiler. The lattice uses the stronger rule from D3: an independently
 reconstructed, lower-rooted check establishes that the exact produced artifact
@@ -136,8 +136,8 @@ accept or reject
 ```
 
 A Thompson payload changes the artifact or its behavior and therefore fails this
-check. DDC adds no soundness once that edge is closed. Exact output agreement is
-also the wrong long-term contract: two correct compilers may emit different
+check. A second compiler adds no soundness once that edge is closed. Exact
+output agreement is also the wrong long-term contract: two correct compilers may emit different
 artifacts, while two incorrect compilers may agree. Requiring byte identity
 between implementations unnecessarily creates a second compiler to maintain and
 conflates reproducibility with correctness.
@@ -148,26 +148,26 @@ path). An Alpha-written compiler accepts the exact pinned `bc.beta` surface,
 reconstructs the persisted fixed-point tape, and runs the complete Beta corpus.
 That closes the external-producer dependency and establishes reproducible
 lineage; it does not by itself establish source correspondence. The latter is an
-**unfinished lower-rooted refinement edge**, not a standing demand for DDC.
+**unfinished lower-rooted refinement edge**.
 Close it by validating the complete `bc` artifact against `bc.beta` with
 authority rooted below `bc`.
 
-The dedicated `compiler/beta-lang-py` DDC gate and `bc2.py` backend have been
-removed because they supplied no unique semantic or refinement coverage. Shared
+The dedicated `compiler/beta-lang-py` comparison gate and `bc2.py` backend have
+been removed because they supplied no unique semantic or refinement coverage. Shared
 source recognition and executable meaning now live under
 `bootstrap/rungs/beta/reference/`; symbolic reconstruction lives under
 `bootstrap/assurance/refinement/beta/`. `compiler/beta-lang-py/` is compatibility
 plumbing only.
 
 Independent Alpha realizations and independent proof-kernel implementations are
-not DDC. They are conformance and soundness cross-checks against explicit
+conformance and soundness cross-checks against explicit
 semantics, useful for finding implementation mistakes while the corresponding
 formal bridges mature. Their multiplicity supplies evidence; it is not the rule
 that grants an artifact authority.
 
 **Policy:**
 
-- Do not add second or third compilers merely for DDC.
+- Do not add second or third compilers merely for implementation diversity.
 - Do not make cross-implementation byte identity a release or trust requirement.
 - Require deterministic reproduction where it serves build identity and audit,
   but never present a fixed point as correctness evidence.
@@ -184,7 +184,7 @@ languages form the audited spine:
 Alpha → Beta → Gamma → Delta
 ```
 
-Delta is the systems/compiler-host on-ramp. Its job is to build a deliberately
+Delta is the systems/compiler-host rung. Its job is to build a deliberately
 simple, spec-compliant Omega compiler from the audited seed. That bootstrap
 compiler need not contain the production optimizer or advanced lowering
 pipeline; it must compile the language correctly. It then compiles the full
@@ -263,16 +263,18 @@ does not close it.
    that exact artifact against `bc.beta` with authority rooted below `bc`. The
    Python comparison path and byte-identical self-build are not the closure
    criterion. *(D3/D5)*
-2. **Finish Delta's Rust-free meaning route** — retain the existing
-   `omega2gamma.beta` → `interp.beta` coverage for state machines, self fields and
-   calls, arrays, byte I/O, and D0 storage; close every construct used by the
-   eventual Omega0 source and demote `gamma_emit.rs` to a reference producer.
-   *(D1 urgent kill.)*
+2. **Keep Delta's used profile Rust-free** — retain the existing
+   `omega2gamma.beta` → `interp.beta` coverage for D0/O1, and require each newly
+   admitted compiler construct to land with lower-rung meaning or fail closed.
+   `gamma_emit.rs` remains a differential reference producer. *(D1.)*
 3. **Grow the proof kernel and its seams in lockstep** — no capability without its paired seam. *(D4)*
 4. **Translation-validation backend** — per-compile refinement certs. *(D3 north star, later.)*
-5. **Build bootstrap Omega from Delta** — host the minimal spec-compliant
+5. **Establish the production Omega source tree and its acceptance profile** —
+   derive bootstrap requirements from the compiler that must actually self-host,
+   not from samples or speculative convenience. *(D6.)*
+6. **Build bootstrap Omega from Delta** — host the minimal spec-compliant
    Psi/Omega path needed to compile Omega source. Optimization is not a gate for
    this artifact. *(D2/D6, later.)*
-6. **Use bootstrap Omega to build production Omega** — compile the full
+7. **Use bootstrap Omega to build production Omega** — compile the full
    Omega-source optimizer/lowering pipeline, then apply the normal meaning and
    translation-validation gates to the self-host edge. *(D3/D6, later.)*

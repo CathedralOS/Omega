@@ -1,13 +1,10 @@
 #!/usr/bin/env sh
 # ASSEMBLER DIAMOND — the independent reference assembler (asm_ref.py) agrees with the real one.
 #
-# assembler.alpha is a single-implementation gap: it self-hosts, and both seed VMs run the SAME assembler,
-# so a backdoor in it would not be caught by the seed diamond (both seeds would reproduce it identically).
-# asm_ref.py is a third, independent realization (Python, from the encoding + beta/README.md, not ported).
-# This gate assembles a corpus with BOTH the real assembler and asm_ref.py and asserts the bytecode tapes
-# are byte-identical — so the assembly step is pinned by two independent implementations, closing the gap
-# much as the Beta interpreter independently checks `bc` behavior. asm_ref.py is
-# UNTRUSTED and checked; runtime never runs it.
+# asm_ref.py is an independent realization (Python, written from the encoding,
+# not ported from assembler.alpha). This gate compares both assemblers over a
+# corpus to catch encoding regressions. Agreement is diagnostic evidence, not
+# source-to-artifact authority; asm_ref.py is untrusted and runtime never runs it.
 set -e
 OMEGA_GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 if [ -z "${OMEGA_REPO_ROOT:-}" ]; then

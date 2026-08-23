@@ -11,7 +11,7 @@ The canonical assembler is
 written in Alpha and run by the audited seed. That lattice-built implementation
 owns normal bootstrap assembly and semantics. This Rust crate is untrusted,
 optional cold-start/reference tooling: matching its output is useful bug-finding
-evidence, not DDC and not source-to-artifact authority.
+evidence, not source-to-artifact authority.
 
 The binary accepts mnemonic or numeric Alpha assembly on standard input and
 writes a raw tape on standard output. Optional input/output paths retain the
@@ -28,4 +28,4 @@ It compares the Rust output with the lattice-built assembler over the
 self-hosting assembler and example corpus, checks the Rust-only historical
 numeric transport and file
 arguments, and pins fail-closed malformed-input behavior. `compiler/beta-rs` is
-a temporary compatibility symlink to this directory.
+a historical compatibility symlink to this directory.

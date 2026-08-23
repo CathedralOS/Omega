@@ -30,9 +30,10 @@ The distinction is architectural:
 
 ## Current repository roles
 
-- `compiler/omega/` is the current production compiler and executable reference.
-- `bootstrap/omega0/` owns Rust-free meaning, first-compiler source/contracts,
-  and bootstrap validation; it has no alias at the product root.
+- `compiler/psi/` and `compiler/omega/` are the current production compiler;
+  `apps/omega-cli/` is its user-facing executable.
+- `bootstrap/omega0/` owns Rust-free meaning, current Delta-written compiler
+  slices/profiles, and bootstrap validation; it has no alias at the product root.
 - `bootstrap/rungs/delta/` owns the bootstrap language corpus and Delta-written
   compiler; `bootstrap/onramps/delta-rust/` is its disposable Rust producer.
   Together their current gates are growing toward the simple bootstrap Omega
@@ -62,8 +63,9 @@ ledger; Rust agreement grants no authority. Local operation denotations and
 canonical goals come from restricted declarative schemas, while algebraic
 reduction is untrusted and must emit a checked proof of the unchanged goal.
 
-Bootstrap-Omega hosting, the Omega self-build, native refinement evidence, the Gamma/schema feasibility
-spike, and the terminal-ledger migration remain execution work under P3 in
+Bootstrap-Omega hosting and the Omega self-build are tracked in
+[`TASKS_BOOTSTRAP.md`](../../../TASKS_BOOTSTRAP.md). Native refinement evidence
+and terminal-ledger migration remain product-assurance work under P3 in
 [`TASKS.md`](../../../TASKS.md).
 Production optimization remains outside the trusted proof kernel.
 

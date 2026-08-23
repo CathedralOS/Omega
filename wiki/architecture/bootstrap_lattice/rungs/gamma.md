@@ -50,7 +50,7 @@ implementation of the generic proof kernel is small and auditable.
 - `bootstrap/rungs/gamma/canonical-bytes/` and
   `terminal-codec-primitives/` — reusable typed byte and terminal-grammar
   fragments, without a fixed-version live terminal decoder;
-- `compiler/gamma` — temporary compatibility symlink to the canonical owner.
+- `compiler/gamma` — historical compatibility symlink to the canonical owner.
 
 The exact spike sizes, supported operation cohorts, and gate counts belong in
 the spike's own README and live task status, not in this durable rung definition.
