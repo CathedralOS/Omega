@@ -1546,6 +1546,7 @@ version = "0.1.0"
 name = "psi-language-semantics"
 version = "0.1.0"
 dependencies = [
+ "psi-core",
  "psi-language-core",
  "psi-numerics",
  "psi-symbols",

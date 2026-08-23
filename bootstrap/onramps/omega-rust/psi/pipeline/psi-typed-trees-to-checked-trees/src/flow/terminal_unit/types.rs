@@ -191,6 +191,86 @@ pub(super) fn checked_state_contracts_supported(
     })
 }
 
+/// A static boundary requirement may carry the implicit membership contracts
+/// induced by qualified parameter types, but no independently authored proof
+/// contract in this Terminal slice. Reconstruct the exact pair set from both
+/// surfaces so an omitted or extra membership cannot be hidden by lowering.
+pub(super) fn signature_contracts_are_exact_parameter_qualifications(
+    program: &TypedTrees,
+    signature: &psi_typed_trees::signature::StateSignature,
+) -> bool {
+    let parameters = program.state_signature_parameters(signature);
+    let mut expected = Vec::<(usize, SemanticDomainId)>::new();
+    for (position, parameter) in parameters.iter().enumerate() {
+        let mut type_reference = parameter.type_reference;
+        loop {
+            match program.type_reference_table.type_reference(type_reference) {
+                TypeReferenceNode::Constrained {
+                    base_type,
+                    constraints,
+                } => {
+                    for constraint in program.type_reference_table.constraints(*constraints) {
+                        let TypeConstraintNode::Domain(domain) = constraint else {
+                            return false;
+                        };
+                        if !domain.semantic_id.is_valid() {
+                            return false;
+                        }
+                        expected.push((position, domain.semantic_id));
+                    }
+                    type_reference = *base_type;
+                }
+                TypeReferenceNode::Reference { referee, .. } => type_reference = *referee,
+                _ => break,
+            }
+        }
+    }
+
+    let mut actual = Vec::<(usize, SemanticDomainId)>::new();
+    for contract in program.state_signature_contracts(signature) {
+        if contract.kind != SignatureContractKind::Requires
+            || contract.binding.is_some()
+            || contract.token_count != 0
+        {
+            return false;
+        }
+        for fact in program.proof_facts.span_or_empty(contract.facts) {
+            let ProofFact::Membership(membership) = fact else {
+                return false;
+            };
+            let ExpressionNode::Name(path) = program.expression_table.expression(membership.value)
+            else {
+                return false;
+            };
+            if program
+                .expression_table
+                .name_path_members(path.members)
+                .len()
+                != 1
+            {
+                return false;
+            }
+            let Some(position) = parameters
+                .iter()
+                .position(|parameter| parameter.symbol == path.symbol)
+            else {
+                return false;
+            };
+            let Some(domain) = program
+                .domain_definitions()
+                .iter()
+                .find(|domain| domain.symbol == membership.domain_symbol)
+            else {
+                return false;
+            };
+            actual.push((position, domain.semantic_id));
+        }
+    }
+    expected.sort_by_key(|(position, domain)| (*position, domain.0));
+    actual.sort_by_key(|(position, domain)| (*position, domain.0));
+    expected == actual
+}
+
 pub(super) fn boundary_domain_requirements(
     program: &TypedTrees,
     facts: &CheckFacts,

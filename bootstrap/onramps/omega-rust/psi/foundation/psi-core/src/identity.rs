@@ -80,6 +80,10 @@ semantic_id!(
     "Stable identity of one structural qualification domain in terminal Psi."
 );
 semantic_id!(
+    DomainSemanticId,
+    "Source-handle-free identity of one semantic qualification domain."
+);
+semantic_id!(
     ServiceId,
     "Stable identity of one boundary-service declaration in terminal Psi."
 );

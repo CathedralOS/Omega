@@ -31,6 +31,29 @@ pub struct ContentProjectionIdentity {
     pub projection_fingerprint: u64,
 }
 
+/// Source-handle-free scalar expression defining one installed root's
+/// per-occurrence capacity. Field segments are stable structural identities,
+/// never frontend arena handles.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ProgramLocalCapacityScalar {
+    SubjectField(Vec<String>),
+    RuntimeScalarEmbedding(Vec<String>),
+    Natural(String),
+    Successor(Box<Self>),
+    Add(Box<Self>, Box<Self>),
+    Subtract(Box<Self>, Box<Self>),
+    Multiply(Box<Self>, Box<Self>),
+}
+
+/// Exact finite content expression selected by the qualification owner's
+/// `Content<A>` projection. This is semantic schema, not a trusted manifest
+/// total and not an authority occurrence.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ProgramLocalCapacityExpression {
+    IntervalSet(Vec<(ProgramLocalCapacityScalar, ProgramLocalCapacityScalar)>),
+    CountedQuantity(ProgramLocalCapacityScalar),
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ContentPlaceVersion {
     Entry,

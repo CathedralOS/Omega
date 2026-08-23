@@ -91,6 +91,7 @@ pub(super) fn lower_boundary_scalar_return_machine(
         structural_parameters: boundary_parameters,
         result: Some(terminal_scalar_type(plan.result_type)?),
         requires,
+        program_local_root_introductions: Vec::new(),
         published_service_ceiling: lower_published_service_ceiling(
             &checked.facts.service_reaches.rows,
             boundary.contract_service_reach,
@@ -354,6 +355,8 @@ fn lower_boundary_scalar_domains(
         .map(|plan| {
             Ok(StructuralDomainDeclaration {
                 id: lookup_domain_id(&domain_ids, plan.domain)?,
+                semantic_domain: DomainSemanticId::new(u64::from(plan.domain.0))
+                    .ok_or(LoweringError::InvalidContentDomainIdentity)?,
                 identity: plan.identity.clone(),
                 carrier: lookup_type_id(type_ids, &plan.carrier_type_identity)?,
             })

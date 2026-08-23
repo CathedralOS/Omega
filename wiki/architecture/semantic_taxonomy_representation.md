@@ -186,6 +186,15 @@ routed domains require an exact authorized exit. No package ownership,
 attachment name, machine placement, or former privileged qualification trait
 confers establishment authority.
 
+Terminal Psi retains a routed, content-bearing boundary parameter first as a
+canonical producer schema: exact requirement and source position, qualified
+carrier, normalized domain identity, owner-unique projection and algebra, and
+normalized per-occurrence capacity. The schema excludes module-local dense IDs
+from its identity and remains non-authoritative. Installation is a separate
+semantic join that binds an exact slot occurrence, finite cardinality,
+artifact instance, and lifecycle epoch; only that joined occurrence may enter
+program-local root lineage.
+
 Checked facts retain an evidence class—proof, validation, authorized route,
 checked transformation, admitted receipt, propagation, or vacuous
 qualification—separately from program-point origin. Selected provider plans and

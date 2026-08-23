@@ -157,11 +157,15 @@ pub(super) fn validate_structural_foundation(module: &TerminalModule) -> Result<
 
     let mut domains = BTreeMap::new();
     let mut domain_names = BTreeSet::new();
+    let mut semantic_domains = BTreeSet::new();
     for declaration in &module.structural_domains {
         if domains.insert(declaration.id, declaration).is_some() {
             return Err(ModuleError::DuplicateStructuralDomain(declaration.id));
         }
-        if declaration.identity.is_empty() || !domain_names.insert(declaration.identity.as_str()) {
+        if declaration.identity.is_empty()
+            || !domain_names.insert(declaration.identity.as_str())
+            || !semantic_domains.insert(declaration.semantic_domain)
+        {
             return Err(ModuleError::InvalidStructuralDomainIdentity(declaration.id));
         }
         if !types.contains_key(&declaration.carrier) {
@@ -289,6 +293,7 @@ pub(super) fn validate_structural_foundation(module: &TerminalModule) -> Result<
         if boundary.requires.windows(2).any(|pair| pair[0] >= pair[1]) {
             return Err(ModuleError::NonCanonicalBoundaryRequirements(boundary.id));
         }
+        validate_program_local_root_introductions(boundary, &types, &domains)?;
     }
 
     if let Some(pair) = module.provider_candidates.windows(2).find(|pair| {
@@ -649,6 +654,155 @@ pub(super) fn validate_structural_foundation(module: &TerminalModule) -> Result<
             ServiceCeilingOwner::Machine(machine.id),
         )?;
         validate_machine_entry_claims(module, machine)?;
+    }
+    Ok(())
+}
+
+fn validate_program_local_root_introductions(
+    boundary: &BoundaryMachineDeclaration,
+    types: &BTreeMap<StructuralTypeId, &psi_terminal::StructuralTypeDeclaration>,
+    domains: &BTreeMap<StructuralDomainId, &psi_terminal::StructuralDomainDeclaration>,
+) -> Result<(), ModuleError> {
+    fn invalid(boundary: BoundaryMachineId, argument_index: u32) -> ModuleError {
+        ModuleError::InvalidProgramLocalRootIntroduction {
+            boundary,
+            argument_index,
+        }
+    }
+    fn validate_scalar(
+        value: &ProgramLocalCapacityScalar,
+        carrier: StructuralTypeId,
+        types: &BTreeMap<StructuralTypeId, &psi_terminal::StructuralTypeDeclaration>,
+        depth: usize,
+    ) -> bool {
+        if depth > 256 {
+            return false;
+        }
+        match value {
+            ProgramLocalCapacityScalar::SubjectField(path)
+            | ProgramLocalCapacityScalar::RuntimeScalarEmbedding(path) => {
+                if path.is_empty() || path.iter().any(String::is_empty) {
+                    return false;
+                }
+                let mut current = carrier;
+                for (index, segment) in path.iter().enumerate() {
+                    let Some(declaration) = types.get(&current) else {
+                        return false;
+                    };
+                    let StructuralTypeShape::Record { fields } = &declaration.shape else {
+                        return false;
+                    };
+                    let Some(field) = fields.iter().find(|field| field.identity == *segment) else {
+                        return false;
+                    };
+                    let last = index + 1 == path.len();
+                    match (&field.field_type, last) {
+                        (StructuralFieldType::Structural(next), false) => current = *next,
+                        (StructuralFieldType::Scalar(_), true) => {}
+                        _ => return false,
+                    }
+                }
+                true
+            }
+            ProgramLocalCapacityScalar::Natural(value) => {
+                !value.is_empty()
+                    && value.bytes().all(|byte| byte.is_ascii_digit())
+                    && (value == "0" || !value.starts_with('0'))
+            }
+            ProgramLocalCapacityScalar::Successor(inner) => {
+                validate_scalar(inner, carrier, types, depth + 1)
+            }
+            ProgramLocalCapacityScalar::Add(left, right)
+            | ProgramLocalCapacityScalar::Subtract(left, right)
+            | ProgramLocalCapacityScalar::Multiply(left, right) => {
+                validate_scalar(left, carrier, types, depth + 1)
+                    && validate_scalar(right, carrier, types, depth + 1)
+            }
+        }
+    }
+
+    let mut seen = BTreeSet::new();
+    for schema in &boundary.program_local_root_introductions {
+        if !seen.insert((schema.argument_index, schema.qualification)) {
+            return Err(ModuleError::DuplicateProgramLocalRootIntroduction {
+                boundary: boundary.id,
+                argument_index: schema.argument_index,
+                domain: schema.qualification,
+            });
+        }
+        let Some(parameter) = boundary
+            .structural_parameters
+            .get(schema.argument_index as usize)
+        else {
+            return Err(invalid(boundary.id, schema.argument_index));
+        };
+        let Some(domain) = domains.get(&schema.qualification) else {
+            return Err(invalid(boundary.id, schema.argument_index));
+        };
+        let requirement = psi_terminal::StructuralDomainRequirement {
+            argument_index: schema.argument_index,
+            domain: schema.qualification,
+        };
+        let shape_matches_algebra = matches!(
+            (&schema.capacity, schema.algebra.kind),
+            (
+                ProgramLocalCapacityExpression::IntervalSet(_),
+                psi_core::ContentAlgebraKind::IntervalSet
+            ) | (
+                ProgramLocalCapacityExpression::CountedQuantity(_),
+                psi_core::ContentAlgebraKind::CountedQuantity
+            )
+        );
+        let capacity_valid = match &schema.capacity {
+            ProgramLocalCapacityExpression::IntervalSet(members) => {
+                members.iter().all(|(start, end)| {
+                    validate_scalar(start, schema.carrier, types, 0)
+                        && validate_scalar(end, schema.carrier, types, 0)
+                })
+            }
+            ProgramLocalCapacityExpression::CountedQuantity(magnitude) => {
+                validate_scalar(magnitude, schema.carrier, types, 0)
+            }
+        };
+        if schema.identity == 0
+            || schema.source_parameter_position != parameter.position
+            || schema.carrier != parameter.structural_type
+            || schema.carrier != domain.carrier
+            || !parameter.qualifications.contains(&schema.qualification)
+            || !boundary.requires.contains(&requirement)
+            || schema.projection.domain.get() != domain.semantic_domain.get()
+            || schema.projection.projection_fingerprint == 0
+            || schema.algebra.parameter.is_empty()
+            || !shape_matches_algebra
+            || !capacity_valid
+            || psi_language_semantics::content::terminal_projection_fingerprint(
+                &schema.algebra,
+                &schema.capacity,
+            ) != schema.projection.projection_fingerprint
+            || program_local_root_introduction_identity(
+                &boundary.identity,
+                &domain.identity,
+                &types
+                    .get(&schema.carrier)
+                    .expect("schema carrier was validated before identity replay")
+                    .identity,
+                schema,
+            ) != schema.identity
+        {
+            return Err(invalid(boundary.id, schema.argument_index));
+        }
+    }
+    if boundary
+        .program_local_root_introductions
+        .windows(2)
+        .any(|pair| {
+            (pair[0].argument_index, pair[0].qualification)
+                >= (pair[1].argument_index, pair[1].qualification)
+        })
+    {
+        return Err(ModuleError::NonCanonicalProgramLocalRootIntroductions(
+            boundary.id,
+        ));
     }
     Ok(())
 }

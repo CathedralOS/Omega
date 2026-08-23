@@ -34,7 +34,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     let bytes = encode_module(&module).expect("fixture should encode");
 
     assert_eq!(&bytes[..8], b"PSITERM\0");
-    assert_eq!(&bytes[8..10], 22_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 23_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 
@@ -42,7 +42,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.vocabulary_marker, VocabularyMarker::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "dd88396b7d0d993c7194e2268beb93478d14c2b0575a3f7923a208bb0329285e"
+        "f3d1e60d12d137ea3031e11469a28ff8bc14bf9b556580ed0a07282e820d2a3f"
     );
     assert_eq!(
         identity.program_fingerprint,
@@ -252,8 +252,8 @@ fn payload_sum_shape_round_trips_exact_fields_and_requires_canonical_order() {
 fn partial_affine_unit_return_round_trips_exact_path_and_leaf_type() {
     let module = partial_affine_fixture();
     let bytes = encode_module(&module).expect("partial affine return should encode");
-    assert_eq!(&bytes[8..10], 22_u16.to_le_bytes());
-    assert_eq!(&bytes[10..12], 25_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 23_u16.to_le_bytes());
+    assert_eq!(&bytes[10..12], 26_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 }
@@ -262,8 +262,8 @@ fn partial_affine_unit_return_round_trips_exact_path_and_leaf_type() {
 fn nominal_affine_unit_return_round_trips_exact_root_type_and_cleanup_machine() {
     let module = nominal_affine_fixture();
     let bytes = encode_module(&module).expect("nominal affine return should encode");
-    assert_eq!(&bytes[8..10], 22_u16.to_le_bytes());
-    assert_eq!(&bytes[10..12], 25_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 23_u16.to_le_bytes());
+    assert_eq!(&bytes[10..12], 26_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 }
@@ -294,7 +294,7 @@ fn scalar_return_round_trips_nominal_affine_cleanup_action() {
     };
 
     let bytes = encode_module(&module).expect("scalar nominal cleanup should encode");
-    assert_eq!(&bytes[8..10], 22_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 23_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 }
@@ -488,6 +488,7 @@ fn nominal_affine_unit_return_rejects_malformed_source_carriers() {
         .structural_domains
         .push(StructuralDomainDeclaration {
             id: structural_domain_id(1),
+            semantic_domain: psi_core::DomainSemanticId::new(1).unwrap(),
             identity: "example::NominalResource::Ready".to_owned(),
             carrier: structural_type_id(1),
         });
@@ -875,7 +876,7 @@ fn structural_effect_foundation_round_trips_and_has_stable_identity() {
     let module = structural_effect_fixture();
     let bytes = encode_module(&module).expect("structural/effect foundation should encode");
 
-    assert_eq!(&bytes[10..12], 25_u16.to_le_bytes());
+    assert_eq!(&bytes[10..12], 26_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 
@@ -1210,11 +1211,11 @@ fn structural_foundation_rejects_opaque_relevant_and_nonopaque_erased_fields() {
 #[test]
 fn decoder_rejects_the_previous_vocabulary_marker() {
     let mut bytes = encode_module(&structural_effect_fixture()).unwrap();
-    bytes[10..12].copy_from_slice(&24_u16.to_le_bytes());
+    bytes[10..12].copy_from_slice(&25_u16.to_le_bytes());
 
     assert_eq!(
         decode_module(&bytes),
-        Err(CodecError::UnsupportedVocabularyMarker(24))
+        Err(CodecError::UnsupportedVocabularyMarker(25))
     );
 }
 
@@ -1731,10 +1732,10 @@ fn decoder_rejects_noncanonical_or_ambiguous_bytes() {
     assert_eq!(decode_module(&trailing), Err(CodecError::TrailingBytes(1)));
 
     let mut future_format = bytes.clone();
-    future_format[8..10].copy_from_slice(&23_u16.to_le_bytes());
+    future_format[8..10].copy_from_slice(&24_u16.to_le_bytes());
     assert_eq!(
         decode_module(&future_format),
-        Err(CodecError::UnsupportedFormatMarker(23))
+        Err(CodecError::UnsupportedFormatMarker(24))
     );
 
     let mut stale_format = bytes.clone();
@@ -2270,6 +2271,7 @@ fn structural_effect_fixture() -> TerminalModule {
         ],
         structural_domains: vec![StructuralDomainDeclaration {
             id: domain,
+            semantic_domain: psi_core::DomainSemanticId::new(1).unwrap(),
             identity: "example::Occurrence::Pending".to_owned(),
             carrier: resource_type,
         }],
@@ -2293,6 +2295,7 @@ fn structural_effect_fixture() -> TerminalModule {
                 argument_index: 0,
                 domain,
             }],
+            program_local_root_introductions: Vec::new(),
             published_service_ceiling: vec![service],
         }],
         provider_candidates: Vec::new(),

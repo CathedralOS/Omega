@@ -1134,6 +1134,15 @@ and epoch. Cathedral composes those verified totals across live components and
 coexisting replacement eras. A manifest-supplied aggregate is never authority,
 and a new epoch's root is a new budget rather than recovered lifetime capacity.
 
+The first Terminal producer-schema slice retains the exact boundary
+requirement and authored parameter position, qualified carrier and normalized
+domain identity, owner-unique projection and algebra, and normalized
+per-occurrence capacity. Its canonical identity is independent of
+module-local dense IDs. This row is a portable description, not a claim or an
+establishment event: no program-local authority exists until installation
+joins it to one exact installed occurrence, finite cardinality, artifact
+instance, and lifecycle epoch.
+
 Contracts call the exact owner-unique projection machine. Proof-only
 `entry(place)` selects an entry-version structural place, while compiler-owned
 `separate(...)` performs the closed algebra's partial n-ary composition. Neither

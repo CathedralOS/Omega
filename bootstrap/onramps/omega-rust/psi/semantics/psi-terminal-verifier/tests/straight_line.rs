@@ -2501,6 +2501,7 @@ fn structural_return_rejects_inexact_custody_and_scalar_content_carriers() {
         .structural_domains
         .push(psi_terminal::StructuralDomainDeclaration {
             id: psi_core::StructuralDomainId::new(91).unwrap(),
+            semantic_domain: psi_core::DomainSemanticId::new(91).unwrap(),
             identity: "Other".into(),
             carrier: result.structural_type,
         });

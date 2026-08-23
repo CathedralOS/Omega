@@ -102,7 +102,7 @@ done
 
 # Keep the frozen O0 fixture tied to its original exact product image as an
 # explicit monotonic-compatibility check.
-python3 - "$OMEGA_PATH_OMEGA0/gates/fixtures/omega0-terminal-v25.hex" "$T/terminal.psi" <<'PY'
+python3 - "$OMEGA_PATH_OMEGA0/gates/fixtures/omega0-terminal-v26.hex" "$T/terminal.psi" <<'PY'
 import pathlib
 import sys
 pathlib.Path(sys.argv[2]).write_bytes(bytes.fromhex(pathlib.Path(sys.argv[1]).read_text(encoding="ascii")))

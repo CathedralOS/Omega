@@ -27,12 +27,25 @@ const CALL_COMPOSITION_BYTES: &str = include_str!("fixtures/terminal_ledger_call
 
 #[test]
 fn gamma_ledger_spike_fixtures_are_exact_current_terminal_bytes() {
-    for (name, asymmetric, expected) in [
-        ("matching", false, MATCHING_BYTES),
-        ("asymmetric", true, ASYMMETRIC_BYTES),
+    for (name, asymmetric, expected, fixture_path) in [
+        (
+            "matching",
+            false,
+            MATCHING_BYTES,
+            "tests/fixtures/terminal_ledger_spike.hex",
+        ),
+        (
+            "asymmetric",
+            true,
+            ASYMMETRIC_BYTES,
+            "tests/fixtures/terminal_ledger_spike_asymmetric.hex",
+        ),
     ] {
         let module = ledger_spike_fixture(asymmetric);
         let bytes = encode_module(&module).expect("ledger spike fixture must encode");
+        if refresh_fixture_if_requested(fixture_path, &bytes) {
+            continue;
+        }
         assert_eq!(decode_module(&bytes), Ok(module.clone()));
         assert_eq!(
             encode_module(&decode_module(&bytes).unwrap()),
@@ -55,6 +68,12 @@ fn gamma_structural_effect_ledger_fixture_is_exact_current_terminal_bytes() {
     let module = structural_effect_ledger_fixture();
     validate_module(&module).expect("structural/effect ledger spike must validate");
     let bytes = encode_module(&module).expect("structural/effect ledger spike must encode");
+    if refresh_fixture_if_requested(
+        "tests/fixtures/terminal_ledger_structural_effect.hex",
+        &bytes,
+    ) {
+        return;
+    }
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(
         encode_module(&decode_module(&bytes).unwrap()),
@@ -78,6 +97,12 @@ fn gamma_call_composition_ledger_fixture_is_exact_current_terminal_bytes() {
     let module = call_composition_ledger_fixture();
     validate_module(&module).expect("call-composition ledger spike must validate");
     let bytes = encode_module(&module).expect("call-composition ledger spike must encode");
+    if refresh_fixture_if_requested(
+        "tests/fixtures/terminal_ledger_call_composition.hex",
+        &bytes,
+    ) {
+        return;
+    }
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(
         encode_module(&decode_module(&bytes).unwrap()),
@@ -94,6 +119,15 @@ fn gamma_call_composition_ledger_fixture_is_exact_current_terminal_bytes() {
 
     let identity = semantic_fingerprint(&module).expect("call-composition fixture identity");
     assert_ne!(identity.as_bytes(), &[0; 32]);
+}
+
+fn refresh_fixture_if_requested(path: &str, bytes: &[u8]) -> bool {
+    if std::env::var_os("OMEGA_UPDATE_TERMINAL_FIXTURES").is_some() {
+        std::fs::write(path, wrapped_hex(bytes)).expect("terminal fixture must be writable");
+        true
+    } else {
+        false
+    }
 }
 
 fn call_composition_ledger_fixture() -> TerminalModule {
@@ -232,6 +266,7 @@ fn call_composition_ledger_fixture() -> TerminalModule {
         }],
         structural_domains: vec![StructuralDomainDeclaration {
             id: pending,
+            semantic_domain: psi_core::DomainSemanticId::new(1).unwrap(),
             identity: "Spike::Resource::Pending".into(),
             carrier: resource,
         }],
@@ -248,6 +283,7 @@ fn call_composition_ledger_fixture() -> TerminalModule {
                 argument_index: 0,
                 domain: pending,
             }],
+            program_local_root_introductions: Vec::new(),
             published_service_ceiling: Vec::new(),
         }],
         provider_candidates: Vec::new(),

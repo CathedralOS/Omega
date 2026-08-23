@@ -24,8 +24,9 @@ pub(super) use catalog::{
     lower_root_service_reach,
 };
 use catalog::{
-    lower_provider_candidate_service_ceiling, lower_unit_services, lower_unit_structural_domains,
-    lower_unit_structural_types, require_valid_service_row,
+    lower_program_local_root_introductions, lower_provider_candidate_service_ceiling,
+    lower_unit_services, lower_unit_structural_domains, lower_unit_structural_types,
+    require_valid_service_row,
 };
 pub(super) use parameters::{
     lower_installation_machine_service_ceiling, lower_published_service_ceiling,
@@ -190,6 +191,13 @@ pub(super) fn lower_attached_unit_closure_including(
             &service_ids,
         )?;
         let id = boundary_machine_id(dense_identity(index)?);
+        let program_local_root_introductions = lower_program_local_root_introductions(
+            checked,
+            plan,
+            identity,
+            &parameters,
+            &domain_ids,
+        )?;
         boundary_machines.push(BoundaryMachineDeclaration {
             id,
             identity: identity.clone(),
@@ -202,6 +210,7 @@ pub(super) fn lower_attached_unit_closure_including(
             structural_parameters: parameters.clone(),
             result: plan.result_type.map(terminal_scalar_type).transpose()?,
             requires,
+            program_local_root_introductions,
             published_service_ceiling,
         });
         lowered_boundary_parameters.push((plan.machine, id, parameters, scalar_parameters));
