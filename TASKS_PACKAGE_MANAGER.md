@@ -306,6 +306,20 @@ Completed:
   planning, and return install/update plan text without editing `build.omg` or
   writing `omega.lock`.
 
+- **OMEGA-PLAN-INSTALL-UPDATE-CLI.** Expose non-mutating package install/update
+  plan commands through the Rust on-ramp `omega` binary before full
+  install/update mutation.
+
+  Done 2026-08-23: `omega plan install --lock <omega.lock>
+  --current-manifest <manifest.json>... --candidate-manifest <manifest.json>...
+  --alias <alias> --package <package>` and `omega plan update --lock
+  <omega.lock> --current-manifest <manifest.json>... --candidate-manifest
+  <manifest.json>... --package <package> [--receipt <receipt.json>]` read an
+  existing lock, explicit current/candidate package capability manifest files,
+  and optional capability-change receipt, then print the plan without fetching
+  sources, deriving manifests, executing dependency `build.omg`, editing
+  `build.omg`, or writing `omega.lock`.
+
 - **UPDATE-PLAN-CANDIDATE-GRAPH-AUDIT.** Ensure non-mutating update plans fail
   closed if the admitted candidate lock is not graph-auditable.
 
@@ -418,10 +432,10 @@ Remaining:
   diff, and writes the dependency binding plus lock entry only after the
   candidate passes policy.
 
-  Remaining after `PACKAGE-LOCK-INSTALL-PLAN` and
-  `PACKAGE-PLAN-COMMAND-APIS`: wire source resolution, package-admission
-  manifest derivation, `build.omg` alias/pin editing, and lock persistence
-  around the install plan.
+  Remaining after `PACKAGE-LOCK-INSTALL-PLAN`, `PACKAGE-PLAN-COMMAND-APIS`,
+  and `OMEGA-PLAN-INSTALL-UPDATE-CLI`: wire source resolution,
+  package-admission manifest derivation, `build.omg` alias/pin editing, and
+  lock persistence around the install plan.
 
   Acceptance: adding a dependency produces a pinned alias in `build.omg`, an
   updated lock entry, and an audit summary that names new reachable services,
@@ -434,7 +448,8 @@ Remaining:
   Remaining after `DEFAULT-UPDATE-ADMISSION` and
   `PACKAGE-LOCK-UPDATE-PLAN`, `CAPABILITY-CHANGE-RECEIPT-PERSISTENCE`, and
   `PACKAGE-PLAN-COMMAND-APIS`, and
-  `UPDATE-PLAN-CANDIDATE-GRAPH-AUDIT`: wire candidate resolution,
+  `UPDATE-PLAN-CANDIDATE-GRAPH-AUDIT`, and
+  `OMEGA-PLAN-INSTALL-UPDATE-CLI`: wire candidate resolution,
   package-admission manifest derivation, `build.omg` pin editing, and lock
   persistence around the update decision.
 

@@ -146,11 +146,15 @@ The Rust on-ramp `omega` binary exposes read-only package/source audit paths:
 omega audit source <locator> [--rev <rev>] [--cache-dir <dir>]
 omega audit packages [--lock <omega.lock>] --manifest <manifest.json>...
 omega review capability-change --old-manifest <manifest.json> --new-manifest <manifest.json> --reviewer <id> --reason <text> --out <receipt.json>
+omega plan install --lock <omega.lock> --current-manifest <manifest.json>... --candidate-manifest <manifest.json>... --alias <alias> --package <package>
+omega plan update --lock <omega.lock> --current-manifest <manifest.json>... --candidate-manifest <manifest.json>... --package <package> [--receipt <receipt.json>]
 ```
 
 The source audit resolves a local/Git locator to content identity and reports
 the resolved commit/tree when applicable. The package graph audit requires
 precomputed package capability manifest files. The review command writes an
-explicit standalone capability-change receipt to the requested path. These
-commands do not derive package manifests, execute dependency `build.omg`, edit
-`build.omg`, or write `omega.lock`.
+explicit standalone capability-change receipt to the requested path. The plan
+commands read an existing lock plus explicit current/candidate manifest files
+and print install/update admission plans. These commands do not derive package
+manifests, execute dependency `build.omg`, edit `build.omg`, or write
+`omega.lock`.

@@ -54,10 +54,17 @@ fn main() {
         review(raw_arguments);
         return;
     }
+    if first_argument
+        .as_deref()
+        .is_some_and(|first| first == "plan")
+    {
+        plan(raw_arguments);
+        return;
+    }
 
     let Some(arguments) = parse_arguments() else {
         eprintln!(
-            "usage: omega [--check] [--build-dir <dir>] [--target <name>] <root.omg>\n       omega inspect-terminal --machine <qualified> [--target <name>] <root.omg>\n       omega audit source <locator> [--rev <rev>] [--cache-dir <dir>]\n       omega audit packages [--lock <omega.lock>] --manifest <manifest.json>...\n       omega review capability-change --old-manifest <manifest.json> --new-manifest <manifest.json> --reviewer <id> --reason <text> --out <receipt.json>\n       omega refresh-samples [samples-dir]"
+            "usage: omega [--check] [--build-dir <dir>] [--target <name>] <root.omg>\n       omega inspect-terminal --machine <qualified> [--target <name>] <root.omg>\n       omega audit source <locator> [--rev <rev>] [--cache-dir <dir>]\n       omega audit packages [--lock <omega.lock>] --manifest <manifest.json>...\n       omega review capability-change --old-manifest <manifest.json> --new-manifest <manifest.json> --reviewer <id> --reason <text> --out <receipt.json>\n       omega plan install --lock <omega.lock> --current-manifest <manifest.json>... --candidate-manifest <manifest.json>... --alias <alias> --package <package>\n       omega plan update --lock <omega.lock> --current-manifest <manifest.json>... --candidate-manifest <manifest.json>... --package <package> [--receipt <receipt.json>]\n       omega refresh-samples [samples-dir]"
         );
         std::process::exit(2);
     };
@@ -146,6 +153,130 @@ fn audit_packages(arguments: impl Iterator<Item = std::ffi::OsString>) {
             std::process::exit(1);
         }
     }
+}
+
+fn plan(arguments: impl Iterator<Item = std::ffi::OsString>) {
+    let mut arguments = arguments;
+    let Some(subcommand) = arguments.next() else {
+        eprintln!(
+            "usage: omega plan install --lock <omega.lock> --current-manifest <manifest.json>... --candidate-manifest <manifest.json>... --alias <alias> --package <package>"
+        );
+        eprintln!(
+            "       omega plan update --lock <omega.lock> --current-manifest <manifest.json>... --candidate-manifest <manifest.json>... --package <package> [--receipt <receipt.json>]"
+        );
+        std::process::exit(2);
+    };
+    if subcommand == "install" {
+        plan_install(arguments);
+        return;
+    }
+    if subcommand == "update" {
+        plan_update(arguments);
+        return;
+    }
+    eprintln!("unknown plan command `{}`", subcommand.to_string_lossy());
+    eprintln!(
+        "usage: omega plan install --lock <omega.lock> --current-manifest <manifest.json>... --candidate-manifest <manifest.json>... --alias <alias> --package <package>"
+    );
+    eprintln!(
+        "       omega plan update --lock <omega.lock> --current-manifest <manifest.json>... --candidate-manifest <manifest.json>... --package <package> [--receipt <receipt.json>]"
+    );
+    std::process::exit(2);
+}
+
+fn plan_install(arguments: impl Iterator<Item = std::ffi::OsString>) {
+    let Some(arguments) = parse_plan_install_arguments(arguments) else {
+        eprintln!(
+            "usage: omega plan install --lock <omega.lock> --current-manifest <manifest.json>... --candidate-manifest <manifest.json>... --alias <alias> --package <package>"
+        );
+        std::process::exit(2);
+    };
+    let alias = match omega_packages::AliasName::parse(arguments.alias) {
+        Ok(alias) => alias,
+        Err(error) => {
+            eprintln!("{error}");
+            std::process::exit(2);
+        }
+    };
+    let package = match omega_packages::PackageName::parse(arguments.package) {
+        Ok(package) => package,
+        Err(error) => {
+            eprintln!("{error}");
+            std::process::exit(2);
+        }
+    };
+    let current_manifests =
+        read_package_capability_manifests(&arguments.current_manifest_paths, "current");
+    let candidate_manifests =
+        read_package_capability_manifests(&arguments.candidate_manifest_paths, "candidate");
+    match omega_packages::plan_package_install_from_lock(
+        &arguments.lock_path,
+        &current_manifests,
+        &candidate_manifests,
+        &alias,
+        &package,
+    ) {
+        Ok(command) => {
+            print!("{}", command.to_text());
+        }
+        Err(error) => {
+            eprintln!("cannot plan package install: {error:?}");
+            std::process::exit(1);
+        }
+    }
+}
+
+fn plan_update(arguments: impl Iterator<Item = std::ffi::OsString>) {
+    let Some(arguments) = parse_plan_update_arguments(arguments) else {
+        eprintln!(
+            "usage: omega plan update --lock <omega.lock> --current-manifest <manifest.json>... --candidate-manifest <manifest.json>... --package <package> [--receipt <receipt.json>]"
+        );
+        std::process::exit(2);
+    };
+    let package = match omega_packages::PackageName::parse(arguments.package) {
+        Ok(package) => package,
+        Err(error) => {
+            eprintln!("{error}");
+            std::process::exit(2);
+        }
+    };
+    let current_manifests =
+        read_package_capability_manifests(&arguments.current_manifest_paths, "current");
+    let candidate_manifests =
+        read_package_capability_manifests(&arguments.candidate_manifest_paths, "candidate");
+    match omega_packages::plan_package_lock_update_from_lock(
+        &arguments.lock_path,
+        &current_manifests,
+        &candidate_manifests,
+        &package,
+        arguments.receipt_path.as_deref(),
+    ) {
+        Ok(command) => {
+            print!("{}", command.to_text());
+        }
+        Err(error) => {
+            eprintln!("cannot plan package update: {error:?}");
+            std::process::exit(1);
+        }
+    }
+}
+
+fn read_package_capability_manifests(
+    paths: &[PathBuf],
+    label: &str,
+) -> Vec<omega_packages::PackageCapabilityManifest> {
+    paths
+        .iter()
+        .map(
+            |path| match omega_packages::PackageCapabilityManifest::read_from_path(path) {
+                Ok(manifest) => manifest,
+                Err(error) => {
+                    eprintln!("cannot read {label} manifest {}: {error:?}", path.display());
+                    std::process::exit(1);
+                }
+            },
+        )
+        .collect()
 }
 
 fn review(arguments: impl Iterator<Item = std::ffi::OsString>) {
@@ -299,12 +430,142 @@ struct AuditSourceArguments {
     cache_dir: PathBuf,
 }
 
+struct PlanInstallArguments {
+    lock_path: PathBuf,
+    current_manifest_paths: Vec<PathBuf>,
+    candidate_manifest_paths: Vec<PathBuf>,
+    alias: String,
+    package: String,
+}
+
+struct PlanUpdateArguments {
+    lock_path: PathBuf,
+    current_manifest_paths: Vec<PathBuf>,
+    candidate_manifest_paths: Vec<PathBuf>,
+    package: String,
+    receipt_path: Option<PathBuf>,
+}
+
 struct ReviewCapabilityChangeArguments {
     old_manifest_path: PathBuf,
     new_manifest_path: PathBuf,
     reviewer: String,
     reason: String,
     out_path: PathBuf,
+}
+
+fn parse_plan_install_arguments(
+    mut arguments: impl Iterator<Item = std::ffi::OsString>,
+) -> Option<PlanInstallArguments> {
+    let mut lock_path = None;
+    let mut current_manifest_paths = Vec::new();
+    let mut candidate_manifest_paths = Vec::new();
+    let mut alias = None;
+    let mut package = None;
+    while let Some(argument) = arguments.next() {
+        if argument == "--lock" {
+            if lock_path.is_some() {
+                return None;
+            }
+            lock_path = arguments.next().map(PathBuf::from);
+            lock_path.as_ref()?;
+            continue;
+        }
+        if argument == "--current-manifest" {
+            let manifest_path = arguments.next().map(PathBuf::from)?;
+            current_manifest_paths.push(manifest_path);
+            continue;
+        }
+        if argument == "--candidate-manifest" {
+            let manifest_path = arguments.next().map(PathBuf::from)?;
+            candidate_manifest_paths.push(manifest_path);
+            continue;
+        }
+        if argument == "--alias" {
+            if alias.is_some() {
+                return None;
+            }
+            alias = arguments.next().and_then(|value| value.into_string().ok());
+            alias.as_ref()?;
+            continue;
+        }
+        if argument == "--package" {
+            if package.is_some() {
+                return None;
+            }
+            package = arguments.next().and_then(|value| value.into_string().ok());
+            package.as_ref()?;
+            continue;
+        }
+        return None;
+    }
+    if current_manifest_paths.is_empty() || candidate_manifest_paths.is_empty() {
+        return None;
+    }
+    Some(PlanInstallArguments {
+        lock_path: lock_path?,
+        current_manifest_paths,
+        candidate_manifest_paths,
+        alias: alias?,
+        package: package?,
+    })
+}
+
+fn parse_plan_update_arguments(
+    mut arguments: impl Iterator<Item = std::ffi::OsString>,
+) -> Option<PlanUpdateArguments> {
+    let mut lock_path = None;
+    let mut current_manifest_paths = Vec::new();
+    let mut candidate_manifest_paths = Vec::new();
+    let mut package = None;
+    let mut receipt_path = None;
+    while let Some(argument) = arguments.next() {
+        if argument == "--lock" {
+            if lock_path.is_some() {
+                return None;
+            }
+            lock_path = arguments.next().map(PathBuf::from);
+            lock_path.as_ref()?;
+            continue;
+        }
+        if argument == "--current-manifest" {
+            let manifest_path = arguments.next().map(PathBuf::from)?;
+            current_manifest_paths.push(manifest_path);
+            continue;
+        }
+        if argument == "--candidate-manifest" {
+            let manifest_path = arguments.next().map(PathBuf::from)?;
+            candidate_manifest_paths.push(manifest_path);
+            continue;
+        }
+        if argument == "--package" {
+            if package.is_some() {
+                return None;
+            }
+            package = arguments.next().and_then(|value| value.into_string().ok());
+            package.as_ref()?;
+            continue;
+        }
+        if argument == "--receipt" {
+            if receipt_path.is_some() {
+                return None;
+            }
+            receipt_path = arguments.next().map(PathBuf::from);
+            receipt_path.as_ref()?;
+            continue;
+        }
+        return None;
+    }
+    if current_manifest_paths.is_empty() || candidate_manifest_paths.is_empty() {
+        return None;
+    }
+    Some(PlanUpdateArguments {
+        lock_path: lock_path?,
+        current_manifest_paths,
+        candidate_manifest_paths,
+        package: package?,
+        receipt_path,
+    })
 }
 
 fn parse_review_capability_change_arguments(
