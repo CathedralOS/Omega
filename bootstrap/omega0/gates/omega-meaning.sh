@@ -46,7 +46,11 @@ om() {
   src="${OMEGA_PATH_CORPUS}/$1/main.omg"
   want=$(grep -oE 'Expected exit: [0-9]+' "$src" | head -1 | grep -oE '[0-9]+')
   [ -n "$want" ] || { FAIL=$((FAIL+1)); echo "  FAIL $1 : no documented exit"; return; }
-  "$T/omega2gamma.exe" < "$src" 2>/dev/null | "$T/interp.exe" > "$T/mo.out" 2>&1; got=$?
+  # The ordinary meaning sweep supplies empty standard input explicitly. Leaving
+  # the frontend's STDIN placeholder as a free Gamma identifier made this case
+  # depend accidentally on parser name-table order. input-tv.sh substitutes the
+  # documented non-empty vectors separately.
+  "$T/omega2gamma.exe" < "$src" 2>/dev/null | sed 's/STDIN/Nil/' | "$T/interp.exe" > "$T/mo.out" 2>&1; got=$?
   case "$(head -c 6 "$T/mo.out")" in '(Pair ')                    # dual-channel: exit rides the pair
     got=$(head -1 "$T/mo.out" | sed 's/^(Pair \([0-9]*\) .*/\1/');; esac
   if [ "$got" = "$want" ]; then PASS=$((PASS+1)); else

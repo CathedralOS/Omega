@@ -207,13 +207,18 @@ story.
     source perturbation that changes the observed result.
   - [x] Exercise byte input/output and real Delta certifiers through the same
     Rust-free route in `bootstrap/omega0/gates/convergence-reference.sh`.
-  - [ ] Make compiler-scale elaboration compact enough to gate the actual
-    Delta-written backend. A direct `omega2gamma.beta` attempt on
-    `bootstrap/omega0/compiler/omega0-terminal-to-elf.alp` expanded beyond
-    116 MiB of Gamma in two minutes without completing; do not normalize that
-    behavior as an acceptable slow test. Remove the repeated expansion, then
-    add a focused native-versus-Gamma meaning gate for the canonical, operand-
-    variant, and rejection observations of the backend.
+  - [ ] Gate the actual Delta-written backend through lower-rung meaning for the
+    canonical, operand-variant, and rejection observations.
+    - [x] Remove the compiler-scale elaboration cliff. Per-machine metadata
+      tables previously overlapped at machine 25, corrupting machine zero's
+      local count to 29,620 and repeating 29,620 phantom arguments in every
+      definition. The tables now reserve the documented 128-machine capacity,
+      and scalar receiver fields use one indexed carrier. The 28-machine backend
+      now elaborates completely to 87,879 bytes of Gamma in about 0.16 seconds,
+      rather than exceeding 116 MiB without completing.
+    - [ ] Add the focused native-versus-Gamma backend meaning gate; compact
+      elaboration is necessary evidence but does not by itself establish the
+      backend's artifact semantics.
   - [ ] Audit the eventual Omega0 Delta source against D0 and make every construct
     either elaborate through the lower-rung route or reject before it can enter
     the compiler. Keep `gamma_emit.rs` only as a reference differential producer.
@@ -223,12 +228,11 @@ story.
       preserves semantic rejection at 251. The focused gate pins multi-slot
       void/value method-state threading, bounded per-machine capacity, and the
       private chunked carrier used only for compiler-sized scalar arrays.
-    - [ ] Re-establish the frontend meaning gate for O1 after compacting the
-      elaborator. The generalized frontend produced no Gamma output within the
-      focused 85-second limit, so its new zero/two-write cases are present but
-      intentionally not claimed as passing evidence. The default lattice suite
-      reports this edge as deferred instead of entering that known-unbounded
-      route; `LATTICE_EXPERIMENTAL=1` opts into probing it.
+    - [x] Re-establish the frontend meaning gate for O1. The 40-machine frontend
+      now elaborates completely to 112,780 bytes of Gamma in about 0.22 seconds;
+      the end-to-end lower-rung gate completes in about 17 seconds and pins the
+      retained digest, zero/two-write dual-channel results, semantic rejection,
+      and multi-slot method threading. It is part of the default lattice suite.
 - [x] **Build a vertical Omega canary in Delta.** A Delta-written program must
   accept a small Omega source file, perform name/type checks, lower through the
   chosen terminal-Psi path, and produce a runnable artifact whose behavior

@@ -39,11 +39,11 @@
 ; stdout: write_byte(e)/write_line("s") accumulate LAST list slot `out` (cons-front): write_byte -> `(Cons e
 ; out)`; write_line -> cons the string bytes + a trailing '\n'. In OUTPUT mode the entry terminal returns
 ; `(rev out Nil)` (the whole stdout) not the exit code; interp prints that list. `rev` prepended if outputs.
-; SELF-METHODS: `machine Main::m(&mut self, params)` shares the caller's `self`. The self-state {fields,
-; arrays, inp, out} is UNIFIED (union over the entry + all methods) and threaded as extra params after each
-; machine's locals. A void method returns its self-state BUNDLE: "0" / the sole slot / a flat SelfState.
-; A call `self.m(a);` -> `(let nss <call> rest)` (1 slot) or `(match <call> ((SelfState a0 .. aN) rest))`
-; (N slots), rebinding the self-slots to fresh names. Slot order everywhere: locals, fields, arrays, inp, out.
+; SELF-METHODS: `machine Main::m(&mut self, params)` shares the caller's `self`. Scalar fields are packed in
+; one indexed Gamma list `gs`; arrays, inp, and out retain their independent carriers. The self-state is
+; UNIFIED (union over the entry + all methods) and threaded after each machine's locals. A void method returns
+; its compact self-state BUNDLE: "0" / the sole carrier / a flat SelfState. A call rebinds carriers, never each
+; scalar field: compiler-sized sources therefore grow with call sites, not call-sites times scalar-field count.
 ;
 ; Emission (matching gamma_emit.rs slices 3-5): EVERY machine becomes mutually-recursive gamma defs
 ; `(def m{mi}_me (SIG) <entry>) (def m{mi}_s{k} (SIG) <state k>) ...`, SIG = its locals l0.. (++ the
@@ -54,12 +54,13 @@
 ;
 ; Memory:  2097152 SRC  2097144 CUR  2097136 LEN  2097128 APTR (arena@3145728)
 ; Scalars: 6000000 MACHINE_CNT  6000008 ENTRY_IDX  6000016 FRESH  6000024 FIELD_CNT  6000032 CUR_MI
-; Per-machine (mi*8): 6010000 M_NAME 6010200 M_KIND(0 entry/1 free) 6010400 M_BODY 6010600 M_PCNT
-;                     6010800 M_LCNT 6011000 M_SCNT
+; Per-machine tables reserve 2,000 bytes each (250 slots; the admitted cap is 128 machines):
+; 6010000 M_NAME 6012000 M_KIND(0 entry/1 free) 6014000 M_BODY 6016000 M_PCNT
+; 6018000 M_LCNT 6020000 M_SCNT 6022000 M_OWNER 6024000 M_PREF
 ; Per-machine local names ((mi*128+k)*8): 6100000 M_LNAME
 ; Per-machine states     ((mi*128+s)*8): 6300000 M_SNAME  6500000 M_SBODY
 ; Entry fields (g*8): 6800000 FIELD_NAME     SSA scratch (idx*8): 6400000/6410000 local kind/val,
-;                     6420000/6430000 field kind/val (0=param l{i}/g{g}, 1=t{val})
+;                     6420000/6430000 scalar-carrier kind/val (0=param gs, 1=t{val})
 ; Transition arms (j*8): 6600000 ARM_PAT  6610000 ARM_TGT
 ; AST nodes [tag,f0,f1,f2] (32B): 0 INT(v) 1 LOCAL(i) 2 BIN(op,a,b) 3 FIELD(g) 4 CALL(callee,args) 5 ARG(e,next).
 
@@ -279,7 +280,7 @@ proc lookup_local(off) {
     let mi = word[6000032]
     let k = 0
     state loop {
-        to nomatch when (k == word[6010800 + mi * 8])       ; M_LCNT[mi]
+        to nomatch when (k == word[6018000 + mi * 8])       ; M_LCNT[mi]
         to hit when (name_eq2(off, word[6100000 + (mi * 128 + k) * 8]) == 1)
         k = k + 1
         to loop
@@ -292,7 +293,7 @@ proc state_exists(off) {
     let mi = word[6000032]
     let k = 0
     state loop {
-        to no when (k == word[6011000 + mi * 8])
+        to no when (k == word[6020000 + mi * 8])
         to yes when (name_eq2(off, word[6300000 + (mi * 128 + k) * 8]) == 1)
         k = k + 1
         to loop
@@ -305,7 +306,7 @@ proc lookup_state(off) {
     let mi = word[6000032]
     let k = 0
     state loop {
-        to nomatch when (k == word[6011000 + mi * 8])       ; M_SCNT[mi]
+        to nomatch when (k == word[6020000 + mi * 8])       ; M_SCNT[mi]
         to hit when (name_eq2(off, word[6300000 + (mi * 128 + k) * 8]) == 1)
         k = k + 1
         to loop
@@ -329,7 +330,7 @@ proc field_lookup(pref, off) {
 
 ; the current machine's instance prefix (M_PREF[CUR_MI]).
 proc cur_pref() {
-    return word[6011400 + word[6000032] * 8]
+    return word[6024000 + word[6000032] * 8]
 }
 
 proc lookup_machine(off) {
@@ -1197,10 +1198,32 @@ proc print_curname(i) {
     state isT { write_byte('t')  emit_dec(word[6410000 + i * 8])  return 0 }
 }
 
+; Scalar receiver fields share one persistent indexed carrier. Reads select one lane; writes replace the
+; carrier with setl. The two scratch words track the carrier's SSA name, rather than one name per field.
+proc print_field_carrier() {
+    state k { to isG when (word[6420000] == 0)  to isT }
+    state isG { emit("gs")  return 0 }
+    state isT { write_byte('t')  emit_dec(word[6430000])  return 0 }
+}
+
+proc set_field_carrier(fv) {
+    word[6420000] = 1
+    word[6430000] = fv
+    return 0
+}
+
+proc field_carrier_count() {
+    state d { to none when (word[6000024] == 0)  return 1 }
+    state none { return 0 }
+}
+
 proc print_fcurname(g) {
-    state k { to isG when (word[6420000 + g * 8] == 0)  to isT }
-    state isG { write_byte('g')  emit_dec(g)  return 0 }
-    state isT { write_byte('t')  emit_dec(word[6430000 + g * 8])  return 0 }
+    emit("(nth ")
+    print_field_carrier()
+    write_byte(' ')
+    emit_dec(g)
+    write_byte(')')
+    return 0
 }
 
 proc print_acurname(a) {
@@ -1355,16 +1378,16 @@ proc emit_exit_om() {
     }
 }
 
-; ---- self-methods: the program-wide UNIFIED self-state {fields, arrays, inp, out} threaded as a tuple ----
+; ---- self-methods: the program-wide UNIFIED self-state {scalar carrier, arrays, inp, out} ----
 
 ; the number of unified self-slots (shared by every &mut self machine).
 proc self_slot_count() {
-    return word[6000024] + word[6000040] + word[6000048] + word[6000056]   ; FIELD + ARRAY + HAS_INPUT + HAS_OUTPUT
+    return field_carrier_count() + word[6000040] + word[6000048] + word[6000056]
 }
 
-; print the current gamma name of self-slot i (order: fields, arrays, inp, out).
+; print the current gamma name of self-slot i (order: scalar carrier, arrays, inp, out).
 proc print_self_slot(i) {
-    let nf = word[6000024]
+    let nf = field_carrier_count()
     let na = word[6000040]
     state d {
         to fld when (i < nf)
@@ -1372,7 +1395,7 @@ proc print_self_slot(i) {
         to inq when (i < nf + na + word[6000048])
         to ouq
     }
-    state fld { print_fcurname(i)  return 0 }
+    state fld { print_field_carrier()  return 0 }
     state arr { print_acurname(i - nf)  return 0 }
     state inq { print_inpname()  return 0 }
     state ouq { print_outname()  return 0 }
@@ -1380,7 +1403,7 @@ proc print_self_slot(i) {
 
 ; rebind self-slot i's current name to t{fv}.
 proc set_self_slot(i, fv) {
-    let nf = word[6000024]
+    let nf = field_carrier_count()
     let na = word[6000040]
     state d {
         to fld when (i < nf)
@@ -1388,7 +1411,7 @@ proc set_self_slot(i, fv) {
         to inq when (i < nf + na + word[6000048])
         to ouq
     }
-    state fld { word[6420000 + i * 8] = 1  word[6430000 + i * 8] = fv  return 0 }
+    state fld { set_field_carrier(fv)  return 0 }
     state arr { word[6440000 + (i - nf) * 8] = 1  word[6450000 + (i - nf) * 8] = fv  return 0 }
     state inq { word[6460000] = 1  word[6470000] = fv  return 0 }
     state ouq { word[6480000] = 1  word[6490000] = fv  return 0 }
@@ -1412,7 +1435,7 @@ proc emit_self_args() {
 proc emit_call_expr(callee, ch) {
     emit("(m")  emit_dec(callee)  emit("_me")
     print_args(ch)
-    emit_zeros(word[6010800 + callee * 8] - word[6010600 + callee * 8])   ; LCNT - PCNT
+    emit_zeros(word[6018000 + callee * 8] - word[6016000 + callee * 8])   ; LCNT - PCNT
     emit_self_args()
     write_byte(')')
     return 0
@@ -1544,11 +1567,22 @@ proc emit_vcall(callee, kindb, valb, idx) {
     state vmlast { emit(") ")  to vbind }
     state vbind {                      ; bind the TARGET slot to the result LAST — if the target is itself
         to vbind_h when (kindb == 0)   ; a self-field (self.w = self.m(...)), the self-slot rebinds above
+        to vbind_f when (kindb == 6420000)
         word[kindb + idx * 8] = 1      ; would otherwise CLOBBER the result with the threaded-through slot.
         word[valb + idx * 8] = rr
         to vfin when (ns == 1)
         return 4
     }
+    state vbind_f {
+        let fw = word[6000016]
+        word[6000016] = fw + 1
+        emit("(let t")  emit_dec(fw)  emit(" (setl ")  print_field_carrier()
+        write_byte(' ')  emit_dec(idx)  emit(" t")  emit_dec(rr)  emit(") ")
+        set_field_carrier(fw)
+        to vfin_f when (ns == 1)
+        return 5
+    }
+    state vfin_f { return 3 }
     state vbind_h {
         word[6000112] = rr             ; HOIST mode: hand the result index back, no slot bind
         to vfin when (ns == 1)
@@ -1668,7 +1702,7 @@ proc print_expr(node) {
         let callee = word[node + 8]
         emit("(m")  emit_dec(callee)  emit("_me")
         print_args(word[node + 16])
-        emit_zeros(word[6010800 + callee * 8] - word[6010600 + callee * 8])   ; LCNT - PCNT
+        emit_zeros(word[6018000 + callee * 8] - word[6016000 + callee * 8])   ; LCNT - PCNT
         write_byte(')')
         return 0
     }
@@ -1751,14 +1785,14 @@ proc emit_call_state(tgt, arm) {
     state vchk { to visval when (word[6660000 + arm * 8] > 0)  to vcall }
     state visval {                     ; a value arm: return the literal/expression, method-paired
         to vtail when (word[6660000 + arm * 8] == 3)
-        to vpm when (word[6010200 + mi * 8] == 2)
+        to vpm when (word[6012000 + mi * 8] == 2)
         to vlit
     }
     state vtail {                      ; a machine tail call: the callee's own return IS this arm's value
         let tc = word[6680000 + arm * 8]
         emit("(m")  emit_dec(tc)  emit("_me")
         print_args(word[6670000 + arm * 8])
-        emit_zeros(word[6010800 + tc * 8] - word[6010600 + tc * 8])   ; LCNT - PCNT
+        emit_zeros(word[6018000 + tc * 8] - word[6016000 + tc * 8])   ; LCNT - PCNT
         emit_selfslots(tc)
         write_byte(')')
         return 0
@@ -1789,7 +1823,7 @@ proc emit_call_state(tgt, arm) {
     state vgo { emit("(m")  emit_dec(mi)  emit("_s")  emit_dec(tgt)  to vrest }
     state vrest { let i = 0  to lloop }
     state lloop {
-        to fields when (i == word[6010800 + mi * 8])       ; M_LCNT[mi]
+        to fields when (i == word[6018000 + mi * 8])       ; M_LCNT[mi]
         write_byte(' ')
         let an = arm_arg_for(tgt, arm, i)
         to isarg when (an != 0)
@@ -1802,41 +1836,14 @@ proc emit_call_state(tgt, arm) {
     state done { write_byte(')')  return 0 }
 }
 
-; the unified self-state slots (fields, arrays, input, output) appended to a call — shared by state
+; the unified self-state carriers (scalar list, arrays, input, output) appended to a call — shared by state
 ; calls, machine tail-call arms, and anything else that invokes a has_self def.
 proc emit_selfslots(mi) {
     state fields {
-        to dofields when (word[6010200 + mi * 8] != 1)
+        to dofields when (word[6012000 + mi * 8] != 1)
         return 0
     }
-    state dofields { let g = 0  to floop }
-    state floop {
-        to arrs when (g == word[6000024])                  ; FIELD_CNT
-        write_byte(' ')
-        print_fcurname(g)
-        g = g + 1
-        to floop
-    }
-    state arrs { let ai = 0  to aloop }
-    state aloop {
-        to inpslot when (ai == word[6000040])              ; ARRAY_CNT
-        write_byte(' ')
-        print_acurname(ai)
-        ai = ai + 1
-        to aloop
-    }
-    state inpslot {
-        to outslot when (word[6000048] == 0)               ; HAS_INPUT
-        write_byte(' ')
-        print_inpname()
-        to outslot
-    }
-    state outslot {
-        to sdone when (word[6000056] == 0)                 ; HAS_OUTPUT
-        write_byte(' ')
-        print_outname()
-        to sdone
-    }
+    state dofields { emit_self_args()  to sdone }
     state sdone { return 0 }
 }
 
@@ -1845,24 +1852,17 @@ proc emit_selfslots(mi) {
 proc reset_curname(mi) {
     let i = 0
     state loop {
-        to fields when (i == word[6010800 + mi * 8])       ; M_LCNT[mi]
+        to fields when (i == word[6018000 + mi * 8])       ; M_LCNT[mi]
         word[6400000 + i * 8] = 0
         word[6410000 + i * 8] = i
         i = i + 1
         to loop
     }
     state fields {
-        to dofields when (word[6010200 + mi * 8] != 1)     ; has_self -> reset self-slots too
+        to dofields when (word[6012000 + mi * 8] != 1)     ; has_self -> reset self-slots too
         return 0
     }
-    state dofields { let g = 0  to floop }
-    state floop {
-        to arrs when (g == word[6000024])
-        word[6420000 + g * 8] = 0
-        word[6430000 + g * 8] = g
-        g = g + 1
-        to floop
-    }
+    state dofields { word[6420000] = 0  word[6430000] = 0  to arrs }
     state arrs { let ai = 0  to aloop }
     state aloop {
         to inp when (ai == word[6000040])
@@ -2019,8 +2019,8 @@ proc hoist_calls() {
 
 ; a value-position atomic read-modify-write: `<target> = self.f.OP(args, orderings);`. Single-threaded
 ; desugar (memory orderings are no-ops): fetch_add(v) -> old=f; f=f+v.  compare_exchange(e,n) -> old=f;
-; f = old + (old==e)*(n-old) (branchless swap). Binds the target (kindb/valb/idx) to old, rebinds the field
-; slot to the new value, returns 2 (two lets opened). CUR is at '('. Its own proc = fresh local scope.
+; f = old + (old==e)*(n-old) (branchless swap). Binds the target to old and persistently updates the compact
+; scalar carrier. A scalar-field target adds one further carrier update. CUR is at '('.
 proc emit_atomic_rmw(op, kindb, idx, fld) {   ; VAL table is KIND table + 10000 (the Beta calling profile admits four value args)
     adv()                              ; consume '('
     let a0 = parse_cmp()               ; fetch_add: addend; compare_exchange: expected
@@ -2049,23 +2049,33 @@ proc emit_atomic_rmw(op, kindb, idx, fld) {   ; VAL table is KIND table + 10000 
         adv()                          ; consume ')'
         let slot = field_lookup(cur_pref(), fld)
         let f0 = word[6000016]         ; old = current f
-        let f1 = f0 + 1                ; new f
+        let f1 = f0 + 1                ; new scalar carrier
         word[6000016] = f0 + 2
         emit("(let t")  emit_dec(f0)  write_byte(' ')  print_fcurname(slot)  write_byte(' ')
         to emitfa when (op == 2)
-        emit("(let t")  emit_dec(f1)  emit(" (+ t")  emit_dec(f0)  emit(" (* (eq t")  emit_dec(f0)  write_byte(' ')  print_expr(a0)  emit(") (- ")  print_expr(a1)  emit(" t")  emit_dec(f0)  emit("))) ")
+        emit("(let t")  emit_dec(f1)  emit(" (setl ")  print_field_carrier()  write_byte(' ')  emit_dec(slot)
+        emit(" (+ t")  emit_dec(f0)  emit(" (* (eq t")  emit_dec(f0)  write_byte(' ')  print_expr(a0)  emit(") (- ")  print_expr(a1)  emit(" t")  emit_dec(f0)  emit(")))) ")
         to rebind
     }
     state emitfa {                     ; fetch_add: f' = f + v
-        emit("(let t")  emit_dec(f1)  emit(" (+ ")  print_fcurname(slot)  write_byte(' ')  print_expr(a0)  emit(") ")
+        emit("(let t")  emit_dec(f1)  emit(" (setl ")  print_field_carrier()  write_byte(' ')  emit_dec(slot)
+        emit(" (+ ")  print_fcurname(slot)  write_byte(' ')  print_expr(a0)  emit(")) ")
         to rebind
     }
     state rebind {
+        set_field_carrier(f1)
+        to rebind_field when (kindb == 6420000)
         word[kindb + idx * 8] = 1      ; target = t{f0} (the prior value)
         word[kindb + 10000 + idx * 8] = f0   ; VAL table = KIND table + 10000 (avoids a fifth value arg)
-        word[6420000 + slot * 8] = 1   ; field slot now reads t{f1}
-        word[6430000 + slot * 8] = f1
         to eatsemi
+    }
+    state rebind_field {
+        let f2 = word[6000016]
+        word[6000016] = f2 + 1
+        emit("(let t")  emit_dec(f2)  emit(" (setl t")  emit_dec(f1)  write_byte(' ')
+        emit_dec(idx)  emit(" t")  emit_dec(f0)  emit(") ")
+        set_field_carrier(f2)
+        to eatsemi_field
     }
     state eatsemi {                    ; consume the trailing ';'
         to done when (cbyte() == ';')
@@ -2074,6 +2084,13 @@ proc emit_atomic_rmw(op, kindb, idx, fld) {   ; VAL table is KIND table + 10000 
         to eatsemi
     }
     state done { adv()  return 2 }
+    state eatsemi_field {
+        to done_field when (cbyte() == ';')
+        to done_field when (word[2097144] >= word[2097136])
+        adv()
+        to eatsemi_field
+    }
+    state done_field { adv()  return 3 }
 }
 
 proc do_write_slot(kindb, valb, idx) {
@@ -2108,10 +2125,18 @@ proc do_write_slot(kindb, valb, idx) {
         let hd = hoist_calls()         ; embedded value calls bind first; their spans now read as t-vars
         let node = parse_cmp()
         emit("(let t")  emit_dec(word[6000016])  write_byte(' ')
+        to normal_field when (kindb == 6420000)
         print_expr(node)
         write_byte(' ')
         word[kindb + idx * 8] = 1
         word[valb + idx * 8] = word[6000016]
+        word[6000016] = word[6000016] + 1
+        to tosemi
+    }
+    state normal_field {
+        emit("(setl ")  print_field_carrier()  write_byte(' ')  emit_dec(idx)  write_byte(' ')
+        print_expr(node)  emit(") ")
+        set_field_carrier(word[6000016])
         word[6000016] = word[6000016] + 1
         to tosemi
     }
@@ -2122,12 +2147,28 @@ proc do_write_slot(kindb, valb, idx) {
         word[6000016] = word[6000016] + 2
         emit("(let t")  emit_dec(f0)  emit(" (match ")  print_inpname()  emit(" (Nil (- 0 1)) ((Cons h t) h)) ")
         emit("(let t")  emit_dec(f1)  emit(" (match ")  print_inpname()  emit(" (Nil Nil) ((Cons h t) t)) ")
+        to rtarget_field when (kindb == 6420000)
         word[kindb + idx * 8] = 1      ; target = t{f0} (the byte, or -1 at EOF)
         word[valb + idx * 8] = f0
         word[6460000] = 1              ; INP_KIND = t
         word[6470000] = f1             ; input = t{f1} (the tail)
         to rbsemi
     }
+    state rtarget_field {
+        word[6460000] = 1
+        word[6470000] = f1
+        to rbfield
+    }
+    state rbfield {
+        let f2 = word[6000016]
+        word[6000016] = f2 + 1
+        emit("(let t")  emit_dec(f2)  emit(" (setl ")  print_field_carrier()
+        write_byte(' ')  emit_dec(idx)  emit(" t")  emit_dec(f0)  emit(") ")
+        set_field_carrier(f2)
+        to rbsemi_field
+    }
+    state rbsemi_field { to rbeat_field when (cbyte() == ';')  adv()  to rbsemi_field }
+    state rbeat_field { adv()  return 3 }
     state rbsemi { to rbeat when (cbyte() == ';')  adv()  to rbsemi }
     state rbeat { adv()  return 2 }
     state tosemi { to esemi when (cbyte() == ';')  adv()  to tosemi }
@@ -2385,7 +2426,7 @@ proc translate_block(mi, off) {
     }
     state t_bexpr { let bx = parse_cmp()  print_expr(bx)  to close }
     state t_end {                      ; a &mut self METHOD falls off the end -> return its self-bundle
-        to t_endm when (word[6010200 + word[6000032] * 8] == 2)   ; M_KIND[CUR_MI] == 2 (method)
+        to t_endm when (word[6012000 + word[6000032] * 8] == 2)   ; M_KIND[CUR_MI] == 2 (method)
         to close
     }
     state t_endm { emit_bundle()  to close }
@@ -2397,7 +2438,7 @@ proc translate_block(mi, off) {
         skip_ident()                   ; past "return"
         skip_ws()
         let e = parse_cmp()
-        to t_retm when (word[6010200 + word[6000032] * 8] == 2)   ; M_KIND[CUR_MI] == 2 (method)
+        to t_retm when (word[6012000 + word[6000032] * 8] == 2)   ; M_KIND[CUR_MI] == 2 (method)
         print_expr(e)
         to close
     }
@@ -2450,9 +2491,9 @@ proc translate_block(mi, off) {
     }
     state t_store3 {
         adv()                          ; consume ')'
-        emit("(let t")  emit_dec(word[6000016])  write_byte(' ')  print_expr(sv)  write_byte(' ')
-        word[6420000 + field_lookup(cur_pref(), foff) * 8] = 1     ; the field slot now reads the fresh t-var
-        word[6430000 + field_lookup(cur_pref(), foff) * 8] = word[6000016]
+        emit("(let t")  emit_dec(word[6000016])  emit(" (setl ")  print_field_carrier()
+        write_byte(' ')  emit_dec(field_lookup(cur_pref(), foff))  write_byte(' ')  print_expr(sv)  emit(") ")
+        set_field_carrier(word[6000016])
         word[6000016] = word[6000016] + 1
         depth = depth + 1
         to t_ssemi
@@ -2488,8 +2529,8 @@ proc parse_machine_header() {
     skip_ws()
     let mc = word[6000000]
     word[6010000 + mc * 8] = word[2097144]     ; M_NAME = first name segment (updated on '::')
-    word[6010600 + mc * 8] = 0                 ; M_PCNT = 0
-    word[6011200 + mc * 8] = 0                 ; M_OWNER = 0 (unqualified / free)
+    word[6016000 + mc * 8] = 0                 ; M_PCNT = 0
+    word[6022000 + mc * 8] = 0                 ; M_OWNER = 0 (unqualified / free)
     skip_ident()                       ; first name segment
     state colon {                      ; a qualified name `Type::method` -> M_NAME is the LAST segment,
         to hascolon when (cbyte() == ':')      ; M_OWNER the type before the first '::'
@@ -2497,7 +2538,7 @@ proc parse_machine_header() {
     }
     state hascolon {
         adv()  adv()                   ; consume '::'
-        word[6011200 + mc * 8] = word[6010000 + mc * 8]   ; owner = the segment before '::'
+        word[6022000 + mc * 8] = word[6010000 + mc * 8]   ; owner = the segment before '::'
         word[6010000 + mc * 8] = word[2097144]            ; M_NAME = segment after '::'
         skip_ident()
         to colon
@@ -2511,11 +2552,11 @@ proc parse_machine_header() {
     }
     state hasself {                    ; `&mut self` -> the entry (name is "main") or a method
         to entry when (name_is_main(word[6010000 + mc * 8]) == 1)
-        word[6010200 + mc * 8] = 2     ; M_KIND = method
+        word[6012000 + mc * 8] = 2     ; M_KIND = method
         to methodself
     }
     state entry {
-        word[6010200 + mc * 8] = 0     ; M_KIND = entry
+        word[6012000 + mc * 8] = 0     ; M_KIND = entry
         word[6000008] = mc             ; ENTRY_IDX = mc
         to toclose
     }
@@ -2527,15 +2568,15 @@ proc parse_machine_header() {
     }
     state methodparm { adv()  to parmloop }        ; consume ',', parse the method's value params
     state freeparams {
-        word[6010200 + mc * 8] = 1     ; M_KIND = free
+        word[6012000 + mc * 8] = 1     ; M_KIND = free
         to parmloop
     }
     state parmloop {
         skip_ws()
         to toclose when (cbyte() == ')')
-        word[6100000 + (mc * 128 + word[6010600 + mc * 8]) * 8] = word[2097144]   ; M_LNAME[mc][PCNT] = name
-        word[6200000 + (mc * 128 + word[6010600 + mc * 8]) * 8] = 0               ; PARM_STYPE[mc][PCNT] = 0 (not a struct slice)
-        word[6010600 + mc * 8] = word[6010600 + mc * 8] + 1                      ; M_PCNT++
+        word[6100000 + (mc * 128 + word[6016000 + mc * 8]) * 8] = word[2097144]   ; M_LNAME[mc][PCNT] = name
+        word[6200000 + (mc * 128 + word[6016000 + mc * 8]) * 8] = 0               ; PARM_STYPE[mc][PCNT] = 0 (not a struct slice)
+        word[6016000 + mc * 8] = word[6016000 + mc * 8] + 1                      ; M_PCNT++
         skip_ident()
         to parmskip
     }
@@ -2553,7 +2594,7 @@ proc parse_machine_header() {
         to parmskip                    ; scalar-element slice `&[i32 ..]` -> leave PARM_STYPE 0
     }
     state parmstruct {                 ; `&[Tname]` -> record the element type name's source offset for this param
-        word[6200000 + (mc * 128 + (word[6010600 + mc * 8] - 1)) * 8] = word[2097144]
+        word[6200000 + (mc * 128 + (word[6016000 + mc * 8] - 1)) * 8] = word[2097144]
         to parmskip
     }
     state parmnext { adv()  to parmloop }
@@ -2589,7 +2630,7 @@ proc parse_machine_header() {
     }
     state atbrace {
         adv()                          ; consume '{'
-        word[6010400 + mc * 8] = word[2097144]     ; M_BODY = after '{'
+        word[6014000 + mc * 8] = word[2097144]     ; M_BODY = after '{'
         word[6000000] = word[6000000] + 1          ; MACHINE_CNT++
         return 0
     }
@@ -2637,15 +2678,15 @@ proc add_local(mi, off) {
     let k = 0
     state loop {
         to full when (k == 128)
-        to add when (k == word[6010800 + mi * 8])       ; M_LCNT
+        to add when (k == word[6018000 + mi * 8])       ; M_LCNT
         to dup when (name_eq2(off, word[6100000 + (mi * 128 + k) * 8]) == 1)
         k = k + 1
         to loop
     }
     state full { emit("E2G-UNSUPPORTED-machine-local-capacity ")  return 0 }
     state add {
-        word[6100000 + (mi * 128 + word[6010800 + mi * 8]) * 8] = off
-        word[6010800 + mi * 8] = word[6010800 + mi * 8] + 1
+        word[6100000 + (mi * 128 + word[6018000 + mi * 8]) * 8] = off
+        word[6018000 + mi * 8] = word[6018000 + mi * 8] + 1
         return 0
     }
     state dup { return 0 }
@@ -2655,8 +2696,8 @@ proc add_local(mi, off) {
 ; puts lets inside states), appended after its params, deduplicated by name. A brace-depth walk bounded
 ; by the machine's closing '}'.
 proc collect_locals(mi) {
-    word[6010800 + mi * 8] = word[6010600 + mi * 8]     ; M_LCNT = M_PCNT
-    word[2097144] = word[6010400 + mi * 8]              ; CUR = M_BODY
+    word[6018000 + mi * 8] = word[6016000 + mi * 8]     ; M_LCNT = M_PCNT
+    word[2097144] = word[6014000 + mi * 8]              ; CUR = M_BODY
     let depth = 0
     state loop {
         skip_ws()
@@ -2689,8 +2730,8 @@ proc collect_locals(mi) {
 
 ; scan machine mi's body for its top-level `state NAME() {` blocks.
 proc scan_states(mi) {
-    word[6011000 + mi * 8] = 0         ; M_SCNT
-    word[2097144] = word[6010400 + mi * 8]              ; CUR = M_BODY
+    word[6020000 + mi * 8] = 0         ; M_SCNT
+    word[2097144] = word[6014000 + mi * 8]              ; CUR = M_BODY
     let depth = 0
     state loop {
         skip_ws()
@@ -2723,8 +2764,8 @@ proc scan_states(mi) {
         skip_ident()                   ; past "state"
         skip_ws()
         to not_st when (is_idchar(cbyte()) == 0)   ; `self.state.a` / `state = ..`: a FIELD named
-        to state_full when (word[6011000 + mi * 8] == 128)
-        word[6300000 + (mi * 128 + word[6011000 + mi * 8]) * 8] = word[2097144]   ; state, not a decl
+        to state_full when (word[6020000 + mi * 8] == 128)
+        word[6300000 + (mi * 128 + word[6020000 + mi * 8]) * 8] = word[2097144]   ; state, not a decl
         skip_ident()                   ; past state name
         to hdclose
     }
@@ -2734,7 +2775,7 @@ proc scan_states(mi) {
     ; (zero-init slots; a transition arm's args write them) and in the state's M_SP tables.
     state hdclose {
         skip_ws()
-        let si = mi * 128 + word[6011000 + mi * 8]        ; this state's table index
+        let si = mi * 128 + word[6020000 + mi * 8]        ; this state's table index
         word[6850000 + si * 8] = 0                       ; M_SPCNT = 0
         adv()                                            ; consume '('
         to hdparm
@@ -2769,8 +2810,8 @@ proc scan_states(mi) {
     state hdin {
         adv()                          ; consume '{'
         depth = depth + 1
-        word[6500000 + (mi * 128 + word[6011000 + mi * 8]) * 8] = word[2097144]   ; M_SBODY (after '{')
-        word[6011000 + mi * 8] = word[6011000 + mi * 8] + 1                      ; M_SCNT++
+        word[6500000 + (mi * 128 + word[6020000 + mi * 8]) * 8] = word[2097144]   ; M_SBODY (after '{')
+        word[6020000 + mi * 8] = word[6020000 + mi * 8] + 1                      ; M_SCNT++
         to loop
     }
     state eof { return 0 }
@@ -2790,7 +2831,7 @@ proc name_is_main(off) {               ; does the name at `off` spell "main"?
 ; machine so the shared self-state is the union over the entry and all its methods. self.NAME followed by
 ; `.` (boundary) / `[` (array) / `(` (self-method call) is NOT a scalar field.
 proc collect_self(mi) {
-    word[2097144] = word[6010400 + mi * 8]              ; CUR = M_BODY[mi]
+    word[2097144] = word[6014000 + mi * 8]              ; CUR = M_BODY[mi]
     let depth = 0
     state loop {
         skip_ws()
@@ -2829,7 +2870,7 @@ proc collect_self(mi) {
         skip_ws()
         to c_sk when (cbyte() == '[')  ; self.arr[ -> array
         to c_redo when (cbyte() == '(')  ; a call -> re-scan from the LAST segment so that
-        add_field(word[6011400 + mi * 8], foff)   ; keyed (M_PREF[mi], path)
+        add_field(word[6024000 + mi * 8], foff)   ; keyed (M_PREF[mi], path)
         to loop
     }
     state c_redo { word[2097144] = soff  to loop }
@@ -3154,14 +3195,14 @@ proc is_upper(c) {
 ; the instance-path prefix for machine mi: 0 for Main-owned / unqualified machines, else the field
 ; path of its owner type's single instance in `data Main`.
 proc compute_pref(mi) {
-    let ow = word[6011200 + mi * 8]    ; M_OWNER
+    let ow = word[6022000 + mi * 8]    ; M_OWNER
     state d {
         to zero when (ow == 0)
         to zero when (name_is_Main(ow) == 1)
-        word[6011400 + mi * 8] = inst_for_type(ow)      ; 0 if no instance -> behaves as Main-owned
+        word[6024000 + mi * 8] = inst_for_type(ow)      ; 0 if no instance -> behaves as Main-owned
         return 0
     }
-    state zero { word[6011400 + mi * 8] = 0  return 0 }
+    state zero { word[6024000 + mi * 8] = 0  return 0 }
 }
 
 ; parse the `data Main { ... }` declaration for array fields `NAME: [i32; N];` -> ARRAY_NAME/ACOUNT.
@@ -3332,18 +3373,18 @@ proc add_field(pref, off) {
     state dup { return 0 }
 }
 
-; machine mi's shared def signature: l0 .. l{lcnt-1}  (++ g0 .. g{fcnt-1} for the entry).
+; machine mi's shared def signature: l0 .. l{lcnt-1}, then optional `gs`, arrays, input, output.
 proc emit_sig(mi) {
-    let nl = word[6010800 + mi * 8]
+    let nl = word[6018000 + mi * 8]
     let nf = 0
     let na = 0
     let ni = 0
     let no = 0
     state chkf {
-        to withf when (word[6010200 + mi * 8] != 1)     ; has_self (entry or method) -> self-slots in sig
+        to withf when (word[6012000 + mi * 8] != 1)     ; has_self (entry or method) -> self-slots in sig
         to go
     }
-    state withf { nf = word[6000024]  na = word[6000040]  ni = word[6000048]  no = word[6000056]  to go }
+    state withf { nf = field_carrier_count()  na = word[6000040]  ni = word[6000048]  no = word[6000056]  to go }
     state go { let tot = nl + nf + na + ni + no  let x = 0  to loop }
     state loop {
         to done when (x == tot)
@@ -3357,7 +3398,7 @@ proc emit_sig(mi) {
     }
     state fld {
         to arr when (x >= nl + nf)
-        write_byte('g')  emit_dec(x - nl)  to next
+        emit("gs")  to next
     }
     state arr {
         to inp when (x >= nl + nf + na)
@@ -3376,11 +3417,11 @@ proc render_machine(mi) {
     emit("(def m")  emit_dec(mi)  emit("_me (")
     emit_sig(mi)
     emit(") ")
-    translate_block(mi, word[6010400 + mi * 8])         ; M_BODY (entry block)
+    translate_block(mi, word[6014000 + mi * 8])         ; M_BODY (entry block)
     emit(") ")
     let s = 0
     state sloop {
-        to sdone when (s == word[6011000 + mi * 8])     ; M_SCNT
+        to sdone when (s == word[6020000 + mi * 8])     ; M_SCNT
         emit("(def m")  emit_dec(mi)  emit("_s")  emit_dec(s)  emit(" (")
         emit_sig(mi)
         emit(") ")
@@ -3481,9 +3522,25 @@ proc emit_array_zeros(ai, count) {
     state done { return 0 }
 }
 
+; One zero-filled list initializes every scalar receiver field. Unlike the old ABI this is one argument,
+; irrespective of FIELD_CNT; subsequent writes persistently replace only the indexed lane.
+proc emit_field_zeros(count) {
+    state empty { to done when (count == 0)  write_byte(' ')  let k = 0  to opens }
+    state opens {
+        to tail when (k == count)
+        emit("(Cons 0 ")
+        k = k + 1
+        to opens
+    }
+    state tail { emit("Nil")  let j = 0  to closes }
+    state closes { to done when (j == count)  write_byte(')')  j = j + 1  to closes }
+    state done { return 0 }
+}
+
 proc render() {
     state h {
-        to arrhelp when (word[6000040] > 0)             ; entry uses arrays -> prepend nth/setl (+ listeq/listcat)
+        to arrhelp when (word[6000040] > 0)             ; arrays use nth/setl (+ listeq/listcat)
+        to arrhelp when (word[6000024] > 0)             ; compact scalar carrier also uses nth/setl
         to strhelp0                                     ; no arrays -> maybe just the string helpers
     }
     state arrhelp {
@@ -3528,7 +3585,8 @@ proc render() {
     }
     state mdone {
         emit("(m")  emit_dec(word[6000008])  emit("_me")   ; call the entry with all slots 0
-        emit_zeros(word[6010800 + word[6000008] * 8] + word[6000024])   ; entry LCNT + FIELD_CNT zeros
+        emit_zeros(word[6018000 + word[6000008] * 8])        ; entry locals
+        emit_field_zeros(word[6000024])                       ; one compact scalar carrier, if nonempty
         let ai = 0
         to ainit
     }
@@ -3596,7 +3654,7 @@ proc main() {
     state prefdone { let mj = 0  to sloop }
     state sloop {
         to sdone when (mj == word[6000000])
-        to do_cs when (word[6010200 + mj * 8] != 1)   ; has_self -> fold into the unified self-state
+        to do_cs when (word[6012000 + mj * 8] != 1)   ; has_self -> fold into the unified self-state
         mj = mj + 1
         to sloop
     }
