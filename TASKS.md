@@ -6560,11 +6560,21 @@ state through a raw address.
     reconstructs the entry's concrete service closure and used installation
     dependencies from executable calls and operations. Missing, padded, stale,
     or unused rows reject; a direct concrete use remains concrete even when it
-    also appears in an abstract bound. Neither lowering nor verification
+    also appears in an abstract bound. Result-bearing boundary roots now use
+    the same closure: nominal static-machine calls retain their exact bounded
+    requirement, primitive results no longer require an unrelated custody
+    transfer, and codec/verifier canaries reject deletion, drift, or padding.
+    Installation-bound internal machines publish the conservative bound only
+    inside their Terminal closure; ordinary private effectful machines still
+    reject without an authored ceiling. Neither lowering nor verification
     reconstructs concrete reach by subtracting bounds.
-  - **Remaining:** carry the closure through the other root-capable Terminal
-    producers; reject unresolved rows escaping ordinary callable package or
-    component contracts.
+  - **Remaining:** reject unresolved rows escaping ordinary callable package
+    or component contracts when that export/interface carrier lands. Do not
+    reject internal inferred callers globally: the installed-root closure is
+    their legitimate resolution scope. The other current structural root
+    producers contain no service-bearing boundary operation, so there is no
+    additional producer row to populate today; verifier reconstruction remains
+    the fail-closed fence if one gains such an operation.
   - **Constraints:** `+` is union. Do not infer one shared row from equal sets or
     add negation, subtraction, lower bounds, exclusive-or, named row variables,
     or cross-requirement correlation.

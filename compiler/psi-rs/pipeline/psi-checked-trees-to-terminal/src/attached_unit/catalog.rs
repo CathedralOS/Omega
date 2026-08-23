@@ -348,8 +348,9 @@ pub(super) fn lower_unit_services(
                 &mut selected,
             )?;
         } else {
-            collect_contract_services(
-                &facts.rows,
+            collect_installation_machine_contract_services(
+                checked,
+                *symbol,
                 machine.contract_service_reach,
                 machine.service_reach,
                 &mut selected,
@@ -548,6 +549,34 @@ pub(crate) fn collect_contract_services(
         }
     }
     Ok(())
+}
+
+pub(crate) fn collect_installation_machine_contract_services(
+    checked: &CheckedTrees,
+    machine: psi_symbols::SymbolHandle,
+    contract: ServiceReachPlan,
+    summary: ServiceReachSummary,
+    selected: &mut Vec<ServiceReachId>,
+) -> Result<(), LoweringError> {
+    if let Some(reach) = checked.facts.service_reaches.for_machine(machine)
+        && matches!(contract.interface, ServiceReachInterface::InternalInferred)
+        && !reach.unresolved_installation_reaches.is_empty()
+    {
+        if contract.checked_inferred != summary.transitive
+            || reach.inferred_transitive != summary.transitive
+        {
+            return unsupported(
+                "installation-bound machine reach disagrees with its checked transitive row",
+            );
+        }
+        return collect_service_summary(&checked.facts.service_reaches.rows, summary, selected);
+    }
+    collect_contract_services(
+        &checked.facts.service_reaches.rows,
+        contract,
+        summary,
+        selected,
+    )
 }
 
 fn collect_provider_candidate_services(

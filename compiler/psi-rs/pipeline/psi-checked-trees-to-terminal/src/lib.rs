@@ -105,14 +105,15 @@ mod structural_scalar_return;
 mod structural_types;
 mod structural_unit_control;
 mod unit_cleanup;
-#[cfg(test)]
 use attached_unit::lower_root_service_reach;
 use attached_unit::{
     checked_unit_boundary_identity, checked_unit_call_closure_including,
-    checked_unit_target_reach_matches, collect_contract_services, collect_service_summary,
+    checked_unit_target_reach_matches, collect_contract_services,
+    collect_installation_machine_contract_services, collect_service_summary,
     lower_attached_unit_closure, lower_attached_unit_closure_including,
-    lower_published_service_ceiling, lower_structural_arguments, lower_structural_path,
-    lower_unit_parameters, unique_unit_machine, validate_transfer_shape,
+    lower_installation_machine_service_ceiling, lower_published_service_ceiling,
+    lower_structural_arguments, lower_structural_path, lower_unit_parameters, unique_unit_machine,
+    validate_transfer_shape,
 };
 use boolean_control::{
     bind_boolean_decision, boolean_decision_block_count, boolean_decision_test_count,

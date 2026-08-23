@@ -19,7 +19,8 @@ pub(super) use call_closure::{
     checked_unit_boundary_identity, checked_unit_call_closure_including, unique_unit_machine,
 };
 pub(super) use catalog::{
-    checked_unit_target_reach_matches, collect_contract_services, collect_service_summary,
+    checked_unit_target_reach_matches, collect_contract_services,
+    collect_installation_machine_contract_services, collect_service_summary,
     lower_root_service_reach,
 };
 use catalog::{
@@ -27,8 +28,9 @@ use catalog::{
     lower_unit_structural_types, require_valid_service_row,
 };
 pub(super) use parameters::{
-    lower_published_service_ceiling, lower_structural_arguments, lower_structural_path,
-    lower_unit_parameters, validate_transfer_shape,
+    lower_installation_machine_service_ceiling, lower_published_service_ceiling,
+    lower_structural_arguments, lower_structural_path, lower_unit_parameters,
+    validate_transfer_shape,
 };
 use providers::checked_unit_provider_candidates;
 
@@ -931,8 +933,9 @@ pub(super) fn lower_attached_unit_closure_including(
                     &service_ids,
                 )?
             } else {
-                lower_published_service_ceiling(
-                    &checked.facts.service_reaches.rows,
+                lower_installation_machine_service_ceiling(
+                    checked,
+                    plan.machine,
                     plan.contract_service_reach,
                     plan.service_reach,
                     &service_ids,

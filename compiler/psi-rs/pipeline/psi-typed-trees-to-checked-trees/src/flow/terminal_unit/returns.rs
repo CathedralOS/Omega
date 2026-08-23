@@ -618,13 +618,18 @@ pub(crate) fn build_checked_boundary_scalar_return_plans(
     facts: &CheckFacts,
 ) -> CheckedBoundaryScalarReturnPlans {
     let mut shapes = ShapeCollector::new(program);
-    let boundary_machines = program
+    let mut boundary_machines = program
         .machines()
         .iter()
         .filter(|machine| machine.supply_mode.is_boundary_declaration())
         .filter_map(|machine| build_boundary_machine(program, facts, &mut shapes, machine))
         .filter(|boundary| boundary.result_type.is_some())
         .collect::<Vec<_>>();
+    boundary_machines.extend(
+        build_static_boundary_requirements(program, facts, &mut shapes)
+            .into_iter()
+            .filter(|boundary| boundary.result_type.is_some()),
+    );
     let machines = program
         .machines()
         .iter()
@@ -688,8 +693,7 @@ pub(super) fn build_boundary_scalar_return_machine(
     let binders = machine_binders(program, machine);
     let (attachment_type_identity, structural_parameters) =
         structural_signature(program, shapes, machine, state, &binders)?;
-    if structural_parameters.is_empty()
-        || !checked_state_contracts_supported(program, machine, state, &structural_parameters)
+    if !checked_state_contracts_supported(program, machine, state, &structural_parameters)
         || machine_has_content_evidence(facts, machine.symbol, state.symbol)
         || !checked_requires_expressions(program, facts, machine.symbol, state.symbol)?.is_empty()
     {
@@ -703,9 +707,6 @@ pub(super) fn build_boundary_scalar_return_machine(
         &structural_parameters,
         program.state_parameters(state),
     )?;
-    if entry_claims.is_empty() {
-        return None;
-    }
     let [
         StatementNode::LocalData(local),
         StatementNode::Expression(_),

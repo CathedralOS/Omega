@@ -557,13 +557,21 @@ pub(super) fn build_static_boundary_requirements(
             if !program
                 .state_signature_type_parameters(signature)
                 .is_empty()
-                || !is_unit(program, signature.return_type)
                 || !program.state_signature_contracts(signature).is_empty()
                 || signature.suspends
                 || signature.blocks
             {
                 continue;
             }
+            let result_type = if is_unit(program, signature.return_type) {
+                None
+            } else {
+                let Some(result_type) = program.primitive_type_reference(signature.return_type)
+                else {
+                    continue;
+                };
+                Some(result_type)
+            };
             let mut structural_parameters = Vec::new();
             let mut scalar_parameters = Vec::new();
             let mut supported = true;
@@ -623,7 +631,12 @@ pub(super) fn build_static_boundary_requirements(
                 .calls
                 .iter()
                 .map(|(_, call)| call)
-                .filter(|call| call.target_symbol == signature.symbol)
+                .filter(|call| {
+                    call.target_symbol == signature.symbol
+                        || program
+                            .machine_parameter_signature(call.target_symbol)
+                            .is_some_and(|(_, requirement)| requirement.symbol == signature.symbol)
+                })
                 .map(|call| call.service_reach.transitive)
                 .collect::<Vec<_>>();
             let [published_reach, rest @ ..] = call_reaches.as_slice() else {
@@ -642,7 +655,7 @@ pub(super) fn build_static_boundary_requirements(
                 attachment_type_identity: None,
                 structural_parameters,
                 scalar_parameters,
-                result_type: None,
+                result_type,
                 domain_requirements: Vec::new(),
                 contract_fingerprint: capsule.target_contract_fingerprint(),
                 contract_service_reach: psi_language_semantics::ServiceReachPlan {
