@@ -1,0 +1,572 @@
+; Exact cursor summaries for skip_char_lit() and skip_str_lit().
+;
+; Entry is an in-range opening quote in the successful SRC segment.  The
+; character procedure deliberately does not validate its payload or closing
+; quote: it advances three bytes for an ordinary payload and four when the
+; first payload byte is backslash, finishing at most LEN+2.  The string
+; procedure stops after a closing quote or at cbyte()==0; ordinary body bytes
+; advance one and escapes advance two.  A final backslash may leave CUR=LEN+1.
+; Its loop rank is LEN+1-CUR over the invariant CUR<=LEN+1.
+;
+; Both procedures return zero, emit nothing, preserve source/input and every
+; compiler global except CUR, and restore the caller frame.  ADVX is a local
+; auxiliary consequence of adv's exact body for 0<=CUR<=CAP+1; it permits the
+; two bounded malformed-tail advances without pretending ADVE's CUR<LEN clause
+; applies out of range.
+;
+; Fresh cells:
+;   public ADVX / CHSK / STRS                  527320/527352/527360
+;   extended adv entry/successor/quiet         527328..527344
+;   shared entry/current/quiet                 527368/527376/527408
+;   char branch/delta/bound/completions         527384..527424
+;   string invariant/rank/byte/next/decrease    527432..527464
+;   string result and four case completions      527472..527504
+;   string quiet/frame / selected in-range call   527512/527520
+;   selected opening-quote kind                    527528
+;
+; Character branch: 1=ordinary/non-backslash, 2=backslash.  String byte case:
+; 1=quote, 2=zero, 3=ordinary nonzero, 4=backslash.
+
+literal_skip_summary_init:
+        call literal_skip_require_shape
+        call literal_skip_prove_extended_adv
+        call literal_skip_prove_char
+        call literal_skip_prove_string
+        jmp scan_owned_effects_init
+
+; ---- Bounded out-of-range adv consequence -----------------------------
+
+literal_skip_prove_extended_adv:
+        imm r1, 527320
+        imm r2, 0
+        store r1, r2
+        ; ADVE already closes adv's exact load, +1, sole CUR store, quiet
+        ; decoded region, epilogue, and frame.  Recheck the exact shape before
+        ; selecting the wider, still nonwrapping numeric premise.
+        imm r20, 525968
+        imm r21, 1094992965           ; ADVE
+        call cursor_require_cell
+        call cursor_require_adv_shape
+        imm r20, 525744
+        imm r21, 1                    ; successful segment, LEN<=CAP
+        call cursor_require_cell
+        imm r1, 527328
+        imm r2, 1                    ; checked 0<=CUR<=CAP+1
+        store r1, r2
+        imm r1, 527336
+        store r1, r2                  ; checked exact CUR+1<=CAP+2
+        imm r1, 527344
+        store r1, r2                  ; only CUR changes; frame restored
+        call literal_skip_require_extended_adv
+        imm r1, 527320
+        imm r2, 1094994008            ; ADVX
+        store r1, r2
+        ret
+
+literal_skip_require_extended_adv:
+        imm r20, 527328
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 527336
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 527344
+        imm r21, 1
+        call cursor_require_cell
+        ret
+
+; ---- Character literal ------------------------------------------------
+
+literal_skip_prove_char:
+        imm r1, 527352
+        imm r2, 0
+        store r1, r2
+        imm r1, 527416
+        store r1, r2
+        imm r1, 527424
+        store r1, r2
+        imm r1, 527432
+        store r1, r2                  ; string invariant is not yet selected
+        imm r20, 1                    ; character opening quote 39
+        call literal_skip_introduce_entry
+        call literal_skip_char_ordinary
+        call literal_skip_char_escape
+        call literal_skip_publish_char
+        ret
+
+literal_skip_introduce_entry:
+        mov r25, r20
+        imm r1, 1
+        jeq r25, r1, literal_skip_entry_kind_ok
+        imm r1, 2
+        jeq r25, r1, literal_skip_entry_kind_ok
+        jmp reject
+literal_skip_entry_kind_ok:
+        imm r1, 527528
+        store r1, r25                 ; 1=quote 39, 2=quote 34
+        call literal_skip_require_imports
+        imm r1, 527368
+        imm r2, 1                    ; checked CUR=i<LEN and SRC[i] is quote
+        store r1, r2
+        imm r1, 527376
+        store r1, r2                  ; checked opening adv gives i+1<=LEN
+        imm r1, 527408
+        store r1, r2                  ; source/input/output/compiler state quiet
+        call literal_skip_select_entry_in_range
+        call literal_skip_call_adv_in_range
+        ret
+
+literal_skip_char_reset:
+        imm r20, 527528
+        imm r21, 1                    ; checked character opening quote kind
+        call cursor_require_cell
+        imm r20, 527368
+        imm r21, 1
+        call cursor_require_cell
+        imm r1, 527376
+        imm r2, 1                    ; rename common post-opening cursor
+        store r1, r2
+        imm r20, 527376
+        imm r21, 1
+        call cursor_require_cell
+        imm r1, 527384
+        imm r2, 0
+        store r1, r2
+        imm r1, 527392
+        store r1, r2
+        imm r1, 527400
+        store r1, r2
+        ret
+
+literal_skip_char_ordinary:
+        call literal_skip_char_reset
+        call literal_skip_call_cbyte
+        imm r1, 527384
+        imm r2, 1                    ; checked first payload byte != backslash
+        store r1, r2
+        ; ch performs two unconditional increments.  At entry CUR<=LEN, so
+        ; ADVX applies twice and yields final CUR=i+3<=LEN+2.
+        call literal_skip_call_adv_extended
+        call literal_skip_call_adv_extended
+        imm r1, 527392
+        imm r2, 3                    ; checked ordinary total delta
+        store r1, r2
+        imm r1, 527400
+        imm r2, 1                    ; checked ordinary final CUR<=LEN+2
+        store r1, r2
+        call literal_skip_require_char_case
+        imm r1, 527416
+        imm r2, 1
+        store r1, r2
+        ret
+
+literal_skip_char_escape:
+        call literal_skip_char_reset
+        call literal_skip_call_cbyte
+        imm r1, 527384
+        imm r2, 2                    ; checked exact backslash payload
+        store r1, r2
+        ; Exact nonzero cbyte implies current CUR<LEN. do_bs therefore uses
+        ; ADVE; the two ch advances use ADVX. Final CUR=i+4<=LEN+2 because the
+        ; backslash itself required i+1<LEN.
+        call literal_skip_select_char_in_range
+        call literal_skip_call_adv_in_range
+        call literal_skip_call_adv_extended
+        call literal_skip_call_adv_extended
+        imm r1, 527392
+        imm r2, 4                    ; checked escape total delta
+        store r1, r2
+        imm r1, 527400
+        imm r2, 1                    ; checked escape final CUR<=LEN+2
+        store r1, r2
+        call literal_skip_require_char_case
+        imm r1, 527424
+        imm r2, 1
+        store r1, r2
+        ret
+
+literal_skip_require_char_case:
+        imm r1, 527384
+        load r2, r1
+        imm r20, 527384
+        mov r21, r2
+        call cursor_require_cell
+        imm r20, 527392
+        imm r21, 3
+        imm r1, 527384
+        load r2, r1
+        imm r1, 1
+        jeq r2, r1, literal_skip_char_require_delta
+        imm r21, 4
+literal_skip_char_require_delta:
+        call cursor_require_cell
+        imm r20, 527400
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 527376
+        imm r21, 3                    ; two tail advances finish <=LEN+2
+        call cursor_require_cell
+        imm r20, 527408
+        imm r21, 1
+        call cursor_require_cell
+        ret
+
+literal_skip_publish_char:
+        imm r20, 527416
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 527424
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 527408
+        imm r21, 1
+        call cursor_require_cell
+        imm r1, 527352
+        imm r2, 1128808786           ; CHSK
+        store r1, r2
+        ret
+
+; ---- String literal fixed point --------------------------------------
+
+literal_skip_prove_string:
+        imm r1, 527360
+        imm r2, 0
+        store r1, r2
+        imm r1, 527480
+        store r1, r2
+        imm r1, 527488
+        store r1, r2
+        imm r1, 527496
+        store r1, r2
+        imm r1, 527504
+        store r1, r2
+        imm r20, 2                    ; string opening quote 34
+        call literal_skip_introduce_entry
+        imm r1, 527432
+        imm r2, 1                    ; checked loop CUR<=LEN+1 invariant
+        store r1, r2
+        imm r1, 527440
+        store r1, r2                  ; natural rank LEN+1-CUR
+        call literal_skip_string_require_invariant
+        call literal_skip_string_quote
+        call literal_skip_string_zero
+        call literal_skip_string_ordinary
+        call literal_skip_string_escape
+        call literal_skip_publish_string
+        ret
+
+literal_skip_string_reset:
+        call literal_skip_string_require_invariant
+        imm r1, 527448
+        imm r2, 0
+        store r1, r2
+        imm r1, 527456
+        store r1, r2
+        imm r1, 527464
+        store r1, r2
+        imm r1, 527472
+        store r1, r2
+        call literal_skip_call_cbyte
+        ret
+
+literal_skip_string_quote:
+        call literal_skip_string_reset
+        imm r1, 527448
+        imm r2, 1                    ; checked cbyte == closing quote 34
+        store r1, r2
+        ; A nonzero quote is in range, so done's adv ends at CUR<=LEN.
+        call literal_skip_select_string_in_range
+        call literal_skip_call_adv_in_range
+        imm r1, 527456
+        imm r2, 1                    ; exact closing-quote successor
+        store r1, r2
+        imm r1, 527472
+        store r1, r2                  ; checked return zero / exit
+        call literal_skip_require_string_exit
+        imm r1, 527480
+        imm r2, 1
+        store r1, r2
+        ret
+
+literal_skip_string_zero:
+        call literal_skip_string_reset
+        imm r1, 527448
+        imm r2, 2                    ; checked nonquote cbyte == 0
+        store r1, r2
+        ; This includes in-range NUL, CUR=LEN, and the bounded escape-tail
+        ; miss CUR=LEN+1. eof preserves that cursor and returns zero.
+        imm r1, 527456
+        imm r2, 2                    ; checked cursor preserved
+        store r1, r2
+        imm r1, 527472
+        imm r2, 1                    ; checked zero result / exit
+        store r1, r2
+        call literal_skip_require_string_exit
+        imm r1, 527488
+        imm r2, 1
+        store r1, r2
+        ret
+
+literal_skip_string_ordinary:
+        call literal_skip_string_reset
+        imm r1, 527448
+        imm r2, 3                    ; nonzero, nonquote, non-backslash byte
+        store r1, r2
+        ; Nonzero cbyte proves CUR<LEN. The body adv advances exactly one and
+        ; strictly decreases LEN+1-CUR before the loop-head renaming.
+        call literal_skip_select_string_in_range
+        call literal_skip_call_adv_in_range
+        imm r1, 527456
+        imm r2, 3                    ; exact successor remains <=LEN
+        store r1, r2
+        imm r1, 527464
+        imm r2, 1                    ; checked rank decrease by one
+        store r1, r2
+        call literal_skip_string_close_backedge
+        imm r1, 527496
+        imm r2, 1
+        store r1, r2
+        ret
+
+literal_skip_string_escape:
+        call literal_skip_string_reset
+        imm r1, 527448
+        imm r2, 4                    ; checked exact backslash byte
+        store r1, r2
+        ; Backslash is in range. The first esc adv stays <=LEN; ADVX performs
+        ; the second, possibly reaching LEN+1. Rank decreases by two.
+        call literal_skip_select_string_in_range
+        call literal_skip_call_adv_in_range
+        call literal_skip_call_adv_extended
+        imm r1, 527456
+        imm r2, 4                    ; exact double successor <=LEN+1
+        store r1, r2
+        imm r1, 527464
+        imm r2, 2                    ; checked rank decrease by two
+        store r1, r2
+        call literal_skip_string_close_backedge
+        imm r1, 527504
+        imm r2, 1
+        store r1, r2
+        ret
+
+literal_skip_string_require_invariant:
+        imm r20, 527528
+        imm r21, 2                    ; checked string opening quote kind
+        call cursor_require_cell
+        imm r20, 527432
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 527440
+        imm r21, 1
+        call cursor_require_cell
+        ret
+
+literal_skip_string_close_backedge:
+        imm r1, 527448
+        load r2, r1
+        imm r20, 527448
+        mov r21, r2
+        call cursor_require_cell
+        imm r1, 527456
+        load r2, r1
+        imm r20, 527456
+        mov r21, r2
+        call cursor_require_cell
+        imm r1, 527448
+        load r2, r1
+        imm r1, 4
+        jeq r2, r1, literal_skip_string_require_escape_bound
+        imm r20, 527376
+        imm r21, 1                    ; ordinary successor remains <=LEN
+        call cursor_require_cell
+        jmp literal_skip_string_require_rank_decrease
+literal_skip_string_require_escape_bound:
+        imm r20, 527376
+        imm r21, 2                    ; escape successor remains <=LEN+1
+        call cursor_require_cell
+literal_skip_string_require_rank_decrease:
+        imm r20, 527464
+        imm r21, 1
+        imm r1, 527448
+        load r2, r1
+        imm r1, 4
+        jeq r2, r1, literal_skip_string_escape_decrease
+        jmp literal_skip_string_require_decrease
+literal_skip_string_escape_decrease:
+        imm r21, 2
+literal_skip_string_require_decrease:
+        call cursor_require_cell
+        ; Rename the strict successor and smaller natural rank to the loop head.
+        imm r1, 527432
+        imm r2, 1                    ; checked successor satisfies invariant
+        store r1, r2
+        imm r1, 527440
+        store r1, r2                  ; checked smaller rank renamed
+        call literal_skip_string_require_invariant
+        ret
+
+literal_skip_require_string_exit:
+        imm r1, 527448
+        load r2, r1
+        imm r20, 527448
+        mov r21, r2
+        call cursor_require_cell
+        imm r1, 527448
+        load r2, r1
+        imm r1, 1
+        jeq r2, r1, literal_skip_require_quote_successor
+        imm r1, 2
+        jeq r2, r1, literal_skip_require_zero_preserved
+        jmp reject
+literal_skip_require_quote_successor:
+        imm r20, 527456
+        imm r21, 1
+        call cursor_require_cell
+        jmp literal_skip_require_exit_result
+literal_skip_require_zero_preserved:
+        imm r20, 527456
+        imm r21, 2
+        call cursor_require_cell
+literal_skip_require_exit_result:
+        imm r20, 527472
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 527408
+        imm r21, 1
+        call cursor_require_cell
+        ret
+
+literal_skip_publish_string:
+        imm r20, 527480
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 527488
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 527496
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 527504
+        imm r21, 1
+        call cursor_require_cell
+        imm r1, 527512
+        imm r2, 1                    ; checked quiet state and restored frame
+        store r1, r2
+        imm r20, 527512
+        imm r21, 1
+        call cursor_require_cell
+        imm r1, 527360
+        imm r2, 1398035027           ; STRS
+        store r1, r2
+        ret
+
+; ---- Shared imports and call clauses ---------------------------------
+
+literal_skip_require_imports:
+        imm r20, 525744
+        imm r21, 1                    ; successful source segment
+        call cursor_require_cell
+        imm r20, 525960
+        imm r21, 1128421445           ; CBYE
+        call cursor_require_cell
+        imm r20, 525968
+        imm r21, 1094992965           ; ADVE
+        call cursor_require_cell
+        imm r20, 527320
+        imm r21, 1094994008           ; ADVX
+        call cursor_require_cell
+        ret
+
+literal_skip_call_cbyte:
+        imm r20, 525960
+        imm r21, 1128421445
+        call cursor_require_cell
+        imm r1, 527432
+        load r2, r1
+        imm r1, 1
+        jeq r2, r1, literal_skip_call_cbyte_string
+        imm r20, 527376
+        imm r21, 1                    ; checked selected current cursor
+        call cursor_require_cell
+        ret
+literal_skip_call_cbyte_string:
+        call literal_skip_string_require_invariant
+        ret
+
+literal_skip_select_entry_in_range:
+        imm r20, 527368
+        imm r21, 1
+        call cursor_require_cell
+        imm r1, 527520
+        imm r2, 1
+        store r1, r2
+        ret
+
+literal_skip_select_char_in_range:
+        imm r20, 527384
+        imm r21, 2                    ; exact backslash is a nonzero hit
+        call cursor_require_cell
+        imm r1, 527520
+        imm r2, 1
+        store r1, r2
+        ret
+
+literal_skip_select_string_in_range:
+        imm r1, 527448
+        load r2, r1
+        imm r1, 2
+        jeq r2, r1, reject            ; zero case does not justify ADVE
+        imm r1, 0
+        jeq r2, r1, reject
+        imm r1, 5
+        jlt r2, r1, literal_skip_select_string_hit
+        jmp reject
+literal_skip_select_string_hit:
+        imm r1, 527520
+        imm r2, 1
+        store r1, r2
+        ret
+
+literal_skip_call_adv_in_range:
+        imm r20, 525968
+        imm r21, 1094992965
+        call cursor_require_cell
+        imm r20, 527520
+        imm r21, 1                    ; checked call-specific CUR<LEN premise
+        call cursor_require_cell
+        imm r1, 527520
+        imm r2, 0                    ; each call needs a fresh range selection
+        store r1, r2
+        imm r1, 527376
+        imm r2, 1                    ; selected successor remains <=LEN
+        store r1, r2
+        ret
+
+literal_skip_call_adv_extended:
+        imm r20, 527320
+        imm r21, 1094994008
+        call cursor_require_cell
+        imm r20, 527328
+        imm r21, 1                    ; checked call-specific bounded cursor
+        call cursor_require_cell
+        imm r20, 527336
+        imm r21, 1                    ; exact successor relation
+        call cursor_require_cell
+        imm r1, 527376
+        load r2, r1
+        imm r1, 1
+        jeq r2, r1, literal_skip_extended_from_len
+        imm r1, 2
+        jeq r2, r1, literal_skip_extended_from_len_one
+        jmp reject
+literal_skip_extended_from_len:
+        imm r1, 527376
+        imm r2, 2                    ; successor <=LEN+1
+        store r1, r2
+        ret
+literal_skip_extended_from_len_one:
+        imm r1, 527376
+        imm r2, 3                    ; successor <=LEN+2; no further ADVX
+        store r1, r2
+        ret

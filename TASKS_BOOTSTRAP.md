@@ -913,8 +913,19 @@ additional facilities the bootstrap actually needs.
               one exactly for `let`, quietly and with restored frames. Twelve
               isolated variants sever bounds/address/call/constant/census or
               branch meaning. Shape and meaning are 11.3 KB and 9.5 KB.
-            - [ ] Close `skip_char_lit` and `skip_str_lit`, including truncated
-              escape tails that can temporarily advance CUR past LEN.
+            - [x] Close `skip_char_lit` and `skip_str_lit`, including truncated
+              tails. Exact shape rejoins procedures 37..38, ten blocks, nine
+              transitions, thirteen calls, all returns/epilogues, frames, and
+              exhaustive effect/expression/decoded rows. Conditional `CHSK`
+              reflects the implementation's deliberately non-validating
+              three/four-byte advances and proves final CUR<=LEN+2. `STRS`
+              exhausts quote, zero/NUL/end, ordinary, and escape cases under a
+              `LEN+1-CUR` rank; a final backslash may leave CUR=LEN+1. A local
+              exact-body `ADVX` consequence handles only these bounded
+              out-of-range advances. Fourteen isolated variants sever CFG,
+              calls, constants, censuses, widening bounds, deltas, zero-tail
+              preservation, rank decrease, or backedge renaming. Shape and
+              meaning are 11.6 KB and 18.6 KB.
             - [ ] Compose the outer depth/count scan, its progress rank, exact
               `let` increments, and restoration of entry CUR.
         - [ ] Compose the deterministic procedure prefix: name, `":\n"`,

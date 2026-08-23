@@ -262,7 +262,12 @@ are valuable teeth, but they do not yet establish the quantified observation:
   bytes `let`. Exact short-circuit guards ensure no byte is loaded before the
   length check; complete call/argument, indexed-load, expression, frame, and
   ownership joins bind the quiet terminating theorem to procedures 13..14.
-  Literal skippers are the next count_lets dependency;
+  The literal skippers are its next closed dependency: conditional summaries
+  track the implementation's non-validating character advances through LEN+2
+  and a trailing string escape through LEN+1, while the string loop's natural
+  LEN+1-CUR rank decreases on every ordinary/escape backedge. Exact procedures
+  37..38, calls, returns, expressions, frames, and exhaustive ownership anchor
+  those clauses. The outer depth/count scan remains to be composed;
 - no total `parse_proc` claim is currently made. Malformed procedure bodies can
   make `gen_stmts` diverge while emitting—for example when an unrecognized byte
   is never consumed—so closure requires maximal Return-or-Diverge and finite/

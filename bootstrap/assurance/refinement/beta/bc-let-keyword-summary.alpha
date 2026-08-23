@@ -21,7 +21,7 @@ let_keyword_summary_init:
         call let_keyword_require_shape
         call let_keyword_prove_id_char
         call let_keyword_prove_is_let
-        jmp scan_owned_effects_init
+        jmp literal_skip_summary_init
 
 let_keyword_require_slice_schema:
         imm r20, 526792
