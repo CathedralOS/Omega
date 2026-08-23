@@ -216,7 +216,10 @@ cat "$GATE_DIR/bc-block-control.alpha" \
   "$GATE_DIR/bc-cursor-leaf-summary.alpha" \
   "$GATE_DIR/bc-skip-ws-summary.alpha" \
   "$GATE_DIR/bc-main-ready-summary.alpha" \
-  "$GATE_DIR/bc-main-loop-entry-summary.alpha" > "$T/control-check.alpha"
+  "$GATE_DIR/bc-summary-combinators.alpha" \
+  "$GATE_DIR/bc-main-loop-entry-summary.alpha" \
+  "$GATE_DIR/bc-classifier-shape.alpha" \
+  "$GATE_DIR/bc-classifier-summary.alpha" > "$T/control-check.alpha"
 "$ASM" < "$T/control-check.alpha" > "$T/control-check.tape"
 stamp_seed "$T/control-check.tape" "$SEED" "$T/control-check" >/dev/null
 
@@ -445,7 +448,7 @@ stamp_seed "$T/main-ready-event-undercount.tape" "$SEED" "$T/main-ready-event-un
 # Phase-isolated main.loop-entry teeth retain the complete root prefix and
 # cbyte theorem while breaking the call, expression, guarded split, terminal
 # payload, body cutpoint, or exhaustive row inventory only in this phase.
-sed 's/imm r22, 51271               ; checked loop cbyte continuation/imm r22, 51272               ; checked loop cbyte continuation/' \
+sed 's/imm r26, 51271               ; checked loop cbyte continuation/imm r26, 51272               ; checked loop cbyte continuation/' \
   "$T/control-check.alpha" > "$T/main-loop-wrong-continuation.alpha"
 "$ASM" < "$T/main-loop-wrong-continuation.alpha" > "$T/main-loop-wrong-continuation.tape"
 stamp_seed "$T/main-loop-wrong-continuation.tape" "$SEED" "$T/main-loop-wrong-continuation" >/dev/null
@@ -477,7 +480,7 @@ sed 's/imm r2, 51405                 ; checked main.body cutpoint/imm r2, 51406 
   "$T/control-check.alpha" > "$T/main-loop-wrong-body.alpha"
 "$ASM" < "$T/main-loop-wrong-body.alpha" > "$T/main-loop-wrong-body.tape"
 stamp_seed "$T/main-loop-wrong-body.tape" "$SEED" "$T/main-loop-wrong-body" >/dev/null
-sed 's/imm r22, 812                 ; checked exclusive loop primitive row/imm r22, 811                 ; checked exclusive loop primitive row/' \
+sed 's/imm r23, 812                 ; checked exclusive loop primitive row/imm r23, 811                 ; checked exclusive loop primitive row/' \
   "$T/control-check.alpha" > "$T/main-loop-primitive-undercount.alpha"
 "$ASM" < "$T/main-loop-primitive-undercount.alpha" > "$T/main-loop-primitive-undercount.tape"
 stamp_seed "$T/main-loop-primitive-undercount.tape" "$SEED" "$T/main-loop-primitive-undercount" >/dev/null
@@ -485,6 +488,59 @@ sed 's/imm r29, 610                 ; checked exclusive loop event row/imm r29, 
   "$T/control-check.alpha" > "$T/main-loop-event-undercount.alpha"
 "$ASM" < "$T/main-loop-event-undercount.alpha" > "$T/main-loop-event-undercount.tape"
 stamp_seed "$T/main-loop-event-undercount.tape" "$SEED" "$T/main-loop-event-undercount" >/dev/null
+sed 's/imm r21, 1347636301            ; required conditional MLSP/imm r21, 1297238352            ; required conditional MLSP/' \
+  "$T/control-check.alpha" > "$T/main-loop-wrong-generic.alpha"
+"$ASM" < "$T/main-loop-wrong-generic.alpha" > "$T/main-loop-wrong-generic.tape"
+stamp_seed "$T/main-loop-wrong-generic.tape" "$SEED" "$T/main-loop-wrong-generic" >/dev/null
+sed 's/imm r27, 1                     ; checked root source bridge token/imm r27, 2                     ; checked root source bridge token/' \
+  "$T/control-check.alpha" > "$T/main-loop-wrong-source-bridge.alpha"
+"$ASM" < "$T/main-loop-wrong-source-bridge.alpha" > "$T/main-loop-wrong-source-bridge.tape"
+stamp_seed "$T/main-loop-wrong-source-bridge.tape" "$SEED" "$T/main-loop-wrong-source-bridge" >/dev/null
+
+# Phase-isolated byte-classifier teeth keep the exact artifact and prior root
+# summaries fixed while breaking the byte premise, independent interval
+# specification, call/argument joins, exact source boundary/opcode, or one
+# whole-table census in the new shape/meaning pair.
+sed 's/imm r2, 1                    ; checked 0<=c<=255 premise/imm r2, 0                    ; checked 0<=c<=255 premise/' \
+  "$T/control-check.alpha" > "$T/classifier-drop-domain.alpha"
+"$ASM" < "$T/classifier-drop-domain.alpha" > "$T/classifier-drop-domain.tape"
+stamp_seed "$T/classifier-drop-domain.tape" "$SEED" "$T/classifier-drop-domain" >/dev/null
+sed 's/imm r3, 58                   ; checked digit spec exclusive upper/imm r3, 57                   ; checked digit spec exclusive upper/' \
+  "$T/control-check.alpha" > "$T/classifier-digit-spec-bound.alpha"
+"$ASM" < "$T/classifier-digit-spec-bound.alpha" > "$T/classifier-digit-spec-bound.tape"
+stamp_seed "$T/classifier-digit-spec-bound.tape" "$SEED" "$T/classifier-digit-spec-bound" >/dev/null
+sed 's/imm r3, 91                   ; checked alpha spec uppercase exclusive/imm r3, 90                   ; checked alpha spec uppercase exclusive/' \
+  "$T/control-check.alpha" > "$T/classifier-alpha-spec-bound.alpha"
+"$ASM" < "$T/classifier-alpha-spec-bound.alpha" > "$T/classifier-alpha-spec-bound.tape"
+stamp_seed "$T/classifier-alpha-spec-bound.tape" "$SEED" "$T/classifier-alpha-spec-bound" >/dev/null
+sed 's/imm r2, 1                    ; checked digit handoff relation/imm r2, 2                    ; checked digit handoff relation/' \
+  "$T/control-check.alpha" > "$T/classifier-wrong-handoff.alpha"
+"$ASM" < "$T/classifier-wrong-handoff.alpha" > "$T/classifier-wrong-handoff.tape"
+stamp_seed "$T/classifier-wrong-handoff.tape" "$SEED" "$T/classifier-wrong-handoff" >/dev/null
+sed 's/imm r23, 12                  ; checked uppercase <=/imm r23, 8                   ; checked uppercase <=/' \
+  "$T/control-check.alpha" > "$T/classifier-wrong-upper-op.alpha"
+"$ASM" < "$T/classifier-wrong-upper-op.alpha" > "$T/classifier-wrong-upper-op.tape"
+stamp_seed "$T/classifier-wrong-upper-op.tape" "$SEED" "$T/classifier-wrong-upper-op" >/dev/null
+sed 's/imm r26, 3393               ; checked alpha continuation/imm r26, 3394               ; checked alpha continuation/' \
+  "$T/control-check.alpha" > "$T/classifier-wrong-continuation.alpha"
+"$ASM" < "$T/classifier-wrong-continuation.alpha" > "$T/classifier-wrong-continuation.tape"
+stamp_seed "$T/classifier-wrong-continuation.tape" "$SEED" "$T/classifier-wrong-continuation" >/dev/null
+sed 's/imm r23, 3516               ; checked digit argument handoff/imm r23, 3517               ; checked digit argument handoff/' \
+  "$T/control-check.alpha" > "$T/classifier-wrong-argument.alpha"
+"$ASM" < "$T/classifier-wrong-argument.alpha" > "$T/classifier-wrong-argument.tape"
+stamp_seed "$T/classifier-wrong-argument.tape" "$SEED" "$T/classifier-wrong-argument" >/dev/null
+sed 's/imm r23, 61                  ; checked exclusive classifier primitive row/imm r23, 60                  ; checked exclusive classifier primitive row/' \
+  "$T/control-check.alpha" > "$T/classifier-primitive-undercount.alpha"
+"$ASM" < "$T/classifier-primitive-undercount.alpha" > "$T/classifier-primitive-undercount.tape"
+stamp_seed "$T/classifier-primitive-undercount.tape" "$SEED" "$T/classifier-primitive-undercount" >/dev/null
+sed 's/imm r29, 19                  ; checked exclusive classifier event row/imm r29, 18                  ; checked exclusive classifier event row/' \
+  "$T/control-check.alpha" > "$T/classifier-event-undercount.alpha"
+"$ASM" < "$T/classifier-event-undercount.alpha" > "$T/classifier-event-undercount.tape"
+stamp_seed "$T/classifier-event-undercount.tape" "$SEED" "$T/classifier-event-undercount" >/dev/null
+sed 's/imm r23, 95                  ; checked underscore/imm r23, 94                  ; checked underscore/' \
+  "$T/control-check.alpha" > "$T/classifier-wrong-underscore.alpha"
+"$ASM" < "$T/classifier-wrong-underscore.alpha" > "$T/classifier-wrong-underscore.tape"
+stamp_seed "$T/classifier-wrong-underscore.tape" "$SEED" "$T/classifier-wrong-underscore" >/dev/null
 
 # Phase-isolated tooth: leave the exact source, tape, witness, and every prior
 # checker phase unchanged, but underreport the prelude fp owner. Adjust only the
@@ -580,7 +636,10 @@ cat "$GATE_DIR/bc-block-control.alpha" \
   "$GATE_DIR/bc-cursor-leaf-summary.alpha" \
   "$GATE_DIR/bc-skip-ws-summary.alpha" \
   "$GATE_DIR/bc-main-ready-summary.alpha" \
-  "$GATE_DIR/bc-main-loop-entry-summary.alpha" > "$T/flat-check.alpha"
+  "$GATE_DIR/bc-summary-combinators.alpha" \
+  "$GATE_DIR/bc-main-loop-entry-summary.alpha" \
+  "$GATE_DIR/bc-classifier-shape.alpha" \
+  "$GATE_DIR/bc-classifier-summary.alpha" > "$T/flat-check.alpha"
 "$ASM" < "$T/flat-check.alpha" > "$T/flat-check.tape"
 stamp_seed "$T/flat-check.tape" "$SEED" "$T/flat-check" >/dev/null
 
@@ -740,13 +799,23 @@ for main_ready_tooth in main-ready-wrong-clause main-ready-wrong-continuation ma
     exit 1
   fi
 done
-for main_loop_tooth in main-loop-wrong-continuation main-loop-wrong-comparison main-loop-wrong-zero-target main-loop-wrong-end-clause main-loop-wrong-nonzero-clause main-loop-wrong-zero-result main-loop-wrong-halt main-loop-wrong-body main-loop-primitive-undercount main-loop-event-undercount; do
+for main_loop_tooth in main-loop-wrong-continuation main-loop-wrong-comparison main-loop-wrong-zero-target main-loop-wrong-end-clause main-loop-wrong-nonzero-clause main-loop-wrong-zero-result main-loop-wrong-halt main-loop-wrong-body main-loop-primitive-undercount main-loop-event-undercount main-loop-wrong-generic main-loop-wrong-source-bridge; do
   set +e
   "$T/$main_loop_tooth" < "$T/control.bundle" > "$T/stdout"
   main_loop_tooth_status=$?
   set -e
   if [ "$main_loop_tooth_status" != 1 ] || [ -s "$T/stdout" ]; then
     echo "bc block control FAIL — $main_loop_tooth was not rejected" >&2
+    exit 1
+  fi
+done
+for classifier_tooth in classifier-drop-domain classifier-digit-spec-bound classifier-alpha-spec-bound classifier-wrong-handoff classifier-wrong-upper-op classifier-wrong-continuation classifier-wrong-argument classifier-primitive-undercount classifier-event-undercount classifier-wrong-underscore; do
+  set +e
+  "$T/$classifier_tooth" < "$T/control.bundle" > "$T/stdout"
+  classifier_tooth_status=$?
+  set -e
+  if [ "$classifier_tooth_status" != 1 ] || [ -s "$T/stdout" ]; then
+    echo "bc block control FAIL — $classifier_tooth was not rejected" >&2
     exit 1
   fi
 done
@@ -949,4 +1018,4 @@ for mutation in call-retarget read-register write-register helper-write emit-byt
   fi
 done
 
-echo "bc block control/effects: 70 proc / 355 block / 291 transition; 613 effect sites / 829 fixed emit bytes; 113 __write_str calls instantiated from one length-ranked exact-output summary; main.ready composes emit_prelude/write_str/skip_ws into the exact 187-byte prefix, then main.loop splits normalized zero to halt(0) and nonzero to main.body without consuming it; cbyte/adv/is_space leaf summaries composed through terminating skip_ws_step/skip_ws loops; 78 frame slots / 27 parameter stores / 134 call pops; 169 local loads / 73 local stores; 61 raw loads = 54 fixed-safe + 5 SRC-indexed + 2 table-indexed / 34 raw stores; cursor-zero slurp segment/value/termination summary composed from root through main.ready or halt(253); 581 literals / 55 arithmetic / 180 comparison primitives; 235 binary / 134 argument / 34 store-address pushes; syntax-directed composition / relative temporary peak 2; three ranged Alpha operands transferred; all 607 stores partitioned / 70 call-cut frames summarized; 64-row counter contexts; absolute B_bc1 stack <=12720 explicit bytes / <=662 hidden returns; all 2630 explicit-stack effects and 687 artifact effects owned ($(wc -c < "$T/control-check.tape" | tr -d ' ')-byte Alpha checker tape)"
+echo "bc block control/effects: 70 proc / 355 block / 291 transition; 613 effect sites / 829 fixed emit bytes; 113 __write_str calls instantiated from one length-ranked exact-output summary; main.ready composes emit_prelude/write_str/skip_ws into the exact 187-byte prefix, then a reusable main.loop split sends normalized zero to halt(0) and nonzero to main.body without consuming it; byte classifiers digit/alpha/alnum are exact over all 256 cbyte values; cbyte/adv/is_space leaf summaries compose through terminating skip_ws_step/skip_ws loops; 78 frame slots / 27 parameter stores / 134 call pops; 169 local loads / 73 local stores; 61 raw loads = 54 fixed-safe + 5 SRC-indexed + 2 table-indexed / 34 raw stores; cursor-zero slurp segment/value/termination summary composed from root through main.ready or halt(253); 581 literals / 55 arithmetic / 180 comparison primitives; 235 binary / 134 argument / 34 store-address pushes; syntax-directed composition / relative temporary peak 2; three ranged Alpha operands transferred; all 607 stores partitioned / 70 call-cut frames summarized; 64-row counter contexts; absolute B_bc1 stack <=12720 explicit bytes / <=662 hidden returns; all 2630 explicit-stack effects and 687 artifact effects owned ($(wc -c < "$T/control-check.tape" | tr -d ' ')-byte Alpha checker tape)"

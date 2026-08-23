@@ -1,0 +1,591 @@
+; Exact source/artifact shape for the byte classifier family.
+;
+; This module owns only the is_digit/is_alpha/is_alnum CFG, effect, frame,
+; primitive, push, and decoded-region joins. The adjacent relational module
+; owns the finite byte-domain meaning and public theorem tokens.
+
+classifier_require_shape:
+        ; One parameter/slot and a 16-byte frame in every selected procedure.
+        imm r20, 6
+        call classifier_require_proc_frame
+        imm r20, 7
+        call classifier_require_proc_frame
+        imm r20, 8
+        call classifier_require_proc_frame
+
+        ; Exact blocks and exhaustive procedure ownership.
+        imm r20, 12
+        imm r21, 2084
+        call slurp_summary_require_block_pc
+        imm r20, 13
+        imm r21, 2135
+        call slurp_summary_require_block_pc
+        imm r20, 14
+        imm r21, 2267
+        call slurp_summary_require_block_pc
+        imm r20, 15
+        imm r21, 2420
+        call slurp_summary_require_block_pc
+        imm r20, 12
+        imm r21, 15
+        imm r22, 6
+        call cursor_require_proc_blocks
+
+        imm r20, 16
+        imm r21, 2470
+        call slurp_summary_require_block_pc
+        imm r20, 17
+        imm r21, 2521
+        call slurp_summary_require_block_pc
+        imm r20, 18
+        imm r21, 2653
+        call slurp_summary_require_block_pc
+        imm r20, 19
+        imm r21, 2785
+        call slurp_summary_require_block_pc
+        imm r20, 20
+        imm r21, 2917
+        call slurp_summary_require_block_pc
+        imm r20, 21
+        imm r21, 3049
+        call slurp_summary_require_block_pc
+        imm r20, 22
+        imm r21, 3202
+        call slurp_summary_require_block_pc
+        imm r20, 23
+        imm r21, 3232
+        call slurp_summary_require_block_pc
+        imm r20, 16
+        imm r21, 23
+        imm r22, 7
+        call cursor_require_proc_blocks
+
+        imm r20, 24
+        imm r21, 3282
+        call slurp_summary_require_block_pc
+        imm r20, 25
+        imm r21, 3333
+        call slurp_summary_require_block_pc
+        imm r20, 26
+        imm r21, 3577
+        call slurp_summary_require_block_pc
+        imm r20, 24
+        imm r21, 26
+        imm r22, 8
+        call cursor_require_proc_blocks
+
+        call classifier_require_transitions
+        call classifier_require_events
+        call classifier_require_locals
+        call classifier_require_primitives
+        call classifier_require_pushes
+        call classifier_require_censuses
+        ret
+
+classifier_require_proc_frame:
+        mov r30, r20
+        imm r20, 7151616
+        mov r21, r30
+        imm r22, 1
+        call transfer_require_cell
+        imm r20, 7159808
+        mov r21, r30
+        imm r22, 1
+        call transfer_require_cell
+        mov r20, r30
+        call call_bounds_frame_bytes
+        imm r1, 16
+        jeq r0, r1, cursor_require_ok
+        jmp reject
+
+classifier_require_transitions:
+        ; is_digit: c<48 -> no, otherwise c2; c>57 -> no.
+        imm r20, 5
+        imm r21, 13
+        imm r22, 1
+        imm r23, 15
+        imm r24, 2239
+        call slurp_summary_require_transition
+        imm r20, 6
+        imm r21, 13
+        imm r22, 0
+        imm r23, 14
+        imm r24, 2258
+        call slurp_summary_require_transition
+        imm r20, 7
+        imm r21, 14
+        imm r22, 1
+        imm r23, 15
+        imm r24, 2371
+        call slurp_summary_require_transition
+
+        ; is_alpha: underscore, uppercase range, then lowercase range.
+        imm r20, 8
+        imm r21, 17
+        imm r22, 1
+        imm r23, 23
+        imm r24, 2625
+        call slurp_summary_require_transition
+        imm r20, 9
+        imm r21, 17
+        imm r22, 0
+        imm r23, 18
+        imm r24, 2644
+        call slurp_summary_require_transition
+        imm r20, 10
+        imm r21, 18
+        imm r22, 1
+        imm r23, 22
+        imm r24, 2757
+        call slurp_summary_require_transition
+        imm r20, 11
+        imm r21, 18
+        imm r22, 0
+        imm r23, 19
+        imm r24, 2776
+        call slurp_summary_require_transition
+        imm r20, 12
+        imm r21, 19
+        imm r22, 1
+        imm r23, 23
+        imm r24, 2889
+        call slurp_summary_require_transition
+        imm r20, 13
+        imm r21, 19
+        imm r22, 0
+        imm r23, 20
+        imm r24, 2908
+        call slurp_summary_require_transition
+        imm r20, 14
+        imm r21, 20
+        imm r22, 1
+        imm r23, 22
+        imm r24, 3021
+        call slurp_summary_require_transition
+        imm r20, 15
+        imm r21, 20
+        imm r22, 0
+        imm r23, 21
+        imm r24, 3040
+        call slurp_summary_require_transition
+        imm r20, 16
+        imm r21, 21
+        imm r22, 1
+        imm r23, 23
+        imm r24, 3153
+        call slurp_summary_require_transition
+
+        ; is_alnum takes yes exactly when is_alpha returned one.
+        imm r20, 17
+        imm r21, 25
+        imm r22, 1
+        imm r23, 26
+        imm r24, 3478
+        call slurp_summary_require_transition
+        ret
+
+classifier_require_events:
+        ; is_digit explicit returns and all three exact epilogues.
+        imm r20, 10
+        imm r21, 14
+        imm r22, 5
+        imm r23, 2419
+        call slurp_summary_require_event
+        imm r20, 11
+        imm r21, 15
+        imm r22, 5
+        imm r23, 2449
+        call slurp_summary_require_event
+        imm r20, 2400
+        imm r21, 2419
+        call slurp_summary_require_epilogue
+        imm r20, 2430
+        imm r21, 2449
+        call slurp_summary_require_epilogue
+        imm r20, 2450
+        imm r21, 2469
+        call slurp_summary_require_epilogue
+
+        ; is_alpha explicit returns and synthetic fallthrough.
+        imm r20, 12
+        imm r21, 21
+        imm r22, 5
+        imm r23, 3201
+        call slurp_summary_require_event
+        imm r20, 13
+        imm r21, 22
+        imm r22, 5
+        imm r23, 3231
+        call slurp_summary_require_event
+        imm r20, 14
+        imm r21, 23
+        imm r22, 5
+        imm r23, 3261
+        call slurp_summary_require_event
+        imm r20, 3182
+        imm r21, 3201
+        call slurp_summary_require_epilogue
+        imm r20, 3212
+        imm r21, 3231
+        call slurp_summary_require_epilogue
+        imm r20, 3242
+        imm r21, 3261
+        call slurp_summary_require_epilogue
+        imm r20, 3262
+        imm r21, 3281
+        call slurp_summary_require_epilogue
+
+        ; is_alnum calls alpha, returns digit directly on false, and returns
+        ; literal one on true. Event rows16/17 are lexical, not PC ordered.
+        imm r20, 15
+        imm r21, 25
+        imm r22, 3384
+        imm r23, 1
+        imm r24, 0
+        imm r25, 2470
+        imm r26, 3393               ; checked alpha continuation
+        call summary_require_call_site
+        imm r20, 17
+        imm r21, 25
+        imm r22, 3548
+        imm r23, 1
+        imm r24, 0
+        imm r25, 2084
+        imm r26, 3557               ; checked digit continuation
+        call summary_require_call_site
+        imm r20, 16
+        imm r21, 25
+        imm r22, 5
+        imm r23, 3576
+        call slurp_summary_require_event
+        imm r20, 18
+        imm r21, 26
+        imm r22, 5
+        imm r23, 3606
+        call slurp_summary_require_event
+        imm r20, 3557
+        imm r21, 3576
+        call slurp_summary_require_epilogue
+        imm r20, 3587
+        imm r21, 3606
+        call slurp_summary_require_epilogue
+        imm r20, 3607
+        imm r21, 3626
+        call slurp_summary_require_epilogue
+        ret
+
+classifier_require_locals:
+        ; Every comparison/call argument reloads the sole parameter slot.
+        imm r20, 17
+        imm r21, 13
+        imm r22, 1
+        imm r23, 0
+        imm r24, 2135
+        call transfer_require_local
+        imm r20, 18
+        imm r21, 14
+        imm r22, 1
+        imm r23, 0
+        imm r24, 2267
+        call transfer_require_local
+        imm r20, 19
+        imm r21, 17
+        imm r22, 1
+        imm r23, 0
+        imm r24, 2521
+        call transfer_require_local
+        imm r20, 20
+        imm r21, 18
+        imm r22, 1
+        imm r23, 0
+        imm r24, 2653
+        call transfer_require_local
+        imm r20, 21
+        imm r21, 19
+        imm r22, 1
+        imm r23, 0
+        imm r24, 2785
+        call transfer_require_local
+        imm r20, 22
+        imm r21, 20
+        imm r22, 1
+        imm r23, 0
+        imm r24, 2917
+        call transfer_require_local
+        imm r20, 23
+        imm r21, 21
+        imm r22, 1
+        imm r23, 0
+        imm r24, 3049
+        call transfer_require_local
+        imm r20, 24
+        imm r21, 25
+        imm r22, 1
+        imm r23, 0
+        imm r24, 3333
+        call transfer_require_local
+        imm r20, 25
+        imm r21, 25
+        imm r22, 1
+        imm r23, 0
+        imm r24, 3497
+        call transfer_require_local
+        ret
+
+classifier_require_primitives:
+        ; row/block/kind/value-or-comparison-code/PC.
+        imm r20, 39
+        imm r21, 13
+        imm r22, 3
+        imm r23, 8                   ; <
+        imm r24, 2180
+        call transfer_require_primitive
+        imm r20, 40
+        imm r21, 13
+        imm r22, 1
+        imm r23, 48                  ; checked digit lower bound
+        imm r24, 2170
+        call transfer_require_primitive
+        imm r20, 41
+        imm r21, 14
+        imm r22, 3
+        imm r23, 9                   ; >
+        imm r24, 2312
+        call transfer_require_primitive
+        imm r20, 42
+        imm r21, 14
+        imm r22, 1
+        imm r23, 57                  ; checked digit upper bound
+        imm r24, 2302
+        call transfer_require_primitive
+        imm r20, 43
+        imm r21, 14
+        imm r22, 1
+        imm r23, 1
+        imm r24, 2390
+        call transfer_require_primitive
+        imm r20, 44
+        imm r21, 15
+        imm r22, 1
+        imm r23, 0
+        imm r24, 2420
+        call transfer_require_primitive
+
+        imm r20, 45
+        imm r21, 17
+        imm r22, 3
+        imm r23, 10                  ; ==
+        imm r24, 2566
+        call transfer_require_primitive
+        imm r20, 46
+        imm r21, 17
+        imm r22, 1
+        imm r23, 95                  ; checked underscore
+        imm r24, 2556
+        call transfer_require_primitive
+        imm r20, 47
+        imm r21, 18
+        imm r22, 3
+        imm r23, 8                   ; <
+        imm r24, 2698
+        call transfer_require_primitive
+        imm r20, 48
+        imm r21, 18
+        imm r22, 1
+        imm r23, 65                  ; checked uppercase lower
+        imm r24, 2688
+        call transfer_require_primitive
+        imm r20, 49
+        imm r21, 19
+        imm r22, 3
+        imm r23, 12                  ; checked uppercase <=
+        imm r24, 2830
+        call transfer_require_primitive
+        imm r20, 50
+        imm r21, 19
+        imm r22, 1
+        imm r23, 90                  ; checked uppercase upper
+        imm r24, 2820
+        call transfer_require_primitive
+        imm r20, 51
+        imm r21, 20
+        imm r22, 3
+        imm r23, 8                   ; <
+        imm r24, 2962
+        call transfer_require_primitive
+        imm r20, 52
+        imm r21, 20
+        imm r22, 1
+        imm r23, 97                  ; checked lowercase lower
+        imm r24, 2952
+        call transfer_require_primitive
+        imm r20, 53
+        imm r21, 21
+        imm r22, 3
+        imm r23, 12                  ; checked lowercase <=
+        imm r24, 3094
+        call transfer_require_primitive
+        imm r20, 54
+        imm r21, 21
+        imm r22, 1
+        imm r23, 122                 ; checked lowercase upper
+        imm r24, 3084
+        call transfer_require_primitive
+        imm r20, 55
+        imm r21, 21
+        imm r22, 1
+        imm r23, 0
+        imm r24, 3172
+        call transfer_require_primitive
+        imm r20, 56
+        imm r21, 22
+        imm r22, 1
+        imm r23, 0
+        imm r24, 3202
+        call transfer_require_primitive
+        imm r20, 57
+        imm r21, 23
+        imm r22, 1
+        imm r23, 1
+        imm r24, 3232
+        call transfer_require_primitive
+
+        imm r20, 58
+        imm r21, 25
+        imm r22, 3
+        imm r23, 10                  ; alpha result == 1
+        imm r24, 3419
+        call transfer_require_primitive
+        imm r20, 59
+        imm r21, 25
+        imm r22, 1
+        imm r23, 1
+        imm r24, 3409
+        call transfer_require_primitive
+        imm r20, 60
+        imm r21, 26
+        imm r22, 1
+        imm r23, 1
+        imm r24, 3577
+        call transfer_require_primitive
+        ret
+
+classifier_require_pushes:
+        ; Binary-left pushes for every comparison.
+        imm r20, 8
+        imm r21, 13
+        imm r22, 1
+        imm r23, 2154
+        call transfer_require_push
+        imm r20, 9
+        imm r21, 14
+        imm r22, 1
+        imm r23, 2286
+        call transfer_require_push
+        imm r20, 10
+        imm r21, 17
+        imm r22, 1
+        imm r23, 2540
+        call transfer_require_push
+        imm r20, 11
+        imm r21, 18
+        imm r22, 1
+        imm r23, 2672
+        call transfer_require_push
+        imm r20, 12
+        imm r21, 19
+        imm r22, 1
+        imm r23, 2804
+        call transfer_require_push
+        imm r20, 13
+        imm r21, 20
+        imm r22, 1
+        imm r23, 2936
+        call transfer_require_push
+        imm r20, 14
+        imm r21, 21
+        imm r22, 1
+        imm r23, 3068
+        call transfer_require_push
+        imm r20, 15
+        imm r21, 25
+        imm r22, 1
+        imm r23, 3393
+        call transfer_require_push
+
+        ; Same c parameter staged into both nested calls.
+        imm r20, 236
+        imm r21, 25
+        imm r22, 2
+        imm r23, 3352               ; checked alpha argument handoff
+        call transfer_require_push
+        imm r20, 237
+        imm r21, 25
+        imm r22, 2
+        imm r23, 3516               ; checked digit argument handoff
+        call transfer_require_push
+        ret
+
+classifier_require_censuses:
+        imm r20, 12
+        imm r21, 15
+        imm r22, 17
+        imm r23, 19
+        imm r24, 0
+        imm r25, 0
+        imm r26, 5
+        imm r27, 8
+        imm r28, 10
+        imm r29, 12
+        call cursor_require_effect_census
+        imm r20, 16
+        imm r21, 23
+        imm r22, 19
+        imm r23, 24
+        imm r24, 0
+        imm r25, 0
+        imm r26, 8
+        imm r27, 17
+        imm r28, 12
+        imm r29, 15
+        call cursor_require_effect_census
+        imm r20, 24
+        imm r21, 26
+        imm r22, 24
+        imm r23, 26
+        imm r24, 0
+        imm r25, 0
+        imm r26, 17
+        imm r27, 18
+        imm r28, 15
+        imm r29, 19                  ; checked exclusive classifier event row
+        call cursor_require_effect_census
+
+        imm r20, 12
+        imm r21, 26
+        imm r22, 39
+        imm r23, 61                  ; checked exclusive classifier primitive row
+        imm r24, 8
+        imm r25, 16
+        imm r26, 236
+        imm r27, 238
+        imm r28, 0
+        imm r29, 0
+        call summary_require_expr_census
+
+        imm r20, 2084
+        imm r21, 2470
+        imm r22, 0
+        imm r23, 3
+        call skip_scan_call_region
+        imm r20, 2470
+        imm r21, 3282
+        imm r22, 0
+        imm r23, 4
+        call skip_scan_call_region
+        imm r20, 3282
+        imm r21, 3627
+        imm r22, 2
+        imm r23, 3
+        call skip_scan_call_region
+        ret

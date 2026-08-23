@@ -824,6 +824,52 @@ additional facilities the bootstrap actually needs.
         zero result, halt payload, body cutpoint, primitive census, or event
         census. The next nonterminal frontier is the `parse_proc` call from
         `main.body`; typed exhaustion remains independently blocked below.
+        The same phase also publishes a trace-parametric loop-test theorem:
+        later successful parse iterations may reuse the zero/nonzero split with
+        an arbitrary ordered output prefix instead of reimporting the root-only
+        187-byte clause. Its explicit instantiation bridge requires caller-
+        owned loop-PC, trace, normalized-cursor, source/input, and active-frame
+        facts; the schema cannot manufacture postconditions for a future
+        `parse_proc` return. Shared call-site and primitive/push census
+        combinators keep subsequent procedure summaries responsibility-local.
+      - [ ] Build a maximal `parse_proc` summary and compose it through
+        `main.body`. Do not claim total termination on every finite byte stream:
+        malformed bodies can diverge—for example an unrecognized `@` can leave
+        `CUR` unchanged while `gen_stmt`/`gen_factor` repeatedly emit code from
+        the `gen_stmts` loop. The required theorem is therefore Return-or-
+        Diverge with finite/infinite trace correspondence. Finite returns must
+        carry exact cursor/source/output/global relations and the numeric
+        `RESOURCE_FAIL`; main can then select resource halt versus renormalized
+        loop continuation. Typed interpretation of status 252 remains the
+        independent ruling below.
+        - [x] Prove the shared byte classifiers needed by identifier scanning.
+          `is_digit`, `is_alpha`, and `is_alnum` are checked only under their
+          actual zero-extended byte premise `0<=c<=255`; signed Alpha compares
+          are not generalized to arbitrary words. Exact blocks, transitions,
+          locals, primitives, split binary/argument pushes, calls, lexical
+          events, epilogues, frames, and decoded quiet regions are rejoined.
+          An executable 256-value sweep compares the source branch order with
+          independent half-open interval specifications and proves alnum is
+          precisely digit-or-alpha while carrying the same slot-zero parameter
+          through both nested calls. Ten isolated variants reject a dropped
+          domain, wrong independent bound, detached handoff/call, wrong source
+          opcode/boundary, or row undercount only in this phase. Artifact shape,
+          relational meaning, and reusable table joins live in separate modules
+          below 20 KB each.
+        - [ ] Prove terminating `read_ident`: set `IDOFF` to entry `CUR`, repeat
+          cbyte/alnum/adv with rank `LEN-CUR`, and set
+          `IDLEN=CUR-IDOFF` at the first non-alnum byte/end/NUL.
+        - [ ] Prove nonzero-delimiter `expect(ch)`: normalize whitespace, then
+          advance exactly once on a matching byte and otherwise preserve the
+          normalized cursor. Instantiate `parse_proc`'s `(` and `{` calls.
+        - [ ] Close `declare`, the bounded parameter loop, literal-aware
+          cursor-restoring `count_lets`, and both pre-output status-252 returns.
+        - [ ] Compose the deterministic procedure prefix: name, `":\n"`,
+          prologue, and `nparams` parameter stores under `nslots<=1024`.
+        - [ ] Give `gen_stmts`/`gen_stmt`/expression recursion maximal finite or
+          infinite trace meaning. On a finite return, compose parse_proc's
+          unconditional epilogue and return zero even when a nested resource
+          guard has set `RESOURCE_FAIL=252`.
       - [ ] **DESIGN BLOCKED — observation ruling required:** define how the
         theorem assigns typed `Exhaust(ResourceKind, limit, requested)` to the
         exact resource-guard paths whose program-level result is only 252/253.

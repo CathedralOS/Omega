@@ -225,7 +225,21 @@ are valuable teeth, but they do not yet establish the quantified observation:
   pair; an in-range nonzero byte reaches `main.body` without being consumed.
   Both outcomes preserve external input, the successful source relation,
   cursor, and compiler globals. Exact block/expression/effect censuses close
-  every row in the loop block; the next nonterminal frontier is `parse_proc`;
+  every row in the loop block. A trace-parametric form of the split is reusable
+  after later successful parse iterations rather than assuming the initial
+  187-byte prefix. Its concrete instantiation bridge must first check caller-
+  supplied loop-PC, ordered-trace, normalized-cursor, source/input, and active-
+  frame facts; the generic schema grants none of those facts by itself;
+- its byte-classifier phase closes the first dependency of identifier scanning.
+  Under the actual zero-extended byte premise, an exhaustive 256-value theorem
+  matches the exact signed-compare CFGs to independent specifications for
+  digit `[48,58)`, alpha underscore/`[65,91)`/`[97,123)`, and their alnum union.
+  Exact split push-family, call, frame, effect, and decoded-region joins prove
+  quiet termination and caller restoration. `read_ident` is the next frontier;
+- no total `parse_proc` claim is currently made. Malformed procedure bodies can
+  make `gen_stmts` diverge while emitting—for example when an unrecognized byte
+  is never consumed—so closure requires maximal Return-or-Diverge and finite/
+  infinite trace correspondence, not merely a termination induction;
 - its BC11 grammar-composition pass further partitions every raw-store source
   address into 31 aligned fixed compiler globals, one exact source-buffer
   `base + n` spelling, and two exact local-name-table `base + s * 8` spellings;

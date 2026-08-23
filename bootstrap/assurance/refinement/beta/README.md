@@ -464,7 +464,51 @@ compiler globals; the body case retains the active main frame. A whole-table
 block census closes primitive rows 809..811 and push row 233 in addition to the
 existing local/memory/transition/event census, while the decoded block scan
 finds exactly one call and one return and excludes direct I/O, halt, and
-arithmetic traps. Ten isolated teeth sever one continuation, comparison,
+arithmetic traps. Twelve isolated teeth sever one continuation, comparison,
 guard target, cbyte-case association, selected result, halt payload, body
-cutpoint, or row census; each rejects only here. The next simulation frontier
-is the root-reachable `parse_proc` call and its procedure summary.
+cutpoint, row census, generic theorem import, or concrete source-relation
+bridge; each rejects only here. The next simulation frontier is the root-
+reachable `parse_proc` call and its procedure summary.
+
+The loop phase additionally publishes `MLSP`, a trace-parametric version of the
+same cbyte split. It assumes an arbitrary ordered trace, successful source
+segment, bounded normalized cursor, and active main frame, then preserves that
+trace on both outcomes. The concrete `MLHZ`/`MLBD` clauses are root
+instantiations of this interface. MLSP itself creates no reachability facts:
+its explicit instantiation bridge checks caller-owned loop-PC, trace, cursor,
+source/input, and active-frame tokens before deriving a concrete split. This
+matters after one procedure has emitted code: a later `main.loop` visit must not
+be tied back to the initial 187-byte prefix or silently assume `parse_proc`'s
+postconditions. `bc-summary-combinators.alpha` separately owns the reusable
+ordinary call join and the whole-table primitive/push census, including
+disjoint binary, argument, and store-address push intervals; semantic modules
+no longer clone those table walks.
+
+`bc-classifier-shape.alpha` and `bc-classifier-summary.alpha` close the first
+missing dependency beneath `read_ident` while keeping artifact custody separate
+from relational meaning. The shape phase rejoins procedures 6..8 through exact
+blocks, transitions, slot-zero loads, comparison/literal rows, binary and call-
+argument pushes, lexical events, call targets/continuations, epilogues, 16-byte
+frames, and decoded quiet regions. The split push-family census is important:
+`is_alnum` owns binary row 15 but argument rows 236..237.
+
+The meaning phase is deliberately byte-scoped because every dynamic caller
+supplies a zero-extended cbyte value and Alpha comparisons are signed. It
+exhausts all 256 values, evaluating each source branch order and an independent
+interval specification. The resulting theorems are exact:
+`is_digit` recognizes `[48,58)`, `is_alpha` recognizes underscore plus
+`[65,91)` and `[97,123)`, and `is_alnum` is their union. Both alnum calls carry
+the same slot-zero value; its false path returns `is_digit`'s result unchanged.
+All three terminate, emit nothing, preserve input/source/cursor/compiler state,
+and restore the caller frame. Ten isolated teeth cover domain, independent
+bounds, source opcode/boundary, argument/call association, and exhaustive row
+custody. Shared joins, loop meaning, classifier shape, and classifier meaning
+are each below 20 KB rather than accumulating another monolithic checker file.
+
+The eventual `parse_proc` theorem must be maximal, not universally terminating.
+For malformed input, an unrecognized body byte such as `@` can survive both
+`gen_stmt` and the number fallback without cursor progress while `gen_stmts`
+keeps emitting. The honest contract is therefore Return-or-Diverge with exact
+finite/infinite output behavior. The next engineering milestone is terminating
+`read_ident`, followed by `expect`; the existing typed status-252 projection is
+the only language-design blocker in this area.
