@@ -436,6 +436,7 @@ dependencies = [
 name = "omega-control-flow"
 version = "0.1.0"
 dependencies = [
+ "omega-function-identity",
  "psi-arena",
  "psi-checked-trees",
  "psi-facts",
@@ -567,11 +568,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "omega-function-identity"
+version = "0.1.0"
+dependencies = [
+ "psi-symbols",
+]
+
+[[package]]
 name = "omega-image"
 version = "0.1.0"
 dependencies = [
  "omega-calling-conventions",
- "omega-control-flow",
+ "omega-function-identity",
  "omega-object-file",
  "omega-target",
  "psi-arena",
@@ -681,6 +689,7 @@ dependencies = [
  "omega-target",
  "omega-target-operations",
  "omega-terminal-installation-evidence",
+ "omega-terminal-isa-aarch64",
  "psi-arena",
  "psi-core",
  "psi-diagnostics",
@@ -698,6 +707,7 @@ dependencies = [
  "omega-target",
  "omega-target-operations",
  "omega-terminal-installation-evidence",
+ "omega-terminal-isa-x86_64",
  "omega-x86-encoding",
  "psi-arena",
  "psi-core",
@@ -839,8 +849,8 @@ dependencies = [
 name = "omega-object-file"
 version = "0.1.0"
 dependencies = [
- "omega-control-flow",
  "omega-core",
+ "omega-function-identity",
  "omega-target",
  "psi-arena",
 ]
@@ -1215,11 +1225,11 @@ dependencies = [
  "omega-image-elf",
  "omega-image-macho",
  "omega-image-pe",
- "omega-isa-aarch64",
- "omega-isa-x86_64",
  "omega-object-file",
  "omega-target",
  "omega-terminal-installation-evidence",
+ "omega-terminal-isa-aarch64",
+ "omega-terminal-isa-x86_64",
  "omega-terminal-machine-code",
  "omega-terminal-machine-emission",
  "omega-terminal-target-operations",
@@ -1242,6 +1252,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "omega-terminal-isa-aarch64"
+version = "0.1.0"
+dependencies = [
+ "omega-calling-conventions",
+ "omega-target",
+ "omega-terminal-installation-evidence",
+ "psi-core",
+ "psi-diagnostics",
+]
+
+[[package]]
+name = "omega-terminal-isa-x86_64"
+version = "0.1.0"
+dependencies = [
+ "omega-calling-conventions",
+ "omega-target",
+ "omega-terminal-installation-evidence",
+ "psi-core",
+ "psi-diagnostics",
+]
+
+[[package]]
 name = "omega-terminal-machine-code"
 version = "0.1.0"
 dependencies = [
@@ -1259,11 +1291,11 @@ version = "0.1.0"
 dependencies = [
  "iced-x86",
  "omega-calling-conventions",
- "omega-isa-aarch64",
- "omega-isa-x86_64",
  "omega-target",
  "omega-terminal-assigned-target-operations",
  "omega-terminal-installation-evidence",
+ "omega-terminal-isa-aarch64",
+ "omega-terminal-isa-x86_64",
  "omega-terminal-machine-code",
  "omega-terminal-target-operations",
  "omega-terminal-target-operations-to-assigned-target-operations",

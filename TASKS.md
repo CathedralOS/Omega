@@ -1493,15 +1493,6 @@ Owners:
 
 Remaining:
 
-- [ ] **ARCH-TERMINAL-LANE.** Restore the terminal-Psi realization firewall
-  enforced by
-  `omega-architecture-test::psi_reference_execution_ownership_and_terminal_lane_are_enforced`.
-  The product-root migration exposed an already-present transitive route from
-  the clean terminal image/emission roots back through `omega-target-operations`,
-  `omega-abstract-operations`, `omega-control-flow`, and Psi checked/typed
-  representations. Remove those source-shaped dependencies from the terminal
-  lane; do not weaken the forbidden set or recategorize the legacy graph as a
-  clean terminal implementation.
 - **PSIIR.** Extend terminal Psi only as complete vertical slices: canonical
   encoding, independent obligation reconstruction and verification,
   interpretation, fixed fuel, Omega lowering, native evidence, artifact/image

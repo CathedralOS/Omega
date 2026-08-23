@@ -1,5 +1,5 @@
 use crate::SectionKind;
-use omega_control_flow::MachineFunctionIdentity;
+use omega_function_identity::MachineFunctionIdentity;
 use psi_arena::Handle;
 
 #[derive(Debug, Clone, PartialEq, Eq)]

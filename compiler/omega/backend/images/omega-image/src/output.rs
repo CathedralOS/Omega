@@ -43,7 +43,7 @@ pub struct EmittedImageOutput {
 /// attached.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CompilerEntryRegionBindingEvidence {
-    pub function_identity: omega_control_flow::MachineFunctionIdentity,
+    pub function_identity: omega_function_identity::MachineFunctionIdentity,
     pub object_symbol_handle: omega_object_file::ObjectSymbolHandle,
     pub region_index: usize,
     pub symbol: String,

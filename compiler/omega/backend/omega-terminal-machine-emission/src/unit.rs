@@ -322,11 +322,11 @@ pub(super) fn emit_unit_body(
                         }
                         let (encoded, data) = match target.architecture {
                             Architecture::X86_64 => {
-                                omega_isa_x86_64::encode_linux_write_line_literal(literal_bytes)
+                                omega_terminal_isa_x86_64::encode_linux_write_line_literal(literal_bytes)
                                     .map_err(|_| EmissionError::LinuxWriteLineEncoding)?
                             }
                             Architecture::Aarch64 => {
-                                omega_isa_aarch64::encode_linux_write_line_literal(literal_bytes)
+                                omega_terminal_isa_aarch64::encode_linux_write_line_literal(literal_bytes)
                                     .map_err(|_| EmissionError::LinuxWriteLineEncoding)?
                             }
                         };
@@ -384,10 +384,10 @@ pub(super) fn emit_unit_body(
                         }
                         match target.architecture {
                             Architecture::X86_64 => bytes.extend_from_slice(
-                                &omega_isa_x86_64::encode_linux_exit_group_i32(value),
+                                &omega_terminal_isa_x86_64::encode_linux_exit_group_i32(value),
                             ),
                             Architecture::Aarch64 => bytes.extend_from_slice(
-                                &omega_isa_aarch64::encode_linux_exit_group_i32(value)
+                                &omega_terminal_isa_aarch64::encode_linux_exit_group_i32(value)
                                     .map_err(|_| EmissionError::LinuxExitGroupEncoding)?,
                             ),
                         }

@@ -93,7 +93,7 @@ pub fn validate_final_image_function_linkage(
 mod tests {
     use super::*;
     use crate::{FinalImageInput, FinalImageSymbol, build_final_image};
-    use omega_control_flow::{MachineFunctionIdentity, StateKey};
+    use omega_function_identity::{MachineFunctionIdentity, StateKey};
     use omega_object_file::{FunctionSymbolPlan, SymbolPlan};
     use omega_target::NativeTarget;
 

@@ -20,6 +20,7 @@ psi-layout-plans = { path = "../../../../psi/foundation/psi-layout-plans" }
 psi-numerics = { path = "../../../../psi/foundation/psi-numerics" }
 omega-target-operations = { path = "../../../representations/omega-target-operations" }
 omega-terminal-installation-evidence = { path = "../../../representations/omega-terminal-installation-evidence" }
+omega-terminal-isa-x86_64 = { path = "../omega-terminal-isa-x86_64" }
 
 [dev-dependencies]
 psi-core = { path = "../../../../psi/foundation/psi-core" }

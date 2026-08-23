@@ -431,7 +431,7 @@ mod tests {
     use omega_calling_conventions::{
         MachineRegister, MachineStateSet, RegisterSet, StateFootprintEvidence,
     };
-    use omega_control_flow::{MachineFunctionIdentity, StateKey};
+    use omega_function_identity::{MachineFunctionIdentity, StateKey};
     use omega_target::NativeTarget;
 
     #[test]

@@ -1,6 +1,6 @@
 use crate::{ObjectPlan, ObjectSymbolHandle, SectionKind, SymbolPlan, SymbolSection};
-use omega_control_flow::MachineFunctionIdentity;
 use omega_core::runtime_storage::RuntimeStorageRegion;
+use omega_function_identity::MachineFunctionIdentity;
 use omega_target::{NativeTarget, ObjectFormat};
 
 pub fn object_symbol_handle_by_name(object: &ObjectPlan, symbol_name: &str) -> ObjectSymbolHandle {
@@ -97,7 +97,7 @@ pub fn section_name(target: NativeTarget, kind: SectionKind) -> String {
 #[cfg(test)]
 mod tests {
     use super::private_function_symbol_name;
-    use omega_control_flow::{MachineFunctionIdentity, StateKey};
+    use omega_function_identity::{MachineFunctionIdentity, StateKey};
 
     #[test]
     fn private_function_names_bind_role_handles_generations_and_segment() {

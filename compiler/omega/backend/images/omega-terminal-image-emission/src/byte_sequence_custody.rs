@@ -35,8 +35,12 @@ pub(crate) fn linux_write_line_custody_is_exact(
         return false;
     }
     let encoded = match target.architecture {
-        Architecture::X86_64 => omega_isa_x86_64::encode_linux_write_line_literal(&custody.bytes),
-        Architecture::Aarch64 => omega_isa_aarch64::encode_linux_write_line_literal(&custody.bytes),
+        Architecture::X86_64 => {
+            omega_terminal_isa_x86_64::encode_linux_write_line_literal(&custody.bytes)
+        }
+        Architecture::Aarch64 => {
+            omega_terminal_isa_aarch64::encode_linux_write_line_literal(&custody.bytes)
+        }
     };
     let Ok((encoded, data)) = encoded else {
         return false;
