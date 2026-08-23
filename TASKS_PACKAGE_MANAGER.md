@@ -101,6 +101,16 @@ Completed:
   boundary declarations, `build.omg`, provider origin/plan evidence, optional
   package splitting, and authority storage/return/acquire/derive paths.
 
+- **SOURCE-CACHE-POLICY-RECORDS.** Add resolver-owned policy evidence for
+  local and Git source resolution before install/lock wiring.
+
+  Done 2026-08-23: `omega-packages` emits deterministic source-cache policy
+  records for accepted and rejected local/Git requests. Records include source
+  kind, locator, requested rev, resolved commit/tree when present, content
+  identity, cache/root path, file/byte counts, traversal limits, submodule
+  policy, path-containment policy, rejection reason, stable JSON, and a
+  SHA-256 record fingerprint.
+
 Remaining:
 
 - **PACKAGE-CAPABILITY-MANIFEST.** Define the normalized manifest produced for
@@ -134,8 +144,9 @@ Remaining:
   GitHub, GitLab, SSH, HTTPS, and file paths all resolve to exact content
   identity before package code is loaded.
 
-  Remaining after `LOCAL-SOURCE-IDENTITY` and `GIT-SOURCE-IDENTITY`: add
-  source-cache policy records, install-command integration, and lock wiring.
+  Remaining after `LOCAL-SOURCE-IDENTITY`, `GIT-SOURCE-IDENTITY`, and
+  `SOURCE-CACHE-POLICY-RECORDS`: add install-command integration and lock
+  wiring.
 
   Acceptance: `omega install alias <source>` resolves a candidate to an exact
   commit/tree or local content identity and stores it in an isolated source

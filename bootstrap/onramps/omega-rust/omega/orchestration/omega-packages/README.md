@@ -85,6 +85,9 @@ delegate behavior here.
 - `review`: deterministic capability-change review receipts bound to exact
   source identities, manifest fingerprints, accepted diff sections, reviewer,
   and reason.
+- `resolver`: source-cache policy records for local/Git resolution, including
+  limits, path/submodule policy, resolved identities, success/rejection verdict,
+  stable JSON, and record fingerprints.
 - `source`: local-path source identity with deterministic hashing, `.git`
   directory exclusion, traversal limits, symlink escape rejection, and Git
   clone/fetch resolution to exact commit/tree identity.
