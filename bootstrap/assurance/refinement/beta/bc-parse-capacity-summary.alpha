@@ -1,0 +1,274 @@
+; Conditional pre-output slot-capacity summary for parse_proc.pdone.
+;
+; Entry selects PLOP's successful close-parenthesis clause: the source segment
+; is valid, RESOURCE_FAIL is zero, 0<=nparams=NLOC<=4, the exact parameter-table
+; prefix is retained, and CUR points at the unconsumed ')'. The exact pdone
+; slice consumes that close, snapshots nparams, applies expect('{'), and calls
+; terminating cursor-restoring count_lets with one ambient local. Its exact
+; result count is nonnegative and bounded by consumed source identifiers, hence
+; count<=LEN and nslots=nparams+count<=1048580 without word or signed overflow.
+;
+; The checked nslots<=1024 edge reaches slotsready before any output with status
+; zero and the parse_proc frame active. The complementary nonnegative case has
+; nslots>1024, stores numeric RESOURCE_FAIL=252, returns zero through the exact
+; pre-output epilogue, and restores the caller frame. Both retain the source,
+; input, parameter table, count_lets-restored body cursor, and carried current
+; identifier state. Typed interpretation of 252 remains outside this theorem.
+;
+; Fresh cells:
+;   public PCAP                                      528072
+;   entry / close-consume / nparams                 528080..528096
+;   expect-open / count result / count bound        528104..528120
+;   exact nonwrapping nslots / guard / status       528128..528144
+;   retained state / terminal-frame / output        528152..528184
+;   room / overflow completions                     528168/528176
+;
+; Guard tags: 1=nslots<=1024, 2=nslots>1024.
+; Terminal tags: 1=slotsready with active frame, 2=return zero/restored caller.
+
+parse_capacity_summary_init:
+        call parse_capacity_prove_summary
+        jmp scan_owned_effects_init
+
+parse_capacity_prove_summary:
+        imm r1, 528072
+        imm r2, 0
+        store r1, r2
+        imm r1, 528168
+        store r1, r2
+        imm r1, 528176
+        store r1, r2
+        call parse_capacity_require_imports
+        call parse_capacity_introduce_entry
+        call parse_capacity_prove_room
+        call parse_capacity_prove_overflow
+        call parse_capacity_publish_summary
+        ret
+
+parse_capacity_introduce_entry:
+        imm r1, 528080
+        imm r2, 1                    ; selected PLOP close/success clause
+        store r1, r2
+        imm r1, 528144
+        store r1, r2                  ; RESOURCE_FAIL is zero
+        imm r1, 528152
+        store r1, r2                  ; source/input/table/cursor/ID retained
+        imm r1, 528184
+        store r1, r2                  ; prior output unchanged before pdone
+        call parse_capacity_require_entry
+        ret
+
+parse_capacity_reset_case:
+        call parse_capacity_require_entry
+        imm r10, 528088
+parse_capacity_reset_loop:
+        imm r1, 528168
+        jlt r10, r1, parse_capacity_reset_cell
+        call parse_capacity_compose_prefix
+        ret
+parse_capacity_reset_cell:
+        imm r2, 0
+        store r10, r2
+        imm r1, 8
+        add r10, r1
+        jmp parse_capacity_reset_loop
+
+parse_capacity_compose_prefix:
+        ; PLOP's checked close clause proves ')' is nonzero/in range, so ADVE
+        ; consumes exactly one byte without wrapping CUR.
+        imm r20, 528008
+        imm r21, 1                    ; PLOP close clause completed
+        call cursor_require_cell
+        imm r20, 528048
+        imm r21, 1                    ; PLOP successful loop exit
+        call cursor_require_cell
+        imm r20, 525968
+        imm r21, 1094992965           ; ADVE
+        call cursor_require_cell
+        imm r2, 1                    ; checked post-ADVE close relation tag
+        imm r1, 528088
+        store r1, r2                  ; checked close consumed, CUR<=LEN
+
+        ; Exact local row 227 snapshots NLOC after the parameters. PLOP supplies
+        ; the nonnegative 0..4 bound and exact table-prefix length.
+        imm r1, 528096
+        store r1, r2                  ; nparams=NLOC in [0,4]
+
+        ; EXPS is instantiated with exact nonzero delimiter 123 by primitive
+        ; row 794 / argument push 364. Match consumes it; mismatch leaves the
+        ; normalized cursor. Either result is a valid count_lets entry cursor.
+        imm r20, 526960
+        imm r21, 1397774405           ; EXPS
+        call cursor_require_cell
+        imm r2, 1                    ; checked post-EXPS cursor relation tag
+        imm r1, 528104
+        store r1, r2                  ; post-expect normalized body cursor
+
+        ; Event 594 has ambient height one: nparams remains staged while CNTS
+        ; returns the exact let count and restores this same body cursor.
+        imm r20, 527728
+        imm r21, 1129206867           ; CNTS
+        call cursor_require_cell
+        imm r20, 527816
+        imm r21, 1                    ; count_lets CUR restoration
+        call cursor_require_cell
+        imm r20, 527824
+        imm r21, 1                    ; exact count result
+        call cursor_require_cell
+        imm r20, 527832
+        imm r21, 1                    ; quiet state / restored nested frame
+        call cursor_require_cell
+        imm r1, 528112
+        imm r2, 1                    ; exact count and restored cursor
+        store r1, r2
+        imm r1, 528120
+        store r1, r2                  ; 0<=count<=LEN<=1048576
+
+        ; With nparams<=4, the exact addition is <=1048580 and therefore agrees
+        ; with ordinary and signed Alpha arithmetic/comparison.
+        imm r1, 528128
+        store r1, r2                  ; nslots=nparams+count, no wrap
+        imm r1, 528144
+        store r1, r2                  ; status remains zero through prefix
+        imm r1, 528152
+        store r1, r2                  ; retained table/source/input/CUR/ID
+        imm r1, 528184
+        store r1, r2                  ; still no output
+        imm r20, 528144
+        imm r21, 1                    ; checked prefix status remains zero
+        call cursor_require_cell
+        call parse_capacity_require_common
+        ret
+
+parse_capacity_prove_room:
+        call parse_capacity_reset_case
+        imm r1, 528136
+        imm r2, 1                    ; checked nslots<=1024 edge 281
+        store r1, r2
+        imm r1, 528144
+        store r1, r2                  ; status remains zero
+        imm r1, 528160
+        store r1, r2                  ; reaches slotsready, active frame
+        call parse_capacity_require_room
+        imm r1, 528168
+        imm r2, 1
+        store r1, r2
+        ret
+
+parse_capacity_prove_overflow:
+        call parse_capacity_reset_case
+        imm r1, 528136
+        imm r2, 2                    ; complementary nslots>1024
+        store r1, r2
+        imm r1, 528144
+        store r1, r2                  ; numeric RESOURCE_FAIL=252
+        imm r1, 528160
+        store r1, r2                  ; return zero / restored caller frame
+        call parse_capacity_require_overflow
+        imm r1, 528176
+        imm r2, 1
+        store r1, r2
+        ret
+
+parse_capacity_publish_summary:
+        imm r20, 528168
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 528176
+        imm r21, 1
+        call cursor_require_cell
+        imm r1, 528072
+        imm r2, 1346584912            ; PCAP
+        store r1, r2
+        ret
+
+parse_capacity_require_entry:
+        call parse_capacity_require_stable
+        imm r20, 528144
+        imm r21, 1
+        call cursor_require_cell
+        ret
+
+parse_capacity_require_stable:
+        imm r20, 528080
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 528152
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 528184
+        imm r21, 1
+        call cursor_require_cell
+        ret
+
+parse_capacity_require_common:
+        call parse_capacity_require_stable
+        imm r20, 528088
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 528096
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 528104
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 528112
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 528120
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 528128
+        imm r21, 1
+        call cursor_require_cell
+        ret
+
+parse_capacity_require_room:
+        call parse_capacity_require_common
+        imm r20, 528136
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 528144
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 528160
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 528184
+        imm r21, 1
+        call cursor_require_cell
+        ret
+
+parse_capacity_require_overflow:
+        call parse_capacity_require_common
+        imm r20, 528136
+        imm r21, 2
+        call cursor_require_cell
+        imm r20, 528144
+        imm r21, 2
+        call cursor_require_cell
+        imm r20, 528160
+        imm r21, 2
+        call cursor_require_cell
+        imm r20, 528184
+        imm r21, 1
+        call cursor_require_cell
+        ret
+
+parse_capacity_require_imports:
+        imm r20, 526320
+        imm r21, 1                    ; successful source segment
+        call cursor_require_cell
+        imm r20, 527928
+        imm r21, 1347178320            ; PLOP
+        call cursor_require_cell
+        imm r20, 525968
+        imm r21, 1094992965           ; ADVE
+        call cursor_require_cell
+        imm r20, 526960
+        imm r21, 1397774405           ; EXPS
+        call cursor_require_cell
+        imm r20, 527728
+        imm r21, 1129206867           ; CNTS
+        call cursor_require_cell
+        ret

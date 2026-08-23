@@ -611,11 +611,29 @@ gate carries a 188,250-byte Alpha tape. The opening delimiter and earlier name
 scan are not manufactured by this conditional theorem; the deterministic
 procedure-prefix composition must establish that cutpoint.
 
+`bc-parse-capacity-summary.alpha` keeps the adjacent pdone meaning separate
+from the parameter fixed point. Its conditional `PCAP` clause selects PLOP's
+successful close outcome, composes exact close consumption, snapshots
+`0<=nparams<=4`, instantiates `EXPS` for `{`, and invokes `CNTS` at event 594's
+checked ambient height one. The exact let count is bounded by LEN, so
+`nslots=nparams+count<=1048580` cannot wrap and stays in Alpha's nonnegative
+signed-comparison domain. The checked `nslots<=1024` edge reaches slotsready
+with status zero, prior output unchanged, and the parse frame active. The
+complementary edge writes numeric 252 and returns zero through the exact
+pre-output epilogue with the caller frame restored. Both preserve source/input,
+the parameter-table prefix, count_lets' restored body cursor, and its carried
+identifier state. Seventeen isolated canaries in a separate 5.1 KB harness
+exercise exact artifact rows, ambient height, imported close/expect/count
+relations, count and addition bounds, prefix status, guard polarity, and both
+terminal outcomes. The 9.6 KB theorem passed independent review and the full
+189,911-byte checker gate. The gate now executes its canonical proof before
+assembling the historical mutation matrix, failing invalid theorem integrations
+quickly without removing any final canary.
+
 The eventual `parse_proc` theorem must be maximal, not universally terminating.
 For malformed input, an unrecognized body byte such as `@` can survive both
 `gen_stmt` and the number fallback without cursor progress while `gen_stmts`
 keeps emitting. The honest contract is therefore Return-or-Diverge with exact
 finite/infinite output behavior. The next engineering milestones are the
-`nparams+count_lets()` slot-capacity guard and deterministic procedure prefix;
-the existing typed status-252 projection is the only language-design blocker
-in this area.
+deterministic procedure prefix and body Return-or-Diverge relation; the existing
+typed status-252 projection is the only language-design blocker in this area.
