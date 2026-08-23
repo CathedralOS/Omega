@@ -552,16 +552,29 @@ additional facilities the bootstrap actually needs.
       pair satisfies `524320 <= S <= F <= 1048576` and `declare` entry machine
       `NLOC` corresponds to source `NLOC` in `[0,1024]`. Wrong local/PC and value-
       tag joins plus a 24-byte underreported frame reject only in this phase.
-      Stored `c`/IDOFF/IDLEN values, the other raw loads, and establishment of
-      both entry preconditions by every dynamic caller remain open.
-    - [ ] Lift the checked call potentials to a whole-artifact carried stack,
-      saved-fp, and depth-counter invariant. It must transfer the actual
-      `EXPRDEPTH`/`BLOCKDEPTH` guards and updates, carry machine `NLOC` through
-      both reset paths and every `declare` entry/update, prove every call
-      establishes its callee's aligned entry frame, and show every return
-      restores its caller while `524288 <= r15 <= r14 <= 1048576`. Only then
-      does the existing 12,720-byte potential close absolute `B_bc1`
-      explicit-stack safety.
+      Stored `c`/IDOFF/IDLEN values and the other raw loads remain open. The
+      following counter/frame/potential lift establishes both selected entry
+      preconditions for every dynamic caller.
+    - [x] Lift the checked call potentials to a whole-artifact carried stack,
+      saved-fp, and depth-counter invariant. A witness-free counter phase rejoins
+      both reset paths, every protected writer, the exact guards/updates/exits,
+      and a 64-row `remaining <-> live depth` bridge for both recursive SCCs;
+      the selected `NLOC` roots and `declare` update now establish the earlier
+      ranged-store entry premise globally. An exhaustive 607-store partition
+      and decoded fixed point give all 70 procedures call-cut ABI summaries:
+      exact frame/temporary highs, call ambient heights, protected saved-fp
+      words, and caller-pair restoration. The final checked potential induction
+      instantiates the exact prelude/main root at 12,720 explicit bytes and 662
+      hidden returns, leaving low-water marks 1,035,856 and 67,103,568. Thus,
+      after the checked two-instruction stack/frame initialization, every
+      defined state has
+      `524288 <= r15 <= r14 <= 1048576`, and both stacks remain disjoint from
+      the checked raw-store regions. Wrong context, protected-writer undercount,
+      missing store owner, underreported procedure peak, and underreported root
+      checker teeth reject only in their new phases. General raw-load/value
+      correspondence, reachability, and terminal/trace correspondence remain
+      open; this is the absolute `B_bc1` stack-safety lemma, not whole-compiler
+      closure.
     - [x] Keep comparison lookahead inside the logical source arena. `cmp_op`
       now advances through the existing `cbyte()` bounds check and restores CUR
       when a single `=` is not a comparison, instead of directly reading
@@ -638,10 +651,10 @@ additional facilities the bootstrap actually needs.
       call graph, finite recurrence, and numerical margin conditional on the
       two depth counters and saved-frame words retaining their source/ABI
       values. The later selective transfer excludes the three ranged Alpha
-      operands under valid frame and machine-`NLOC` entry relations, but
-      establishing those relations globally, the intended fixed counter writes,
-      carried counter/frame values, absolute `B_bc1` stack safety, return values,
-      and reachability remain open.
+      operands under valid frame and machine-`NLOC` entry relations; the
+      counter, all-store/frame-summary, and potential-lift phases now establish
+      those relations globally and close absolute `B_bc1` stack safety. General
+      return values and reachability remain open.
     - [x] Give every explicit-stack register effect one lower-rooted artifact
       owner. A fresh BC11 per-PC map is derived only from the already checked
       prelude, 70 prologues, 253 epilogues, and 403 push/pop roots, with
@@ -653,9 +666,11 @@ additional facilities the bootstrap actually needs.
       source, artifact, witness, and all preceding phases unchanged; it rejects
       only at the exhaustive owner/effect equality scan. This closes static
       stack-effect custody, not the dynamic frame/value invariant. The following
-      next two phases close the Beta-source ranged-address premise and its
-      conditional selected-callee Alpha transfer. Whole-artifact carried frame,
-      saved-fp, depth-counter, and general local values remain open.
+      phases close the Beta-source ranged-address premise and its
+      conditional selected-callee Alpha transfer. The following counter,
+      all-store/frame-summary, and potential-lift phases close the whole-artifact
+      carried frame, saved-fp, depth-counter, and absolute stack bounds. General
+      local values remain open.
     - [x] Freeze supported resource profile `B_bc1` and make its source-side
       ceilings checked. `bc.beta` now refuses a 1,025th name slot, fifth live
       parameter/argument, and expression or nested-block depth 65 before any

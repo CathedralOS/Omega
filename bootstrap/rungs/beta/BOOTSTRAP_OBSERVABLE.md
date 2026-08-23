@@ -168,9 +168,10 @@ are valuable teeth, but they do not yet establish the quantified observation:
   opcodes and registers, including each store's immediate address pop. The
   reduced ranged-store phases close the Beta-source intervals and transfer the
   three selected Alpha address operands under valid callee entry relations. The
-  selected machine-`NLOC` load/update participates; other raw loads, ranged
-  payload values, general address correspondence, and global establishment of
-  those entry relations remain open;
+  selected machine-`NLOC` load/update participates. The later protected-writer,
+  frame-summary, and potential-lift phases establish those selected entry
+  relations globally; other raw loads, ranged payload values, and general
+  address correspondence remain open;
 - its BC11 grammar-composition pass further partitions every raw-store source
   address into 31 aligned fixed compiler globals, one exact source-buffer
   `base + n` spelling, and two exact local-name-table `base + s * 8` spellings;
@@ -213,19 +214,22 @@ are valuable teeth, but they do not yet establish the quantified observation:
   helper calls. It checks finite 64-level expression/block recurrences, the
   rejected depth-65 probe costs, and the 19-level signed-positive `emit_dec`
   rank, deriving conservative root bounds of 12,720 explicit-stack bytes and
-  662 hidden returns. These establish the numerical margin conditional on
-  carried depth-counter and saved-frame values. The selected Alpha transfer
-  excludes the three ranged operands under valid frame and machine-`NLOC` entry
-  relations, but establishing those relations globally, intended fixed counter
-  writes, and absolute `B_bc1` stack safety remain part of the full dynamic
-  frame invariant;
+  662 hidden returns. The following protected-counter phase binds each of the
+  64 potential rows to its exact live machine depth, exhaustively checks the
+  `NLOC`/counter/resource writers, and rejoins the reset, guard, update, and exit
+  chains. An exhaustive 607-store partition plus all-70-procedure call-cut CFG
+  fixed points then protect saved-fp words, check exact local/call high-water
+  marks, and prove conditional caller-pair restoration. The final potential
+  induction establishes those conditions from the exact prelude and leaves
+  explicit/hidden low-water marks 1,035,856/67,103,568, closing absolute
+  `B_bc1` stack safety while leaving general values and reachability open;
 - its BC11 stack-register phase constructs one unified owner map for every
   decoded write to `r14`/`r15` and every memory access through `r15`, deriving
   exactly 2,630 owned starts from the already checked prelude, prologues,
   epilogues, pushes, and pops. This closes orphan stack effects; the following
-  phases prove the source ranged-address premise, selected compiled operands,
-  and conditional call-free frame restoration, while whole-artifact dynamic
-  frame values remain open;
+  phases prove the source ranged-address premise and selected compiled operands;
+  the protected-counter, all-store/frame-summary, and potential-lift phases then
+  close whole-artifact dynamic stack/frame bounds;
 - Alpha out-of-range memory remains undefined in `alpha/SEMANTICS.md` and must be
   excluded by independently checked `B_bc1` bounds before whole-artifact closure
   (or Alpha must be hardened independently);

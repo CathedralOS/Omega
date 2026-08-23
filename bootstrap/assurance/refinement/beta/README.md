@@ -180,10 +180,30 @@ conditional on an aligned entry `(r15,r14)=(S,F)` with
 `524320 <= S <= F <= 1048576`; `declare` additionally assumes actual machine
 `NLOC` equals source `NLOC` in `[0,1024]`. Wrong-row, wrong-value-tag, and
 shallow-frame checker teeth reject. This does not yet prove that every
-whole-compiler invocation establishes those preconditions; lifting the BCT9
-potentials requires actual `NLOC`, depth-counter, and saved-frame transfer
-across all calls and both reset paths. Ranged payloads `c`/IDOFF/IDLEN, all
-other raw loads, and their bounds remain open.
+whole-compiler invocation establishes those preconditions by itself; the later
+counter/frame/potential lift now supplies actual `NLOC`, depth-counter, and
+saved-frame transfer across all calls and both reset paths. Ranged payloads
+`c`/IDOFF/IDLEN, all other raw loads, and their bounds remain open.
+
+`bc-counter-transfer.alpha` adds a witness-free selected-value premise for the
+two bounded recursion counters and resource status. It rejoins the exact Alpha
+rows for the `slurp` zero roots, `gen_expr`/`gen_stmts` frame snapshots and
+signed `< 64` guards, accepted `+ 1` writes, every `- 1` exit, and all seven
+`RESOURCE_FAIL` writers. Executable interval steps check the admitted
+`[0,63] -> [1,64] -> [0,63]` chains, the rejected-depth-65 value, `NLOC`'s
+preceding zero/`s+1` closure, and the `{0,252}` resource domain. An independent
+scan of all 95 raw-memory rows requires exactly three `NLOC`, four
+`EXPRDEPTH`, five `BLOCKDEPTH`, and seven `RESOURCE_FAIL` fixed writers.
+An executable 64-row context bridge then assigns each BCS9 phase index
+`remaining` the machine meaning `depth = 64 - remaining`, checks recursive
+selection of `remaining - 1` alongside `depth + 1`, binds row zero to both
+checked rejected-probe procedures, and binds the root's accepted `0 -> 1` step
+to row 63.
+The focused gate changes the checked counter/context relation and undercounts a
+protected writer with all earlier inputs unchanged; both reject in this phase.
+This is still a machine-value premise, not whole-call induction: it does not
+yet carry the selected globals or saved frame words through arbitrary callees,
+prove reachability of each exit, or make the BCT9 root stack bound absolute.
 
 `bc_call_bounds.py` emits the untrusted compact BCS9 potential tables consumed
 by `bc-call-bounds.alpha`. The Alpha phase independently resolves all 310
@@ -197,12 +217,10 @@ equation. The conservative root summary is at most 12,720 explicit-stack bytes
 and 662 hidden returns, comfortably inside the `B_bc1` extents; underreported
 probe and root witnesses reject. This proves the finite call recurrence and its
 numeric margin conditional on isolation of the depth counters and saved-frame
-words. The later selected-callee phase shows that the three ranged Alpha
-operands avoid those locations conditional on valid frame and machine-`NLOC`
-entry relations. Establishing those relations globally, the intended fixed
-counter writes, carried depth/frame values, and the absolute stack obligation
-remain open, as do general local/return values, reachability, and terminal/trace
-correspondence.
+words. The later selected-callee, protected-counter, all-store/frame-summary,
+and potential-lift phases establish those relations globally and close the
+absolute stack obligation. General local/return values, reachability, and
+terminal/trace correspondence remain open.
 
 `bc-stack-register-custody.alpha` then transfers the earlier responsibility-
 specific checks into one fresh per-PC owner map. It derives owners from the
@@ -214,6 +232,40 @@ scan requires that map to equal exactly the 2,630 starts which write `r14` or
 `r15`, and 1,129 stack-addressed memory accesses, with 253 saved-frame loads in
 both the first and third totals. This closes exhaustive static custody of the
 artifact's explicit-stack effects. The following phases prove the ranged source
-intervals and their selected Alpha operands, then a conditional decoded-frame
-lemma for the two call-free procedures. Whole-artifact carried stack/frame and
-depth-counter values remain open.
+intervals and selected Alpha operands, then close whole-artifact carried
+stack/frame and depth-counter bounds through the all-procedure frame summaries
+and potential lift.
+
+`bc-frame-summary.alpha` extends that conditional frame result to all 70 source
+procedures without inlining calls. It independently partitions every decoded
+artifact store into exactly 70 saved-fp stores, 403 expression-stack pushes,
+73 local stores, 34 raw stores, and 27 parameter stores—607 stores total—then
+uses the already checked frame offsets and raw-address separation to protect
+each procedure's saved-fp word. A decoded-CFG fixed point propagates exact
+relative `r15`, current/caller `r14`, and saved-fp-token states, rejects
+nonidentical merges, matches every reached ordinary or emit-helper call to its
+source event and checked ambient temporary height, and requires every reached
+return to restore the symbolic entry pair. Its measured high-water mark must
+equal the checked frame bytes plus that procedure's grammar-derived temporary
+peak. An omitted store owner and an underreported local peak reject only in
+this phase. Calls are deliberately treated as identity assumptions: this is a
+finite per-procedure ABI summary, not the interprocedural induction that
+consumes the BCS9 potentials, bounds recursion, establishes absolute `B_bc1`
+addresses, or proves that a reached callee returns.
+
+`bc-stack-potential-lift.alpha` composes those premises rather than introducing
+a new producer witness. The counter phase's 64-row bridge selects the exact
+BCS9 context at both bounded recursive cutpoints; the checked potential equation
+then turns each call-cut frame summary into an induction rule for its callee and
+continuation. The final phase rechecks the exact `r15=r14=1048576; call main`
+prelude, all 9,030 explicit/hidden context pairs, and the main root of 12,720
+explicit bytes plus 662 hidden returns. The resulting explicit and hidden
+low-water marks are 1,035,856 and 67,103,568, respectively, so every defined
+state after the checked two-instruction stack/frame initialization satisfies
+`524288 <= r15 <= r14 <= 1048576`; saved frames and both stacks remain disjoint
+from the compiler's checked raw-store regions. A
+wrong counter/context relation, protected-writer undercount, missing store owner,
+underreported procedure peak, and underreported final root each reject in their
+own phase. This closes absolute `B_bc1` stack safety, not general raw-load/local/
+return values, dynamic reachability, termination, or terminal/trace
+correspondence.
