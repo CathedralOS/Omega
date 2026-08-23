@@ -1,4 +1,4 @@
-use crate::lock::{PackageLock, PackageLockValidationError};
+use crate::lock::{LockedDependency, PackageLock, PackageLockValidationError};
 use crate::manifest::PackageCapabilityManifest;
 use std::collections::{BTreeMap, VecDeque};
 
@@ -26,15 +26,51 @@ impl PackageGraphAudit {
             report.push_str("  source: ");
             report.push_str(&package.source_identity);
             report.push('\n');
+            report.push_str("  source kind: ");
+            report.push_str(&package.source_kind);
+            report.push('\n');
+            report.push_str("  source locator: ");
+            report.push_str(&package.source_locator);
+            report.push('\n');
             report.push_str("  manifest: ");
             report.push_str(&package.manifest_fingerprint);
             report.push('\n');
             report.push_str("  build observation: ");
             report.push_str(&package.build_observation);
             report.push('\n');
+            if !package.dependency_aliases.is_empty() {
+                report.push_str("  dependency aliases: ");
+                report.push_str(&package.dependency_aliases.join(", "));
+                report.push('\n');
+            }
             if !package.exported_service_reach.is_empty() {
                 report.push_str("  exported service reach: ");
                 report.push_str(&package.exported_service_reach.join(", "));
+                report.push('\n');
+            }
+            if !package.provider_requirements.is_empty() {
+                report.push_str("  provider requirements: ");
+                report.push_str(&package.provider_requirements.join(", "));
+                report.push('\n');
+            }
+            if !package.provider_selections.is_empty() {
+                report.push_str("  provider selections: ");
+                report.push_str(&package.provider_selections.join(", "));
+                report.push('\n');
+            }
+            if !package.capability_flows.is_empty() {
+                report.push_str("  capability flows: ");
+                report.push_str(&package.capability_flows.join(", "));
+                report.push('\n');
+            }
+            if !package.lock_trust_receipts.is_empty() {
+                report.push_str("  lock trust receipts: ");
+                report.push_str(&package.lock_trust_receipts.join(", "));
+                report.push('\n');
+            }
+            if !package.manifest_trust_receipts.is_empty() {
+                report.push_str("  manifest trust receipts: ");
+                report.push_str(&package.manifest_trust_receipts.join(", "));
                 report.push('\n');
             }
         }
@@ -55,11 +91,19 @@ impl PackageGraphAudit {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageGraphAuditPackage {
     pub package: String,
+    pub source_kind: String,
+    pub source_locator: String,
     pub source_identity: String,
     pub manifest_fingerprint: String,
     pub build_observation: String,
     pub dependency_path: Vec<String>,
+    pub dependency_aliases: Vec<String>,
     pub exported_service_reach: Vec<String>,
+    pub provider_requirements: Vec<String>,
+    pub provider_selections: Vec<String>,
+    pub capability_flows: Vec<String>,
+    pub lock_trust_receipts: Vec<String>,
+    pub manifest_trust_receipts: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -121,7 +165,8 @@ pub fn audit_package_graph(
                 manifest_fingerprint,
             });
         }
-        let exported_service_reach = manifest.normalized_clone().exported_service_reach;
+        let manifest = manifest.normalized_clone();
+        let exported_service_reach = manifest.exported_service_reach.clone();
         for service in &exported_service_reach {
             service_reach.push(PackageServiceReach {
                 service: service.clone(),
@@ -131,11 +176,53 @@ pub fn audit_package_graph(
         }
         packages.push(PackageGraphAuditPackage {
             package: package_name.to_owned(),
+            source_kind: locked.source_kind.clone(),
+            source_locator: locked.source_locator.clone(),
             source_identity: locked.source_identity.clone(),
             manifest_fingerprint: locked.manifest_fingerprint.clone(),
             build_observation: locked.build_observation.clone(),
             dependency_path: path.clone(),
+            dependency_aliases: locked
+                .dependencies
+                .iter()
+                .map(format_locked_dependency)
+                .collect(),
             exported_service_reach,
+            provider_requirements: manifest
+                .provider_requirements
+                .iter()
+                .map(|requirement| {
+                    format!(
+                        "{} reaches [{}]",
+                        requirement.requirement,
+                        requirement.service_reach.join(", ")
+                    )
+                })
+                .collect(),
+            provider_selections: manifest
+                .provider_selections
+                .iter()
+                .map(|selection| {
+                    format!(
+                        "{} -> {} origin {} plan {}",
+                        selection.requirement,
+                        selection.provider,
+                        selection.origin,
+                        selection.plan_identity
+                    )
+                })
+                .collect(),
+            capability_flows: manifest
+                .capability_flows
+                .iter()
+                .map(|flow| format!("{} {} x{}", flow.capability, flow.verb, flow.count))
+                .collect(),
+            lock_trust_receipts: locked.trust_receipts.clone(),
+            manifest_trust_receipts: manifest
+                .trust_receipts
+                .iter()
+                .map(|receipt| format!("{} {} {}", receipt.kind, receipt.subject, receipt.identity))
+                .collect(),
         });
     }
 
@@ -146,6 +233,14 @@ pub fn audit_package_graph(
         packages,
         service_reach,
     })
+}
+
+fn format_locked_dependency(dependency: &LockedDependency) -> String {
+    format!(
+        "{} -> {}",
+        dependency.alias.as_str(),
+        dependency.package.as_str()
+    )
 }
 
 fn manifest_map(
@@ -201,8 +296,11 @@ fn dependency_paths(lock: &PackageLock) -> BTreeMap<String, Vec<String>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::lock::{LockedDependency, LockedPackage};
-    use crate::manifest::{AliasName, PackageName, SourceIdentity};
+    use crate::lock::LockedPackage;
+    use crate::manifest::{
+        AliasName, CapabilityFlowSummary, PackageName, ProviderRequirement, ProviderSelection,
+        SourceIdentity, TrustReceipt,
+    };
 
     fn package(name: &str) -> PackageName {
         PackageName::parse(name).unwrap()
@@ -257,6 +355,28 @@ mod tests {
         child_manifest
             .exported_service_reach
             .push("FilesystemHost".to_owned());
+        child_manifest
+            .provider_requirements
+            .push(ProviderRequirement {
+                requirement: "filesystem-provider".to_owned(),
+                service_reach: vec!["FilesystemHost".to_owned()],
+            });
+        child_manifest.provider_selections.push(ProviderSelection {
+            requirement: "filesystem-provider".to_owned(),
+            provider: "host-filesystem".to_owned(),
+            origin: "root-selection".to_owned(),
+            plan_identity: "plan:fs".to_owned(),
+        });
+        child_manifest.capability_flows.push(CapabilityFlowSummary {
+            capability: "FilesystemHost".to_owned(),
+            verb: "stores".to_owned(),
+            count: 1,
+        });
+        child_manifest.trust_receipts.push(TrustReceipt {
+            kind: "review".to_owned(),
+            subject: "filesystem-provider".to_owned(),
+            identity: "receipt:fs".to_owned(),
+        });
         let lock = graph_lock(&root_manifest, &child_manifest);
 
         let audit = audit_package_graph(&lock, &[root_manifest, child_manifest])
@@ -276,6 +396,19 @@ mod tests {
                 .to_text()
                 .contains("FilesystemHost via graph-workbench -> file-journal")
         );
+        let text = audit.to_text();
+        assert!(text.contains("source kind: git"));
+        assert!(text.contains("dependency aliases: file_journal -> file-journal"));
+        assert!(
+            text.contains("provider requirements: filesystem-provider reaches [FilesystemHost]")
+        );
+        assert!(
+            text.contains(
+                "provider selections: filesystem-provider -> host-filesystem origin root-selection plan plan:fs"
+            )
+        );
+        assert!(text.contains("capability flows: FilesystemHost stores x1"));
+        assert!(text.contains("manifest trust receipts: review filesystem-provider receipt:fs"));
     }
 
     #[test]
