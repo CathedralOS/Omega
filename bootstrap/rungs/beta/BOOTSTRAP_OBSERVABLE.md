@@ -87,6 +87,40 @@ an empty output stream and exit status 253, pinned by `source-exhaustion.sh`.
 The eventual lower-rooted proposition retains the semantic `Exhaust` identity
 rather than treating that host status as its definition.
 
+### Supported profile `B_bc1`
+
+The first supported whole-compiler profile is now frozen to the exact source and
+artifact committed together:
+
+- `bc.beta`: 32,045 bytes, SHA-256
+  `8beb76feda2783e6597998e5e7b41889c049faa2f604e627aead0f9d2b0cdbc8`;
+- `bc.tape`: 51,647 bytes, SHA-256
+  `e491073e0a27d50fb429d6f2a24158029ab5d8baa98e8855a4bd8771768c104b`;
+- Alpha memory: 64 MiB, with the tape at byte zero and the hidden return stack
+  starting at 64 MiB;
+- stamped tape payload: at most 262,140 bytes inside the 256 KiB hole after its
+  four-byte length prefix;
+- compiler data stack: starts at 1 MiB and must remain within the reserved
+  `[524288, 1048576)` interval;
+- hidden Alpha call stack: the top 64 KiB of memory, or at most 8,192 live
+  return addresses;
+- source bytes: `[2097152, 3145728)`, exactly 1,048,576 bytes;
+- per-procedure local-name metadata: 1,024 paired `NAMEOFF`/`NAMELEN` entries;
+- live parameters and call arguments: at most four, matching `r0..r3`;
+- recursive expression-codegen depth: 64 `gen_expr` activations;
+- recursive block-codegen depth: 64 `gen_stmts` activations;
+- output: streamed one byte at a time, with no finite compiler-owned output
+  buffer.
+
+The source compiler checks the source, name, argument, expression, and block
+ceilings before the corresponding compiler-owned memory can overlap. Source
+exhaustion projects to status 253 with empty output. The other checked compiler
+resource failures project to status 252 and retain the deterministic maximal
+output prefix already streamed. `source-exhaustion.sh` pins every exact/+1
+boundary and the prefix rule. A later simulation proof must establish that these
+syntactic ceilings keep both Alpha stacks inside the reserved extents; naming
+the extents here does not substitute for that proof.
+
 ## Required reconstruction boundary
 
 The authority that closes the edge must independently reconstruct, from the
@@ -112,8 +146,8 @@ are valuable teeth, but they do not yet establish the quantified observation:
 - the current symbolic refinement fragment returns one result term and does not
   model the compiler's complete byte stream or every terminal class;
 - Alpha out-of-range memory remains undefined in `alpha/SEMANTICS.md` and must be
-  hardened or excluded by independently checked bounds before whole-artifact
-  closure;
+  excluded by independently checked `B_bc1` bounds before whole-artifact closure
+  (or Alpha must be hardened independently);
 - divergence requires a checked progress/termination argument or a coinductive
   trace argument, not a timeout.
 

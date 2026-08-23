@@ -20,8 +20,10 @@ the implementation small.
 
 ## Implementation and meaning
 
-Beta compiles structurally to Alpha assembly, which the Alpha assembler lowers
-to a tape governed by Alpha's written semantics. The steady-state compiler is
+Beta's runtime meaning is fixed by its written small-step
+[`SEMANTICS.md`](../../../bootstrap/rungs/beta/SEMANTICS.md). Beta compiles
+structurally to Alpha assembly, which the Alpha assembler lowers to a tape
+governed by Alpha's written semantics. The steady-state compiler is
 `bootstrap/rungs/beta/bc.beta`, written in Beta and self-hosted to a byte-identical
 fixed point. The first compiler was cold-started by the disposable
 `bootstrap/onramps/beta-rust/` producer. The current persisted artifact is
@@ -57,6 +59,8 @@ memory.
 - `bootstrap/rungs/beta/CALLING_CONVENTION.md` — Beta's frame and register
   discipline over Alpha;
 - `bootstrap/rungs/beta/LANGUAGE.md` — current Beta surface.
+- `bootstrap/rungs/beta/SEMANTICS.md` — canonical small-step runtime meaning and
+  maximal observations.
 
 `bootstrap/rungs/beta/cold-start/full-source.sh`, `selfhost.sh`, and `test.sh`
 gate reconstruction, the fixed point, and language behavior. The comparison-only

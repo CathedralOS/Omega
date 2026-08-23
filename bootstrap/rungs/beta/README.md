@@ -62,7 +62,7 @@ fixed point. Built slice by slice, mirroring the `beta-rust` producer:
 | 6  | string literals via `emit("...")` | inline `db` data jumped over + a `__write_str` loop |
 
 `sh selfhost.sh` is the fixed-point gate; `sh test.sh` is the per-feature gate. bc's self-tape
-is ~45 KB — well within the 256 KB arm64 hole (see below).
+is ~52 KB — well within both committed 256 KB tape holes (see below).
 
 The complete cold-start correspondence target is specified in
 [`BOOTSTRAP_OBSERVABLE.md`](BOOTSTRAP_OBSERVABLE.md). It includes the complete

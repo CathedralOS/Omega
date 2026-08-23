@@ -5,11 +5,12 @@
 # retired Python compiler backend.
 #
 # WHY THIS EXISTS — executable reference meaning for Beta compiler validation.
-# Compiler agreement and self-reproduction say nothing about whether bc compiles correctly. Beta has
-# no formal spec — bc.beta is its de-facto definition — so this interpreter is a SECOND, independent
-# definition of Beta's meaning. `beta-correctness-fuzz.sh` runs random programs both ways — interpret here
+# Compiler agreement and self-reproduction say nothing about whether bc compiles correctly. Beta's written
+# small-step meaning lives in ../SEMANTICS.md; this interpreter is an independent, UNTRUSTED executable
+# approximation used for finite regression runs. `beta-correctness-fuzz.sh` runs random programs both ways — interpret here
 # vs. compile-with-bc-and-run-on-the-VM — and asserts they agree, so a bc miscompile surfaces as a
-# disagreement. UNTRUSTED and checked, like the rest of the *_ref / *2 tools.
+# disagreement. Its sparse memory and STEP_CAP are not authoritative for finite-resource exhaustion or
+# divergence, as documented in the written semantics.
 #
 # Semantics mirror alpha/SEMANTICS.md exactly (values are 64-bit; comparisons and div/mod are signed,
 # truncating toward zero; div-by-zero and INT_MIN/-1 trap; exit code is the low byte of main's result) so
