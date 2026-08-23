@@ -871,9 +871,20 @@ additional facilities the bootstrap actually needs.
           frame. Twelve isolated variants sever exact artifact joins, global
           addresses/subtraction, row closure, rank, renaming, or stop meaning;
           both responsibility-local modules remain below 10 KB.
-        - [ ] Prove nonzero-delimiter `expect(ch)`: normalize whitespace, then
+        - [x] Prove nonzero-delimiter `expect(ch)`: normalize whitespace, then
           advance exactly once on a matching byte and otherwise preserve the
-          normalized cursor. Instantiate `parse_proc`'s `(` and `{` calls.
+          normalized cursor. The exact-shape module closes procedure 24's three
+          blocks, guarded transition, skip_ws/cbyte/adv calls and continuations,
+          slot-zero parameter load, equality/literals, push, returns/epilogues,
+          16-byte frame, and exhaustive quiet row/decoded-region censuses. The
+          separate conditional `EXPS` theorem requires `1<=ch<=255`, imports
+          terminating skip_ws normalization, treats logical end/in-range NUL as
+          mismatch, and derives `CUR<LEN` before the match-only adv. Both paths
+          return zero and preserve source/input/output and other globals. Eleven
+          isolated variants sever an exact artifact join, delimiter premise,
+          match-range implication, or cursor outcome. `parse_proc` may
+          instantiate its nonzero `(` and `{` calls once its prefix bridge is
+          composed; both new modules remain below 7 KB.
         - [ ] Close `declare`, the bounded parameter loop, literal-aware
           cursor-restoring `count_lets`, and both pre-output status-252 returns.
         - [ ] Compose the deterministic procedure prefix: name, `":\n"`,

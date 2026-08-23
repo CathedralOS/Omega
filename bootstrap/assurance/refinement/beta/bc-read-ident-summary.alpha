@@ -24,7 +24,7 @@
 read_ident_summary_init:
         call read_ident_require_shape
         call read_ident_prove_summary
-        jmp scan_owned_effects_init
+        jmp expect_summary_init
 
 read_ident_prove_summary:
         imm r1, 526792
