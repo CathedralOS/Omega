@@ -796,168 +796,161 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
             Some(())
         }
 
-        fn append_acyclic_record_equality(
+        fn append_acyclic_structural_equality(
             program: &TypedTrees,
             left_parameter: u32,
             right_parameter: u32,
             type_reference: TypeReferenceHandle,
-            left: &mut Vec<CheckedStructuralPredicatePathSegment>,
-            right: &mut Vec<CheckedStructuralPredicatePathSegment>,
+            left_path: &[CheckedStructuralPredicatePathSegment],
+            right_path: &[CheckedStructuralPredicatePathSegment],
             comparisons: &mut Vec<CheckedBooleanExpression>,
             visiting: &mut Vec<psi_symbols::SymbolHandle>,
         ) -> Option<()> {
+            if append_direct_structural_leaf_equality(
+                program,
+                left_parameter,
+                right_parameter,
+                type_reference,
+                left_path.to_vec(),
+                right_path.to_vec(),
+                comparisons,
+            )
+            .is_some()
+            {
+                return Some(());
+            }
+            if let Some(cases) = payloadless_sum_cases(program, type_reference) {
+                comparisons.push(CheckedBooleanExpression::PayloadlessSumEqual {
+                    left: CheckedStructuralParameterField {
+                        parameter_position: left_parameter,
+                        path: left_path.to_vec(),
+                    },
+                    right: CheckedStructuralParameterField {
+                        parameter_position: right_parameter,
+                        path: right_path.to_vec(),
+                    },
+                    cases,
+                });
+                return Some(());
+            }
             let data = structural_data(program, type_reference)?;
             if !data.symbol.is_valid() || visiting.contains(&data.symbol) {
                 return None;
             }
             visiting.push(data.symbol);
-            for field in structural_record_fields(program, type_reference)? {
-                let field_identity = field
-                    .identity
-                    .map(|identity| format!("#{identity}"))
-                    .unwrap_or_else(|| field.name.as_str().to_owned());
-                left.push(CheckedStructuralPredicatePathSegment::Field(
-                    field_identity.clone(),
-                ));
-                right.push(CheckedStructuralPredicatePathSegment::Field(field_identity));
-                if append_direct_structural_leaf_equality(
-                    program,
-                    left_parameter,
-                    right_parameter,
-                    field.type_reference,
-                    left.clone(),
-                    right.clone(),
-                    comparisons,
-                )
-                .is_none()
-                {
-                    append_acyclic_record_equality(
-                        program,
-                        left_parameter,
-                        right_parameter,
-                        field.type_reference,
-                        left,
-                        right,
-                        comparisons,
-                        visiting,
-                    )?;
+            let result = (|| {
+                let members = program.data_members(data);
+                match psi_typed_trees::data::DataDefinition::shape_kind_from_members(members) {
+                    psi_typed_trees::data::DataShapeKind::Empty => Some(()),
+                    psi_typed_trees::data::DataShapeKind::Record => {
+                        for field in structural_record_fields(program, type_reference)? {
+                            let field_identity = field
+                                .identity
+                                .map(|identity| format!("#{identity}"))
+                                .unwrap_or_else(|| field.name.as_str().to_owned());
+                            let mut left = left_path.to_vec();
+                            left.push(CheckedStructuralPredicatePathSegment::Field(
+                                field_identity.clone(),
+                            ));
+                            let mut right = right_path.to_vec();
+                            right
+                                .push(CheckedStructuralPredicatePathSegment::Field(field_identity));
+                            append_acyclic_structural_equality(
+                                program,
+                                left_parameter,
+                                right_parameter,
+                                field.type_reference,
+                                &left,
+                                &right,
+                                comparisons,
+                                visiting,
+                            )?;
+                        }
+                        Some(())
+                    }
+                    psi_typed_trees::data::DataShapeKind::Enum => {
+                        let mut arms = Vec::new();
+                        for member in members {
+                            let psi_typed_trees::data::DataMember::Variant(variant) = member else {
+                                return None;
+                            };
+                            let case = variant
+                                .identity
+                                .map(|identity| format!("#{identity}"))
+                                .unwrap_or_else(|| variant.name.as_str().to_owned());
+                            let mut arm = vec![
+                                CheckedBooleanExpression::StructuralCaseMembership {
+                                    subject: CheckedStructuralParameterField {
+                                        parameter_position: left_parameter,
+                                        path: left_path.to_vec(),
+                                    },
+                                    case: case.clone(),
+                                },
+                                CheckedBooleanExpression::StructuralCaseMembership {
+                                    subject: CheckedStructuralParameterField {
+                                        parameter_position: right_parameter,
+                                        path: right_path.to_vec(),
+                                    },
+                                    case: case.clone(),
+                                },
+                            ];
+                            for field in program.data_payload_fields(variant) {
+                                if field.relevance.is_erased() {
+                                    return None;
+                                }
+                                let field_identity = field
+                                    .identity
+                                    .map(|identity| format!("#{identity}"))
+                                    .unwrap_or_else(|| field.name.as_str().to_owned());
+                                let mut left = left_path.to_vec();
+                                left.push(CheckedStructuralPredicatePathSegment::Case(
+                                    case.clone(),
+                                ));
+                                left.push(CheckedStructuralPredicatePathSegment::Field(
+                                    field_identity.clone(),
+                                ));
+                                let mut right = right_path.to_vec();
+                                right.push(CheckedStructuralPredicatePathSegment::Case(
+                                    case.clone(),
+                                ));
+                                right.push(CheckedStructuralPredicatePathSegment::Field(
+                                    field_identity,
+                                ));
+                                append_acyclic_structural_equality(
+                                    program,
+                                    left_parameter,
+                                    right_parameter,
+                                    field.type_reference,
+                                    &left,
+                                    &right,
+                                    &mut arm,
+                                    visiting,
+                                )?;
+                            }
+                            let mut arm = arm.into_iter();
+                            let first = arm.next()?;
+                            arms.push(arm.fold(first, |left, right| {
+                                CheckedBooleanExpression::And {
+                                    left: Box::new(left),
+                                    right: Box::new(right),
+                                }
+                            }));
+                        }
+                        let mut arms = arms.into_iter();
+                        let first = arms.next()?;
+                        comparisons.push(arms.fold(first, |left, right| {
+                            CheckedBooleanExpression::Or {
+                                left: Box::new(left),
+                                right: Box::new(right),
+                            }
+                        }));
+                        Some(())
+                    }
+                    psi_typed_trees::data::DataShapeKind::Mixed => None,
                 }
-                left.pop();
-                right.pop();
-            }
+            })();
             visiting.pop();
-            Some(())
-        }
-
-        fn payload_bearing_sum_equality(
-            program: &TypedTrees,
-            data: &psi_typed_trees::data::DataDefinition,
-            left_parameter: u32,
-            right_parameter: u32,
-            left_path: &[CheckedStructuralPredicatePathSegment],
-            right_path: &[CheckedStructuralPredicatePathSegment],
-        ) -> Option<CheckedBooleanExpression> {
-            let members = program.data_members(data);
-            if !matches!(
-                psi_typed_trees::data::DataDefinition::shape_kind_from_members(members),
-                psi_typed_trees::data::DataShapeKind::Enum
-            ) || !members.iter().any(|member| match member {
-                psi_typed_trees::data::DataMember::Variant(variant) => {
-                    !program.data_payload_fields(variant).is_empty()
-                }
-                psi_typed_trees::data::DataMember::Field(_) => false,
-            }) {
-                return None;
-            }
-
-            let mut arms = Vec::new();
-            for member in members {
-                let psi_typed_trees::data::DataMember::Variant(variant) = member else {
-                    return None;
-                };
-                let case = variant
-                    .identity
-                    .map(|identity| format!("#{identity}"))
-                    .unwrap_or_else(|| variant.name.as_str().to_owned());
-                let left_subject = CheckedStructuralParameterField {
-                    parameter_position: left_parameter,
-                    path: left_path.to_vec(),
-                };
-                let right_subject = CheckedStructuralParameterField {
-                    parameter_position: right_parameter,
-                    path: right_path.to_vec(),
-                };
-                let mut comparisons = vec![
-                    CheckedBooleanExpression::StructuralCaseMembership {
-                        subject: left_subject,
-                        case: case.clone(),
-                    },
-                    CheckedBooleanExpression::StructuralCaseMembership {
-                        subject: right_subject,
-                        case: case.clone(),
-                    },
-                ];
-                for field in program.data_payload_fields(variant) {
-                    if field.relevance.is_erased() {
-                        return None;
-                    }
-                    let field_identity = field
-                        .identity
-                        .map(|identity| format!("#{identity}"))
-                        .unwrap_or_else(|| field.name.as_str().to_owned());
-                    let mut left = left_path.to_vec();
-                    left.push(CheckedStructuralPredicatePathSegment::Case(case.clone()));
-                    left.push(CheckedStructuralPredicatePathSegment::Field(
-                        field_identity.clone(),
-                    ));
-                    let mut right = right_path.to_vec();
-                    right.push(CheckedStructuralPredicatePathSegment::Case(case.clone()));
-                    right.push(CheckedStructuralPredicatePathSegment::Field(field_identity));
-                    if append_direct_structural_leaf_equality(
-                        program,
-                        left_parameter,
-                        right_parameter,
-                        field.type_reference,
-                        left.clone(),
-                        right.clone(),
-                        &mut comparisons,
-                    )
-                    .is_some()
-                    {
-                        continue;
-                    }
-
-                    // Acyclic relevant records inside one case payload expand
-                    // transitively. Nested sums, erased/address leaves, and a
-                    // repeated record identity remain fail-closed.
-                    append_acyclic_record_equality(
-                        program,
-                        left_parameter,
-                        right_parameter,
-                        field.type_reference,
-                        &mut left,
-                        &mut right,
-                        &mut comparisons,
-                        &mut Vec::new(),
-                    )?;
-                }
-                let mut comparisons = comparisons.into_iter();
-                let first = comparisons.next()?;
-                arms.push(
-                    comparisons.fold(first, |left, right| CheckedBooleanExpression::And {
-                        left: Box::new(left),
-                        right: Box::new(right),
-                    }),
-                );
-            }
-            let mut arms = arms.into_iter();
-            let first = arms.next()?;
-            Some(
-                arms.fold(first, |left, right| CheckedBooleanExpression::Or {
-                    left: Box::new(left),
-                    right: Box::new(right),
-                }),
-            )
+            result
         }
 
         fn lower_structural_equality(
@@ -976,144 +969,16 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
                 output: &mut Vec<CheckedBooleanExpression>,
                 visiting: &mut Vec<psi_symbols::SymbolHandle>,
             ) -> Option<()> {
-                if let Some(cases) = payloadless_sum_cases(program, type_reference) {
-                    output.push(CheckedBooleanExpression::PayloadlessSumEqual {
-                        left: CheckedStructuralParameterField {
-                            parameter_position: left_parameter,
-                            path: left_path.clone(),
-                        },
-                        right: CheckedStructuralParameterField {
-                            parameter_position: right_parameter,
-                            path: right_path.clone(),
-                        },
-                        cases,
-                    });
-                    return Some(());
-                }
-                let data = structural_data(program, type_reference)?;
-                if !data.symbol.is_valid() || visiting.contains(&data.symbol) {
-                    return None;
-                }
-                if let Some(equality) = payload_bearing_sum_equality(
+                append_acyclic_structural_equality(
                     program,
-                    data,
                     left_parameter,
                     right_parameter,
+                    type_reference,
                     left_path,
                     right_path,
-                ) {
-                    output.push(equality);
-                    return Some(());
-                }
-                visiting.push(data.symbol);
-                for field in structural_record_fields(program, type_reference)? {
-                    let field_identity = field
-                        .identity
-                        .map(|identity| format!("#{identity}"))
-                        .unwrap_or_else(|| field.name.as_str().to_owned());
-                    left_path.push(CheckedStructuralPredicatePathSegment::Field(
-                        field_identity.clone(),
-                    ));
-                    right_path.push(CheckedStructuralPredicatePathSegment::Field(field_identity));
-                    match program.primitive_type_reference(field.type_reference) {
-                        Some(PrimitiveType::Bool) => {
-                            output.push(CheckedBooleanExpression::Equal {
-                                left: Box::new(
-                                    CheckedBooleanExpression::StructuralParameterField {
-                                        parameter_position: left_parameter,
-                                        path: left_path.clone(),
-                                    },
-                                ),
-                                right: Box::new(
-                                    CheckedBooleanExpression::StructuralParameterField {
-                                        parameter_position: right_parameter,
-                                        path: right_path.clone(),
-                                    },
-                                ),
-                            });
-                        }
-                        Some(primitive_type)
-                            if is_integer(primitive_type)
-                                && primitive_type != PrimitiveType::Addr =>
-                        {
-                            output.push(CheckedBooleanExpression::IntegerComparison {
-                                kind: CheckedIntegerComparisonKind::Equal,
-                                left: Box::new(CheckedScalarExpression::StructuralParameterField {
-                                    parameter_position: left_parameter,
-                                    path: left_path.clone(),
-                                    primitive_type,
-                                }),
-                                right: Box::new(
-                                    CheckedScalarExpression::StructuralParameterField {
-                                        parameter_position: right_parameter,
-                                        path: right_path.clone(),
-                                        primitive_type,
-                                    },
-                                ),
-                            });
-                        }
-                        Some(primitive_type)
-                            if matches!(
-                                primitive_type,
-                                PrimitiveType::F32 | PrimitiveType::F64
-                            ) =>
-                        {
-                            let mut left = CheckedStructuralParameterField {
-                                parameter_position: left_parameter,
-                                path: left_path.clone(),
-                            };
-                            let mut right = CheckedStructuralParameterField {
-                                parameter_position: right_parameter,
-                                path: right_path.clone(),
-                            };
-                            if left > right {
-                                std::mem::swap(&mut left, &mut right);
-                            }
-                            output.push(CheckedBooleanExpression::IeeeFloatComparison {
-                                kind: CheckedIeeeFloatComparisonKind::Equal,
-                                primitive_type,
-                                left,
-                                right,
-                            });
-                        }
-                        Some(_) => return None,
-                        None if crate::flow::byte_sequence_carrier(
-                            program,
-                            field.type_reference,
-                            &[],
-                        )
-                        .is_some() =>
-                        {
-                            let mut left = CheckedStructuralParameterField {
-                                parameter_position: left_parameter,
-                                path: left_path.clone(),
-                            };
-                            let mut right = CheckedStructuralParameterField {
-                                parameter_position: right_parameter,
-                                path: right_path.clone(),
-                            };
-                            if left > right {
-                                std::mem::swap(&mut left, &mut right);
-                            }
-                            output
-                                .push(CheckedBooleanExpression::ByteSequenceEqual { left, right });
-                        }
-                        None => collect_comparisons(
-                            program,
-                            left_parameter,
-                            right_parameter,
-                            field.type_reference,
-                            left_path,
-                            right_path,
-                            output,
-                            visiting,
-                        )?,
-                    }
-                    left_path.pop();
-                    right_path.pop();
-                }
-                visiting.pop();
-                Some(())
+                    output,
+                    visiting,
+                )
             }
 
             let mut left_path = Vec::new();

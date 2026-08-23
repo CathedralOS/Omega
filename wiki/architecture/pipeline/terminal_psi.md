@@ -1394,11 +1394,11 @@ membership of both roots in that case with the exact payload-leaf equalities;
 inequality is that complete disjunction implying falsehood. A case path uses an
 exact case identity followed by its exact payload-field identity, and the
 verifier and codecs reject unknown or redirected identities. One relevant
-acyclic record tree directly held by a case-payload field also expands its
-supported leaves transitively. Those paths retain the exact case, payload
-field, every enclosing record field, and leaf identity in that order, and
-whole-root calls independently rebase both operands. Mixed common-field/case
-shapes, nested sums below a payload case, recursive cycles, address and erased
+acyclic record or pure-sum tree directly held by a case-payload field also
+expands its supported leaves transitively. Those paths retain every exact
+alternating case, payload field, enclosing record field, and leaf identity in
+order through nested sums, and whole-root calls independently rebase both
+operands. Mixed common-field/case shapes, recursive cycles, address and erased
 payload equality, written `equals` bodies, and runtime sum layout remain outside
 this bounded terminal slice. When an acyclic
 relevant record field reaches a payload-bearing sum, the same sum proposition

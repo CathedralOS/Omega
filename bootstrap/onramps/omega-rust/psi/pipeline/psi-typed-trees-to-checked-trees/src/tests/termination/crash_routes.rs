@@ -706,6 +706,145 @@ fn payload_sum_equality_expands_acyclic_nested_records_with_exact_paths() {
 }
 
 #[test]
+fn payload_sum_equality_expands_acyclic_nested_sums_with_exact_paths() {
+    use psi_checked_trees::{
+        CheckedBooleanExpression, CheckedScalarExpression,
+        CheckedStructuralPredicatePathSegment as Path,
+    };
+
+    fn collect_paths(
+        expression: &CheckedBooleanExpression,
+        membership_paths: &mut Vec<Vec<Path>>,
+        payload_paths: &mut Vec<Vec<Path>>,
+    ) {
+        match expression {
+            CheckedBooleanExpression::StructuralCaseMembership { subject, .. } => {
+                membership_paths.push(subject.path.clone());
+            }
+            CheckedBooleanExpression::IntegerComparison { left, right, .. } => {
+                for operand in [left.as_ref(), right.as_ref()] {
+                    if let CheckedScalarExpression::StructuralParameterField { path, .. } = operand
+                    {
+                        payload_paths.push(path.clone());
+                    }
+                }
+            }
+            CheckedBooleanExpression::Not(operand) => {
+                collect_paths(operand, membership_paths, payload_paths);
+            }
+            CheckedBooleanExpression::Equal { left, right }
+            | CheckedBooleanExpression::And { left, right }
+            | CheckedBooleanExpression::Or { left, right } => {
+                collect_paths(left, membership_paths, payload_paths);
+                collect_paths(right, membership_paths, payload_paths);
+            }
+            CheckedBooleanExpression::Constant(_)
+            | CheckedBooleanExpression::Parameter { .. }
+            | CheckedBooleanExpression::Local { .. }
+            | CheckedBooleanExpression::StructuralParameterField { .. }
+            | CheckedBooleanExpression::IeeeFloatComparison { .. }
+            | CheckedBooleanExpression::ByteSequenceEqual { .. }
+            | CheckedBooleanExpression::PayloadlessSumEqual { .. } => {}
+        }
+    }
+
+    let source = r#"
+    trait Equatable {
+        machine equals(&self, rhs: &Self) -> bool;
+    }
+
+    data Detail {
+        case Missing;
+        case Count(value: i32);
+    }
+    DetailEquatable: Detail satisfies Equatable;
+
+    data Message {
+        case Empty;
+        case Data(detail: Detail);
+    }
+    MessageEquatable: Message satisfies Equatable;
+
+    machine equal(left: Message, right: Message)
+    crashes Abort
+        left == right
+    {}
+
+    machine different(left: Message, right: Message)
+    crashes Abort
+        left != right
+    {}
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let checked = lower_typed_trees(typed).expect("checked lowering should succeed");
+
+    for name in ["equal", "different"] {
+        let contract = checked
+            .facts
+            .contract_plans
+            .for_machine(symbol_of_checked(&checked, name))
+            .expect("contract plan");
+        let [bucket] = contract.crash.published() else {
+            panic!("{name} should publish one crash bucket")
+        };
+        let [psi_checked_trees::CrashRouteGuard::Predicate(predicate)] =
+            bucket.alternative_guards()
+        else {
+            panic!("{name} should publish one predicate")
+        };
+        let mut membership_paths = Vec::new();
+        let mut payload_paths = Vec::new();
+        collect_paths(
+            predicate
+                .scalar_expression()
+                .expect("nested payload-sum equality remains checked"),
+            &mut membership_paths,
+            &mut payload_paths,
+        );
+
+        assert_eq!(membership_paths.len(), 8, "{name} retains both sum levels");
+        assert_eq!(
+            membership_paths
+                .iter()
+                .filter(|path| path.is_empty())
+                .count(),
+            4,
+            "{name} retains both roots for both outer cases"
+        );
+        assert_eq!(
+            membership_paths
+                .iter()
+                .filter(|path| {
+                    path.as_slice()
+                        == [
+                            Path::Case("Data".to_owned()),
+                            Path::Field("detail".to_owned()),
+                        ]
+                })
+                .count(),
+            4,
+            "{name} retains both roots for both nested cases"
+        );
+        assert_eq!(payload_paths.len(), 2, "{name} retains both integer roots");
+        assert!(payload_paths.iter().all(|path| {
+            path.as_slice()
+                == [
+                    Path::Case("Data".to_owned()),
+                    Path::Field("detail".to_owned()),
+                    Path::Case("Count".to_owned()),
+                    Path::Field("value".to_owned()),
+                ]
+        }));
+    }
+}
+
+#[test]
 fn checked_crash_sites_are_body_evidence_not_contract_identity() {
     let source = r#"
     machine clear_body() -> i32
