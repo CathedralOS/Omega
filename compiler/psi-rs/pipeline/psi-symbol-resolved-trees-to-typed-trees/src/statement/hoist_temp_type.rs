@@ -166,7 +166,7 @@ pub(super) fn infer_hoist_temp_type(
         && let [only] = expressions.name_path_members(path.members)
         && let Some(TypeReference::Reference(reference)) =
             parameter_type(lowerer.source_trees, state, only.as_str())
-        && !reference.is_mutable
+        && reference.access == psi_language_semantics::ReferenceAccess::Shared
         && let TypeReference::Named { name, .. } =
             lowerer.source_trees.child_type_reference(reference.referee)
     {

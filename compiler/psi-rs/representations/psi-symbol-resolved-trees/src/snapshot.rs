@@ -725,7 +725,7 @@ pub struct StructLiteralFieldSnapshot {
 pub enum TypeReferenceSnapshot {
     Reference {
         referee: Box<TypeReferenceSnapshot>,
-        is_mutable: bool,
+        access: &'static str,
     },
     Constrained {
         base_type: Box<TypeReferenceSnapshot>,
@@ -1706,6 +1706,14 @@ fn wire_member_snapshots(
         .collect()
 }
 
+fn reference_access_name(access: psi_language_core::ReferenceAccess) -> &'static str {
+    match access {
+        psi_language_core::ReferenceAccess::Shared => "shared",
+        psi_language_core::ReferenceAccess::Mutable => "mutable",
+        psi_language_core::ReferenceAccess::WriteOnly => "write_only",
+    }
+}
+
 fn type_reference_snapshot_from_program(
     program: &SymbolResolvedTrees,
     type_reference: &TypeReference,
@@ -1716,7 +1724,7 @@ fn type_reference_snapshot_from_program(
                 program,
                 program.child_type_reference(reference.referee),
             )),
-            is_mutable: reference.is_mutable,
+            access: reference_access_name(reference.access),
         },
         TypeReference::Constrained(constrained) => TypeReferenceSnapshot::Constrained {
             base_type: Box::new(type_reference_snapshot_from_program(

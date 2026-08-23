@@ -623,14 +623,15 @@ fn stable_local_mutable_alias_origin(
     aliases: &[(String, FramePlaceOrigin)],
     symbols: &TopLevelSymbols<'_>,
 ) -> Option<FramePlaceOrigin> {
-    let TypeReferenceNode::Reference {
-        is_mutable: true, ..
-    } = program
+    let TypeReferenceNode::Reference { access, .. } = program
         .type_reference_table
         .type_reference(local.type_reference)
     else {
         return None;
     };
+    if !access.is_exclusive() {
+        return None;
+    }
     stable_alias_initializer_origin(
         program,
         current_machine,
@@ -1159,10 +1160,8 @@ fn transparent_callee_result_origin(
             program
                 .type_reference_table
                 .type_reference(callee_state.return_type),
-            TypeReferenceNode::Reference {
-                is_mutable: true,
-                ..
-            }
+            TypeReferenceNode::Reference { access, .. }
+                if access.is_exclusive()
         )
     {
         return None;
@@ -1205,14 +1204,15 @@ fn transparent_callee_result_origin(
                         isolated_local_roots.push(local.name.as_str().to_owned());
                         continue;
                     }
-                    let TypeReferenceNode::Reference {
-                        is_mutable: true, ..
-                    } = program
+                    let TypeReferenceNode::Reference { access, .. } = program
                         .type_reference_table
                         .type_reference(local.type_reference)
                     else {
                         return None;
                     };
+                    if !access.is_exclusive() {
+                        return None;
+                    }
                     let origin = parameter_relative_place_origin(
                         program,
                         callee_machine,
@@ -2325,10 +2325,8 @@ fn parameter_relative_place_origin(
                         program
                             .type_reference_table
                             .type_reference(parameter.type_reference),
-                        TypeReferenceNode::Reference {
-                            is_mutable: true,
-                            ..
-                        }
+                        TypeReferenceNode::Reference { access, .. }
+                            if access.is_exclusive()
                     )
             }) {
                 return Some(ParameterRelativeFrameOrigin {

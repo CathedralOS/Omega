@@ -1261,12 +1261,10 @@ fn type_descriptor(
 
     match table.type_reference(type_reference) {
         TypeReferenceNode::Reference {
-            referee,
-            is_mutable,
-            ..
+            referee, access, ..
         } => omega_layout::TypeLayoutDescriptor::Reference {
             referee: Box::new(type_descriptor(table, *referee)),
-            is_mutable: *is_mutable,
+            is_mutable: access.is_exclusive(),
         },
         TypeReferenceNode::Constrained {
             base_type,

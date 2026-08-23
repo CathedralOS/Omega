@@ -306,8 +306,15 @@ fn validate_type_reference_handle_with_context(
 ) {
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Reference {
-            referee, lifetime, ..
+            referee,
+            access,
+            lifetime,
         } => {
+            if *access == psi_language_semantics::ReferenceAccess::WriteOnly {
+                diagnostics.push(Diagnostic::error(format!(
+                    "{owner} uses `&write`, whose source identity is recognized but whose checked operation set is not implemented yet"
+                )));
+            }
             if let Some(lifetime) = lifetime
                 && !type_parameter_scope.contains_lifetime(lifetime.as_str())
             {

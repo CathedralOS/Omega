@@ -412,7 +412,7 @@ fn reference_struct_parameter_names(
             else {
                 return None;
             };
-            if reference.is_mutable {
+            if reference.access.is_exclusive() {
                 return None;
             }
             matches!(

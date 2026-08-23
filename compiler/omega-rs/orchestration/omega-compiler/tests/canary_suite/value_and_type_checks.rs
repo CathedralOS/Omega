@@ -1,5 +1,22 @@
 use super::*;
 
+#[test]
+fn write_only_reference_is_recognized_but_rejects_before_checked_execution() {
+    let canary = fail_canary("borrow/write_only_reference_operation_gate");
+    let diagnostics = check_canary(&canary)
+        .expect_err("write-only references must remain behind their operation-set gate");
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("uses `&write`")
+            && combined.contains("checked operation set is not implemented yet"),
+        "expected the directed write-only operation-set diagnostic, got:\n{combined}"
+    );
+}
+
 fn assert_native_exit_code(report: &CompileReport, expected: i32, fixture: &str) {
     let executable = report
         .checked_native_executable_path()

@@ -54,7 +54,7 @@ pub struct ReferenceTypeReference {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReferenceTypeReferenceStorage {
     pub referee: Handle<TypeReference>,
-    pub is_mutable: bool,
+    pub access: psi_language_core::ReferenceAccess,
     /// Explicit lifetime name (`&'buf T`), frozen decision 15 stage 2. A
     /// borrow-region tag only — no symbol, ignored by layout/codegen and by
     /// structural type equality; consulted solely by the borrow checker.
@@ -65,7 +65,7 @@ impl Default for ReferenceTypeReferenceStorage {
     fn default() -> Self {
         Self {
             referee: Handle::invalid(),
-            is_mutable: false,
+            access: psi_language_core::ReferenceAccess::Shared,
             lifetime: None,
         }
     }
@@ -466,7 +466,7 @@ impl TypeReferenceTable {
                 );
                 self.insert(TypeReferenceNode::Reference {
                     referee,
-                    is_mutable: reference.is_mutable,
+                    access: reference.access,
                     lifetime: reference.lifetime.clone(),
                 })
             }
@@ -567,7 +567,7 @@ impl Default for TypeReferenceTable {
 pub enum TypeReferenceNode {
     Reference {
         referee: TypeReferenceHandle,
-        is_mutable: bool,
+        access: psi_language_core::ReferenceAccess,
         /// Explicit lifetime name (`&'buf T`), frozen decision 15 stage 2.
         lifetime: Option<DiagnosticName>,
     },

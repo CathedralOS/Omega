@@ -103,9 +103,7 @@ pub(crate) fn validate_recasts(program: &TypedTrees, diagnostics: &mut Vec<Diagn
                     continue;
                 }
                 let TypeReferenceNode::Reference {
-                    referee,
-                    is_mutable: let_is_mutable,
-                    ..
+                    referee, access, ..
                 } = program
                     .type_reference_table
                     .type_reference(local.type_reference)
@@ -127,7 +125,7 @@ pub(crate) fn validate_recasts(program: &TypedTrees, diagnostics: &mut Vec<Diagn
                                 state,
                                 cast,
                                 *referee,
-                                *let_is_mutable,
+                                access.is_exclusive(),
                                 diagnostics,
                             );
                         }

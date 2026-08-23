@@ -142,6 +142,12 @@ The referent is a live `T` on entry and remains one when the loan ends.
 definite-initialization transition. A future output/construction slot for
 storage containing no live `T` is a separate feature.
 
+> **Implementation checkpoint (August 2026):** the compiler recognizes and
+> preserves the distinct `&write` source/type identity, but deliberately rejects
+> it before checked execution. The restricted operation set, attenuation, and
+> artifact/runtime enforcement described below remain the gate to executable
+> use; `&write` is not temporarily lowered as `&mut`.
+
 Code may perform plain typed stores, content-independent field/index/range
 projection, disjoint subdivision, and read view metadata such as a slice's
 length. It may not load, compare, hash, pattern-match, take, swap, perform

@@ -20,7 +20,7 @@ pub(super) fn lower_type_reference_handle_from_table_with_context(
     {
         resolved::types::TypeReferenceNode::Reference {
             referee,
-            is_mutable,
+            access,
             lifetime,
         } => {
             let referee = lower_type_reference_handle_from_table_with_context(
@@ -31,7 +31,7 @@ pub(super) fn lower_type_reference_handle_from_table_with_context(
             Ok(typed_trees.type_reference_table.insert(
                 typed::types::TypeReferenceNode::Reference {
                     referee,
-                    is_mutable: *is_mutable,
+                    access: *access,
                     lifetime: lifetime.as_ref().map(crate::name::lower_name),
                 },
             ))

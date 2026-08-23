@@ -710,7 +710,7 @@ fn count_type_reference_handle(
     match syntax_trees.type_references.type_reference(type_reference) {
         crate::types::TypeReferenceNode::Reference {
             referee,
-            is_mutable: _,
+            access: _,
             lifetime: _,
         } => count_type_reference_handle(syntax_trees, *referee, counts),
         crate::types::TypeReferenceNode::Constrained {

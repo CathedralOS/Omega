@@ -246,6 +246,29 @@ pub enum DomainPredicateBody {
     Present,
 }
 
+/// Source-level access carried by a reference type.
+///
+/// `WriteOnly` is exclusive like `Mutable`, but grants no observation of the
+/// referent. Keeping this as one closed axis prevents a reference from being
+/// represented as independently mutable and write-only.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ReferenceAccess {
+    #[default]
+    Shared,
+    Mutable,
+    WriteOnly,
+}
+
+impl ReferenceAccess {
+    pub const fn is_exclusive(self) -> bool {
+        matches!(self, Self::Mutable | Self::WriteOnly)
+    }
+
+    pub const fn is_readable(self) -> bool {
+        !matches!(self, Self::WriteOnly)
+    }
+}
+
 /// One closed compiler-owned classification attached explicitly to a domain.
 ///
 /// This is not an ordinary trait conformance: each case grants fixed language

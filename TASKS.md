@@ -4703,19 +4703,27 @@ Owners:
   boundary-result vertical. Physical external-loan receipts additionally lack
   an authored correlation to terminal completion claims; an Omega-only bridge
   would invent custody semantics.
-- **WRITE-ONLY-BORROW — implement the settled `&write T` access mode.** Parse
-  and resolve the third borrow kind; preserve its exclusive loan and restricted
-  operation set through type checking, reborrows, projections, calls, provider
-  selection, canonical plans, Terminal Psi, both execution engines, native ABI
-  lowering, and diagnostics. Permit explicit `&mut T` attenuation only. Reject
-  observation, readable reborrows, take/swap/read-modify-write, content-driven
-  projection, non-discardable displacement, and invariant restoration that
-  depends on reading the referent. Retain exact per-outcome write footprints so
-  untouched ranges and their facts survive. Checked implementations prove the
-  restriction over their call closure; opaque providers publish an admitted,
-  implementation-pinned non-observation judgment. Migrate byte-output boundary
-  surfaces only after the borrow kind is executable; do not reinterpret
-  `&write` as vacant storage or typed construction.
+- **WRITE-ONLY-BORROW — finish the settled `&write T` access mode.** The first
+  representation rung is live: the parser accepts `&write T`, `&'a write T`,
+  and `&write self`; syntax, resolved, and typed trees retain a closed
+  shared/mutable/write-only access enum; display, snapshots, matching, and
+  normalized type identity distinguish it; pointer-layout consumers preserve
+  exclusivity without granting readability. Validation deliberately rejects
+  every `&write` type with a directed operation-set diagnostic, so no backend
+  can mistake it for `&mut` while the vertical is incomplete.
+
+  Remaining work is the executable access discipline: permit explicit
+  `&mut T` attenuation only; carry exclusive non-observation through loans,
+  reborrows, content-independent projections, calls, provider selection,
+  canonical plans, Terminal Psi, both execution engines, and native ABI
+  lowering. Reject observation, readable reborrows, take/swap/read-modify-write,
+  content-driven projection, non-discardable displacement, and invariant
+  restoration that depends on reading the referent. Retain exact per-outcome
+  write footprints so untouched ranges and their facts survive. Checked
+  implementations prove the restriction over their call closure; opaque
+  providers publish an admitted, implementation-pinned non-observation
+  judgment. Migrate byte-output boundary surfaces only after this gate can be
+  removed; never reinterpret `&write` as vacant storage or typed construction.
 
 #### ENT4 — registered callbacks
 

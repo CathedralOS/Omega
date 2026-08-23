@@ -1329,7 +1329,7 @@ fn narrows_index_operator_candidates_by_receiver_type() {
             .type_reference_table
             .insert(TypeReferenceNode::Reference {
                 referee: slice_of_type_parameter,
-                is_mutable: false,
+                access: psi_language_core::ReferenceAccess::Shared,
                 lifetime: None,
             });
     let slice_of_i32 = program
@@ -1342,7 +1342,7 @@ fn narrows_index_operator_candidates_by_receiver_type() {
             .type_reference_table
             .insert(TypeReferenceNode::Reference {
                 referee: slice_of_i32,
-                is_mutable: false,
+                access: psi_language_core::ReferenceAccess::Shared,
                 lifetime: None,
             });
 
@@ -1505,7 +1505,7 @@ fn narrows_index_operator_candidates_by_complete_operand_tuple() {
             .type_reference_table
             .insert(TypeReferenceNode::Reference {
                 referee: slice_of_i32,
-                is_mutable: false,
+                access: psi_language_core::ReferenceAccess::Shared,
                 lifetime: None,
             });
 

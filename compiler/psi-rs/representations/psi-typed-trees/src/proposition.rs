@@ -405,12 +405,14 @@ fn render_evidence_type(
 
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Reference {
-            referee,
-            is_mutable,
-            ..
+            referee, access, ..
         } => format!(
             "&{}{}",
-            if *is_mutable { "mut " } else { "" },
+            match access {
+                psi_language_core::ReferenceAccess::Shared => "",
+                psi_language_core::ReferenceAccess::Mutable => "mut ",
+                psi_language_core::ReferenceAccess::WriteOnly => "write ",
+            },
             render_evidence_type(program, *referee, substitutions)
         ),
         TypeReferenceNode::Constrained {

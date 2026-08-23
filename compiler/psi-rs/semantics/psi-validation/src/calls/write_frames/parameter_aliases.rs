@@ -45,10 +45,8 @@ pub(super) fn expression_reborrows_transparent_alias_binding(
                         program
                             .type_reference_table
                             .type_reference(parameter.type_reference),
-                        TypeReferenceNode::Reference {
-                            is_mutable: true,
-                            ..
-                        }
+                        TypeReferenceNode::Reference { access, .. }
+                            if access.is_exclusive()
                     ) && (root_symbol == Some(parameter.symbol)
                         || parameter.is_self && root == "self"
                         || root == parameter.name.as_str())

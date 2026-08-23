@@ -1099,13 +1099,13 @@ impl SyntaxTrees {
         match other.type_references.type_reference(handle) {
             TypeReferenceNode::Reference {
                 referee,
-                is_mutable,
+                access,
                 lifetime,
             } => {
                 let referee = self.copy_type_reference_handle(other, *referee);
                 self.type_references.insert_reference_with_lifetime(
                     referee,
-                    *is_mutable,
+                    *access,
                     lifetime.clone(),
                 )
             }

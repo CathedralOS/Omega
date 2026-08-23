@@ -606,17 +606,25 @@ pub(super) fn parse_type_reference_handle_allowing_borrow<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, TypeReferenceHandle> {
-    let (is_reference, lifetime, is_mutable, input) =
+    let (is_reference, lifetime, access, input) =
         if input.at_punctuation(PunctuationKind::Ampersand) {
             let input = input.take_punctuation(PunctuationKind::Ampersand, "&")?;
             // Explicit lifetime (`&'buf T`, `&'buf mut T`); frozen decision 15
             // stage 2. The tick precedes `mut`/`relaxed`, mirroring Rust's
             // `&'a mut T`. A bare `&T` keeps the elided (`None`) form.
             let (lifetime, input) = parse_optional_lifetime(input)?;
-            let (is_mutable, input) = if input.at_contextual("mut") {
-                (true, input.take_contextual("mut")?)
+            let (access, input) = if input.at_contextual("mut") {
+                (
+                    psi_language_core::ReferenceAccess::Mutable,
+                    input.take_contextual("mut")?,
+                )
+            } else if input.at_contextual("write") {
+                (
+                    psi_language_core::ReferenceAccess::WriteOnly,
+                    input.take_contextual("write")?,
+                )
             } else {
-                (false, input)
+                (psi_language_core::ReferenceAccess::Shared, input)
             };
             // `relaxed` references RETIRED with the relax surface (owner,
             // 2026-07-17): ch11 windows carry the momentary-violation
@@ -627,9 +635,14 @@ pub(super) fn parse_type_reference_handle_allowing_borrow<'tokens, 'source>(
                      relax surface -- take the ordinary reference",
                 ));
             }
-            (true, lifetime, is_mutable, input)
+            (true, lifetime, access, input)
         } else {
-            (false, None, false, input)
+            (
+                false,
+                None,
+                psi_language_core::ReferenceAccess::Shared,
+                input,
+            )
         };
 
     let (type_reference, input) = parse_type_reference_handle(syntax_trees, input)?;
@@ -638,7 +651,7 @@ pub(super) fn parse_type_reference_handle_allowing_borrow<'tokens, 'source>(
             .type_references
             .insert(TypeReferenceNode::Reference {
                 referee: type_reference,
-                is_mutable,
+                access,
                 lifetime,
             })
     } else {

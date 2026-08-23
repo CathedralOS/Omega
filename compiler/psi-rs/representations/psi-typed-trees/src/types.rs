@@ -361,14 +361,14 @@ impl TypeReferenceTable {
         match source.type_reference(type_reference) {
             TypeReferenceNode::Reference {
                 referee,
-                is_mutable,
+                access,
                 lifetime,
             } => {
                 let referee =
                     self.copy_from(source, source_expressions, target_expressions, *referee);
                 self.insert(TypeReferenceNode::Reference {
                     referee,
-                    is_mutable: *is_mutable,
+                    access: *access,
                     lifetime: lifetime.clone(),
                 })
             }
@@ -644,7 +644,7 @@ fn remapped(symbol: SymbolHandle, symbols: &[(SymbolHandle, SymbolHandle)]) -> S
 pub enum TypeReferenceNode {
     Reference {
         referee: TypeReferenceHandle,
-        is_mutable: bool,
+        access: psi_language_core::ReferenceAccess,
         /// Explicit lifetime name (`&'buf T`), frozen decision 15 stage 2. A
         /// borrow-region tag only — no symbol, ignored by layout/codegen and by
         /// structural type equality; consulted solely by the borrow checker

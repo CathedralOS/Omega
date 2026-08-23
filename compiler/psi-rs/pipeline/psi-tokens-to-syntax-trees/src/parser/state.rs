@@ -331,10 +331,18 @@ fn parse_state_parameter<'tokens, 'source>(
 
     if input.at_punctuation(PunctuationKind::Ampersand) {
         let input = input.take_punctuation(PunctuationKind::Ampersand, "&")?;
-        let (is_mutable, input) = if input.at_contextual("mut") {
-            (true, input.take_contextual("mut")?)
+        let (access, input) = if input.at_contextual("mut") {
+            (
+                psi_language_core::ReferenceAccess::Mutable,
+                input.take_contextual("mut")?,
+            )
+        } else if input.at_contextual("write") {
+            (
+                psi_language_core::ReferenceAccess::WriteOnly,
+                input.take_contextual("write")?,
+            )
         } else {
-            (false, input)
+            (psi_language_core::ReferenceAccess::Shared, input)
         };
 
         if input.at_keyword(KeywordKind::SelfValue) {
@@ -345,10 +353,14 @@ fn parse_state_parameter<'tokens, 'source>(
             // consuming `self`. The reference node is the canonical ownership
             // distinction used by permission-event discovery downstream.
             let self_type = syntax_trees.tables.type_references.insert_self_type();
-            let type_reference = syntax_trees
-                .tables
-                .type_references
-                .insert_reference(self_type, is_mutable || is_leading_mutable);
+            let type_reference = syntax_trees.tables.type_references.insert_reference(
+                self_type,
+                if is_leading_mutable {
+                    psi_language_core::ReferenceAccess::Mutable
+                } else {
+                    access
+                },
+            );
 
             return Ok((
                 syntax_trees.items.insert_state_parameter_node(
@@ -356,7 +368,7 @@ fn parse_state_parameter<'tokens, 'source>(
                         name: Identifier::generated("self"),
                         type_reference,
                         is_const,
-                        is_mutable: is_mutable || is_leading_mutable,
+                        is_mutable: access.is_exclusive() || is_leading_mutable,
                         is_self: true,
                     },
                 ),
@@ -374,7 +386,7 @@ fn parse_state_parameter<'tokens, 'source>(
                     name,
                     type_reference,
                     is_const,
-                    is_mutable: is_mutable || is_leading_mutable || borrowed_mutable,
+                    is_mutable: access.is_exclusive() || is_leading_mutable || borrowed_mutable,
                     is_self: false,
                 },
             ),
@@ -432,7 +444,8 @@ fn parse_parameter_type_reference<'tokens, 'source>(
     let borrowed_mutable = matches!(
         syntax_trees.type_references.type_reference(type_reference),
         psi_syntax_trees::types::TypeReferenceNode::Reference {
-            is_mutable: true,
+            access: psi_language_core::ReferenceAccess::Mutable
+                | psi_language_core::ReferenceAccess::WriteOnly,
             ..
         }
     );

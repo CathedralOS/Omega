@@ -107,10 +107,8 @@ fn mutable_reference_targets(
             mutable_reference_targets(program, *base_type, expected_self_symbol)
         }
         TypeReferenceNode::Reference {
-            referee,
-            is_mutable: true,
-            ..
-        } => named_type_matches(program, *referee, expected_self_symbol),
+            referee, access, ..
+        } if access.is_exclusive() => named_type_matches(program, *referee, expected_self_symbol),
         _ => false,
     }
 }

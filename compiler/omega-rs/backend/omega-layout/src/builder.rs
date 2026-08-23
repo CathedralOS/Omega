@@ -1110,12 +1110,10 @@ impl<'program> LayoutBuilder<'program> {
             .type_reference(type_reference)
         {
             TypeReferenceNode::Reference {
-                referee,
-                is_mutable,
-                ..
+                referee, access, ..
             } => TypeLayoutDescriptor::Reference {
                 referee: Box::new(self.type_descriptor_with_bindings(*referee, bindings)),
-                is_mutable: *is_mutable,
+                is_mutable: access.is_exclusive(),
             },
             TypeReferenceNode::Constrained {
                 base_type,
