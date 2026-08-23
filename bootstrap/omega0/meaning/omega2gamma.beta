@@ -30,7 +30,8 @@
 ; fields), case data (integer tags; (Pair tag payload) payloads with by-name field mapping), slices
 ; (local .len/[i]/[a..]/[a..b] via nth/drop/take, as_slice + postfix), value calls (whole-RHS and
 ; expression-embedded via hoist+source-rewrite), machine tail-call arms, value arms (literal/expression),
-; logical &&/|| layers, shifts as *2^k / /2^k, max/min builtins, normative
+; logical &&/|| layers, shifts as *2^k / /2^k, the compiler profile's
+; nonnegative byte mask `x & 255` as `x % 256`, max/min builtins, normative
 ; `terminates by measure -> Profile;` clause skip, dual-channel
 ; (Pair exit stdout) output convention. UNSUPPORTED constructs REFUSE with E2G-UNSUPPORTED markers —
 ; incl. unknown self-field methods (atomics store/fetch_add/compare_exchange, ...): only exit_process /
@@ -951,7 +952,10 @@ proc parse_and() {
     }
     state amp {
         to aa when (byte[2097152 + word[2097144] + 1] == '&')
-        return a
+        adv()
+        let bb = parse_cmp0()
+        a = alloc(2, 'B', a, bb)
+        to loop
     }
     state aa { adv()  adv()  let b = parse_cmp0()  a = alloc(2, 'A', a, b)  to loop }
 }
@@ -1714,6 +1718,7 @@ proc print_expr(node) {
         to c_le when (op == 'L')
         to c_ge when (op == 'G')
         to c_ne when (op == 'N')
+        to c_band when (op == 'B')
         to c_and when (op == 'A')
         to c_or when (op == 'O')
         to c_max when (op == 'X')
@@ -1747,6 +1752,17 @@ proc print_expr(node) {
         emit("))")  return 0
     }
     state c_ne { emit("(- 1 (eq ")  print_expr(word[node + 16])  write_byte(' ')  print_expr(word[node + 24])  emit("))")  return 0 }
+    state c_band {
+        to c_band_int when (word[word[node + 24]] == 0)
+        emit("E2G-UNSUPPORTED-bitwise-and")
+        return 0
+    }
+    state c_band_int {
+        to c_band_byte when (word[word[node + 24] + 8] == 255)
+        emit("E2G-UNSUPPORTED-bitwise-and")
+        return 0
+    }
+    state c_band_byte { emit("(% ")  print_expr(word[node + 16])  emit(" 256)")  return 0 }
     state c_and { emit("(* ")  print_expr(word[node + 16])  write_byte(' ')  print_expr(word[node + 24])  write_byte(')')  return 0 }
     state c_or { emit("(lt 0 (+ ")  print_expr(word[node + 16])  write_byte(' ')  print_expr(word[node + 24])  emit("))")  return 0 }
     state c_max {

@@ -216,6 +216,15 @@ story.
       and scalar receiver fields use one indexed carrier. The 28-machine backend
       now elaborates completely to 87,879 bytes of Gamma in about 0.16 seconds,
       rather than exceeding 116 MiB without completing.
+    - [x] Lower the used nonnegative byte-extraction form `x & 255` to
+      `x % 256`; reject every broader single-`&` expression explicitly instead
+      of silently truncating the expression at `&`.
+    - [ ] Bound compiler-sized output evaluation without exhausting Gamma's
+      fixed no-GC arena. Decode, validation, and preflight now reach the emitter,
+      but constructing 8,192 output cons cells and copying them through `rev`
+      retains enough evaluator allocation to lose the final result. Prefer a
+      compact/chunked output carrier or another lower-rung representation over
+      merely normalizing a larger fixed arena.
     - [ ] Add the focused native-versus-Gamma backend meaning gate; compact
       elaboration is necessary evidence but does not by itself establish the
       backend's artifact semantics.

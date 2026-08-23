@@ -1,0 +1,12 @@
+// Compiler-profile byte extraction: nonnegative x & 255 lowers to x % 256.
+// Expected exit: 44
+
+use omega::language::std::console;
+
+data Main {
+    console: Console;
+}
+
+machine Main::main(&mut self) {
+    self.console.exit_process(300 & 255);
+}
