@@ -1,0 +1,160 @@
+; Exact source/artifact shape for expect(ch).
+;
+; This module owns procedure 24's three blocks, its guarded match transition,
+; skip_ws/cbyte/adv calls, parameter load, comparison/literals, binary push,
+; returns/epilogues, frame, and exhaustive effect/expression/decoded censuses.
+; The adjacent module owns the nonzero-delimiter relational meaning.
+
+expect_require_shape:
+        imm r20, 7151616
+        imm r21, 24
+        imm r22, 1
+        call transfer_require_cell
+        imm r20, 7159808
+        imm r21, 24
+        imm r22, 1
+        call transfer_require_cell
+        imm r20, 24
+        call call_bounds_frame_bytes
+        imm r1, 16
+        jeq r0, r1, expect_shape_blocks
+        jmp reject
+
+expect_shape_blocks:
+        imm r20, 129
+        imm r21, 17441
+        call slurp_summary_require_block_pc
+        imm r20, 130
+        imm r21, 17501
+        call slurp_summary_require_block_pc
+        imm r20, 131
+        imm r21, 17653
+        call slurp_summary_require_block_pc
+        imm r20, 129
+        imm r21, 131
+        imm r22, 24
+        call cursor_require_proc_blocks
+
+        imm r20, 97
+        imm r21, 130
+        imm r22, 1
+        imm r23, 131
+        imm r24, 17604               ; checked expect match guard
+        call slurp_summary_require_transition
+        call expect_require_events
+        call expect_require_locals_primitives
+        call expect_require_censuses
+        ret
+
+expect_require_events:
+        imm r20, 160
+        imm r21, 129
+        imm r22, 17492
+        imm r23, 0
+        imm r24, 0
+        imm r25, 4277
+        imm r26, 17501               ; checked expect skip_ws continuation
+        call summary_require_call_site
+        imm r20, 161
+        imm r21, 130
+        imm r22, 17501
+        imm r23, 0
+        imm r24, 0
+        imm r25, 1609
+        imm r26, 17510               ; checked expect cbyte continuation
+        call summary_require_call_site
+        imm r20, 163
+        imm r21, 131
+        imm r22, 17653
+        imm r23, 0
+        imm r24, 0
+        imm r25, 1939
+        imm r26, 17662               ; checked expect adv continuation
+        call summary_require_call_site
+
+        imm r20, 162
+        imm r21, 130
+        imm r22, 5
+        imm r23, 17652
+        call slurp_summary_require_event
+        imm r20, 164
+        imm r21, 131
+        imm r22, 5
+        imm r23, 17691
+        call slurp_summary_require_event
+        imm r20, 17633
+        imm r21, 17652
+        call slurp_summary_require_epilogue
+        imm r20, 17672
+        imm r21, 17691
+        call slurp_summary_require_epilogue
+        imm r20, 17692
+        imm r21, 17711
+        call slurp_summary_require_epilogue
+        ret
+
+expect_require_locals_primitives:
+        imm r20, 34
+        imm r21, 130
+        imm r22, 1
+        imm r23, 0                   ; checked expect ch slot
+        imm r24, 17526
+        call transfer_require_local
+
+        imm r20, 353
+        imm r21, 130
+        imm r22, 3
+        imm r23, 10                  ; checked expect equality
+        imm r24, 17545
+        call transfer_require_primitive
+        imm r20, 354
+        imm r21, 130
+        imm r22, 1
+        imm r23, 0
+        imm r24, 17623
+        call transfer_require_primitive
+        imm r20, 355
+        imm r21, 131
+        imm r22, 1
+        imm r23, 0
+        imm r24, 17662
+        call transfer_require_primitive
+
+        imm r20, 90
+        imm r21, 130
+        imm r22, 1
+        imm r23, 17510
+        call transfer_require_push
+        ret
+
+expect_require_censuses:
+        imm r20, 129
+        imm r21, 131
+        imm r22, 34
+        imm r23, 35
+        imm r24, 33
+        imm r25, 33
+        imm r26, 97
+        imm r27, 98
+        imm r28, 160
+        imm r29, 165                 ; checked exclusive expect event row
+        call cursor_require_effect_census
+
+        imm r20, 129
+        imm r21, 131
+        imm r22, 353
+        imm r23, 356                 ; checked exclusive expect primitive row
+        imm r24, 90
+        imm r25, 91
+        imm r26, 0
+        imm r27, 0
+        imm r28, 0
+        imm r29, 0
+        call summary_require_expr_census
+
+        imm r20, 17441
+        imm r21, 17712
+        imm r22, 3
+        imm r23, 3
+        call skip_scan_call_region
+        ret

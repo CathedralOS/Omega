@@ -521,10 +521,23 @@ globals remain unchanged. Twelve isolated teeth cover calls and argument flow,
 fixed addresses and subtraction, row closure, rank, renaming, and stop meaning;
 the two new modules are 7.3 KB and 9.5 KB.
 
+`bc-expect-shape.alpha` and `bc-expect-summary.alpha` close the next parsing
+leaf. The shape phase rejoins procedure 24's three blocks, guarded match edge,
+skip_ws/cbyte/adv calls and exact continuations, slot-zero `ch` load, equality
+and return literals, binary push, two explicit plus one synthetic epilogue,
+16-byte frame, and exhaustive quiet-region/table ownership. The conditional
+`EXPS` meaning is deliberately scoped to `1<=ch<=255`: skip_ws first terminates
+at a normalized cursor; mismatch—including logical end or in-range NUL—leaves
+that cursor unchanged, while a nonzero match proves `CUR<LEN` and adv consumes
+exactly one byte. Both branches return zero, restore the frame, and preserve
+source/input/output and other compiler globals. Eleven isolated teeth exercise
+the calls, slot/comparison, censuses, delimiter premise, match-range fact, and
+both cursor outcomes. The modules are 4.3 KB and 6.7 KB.
+
 The eventual `parse_proc` theorem must be maximal, not universally terminating.
 For malformed input, an unrecognized body byte such as `@` can survive both
 `gen_stmt` and the number fallback without cursor progress while `gen_stmts`
 keeps emitting. The honest contract is therefore Return-or-Diverge with exact
-finite/infinite output behavior. The next engineering milestone is `expect`;
-the existing typed status-252 projection is the only language-design blocker
-in this area.
+finite/infinite output behavior. The next engineering milestone is the
+`declare`/parameter-loop/`count_lets` cluster; the existing typed status-252
+projection is the only language-design blocker in this area.

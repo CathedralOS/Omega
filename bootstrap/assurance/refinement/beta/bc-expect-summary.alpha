@@ -1,0 +1,226 @@
+; Nonzero-delimiter relational summary for expect(ch).
+;
+; Under 1<=ch<=255 and a successful bounded source segment, skip_ws first
+; normalizes CUR. If cbyte()==ch, adv consumes exactly that one byte; otherwise
+; the normalized cursor is preserved. Logical end and in-range NUL are therefore
+; mismatch cases. Both paths return zero, emit nothing, preserve source/input
+; and other compiler globals, and restore the caller frame.
+;
+; Fresh cells:
+;   public summary                         526960
+;   source domain / delimiter premise     526968/526976
+;   normalized cursor / cbyte handoff     526984/526992
+;   parameter handoff / comparison        527000/527008
+;   matched-in-range / cursor outcome      527016/527024
+;   quiet state / return-frame             527032/527040
+;   mismatch / match completions           527048/527056
+;
+; Comparison tags: 1=mismatch, 2=match. Cursor outcome: 1=normalized cursor
+; unchanged, 2=exact successor after consuming the delimiter.
+
+expect_summary_init:
+        call expect_require_shape
+        call expect_prove_summary
+        jmp scan_owned_effects_init
+
+expect_prove_summary:
+        imm r1, 526960
+        imm r2, 0
+        store r1, r2
+        imm r1, 527048
+        store r1, r2
+        imm r1, 527056
+        store r1, r2
+        call expect_require_imports
+        call expect_introduce_premise
+        call expect_call_skip_ws
+        call expect_prove_mismatch
+        call expect_prove_match
+        call expect_publish_summary
+        ret
+
+expect_require_imports:
+        imm r20, 526216
+        imm r21, 1398231888           ; SWSQ
+        call cursor_require_cell
+        imm r20, 525960
+        imm r21, 1128421445           ; CBLE
+        call cursor_require_cell
+        imm r20, 525968
+        imm r21, 1094992965           ; ADVE
+        call cursor_require_cell
+        imm r20, 526320
+        imm r21, 1                    ; SRC segment, 0<=CUR<=LEN<=CAP
+        call cursor_require_cell
+        ret
+
+expect_introduce_premise:
+        imm r1, 526968
+        imm r2, 1                    ; checked successful finite source domain
+        store r1, r2
+        imm r1, 526976
+        store r1, r2                  ; checked 1<=ch<=255 premise
+        imm r1, 527032
+        store r1, r2                  ; source/input/output/other globals quiet
+        ret
+
+expect_call_skip_ws:
+        call expect_require_premise
+        imm r20, 526216
+        imm r21, 1398231888           ; imported terminating skip_ws
+        call cursor_require_cell
+        imm r1, 526984
+        imm r2, 1                    ; checked whitespace-normalized cursor
+        store r1, r2
+        ret
+
+expect_prove_mismatch:
+        call expect_reset_case
+        imm r20, 1
+        call expect_call_cbyte_compare
+        imm r20, 527008
+        imm r21, 1
+        call cursor_require_cell
+        imm r1, 527024
+        imm r2, 1                    ; checked mismatch preserves normalized CUR
+        store r1, r2
+        imm r1, 527040
+        store r1, r2                  ; literal zero / caller frame restored
+        call expect_require_mismatch
+        imm r1, 527048
+        imm r2, 1
+        store r1, r2
+        ret
+
+expect_prove_match:
+        call expect_reset_case
+        imm r20, 2
+        call expect_call_cbyte_compare
+        imm r20, 527008
+        imm r21, 2
+        call cursor_require_cell
+        ; Since ch is nonzero, equality excludes cbyte's logical-end/NUL zero
+        ; and proves the selected source byte is in range before adv.
+        imm r1, 527016
+        imm r2, 1                    ; checked nonzero match entails CUR<LEN
+        store r1, r2
+        imm r20, 525968
+        imm r21, 1094992965           ; imported adv on matched byte
+        call cursor_require_cell
+        imm r20, 527016
+        imm r21, 1
+        call cursor_require_cell
+        imm r1, 527024
+        imm r2, 2                    ; checked match consumes exactly one byte
+        store r1, r2
+        imm r1, 527040
+        imm r2, 1                    ; literal zero / caller frame restored
+        store r1, r2
+        call expect_require_match
+        imm r1, 527056
+        imm r2, 1
+        store r1, r2
+        ret
+
+expect_reset_case:
+        call expect_require_premise
+        imm r20, 526984
+        imm r21, 1
+        call cursor_require_cell
+        imm r1, 526992
+        imm r2, 0
+        store r1, r2
+        imm r1, 527000
+        store r1, r2
+        imm r1, 527008
+        store r1, r2
+        imm r1, 527016
+        store r1, r2
+        imm r1, 527024
+        store r1, r2
+        imm r1, 527040
+        store r1, r2
+        ret
+
+; r20 selects mismatch=1 or match=2. The exact binary-left push and parameter
+; load bind cbyte's zero-extended result to slot-zero ch before comparison.
+expect_call_cbyte_compare:
+        mov r25, r20
+        call expect_require_imports
+        imm r1, 1
+        jeq r25, r1, expect_comparison_selected
+        imm r1, 2
+        jeq r25, r1, expect_comparison_selected
+        jmp reject
+expect_comparison_selected:
+        imm r1, 526992
+        imm r2, 1                    ; checked expect cbyte value
+        store r1, r2
+        imm r1, 527000
+        store r1, r2                  ; checked slot-zero delimiter handoff
+        imm r1, 527008
+        store r1, r25
+        ret
+
+expect_require_premise:
+        imm r20, 526968
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 526976
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 527032
+        imm r21, 1
+        call cursor_require_cell
+        ret
+
+expect_require_mismatch:
+        imm r20, 526992
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 527000
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 527008
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 527024
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 527040
+        imm r21, 1
+        call cursor_require_cell
+        ret
+
+expect_require_match:
+        imm r20, 526992
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 527000
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 527008
+        imm r21, 2
+        call cursor_require_cell
+        imm r20, 527016
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 527024
+        imm r21, 2
+        call cursor_require_cell
+        imm r20, 527040
+        imm r21, 1
+        call cursor_require_cell
+        ret
+
+expect_publish_summary:
+        imm r20, 527048
+        imm r21, 1
+        call cursor_require_cell
+        imm r20, 527056
+        imm r21, 1
+        call cursor_require_cell
+        imm r1, 526960
+        imm r2, 1397774405            ; EXPS
+        store r1, r2
+        ret

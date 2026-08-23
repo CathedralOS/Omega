@@ -221,7 +221,9 @@ cat "$GATE_DIR/bc-block-control.alpha" \
   "$GATE_DIR/bc-classifier-shape.alpha" \
   "$GATE_DIR/bc-classifier-summary.alpha" \
   "$GATE_DIR/bc-read-ident-shape.alpha" \
-  "$GATE_DIR/bc-read-ident-summary.alpha" > "$T/control-check.alpha"
+  "$GATE_DIR/bc-read-ident-summary.alpha" \
+  "$GATE_DIR/bc-expect-shape.alpha" \
+  "$GATE_DIR/bc-expect-summary.alpha" > "$T/control-check.alpha"
 "$ASM" < "$T/control-check.alpha" > "$T/control-check.tape"
 stamp_seed "$T/control-check.tape" "$SEED" "$T/control-check" >/dev/null
 
@@ -595,6 +597,53 @@ sed 's/imm r2, 1                    ; checked first non-alnum\/end\/NUL stop/imm
 "$ASM" < "$T/read-ident-wrong-stop.alpha" > "$T/read-ident-wrong-stop.tape"
 stamp_seed "$T/read-ident-wrong-stop.tape" "$SEED" "$T/read-ident-wrong-stop" >/dev/null
 
+# Phase-isolated expect teeth sever one call/local/comparison/census join or one
+# side of the nonzero-delimiter cursor relation.
+sed 's/imm r26, 17501               ; checked expect skip_ws continuation/imm r26, 17502               ; checked expect skip_ws continuation/' \
+  "$T/control-check.alpha" > "$T/expect-wrong-skip-continuation.alpha"
+"$ASM" < "$T/expect-wrong-skip-continuation.alpha" > "$T/expect-wrong-skip-continuation.tape"
+stamp_seed "$T/expect-wrong-skip-continuation.tape" "$SEED" "$T/expect-wrong-skip-continuation" >/dev/null
+sed 's/imm r26, 17510               ; checked expect cbyte continuation/imm r26, 17511               ; checked expect cbyte continuation/' \
+  "$T/control-check.alpha" > "$T/expect-wrong-cbyte-continuation.alpha"
+"$ASM" < "$T/expect-wrong-cbyte-continuation.alpha" > "$T/expect-wrong-cbyte-continuation.tape"
+stamp_seed "$T/expect-wrong-cbyte-continuation.tape" "$SEED" "$T/expect-wrong-cbyte-continuation" >/dev/null
+sed 's/imm r26, 17662               ; checked expect adv continuation/imm r26, 17663               ; checked expect adv continuation/' \
+  "$T/control-check.alpha" > "$T/expect-wrong-adv-continuation.alpha"
+"$ASM" < "$T/expect-wrong-adv-continuation.alpha" > "$T/expect-wrong-adv-continuation.tape"
+stamp_seed "$T/expect-wrong-adv-continuation.tape" "$SEED" "$T/expect-wrong-adv-continuation" >/dev/null
+sed 's/imm r23, 0                   ; checked expect ch slot/imm r23, 1                   ; checked expect ch slot/' \
+  "$T/control-check.alpha" > "$T/expect-wrong-slot.alpha"
+"$ASM" < "$T/expect-wrong-slot.alpha" > "$T/expect-wrong-slot.tape"
+stamp_seed "$T/expect-wrong-slot.tape" "$SEED" "$T/expect-wrong-slot" >/dev/null
+sed 's/imm r23, 10                  ; checked expect equality/imm r23, 11                  ; checked expect equality/' \
+  "$T/control-check.alpha" > "$T/expect-wrong-comparison.alpha"
+"$ASM" < "$T/expect-wrong-comparison.alpha" > "$T/expect-wrong-comparison.tape"
+stamp_seed "$T/expect-wrong-comparison.tape" "$SEED" "$T/expect-wrong-comparison" >/dev/null
+sed 's/imm r29, 165                 ; checked exclusive expect event row/imm r29, 164                 ; checked exclusive expect event row/' \
+  "$T/control-check.alpha" > "$T/expect-event-undercount.alpha"
+"$ASM" < "$T/expect-event-undercount.alpha" > "$T/expect-event-undercount.tape"
+stamp_seed "$T/expect-event-undercount.tape" "$SEED" "$T/expect-event-undercount" >/dev/null
+sed 's/imm r23, 356                 ; checked exclusive expect primitive row/imm r23, 355                 ; checked exclusive expect primitive row/' \
+  "$T/control-check.alpha" > "$T/expect-primitive-undercount.alpha"
+"$ASM" < "$T/expect-primitive-undercount.alpha" > "$T/expect-primitive-undercount.tape"
+stamp_seed "$T/expect-primitive-undercount.tape" "$SEED" "$T/expect-primitive-undercount" >/dev/null
+sed 's/imm r1, 526976/imm r1, 526968/' \
+  "$T/control-check.alpha" > "$T/expect-drop-delimiter-premise.alpha"
+"$ASM" < "$T/expect-drop-delimiter-premise.alpha" > "$T/expect-drop-delimiter-premise.tape"
+stamp_seed "$T/expect-drop-delimiter-premise.tape" "$SEED" "$T/expect-drop-delimiter-premise" >/dev/null
+sed 's/imm r2, 1                    ; checked mismatch preserves normalized CUR/imm r2, 2                    ; checked mismatch preserves normalized CUR/' \
+  "$T/control-check.alpha" > "$T/expect-wrong-mismatch-cursor.alpha"
+"$ASM" < "$T/expect-wrong-mismatch-cursor.alpha" > "$T/expect-wrong-mismatch-cursor.tape"
+stamp_seed "$T/expect-wrong-mismatch-cursor.tape" "$SEED" "$T/expect-wrong-mismatch-cursor" >/dev/null
+sed 's/imm r2, 2                    ; checked match consumes exactly one byte/imm r2, 1                    ; checked match consumes exactly one byte/' \
+  "$T/control-check.alpha" > "$T/expect-wrong-match-cursor.alpha"
+"$ASM" < "$T/expect-wrong-match-cursor.alpha" > "$T/expect-wrong-match-cursor.tape"
+stamp_seed "$T/expect-wrong-match-cursor.tape" "$SEED" "$T/expect-wrong-match-cursor" >/dev/null
+sed 's/imm r2, 1                    ; checked nonzero match entails CUR<LEN/imm r2, 0                    ; checked nonzero match entails CUR<LEN/' \
+  "$T/control-check.alpha" > "$T/expect-drop-match-range.alpha"
+"$ASM" < "$T/expect-drop-match-range.alpha" > "$T/expect-drop-match-range.tape"
+stamp_seed "$T/expect-drop-match-range.tape" "$SEED" "$T/expect-drop-match-range" >/dev/null
+
 # Phase-isolated tooth: leave the exact source, tape, witness, and every prior
 # checker phase unchanged, but underreport the prelude fp owner. Adjust only the
 # derived-map subtotal so rejection must come from the exhaustive equality scan.
@@ -694,7 +743,9 @@ cat "$GATE_DIR/bc-block-control.alpha" \
   "$GATE_DIR/bc-classifier-shape.alpha" \
   "$GATE_DIR/bc-classifier-summary.alpha" \
   "$GATE_DIR/bc-read-ident-shape.alpha" \
-  "$GATE_DIR/bc-read-ident-summary.alpha" > "$T/flat-check.alpha"
+  "$GATE_DIR/bc-read-ident-summary.alpha" \
+  "$GATE_DIR/bc-expect-shape.alpha" \
+  "$GATE_DIR/bc-expect-summary.alpha" > "$T/flat-check.alpha"
 "$ASM" < "$T/flat-check.alpha" > "$T/flat-check.tape"
 stamp_seed "$T/flat-check.tape" "$SEED" "$T/flat-check" >/dev/null
 
@@ -881,6 +932,16 @@ for read_ident_tooth in read-ident-wrong-cbyte-continuation read-ident-wrong-aln
   set -e
   if [ "$read_ident_tooth_status" != 1 ] || [ -s "$T/stdout" ]; then
     echo "bc block control FAIL — $read_ident_tooth was not rejected" >&2
+    exit 1
+  fi
+done
+for expect_tooth in expect-wrong-skip-continuation expect-wrong-cbyte-continuation expect-wrong-adv-continuation expect-wrong-slot expect-wrong-comparison expect-event-undercount expect-primitive-undercount expect-drop-delimiter-premise expect-wrong-mismatch-cursor expect-wrong-match-cursor expect-drop-match-range; do
+  set +e
+  "$T/$expect_tooth" < "$T/control.bundle" > "$T/stdout"
+  expect_tooth_status=$?
+  set -e
+  if [ "$expect_tooth_status" != 1 ] || [ -s "$T/stdout" ]; then
+    echo "bc block control FAIL — $expect_tooth was not rejected" >&2
     exit 1
   fi
 done
@@ -1083,4 +1144,4 @@ for mutation in call-retarget read-register write-register helper-write emit-byt
   fi
 done
 
-echo "bc block control/effects: 70 proc / 355 block / 291 transition; 613 effect sites / 829 fixed emit bytes; 113 __write_str calls instantiated from one length-ranked exact-output summary; main.ready composes emit_prelude/write_str/skip_ws into the exact 187-byte prefix, then a reusable main.loop split sends normalized zero to halt(0) and nonzero to main.body without consuming it; byte classifiers digit/alpha/alnum are exact over all 256 cbyte values and terminating read_ident returns their maximal prefix; cbyte/adv/is_space leaf summaries compose through terminating skip_ws_step/skip_ws loops; 78 frame slots / 27 parameter stores / 134 call pops; 169 local loads / 73 local stores; 61 raw loads = 54 fixed-safe + 5 SRC-indexed + 2 table-indexed / 34 raw stores; cursor-zero slurp segment/value/termination summary composed from root through main.ready or halt(253); 581 literals / 55 arithmetic / 180 comparison primitives; 235 binary / 134 argument / 34 store-address pushes; syntax-directed composition / relative temporary peak 2; three ranged Alpha operands transferred; all 607 stores partitioned / 70 call-cut frames summarized; 64-row counter contexts; absolute B_bc1 stack <=12720 explicit bytes / <=662 hidden returns; all 2630 explicit-stack effects and 687 artifact effects owned ($(wc -c < "$T/control-check.tape" | tr -d ' ')-byte Alpha checker tape)"
+echo "bc block control/effects: 70 proc / 355 block / 291 transition; 613 effect sites / 829 fixed emit bytes; 113 __write_str calls instantiated from one length-ranked exact-output summary; main.ready composes emit_prelude/write_str/skip_ws into the exact 187-byte prefix, then a reusable main.loop split sends normalized zero to halt(0) and nonzero to main.body without consuming it; byte classifiers digit/alpha/alnum are exact over all 256 cbyte values, terminating read_ident returns their maximal prefix, and nonzero expect normalizes then conditionally consumes one delimiter; cbyte/adv/is_space leaf summaries compose through terminating skip_ws_step/skip_ws loops; 78 frame slots / 27 parameter stores / 134 call pops; 169 local loads / 73 local stores; 61 raw loads = 54 fixed-safe + 5 SRC-indexed + 2 table-indexed / 34 raw stores; cursor-zero slurp segment/value/termination summary composed from root through main.ready or halt(253); 581 literals / 55 arithmetic / 180 comparison primitives; 235 binary / 134 argument / 34 store-address pushes; syntax-directed composition / relative temporary peak 2; three ranged Alpha operands transferred; all 607 stores partitioned / 70 call-cut frames summarized; 64-row counter contexts; absolute B_bc1 stack <=12720 explicit bytes / <=662 hidden returns; all 2630 explicit-stack effects and 687 artifact effects owned ($(wc -c < "$T/control-check.tape" | tr -d ' ')-byte Alpha checker tape)"

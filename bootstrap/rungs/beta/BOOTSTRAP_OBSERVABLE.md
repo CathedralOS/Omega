@@ -242,7 +242,14 @@ are valuable teeth, but they do not yet establish the quantified observation:
   end, or in-range NUL, and sets IDLEN to exit CUR minus IDOFF. The only
   backedge strictly decreases `LEN-CUR`; exact calls, fixed-global accesses,
   arithmetic, push families, frame, effects, and decoded-region ownership bind
-  the relation to procedure 12. `expect` is the next frontier;
+  the relation to procedure 12;
+- its delimiter phase gives `expect(ch)` exact meaning under `1<=ch<=255`.
+  Terminating skip_ws first normalizes CUR; mismatch, including logical end or
+  in-range NUL, preserves it, while a nonzero match proves an in-range byte and
+  advances exactly once. Both paths return zero and are quiet apart from that
+  possible CUR change. Exact CFG/call/local/expression/frame and exhaustive
+  ownership joins bind the theorem to procedure 24. The declare/parameter-loop/
+  count_lets cluster is the next frontier;
 - no total `parse_proc` claim is currently made. Malformed procedure bodies can
   make `gen_stmts` diverge while emitting—for example when an unrecognized byte
   is never consumed—so closure requires maximal Return-or-Diverge and finite/
