@@ -202,6 +202,11 @@ are valuable teeth, but they do not yet establish the quantified observation:
   isolation of the depth counters and saved-frame words; raw-memory
   bounds/aliasing must still exclude corruption of those locations before
   absolute `B_bc1` stack safety is transferred;
+- its BC10 stack-register phase constructs one unified owner map for every
+  decoded write to `r14`/`r15` and every memory access through `r15`, deriving
+  exactly 2,634 owned starts from the already checked prelude, prologues,
+  epilogues, pushes, and pops. This closes orphan stack effects in the artifact,
+  while dynamic frame values and ranged raw-store non-aliasing remain open;
 - Alpha out-of-range memory remains undefined in `alpha/SEMANTICS.md` and must be
   excluded by independently checked `B_bc1` bounds before whole-artifact closure
   (or Alpha must be hardened independently);

@@ -166,3 +166,16 @@ words. Raw-memory bounds/aliasing must still show that unrelated stores cannot
 corrupt those locations before the absolute stack obligation is closed.
 Carried local/return values, reachability, and terminal/trace correspondence
 also remain open.
+
+`bc-stack-register-custody.alpha` then transfers the earlier responsibility-
+specific checks into one fresh per-PC owner map. It derives owners from the
+fixed prelude, checked entry-block/frame tables, explicit and synthesized
+epilogues, expression primitives, ordinary-call arities, raw stores, and all
+404 push roots; duplicate owners reject. An independent decoded-instruction
+scan requires that map to equal exactly the 2,634 starts which write `r14` or
+`r15` or address memory through `r15`: 324 writes to `r14`, 1,432 writes to
+`r15`, and 1,131 stack-addressed memory accesses, with 253 saved-frame loads in
+both the first and third totals. This closes exhaustive static custody of the
+artifact's explicit-stack effects. It does not yet prove carried stack/frame
+values or exclude the separately classified ranged raw stores from aliasing
+live frames and depth counters.

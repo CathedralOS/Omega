@@ -201,9 +201,20 @@ cat "$GATE_DIR/bc-block-control.alpha" \
   "$GATE_DIR/bc-expr-primitives.alpha" \
   "$GATE_DIR/bc-stack-pushes.alpha" \
   "$GATE_DIR/bc-expr-composition.alpha" \
-  "$GATE_DIR/bc-call-bounds.alpha" > "$T/control-check.alpha"
+  "$GATE_DIR/bc-call-bounds.alpha" \
+  "$GATE_DIR/bc-stack-register-custody.alpha" > "$T/control-check.alpha"
 "$ASM" < "$T/control-check.alpha" > "$T/control-check.tape"
 stamp_seed "$T/control-check.tape" "$SEED" "$T/control-check" >/dev/null
+
+# Phase-isolated tooth: leave the exact source, tape, witness, and every prior
+# checker phase unchanged, but underreport the prelude fp owner. Adjust only the
+# derived-map subtotal so rejection must come from the exhaustive equality scan.
+sed \
+  -e '/imm r0, 10/{n;s/call stack_owner_mark/call stack_owner_skip_mark/;}' \
+  -e '/stack_owner_count:/,/stack_scan_init/{s/imm r3, 2634/imm r3, 2633/;}' \
+  "$T/control-check.alpha" > "$T/stack-missing-owner.alpha"
+"$ASM" < "$T/stack-missing-owner.alpha" > "$T/stack-missing-owner.tape"
+stamp_seed "$T/stack-missing-owner.tape" "$SEED" "$T/stack-missing-owner" >/dev/null
 
 # Preserve a diagnostic projection of the immediately preceding flat-custody
 # phase.  The same-valued composition witness below must pass this projection
@@ -217,7 +228,8 @@ cat "$GATE_DIR/bc-block-control.alpha" \
   "$GATE_DIR/bc-memory-sites.alpha" \
   "$GATE_DIR/bc-expr-primitives.alpha" \
   "$T/bc-stack-pushes-flat.alpha" \
-  "$GATE_DIR/bc-call-bounds.alpha" > "$T/flat-check.alpha"
+  "$GATE_DIR/bc-call-bounds.alpha" \
+  "$GATE_DIR/bc-stack-register-custody.alpha" > "$T/flat-check.alpha"
 "$ASM" < "$T/flat-check.alpha" > "$T/flat-check.tape"
 stamp_seed "$T/flat-check.tape" "$SEED" "$T/flat-check" >/dev/null
 
@@ -235,6 +247,14 @@ case_run() { # label expected-status input
 case_run "whole compiler control skeleton" 0 "$T/control.bundle"
 case_run "underreported rejected recursive probe" 1 "$T/call-bounds-probe.bundle"
 case_run "underreported root stack bound" 1 "$T/call-bounds-root.bundle"
+set +e
+"$T/stack-missing-owner" < "$T/control.bundle" > "$T/stdout"
+missing_stack_owner_status=$?
+set -e
+if [ "$missing_stack_owner_status" != 1 ] || [ -s "$T/stdout" ]; then
+  echo "bc block control FAIL — underreported stack owner: expected 1/empty, got $missing_stack_owner_status/$(wc -c < "$T/stdout" | tr -d ' ') bytes" >&2
+  exit 1
+fi
 flat_case() { # label input
   set +e
   "$T/flat-check" < "$2" > "$T/stdout"
@@ -341,4 +361,4 @@ for mutation in call-retarget read-register write-register helper-write emit-byt
   fi
 done
 
-echo "bc block control/effects: 70 proc / 355 block / 291 transition; 612 effect sites / 829 fixed emit bytes; 78 frame slots / 27 parameter stores / 134 call pops; 169 local loads / 73 local stores; 62 raw loads / 33 raw stores; 582 literals / 57 arithmetic / 180 comparison primitives; 237 binary / 134 argument / 33 store-address pushes; syntax-directed composition / relative temporary peak 2; source-derived call bound <=12720 explicit bytes / <=662 hidden returns; all 686 artifact effects owned ($(wc -c < "$T/control-check.tape" | tr -d ' ')-byte Alpha checker tape)"
+echo "bc block control/effects: 70 proc / 355 block / 291 transition; 612 effect sites / 829 fixed emit bytes; 78 frame slots / 27 parameter stores / 134 call pops; 169 local loads / 73 local stores; 62 raw loads / 33 raw stores; 582 literals / 57 arithmetic / 180 comparison primitives; 237 binary / 134 argument / 33 store-address pushes; syntax-directed composition / relative temporary peak 2; source-derived call bound <=12720 explicit bytes / <=662 hidden returns; all 2634 explicit-stack effects and 686 artifact effects owned ($(wc -c < "$T/control-check.tape" | tr -d ' ')-byte Alpha checker tape)"
