@@ -562,10 +562,24 @@ quiet and restore callers. Twelve isolated teeth cover bounds/addressing,
 calls/arguments/constants/censuses, and branch meaning. The modules are 11.3 KB
 and 9.5 KB, keeping artifact and relational responsibilities separate.
 
+`bc-literal-skip-shape.alpha` and `bc-literal-skip-summary.alpha` close the two
+literal-aware cursor helpers needed by `count_lets`. Exact shape covers
+`skip_char_lit`/`skip_str_lit` procedures 37..38, all blocks/transitions,
+thirteen calls, returns and synthetic epilogues, frames, primitives, pushes,
+and exhaustive decoded ownership. Their conditional relational summaries do
+not assume well-formed input: the character helper blindly advances three
+bytes, or four after a backslash, and can finish at LEN+2; the string helper
+partitions quote, zero/NUL/end, ordinary, and escape bytes and can finish at
+LEN+1 after a trailing escape. Its natural rank is LEN+1-CUR. A narrowly
+bounded exact-body `ADVX` consequence justifies the out-of-range increments
+without widening the ordinary ADVE theorem. Fourteen isolated teeth cover
+shape, calls, constants, censuses, bounds, deltas, zero-tail preservation, rank,
+and backedge renaming. The modules are 11.6 KB and 18.6 KB.
+
 The eventual `parse_proc` theorem must be maximal, not universally terminating.
 For malformed input, an unrecognized body byte such as `@` can survive both
 `gen_stmt` and the number fallback without cursor progress while `gen_stmts`
 keeps emitting. The honest contract is therefore Return-or-Diverge with exact
-finite/infinite output behavior. The next engineering milestones are the
-literal skippers, `count_lets`, and the parameter loop; the existing typed
-status-252 projection is the only language-design blocker in this area.
+finite/infinite output behavior. The next engineering milestones are the outer
+`count_lets` scan and the parameter loop; the existing typed status-252
+projection is the only language-design blocker in this area.
