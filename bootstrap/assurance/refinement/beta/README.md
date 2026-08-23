@@ -808,13 +808,36 @@ and may finish at `LEN+1`. The theorem emits nothing, restores the two-slot
 frame, and changes only branch-specific CUR. Forty-one isolated canaries live
 in an 8.7 KB harness; shape, finite cases, and path composition are 15.9 KB,
 5.7 KB, and 19.8 KB. `BC_BLOCK_FOCUS=cmp-op` passes with a 251,931-byte
-checker. This does not close fixed keyword recognizers, name lookup, or the
-expression SCC.
+checker. This does not close name lookup or the expression SCC.
+
+`bc-fixed-keyword-shape-core.alpha`,
+`bc-fixed-keyword-data-shape.alpha`, `bc-fixed-keyword-cases.alpha`, and
+`bc-fixed-keyword-summary.alpha` close procedures 15..23: `is_return`,
+`is_state`, `is_to`, `is_when`, `is_byte`, `is_word`, `is_read_byte`,
+`is_write_byte`, and `is_emit`. Descriptor-driven shape binds blocks 54..128,
+transitions 40..96, events 46..159, raw-memory rows 24..32, primitives
+116..352, binary pushes 33..89, argument pushes 243..290, the exact empty
+store-push interval `[381,381)`, zero-slot frames, every epilogue, and the
+decoded aggregate 48-call/75-return/114-store quiet footprint at PCs
+6617..17440. One shared schema, conditional on the carried bounded identifier
+slice and `IDCH`, handles all nine predicates: unequal length returns zero
+before byte access; equal length compares the exact descriptor left-to-right
+and returns zero at the first unequal byte; all bytes equal returns one. The
+independent cases module sweeps all 256 IDCH values for each of 48 descriptor
+positions with exact singleton/complement counts 1/255. Non-aliasable tables
+retain every position proof and all 66 length/mismatch/match outcomes, and the
+summary consumes every prior equal-byte join, so later bytes are not read after
+a mismatch. Each predicate emits nothing, preserves source/input/CUR/compiler
+state, and restores its frame. Forty-two phase-isolated canaries live in a
+10,985-byte harness; core/data shape, cases, and summary are 11,327, 3,835,
+4,677, and 13,566 bytes. `BC_BLOCK_FOCUS=fixed-keyword` passes with a
+261,998-byte checker. This does not close `name_eq`, `lookup`, or the expression
+SCC.
 
 The eventual `parse_proc` theorem must be maximal, not universally terminating.
 For malformed input, an unrecognized body byte such as `@` can survive both
 `gen_stmt` and the number fallback without cursor progress while `gen_stmts`
 keeps emitting. The honest contract is therefore Return-or-Diverge with exact
 finite/infinite output behavior. The next engineering milestone is the body
-Return-or-Diverge relation; the existing typed status-252 projection is the
-only language-design blocker in this area.
+Return-or-Diverge relation; deriving any resource-kind classification from its
+exact proved guard/profile remains implementation work.

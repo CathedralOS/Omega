@@ -5,7 +5,7 @@
 cmp_op_summary_init:
         call cmp_op_require_shape
         call cmp_op_prove_summary
-        jmp scan_owned_effects_init
+        jmp fixed_keyword_summary_init
 
 cmp_op_prove_summary:
         call cmp_op_reset
