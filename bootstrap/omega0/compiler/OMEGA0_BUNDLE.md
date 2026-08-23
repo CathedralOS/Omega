@@ -1,7 +1,9 @@
-# Omega0 canonical source bundle
+# Canonical bridge source bundle (format name `Omega0`)
 
-Omega0 consumes one deterministic byte stream. Until native package loading is
-implemented, multiple source files use this canonical length-delimited bundle.
+The bridge consumes one deterministic byte stream. The `Omega0`/`OMG0BNDL`
+names are retained version-1 format identifiers, not a language rung. Until
+native package loading is implemented, multiple source files use this canonical
+length-delimited bundle.
 The bundle is an auditable compiler input artifact: paths and source bytes are
 preserved exactly, and malformed or noncanonical encodings reject.
 
@@ -30,7 +32,7 @@ or contain `\\`. The decoder rejects trailing bytes after the final entry.
 
 Content is opaque: it may be empty, omit a final newline, or contain any byte.
 No separator is injected, so two tokens from adjacent files cannot fuse and
-diagnostics can retain the exact label and byte offset. The Omega0 frontend is
+diagnostics can retain the exact label and byte offset. The bridge frontend is
 responsible for accepting UTF-8 source after decoding the bundle.
 
 ## Tool and gate

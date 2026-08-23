@@ -5,7 +5,7 @@
 
 The repository distinguishes architectural role from implementation language.
 The former flat `compiler/` inventory has been split: seed-built language rungs,
-external-language on-ramps, assurance, bootstrap Omega, and the product compiler
+external-language on-ramps, assurance, the bootstrap bridge, and the product compiler
 now have separate owners. Compatibility symlinks preserve selected old entry
 points without restoring their old ownership.
 
@@ -40,12 +40,12 @@ bootstrap/
       gates/                soundness, cross-check, and operational-seam gates
     refinement/
       beta/                 Beta-source/Alpha-artifact reconstruction + gates
-      omega0/               Omega0 meaning/artifact reconstruction + TV gates
+      omega0/               transitional bridge reconstruction + TV gate path
 
-  omega0/                   work toward the Delta-built, simple first Omega compiler
-    meaning/                Rust-free Omega/Psi meaning route used by Omega0
+  omega0/                   transitional path; target name: omega-bootstrap/
+    meaning/                Rust-free Omega/Psi meaning route used by the bridge
     compiler/               Delta source, bootstrap profiles, and source-bundle format
-    gates/                  current Delta→Omega validation; future self-build validation
+    gates/                  current Delta→bridge and future hosted-build validation
 
   corpus/                   programs shared across multiple bootstrap seams
 
@@ -71,12 +71,16 @@ product roots.
   proof kernel is not a compiler rung. Its trusted checker implementations,
   untrusted automation, corpora, and integration gates must be visibly
   separated.
-- `bootstrap/omega0/` owns work and artifacts toward the first Delta-built Omega
-  compiler and the minimum Psi/Omega path it needs. It is not the production
-  compiler and is not another language rung.
+- `bootstrap/omega0/` is the transitional physical owner of work and artifacts
+  toward `omega-bootstrap` and the minimum Psi/Omega path it needs. The target
+  path is `bootstrap/omega-bootstrap/`; the existing path is retained only until
+  its gate and compatibility references can be renamed mechanically. The bridge
+  accepts `Ωself`, is not the production compiler, and is not another language
+  rung.
 - `bootstrap/onramps/omega-rust/` owns the current working Rust compiler as an
-  untrusted migration/reference producer. It is removable once the hosted
-  compiler closes.
+  untrusted migration/reference producer. It is removable from bootstrap and
+  release builds once the hosted compiler closes, even if retained in the
+  repository for differential bug finding.
 - `compiler/psi/` and `compiler/omega/` are reserved for the eventual
   Omega-written product source. Their placeholder READMEs are not a compiler
   implementation and do not freeze the bootstrap acceptance profile.
@@ -133,8 +137,8 @@ and its remaining compatibility paths are:
 | current Rust Psi/Omega compiler and CLI | `bootstrap/onramps/omega-rust/` — complete |
 | `bootstrap/assurance/proof-kernel/` (compatibility: `compiler/proof-kernel`) | `bootstrap/assurance/proof-kernel/{implementations,tools,corpus,gates}/` — complete |
 | Beta-source/Alpha-artifact refinement tools (compatibility entries under Alpha) | `bootstrap/assurance/refinement/beta/` — complete |
-| Omega0 meaning/artifact TV encoders and gates (compatibility entries under Omega0 gates) | `bootstrap/assurance/refinement/omega0/` — complete |
-| `bootstrap/omega0/` | placement under `bootstrap/omega0/{meaning,compiler,gates}/` — complete; compiler implementation remains open |
+| bridge meaning/artifact TV encoders and gates (transitional `omega0` paths) | `bootstrap/assurance/refinement/omega0/` — ownership complete; rename open |
+| `bootstrap/omega0/` | target `bootstrap/omega-bootstrap/{meaning,compiler,gates}/`; mechanical rename open, compiler implementation open |
 | `bootstrap/corpus/` (compatibility: `compiler/lattice-corpus`) | `bootstrap/corpus/` — complete |
 | eventual Omega-written Psi/Omega compiler | `compiler/{psi,omega}/` — roots reserved; implementation open |
 

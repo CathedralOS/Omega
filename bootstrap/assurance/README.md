@@ -7,7 +7,8 @@ This directory owns assurance that does not belong to any language rung:
   in the Alpha → Beta → Gamma → Delta build chain.
 - [`refinement/`](refinement/) reconstructs and checks claims across concrete
   compiler edges. `beta/` relates Beta source to Alpha artifacts; `omega0/`
-  carries meaning and artifact checks toward the Delta-built Omega compiler.
+  is the transitional path carrying meaning and artifact checks toward
+  `omega-bootstrap`.
 
 Artifact-specific obligation reconstruction remains distinct from generic proof
 checking. The current Rust realization of Psi judgments lives under

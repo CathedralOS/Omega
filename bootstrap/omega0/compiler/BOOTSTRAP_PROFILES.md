@@ -1,36 +1,40 @@
-# Omega0 bootstrap profiles
+# Bootstrap compiler profiles (transitional `omega0` path)
 
-This file freezes the first executable contracts for the Delta-built Omega
-compiler. It is bootstrap-owned and is not a product Omega language
-specification.
+This file freezes the first executable contracts for the Delta-built bridge
+compiler. The directory and O0/O1 artifact names are transitional implementation
+names; the architectural role is `omega-bootstrap`. This file is
+bootstrap-owned and is not a product Omega language specification.
 
-Three bootstrap contracts are intentionally tracked separately:
+Four contracts are intentionally tracked separately:
 
-- **Delta/Omega0 implementation profile D0** is the language in which Omega0
-  must be written. It is frozen now so the compiler does not acquire facilities
-  merely because the Rust on-ramp has them.
-- **Omega canary acceptance profile O0** is the first input Omega0 must accept.
+- **Delta implementation profile D0** is the current Delta surface used by the
+  bridge canaries. It is frozen so those slices do not acquire facilities merely
+  because the Rust on-ramp has them. It is not the final Delta specification.
+- **Omega canary acceptance profile O0** is the first input the bridge must accept.
   It is frozen now as a vertical proof of the pipeline, not falsely presented as
   sufficient to express the future production compiler.
 - **Omega variable acceptance profile O1** is the first table-driven source
   slice. It is a monotonic extension of O0, frozen at explicit statement and
   storage ceilings below.
+- **Omega self-hosting profile `Ωself`** is the ordinary-Omega source closure
+  from which the production compiler is built. It remains open until that exact
+  source and dependency manifest exists.
 
-The production-self-host acceptance profile remains open until the production
-compiler has an Omega source tree. It will be the smallest monotonic extension
-of O1 that accepts that exact source. Sufficiency cannot be established from the
-current Rust product implementation.
+O0 and O1 are vertical pipeline canaries, not normative ancestors of `Ωself`.
+The eventual profile may reuse their implementation, but it is derived from the
+production source closure rather than declared to be the next numbered canary.
+Sufficiency cannot be established from the current Rust product implementation.
 
 O1 generalizes the O0 body to a bounded sequence of zero or more literal
 `write_line` statements followed by exactly one literal `exit_process`. One
 table-driven frontend, terminal emitter, and direct backend handle every
-admitted statement count. This is still far smaller than the eventual
-production-self-host profile.
+admitted statement count. This is still far smaller than the eventual `Ωself`
+profile.
 
-## D0 — Delta implementation profile for Omega0
+## D0 — current Delta implementation profile
 
-Omega0 source may use only the following already implemented, self-hosted Delta
-surface:
+The current bridge compiler slices may use only the following already
+implemented, self-hosted Delta surface:
 
 - `boundary trait`, `data`, free `machine`, and `Type::machine(&mut self, ...)`
   declarations;
@@ -48,9 +52,10 @@ surface:
 - the fixed-backing allocation convention below.
 
 The calling-profile limits are at most four value parameters for a free machine
-and at most three value parameters for a self method. Omega0 must use checked
-failure before exceeding any source, table, arena, call, or target offset bound.
-It must not discard input or declarations to remain within a bound.
+and at most three value parameters for a self method. A D0 compiler slice must
+use checked failure before exceeding any source, table, arena, call, or target
+offset bound. It must not discard input or declarations to remain within a
+bound.
 
 The following are outside D0: host pointers, ambient heap allocation, individual
 `free`, garbage collection, dynamic locals, threads, atomics, modules, a
@@ -93,6 +98,33 @@ The Delta-written `lowermachine.alp` now applies the same convention at compiler
 scale: one explicitly reserved typed extent is partitioned into integer-offset
 logical tables, while source bytes reserve contiguous cells at runtime in a
 separate byte backing. Checked exhaustion cannot compile a retained prefix.
+
+## `Ωself` — production compiler source profile (open)
+
+`Ωself` is a strict profile of valid Omega source, not a bootstrap dialect or a
+new rung. `omega-bootstrap` will accept exactly this profile; the compiler built
+from it must nevertheless implement the full Omega specification. Every
+accepted construct keeps its ordinary Omega semantics, ABI, layout, and
+artifact contract, and unsupported constructs reject explicitly.
+
+The profile cannot be frozen until `OMEGA-PRODUCT-COMPILER-SOURCE` publishes the
+exact transitive compiler source and build manifest. The working defaults are:
+
+- omit the math/proof surface and linear/dependent types from compiler source;
+- omit terminal-Psi interpreters, REPLs, and product tools not imported by the
+  compiler build;
+- retain ordinary named fields, payload-bearing enums/sum data, and basic
+  generics unless evidence shows that their Delta implementation and assurance
+  cost exceeds their source-level benefit;
+- measure concrete domains, domain polymorphism, advanced generic facilities,
+  numeric/schema field tags such as `0:`, and complex transition payloads
+  against the actual compiler source before admitting them.
+
+The gate must compile the complete manifest under an explicit allowlist and
+carry a negative canary for every rejected feature. The profile includes all
+transitive libraries, generated and compile-time source, build behavior, and
+compiler-imported tools. See
+[`../../../wiki/architecture/bootstrap_lattice/self_hosting_profile.md`](../../../wiki/architecture/bootstrap_lattice/self_hosting_profile.md).
 
 ## O0 — Omega vertical-canary acceptance profile
 
@@ -185,7 +217,7 @@ profile. Native execution, Delta-written `lowermachine`, and the Beta-written
 `../meaning/omega2gamma.beta` plus Gamma interpreter agree on retained operand
 digest 107
 for the canonical `cli_mvp` input, while semantic rejection remains pinned at
-251. Exact coverage must continue to grow with the eventual Omega0 source; this
+251. Exact coverage must continue to grow with the eventual bridge source; this
 gate is not authority for constructs that source has not exercised.
 
 The direct backend is covered through the same lower-rung route. One bounded
@@ -237,12 +269,12 @@ Delta-written `lowermachine`, then requires bundle → vocabulary-25 terminal Ps
 The gate's initial `lowermachine` executable is still produced by the
 disposable Rust on-ramp, and its Darwin assembly/signing uses `clang` and
 `codesign`; this is frozen-O1 dependency/behavior closure, not a Rust-free
-compiler lineage or the production-self-host profile. The lower-rung
+compiler lineage or the `Ωself` profile. The lower-rung
 `omega2gamma.beta` route also executes the 40-machine
 frontend through Gamma and pins the O1 zero/two-write dual-channel results and
 semantic rejection. Its previously unbounded expansion was metadata-table
 aliasing at machine 25, not an inherent cost of the route. O1 remains a small
-vertical compiler slice, not the production-self-host profile.
+vertical compiler slice, not the `Ωself` profile.
 
 The same route now admits the current 695-state `lowermachine.alp` source to
 marker-free elaboration. Its explicit translator ceilings are 1,024 states per
@@ -257,5 +289,5 @@ instead of allocating a persistent Gamma list for every tail-call transfer, and
 the translator's state scanner treats quoted strings atomically so a literal
 `//` cannot hide later declarations. Block-final `write_line` also stops at the
 closing brace when the optional semicolon is absent. This closes whole-compiler
-meaning for the existing Delta compiler; it does not create the future Omega
-compiler or freeze the production-self-host profile.
+meaning for the existing Delta compiler; it does not create
+`omega-bootstrap` or freeze `Ωself`.

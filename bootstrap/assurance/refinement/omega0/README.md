@@ -1,7 +1,7 @@
-# Omega0 refinement reconstruction
+# Bridge refinement reconstruction (transitional `omega0` path)
 
 This directory owns cross-rung reconstruction and checking of claims that join
-Omega/Omega0 meaning or produced artifacts to lower-rung evidence:
+the bridge's Omega meaning or produced artifacts to lower-rung evidence:
 
 - `gamma2claim.py`, `meaning-tv.sh`, and `input-tv.sh` reconstruct meaning-route
   claims and safety obligations from elaborated Gamma;
@@ -20,9 +20,10 @@ retains one Rust dependency only for its diagnostic native leg: it exercises
 the current disposable Delta producer whose result is being checked, not a Rust
 Beta compiler or an authority over the accepted claim.
 
-Omega0's source profiles, meaning elaborator, bundle/artifact gates, and local
-compiler conformance remain under `bootstrap/omega0/`. In particular,
+The bridge's source profiles, meaning elaborator, bundle/artifact gates, and
+local compiler conformance remain under the transitional `bootstrap/omega0/`
+path. In particular,
 `omega-meaning.sh`, `kernel-diamond.sh`, compiler emission tests, and convergence
 gates are not relocated merely because they consume more than one rung: they
-test the Omega0 product/meaning route rather than own obligation
+test the bridge product/meaning route rather than own obligation
 reconstruction.

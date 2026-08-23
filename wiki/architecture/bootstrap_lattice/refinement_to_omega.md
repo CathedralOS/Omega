@@ -1,4 +1,4 @@
-# Refinement → bootstrap Omega → production Omega
+# Refinement → omega-bootstrap → production Omega
 
 [Lattice overview](bootstrap_lattice.md) · [Decisions](decisions.md) · [Refinement pillar](../../../bootstrap/assurance/refinement/beta/REFINEMENT.md)
 
@@ -6,8 +6,9 @@ The instruction-level refinement pillar is structurally complete: for a substant
 compiled alpha machine code is **kernel-proven** to compute its source meaning, for all inputs, without
 running it—two separately constructed symbolic derivations, each differentially pinned to its own reference,
 with equivalence certificates cross-checked by the available checker implementations. This document takes the long
-view the pillar earned: **which of its techniques carry first to the simple
-Delta-built Omega compiler and then across the Omega self-build edge.**
+view the pillar earned: **which of its techniques carry first to the
+Delta-built `omega-bootstrap` compiler and then across the hosted production
+compile.**
 
 The current Rust reference producer under
 `bootstrap/onramps/omega-rust/{psi,omega}/` already sketches the destination in
@@ -75,10 +76,12 @@ independent low-rung proof kernel checks, not by trusting the Rust producer.
 
 Everything above obeys the standing decisions: D1 (Rust exits by role), D2
 (meaning by elaboration to Gamma), D3 (trust via proofs + translation
-validation), D5 (direct checked refinement), and D6 (Delta-built bootstrap Omega,
-then Omega-built production Omega). The first Omega may lower conservatively;
-the same method then validates the optimized self-host result against canonical
-meaning rather than trusting the bootstrap compiler's pedigree.
+validation), D5 (direct checked refinement), and D6 (Delta-built
+`omega-bootstrap`, then the hosted production compiler). The bridge binary and
+its product output may initially be conservatively lowered; the product still
+implements the full optimizer and language. The same method validates that hosted result
+against canonical meaning rather than trusting the bootstrap compiler's
+pedigree.
 
 ## The ∀-input climb (plan of record, 2026-07-05)
 

@@ -70,7 +70,7 @@ The intended progression is:
 
 ```text
 Alpha executor → Alpha assembler → Beta compiler → Gamma → Delta
-              → first Omega compiler → production Omega compiler
+              → omega-bootstrap → production Omega compiler
 ```
 
 Self-reproduction at any compiler stage establishes deterministic dependency

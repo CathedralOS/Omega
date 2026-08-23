@@ -1,17 +1,24 @@
-# `bootstrap/omega0/` — Delta-built first-Omega bootstrap ownership
+# `bootstrap/omega0/` — Delta-built bridge ownership (transitional path)
 
 This directory owns the Rust-free Omega/Psi bootstrap work and the contracts and
-gates for the first Delta-built Omega compiler. It is neither the production
-Omega compiler nor evidence that Delta was absorbed into Omega. Delta remains
-the final Greek compiler-host rung:
+gates for the Delta-built `omega-bootstrap` compiler. The `omega0` directory and
+artifact names are transitional and will be renamed mechanically after their
+current gate references are inventoried; they do not define an Omega0 language
+rung. Delta remains an independent final Greek compiler-host language:
 
 ```text
 Alpha → Beta → Gamma → Delta
                            ↓
-              Omega (Delta-built, simple)
+              omega-bootstrap (accepts Ωself)
                            ↓
-              Omega (Omega-built, optimized)
+              omega (full optimizing compiler; own binary may be conservative)
 ```
+
+`omega-bootstrap` may itself be conservatively built and may conservatively
+lower the product compiler. It must compile the `Ωself` source that implements
+the product optimizer and advanced lowering, but need not contain those passes.
+A later product self-rebuild can optimize the compiler binary; it is optional
+assurance/performance work, not another rung.
 
 Ownership is explicit: `meaning/` contains the Rust-free meaning route,
 `compiler/` contains the first-compiler profiles and source-bundle tooling, and
@@ -49,14 +56,15 @@ reserved `compiler/{psi,omega}/` product roots.
   gates and their untrusted encoders.
 - convergence and certificate gates run emitted evidence through the low-rung
   proof kernel and negative controls.
-- [`compiler/BOOTSTRAP_PROFILES.md`](compiler/BOOTSTRAP_PROFILES.md) freezes the Delta implementation profile for Omega0
-  and the first Omega console canary profile. The production-self-host profile
-  remains open until a production compiler source tree exists in Omega.
+- [`compiler/BOOTSTRAP_PROFILES.md`](compiler/BOOTSTRAP_PROFILES.md) freezes the
+  current Delta implementation profile and the O0/O1 Omega console canaries.
+  The production `Ωself` profile remains open until the exact Omega compiler
+  source and transitive dependency manifest exists.
 - [`compiler/OMEGA0_BUNDLE.md`](compiler/OMEGA0_BUNDLE.md) specifies the canonical length-delimited multi-source
   artifact; `compiler/omega0_bundle.py` and `gates/omega0-bundle-test.sh` are untrusted packing
   and conformance tools for that format.
 
-These are seed pieces for the first Omega compiler, not that compiler itself.
+These are seed pieces for `omega-bootstrap`, not that compiler itself.
 [`compiler/omega0-frontend.alp`](compiler/omega0-frontend.alp) is the canonical
 Delta-written frontend source. It decodes the canonical bundle, lexes, parses,
 resolves, and type/count-checks O0 plus O1's variable straight-line console
@@ -71,21 +79,22 @@ frontend and backend still compose after both are compiled by the Delta-written
 `lowermachine`. Its initial `lowermachine` executable remains a disposable Rust
 on-ramp product, and Darwin assembly/signing still uses `clang` and `codesign`;
 the claim is O1 dependency/behavior closure, not a Rust-free root or general
-Omega checking. This closes O1, not the future full Omega0 backend.
+Omega checking. This closes O1, not the future `Ωself` bridge backend.
 
 ## Coverage boundary
 
 The meaning route covers a growing kernel subset and must refuse unsupported
-shapes loudly. Full Omega source semantics, complete terminal-Psi obligation
-reconstruction, and a Delta-built compiler remain open. The existing
+shapes loudly. Exact `Ωself` source semantics, complete terminal-Psi obligation
+reconstruction, and a Delta-built bridge compiler remain open. The existing
 `lowermachine.alp` now elaborates marker-free and compiles the arithmetic sample
 through this route with the exact native status and 800 output bytes. This is
 whole-compiler meaning evidence for the existing Delta compiler, not the future
-Omega compiler or its production-self-host profile. Exact supported cases
+`omega-bootstrap` compiler or `Ωself`. Exact supported cases
 belong beside the scripts that gate them rather than in a drifting count here.
 
 See:
 
-- [Delta→first-Omega tasks](../../TASKS_BOOTSTRAP.md#delta--first-omega-readiness)
+- [Delta→omega-bootstrap tasks](../../TASKS_BOOTSTRAP.md#delta--omega-bootstrap--production-omega-readiness)
+- [Delta and Ωself](../../wiki/architecture/bootstrap_lattice/self_hosting_profile.md)
 - [Omega toolchain](../../wiki/architecture/bootstrap_lattice/omega_toolchain.md)
 - [Target repository structure](../../wiki/architecture/bootstrap_lattice/repository_structure.md)

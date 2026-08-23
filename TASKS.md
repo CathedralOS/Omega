@@ -1,6 +1,6 @@
 # Tasks
 
-Last pruned: 2026-08-22.
+Last pruned: 2026-08-23.
 
 This file is the current execution queue, not a changelog. Git retains completed
 implementation history; architecture pages and design briefs describe the
@@ -49,13 +49,19 @@ Remaining:
   `bootstrap/onramps/omega-rust/` is a migration/reference producer, not the
   source tree for this task.
 
-  Acceptance: the exact Omega source tree builds a working compiler, passes the
-  applicable product compiler and language suites, contains no Rust
-  implementation under the reserved product roots, and has a deterministic
-  source manifest from which the bootstrap lattice can derive its minimum
-  self-host acceptance profile. Deriving and closing that bootstrap profile is
-  tracked separately in `TASKS_BOOTSTRAP.md`; product Psi/Omega implementation
-  work must not be added there.
+  Acceptance: the exact Omega source tree builds a compiler that implements the
+  full Omega specification, including the production optimizer and lowering
+  pipeline, passes the applicable product compiler and language suites, and
+  contains no Rust implementation under the
+  reserved product roots. Publish a deterministic manifest of every transitive
+  compiler module, library, generated/compile-time source, build input, and tool
+  imported by that build. Keep this source closure within the ordinary-Omega
+  `Ωself` profile once it is derived: using a deliberately narrow set of Omega
+  features in the compiler implementation does not narrow the language the
+  resulting compiler implements. Deriving, enforcing, and closing `Ωself` and
+  the Delta-built `omega-bootstrap` compiler are tracked separately in
+  `TASKS_BOOTSTRAP.md`; product Psi/Omega implementation work must not be added
+  there.
 
 ## Execution order
 

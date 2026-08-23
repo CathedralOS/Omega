@@ -37,10 +37,10 @@ DELTA_ARCH=aarch64 cargo run -- ../../rungs/delta/samples/shape.alp out  # macOS
 
 ## Status
 
-- **Omega0 frontend O1 — DONE for native/self-host, direct artifacts, and the
+- **Bridge frontend O1 — DONE for native/self-host, direct artifacts, and the
   current lower-rung observations.**
   `../../omega0/compiler/omega0-frontend.alp` is the canonical first
-  Delta-written Omega compiler slice (`samples/omega0-frontend.alp` is a
+  Delta-written bridge compiler slice (`samples/omega0-frontend.alp` is a
   compatibility symlink):
   canonical one-source bundle decoding, checked source storage, complete UTF-8
   validation, streaming lexing, and exact O0/O1 parsing/name/type/count checks,
@@ -152,7 +152,7 @@ arenas/buffers as self fields, and lexer/parser/emitter helper machines mutate
 them through `self.*` method calls. **`lowermachine.alp` self-compiles** (the
 byte-identical fixed point), so the Rust on-ramp is discardable from steady state.
 
-`samples/bootstrap-storage.alp` fixes the first Omega0 storage convention over
+`samples/bootstrap-storage.alp` fixes the current D0 bridge storage convention over
 that surface: runtime-sized, aligned reservations return integer offsets into an
 explicit fixed backing array; exhaustion preserves allocator state; and a mark
 and reset pair provides bulk reclamation. `lowermachine.alp` now uses that shape
@@ -199,6 +199,8 @@ Each is on both backends and keeps the self-compile fixed point byte-identical
   bounds; `>4`-arg free calls already error. The Gamma meaning route remains the
   semantic authority.
 - Retire the remaining inherited `alpha-rs` framing as the Delta surface firms up.
-- Make Delta sufficient to build the simple, spec-compliant bootstrap Omega
-  compiler. Advanced optimization belongs in the subsequent Omega-built Omega
-  compiler, not on this edge.
+- Finish Delta's robust literal compiler-host specification, then make it
+  sufficient to implement `omega-bootstrap` with exact `Ωself` acceptance.
+  The bridge may conservatively lower the production compiler, but it must
+  correctly compile the `Ωself` source that implements the full optimizer and
+  advanced lowering. Those product passes need not be implemented twice.
