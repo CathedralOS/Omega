@@ -1,5 +1,7 @@
+use crate::audit::{PackageGraphAuditError, audit_package_graph};
 use crate::diff::{ManifestDelta, ManifestDiff, diff_package_capability_manifests};
-use crate::manifest::PackageCapabilityManifest;
+use crate::lock::{PackageLock, PackageLockAssemblyError};
+use crate::manifest::{PackageCapabilityManifest, PackageName};
 use crate::review::CapabilityChangeReceipt;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -181,6 +183,50 @@ pub enum PackageUpdateAdmissionError {
     },
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PackageLockUpdatePlan {
+    pub target_package: String,
+    pub current_lock_fingerprint: String,
+    pub decision: PackageUpdateDecision,
+    pub candidate_lock: Option<PackageLock>,
+}
+
+impl PackageLockUpdatePlan {
+    pub fn is_admitted(&self) -> bool {
+        self.decision.is_admitted()
+    }
+
+    pub fn to_text(&self) -> String {
+        let mut report = String::new();
+        report.push_str("package lock update plan\n");
+        report.push_str("target: ");
+        report.push_str(&self.target_package);
+        report.push('\n');
+        report.push_str("current lock: ");
+        report.push_str(&self.current_lock_fingerprint);
+        report.push('\n');
+        if let Some(lock) = &self.candidate_lock {
+            report.push_str("candidate lock: ");
+            report.push_str(&lock.fingerprint());
+            report.push('\n');
+        } else {
+            report.push_str("candidate lock: none\n");
+        }
+        report.push_str(&self.decision.to_text());
+        report
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PackageLockUpdatePlanError {
+    CurrentGraph(PackageGraphAuditError),
+    MissingCurrentManifest { package: String },
+    MissingCandidateManifest { package: String },
+    TargetNotLocked { package: String },
+    Admission(PackageUpdateAdmissionError),
+    CandidateLock(PackageLockAssemblyError),
+}
+
 pub fn decide_default_package_update(
     old: &PackageCapabilityManifest,
     new: &PackageCapabilityManifest,
@@ -217,6 +263,65 @@ pub fn decide_default_package_update(
             blocking_deltas,
         })
     }
+}
+
+pub fn plan_package_lock_update(
+    current_lock: &PackageLock,
+    current_manifests: &[PackageCapabilityManifest],
+    candidate_manifests: &[PackageCapabilityManifest],
+    target_package: &PackageName,
+    receipt: Option<&CapabilityChangeReceipt>,
+) -> Result<PackageLockUpdatePlan, PackageLockUpdatePlanError> {
+    audit_package_graph(current_lock, current_manifests)
+        .map_err(PackageLockUpdatePlanError::CurrentGraph)?;
+    if current_lock.package(target_package).is_none() {
+        return Err(PackageLockUpdatePlanError::TargetNotLocked {
+            package: target_package.as_str().to_owned(),
+        });
+    }
+    let current_manifest = manifest_for(current_manifests, target_package).ok_or_else(|| {
+        PackageLockUpdatePlanError::MissingCurrentManifest {
+            package: target_package.as_str().to_owned(),
+        }
+    })?;
+    let candidate_manifest =
+        manifest_for(candidate_manifests, target_package).ok_or_else(|| {
+            PackageLockUpdatePlanError::MissingCandidateManifest {
+                package: target_package.as_str().to_owned(),
+            }
+        })?;
+
+    let decision = if let Some(receipt) = receipt {
+        decide_reviewed_package_update(current_manifest, candidate_manifest, receipt)
+    } else {
+        decide_default_package_update(current_manifest, candidate_manifest)
+    }
+    .map_err(PackageLockUpdatePlanError::Admission)?;
+
+    let candidate_lock = if decision.is_admitted() {
+        Some(
+            PackageLock::from_manifests(current_lock.root_package.clone(), candidate_manifests)
+                .map_err(PackageLockUpdatePlanError::CandidateLock)?,
+        )
+    } else {
+        None
+    };
+
+    Ok(PackageLockUpdatePlan {
+        target_package: target_package.as_str().to_owned(),
+        current_lock_fingerprint: current_lock.fingerprint(),
+        decision,
+        candidate_lock,
+    })
+}
+
+fn manifest_for<'a>(
+    manifests: &'a [PackageCapabilityManifest],
+    package: &PackageName,
+) -> Option<&'a PackageCapabilityManifest> {
+    manifests
+        .iter()
+        .find(|manifest| &manifest.package == package)
 }
 
 pub fn decide_reviewed_package_update(
@@ -264,7 +369,8 @@ pub fn decide_reviewed_package_update(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::manifest::{PackageName, SourceIdentity};
+    use crate::lock::{LockedDependency, LockedPackage};
+    use crate::manifest::{AliasName, DependencyAlias, PackageName, SourceIdentity};
     use crate::review::CapabilityChangeReceipt;
 
     fn manifest(package: &str, resolved: &str) -> PackageCapabilityManifest {
@@ -276,6 +382,46 @@ mod tests {
                 resolved: resolved.to_owned(),
             },
         )
+    }
+
+    fn alias(name: &str) -> AliasName {
+        AliasName::parse(name).unwrap()
+    }
+
+    fn package(name: &str) -> PackageName {
+        PackageName::parse(name).unwrap()
+    }
+
+    fn locked_package(manifest: &PackageCapabilityManifest) -> LockedPackage {
+        LockedPackage {
+            package: manifest.package.clone(),
+            source_kind: manifest.source.kind.clone(),
+            source_locator: manifest.source.locator.clone(),
+            source_identity: manifest.source.resolved.clone(),
+            manifest_fingerprint: manifest.fingerprint(),
+            build_observation: manifest.build_machine.observation_class.clone(),
+            dependencies: Vec::new(),
+            trust_receipts: Vec::new(),
+        }
+    }
+
+    fn root_and_child_manifests(
+        child: PackageCapabilityManifest,
+    ) -> (PackageLock, Vec<PackageCapabilityManifest>) {
+        let mut root_manifest = manifest("graph-workbench", "commit:root");
+        root_manifest.dependency_aliases.push(DependencyAlias {
+            alias: alias("file_journal"),
+            package: package("file-journal"),
+            source_fingerprint: "source:file-journal".to_owned(),
+        });
+        let mut root = locked_package(&root_manifest);
+        root.dependencies.push(LockedDependency {
+            alias: alias("file_journal"),
+            package: package("file-journal"),
+        });
+        let mut lock = PackageLock::new(package("graph-workbench"));
+        lock.packages = vec![root, locked_package(&child)];
+        (lock, vec![root_manifest, child])
     }
 
     #[test]
@@ -386,6 +532,97 @@ mod tests {
             PackageUpdateDecision::RejectReceiptMismatch { .. }
         ));
         assert!(decision.to_text().contains("receipt mismatch"));
+    }
+
+    #[test]
+    fn lock_update_plan_admits_source_only_candidate_lock() {
+        let current_child = manifest("file-journal", "commit:old");
+        let (current_lock, current_manifests) = root_and_child_manifests(current_child);
+        let candidate_child = manifest("file-journal", "commit:new");
+        let (_, candidate_manifests) = root_and_child_manifests(candidate_child);
+
+        let plan = plan_package_lock_update(
+            &current_lock,
+            &current_manifests,
+            &candidate_manifests,
+            &package("file-journal"),
+            None,
+        )
+        .expect("source-only update should plan");
+
+        assert!(plan.is_admitted());
+        let candidate_lock = plan
+            .candidate_lock
+            .as_ref()
+            .expect("admitted plan should include candidate lock");
+        let target = candidate_lock
+            .package(&package("file-journal"))
+            .expect("candidate lock should contain target");
+        assert_eq!(target.source_identity, "commit:new");
+        assert!(plan.to_text().contains("candidate lock: "));
+    }
+
+    #[test]
+    fn lock_update_plan_rejects_manifest_change_without_candidate_lock() {
+        let current_child = manifest("file-journal", "commit:old");
+        let (current_lock, current_manifests) = root_and_child_manifests(current_child);
+        let mut candidate_child = manifest("file-journal", "commit:new");
+        candidate_child
+            .exported_service_reach
+            .push("FilesystemHost".to_owned());
+        let (_, candidate_manifests) = root_and_child_manifests(candidate_child);
+
+        let plan = plan_package_lock_update(
+            &current_lock,
+            &current_manifests,
+            &candidate_manifests,
+            &package("file-journal"),
+            None,
+        )
+        .expect("capability-changing update should produce rejection plan");
+
+        assert!(!plan.is_admitted());
+        assert!(plan.candidate_lock.is_none());
+        assert!(matches!(
+            plan.decision,
+            PackageUpdateDecision::RejectManifestChange { .. }
+        ));
+    }
+
+    #[test]
+    fn lock_update_plan_admits_exact_review_receipt() {
+        let current_child = manifest("file-journal", "commit:old");
+        let (current_lock, current_manifests) = root_and_child_manifests(current_child.clone());
+        let mut candidate_child = manifest("file-journal", "commit:new");
+        candidate_child
+            .exported_service_reach
+            .push("FilesystemHost".to_owned());
+        let (_, candidate_manifests) = root_and_child_manifests(candidate_child.clone());
+        let diff = diff_package_capability_manifests(&current_child, &candidate_child);
+        let receipt = CapabilityChangeReceipt::from_diff(
+            &diff,
+            current_child.source.resolved,
+            candidate_child.source.resolved,
+            "reviewer@example.invalid",
+            "audited filesystem reach",
+        )
+        .expect("receipt should be valid");
+
+        let plan = plan_package_lock_update(
+            &current_lock,
+            &current_manifests,
+            &candidate_manifests,
+            &package("file-journal"),
+            Some(&receipt),
+        )
+        .expect("reviewed update should plan");
+
+        assert!(plan.is_admitted());
+        assert!(plan.candidate_lock.is_some());
+        assert!(matches!(
+            plan.decision,
+            PackageUpdateDecision::AdmitReviewedChange { .. }
+        ));
     }
 
     #[test]
