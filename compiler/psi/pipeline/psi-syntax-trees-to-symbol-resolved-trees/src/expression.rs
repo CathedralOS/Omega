@@ -343,9 +343,14 @@ fn lower_expression_node_into_table(
                 })),
             )
         }
-        syntax::expression::ExpressionNode::Mutable(expression) => {
-            let expression = lower_expression_into_table(lowerer, syntax_trees, *expression)?;
-            Ok(expression_table(lowerer).insert(ExpressionNode::Mutable(expression)))
+        syntax::expression::ExpressionNode::Borrow(expression) => {
+            let target = lower_expression_into_table(lowerer, syntax_trees, expression.target)?;
+            Ok(expression_table(lowerer).insert(ExpressionNode::Borrow(
+                psi_symbol_resolved_trees::expression::TableBorrowExpression {
+                    target,
+                    access: expression.access,
+                },
+            )))
         }
         syntax::expression::ExpressionNode::Name(path) => {
             // A `Type::NAME` path naming a const substitutes a fresh copy of

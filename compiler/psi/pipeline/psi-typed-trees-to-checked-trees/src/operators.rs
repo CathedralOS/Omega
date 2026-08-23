@@ -187,9 +187,15 @@ fn collect_expression_operator_use(
                 candidates,
             );
         }
-        ExpressionNode::Mutable(inner) => {
+        ExpressionNode::Borrow(inner) => {
             collect_expression_operator_use(
-                program, *inner, origin, seen, uses, named_uses, candidates,
+                program,
+                inner.target,
+                origin,
+                seen,
+                uses,
+                named_uses,
+                candidates,
             );
         }
         ExpressionNode::Unary(unary) => {

@@ -334,12 +334,12 @@ fn judge_expression_qualification_casts(
                 diagnostics,
             );
         }
-        ExpressionNode::Mutable(inner) => {
+        ExpressionNode::Borrow(inner) => {
             judge_expression_qualification_casts(
                 program,
                 machine,
                 state,
-                *inner,
+                inner.target,
                 judged,
                 diagnostics,
             );

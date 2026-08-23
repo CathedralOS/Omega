@@ -43,8 +43,8 @@ fn float_expression_interval(
                 maximum: value,
             })
         }
-        ExpressionNode::Mutable(inner) => {
-            float_expression_interval(program, machine, state, *inner)
+        ExpressionNode::Borrow(inner) => {
+            float_expression_interval(program, machine, state, inner.target)
         }
         ExpressionNode::Unary(unary) => {
             float_expression_interval(program, machine, state, unary.operand)

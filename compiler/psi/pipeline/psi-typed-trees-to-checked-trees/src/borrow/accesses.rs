@@ -45,9 +45,16 @@ fn collect_argument_accesses(
     expression: ExpressionHandle,
 ) {
     match collection.program.expression_table.expression(expression) {
-        ExpressionNode::Mutable(inner_expression) => {
-            if let Some(access_place) = collection.borrow_access_place(*inner_expression) {
-                collection.append_argument_access(access_place, BorrowAccessKind::Mutable);
+        ExpressionNode::Borrow(inner_expression) => {
+            if let Some(access_place) = collection.borrow_access_place(inner_expression.target) {
+                let kind = match inner_expression.access {
+                    psi_language_semantics::ReferenceAccess::Mutable => BorrowAccessKind::Mutable,
+                    psi_language_semantics::ReferenceAccess::WriteOnly => {
+                        BorrowAccessKind::WriteOnly
+                    }
+                    psi_language_semantics::ReferenceAccess::Shared => BorrowAccessKind::Read,
+                };
+                collection.append_argument_access(access_place, kind);
             }
         }
         _ => collect_read_accesses(collection, expression),

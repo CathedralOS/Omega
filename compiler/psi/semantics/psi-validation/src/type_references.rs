@@ -68,6 +68,17 @@ pub(crate) enum TypeReferenceOwner<'program> {
 }
 
 impl TypeReferenceOwner<'_> {
+    fn allows_checked_write_only_parameter(&self) -> bool {
+        matches!(
+            self,
+            Self::StateParameter {
+                owner: StateSignatureOwner::Machine(_),
+                generic_depth: 0,
+                ..
+            }
+        )
+    }
+
     /// `Self` is a legal type name inside TRAIT machine signatures
     /// (`machine equals(&self, other: &Self) -> bool;`): it denotes the
     /// conforming type, substituted per conformance.
@@ -310,9 +321,11 @@ fn validate_type_reference_handle_with_context(
             access,
             lifetime,
         } => {
-            if *access == psi_language_semantics::ReferenceAccess::WriteOnly {
+            if *access == psi_language_semantics::ReferenceAccess::WriteOnly
+                && !owner.allows_checked_write_only_parameter()
+            {
                 diagnostics.push(Diagnostic::error(format!(
-                    "{owner} uses `&write`, whose source identity is recognized but whose checked operation set is not implemented yet"
+                    "{owner} uses `&write` outside the checked whole-scalar parameter slice; write-only fields, locals, returns, operators, traits, and nested generic arguments are not implemented yet"
                 )));
             }
             if let Some(lifetime) = lifetime

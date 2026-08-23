@@ -32,7 +32,7 @@ impl<'program> Evaluator<'program> {
         frame: &Frame,
     ) -> Option<TypeReferenceHandle> {
         match self.program.expression_table.expression(expression) {
-            ExpressionNode::Mutable(inner) => self.expression_type_reference(*inner, frame),
+            ExpressionNode::Borrow(inner) => self.expression_type_reference(inner.target, frame),
             ExpressionNode::Cast(cast) => Some(cast.target_type),
             ExpressionNode::Indexed(indexed) => {
                 let collection = self.expression_type_reference(indexed.collection, frame)?;
@@ -263,7 +263,7 @@ impl<'program> Evaluator<'program> {
             ExpressionNode::Cast(cast) => {
                 Some((self.cast_target_primitive(cast.target_type)?, cast.domain))
             }
-            ExpressionNode::Mutable(inner) => self.expression_scalar_type(*inner, frame),
+            ExpressionNode::Borrow(inner) => self.expression_scalar_type(inner.target, frame),
             ExpressionNode::Unary(unary) => self.expression_scalar_type(unary.operand, frame),
             // A LANDED float literal witnesses its format (the F2a suffix /
             // F2b destination / F2c comparison stamps): an anonymous constant

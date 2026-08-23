@@ -52,7 +52,7 @@ pub(super) fn check_call_access_conflicts(
     }
 
     for (index, access) in accesses.iter().enumerate() {
-        if access.kind != BorrowAccessKind::Mutable {
+        if !access.kind.is_exclusive() {
             continue;
         }
 
@@ -69,6 +69,10 @@ pub(super) fn check_call_access_conflicts(
                 BorrowAccessKind::Read => diagnostics.push(Diagnostic::error(format!(
                     "state `{target_name}` receives `{}` as both mutable and read-only",
                     borrow_access_label(program, &facts.borrow, access),
+                ))),
+                BorrowAccessKind::WriteOnly => diagnostics.push(Diagnostic::error(format!(
+                    "state `{target_name}` receives write-only `{}` overlapping another argument in the same call",
+                    borrow_access_label(program, &facts.borrow, access)
                 ))),
             }
         }

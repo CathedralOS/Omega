@@ -195,7 +195,7 @@ pub(super) fn resolve_runtime_static_integer(
                     static_values,
                 )
             }),
-        Expression::Indexed(_) | Expression::Member(_) | Expression::Mutable(_) => {
+        Expression::Indexed(_) | Expression::Member(_) | Expression::Borrow(_) => {
             resolve_runtime_resolved_static_integer(
                 input,
                 resolve_runtime_alias_expression(
@@ -279,7 +279,7 @@ pub(super) fn resolve_runtime_static_integer_in_table(
             let key = PlaceKey::from_expression_handle(expressions, expression)?;
             static_values.get(&key)
         }
-        ExpressionNode::Indexed(_) | ExpressionNode::Mutable(_) => {
+        ExpressionNode::Indexed(_) | ExpressionNode::Borrow(_) => {
             let key = PlaceKey::from_expression_handle(expressions, expression)?;
             static_values.get(&key)
         }
@@ -323,9 +323,11 @@ pub(super) fn resolve_runtime_static_integer_landing_in_table(
                     )
                 })
         }
-        ExpressionNode::Mutable(inner) => {
-            resolve_runtime_static_integer_landing_in_table(expressions, *inner, static_values)
-        }
+        ExpressionNode::Borrow(inner) => resolve_runtime_static_integer_landing_in_table(
+            expressions,
+            inner.target,
+            static_values,
+        ),
         _ => {
             let key = PlaceKey::from_expression_handle(expressions, expression)?;
             static_values.get(&key)?.landing()
@@ -375,7 +377,7 @@ fn resolve_runtime_resolved_static_integer(
             )))
         }
         Expression::Range(_) => None,
-        Expression::Mutable(_)
+        Expression::Borrow(_)
         | Expression::ArrayLiteral(_)
         | Expression::Binary(_)
         | Expression::Call(_)
@@ -396,7 +398,7 @@ fn resolve_runtime_resolved_static_integer(
 /// (returns `None`).
 fn runtime_indexed_write_collection(target: &Expression) -> Option<PlaceKey> {
     match target {
-        Expression::Mutable(inner) => runtime_indexed_write_collection(inner),
+        Expression::Borrow(inner) => runtime_indexed_write_collection(&inner.target),
         Expression::Indexed(indexed) => {
             if matches!(indexed.index, Expression::Integer(_)) {
                 return None;
@@ -425,7 +427,7 @@ fn runtime_indexed_write_collection(target: &Expression) -> Option<PlaceKey> {
 /// `grid[1]` -> `grid[1]` (precise); `rows[i].data` -> `rows`.
 fn nested_place_key(expression: &Expression) -> Option<PlaceKey> {
     match expression {
-        Expression::Mutable(inner) => nested_place_key(inner),
+        Expression::Borrow(inner) => nested_place_key(&inner.target),
         Expression::Indexed(indexed) => {
             if !matches!(indexed.index, Expression::Integer(_))
                 || place_chain_has_runtime_index(&indexed.collection)
@@ -446,7 +448,7 @@ fn nested_place_key(expression: &Expression) -> Option<PlaceKey> {
 
 fn place_chain_has_runtime_index(expression: &Expression) -> bool {
     match expression {
-        Expression::Mutable(inner) => place_chain_has_runtime_index(inner),
+        Expression::Borrow(inner) => place_chain_has_runtime_index(&inner.target),
         Expression::Indexed(indexed) => {
             !matches!(indexed.index, Expression::Integer(_))
                 || place_chain_has_runtime_index(&indexed.collection)
@@ -462,8 +464,8 @@ fn runtime_indexed_write_collection_in_table(
     target: ExpressionHandle,
 ) -> Option<PlaceKey> {
     match expressions.expression(target) {
-        ExpressionNode::Mutable(inner) => {
-            runtime_indexed_write_collection_in_table(expressions, *inner)
+        ExpressionNode::Borrow(inner) => {
+            runtime_indexed_write_collection_in_table(expressions, inner.target)
         }
         ExpressionNode::Indexed(indexed) => {
             if matches!(
@@ -489,7 +491,7 @@ fn nested_place_key_in_table(
     expression: ExpressionHandle,
 ) -> Option<PlaceKey> {
     match expressions.expression(expression) {
-        ExpressionNode::Mutable(inner) => nested_place_key_in_table(expressions, *inner),
+        ExpressionNode::Borrow(inner) => nested_place_key_in_table(expressions, inner.target),
         ExpressionNode::Indexed(indexed) => {
             if !matches!(
                 expressions.expression(indexed.index),
@@ -517,8 +519,8 @@ fn place_chain_has_runtime_index_in_table(
     expression: ExpressionHandle,
 ) -> bool {
     match expressions.expression(expression) {
-        ExpressionNode::Mutable(inner) => {
-            place_chain_has_runtime_index_in_table(expressions, *inner)
+        ExpressionNode::Borrow(inner) => {
+            place_chain_has_runtime_index_in_table(expressions, inner.target)
         }
         ExpressionNode::Indexed(indexed) => {
             !matches!(

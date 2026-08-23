@@ -7,7 +7,7 @@ impl ContractExpressionEvaluator<'_, '_> {
         let resolved = self.resolved_expression(expression).unwrap_or(expression);
         match self.program.expression_table.expression(resolved) {
             ExpressionNode::ArrayLiteral(values) => Some(values.count() as usize),
-            ExpressionNode::Mutable(inner) => self.collection_length(*inner),
+            ExpressionNode::Borrow(inner) => self.collection_length(inner.target),
             // A member that does not resolve to a literal may still be a
             // fixed-array FIELD of the callee's self type (`self.items` with
             // `items: [T; N]`): its extent is pinned by the declared type,

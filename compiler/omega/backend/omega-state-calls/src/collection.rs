@@ -746,14 +746,14 @@ fn collect_expression_state_calls_in_table(
             member.receiver,
             calls,
         ),
-        ExpressionNode::Mutable(inner) => collect_expression_state_calls_in_table(
+        ExpressionNode::Borrow(inner) => collect_expression_state_calls_in_table(
             context,
             machine,
             source_key,
             statement_index,
             call_ordinal,
             role,
-            *inner,
+            inner.target,
             calls,
         ),
         ExpressionNode::Unary(unary) => collect_expression_state_calls_in_table(
@@ -809,8 +809,8 @@ pub(crate) fn append_receiver_path(
     }
 
     match expressions.expression(receiver) {
-        ExpressionNode::Mutable(inner) => {
-            append_receiver_path(expressions, *inner, segments, span);
+        ExpressionNode::Borrow(inner) => {
+            append_receiver_path(expressions, inner.target, segments, span);
         }
         ExpressionNode::Name(path) => {
             if let Some(name) = expressions.name_path_members(path.members).last() {
@@ -831,7 +831,7 @@ fn call_receiver_parts(expressions: &ExpressionTable, receiver: ExpressionHandle
     }
 
     match expressions.expression(receiver) {
-        ExpressionNode::Mutable(inner) => call_receiver_parts(expressions, *inner),
+        ExpressionNode::Borrow(inner) => call_receiver_parts(expressions, inner.target),
         ExpressionNode::Name(path) => ReceiverParts {
             symbol: path.symbol,
             name: expressions

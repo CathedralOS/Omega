@@ -566,7 +566,7 @@ fn argument_forwards_mutable_reference(
                             program
                                 .expression_table
                                 .expression(local_data.initial_value),
-                            ExpressionNode::Mutable(_)
+                            ExpressionNode::Borrow(_)
                         ))
             })
     })
@@ -676,9 +676,40 @@ fn validate_call_arguments_handles_with_policy_retention(
         .iter()
         .zip(parameters.iter().filter(|parameter| !parameter.is_self))
     {
+        let expected_access = match program
+            .type_reference_table
+            .type_reference(parameter.type_reference)
+        {
+            psi_typed_trees::types::TypeReferenceNode::Reference { access, .. } => Some(*access),
+            _ => None,
+        };
+        let supplied_access = match program.expression_table.expression(*argument) {
+            ExpressionNode::Borrow(borrow) => Some(borrow.access),
+            _ => None,
+        };
+
+        if expected_access == Some(psi_language_semantics::ReferenceAccess::WriteOnly)
+            && supplied_access != Some(psi_language_semantics::ReferenceAccess::WriteOnly)
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "argument `{}` for state `{}` requires explicit write-only attenuation; pass `&write ...` (a bare value or `&mut ...` does not establish the no-read contract)",
+                parameter.name, target_name,
+            )));
+            continue;
+        }
+        if supplied_access == Some(psi_language_semantics::ReferenceAccess::WriteOnly)
+            && expected_access != Some(psi_language_semantics::ReferenceAccess::WriteOnly)
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "argument `{}` for state `{}` supplies `&write` to a parameter that may read; write-only authority cannot widen to shared or mutable access",
+                parameter.name, target_name,
+            )));
+            continue;
+        }
+
         let is_mutable = matches!(
             program.expression_table.expression(*argument),
-            ExpressionNode::Mutable(_)
+            ExpressionNode::Borrow(_)
         );
 
         if parameter.is_mutable && !is_mutable {

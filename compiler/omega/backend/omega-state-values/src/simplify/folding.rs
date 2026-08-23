@@ -612,7 +612,7 @@ fn expression_nodes_within(expression: &Expression, budget: usize) -> bool {
                 stack.push(&binary.right);
             }
             Expression::Unary(unary) => stack.push(&unary.operand),
-            Expression::Mutable(inner) => stack.push(inner),
+            Expression::Borrow(inner) => stack.push(&inner.target),
             _ => {}
         }
     }
@@ -1205,8 +1205,8 @@ pub(super) fn expressions_equivalent(left: &Expression, right: &Expression) -> b
                     && left.member == right.member))
                 && expressions_equivalent(&left.receiver, &right.receiver)
         }
-        (Expression::Mutable(left), Expression::Mutable(right)) => {
-            expressions_equivalent(left, right)
+        (Expression::Borrow(left), Expression::Borrow(right)) => {
+            left.access == right.access && expressions_equivalent(&left.target, &right.target)
         }
         (Expression::Name(left), Expression::Name(right)) => {
             left.symbol().is_valid() && right.symbol().is_valid() && left.symbol() == right.symbol()

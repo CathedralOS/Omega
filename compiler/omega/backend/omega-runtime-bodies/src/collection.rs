@@ -683,7 +683,7 @@ fn assignment_value_calls_in_evaluation_order<'plan>(
         }
         match expressions.expression(expression) {
             ExpressionNode::Member(member) => member.member_symbol,
-            ExpressionNode::Mutable(inner) => receiver_symbol(expressions, *inner),
+            ExpressionNode::Borrow(inner) => receiver_symbol(expressions, inner.target),
             ExpressionNode::Name(path) => path.symbol,
             _ => psi_symbols::SymbolHandle::invalid(),
         }
@@ -755,7 +755,7 @@ fn assignment_value_calls_in_evaluation_order<'plan>(
             ExpressionNode::Member(member) => {
                 visit(context, member.receiver, calls, cursor, ordered)
             }
-            ExpressionNode::Mutable(inner) => visit(context, *inner, calls, cursor, ordered),
+            ExpressionNode::Borrow(inner) => visit(context, inner.target, calls, cursor, ordered),
             ExpressionNode::Range(range) => {
                 if range.start.is_valid() {
                     visit(context, range.start, calls, cursor, ordered);

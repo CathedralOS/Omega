@@ -184,8 +184,8 @@ fn validation_expression_mentions_field(
             member.member.as_str() == field.as_str()
                 || validation_expression_mentions_field(program, member.receiver, field)
         }
-        ExpressionNode::Mutable(inner) => {
-            validation_expression_mentions_field(program, *inner, field)
+        ExpressionNode::Borrow(inner) => {
+            validation_expression_mentions_field(program, inner.target, field)
         }
         ExpressionNode::Indexed(indexed) => {
             validation_expression_mentions_field(program, indexed.collection, field)
@@ -306,7 +306,7 @@ fn collect_self_fields(
             collect_self_fields(program, binary.left, fields);
             collect_self_fields(program, binary.right, fields);
         }
-        ExpressionNode::Mutable(inner) => collect_self_fields(program, *inner, fields),
+        ExpressionNode::Borrow(inner) => collect_self_fields(program, inner.target, fields),
         ExpressionNode::Cast(cast) => collect_self_fields(program, cast.value, fields),
         _ => {}
     }

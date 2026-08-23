@@ -127,7 +127,7 @@ pub(crate) fn text_place_for_buffer_target(
     }
 
     match *expressions.expression(target) {
-        ExpressionNode::Mutable(inner) => text_place_for_buffer_target(expressions, inner),
+        ExpressionNode::Borrow(inner) => text_place_for_buffer_target(expressions, inner.target),
         _ => ExpressionHandle::invalid(),
     }
 }

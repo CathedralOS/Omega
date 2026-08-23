@@ -30,6 +30,7 @@ pub(crate) fn remap_borrow_argument_access_owned(
         kind: match access.kind {
             omega_state_graph::StateBorrowAccessKind::Read => StateBorrowAccessKind::Read,
             omega_state_graph::StateBorrowAccessKind::Mutable => StateBorrowAccessKind::Mutable,
+            omega_state_graph::StateBorrowAccessKind::WriteOnly => StateBorrowAccessKind::WriteOnly,
         },
     }
 }

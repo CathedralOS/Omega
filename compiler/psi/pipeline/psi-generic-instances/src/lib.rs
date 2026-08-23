@@ -1605,7 +1605,7 @@ fn collect_expression_handles(
         ExpressionNode::Member(member) => {
             collect_expression_handles(syntax, member.receiver, handles)
         }
-        ExpressionNode::Mutable(inner) => collect_expression_handles(syntax, *inner, handles),
+        ExpressionNode::Borrow(inner) => collect_expression_handles(syntax, inner.target, handles),
         ExpressionNode::Range(range) => {
             collect_expression_handles(syntax, range.start, handles);
             collect_expression_handles(syntax, range.end, handles);

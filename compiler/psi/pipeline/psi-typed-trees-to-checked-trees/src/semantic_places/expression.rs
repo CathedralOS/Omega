@@ -12,8 +12,8 @@ pub(crate) fn instantiate_call_contract_expression_place(
     }
 
     match program.expression_table.expression(expression) {
-        ExpressionNode::Mutable(inner) => {
-            instantiate_call_contract_expression_place(program, facts, call, *inner)
+        ExpressionNode::Borrow(inner) => {
+            instantiate_call_contract_expression_place(program, facts, call, inner.target)
         }
         ExpressionNode::Name(path) => {
             instantiate_call_contract_name_path_place(program, facts, call, path)

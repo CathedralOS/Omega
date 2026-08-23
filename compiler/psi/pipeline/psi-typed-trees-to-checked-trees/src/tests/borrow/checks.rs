@@ -704,7 +704,7 @@ fn accepts_mutable_local_named_place_arguments() {
             .filter(|argument| {
                 matches!(
                     typed.expression_table.expression(**argument),
-                    psi_checked_trees::expression::ExpressionNode::Mutable(_)
+                    psi_checked_trees::expression::ExpressionNode::Borrow(_)
                 )
             })
             .count(),

@@ -325,7 +325,7 @@ fn visit_expression(
         Expression::Cast(cast) => visit(&cast.value),
         Expression::Indexed(indexed) => visit(&indexed.collection) && visit(&indexed.index),
         Expression::Member(member) => visit(&member.receiver),
-        Expression::Mutable(inner) => visit(inner),
+        Expression::Borrow(inner) => visit(&inner.target),
         Expression::Range(range) => {
             range.start.as_deref().is_none_or(&mut visit)
                 && range.end.as_deref().is_none_or(&mut visit)

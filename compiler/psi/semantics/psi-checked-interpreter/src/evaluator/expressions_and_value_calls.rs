@@ -54,18 +54,18 @@ impl<'program> Evaluator<'program> {
                     }
                 }
             }
-            ExpressionNode::Mutable(inner) => {
+            ExpressionNode::Borrow(inner) => {
                 // `&mut place as &mut View` can survive typed-tree rewriting as
                 // `Mutable(Cast(RecastMutable))` in a guard or forwarded value.
                 // In value position evaluate the recast view itself; argument
                 // and assignment seams separately preserve its mutable alias.
                 if matches!(
-                    self.program.expression_table.expression(inner),
+                    self.program.expression_table.expression(inner.target),
                     ExpressionNode::Cast(cast) if cast.form.is_recast()
                 ) {
-                    return self.eval_expression(inner, frame);
+                    return self.eval_expression(inner.target, frame);
                 }
-                let cell = self.resolve_place(inner, frame)?;
+                let cell = self.resolve_place(inner.target, frame)?;
                 // Re-borrow collapse: see eval_argument's Mutable arm.
                 let target = match &*cell.borrow() {
                     Value::Ref(target) => Rc::clone(target),

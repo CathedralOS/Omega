@@ -261,9 +261,9 @@ fn validate_expression(
             call_ordinal,
             diagnostics,
         ),
-        ExpressionNode::Mutable(inner) => validate_expression(
+        ExpressionNode::Borrow(inner) => validate_expression(
             program,
-            *inner,
+            inner.target,
             statement_index,
             false,
             operational_calls,

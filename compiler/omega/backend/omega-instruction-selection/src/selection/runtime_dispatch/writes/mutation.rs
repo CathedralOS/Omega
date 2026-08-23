@@ -134,7 +134,7 @@ fn resolve_direct_or_pointee_bounded_buffer_place(
 
 fn append_tree_expression_path<'a>(expression: &'a Expression, path: &mut Vec<&'a str>) {
     match expression {
-        Expression::Mutable(inner) => append_tree_expression_path(inner, path),
+        Expression::Borrow(inner) => append_tree_expression_path(&inner.target, path),
         Expression::Name(name_path) => {
             if let Some(name) = name_path.last() {
                 path.push(name.as_str());
@@ -161,8 +161,8 @@ fn append_table_expression_path<'a>(
             return;
         }
         match expressions.expression(expression) {
-            psi_checked_trees::expression::ExpressionNode::Mutable(inner) => {
-                append(expressions, *inner, path);
+            psi_checked_trees::expression::ExpressionNode::Borrow(inner) => {
+                append(expressions, inner.target, path);
             }
             psi_checked_trees::expression::ExpressionNode::Name(name_path) => {
                 if let Some(name) = expressions.name_path_members(name_path.members).last() {
@@ -329,9 +329,13 @@ fn runtime_tree_call_occurrence_rank(
                 target_receiver_path,
                 rank,
             ),
-            Expression::Mutable(inner) => {
-                visit(input, inner, target_call, target_receiver_path, rank)
-            }
+            Expression::Borrow(inner) => visit(
+                input,
+                &inner.target,
+                target_call,
+                target_receiver_path,
+                rank,
+            ),
             Expression::Range(range) => {
                 range.start.as_deref().is_some_and(|start| {
                     visit(input, start, target_call, target_receiver_path, rank)
@@ -584,12 +588,12 @@ fn runtime_table_call_occurrence_rank(
                 target_receiver_path,
                 rank,
             ),
-            ExpressionNode::Mutable(inner) => visit(
+            ExpressionNode::Borrow(inner) => visit(
                 input,
                 expressions,
                 source_key,
                 statement_index,
-                *inner,
+                inner.target,
                 target_call,
                 target,
                 target_receiver_path,
@@ -2743,7 +2747,7 @@ fn fold_substituted_constant_integer(value: &Expression) -> Option<i64> {
     use psi_checked_trees::expression::BinaryOperator;
     match value {
         Expression::Integer(literal) => literal.value_i64(),
-        Expression::Mutable(inner) => fold_substituted_constant_integer(inner),
+        Expression::Borrow(inner) => fold_substituted_constant_integer(&inner.target),
         Expression::Cast(cast) => {
             // Only a BOOL-source cast folds (0/1 into any integer width is
             // truncation-free). The bool may itself be a struct-literal
@@ -2789,7 +2793,7 @@ fn fold_substituted_constant_integer(value: &Expression) -> Option<i64> {
 fn bool_leaf_value(expression: &Expression) -> Option<bool> {
     match expression {
         Expression::Boolean(value) => Some(*value),
-        Expression::Mutable(inner) => bool_leaf_value(inner),
+        Expression::Borrow(inner) => bool_leaf_value(&inner.target),
         Expression::Member(member) => {
             let Expression::StructLiteral(literal) = &member.receiver else {
                 return None;

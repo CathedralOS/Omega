@@ -9,7 +9,7 @@ pub(in crate::selection) fn normalized_storage_expression(
     expression: &Expression,
 ) -> Option<Expression> {
     match expression {
-        Expression::Mutable(target) => normalized_storage_expression(target),
+        Expression::Borrow(target) => normalized_storage_expression(&target.target),
         Expression::Indexed(indexed) => Some(Expression::Name(indexed_expression_path(indexed)?)),
         Expression::Member(member) => Some(Expression::Name(member_expression_path(member)?)),
         Expression::Call(call) => {
@@ -34,8 +34,8 @@ fn member_expression_path(member: &MemberExpression) -> Option<NamePath> {
             };
             Some(path)
         })?,
-        Expression::Mutable(target) => {
-            normalized_storage_expression(target).and_then(|normalized| {
+        Expression::Borrow(target) => {
+            normalized_storage_expression(&target.target).and_then(|normalized| {
                 let Expression::Name(path) = normalized else {
                     return None;
                 };
@@ -112,7 +112,7 @@ impl<'table> StorageNamePath<'table> {
 
 fn storage_path_head_symbol(table: &ExpressionTable, expression: ExpressionHandle) -> SymbolHandle {
     match table.expression(expression) {
-        ExpressionNode::Mutable(target) => storage_path_head_symbol(table, *target),
+        ExpressionNode::Borrow(target) => storage_path_head_symbol(table, target.target),
         ExpressionNode::Indexed(indexed) => storage_path_head_symbol(table, indexed.collection),
         ExpressionNode::Member(member) => storage_path_head_symbol(table, member.receiver),
         ExpressionNode::Call(call) => slice_view_call_receiver_handle(call)
@@ -125,7 +125,7 @@ fn storage_path_head_symbol(table: &ExpressionTable, expression: ExpressionHandl
 
 fn storage_path_len(table: &ExpressionTable, expression: ExpressionHandle) -> Option<usize> {
     match table.expression(expression) {
-        ExpressionNode::Mutable(target) => storage_path_len(table, *target),
+        ExpressionNode::Borrow(target) => storage_path_len(table, target.target),
         ExpressionNode::Indexed(indexed) => {
             let ExpressionNode::Integer(_) = table.expression(indexed.index) else {
                 return None;
@@ -137,8 +137,8 @@ fn storage_path_len(table: &ExpressionTable, expression: ExpressionHandle) -> Op
             // Refuse, so callers fall to resolvers that bias the base per level
             // (`resolve_machine_owned_collection_with_const_prefix_in_table`).
             let mut collection = indexed.collection;
-            while let ExpressionNode::Mutable(inner) = table.expression(collection) {
-                collection = *inner;
+            while let ExpressionNode::Borrow(inner) = table.expression(collection) {
+                collection = inner.target;
             }
             if matches!(table.expression(collection), ExpressionNode::Indexed(_)) {
                 return None;
@@ -160,7 +160,7 @@ fn storage_path_member(
     index: usize,
 ) -> Option<&Identifier> {
     match table.expression(expression) {
-        ExpressionNode::Mutable(target) => storage_path_member(table, *target, index),
+        ExpressionNode::Borrow(target) => storage_path_member(table, target.target, index),
         ExpressionNode::Indexed(indexed) => storage_path_member(table, indexed.collection, index),
         ExpressionNode::Call(call) => {
             storage_path_member(table, slice_view_call_receiver_handle(call)?, index)
@@ -184,7 +184,7 @@ fn storage_path_member_symbol(
     index: usize,
 ) -> SymbolHandle {
     match table.expression(expression) {
-        ExpressionNode::Mutable(target) => storage_path_member_symbol(table, *target, index),
+        ExpressionNode::Borrow(target) => storage_path_member_symbol(table, target.target, index),
         ExpressionNode::Indexed(indexed) => {
             storage_path_member_symbol(table, indexed.collection, index)
         }
@@ -222,7 +222,9 @@ fn storage_path_member_case_variant(
     index: usize,
 ) -> Option<&Identifier> {
     match table.expression(expression) {
-        ExpressionNode::Mutable(target) => storage_path_member_case_variant(table, *target, index),
+        ExpressionNode::Borrow(target) => {
+            storage_path_member_case_variant(table, target.target, index)
+        }
         ExpressionNode::Indexed(indexed) => {
             storage_path_member_case_variant(table, indexed.collection, index)
         }
@@ -247,7 +249,7 @@ fn storage_path_member_index(
     index: usize,
 ) -> Option<usize> {
     match table.expression(expression) {
-        ExpressionNode::Mutable(target) => storage_path_member_index(table, *target, index),
+        ExpressionNode::Borrow(target) => storage_path_member_index(table, target.target, index),
         ExpressionNode::Indexed(indexed) => {
             let indexed_len = storage_path_len(table, indexed.collection)?;
             if index + 1 == indexed_len {

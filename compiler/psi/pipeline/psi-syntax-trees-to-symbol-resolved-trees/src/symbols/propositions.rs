@@ -111,8 +111,8 @@ fn assign_expression_symbols(
         ExpressionNode::Member(member) => {
             assign_expression_symbols(expressions, symbols, proposition_symbol, member.receiver)
         }
-        ExpressionNode::Mutable(inner) => {
-            assign_expression_symbols(expressions, symbols, proposition_symbol, inner)
+        ExpressionNode::Borrow(inner) => {
+            assign_expression_symbols(expressions, symbols, proposition_symbol, inner.target)
         }
         ExpressionNode::Name(path) => {
             let members = expressions.name_path_members(path.members);

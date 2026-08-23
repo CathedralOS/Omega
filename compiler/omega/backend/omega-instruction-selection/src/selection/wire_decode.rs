@@ -735,8 +735,8 @@ fn declared_expression_type(
     expression: ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
     match expressions.expression(expression) {
-        ExpressionNode::Mutable(inner) => {
-            declared_expression_type(input, machine, state, expressions, *inner)
+        ExpressionNode::Borrow(inner) => {
+            declared_expression_type(input, machine, state, expressions, inner.target)
         }
         ExpressionNode::Member(member) => {
             let receiver =
@@ -812,7 +812,7 @@ fn copied_place_argument(
 ) -> ExpressionHandle {
     let copied = expressions.copy_from(&input.program.expression_table, argument);
     match expressions.expression(copied) {
-        ExpressionNode::Mutable(inner) => *inner,
+        ExpressionNode::Borrow(inner) => inner.target,
         _ => copied,
     }
 }

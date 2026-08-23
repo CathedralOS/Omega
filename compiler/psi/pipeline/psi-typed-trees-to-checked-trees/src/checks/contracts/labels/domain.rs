@@ -118,10 +118,10 @@ fn instantiate_domain_expression_label(
             instantiate_domain_expression_label(program, member.receiver, base_label),
             member.member
         ),
-        psi_typed_trees::expression::ExpressionNode::Mutable(inner) => {
+        psi_typed_trees::expression::ExpressionNode::Borrow(inner) => {
             format!(
                 "mut {}",
-                instantiate_domain_expression_label(program, *inner, base_label)
+                instantiate_domain_expression_label(program, inner.target, base_label)
             )
         }
         psi_typed_trees::expression::ExpressionNode::Unary(unary) => format!(

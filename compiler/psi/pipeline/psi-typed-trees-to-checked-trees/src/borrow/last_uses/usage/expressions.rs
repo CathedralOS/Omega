@@ -42,8 +42,8 @@ pub(super) fn expression_uses_symbol(
             member.member_symbol == symbol
                 || expression_uses_symbol(program, member.receiver, symbol)
         }
-        psi_typed_trees::expression::ExpressionNode::Mutable(inner_expression) => {
-            expression_uses_symbol(program, *inner_expression, symbol)
+        psi_typed_trees::expression::ExpressionNode::Borrow(inner_expression) => {
+            expression_uses_symbol(program, inner_expression.target, symbol)
         }
         psi_typed_trees::expression::ExpressionNode::Unary(unary) => {
             expression_uses_symbol(program, unary.operand, symbol)
@@ -113,8 +113,8 @@ pub(super) fn expression_uses_local_name(
         psi_typed_trees::expression::ExpressionNode::Member(member) => {
             expression_uses_local_name(program, member.receiver, local_name)
         }
-        psi_typed_trees::expression::ExpressionNode::Mutable(inner_expression) => {
-            expression_uses_local_name(program, *inner_expression, local_name)
+        psi_typed_trees::expression::ExpressionNode::Borrow(inner_expression) => {
+            expression_uses_local_name(program, inner_expression.target, local_name)
         }
         psi_typed_trees::expression::ExpressionNode::Unary(unary) => {
             expression_uses_local_name(program, unary.operand, local_name)
@@ -260,12 +260,12 @@ pub(super) fn expression_uses_place_symbol(
                 symbol,
             )
         }
-        psi_typed_trees::expression::ExpressionNode::Mutable(inner_expression) => {
+        psi_typed_trees::expression::ExpressionNode::Borrow(inner_expression) => {
             expression_uses_place_symbol(
                 program,
                 state_symbol,
                 statement_index,
-                *inner_expression,
+                inner_expression.target,
                 symbol,
             )
         }

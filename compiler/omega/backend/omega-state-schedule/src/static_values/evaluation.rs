@@ -12,8 +12,8 @@ pub(crate) fn resolve_static_value(
     values: &[(PlaceKey, StaticValue)],
 ) -> Option<StaticValue> {
     match table.expression(expression) {
-        ExpressionNode::Mutable(inner_expression) => {
-            resolve_static_value(table, *inner_expression, aliases, values)
+        ExpressionNode::Borrow(inner_expression) => {
+            resolve_static_value(table, inner_expression.target, aliases, values)
         }
         ExpressionNode::Name(_) | ExpressionNode::Indexed(_) => {
             let key = canonical_place_key(table, expression, aliases)?;

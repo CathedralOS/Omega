@@ -618,7 +618,7 @@ fn emit_interior_recast_slice_descriptor_write_in_table(
 ) -> bool {
     let cast = match expressions.expression(value) {
         ExpressionNode::Cast(cast) if cast.form.is_recast() => cast,
-        ExpressionNode::Mutable(inner) => match expressions.expression(*inner) {
+        ExpressionNode::Borrow(inner) => match expressions.expression(inner.target) {
             ExpressionNode::Cast(cast) if cast.form.is_recast() => cast,
             _ => return false,
         },
@@ -908,7 +908,7 @@ pub(in crate::selection) fn emit_runtime_frame_slot_slice_descriptor_write_in_ta
     // from exact byte tiling, just as at the local declaration seam.
     let recast = match expressions.expression(value) {
         ExpressionNode::Cast(cast) if cast.form.is_recast() => Some(cast),
-        ExpressionNode::Mutable(inner) => match expressions.expression(*inner) {
+        ExpressionNode::Borrow(inner) => match expressions.expression(inner.target) {
             ExpressionNode::Cast(cast) if cast.form.is_recast() => Some(cast),
             _ => None,
         },

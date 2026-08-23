@@ -126,10 +126,10 @@ pub(super) fn collect_dependency_paths_from_expression(
                 );
             }
         }
-        ExpressionNode::Mutable(inner) => {
+        ExpressionNode::Borrow(inner) => {
             collect_dependency_paths_from_expression(
                 program,
-                *inner,
+                inner.target,
                 self_type_symbol,
                 dependencies,
             );

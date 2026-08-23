@@ -184,7 +184,7 @@ fn expression_reads_overlapping_place(
                 written_place,
             ) || recurse(indexed.index)
         }
-        ExpressionNode::Mutable(inner) => recurse(*inner),
+        ExpressionNode::Borrow(inner) => recurse(inner.target),
         ExpressionNode::Binary(binary) => recurse(binary.left) || recurse(binary.right),
         ExpressionNode::Unary(unary) => recurse(unary.operand),
         ExpressionNode::Cast(cast) => recurse(cast.value),

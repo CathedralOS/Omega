@@ -148,7 +148,7 @@ fn runtime_value_expression_can_emit(
         Expression::Name(_)
         | Expression::Member(_)
         | Expression::Indexed(_)
-        | Expression::Mutable(_)
+        | Expression::Borrow(_)
         | Expression::Boolean(_)
         | Expression::Integer(_)
         | Expression::String(_) => true,

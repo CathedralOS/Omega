@@ -1001,10 +1001,10 @@ fn collect_witness_conjunct(
     let Some(argument) = arguments.get(position).copied() else {
         return;
     };
-    let ExpressionNode::Mutable(place) = program.expression_table.expression(argument) else {
+    let ExpressionNode::Borrow(place) = program.expression_table.expression(argument) else {
         return;
     };
-    let place = program.expression_table.display_name(*place);
+    let place = program.expression_table.display_name(place.target);
     witnesses.push((place, bound));
 }
 
@@ -1278,7 +1278,7 @@ fn expression_contains_call_node(program: &TypedTrees, expression: ExpressionHan
         }
         ExpressionNode::Unary(unary) => expression_contains_call_node(program, unary.operand),
         ExpressionNode::Cast(cast) => expression_contains_call_node(program, cast.value),
-        ExpressionNode::Mutable(inner) => expression_contains_call_node(program, *inner),
+        ExpressionNode::Borrow(inner) => expression_contains_call_node(program, inner.target),
         ExpressionNode::Indexed(indexed) => {
             expression_contains_call_node(program, indexed.collection)
                 || expression_contains_call_node(program, indexed.index)
@@ -1533,11 +1533,11 @@ fn expressions_equivalent_for_precondition(
         program.expression_table.expression(left),
         program.expression_table.expression(right),
     ) {
-        (ExpressionNode::Mutable(left), _) => {
-            expressions_equivalent_for_precondition(program, *left, right)
+        (ExpressionNode::Borrow(left), _) => {
+            expressions_equivalent_for_precondition(program, left.target, right)
         }
-        (_, ExpressionNode::Mutable(right)) => {
-            expressions_equivalent_for_precondition(program, left, *right)
+        (_, ExpressionNode::Borrow(right)) => {
+            expressions_equivalent_for_precondition(program, left, right.target)
         }
         (ExpressionNode::Name(left), ExpressionNode::Name(right)) => {
             program.expression_table.name_path_members(left.members)
@@ -1666,7 +1666,7 @@ fn expression_constraints(
         // without write enforcement), and ZII requires 0 in the element range.
         ExpressionNode::Indexed(_)
         | ExpressionNode::Member(_)
-        | ExpressionNode::Mutable(_)
+        | ExpressionNode::Borrow(_)
         | ExpressionNode::Name(_) => expression_type_reference(program, machine, state, expression)
             .map(|type_reference| {
                 collect_constraints_in_state(program, machine, state, type_reference)
@@ -1695,8 +1695,8 @@ fn expression_type_reference(
         return Some(field_type);
     }
     match program.expression_table.expression(expression) {
-        ExpressionNode::Mutable(inner) => {
-            expression_type_reference(program, machine, state, *inner)
+        ExpressionNode::Borrow(inner) => {
+            expression_type_reference(program, machine, state, inner.target)
         }
         ExpressionNode::Name(path) => {
             if path.symbol.is_valid() {
@@ -1973,8 +1973,8 @@ fn dehoisted_initializer(
         return None;
     }
     let mut initializer = local.initial_value;
-    while let ExpressionNode::Mutable(inner) = program.expression_table.expression(initializer) {
-        initializer = *inner;
+    while let ExpressionNode::Borrow(inner) = program.expression_table.expression(initializer) {
+        initializer = inner.target;
     }
     Some(initializer)
 }

@@ -35,7 +35,7 @@ impl ValueClass {
             ExpressionNode::Boolean(_) => Some(Self::Boolean),
             ExpressionNode::String(_) => Some(Self::Text),
             ExpressionNode::Integer(_) | ExpressionNode::Float(_) => Some(Self::Numeric),
-            ExpressionNode::Mutable(inner) => Self::of_literal(program, *inner),
+            ExpressionNode::Borrow(inner) => Self::of_literal(program, inner.target),
             _ => None,
         }
     }
@@ -240,7 +240,7 @@ fn struct_literal_type_name(program: &TypedTrees, value: ExpressionHandle) -> Op
                 .filter(|definition| definition.type_parameters.count() == 0)
                 .map(|definition| definition.name.as_str())
         }
-        ExpressionNode::Mutable(inner) => struct_literal_type_name(program, *inner),
+        ExpressionNode::Borrow(inner) => struct_literal_type_name(program, inner.target),
         _ => None,
     }
 }

@@ -30,33 +30,34 @@ pub(super) fn expression_reborrows_transparent_alias_binding(
     let visit =
         |child| expression_reborrows_transparent_alias_binding(program, child, parameters, aliases);
     match program.expression_table.expression(expression) {
-        ExpressionNode::Mutable(inner) => {
-            let reborrows_binding = matches!(
-                program.expression_table.expression(*inner),
-                ExpressionNode::Name(_)
-            ) && frame_place_path(program, *inner).is_some_and(|place| {
-                let (root, suffix) = split_place_root(&place.path);
-                if !suffix.is_empty() {
-                    return false;
-                }
-                let root_symbol = frame_place_root_symbol(program, *inner);
-                parameters.iter().any(|parameter| {
-                    matches!(
-                        program
-                            .type_reference_table
-                            .type_reference(parameter.type_reference),
-                        TypeReferenceNode::Reference { access, .. }
-                            if access.is_exclusive()
-                    ) && (root_symbol == Some(parameter.symbol)
-                        || parameter.is_self && root == "self"
-                        || root == parameter.name.as_str())
-                }) || aliases.iter().any(|(name, symbol, _)| {
-                    root_symbol
-                        .is_some_and(|root| root.is_valid() && symbol.is_valid() && root == *symbol)
-                        || root == name
-                })
-            });
-            reborrows_binding || visit(*inner)
+        ExpressionNode::Borrow(inner) => {
+            let reborrows_binding =
+                matches!(
+                    program.expression_table.expression(inner.target),
+                    ExpressionNode::Name(_)
+                ) && frame_place_path(program, inner.target).is_some_and(|place| {
+                    let (root, suffix) = split_place_root(&place.path);
+                    if !suffix.is_empty() {
+                        return false;
+                    }
+                    let root_symbol = frame_place_root_symbol(program, inner.target);
+                    parameters.iter().any(|parameter| {
+                        matches!(
+                            program
+                                .type_reference_table
+                                .type_reference(parameter.type_reference),
+                            TypeReferenceNode::Reference { access, .. }
+                                if access.is_exclusive()
+                        ) && (root_symbol == Some(parameter.symbol)
+                            || parameter.is_self && root == "self"
+                            || root == parameter.name.as_str())
+                    }) || aliases.iter().any(|(name, symbol, _)| {
+                        root_symbol.is_some_and(|root| {
+                            root.is_valid() && symbol.is_valid() && root == *symbol
+                        }) || root == name
+                    })
+                });
+            reborrows_binding || visit(inner.target)
         }
         ExpressionNode::Atomic(atomic) => visit(atomic.value) || visit(atomic.result),
         ExpressionNode::Call(call) => {

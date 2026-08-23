@@ -311,7 +311,7 @@ pub(super) fn infer_hoist_temp_type(
                 steps.push(NestedStep::Field(&member.member));
                 collection = member.receiver;
             }
-            ExpressionNode::Mutable(inner) => collection = *inner,
+            ExpressionNode::Borrow(inner) => collection = inner.target,
             _ => break,
         }
     }

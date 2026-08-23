@@ -287,8 +287,8 @@ pub(crate) fn collect_exact_integer_cast_facts(
         ExpressionNode::Member(member) => {
             collect_exact_integer_cast_facts(program, machine, state, member.receiver, env, facts);
         }
-        ExpressionNode::Mutable(value) => {
-            collect_exact_integer_cast_facts(program, machine, state, *value, env, facts);
+        ExpressionNode::Borrow(value) => {
+            collect_exact_integer_cast_facts(program, machine, state, value.target, env, facts);
         }
         ExpressionNode::Range(range) => {
             collect_exact_integer_cast_facts(program, machine, state, range.start, env, facts);
@@ -653,8 +653,8 @@ fn u64_exact_shift_left_fits(value: Interval, count: Interval) -> bool {
 /// The F4 Exact cast obligation's fold-visible proof source.
 fn float_literal_value(program: &TypedTrees, value: ExpressionHandle) -> Option<f64> {
     let mut node = program.expression_table.expression(value);
-    while let ExpressionNode::Mutable(inner) = node {
-        node = program.expression_table.expression(*inner);
+    while let ExpressionNode::Borrow(inner) = node {
+        node = program.expression_table.expression(inner.target);
     }
     match node {
         ExpressionNode::Float(literal) => Some(literal.landed_f64()),
@@ -724,8 +724,8 @@ fn float_interval_fits_integer(low: f64, high: f64, target: PrimitiveType) -> bo
 /// when the operand is not a plain integer literal.
 fn integer_literal_value(program: &TypedTrees, value: ExpressionHandle) -> Option<i64> {
     let mut node = program.expression_table.expression(value);
-    while let ExpressionNode::Mutable(inner) = node {
-        node = program.expression_table.expression(*inner);
+    while let ExpressionNode::Borrow(inner) = node {
+        node = program.expression_table.expression(inner.target);
     }
     match node {
         ExpressionNode::Integer(literal) => literal.value_i64(),
@@ -1378,7 +1378,7 @@ pub(crate) fn literal_i64(program: &TypedTrees, expression: ExpressionHandle) ->
 fn literal_u64(program: &TypedTrees, expression: ExpressionHandle) -> Option<u64> {
     match program.expression_table.expression(expression) {
         ExpressionNode::Integer(literal) => literal.value_bignum()?.to_u64(),
-        ExpressionNode::Mutable(inner) => literal_u64(program, *inner),
+        ExpressionNode::Borrow(inner) => literal_u64(program, inner.target),
         _ => None,
     }
 }

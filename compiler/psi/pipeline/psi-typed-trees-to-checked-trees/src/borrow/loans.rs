@@ -192,14 +192,14 @@ fn reference_local_borrow_loans(
         .expression_table
         .expression(local_data.initial_value)
     {
-        psi_checked_trees::expression::ExpressionNode::Mutable(inner_expression)
+        psi_checked_trees::expression::ExpressionNode::Borrow(inner_expression)
             if local_is_mutable_reference =>
         {
             whole_place_recast_borrow_place(
                 program,
                 state.symbol,
                 statement_index,
-                *inner_expression,
+                inner_expression.target,
                 machine_symbol,
             )
             .or_else(|| {
@@ -207,7 +207,7 @@ fn reference_local_borrow_loans(
                     program,
                     state.symbol,
                     statement_index,
-                    *inner_expression,
+                    inner_expression.target,
                     machine_symbol,
                 )
             })
@@ -715,9 +715,9 @@ fn argument_borrow_loan_place(
                 inner_call,
             )
         }
-        psi_checked_trees::expression::ExpressionNode::Mutable(inner)
+        psi_checked_trees::expression::ExpressionNode::Borrow(inner)
             if matches!(
-                program.expression_table.expression(*inner),
+                program.expression_table.expression(inner.target),
                 psi_checked_trees::expression::ExpressionNode::Call(_)
             ) =>
         {
@@ -726,7 +726,7 @@ fn argument_borrow_loan_place(
                 state_symbol,
                 statement_index,
                 machine_symbol,
-                *inner,
+                inner.target,
             )
         }
         _ => borrow_access_place(

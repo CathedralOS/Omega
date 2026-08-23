@@ -915,7 +915,7 @@ fn wire_argument_declared_type(
     expression: ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
     match program.expression_table.expression(expression) {
-        ExpressionNode::Mutable(inner) => wire_argument_declared_type(program, frame, *inner),
+        ExpressionNode::Borrow(inner) => wire_argument_declared_type(program, frame, inner.target),
         ExpressionNode::Member(member) => {
             let receiver = wire_argument_declared_type(program, frame, member.receiver)?;
             psi_typed_trees::wire::data_field_type(program, receiver, member.member.as_str())

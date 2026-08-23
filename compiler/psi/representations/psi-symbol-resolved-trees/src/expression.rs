@@ -281,9 +281,12 @@ impl ExpressionTable {
                     case_variant: member.case_variant.clone(),
                 }))
             }
-            ExpressionNode::Mutable(inner_expression) => {
-                let inner_expression = self.copy_from(source, *inner_expression);
-                self.insert(ExpressionNode::Mutable(inner_expression))
+            ExpressionNode::Borrow(inner_expression) => {
+                let target = self.copy_from(source, inner_expression.target);
+                self.insert(ExpressionNode::Borrow(TableBorrowExpression {
+                    target,
+                    access: inner_expression.access,
+                }))
             }
             ExpressionNode::Name(path) => {
                 let members = self.copy_name_path_members(source, path.members);
@@ -567,13 +570,17 @@ impl ExpressionTable {
                     symbol: SymbolHandle::invalid(),
                 }))
             }
-            ExpressionNode::Mutable(target) => {
+            ExpressionNode::Borrow(target) => {
+                let access = target.access;
                 let target = self.insert_copy_with_member_suffix(
-                    target,
+                    target.target,
                     suffix_members,
                     suffix_start_offset,
                 );
-                self.insert(ExpressionNode::Mutable(target))
+                self.insert(ExpressionNode::Borrow(TableBorrowExpression {
+                    target,
+                    access,
+                }))
             }
             ExpressionNode::Indexed(indexed) => self
                 .insert_indexed_expression_path_with_member_suffix(
@@ -683,9 +690,12 @@ impl ExpressionTable {
                     case_variant: member.case_variant,
                 }))
             }
-            ExpressionNode::Mutable(inner_expression) => {
-                let inner_expression = self.copy_from_self(inner_expression);
-                self.insert(ExpressionNode::Mutable(inner_expression))
+            ExpressionNode::Borrow(inner_expression) => {
+                let target = self.copy_from_self(inner_expression.target);
+                self.insert(ExpressionNode::Borrow(TableBorrowExpression {
+                    target,
+                    access: inner_expression.access,
+                }))
             }
             ExpressionNode::Name(path) => {
                 let members = self.copy_name_path_members_from_self(path.members);
@@ -825,7 +835,7 @@ impl ExpressionTable {
         match self.expression(expression) {
             ExpressionNode::Name(path) => Some(path.members.count()),
             ExpressionNode::Indexed(indexed) => self.storage_path_len(indexed.collection),
-            ExpressionNode::Mutable(target) => self.storage_path_len(*target),
+            ExpressionNode::Borrow(target) => self.storage_path_len(target.target),
             _ => None,
         }
     }
@@ -834,7 +844,7 @@ impl ExpressionTable {
         match self.expression(expression) {
             ExpressionNode::Name(path) => path.head_symbol,
             ExpressionNode::Indexed(indexed) => self.storage_path_head_symbol(indexed.collection),
-            ExpressionNode::Mutable(target) => self.storage_path_head_symbol(*target),
+            ExpressionNode::Borrow(target) => self.storage_path_head_symbol(target.target),
             _ => SymbolHandle::invalid(),
         }
     }
@@ -878,8 +888,8 @@ impl ExpressionTable {
                 self.set_name_path_member_at_offset(members, last_offset, indexed_member);
                 Some(())
             }
-            ExpressionNode::Mutable(target) => {
-                self.fill_storage_path_members(target, members, offset)
+            ExpressionNode::Borrow(target) => {
+                self.fill_storage_path_members(target.target, members, offset)
             }
             _ => None,
         }
@@ -931,7 +941,7 @@ pub enum ExpressionNode {
     Integer(IntegerLiteral),
     Membership(TableMembershipExpression),
     Member(TableMemberExpression),
-    Mutable(ExpressionHandle),
+    Borrow(TableBorrowExpression),
     Name(TableNamePath),
     Range(TableRangeExpression),
     StructLiteral(TableStructLiteral),
@@ -940,6 +950,12 @@ pub enum ExpressionNode {
     Unary(TableUnaryExpression),
     /// Proof-only observation of a type's normalized all-zero home value.
     ZeroValue(psi_arena::Handle<crate::types::TypeReference>),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TableBorrowExpression {
+    pub target: ExpressionHandle,
+    pub access: psi_language_core::ReferenceAccess,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

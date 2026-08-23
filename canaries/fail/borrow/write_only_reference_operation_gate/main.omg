@@ -1,8 +1,8 @@
-// FAIL canary (write-only borrow representation rung): `&write T` has a
-// source/typed identity, but no checked operation may use it until the
-// non-observing operation lattice and attenuation rules are implemented.
+// FAIL canary: aggregates and projections remain outside the checked
+// whole-scalar milestone.
 
-machine fill(bytes: &write [u8]) {
+machine fill(bytes: &write [u8; 4]) {
+    bytes[0] = 1;
 }
 
 data Main {

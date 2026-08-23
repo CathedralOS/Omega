@@ -1295,8 +1295,8 @@ fn collect_state_call_expression_path<'plan>(
 ) -> bool {
     use psi_checked_trees::expression::ExpressionNode;
     match expressions.expression(expression) {
-        ExpressionNode::Mutable(inner) => {
-            collect_state_call_expression_path(expressions, *inner, segments)
+        ExpressionNode::Borrow(inner) => {
+            collect_state_call_expression_path(expressions, inner.target, segments)
         }
         ExpressionNode::Name(path) => {
             segments.extend(expressions.name_path_members(path.members));

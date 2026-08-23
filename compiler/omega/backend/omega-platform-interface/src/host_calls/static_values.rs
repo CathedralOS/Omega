@@ -224,11 +224,11 @@ pub(crate) fn apply_call_static_effects(
     call: &TableCall,
 ) {
     for argument in program.statement_table.expression_handles(call.arguments) {
-        let ExpressionNode::Mutable(target) = program.expression_table.expression(*argument) else {
+        let ExpressionNode::Borrow(target) = program.expression_table.expression(*argument) else {
             continue;
         };
 
-        let Some(target_key) = static_place_key_handle(program, *target) else {
+        let Some(target_key) = static_place_key_handle(program, target.target) else {
             continue;
         };
 

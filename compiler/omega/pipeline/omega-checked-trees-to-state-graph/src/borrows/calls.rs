@@ -34,6 +34,9 @@ pub(crate) fn state_borrow_calls(
                         psi_checked_trees::BorrowAccessKind::Mutable => {
                             StateBorrowAccessKind::Mutable
                         }
+                        psi_checked_trees::BorrowAccessKind::WriteOnly => {
+                            StateBorrowAccessKind::WriteOnly
+                        }
                     },
                 }),
         );

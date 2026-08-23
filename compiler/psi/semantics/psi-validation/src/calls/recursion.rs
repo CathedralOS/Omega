@@ -193,7 +193,7 @@ fn reject_embedded_self_calls(
             recurse(indexed.index, diagnostics);
         }
         ExpressionNode::Member(member) => recurse(member.receiver, diagnostics),
-        ExpressionNode::Mutable(inner) => recurse(*inner, diagnostics),
+        ExpressionNode::Borrow(inner) => recurse(inner.target, diagnostics),
         ExpressionNode::Range(range) => {
             recurse(range.start, diagnostics);
             recurse(range.end, diagnostics);

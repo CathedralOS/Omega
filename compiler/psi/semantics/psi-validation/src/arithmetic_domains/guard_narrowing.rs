@@ -973,7 +973,7 @@ fn seed_ensures_conjunct(
     };
     // The out-argument spells `&mut <place>`; unwrap to the place.
     let place_expr = match program.expression_table.expression(argument) {
-        ExpressionNode::Mutable(inner) => *inner,
+        ExpressionNode::Borrow(inner) => inner.target,
         _ => argument,
     };
     let Some(place) = place_path(program, place_expr) else {
@@ -1178,7 +1178,7 @@ fn expression_calls_state(
                 || expression_calls_state(program, index, state_name)
         }
         ExpressionNode::Cast(cast) => expression_calls_state(program, cast.value, state_name),
-        ExpressionNode::Mutable(inner) => expression_calls_state(program, *inner, state_name),
+        ExpressionNode::Borrow(inner) => expression_calls_state(program, inner.target, state_name),
         ExpressionNode::Range(range) => {
             let (start, end) = (range.start, range.end);
             expression_calls_state(program, start, state_name)

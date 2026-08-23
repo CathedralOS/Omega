@@ -579,7 +579,7 @@ fn rewrite_children(
         // operand to materialize -- hoisting it into a temp would borrow the
         // temp instead and silently change aliasing. Leave the whole subtree
         // untouched.
-        ExpressionNode::Mutable(_) => {}
+        ExpressionNode::Borrow(_) => {}
         ExpressionNode::Range(range) => {
             let start = if range.start.is_valid() {
                 hoist_child(lowerer, range.start, hoisted, hoist_builtin_calls)
@@ -767,8 +767,8 @@ fn hoist_target_computed_indices(
         ExpressionNode::Member(member) => {
             hoist_target_computed_indices(lowerer, member.receiver, hoisted);
         }
-        ExpressionNode::Mutable(inner) => {
-            hoist_target_computed_indices(lowerer, inner, hoisted);
+        ExpressionNode::Borrow(inner) => {
+            hoist_target_computed_indices(lowerer, inner.target, hoisted);
         }
         _ => {}
     }
@@ -1305,7 +1305,7 @@ fn collect_synthesizable_argument_calls(
         }
         ExpressionNode::Member(member) => visit(member.receiver),
         ExpressionNode::Membership(membership) => visit(membership.value),
-        ExpressionNode::Mutable(inner) => visit(*inner),
+        ExpressionNode::Borrow(inner) => visit(inner.target),
         ExpressionNode::Range(range) => {
             visit(range.start);
             visit(range.end);
@@ -1352,7 +1352,7 @@ fn collect_synthesized_argument_captures(
         ExpressionNode::Indexed(indexed) => visit(indexed.collection) && visit(indexed.index),
         ExpressionNode::Member(member) => visit(member.receiver),
         ExpressionNode::Membership(membership) => visit(membership.value),
-        ExpressionNode::Mutable(inner) => visit(*inner),
+        ExpressionNode::Borrow(inner) => visit(inner.target),
         ExpressionNode::Name(path) => {
             let members = expressions.name_path_members(path.members);
             if members

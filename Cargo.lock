@@ -952,6 +952,7 @@ dependencies = [
  "omega-state-storage",
  "psi-arena",
  "psi-checked-trees",
+ "psi-language-core",
  "psi-source",
  "psi-symbols",
 ]

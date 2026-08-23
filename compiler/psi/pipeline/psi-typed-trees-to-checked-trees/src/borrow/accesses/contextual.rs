@@ -39,11 +39,11 @@ fn contextual_expression_type_symbol(
     }
 
     match program.expression_table.expression(expression) {
-        ExpressionNode::Mutable(inner) => contextual_expression_type_symbol(
+        ExpressionNode::Borrow(inner) => contextual_expression_type_symbol(
             program,
             state_symbol,
             statement_index,
-            *inner,
+            inner.target,
             machine_symbol,
         ),
         ExpressionNode::Name(path) => {

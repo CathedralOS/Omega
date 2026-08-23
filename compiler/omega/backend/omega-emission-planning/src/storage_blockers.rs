@@ -196,8 +196,8 @@ fn initializer_is_arithmetic(
 ) -> bool {
     use psi_checked_trees::expression::ExpressionNode;
     let mut current = expression;
-    while let ExpressionNode::Mutable(inner) = expressions.expression(current) {
-        current = *inner;
+    while let ExpressionNode::Borrow(inner) = expressions.expression(current) {
+        current = inner.target;
     }
     matches!(expressions.expression(current), ExpressionNode::Binary(_))
 }
@@ -401,8 +401,8 @@ fn expression_is_runtime_indexed(expressions: &ExpressionTable, handle: Expressi
         return false;
     };
     let mut index = indexed.index;
-    while let ExpressionNode::Mutable(inner) = expressions.expression(index) {
-        index = *inner;
+    while let ExpressionNode::Borrow(inner) = expressions.expression(index) {
+        index = inner.target;
     }
     !matches!(expressions.expression(index), ExpressionNode::Integer(_))
 }

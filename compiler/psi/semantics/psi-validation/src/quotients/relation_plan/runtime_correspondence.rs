@@ -123,7 +123,7 @@ fn direct_public_parameter_symbol(
     expression: ExpressionHandle,
 ) -> Option<SymbolHandle> {
     let expression = match program.expression_table.expression(expression) {
-        ExpressionNode::Mutable(inner) => *inner,
+        ExpressionNode::Borrow(inner) => inner.target,
         _ => expression,
     };
     let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {

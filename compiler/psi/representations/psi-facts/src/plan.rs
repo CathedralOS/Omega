@@ -129,7 +129,9 @@ impl FactPlan {
         }
 
         match program.expression_table.expression(expression) {
-            ExpressionNode::Mutable(inner) => self.append_place_from_expression(program, *inner),
+            ExpressionNode::Borrow(inner) => {
+                self.append_place_from_expression(program, inner.target)
+            }
             ExpressionNode::Name(path) => {
                 let root = if path.head_symbol.is_valid() {
                     path.head_symbol

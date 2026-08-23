@@ -212,12 +212,12 @@ pub(super) fn validate_expression(
                 diagnostics,
             );
         }
-        ExpressionNode::Mutable(inner) => validate_expression(
+        ExpressionNode::Borrow(inner) => validate_expression(
             program,
             proof_only,
             machine,
             state,
-            *inner,
+            inner.target,
             context,
             diagnostics,
         ),

@@ -159,7 +159,7 @@ fn normalize_projection_subject(
     // proof observation.
     if matches!(
         context.program.expression_table.expression(borrowed),
-        ExpressionNode::Mutable(_)
+        ExpressionNode::Borrow(_)
     ) {
         return Err("content projection subjects must use a shared borrow (`&place`), not a mutable borrow, so the proof observation never mutates authority".to_owned());
     }

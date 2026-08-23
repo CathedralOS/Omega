@@ -703,7 +703,7 @@ fn report_unspelled_reference_pun(
 
 fn strip_mutable(program: &TypedTrees, expression: ExpressionHandle) -> ExpressionHandle {
     match program.expression_table.expression(expression) {
-        ExpressionNode::Mutable(inner) => strip_mutable(program, *inner),
+        ExpressionNode::Borrow(inner) => strip_mutable(program, inner.target),
         _ => expression,
     }
 }

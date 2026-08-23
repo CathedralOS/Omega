@@ -212,7 +212,7 @@ fn instantiates_call_contract_places_for_attached_data_arguments() {
             member: Identifier::generated("player"),
             case_variant: None,
         }));
-    let player_argument = Expression::Mutable(Box::new(player_member));
+    let player_argument = mutable_borrow(player_member);
     let player_argument = program.expression_table.insert_tree(&player_argument);
     program
         .statement_table
@@ -383,7 +383,7 @@ fn instantiates_call_contract_places_for_expression_statement_calls() {
             member: Identifier::generated("player"),
             case_variant: None,
         }));
-    let player_argument = Expression::Mutable(Box::new(player_member));
+    let player_argument = mutable_borrow(player_member);
     let call_expression = Expression::Call(Box::new(CallExpression {
         receiver: Some(Box::new(Expression::Name(NamePath::resolved(
             vec![Identifier::generated("self")],

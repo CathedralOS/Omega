@@ -2,6 +2,7 @@ use crate::RuntimeBranchingContext;
 use omega_state_calls::{StateCall, StateCallArgumentKind};
 use psi_checked_trees::expression::{ExpressionNode, ExpressionTable};
 use psi_checked_trees::statement::StatementNode;
+use psi_language_core::ReferenceAccess;
 
 mod expressions;
 mod model;
@@ -39,12 +40,15 @@ pub(super) fn branch_parameter_bindings(
             let expression = if argument.kind == StateCallArgumentKind::MutableAlias
                 && !matches!(
                     expression_table.expression(argument_expression),
-                    ExpressionNode::Mutable(_)
+                    ExpressionNode::Borrow(_)
                 ) {
                 insert_rebuilt_expression(
                     expression_table,
                     argument_expression,
-                    ExpressionNode::Mutable(argument_expression),
+                    ExpressionNode::Borrow(psi_checked_trees::expression::TableBorrowExpression {
+                        target: argument_expression,
+                        access: ReferenceAccess::Mutable,
+                    }),
                 )
             } else {
                 argument_expression
@@ -130,18 +134,25 @@ fn resolve_elided_source_local_expression_handle(
                 }),
             )
         }
-        ExpressionNode::Mutable(target) => {
+        ExpressionNode::Borrow(target) => {
             let target = resolve_elided_source_local_expression_handle(
                 context,
                 source_key,
                 statement_bound,
-                target,
+                target.target,
                 expressions,
             );
-            if matches!(expressions.expression(target), ExpressionNode::Mutable(_)) {
+            if matches!(expressions.expression(target), ExpressionNode::Borrow(_)) {
                 target
             } else {
-                insert_rebuilt_expression(expressions, expression, ExpressionNode::Mutable(target))
+                insert_rebuilt_expression(
+                    expressions,
+                    expression,
+                    ExpressionNode::Borrow(psi_checked_trees::expression::TableBorrowExpression {
+                        target,
+                        access: ReferenceAccess::Mutable,
+                    }),
+                )
             }
         }
         ExpressionNode::Indexed(indexed) => {
@@ -297,12 +308,15 @@ pub(super) fn bind_runtime_branch_aliases(
         let expression = if argument.kind == StateCallArgumentKind::MutableAlias
             && !matches!(
                 expression_table.expression(argument_expression),
-                ExpressionNode::Mutable(_)
+                ExpressionNode::Borrow(_)
             ) {
             insert_rebuilt_expression(
                 expression_table,
                 argument_expression,
-                ExpressionNode::Mutable(argument_expression),
+                ExpressionNode::Borrow(psi_checked_trees::expression::TableBorrowExpression {
+                    target: argument_expression,
+                    access: ReferenceAccess::Mutable,
+                }),
             )
         } else {
             argument_expression

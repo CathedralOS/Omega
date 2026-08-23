@@ -282,7 +282,7 @@ pub(crate) fn lower_host_call_arguments(
                 kind: lower_host_call_argument(program, *argument, static_values, expressions),
                 is_borrowed: matches!(
                     program.expression_table.expression(*argument),
-                    ExpressionNode::Mutable(_)
+                    ExpressionNode::Borrow(_)
                 ),
                 expects_reference: call_parameter_expects_reference(
                     program,

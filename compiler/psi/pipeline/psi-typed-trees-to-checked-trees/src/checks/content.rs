@@ -1246,7 +1246,7 @@ fn contract_structural_place(
             segments.push(ContentPlaceSegment::FixedIndex(index.value_u64()?));
             Some((root, root_symbol, segments))
         }
-        ExpressionNode::Mutable(inner) => contract_structural_place(program, *inner),
+        ExpressionNode::Borrow(inner) => contract_structural_place(program, inner.target),
         _ => None,
     }
 }

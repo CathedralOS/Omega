@@ -723,7 +723,9 @@ fn collect_expression_path_segments<'table>(
 ) -> bool {
     use psi_checked_trees::expression::ExpressionNode;
     match table.expression(expression) {
-        ExpressionNode::Mutable(inner) => collect_expression_path_segments(table, *inner, segments),
+        ExpressionNode::Borrow(inner) => {
+            collect_expression_path_segments(table, inner.target, segments)
+        }
         ExpressionNode::Name(path) => {
             segments.extend(table.name_path_members(path.members).iter());
             true

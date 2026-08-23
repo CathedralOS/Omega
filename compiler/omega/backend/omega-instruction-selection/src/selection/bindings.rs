@@ -1,7 +1,7 @@
 use omega_control_flow::StateKey;
 use psi_arena::{Arena, Handle, HandleSpan};
 use psi_checked_trees::expression::{
-    Expression, ExpressionHandle, ExpressionNode, ExpressionTable, NamePath,
+    Expression, ExpressionHandle, ExpressionNode, ExpressionTable, NamePath, TableBorrowExpression,
     TableIndexedExpression, TableNamePath,
 };
 use psi_checked_trees::name::Identifier;
@@ -122,7 +122,7 @@ pub(super) struct RuntimeResolvedExpressionHandle {
 
 pub(super) fn strip_mutable_expression(expression: Expression) -> Expression {
     match expression {
-        Expression::Mutable(target) => *target,
+        Expression::Borrow(target) => target.target,
         _ => expression,
     }
 }
@@ -132,7 +132,7 @@ pub(super) fn strip_mutable_expression_handle(
     expression: ExpressionHandle,
 ) -> ExpressionHandle {
     match table.expression(expression) {
-        ExpressionNode::Mutable(target) => *target,
+        ExpressionNode::Borrow(target) => target.target,
         _ => expression,
     }
 }
@@ -245,12 +245,21 @@ pub(super) fn resolve_runtime_alias_binding(
                 )),
             }
         }
-        Expression::Mutable(target) => {
-            let resolved =
-                resolve_runtime_alias_binding(target, source_key, aliases, alias_expressions);
+        Expression::Borrow(borrow) => {
+            let resolved = resolve_runtime_alias_binding(
+                &borrow.target,
+                source_key,
+                aliases,
+                alias_expressions,
+            );
             RuntimeResolvedExpression {
                 source_key: resolved.source_key,
-                expression: Expression::Mutable(Box::new(resolved.expression)),
+                expression: Expression::Borrow(Box::new(
+                    psi_checked_trees::expression::BorrowExpression {
+                        target: resolved.expression,
+                        access: borrow.access,
+                    },
+                )),
             }
         }
         Expression::Indexed(indexed) => {
@@ -530,9 +539,9 @@ pub(super) fn resolve_runtime_alias_binding_handle(
                 ),
             }
         }
-        ExpressionNode::Mutable(target) => {
+        ExpressionNode::Borrow(target) => {
             let resolved = resolve_runtime_alias_binding_handle(
-                target,
+                target.target,
                 source_key,
                 aliases,
                 alias_expressions,
@@ -542,7 +551,10 @@ pub(super) fn resolve_runtime_alias_binding_handle(
                 expression: insert_rebuilt_expression(
                     alias_expressions,
                     expression,
-                    ExpressionNode::Mutable(resolved.expression),
+                    ExpressionNode::Borrow(TableBorrowExpression {
+                        target: resolved.expression,
+                        access: target.access,
+                    }),
                 ),
             }
         }
@@ -838,7 +850,7 @@ fn resolve_leaf_binding_expression_handle_at_depth(
             // they expect a bare integer/place. The `mut` wrapper is meaningless on
             // an index, so strip it here.
             let index = match table.expression(index) {
-                ExpressionNode::Mutable(inner) => *inner,
+                ExpressionNode::Borrow(inner) => inner.target,
                 _ => index,
             };
             table.insert(ExpressionNode::Indexed(TableIndexedExpression {
@@ -863,21 +875,21 @@ fn resolve_leaf_binding_expression_handle_at_depth(
                 },
             ))
         }
-        ExpressionNode::Mutable(target) => {
+        ExpressionNode::Borrow(target) => {
             let resolved_target = resolve_leaf_binding_expression_handle_at_depth(
                 source_table,
                 table,
-                target,
+                target.target,
                 bindings,
                 substitution_depth,
             );
-            if matches!(
-                table.expression(resolved_target),
-                ExpressionNode::Mutable(_)
-            ) {
+            if matches!(table.expression(resolved_target), ExpressionNode::Borrow(_)) {
                 resolved_target
             } else {
-                table.insert(ExpressionNode::Mutable(resolved_target))
+                table.insert(ExpressionNode::Borrow(TableBorrowExpression {
+                    target: resolved_target,
+                    access: target.access,
+                }))
             }
         }
         ExpressionNode::Name(path) => bindings
@@ -1119,21 +1131,21 @@ fn resolve_straight_line_binding_expression_handle_at_depth(
                 },
             ))
         }
-        ExpressionNode::Mutable(target) => {
+        ExpressionNode::Borrow(target) => {
             let resolved_target = resolve_straight_line_binding_expression_handle_at_depth(
                 source_table,
                 table,
-                target,
+                target.target,
                 bindings,
                 substitution_depth,
             );
-            if matches!(
-                table.expression(resolved_target),
-                ExpressionNode::Mutable(_)
-            ) {
+            if matches!(table.expression(resolved_target), ExpressionNode::Borrow(_)) {
                 resolved_target
             } else {
-                table.insert(ExpressionNode::Mutable(resolved_target))
+                table.insert(ExpressionNode::Borrow(TableBorrowExpression {
+                    target: resolved_target,
+                    access: target.access,
+                }))
             }
         }
         ExpressionNode::Name(path) => bindings
@@ -1239,21 +1251,21 @@ fn resolve_branch_prelude_binding_expression_handle_at_depth(
     substitution_depth: usize,
 ) -> ExpressionHandle {
     match table.expression(expression).clone() {
-        ExpressionNode::Mutable(target) => {
+        ExpressionNode::Borrow(target) => {
             let resolved_target = resolve_branch_prelude_binding_expression_handle_at_depth(
                 source_table,
                 table,
-                target,
+                target.target,
                 bindings,
                 substitution_depth,
             );
-            if matches!(
-                table.expression(resolved_target),
-                ExpressionNode::Mutable(_)
-            ) {
+            if matches!(table.expression(resolved_target), ExpressionNode::Borrow(_)) {
                 resolved_target
             } else {
-                table.insert(ExpressionNode::Mutable(resolved_target))
+                table.insert(ExpressionNode::Borrow(TableBorrowExpression {
+                    target: resolved_target,
+                    access: target.access,
+                }))
             }
         }
         ExpressionNode::Name(path) => bindings
@@ -1366,8 +1378,8 @@ fn binding_expression_rewrites_leaf_parameter(
     binding: &RuntimeLeafBranchBinding,
 ) -> bool {
     match table.expression(expression) {
-        ExpressionNode::Mutable(target) => {
-            binding_expression_rewrites_leaf_parameter(table, *target, binding)
+        ExpressionNode::Borrow(target) => {
+            binding_expression_rewrites_leaf_parameter(table, target.target, binding)
         }
         // A binding rewrites its leaf parameter unless it refers to that SAME
         // parameter (a no-op self-binding). Discriminate by SYMBOL, not name: a
@@ -1409,8 +1421,8 @@ fn binding_substitution_is_self_similar_name(
     parameter_name: &Identifier,
 ) -> bool {
     match table.expression(expression) {
-        ExpressionNode::Mutable(target) => {
-            binding_substitution_is_self_similar_name(table, *target, parameter_name)
+        ExpressionNode::Borrow(target) => {
+            binding_substitution_is_self_similar_name(table, target.target, parameter_name)
         }
         ExpressionNode::Name(path) => {
             !path.head_symbol.is_valid()
@@ -1430,8 +1442,8 @@ fn binding_expression_rewrites_straight_line_parameter(
     binding: &RuntimeStraightLineBranchBinding,
 ) -> bool {
     match table.expression(expression) {
-        ExpressionNode::Mutable(target) => {
-            binding_expression_rewrites_straight_line_parameter(table, *target, binding)
+        ExpressionNode::Borrow(target) => {
+            binding_expression_rewrites_straight_line_parameter(table, target.target, binding)
         }
         // As for leaf bindings, a same-named call argument is still a real
         // rewrite when its symbol differs or was erased while copying the
@@ -1480,8 +1492,11 @@ pub(super) fn append_place_suffix(expression: &Expression, suffix: &[Identifier]
                 append_member_suffix(expression, suffix)
             }
         }
-        Expression::Mutable(target) => {
-            Expression::Mutable(Box::new(append_place_suffix(target, suffix)))
+        Expression::Borrow(borrow) => {
+            Expression::Borrow(Box::new(psi_checked_trees::expression::BorrowExpression {
+                target: append_place_suffix(&borrow.target, suffix),
+                access: borrow.access,
+            }))
         }
         // Member receivers (and anything else) get a MEMBER chain. The old
         // catch-all returned the expression UNCHANGED -- silently DROPPING the

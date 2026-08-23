@@ -327,16 +327,19 @@ fn simplify_expression_with_bindings(
                 case_variant: member.case_variant.clone(),
             }))
         }
-        Expression::Mutable(inner) => {
-            Expression::Mutable(Box::new(simplify_expression_with_bindings(
-                program,
-                machine,
-                inner,
-                bindings,
-                preserve_call_locals,
-                depth,
-                landing,
-            )))
+        Expression::Borrow(borrow) => {
+            Expression::Borrow(Box::new(psi_checked_trees::expression::BorrowExpression {
+                target: simplify_expression_with_bindings(
+                    program,
+                    machine,
+                    &borrow.target,
+                    bindings,
+                    preserve_call_locals,
+                    depth,
+                    landing,
+                ),
+                access: borrow.access,
+            }))
         }
         Expression::Unary(unary) => {
             let operand = simplify_expression_with_bindings(
@@ -480,7 +483,7 @@ fn exact_anonymous_float_tree(expression: &Expression) -> Option<psi_numerics::b
         Expression::Float(literal) if literal.landing().is_none() => {
             ExactFloat::from_decimal_str(literal.text())
         }
-        Expression::Mutable(inner) => exact_anonymous_float_tree(inner),
+        Expression::Borrow(inner) => exact_anonymous_float_tree(&inner.target),
         Expression::Binary(binary) => {
             let left = exact_anonymous_float_tree(&binary.left)?;
             let right = exact_anonymous_float_tree(&binary.right)?;

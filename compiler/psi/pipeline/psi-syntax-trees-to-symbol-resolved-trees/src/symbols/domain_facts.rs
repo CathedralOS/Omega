@@ -341,8 +341,13 @@ fn assign_proof_expression_symbols(
                 member.receiver,
             );
         }
-        psi_symbol_resolved_trees::expression::ExpressionNode::Mutable(inner) => {
-            assign_proof_expression_symbols(symbols, domain_symbols, expression_table, inner);
+        psi_symbol_resolved_trees::expression::ExpressionNode::Borrow(inner) => {
+            assign_proof_expression_symbols(
+                symbols,
+                domain_symbols,
+                expression_table,
+                inner.target,
+            );
         }
         psi_symbol_resolved_trees::expression::ExpressionNode::Unary(unary) => {
             assign_proof_expression_symbols(

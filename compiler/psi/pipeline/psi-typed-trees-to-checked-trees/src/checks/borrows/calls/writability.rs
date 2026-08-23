@@ -31,13 +31,13 @@ pub(super) fn check_mutable_argument_writability(
     };
 
     for argument in call_site_argument_expressions(program, &call_site) {
-        let ExpressionNode::Mutable(inner_expression) =
+        let ExpressionNode::Borrow(inner_expression) =
             program.expression_table.expression(*argument)
         else {
             continue;
         };
 
-        let Some(root_name) = mutable_argument_root_name(program, *inner_expression) else {
+        let Some(root_name) = mutable_argument_root_name(program, inner_expression.target) else {
             diagnostics.push(Diagnostic::error(format!(
                 "mutable argument for state `{target_name}` must be a named place"
             )));
@@ -72,8 +72,8 @@ fn mutable_argument_root_name(
             }
             mutable_argument_root_name(program, member.receiver)
         }
-        ExpressionNode::Mutable(inner_expression) => {
-            mutable_argument_root_name(program, *inner_expression)
+        ExpressionNode::Borrow(inner_expression) => {
+            mutable_argument_root_name(program, inner_expression.target)
         }
         ExpressionNode::Name(path) => program
             .expression_table

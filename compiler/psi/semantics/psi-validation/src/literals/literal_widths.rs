@@ -262,8 +262,8 @@ fn bless_fact_literals(
         ExpressionNode::Unary(unary) => {
             bless_fact_literals(program, unary.operand, blessed);
         }
-        ExpressionNode::Mutable(inner) => {
-            bless_fact_literals(program, *inner, blessed);
+        ExpressionNode::Borrow(inner) => {
+            bless_fact_literals(program, inner.target, blessed);
         }
         ExpressionNode::Call(call) => {
             for argument in program.expression_table.expression_handles(call.arguments) {

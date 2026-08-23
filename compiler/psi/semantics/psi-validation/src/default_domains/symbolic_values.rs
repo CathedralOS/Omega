@@ -18,7 +18,7 @@ pub(super) fn integer_literal_value(
 ) -> Option<i128> {
     match program.expression_table.expression(expression) {
         ExpressionNode::Integer(value) => value.text().parse::<i128>().ok(),
-        ExpressionNode::Mutable(inner) => integer_literal_value(program, *inner),
+        ExpressionNode::Borrow(inner) => integer_literal_value(program, inner.target),
         _ => None,
     }
 }
@@ -275,7 +275,7 @@ pub(super) fn expression_contains_call(program: &TypedTrees, expression: Express
                 || expression_contains_call(program, binary.right)
         }
         ExpressionNode::Member(member) => expression_contains_call(program, member.receiver),
-        ExpressionNode::Mutable(inner) => expression_contains_call(program, *inner),
+        ExpressionNode::Borrow(inner) => expression_contains_call(program, inner.target),
         _ => false,
     }
 }

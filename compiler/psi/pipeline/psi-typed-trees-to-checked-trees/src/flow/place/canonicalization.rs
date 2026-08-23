@@ -35,7 +35,7 @@ pub(crate) fn canonical_place_from_expression(
     }
 
     match program.expression_table.expression(expression) {
-        ExpressionNode::Mutable(inner) => canonical_place_from_expression(program, *inner),
+        ExpressionNode::Borrow(inner) => canonical_place_from_expression(program, inner.target),
         ExpressionNode::Name(path) => {
             let root_symbol = first_valid_name_path_symbol(path, &program.expression_table)?;
             let mut segments = Vec::new();

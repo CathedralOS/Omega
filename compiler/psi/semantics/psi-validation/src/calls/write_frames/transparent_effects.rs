@@ -36,8 +36,8 @@ pub(super) fn expression_is_effectful_for_transparent_result(
         ExpressionNode::Member(member) => {
             expression_is_effectful_for_transparent_result(program, member.receiver)
         }
-        ExpressionNode::Mutable(inner) => {
-            expression_is_effectful_for_transparent_result(program, *inner)
+        ExpressionNode::Borrow(inner) => {
+            expression_is_effectful_for_transparent_result(program, inner.target)
         }
         ExpressionNode::Unary(unary) => {
             expression_is_effectful_for_transparent_result(program, unary.operand)
@@ -86,7 +86,7 @@ pub(super) fn frame_place_root_symbol(
     expression: ExpressionHandle,
 ) -> Option<SymbolHandle> {
     match program.expression_table.expression(expression) {
-        ExpressionNode::Mutable(inner) => frame_place_root_symbol(program, *inner),
+        ExpressionNode::Borrow(inner) => frame_place_root_symbol(program, inner.target),
         ExpressionNode::Indexed(indexed) => frame_place_root_symbol(program, indexed.collection),
         ExpressionNode::Member(member) => frame_place_root_symbol(program, member.receiver),
         ExpressionNode::Name(path) => path

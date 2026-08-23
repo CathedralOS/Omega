@@ -80,7 +80,7 @@ impl ContractExpressionEvaluator<'_, '_> {
             ExpressionNode::Member(member) if member.member.as_str() == "len" => self
                 .collection_length(member.receiver)
                 .and_then(|length| i64::try_from(length).ok()),
-            ExpressionNode::Mutable(inner) => self.integer_value(*inner),
+            ExpressionNode::Borrow(inner) => self.integer_value(inner.target),
             _ => None,
         }
     }

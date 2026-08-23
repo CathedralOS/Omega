@@ -3983,6 +3983,54 @@ fn parses_self_parameter_with_dedicated_self_type() {
 }
 
 #[test]
+fn parses_explicit_write_only_borrow_with_exact_access_mode() {
+    let source = r#"
+        machine fill(destination: &write bool, value: bool) {
+            destination = value;
+        }
+
+        machine caller(destination: &mut bool) {
+            fill(&write destination, true);
+        }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let caller = parsed
+        .root_items()
+        .filter_map(|item| match item {
+            psi_syntax_trees::item::Item::Machine(machine) => Some(machine),
+            _ => None,
+        })
+        .find(|machine| machine.name.as_str() == "caller")
+        .expect("caller machine");
+    let state = parsed.items.state(
+        *parsed
+            .items
+            .state_handles(caller.states)
+            .first()
+            .expect("caller entry state"),
+    );
+    let StatementNode::Call(call) = parsed
+        .statements
+        .statement(parsed.items.statements(state.statements)[0])
+    else {
+        panic!("caller statement should be a call");
+    };
+    let argument = parsed.statements.expression_handles(call.arguments)[0];
+    let ExpressionNode::Borrow(borrow) = parsed.expressions.expression(argument) else {
+        panic!("argument should retain one closed borrow-expression node");
+    };
+    assert_eq!(borrow.access, ReferenceAccess::WriteOnly);
+    assert_eq!(
+        parsed.expressions.display_name(argument),
+        "&write destination"
+    );
+}
+
+#[test]
 fn parses_self_expression_as_dedicated_node() {
     let source = r#"
         data Main {

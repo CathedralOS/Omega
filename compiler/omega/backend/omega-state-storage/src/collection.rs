@@ -483,13 +483,13 @@ fn expression_contains_trapping_op(
                     cast.value,
                 )
         }
-        ExpressionNode::Mutable(inner) => expression_contains_trapping_op(
+        ExpressionNode::Borrow(inner) => expression_contains_trapping_op(
             program,
             state,
             expressions,
             statements,
             local_statement_index,
-            *inner,
+            inner.target,
         ),
         _ => false,
     }
@@ -976,8 +976,8 @@ fn initializer_is_boundary_call(
         ExpressionNode::Cast(cast) => {
             return initializer_is_boundary_call(program, expressions, cast.value);
         }
-        ExpressionNode::Mutable(inner) => {
-            return initializer_is_boundary_call(program, expressions, *inner);
+        ExpressionNode::Borrow(inner) => {
+            return initializer_is_boundary_call(program, expressions, inner.target);
         }
         _ => return false,
     };
@@ -1005,7 +1005,7 @@ fn initializer_is_recast(
 ) -> bool {
     match expressions.expression(expression) {
         ExpressionNode::Atomic(atomic) => initializer_is_recast(expressions, atomic.value),
-        ExpressionNode::Mutable(inner) => initializer_is_recast(expressions, *inner),
+        ExpressionNode::Borrow(inner) => initializer_is_recast(expressions, inner.target),
         ExpressionNode::Cast(cast) => cast.form.is_recast(),
         _ => false,
     }
@@ -1063,7 +1063,7 @@ fn initializer_is_computed_value(
     expression: ExpressionHandle,
 ) -> bool {
     match expressions.expression(expression) {
-        ExpressionNode::Mutable(inner) => initializer_is_computed_value(expressions, *inner),
+        ExpressionNode::Borrow(inner) => initializer_is_computed_value(expressions, inner.target),
         ExpressionNode::Binary(_)
         | ExpressionNode::Unary(_)
         | ExpressionNode::Cast(_)
@@ -1130,10 +1130,10 @@ fn local_used_as_runtime_indexed_write_value(
                 return false;
             };
             let mut value = assignment.value;
-            while let psi_checked_trees::expression::ExpressionNode::Mutable(inner) =
+            while let psi_checked_trees::expression::ExpressionNode::Borrow(inner) =
                 expressions.expression(value)
             {
-                value = *inner;
+                value = inner.target;
             }
             let value_is_local = match expressions.expression(value) {
                 psi_checked_trees::expression::ExpressionNode::Name(path) => {
@@ -1168,8 +1168,8 @@ fn assignment_target_has_runtime_index(
         psi_checked_trees::expression::ExpressionNode::Member(member) => {
             assignment_target_has_runtime_index(expressions, member.receiver)
         }
-        psi_checked_trees::expression::ExpressionNode::Mutable(inner) => {
-            assignment_target_has_runtime_index(expressions, *inner)
+        psi_checked_trees::expression::ExpressionNode::Borrow(inner) => {
+            assignment_target_has_runtime_index(expressions, inner.target)
         }
         _ => false,
     }
@@ -1280,8 +1280,8 @@ fn expression_uses_symbol_as_index(
                 )
                 || expression_uses_symbol_as_index(expressions, indexed.index, symbol, local_name)
         }
-        ExpressionNode::Mutable(inner) => {
-            expression_uses_symbol_as_index(expressions, *inner, symbol, local_name)
+        ExpressionNode::Borrow(inner) => {
+            expression_uses_symbol_as_index(expressions, inner.target, symbol, local_name)
         }
         ExpressionNode::Member(member) => {
             expression_uses_symbol_as_index(expressions, member.receiver, symbol, local_name)
@@ -1337,8 +1337,8 @@ fn expression_is_bare_symbol(
     local_name: &Identifier,
 ) -> bool {
     match expressions.expression(expression) {
-        ExpressionNode::Mutable(inner) => {
-            expression_is_bare_symbol(expressions, *inner, symbol, local_name)
+        ExpressionNode::Borrow(inner) => {
+            expression_is_bare_symbol(expressions, inner.target, symbol, local_name)
         }
         ExpressionNode::Name(path) => {
             let members = expressions.name_path_members(path.members);
@@ -1361,7 +1361,7 @@ fn bare_name_initializer(
             .first()
             .cloned()
             .filter(|_| expressions.name_path_members(path.members).len() == 1),
-        ExpressionNode::Mutable(inner) => bare_name_initializer(expressions, *inner),
+        ExpressionNode::Borrow(inner) => bare_name_initializer(expressions, inner.target),
         _ => None,
     }
 }
@@ -1377,8 +1377,8 @@ fn initializer_is_reference_param_member(
     expression: ExpressionHandle,
 ) -> bool {
     match expressions.expression(expression) {
-        ExpressionNode::Mutable(inner) => {
-            initializer_is_reference_param_member(program, state, expressions, *inner)
+        ExpressionNode::Borrow(inner) => {
+            initializer_is_reference_param_member(program, state, expressions, inner.target)
         }
         ExpressionNode::Member(member) => {
             let ExpressionNode::Name(path) = expressions.expression(member.receiver) else {
@@ -1460,7 +1460,7 @@ fn collect_member_field_names(
             out.push(member.member.clone());
             collect_member_field_names(expressions, member.receiver, out);
         }
-        ExpressionNode::Mutable(inner) => collect_member_field_names(expressions, *inner, out),
+        ExpressionNode::Borrow(inner) => collect_member_field_names(expressions, inner.target, out),
         ExpressionNode::Binary(binary) => {
             collect_member_field_names(expressions, binary.left, out);
             collect_member_field_names(expressions, binary.right, out);
@@ -1500,7 +1500,7 @@ fn assignment_member_field_name(
 ) -> Option<Identifier> {
     match expressions.expression(target) {
         ExpressionNode::Member(member) => Some(member.member.clone()),
-        ExpressionNode::Mutable(inner) => assignment_member_field_name(expressions, *inner),
+        ExpressionNode::Borrow(inner) => assignment_member_field_name(expressions, inner.target),
         ExpressionNode::Indexed(indexed) => {
             assignment_member_field_name(expressions, indexed.collection)
         }
@@ -1521,7 +1521,7 @@ fn initializer_is_array_literal(
 ) -> bool {
     match expressions.expression(expression) {
         ExpressionNode::ArrayLiteral(_) => true,
-        ExpressionNode::Mutable(inner) => initializer_is_array_literal(expressions, *inner),
+        ExpressionNode::Borrow(inner) => initializer_is_array_literal(expressions, inner.target),
         _ => false,
     }
 }
@@ -1541,7 +1541,7 @@ fn initializer_is_struct_literal(
 ) -> bool {
     match expressions.expression(expression) {
         ExpressionNode::StructLiteral(_) => true,
-        ExpressionNode::Mutable(inner) => initializer_is_struct_literal(expressions, *inner),
+        ExpressionNode::Borrow(inner) => initializer_is_struct_literal(expressions, inner.target),
         _ => false,
     }
 }
@@ -1587,8 +1587,8 @@ fn expression_takes_slice_view_of_symbol(
                         )
                     })
         }
-        ExpressionNode::Mutable(inner) => {
-            expression_takes_slice_view_of_symbol(expressions, *inner, symbol, local_name)
+        ExpressionNode::Borrow(inner) => {
+            expression_takes_slice_view_of_symbol(expressions, inner.target, symbol, local_name)
         }
         ExpressionNode::ArrayLiteral(items) => expressions
             .expression_handles(*items)
@@ -1760,8 +1760,8 @@ fn initializer_is_runtime_bounded_subslice(
     expression: ExpressionHandle,
 ) -> bool {
     match expressions.expression(expression) {
-        ExpressionNode::Mutable(inner) => {
-            initializer_is_runtime_bounded_subslice(expressions, *inner)
+        ExpressionNode::Borrow(inner) => {
+            initializer_is_runtime_bounded_subslice(expressions, inner.target)
         }
         ExpressionNode::Indexed(indexed) => {
             let ExpressionNode::Range(range) = expressions.expression(indexed.index) else {
@@ -1772,8 +1772,8 @@ fn initializer_is_runtime_bounded_subslice(
                     return false;
                 }
                 let mut handle = bound;
-                while let ExpressionNode::Mutable(inner) = expressions.expression(handle) {
-                    handle = *inner;
+                while let ExpressionNode::Borrow(inner) = expressions.expression(handle) {
+                    handle = inner.target;
                 }
                 !matches!(expressions.expression(handle), ExpressionNode::Integer(_))
             })
@@ -1808,7 +1808,7 @@ fn expression_contains_call(
     match expressions.expression(expression) {
         ExpressionNode::Atomic(atomic) => expression_contains_call(expressions, atomic.value),
         ExpressionNode::Call(_) => true,
-        ExpressionNode::Mutable(inner) => expression_contains_call(expressions, *inner),
+        ExpressionNode::Borrow(inner) => expression_contains_call(expressions, inner.target),
         ExpressionNode::ArrayLiteral(items) => expressions
             .expression_handles(*items)
             .iter()
@@ -1857,7 +1857,9 @@ fn initializer_is_runtime_indexed_read(
             expressions.expression(indexed.index),
             ExpressionNode::Integer(_)
         ),
-        ExpressionNode::Mutable(inner) => initializer_is_runtime_indexed_read(expressions, *inner),
+        ExpressionNode::Borrow(inner) => {
+            initializer_is_runtime_indexed_read(expressions, inner.target)
+        }
         // A field read off a runtime-indexed element (`arr[i].field`) is the same
         // unresolvable-without-a-slot value as the bare read: it is not folded back
         // into an operand position either, so a local initialized from it and used
@@ -1976,7 +1978,7 @@ fn expression_uses_symbol_as_arithmetic_operand(
         ExpressionNode::Cast(cast) => {
             expression_is_symbol(expressions, cast.value, symbol, local_name) || recurse(cast.value)
         }
-        ExpressionNode::Mutable(inner) => recurse(*inner),
+        ExpressionNode::Borrow(inner) => recurse(inner.target),
         ExpressionNode::Member(member) => recurse(member.receiver),
         ExpressionNode::Indexed(indexed) => recurse(indexed.collection) || recurse(indexed.index),
         ExpressionNode::Range(range) => recurse(range.start) || recurse(range.end),
@@ -2168,13 +2170,15 @@ fn expression_contains_mutating_call(
                 .iter()
                 .copied()
                 .any(|argument| {
-                    matches!(expressions.expression(argument), ExpressionNode::Mutable(_))
+                    matches!(expressions.expression(argument), ExpressionNode::Borrow(_))
                         || expression_contains_mutating_call(expressions, argument)
                 })
                 || (call.receiver.is_valid()
                     && expression_contains_mutating_call(expressions, call.receiver))
         }
-        ExpressionNode::Mutable(inner) => expression_contains_mutating_call(expressions, *inner),
+        ExpressionNode::Borrow(inner) => {
+            expression_contains_mutating_call(expressions, inner.target)
+        }
         ExpressionNode::ArrayLiteral(items) => expressions
             .expression_handles(*items)
             .iter()
@@ -2327,7 +2331,7 @@ fn assignment_target_head_symbol(
         ExpressionNode::Indexed(indexed) => {
             assignment_target_head_symbol(expressions, indexed.collection)
         }
-        ExpressionNode::Mutable(inner) => assignment_target_head_symbol(expressions, *inner),
+        ExpressionNode::Borrow(inner) => assignment_target_head_symbol(expressions, inner.target),
         _ => SymbolHandle::invalid(),
     }
 }
@@ -2344,7 +2348,7 @@ fn assignment_target_head_name(
         ExpressionNode::Indexed(indexed) => {
             assignment_target_head_name(expressions, indexed.collection)
         }
-        ExpressionNode::Mutable(inner) => assignment_target_head_name(expressions, *inner),
+        ExpressionNode::Borrow(inner) => assignment_target_head_name(expressions, inner.target),
         _ => None,
     }
 }
@@ -2490,8 +2494,8 @@ fn expression_uses_symbol_mutably(
         ExpressionNode::Atomic(atomic) => {
             expression_uses_symbol_mutably(expressions, atomic.value, symbol, local_name)
         }
-        ExpressionNode::Mutable(inner) => {
-            expression_references_symbol(expressions, *inner, symbol, local_name)
+        ExpressionNode::Borrow(inner) => {
+            expression_references_symbol(expressions, inner.target, symbol, local_name)
         }
         ExpressionNode::ArrayLiteral(items) => expressions
             .expression_handles(*items)
@@ -2562,8 +2566,8 @@ fn expression_references_symbol(
                     .first()
                     .is_some_and(|name| name == local_name)
         }
-        ExpressionNode::Mutable(inner) => {
-            expression_references_symbol(expressions, *inner, symbol, local_name)
+        ExpressionNode::Borrow(inner) => {
+            expression_references_symbol(expressions, inner.target, symbol, local_name)
         }
         ExpressionNode::ArrayLiteral(items) => expressions
             .expression_handles(*items)

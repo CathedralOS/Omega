@@ -22,7 +22,9 @@ impl ContractExpressionEvaluator<'_, '_> {
         expression: ExpressionHandle,
     ) -> Option<ExpressionHandle> {
         match self.program.expression_table.expression(expression) {
-            ExpressionNode::Mutable(inner) => self.resolved_expression(*inner).or(Some(*inner)),
+            ExpressionNode::Borrow(inner) => self
+                .resolved_expression(inner.target)
+                .or(Some(inner.target)),
             ExpressionNode::Name(path) => {
                 let name = self
                     .program

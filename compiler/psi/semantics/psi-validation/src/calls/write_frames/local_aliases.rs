@@ -47,7 +47,7 @@ pub(super) fn stable_alias_place_origin(
     allow_isolated_local: bool,
 ) -> Option<FramePlaceOrigin> {
     let expression = match program.expression_table.expression(expression) {
-        ExpressionNode::Mutable(inner) => *inner,
+        ExpressionNode::Borrow(inner) => inner.target,
         _ => expression,
     };
     let origin = frame_place_path(program, expression)?;
@@ -92,13 +92,13 @@ pub(super) fn expression_reborrows_local_alias_binding(
     }
     let visit = |child| expression_reborrows_local_alias_binding(program, child, aliases);
     match program.expression_table.expression(expression) {
-        ExpressionNode::Mutable(inner) => {
+        ExpressionNode::Borrow(inner) => {
             let borrows_binding = matches!(
-                program.expression_table.expression(*inner),
+                program.expression_table.expression(inner.target),
                 ExpressionNode::Name(_)
-            ) && arithmetic_domains::place_path(program, *inner)
+            ) && arithmetic_domains::place_path(program, inner.target)
                 .is_some_and(|path| aliases.iter().any(|(alias, _)| path == *alias));
-            borrows_binding || visit(*inner)
+            borrows_binding || visit(inner.target)
         }
         ExpressionNode::Atomic(atomic) => visit(atomic.value) || visit(atomic.result),
         ExpressionNode::Call(call) => {
@@ -146,25 +146,26 @@ pub(super) fn expression_reborrows_stable_alias_binding(
     let visit =
         |child| expression_reborrows_stable_alias_binding(program, child, parameters, aliases);
     match program.expression_table.expression(expression) {
-        ExpressionNode::Mutable(inner) => {
-            let reborrows_binding = matches!(
-                program.expression_table.expression(*inner),
-                ExpressionNode::Name(_)
-            ) && frame_place_path(program, *inner).is_some_and(|place| {
-                let (root, suffix) = split_place_root(&place.path);
-                suffix.is_empty()
-                    && (parameters.iter().any(|parameter| {
-                        matches!(
-                            program
-                                .type_reference_table
-                                .type_reference(parameter.type_reference),
-                            TypeReferenceNode::Reference { access, .. }
-                                if access.is_exclusive()
-                        ) && (parameter.is_self && root == "self"
-                            || root == parameter.name.as_str())
-                    }) || aliases.iter().any(|(name, _)| root == name))
-            });
-            reborrows_binding || visit(*inner)
+        ExpressionNode::Borrow(inner) => {
+            let reborrows_binding =
+                matches!(
+                    program.expression_table.expression(inner.target),
+                    ExpressionNode::Name(_)
+                ) && frame_place_path(program, inner.target).is_some_and(|place| {
+                    let (root, suffix) = split_place_root(&place.path);
+                    suffix.is_empty()
+                        && (parameters.iter().any(|parameter| {
+                            matches!(
+                                program
+                                    .type_reference_table
+                                    .type_reference(parameter.type_reference),
+                                TypeReferenceNode::Reference { access, .. }
+                                    if access.is_exclusive()
+                            ) && (parameter.is_self && root == "self"
+                                || root == parameter.name.as_str())
+                        }) || aliases.iter().any(|(name, _)| root == name))
+                });
+            reborrows_binding || visit(inner.target)
         }
         ExpressionNode::Atomic(atomic) => visit(atomic.value) || visit(atomic.result),
         ExpressionNode::Call(call) => {
@@ -211,7 +212,7 @@ pub(super) fn expression_may_rebind_mutable_alias(
     expression: ExpressionHandle,
 ) -> bool {
     match program.expression_table.expression(expression) {
-        ExpressionNode::Mutable(_) | ExpressionNode::Call(_) => true,
+        ExpressionNode::Borrow(_) | ExpressionNode::Call(_) => true,
         ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
             let declared =
                 crate::places::declared_place_type_raw(program, machine, Some(state), expression)

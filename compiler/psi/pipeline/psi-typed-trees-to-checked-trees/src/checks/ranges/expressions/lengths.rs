@@ -39,7 +39,7 @@ pub(in crate::checks::ranges) fn expression_indexable_length(
                 .last()
                 .map(|name| name.as_str()),
         ),
-        ExpressionNode::Mutable(inner) => expression_indexable_length(program, facts, *inner),
+        ExpressionNode::Borrow(inner) => expression_indexable_length(program, facts, inner.target),
         _ => None,
     }
 }
@@ -90,7 +90,9 @@ fn fixed_array_expression_length(
     expression: ExpressionHandle,
 ) -> Option<usize> {
     match program.expression_table.expression(expression) {
-        ExpressionNode::Mutable(inner) => fixed_array_expression_length(program, facts, *inner),
+        ExpressionNode::Borrow(inner) => {
+            fixed_array_expression_length(program, facts, inner.target)
+        }
         ExpressionNode::Member(member) => {
             facts.field_length(member.member_symbol, Some(member.member.as_str()))
         }

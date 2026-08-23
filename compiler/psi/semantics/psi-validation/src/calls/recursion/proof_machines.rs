@@ -722,7 +722,7 @@ fn collect_self_entry_call_arguments(
             recurse(indexed.index, found);
         }
         ExpressionNode::Member(member) => recurse(member.receiver, found),
-        ExpressionNode::Mutable(inner) => recurse(*inner, found),
+        ExpressionNode::Borrow(inner) => recurse(inner.target, found),
         ExpressionNode::Range(range) => {
             recurse(range.start, found);
             recurse(range.end, found);

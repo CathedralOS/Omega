@@ -1268,8 +1268,11 @@ impl SyntaxTrees {
                 member: member.member.clone(),
                 case_variant: member.case_variant.clone(),
             }),
-            ExpressionNode::Mutable(expression) => {
-                ExpressionNode::Mutable(self.copy_expression_handle(other, *expression))
+            ExpressionNode::Borrow(expression) => {
+                ExpressionNode::Borrow(crate::expression::TableBorrowExpression {
+                    target: self.copy_expression_handle(other, expression.target),
+                    access: expression.access,
+                })
             }
             ExpressionNode::Name(path) => {
                 ExpressionNode::Name(self.copy_expression_identifier_span(other, *path))

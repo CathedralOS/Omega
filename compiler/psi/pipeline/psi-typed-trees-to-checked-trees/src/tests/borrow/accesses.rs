@@ -1,6 +1,40 @@
 use super::super::*;
 
 #[test]
+fn collects_exact_write_only_argument_access_kind() {
+    let source = r#"
+        machine sink(value: &write i32) {
+            value = 1;
+        }
+
+        machine forward(value: &write i32) {
+            sink(&write value);
+        }
+    "#;
+
+    let tokens = psi_source_files_to_tokens::Lexer::new(source)
+        .tokenize()
+        .expect("tokenize");
+    let syntax = psi_tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
+    let resolved =
+        psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).expect("resolve");
+    let typed = psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+        .expect("type");
+
+    let facts = build_borrow_facts(&typed);
+    let call = facts
+        .states
+        .iter()
+        .flat_map(|(_, state)| facts.calls.span_or_empty(state.calls))
+        .next()
+        .expect("forwarding call");
+    let accesses = facts.argument_accesses.span_or_empty(call.accesses);
+
+    assert_eq!(accesses.len(), 1);
+    assert_eq!(accesses[0].kind, BorrowAccessKind::WriteOnly);
+}
+
+#[test]
 fn collects_mutable_attached_data_argument_access_roots() {
     let machine_symbol = SymbolHandle::from_arena_index(1);
     let state_symbol = SymbolHandle::from_arena_index(2);
@@ -20,7 +54,7 @@ fn collects_mutable_attached_data_argument_access_roots() {
             member: Identifier::generated("player"),
             case_variant: None,
         }));
-    let player_argument = Expression::Mutable(Box::new(player_member));
+    let player_argument = mutable_borrow(player_member);
     let player_argument = program.expression_table.insert_tree(&player_argument);
 
     let mut arguments = HandleSpan::empty();
@@ -136,7 +170,7 @@ fn collects_disjoint_member_access_segments() {
         }));
     let health_argument = program
         .expression_table
-        .insert_tree(&Expression::Mutable(Box::new(health_member)));
+        .insert_tree(&mutable_borrow(health_member));
     let stamina_argument = program.expression_table.insert_tree(&stamina_member);
 
     let mut arguments = HandleSpan::empty();
@@ -367,7 +401,7 @@ fn collects_unresolved_local_argument_access_roots() {
     let local_name = Expression::Name(NamePath::unresolved(vec![Identifier::generated("value")]));
     let local_argument = program
         .expression_table
-        .insert_tree(&Expression::Mutable(Box::new(local_name)));
+        .insert_tree(&mutable_borrow(local_name));
 
     let mut arguments = HandleSpan::empty();
     program

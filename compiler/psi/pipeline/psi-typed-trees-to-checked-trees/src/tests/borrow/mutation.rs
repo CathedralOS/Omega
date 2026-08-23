@@ -20,7 +20,7 @@ fn call_mutated_places_include_mutable_attached_data_arguments() {
             member: Identifier::generated("player"),
             case_variant: None,
         }));
-    let player_argument = Expression::Mutable(Box::new(player_member));
+    let player_argument = mutable_borrow(player_member);
     let player_argument = program.expression_table.insert_tree(&player_argument);
 
     let mut arguments = HandleSpan::empty();
@@ -130,7 +130,7 @@ fn call_mutated_places_include_mutable_local_arguments_from_unresolved_names() {
 
     let mut program = psi_typed_trees::TypedTrees::default();
     let local_name = Expression::Name(NamePath::unresolved(vec![Identifier::generated("player")]));
-    let local_argument = Expression::Mutable(Box::new(local_name));
+    let local_argument = mutable_borrow(local_name);
     let local_argument = program.expression_table.insert_tree(&local_argument);
 
     let mut arguments = HandleSpan::empty();

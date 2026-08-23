@@ -25,7 +25,7 @@ impl Default for PlaceKey {
 impl PlaceKey {
     pub fn from_expression(expression: &Expression) -> Option<Self> {
         match expression {
-            Expression::Mutable(inner_expression) => Self::from_expression(inner_expression),
+            Expression::Borrow(inner_expression) => Self::from_expression(&inner_expression.target),
             Expression::Name(path) => Some(Self::from_name_path(path)),
             Expression::Indexed(indexed) => {
                 let mut key = Self::from_expression(&indexed.collection)?;
@@ -48,8 +48,8 @@ impl PlaceKey {
         expression: ExpressionHandle,
     ) -> Option<Self> {
         match table.expression(expression) {
-            ExpressionNode::Mutable(inner_expression) => {
-                Self::from_expression_handle(table, *inner_expression)
+            ExpressionNode::Borrow(inner_expression) => {
+                Self::from_expression_handle(table, inner_expression.target)
             }
             ExpressionNode::Name(path) => Some(Self::from_table_name_path(table, path)),
             ExpressionNode::Indexed(indexed) => {

@@ -687,7 +687,8 @@ pub enum ExpressionSnapshot {
         receiver: Box<ExpressionSnapshot>,
         member: String,
     },
-    Mutable {
+    Borrow {
+        access: &'static str,
         value: Box<ExpressionSnapshot>,
     },
     Name {
@@ -1586,8 +1587,9 @@ fn table_expression_snapshot(
             receiver: Box::new(table_expression_snapshot(program, member.receiver)),
             member: member.member.to_string(),
         },
-        ExpressionNode::Mutable(value) => ExpressionSnapshot::Mutable {
-            value: Box::new(table_expression_snapshot(program, *value)),
+        ExpressionNode::Borrow(value) => ExpressionSnapshot::Borrow {
+            access: reference_access_name(value.access),
+            value: Box::new(table_expression_snapshot(program, value.target)),
         },
         ExpressionNode::Name(path) => ExpressionSnapshot::Name {
             path: table

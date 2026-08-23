@@ -20,6 +20,7 @@ pub enum StateBorrowAccessKind {
     #[default]
     Read,
     Mutable,
+    WriteOnly,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

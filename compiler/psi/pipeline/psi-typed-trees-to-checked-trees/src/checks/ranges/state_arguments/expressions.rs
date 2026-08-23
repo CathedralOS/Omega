@@ -100,9 +100,13 @@ pub(super) fn collect_state_argument_facts_from_expression(
                 collected,
             );
         }
-        ExpressionNode::Mutable(inner) => {
+        ExpressionNode::Borrow(inner) => {
             collect_state_argument_facts_from_expression(
-                program, machine, facts, *inner, collected,
+                program,
+                machine,
+                facts,
+                inner.target,
+                collected,
             );
         }
         ExpressionNode::Unary(unary) => {

@@ -60,8 +60,8 @@ pub(super) fn collect_call_summaries(
         ExpressionNode::Member(member) => {
             collect_call_summaries(program, member.receiver, summaries, call_established);
         }
-        ExpressionNode::Mutable(inner) => {
-            collect_call_summaries(program, *inner, summaries, call_established);
+        ExpressionNode::Borrow(inner) => {
+            collect_call_summaries(program, inner.target, summaries, call_established);
         }
         _ => {}
     }

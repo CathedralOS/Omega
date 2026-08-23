@@ -1196,8 +1196,9 @@ fn scan_expression_reads(
                 diagnostics,
             );
         }
-        ExpressionNode::Mutable(inner) => {
-            if let ExpressionNode::Member(member) = program.expression_table.expression(*inner)
+        ExpressionNode::Borrow(inner) => {
+            if let ExpressionNode::Member(member) =
+                program.expression_table.expression(inner.target)
                 && let Some(receiver_spelling) = self_place_spelling(program, member.receiver)
                 && let Some(place) = tracked
                     .iter()
@@ -1220,7 +1221,7 @@ fn scan_expression_reads(
                 program,
                 machine,
                 state,
-                *inner,
+                inner.target,
                 tracked,
                 entry_established,
                 call_established,

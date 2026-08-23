@@ -1413,13 +1413,13 @@ pub(super) fn narrow_f32_literal_operands(
                 *bits = i64::from((f64::from_bits(*bits as u64) as f32).to_bits());
             }
         }
-        ExpressionNode::Mutable(inner) => narrow_f32_literal_operands(
+        ExpressionNode::Borrow(inner) => narrow_f32_literal_operands(
             input,
             dispatch_index,
             source_key,
             runtime_value_operands,
             expressions,
-            *inner,
+            inner.target,
             operand,
         ),
         ExpressionNode::Binary(binary) => {

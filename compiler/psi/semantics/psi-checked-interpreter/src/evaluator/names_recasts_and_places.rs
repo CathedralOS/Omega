@@ -117,7 +117,7 @@ impl<'program> Evaluator<'program> {
         frame: &Frame,
     ) -> EvalResult<Option<(Cell, MutableScalarRecast)>> {
         let cast_handle = match self.program.expression_table.expression(initializer) {
-            ExpressionNode::Mutable(inner) => *inner,
+            ExpressionNode::Borrow(inner) => inner.target,
             ExpressionNode::Cast(cast)
                 if cast.form == psi_language_core::CastForm::RecastMutable =>
             {
@@ -144,13 +144,13 @@ impl<'program> Evaluator<'program> {
                 ExpressionNode::Cast(inner) if inner.form.is_recast() => {
                     source_handle = inner.value;
                 }
-                ExpressionNode::Mutable(inner)
+                ExpressionNode::Borrow(inner)
                     if matches!(
-                        self.program.expression_table.expression(*inner),
+                        self.program.expression_table.expression(inner.target),
                         ExpressionNode::Cast(cast) if cast.form.is_recast()
                     ) =>
                 {
-                    source_handle = *inner;
+                    source_handle = inner.target;
                 }
                 _ => break,
             }
@@ -222,7 +222,7 @@ impl<'program> Evaluator<'program> {
         frame: &Frame,
     ) -> Option<MutableScalarRecast> {
         let target = match self.program.expression_table.expression(target) {
-            ExpressionNode::Mutable(inner) => *inner,
+            ExpressionNode::Borrow(inner) => inner.target,
             _ => target,
         };
         let ExpressionNode::Name(path) = self.program.expression_table.expression(target) else {
@@ -251,11 +251,11 @@ impl<'program> Evaluator<'program> {
         frame: &Frame,
     ) -> EvalResult<Option<(MutableScalarRecast, Vec<MutableRecordProjectionStep>)>> {
         match self.program.expression_table.expression(handle).clone() {
-            ExpressionNode::Mutable(inner) => {
+            ExpressionNode::Borrow(inner) => {
                 if let Some((_, recast)) = self.mutable_scalar_recast_initializer(handle, frame)? {
                     return Ok(Some((recast, Vec::new())));
                 }
-                self.mutable_recast_path(inner, frame)
+                self.mutable_recast_path(inner.target, frame)
             }
             ExpressionNode::Cast(cast) if cast.form.is_recast() => Ok(self
                 .mutable_scalar_recast_initializer(handle, frame)?
@@ -513,7 +513,7 @@ impl<'program> Evaluator<'program> {
                 let index = self.eval_index(indexed.index, frame)?;
                 self.element_cell(&collection, index)
             }
-            ExpressionNode::Mutable(inner) => self.resolve_place(inner, frame),
+            ExpressionNode::Borrow(inner) => self.resolve_place(inner.target, frame),
             other => unsupported(format!("place expression not supported: {other:?}")),
         }
     }

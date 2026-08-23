@@ -1519,12 +1519,12 @@ fn build_qualification_facts(program: &TypedTrees) -> psi_checked_trees::Qualifi
                 vacuous_uses,
                 visited,
             ),
-            ExpressionNode::Mutable(inner) => collect_casts(
+            ExpressionNode::Borrow(inner) => collect_casts(
                 program,
                 machine,
                 state,
                 statement_index,
-                *inner,
+                inner.target,
                 committed,
                 vacuous_uses,
                 visited,

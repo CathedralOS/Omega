@@ -245,8 +245,8 @@ fn proof_output_receiver_parts(
         return Some((psi_symbols::SymbolHandle::invalid(), Vec::new()));
     }
     match program.expression_table.expression(expression) {
-        typed::expression::ExpressionNode::Mutable(inner) => {
-            proof_output_receiver_parts(program, *inner)
+        typed::expression::ExpressionNode::Borrow(inner) => {
+            proof_output_receiver_parts(program, inner.target)
         }
         typed::expression::ExpressionNode::Name(path) => Some((
             path.symbol,

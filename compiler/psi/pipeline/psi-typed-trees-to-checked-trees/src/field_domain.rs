@@ -101,7 +101,7 @@ fn state_place_path(
     expression: psi_typed_trees::expression::ExpressionHandle,
 ) -> Option<(SymbolHandle, Vec<String>)> {
     match program.expression_table.expression(expression) {
-        ExpressionNode::Mutable(inner) => state_place_path(program, state, *inner),
+        ExpressionNode::Borrow(inner) => state_place_path(program, state, inner.target),
         ExpressionNode::Member(member) => {
             let (symbol, mut members) = state_place_path(program, state, member.receiver)?;
             members.push(member.member.as_str().to_owned());

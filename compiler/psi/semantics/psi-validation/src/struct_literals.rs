@@ -145,8 +145,8 @@ fn scan_expression(
         ExpressionNode::Member(member) => {
             scan_expression(program, machine, state, member.receiver, diagnostics)
         }
-        ExpressionNode::Mutable(inner) => {
-            scan_expression(program, machine, state, *inner, diagnostics)
+        ExpressionNode::Borrow(inner) => {
+            scan_expression(program, machine, state, inner.target, diagnostics)
         }
         ExpressionNode::Range(range) => {
             scan_expression(program, machine, state, range.start, diagnostics);

@@ -754,7 +754,7 @@ fn expression_is_integer_typed(
     match program.expression_table.expression(expression) {
         ExpressionNode::Integer(_) => true,
         ExpressionNode::Atomic(atomic) => expression_is_integer_typed(program, atomic.value),
-        ExpressionNode::Mutable(inner) => expression_is_integer_typed(program, *inner),
+        ExpressionNode::Borrow(inner) => expression_is_integer_typed(program, inner.target),
         ExpressionNode::Cast(cast) => type_reference_is_integer(program, cast.target_type),
         ExpressionNode::Name(path) => {
             crate::lookup::first_valid_name_path_symbol(path, &program.expression_table)

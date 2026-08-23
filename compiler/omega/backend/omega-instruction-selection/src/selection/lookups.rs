@@ -1045,7 +1045,7 @@ fn static_receiver_type_name(
     receiver: &Expression,
 ) -> Option<Identifier> {
     match receiver {
-        Expression::Mutable(inner) => static_receiver_type_name(input, inner),
+        Expression::Borrow(inner) => static_receiver_type_name(input, &inner.target),
         Expression::Member(member) => receiver_symbol_type_name(input, member.member_symbol),
         Expression::Name(path) => {
             let symbol = if path.symbol().is_valid() {
@@ -1065,8 +1065,8 @@ fn static_table_receiver_type_name(
     receiver: ExpressionHandle,
 ) -> Option<Identifier> {
     match expressions.expression(receiver) {
-        ExpressionNode::Mutable(inner) => {
-            static_table_receiver_type_name(input, expressions, *inner)
+        ExpressionNode::Borrow(inner) => {
+            static_table_receiver_type_name(input, expressions, inner.target)
         }
         ExpressionNode::Member(member) => receiver_symbol_type_name(input, member.member_symbol),
         ExpressionNode::Name(path) => {

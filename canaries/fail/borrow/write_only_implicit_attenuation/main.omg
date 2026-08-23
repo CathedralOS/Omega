@@ -1,0 +1,10 @@
+// FAIL canary: attenuation is explicit at the call site; `&mut` does not
+// silently satisfy an exact `&write` parameter.
+
+machine consume(value: &write i32) {
+    value = 1;
+}
+
+machine call(value: &mut i32) {
+    consume(&mut value);
+}

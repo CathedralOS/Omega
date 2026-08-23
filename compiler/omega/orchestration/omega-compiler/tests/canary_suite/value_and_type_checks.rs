@@ -1,19 +1,92 @@
 use super::*;
 
 #[test]
-fn write_only_reference_is_recognized_but_rejects_before_checked_execution() {
+fn write_only_whole_scalar_replace_and_forward_are_accepted() {
+    let canary = pass_canary("borrow/write_only_whole_scalar_replace");
+    check_canary(&canary).expect("whole-scalar write-only replacement should be checked");
+}
+
+#[test]
+fn write_only_aggregate_projection_is_rejected() {
     let canary = fail_canary("borrow/write_only_reference_operation_gate");
-    let diagnostics = check_canary(&canary)
-        .expect_err("write-only references must remain behind their operation-set gate");
+    let diagnostics =
+        check_canary(&canary).expect_err("write-only aggregate projection must remain gated");
     let combined = diagnostics
         .iter()
         .map(ToString::to_string)
         .collect::<Vec<_>>()
         .join("\n");
     assert!(
-        combined.contains("uses `&write`")
-            && combined.contains("checked operation set is not implemented yet"),
-        "expected the directed write-only operation-set diagnostic, got:\n{combined}"
+        combined.contains("whole, unrestricted primitive scalars")
+            && combined.contains("whole-root replacement"),
+        "expected directed aggregate and projection diagnostics, got:\n{combined}"
+    );
+}
+
+#[test]
+fn write_only_observation_is_rejected() {
+    let canary = fail_canary("borrow/write_only_observation");
+    let diagnostics = check_canary(&canary).expect_err("write-only observation must reject");
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("reads write-only parameter `source`")
+            && combined.contains("never observation"),
+        "expected directed non-observation diagnostic, got:\n{combined}"
+    );
+}
+
+#[test]
+fn write_only_mutable_widening_is_rejected() {
+    let canary = fail_canary("borrow/write_only_mutable_widening");
+    let diagnostics = check_canary(&canary).expect_err("write-only widening must reject");
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("widens write-only parameter `value` to `&mut`")
+            && combined.contains("&write value"),
+        "expected directed widening diagnostic, got:\n{combined}"
+    );
+}
+
+#[test]
+fn write_only_attenuation_must_be_explicit() {
+    let canary = fail_canary("borrow/write_only_implicit_attenuation");
+    let diagnostics = check_canary(&canary)
+        .expect_err("mutable syntax must not silently attenuate to write-only");
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("requires explicit write-only attenuation")
+            && combined.contains("pass `&write ...`")
+            && combined.contains("`&mut ...` does not establish the no-read contract"),
+        "expected exact borrow-mode diagnostic, got:\n{combined}"
+    );
+}
+
+#[test]
+fn write_only_boundary_provider_requires_admitted_claim() {
+    let canary = fail_canary("borrow/write_only_provider_gate");
+    let diagnostics = check_canary(&canary)
+        .expect_err("opaque/boundary write-only implementations must remain gated");
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("proves non-observation only for checked Omega bodies")
+            && combined.contains("admitted write-only boundary claim"),
+        "expected directed provider-boundary diagnostic, got:\n{combined}"
     );
 }
 

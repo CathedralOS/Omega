@@ -842,9 +842,17 @@ pub(super) fn rewrite_destructure_guard_expression(
             member: member.member,
             case_variant: member.case_variant,
         }),
-        ExpressionNode::Mutable(inner) => ExpressionNode::Mutable(
-            rewrite_destructure_guard_expression(syntax_trees, inner, subject, fields),
-        ),
+        ExpressionNode::Borrow(inner) => {
+            ExpressionNode::Borrow(psi_syntax_trees::expression::TableBorrowExpression {
+                target: rewrite_destructure_guard_expression(
+                    syntax_trees,
+                    inner.target,
+                    subject,
+                    fields,
+                ),
+                access: inner.access,
+            })
+        }
         ExpressionNode::Name(path) => {
             if let Some((field, case_variant)) =
                 single_destructured_field_name(syntax_trees, path, fields)

@@ -837,7 +837,7 @@ impl<'program> Engine<'program> {
                 left.extend(self.conjuncts(binary.right));
                 left
             }
-            ExpressionNode::Mutable(inner) => self.conjuncts(inner),
+            ExpressionNode::Borrow(inner) => self.conjuncts(inner.target),
             _ => vec![fact],
         }
     }
@@ -873,7 +873,7 @@ impl<'program> Engine<'program> {
         let node = self.program.expression_table.expression(expression).clone();
         match node {
             ExpressionNode::Integer(value) => Some(Polynomial::constant(value.value_bignum()?)),
-            ExpressionNode::Mutable(inner) => self.normalize(inner),
+            ExpressionNode::Borrow(inner) => self.normalize(inner.target),
             ExpressionNode::Name(path) => {
                 let members = self
                     .program

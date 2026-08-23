@@ -38,7 +38,7 @@ fn remaps_borrow_summary_from_source_roots_into_target_roots() {
         StateBorrowArgumentAccess {
             root_symbol: SymbolHandle::from_arena_index(3),
             segments: segment_span,
-            kind: omega_state_graph::StateBorrowAccessKind::Mutable,
+            kind: omega_state_graph::StateBorrowAccessKind::WriteOnly,
         },
     );
     calls.append_to_span(
@@ -125,4 +125,15 @@ fn remaps_borrow_summary_from_source_roots_into_target_roots() {
         .first()
         .unwrap();
     assert_eq!(call.accesses.count(), 1);
+    let access = target
+        .semantics
+        .borrow
+        .argument_accesses
+        .span_or_empty(call.accesses)
+        .first()
+        .unwrap();
+    assert_eq!(
+        access.kind,
+        omega_state_graph::StateBorrowAccessKind::WriteOnly
+    );
 }

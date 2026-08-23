@@ -11,8 +11,8 @@ pub fn expression_place_eq(left: &Expression, right: &Expression) -> bool {
         (Expression::Member(left), Expression::Member(right)) => {
             left.member == right.member && expression_place_eq(&left.receiver, &right.receiver)
         }
-        (Expression::Mutable(left), right) => expression_place_eq(left, right),
-        (left, Expression::Mutable(right)) => expression_place_eq(left, right),
+        (Expression::Borrow(left), right) => expression_place_eq(&left.target, right),
+        (left, Expression::Borrow(right)) => expression_place_eq(left, &right.target),
         _ => left == right,
     }
 }
@@ -52,11 +52,11 @@ pub fn expression_place_eq_across_tables(
                     right.receiver,
                 )
         }
-        (ExpressionNode::Mutable(left), _) => {
-            expression_place_eq_across_tables(left_table, *left, right_table, right)
+        (ExpressionNode::Borrow(left), _) => {
+            expression_place_eq_across_tables(left_table, left.target, right_table, right)
         }
-        (_, ExpressionNode::Mutable(right)) => {
-            expression_place_eq_across_tables(left_table, left, right_table, *right)
+        (_, ExpressionNode::Borrow(right)) => {
+            expression_place_eq_across_tables(left_table, left, right_table, right.target)
         }
         _ => expression_eq_across_tables(left_table, left, right_table, right),
     }
@@ -79,8 +79,12 @@ pub fn expression_place_eq_table_tree(
             left.member == right.member
                 && expression_place_eq_table_tree(table, left.receiver, &right.receiver)
         }
-        (ExpressionNode::Mutable(left), _) => expression_place_eq_table_tree(table, *left, right),
-        (_, Expression::Mutable(right)) => expression_place_eq_table_tree(table, left, right),
+        (ExpressionNode::Borrow(left), _) => {
+            expression_place_eq_table_tree(table, left.target, right)
+        }
+        (_, Expression::Borrow(right)) => {
+            expression_place_eq_table_tree(table, left, &right.target)
+        }
         _ => expression_eq_table_tree(table, left, right),
     }
 }
@@ -192,8 +196,9 @@ fn expression_eq_across_tables(
                     right.receiver,
                 )
         }
-        (ExpressionNode::Mutable(left), ExpressionNode::Mutable(right)) => {
-            expression_eq_across_tables(left_table, *left, right_table, *right)
+        (ExpressionNode::Borrow(left), ExpressionNode::Borrow(right)) => {
+            left.access == right.access
+                && expression_eq_across_tables(left_table, left.target, right_table, right.target)
         }
         (ExpressionNode::Name(left), ExpressionNode::Name(right)) => {
             table_name_path_eq(left_table, left, right_table, right)
@@ -251,8 +256,9 @@ fn expression_eq_table_tree(
             left.member == right.member
                 && expression_eq_table_tree(table, left.receiver, &right.receiver)
         }
-        (ExpressionNode::Mutable(left), Expression::Mutable(right)) => {
-            expression_eq_table_tree(table, *left, right)
+        (ExpressionNode::Borrow(left), Expression::Borrow(right)) => {
+            left.access == right.access
+                && expression_eq_table_tree(table, left.target, &right.target)
         }
         (ExpressionNode::Name(left), Expression::Name(right)) => {
             table_name_path_tree_eq(table, left, right)

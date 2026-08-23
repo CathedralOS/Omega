@@ -250,12 +250,12 @@ fn static_max_byte_length(
             )?;
             Some(left.saturating_add(right))
         }
-        ExpressionNode::Mutable(inner) => static_max_byte_length(
+        ExpressionNode::Borrow(inner) => static_max_byte_length(
             program,
             machine,
             state,
             statement_index,
-            *inner,
+            inner.target,
             known_lengths,
         ),
         ExpressionNode::Call(call) => {
@@ -402,7 +402,7 @@ fn expression_contains_value_call(
                 || expression_contains_value_call(program, indexed.index)
         }
         ExpressionNode::Member(member) => expression_contains_value_call(program, member.receiver),
-        ExpressionNode::Mutable(inner) => expression_contains_value_call(program, *inner),
+        ExpressionNode::Borrow(inner) => expression_contains_value_call(program, inner.target),
         ExpressionNode::Unary(unary) => expression_contains_value_call(program, unary.operand),
         ExpressionNode::Range(range) => {
             expression_contains_value_call(program, range.start)
@@ -630,12 +630,12 @@ fn scan_construction_field_domains(
             member.receiver,
             diagnostics,
         ),
-        ExpressionNode::Mutable(inner) => scan_construction_field_domains(
+        ExpressionNode::Borrow(inner) => scan_construction_field_domains(
             program,
             facts,
             state_flow,
             statement_index,
-            *inner,
+            inner.target,
             diagnostics,
         ),
         ExpressionNode::Range(range) => {

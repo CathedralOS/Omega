@@ -344,8 +344,8 @@ impl ActivationCarryAccumulator<'_> {
                 self.visit_expression(indexed.index);
             }
             ExpressionNode::Member(member) => self.visit_expression(member.receiver),
-            ExpressionNode::Mutable(inner) => {
-                self.visit_expression(*inner);
+            ExpressionNode::Borrow(inner) => {
+                self.visit_expression(inner.target);
                 // The typed expression graph does not allocate a standalone
                 // `&T` handle for borrow formation. Its per-value provenance
                 // is not yet strong enough to relax any carry axis.

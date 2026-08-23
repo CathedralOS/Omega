@@ -411,8 +411,8 @@ fn route_expression(
         psi_symbol_resolved_trees::expression::ExpressionNode::Member(member) => {
             children.push(member.receiver);
         }
-        psi_symbol_resolved_trees::expression::ExpressionNode::Mutable(inner) => {
-            children.push(inner);
+        psi_symbol_resolved_trees::expression::ExpressionNode::Borrow(inner) => {
+            children.push(inner.target);
         }
         psi_symbol_resolved_trees::expression::ExpressionNode::Range(range) => {
             children.extend([range.start, range.end]);
@@ -449,8 +449,8 @@ fn expression_is_self(
 ) -> bool {
     match expressions.expression(expression) {
         psi_symbol_resolved_trees::expression::ExpressionNode::Name(path) => path.is_self_value,
-        psi_symbol_resolved_trees::expression::ExpressionNode::Mutable(inner) => {
-            expression_is_self(expressions, *inner)
+        psi_symbol_resolved_trees::expression::ExpressionNode::Borrow(inner) => {
+            expression_is_self(expressions, inner.target)
         }
         _ => false,
     }

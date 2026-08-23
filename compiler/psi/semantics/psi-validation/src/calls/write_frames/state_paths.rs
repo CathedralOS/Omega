@@ -31,7 +31,9 @@ pub(super) fn expression_forwards_exact_symbol(
     symbol: SymbolHandle,
 ) -> bool {
     match program.expression_table.expression(expression) {
-        ExpressionNode::Mutable(inner) => expression_forwards_exact_symbol(program, *inner, symbol),
+        ExpressionNode::Borrow(inner) => {
+            expression_forwards_exact_symbol(program, inner.target, symbol)
+        }
         ExpressionNode::Name(path) => path.symbol == symbol,
         _ => false,
     }

@@ -21,8 +21,8 @@ pub(super) fn semantic_context_proves_boolean_expression(
     }
 
     match program.expression_table.expression(expression) {
-        psi_typed_trees::expression::ExpressionNode::Mutable(inner) => {
-            semantic_context_proves_boolean_expression(program, semantic, context, *inner)
+        psi_typed_trees::expression::ExpressionNode::Borrow(inner) => {
+            semantic_context_proves_boolean_expression(program, semantic, context, inner.target)
         }
         psi_typed_trees::expression::ExpressionNode::Binary(binary) => match binary.operator {
             psi_typed_trees::expression::BinaryOperator::And => {
@@ -77,7 +77,7 @@ pub(super) fn semantic_context_proves_instantiated_boolean_expression(
     }
 
     match program.expression_table.expression(expression) {
-        psi_typed_trees::expression::ExpressionNode::Mutable(inner) => {
+        psi_typed_trees::expression::ExpressionNode::Borrow(inner) => {
             semantic_context_proves_instantiated_boolean_expression(
                 program,
                 semantic,
@@ -86,7 +86,7 @@ pub(super) fn semantic_context_proves_instantiated_boolean_expression(
                 statement_index,
                 call_site,
                 target_state,
-                *inner,
+                inner.target,
             )
         }
         psi_typed_trees::expression::ExpressionNode::Binary(binary) => match binary.operator {

@@ -28,7 +28,7 @@ fn direct_shifted_operand(
             program.primitive_type_reference(cast.target_type)?,
             cast.domain,
         )),
-        ExpressionNode::Mutable(value) => direct_shifted_operand(program, bindings, *value),
+        ExpressionNode::Borrow(value) => direct_shifted_operand(program, bindings, value.target),
         _ => {
             let type_reference = abstract_specification_place_type(program, bindings, expression)?;
             Some((
@@ -140,7 +140,7 @@ pub(super) fn validate(
                 recurse(indexed.index, diagnostics, visited);
             }
             ExpressionNode::Member(member) => recurse(member.receiver, diagnostics, visited),
-            ExpressionNode::Mutable(value) => recurse(*value, diagnostics, visited),
+            ExpressionNode::Borrow(value) => recurse(value.target, diagnostics, visited),
             ExpressionNode::Unary(unary) => recurse(unary.operand, diagnostics, visited),
             ExpressionNode::Range(range) => {
                 recurse(range.start, diagnostics, visited);

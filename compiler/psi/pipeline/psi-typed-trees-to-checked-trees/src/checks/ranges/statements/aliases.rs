@@ -63,7 +63,7 @@ fn alias_source_label(
         ExpressionNode::Name(_) | ExpressionNode::Member(_) => {
             Some(program.expression_table.display_name(value))
         }
-        ExpressionNode::Mutable(inner) => alias_source_label(program, *inner),
+        ExpressionNode::Borrow(inner) => alias_source_label(program, inner.target),
         ExpressionNode::Call(call)
             if matches!(call.target.as_str(), "as_slice" | "as_mut_slice") =>
         {

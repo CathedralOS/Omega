@@ -694,12 +694,12 @@ impl<'program> Evaluator<'program> {
         frame: &Frame,
     ) -> EvalResult<Cell> {
         match self.program.expression_table.expression(argument) {
-            ExpressionNode::Mutable(inner) => {
+            ExpressionNode::Borrow(inner) => {
                 // &mut place -> a Ref to the SAME cell (the whole point of the oracle). The
                 // param binding holds a `Ref`, so a later forward of that param (as a bare
                 // name) can detect it is a reference and keep aliasing -- otherwise a
                 // mutable text carrier passed down a call chain detaches after the first hop.
-                let cell = self.resolve_place(*inner, frame)?;
+                let cell = self.resolve_place(inner.target, frame)?;
                 // A RE-BORROW (`&mut t` where `t` is itself a `&mut` param)
                 // aliases the SAME target: forward the inner Ref instead of
                 // nesting Ref-to-Ref, which downstream single-level derefs

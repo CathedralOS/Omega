@@ -13,19 +13,22 @@ pub(crate) fn resolve_branch_expression_handle(
     expression_table: &mut ExpressionTable,
 ) -> ExpressionHandle {
     match expression_table.expression(expression).clone() {
-        ExpressionNode::Mutable(target) => {
+        ExpressionNode::Borrow(target) => {
             let resolved_target =
-                resolve_branch_expression_handle(target, branch_bindings, expression_table);
+                resolve_branch_expression_handle(target.target, branch_bindings, expression_table);
             if matches!(
                 expression_table.expression(resolved_target),
-                ExpressionNode::Mutable(_)
+                ExpressionNode::Borrow(_)
             ) {
                 resolved_target
             } else {
                 insert_rebuilt_expression(
                     expression_table,
                     expression,
-                    ExpressionNode::Mutable(resolved_target),
+                    ExpressionNode::Borrow(psi_checked_trees::expression::TableBorrowExpression {
+                        target: resolved_target,
+                        access: target.access,
+                    }),
                 )
             }
         }
@@ -235,23 +238,26 @@ pub(super) fn resolve_runtime_branch_alias_expression_handle(
                 }),
             )
         }
-        ExpressionNode::Mutable(target) => {
+        ExpressionNode::Borrow(target) => {
             let resolved_target = resolve_runtime_branch_alias_expression_handle(
-                target,
+                target.target,
                 source_key,
                 aliases,
                 expression_table,
             );
             if matches!(
                 expression_table.expression(resolved_target),
-                ExpressionNode::Mutable(_)
+                ExpressionNode::Borrow(_)
             ) {
                 resolved_target
             } else {
                 insert_rebuilt_expression(
                     expression_table,
                     expression,
-                    ExpressionNode::Mutable(resolved_target),
+                    ExpressionNode::Borrow(psi_checked_trees::expression::TableBorrowExpression {
+                        target: resolved_target,
+                        access: target.access,
+                    }),
                 )
             }
         }
@@ -351,8 +357,8 @@ fn binding_expression_rewrites_parameter(
     binding: &BranchParameterBinding,
 ) -> bool {
     match table.expression(expression) {
-        ExpressionNode::Mutable(target) => {
-            binding_expression_rewrites_parameter(table, *target, binding)
+        ExpressionNode::Borrow(target) => {
+            binding_expression_rewrites_parameter(table, target.target, binding)
         }
         ExpressionNode::Name(path) => table
             .name_path_members(path.members)

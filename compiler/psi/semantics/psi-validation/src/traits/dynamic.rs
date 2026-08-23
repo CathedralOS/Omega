@@ -333,7 +333,7 @@ fn validate_dynamic_call_arguments_in_expression(
             visit!(indexed.index);
         }
         ExpressionNode::Member(member) => visit!(member.receiver),
-        ExpressionNode::Mutable(inner) => visit!(*inner),
+        ExpressionNode::Borrow(inner) => visit!(inner.target),
         ExpressionNode::Range(range) => {
             visit!(range.start);
             visit!(range.end);
@@ -616,7 +616,7 @@ fn collect_dynamic_expression_call_updates(
             visit!(indexed.index);
         }
         ExpressionNode::Member(member) => visit!(member.receiver),
-        ExpressionNode::Mutable(inner) => visit!(*inner),
+        ExpressionNode::Borrow(inner) => visit!(inner.target),
         ExpressionNode::Range(range) => {
             visit!(range.start);
             visit!(range.end);
@@ -734,7 +734,7 @@ fn dynamic_source_place(
 ) -> Option<DynamicSourcePlace> {
     match program.expression_table.expression(expression) {
         ExpressionNode::Atomic(atomic) => dynamic_source_place(program, atomic.value),
-        ExpressionNode::Mutable(inner) => dynamic_source_place(program, *inner),
+        ExpressionNode::Borrow(inner) => dynamic_source_place(program, inner.target),
         ExpressionNode::Name(name) => {
             let leaf = program
                 .expression_table
@@ -897,7 +897,7 @@ fn nominal_data_type(
 
 fn strip_mutable(program: &TypedTrees, expression: ExpressionHandle) -> ExpressionHandle {
     match program.expression_table.expression(expression) {
-        ExpressionNode::Mutable(inner) => *inner,
+        ExpressionNode::Borrow(inner) => inner.target,
         _ => expression,
     }
 }

@@ -1,0 +1,6 @@
+// FAIL canary: opaque/boundary implementations need a future admitted
+// non-observation claim; this milestone proves checked Omega bodies only.
+
+boundary machine provider(value: &write i32) {
+    value = 1;
+}

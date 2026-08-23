@@ -9,6 +9,7 @@ path = "src/lib.rs"
 
 [dependencies]
 psi-checked-trees = { path = "../../../psi/representations/psi-checked-trees" }
+psi-language-core = { path = "../../../psi/foundation/psi-language-core" }
 omega-control-flow = { path = "../../representations/omega-control-flow" }
 psi-arena = { path = "../../../psi/foundation/psi-arena" }
 psi-symbols = { path = "../../../psi/foundation/psi-symbols" }

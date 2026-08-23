@@ -95,7 +95,7 @@ pub(crate) fn validate_suffix_landings(program: &TypedTrees, diagnostics: &mut V
             let mut current = expression;
             loop {
                 match program.expression_table.expression(current) {
-                    ExpressionNode::Mutable(inner) => current = *inner,
+                    ExpressionNode::Borrow(inner) => current = inner.target,
                     ExpressionNode::Integer(literal) => {
                         return literal
                             .landing()
@@ -116,7 +116,7 @@ pub(crate) fn validate_suffix_landings(program: &TypedTrees, diagnostics: &mut V
         let mut current = expression;
         loop {
             match program.expression_table.expression(current) {
-                ExpressionNode::Mutable(inner) => current = *inner,
+                ExpressionNode::Borrow(inner) => current = inner.target,
                 ExpressionNode::Float(literal) => {
                     return literal.landing().map(|landing| (current, landing));
                 }

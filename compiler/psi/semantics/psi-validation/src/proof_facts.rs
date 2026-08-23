@@ -538,8 +538,8 @@ fn argument_matches_selected_proposition_type(
             ExpressionNode::Boolean(_) => primitive == psi_typed_trees::types::PrimitiveType::Bool,
             ExpressionNode::Float(_) => primitive.accepts_float_literal(),
             ExpressionNode::Integer(_) => primitive.accepts_integer_literal(),
-            ExpressionNode::Mutable(inner) => {
-                argument_matches_selected_proposition_type(program, *inner, selected, owner)
+            ExpressionNode::Borrow(inner) => {
+                argument_matches_selected_proposition_type(program, inner.target, selected, owner)
             }
             _ => false,
         };
@@ -586,8 +586,8 @@ fn proof_argument_declared_type(
         return Some(type_reference);
     }
     let symbol = match program.expression_table.expression(argument) {
-        ExpressionNode::Mutable(inner) => {
-            return proof_argument_declared_type(program, *inner, owner);
+        ExpressionNode::Borrow(inner) => {
+            return proof_argument_declared_type(program, inner.target, owner);
         }
         ExpressionNode::Name(path) => path.symbol,
         ExpressionNode::Member(member) => member.member_symbol,
@@ -712,7 +712,7 @@ fn is_boolean_fact_expression(program: &TypedTrees, expression: ExpressionHandle
         | ExpressionNode::Member(_)
         | ExpressionNode::Name(_) => true,
         ExpressionNode::Range(_) => false,
-        ExpressionNode::Mutable(inner) => is_boolean_fact_expression(program, *inner),
+        ExpressionNode::Borrow(inner) => is_boolean_fact_expression(program, inner.target),
         ExpressionNode::Unary(unary) => is_boolean_fact_expression(program, unary.operand),
         ExpressionNode::ArrayLiteral(_)
         | ExpressionNode::Cast(_)
@@ -740,8 +740,8 @@ pub(crate) fn is_boolean_asm_fact_expression(
                 .and_then(|handle| program.primitive_type_reference(handle))
                 == Some(psi_typed_trees::types::PrimitiveType::Bool)
         }
-        ExpressionNode::Mutable(inner) => {
-            is_boolean_asm_fact_expression(program, machine, state, *inner)
+        ExpressionNode::Borrow(inner) => {
+            is_boolean_asm_fact_expression(program, machine, state, inner.target)
         }
         _ => is_boolean_fact_expression(program, expression),
     }

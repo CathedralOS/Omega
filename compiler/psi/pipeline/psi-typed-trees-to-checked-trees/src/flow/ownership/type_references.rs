@@ -127,7 +127,7 @@ fn expression_is_place_like(
 
     match program.expression_table.expression(expression) {
         ExpressionNode::Atomic(_) => false,
-        ExpressionNode::Mutable(inner) => expression_is_place_like(program, *inner),
+        ExpressionNode::Borrow(inner) => expression_is_place_like(program, inner.target),
         ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => true,
         ExpressionNode::ArrayLiteral(_)
         | ExpressionNode::Binary(_)

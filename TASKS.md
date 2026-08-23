@@ -54,10 +54,13 @@ Remaining:
 
 - **ENTRY-CONTENT-ROOTS.** Complete the generated native entry bridge and
   explicit-entry corpus migration. The production-facing installation carrier
-  now joins the exact selected provider plan, semantic arrival requirement,
-  physical requirement/calling-plan fingerprint, physical provider/invocation,
-  and both roots before committing either semantic occurrence. Its physical
-  path maps and zeroes the exact receiver reservation
+  now joins the exact selected root-provider plan and invocation, semantic
+  arrival requirement, and both roots before committing either semantic
+  occurrence. UEFI selection separately retains the target-fixed physical
+  requirement, its two firmware parameter identities, result identity, and
+  calling-plan fingerprint as a planned-but-not-invoked contract; it does not
+  yet claim a physical shell, bootstrap invocation, or physical root issuance.
+  The semantic bridge path maps and zeroes the exact receiver reservation
   and returns one exclusive activation loan; the separate local seam rejects
   provider-issued roots. Connect an emitted target entry stub to that carrier,
   consume the activation loan while invoking the selected source continuation,
@@ -430,9 +433,17 @@ Remaining:
   Unit entries and explicit exit providers rather than restoring the legacy
   entry seam or inventing fake GUI authority.
 - **UEFI-PHYSICAL-SEMANTIC-ENTRY — implement the settled two-surface bridge.**
-  Extend normalized entry schemas and artifact identity with a target-fixed
-  physical requirement/calling plan/result map and a distinct semantic arrival
-  requirement/build-bound continuation. Keep `EfiSystemTable` as a private
+  The contract-retention slice is complete. Normalized target and artifact
+  identity now keep `UefiPhysicalEntry::enter`, its exact two input types,
+  `EfiStatus` result, and evaluated Microsoft-x64 plan distinct from the
+  semantic `ProgramStorageEntry::enter` continuation. Physical and semantic
+  plan conflation, missing/duplicate plans, wrong calling policy, and missing
+  physical result reject. Manifests report this contract as
+  `planned_not_invoked`; receiver-bound semantic bridges may omit receiver-free
+  wrapper evidence only under their exact checked receiver/activation-loan
+  predicate.
+
+  Remaining: keep `EfiSystemTable` as a private
   validated native layout beneath lifecycle-scoped providers and
   `EfiImageHandle` as an opaque provenance-bearing input; neither is an
   `Extent`. Emit the physical ABI shell, call the exact target-authored
@@ -4653,26 +4664,31 @@ Owners:
   an authored correlation to terminal completion claims; an Omega-only bridge
   would invent custody semantics.
 - **WRITE-ONLY-BORROW — finish the settled `&write T` access mode.** The first
-  representation rung is live: the parser accepts `&write T`, `&'a write T`,
-  and `&write self`; syntax, resolved, and typed trees retain a closed
-  shared/mutable/write-only access enum; display, snapshots, matching, and
-  normalized type identity distinguish it; pointer-layout consumers preserve
-  exclusivity without granting readability. Validation deliberately rejects
-  every `&write` type with a directed operation-set diagnostic, so no backend
-  can mistake it for `&mut` while the vertical is incomplete.
+  checked whole-scalar rung is live. The parser accepts `&write T`,
+  `&'a write T`, `&write self`, and expression-form `&write place`; syntax,
+  resolved, typed, checked, state, and control representations retain exact
+  shared/mutable/write-only access through one closed `Borrow` node and access
+  enums, with no compatibility dereference that can erase the mode. Display,
+  snapshots, matching, normalized identity, loans, and call-access facts keep
+  it distinct. Checked Omega bodies may explicitly attenuate an exclusive
+  mutable whole place to `&write` for an unrestricted primitive scalar, replace
+  that whole scalar, and forward the loan only through an explicit `&write`
+  argument. Observation, readable widening, implicit `&mut` attenuation,
+  projection, aggregate content, and bodyless/provider declarations reject
+  with directed diagnostics. Focused parser, semantic pass/fail, checked-loan,
+  and checked-to-state-to-control remap tests pin the slice.
 
-  Remaining work is the executable access discipline: permit explicit
-  `&mut T` attenuation only; carry exclusive non-observation through loans,
-  reborrows, content-independent projections, calls, provider selection,
-  canonical plans, Terminal Psi, both execution engines, and native ABI
-  lowering. Reject observation, readable reborrows, take/swap/read-modify-write,
-  content-driven projection, non-discardable displacement, and invariant
-  restoration that depends on reading the referent. Retain exact per-outcome
-  write footprints so untouched ranges and their facts survive. Checked
-  implementations prove the restriction over their call closure; opaque
-  providers publish an admitted, implementation-pinned non-observation
-  judgment. Migrate byte-output boundary surfaces only after this gate can be
-  removed; never reinterpret `&write` as vacant storage or typed construction.
+  Remaining work is the broader executable access discipline: add
+  content-independent aggregate and byte-range projection, reject
+  take/swap/read-modify-write, content-driven projection, non-discardable
+  displacement, and invariant restoration that depends on reading the
+  referent, and retain exact per-outcome write footprints so untouched ranges
+  and their facts survive. Carry the admitted operation set through provider
+  selection, canonical plans, Terminal Psi, both execution engines, and native
+  ABI lowering. Opaque providers still need a specified, implementation-pinned
+  non-observation judgment; do not infer one from ABI shape. Migrate byte-output
+  boundary surfaces only after that gate exists, and never reinterpret
+  `&write` as vacant storage or typed construction.
 
 #### ENT4 — registered callbacks
 

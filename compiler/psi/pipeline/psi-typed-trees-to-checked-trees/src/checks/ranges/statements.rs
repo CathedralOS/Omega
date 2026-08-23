@@ -258,8 +258,8 @@ pub(super) fn seed_boundary_call_ensures_facts(
     let arguments = program.statement_table.expression_handles(call.arguments);
     // Drop stale bounds for every &mut-written place first.
     for argument in arguments {
-        if let ExpressionNode::Mutable(inner) = program.expression_table.expression(*argument) {
-            let place = program.expression_table.display_name(*inner);
+        if let ExpressionNode::Borrow(inner) = program.expression_table.expression(*argument) {
+            let place = program.expression_table.display_name(inner.target);
             facts.forget_index_upper_bound(&place);
         }
     }
@@ -340,9 +340,9 @@ fn seed_ensures_bound_conjunct(
     let Some(argument) = arguments.get(position).copied() else {
         return;
     };
-    let ExpressionNode::Mutable(place) = program.expression_table.expression(argument) else {
+    let ExpressionNode::Borrow(place) = program.expression_table.expression(argument) else {
         return;
     };
-    let place = program.expression_table.display_name(*place);
+    let place = program.expression_table.display_name(place.target);
     facts.prove_index_upper_bound(place, bound);
 }

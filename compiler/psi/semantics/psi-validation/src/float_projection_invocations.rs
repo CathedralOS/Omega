@@ -213,8 +213,8 @@ fn walk_expression(
         ExpressionNode::Member(member) => {
             walk_expression(program, member.receiver, visited, projections, equalities)?;
         }
-        ExpressionNode::Mutable(value) => {
-            walk_expression(program, *value, visited, projections, equalities)?
+        ExpressionNode::Borrow(value) => {
+            walk_expression(program, value.target, visited, projections, equalities)?
         }
         ExpressionNode::Range(range) => {
             walk_expression(program, range.start, visited, projections, equalities)?;

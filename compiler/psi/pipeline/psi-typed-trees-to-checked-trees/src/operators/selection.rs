@@ -186,8 +186,8 @@ fn expression_mint_selects_domain(
         ExpressionNode::Atomic(atomic) => {
             expression_mint_selects_domain(program, origin, atomic.value, domain_symbol)
         }
-        ExpressionNode::Mutable(inner) => {
-            expression_mint_selects_domain(program, origin, *inner, domain_symbol)
+        ExpressionNode::Borrow(inner) => {
+            expression_mint_selects_domain(program, origin, inner.target, domain_symbol)
         }
         ExpressionNode::Cast(cast) => cast_selects_domain(program, cast, domain_symbol),
         ExpressionNode::Name(path) => local_initializer_selects_domain(
@@ -321,7 +321,7 @@ fn direct_binding_symbol(
 ) -> Option<SymbolHandle> {
     match program.expression_table.expression(expression) {
         ExpressionNode::Atomic(atomic) => direct_binding_symbol(program, atomic.value),
-        ExpressionNode::Mutable(inner) => direct_binding_symbol(program, *inner),
+        ExpressionNode::Borrow(inner) => direct_binding_symbol(program, inner.target),
         ExpressionNode::Name(path) => path
             .symbol
             .is_valid()

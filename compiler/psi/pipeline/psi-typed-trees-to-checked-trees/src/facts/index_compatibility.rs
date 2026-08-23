@@ -900,8 +900,9 @@ fn substituted_expressions_equal(
                         .iter()
                         .map(|member| member.as_str()))
         }
-        (ExpressionNode::Mutable(left), ExpressionNode::Mutable(right)) => {
-            substituted_expressions_equal(program, *left, substitutions, *right)
+        (ExpressionNode::Borrow(left), ExpressionNode::Borrow(right)) => {
+            left.access == right.access
+                && substituted_expressions_equal(program, left.target, substitutions, right.target)
         }
         (ExpressionNode::Unary(left), ExpressionNode::Unary(right)) => {
             left.operator == right.operator
@@ -999,14 +1000,14 @@ fn expression_indexed_instances(
 ) -> Vec<IndexedInstance> {
     let mut instances = Vec::new();
     match program.expression_table.expression(expression) {
-        ExpressionNode::Mutable(inner) => {
+        ExpressionNode::Borrow(inner) => {
             return expression_indexed_instances(
                 program,
                 operators,
                 machine,
                 state,
                 statement_index,
-                *inner,
+                inner.target,
             );
         }
         ExpressionNode::Atomic(atomic) => {

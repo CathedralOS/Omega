@@ -154,8 +154,8 @@ fn copied_expression_capacity(
         ExpressionNode::Member(member) => {
             capacity.saturating_add_assign(copied_expression_capacity(program, member.receiver));
         }
-        ExpressionNode::Mutable(inner) => {
-            capacity.saturating_add_assign(copied_expression_capacity(program, *inner));
+        ExpressionNode::Borrow(inner) => {
+            capacity.saturating_add_assign(copied_expression_capacity(program, inner.target));
         }
         ExpressionNode::Unary(unary) => {
             capacity.saturating_add_assign(copied_expression_capacity(program, unary.operand));

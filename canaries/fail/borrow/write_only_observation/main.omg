@@ -1,0 +1,5 @@
+// FAIL canary: a write-only loan cannot be observed by the callee.
+
+machine observe(source: &write i32) -> i32 {
+    source
+}

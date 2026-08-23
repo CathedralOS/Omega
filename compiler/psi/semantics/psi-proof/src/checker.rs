@@ -1272,7 +1272,7 @@ fn resolved_writes_overlap_reads(written: &[String], reads: &[Vec<String>]) -> b
 /// as opaque by callers).
 fn written_place_path(proof_plan: &ProofPlan, expression: ExpressionHandle) -> Option<Vec<String>> {
     match proof_plan.program.expression_table.expression(expression) {
-        ExpressionNode::Mutable(inner) => written_place_path(proof_plan, *inner),
+        ExpressionNode::Borrow(inner) => written_place_path(proof_plan, inner.target),
         ExpressionNode::Indexed(indexed) => written_place_path(proof_plan, indexed.collection),
         ExpressionNode::Member(member) => {
             let mut path = written_place_path(proof_plan, member.receiver)?;
@@ -1313,7 +1313,7 @@ fn collect_read_place_paths(
             collect_read_place_paths(proof_plan, unary.operand, paths);
         }
         ExpressionNode::Cast(cast) => collect_read_place_paths(proof_plan, cast.value, paths),
-        ExpressionNode::Mutable(inner) => collect_read_place_paths(proof_plan, *inner, paths),
+        ExpressionNode::Borrow(inner) => collect_read_place_paths(proof_plan, inner.target, paths),
         ExpressionNode::Indexed(indexed) => {
             collect_read_place_paths(proof_plan, indexed.collection, paths);
             collect_read_place_paths(proof_plan, indexed.index, paths);
@@ -1348,7 +1348,7 @@ fn expression_contains_call(proof_plan: &ProofPlan, expression: ExpressionHandle
         }
         ExpressionNode::Unary(unary) => expression_contains_call(proof_plan, unary.operand),
         ExpressionNode::Cast(cast) => expression_contains_call(proof_plan, cast.value),
-        ExpressionNode::Mutable(inner) => expression_contains_call(proof_plan, *inner),
+        ExpressionNode::Borrow(inner) => expression_contains_call(proof_plan, inner.target),
         ExpressionNode::Indexed(indexed) => {
             expression_contains_call(proof_plan, indexed.collection)
                 || expression_contains_call(proof_plan, indexed.index)
@@ -1875,11 +1875,11 @@ fn expressions_equivalent_for_proof(
         proof_plan.program.expression_table.expression(left),
         proof_plan.program.expression_table.expression(right),
     ) {
-        (ExpressionNode::Mutable(left), _) => {
-            expressions_equivalent_for_proof(proof_plan, *left, right)
+        (ExpressionNode::Borrow(left), _) => {
+            expressions_equivalent_for_proof(proof_plan, left.target, right)
         }
-        (_, ExpressionNode::Mutable(right)) => {
-            expressions_equivalent_for_proof(proof_plan, left, *right)
+        (_, ExpressionNode::Borrow(right)) => {
+            expressions_equivalent_for_proof(proof_plan, left, right.target)
         }
         (ExpressionNode::Name(left), ExpressionNode::Name(right)) => {
             proof_plan
@@ -1957,7 +1957,7 @@ fn flat_place_segments(
     expression: ExpressionHandle,
 ) -> Option<Vec<String>> {
     match proof_plan.program.expression_table.expression(expression) {
-        ExpressionNode::Mutable(inner) => flat_place_segments(proof_plan, *inner),
+        ExpressionNode::Borrow(inner) => flat_place_segments(proof_plan, inner.target),
         ExpressionNode::Name(path) => Some(
             proof_plan
                 .program
@@ -2561,7 +2561,7 @@ fn expression_mentions_field(
             member.member.as_str() == field.as_str()
                 || expression_mentions_field(proof_plan, member.receiver, field)
         }
-        ExpressionNode::Mutable(inner) => expression_mentions_field(proof_plan, *inner, field),
+        ExpressionNode::Borrow(inner) => expression_mentions_field(proof_plan, inner.target, field),
         ExpressionNode::Indexed(indexed) => {
             expression_mentions_field(proof_plan, indexed.collection, field)
         }
@@ -2707,7 +2707,7 @@ fn len_of_expression_bound(
 
 fn strip_mutable_handle(proof_plan: &ProofPlan, expression: ExpressionHandle) -> ExpressionHandle {
     match proof_plan.program.expression_table.expression(expression) {
-        ExpressionNode::Mutable(inner) => strip_mutable_handle(proof_plan, *inner),
+        ExpressionNode::Borrow(inner) => strip_mutable_handle(proof_plan, inner.target),
         _ => expression,
     }
 }

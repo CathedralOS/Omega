@@ -191,8 +191,8 @@ pub fn declared_place_type_raw(
     argument: ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
     let mut handle = argument;
-    if let ExpressionNode::Mutable(inner) = program.expression_table.expression(handle) {
-        handle = *inner;
+    if let ExpressionNode::Borrow(inner) = program.expression_table.expression(handle) {
+        handle = inner.target;
     }
 
     let members: Vec<String> = collect_member_path(program, handle)?;
@@ -211,8 +211,8 @@ pub(crate) fn declared_place_leaf_symbol(
     argument: ExpressionHandle,
 ) -> Option<psi_symbols::SymbolHandle> {
     let mut handle = argument;
-    if let ExpressionNode::Mutable(inner) = program.expression_table.expression(handle) {
-        handle = *inner;
+    if let ExpressionNode::Borrow(inner) = program.expression_table.expression(handle) {
+        handle = inner.target;
     }
     let members = collect_member_path(program, handle)?;
     let (root, rest) = members.split_first()?;
@@ -329,7 +329,7 @@ pub(crate) fn declared_indexed_projection_type_raw(
     let mut projected_fields = Vec::new();
     loop {
         match program.expression_table.expression(handle) {
-            ExpressionNode::Mutable(inner) => handle = *inner,
+            ExpressionNode::Borrow(inner) => handle = inner.target,
             ExpressionNode::Member(member) => {
                 projected_fields.push(member.member.as_str());
                 handle = member.receiver;
