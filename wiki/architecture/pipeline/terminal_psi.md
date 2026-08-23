@@ -202,7 +202,9 @@ read-modify-write reject.
 
 The August 2026 front-end checkpoint retains this access mode through checked
 whole-value and fixed-byte-element replacement, including dynamic indexes whose
-ordinary range obligations are proven. Dynamic writes remain conservatively
+ordinary range obligations are proven, plus unrestricted primitive-leaf stores
+through exact finite common-field paths of plain invariant-free records. Nested
+record writes retain every field identity; dynamic indexes remain conservatively
 collection-wide in caller-visible mutation summaries. Terminal production must
 remain unreachable until its explicit access carrier and verifier rules land;
 physical pointer-layout equivalence is not permission equivalence.

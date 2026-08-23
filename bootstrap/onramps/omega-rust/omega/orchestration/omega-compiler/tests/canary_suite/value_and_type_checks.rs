@@ -21,20 +21,10 @@ fn write_only_direct_record_fields_are_accepted() {
 }
 
 #[test]
-fn write_only_nested_record_projection_is_rejected() {
-    let canary = fail_canary("borrow/write_only_reference_operation_gate");
-    let diagnostics = check_canary(&canary)
-        .expect_err("nested write-only aggregate projection must remain gated");
-    let combined = diagnostics
-        .iter()
-        .map(ToString::to_string)
-        .collect::<Vec<_>>()
-        .join("\n");
-    assert!(
-        combined.contains("unsupported write-only projection")
-            && combined.contains("direct common field")
-            && combined.contains("nested"),
-        "expected directed nested-projection diagnostic, got:\n{combined}"
+fn write_only_nested_record_fields_are_accepted() {
+    let canary = pass_canary("borrow/write_only_nested_record_field_replace");
+    check_canary(&canary).expect(
+        "nested primitive fields through plain invariant-free records should be replaceable through &write",
     );
 }
 
@@ -84,7 +74,8 @@ fn write_only_constrained_record_field_is_rejected() {
         .join("\n");
     assert!(
         combined.contains("unsupported write-only projection")
-            && combined.contains("unconstrained unrestricted primitive"),
+            && combined.contains("every field is relevant and unconstrained")
+            && combined.contains("leaf is an unrestricted primitive"),
         "expected directed constrained-field diagnostic, got:\n{combined}"
     );
 }
