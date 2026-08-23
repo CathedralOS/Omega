@@ -355,6 +355,7 @@ version = "0.1.0"
 dependencies = [
  "omega-compiler",
  "omega-core",
+ "omega-packages",
  "omega-target",
  "psi-checked-trees-to-terminal",
  "psi-core",

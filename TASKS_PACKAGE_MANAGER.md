@@ -251,6 +251,15 @@ Completed:
   manifest-file, and graph-consistency errors, and return the existing graph
   audit text without requiring compiler manifest derivation.
 
+- **OMEGA-AUDIT-PACKAGES-MANIFEST-FILE-CLI.** Expose the first read-only
+  package graph audit surface through the Rust on-ramp `omega` binary.
+
+  Done 2026-08-23: `omega audit packages [--lock <omega.lock>] --manifest
+  <manifest.json>...` reads an existing package lock and precomputed package
+  capability manifest files, runs the package graph audit, and prints the
+  audit report without deriving manifests, executing dependency `build.omg`,
+  editing `build.omg`, or writing `omega.lock`.
+
 - **PACKAGE-LOCK-ASSEMBLY-FROM-MANIFESTS.** Add a lock assembly helper for
   compiler-supplied package manifests before full compiler/CLI lock wiring.
 
@@ -419,8 +428,10 @@ Remaining:
   Remaining after `PACKAGE-SOURCE-AUDIT-COMMAND-API`,
   `PACKAGE-GRAPH-AUDIT-CORE`, `PACKAGE-GRAPH-AUDIT-DETAILS`, and
   `PACKAGE-GRAPH-AUDIT-COMMAND-API`, and
-  `PACKAGE-GRAPH-AUDIT-MANIFEST-FILE-API`: derive package manifests for a
-  resolved graph and expose the graph audit through the `omega` CLI.
+  `PACKAGE-GRAPH-AUDIT-MANIFEST-FILE-API`, and
+  `OMEGA-AUDIT-PACKAGES-MANIFEST-FILE-CLI`: derive package manifests for a
+  resolved graph and make the default `omega audit packages` flow find them
+  without explicit manifest-file arguments.
 
   Acceptance: `omega audit packages` prints the resolved graph, source pins,
   service reach, build observation classes, provider origins, trust receipts,

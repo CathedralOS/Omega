@@ -12,6 +12,7 @@ test = false
 [dependencies]
 omega-compiler = { path = "../../omega/orchestration/omega-compiler" }
 omega-core = { path = "../../omega/foundation/omega-core" }
+omega-packages = { path = "../../omega/orchestration/omega-packages" }
 omega-target = { path = "../../omega/foundation/omega-target" }
 psi-checked-trees-to-terminal = { path = "../../psi/pipeline/psi-checked-trees-to-terminal" }
 psi-core = { path = "../../psi/foundation/psi-core" }
