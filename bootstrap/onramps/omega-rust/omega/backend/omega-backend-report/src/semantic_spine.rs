@@ -198,6 +198,13 @@ fn ownership_place_text(
                 text.push_str(&index.to_string());
                 text.push(']');
             }
+            psi_facts::PlaceSegment::FixedRange { start, end } => {
+                text.push('[');
+                text.push_str(&start.to_string());
+                text.push_str("..");
+                text.push_str(&end.to_string());
+                text.push(']');
+            }
             psi_facts::PlaceSegment::Index { .. } => text.push_str("[..]"),
         }
     }

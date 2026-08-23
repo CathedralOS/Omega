@@ -10,6 +10,7 @@ pub(super) fn owner_path_from_place_segments(
             psi_facts::PlaceSegment::Field { symbol } => BorrowOwnerSegment::Field(*symbol),
             psi_facts::PlaceSegment::Case { variant } => BorrowOwnerSegment::Case(*variant),
             psi_facts::PlaceSegment::FixedIndex { index } => BorrowOwnerSegment::FixedIndex(*index),
+            psi_facts::PlaceSegment::FixedRange { .. } => BorrowOwnerSegment::DynamicIndex,
             psi_facts::PlaceSegment::Index { expression } => program
                 .expression_table
                 .constant_integer_value(*expression)
@@ -57,6 +58,7 @@ pub(super) fn owner_path_matches(
                 (
                     BorrowOwnerSegment::DynamicIndex,
                     psi_facts::PlaceSegment::FixedIndex { .. }
+                    | psi_facts::PlaceSegment::FixedRange { .. }
                     | psi_facts::PlaceSegment::Index { .. },
                 ) => true,
                 _ => false,

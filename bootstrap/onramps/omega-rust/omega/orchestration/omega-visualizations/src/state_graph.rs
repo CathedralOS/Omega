@@ -395,6 +395,13 @@ fn borrow_place_label(
                 label.push_str(&index.to_string());
                 label.push(']');
             }
+            psi_facts::PlaceSegment::FixedRange { start, end } => {
+                label.push('[');
+                label.push_str(&start.to_string());
+                label.push_str("..");
+                label.push_str(&end.to_string());
+                label.push(']');
+            }
             psi_facts::PlaceSegment::Index { expression } => {
                 label.push('[');
                 label.push_str(&expression_label(graph, *expression));

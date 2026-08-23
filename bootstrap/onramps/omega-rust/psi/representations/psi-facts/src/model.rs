@@ -37,6 +37,15 @@ pub enum PlaceSegment {
     FixedIndex {
         index: usize,
     },
+    /// One compiler-normalized half-open window selected from a collection.
+    /// The bounds are element ordinals, not byte offsets; `start == end`
+    /// denotes the empty window. Keeping the window structural lets mutation,
+    /// loan-overlap, and caller-frame reasoning preserve untouched siblings
+    /// without depending on expression-handle identity.
+    FixedRange {
+        start: usize,
+        end: usize,
+    },
     /// A runtime or otherwise non-normalized index expression. Ownership
     /// decomposition treats this conservatively as potentially selecting any
     /// element.

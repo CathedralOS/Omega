@@ -7,12 +7,48 @@ pub(crate) fn index_place_segment(
     program: &psi_typed_trees::TypedTrees,
     expression: ExpressionHandle,
 ) -> psi_facts::PlaceSegment {
+    if let ExpressionNode::Range(range) = program.expression_table.expression(expression)
+        && let Some((start, end)) = fixed_half_open_range(program, range)
+    {
+        return psi_facts::PlaceSegment::FixedRange { start, end };
+    }
     program
         .expression_table
         .constant_integer_value(expression)
         .and_then(|value| usize::try_from(value).ok())
         .map(|index| psi_facts::PlaceSegment::FixedIndex { index })
         .unwrap_or(psi_facts::PlaceSegment::Index { expression })
+}
+
+/// Normalize an expression-only range when its half-open bounds do not need
+/// collection metadata. An omitted start is zero; an omitted end remains
+/// dynamic here because the collection length is resolved by the range checker,
+/// not by the place algebra. Inclusive syntax is normalized once by advancing
+/// its last included ordinal.
+fn fixed_half_open_range(
+    program: &psi_typed_trees::TypedTrees,
+    range: &psi_typed_trees::expression::TableRangeExpression,
+) -> Option<(usize, usize)> {
+    let start = if range.start.is_valid() {
+        usize::try_from(
+            program
+                .expression_table
+                .constant_integer_value(range.start)?,
+        )
+        .ok()?
+    } else {
+        0
+    };
+    if !range.end.is_valid() {
+        return None;
+    }
+    let end = usize::try_from(program.expression_table.constant_integer_value(range.end)?).ok()?;
+    let end = if range.end_inclusive {
+        end.checked_add(1)?
+    } else {
+        end
+    };
+    Some((start, end))
 }
 
 pub(crate) fn push_field_place_segments(

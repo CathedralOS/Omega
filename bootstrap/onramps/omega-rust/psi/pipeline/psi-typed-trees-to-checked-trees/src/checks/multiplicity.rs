@@ -686,7 +686,9 @@ fn source_independent_case_subject(
             psi_facts::PlaceSegment::Field { symbol } => symbol.is_valid(),
             psi_facts::PlaceSegment::Case { variant } => variant.is_valid(),
             psi_facts::PlaceSegment::FixedIndex { .. } => true,
-            psi_facts::PlaceSegment::Index { .. } => false,
+            psi_facts::PlaceSegment::FixedRange { .. } | psi_facts::PlaceSegment::Index { .. } => {
+                false
+            }
         })
     {
         return None;
@@ -2468,6 +2470,13 @@ fn claim_place_name(
             psi_facts::PlaceSegment::FixedIndex { index } => {
                 name.push('[');
                 name.push_str(&index.to_string());
+                name.push(']');
+            }
+            psi_facts::PlaceSegment::FixedRange { start, end } => {
+                name.push('[');
+                name.push_str(&start.to_string());
+                name.push_str("..");
+                name.push_str(&end.to_string());
                 name.push(']');
             }
             psi_facts::PlaceSegment::Index { .. } => name.push_str("[<index>]"),

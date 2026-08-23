@@ -121,18 +121,25 @@ fn write_only_byte_index_must_be_statically_in_bounds() {
 }
 
 #[test]
-fn write_only_byte_range_is_rejected() {
-    let canary = fail_canary("borrow/write_only_byte_range");
-    let diagnostics = check_canary(&canary).expect_err("write-only byte ranges must remain gated");
+fn write_only_fixed_byte_range_is_accepted() {
+    let canary = pass_canary("borrow/write_only_byte_range");
+    check_canary(&canary).expect("fixed write-only byte ranges should be checked");
+}
+
+#[test]
+fn write_only_byte_range_requires_exact_replacement_width() {
+    let canary = fail_canary("borrow/write_only_byte_range_width");
+    let diagnostics = check_canary(&canary)
+        .expect_err("write-only byte range replacement width must match the window");
     let combined = diagnostics
         .iter()
         .map(ToString::to_string)
         .collect::<Vec<_>>()
         .join("\n");
     assert!(
-        combined.contains("write-only byte array `bytes`")
-            && combined.contains("range projection is not implemented"),
-        "expected directed byte-range diagnostic, got:\n{combined}"
+        combined.contains("array literal with 1 element(s)")
+            && combined.contains("exactly 2 element(s)"),
+        "expected directed byte-range width diagnostic, got:\n{combined}"
     );
 }
 

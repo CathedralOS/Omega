@@ -145,9 +145,11 @@ storage containing no live `T` is a separate feature.
 > **Implementation checkpoint (August 2026):** the compiler recognizes and
 > preserves the distinct `&write` source/type identity. Checked Omega bodies may
 > replace unrestricted primitive scalars and fixed byte arrays, replace literal
-> or proven-in-bounds dynamic byte elements, replace an unrestricted primitive
-> leaf through a finite path of relevant unconstrained common fields in plain
-> invariant-free records, and forward the loan explicitly. Sum/range projection,
+> or proven-in-bounds dynamic byte elements, replace a fixed byte range with a
+> same-width array literal when both bounds normalize statically, replace an
+> unrestricted primitive leaf through a finite path of relevant unconstrained
+> common fields in plain invariant-free records, and forward the loan explicitly.
+> General symbolic or open-ended range projection, sum projection,
 > opaque providers, Terminal/runtime realization, and native ABI lowering remain
 > gated; `&write` is never temporarily lowered as `&mut`.
 

@@ -961,6 +961,7 @@ pub(super) fn structural_call_arguments(
                             ))
                         }
                         psi_facts::PlaceSegment::FixedIndex { .. }
+                        | psi_facts::PlaceSegment::FixedRange { .. }
                         | psi_facts::PlaceSegment::Index { .. }
                         | psi_facts::PlaceSegment::Case { .. } => None,
                     })
@@ -1317,6 +1318,7 @@ pub(super) fn entry_claims(
                         .ok()
                         .map(CheckedUnitStructuralPathSegment::FixedIndex),
                     psi_facts::PlaceSegment::Case { .. }
+                    | psi_facts::PlaceSegment::FixedRange { .. }
                     | psi_facts::PlaceSegment::Index { .. } => None,
                 })
                 .collect::<Option<Vec<_>>>()?;

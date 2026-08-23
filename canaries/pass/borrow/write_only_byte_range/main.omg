@@ -1,0 +1,12 @@
+// PASS canary: a fixed byte window may be replaced without observing its
+// prior contents, and the checked mutation footprint remains exactly [0..2).
+
+machine fill(bytes: &write [u8; 4]) {
+    bytes[0..2] = [1, 2];
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

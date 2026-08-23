@@ -149,7 +149,9 @@ fn resolve_member_symbol_from_place(
             psi_facts::PlaceSegment::Field { symbol } => {
                 current = resolution::symbol_type_symbol(program, *symbol)?;
             }
-            psi_facts::PlaceSegment::FixedIndex { .. } | psi_facts::PlaceSegment::Index { .. } => {
+            psi_facts::PlaceSegment::FixedIndex { .. }
+            | psi_facts::PlaceSegment::FixedRange { .. }
+            | psi_facts::PlaceSegment::Index { .. } => {
                 return None;
             }
         }

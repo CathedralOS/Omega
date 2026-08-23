@@ -21,7 +21,10 @@ mod field_obligations;
 
 use construction_bounds::validate_literal_default_domain;
 use field_obligations::enforce_construction_field_obligations;
-pub(crate) use field_obligations::{construction_field_type, validate_array_literal_elements};
+pub(crate) use field_obligations::{
+    construction_field_type, validate_array_literal_elements,
+    validate_array_literal_elements_for_shape,
+};
 
 pub(crate) fn validate_struct_literal_fields(
     program: &TypedTrees,

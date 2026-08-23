@@ -1336,7 +1336,9 @@ fn content_path(
             psi_facts::PlaceSegment::FixedIndex { index } => Some(ContentPlaceSegment::FixedIndex(
                 u64::try_from(*index).expect("fixed index fits u64"),
             )),
-            psi_facts::PlaceSegment::Index { .. } => None,
+            psi_facts::PlaceSegment::FixedRange { .. } | psi_facts::PlaceSegment::Index { .. } => {
+                None
+            }
         })
         .collect()
 }

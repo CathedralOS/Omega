@@ -89,6 +89,7 @@ pub(crate) fn project_type_reference_from_segments(
             psi_facts::PlaceSegment::FixedIndex { .. } | psi_facts::PlaceSegment::Index { .. } => {
                 current = indexed_element_type_reference(program, current, &substitutions)?;
             }
+            psi_facts::PlaceSegment::FixedRange { .. } => return None,
         }
     }
 

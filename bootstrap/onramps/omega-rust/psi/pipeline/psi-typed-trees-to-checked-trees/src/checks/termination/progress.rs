@@ -689,7 +689,9 @@ fn subject_from_place(root: PlaceRoot, segments: &[PlaceSegment]) -> Option<Prog
             // The field symbol already carries exact variant identity, matching
             // authored member-path normalization.
             PlaceSegment::Case { .. } => {}
-            PlaceSegment::FixedIndex { .. } | PlaceSegment::Index { .. } => return None,
+            PlaceSegment::FixedIndex { .. }
+            | PlaceSegment::FixedRange { .. }
+            | PlaceSegment::Index { .. } => return None,
         }
     }
     Some(ProgressSubject { root, projections })

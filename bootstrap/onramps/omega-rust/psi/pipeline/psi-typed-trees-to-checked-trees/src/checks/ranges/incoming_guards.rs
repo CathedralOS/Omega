@@ -506,7 +506,9 @@ fn source_independent_argument_place(
             psi_facts::PlaceSegment::Field { symbol } => symbol.is_valid(),
             psi_facts::PlaceSegment::Case { variant } => variant.is_valid(),
             psi_facts::PlaceSegment::FixedIndex { .. } => true,
-            psi_facts::PlaceSegment::Index { .. } => false,
+            psi_facts::PlaceSegment::FixedRange { .. } | psi_facts::PlaceSegment::Index { .. } => {
+                false
+            }
         })
     {
         return None;
