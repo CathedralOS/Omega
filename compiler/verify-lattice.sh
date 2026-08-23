@@ -145,6 +145,7 @@ step "convergence (RUST-FREE) — omega2gamma.beta->interp.beta; cert checked by
 step "omega2gamma termination canary — translator halts on every sample, supported or refused (no silent scan-forever)" omega0-gates omega2gamma-termination.sh alpha-assembler beta beta-rust corpus
 step "omega0 source bundle — canonical deterministic multi-file input" omega0-gates omega0-bundle-test.sh
 step "omega0 Delta O1 artifact — variable terminal-Psi to byte-identical x86-64 ELF" omega0-gates delta-terminal-to-elf.sh delta-rs omega-product psi/semantics/psi-terminal-codec
+step "omega0 Delta O1 artifact meaning (RUST-FREE) — exact native vs omega2gamma.beta->interp.beta images" omega0-gates delta-terminal-to-elf-meaning.sh delta-rs gamma omega-product psi/semantics/psi-terminal-codec
 step "omega meaning — real Omega samples run Rust-free; exits match documented intent" omega0-gates omega-meaning.sh gamma corpus
 step "omega meaning-TV — the kernel re-computes each covered sample's arithmetic (proof, not comparison)" omega0-refinement meaning-tv.sh omega0-meaning gamma proof-kernel alpha-assembler beta beta-rust corpus
 step "input-grid meaning TV — input-taking samples proven per documented input vector (substitution closes the program; the whole proof pipe applies per vector)" omega0-refinement input-tv.sh omega0-meaning gamma proof-kernel alpha-assembler beta beta-rust corpus

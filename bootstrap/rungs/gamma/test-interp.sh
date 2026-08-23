@@ -48,6 +48,9 @@ ev '(def fac (n) (if (eq n 0) 1 (* n (fac (- n 1))))) (fac 5)' 120
 ev '(def fib (n) (if (lt n 2) n (+ (fib (- n 1)) (fib (- n 2))))) (fib 10)' 55
 ev '(def gcd (a b) (if (eq b 0) a (gcd b (% a b)))) (gcd 48 36)' 12
 ev '(def sumto (n) (if (eq n 0) 0 (+ n (sumto (- n 1))))) (sumto 10)' 55
+# Proper tail calls are required by generated state machines; this depth used to
+# exhaust the Beta/Alpha return stack even though Gamma fuel remained available.
+ev '(def loop (n) (if (eq n 0) 42 (loop (- n 1)))) (loop 10000)' 42
 # stage 2 — algebraic data types + pattern matching
 ev '(def toint (n) (match n (Z 0) ((S m) (+ 1 (toint m))))) (toint (S (S (S Z))))' 3
 ev '(def len (xs) (match xs (Nil 0) ((Cons h t) (+ 1 (len t))))) (len (Cons 7 (Cons 8 (Cons 9 Nil))))' 3
@@ -61,5 +64,10 @@ ov '(def sq (xs) (match xs (Nil Nil) ((Cons h t) (Cons (* h h) (sq t))))) (sq (C
 ov '(def app (xs ys) (match xs (Nil ys) ((Cons h t) (Cons h (app t ys))))) (app (Cons 1 (Cons 2 Nil)) (Cons 3 Nil))' '(Cons 1 (Cons 2 (Cons 3 Nil)))'
 ov '(def rev (xs acc) (match xs (Nil acc) ((Cons h t) (rev t (Cons h acc))))) (rev (Cons 1 (Cons 2 (Cons 3 Nil))) Nil)' '(Cons 3 (Cons 2 (Cons 1 Nil)))'
 ov '(Pair (S (S Z)) Nil)' '(Pair (S (S Z)) Nil)'
+# Cons compaction is representation-only: other arities retain generic ADT behavior.
+ov '(Cons 1)' '(Cons 1)'
+ov '(Cons 1 2 3)' '(Cons 1 2 3)'
+# Values outside the small-integer intern range retain the ordinary boxed path.
+ov '70001' '70001'
 echo "gamma interp: $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1

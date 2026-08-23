@@ -39,7 +39,8 @@
 ; treated as exit_process, which used to collapse a whole program to its first argument).
 ; stdout: write_byte(e)/write_line("s") accumulate LAST list slot `out` (cons-front): write_byte -> `(Cons e
 ; out)`; write_line -> cons the string bytes + a trailing '\n'. In OUTPUT mode the entry terminal returns
-; `(rev out Nil)` (the whole stdout) not the exit code; interp prints that list. `rev` prepended if outputs.
+; `(Pair exit (rev out Nil))`; interp prints the exact status and forward byte list together. `rev` is
+; prepended if outputs. Differential gates decode this constructor tree strictly before comparing artifacts.
 ; SELF-METHODS: `machine Main::m(&mut self, params)` shares the caller's `self`. Scalar fields are packed in
 ; one indexed Gamma list `gs`; arrays, inp, and out retain their independent carriers. The self-state is
 ; UNIFIED (union over the entry + all methods) and threaded after each machine's locals. A void method returns

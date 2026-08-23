@@ -24,6 +24,7 @@
 ;
 ; Memory:  2097152 SRC  2097144 CUR  2097136 LEN  2097128 APTR  2097120 NFUNC
 ;          2097112 ENVN 2097104 FRAMEBASE   16777216 ARENA (~48 MB)   4194304 FUNCS   5242880 ENV
+;          12582912 SMALL_INTS (-1..65535, one stable VINT each; ends just above 14 MB)
 ; AST/value nodes are 4 words [tag,f0,f1,f2] (32-byte stride). Func entries 3 words
 ; [name_off, paramlist, body]. Env entries 2 words [name_off, value]; -1 = unnamed arg.
 ;
@@ -31,6 +32,8 @@
 ;             5 CALL(foff,args) 6 CONS(head,tail) 7 CONAPP(con_off,args)
 ;             8 MATCH(scrut,arms) 9 PVAR(off) 10 PCON(con_off,varlist) 11 ARM(pat,body)
 ; value tags: 100 VINT(n)  101 VCON(con_off, value-arglist)
+;             102 VCONS(con_off, head, tail) — compact internal form of `(Cons h t)`
+;             103 VTAIL(function_off, evaluated-value-list) — evaluator-private trampoline request
 
 proc slurp() {
     let n = 0
@@ -52,7 +55,7 @@ proc slurp() {
                                  ;   (The old base 3145728 gave only 1 MB before FUNCS at 4194304; a big
                                  ;   eval — e.g. a whole certifier run — silently overflowed into the
                                  ;   function table and corrupted the result. There is no arena free/GC,
-                                 ;   so capacity IS the ceiling. ENV at 5242880 keeps ~11 MB of headroom.)
+                                 ;   so capacity IS the ceiling. ENV at 5 MB has ~7 MB before SMALL_INTS.)
         word[2097120] = 0        ; NFUNC
         word[2097112] = 0        ; ENVN
         word[2097104] = 0        ; FRAMEBASE
@@ -197,15 +200,40 @@ proc is_match_kw(off) {          ; the 5-char keyword "match"
     state yes { return 1 }
 }
 
+proc is_cons_name(off) {         ; the 4-char constructor name "Cons"
+    state c1 { to c2 when (byte[2097152 + off] == 'C')  return 0 }
+    state c2 { to c3 when (byte[2097152 + off + 1] == 'o')  return 0 }
+    state c3 { to c4 when (byte[2097152 + off + 2] == 'n')  return 0 }
+    state c4 { to c5 when (byte[2097152 + off + 3] == 's')  return 0 }
+    state c5 { to yes when (is_delim(byte[2097152 + off + 4]) == 1)  return 0 }
+    state yes { return 1 }
+}
+
 proc is_upper(c) {               ; capitalized head => a constructor (ADT value)
     state c1 { to no when (c < 'A')  to c2 }
     state c2 { to no when (c > 'Z')  return 1 }
     state no { return 0 }
 }
 
-; ---- boxed values: VINT(100,n)  VCON(101, con_off, arglist of value-ptrs) ----
+; ---- boxed values: VINT(100,n), VCON(101, con_off, arglist of value-ptrs),
+;      VCONS(102, con_off, head, tail). VCONS is representation-only: matching
+;      and printing remain exactly those of the ordinary two-argument `Cons` ADT. ----
 proc mk_int(n) {
-    return alloc(100, n, 0, 0)
+    ; Compiler/interpreter workloads repeatedly recreate loop indices, bytes,
+    ; booleans, and bounded offsets. Intern that dense range outside the arena:
+    ; it preserves the boxed-value ABI and exact integer semantics while keeping
+    ; millions of short-lived VINTs from consuming the no-GC evaluation arena.
+    state low { to allocated when (n < 0 - 1)  to high }
+    state high { to allocated when (n > 65535)  to interned }
+    state interned {
+        let p = 12582912 + (n + 1) * 32
+        word[p] = 100
+        word[p + 8] = n
+        word[p + 16] = 0
+        word[p + 24] = 0
+        return p
+    }
+    state allocated { return alloc(100, n, 0, 0) }
 }
 
 proc get_int(v) {                ; the integer of a VINT (0 for a constructor)
@@ -458,45 +486,6 @@ proc env_lookup(qoff) {
 
 ; ---- evaluator (fuel-bounded) ----
 
-proc eval_call(foff, args, fuel) {
-    let fi = func_lookup(foff)
-    let base = word[2097112]         ; env depth before args
-    let a = args
-    state argloop {
-        to argbody when (a != 0)     ; eval args in the CALLER frame, push anonymous
-        to argsdone
-    }
-    state argbody {
-        let v = eval(word[a + 8], fuel)
-        env_push(0 - 1, v)
-        a = word[a + 16]
-        to argloop
-    }
-    state argsdone {
-        let savebase = word[2097104]
-        word[2097104] = base         ; the callee's frame starts where its args began
-        let p = word[4194304 + fi * 24 + 8]   ; paramlist
-        let j = base
-        to renloop
-    }
-    state renloop {
-        to renbody when (p != 0)     ; rename the anonymous arg slots to the params
-        to evalbody
-    }
-    state renbody {
-        word[5242880 + j * 16] = word[p + 8]
-        j = j + 1
-        p = word[p + 16]
-        to renloop
-    }
-    state evalbody {
-        let r = eval(word[4194304 + fi * 24 + 16], fuel - 1)   ; eval the body
-        word[2097112] = base         ; pop the frame
-        word[2097104] = savebase
-        return r
-    }
-}
-
 proc eval_args(args, fuel) {         ; AST arg-CONS -> value-CONS (evaluated)
     state chk { to more when (args != 0)  return 0 }
     state more {
@@ -504,6 +493,162 @@ proc eval_args(args, fuel) {         ; AST arg-CONS -> value-CONS (evaluated)
         let t = eval_args(word[args + 16], fuel)
         return alloc(6, h, t, 0)
     }
+}
+
+; Evaluate call arguments left-to-right into a private list. Ordinary calls bind
+; directly from their source argument spine; the value list is needed only when
+; a tail call discards its caller frame before installing the callee frame.
+proc eval_value_args(args, fuel) {
+    state chk { to more when (args != 0)  return 0 }
+    state more {
+        let h = eval(word[args + 8], fuel)
+        let t = eval_value_args(word[args + 16], fuel)
+        return alloc(6, h, t, 0)
+    }
+}
+
+proc bind_value_args(fi, values) {
+    let p = word[4194304 + fi * 24 + 8]
+    let a = values
+    state loop {
+        to body when (p != 0)
+        return 0
+    }
+    state body {
+        env_push(word[p + 8], word[a + 8])
+        p = word[p + 16]
+        a = word[a + 16]
+        to loop
+    }
+}
+
+; Select a match arm for tail evaluation. Successful pattern bindings deliberately
+; stay in the current frame; eval_call discards the whole frame when the tail chain
+; finishes or transfers to another function.
+proc tail_match_body(scrut, arms, fuel) {
+    let sv = eval(scrut, fuel)
+    let arm = arms
+    state loop {
+        to body when (arm != 0)
+        return 0
+    }
+    state body {
+        let armnode = word[arm + 8]
+        let savedepth = word[2097112]
+        to matched when (try_match(word[armnode + 8], sv) == 1)
+        word[2097112] = savedepth
+        arm = word[arm + 16]
+        to loop
+    }
+    state matched { return word[armnode + 16] }
+}
+
+; Reduce tail-position control iteratively. This is the evaluator's proper tail-call
+; boundary: generated Gamma state machines and ordinary functional loops no longer
+; consume one Beta/Alpha return frame per logical iteration.
+proc eval_tail(expr, fuel) {
+    state loop {
+        to exhausted when (fuel <= 0)
+        let tag = word[expr]
+        to tail_let when (tag == 4)
+        to tail_if when (tag == 3)
+        to tail_call when (tag == 5)
+        to tail_match when (tag == 8)
+        return eval(expr, fuel)
+    }
+    state exhausted { return mk_int(0) }
+    state tail_let {
+        let lv = eval(word[expr + 16], fuel)
+        env_push(word[expr + 8], lv)
+        expr = word[expr + 24]
+        to loop
+    }
+    state tail_if {
+        to tail_then when (get_int(eval(word[expr + 8], fuel)) != 0)
+        expr = word[expr + 24]
+        to loop
+    }
+    state tail_then {
+        expr = word[expr + 16]
+        to loop
+    }
+    state tail_match {
+        let chosen = tail_match_body(word[expr + 8], word[expr + 16], fuel)
+        to tail_no_match when (chosen == 0)
+        expr = chosen
+        to loop
+    }
+    state tail_no_match { return mk_int(0) }
+    state tail_call {
+        let values = eval_value_args(word[expr + 16], fuel)
+        return alloc(103, word[expr + 8], values, 0)
+    }
+}
+
+proc eval_call(foff, args, fuel) {
+    let base = word[2097112]         ; env depth before args
+    let savebase = word[2097104]
+    let values = eval_value_args(args, fuel)
+    let fi = func_lookup(foff)
+    state install {
+        word[2097112] = base
+        word[2097104] = base
+        bind_value_args(fi, values)
+        to body
+    }
+    state body {
+        let r = eval_tail(word[4194304 + fi * 24 + 16], fuel - 1)
+        to tail when (word[r] == 103)
+        word[2097112] = base
+        word[2097104] = savebase
+        return r
+    }
+    state tail {
+        foff = word[r + 8]
+        values = word[r + 16]
+        fi = func_lookup(foff)
+        fuel = fuel - 1
+        to install
+    }
+}
+
+proc eval_conapp(con, args, fuel) {
+    state cons_name {
+        to cons_arity when (is_cons_name(con) == 1)
+        to generic
+    }
+    state cons_arity {
+        to generic when (args == 0)
+        let rest = word[args + 16]
+        to generic when (rest == 0)
+        to generic when (word[rest + 16] != 0)
+        to compact
+    }
+    state compact {
+        ; Preserve source argument evaluation order while avoiding the two
+        ; value-arglist nodes of the generic constructor representation.
+        let h = eval(word[args + 8], fuel)
+        let t = eval(word[rest + 8], fuel)
+        return alloc(102, con, h, t)
+    }
+    state generic {
+        return alloc(101, con, eval_args(args, fuel), 0)
+    }
+}
+
+proc try_match_compact_cons(pat, val) {
+    state namechk {
+        to no when (name_eq(word[pat + 8], word[val + 8]) == 0)
+        let pv = word[pat + 16]
+        to done when (pv == 0)
+        env_push(word[pv + 8], word[val + 16])
+        pv = word[pv + 16]
+        to done when (pv == 0)
+        env_push(word[pv + 8], word[val + 24])
+        to done
+    }
+    state no { return 0 }
+    state done { return 1 }
 }
 
 ; try to match pattern `pat` against value `val`; on success push its bindings.
@@ -514,9 +659,11 @@ proc try_match(pat, val) {
         return 1
     }
     state iscon {
+        to compact_cons when (word[val] == 102)
         to no when (word[val] != 101)        ; PCON needs a constructor value
         to namechk
     }
+    state compact_cons { return try_match_compact_cons(pat, val) }
     state no { return 0 }
     state namechk {
         to no when (name_eq(word[pat + 8], word[val + 8]) == 0)   ; constructor must match
@@ -618,7 +765,7 @@ proc eval(expr, fuel) {
     state t5 { to t_call when (tag == 5)  to t7 }
     state t_call { return eval_call(word[expr + 8], word[expr + 16], fuel) }
     state t7 { to t_conapp when (tag == 7)  to t8 }
-    state t_conapp { return alloc(101, word[expr + 8], eval_args(word[expr + 16], fuel), 0) }
+    state t_conapp { return eval_conapp(word[expr + 8], word[expr + 16], fuel) }
     state t8 { to t_match when (tag == 8)  return 0 }
     state t_match { return eval_match(word[expr + 8], word[expr + 16], fuel) }
 }
@@ -657,8 +804,19 @@ proc print_con_name(off) {           ; the constructor name lives at SRC[off]
 }
 
 proc print_value(v) {
-    state vint { to do_int when (word[v] == 100)  to vcon }
+    state vint { to do_int when (word[v] == 100)  to vcons }
     state do_int { emit_dec(word[v + 8])  return 0 }
+    state vcons { to compact_cons when (word[v] == 102)  to vcon }
+    state compact_cons {
+        write_byte('(')
+        print_con_name(word[v + 8])
+        write_byte(' ')
+        print_value(word[v + 16])
+        write_byte(' ')
+        print_value(word[v + 24])
+        write_byte(')')
+        return 0
+    }
     state vcon {
         let args = word[v + 16]      ; VCON con_off arglist
         to nullary when (args == 0)
