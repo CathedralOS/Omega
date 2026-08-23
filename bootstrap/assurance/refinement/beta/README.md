@@ -55,7 +55,7 @@ repository source and artifact itself. Structurally valid branch/call retargets,
 I/O register/opcode mutations, helper mutations, unreachable literal changes,
 emit pointer/length changes, and malformed witnesses all reject. This proves
 static effect-site custody and the fixed-emit macro when reached. Argument and
-expression values, frame contents and dynamic call depth, return values,
+composed-expression values, frame contents and dynamic call depth, return values,
 non-literal I/O values, global trace order/reachability, terminal classes,
 memory/stack bounds, and cyclic progress remain open.
 
@@ -70,7 +70,7 @@ mutations retain valid Alpha framing and reject here. This establishes static
 frame shape and parameter handoff conditional on the staged values. Argument
 pushes and values, live stack depth, and dynamic frame contents remain open.
 
-`bc-local-access.alpha` participates in the canonical BCT4 witness while
+`bc-local-access.alpha` participates in the canonical BCT5 witness while
 keeping name resolution authoritative in Alpha. It records all 27 parameters
 and 51 `let` declarations with their function-scoped slots, distinguishes
 assignment targets from comparison operands and calls, and binds 169 source
@@ -84,6 +84,22 @@ those slots, definite assignment, expression evaluation, or dynamic aliasing.
 binds all 62 raw loads (56 word, six byte) and 33 raw stores (32 word, one byte)
 to exact Alpha width/opcode/register sites. Every store also checks the immediate
 16-byte address pop. Same-width load/store-width substitutions, register
-changes, pop-step changes, duplicate sites, and reordered BCT4 records retain
+changes, pop-step changes, duplicate sites, and reordered BCT5 records retain
 valid Alpha framing and reject. Address-expression values, stored/loaded values,
 aliasing, alignment, and the 64 MiB bounds obligation remain open.
+
+`bc-expr-primitives.alpha` extends that same source scan and BCT5 witness with
+all 582 decimal/character literals and all 57 arithmetic operators (`+`, `-`,
+`*`, `/`, `%`). Each literal must be the exact `imm r0,value` instruction; each
+operator must be the exact 22-byte left-value pop and arithmetic macro with the
+source-selected opcode. An independent artifact inventory classifies all 180
+comparison-result pairs and 113 emit-address immediates as compiler-synthetic,
+then requires owners for every remaining `imm r0` and arithmetic macro. Literal
+value/register changes, same-valued retargeting to a synthetic comparison
+result, arithmetic opcode/pop-step/register changes, duplicate locations, and
+reordered records all retain valid Alpha framing and reject. Comparison meaning,
+argument pushes, recursive expression composition, carried values, and traps
+remain forward-simulation obligations rather than claims of this static phase.
+Within one source block, identical same-valued primitives remain mutually
+swappable; this phase proves block-local multiset/shape custody, not unique
+per-occurrence provenance.
