@@ -225,8 +225,13 @@ fn normalize_projection_subject(
         root,
         segments,
     };
-    if !type_has_domain(context.program, final_type, projection.domain)
-        && !contracts_establish_domain(context, &subject, projection.domain)
+    if !type_has_domain(context.program, final_type, projection.semantic_domain)
+        && !contracts_establish_domain(
+            context,
+            &subject,
+            projection.domain,
+            projection.semantic_domain,
+        )
     {
         return Err(format!(
             "projection `{}` requires exact qualification `{}`, but `{}` is not qualified by its type or an ordinary callable contract",
@@ -469,7 +474,19 @@ fn contracts_establish_domain(
     context: &NormalizationContext<'_, '_>,
     subject: &ContentStructuralPlace,
     domain: SymbolHandle,
+    semantic_domain: psi_language_semantics::SemanticDomainId,
 ) -> bool {
+    if context
+        .program
+        .domain_definitions()
+        .iter()
+        .find(|definition| definition.symbol == domain)
+        .is_none_or(|definition| definition.semantic_id != semantic_domain)
+    {
+        // Membership proof facts retain only the nominal family today, so a
+        // contract cannot select one closed indexed application exactly.
+        return false;
+    }
     context.contracts.iter().any(|contract| {
         let allowed_kind = match (&subject.root, subject.version) {
             (ContentPlaceRoot::Result, ContentPlaceVersion::Current) => {
@@ -522,7 +539,7 @@ fn structural_place_matches(
 fn type_has_domain(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
-    domain: SymbolHandle,
+    domain: psi_language_semantics::SemanticDomainId,
 ) -> bool {
     if !type_reference.is_valid() {
         return false;
@@ -537,7 +554,7 @@ fn type_has_domain(
                 .type_reference_table
                 .constraints(*constraints)
                 .iter()
-                .any(|constraint| matches!(constraint, psi_typed_trees::types::TypeConstraintNode::Domain(candidate) if candidate.symbol == domain))
+                .any(|constraint| matches!(constraint, psi_typed_trees::types::TypeConstraintNode::Domain(candidate) if candidate.semantic_id == domain))
                 || type_has_domain(program, *base_type, domain)
         }
         _ => false,

@@ -20,7 +20,7 @@ use psi_language_semantics::content::{
 };
 use psi_language_semantics::{
     Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
-    PermissionEventSource,
+    PermissionEventSource, SemanticDomainId,
 };
 use psi_symbols::SymbolHandle;
 use psi_typed_trees::TypedTrees;
@@ -1085,8 +1085,15 @@ fn applicable_projection_plans<'facts>(
         .iter()
         .filter(|plan| {
             plan.carrier_identity == carrier_identity
-                && (type_has_domain(program, type_reference, plan.domain)
-                    || contracts_establish_domain(program, machine, state, subject, plan.domain))
+                && (type_has_domain(program, type_reference, plan.semantic_domain)
+                    || contracts_establish_domain(
+                        program,
+                        machine,
+                        state,
+                        subject,
+                        plan.domain,
+                        plan.semantic_domain,
+                    ))
         })
         .collect()
 }
@@ -1110,7 +1117,7 @@ fn unwrapped_type_reference(
 fn type_has_domain(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
-    domain: SymbolHandle,
+    domain: SemanticDomainId,
 ) -> bool {
     if !type_reference.is_valid() {
         return false;
@@ -1128,7 +1135,7 @@ fn type_has_domain(
                 .constraints(*constraints)
                 .iter()
                 .any(|constraint| {
-                    matches!(constraint, TypeConstraintNode::Domain(candidate) if candidate.symbol == domain)
+                    matches!(constraint, TypeConstraintNode::Domain(candidate) if candidate.semantic_id == domain)
                 })
                 || type_has_domain(program, *base_type, domain)
         }
@@ -1142,7 +1149,19 @@ fn contracts_establish_domain(
     state: &psi_typed_trees::state::State,
     subject: &ContentStructuralPlace,
     domain: SymbolHandle,
+    semantic_domain: SemanticDomainId,
 ) -> bool {
+    if program
+        .domain_definitions()
+        .iter()
+        .find(|definition| definition.symbol == domain)
+        .is_none_or(|definition| definition.semantic_id != semantic_domain)
+    {
+        // Contract proof facts currently retain only the nominal family. They
+        // cannot establish one exact indexed application without laundering
+        // another family member into it.
+        return false;
+    }
     let mut contracts = program.state_contracts(state).iter().collect::<Vec<_>>();
     if program
         .machine_states(machine)
@@ -1436,14 +1455,20 @@ fn check_callable(
             let ProofFact::Membership(membership) = fact else {
                 continue;
             };
-            if expression_is_bare_result(program, membership.value) {
-                push_unique(&mut result_domains, membership.domain_symbol);
+            if expression_is_bare_result(program, membership.value)
+                && let Some(domain) = nominal_domain_application(program, membership.domain_symbol)
+            {
+                push_unique_domain_application(&mut result_domains, domain);
             }
         }
     }
 
     for result_domain in result_domains {
-        let Some(result_plan) = facts.qualifications.content.for_domain(result_domain) else {
+        let Some(result_plan) = facts
+            .qualifications
+            .content
+            .for_semantic_domain(result_domain.semantic_domain)
+        else {
             continue;
         };
         let mut borrowed_sources = Vec::new();
@@ -1461,7 +1486,11 @@ fn check_callable(
                         continue;
                     };
                     if expression_names_parameter(program, membership.value, parameter) {
-                        push_unique(&mut parameter_domains, membership.domain_symbol);
+                        if let Some(domain) =
+                            nominal_domain_application(program, membership.domain_symbol)
+                        {
+                            push_unique_domain_application(&mut parameter_domains, domain);
+                        }
                     }
                 }
             }
@@ -1470,7 +1499,7 @@ fn check_callable(
                 facts
                     .qualifications
                     .content
-                    .for_domain(*domain)
+                    .for_semantic_domain(domain.semantic_domain)
                     .is_some_and(|input_plan| compatible_content(input_plan, result_plan))
             });
             if !compatible {
@@ -1488,14 +1517,18 @@ fn check_callable(
             continue;
         }
 
-        if let Some(selected) =
-            authored_retention_source(facts, callable, result_domain, result_plan, parameters)
-            && owned_sources.iter().any(|name| *name == selected)
+        if let Some(selected) = authored_retention_source(
+            facts,
+            callable,
+            result_domain.semantic_domain,
+            result_plan,
+            parameters,
+        ) && owned_sources.iter().any(|name| *name == selected)
         {
             continue;
         }
 
-        let result_name = domain_name(program, result_domain);
+        let result_name = domain_name(program, result_domain.symbol);
         if owned_sources.len() > 1 {
             let owned = owned_sources
                 .iter()
@@ -1527,7 +1560,7 @@ fn check_callable(
 fn authored_retention_source<'a>(
     facts: &CheckFacts,
     callable: SymbolHandle,
-    result_domain: SymbolHandle,
+    result_domain: SemanticDomainId,
     result_plan: &ContentProjectionPlan,
     parameters: &'a [StateParameter],
 ) -> Option<&'a str> {
@@ -1569,11 +1602,14 @@ fn exact_projection_subject(term: &ContentConservationTerm) -> Option<&ContentSt
     subject.segments.is_empty().then_some(subject)
 }
 
-fn projection_domain(term: &ContentConservationTerm) -> Option<SymbolHandle> {
-    let ContentConservationTerm::Projection { domain, .. } = term else {
+fn projection_domain(term: &ContentConservationTerm) -> Option<SemanticDomainId> {
+    let ContentConservationTerm::Projection {
+        semantic_domain, ..
+    } = term
+    else {
         return None;
     };
-    Some(*domain)
+    Some(*semantic_domain)
 }
 
 fn compatible_content(left: &ContentProjectionPlan, right: &ContentProjectionPlan) -> bool {
@@ -1583,7 +1619,7 @@ fn compatible_content(left: &ContentProjectionPlan, right: &ContentProjectionPla
 fn append_type_domains(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
-    domains: &mut Vec<SymbolHandle>,
+    domains: &mut Vec<DomainApplication>,
 ) {
     if !type_reference.is_valid() {
         return;
@@ -1599,12 +1635,41 @@ fn append_type_domains(
             append_type_domains(program, *base_type, domains);
             for constraint in program.type_reference_table.constraints(*constraints) {
                 if let TypeConstraintNode::Domain(domain) = constraint {
-                    push_unique(domains, domain.symbol);
+                    push_unique_domain_application(
+                        domains,
+                        DomainApplication {
+                            symbol: domain.symbol,
+                            semantic_domain: domain.semantic_id,
+                        },
+                    );
                 }
             }
         }
         _ => {}
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct DomainApplication {
+    symbol: SymbolHandle,
+    semantic_domain: SemanticDomainId,
+}
+
+fn nominal_domain_application(
+    program: &TypedTrees,
+    symbol: SymbolHandle,
+) -> Option<DomainApplication> {
+    let definition = program
+        .domain_definitions()
+        .iter()
+        .find(|definition| definition.symbol == symbol)?;
+    definition
+        .semantic_id
+        .is_valid()
+        .then_some(DomainApplication {
+            symbol,
+            semantic_domain: definition.semantic_id,
+        })
 }
 
 fn type_contains_reference(program: &TypedTrees, type_reference: TypeReferenceHandle) -> bool {
@@ -1639,8 +1704,8 @@ fn expression_names_parameter(
         if path.symbol == parameter.symbol || name.as_str() == parameter.name.as_str())
 }
 
-fn push_unique(domains: &mut Vec<SymbolHandle>, domain: SymbolHandle) {
-    if domain.is_valid() && !domains.contains(&domain) {
+fn push_unique_domain_application(domains: &mut Vec<DomainApplication>, domain: DomainApplication) {
+    if domain.symbol.is_valid() && domain.semantic_domain.is_valid() && !domains.contains(&domain) {
         domains.push(domain);
     }
 }

@@ -27,7 +27,14 @@ use psi_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 #[derive(Debug, Clone, Copy)]
 struct ProjectionSubject {
     symbol: SymbolHandle,
+    qualified: TypeReferenceHandle,
     carrier: TypeReferenceHandle,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct ProjectionDomainCandidate<'program> {
+    definition: &'program DomainDefinition,
+    semantic_domain: psi_language_semantics::SemanticDomainId,
 }
 
 pub(crate) fn validate_content_projection_conformances(
@@ -66,9 +73,9 @@ pub(crate) fn validate_content_projection_conformances(
                 )));
                 continue;
             };
-            let candidates = projection_domain_candidates(program, machine, subject.carrier);
-            let domain = match candidates.as_slice() {
-                [domain] => *domain,
+            let candidates = projection_domain_candidates(program, machine, subject);
+            let candidate = match candidates.as_slice() {
+                [candidate] => *candidate,
                 [] => {
                     diagnostics.push(Diagnostic::error(format!(
                         "content projection machine `{}` is not attached to the exact qualification it projects; use `<Qualification>::content` with a subject matching that domain's carrier",
@@ -85,6 +92,7 @@ pub(crate) fn validate_content_projection_conformances(
                     continue;
                 }
             };
+            let domain = candidate.definition;
 
             if program.type_multiplicity(subject.carrier)
                 != psi_language_semantics::Multiplicity::Linear
@@ -145,8 +153,8 @@ pub(crate) fn validate_content_projection_conformances(
             }
 
             if let Some((_, _, first)) = published.iter().find(|(semantic_id, symbol, _)| {
-                (domain.semantic_id.is_valid() && *semantic_id == domain.semantic_id)
-                    || (!domain.semantic_id.is_valid() && *symbol == domain.symbol)
+                (candidate.semantic_domain.is_valid() && *semantic_id == candidate.semantic_domain)
+                    || (!candidate.semantic_domain.is_valid() && *symbol == domain.symbol)
             }) {
                 diagnostics.push(Diagnostic::error(format!(
                     "exact qualification `{}` publishes more than one `Content<A>` projection (`{first}` and `{}`); one qualification has one owner-unique projection identity",
@@ -154,7 +162,11 @@ pub(crate) fn validate_content_projection_conformances(
                 )));
                 continue;
             }
-            published.push((domain.semantic_id, domain.symbol, machine.name.to_string()));
+            published.push((
+                candidate.semantic_domain,
+                domain.symbol,
+                machine.name.to_string(),
+            ));
         }
     }
 }
@@ -182,11 +194,11 @@ pub fn build_content_projection_plans(program: &TypedTrees) -> Vec<ContentProjec
                         return None;
                     }
                     let subject = projection_subject(program, machine)?;
-                    let candidates =
-                        projection_domain_candidates(program, machine, subject.carrier);
-                    let [domain] = candidates.as_slice() else {
+                    let candidates = projection_domain_candidates(program, machine, subject);
+                    let [candidate] = candidates.as_slice() else {
                         return None;
                     };
+                    let domain = candidate.definition;
                     if domain.alias.is_some() || content.is_boundary {
                         return None;
                     }
@@ -200,7 +212,7 @@ pub fn build_content_projection_plans(program: &TypedTrees) -> Vec<ContentProjec
                     let fingerprint = projection_fingerprint(&algebra, &expression);
                     Some(ContentProjectionPlan {
                         domain: domain.symbol,
-                        semantic_domain: domain.semantic_id,
+                        semantic_domain: candidate.semantic_domain,
                         carrier_identity: program
                             .normalized_type_identity(subject.carrier)
                             .into_string(),
@@ -562,6 +574,7 @@ fn projection_subject(program: &TypedTrees, machine: &Machine) -> Option<Project
             referee, access, ..
         } if access.is_readable() && !access.is_exclusive() => Some(ProjectionSubject {
             symbol: parameter.symbol,
+            qualified: *referee,
             carrier: unconstrained(program, *referee),
         }),
         _ => None,
@@ -580,8 +593,8 @@ fn unconstrained(program: &TypedTrees, mut reference: TypeReferenceHandle) -> Ty
 fn projection_domain_candidates<'program>(
     program: &'program TypedTrees,
     machine: &Machine,
-    subject: TypeReferenceHandle,
-) -> Vec<&'program DomainDefinition> {
+    subject: ProjectionSubject,
+) -> Vec<ProjectionDomainCandidate<'program>> {
     let Some(owner) = machine.attached_data.as_ref().map(|name| name.as_str()) else {
         return Vec::new();
     };
@@ -589,11 +602,86 @@ fn projection_domain_candidates<'program>(
     program
         .domain_definitions()
         .iter()
-        .filter(|domain| {
+        .filter_map(|domain| {
             let name = domain.name.as_str();
             let leaf = name.rsplit("::").next().unwrap_or(name);
-            (name == owner || leaf == owner_leaf)
-                && type_references_match(program, subject, domain.target_type)
+            if (name != owner && leaf != owner_leaf)
+                || !domain_accepts_projection_carrier(program, domain, subject.carrier)
+            {
+                return None;
+            }
+            let exact = declared_domain_constraints(program, subject.qualified)
+                .into_iter()
+                .filter(|constraint| {
+                    (constraint.symbol.is_valid() && constraint.symbol == domain.symbol)
+                        || (!constraint.symbol.is_valid()
+                            && constraint.name.as_str().rsplit("::").next() == Some(owner_leaf))
+                })
+                .collect::<Vec<_>>();
+            match exact.as_slice() {
+                [constraint] => Some(ProjectionDomainCandidate {
+                    definition: domain,
+                    semantic_domain: constraint.semantic_id,
+                }),
+                [] if domain.index_arguments.is_empty() => Some(ProjectionDomainCandidate {
+                    definition: domain,
+                    semantic_domain: domain.semantic_id,
+                }),
+                _ => None,
+            }
         })
         .collect()
+}
+
+fn domain_accepts_projection_carrier(
+    program: &TypedTrees,
+    domain: &DomainDefinition,
+    carrier: TypeReferenceHandle,
+) -> bool {
+    if type_references_match(program, carrier, domain.target_type) {
+        return true;
+    }
+    let parameters = program.domain_type_parameters(domain);
+    let TypeReferenceNode::Named { symbol, name } = program
+        .type_reference_table
+        .type_reference(domain.target_type)
+    else {
+        return false;
+    };
+    carrier.is_valid()
+        && parameters.iter().any(|parameter| {
+            matches!(
+                parameter.kind,
+                psi_typed_trees::data::TypeParameterKind::Type
+            ) && (*symbol == parameter.symbol || name == &parameter.name)
+        })
+}
+
+fn declared_domain_constraints(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Vec<&psi_typed_trees::types::DomainConstraint> {
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Reference { referee, .. } => {
+            declared_domain_constraints(program, *referee)
+        }
+        TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } => {
+            let mut domains = declared_domain_constraints(program, *base_type);
+            domains.extend(
+                program
+                    .type_reference_table
+                    .constraints(*constraints)
+                    .iter()
+                    .filter_map(|constraint| match constraint {
+                        psi_typed_trees::types::TypeConstraintNode::Domain(domain) => Some(domain),
+                        _ => None,
+                    }),
+            );
+            domains
+        }
+        _ => Vec::new(),
+    }
 }

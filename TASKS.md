@@ -742,20 +742,30 @@ Remaining:
   one still-dormant occurrence, requires the exact verified scalar-observation
   set, evaluates `SubjectField`/runtime-embedding/natural arithmetic into a
   canonical interval set or counted quantity, and only then commits one exact
-  lineage account carrying the lifecycle lease. Missing or extra scalars,
+  lineage account carrying the lifecycle lease. A finite batch validates every
+  subject, lease, scalar roster, evaluated capacity, and algebra before it
+  commits any member, so duplicate or malformed establishment returns every
+  subject in source order and leaves the whole cohort pending. Missing or extra scalars,
   root/position/type substitution, stale lifecycle, ambiguous membership, and
   replay return the subject and leave the occurrence pending. Exact natural
   subtraction rejects underflow rather than silently using monus. The account
   retains the full occurrence and evaluated capacity; its copyable lineage ID
   is report-only, and failed retirement reconstructs the complete account.
 
-  This closes the generic runtime subject/capacity establishment gate. The
+  This closes the generic runtime subject/capacity establishment gate. Closed
+  indexed domain applications retain their exact semantic identity from the
+  qualified subject through owner-unique content projection, checked Unit
+  planning, Terminal structural-domain/schema identity, and representation
+  verification; one family application cannot substitute another. Contract-
+  only indexed membership fails closed until proof facts retain that same exact
+  identity. The
   existing Terminal unit-call conservation check already rejects an ordinary
   call whose callee would acquire a content claim absent from the caller; the
   routed source canary likewise emits producer schema only on the exact
-  boundary requirement. Migration of `ExtentCompilerProvisioning`, explicit
-  parentless-result rejection coverage, closed generic-family coverage, and
-  artifact/installation aggregate canaries remain open. The
+  boundary requirement, and an explicit verifier regression rejects a claimed
+  result lineage with no bound entry parent. Migration of
+  `ExtentCompilerProvisioning` and artifact/installation aggregate canaries
+  remain open. The
   target vocabulary currently exposes one required `ProgramEntry`; expand it
   to an enumerable required-slot set before claiming a finite multi-member-slot
   canary rather than synthesizing test-only target rows.

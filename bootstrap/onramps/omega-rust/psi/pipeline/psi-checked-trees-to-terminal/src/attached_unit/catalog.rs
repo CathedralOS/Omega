@@ -119,10 +119,18 @@ pub(super) fn lower_program_local_root_introductions(
         else {
             return unsupported("program-local root route parameter is out of range");
         };
+        let Some(projection) = checked
+            .facts
+            .qualifications
+            .content
+            .for_semantic_domain(requirement.domain)
+        else {
+            continue;
+        };
         let Some(domain) = checked
             .domain_definitions()
             .iter()
-            .find(|domain| domain.semantic_id == requirement.domain)
+            .find(|domain| domain.symbol == projection.domain)
         else {
             // Synthetic and older checked fixtures may retain a qualification
             // row without the authored declaration that could authorize root
@@ -142,14 +150,6 @@ pub(super) fn lower_program_local_root_introductions(
         if !authorizes_requirement {
             continue;
         }
-        let Some(projection) = checked
-            .facts
-            .qualifications
-            .content
-            .for_semantic_domain(requirement.domain)
-        else {
-            continue;
-        };
         if projection.fingerprint == 0 {
             return unsupported("program-local root projection has a null identity");
         }

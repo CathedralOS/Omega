@@ -82,10 +82,6 @@ pub struct ContentPartitionPlaceSubstitution {
 }
 
 impl ContentProjectionFacts {
-    pub fn for_domain(&self, domain: SymbolHandle) -> Option<&ContentProjectionPlan> {
-        self.plans.iter().find(|plan| plan.domain == domain)
-    }
-
     pub fn for_semantic_domain(&self, domain: SemanticDomainId) -> Option<&ContentProjectionPlan> {
         domain
             .is_valid()

@@ -2036,6 +2036,23 @@ fn subject_capacity_rejection_is_transactional_and_a_later_epoch_is_fresh() {
         .expect("first epoch cohort")
         .into_runtime();
 
+    let rejected_batch = installation
+        .establish_batch(
+            &mut runtime,
+            &lifecycle,
+            [
+                program_local_subject(&root, 948, 1048, Some(3)),
+                program_local_subject(&root, 949, 1049, Some(3)),
+            ],
+        )
+        .expect_err("a batch cannot establish one pending occurrence twice");
+    assert!(rejected_batch.diagnostic().0.contains("repeats one exact"));
+    let returned = rejected_batch.into_subjects();
+    assert_eq!(returned.len(), 2);
+    assert_eq!(returned[0].invocation().normalized_identity(), 948);
+    assert_eq!(returned[1].invocation().normalized_identity(), 949);
+    assert_eq!(runtime.pending_occurrences().len(), 1);
+
     let rejected = installation
         .establish(
             &mut runtime,
