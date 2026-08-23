@@ -987,6 +987,7 @@ fn unit_calls_and_effect_operations_use_the_same_transitive_schedule() {
 #[test]
 fn projected_unit_calls_compose_each_callee_bound_in_call_order() {
     let mut module = unit_effect_fixture();
+    module.root_service_reach = Default::default();
     let element = structural_type_id(950);
     let array = structural_type_id(951);
     module.structural_types = vec![
@@ -1869,7 +1870,10 @@ fn unit_effect_fixture() -> TerminalModule {
             identity: "test::PortIo".into(),
             parents: Vec::new(),
         }],
-        root_service_reach: Default::default(),
+        root_service_reach: psi_terminal::TerminalRootServiceReach {
+            concrete: vec![service],
+            installation_dependencies: Vec::new(),
+        },
         boundary_machines: vec![BoundaryMachineDeclaration {
             id: boundary_id(1),
             identity: "test::boundary".into(),
@@ -1879,6 +1883,7 @@ fn unit_effect_fixture() -> TerminalModule {
             result: None,
             requires: Vec::new(),
             published_service_ceiling: Vec::new(),
+            program_local_root_introductions: Vec::new(),
         }],
         provider_candidates: Vec::new(),
         float_meaning_projections: Vec::new(),
