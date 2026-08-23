@@ -64,7 +64,7 @@ fn main() {
 
     let Some(arguments) = parse_arguments() else {
         eprintln!(
-            "usage: omega [--check] [--build-dir <dir>] [--target <name>] <root.omg>\n       omega inspect-terminal --machine <qualified> [--target <name>] <root.omg>\n       omega audit source <locator> [--rev <rev>] [--cache-dir <dir>]\n       omega audit packages [--lock <omega.lock>] --manifest <manifest.json>...\n       omega review capability-change --old-manifest <manifest.json> --new-manifest <manifest.json> --reviewer <id> --reason <text> --out <receipt.json>\n       omega plan install --lock <omega.lock> --current-manifest <manifest.json>... --candidate-manifest <manifest.json>... --alias <alias> --package <package>\n       omega plan update --lock <omega.lock> --current-manifest <manifest.json>... --candidate-manifest <manifest.json>... --package <package> [--receipt <receipt.json>]\n       omega refresh-samples [samples-dir]"
+            "usage: omega [--check] [--build-dir <dir>] [--target <name>] <root.omg>\n       omega inspect-terminal --machine <qualified> [--target <name>] <root.omg>\n       omega audit source <locator> [--rev <rev>] [--cache-dir <dir>]\n       omega audit source-cache-policy <locator> [--rev <rev>] [--cache-dir <dir>]\n       omega audit packages [--lock <omega.lock>] --manifest <manifest.json>...\n       omega review capability-change --old-manifest <manifest.json> --new-manifest <manifest.json> --reviewer <id> --reason <text> --out <receipt.json>\n       omega plan install --lock <omega.lock> --current-manifest <manifest.json>... --candidate-manifest <manifest.json>... --alias <alias> --package <package>\n       omega plan update --lock <omega.lock> --current-manifest <manifest.json>... --candidate-manifest <manifest.json>... --package <package> [--receipt <receipt.json>]\n       omega refresh-samples [samples-dir]"
         );
         std::process::exit(2);
     };
@@ -93,8 +93,12 @@ fn main() {
 fn audit(arguments: impl Iterator<Item = std::ffi::OsString>) {
     let mut arguments = arguments;
     let Some(subcommand) = arguments.next() else {
+        eprintln!("usage: omega audit source <locator> [--rev <rev>] [--cache-dir <dir>]");
         eprintln!(
-            "usage: omega audit packages [--lock <omega.lock>] --manifest <manifest.json>..."
+            "       omega audit source-cache-policy <locator> [--rev <rev>] [--cache-dir <dir>]"
+        );
+        eprintln!(
+            "       omega audit packages [--lock <omega.lock>] --manifest <manifest.json>..."
         );
         std::process::exit(2);
     };
@@ -103,8 +107,15 @@ fn audit(arguments: impl Iterator<Item = std::ffi::OsString>) {
             audit_source(arguments);
             return;
         }
+        if subcommand == "source-cache-policy" {
+            audit_source_cache_policy(arguments);
+            return;
+        }
         eprintln!("unknown audit command `{}`", subcommand.to_string_lossy());
         eprintln!("usage: omega audit source <locator> [--rev <rev>] [--cache-dir <dir>]");
+        eprintln!(
+            "       omega audit source-cache-policy <locator> [--rev <rev>] [--cache-dir <dir>]"
+        );
         eprintln!(
             "       omega audit packages [--lock <omega.lock>] --manifest <manifest.json>..."
         );
@@ -129,6 +140,29 @@ fn audit_source(arguments: impl Iterator<Item = std::ffi::OsString>) {
         }
         Err(error) => {
             eprintln!("cannot audit package source: {error:?}");
+            std::process::exit(1);
+        }
+    }
+}
+
+fn audit_source_cache_policy(arguments: impl Iterator<Item = std::ffi::OsString>) {
+    let Some(arguments) = parse_audit_source_arguments(arguments) else {
+        eprintln!(
+            "usage: omega audit source-cache-policy <locator> [--rev <rev>] [--cache-dir <dir>]"
+        );
+        std::process::exit(2);
+    };
+    match omega_packages::resolve_source_cache_record_locator(
+        arguments.locator,
+        arguments.rev,
+        &arguments.cache_dir,
+        omega_packages::LocalSourceLimits::default(),
+    ) {
+        Ok(record) => {
+            print!("{}", record.to_json());
+        }
+        Err(error) => {
+            eprintln!("cannot resolve source-cache policy: {error:?}");
             std::process::exit(1);
         }
     }
