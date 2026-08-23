@@ -88,7 +88,7 @@ fn linux_exit_group_consumes_i32_and_traps_on_both_linux_architectures() {
     );
     assert_eq!(
         x86.functions[0].bytes,
-        omega_isa_x86_64::encode_linux_exit_group_i32(37)
+        omega_terminal_isa_x86_64::encode_linux_exit_group_i32(37)
     );
     let settlement = &x86.functions[0].boundary_settlements[0];
     assert_eq!(settlement.code_offset, 0);
@@ -109,7 +109,7 @@ fn linux_exit_group_consumes_i32_and_traps_on_both_linux_architectures() {
     let arm = emit_machine_code(&arm_plan).expect("AArch64 exit_group emission");
     assert_eq!(
         arm.functions[0].bytes,
-        omega_isa_aarch64::encode_linux_exit_group_i32(37).unwrap()
+        omega_terminal_isa_aarch64::encode_linux_exit_group_i32(37).unwrap()
     );
     assert_eq!(
         &arm.functions[0].bytes[arm.functions[0].bytes.len() - 4..],

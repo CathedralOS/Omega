@@ -211,9 +211,11 @@ fn encode_hot_charge(
     distance: isize,
 ) -> Result<Vec<u8>, NativeFuelInstrumentationError> {
     match architecture {
-        Architecture::X86_64 => omega_isa_x86_64::encode_native_fuel_charge(plan, units, distance),
+        Architecture::X86_64 => {
+            omega_terminal_isa_x86_64::encode_native_fuel_charge(plan, units, distance)
+        }
         Architecture::Aarch64 => {
-            omega_isa_aarch64::encode_native_fuel_charge(plan, units, distance)
+            omega_terminal_isa_aarch64::encode_native_fuel_charge(plan, units, distance)
         }
     }
     .map_err(|diagnostic| NativeFuelInstrumentationError::Encoding(diagnostic.to_string()))
@@ -232,13 +234,13 @@ fn encode_cold_dispatch(
         TerminalNativeFuelSite::Edge(edge) => TerminalFuelAttributionSite::Edge(edge),
     };
     match architecture {
-        Architecture::X86_64 => omega_isa_x86_64::encode_native_fuel_cold_dispatch(
+        Architecture::X86_64 => omega_terminal_isa_x86_64::encode_native_fuel_cold_dispatch(
             plan,
             site,
             attribution.units,
             retry_text_offset,
         ),
-        Architecture::Aarch64 => omega_isa_aarch64::encode_native_fuel_cold_dispatch(
+        Architecture::Aarch64 => omega_terminal_isa_aarch64::encode_native_fuel_cold_dispatch(
             plan,
             site,
             attribution.units,
@@ -250,15 +252,21 @@ fn encode_cold_dispatch(
 
 const fn cold_dispatch_byte_count(architecture: Architecture) -> usize {
     match architecture {
-        Architecture::X86_64 => omega_isa_x86_64::X86_NATIVE_FUEL_COLD_DISPATCH_BYTE_COUNT,
-        Architecture::Aarch64 => omega_isa_aarch64::AARCH64_NATIVE_FUEL_COLD_DISPATCH_BYTE_COUNT,
+        Architecture::X86_64 => omega_terminal_isa_x86_64::X86_NATIVE_FUEL_COLD_DISPATCH_BYTE_COUNT,
+        Architecture::Aarch64 => {
+            omega_terminal_isa_aarch64::AARCH64_NATIVE_FUEL_COLD_DISPATCH_BYTE_COUNT
+        }
     }
 }
 
 const fn failure_branch_origin(architecture: Architecture) -> usize {
     match architecture {
-        Architecture::X86_64 => omega_isa_x86_64::X86_NATIVE_FUEL_FAILURE_BRANCH_END_OFFSET,
-        Architecture::Aarch64 => omega_isa_aarch64::AARCH64_NATIVE_FUEL_FAILURE_BRANCH_OFFSET,
+        Architecture::X86_64 => {
+            omega_terminal_isa_x86_64::X86_NATIVE_FUEL_FAILURE_BRANCH_END_OFFSET
+        }
+        Architecture::Aarch64 => {
+            omega_terminal_isa_aarch64::AARCH64_NATIVE_FUEL_FAILURE_BRANCH_OFFSET
+        }
     }
 }
 
@@ -388,8 +396,10 @@ mod tests {
 
         let architecture = profile.native_target().architecture;
         let hot_size = match architecture {
-            Architecture::X86_64 => omega_isa_x86_64::X86_NATIVE_FUEL_CHARGE_BYTE_COUNT,
-            Architecture::Aarch64 => omega_isa_aarch64::AARCH64_NATIVE_FUEL_CHARGE_BYTE_COUNT,
+            Architecture::X86_64 => omega_terminal_isa_x86_64::X86_NATIVE_FUEL_CHARGE_BYTE_COUNT,
+            Architecture::Aarch64 => {
+                omega_terminal_isa_aarch64::AARCH64_NATIVE_FUEL_CHARGE_BYTE_COUNT
+            }
         };
         let cold_size = cold_dispatch_byte_count(architecture);
         let expected_hot_offsets = [0, hot_size, 4 + 2 * hot_size];

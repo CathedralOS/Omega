@@ -1858,11 +1858,11 @@ fn validate_record_shape(
                     };
                 let expected_byte_count = value
                     .and_then(|value| match record.target.architecture {
-                        Architecture::X86_64 => {
-                            Some(omega_isa_x86_64::encode_linux_exit_group_i32(value).len())
-                        }
+                        Architecture::X86_64 => Some(
+                            omega_terminal_isa_x86_64::encode_linux_exit_group_i32(value).len(),
+                        ),
                         Architecture::Aarch64 => {
-                            omega_isa_aarch64::encode_linux_exit_group_i32(value)
+                            omega_terminal_isa_aarch64::encode_linux_exit_group_i32(value)
                                 .ok()
                                 .map(|bytes| bytes.len())
                         }

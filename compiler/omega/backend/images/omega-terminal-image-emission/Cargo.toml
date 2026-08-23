@@ -21,8 +21,8 @@ omega-x86-encoding = { path = "../../../foundation/omega-x86-encoding" }
 omega-terminal-machine-code = { path = "../../../representations/omega-terminal-machine-code" }
 omega-terminal-installation-evidence = { path = "../../../representations/omega-terminal-installation-evidence" }
 omega-terminal-target-operations = { path = "../../../representations/omega-terminal-target-operations" }
-omega-isa-aarch64 = { path = "../../instruction_set_architectures/omega-isa-aarch64" }
-omega-isa-x86_64 = { path = "../../instruction_set_architectures/omega-isa-x86_64" }
+omega-terminal-isa-aarch64 = { path = "../../instruction_set_architectures/omega-terminal-isa-aarch64" }
+omega-terminal-isa-x86_64 = { path = "../../instruction_set_architectures/omega-terminal-isa-x86_64" }
 psi-core = { path = "../../../../psi/foundation/psi-core" }
 psi-terminal = { path = "../../../../psi/representations/psi-terminal" }
 psi-terminal-fuel = { path = "../../../../psi/semantics/psi-terminal-fuel" }

@@ -1075,11 +1075,11 @@ pub fn build_terminal_object_artifact(
                             _ => None,
                         };
                     let expected = value.and_then(|value| match plan.target.architecture {
-                        Architecture::X86_64 => {
-                            Some(omega_isa_x86_64::encode_linux_exit_group_i32(value))
-                        }
+                        Architecture::X86_64 => Some(
+                            omega_terminal_isa_x86_64::encode_linux_exit_group_i32(value),
+                        ),
                         Architecture::Aarch64 => {
-                            omega_isa_aarch64::encode_linux_exit_group_i32(value).ok()
+                            omega_terminal_isa_aarch64::encode_linux_exit_group_i32(value).ok()
                         }
                     });
                     let exact_nominal_tail = settlement

@@ -312,9 +312,13 @@ fn emit_function(
                 return Err(EmissionError::LinuxExitGroupArgumentMismatch(*boundary));
             }
             let bytes = match architecture {
-                Architecture::X86_64 => omega_isa_x86_64::encode_linux_exit_group_i32(value),
-                Architecture::Aarch64 => omega_isa_aarch64::encode_linux_exit_group_i32(value)
-                    .map_err(|_| EmissionError::LinuxExitGroupEncoding)?,
+                Architecture::X86_64 => {
+                    omega_terminal_isa_x86_64::encode_linux_exit_group_i32(value)
+                }
+                Architecture::Aarch64 => {
+                    omega_terminal_isa_aarch64::encode_linux_exit_group_i32(value)
+                        .map_err(|_| EmissionError::LinuxExitGroupEncoding)?
+                }
             };
             fuel_attribution.push(TerminalNativeFuelAttribution {
                 schedule: psi_terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),

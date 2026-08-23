@@ -161,9 +161,11 @@ fn linux_exit_group_object_validation_replays_exact_scalar_and_trap_bytes() {
             destination,
         };
         let bytes = match target.architecture {
-            omega_target::Architecture::X86_64 => omega_isa_x86_64::encode_linux_exit_group_i32(37),
+            omega_target::Architecture::X86_64 => {
+                omega_terminal_isa_x86_64::encode_linux_exit_group_i32(37)
+            }
             omega_target::Architecture::Aarch64 => {
-                omega_isa_aarch64::encode_linux_exit_group_i32(37).unwrap()
+                omega_terminal_isa_aarch64::encode_linux_exit_group_i32(37).unwrap()
             }
         };
         let provider = TerminalProviderExecutionBinding::from_execution_record(
@@ -339,8 +341,9 @@ fn linux_write_line_then_exit_survives_object_image_and_installation_replay() {
         place: literal_place,
         path: Vec::new(),
     };
-    let (write_bytes, data) = omega_isa_x86_64::encode_linux_write_line_literal(&literal).unwrap();
-    let exit_bytes = omega_isa_x86_64::encode_linux_exit_group_i32(37);
+    let (write_bytes, data) =
+        omega_terminal_isa_x86_64::encode_linux_write_line_literal(&literal).unwrap();
+    let exit_bytes = omega_terminal_isa_x86_64::encode_linux_exit_group_i32(37);
     let mut bytes = write_bytes.clone();
     let exit_offset = bytes.len();
     bytes.extend_from_slice(&exit_bytes);
@@ -637,7 +640,7 @@ fn native_fuel_object_translation_rebases_the_typed_call_and_function_symbols() 
         metered_relocation.offset,
         metered_caller.text_offset
             + source_local_offset
-            + preceding_charges * omega_isa_x86_64::X86_NATIVE_FUEL_CHARGE_BYTE_COUNT
+            + preceding_charges * omega_terminal_isa_x86_64::X86_NATIVE_FUEL_CHARGE_BYTE_COUNT
     );
     assert_eq!(metered_relocation.origin, source_relocation.origin);
     assert_eq!(
