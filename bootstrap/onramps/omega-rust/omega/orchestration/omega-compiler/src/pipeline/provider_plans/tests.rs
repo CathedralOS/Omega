@@ -106,6 +106,34 @@ fn selected_provider_binds_actual_reach_for_bounded_requirement() {
     );
 }
 
+#[test]
+fn selected_boundary_operator_does_not_enter_trait_installation_reach_resolution() {
+    let source = r#"
+        data CheckedMath {}
+        boundary operator CheckedMath::offset_zero(value: i32) -> i32;
+
+        data CheckedMathProvider {}
+        machine CheckedMathProvider::offset_zero_impl(input: i32) -> i32
+        satisfies CheckedMath::offset_zero
+        {
+            transition { _ -> (input) }
+        }
+    "#;
+    let (typed, plan) = derive_provider_fixture(source);
+    let mut checked = psi_typed_trees_to_checked_trees::lower_typed_trees(typed)
+        .expect("boundary operator provider should check");
+    let selected = omega_effects::SelectedProviderPlanFacts::from_selection(
+        std::slice::from_ref(&plan),
+        std::slice::from_ref(&plan.name),
+    )
+    .expect("one selected boundary operator plan");
+    let selected =
+        bind_selected_provider_plan_facts(&mut checked, std::slice::from_ref(&plan), selected, &[])
+            .expect("boundary operator selection must not require a trait installation row");
+
+    assert!(selected.installation_reach_resolutions().is_empty());
+}
+
 fn selection_plan(name: &str, methods: &[&str], rows: &[&str]) -> ProviderPlan {
     ProviderPlan {
         name: name.to_owned(),
