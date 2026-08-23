@@ -292,7 +292,7 @@ enqueue_fallthrough_next:
 read_effect_pcs_init:
         imm r10, 0
 read_effect_pc:
-        imm r1, 612
+        imm r1, 613
         jlt r10, r1, read_effect_pc_one
         jmp read_local_access_pcs_init
 read_effect_pc_one:
@@ -692,7 +692,7 @@ validate_fallthrough_next:
 validate_events_init:
         imm r10, 0
 validate_event_loop:
-        imm r1, 612
+        imm r1, 613
         jlt r10, r1, validate_event_one
         jmp validate_local_accesses_init
 validate_event_one:
@@ -1160,7 +1160,7 @@ scan_owned_write_count:
         jeq r13, r1, scan_owned_call_count
         jmp reject
 scan_owned_call_count:
-        imm r1, 423
+        imm r1, 424
         jeq r14, r1, scan_owned_ret_count
         jmp reject
 scan_owned_ret_count:

@@ -92,10 +92,10 @@ rather than treating that host status as its definition.
 The first supported whole-compiler profile is now frozen to the exact source and
 artifact committed together:
 
-- `bc.beta`: 32,045 bytes, SHA-256
-  `8beb76feda2783e6597998e5e7b41889c049faa2f604e627aead0f9d2b0cdbc8`;
-- `bc.tape`: 51,647 bytes, SHA-256
-  `e491073e0a27d50fb429d6f2a24158029ab5d8baa98e8855a4bd8771768c104b`;
+- `bc.beta`: 32,064 bytes, SHA-256
+  `f844d33e29814f1280bbeee2bf599db2bded2fb9469a7f1bfc870fac522c326d`;
+- `bc.tape`: 51,602 bytes, SHA-256
+  `835c44d1b99afc13be8da3f8ccc95fc6dde61aaa94dfba8b3920b0d34c4f99d9`;
 - Alpha memory: 64 MiB, with the tape at byte zero and the hidden return stack
   starting at 64 MiB;
 - stamped tape payload: at most 262,140 bytes inside the 256 KiB hole after its
@@ -117,7 +117,9 @@ ceilings before the corresponding compiler-owned memory can overlap. Source
 exhaustion projects to status 253 with empty output. The other checked compiler
 resource failures project to status 252 and retain the deterministic maximal
 output prefix already streamed. `source-exhaustion.sh` pins every exact/+1
-boundary and the prefix rule. A later simulation proof must establish that these
+boundary, the prefix rule, and a full-capacity trailing-`=` lookahead canary
+that varies `NAMEOFF[0].low` between `=` and `>` and requires identical output.
+A later simulation proof must establish that these
 syntactic ceilings keep both Alpha stacks inside the reserved extents; naming
 the extents here does not substitute for that proof.
 
@@ -162,16 +164,16 @@ are valuable teeth, but they do not yet establish the quantified observation:
   `let`/assignment writes to exact fp-relative macros; the earlier argument
   argument-value association, local access values, and the live stack-depth
   bound remain open;
-- its raw-memory phase binds 62 source loads and 33 stores to exact byte/word
+- its raw-memory phase binds 61 source loads and 34 stores to exact byte/word
   opcodes and registers, including each store's immediate address pop, but does
   not yet relate address/value expressions or prove the 64 MiB access bounds;
-- its BC10 grammar-composition pass further partitions every raw-store source
-  address into 30 aligned fixed compiler globals, one exact source-buffer
+- its BC11 grammar-composition pass further partitions every raw-store source
+  address into 31 aligned fixed compiler globals, one exact source-buffer
   `base + n` spelling, and two exact local-name-table `base + s * 8` spellings.
   The source families are closed, while their guard/value induction and dynamic
   non-aliasing remain part of the blockwise simulation;
-- its expression-primitive phase binds all 582 decimal/character literals and
-  57 arithmetic operators to exact immediate and stack-pop/operator macros and
+- its expression-primitive phase binds all 581 decimal/character literals and
+  55 arithmetic operators to exact immediate and stack-pop/operator macros and
   all 180 comparisons to exact signed-order/full-word-equality branch variants,
   operand order, targets, and complementary 0/1 results; an exhaustive artifact
   inventory reserves 360 comparison-result and 113 fixed-emit address immediates
@@ -179,8 +181,8 @@ are valuable teeth, but they do not yet establish the quantified observation:
   leaves recursive value composition, unique ordering among identical
   block-local primitives, arithmetic trap correspondence, and dynamic
   reachability open;
-- its stack-push phase reconstructs and exhaustively owns all 237 binary-left,
-  134 ordinary-call argument, and 33 store-address push macros. Their recursive
+- its stack-push phase reconstructs and exhaustively owns all 235 binary-left,
+  134 ordinary-call argument, and 34 store-address push macros. Their recursive
   value association, identical same-block order, and live stack bounds remain
   open in that flat phase;
 - its expression-composition phase reparses all exact source expressions and
@@ -193,7 +195,7 @@ are valuable teeth, but they do not yet establish the quantified observation:
   same-valued literal, argument-push, and store-push permutations reject here;
   absolute stack bounds, dynamic frames and leaf/callee values remain open, as
   does order between byte-identical complete same-block statements/effects;
-- its BCT9 call-bound phase reconstructs all 309 ordinary source call edges,
+- its BCT9 call-bound phase reconstructs all 310 ordinary source call edges,
   checked frame weights, per-call temporary heights, and the 113 fixed-emit
   helper calls. It checks finite 64-level expression/block recurrences, the
   rejected depth-65 probe costs, and the 19-level signed-positive `emit_dec`
@@ -202,9 +204,9 @@ are valuable teeth, but they do not yet establish the quantified observation:
   isolation of the depth counters and saved-frame words; raw-memory
   bounds/aliasing must still exclude corruption of those locations before
   absolute `B_bc1` stack safety is transferred;
-- its BC10 stack-register phase constructs one unified owner map for every
+- its BC11 stack-register phase constructs one unified owner map for every
   decoded write to `r14`/`r15` and every memory access through `r15`, deriving
-  exactly 2,634 owned starts from the already checked prelude, prologues,
+  exactly 2,630 owned starts from the already checked prelude, prologues,
   epilogues, pushes, and pops. This closes orphan stack effects in the artifact,
   while dynamic frame values and ranged raw-store non-aliasing remain open;
 - Alpha out-of-range memory remains undefined in `alpha/SEMANTICS.md` and must be

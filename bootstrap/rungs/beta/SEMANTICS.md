@@ -183,14 +183,14 @@ stream admitted by `B_bc1`.
   parameter stores, callee arities, and pre-call argument pops, in one Alpha
   process. Its BCT8 phase also resolves every function-scoped source name and
   checks all 169 local reads and 73 `let`/assignment writes against exact frame
-  slots and load/store macros, then binds all 62 raw loads and 33 raw stores to
+  slots and load/store macros, then binds all 61 raw loads and 34 raw stores to
   exact byte/word opcodes, registers, and store-address pops. Finally it binds
-  all 582 decimal/character literals, 57 arithmetic operators, and 180
+  all 581 decimal/character literals, 55 arithmetic operators, and 180
   comparisons to their exact immediate, 22-byte arithmetic, or 59-byte
   comparison lowering macros. The comparison checks select signed `jlt` versus
   full-word `jeq`, operand order, branch targets, and complementary 0/1 results.
-  A final static phase binds all 237 binary-left, 134 ordinary-call argument,
-  and 33 store-address pushes to exact 16-byte data-stack macros. A separate
+  A final static phase binds all 235 binary-left, 134 ordinary-call argument,
+  and 34 store-address pushes to exact 16-byte data-stack macros. A separate
   grammar-directed phase reparses every expression and statement continuation,
   requires those owned pieces in recursive lowering order, proves relative
   temporary-stack balance, and pins exact `bc.beta`'s peak at two words.

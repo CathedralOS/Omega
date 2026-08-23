@@ -65,6 +65,41 @@ dd if=/dev/zero bs=$((LIMIT - PREFIX)) count=1 2>/dev/null | tr '\000' ' ' >> "$
 
 accepted "exact 1 MiB source" "$T/exact.beta"
 
+# A full source ending in a single '=' used to let cmp_op read NAMEOFF[0] one
+# byte past the source arena. Vary only the first local's offset so its low byte
+# is '=' (61) versus '>' (62); bounded lookahead must make outputs identical.
+cmp_boundary_program() { # prepad output
+  cmp_prepad=$1
+  cmp_dst=$2
+  printf 'proc p() {' > "$cmp_dst"
+  dd if=/dev/zero bs="$cmp_prepad" count=1 2>/dev/null | tr '\000' ' ' >> "$cmp_dst"
+  printf 'let a = 0 return 0 }' >> "$cmp_dst"
+  CMP_TAIL='proc z() { return 0='
+  cmp_used=$(wc -c < "$cmp_dst" | tr -d ' ')
+  cmp_fill=$((LIMIT - cmp_used - ${#CMP_TAIL}))
+  dd if=/dev/zero bs="$cmp_fill" count=1 2>/dev/null | tr '\000' ' ' >> "$cmp_dst"
+  printf '%s' "$CMP_TAIL" >> "$cmp_dst"
+}
+cmp_boundary_program 47 "$T/cmp-boundary-a.beta"
+cmp_boundary_program 48 "$T/cmp-boundary-b.beta"
+[ "$(wc -c < "$T/cmp-boundary-a.beta" | tr -d ' ')" = "$LIMIT" ]
+[ "$(wc -c < "$T/cmp-boundary-b.beta" | tr -d ' ')" = "$LIMIT" ]
+[ "$(tail -c "${#CMP_TAIL}" "$T/cmp-boundary-a.beta")" = "$CMP_TAIL" ]
+[ "$(tail -c "${#CMP_TAIL}" "$T/cmp-boundary-b.beta")" = "$CMP_TAIL" ]
+[ "$(dd if="$T/cmp-boundary-a.beta" bs=1 skip=61 count=1 2>/dev/null)" = a ]
+[ "$(dd if="$T/cmp-boundary-b.beta" bs=1 skip=62 count=1 2>/dev/null)" = a ]
+run_status "$T/cmp-boundary-a.beta" "$T/cmp-boundary-a.alpha"
+cmp_boundary_a_status=$RUN_STATUS
+run_status "$T/cmp-boundary-b.beta" "$T/cmp-boundary-b.alpha"
+cmp_boundary_b_status=$RUN_STATUS
+if [ "$cmp_boundary_a_status" != 0 ] || [ "$cmp_boundary_b_status" != 0 ] ||
+   ! cmp -s "$T/cmp-boundary-a.alpha" "$T/cmp-boundary-b.alpha" ||
+   [ "$(wc -c < "$T/cmp-boundary-a.alpha" | tr -d ' ')" != 621 ] ||
+   grep -q '^jeq r0,r1,' "$T/cmp-boundary-a.alpha"; then
+  echo "bc resource exhaustion FAIL — full-source cmp lookahead crossed into NAMEOFF"
+  exit 1
+fi
+
 cp "$T/exact.beta" "$T/oversized.beta"
 printf x >> "$T/oversized.beta"
 exhausted "1 MiB + 1 source" "$T/oversized.beta" 253 empty

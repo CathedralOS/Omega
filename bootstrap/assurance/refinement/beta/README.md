@@ -42,12 +42,12 @@ Alpha checker, so the effect checks reuse the exact source scan, block table,
 tape bytes, and decoded-instruction coverage rather than trusting a second
 private reconstruction. The checker resolves the source's procedure-local
 entry/state/`to`/`when` graph and validates canonical block/transition locations
-and successor shapes. It also binds 612 lexical source effect sites—309 ordinary
+and successor shapes. It also binds 613 lexical source effect sites—310 ordinary
 calls, two reads, five writes, 113 fixed-string emits, and 183 explicit
 returns—to their exact artifact instructions. The emit check decodes and compares
 all 829 literal bytes and validates the exact jump/address/length/helper macro.
 Compiler-synthesized prelude, helper, and 70 fallthrough epilogues account for
-the remainder, so every one of the artifact's 423 calls, two reads, six writes,
+the remainder, so every one of the artifact's 424 calls, two reads, six writes,
 254 returns, and sole halt has exactly one owner.
 
 The mapper supplies locations only; `bc-block-control.sh` packages the exact
@@ -62,7 +62,7 @@ memory/stack bounds, and cyclic progress remain open.
 `bc-frame-shape.alpha`, concatenated into that same checker, derives 27
 parameters and 51 function-scoped `let`s directly from the source. It validates
 all 70 base prologues, the 47 nonempty frame allocations covering 78 slots, and
-all 27 ordered register-to-parameter-slot stores. Each of the 309 ordinary call
+all 27 ordered register-to-parameter-slot stores. Each of the 310 ordinary call
 sites must match its source callee's arity and its immediate lowering must pop
 the exact 134 staged arguments into `r0..r1` in reverse stack order. Frame-size,
 saved/base-fp register, parameter offset/register, pop-order, and pop-step
@@ -82,7 +82,7 @@ static local-slot selection and opcode custody, not the values carried through
 those slots, definite assignment, expression evaluation, or dynamic aliasing.
 
 `bc-memory-sites.alpha` independently classifies matching source brackets and
-binds all 62 raw loads (56 word, six byte) and 33 raw stores (32 word, one byte)
+binds all 61 raw loads (56 word, five byte) and 34 raw stores (33 word, one byte)
 to exact Alpha width/opcode/register sites. Every store also checks the immediate
 16-byte address pop. Same-width load/store-width substitutions, register
 changes, pop-step changes, duplicate sites, and reordered BCT8 records retain
@@ -90,7 +90,7 @@ valid Alpha framing and reject. Address-expression values, stored/loaded values,
 aliasing, alignment, and the 64 MiB bounds obligation remain open.
 
 `bc-expr-primitives.alpha` extends that same source scan and BCT8 witness with
-all 582 decimal/character literals and all 57 arithmetic operators (`+`, `-`,
+all 581 decimal/character literals and all 55 arithmetic operators (`+`, `-`,
 `*`, `/`, `%`). Each literal must be the exact `imm r0,value` instruction; each
 operator must be the exact 22-byte left-value pop and arithmetic macro with the
 source-selected opcode. An independent artifact inventory classifies all 180
@@ -113,9 +113,9 @@ At this flat phase, identical same-valued primitives within one source block
 remain mutually swappable; it proves block-local multiset/shape custody, not
 unique per-occurrence provenance.
 
-`bc-stack-pushes.alpha` reconstructs all 404 source-required data-stack pushes
-from the primitive, call-arity, and raw-store tables: 237 binary-left pushes,
-134 left-to-right ordinary-call argument pushes, and 33 store-address pushes.
+`bc-stack-pushes.alpha` reconstructs all 403 source-required data-stack pushes
+from the primitive, call-arity, and raw-store tables: 235 binary-left pushes,
+134 left-to-right ordinary-call argument pushes, and 34 store-address pushes.
 It checks every exact `imm r2,8; sub r15,r2; store r15,r0` macro and independently
 inventories every decoded artifact occurrence. Stack-step/register/value/opcode,
 duplicate-location, and cross-block witness mutations retain valid Alpha framing
@@ -141,8 +141,8 @@ Identical complete same-block statements/effects can still be mutually
 swappable when every owned macro is byte-for-byte identical; cross-statement
 artifact order is part of the remaining blockwise simulation.
 
-The BC10 composition pass also classifies all 33 raw-store address expressions
-without trusting the mapper: 30 are aligned fixed compiler-global words in
+The BC11 composition pass also classifies all 34 raw-store address expressions
+without trusting the mapper: 31 are aligned fixed compiler-global words in
 `[2097064, 2097145)`, one is exactly `2097152 + n`, and the two local-name-table
 stores are exactly `3145728 + s * 8` and `3153920 + s * 8`. This is a static
 source-family result, not yet a dynamic address proof. The blockwise simulation
@@ -151,7 +151,7 @@ these families to prove disjointness from frames, depth counters, or other
 compiler-owned regions.
 
 `bc_call_bounds.py` emits the untrusted compact BCS9 potential tables consumed
-by `bc-call-bounds.alpha`. The Alpha phase independently resolves all 309
+by `bc-call-bounds.alpha`. The Alpha phase independently resolves all 310
 ordinary calls among the 70 source procedures, derives frame bytes from the
 already checked prologues, and reuses grammar-reconstructed per-call temporary
 heights and per-procedure peaks. It computes stopped reachability around the
@@ -171,10 +171,10 @@ also remain open.
 specific checks into one fresh per-PC owner map. It derives owners from the
 fixed prelude, checked entry-block/frame tables, explicit and synthesized
 epilogues, expression primitives, ordinary-call arities, raw stores, and all
-404 push roots; duplicate owners reject. An independent decoded-instruction
-scan requires that map to equal exactly the 2,634 starts which write `r14` or
-`r15` or address memory through `r15`: 324 writes to `r14`, 1,432 writes to
-`r15`, and 1,131 stack-addressed memory accesses, with 253 saved-frame loads in
+403 push roots; duplicate owners reject. An independent decoded-instruction
+scan requires that map to equal exactly the 2,630 starts which write `r14` or
+`r15` or address memory through `r15`: 324 writes to `r14`, 1,430 writes to
+`r15`, and 1,129 stack-addressed memory accesses, with 253 saved-frame loads in
 both the first and third totals. This closes exhaustive static custody of the
 artifact's explicit-stack effects. It does not yet prove carried stack/frame
 values or exclude the separately classified ranged raw stores from aliasing

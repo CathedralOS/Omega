@@ -262,11 +262,11 @@ call_bounds_build_edges_init:
         store r1, r0
         imm r10, 0
 call_bounds_build_edges_loop:
-        imm r1, 612
+        imm r1, 613
         jlt r10, r1, call_bounds_build_event
         imm r1, 525008
         load r2, r1
-        imm r3, 309
+        imm r3, 310
         jeq r2, r3, call_bounds_validate_emit_dec_edges
         jmp reject
 call_bounds_build_event:
@@ -357,7 +357,7 @@ call_bounds_validate_emit_dec_edges:
         imm r10, 0
         imm r11, 0
 call_bounds_emit_dec_edge_loop:
-        imm r1, 309
+        imm r1, 310
         jlt r10, r1, call_bounds_emit_dec_edge
         imm r1, 1
         jeq r11, r1, call_bounds_flags_init
@@ -418,7 +418,7 @@ call_bounds_flags_pass:
 call_bounds_flags_edges_init:
         imm r11, 0
 call_bounds_flags_edge_loop:
-        imm r1, 309
+        imm r1, 310
         jlt r11, r1, call_bounds_flags_edge
         imm r1, 1
         add r10, r1
@@ -618,7 +618,7 @@ call_bounds_check_live_proc:
         store r1, r3
         imm r10, 0
 call_bounds_check_edges_loop:
-        imm r1, 309
+        imm r1, 310
         jlt r10, r1, call_bounds_check_edge
         jmp call_bounds_check_expected
 call_bounds_check_edge:

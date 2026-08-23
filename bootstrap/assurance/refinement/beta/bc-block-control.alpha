@@ -1,7 +1,7 @@
 ; Bounded whole-bc control/effect correspondence checker, common core.
 ;
 ; Input is [u32 source length][bc.beta bytes][u32 tape length][bc.tape bytes]
-; followed by an untrusted BC10 location/bound witness.  This checker independently
+; followed by an untrusted BC11 location/bound witness.  This checker independently
 ; lexes proc/state/to/when from the source, resolves each state target by exact
 ; byte-string equality, and checks the corresponding Alpha jmp or
 ; jz-fallthrough-jmp successors in the tape.  bc-effect-sites.alpha extends the
@@ -397,13 +397,13 @@ count_guards:
 count_effect_events:
         imm r1, 524456
         load r2, r1
-        imm r3, 612
+        imm r3, 613
         jeq r2, r3, count_effect_calls
         jmp reject
 count_effect_calls:
         imm r1, 524464
         load r2, r1
-        imm r3, 309
+        imm r3, 310
         jeq r2, r3, count_effect_reads
         jmp reject
 count_effect_reads:
@@ -451,7 +451,7 @@ count_frame_lets:
 count_zero_arg_calls:
         imm r1, 524576
         load r2, r1
-        imm r3, 184
+        imm r3, 185
         jeq r2, r3, count_one_arg_calls
         jmp reject
 count_one_arg_calls:
@@ -499,43 +499,43 @@ count_memory_sites:
 count_memory_loads:
         imm r1, 524656
         load r2, r1
-        imm r3, 62
+        imm r3, 61
         jeq r2, r3, count_memory_stores
         jmp reject
 count_memory_stores:
         imm r1, 524664
         load r2, r1
-        imm r3, 33
+        imm r3, 34
         jeq r2, r3, count_memory_bytes
         jmp reject
 count_memory_bytes:
         imm r1, 524672
         load r2, r1
-        imm r3, 7
+        imm r3, 6
         jeq r2, r3, count_memory_words
         jmp reject
 count_memory_words:
         imm r1, 524680
         load r2, r1
-        imm r3, 88
+        imm r3, 89
         jeq r2, r3, count_expr_primitives
         jmp reject
 count_expr_primitives:
         imm r1, 524696
         load r2, r1
-        imm r3, 819
+        imm r3, 816
         jeq r2, r3, count_literal_primitives
         jmp reject
 count_literal_primitives:
         imm r1, 524704
         load r2, r1
-        imm r3, 582
+        imm r3, 581
         jeq r2, r3, count_arithmetic_primitives
         jmp reject
 count_arithmetic_primitives:
         imm r1, 524712
         load r2, r1
-        imm r3, 57
+        imm r3, 55
         jeq r2, r3, count_comparison_primitives
         jmp reject
 count_comparison_primitives:
@@ -610,7 +610,7 @@ resolve_found:
 
 read_witness:
         call read_u32
-        imm r1, 808534850              ; BC10
+        imm r1, 825312066              ; BC11
         jeq r0, r1, witness_proc_count
         jmp reject
 witness_proc_count:
@@ -635,12 +635,12 @@ witness_guard_count:
         jmp reject
 witness_effect_count:
         call read_u32
-        imm r1, 612
+        imm r1, 613
         jeq r0, r1, witness_call_count
         jmp reject
 witness_call_count:
         call read_u32
-        imm r1, 309
+        imm r1, 310
         jeq r0, r1, witness_read_count
         jmp reject
 witness_read_count:
@@ -690,37 +690,37 @@ witness_memory_count:
         jmp reject
 witness_memory_load_count:
         call read_u32
-        imm r1, 62
+        imm r1, 61
         jeq r0, r1, witness_memory_store_count
         jmp reject
 witness_memory_store_count:
         call read_u32
-        imm r1, 33
+        imm r1, 34
         jeq r0, r1, witness_memory_byte_count
         jmp reject
 witness_memory_byte_count:
         call read_u32
-        imm r1, 7
+        imm r1, 6
         jeq r0, r1, witness_memory_word_count
         jmp reject
 witness_memory_word_count:
         call read_u32
-        imm r1, 88
+        imm r1, 89
         jeq r0, r1, witness_primitive_count
         jmp reject
 witness_primitive_count:
         call read_u32
-        imm r1, 819
+        imm r1, 816
         jeq r0, r1, witness_literal_count
         jmp reject
 witness_literal_count:
         call read_u32
-        imm r1, 582
+        imm r1, 581
         jeq r0, r1, witness_arithmetic_count
         jmp reject
 witness_arithmetic_count:
         call read_u32
-        imm r1, 57
+        imm r1, 55
         jeq r0, r1, witness_comparison_count
         jmp reject
 witness_comparison_count:
@@ -730,12 +730,12 @@ witness_comparison_count:
         jmp reject
 witness_stack_push_count:
         call read_u32
-        imm r1, 404
+        imm r1, 403
         jeq r0, r1, witness_binary_push_count
         jmp reject
 witness_binary_push_count:
         call read_u32
-        imm r1, 237
+        imm r1, 235
         jeq r0, r1, witness_argument_push_count
         jmp reject
 witness_argument_push_count:
@@ -745,7 +745,7 @@ witness_argument_push_count:
         jmp reject
 witness_store_push_count:
         call read_u32
-        imm r1, 33
+        imm r1, 34
         jeq r0, r1, read_block_pcs_init
         jmp reject
 
