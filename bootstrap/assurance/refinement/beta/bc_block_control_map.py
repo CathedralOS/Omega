@@ -63,6 +63,7 @@ class Event:
     literal: bytes
     node_id: int
     block_index: int
+    arity: int
 
 
 def load_parser(repo: Path):
@@ -114,8 +115,9 @@ def source_events(repo: Path, source: bytes) -> tuple[list, list[Event], dict[in
     lowering_by_proc: dict[int, list[Event]] = {}
     block_index = 0
 
-    def add(kind: int, name: str, literal: bytes, node, block: int) -> None:
-        event = Event(kind, name, literal, id(node), block)
+    def add(kind: int, name: str, literal: bytes, node, block: int,
+            arity: int = 0) -> None:
+        event = Event(kind, name, literal, id(node), block, arity)
         lexical.append(event)
         event_by_node[id(node)] = event
 
@@ -125,7 +127,7 @@ def source_events(repo: Path, source: bytes) -> tuple[list, list[Event], dict[in
             kind = EVENT_READ if name == "read_byte" else (
                 EVENT_WRITE if name == "write_byte" else EVENT_CALL
             )
-            add(kind, name, b"", expr, block)
+            add(kind, name, b"", expr, block, len(expr[2]))
             for argument in expr[2]:
                 lex_expr(argument, block)
         elif expr[0] == "bin":
@@ -420,6 +422,13 @@ def main() -> None:
     ap.add_argument("--orphan-io-patch-output", type=Path)
     ap.add_argument("--duplicate-event-witness-output", type=Path)
     ap.add_argument("--noncanonical-event-witness-output", type=Path)
+    ap.add_argument("--frame-size-patch-output", type=Path)
+    ap.add_argument("--saved-fp-patch-output", type=Path)
+    ap.add_argument("--frame-base-patch-output", type=Path)
+    ap.add_argument("--param-offset-patch-output", type=Path)
+    ap.add_argument("--param-register-patch-output", type=Path)
+    ap.add_argument("--call-pop-order-patch-output", type=Path)
+    ap.add_argument("--call-pop-step-patch-output", type=Path)
     args = ap.parse_args()
 
     source = args.source.read_bytes()
@@ -567,6 +576,38 @@ def main() -> None:
             witness(block_pcs, transition_pcs, changed, events, helper_pc,
                     proc_count, guarded_count)
         )
+
+    def lets_in(statements) -> int:
+        return sum(
+            1 if stmt[0] == "let" else (
+                lets_in(stmt[2]) if stmt[0] == "state" else 0
+            )
+            for stmt in statements
+        )
+
+    frame_proc = next(proc for proc in ast
+                      if len(proc[2]) + lets_in(proc[3]) > 0)
+    frame_slots = len(frame_proc[2]) + lets_in(frame_proc[3])
+    frame_pc = labels[frame_proc[1]]
+    patch(args.frame_size_patch_output, frame_pc + 21,
+          struct.pack("<Q", frame_slots * 8 + 8))
+    patch(args.saved_fp_patch_output, frame_pc + 15, b"\x0d")
+    patch(args.frame_base_patch_output, frame_pc + 17, b"\x0d")
+
+    two_param_proc = next(proc for proc in ast if len(proc[2]) == 2)
+    param_pc = labels[two_param_proc[1]]
+    param_slots = len(two_param_proc[2]) + lets_in(two_param_proc[3])
+    param_start = param_pc + 19 + (13 if param_slots else 0)
+    patch(args.param_offset_patch_output, param_start + 5,
+          struct.pack("<Q", 16))
+    patch(args.param_register_patch_output, param_start + 18, b"\x01")
+
+    two_arg_index = next(i for i, event in enumerate(events)
+                         if event.kind == EVENT_CALL and event.arity == 2)
+    pop_start = event_pcs[two_arg_index] - 32
+    patch(args.call_pop_order_patch_output, pop_start + 1, b"\x00")
+    patch(args.call_pop_step_patch_output, pop_start + 5,
+          struct.pack("<Q", 16))
 
 
 if __name__ == "__main__":

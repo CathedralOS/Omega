@@ -65,6 +65,16 @@ scan_init:
         store r1, r0                    ; explicit return count
         imm r1, 524504
         store r1, r0                    ; decoded emit byte count
+        imm r1, 524552
+        store r1, r0                    ; total procedure parameters
+        imm r1, 524560
+        store r1, r0                    ; total function-scoped lets
+        imm r1, 524576
+        store r1, r0                    ; zero-argument ordinary calls
+        imm r1, 524584
+        store r1, r0                    ; one-argument ordinary calls
+        imm r1, 524592
+        store r1, r0                    ; two-argument ordinary calls
 
 scan_loop:
         call skip_trivia
@@ -150,11 +160,18 @@ scan_ident:
         call ident_is_return
         imm r1, 1
         jeq r0, r1, found_return
+        call ident_is_let
+        imm r1, 1
+        jeq r0, r1, found_let
         jmp maybe_call_event
 
 found_return:
         imm r4, 5
         call add_effect_event
+        jmp scan_loop
+
+found_let:
+        call record_source_let
         jmp scan_loop
 
 found_proc:
@@ -174,6 +191,7 @@ proc_room:
         ; Each procedure entry is a source block named by the proc identifier.
         imm r4, 0
         call add_block
+        call scan_proc_signature
         jmp scan_loop
 
 found_state:
@@ -324,6 +342,36 @@ count_effect_emit_bytes:
         imm r1, 524504
         load r2, r1
         imm r3, 829
+        jeq r2, r3, count_frame_params
+        jmp reject
+count_frame_params:
+        imm r1, 524552
+        load r2, r1
+        imm r3, 27
+        jeq r2, r3, count_frame_lets
+        jmp reject
+count_frame_lets:
+        imm r1, 524560
+        load r2, r1
+        imm r3, 51
+        jeq r2, r3, count_zero_arg_calls
+        jmp reject
+count_zero_arg_calls:
+        imm r1, 524576
+        load r2, r1
+        imm r3, 184
+        jeq r2, r3, count_one_arg_calls
+        jmp reject
+count_one_arg_calls:
+        imm r1, 524584
+        load r2, r1
+        imm r3, 116
+        jeq r2, r3, count_two_arg_calls
+        jmp reject
+count_two_arg_calls:
+        imm r1, 524592
+        load r2, r1
+        imm r3, 9
         jeq r2, r3, resolve_init
         jmp reject
 

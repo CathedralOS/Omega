@@ -58,3 +58,15 @@ static effect-site custody and the fixed-emit macro when reached. Argument and
 expression values, frame contents and dynamic call depth, return values,
 non-literal I/O values, global trace order/reachability, terminal classes,
 memory/stack bounds, and cyclic progress remain open.
+
+`bc-frame-shape.alpha`, concatenated into that same checker, derives 27
+parameters and 51 function-scoped `let`s directly from the source. It validates
+all 70 base prologues, the 47 nonempty frame allocations covering 78 slots, and
+all 27 ordered register-to-parameter-slot stores. Each of the 309 ordinary call
+sites must match its source callee's arity and its immediate lowering must pop
+the exact 134 staged arguments into `r0..r1` in reverse stack order. Frame-size,
+saved/base-fp register, parameter offset/register, pop-order, and pop-step
+mutations retain valid Alpha framing and reject here. This establishes static
+frame shape and parameter handoff conditional on the staged values. Argument
+pushes and values, local load/store correspondence, live stack depth, and
+dynamic frame contents remain open.

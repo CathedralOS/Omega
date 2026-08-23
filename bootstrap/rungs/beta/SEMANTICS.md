@@ -179,7 +179,9 @@ stream admitted by `B_bc1`.
   exact artifact's reachable instruction framing and direct targets below `bc`.
 - `bootstrap/assurance/refinement/beta/bc-block-control.sh` checks exact source
   control successors and static custody for every call/return/I/O/emit site,
-  including the fixed-literal output macro, in one Alpha process.
+  including the fixed-literal output macro, source-derived frame allocations,
+  parameter stores, callee arities, and pre-call argument pops, in one Alpha
+  process.
 
 These gates are evidence. Whole-compiler closure still requires a checked
 forward simulation from these source transitions to Alpha small steps, including
