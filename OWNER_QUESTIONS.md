@@ -100,3 +100,34 @@ whose applications the compiler constructs but whose named conformances remain
 ordinary source declarations. Do not encode the telescope as an untyped list,
 generate arity-indexed traits, or let the lift operation discover a proof by
 shape.
+
+## Q4 — How does a native layout declare a private callback demand?
+
+Registered-callback lowering already maps one nominal static-machine binder to
+one native parameter or nested layout place. A nested destination is valid only
+when the independently validated native layout declares a typed private slot
+for that exact callback requirement. That slot is absent from the semantic
+schema and its layout, slot, and requirement identities are compiler-issued,
+but no source/library input currently creates the demand.
+
+Choose the target-package declaration and layout-policy input for one private
+callback demand. It must:
+
+- declare the native slot independently of the registrar's materialization row,
+  so the supply cannot authorize its own destination;
+- name one exact signature-free callback requirement and reject overload
+  ambiguity without authored numeric identities;
+- keep the slot absent from source projection, read, write, serialization, and
+  runtime value topology while retaining it in normalized layout identity;
+- allow the compiler to derive `LayoutPlanId`, `LayoutSlotId`, and
+  `CallbackRequirementId` from resolved declarations and the validated plan;
+  and
+- support exact missing, duplicate, overlap, wrong-requirement, wrong-layout,
+  and replay-drift rejection when the calling plan closes the demand.
+
+Recommended direction: extend the ordinary `Schema`/`Plan` library vocabulary
+with a bounded compiler-private slot source whose authored inputs are a stable
+native slot declaration and exact callback-requirement path. The compiler
+resolves those names into opaque identities during layout evaluation. Do not
+put raw IDs or field offsets in source, infer the demand from the callback row,
+or expose a callback-address-shaped semantic field.

@@ -4818,6 +4818,15 @@ Owners:
   the exact registrar layout, admit the evaluated catalog through the
   context-bound path, and join it to each checked callback use before private
   relocation emission.
+  **Design blocked:** the abstract layout model requires a private
+  materialization slot and its exact callback requirement, but no settled
+  source/library input lets a target package declare that slot while keeping it
+  absent from the semantic schema and keeping `LayoutPlanId`, `LayoutSlotId`,
+  and `CallbackRequirementId` compiler-issued. Letting the registrar's
+  materialization row create its own demand would make the supply authorize its
+  destination; authored numeric identities would reintroduce magic IDs. Settle
+  the declaration shape that independently creates this typed private layout
+  demand before wiring the already-built closure validator into production.
   Checked-only compilation exposes those rows and native compilation retains
   them on `BackendPlan`, so no later thunk pass may replace the recipe with a
   convention oracle or silently discard it. Native backend planning now also
@@ -7216,6 +7225,8 @@ specifications:
   `wiki/language_guide/appendix_open_questions.md`.
 - **NOMINAL-FOREIGN-BINDINGS:** target-package nominal-ID declaration and
   sealed metadata supply surface in `OWNER_QUESTIONS.md` Q1.
+- **CALLBACK-PRIVATE-LAYOUT-DEMAND:** target-package declaration of a typed
+  private native callback slot in `OWNER_QUESTIONS.md` Q4.
 
 ## Platform-gated verification
 
