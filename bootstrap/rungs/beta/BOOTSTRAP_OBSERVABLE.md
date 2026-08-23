@@ -160,7 +160,8 @@ are valuable teeth, but they do not yet establish the quantified observation:
   slots, 27 parameter stores, callee arities, and 134 immediate pre-call pops;
   a source-name/slot phase additionally binds all 169 local reads and 73
   `let`/assignment writes to exact fp-relative macros; the earlier argument
-  pushes/values, local access values, and live stack-depth bound remain open;
+  argument-value association, local access values, and the live stack-depth
+  bound remain open;
 - its raw-memory phase binds 62 source loads and 33 stores to exact byte/word
   opcodes and registers, including each store's immediate address pop, but does
   not yet relate address/value expressions or prove the 64 MiB access bounds;
@@ -171,7 +172,11 @@ are valuable teeth, but they do not yet establish the quantified observation:
   inventory reserves 360 comparison-result and 113 fixed-emit address immediates
   and requires ownership of every remaining candidate. Recursive value
   composition, unique ordering among identical block-local primitives, argument
-  pushes, arithmetic trap correspondence, and dynamic reachability remain open;
+  arithmetic trap correspondence, and dynamic reachability remain open;
+- its stack-push phase reconstructs and exhaustively owns all 237 binary-left,
+  134 ordinary-call argument, and 33 store-address push macros. Their recursive
+  value association, identical same-block order, and live stack bounds remain
+  open;
 - Alpha out-of-range memory remains undefined in `alpha/SEMANTICS.md` and must be
   excluded by independently checked `B_bc1` bounds before whole-artifact closure
   (or Alpha must be hardened independently);

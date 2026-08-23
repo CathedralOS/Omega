@@ -1,7 +1,7 @@
 ; Bounded whole-bc control/effect correspondence checker, common core.
 ;
 ; Input is [u32 source length][bc.beta bytes][u32 tape length][bc.tape bytes]
-; followed by an untrusted BCT6 location witness.  This checker independently
+; followed by an untrusted BCT7 location witness.  This checker independently
 ; lexes proc/state/to/when from the source, resolves each state target by exact
 ; byte-string equality, and checks the corresponding Alpha jmp or
 ; jz-fallthrough-jmp successors in the tape.  bc-effect-sites.alpha extends the
@@ -107,6 +107,16 @@ scan_init:
         store r1, r0                    ; artifact arithmetic-macro count
         imm r1, 524744
         store r1, r0                    ; comparison primitive count
+        imm r1, 524752
+        store r1, r0                    ; source stack-push count
+        imm r1, 524760
+        store r1, r0                    ; binary-left push count
+        imm r1, 524768
+        store r1, r0                    ; call-argument push count
+        imm r1, 524776
+        store r1, r0                    ; store-address push count
+        imm r1, 524784
+        store r1, r0                    ; artifact stack-push count
 
 scan_loop:
         call skip_trivia
@@ -532,7 +542,7 @@ count_comparison_primitives:
         imm r1, 524744
         load r2, r1
         imm r3, 180
-        jeq r2, r3, resolve_init
+        jeq r2, r3, build_stack_push_sources_init
         jmp reject
 
 resolve_init:
@@ -600,7 +610,7 @@ resolve_found:
 
 read_witness:
         call read_u32
-        imm r1, 911491906              ; BCT6
+        imm r1, 928269122              ; BCT7
         jeq r0, r1, witness_proc_count
         jmp reject
 witness_proc_count:
@@ -716,6 +726,26 @@ witness_arithmetic_count:
 witness_comparison_count:
         call read_u32
         imm r1, 180
+        jeq r0, r1, witness_stack_push_count
+        jmp reject
+witness_stack_push_count:
+        call read_u32
+        imm r1, 404
+        jeq r0, r1, witness_binary_push_count
+        jmp reject
+witness_binary_push_count:
+        call read_u32
+        imm r1, 237
+        jeq r0, r1, witness_argument_push_count
+        jmp reject
+witness_argument_push_count:
+        call read_u32
+        imm r1, 134
+        jeq r0, r1, witness_store_push_count
+        jmp reject
+witness_store_push_count:
+        call read_u32
+        imm r1, 33
         jeq r0, r1, read_block_pcs_init
         jmp reject
 

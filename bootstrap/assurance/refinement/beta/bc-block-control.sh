@@ -83,7 +83,13 @@ python3 "$GATE_DIR/bc_block_control_map.py" \
   --comparison-operand-patch-output "$T/comparison-operand.patch" \
   --comparison-branch-target-patch-output "$T/comparison-branch-target.patch" \
   --comparison-result-patch-output "$T/comparison-result.patch" \
-  --comparison-pop-step-patch-output "$T/comparison-pop-step.patch"
+  --comparison-pop-step-patch-output "$T/comparison-pop-step.patch" \
+  --push-step-patch-output "$T/push-step.patch" \
+  --push-stack-register-patch-output "$T/push-stack-register.patch" \
+  --push-value-register-patch-output "$T/push-value-register.patch" \
+  --push-opcode-patch-output "$T/push-opcode.patch" \
+  --duplicate-push-witness-output "$T/duplicate-push.witness" \
+  --cross-block-push-witness-output "$T/cross-block-push.witness"
 
 # The untrusted mapper never writes the source/tape portion of checker input.
 # Assemble every bundle here from the exact repository source and artifact.
@@ -111,6 +117,8 @@ make_bundle "$ARTIFACT" "$T/noncanonical-memory.witness" "$T/noncanonical-memory
 make_bundle "$ARTIFACT" "$T/duplicate-primitive.witness" "$T/duplicate-primitive.bundle"
 make_bundle "$ARTIFACT" "$T/noncanonical-primitive.witness" "$T/noncanonical-primitive.bundle"
 make_bundle "$ARTIFACT" "$T/synthetic-literal.witness" "$T/synthetic-literal.bundle"
+make_bundle "$ARTIFACT" "$T/duplicate-push.witness" "$T/duplicate-push.bundle"
+make_bundle "$ARTIFACT" "$T/cross-block-push.witness" "$T/cross-block-push.bundle"
 
 cp "$ARTIFACT" "$T/retarget.tape"
 RETARGET_OFFSET=$(dd if="$T/retarget.patch" bs=1 count=4 2>/dev/null | od -An -tu4 | tr -d ' ')
@@ -161,13 +169,18 @@ apply_tape_patch comparison-operand
 apply_tape_patch comparison-branch-target
 apply_tape_patch comparison-result
 apply_tape_patch comparison-pop-step
+apply_tape_patch push-step
+apply_tape_patch push-stack-register
+apply_tape_patch push-value-register
+apply_tape_patch push-opcode
 
 cat "$GATE_DIR/bc-block-control.alpha" \
   "$GATE_DIR/bc-effect-sites.alpha" \
   "$GATE_DIR/bc-frame-shape.alpha" \
   "$GATE_DIR/bc-local-access.alpha" \
   "$GATE_DIR/bc-memory-sites.alpha" \
-  "$GATE_DIR/bc-expr-primitives.alpha" > "$T/control-check.alpha"
+  "$GATE_DIR/bc-expr-primitives.alpha" \
+  "$GATE_DIR/bc-stack-pushes.alpha" > "$T/control-check.alpha"
 "$ASM" < "$T/control-check.alpha" > "$T/control-check.tape"
 stamp_seed "$T/control-check.tape" "$SEED" "$T/control-check" >/dev/null
 
@@ -233,6 +246,12 @@ case_run "comparison branch operand order" 1 "$T/comparison-operand.bundle"
 case_run "comparison branch target" 1 "$T/comparison-branch-target.bundle"
 case_run "comparison materialized result" 1 "$T/comparison-result.bundle"
 case_run "comparison pop step" 1 "$T/comparison-pop-step.bundle"
+case_run "argument push stack step" 1 "$T/push-step.bundle"
+case_run "argument push stack register" 1 "$T/push-stack-register.bundle"
+case_run "argument push value register" 1 "$T/push-value-register.bundle"
+case_run "same-width argument push opcode" 1 "$T/push-opcode.bundle"
+case_run "duplicate stack-push location" 1 "$T/duplicate-push.bundle"
+case_run "cross-block stack-push location" 1 "$T/cross-block-push.bundle"
 
 # Show that the negative control has teeth beyond the pre-existing structural
 # obligation: its changed target is another real instruction boundary, so the
@@ -256,7 +275,7 @@ if [ "$structure_status" != 0 ] || [ -s "$T/stdout" ]; then
   exit 1
 fi
 
-for mutation in call-retarget read-register write-register helper-write emit-byte emit-length emit-pointer emit-helper orphan-io frame-size saved-fp frame-base param-offset param-register call-pop-order call-pop-step local-load-slot local-store-slot local-base local-load-opcode local-store-opcode memory-load-width memory-store-width memory-load-register memory-store-register memory-pop-step literal-value literal-register arithmetic-opcode arithmetic-pop-step arithmetic-register comparison-opcode comparison-operand comparison-branch-target comparison-result comparison-pop-step; do
+for mutation in call-retarget read-register write-register helper-write emit-byte emit-length emit-pointer emit-helper orphan-io frame-size saved-fp frame-base param-offset param-register call-pop-order call-pop-step local-load-slot local-store-slot local-base local-load-opcode local-store-opcode memory-load-width memory-store-width memory-load-register memory-store-register memory-pop-step literal-value literal-register arithmetic-opcode arithmetic-pop-step arithmetic-register comparison-opcode comparison-operand comparison-branch-target comparison-result comparison-pop-step push-step push-stack-register push-value-register push-opcode; do
   set +e
   "$T/structure-check" < "$T/$mutation.tape" > "$T/stdout"
   structure_status=$?
@@ -267,4 +286,4 @@ for mutation in call-retarget read-register write-register helper-write emit-byt
   fi
 done
 
-echo "bc block control/effects: 70 proc / 355 block / 291 transition; 612 effect sites / 829 fixed emit bytes; 78 frame slots / 27 parameter stores / 134 call pops; 169 local loads / 73 local stores; 62 raw loads / 33 raw stores; 582 literals / 57 arithmetic / 180 comparison primitives; all 686 artifact effects owned ($(wc -c < "$T/control-check.tape" | tr -d ' ')-byte Alpha checker tape)"
+echo "bc block control/effects: 70 proc / 355 block / 291 transition; 612 effect sites / 829 fixed emit bytes; 78 frame slots / 27 parameter stores / 134 call pops; 169 local loads / 73 local stores; 62 raw loads / 33 raw stores; 582 literals / 57 arithmetic / 180 comparison primitives; 237 binary / 134 argument / 33 store-address pushes; all 686 artifact effects owned ($(wc -c < "$T/control-check.tape" | tr -d ' ')-byte Alpha checker tape)"

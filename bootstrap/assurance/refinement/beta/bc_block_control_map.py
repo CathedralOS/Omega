@@ -29,7 +29,7 @@ OPS = {
     "write": (0x12, "r"), "call": (0x13, "x"), "ret": (0x14, ""),
 }
 ESC = {"n": 10, "t": 9, "r": 13, "0": 0, "\\": 92, "'": 39, '"': 34}
-MAGIC = 0x36544342  # little-endian "BCT6"
+MAGIC = 0x37544342  # little-endian "BCT7"
 
 EVENT_CALL = 1
 EVENT_READ = 2
@@ -43,6 +43,9 @@ MEMORY_STORE = 2
 PRIMITIVE_LITERAL = 1
 PRIMITIVE_ARITHMETIC = 2
 PRIMITIVE_COMPARISON = 3
+PUSH_BINARY_LEFT = 1
+PUSH_CALL_ARGUMENT = 2
+PUSH_STORE_ADDRESS = 3
 
 
 @dataclass(frozen=True)
@@ -94,6 +97,14 @@ class ExprPrimitive:
     kind: int
     value: int
     node_id: int
+    block_index: int
+
+
+@dataclass(frozen=True)
+class StackPush:
+    kind: int
+    node_id: int
+    ordinal: int
     block_index: int
 
 
@@ -153,6 +164,11 @@ def source_events(repo: Path, source: bytes):
     primitives: list[ExprPrimitive] = []
     primitive_by_node: dict[int, ExprPrimitive] = {}
     primitive_lowering_by_proc: dict[int, list[ExprPrimitive]] = {}
+    binary_pushes: list[StackPush] = []
+    argument_pushes: list[StackPush] = []
+    store_pushes: list[StackPush] = []
+    push_by_key: dict[tuple[int, int, int], StackPush] = {}
+    push_lowering_by_proc: dict[int, list[StackPush]] = {}
     block_index = 0
     current_slots: dict[str, int] = {}
 
@@ -161,6 +177,11 @@ def source_events(repo: Path, source: bytes):
         event = Event(kind, name, literal, id(node), block, arity)
         lexical.append(event)
         event_by_node[id(node)] = event
+        if kind == EVENT_CALL:
+            for ordinal in range(arity):
+                push = StackPush(PUSH_CALL_ARGUMENT, id(node), ordinal, block)
+                argument_pushes.append(push)
+                push_by_key[(push.kind, push.node_id, push.ordinal)] = push
 
     def lex_expr(expr, block: int) -> None:
         if expr[0] == "call":
@@ -198,6 +219,10 @@ def source_events(repo: Path, source: bytes):
         site = MemorySite(kind, width, id(node), block)
         memory_sites.append(site)
         memory_by_node[id(node)] = site
+        if kind == MEMORY_STORE:
+            push = StackPush(PUSH_STORE_ADDRESS, id(node), 0, block)
+            store_pushes.append(push)
+            push_by_key[(push.kind, push.node_id, push.ordinal)] = push
 
     def lex_memory_expr(expr, block: int) -> None:
         if expr[0] == "mem":
@@ -220,6 +245,10 @@ def source_events(repo: Path, source: bytes):
         primitive = ExprPrimitive(kind, value, id(node), block)
         primitives.append(primitive)
         primitive_by_node[id(node)] = primitive
+        if kind in (PRIMITIVE_ARITHMETIC, PRIMITIVE_COMPARISON):
+            push = StackPush(PUSH_BINARY_LEFT, id(node), 0, block)
+            binary_pushes.append(push)
+            push_by_key[(push.kind, push.node_id, push.ordinal)] = push
 
     def lex_primitive_expr(expr, block: int) -> None:
         if expr[0] == "num":
@@ -308,6 +337,22 @@ def source_events(repo: Path, source: bytes):
         elif expr[0] == "mem":
             lower_primitive_expr(expr[2], output)
 
+    def lower_push_expr(expr, output: list[StackPush]) -> None:
+        if expr[0] == "call":
+            event = event_by_node[id(expr)]
+            for ordinal, argument in enumerate(expr[2]):
+                lower_push_expr(argument, output)
+                if event.kind == EVENT_CALL:
+                    output.append(push_by_key[
+                        (PUSH_CALL_ARGUMENT, id(expr), ordinal)
+                    ])
+        elif expr[0] == "bin":
+            lower_push_expr(expr[2], output)
+            output.append(push_by_key[(PUSH_BINARY_LEFT, id(expr), 0)])
+            lower_push_expr(expr[3], output)
+        elif expr[0] == "mem":
+            lower_push_expr(expr[2], output)
+
     def lower_stmt(stmt, output: list[Event]) -> None:
         kind = stmt[0]
         if kind in ("let", "assign"):
@@ -332,6 +377,7 @@ def source_events(repo: Path, source: bytes):
         access_lowering: list[LocalAccess] = []
         memory_lowering: list[MemorySite] = []
         primitive_lowering: list[ExprPrimitive] = []
+        push_lowering: list[StackPush] = []
         entry_block = block_index
         block_index += 1
 
@@ -404,6 +450,23 @@ def source_events(repo: Path, source: bytes):
                 lex_primitive_expr(expression, block)
                 lower_primitive_expr(expression, primitive_lowering)
 
+        def push_stmt(stmt) -> None:
+            kind = stmt[0]
+            if kind in ("let", "assign"):
+                lower_push_expr(stmt[2], push_lowering)
+            elif kind == "return":
+                lower_push_expr(stmt[1], push_lowering)
+            elif kind == "goto" and stmt[2] is not None:
+                lower_push_expr(stmt[2], push_lowering)
+            elif kind == "memset":
+                lower_push_expr(stmt[2], push_lowering)
+                push_lowering.append(
+                    push_by_key[(PUSH_STORE_ADDRESS, id(stmt), 0)]
+                )
+                lower_push_expr(stmt[3], push_lowering)
+            elif kind == "callstmt":
+                lower_push_expr(stmt[1], push_lowering)
+
         for stmt in proc[3]:
             if stmt[0] == "state":
                 state_block = block_index
@@ -414,19 +477,24 @@ def source_events(repo: Path, source: bytes):
                     access_stmt(inner, state_block)
                     lex_stmt(inner, state_block)
                     lower_stmt(inner, lowering)
+                    push_stmt(inner)
             else:
                 primitive_stmt(stmt, entry_block)
                 memory_stmt(stmt, entry_block)
                 access_stmt(stmt, entry_block)
                 lex_stmt(stmt, entry_block)
                 lower_stmt(stmt, lowering)
+                push_stmt(stmt)
         lowering_by_proc[proc_index] = lowering
         access_lowering_by_proc[proc_index] = access_lowering
         memory_lowering_by_proc[proc_index] = memory_lowering
         primitive_lowering_by_proc[proc_index] = primitive_lowering
+        push_lowering_by_proc[proc_index] = push_lowering
+    pushes = binary_pushes + argument_pushes + store_pushes
     return (ast, lexical, lowering_by_proc, accesses,
             access_lowering_by_proc, memory_sites, memory_lowering_by_proc,
-            primitives, primitive_lowering_by_proc)
+            primitives, primitive_lowering_by_proc, pushes,
+            push_lowering_by_proc)
 
 
 def strip_comment(line: str) -> str:
@@ -789,6 +857,45 @@ def locate_expr_primitives(ast: list, lexical: list[ExprPrimitive],
     return pcs
 
 
+def locate_stack_pushes(ast: list, lexical: list[StackPush],
+                        lowering_by_proc: dict[int, list[StackPush]],
+                        items: list[Item], labels: dict[str, int],
+                        tape_len: int) -> list[int]:
+    by_key = {(push.kind, push.node_id, push.ordinal): index
+              for index, push in enumerate(lexical)}
+    pcs = [-1] * len(lexical)
+    proc_starts = [labels[proc[1]] for proc in ast]
+    for proc_index, proc in enumerate(ast):
+        start = proc_starts[proc_index]
+        end = (proc_starts[proc_index + 1]
+               if proc_index + 1 < len(proc_starts) else tape_len)
+        ins = [item for item in items
+               if item.kind == "ins" and start <= item.offset < end]
+        ins_by_offset = {item.offset: item for item in ins}
+        candidates: list[int] = []
+        for item in ins:
+            if item.name != "imm" or item.operands != ("r2", "8"):
+                continue
+            sub = ins_by_offset.get(item.offset + 10)
+            store = ins_by_offset.get(item.offset + 13)
+            if (sub and sub.name == "sub"
+                    and sub.operands == ("r15", "r2")
+                    and store and store.name == "store"
+                    and store.operands == ("r15", "r0")):
+                candidates.append(item.offset)
+        expected = lowering_by_proc[proc_index]
+        if len(candidates) != len(expected):
+            raise ValueError(
+                f"{proc[1]} stack push accounting: {len(candidates)} macros "
+                f"for {len(expected)} source pushes"
+            )
+        for push, pc in zip(expected, candidates):
+            pcs[by_key[(push.kind, push.node_id, push.ordinal)]] = pc
+    if any(pc < 0 for pc in pcs):
+        raise ValueError("not every source stack push received an Alpha location")
+    return pcs
+
+
 def u32(value: int) -> bytes:
     return struct.pack("<I", value)
 
@@ -797,7 +904,8 @@ def witness(block_pcs: list[int], transition_pcs: list[int], event_pcs: list[int
             events: list[Event], access_pcs: list[int],
             accesses: list[LocalAccess], memory_pcs: list[int],
             memory_sites: list[MemorySite], primitive_pcs: list[int],
-            primitives: list[ExprPrimitive], helper_pc: int, proc_count: int,
+            primitives: list[ExprPrimitive], push_pcs: list[int],
+            pushes: list[StackPush], helper_pc: int, proc_count: int,
             guarded_count: int) -> bytes:
     counts = {kind: sum(event.kind == kind for event in events)
               for kind in range(EVENT_CALL, EVENT_RETURN + 1)}
@@ -820,12 +928,17 @@ def witness(block_pcs: list[int], transition_pcs: list[int], event_pcs: list[int
         u32(sum(p.kind == PRIMITIVE_LITERAL for p in primitives)),
         u32(sum(p.kind == PRIMITIVE_ARITHMETIC for p in primitives)),
         u32(sum(p.kind == PRIMITIVE_COMPARISON for p in primitives)),
+        u32(len(pushes)),
+        u32(sum(p.kind == PUSH_BINARY_LEFT for p in pushes)),
+        u32(sum(p.kind == PUSH_CALL_ARGUMENT for p in pushes)),
+        u32(sum(p.kind == PUSH_STORE_ADDRESS for p in pushes)),
         *(u32(pc) for pc in block_pcs),
         *(u32(pc) for pc in transition_pcs),
         *(u32(pc) for pc in event_pcs),
         *(u32(pc) for pc in access_pcs),
         *(u32(pc) for pc in memory_pcs),
         *(u32(pc) for pc in primitive_pcs),
+        *(u32(pc) for pc in push_pcs),
         u32(helper_pc),
     ])
 
@@ -887,6 +1000,12 @@ def main() -> None:
     ap.add_argument("--comparison-branch-target-patch-output", type=Path)
     ap.add_argument("--comparison-result-patch-output", type=Path)
     ap.add_argument("--comparison-pop-step-patch-output", type=Path)
+    ap.add_argument("--push-step-patch-output", type=Path)
+    ap.add_argument("--push-stack-register-patch-output", type=Path)
+    ap.add_argument("--push-value-register-patch-output", type=Path)
+    ap.add_argument("--push-opcode-patch-output", type=Path)
+    ap.add_argument("--duplicate-push-witness-output", type=Path)
+    ap.add_argument("--cross-block-push-witness-output", type=Path)
     args = ap.parse_args()
 
     source = args.source.read_bytes()
@@ -894,7 +1013,8 @@ def main() -> None:
     blocks = source_blocks(args.repo, source)
     (ast, events, lowering_by_proc, accesses, access_lowering_by_proc,
      memory_sites, memory_lowering_by_proc, primitives,
-     primitive_lowering_by_proc) = source_events(args.repo, source)
+     primitive_lowering_by_proc, pushes,
+     push_lowering_by_proc) = source_events(args.repo, source)
     (items, labels, block_pcs, transition_pcs, jump_pcs,
      target_indices, guarded_count) = locate(
         blocks, args.assembly.read_text(encoding="ascii")
@@ -912,10 +1032,14 @@ def main() -> None:
     primitive_pcs = locate_expr_primitives(
         ast, primitives, primitive_lowering_by_proc, items, labels, len(tape)
     )
+    push_pcs = locate_stack_pushes(
+        ast, pushes, push_lowering_by_proc, items, labels, len(tape)
+    )
     proc_count = len({block.proc_index for block in blocks})
     canonical = witness(
         block_pcs, transition_pcs, event_pcs, events, access_pcs, accesses,
-        memory_pcs, memory_sites, primitive_pcs, primitives, helper_pc,
+        memory_pcs, memory_sites, primitive_pcs, primitives, push_pcs, pushes,
+        helper_pc,
         proc_count, guarded_count,
     )
     args.output.write_bytes(canonical)
@@ -959,7 +1083,7 @@ def main() -> None:
         args.operand_witness_output.write_bytes(
             witness(changed, transition_pcs, event_pcs, events, access_pcs,
                     accesses, memory_pcs, memory_sites, primitive_pcs,
-                    primitives, helper_pc,
+                    primitives, push_pcs, pushes, helper_pc,
                     proc_count, guarded_count)
         )
 
@@ -969,7 +1093,7 @@ def main() -> None:
         args.duplicate_witness_output.write_bytes(
             witness(changed, transition_pcs, event_pcs, events, access_pcs,
                     accesses, memory_pcs, memory_sites, primitive_pcs,
-                    primitives, helper_pc,
+                    primitives, push_pcs, pushes, helper_pc,
                     proc_count, guarded_count)
         )
 
@@ -997,7 +1121,7 @@ def main() -> None:
         args.noncanonical_witness_output.write_bytes(
             witness(block_pcs, changed, event_pcs, events, access_pcs,
                     accesses, memory_pcs, memory_sites, primitive_pcs,
-                    primitives, helper_pc,
+                    primitives, push_pcs, pushes, helper_pc,
                     proc_count, guarded_count)
         )
 
@@ -1043,7 +1167,7 @@ def main() -> None:
         args.duplicate_event_witness_output.write_bytes(
             witness(block_pcs, transition_pcs, changed, events, access_pcs,
                     accesses, memory_pcs, memory_sites, primitive_pcs,
-                    primitives, helper_pc,
+                    primitives, push_pcs, pushes, helper_pc,
                     proc_count, guarded_count)
         )
     if args.noncanonical_event_witness_output:
@@ -1054,7 +1178,7 @@ def main() -> None:
         args.noncanonical_event_witness_output.write_bytes(
             witness(block_pcs, transition_pcs, changed, events, access_pcs,
                     accesses, memory_pcs, memory_sites, primitive_pcs,
-                    primitives, helper_pc,
+                    primitives, push_pcs, pushes, helper_pc,
                     proc_count, guarded_count)
         )
 
@@ -1117,7 +1241,7 @@ def main() -> None:
         args.duplicate_local_witness_output.write_bytes(
             witness(block_pcs, transition_pcs, event_pcs, events, changed,
                     accesses, memory_pcs, memory_sites, primitive_pcs,
-                    primitives, helper_pc,
+                    primitives, push_pcs, pushes, helper_pc,
                     proc_count, guarded_count)
         )
     if args.noncanonical_local_witness_output:
@@ -1129,7 +1253,7 @@ def main() -> None:
         args.noncanonical_local_witness_output.write_bytes(
             witness(block_pcs, transition_pcs, event_pcs, events, changed,
                     accesses, memory_pcs, memory_sites, primitive_pcs,
-                    primitives, helper_pc,
+                    primitives, push_pcs, pushes, helper_pc,
                     proc_count, guarded_count)
         )
 
@@ -1154,7 +1278,7 @@ def main() -> None:
         args.duplicate_memory_witness_output.write_bytes(
             witness(block_pcs, transition_pcs, event_pcs, events, access_pcs,
                     accesses, changed, memory_sites, primitive_pcs,
-                    primitives, helper_pc,
+                    primitives, push_pcs, pushes, helper_pc,
                     proc_count, guarded_count)
         )
     if args.noncanonical_memory_witness_output:
@@ -1166,7 +1290,7 @@ def main() -> None:
         args.noncanonical_memory_witness_output.write_bytes(
             witness(block_pcs, transition_pcs, event_pcs, events, access_pcs,
                     accesses, changed, memory_sites, primitive_pcs,
-                    primitives, helper_pc,
+                    primitives, push_pcs, pushes, helper_pc,
                     proc_count, guarded_count)
         )
 
@@ -1209,12 +1333,45 @@ def main() -> None:
     patch(args.comparison_pop_step_patch_output, comparison_pc + 8,
           struct.pack("<Q", 16))
 
+    argument_push_index = next(i for i, push in enumerate(pushes)
+                               if push.kind == PUSH_CALL_ARGUMENT)
+    argument_push_pc = push_pcs[argument_push_index]
+    patch(args.push_step_patch_output, argument_push_pc + 2,
+          struct.pack("<Q", 16))
+    patch(args.push_stack_register_patch_output, argument_push_pc + 11,
+          b"\x0e")
+    patch(args.push_value_register_patch_output, argument_push_pc + 15,
+          b"\x01")
+    patch(args.push_opcode_patch_output, argument_push_pc + 13,
+          bytes([OPS["load"][0]]))
+
+    if args.duplicate_push_witness_output:
+        changed = list(push_pcs)
+        changed[1] = changed[0]
+        args.duplicate_push_witness_output.write_bytes(
+            witness(block_pcs, transition_pcs, event_pcs, events, access_pcs,
+                    accesses, memory_pcs, memory_sites, primitive_pcs,
+                    primitives, changed, pushes, helper_pc,
+                    proc_count, guarded_count)
+        )
+    if args.cross_block_push_witness_output:
+        changed = list(push_pcs)
+        pair = next(i for i in range(len(pushes) - 1)
+                    if pushes[i].block_index != pushes[i + 1].block_index)
+        changed[pair], changed[pair + 1] = changed[pair + 1], changed[pair]
+        args.cross_block_push_witness_output.write_bytes(
+            witness(block_pcs, transition_pcs, event_pcs, events, access_pcs,
+                    accesses, memory_pcs, memory_sites, primitive_pcs,
+                    primitives, changed, pushes, helper_pc,
+                    proc_count, guarded_count)
+        )
+
     if args.duplicate_primitive_witness_output:
         changed = list(primitive_pcs)
         changed[1] = changed[0]
         args.duplicate_primitive_witness_output.write_bytes(
             witness(block_pcs, transition_pcs, event_pcs, events, access_pcs,
-                    accesses, memory_pcs, memory_sites, changed, primitives,
+                    accesses, memory_pcs, memory_sites, changed, primitives, push_pcs, pushes,
                     helper_pc, proc_count, guarded_count)
         )
     if args.noncanonical_primitive_witness_output:
@@ -1227,7 +1384,7 @@ def main() -> None:
         changed[pair], changed[pair + 1] = changed[pair + 1], changed[pair]
         args.noncanonical_primitive_witness_output.write_bytes(
             witness(block_pcs, transition_pcs, event_pcs, events, access_pcs,
-                    accesses, memory_pcs, memory_sites, changed, primitives,
+                    accesses, memory_pcs, memory_sites, changed, primitives, push_pcs, pushes,
                     helper_pc, proc_count, guarded_count)
         )
     if args.synthetic_literal_witness_output:
@@ -1277,7 +1434,7 @@ def main() -> None:
         changed[replacement[0]] = replacement[1]
         args.synthetic_literal_witness_output.write_bytes(
             witness(block_pcs, transition_pcs, event_pcs, events, access_pcs,
-                    accesses, memory_pcs, memory_sites, changed, primitives,
+                    accesses, memory_pcs, memory_sites, changed, primitives, push_pcs, pushes,
                     helper_pc, proc_count, guarded_count)
         )
 

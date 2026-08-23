@@ -2,7 +2,7 @@
 ;
 ; The common source scan calls these routines while its exact proc/let/call
 ; tokens are live.  Procedure parameter/slot tables start at 7151616; call
-; arities are stored beside the BCT6 event table at 7143424.
+; arities are stored beside the BCT7 event table at 7143424.
 
 scan_proc_signature:
         call skip_trivia
@@ -533,7 +533,7 @@ validate_frame_zero_total:
         jmp reject
 
 ; At an ordinary call pc, validate the contiguous top..bottom unstage into
-; r(n-1)..r0.  Argument expression values and their earlier pushes remain open.
+; r(n-1)..r0. Argument-expression value association remains open.
 check_call_unstage:
         imm r1, 524544
         load r2, r1
