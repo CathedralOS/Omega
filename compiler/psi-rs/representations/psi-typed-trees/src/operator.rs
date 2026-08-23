@@ -710,17 +710,17 @@ fn type_reference_matches(
         (
             TypeReferenceNode::Reference {
                 referee: actual_referee,
-                is_mutable: actual_mutable,
+                access: actual_access,
                 // Lifetimes do not affect operator/conformance type matching.
                 lifetime: _,
             },
             TypeReferenceNode::Reference {
                 referee: expected_referee,
-                is_mutable: expected_mutable,
+                access: expected_access,
                 lifetime: _,
             },
         ) => {
-            actual_mutable == expected_mutable
+            actual_access == expected_access
                 && type_reference_matches(
                     program,
                     *actual_referee,

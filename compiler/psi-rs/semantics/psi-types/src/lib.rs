@@ -571,7 +571,7 @@ mod tests {
                 .type_references
                 .insert(TypeReferenceNode::Reference {
                     referee: slice_type,
-                    is_mutable: false,
+                    access: psi_language_semantics::ReferenceAccess::Shared,
                     lifetime: None,
                 });
         let index_type = syntax_trees

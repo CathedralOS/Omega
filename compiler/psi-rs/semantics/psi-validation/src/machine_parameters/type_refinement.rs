@@ -70,16 +70,16 @@ pub(super) fn required_type_matches(
         (
             TypeReferenceNode::Reference {
                 referee: actual_inner,
-                is_mutable: actual_mutable,
+                access: actual_access,
                 ..
             },
             TypeReferenceNode::Reference {
                 referee: required_inner,
-                is_mutable: required_mutable,
+                access: required_access,
                 ..
             },
         ) => {
-            actual_mutable == required_mutable
+            actual_access == required_access
                 && required_type_matches(
                     program,
                     *actual_inner,

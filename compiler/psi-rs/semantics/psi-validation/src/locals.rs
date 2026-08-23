@@ -46,10 +46,7 @@ pub(crate) fn local_is_mutable_reference(
         program
             .type_reference_table
             .type_reference(local_data.type_reference),
-        TypeReferenceNode::Reference {
-            is_mutable: true,
-            ..
-        }
+        TypeReferenceNode::Reference { access, .. } if access.is_exclusive()
     )
 }
 

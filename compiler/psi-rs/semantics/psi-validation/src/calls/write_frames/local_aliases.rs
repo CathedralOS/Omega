@@ -158,10 +158,8 @@ pub(super) fn expression_reborrows_stable_alias_binding(
                             program
                                 .type_reference_table
                                 .type_reference(parameter.type_reference),
-                            TypeReferenceNode::Reference {
-                                is_mutable: true,
-                                ..
-                            }
+                            TypeReferenceNode::Reference { access, .. }
+                                if access.is_exclusive()
                         ) && (parameter.is_self && root == "self"
                             || root == parameter.name.as_str())
                     }) || aliases.iter().any(|(name, _)| root == name))

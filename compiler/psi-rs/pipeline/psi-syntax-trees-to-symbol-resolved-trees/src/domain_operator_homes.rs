@@ -219,7 +219,7 @@ fn type_references_match(
             type_references_match(program, left, program.child_type_reference(right.base_type))
         }
         (TypeReference::Reference(left), TypeReference::Reference(right)) => {
-            left.is_mutable == right.is_mutable
+            left.access == right.access
                 && type_references_match(
                     program,
                     program.child_type_reference(left.referee),

@@ -32,11 +32,11 @@ pub(super) fn borrowed_initializers(
     use psi_typed_trees::types::TypeReferenceNode;
 
     match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Reference { is_mutable, .. } => vec![BorrowedInitializer {
+        TypeReferenceNode::Reference { access, .. } => vec![BorrowedInitializer {
             owner_path: owner_path.to_vec(),
             expression,
             kind: BorrowedInitializerKind::Reference {
-                is_mutable: *is_mutable,
+                is_mutable: access.is_exclusive(),
             },
         }],
         TypeReferenceNode::Constrained { base_type, .. } => {

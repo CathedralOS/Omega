@@ -305,7 +305,7 @@ pub(crate) fn substituted_type_identity_with_lifetimes(
             .unwrap_or_else(|| program.normalized_type_identity(handle).into_string()),
         TypeReferenceNode::Reference {
             referee,
-            is_mutable,
+            access,
             lifetime,
         } => format!(
             "&{}{}{}",
@@ -319,7 +319,11 @@ pub(crate) fn substituted_type_identity_with_lifetimes(
                     .unwrap_or_else(|| name.as_str());
                 format!("'{lifetime} ")
             }),
-            if *is_mutable { "mut " } else { "" },
+            match access {
+                psi_language_semantics::ReferenceAccess::Shared => "",
+                psi_language_semantics::ReferenceAccess::Mutable => "mut ",
+                psi_language_semantics::ReferenceAccess::WriteOnly => "write ",
+            },
             substituted_type_identity_with_lifetimes(
                 program,
                 *referee,

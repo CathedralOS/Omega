@@ -541,10 +541,14 @@ fn normalize_type_reference(
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Reference {
             referee,
-            is_mutable,
+            access,
             lifetime: _,
         } => compound(
-            if *is_mutable { "ref-mut" } else { "ref" },
+            match access {
+                psi_language_core::ReferenceAccess::Shared => "ref",
+                psi_language_core::ReferenceAccess::Mutable => "ref-mut",
+                psi_language_core::ReferenceAccess::WriteOnly => "ref-write",
+            },
             [normalize_type_reference(program, *referee, context)],
         ),
         TypeReferenceNode::Constrained {
@@ -965,9 +969,55 @@ mod tests {
     use crate::types::{DomainConstraint, TypeConstraintNode, TypeReferenceNode};
     use psi_language_core::operator_spelling::OperatorSpelling;
     use psi_language_semantics::{
-        DomainEstablishmentRoute, DomainPredicateBody, DomainSemanticRoles, SemanticDomainId,
+        DomainEstablishmentRoute, DomainPredicateBody, DomainSemanticRoles, ReferenceAccess,
+        SemanticDomainId,
     };
     use psi_symbols::SymbolHandle;
+
+    #[test]
+    fn reference_access_modes_have_distinct_normalized_identities() {
+        let mut program = TypedTrees::default();
+        let referee = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: SymbolHandle::invalid(),
+                name: Identifier::generated("u8"),
+            });
+        let shared = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Reference {
+                referee,
+                access: ReferenceAccess::Shared,
+                lifetime: None,
+            });
+        let mutable = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Reference {
+                referee,
+                access: ReferenceAccess::Mutable,
+                lifetime: None,
+            });
+        let write_only = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Reference {
+                referee,
+                access: ReferenceAccess::WriteOnly,
+                lifetime: None,
+            });
+
+        let shared = program.normalized_type_identity(shared);
+        let mutable = program.normalized_type_identity(mutable);
+        let write_only = program.normalized_type_identity(write_only);
+        assert!(shared.as_str().starts_with("ref("), "{shared:?}");
+        assert!(mutable.as_str().starts_with("ref-mut("), "{mutable:?}");
+        assert!(
+            write_only.as_str().starts_with("ref-write("),
+            "{write_only:?}"
+        );
+        assert_ne!(shared, mutable);
+        assert_ne!(shared, write_only);
+        assert_ne!(mutable, write_only);
+    }
 
     fn declared(name: &str, semantic_id: SemanticDomainId) -> TypeConstraintNode {
         TypeConstraintNode::Domain(DomainConstraint {

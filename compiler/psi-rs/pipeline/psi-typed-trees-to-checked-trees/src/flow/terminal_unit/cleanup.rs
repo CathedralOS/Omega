@@ -155,14 +155,15 @@ pub(super) fn build_nominal_affine_unit_cleanup_machine(
         let [cleanup_receiver] = program.state_parameters(cleanup_state) else {
             return None;
         };
-        let TypeReferenceNode::Reference {
-            is_mutable: true, ..
-        } = program
+        let TypeReferenceNode::Reference { access, .. } = program
             .type_reference_table
             .type_reference(cleanup_receiver.type_reference)
         else {
             return None;
         };
+        if !access.is_readable() || !access.is_exclusive() {
+            return None;
+        }
         if !cleanup_receiver.is_self
             || cleanup_receiver.is_const
             || !cleanup_machine.lifetime_parameters.is_empty()

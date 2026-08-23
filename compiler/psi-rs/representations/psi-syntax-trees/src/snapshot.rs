@@ -547,7 +547,7 @@ pub enum TransitionTargetSnapshot {
 pub enum TypeReferenceSnapshot {
     Reference {
         referee: Box<TypeReferenceSnapshot>,
-        is_mutable: bool,
+        access: &'static str,
     },
     Constrained {
         base_type: Box<TypeReferenceSnapshot>,
@@ -1703,6 +1703,14 @@ fn snapshot_transition_target(
     }
 }
 
+fn reference_access_name(access: psi_language_core::ReferenceAccess) -> &'static str {
+    match access {
+        psi_language_core::ReferenceAccess::Shared => "shared",
+        psi_language_core::ReferenceAccess::Mutable => "mutable",
+        psi_language_core::ReferenceAccess::WriteOnly => "write_only",
+    }
+}
+
 fn snapshot_type_reference_handle(
     syntax_trees: &SyntaxTrees,
     handle: crate::types::TypeReferenceHandle,
@@ -1714,12 +1722,12 @@ fn snapshot_type_reference_handle(
     match syntax_trees.type_references.type_reference(handle) {
         TypeReferenceNode::Reference {
             referee,
-            is_mutable,
+            access,
             // Lifetime omitted from the structural snapshot (borrow-region tag).
             lifetime: _,
         } => TypeReferenceSnapshot::Reference {
             referee: Box::new(snapshot_type_reference_handle(syntax_trees, *referee)),
-            is_mutable: *is_mutable,
+            access: reference_access_name(*access),
         },
         TypeReferenceNode::Constrained {
             base_type,

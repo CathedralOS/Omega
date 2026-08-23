@@ -595,10 +595,14 @@ fn type_reference_label(syntax: &SyntaxTrees, handle: TypeReferenceHandle) -> St
     match syntax.type_references.type_reference(handle) {
         TypeReferenceNode::Reference {
             referee,
-            is_mutable,
+            access,
             lifetime,
         } => {
-            let qualifier = if *is_mutable { "mut " } else { "" };
+            let qualifier = match access {
+                psi_language_semantics::ReferenceAccess::Shared => "",
+                psi_language_semantics::ReferenceAccess::Mutable => "mut ",
+                psi_language_semantics::ReferenceAccess::WriteOnly => "write ",
+            };
             let lifetime = lifetime
                 .as_ref()
                 .map(|name| format!("'{} ", name.as_str()))

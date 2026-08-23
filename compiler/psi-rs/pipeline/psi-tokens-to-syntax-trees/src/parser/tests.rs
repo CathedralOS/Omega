@@ -1,4 +1,5 @@
 use super::parse_syntax_trees;
+use psi_language_core::ReferenceAccess;
 use psi_source_files_to_tokens::Lexer;
 use psi_syntax_trees::expression::ExpressionNode;
 use psi_syntax_trees::statement::StatementNode;
@@ -1032,6 +1033,57 @@ fn retains_named_dynamic_conformance_path() {
             if name.as_str() == "Card"
                 && conformance.as_ref().is_some_and(|name| name.as_str() == "PowerOrder")
     ));
+}
+
+#[test]
+fn distinguishes_shared_mutable_and_write_only_reference_access() {
+    let source = r#"
+        machine borrow(shared: &u8, mutable: &mut u8, output: &write u8) {}
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("reference access modes should parse");
+    let machine = parsed
+        .root_items()
+        .find_map(|item| match item {
+            psi_syntax_trees::item::Item::Machine(machine) => Some(machine),
+            _ => None,
+        })
+        .expect("machine root item");
+    let state = parsed.items.state(
+        parsed
+            .items
+            .state_handles(machine.states)
+            .first()
+            .copied()
+            .expect("entry state"),
+    );
+    let accesses = parsed
+        .items
+        .state_parameters(state.parameters)
+        .iter()
+        .map(|parameter| {
+            let parameter = parsed.items.state_parameter(*parameter);
+            let TypeReferenceNode::Reference { access, .. } = parsed
+                .type_references
+                .type_reference(parameter.type_reference)
+            else {
+                panic!("parameter should be borrowed");
+            };
+            *access
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        accesses,
+        vec![
+            ReferenceAccess::Shared,
+            ReferenceAccess::Mutable,
+            ReferenceAccess::WriteOnly,
+        ]
+    );
 }
 
 #[test]
@@ -3916,16 +3968,14 @@ fn parses_self_parameter_with_dedicated_self_type() {
 
     assert!(parameter.is_self);
     let TypeReferenceNode::Reference {
-        referee,
-        is_mutable,
-        ..
+        referee, access, ..
     } = parsed
         .type_references
         .type_reference(parameter.type_reference)
     else {
         panic!("&mut self should retain its reference ownership mode");
     };
-    assert!(*is_mutable);
+    assert_eq!(*access, ReferenceAccess::Mutable);
     assert!(matches!(
         parsed.type_references.type_reference(*referee),
         TypeReferenceNode::SelfType

@@ -1729,17 +1729,17 @@ fn type_references_match_with_trait_bindings(
         (
             TypeReferenceNode::Reference {
                 referee: actual_referee,
-                is_mutable: actual_mutable,
+                access: actual_access,
                 // Lifetimes do not participate in trait-conformance matching.
                 lifetime: _,
             },
             TypeReferenceNode::Reference {
                 referee: required_referee,
-                is_mutable: required_mutable,
+                access: required_access,
                 lifetime: _,
             },
         ) => {
-            actual_mutable == required_mutable
+            actual_access == required_access
                 && type_references_match_with_trait_bindings(
                     program,
                     *actual_referee,

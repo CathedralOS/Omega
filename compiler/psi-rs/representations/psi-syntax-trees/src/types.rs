@@ -130,11 +130,11 @@ impl TypeReferenceTable {
     pub fn insert_reference(
         &mut self,
         referee: TypeReferenceHandle,
-        is_mutable: bool,
+        access: psi_language_core::ReferenceAccess,
     ) -> TypeReferenceHandle {
         self.insert(TypeReferenceNode::Reference {
             referee,
-            is_mutable,
+            access,
             lifetime: None,
         })
     }
@@ -142,12 +142,12 @@ impl TypeReferenceTable {
     pub fn insert_reference_with_lifetime(
         &mut self,
         referee: TypeReferenceHandle,
-        is_mutable: bool,
+        access: psi_language_core::ReferenceAccess,
         lifetime: Option<Identifier>,
     ) -> TypeReferenceHandle {
         self.insert(TypeReferenceNode::Reference {
             referee,
-            is_mutable,
+            access,
             lifetime,
         })
     }
@@ -276,7 +276,7 @@ impl Default for TypeReferenceTable {
 pub enum TypeReferenceNode {
     Reference {
         referee: TypeReferenceHandle,
-        is_mutable: bool,
+        access: psi_language_core::ReferenceAccess,
         /// Explicit lifetime name (`&'buf T`), frozen decision 15 stage 2. `None`
         /// is the elided case (stage 1). A borrow-region tag only: it carries no
         /// symbol and is ignored by layout, codegen, and structural type

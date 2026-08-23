@@ -793,7 +793,7 @@ mod tests {
                 .type_reference_table
                 .insert(TypeReferenceNode::Reference {
                     referee: dynamic_type,
-                    is_mutable: false,
+                    access: psi_language_semantics::ReferenceAccess::Shared,
                     lifetime: None,
                 });
 

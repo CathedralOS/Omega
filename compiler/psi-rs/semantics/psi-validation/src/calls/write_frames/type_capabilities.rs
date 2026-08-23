@@ -31,16 +31,12 @@ pub(super) fn type_may_carry_write(program: &TypedTrees, handle: TypeReferenceHa
     }
 
     match program.type_reference_table.type_reference(handle) {
-        TypeReferenceNode::Reference {
-            is_mutable: false, ..
-        } => false,
+        TypeReferenceNode::Reference { access, .. } if !access.is_exclusive() => false,
         TypeReferenceNode::Constrained { base_type, .. } => {
             type_may_carry_write(program, *base_type)
         }
         TypeReferenceNode::Unit | TypeReferenceNode::ConstExpression(_) => false,
-        TypeReferenceNode::Reference {
-            is_mutable: true, ..
-        }
+        TypeReferenceNode::Reference { .. }
         | TypeReferenceNode::Named { .. }
         | TypeReferenceNode::Generic { .. }
         | TypeReferenceNode::FixedArray { .. }

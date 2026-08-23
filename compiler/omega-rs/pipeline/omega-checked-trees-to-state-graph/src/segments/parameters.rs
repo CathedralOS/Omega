@@ -45,10 +45,8 @@ pub(super) fn state_parameters_for_segment(
                     program
                         .type_reference_table
                         .type_reference(parameter.type_reference),
-                    psi_checked_trees::types::TypeReferenceNode::Reference {
-                        is_mutable: true,
-                        ..
-                    }
+                    psi_checked_trees::types::TypeReferenceNode::Reference { access, .. }
+                        if access.is_exclusive()
                 ),
             },
         );

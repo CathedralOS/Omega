@@ -92,7 +92,7 @@ fn local_symbol_is_mutable_reference(
 
 fn is_mutable_reference_type(program: &CheckedTrees, type_reference: TypeReferenceHandle) -> bool {
     match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Reference { is_mutable, .. } => *is_mutable,
+        TypeReferenceNode::Reference { access, .. } => access.is_exclusive(),
         TypeReferenceNode::Constrained { base_type, .. } => {
             is_mutable_reference_type(program, *base_type)
         }

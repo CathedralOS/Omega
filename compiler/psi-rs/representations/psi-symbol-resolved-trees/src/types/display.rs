@@ -6,7 +6,7 @@ impl TypeReference {
     pub fn display_name(&self) -> String {
         match self {
             TypeReference::Reference(reference) => {
-                let qualifier = reference_qualifier(reference.is_mutable);
+                let qualifier = reference_qualifier(reference.access);
                 format!("&{qualifier}<type>")
             }
             TypeReference::Constrained(constrained) => {
@@ -55,7 +55,7 @@ impl TypeReference {
     ) -> String {
         match self {
             TypeReference::Reference(reference) => {
-                let qualifier = reference_qualifier(reference.is_mutable);
+                let qualifier = reference_qualifier(reference.access);
                 format!("&{qualifier}<type>")
             }
             TypeReference::Constrained(constrained) => {
@@ -110,8 +110,12 @@ fn display_dynamic_trait(
     }
 }
 
-fn reference_qualifier(is_mutable: bool) -> &'static str {
-    if is_mutable { "mut " } else { "" }
+fn reference_qualifier(access: psi_language_core::ReferenceAccess) -> &'static str {
+    match access {
+        psi_language_core::ReferenceAccess::Shared => "",
+        psi_language_core::ReferenceAccess::Mutable => "mut ",
+        psi_language_core::ReferenceAccess::WriteOnly => "write ",
+    }
 }
 
 impl TypeConstraint {

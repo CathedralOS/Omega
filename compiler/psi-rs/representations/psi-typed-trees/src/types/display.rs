@@ -6,14 +6,14 @@ impl TypeReferenceNode {
         match self {
             TypeReferenceNode::Reference {
                 referee,
-                is_mutable,
+                access,
                 // Lifetime intentionally omitted from display: this string is the
                 // structural type-equality oracle (`type_references_match`), and
                 // `&'a T` / `&'b T` / `&T` are the SAME type — regions are checked
                 // by the borrow analysis, not by type equality (decision 15).
                 lifetime: _,
             } => {
-                let qualifier = reference_qualifier(*is_mutable);
+                let qualifier = reference_qualifier(*access);
                 format!("&{qualifier}{}", table.display_name(*referee))
             }
             TypeReferenceNode::Constrained {
@@ -74,12 +74,12 @@ impl TypeReferenceNode {
         match self {
             TypeReferenceNode::Reference {
                 referee,
-                is_mutable,
+                access,
                 // Omitted from display: see `display_name` above — lifetimes do
                 // not participate in structural type equality.
                 lifetime: _,
             } => {
-                let qualifier = reference_qualifier(*is_mutable);
+                let qualifier = reference_qualifier(*access);
                 format!(
                     "&{qualifier}{}",
                     table.display_name_with_constraints(*referee, expressions)
@@ -144,8 +144,12 @@ impl TypeReferenceNode {
     }
 }
 
-fn reference_qualifier(is_mutable: bool) -> &'static str {
-    if is_mutable { "mut " } else { "" }
+fn reference_qualifier(access: psi_language_core::ReferenceAccess) -> &'static str {
+    match access {
+        psi_language_core::ReferenceAccess::Shared => "",
+        psi_language_core::ReferenceAccess::Mutable => "mut ",
+        psi_language_core::ReferenceAccess::WriteOnly => "write ",
+    }
 }
 
 fn dynamic_trait_label(

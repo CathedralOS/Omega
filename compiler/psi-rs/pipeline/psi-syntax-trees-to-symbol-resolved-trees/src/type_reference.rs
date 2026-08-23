@@ -19,12 +19,12 @@ pub(crate) fn lower_type_reference_handle(
     match syntax_trees.type_references.type_reference(type_reference) {
         syntax::types::TypeReferenceNode::Reference {
             referee,
-            is_mutable,
+            access,
             lifetime,
         } => Ok(TypeReference::Reference(ReferenceTypeReference {
             storage: ReferenceTypeReferenceStorage {
                 referee: lower_type_reference_child(lowerer, syntax_trees, *referee)?,
-                is_mutable: *is_mutable,
+                access: *access,
                 lifetime: lifetime.as_ref().map(crate::name::lower_name),
             },
         })),

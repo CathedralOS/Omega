@@ -274,7 +274,7 @@ fn collect_type_return_lifetimes(
 ) {
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Reference {
-            is_mutable,
+            access,
             lifetime: Some(lifetime),
             ..
         } => {
@@ -288,7 +288,7 @@ fn collect_type_return_lifetimes(
             output.push(AggregateReturnLifetime {
                 owner_path: owner_path.to_vec(),
                 lifetime,
-                is_mutable: *is_mutable,
+                is_mutable: access.is_exclusive(),
             });
         }
         TypeReferenceNode::Reference { lifetime: None, .. } => {}
@@ -698,7 +698,7 @@ fn type_structurally_carries_borrow(
     require_mutable: bool,
 ) -> bool {
     match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Reference { is_mutable, .. } => !require_mutable || *is_mutable,
+        TypeReferenceNode::Reference { access, .. } => !require_mutable || access.is_exclusive(),
         TypeReferenceNode::Constrained { base_type, .. } => type_structurally_carries_borrow(
             program,
             *base_type,

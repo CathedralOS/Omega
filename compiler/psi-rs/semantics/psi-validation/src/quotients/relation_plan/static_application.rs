@@ -54,16 +54,16 @@ pub(super) fn substituted_type_matches(
         (
             TypeReferenceNode::Reference {
                 referee: template_referee,
-                is_mutable: template_mutable,
+                access: template_access,
                 ..
             },
             TypeReferenceNode::Reference {
                 referee: concrete_referee,
-                is_mutable: concrete_mutable,
+                access: concrete_access,
                 ..
             },
         ) => {
-            template_mutable == concrete_mutable
+            template_access == concrete_access
                 && substituted_type_matches(
                     program,
                     *template_referee,

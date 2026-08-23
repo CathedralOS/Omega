@@ -1032,16 +1032,16 @@ fn call_context_types_agree(
         (
             TypeReferenceNode::Reference {
                 referee: left,
-                is_mutable: left_mutable,
+                access: left_access,
                 lifetime: left_lifetime,
             },
             TypeReferenceNode::Reference {
                 referee: right,
-                is_mutable: right_mutable,
+                access: right_access,
                 lifetime: right_lifetime,
             },
         ) => {
-            left_mutable == right_mutable
+            left_access == right_access
                 && left_lifetime == right_lifetime
                 && call_context_types_agree(syntax, *left, *right)
         }

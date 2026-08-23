@@ -21,7 +21,7 @@ pub(super) fn lower_type_reference_handle_with_context(
             Ok(typed_trees.type_reference_table.insert(
                 typed::types::TypeReferenceNode::Reference {
                     referee,
-                    is_mutable: reference.is_mutable,
+                    access: reference.access,
                     lifetime: reference.lifetime.as_ref().map(crate::name::lower_name),
                 },
             ))

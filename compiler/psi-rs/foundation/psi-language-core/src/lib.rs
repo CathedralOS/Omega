@@ -14,5 +14,5 @@ pub use operator_spelling::OperatorSpelling;
 pub use source_semantics::{
     BindingRelevance, CallOperationalAcknowledgement, CallOperationalAcknowledgementOrigin,
     CarryAddress, CarryCpu, CarryHostThread, CarryPermission, CarryPolicy, CarrySuspension,
-    DataSupplyMode, DomainClassification, DomainPredicateBody, Multiplicity,
+    DataSupplyMode, DomainClassification, DomainPredicateBody, Multiplicity, ReferenceAccess,
 };

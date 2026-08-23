@@ -1403,13 +1403,14 @@ fn parameter_is_shared_named_reference(
     type_reference: TypeReferenceHandle,
 ) -> bool {
     let TypeReferenceNode::Reference {
-        is_mutable: false,
-        referee,
-        ..
+        access, referee, ..
     } = program.type_reference_table.type_reference(type_reference)
     else {
         return false;
     };
+    if !access.is_readable() || access.is_exclusive() {
+        return false;
+    }
     matches!(
         program.type_reference_table.type_reference(*referee),
         TypeReferenceNode::Named { .. }

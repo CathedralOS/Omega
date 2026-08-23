@@ -559,10 +559,8 @@ fn projection_subject(program: &TypedTrees, machine: &Machine) -> Option<Project
         .type_reference(parameter.type_reference)
     {
         TypeReferenceNode::Reference {
-            referee,
-            is_mutable: false,
-            ..
-        } => Some(ProjectionSubject {
+            referee, access, ..
+        } if access.is_readable() && !access.is_exclusive() => Some(ProjectionSubject {
             symbol: parameter.symbol,
             carrier: unconstrained(program, *referee),
         }),

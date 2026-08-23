@@ -211,13 +211,14 @@ fn parameter_is_shared_named_reference(
     type_reference: psi_checked_trees::types::TypeReferenceHandle,
 ) -> bool {
     let psi_checked_trees::types::TypeReferenceNode::Reference {
-        is_mutable: false,
-        referee,
-        ..
+        access, referee, ..
     } = program.type_reference_table.type_reference(type_reference)
     else {
         return false;
     };
+    if !access.is_readable() || access.is_exclusive() {
+        return false;
+    }
     matches!(
         program.type_reference_table.type_reference(*referee),
         psi_checked_trees::types::TypeReferenceNode::Named { .. }

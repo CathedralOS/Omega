@@ -605,12 +605,14 @@ fn trait_instance_label(
 fn type_reference_key(syntax: &SyntaxTrees, handle: TypeReferenceHandle) -> String {
     match syntax.type_references.type_reference(handle) {
         TypeReferenceNode::Reference {
-            referee,
-            is_mutable,
-            ..
+            referee, access, ..
         } => format!(
             "&{}{}",
-            if *is_mutable { "mut " } else { "" },
+            match access {
+                psi_language_semantics::ReferenceAccess::Shared => "",
+                psi_language_semantics::ReferenceAccess::Mutable => "mut ",
+                psi_language_semantics::ReferenceAccess::WriteOnly => "write ",
+            },
             type_reference_key(syntax, *referee)
         ),
         TypeReferenceNode::Constrained { base_type, .. } => type_reference_key(syntax, *base_type),
@@ -667,18 +669,16 @@ fn substitute_type_reference(
         }
         TypeReferenceNode::Reference {
             referee,
-            is_mutable,
+            access,
             lifetime,
         } => {
             let substituted = substitute_type_reference(syntax, referee, substitution);
             if substituted == referee {
                 handle
             } else {
-                syntax.type_references.insert_reference_with_lifetime(
-                    substituted,
-                    is_mutable,
-                    lifetime,
-                )
+                syntax
+                    .type_references
+                    .insert_reference_with_lifetime(substituted, access, lifetime)
             }
         }
         TypeReferenceNode::Constrained {

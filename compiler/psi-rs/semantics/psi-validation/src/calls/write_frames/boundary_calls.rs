@@ -102,14 +102,15 @@ pub(super) fn known_boundary_call_written_paths_for_parts(
         .filter(|parameter| !parameter.is_self);
 
     for (parameter, argument) in parameters.zip(arguments) {
-        let TypeReferenceNode::Reference {
-            is_mutable: true, ..
-        } = program
+        let TypeReferenceNode::Reference { access, .. } = program
             .type_reference_table
             .type_reference(parameter.type_reference)
         else {
             continue;
         };
+        if !access.is_exclusive() {
+            continue;
+        }
         let ExpressionNode::Mutable(place) = program.expression_table.expression(*argument) else {
             return None;
         };
