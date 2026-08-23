@@ -554,7 +554,33 @@ Package policy admits the transitive reachable-authority set of the final
 resolved artifact. It does not approve dependencies one edge at a time. A new
 root-memory, DMA/IOMMU, executable-installation, interrupt-publication, or
 equivalent reach blocks unless deployment policy explicitly grants it,
-regardless of which transitive package introduced the change.
+regardless of which transitive package introduced the change. Network,
+filesystem, process, dynamic-loader, signing, secret, and other intrinsically
+dangerous authority remains audit-relevant even when a candidate update does
+not expand the package's declared authority set. Updating
+`filesystem + network` to another `filesystem + network` package version may
+be lock-admissible only if the normalized capability manifest still matches,
+but the update flow should still surface a recommended audit finding because
+the changed implementation can now misuse already-admitted power.
+
+Package capability admission uses conflict-resolution artifacts rather than
+approval prompts. `omega update` writes a compiler-generated capability
+conflict when the candidate introduces blocking or suspicious deltas, stops
+before mutating `build.omg` or `omega.lock`, and resumes only after an exact
+resolution artifact accepts or rejects every blocking delta. The conflict
+fingerprints the old and new source identities, old and new package manifests,
+delta identities, dependency path, and canonical rendered evidence. The
+resolution binds the exact conflict fingerprint, reviewer identity, reason, and
+accepted delta fingerprints. Missing, stale, mismatched, duplicated, self-signed
+by the dependency, or overbroad resolutions reject before lock mutation.
+`omega.lock` records the admitted result and references the resolution evidence;
+it remains generated/checked state, not an authored policy file.
+
+LLM review is advisory evidence, not authority to mutate the lock. Review tools
+consume canonical diffs rendered by Omega, with package-origin strings treated
+as quoted inert data to reduce prompt-injection surface. A following source-code
+audit may still read attacker-controlled code; that risk is handled by the
+reviewer workflow, not by granting package prose authority over admission.
 
 Boundary statements imported from a dependency are inert requests. The root
 accepts one package claim set rather than repeating an approval for every
