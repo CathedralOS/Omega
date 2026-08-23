@@ -92,6 +92,15 @@ Completed:
   commit/tree when applicable, deterministic content identity, file count, byte
   count, and a concise text summary.
 
+- **AUTHOR-GUIDANCE-DIFF-MODEL.** Add concrete author/reviewer guidance to
+  package manifest diffs before CLI wiring.
+
+  Done 2026-08-23: manifest deltas now carry audit guidance for newly exported
+  public services, new build-host services, provider requirement additions, and
+  increased capability-flow verbs. The text directs reviewers to public
+  boundary declarations, `build.omg`, provider origin/plan evidence, optional
+  package splitting, and authority storage/return/acquire/derive paths.
+
 Remaining:
 
 - **PACKAGE-CAPABILITY-MANIFEST.** Define the normalized manifest produced for
@@ -269,6 +278,10 @@ Remaining:
 - **AUTHOR-GUIDANCE.** Add diagnostics that advise package authors to keep
   unrelated capabilities in separate packages and publish reach ceilings on
   public APIs.
+
+  Remaining after `AUTHOR-GUIDANCE-DIFF-MODEL`: surface this guidance through
+  package-admission, `omega install`, `omega update`, and `omega audit
+  packages` once those flows derive package manifests.
 
   Acceptance: a package that adds a public service row, build-host service,
   provider requirement, or authority-flow verb gets a concrete audit message

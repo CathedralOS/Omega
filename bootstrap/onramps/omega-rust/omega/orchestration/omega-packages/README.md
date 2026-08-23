@@ -76,6 +76,9 @@ delegate behavior here.
 - `commands`: internal source-audit command API for local and Git requests.
 - `manifest`: canonical package/alias names, normalized package capability
   manifests, stable JSON, SHA-256 fingerprints, and manifest diffs.
+- `diff`: severity-ranked manifest deltas with concrete reviewer guidance for
+  public service, build-host service, provider-requirement, and capability-flow
+  changes.
 - `lock`: machine-written package closure records with resolved source
   identity, manifest fingerprints, dependency aliases, trust receipts, stable
   JSON, and lock fingerprints.
