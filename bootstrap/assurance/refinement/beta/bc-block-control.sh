@@ -79,6 +79,9 @@ python3 "$GATE_DIR/bc_block_control_map.py" \
   --duplicate-primitive-witness-output "$T/duplicate-primitive.witness" \
   --noncanonical-primitive-witness-output "$T/noncanonical-primitive.witness" \
   --synthetic-literal-witness-output "$T/synthetic-literal.witness" \
+  --composition-order-witness-output "$T/composition-order.witness" \
+  --composition-argument-order-witness-output "$T/composition-argument-order.witness" \
+  --composition-store-order-witness-output "$T/composition-store-order.witness" \
   --comparison-opcode-patch-output "$T/comparison-opcode.patch" \
   --comparison-operand-patch-output "$T/comparison-operand.patch" \
   --comparison-branch-target-patch-output "$T/comparison-branch-target.patch" \
@@ -117,6 +120,9 @@ make_bundle "$ARTIFACT" "$T/noncanonical-memory.witness" "$T/noncanonical-memory
 make_bundle "$ARTIFACT" "$T/duplicate-primitive.witness" "$T/duplicate-primitive.bundle"
 make_bundle "$ARTIFACT" "$T/noncanonical-primitive.witness" "$T/noncanonical-primitive.bundle"
 make_bundle "$ARTIFACT" "$T/synthetic-literal.witness" "$T/synthetic-literal.bundle"
+make_bundle "$ARTIFACT" "$T/composition-order.witness" "$T/composition-order.bundle"
+make_bundle "$ARTIFACT" "$T/composition-argument-order.witness" "$T/composition-argument-order.bundle"
+make_bundle "$ARTIFACT" "$T/composition-store-order.witness" "$T/composition-store-order.bundle"
 make_bundle "$ARTIFACT" "$T/duplicate-push.witness" "$T/duplicate-push.bundle"
 make_bundle "$ARTIFACT" "$T/cross-block-push.witness" "$T/cross-block-push.bundle"
 
@@ -180,9 +186,25 @@ cat "$GATE_DIR/bc-block-control.alpha" \
   "$GATE_DIR/bc-local-access.alpha" \
   "$GATE_DIR/bc-memory-sites.alpha" \
   "$GATE_DIR/bc-expr-primitives.alpha" \
-  "$GATE_DIR/bc-stack-pushes.alpha" > "$T/control-check.alpha"
+  "$GATE_DIR/bc-stack-pushes.alpha" \
+  "$GATE_DIR/bc-expr-composition.alpha" > "$T/control-check.alpha"
 "$ASM" < "$T/control-check.alpha" > "$T/control-check.tape"
 stamp_seed "$T/control-check.tape" "$SEED" "$T/control-check" >/dev/null
+
+# Preserve a diagnostic projection of the immediately preceding flat-custody
+# phase.  The same-valued composition witness below must pass this projection
+# and fail only once grammar-directed recursive ordering is enabled.
+sed 's/jeq r2, r3, composition_scan_init/jeq r2, r3, scan_owned_effects_init/' \
+  "$GATE_DIR/bc-stack-pushes.alpha" > "$T/bc-stack-pushes-flat.alpha"
+cat "$GATE_DIR/bc-block-control.alpha" \
+  "$GATE_DIR/bc-effect-sites.alpha" \
+  "$GATE_DIR/bc-frame-shape.alpha" \
+  "$GATE_DIR/bc-local-access.alpha" \
+  "$GATE_DIR/bc-memory-sites.alpha" \
+  "$GATE_DIR/bc-expr-primitives.alpha" \
+  "$T/bc-stack-pushes-flat.alpha" > "$T/flat-check.alpha"
+"$ASM" < "$T/flat-check.alpha" > "$T/flat-check.tape"
+stamp_seed "$T/flat-check.tape" "$SEED" "$T/flat-check" >/dev/null
 
 case_run() { # label expected-status input
   set +e
@@ -196,6 +218,19 @@ case_run() { # label expected-status input
 }
 
 case_run "whole compiler control skeleton" 0 "$T/control.bundle"
+flat_case() { # label input
+  set +e
+  "$T/flat-check" < "$2" > "$T/stdout"
+  flat_composition_status=$?
+  set -e
+  if [ "$flat_composition_status" != 0 ] || [ -s "$T/stdout" ]; then
+    echo "bc block control FAIL — $1 did not preserve flat custody" >&2
+    exit 1
+  fi
+}
+flat_case "recursive-order witness" "$T/composition-order.bundle"
+flat_case "argument-order witness" "$T/composition-argument-order.bundle"
+flat_case "store-order witness" "$T/composition-store-order.bundle"
 case_run "valid-boundary transition retarget" 1 "$T/retarget.bundle"
 case_run "block pc into opcode-looking operand" 1 "$T/operand.bundle"
 case_run "duplicate block location" 1 "$T/duplicate.bundle"
@@ -241,6 +276,9 @@ case_run "arithmetic destination register" 1 "$T/arithmetic-register.bundle"
 case_run "duplicate expression primitive location" 1 "$T/duplicate-primitive.bundle"
 case_run "noncanonical expression primitive order" 1 "$T/noncanonical-primitive.bundle"
 case_run "same-valued synthetic literal location" 1 "$T/synthetic-literal.bundle"
+case_run "same-valued recursive expression order" 1 "$T/composition-order.bundle"
+case_run "ordinary-call argument composition order" 1 "$T/composition-argument-order.bundle"
+case_run "store address/value composition order" 1 "$T/composition-store-order.bundle"
 case_run "comparison branch opcode" 1 "$T/comparison-opcode.bundle"
 case_run "comparison branch operand order" 1 "$T/comparison-operand.bundle"
 case_run "comparison branch target" 1 "$T/comparison-branch-target.bundle"
@@ -286,4 +324,4 @@ for mutation in call-retarget read-register write-register helper-write emit-byt
   fi
 done
 
-echo "bc block control/effects: 70 proc / 355 block / 291 transition; 612 effect sites / 829 fixed emit bytes; 78 frame slots / 27 parameter stores / 134 call pops; 169 local loads / 73 local stores; 62 raw loads / 33 raw stores; 582 literals / 57 arithmetic / 180 comparison primitives; 237 binary / 134 argument / 33 store-address pushes; all 686 artifact effects owned ($(wc -c < "$T/control-check.tape" | tr -d ' ')-byte Alpha checker tape)"
+echo "bc block control/effects: 70 proc / 355 block / 291 transition; 612 effect sites / 829 fixed emit bytes; 78 frame slots / 27 parameter stores / 134 call pops; 169 local loads / 73 local stores; 62 raw loads / 33 raw stores; 582 literals / 57 arithmetic / 180 comparison primitives; 237 binary / 134 argument / 33 store-address pushes; syntax-directed composition / relative temporary peak 2; all 686 artifact effects owned ($(wc -c < "$T/control-check.tape" | tr -d ' ')-byte Alpha checker tape)"

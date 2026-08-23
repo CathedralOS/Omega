@@ -491,7 +491,7 @@ additional facilities the bootstrap actually needs.
       pop-step mutations reject. This proves static allocation and handoff
       conditional on staged values; staged argument-value association, live
       stack depth, and dynamic frame contents remain open.
-    - [x] Bind every function-scoped local access to its source slot. The BCT7
+    - [x] Bind every function-scoped local access to its source slot. The BCT8
       Alpha phase independently records all 27 parameters and 51 `let`
       declarations, resolves exact source names, distinguishes assignment
       targets from comparison operands and calls, and checks 169 reads plus 73
@@ -505,12 +505,12 @@ additional facilities the bootstrap actually needs.
       The same Alpha process classifies matching source brackets and checks 56
       word loads, six byte loads, 32 word stores, and one byte store against
       exact opcodes/registers; each store additionally owns its immediate
-      address-pop macro. Width/register/pop-step mutations and malformed BCT7
+      address-pop macro. Width/register/pop-step mutations and malformed BCT8
       locations reject while retaining valid instruction framing. Address and
       value correspondence, aliasing, alignment, and the 64 MiB bounds proof
       remain open.
     - [x] Bind source literals and arithmetic primitives to exact lowering
-      macros. The BCT7 Alpha phase independently scans all 582 decimal/character
+      macros. The BCT8 Alpha phase independently scans all 582 decimal/character
       literals and 57 `+`/`-`/`*`/`/`/`%` operators. It checks exact
       `imm r0,value` sites and exact 22-byte left-value-pop/operator macros. An
       independent artifact inventory reserves the 360 comparison-result and 113
@@ -518,22 +518,22 @@ additional facilities the bootstrap actually needs.
       literal candidates and all 57 arithmetic macros. Structurally valid
       literal value/register, same-valued synthetic-site retarget, arithmetic
       opcode/register, pop-step, duplicate-location, and reordered-record
-      mutations reject. Recursive expression value composition,
-      arithmetic traps, and dynamic stack bounds remain open. Identical
+      mutations reject. This flat phase leaves recursive expression
+      composition, arithmetic traps, and dynamic stack bounds open. Identical
       same-valued primitives within one block remain
       mutually swappable, so this phase claims block-local multiset/shape custody
       rather than unique per-occurrence provenance.
     - [x] Bind all six source comparison operators to exact lowering macros. The
-      BCT7 phase checks all 180 comparison sites against the source-selected
+      BCT8 phase checks all 180 comparison sites against the source-selected
       signed `jlt` or full-word `jeq` variant, exact operand order, 16-byte
       left-value pop, branch-taken/done targets, and complementary 0/1 results.
       Same-width branch-opcode, operand-order, valid-boundary target,
       materialized-result, and pop-step mutations retain Alpha framing and
       reject. This establishes static comparison-macro custody conditional on
-      staged operands; recursive value composition, reachability, identical-site
-      ordering, and dynamic stack bounds remain open.
+      staged operands; this flat phase leaves recursive value composition,
+      reachability, identical-site ordering, and dynamic stack bounds open.
     - [x] Bind every source-required data-stack push to an exact artifact macro.
-      The BCT7 phase reconstructs 237 binary-left pushes, 134 left-to-right
+      The BCT8 phase reconstructs 237 binary-left pushes, 134 left-to-right
       ordinary-call argument pushes, and 33 store-address pushes from the
       already independent primitive, arity, and memory tables. It validates all
       404 exact 16-byte macros and exhaustively owns every decoded artifact
@@ -542,6 +542,24 @@ additional facilities the bootstrap actually needs.
       macro bytes are identical across categories, this proves block-local
       multiset/shape custody; recursive value association, identical same-block
       order, and live stack bounds remain open.
+    - [x] Compose the flat expression/staging sites by the exact Beta grammar.
+      A separate Alpha module reparses all 70 procedures and 355 blocks with
+      source precedence and statement boundaries, consumes every primitive,
+      local, raw-memory, call/effect, transition, and push table in lexical
+      order, then requires their owned PCs in recursive lowering order. It binds
+      left/push/right/operator, nested loads, left-to-right argument evaluation
+      and pushes plus reverse pops, address/push/value/store, local stores,
+      guarded transitions, and return epilogues. Every complete statement
+      expression restores its entry-relative `r15`; exact `bc.beta` has an
+      independently reconstructed high-water mark of two temporary words.
+      Same-valued literal, argument-push, and store/binary-push permutations
+      retain every preceding flat-custody property and reject only in this
+      phase. Syntax-directed composition and relative temporary balance are
+      closed; absolute `B_bc1` stack bounds, dynamic frames, carried
+      local/memory/callee values, reachability, traps, and global terminal/trace
+      correspondence remain open. Byte-identical complete statements/effects
+      within one block may still be mutually swappable until cross-statement
+      artifact order is closed by the blockwise simulation.
     - [x] Freeze supported resource profile `B_bc1` and make its source-side
       ceilings checked. `bc.beta` now refuses a 1,025th name slot, fifth live
       parameter/argument, and expression or nested-block depth 65 before any
