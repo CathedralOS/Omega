@@ -679,11 +679,17 @@ Remaining:
   per-occurrence capacity, and one canonical schema identity that excludes
   module-local dense IDs. Terminal codec fixtures and source/verifier tamper
   canaries cover this description. It is intentionally not an introduction
-  event and mints no claim. The installation join to an exact installed slot
-  occurrence, finite cardinality, artifact instance, and lifecycle epoch
-  remains open, as do migration of `ExtentCompilerProvisioning`, ordinary-call
-  mint rejection, closed generic-family coverage, and artifact/installation
-  aggregate canaries.
+  event and mints no claim. The Rust on-ramp now also has a non-authoritative
+  installation prebinding: it replays the schema against the exact Terminal
+  identity, native object bytes/architecture/entry, requirement, semantic
+  parameter and qualification, then binds the admitted provider execution,
+  installed code/artifact, root, slot, owner, and admission. Distinct occupied
+  slots derive their count from ledger state; no producer-authored cardinality
+  or aggregate is accepted. This carrier still mints no lineage and deliberately
+  has no lifecycle epoch. The authoritative lifecycle-epoch join and runtime
+  subject/capacity establishment remain open, as do migration of
+  `ExtentCompilerProvisioning`, ordinary-call mint rejection, closed
+  generic-family coverage, and artifact/installation aggregate canaries.
   Add source, terminal, artifact, and installation canaries for
   a one-root introduction, a finite multi-instance aggregate, an ordinary-call
   mint attempt, an unbounded installation shape, understated producer totals,

@@ -139,6 +139,8 @@ mod opaque_callback_replacement;
 pub use opaque_callback_replacement::*;
 mod provider_execution;
 pub use provider_execution::*;
+mod program_local_roots;
+pub use program_local_roots::*;
 mod root_validation;
 pub use root_validation::*;
 mod stack_demand;
@@ -465,6 +467,7 @@ struct InstalledRootEvidence {
     installed_code: InstalledCodeContext,
     slot: RootSlotId,
     owner: RootSlotOwnerId,
+    admission: RootAdmissionId,
     native_fuel: InstalledNativeFuelRealization,
 }
 
@@ -1272,6 +1275,7 @@ impl InstalledRootLedger {
             installed_code: installed_code.receipt_context(),
             slot: slot.slot,
             owner: slot.owner,
+            admission: admission.identity,
             native_fuel: admission.native_fuel.clone(),
         };
         let record = InstalledRootRecord {

@@ -33,7 +33,12 @@ use psi_layout_plans::{
     PlacementConstraints, PlacementPhase, PlacementSite, PostHandoffWriterPlan,
     PostHandoffWriterSource, PostHandoffWriterStep, RelocationTarget,
 };
-use psi_terminal::{InstallationReachDependency, ServiceDeclaration, TerminalRootServiceReach};
+use psi_terminal::{
+    BoundaryMachineDeclaration, InstallationReachDependency, ServiceDeclaration,
+    StructuralDomainDeclaration, StructuralDomainRequirement, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralTypeDeclaration, StructuralTypeShape, TerminalModule,
+    TerminalRootServiceReach, VocabularyMarker, program_local_root_introduction_identity,
+};
 
 fn root_id<T>(identity: u64, constructor: fn(u64) -> Result<T, ExternalRootDiagnostic>) -> T {
     constructor(identity).expect("normalized external-root identity")
@@ -427,7 +432,15 @@ fn candidate(entry: EntryStubId) -> ExternalRootCandidate {
 }
 
 fn candidate_for_code(entry: EntryStubId, code: &InstalledCode) -> ExternalRootCandidate {
-    let root = root_id(1, ExternalRootId::from_normalized_identity);
+    candidate_for_code_with_root(entry, code, 1)
+}
+
+fn candidate_for_code_with_root(
+    entry: EntryStubId,
+    code: &InstalledCode,
+    root_identity: u64,
+) -> ExternalRootCandidate {
+    let root = root_id(root_identity, ExternalRootId::from_normalized_identity);
     let provider = root_id(2, RootProviderId::from_normalized_identity);
     let nesting_relation = root_id(6, NestingRelationId::from_normalized_identity);
     let boundary = boundary();
@@ -1198,11 +1211,31 @@ fn install_test_root<'code>(
     code: &'code InstalledCode,
     entry: EntryStubId,
 ) -> (InstalledRootLedger, InstalledExternalRoot<'code>) {
-    let validated = validate_external_root(candidate(entry), &boundary()).expect("root plan");
-    let authority = slot();
+    install_test_root_with_ids(code, entry, 1, 20, 21, 22, Vec::new())
+}
+
+fn install_test_root_with_ids<'code>(
+    code: &'code InstalledCode,
+    entry: EntryStubId,
+    root_identity: u64,
+    slot_identity: u64,
+    owner_identity: u64,
+    admission_identity: u64,
+    entry_claims: Vec<ExternalRootEntryClaim>,
+) -> (InstalledRootLedger, InstalledExternalRoot<'code>) {
+    let mut candidate = candidate_for_code_with_root(entry, code, root_identity);
+    candidate.entry_claims = entry_claims;
+    let validated = validate_external_root(candidate, &boundary()).expect("root plan");
+    let authority = RootSlotAuthority::from_admitted_owner(
+        root_id(slot_identity, RootSlotId::from_normalized_identity),
+        root_id(owner_identity, RootSlotOwnerId::from_normalized_identity),
+    );
     let execution = provider_execution(&validated);
     let admission = RootAdmission::from_admitted_provider(
-        root_id(22, RootAdmissionId::from_normalized_identity),
+        root_id(
+            admission_identity,
+            RootAdmissionId::from_normalized_identity,
+        ),
         &validated,
         &execution,
         code,
@@ -1215,6 +1248,225 @@ fn install_test_root<'code>(
         .install(code, validated, authority, admission)
         .expect("installed external root");
     (ledger, installed)
+}
+
+fn program_local_root_module() -> TerminalModule {
+    let entry = psi_core::MachineId::new(1).expect("machine identity");
+    let carrier = psi_core::StructuralTypeId::new(1).expect("carrier identity");
+    let qualification = psi_core::StructuralDomainId::new(1).expect("domain identity");
+    let algebra = psi_core::ContentAlgebra {
+        kind: psi_core::ContentAlgebraKind::CountedQuantity,
+        parameter: "ByteUnit".into(),
+    };
+    let capacity = psi_core::ProgramLocalCapacityExpression::CountedQuantity(
+        psi_core::ProgramLocalCapacityScalar::Natural("4".into()),
+    );
+    let mut schema = psi_terminal::ProgramLocalRootIntroductionSchema {
+        argument_index: 0,
+        source_parameter_position: 0,
+        qualification,
+        carrier,
+        projection: psi_core::ContentProjectionIdentity {
+            domain: psi_core::ContentDomainId::new(1).expect("content domain identity"),
+            projection_fingerprint:
+                psi_language_semantics::content::terminal_projection_fingerprint(
+                    &algebra, &capacity,
+                ),
+        },
+        algebra,
+        capacity,
+        identity: 0,
+    };
+    schema.identity = program_local_root_introduction_identity(
+        "TestRoot::entry",
+        "Region::Owned",
+        "Region",
+        &schema,
+    );
+    TerminalModule {
+        vocabulary_marker: VocabularyMarker::CURRENT,
+        entry,
+        structural_types: vec![StructuralTypeDeclaration {
+            id: carrier,
+            identity: "Region".into(),
+            shape: StructuralTypeShape::Record { fields: Vec::new() },
+        }],
+        structural_domains: vec![StructuralDomainDeclaration {
+            id: qualification,
+            semantic_domain: psi_core::DomainSemanticId::new(1).expect("semantic domain identity"),
+            identity: "Region::Owned".into(),
+            carrier,
+        }],
+        services: Vec::new(),
+        root_service_reach: TerminalRootServiceReach::default(),
+        boundary_machines: vec![BoundaryMachineDeclaration {
+            id: psi_core::BoundaryMachineId::new(1).expect("boundary identity"),
+            identity: "TestRoot::entry".into(),
+            attachment: None,
+            scalar_parameters: Vec::new(),
+            structural_parameters: vec![StructuralParameterDeclaration {
+                place: psi_core::PlaceId::new(1).expect("place identity"),
+                position: 0,
+                is_self: false,
+                structural_type: carrier,
+                multiplicity: StructuralMultiplicity::Linear,
+                qualifications: vec![qualification],
+            }],
+            result: None,
+            requires: vec![StructuralDomainRequirement {
+                argument_index: 0,
+                domain: qualification,
+            }],
+            program_local_root_introductions: vec![schema],
+            published_service_ceiling: Vec::new(),
+        }],
+        provider_candidates: Vec::new(),
+        float_meaning_projections: Vec::new(),
+        float_meaning_equalities: Vec::new(),
+        proposition_declarations: Vec::new(),
+        proposition_applications: Vec::new(),
+        evidence_terms: Vec::new(),
+        evidence_contract_lanes: Vec::new(),
+        proof_output_calls: Vec::new(),
+        closed_conformance_applications: Vec::new(),
+        machines: vec![psi_terminal::TerminalMachine {
+            id: entry,
+            attachment: None,
+            parameters: Vec::new(),
+            structural_parameters: Vec::new(),
+            result: psi_terminal::TerminalMachineResult::Unit,
+            structural_places: Vec::new(),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
+            content_entry_claims: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
+            entry: psi_core::BlockId::new(1).expect("block identity"),
+            blocks: vec![psi_terminal::Block {
+                id: psi_core::BlockId::new(1).expect("block identity"),
+                parameters: Vec::new(),
+                operations: Vec::new(),
+                terminator: psi_terminal::Terminator::ReturnUnit {
+                    edge: psi_core::EdgeId::new(1).expect("edge identity"),
+                    trivial_affine_discards: Vec::new(),
+                },
+            }],
+            contract: psi_terminal::MachineContract {
+                id: psi_core::ContractId::new(1).expect("contract identity"),
+                crash_routes: Vec::new(),
+                requires: Vec::new(),
+                ensures: Vec::new(),
+            },
+        }],
+    }
+}
+
+fn program_local_terminal_object(module: &TerminalModule) -> TestTerminalObject {
+    TestTerminalObject {
+        identity: psi_terminal_codec::terminal_psi_identity(module)
+            .expect("terminal program identity"),
+        entry: module.entry,
+        bytes: vec![0; 64],
+    }
+}
+
+fn program_local_claim() -> ExternalRootEntryClaim {
+    ExternalRootEntryClaim {
+        parameter_index: 0,
+        domain: "Region::Owned".into(),
+        effective_carry: psi_language_semantics::CarryPolicy::STRICT,
+    }
+}
+
+#[test]
+fn program_local_root_schemas_prebind_exact_installed_slots_without_minting() {
+    let entry = entry_id(1);
+    let code = installed_code(1, entry);
+    let module = program_local_root_module();
+    let terminal = program_local_terminal_object(&module);
+    let (_first_ledger, first) =
+        install_test_root_with_ids(&code, entry, 1, 20, 21, 22, vec![program_local_claim()]);
+    let (_second_ledger, second) = install_test_root_with_ids(
+        &code,
+        entry,
+        101,
+        120,
+        121,
+        122,
+        vec![program_local_claim()],
+    );
+    let mut bindings = ProgramLocalRootInstalledOccurrenceLedger::new();
+    let first_occurrences = bindings
+        .prebind(&module, &terminal, &first)
+        .expect("first exact slot prebinding");
+    let [first_occurrence] = first_occurrences.as_slice() else {
+        panic!("one producer schema")
+    };
+    let first_identity = first_occurrence.occurrence_identity;
+    let second_occurrences = bindings
+        .prebind(&module, &terminal, &second)
+        .expect("second exact slot prebinding");
+    let [second_occurrence] = second_occurrences.as_slice() else {
+        panic!("one producer schema")
+    };
+    assert_ne!(first_identity, second_occurrence.occurrence_identity);
+    let counts = bindings.counts();
+    let [count] = counts.as_slice() else {
+        panic!("one exact installed schema count")
+    };
+    assert_eq!(count.installed_slot_count.get(), 2);
+    assert_eq!(
+        count.per_occurrence_capacity,
+        module.boundary_machines[0].program_local_root_introductions[0].capacity
+    );
+    assert!(bindings.prebind(&module, &terminal, &first).is_err());
+}
+
+#[test]
+fn program_local_root_prebinding_rejects_catalog_object_and_claim_substitution() {
+    let entry = entry_id(1);
+    let code = installed_code(1, entry);
+    let module = program_local_root_module();
+    let terminal = program_local_terminal_object(&module);
+    let (_root_ledger, root) =
+        install_test_root_with_ids(&code, entry, 1, 20, 21, 22, vec![program_local_claim()]);
+
+    let mut tampered_module = module.clone();
+    tampered_module.boundary_machines[0].program_local_root_introductions[0].identity ^= 1;
+    assert!(
+        ProgramLocalRootInstalledOccurrenceLedger::new()
+            .prebind(&tampered_module, &terminal, &root)
+            .is_err()
+    );
+
+    let mut wrong_object = program_local_terminal_object(&module);
+    wrong_object.identity = psi_terminal::TerminalPsiIdentity {
+        vocabulary_marker: VocabularyMarker::CURRENT,
+        program_fingerprint: psi_terminal::SemanticFingerprint::from_bytes([9; 32]),
+    };
+    assert!(
+        ProgramLocalRootInstalledOccurrenceLedger::new()
+            .prebind(&module, &wrong_object, &root)
+            .is_err()
+    );
+
+    let (_wrong_claim_ledger, wrong_claim_root) = install_test_root_with_ids(
+        &code,
+        entry,
+        201,
+        220,
+        221,
+        222,
+        vec![ExternalRootEntryClaim {
+            domain: "Region::Other".into(),
+            ..program_local_claim()
+        }],
+    );
+    assert!(
+        ProgramLocalRootInstalledOccurrenceLedger::new()
+            .prebind(&module, &terminal, &wrong_claim_root)
+            .is_err()
+    );
 }
 
 fn interrupt_boundary() -> ValidatedBoundaryEntryPlan {

@@ -90,6 +90,9 @@ fn machine_record_carries_one_public_termination_interface() {
             // EFX: the normalized, symbol-resolved service row is the only
             // durable reach identity on the machine record.
             service_reach_row: _,
+            // Installation-bound reach is a declaration property, not a
+            // second service-row identity.
+            service_reach_is_installation_bound: _,
             lifetime_parameters: _,
             type_parameters: _,
             owned_data: _,
