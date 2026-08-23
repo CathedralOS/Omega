@@ -1,0 +1,356 @@
+; Source-derived function-scoped local access custody for the whole-bc checker.
+;
+; The scanner has already consumed declaration/call/CFG names before reaching
+; maybe_local_access.  Exact source declarations live at 7200768 onward; access
+; metadata begins at 7168000 and canonical witness PCs at 7192576.
+
+maybe_local_access:
+        call resolve_current_local
+        imm r1, 0
+        jlt r0, r1, scan_loop
+        mov r7, r0                     ; resolved source slot
+        imm r1, 524304
+        load r2, r1
+        imm r1, 524640
+        store r1, r2                   ; cursor after identifier
+        call skip_trivia
+        call current_byte
+        imm r1, 61
+        jeq r0, r1, local_maybe_assignment
+        imm r6, 1                     ; expression load
+        call add_local_access
+        jmp restore_local_cursor
+local_maybe_assignment:
+        call advance_one
+        call current_byte
+        imm r1, 61
+        jeq r0, r1, local_comparison_load
+        imm r6, 2                     ; assignment target store
+        call add_local_access
+        jmp restore_local_cursor
+local_comparison_load:
+        imm r6, 1
+        call add_local_access
+restore_local_cursor:
+        imm r1, 524640
+        load r2, r1
+        imm r1, 524304
+        store r1, r2
+        jmp scan_loop
+
+; Resolve current IOFF/ILEN inside the current procedure. Return slot or -1.
+resolve_current_local:
+        imm r10, 0
+resolve_current_local_loop:
+        imm r1, 524632
+        load r2, r1
+        jlt r10, r2, resolve_current_local_candidate
+        imm r0, 0
+        imm r1, 1
+        sub r0, r1
+        ret
+resolve_current_local_candidate:
+        mov r12, r10
+        imm r1, 8
+        mul r12, r1
+        imm r1, 7200768
+        add r1, r12
+        load r2, r1
+        imm r1, 524344
+        load r3, r1
+        jeq r2, r3, resolve_current_local_name
+        jmp resolve_current_local_next
+resolve_current_local_name:
+        imm r1, 524360
+        load r20, r1
+        imm r1, 524368
+        load r21, r1
+        imm r1, 7208960
+        add r1, r12
+        load r22, r1
+        imm r1, 7217152
+        add r1, r12
+        load r23, r1
+        call names_equal
+        imm r1, 1
+        jeq r0, r1, resolve_current_local_found
+resolve_current_local_next:
+        imm r1, 1
+        add r10, r1
+        jmp resolve_current_local_loop
+resolve_current_local_found:
+        imm r1, 7225344
+        add r1, r12
+        load r0, r1
+        ret
+
+; Append access kind r6 / slot r7 in the current source block.
+add_local_access:
+        imm r1, 524608
+        load r2, r1
+        imm r3, 512
+        jlt r2, r3, add_local_access_room
+        jmp reject
+add_local_access_room:
+        mov r4, r2
+        imm r5, 8
+        mul r4, r5
+        imm r5, 524352
+        load r9, r5
+        imm r5, 7168000
+        add r5, r4
+        store r5, r9                    ; source block index
+        imm r5, 7176192
+        add r5, r4
+        store r5, r6                    ; load/store kind
+        imm r5, 7184384
+        add r5, r4
+        store r5, r7                    ; resolved frame slot
+        imm r3, 1
+        add r2, r3
+        imm r1, 524608
+        store r1, r2
+        imm r1, 1
+        jeq r6, r1, count_local_access_load
+        imm r1, 2
+        jeq r6, r1, count_local_access_store
+        jmp reject
+count_local_access_load:
+        imm r1, 524616
+        jmp increment_local_access_kind
+count_local_access_store:
+        imm r1, 524624
+increment_local_access_kind:
+        load r2, r1
+        imm r3, 1
+        add r2, r3
+        store r1, r2
+        ret
+
+; Read canonical source-order local macro PCs before the helper location.
+read_local_access_pcs_init:
+        imm r10, 0
+read_local_access_pc:
+        imm r1, 242
+        jlt r10, r1, read_local_access_pc_one
+        jmp read_helper_pc
+read_local_access_pc_one:
+        call read_u32
+        mov r14, r0
+        imm r1, 524296
+        load r2, r1
+        jlt r14, r2, local_access_pc_covered
+        jmp reject
+local_access_pc_covered:
+        imm r1, 4194304
+        add r1, r14
+        loadb r2, r1
+        imm r3, 1
+        jeq r2, r3, local_access_pc_block
+        jmp reject
+local_access_pc_block:
+        mov r12, r10
+        imm r1, 8
+        mul r12, r1
+        imm r1, 7168000
+        add r1, r12
+        load r4, r1
+        mov r5, r4
+        imm r1, 8
+        mul r5, r1
+        imm r1, 3235840
+        add r1, r5
+        load r6, r1
+        jlt r14, r6, reject
+        imm r1, 1
+        add r4, r1
+        imm r1, 355
+        jlt r4, r1, local_access_pc_next_block
+        imm r1, 524296
+        load r7, r1
+        jmp local_access_pc_end_ready
+local_access_pc_next_block:
+        mov r5, r4
+        imm r1, 8
+        mul r5, r1
+        imm r1, 3235840
+        add r1, r5
+        load r7, r1
+local_access_pc_end_ready:
+        jlt r14, r7, local_access_pc_store
+        jmp reject
+local_access_pc_store:
+        imm r1, 7192576
+        add r1, r12
+        store r1, r14
+        imm r1, 1
+        add r10, r1
+        jmp read_local_access_pc
+
+validate_local_accesses_init:
+        imm r10, 0
+validate_local_access_loop:
+        imm r1, 242
+        jlt r10, r1, validate_local_access_one
+        jmp scan_owned_effects_init
+validate_local_access_one:
+        mov r12, r10
+        imm r1, 8
+        mul r12, r1
+        imm r1, 7192576
+        add r1, r12
+        load r14, r1
+        imm r1, 7233536
+        add r1, r14
+        loadb r2, r1
+        imm r3, 0
+        jeq r2, r3, own_local_access
+        jmp reject
+own_local_access:
+        imm r2, 1
+        storeb r1, r2
+        imm r1, 7176192
+        add r1, r12
+        load r8, r1                     ; access kind
+        imm r1, 7184384
+        add r1, r12
+        load r9, r1                     ; source slot
+        imm r1, 1
+        jeq r8, r1, validate_local_load
+        imm r1, 2
+        jeq r8, r1, validate_local_store
+        jmp reject
+
+validate_local_load:
+        mov r20, r14
+        imm r21, 2
+        call require_tape_byte
+        mov r20, r14
+        imm r1, 1
+        add r20, r1
+        imm r21, 0
+        call require_tape_byte
+        mov r20, r14
+        imm r1, 2
+        add r20, r1
+        imm r21, 14
+        call require_tape_byte
+        mov r20, r14
+        imm r1, 3
+        add r20, r1
+        imm r21, 1
+        call require_tape_byte
+        mov r20, r14
+        imm r1, 4
+        add r20, r1
+        imm r21, 2
+        call require_tape_byte
+        mov r20, r14
+        imm r1, 5
+        add r20, r1
+        mov r21, r9
+        imm r1, 1
+        add r21, r1
+        imm r1, 8
+        mul r21, r1
+        call require_tape_word
+        mov r20, r14
+        imm r1, 13
+        add r20, r1
+        imm r21, 4
+        call require_tape_byte
+        mov r20, r14
+        imm r1, 14
+        add r20, r1
+        imm r21, 0
+        call require_tape_byte
+        mov r20, r14
+        imm r1, 15
+        add r20, r1
+        imm r21, 2
+        call require_tape_byte
+        mov r20, r14
+        imm r1, 16
+        add r20, r1
+        imm r21, 10
+        call require_tape_byte
+        mov r20, r14
+        imm r1, 17
+        add r20, r1
+        imm r21, 0
+        call require_tape_byte
+        mov r20, r14
+        imm r1, 18
+        add r20, r1
+        imm r21, 0
+        call require_tape_byte
+        jmp validate_local_access_next
+
+validate_local_store:
+        mov r20, r14
+        imm r21, 2
+        call require_tape_byte
+        mov r20, r14
+        imm r1, 1
+        add r20, r1
+        imm r21, 1
+        call require_tape_byte
+        mov r20, r14
+        imm r1, 2
+        add r20, r1
+        imm r21, 14
+        call require_tape_byte
+        mov r20, r14
+        imm r1, 3
+        add r20, r1
+        imm r21, 1
+        call require_tape_byte
+        mov r20, r14
+        imm r1, 4
+        add r20, r1
+        imm r21, 2
+        call require_tape_byte
+        mov r20, r14
+        imm r1, 5
+        add r20, r1
+        mov r21, r9
+        imm r1, 1
+        add r21, r1
+        imm r1, 8
+        mul r21, r1
+        call require_tape_word
+        mov r20, r14
+        imm r1, 13
+        add r20, r1
+        imm r21, 4
+        call require_tape_byte
+        mov r20, r14
+        imm r1, 14
+        add r20, r1
+        imm r21, 1
+        call require_tape_byte
+        mov r20, r14
+        imm r1, 15
+        add r20, r1
+        imm r21, 2
+        call require_tape_byte
+        mov r20, r14
+        imm r1, 16
+        add r20, r1
+        imm r21, 11
+        call require_tape_byte
+        mov r20, r14
+        imm r1, 17
+        add r20, r1
+        imm r21, 1
+        call require_tape_byte
+        mov r20, r14
+        imm r1, 18
+        add r20, r1
+        imm r21, 0
+        call require_tape_byte
+
+validate_local_access_next:
+        imm r1, 1
+        add r10, r1
+        jmp validate_local_access_loop

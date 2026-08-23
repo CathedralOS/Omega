@@ -29,13 +29,15 @@ OPS = {
     "write": (0x12, "r"), "call": (0x13, "x"), "ret": (0x14, ""),
 }
 ESC = {"n": 10, "t": 9, "r": 13, "0": 0, "\\": 92, "'": 39, '"': 34}
-MAGIC = 0x32544342  # little-endian "BCT2"
+MAGIC = 0x33544342  # little-endian "BCT3"
 
 EVENT_CALL = 1
 EVENT_READ = 2
 EVENT_WRITE = 3
 EVENT_EMIT = 4
 EVENT_RETURN = 5
+ACCESS_LOAD = 1
+ACCESS_STORE = 2
 
 
 @dataclass(frozen=True)
@@ -64,6 +66,14 @@ class Event:
     node_id: int
     block_index: int
     arity: int
+
+
+@dataclass(frozen=True)
+class LocalAccess:
+    kind: int
+    slot: int
+    node_id: int
+    block_index: int
 
 
 def load_parser(repo: Path):
@@ -100,7 +110,7 @@ def source_blocks(repo: Path, source: bytes) -> list[Block]:
     return blocks
 
 
-def source_events(repo: Path, source: bytes) -> tuple[list, list[Event], dict[int, list[Event]]]:
+def source_events(repo: Path, source: bytes):
     """Return lexical events plus each procedure's lowering-order events.
 
     The witness is canonical by source order.  Calls lower after their arguments,
@@ -113,7 +123,11 @@ def source_events(repo: Path, source: bytes) -> tuple[list, list[Event], dict[in
     lexical: list[Event] = []
     event_by_node: dict[int, Event] = {}
     lowering_by_proc: dict[int, list[Event]] = {}
+    accesses: list[LocalAccess] = []
+    access_by_node: dict[int, LocalAccess] = {}
+    access_lowering_by_proc: dict[int, list[LocalAccess]] = {}
     block_index = 0
+    current_slots: dict[str, int] = {}
 
     def add(kind: int, name: str, literal: bytes, node, block: int,
             arity: int = 0) -> None:
@@ -135,6 +149,23 @@ def source_events(repo: Path, source: bytes) -> tuple[list, list[Event], dict[in
             lex_expr(expr[3], block)
         elif expr[0] == "mem":
             lex_expr(expr[2], block)
+
+    def add_access(kind: int, slot: int, node, block: int) -> None:
+        access = LocalAccess(kind, slot, id(node), block)
+        accesses.append(access)
+        access_by_node[id(node)] = access
+
+    def lex_access_expr(expr, block: int) -> None:
+        if expr[0] == "var":
+            add_access(ACCESS_LOAD, current_slots[expr[1]], expr, block)
+        elif expr[0] == "call":
+            for argument in expr[2]:
+                lex_access_expr(argument, block)
+        elif expr[0] == "bin":
+            lex_access_expr(expr[2], block)
+            lex_access_expr(expr[3], block)
+        elif expr[0] == "mem":
+            lex_access_expr(expr[2], block)
 
     def lex_stmt(stmt, block: int) -> None:
         kind = stmt[0]
@@ -166,6 +197,18 @@ def source_events(repo: Path, source: bytes) -> tuple[list, list[Event], dict[in
         elif expr[0] == "mem":
             lower_expr(expr[2], output)
 
+    def lower_access_expr(expr, output: list[LocalAccess]) -> None:
+        if expr[0] == "var":
+            output.append(access_by_node[id(expr)])
+        elif expr[0] == "call":
+            for argument in expr[2]:
+                lower_access_expr(argument, output)
+        elif expr[0] == "bin":
+            lower_access_expr(expr[2], output)
+            lower_access_expr(expr[3], output)
+        elif expr[0] == "mem":
+            lower_access_expr(expr[2], output)
+
     def lower_stmt(stmt, output: list[Event]) -> None:
         kind = stmt[0]
         if kind in ("let", "assign"):
@@ -185,21 +228,57 @@ def source_events(repo: Path, source: bytes) -> tuple[list, list[Event], dict[in
             lower_expr(stmt[1], output)
 
     for proc_index, proc in enumerate(ast):
+        current_slots = {name: index for index, name in enumerate(proc[2])}
         lowering: list[Event] = []
+        access_lowering: list[LocalAccess] = []
         entry_block = block_index
         block_index += 1
+
+        def access_stmt(stmt, block: int) -> None:
+            kind = stmt[0]
+            if kind == "let":
+                slot = len(current_slots)
+                current_slots[stmt[1]] = slot
+                add_access(ACCESS_STORE, slot, stmt, block)
+                lex_access_expr(stmt[2], block)
+                lower_access_expr(stmt[2], access_lowering)
+                access_lowering.append(access_by_node[id(stmt)])
+            elif kind == "assign":
+                add_access(ACCESS_STORE, current_slots[stmt[1]], stmt, block)
+                lex_access_expr(stmt[2], block)
+                lower_access_expr(stmt[2], access_lowering)
+                access_lowering.append(access_by_node[id(stmt)])
+            elif kind == "return":
+                lex_access_expr(stmt[1], block)
+                lower_access_expr(stmt[1], access_lowering)
+            elif kind == "goto" and stmt[2] is not None:
+                lex_access_expr(stmt[2], block)
+                lower_access_expr(stmt[2], access_lowering)
+            elif kind == "memset":
+                lex_access_expr(stmt[2], block)
+                lex_access_expr(stmt[3], block)
+                lower_access_expr(stmt[2], access_lowering)
+                lower_access_expr(stmt[3], access_lowering)
+            elif kind == "callstmt":
+                lex_access_expr(stmt[1], block)
+                lower_access_expr(stmt[1], access_lowering)
+
         for stmt in proc[3]:
             if stmt[0] == "state":
                 state_block = block_index
                 block_index += 1
                 for inner in stmt[2]:
+                    access_stmt(inner, state_block)
                     lex_stmt(inner, state_block)
                     lower_stmt(inner, lowering)
             else:
+                access_stmt(stmt, entry_block)
                 lex_stmt(stmt, entry_block)
                 lower_stmt(stmt, lowering)
         lowering_by_proc[proc_index] = lowering
-    return ast, lexical, lowering_by_proc
+        access_lowering_by_proc[proc_index] = access_lowering
+    return (ast, lexical, lowering_by_proc, accesses,
+            access_lowering_by_proc)
 
 
 def strip_comment(line: str) -> str:
@@ -376,12 +455,60 @@ def locate_events(ast: list, lexical: list[Event], lowering_by_proc: dict[int, l
     return pcs, labels["__write_str"]
 
 
+def locate_local_accesses(ast: list, lexical: list[LocalAccess],
+                          lowering_by_proc: dict[int, list[LocalAccess]],
+                          items: list[Item], labels: dict[str, int],
+                          tape_len: int) -> list[int]:
+    by_node = {access.node_id: index for index, access in enumerate(lexical)}
+    pcs = [-1] * len(lexical)
+    proc_starts = [labels[proc[1]] for proc in ast]
+    for proc_index, proc in enumerate(ast):
+        start = proc_starts[proc_index]
+        end = proc_starts[proc_index + 1] if proc_index + 1 < len(proc_starts) else tape_len
+        ins = [item for item in items
+               if item.kind == "ins" and start <= item.offset < end]
+        candidates: list[tuple[Item, int, int]] = []
+        for index in range(len(ins) - 3):
+            a, b, c, d = ins[index:index + 4]
+            if not (a.offset + a.size == b.offset
+                    and b.offset + b.size == c.offset
+                    and c.offset + c.size == d.offset):
+                continue
+            if (a.name == "mov" and a.operands == ("r0", "r14")
+                    and b.name == "imm" and b.operands[0] == "r2"
+                    and c.name == "sub" and c.operands == ("r0", "r2")
+                    and d.name == "load" and d.operands == ("r0", "r0")):
+                candidates.append((a, ACCESS_LOAD, int(b.operands[1])))
+            elif (a.name == "mov" and a.operands == ("r1", "r14")
+                  and b.name == "imm" and b.operands[0] == "r2"
+                  and c.name == "sub" and c.operands == ("r1", "r2")
+                  and d.name == "store" and d.operands == ("r1", "r0")):
+                candidates.append((a, ACCESS_STORE, int(b.operands[1])))
+        expected = lowering_by_proc[proc_index]
+        if len(candidates) != len(expected):
+            raise ValueError(
+                f"{proc[1]} local access accounting: {len(candidates)} macros "
+                f"for {len(expected)} source accesses"
+            )
+        for access, (item, kind, offset) in zip(expected, candidates):
+            if kind != access.kind or offset != 8 + 8 * access.slot:
+                raise ValueError(
+                    f"{proc[1]} source local access {access} does not match "
+                    f"Alpha macro {(item, kind, offset)}"
+                )
+            pcs[by_node[access.node_id]] = item.offset
+    if any(pc < 0 for pc in pcs):
+        raise ValueError("not every source local access received an Alpha location")
+    return pcs
+
+
 def u32(value: int) -> bytes:
     return struct.pack("<I", value)
 
 
 def witness(block_pcs: list[int], transition_pcs: list[int], event_pcs: list[int],
-            events: list[Event], helper_pc: int, proc_count: int,
+            events: list[Event], access_pcs: list[int],
+            accesses: list[LocalAccess], helper_pc: int, proc_count: int,
             guarded_count: int) -> bytes:
     counts = {kind: sum(event.kind == kind for event in events)
               for kind in range(EVENT_CALL, EVENT_RETURN + 1)}
@@ -392,9 +519,13 @@ def witness(block_pcs: list[int], transition_pcs: list[int], event_pcs: list[int
         u32(counts[EVENT_WRITE]), u32(counts[EVENT_EMIT]),
         u32(counts[EVENT_RETURN]),
         u32(sum(len(event.literal) for event in events)),
+        u32(len(accesses)),
+        u32(sum(access.kind == ACCESS_LOAD for access in accesses)),
+        u32(sum(access.kind == ACCESS_STORE for access in accesses)),
         *(u32(pc) for pc in block_pcs),
         *(u32(pc) for pc in transition_pcs),
         *(u32(pc) for pc in event_pcs),
+        *(u32(pc) for pc in access_pcs),
         u32(helper_pc),
     ])
 
@@ -429,12 +560,20 @@ def main() -> None:
     ap.add_argument("--param-register-patch-output", type=Path)
     ap.add_argument("--call-pop-order-patch-output", type=Path)
     ap.add_argument("--call-pop-step-patch-output", type=Path)
+    ap.add_argument("--local-load-slot-patch-output", type=Path)
+    ap.add_argument("--local-store-slot-patch-output", type=Path)
+    ap.add_argument("--local-base-patch-output", type=Path)
+    ap.add_argument("--local-load-opcode-patch-output", type=Path)
+    ap.add_argument("--local-store-opcode-patch-output", type=Path)
+    ap.add_argument("--duplicate-local-witness-output", type=Path)
+    ap.add_argument("--noncanonical-local-witness-output", type=Path)
     args = ap.parse_args()
 
     source = args.source.read_bytes()
     tape = bytearray(args.tape.read_bytes())
     blocks = source_blocks(args.repo, source)
-    ast, events, lowering_by_proc = source_events(args.repo, source)
+    (ast, events, lowering_by_proc, accesses,
+     access_lowering_by_proc) = source_events(args.repo, source)
     (items, labels, block_pcs, transition_pcs, jump_pcs,
      target_indices, guarded_count) = locate(
         blocks, args.assembly.read_text(encoding="ascii")
@@ -442,9 +581,12 @@ def main() -> None:
     event_pcs, helper_pc = locate_events(
         ast, events, lowering_by_proc, items, labels, len(tape)
     )
+    access_pcs = locate_local_accesses(
+        ast, accesses, access_lowering_by_proc, items, labels, len(tape)
+    )
     proc_count = len({block.proc_index for block in blocks})
     canonical = witness(
-        block_pcs, transition_pcs, event_pcs, events, helper_pc,
+        block_pcs, transition_pcs, event_pcs, events, access_pcs, accesses, helper_pc,
         proc_count, guarded_count,
     )
     args.output.write_bytes(canonical)
@@ -486,7 +628,8 @@ def main() -> None:
         else:
             raise ValueError("no opcode-looking operand byte found for mutation")
         args.operand_witness_output.write_bytes(
-            witness(changed, transition_pcs, event_pcs, events, helper_pc,
+            witness(changed, transition_pcs, event_pcs, events, access_pcs,
+                    accesses, helper_pc,
                     proc_count, guarded_count)
         )
 
@@ -494,7 +637,8 @@ def main() -> None:
         changed = list(block_pcs)
         changed[1] = changed[0]
         args.duplicate_witness_output.write_bytes(
-            witness(changed, transition_pcs, event_pcs, events, helper_pc,
+            witness(changed, transition_pcs, event_pcs, events, access_pcs,
+                    accesses, helper_pc,
                     proc_count, guarded_count)
         )
 
@@ -520,7 +664,8 @@ def main() -> None:
             changed[pair_index + 1], changed[pair_index]
         )
         args.noncanonical_witness_output.write_bytes(
-            witness(block_pcs, changed, event_pcs, events, helper_pc,
+            witness(block_pcs, changed, event_pcs, events, access_pcs,
+                    accesses, helper_pc,
                     proc_count, guarded_count)
         )
 
@@ -564,7 +709,8 @@ def main() -> None:
         changed = list(event_pcs)
         changed[1] = changed[0]
         args.duplicate_event_witness_output.write_bytes(
-            witness(block_pcs, transition_pcs, changed, events, helper_pc,
+            witness(block_pcs, transition_pcs, changed, events, access_pcs,
+                    accesses, helper_pc,
                     proc_count, guarded_count)
         )
     if args.noncanonical_event_witness_output:
@@ -573,7 +719,8 @@ def main() -> None:
                     if events[i].kind != events[i + 1].kind)
         changed[pair], changed[pair + 1] = changed[pair + 1], changed[pair]
         args.noncanonical_event_witness_output.write_bytes(
-            witness(block_pcs, transition_pcs, changed, events, helper_pc,
+            witness(block_pcs, transition_pcs, changed, events, access_pcs,
+                    accesses, helper_pc,
                     proc_count, guarded_count)
         )
 
@@ -608,6 +755,45 @@ def main() -> None:
     patch(args.call_pop_order_patch_output, pop_start + 1, b"\x00")
     patch(args.call_pop_step_patch_output, pop_start + 5,
           struct.pack("<Q", 16))
+
+    proc_slots = [len(proc[2]) + lets_in(proc[3]) for proc in ast]
+    load_index = next(
+        i for i, access in enumerate(accesses)
+        if access.kind == ACCESS_LOAD and access.slot == 0
+        and proc_slots[blocks[access.block_index].proc_index] >= 2
+    )
+    store_index = next(
+        i for i, access in enumerate(accesses)
+        if access.kind == ACCESS_STORE and access.slot == 0
+        and proc_slots[blocks[access.block_index].proc_index] >= 2
+    )
+    patch(args.local_load_slot_patch_output, access_pcs[load_index] + 5,
+          struct.pack("<Q", 16))
+    patch(args.local_store_slot_patch_output, access_pcs[store_index] + 5,
+          struct.pack("<Q", 16))
+    patch(args.local_base_patch_output, access_pcs[load_index] + 2, b"\x0f")
+    patch(args.local_load_opcode_patch_output, access_pcs[load_index] + 16,
+          bytes([OPS["store"][0]]))
+    patch(args.local_store_opcode_patch_output, access_pcs[store_index] + 16,
+          bytes([OPS["load"][0]]))
+
+    if args.duplicate_local_witness_output:
+        changed = list(access_pcs)
+        changed[1] = changed[0]
+        args.duplicate_local_witness_output.write_bytes(
+            witness(block_pcs, transition_pcs, event_pcs, events, changed,
+                    accesses, helper_pc, proc_count, guarded_count)
+        )
+    if args.noncanonical_local_witness_output:
+        changed = list(access_pcs)
+        pair = next(i for i in range(len(accesses) - 1)
+                    if accesses[i].kind != accesses[i + 1].kind
+                    or accesses[i].slot != accesses[i + 1].slot)
+        changed[pair], changed[pair + 1] = changed[pair + 1], changed[pair]
+        args.noncanonical_local_witness_output.write_bytes(
+            witness(block_pcs, transition_pcs, event_pcs, events, changed,
+                    accesses, helper_pc, proc_count, guarded_count)
+        )
 
 
 if __name__ == "__main__":

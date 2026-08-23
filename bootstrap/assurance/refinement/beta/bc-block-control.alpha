@@ -1,7 +1,7 @@
 ; Bounded whole-bc control/effect correspondence checker, common core.
 ;
 ; Input is [u32 source length][bc.beta bytes][u32 tape length][bc.tape bytes]
-; followed by an untrusted BCT2 location witness.  This checker independently
+; followed by an untrusted BCT3 location witness.  This checker independently
 ; lexes proc/state/to/when from the source, resolves each state target by exact
 ; byte-string equality, and checks the corresponding Alpha jmp or
 ; jz-fallthrough-jmp successors in the tape.  bc-effect-sites.alpha extends the
@@ -75,6 +75,14 @@ scan_init:
         store r1, r0                    ; one-argument ordinary calls
         imm r1, 524592
         store r1, r0                    ; two-argument ordinary calls
+        imm r1, 524608
+        store r1, r0                    ; local access count
+        imm r1, 524616
+        store r1, r0                    ; local load count
+        imm r1, 524624
+        store r1, r0                    ; local store count
+        imm r1, 524632
+        store r1, r0                    ; source local declaration count
 
 scan_loop:
         call skip_trivia
@@ -372,6 +380,30 @@ count_two_arg_calls:
         imm r1, 524592
         load r2, r1
         imm r3, 9
+        jeq r2, r3, count_local_declarations
+        jmp reject
+count_local_declarations:
+        imm r1, 524632
+        load r2, r1
+        imm r3, 78
+        jeq r2, r3, count_local_accesses
+        jmp reject
+count_local_accesses:
+        imm r1, 524608
+        load r2, r1
+        imm r3, 242
+        jeq r2, r3, count_local_loads
+        jmp reject
+count_local_loads:
+        imm r1, 524616
+        load r2, r1
+        imm r3, 169
+        jeq r2, r3, count_local_stores
+        jmp reject
+count_local_stores:
+        imm r1, 524624
+        load r2, r1
+        imm r3, 73
         jeq r2, r3, resolve_init
         jmp reject
 
@@ -440,7 +472,7 @@ resolve_found:
 
 read_witness:
         call read_u32
-        imm r1, 844383042              ; BCT2
+        imm r1, 861160258              ; BCT3
         jeq r0, r1, witness_proc_count
         jmp reject
 witness_proc_count:
@@ -496,6 +528,21 @@ witness_return_count:
 witness_emit_byte_count:
         call read_u32
         imm r1, 829
+        jeq r0, r1, witness_local_access_count
+        jmp reject
+witness_local_access_count:
+        call read_u32
+        imm r1, 242
+        jeq r0, r1, witness_local_load_count
+        jmp reject
+witness_local_load_count:
+        call read_u32
+        imm r1, 169
+        jeq r0, r1, witness_local_store_count
+        jmp reject
+witness_local_store_count:
+        call read_u32
+        imm r1, 73
         jeq r0, r1, read_block_pcs_init
         jmp reject
 

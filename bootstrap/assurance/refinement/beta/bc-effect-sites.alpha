@@ -1,4 +1,4 @@
-; BCT2 effect-site extension for bc-block-control.alpha.
+; BCT3 effect-site extension for bc-block-control.alpha.
 ;
 ; This fragment is concatenated with the common checker before assembly.  It
 ; reuses that process's exact source scan, block table, tape bytes, and decoded
@@ -16,7 +16,7 @@ maybe_call_event:
         call current_byte
         imm r1, 40
         jeq r0, r1, classify_call_event
-        jmp restore_event_cursor
+        jmp restore_noncall_cursor
 classify_call_event:
         call ident_is_read_byte
         imm r1, 1
@@ -47,6 +47,12 @@ restore_event_cursor:
         imm r1, 524304
         store r1, r2
         jmp scan_loop
+restore_noncall_cursor:
+        imm r1, 524520
+        load r2, r1
+        imm r1, 524304
+        store r1, r2
+        jmp maybe_local_access
 
 ; Append the source event described by kind r4 and current IOFF/ILEN.
 add_effect_event:
@@ -225,7 +231,7 @@ emit_literal_restore:
         store r1, r2
         ret
 
-; Read the canonical source-order event locations after the BCT2 control sites.
+; Read the canonical source-order event locations after the BCT3 control sites.
 ; Before the common decoder's secondary phase, add each compiler-synthesized
 ; fallthrough epilogue as a root.  Many are semantically unreachable because a
 ; source block returns first, but they are still effectful bytes in the exact
@@ -288,7 +294,7 @@ read_effect_pcs_init:
 read_effect_pc:
         imm r1, 612
         jlt r10, r1, read_effect_pc_one
-        jmp read_helper_pc
+        jmp read_local_access_pcs_init
 read_effect_pc_one:
         call read_u32
         mov r14, r0
@@ -689,7 +695,7 @@ validate_events_init:
 validate_event_loop:
         imm r1, 612
         jlt r10, r1, validate_event_one
-        jmp scan_owned_effects_init
+        jmp validate_local_accesses_init
 validate_event_one:
         imm r1, 524544
         store r1, r10                    ; preserve source event index across lookup

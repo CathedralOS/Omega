@@ -56,7 +56,14 @@ python3 "$GATE_DIR/bc_block_control_map.py" \
   --param-offset-patch-output "$T/param-offset.patch" \
   --param-register-patch-output "$T/param-register.patch" \
   --call-pop-order-patch-output "$T/call-pop-order.patch" \
-  --call-pop-step-patch-output "$T/call-pop-step.patch"
+  --call-pop-step-patch-output "$T/call-pop-step.patch" \
+  --local-load-slot-patch-output "$T/local-load-slot.patch" \
+  --local-store-slot-patch-output "$T/local-store-slot.patch" \
+  --local-base-patch-output "$T/local-base.patch" \
+  --local-load-opcode-patch-output "$T/local-load-opcode.patch" \
+  --local-store-opcode-patch-output "$T/local-store-opcode.patch" \
+  --duplicate-local-witness-output "$T/duplicate-local.witness" \
+  --noncanonical-local-witness-output "$T/noncanonical-local.witness"
 
 # The untrusted mapper never writes the source/tape portion of checker input.
 # Assemble every bundle here from the exact repository source and artifact.
@@ -77,6 +84,8 @@ make_bundle "$ARTIFACT" "$T/missing.witness" "$T/missing.bundle"
 make_bundle "$ARTIFACT" "$T/noncanonical.witness" "$T/noncanonical.bundle"
 make_bundle "$ARTIFACT" "$T/duplicate-event.witness" "$T/duplicate-event.bundle"
 make_bundle "$ARTIFACT" "$T/noncanonical-event.witness" "$T/noncanonical-event.bundle"
+make_bundle "$ARTIFACT" "$T/duplicate-local.witness" "$T/duplicate-local.bundle"
+make_bundle "$ARTIFACT" "$T/noncanonical-local.witness" "$T/noncanonical-local.bundle"
 
 cp "$ARTIFACT" "$T/retarget.tape"
 RETARGET_OFFSET=$(dd if="$T/retarget.patch" bs=1 count=4 2>/dev/null | od -An -tu4 | tr -d ' ')
@@ -107,10 +116,16 @@ apply_tape_patch param-offset
 apply_tape_patch param-register
 apply_tape_patch call-pop-order
 apply_tape_patch call-pop-step
+apply_tape_patch local-load-slot
+apply_tape_patch local-store-slot
+apply_tape_patch local-base
+apply_tape_patch local-load-opcode
+apply_tape_patch local-store-opcode
 
 cat "$GATE_DIR/bc-block-control.alpha" \
   "$GATE_DIR/bc-effect-sites.alpha" \
-  "$GATE_DIR/bc-frame-shape.alpha" > "$T/control-check.alpha"
+  "$GATE_DIR/bc-frame-shape.alpha" \
+  "$GATE_DIR/bc-local-access.alpha" > "$T/control-check.alpha"
 "$ASM" < "$T/control-check.alpha" > "$T/control-check.tape"
 stamp_seed "$T/control-check.tape" "$SEED" "$T/control-check" >/dev/null
 
@@ -149,6 +164,13 @@ case_run "parameter slot offset" 1 "$T/param-offset.bundle"
 case_run "parameter source register" 1 "$T/param-register.bundle"
 case_run "two-argument pop order" 1 "$T/call-pop-order.bundle"
 case_run "argument pop stack step" 1 "$T/call-pop-step.bundle"
+case_run "valid-slot local load retarget" 1 "$T/local-load-slot.bundle"
+case_run "valid-slot local store retarget" 1 "$T/local-store-slot.bundle"
+case_run "local frame-base register" 1 "$T/local-base.bundle"
+case_run "same-width local load/store opcode" 1 "$T/local-load-opcode.bundle"
+case_run "same-width local store/load opcode" 1 "$T/local-store-opcode.bundle"
+case_run "duplicate local access location" 1 "$T/duplicate-local.bundle"
+case_run "noncanonical local access order" 1 "$T/noncanonical-local.bundle"
 
 # Show that the negative control has teeth beyond the pre-existing structural
 # obligation: its changed target is another real instruction boundary, so the
@@ -172,7 +194,7 @@ if [ "$structure_status" != 0 ] || [ -s "$T/stdout" ]; then
   exit 1
 fi
 
-for mutation in call-retarget read-register write-register helper-write emit-byte emit-length emit-pointer emit-helper orphan-io frame-size saved-fp frame-base param-offset param-register call-pop-order call-pop-step; do
+for mutation in call-retarget read-register write-register helper-write emit-byte emit-length emit-pointer emit-helper orphan-io frame-size saved-fp frame-base param-offset param-register call-pop-order call-pop-step local-load-slot local-store-slot local-base local-load-opcode local-store-opcode; do
   set +e
   "$T/structure-check" < "$T/$mutation.tape" > "$T/stdout"
   structure_status=$?
@@ -183,4 +205,4 @@ for mutation in call-retarget read-register write-register helper-write emit-byt
   fi
 done
 
-echo "bc block control/effects: 70 proc / 355 block / 291 transition; 612 effect sites / 829 fixed emit bytes; 78 frame slots / 27 parameter stores / 134 call pops; all 686 artifact effects owned ($(wc -c < "$T/control-check.tape" | tr -d ' ')-byte Alpha checker tape)"
+echo "bc block control/effects: 70 proc / 355 block / 291 transition; 612 effect sites / 829 fixed emit bytes; 78 frame slots / 27 parameter stores / 134 call pops; 169 local loads / 73 local stores; all 686 artifact effects owned ($(wc -c < "$T/control-check.tape" | tr -d ' ')-byte Alpha checker tape)"

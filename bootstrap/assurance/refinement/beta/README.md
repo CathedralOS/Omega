@@ -68,5 +68,14 @@ the exact 134 staged arguments into `r0..r1` in reverse stack order. Frame-size,
 saved/base-fp register, parameter offset/register, pop-order, and pop-step
 mutations retain valid Alpha framing and reject here. This establishes static
 frame shape and parameter handoff conditional on the staged values. Argument
-pushes and values, local load/store correspondence, live stack depth, and
-dynamic frame contents remain open.
+pushes and values, live stack depth, and dynamic frame contents remain open.
+
+`bc-local-access.alpha` extends the canonical witness format to BCT3 while
+keeping name resolution authoritative in Alpha. It records all 27 parameters
+and 51 `let` declarations with their function-scoped slots, distinguishes
+assignment targets from comparison operands and calls, and binds 169 source
+variable reads plus 73 `let`/assignment writes to exact 19-byte fp-relative
+macros. Valid alternate-slot offsets, `r14` replacement, same-width load/store
+swaps, duplicate locations, and reordered source witnesses reject. This closes
+static local-slot selection and opcode custody, not the values carried through
+those slots, definite assignment, expression evaluation, or dynamic aliasing.

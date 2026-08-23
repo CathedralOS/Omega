@@ -181,7 +181,9 @@ stream admitted by `B_bc1`.
   control successors and static custody for every call/return/I/O/emit site,
   including the fixed-literal output macro, source-derived frame allocations,
   parameter stores, callee arities, and pre-call argument pops, in one Alpha
-  process.
+  process. Its BCT3 phase also resolves every function-scoped source name and
+  checks all 169 local reads and 73 `let`/assignment writes against exact frame
+  slots and load/store macros.
 
 These gates are evidence. Whole-compiler closure still requires a checked
 forward simulation from these source transitions to Alpha small steps, including
