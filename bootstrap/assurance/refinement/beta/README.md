@@ -141,6 +141,15 @@ Identical complete same-block statements/effects can still be mutually
 swappable when every owned macro is byte-for-byte identical; cross-statement
 artifact order is part of the remaining blockwise simulation.
 
+The BC10 composition pass also classifies all 33 raw-store address expressions
+without trusting the mapper: 30 are aligned fixed compiler-global words in
+`[2097064, 2097145)`, one is exactly `2097152 + n`, and the two local-name-table
+stores are exactly `3145728 + s * 8` and `3153920 + s * 8`. This is a static
+source-family result, not yet a dynamic address proof. The blockwise simulation
+must still establish the source guards and carried `n`/`s` values before using
+these families to prove disjointness from frames, depth counters, or other
+compiler-owned regions.
+
 `bc_call_bounds.py` emits the untrusted compact BCS9 potential tables consumed
 by `bc-call-bounds.alpha`. The Alpha phase independently resolves all 309
 ordinary calls among the 70 source procedures, derives frame bytes from the

@@ -165,6 +165,11 @@ are valuable teeth, but they do not yet establish the quantified observation:
 - its raw-memory phase binds 62 source loads and 33 stores to exact byte/word
   opcodes and registers, including each store's immediate address pop, but does
   not yet relate address/value expressions or prove the 64 MiB access bounds;
+- its BC10 grammar-composition pass further partitions every raw-store source
+  address into 30 aligned fixed compiler globals, one exact source-buffer
+  `base + n` spelling, and two exact local-name-table `base + s * 8` spellings.
+  The source families are closed, while their guard/value induction and dynamic
+  non-aliasing remain part of the blockwise simulation;
 - its expression-primitive phase binds all 582 decimal/character literals and
   57 arithmetic operators to exact immediate and stack-pop/operator macros and
   all 180 comparisons to exact signed-order/full-word-equality branch variants,

@@ -509,6 +509,16 @@ additional facilities the bootstrap actually needs.
       locations reject while retaining valid instruction framing. Address and
       value correspondence, aliasing, alignment, and the 64 MiB bounds proof
       remain open.
+    - [x] Classify every raw-store source address into the compiler's exact
+      address families. The BC10 grammar-composition phase independently pins
+      30 aligned fixed-global word addresses in `[2097064, 2097145)`, the sole
+      source-byte store spelling `2097152 + n`, and the paired local-name-table
+      spellings `3145728 + s * 8` and `3153920 + s * 8`. A store moved between
+      fixed and ranged families, an unaligned/out-of-window fixed address, or a
+      different ranged expression rejects before artifact execution. This
+      closes the finite source-site classification only: the guards and carried
+      `n`/`s` values, disjointness from the explicit stack and depth counters,
+      and all raw-load bounds remain blockwise-simulation obligations.
     - [x] Bind source literals and arithmetic primitives to exact lowering
       macros. The BCT8 Alpha phase independently scans all 582 decimal/character
       literals and 57 `+`/`-`/`*`/`/`/`%` operators. It checks exact
