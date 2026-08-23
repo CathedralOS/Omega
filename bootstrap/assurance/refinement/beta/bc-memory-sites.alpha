@@ -1,4 +1,4 @@
-; Raw byte/word memory-site custody for the whole-bc BCT7 checker.
+; Raw byte/word memory-site custody for the whole-bc BCT8 checker.
 ;
 ; Source sites are classified by matching brackets without consuming their
 ; address/value expressions from the outer scan. Metadata starts at 7602176;

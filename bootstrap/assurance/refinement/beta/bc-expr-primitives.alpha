@@ -1,4 +1,4 @@
-; Literal, arithmetic, and comparison primitive custody for the whole-bc BCT7
+; Literal, arithmetic, and comparison primitive custody for the whole-bc BCT8
 ; checker. The common scanner records source-order literals and operators; the
 ; untrusted witness supplies only their Alpha locations.
 ;

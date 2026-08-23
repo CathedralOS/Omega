@@ -1,4 +1,4 @@
-; Complete data-stack push custody for the whole-bc BCT7 checker.
+; Complete data-stack push custody for the whole-bc BCT8 checker.
 ;
 ; Source records are reconstructed from the already independent primitive,
 ; call-arity, and raw-memory tables: 237 binary-left pushes, 134 ordinary-call
@@ -302,7 +302,7 @@ scan_stack_push_artifact_count:
         imm r1, 524784
         load r2, r1
         imm r3, 404
-        jeq r2, r3, scan_owned_effects_init
+        jeq r2, r3, composition_scan_init
         jmp reject
 
 ; Input r14 is a decoded start; output r0 is one iff the exact 16-byte macro is

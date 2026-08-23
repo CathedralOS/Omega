@@ -29,7 +29,7 @@ OPS = {
     "write": (0x12, "r"), "call": (0x13, "x"), "ret": (0x14, ""),
 }
 ESC = {"n": 10, "t": 9, "r": 13, "0": 0, "\\": 92, "'": 39, '"': 34}
-MAGIC = 0x37544342  # little-endian "BCT7"
+MAGIC = 0x38544342  # little-endian "BCT8"
 
 EVENT_CALL = 1
 EVENT_READ = 2
@@ -495,6 +495,64 @@ def source_events(repo: Path, source: bytes):
             access_lowering_by_proc, memory_sites, memory_lowering_by_proc,
             primitives, primitive_lowering_by_proc, pushes,
             push_lowering_by_proc)
+
+
+def same_valued_composition_pair(ast: list,
+                                 primitives: list[ExprPrimitive]) -> tuple[int, int]:
+    """Find two identical literal records nested in one source expression.
+
+    Swapping their location hints preserves every flat primitive property
+    (kind, value, source block, uniqueness, and exact artifact bytes).  Only the
+    grammar-directed composition phase can distinguish their roles relative to
+    the intervening push/operator pieces.
+    """
+    primitive_index = {primitive.node_id: index
+                       for index, primitive in enumerate(primitives)}
+
+    def walk_expr(expr):
+        yield expr
+        if expr[0] == "bin":
+            yield from walk_expr(expr[2])
+            yield from walk_expr(expr[3])
+        elif expr[0] == "call":
+            for argument in expr[2]:
+                yield from walk_expr(argument)
+        elif expr[0] == "mem":
+            yield from walk_expr(expr[2])
+
+    def stmt_exprs(stmt):
+        kind = stmt[0]
+        if kind in ("let", "assign"):
+            return (stmt[2],)
+        if kind == "return":
+            return (stmt[1],)
+        if kind == "goto" and stmt[2] is not None:
+            return (stmt[2],)
+        if kind == "memset":
+            return (stmt[2], stmt[3])
+        if kind == "callstmt":
+            return (stmt[1],)
+        return ()
+
+    for proc in ast:
+        for outer in proc[3]:
+            statements = outer[2] if outer[0] == "state" else (outer,)
+            for stmt in statements:
+                for expr in stmt_exprs(stmt):
+                    by_value: dict[int, list[int]] = {}
+                    for node in walk_expr(expr):
+                        if node[0] != "num":
+                            continue
+                        index = primitive_index[id(node)]
+                        by_value.setdefault(node[1], []).append(index)
+                    for indices in by_value.values():
+                        if len(indices) < 2:
+                            continue
+                        left, right = indices[:2]
+                        if primitives[left].block_index != primitives[right].block_index:
+                            continue
+                        return left, right
+    raise ValueError("no same-valued literals nested in one source expression")
 
 
 def strip_comment(line: str) -> str:
@@ -995,6 +1053,9 @@ def main() -> None:
     ap.add_argument("--duplicate-primitive-witness-output", type=Path)
     ap.add_argument("--noncanonical-primitive-witness-output", type=Path)
     ap.add_argument("--synthetic-literal-witness-output", type=Path)
+    ap.add_argument("--composition-order-witness-output", type=Path)
+    ap.add_argument("--composition-argument-order-witness-output", type=Path)
+    ap.add_argument("--composition-store-order-witness-output", type=Path)
     ap.add_argument("--comparison-opcode-patch-output", type=Path)
     ap.add_argument("--comparison-operand-patch-output", type=Path)
     ap.add_argument("--comparison-branch-target-patch-output", type=Path)
@@ -1436,6 +1497,47 @@ def main() -> None:
             witness(block_pcs, transition_pcs, event_pcs, events, access_pcs,
                     accesses, memory_pcs, memory_sites, changed, primitives, push_pcs, pushes,
                     helper_pc, proc_count, guarded_count)
+        )
+    if args.composition_order_witness_output:
+        left, right = same_valued_composition_pair(ast, primitives)
+        changed = list(primitive_pcs)
+        changed[left], changed[right] = changed[right], changed[left]
+        args.composition_order_witness_output.write_bytes(
+            witness(block_pcs, transition_pcs, event_pcs, events, access_pcs,
+                    accesses, memory_pcs, memory_sites, changed, primitives,
+                    push_pcs, pushes, helper_pc, proc_count, guarded_count)
+        )
+    if args.composition_argument_order_witness_output:
+        left = next(
+            index for index in range(len(pushes) - 1)
+            if pushes[index].kind == PUSH_CALL_ARGUMENT
+            and pushes[index + 1].kind == PUSH_CALL_ARGUMENT
+            and pushes[index].node_id == pushes[index + 1].node_id
+        )
+        changed = list(push_pcs)
+        changed[left], changed[left + 1] = changed[left + 1], changed[left]
+        args.composition_argument_order_witness_output.write_bytes(
+            witness(block_pcs, transition_pcs, event_pcs, events, access_pcs,
+                    accesses, memory_pcs, memory_sites, primitive_pcs,
+                    primitives, changed, pushes, helper_pc, proc_count,
+                    guarded_count)
+        )
+    if args.composition_store_order_witness_output:
+        pair = next(
+            (binary, store)
+            for store, store_push in enumerate(pushes)
+            if store_push.kind == PUSH_STORE_ADDRESS
+            for binary, binary_push in enumerate(pushes)
+            if binary_push.kind == PUSH_BINARY_LEFT
+            and binary_push.block_index == store_push.block_index
+        )
+        changed = list(push_pcs)
+        changed[pair[0]], changed[pair[1]] = changed[pair[1]], changed[pair[0]]
+        args.composition_store_order_witness_output.write_bytes(
+            witness(block_pcs, transition_pcs, event_pcs, events, access_pcs,
+                    accesses, memory_pcs, memory_sites, primitive_pcs,
+                    primitives, changed, pushes, helper_pc, proc_count,
+                    guarded_count)
         )
 
 

@@ -170,13 +170,24 @@ are valuable teeth, but they do not yet establish the quantified observation:
   all 180 comparisons to exact signed-order/full-word-equality branch variants,
   operand order, targets, and complementary 0/1 results; an exhaustive artifact
   inventory reserves 360 comparison-result and 113 fixed-emit address immediates
-  and requires ownership of every remaining candidate. Recursive value
-  composition, unique ordering among identical block-local primitives, argument
-  arithmetic trap correspondence, and dynamic reachability remain open;
+  and requires ownership of every remaining candidate. This flat phase alone
+  leaves recursive value composition, unique ordering among identical
+  block-local primitives, arithmetic trap correspondence, and dynamic
+  reachability open;
 - its stack-push phase reconstructs and exhaustively owns all 237 binary-left,
   134 ordinary-call argument, and 33 store-address push macros. Their recursive
   value association, identical same-block order, and live stack bounds remain
-  open;
+  open in that flat phase;
+- its expression-composition phase reparses all exact source expressions and
+  statement continuations with Beta precedence, then requires the already-owned
+  primitive/local/memory/effect/transition/push PCs in syntax-directed lowering
+  order. It binds binary operands, nested loads, ordinary argument staging and
+  reverse pops, store address/value staging, local stores, guarded transitions,
+  and return epilogues. Each statement expression is relatively `r15`-balanced
+  and the exact compiler's temporary high-water mark is two words. Flat-valid
+  same-valued literal, argument-push, and store-push permutations reject here;
+  absolute stack bounds, dynamic frames and leaf/callee values remain open, as
+  does order between byte-identical complete same-block statements/effects;
 - Alpha out-of-range memory remains undefined in `alpha/SEMANTICS.md` and must be
   excluded by independently checked `B_bc1` bounds before whole-artifact closure
   (or Alpha must be hardened independently);
