@@ -750,6 +750,21 @@ additional facilities the bootstrap actually needs.
         remain caller-clobbered. A wrong first event, eight-byte continuation,
         underreported total, and wrong end reject only here. Composing these
         summaries from `main.ready` into the 187-byte prefix remains open.
+      - [x] Prove reusable conditional summaries for the cursor leaves
+        `cbyte`, `adv`, and `is_space`. Under the successful-slurp segment and
+        a carried nonnegative signed cursor, `cbyte` follows its exact signed
+        comparison and returns `SRC[CUR]` for `CUR<LEN`, otherwise zero;
+        in-range NUL is deliberately observationally equal to its logical-EOF
+        result. Under the additional `CUR<LEN` premise, `adv` performs the sole
+        nonwrapping update `CUR'=CUR+1<=LEN`. `is_space` exhausts the four
+        same-parameter comparisons and returns one exactly for
+        `{32,9,10,13}`. Exact block, transition, local, raw-memory, primitive,
+        push, return, and epilogue joins are closed by whole-table censuses for
+        all local/memory/transition/event rows plus decoded quiet-region scans.
+        Source-index detachment, a reversed boundary partition, zero cursor
+        progress, dropped CR, a whitespace complement, and an effect
+        undercount reject only in this phase. Composition into `skip_ws_step`
+        and its two terminating cursor loops remains open.
       - [ ] **DESIGN BLOCKED — observation ruling required:** define how the
         theorem assigns typed `Exhaust(ResourceKind, limit, requested)` to the
         exact resource-guard paths whose program-level result is only 252/253.

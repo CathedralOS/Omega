@@ -27,7 +27,7 @@
 fixed_emitter_summary_init:
         call fixed_emit_prove_write_str
         call fixed_emit_prove_prelude
-        jmp scan_owned_effects_init
+        jmp cursor_leaf_summary_init
 
 fixed_emit_prove_write_str:
         imm r20, 29                   ; procedure

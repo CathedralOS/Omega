@@ -361,3 +361,31 @@ procedure owns exactly one block. A wrong first row, eight-byte call
 continuation, underreported prelude total, or wrong procedure end rejects only
 in this phase. Reachability from `main.ready` and the combined 187-byte prefix
 are the next composition step.
+
+`bc-cursor-leaf-summary.alpha` gives the three cursor leaves reusable
+conditional meanings before the whitespace loops are composed. It imports the
+successful `slurp` clause for `LEN=L<=1048576` and the exact source segment,
+then carries the explicit caller premise `0<=CUR<2^63`. `cbyte` follows its
+checked signed comparison: `CUR<LEN` returns the zero-extended byte at the exact
+`SRC+CUR` address, while `LEN<=CUR` returns zero without reading the source.
+Consequently an in-range NUL and logical end both produce numeric zero; the
+theorem does not pretend they are distinct observations. `adv` is intentionally
+narrower: under `CUR<LEN`, its wrapping addition is proved nonwrapping and its
+only compiler-global effect is `CUR'=CUR+1<=LEN`. `is_space` uses the same
+checked parameter slot in all four equality blocks and exhausts the mutually
+exclusive patterns for 32, 9, 10, 13, and their complement, returning one only
+for the first four.
+
+The phase rejoins procedures 4, 5, and 9 through their exact blocks,
+transitions, local/raw-memory rows, primitives, pushes, returns, and epilogues.
+Independent scans of all 242 local rows, 95 memory rows, 291 transitions, and
+613 source events exclude hidden selected-procedure actions; decoded region
+scans exclude input/output, calls, halts, and arithmetic traps. Thus all three
+terminate, preserve external input/output and source memory, and restore their
+private frames; `cbyte` and `is_space` have no compiler-global mutation, while
+`adv` changes only `CUR`. Caller-clobbered result registers and reclaimed stack
+bytes remain outside the preservation claim. Six phase-isolated variants reject
+wrong source-index provenance, the wrong cbyte boundary partition, zero `adv`
+progress, omitted CR, a whitespace complement, and an effect undercount.
+`skip_ws_step`, the inner comment rank, and the outer `skip_ws` fixed point are
+the next relational composition rather than being inlined into these leaves.
