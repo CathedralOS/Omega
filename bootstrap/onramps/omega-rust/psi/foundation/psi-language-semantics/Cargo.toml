@@ -9,6 +9,7 @@ name = "psi_language_semantics"
 path = "src/lib.rs"
 
 [dependencies]
+psi-core = { path = "../psi-core" }
 psi-language-core = { path = "../psi-language-core" }
 psi-numerics = { path = "../psi-numerics" }
 psi-symbols = { path = "../psi-symbols" }

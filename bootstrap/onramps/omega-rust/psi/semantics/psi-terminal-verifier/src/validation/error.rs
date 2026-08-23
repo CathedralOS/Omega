@@ -224,6 +224,16 @@ pub enum ModuleError {
         domain: StructuralDomainId,
     },
     NonCanonicalBoundaryRequirements(BoundaryMachineId),
+    InvalidProgramLocalRootIntroduction {
+        boundary: BoundaryMachineId,
+        argument_index: u32,
+    },
+    DuplicateProgramLocalRootIntroduction {
+        boundary: BoundaryMachineId,
+        argument_index: u32,
+        domain: StructuralDomainId,
+    },
+    NonCanonicalProgramLocalRootIntroductions(BoundaryMachineId),
     InvalidProviderCandidate {
         boundary: BoundaryMachineId,
         candidate: MachineId,

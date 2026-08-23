@@ -15,13 +15,14 @@ mod proposition;
 pub use content::{
     ContentAlgebra, ContentAlgebraKind, ContentConservation, ContentPlaceSegment,
     ContentPlaceVersion, ContentProjectionIdentity, ContentStructuralPlace, ContentTerm,
-    StructuralPlaceKind, content_conservation_fingerprint,
+    ProgramLocalCapacityExpression, ProgramLocalCapacityScalar, StructuralPlaceKind,
+    content_conservation_fingerprint,
 };
 pub use identity::{
-    AdmissionSiteId, BlockId, BoundaryMachineId, ClaimId, ContentDomainId, ContractId, EdgeId,
-    EvidenceIdentity, EvidenceTermId, FuelScheduleIdentity, MachineId, ObligationId, OperationId,
-    PlaceId, ProfileDecisionId, PropositionId, PsiSemanticId, ServiceId, StructuralCaseId,
-    StructuralDomainId, StructuralFieldId, StructuralTypeId, ValueId,
+    AdmissionSiteId, BlockId, BoundaryMachineId, ClaimId, ContentDomainId, ContractId,
+    DomainSemanticId, EdgeId, EvidenceIdentity, EvidenceTermId, FuelScheduleIdentity, MachineId,
+    ObligationId, OperationId, PlaceId, ProfileDecisionId, PropositionId, PsiSemanticId, ServiceId,
+    StructuralCaseId, StructuralDomainId, StructuralFieldId, StructuralTypeId, ValueId,
 };
 pub use proposition::{
     ByteSequenceStructuralField, CanonicalStructuralPathSegment, IeeeFloatComparisonKind,

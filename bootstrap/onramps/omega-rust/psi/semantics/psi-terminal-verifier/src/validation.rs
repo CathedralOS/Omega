@@ -4,9 +4,10 @@ use psi_core::{
     BlockId, BoundaryMachineId, CanonicalStructuralPathSegment, ClaimId, ContentAlgebra,
     ContentConservation, ContentProjectionIdentity, ContentStructuralPlace, ContentTerm,
     ContractId, EdgeId, EvidenceTermId, IntegerSign, IntegerType, IntegerValue, MachineId,
-    ObligationId, OperationId, PlaceId, Proposition, PropositionContext, PropositionId, ScalarTerm,
-    ScalarType, ServiceId, StructuralDomainId, StructuralFieldId, StructuralPlaceKind,
-    StructuralTypeId, ValueId, content_conservation_fingerprint,
+    ObligationId, OperationId, PlaceId, ProgramLocalCapacityExpression, ProgramLocalCapacityScalar,
+    Proposition, PropositionContext, PropositionId, ScalarTerm, ScalarType, ServiceId,
+    StructuralDomainId, StructuralFieldId, StructuralPlaceKind, StructuralTypeId, ValueId,
+    content_conservation_fingerprint,
 };
 use psi_terminal::{
     BoundaryMachineDeclaration, ClaimTransfer, CompletionReceipt, ContentPartitionComposition,
@@ -15,7 +16,7 @@ use psi_terminal::{
     PropositionEvidence, StructuralArgument, StructuralFieldType, StructuralMultiplicity,
     StructuralParameterDeclaration, StructuralPathSegment, StructuralTypeShape,
     TerminalAffineCleanupAction, TerminalMachine, TerminalMachineResult, TerminalModule,
-    Terminator,
+    Terminator, program_local_root_introduction_identity,
 };
 
 use crate::verification::{

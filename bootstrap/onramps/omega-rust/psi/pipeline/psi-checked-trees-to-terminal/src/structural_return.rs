@@ -309,6 +309,8 @@ fn lower_structural_domain_plans(
         .map(|plan| {
             Ok(StructuralDomainDeclaration {
                 id: lookup_domain_id(&domain_ids, plan.domain)?,
+                semantic_domain: DomainSemanticId::new(u64::from(plan.domain.0))
+                    .ok_or(LoweringError::InvalidContentDomainIdentity)?,
                 identity: plan.identity.clone(),
                 carrier: lookup_type_id(type_ids, &plan.carrier_type_identity)?,
             })

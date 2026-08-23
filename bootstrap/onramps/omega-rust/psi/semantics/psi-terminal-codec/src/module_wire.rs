@@ -41,6 +41,7 @@ pub(super) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
     writer.len("structural domains", module.structural_domains.len())?;
     for declaration in &module.structural_domains {
         writer.id(declaration.id);
+        writer.id(declaration.semantic_domain);
         writer.string("structural domain identity", &declaration.identity)?;
         writer.id(declaration.carrier);
     }
@@ -270,6 +271,7 @@ pub(super) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
     let structural_domains = decode_counted(reader, |reader| {
         Ok(StructuralDomainDeclaration {
             id: reader.id("StructuralDomainId")?,
+            semantic_domain: reader.id("DomainSemanticId")?,
             identity: reader.string("structural domain identity")?,
             carrier: reader.id("StructuralTypeId")?,
         })

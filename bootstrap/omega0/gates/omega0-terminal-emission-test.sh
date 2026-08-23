@@ -34,7 +34,7 @@ DELTA_ARCH=aarch64 "$OMEGA_PATH_DELTA_RUST/target/debug/delta" \
 python3 "$OMEGA_PATH_OMEGA0/compiler/omega0_bundle.py" pack \
   main.omg="$OMEGA_PATH_CORPUS/cli_mvp/main.omg" > "$T/canonical.bundle"
 
-python3 - "$OMEGA_PATH_OMEGA0/gates/fixtures/omega0-terminal-v25.hex" "$T/frozen.psi" <<'PY'
+python3 - "$OMEGA_PATH_OMEGA0/gates/fixtures/omega0-terminal-v26.hex" "$T/frozen.psi" <<'PY'
 import pathlib
 import sys
 

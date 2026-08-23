@@ -185,6 +185,7 @@ pub(super) fn build_call_operation(
     if let [(definition, signature, selected_parameter)] = static_boundaries.as_slice() {
         let arguments = crate::call_site_argument_expressions(program, &call_site);
         let source_parameters = program.state_signature_parameters(signature);
+        let caller_source_parameters = program.state_parameters(state);
         let mut scalar_parameters = Vec::new();
         let mut structural_arguments = Vec::new();
         for (position, (parameter, argument)) in
@@ -199,22 +200,56 @@ pub(super) fn build_call_operation(
                 });
                 continue;
             }
-            if byte_sequence_carrier(program, parameter.type_reference, &[])
-                != Some(psi_checked_trees::CheckedByteSequenceCarrier::BorrowedView)
+            let byte_sequence = byte_sequence_carrier(program, parameter.type_reference, &[]);
+            let target_identity = if byte_sequence.is_some() {
+                program
+                    .normalized_type_identity_with_binders(parameter.type_reference, &[])
+                    .into_string()
+            } else {
+                base_type_identity(program, parameter.type_reference, &[])?
+            };
+            if byte_sequence == Some(psi_checked_trees::CheckedByteSequenceCarrier::BorrowedView)
+                && let ExpressionNode::String(bytes) =
+                    program.expression_table.expression(*argument)
             {
-                return None;
+                structural_arguments.push(CheckedUnitStructuralArgumentPlan {
+                    source_parameter_index: u32::MAX,
+                    path: Vec::new(),
+                    type_identity: target_identity,
+                    byte_sequence_literal: Some(bytes.to_vec()),
+                });
+                continue;
             }
-            let ExpressionNode::String(bytes) = program.expression_table.expression(*argument)
-            else {
+
+            let place = crate::flow::canonical_place_from_expression_in_state(
+                program,
+                state.symbol,
+                call.statement_index,
+                *argument,
+            )?;
+            let psi_facts::PlaceRoot::Symbol(source_symbol) = place.root else {
                 return None;
             };
+            if !place.segments.is_empty() {
+                return None;
+            }
+            let source_parameter = caller_source_parameters.iter().find(|candidate| {
+                parameter_root_symbol(machine.symbol, candidate) == source_symbol
+            })?;
+            let source_position = caller_source_parameters
+                .iter()
+                .position(|candidate| candidate.symbol == source_parameter.symbol)?;
+            let source_parameter_index = caller_parameters.iter().position(|candidate| {
+                candidate.position == u32::try_from(source_position).unwrap_or(u32::MAX)
+            })?;
+            if caller_parameters.get(source_parameter_index)?.type_identity != target_identity {
+                return None;
+            }
             structural_arguments.push(CheckedUnitStructuralArgumentPlan {
-                source_parameter_index: u32::MAX,
+                source_parameter_index: u32::try_from(source_parameter_index).ok()?,
                 path: Vec::new(),
-                type_identity: program
-                    .normalized_type_identity_with_binders(parameter.type_reference, &[])
-                    .into_string(),
-                byte_sequence_literal: Some(bytes.to_vec()),
+                type_identity: target_identity,
+                byte_sequence_literal: None,
             });
         }
         if !program.trait_type_parameters(definition).is_empty()
@@ -244,7 +279,7 @@ pub(super) fn build_call_operation(
                     program.primitive_type_reference(signature.return_type) != Some(expected)
                 }
             }
-            || !program.state_signature_contracts(signature).is_empty()
+            || !signature_contracts_are_exact_parameter_qualifications(program, signature)
             || signature.suspends
             || signature.blocks
         {
@@ -253,6 +288,20 @@ pub(super) fn build_call_operation(
         let capsule = facts
             .contract_plans
             .crash_capsule(definition.symbol, signature.symbol)?;
+        let completion_receipts = if *selected_parameter {
+            call_claim_transfers(
+                facts,
+                machine.symbol,
+                state.symbol,
+                call,
+                caller_parameters,
+                entry_claims,
+                &structural_arguments,
+                PermissionEventKind::Transfer,
+            )?
+        } else {
+            Vec::new()
+        };
         return Some(CheckedUnitEffectOperationPlan::BoundaryCall {
             coordinate,
             target_machine: signature.symbol,
@@ -266,7 +315,7 @@ pub(super) fn build_call_operation(
                 &scalar_parameters,
             )?,
             structural_arguments,
-            completion_receipts: Vec::new(),
+            completion_receipts,
         });
     }
     if !static_boundaries.is_empty() {

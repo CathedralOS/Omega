@@ -428,8 +428,9 @@ fn native_o0_lowering_rejects_a_provider_admitted_for_another_requirement() {
 }
 
 fn fixture_bytes() -> Vec<u8> {
-    let hex =
-        include_str!("../../../../../../../bootstrap/omega0/gates/fixtures/omega0-terminal-v25.hex");
+    let hex = include_str!(
+        "../../../../../../../bootstrap/omega0/gates/fixtures/omega0-terminal-v26.hex"
+    );
     let digits = hex
         .bytes()
         .filter(|byte| !byte.is_ascii_whitespace())

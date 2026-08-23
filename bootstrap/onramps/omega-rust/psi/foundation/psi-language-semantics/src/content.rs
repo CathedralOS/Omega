@@ -447,6 +447,85 @@ pub fn projection_fingerprint(
     })
 }
 
+/// Recompute the same projection identity after frontend symbols have erased.
+/// This is the verifier bridge for portable program-local root schemas.
+pub fn terminal_projection_fingerprint(
+    algebra: &psi_core::ContentAlgebra,
+    expression: &psi_core::ProgramLocalCapacityExpression,
+) -> u64 {
+    fn encode_terminal_scalar(
+        expression: &psi_core::ProgramLocalCapacityScalar,
+        output: &mut Vec<u8>,
+    ) {
+        use psi_core::ProgramLocalCapacityScalar as Scalar;
+        match expression {
+            Scalar::SubjectField(path) | Scalar::RuntimeScalarEmbedding(path) => {
+                output.push(if matches!(expression, Scalar::SubjectField(_)) {
+                    1
+                } else {
+                    2
+                });
+                output.extend_from_slice(&(path.len() as u64).to_le_bytes());
+                for segment in path {
+                    encode_string(segment, output);
+                }
+            }
+            Scalar::Natural(value) => {
+                output.push(3);
+                encode_string(value, output);
+            }
+            Scalar::Successor(value) => {
+                output.push(4);
+                encode_terminal_scalar(value, output);
+            }
+            Scalar::Add(left, right)
+            | Scalar::Subtract(left, right)
+            | Scalar::Multiply(left, right) => {
+                output.push(5);
+                output.push(match expression {
+                    Scalar::Add(_, _) => 1,
+                    Scalar::Subtract(_, _) => 2,
+                    Scalar::Multiply(_, _) => 3,
+                    _ => unreachable!(),
+                });
+                encode_terminal_scalar(left, output);
+                encode_terminal_scalar(right, output);
+            }
+        }
+    }
+    const OFFSET: u64 = 0xcbf29ce484222325;
+    const PRIME: u64 = 0x100000001b3;
+    let mut bytes = Vec::new();
+    match algebra.kind {
+        psi_core::ContentAlgebraKind::IntervalSet => {
+            bytes.push(3);
+            encode_string(&algebra.parameter, &mut bytes);
+        }
+        psi_core::ContentAlgebraKind::CountedQuantity => {
+            bytes.push(2);
+            encode_string(&algebra.parameter, &mut bytes);
+        }
+    }
+    match expression {
+        psi_core::ProgramLocalCapacityExpression::IntervalSet(members) => {
+            bytes.push(3);
+            bytes.extend_from_slice(&(members.len() as u64).to_le_bytes());
+            for (start, end) in members {
+                encode_terminal_scalar(start, &mut bytes);
+                encode_terminal_scalar(end, &mut bytes);
+            }
+        }
+        psi_core::ProgramLocalCapacityExpression::CountedQuantity(magnitude) => {
+            bytes.push(2);
+            encode_terminal_scalar(magnitude, &mut bytes);
+        }
+    }
+    bytes.into_iter().fold(OFFSET, |mut hash, byte| {
+        hash ^= u64::from(byte);
+        hash.wrapping_mul(PRIME)
+    })
+}
+
 fn encode_algebra(algebra: &ContentAlgebraIdentity, output: &mut Vec<u8>) {
     match algebra {
         ContentAlgebraIdentity::IntervalSet { coordinate_space } => {

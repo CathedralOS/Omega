@@ -672,6 +672,18 @@ Remaining:
   first provide the canonical requirement-position, qualification, projection/
   algebra, capacity/family-instance, and artifact-scope schema; installation can
   then join exact slot occurrences, cardinality, artifact instance, and epoch.
+  The Rust on-ramp now publishes and independently replays the first portable
+  producer-schema slice: one exact static boundary requirement and authored
+  parameter position, its exact qualified carrier and normalized domain
+  identity, the owner-unique content projection and closed algebra, normalized
+  per-occurrence capacity, and one canonical schema identity that excludes
+  module-local dense IDs. Terminal codec fixtures and source/verifier tamper
+  canaries cover this description. It is intentionally not an introduction
+  event and mints no claim. The installation join to an exact installed slot
+  occurrence, finite cardinality, artifact instance, and lifecycle epoch
+  remains open, as do migration of `ExtentCompilerProvisioning`, ordinary-call
+  mint rejection, closed generic-family coverage, and artifact/installation
+  aggregate canaries.
   Add source, terminal, artifact, and installation canaries for
   a one-root introduction, a finite multi-instance aggregate, an ordinary-call
   mint attempt, an unbounded installation shape, understated producer totals,

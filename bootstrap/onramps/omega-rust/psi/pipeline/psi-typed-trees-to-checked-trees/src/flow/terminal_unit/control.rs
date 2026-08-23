@@ -557,7 +557,7 @@ pub(super) fn build_static_boundary_requirements(
             if !program
                 .state_signature_type_parameters(signature)
                 .is_empty()
-                || !program.state_signature_contracts(signature).is_empty()
+                || !signature_contracts_are_exact_parameter_qualifications(program, signature)
                 || signature.suspends
                 || signature.blocks
             {
@@ -597,23 +597,33 @@ pub(super) fn build_static_boundary_requirements(
                     });
                     continue;
                 }
-                if byte_sequence_carrier(program, parameter.type_reference, &[])
-                    != Some(psi_checked_trees::CheckedByteSequenceCarrier::BorrowedView)
-                {
-                    supported = false;
-                    break;
-                }
                 let Some(type_identity) = shapes.add_type(parameter.type_reference, &[], &[])
                 else {
                     supported = false;
                     break;
                 };
+                let Some(qualifications) =
+                    parameter_qualifications(program, shapes, parameter.type_reference, &[])
+                else {
+                    supported = false;
+                    break;
+                };
+                if is_reference(program, parameter.type_reference)
+                    && byte_sequence_carrier(program, parameter.type_reference, &[])
+                        != Some(psi_checked_trees::CheckedByteSequenceCarrier::BorrowedView)
+                {
+                    supported = false;
+                    break;
+                }
                 structural_parameters.push(CheckedUnitStructuralParameterPlan {
                     position: source_position,
                     is_self: false,
                     type_identity,
-                    multiplicity: Multiplicity::Unrestricted,
-                    qualifications: Vec::new(),
+                    multiplicity: crate::checks::type_multiplicity(
+                        program,
+                        parameter.type_reference,
+                    ),
+                    qualifications,
                 });
             }
             if !supported {
@@ -649,6 +659,19 @@ pub(super) fn build_static_boundary_requirements(
                 direct: *published_reach,
                 transitive: *published_reach,
             };
+            let domain_requirements = structural_parameters
+                .iter()
+                .enumerate()
+                .flat_map(|(argument_index, parameter)| {
+                    parameter.qualifications.iter().map(move |domain| {
+                        CheckedUnitStructuralDomainRequirementPlan {
+                            argument_index: u32::try_from(argument_index)
+                                .expect("structural parameter count already fits source positions"),
+                            domain: *domain,
+                        }
+                    })
+                })
+                .collect();
             plans.push(CheckedBoundaryMachinePlan {
                 machine: signature.symbol,
                 state: signature.symbol,
@@ -656,7 +679,7 @@ pub(super) fn build_static_boundary_requirements(
                 structural_parameters,
                 scalar_parameters,
                 result_type,
-                domain_requirements: Vec::new(),
+                domain_requirements,
                 contract_fingerprint: capsule.target_contract_fingerprint(),
                 contract_service_reach: psi_language_semantics::ServiceReachPlan {
                     interface: psi_language_semantics::ServiceReachInterface::PublishedCeiling(

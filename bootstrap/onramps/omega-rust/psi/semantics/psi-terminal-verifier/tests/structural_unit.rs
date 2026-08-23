@@ -1557,6 +1557,7 @@ fn projected_unit_calls_accept_only_the_exact_unqualified_whole_claim_slice() {
         .structural_domains
         .push(StructuralDomainDeclaration {
             id: domain_id(2),
+            semantic_domain: psi_core::DomainSemanticId::new(2).unwrap(),
             identity: "ArrayPending".into(),
             carrier: structural_type_id(3),
         });
@@ -2657,6 +2658,7 @@ fn entry_claims_are_dense_in_each_machine_local_namespace() {
 fn structural_semantic_sets_have_one_canonical_order() {
     let second_domain = StructuralDomainDeclaration {
         id: domain_id(2),
+        semantic_domain: psi_core::DomainSemanticId::new(2).unwrap(),
         identity: "Ready".into(),
         carrier: structural_type_id(1),
     };
@@ -3268,6 +3270,7 @@ fn hard_root_module() -> TerminalModule {
     };
     let pending = StructuralDomainDeclaration {
         id: domain_id(1),
+        semantic_domain: psi_core::DomainSemanticId::new(1).unwrap(),
         identity: "Pending".into(),
         carrier: resource.id,
     };
@@ -3289,6 +3292,7 @@ fn hard_root_module() -> TerminalModule {
             argument_index: 0,
             domain: pending.id,
         }],
+        program_local_root_introductions: Vec::new(),
         published_service_ceiling: vec![port_io.id],
     };
 
