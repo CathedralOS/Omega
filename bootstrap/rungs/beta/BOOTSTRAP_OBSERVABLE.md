@@ -165,13 +165,20 @@ are valuable teeth, but they do not yet establish the quantified observation:
   argument-value association, local access values, and the live stack-depth
   bound remain open;
 - its raw-memory phase binds 61 source loads and 34 stores to exact byte/word
-  opcodes and registers, including each store's immediate address pop, but does
-  not yet relate address/value expressions or prove the 64 MiB access bounds;
+  opcodes and registers, including each store's immediate address pop. The
+  reduced ranged-store phase closes the Beta-source
+  address/alignment/bounds premise for three stores; their Alpha operand
+  transfer, all raw loads, stored values, and general address correspondence
+  remain open;
 - its BC11 grammar-composition pass further partitions every raw-store source
   address into 31 aligned fixed compiler globals, one exact source-buffer
-  `base + n` spelling, and two exact local-name-table `base + s * 8` spellings.
-  The source families are closed, while their guard/value induction and dynamic
-  non-aliasing remain part of the blockwise simulation;
+  `base + n` spelling, and two exact local-name-table `base + s * 8` spellings;
+- its ranged-store phase checks the complete `slurp`/`declare` source CFG slices,
+  decoded predecessor closure, and exhaustive NLOC writers, inductively
+  deriving `n <= 1048575` and `s <= 1023` on the source store paths. The three
+  exact byte extents are nonwrapping, in 64 MiB, and numerically disjoint from
+  the reserved global, explicit-stack, and hidden-return regions. Carrying
+  these values through the compiled fp-relative slots remains open;
 - its expression-primitive phase binds all 581 decimal/character literals and
   55 arithmetic operators to exact immediate and stack-pop/operator macros and
   all 180 comparisons to exact signed-order/full-word-equality branch variants,
@@ -201,14 +208,16 @@ are valuable teeth, but they do not yet establish the quantified observation:
   rejected depth-65 probe costs, and the 19-level signed-positive `emit_dec`
   rank, deriving conservative root bounds of 12,720 explicit-stack bytes and
   662 hidden returns. These establish the numerical margin conditional on
-  isolation of the depth counters and saved-frame words; raw-memory
-  bounds/aliasing must still exclude corruption of those locations before
-  absolute `B_bc1` stack safety is transferred;
+  carried depth-counter and saved-frame values. The source induction excludes
+  the three ranged source families from those locations, but their Alpha
+  transfer, intended fixed counter writes, and absolute `B_bc1` stack safety
+  remain part of the full dynamic frame invariant;
 - its BC11 stack-register phase constructs one unified owner map for every
   decoded write to `r14`/`r15` and every memory access through `r15`, deriving
   exactly 2,630 owned starts from the already checked prelude, prologues,
-  epilogues, pushes, and pops. This closes orphan stack effects in the artifact,
-  while dynamic frame values and ranged raw-store non-aliasing remain open;
+  epilogues, pushes, and pops. This closes orphan stack effects; the following
+  phase proves the source ranged-address premise, while its compiled transfer
+  and dynamic frame values remain open;
 - Alpha out-of-range memory remains undefined in `alpha/SEMANTICS.md` and must be
   excluded by independently checked `B_bc1` bounds before whole-artifact closure
   (or Alpha must be hardened independently);
