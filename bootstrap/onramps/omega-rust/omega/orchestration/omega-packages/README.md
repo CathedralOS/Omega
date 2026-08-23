@@ -60,6 +60,7 @@ omega-packages/
 |   |-- manifest.rs        # Package capability manifest model.
 |   |-- lock.rs            # Full package-closure lock artifact.
 |   |-- diff.rs            # Capability-manifest comparison and severity.
+|   |-- update.rs          # Default update admission decisions.
 |   |-- build_omg.rs       # Guided `build.omg` dependency edits.
 |   `-- commands.rs        # install/update/audit orchestration entrypoints.
 `-- tests/
@@ -92,3 +93,5 @@ delegate behavior here.
 - `source`: local-path source identity with deterministic hashing, `.git`
   directory exclusion, traversal limits, symlink escape rejection, and Git
   clone/fetch resolution to exact commit/tree identity.
+- `update`: default package-update admission that permits source-only changes
+  and rejects non-source capability manifest deltas with review guidance.
