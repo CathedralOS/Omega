@@ -476,12 +476,16 @@ Remaining:
   and `OMEGA-PLAN-INSTALL-UPDATE-CLI`: settle package-manifest evidence,
   `build.omg` dependency API, and dependency `build.omg` admission sequence,
   then wire source resolution, package-admission manifest derivation,
-  `build.omg` alias/pin editing, capability-conflict/resolution evidence, and
-  lock persistence around the install plan.
+  `build.omg` alias/pin editing, capability-conflict/resolution evidence for
+  suspect initial authority, and lock persistence around the install plan.
 
   Acceptance: adding a dependency produces a pinned alias in `build.omg`, an
   updated lock entry, and an audit summary that names new reachable services,
-  provider/trust receipts, and capability-flow verbs.
+  provider/trust receipts, and capability-flow verbs. An initial install that
+  brings filesystem, network, process, dynamic-loader, signing, secret,
+  executable-installation, root-memory, DMA/IOMMU, interrupt-publication, or
+  equivalent suspect authority stops with a capability conflict before mutating
+  `build.omg` or `omega.lock`.
 
 - **OMEGA-UPDATE.** Add `omega update [alias...] [--to <rev>]`. The default
   update path may move source pins only when the dependency's normalized
@@ -600,9 +604,11 @@ these repositories, not branch names:
 
 Remaining:
 
-- **CAPABILITY-CHANGE-REVIEW.** Add an explicit acceptance path for package
-  capability changes. Default `omega update` must reject any manifest change;
-  a deliberate command records reviewer identity, old/new fingerprints, diff,
+- **CAPABILITY-ADMISSION-REVIEW.** Add an explicit acceptance path for suspect
+  package capability admission during install and update. Default `omega
+  install` must reject suspect initial authority, and default `omega update`
+  must reject blocking manifest changes; a deliberate resolution records
+  reviewer identity, old/new fingerprints or empty install baseline, diff,
   source revision pair, and acceptance reason.
 
   Remaining after `CAPABILITY-REVIEW-RECEIPT-MODEL`,
@@ -614,13 +620,14 @@ Remaining:
   `omega update --continue` verification, and lock references to the admitted
   resolution evidence.
 
-  Acceptance: higher-capability updates require an exact resolution artifact.
-  New root-memory, DMA/IOMMU, executable-installation, interrupt-publication,
-  dynamic-loader, process, filesystem, network, signing, or secret reach is
-  elevated in the diff with the dependency path that introduced it. Updates
-  that retain already-admitted filesystem, network, process, dynamic-loader,
-  signing, secret, or equivalent authority surface a recommended audit finding
-  even when they do not expand the normalized capability set.
+  Acceptance: suspect initial installs and higher-capability updates require an
+  exact resolution artifact. New root-memory, DMA/IOMMU,
+  executable-installation, interrupt-publication, dynamic-loader, process,
+  filesystem, network, signing, or secret reach is elevated in the diff with the
+  dependency path that introduced it. Updates that retain already-admitted
+  filesystem, network, process, dynamic-loader, signing, secret, or equivalent
+  authority surface a recommended audit finding even when they do not expand
+  the normalized capability set.
 
 - **AUTHOR-GUIDANCE.** Add diagnostics that advise package authors to keep
   unrelated capabilities in separate packages and publish reach ceilings on
@@ -657,7 +664,7 @@ language/compiler decisions rather than package-crate implementation choices:
   `wiki/design_briefs/build_and_package_model.md`, but not fully wired.
 - `OMEGA-AUDIT-PACKAGES` without explicit manifest files is gated by Q8 and
   resolved graph discovery from the settled package-admission flow.
-- `CAPABILITY-CHANGE-REVIEW` final update integration is no longer
+- `CAPABILITY-ADMISSION-REVIEW` final install/update integration is no longer
   owner-question gated; it must implement the settled capability
   conflict/resolution artifact flow.
 - `AUTHOR-GUIDANCE` final UX integration is gated by Q8, because guidance must

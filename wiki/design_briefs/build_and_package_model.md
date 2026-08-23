@@ -564,17 +564,24 @@ but the update flow should still surface a recommended audit finding because
 the changed implementation can now misuse already-admitted power.
 
 Package capability admission uses conflict-resolution artifacts rather than
-approval prompts. `omega update` writes a compiler-generated capability
-conflict when the candidate introduces blocking or suspicious deltas, stops
-before mutating `build.omg` or `omega.lock`, and resumes only after an exact
-resolution artifact accepts or rejects every blocking delta. The conflict
-fingerprints the old and new source identities, old and new package manifests,
-delta identities, dependency path, and canonical rendered evidence. The
-resolution binds the exact conflict fingerprint, reviewer identity, reason, and
-accepted delta fingerprints. Missing, stale, mismatched, duplicated, self-signed
-by the dependency, or overbroad resolutions reject before lock mutation.
-`omega.lock` records the admitted result and references the resolution evidence;
-it remains generated/checked state, not an authored policy file.
+approval prompts, and it is part of install/update rather than a disjoint
+workflow. `omega install` treats the prior admission baseline as empty for the
+new dependency closure; `omega update` compares against the existing admitted
+lock state. Either command writes a compiler-generated capability conflict when
+the candidate introduces blocking or suspicious authority, stops before
+mutating `build.omg` or `omega.lock`, and resumes only after an exact resolution
+artifact accepts or rejects every blocking delta. Initial install therefore
+requires review when a new dependency brings filesystem, network, process,
+dynamic-loader, signing, secret, executable-installation, root-memory,
+DMA/IOMMU, interrupt-publication, or equivalent suspect authority. The conflict
+fingerprints the old and new source identities, old and new package manifests
+or empty baseline, delta identities, dependency path, and canonical rendered
+evidence. The resolution binds the exact conflict fingerprint, reviewer
+identity, reason, and accepted delta fingerprints. Missing, stale, mismatched,
+duplicated, self-signed by the dependency, or overbroad resolutions reject
+before lock mutation. `omega.lock` records the admitted result and references
+the resolution evidence; it remains generated/checked state, not an authored
+policy file.
 
 LLM review is advisory evidence, not authority to mutate the lock. Review tools
 consume canonical diffs rendered by Omega, with package-origin strings treated
