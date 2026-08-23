@@ -59,6 +59,7 @@ omega-packages/
 |   |-- source.rs          # Source specs, URL/path identity, immutable pins.
 |   |-- resolver.rs        # Fetch/cache boundary and transport receipts.
 |   |-- manifest.rs        # Package capability manifest model.
+|   |-- json.rs            # Strict internal JSON parser for machine artifacts.
 |   |-- lock.rs            # Full package-closure lock artifact.
 |   |-- diff.rs            # Capability-manifest comparison and severity.
 |   |-- update.rs          # Default update admission decisions.
@@ -111,7 +112,9 @@ cargo test -p omega-packages --test remote_fixtures -- --ignored --test-threads=
   capability manifests before writing.
 - `review`: deterministic capability-change review receipts bound to exact
   source identities, manifest fingerprints, accepted diff sections, reviewer,
-  and reason.
+  and reason. Receipts have strict JSON parsing plus standalone atomic
+  read/write support so CLI wiring can load explicit review receipts without
+  deciding final receipt placement yet.
 - `resolver`: source-cache policy records for local/Git resolution, including
   limits, path/submodule policy, resolved identities, success/rejection verdict,
   stable JSON, and record fingerprints.

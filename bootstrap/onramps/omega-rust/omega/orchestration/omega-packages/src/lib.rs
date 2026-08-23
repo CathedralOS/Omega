@@ -10,6 +10,7 @@
 mod audit;
 mod commands;
 mod diff;
+mod json;
 mod lock;
 mod manifest;
 mod resolver;
@@ -42,6 +43,7 @@ pub use resolver::{
 };
 pub use review::{
     AcceptedManifestDelta, CAPABILITY_CHANGE_RECEIPT_SCHEMA_VERSION, CapabilityChangeReceipt,
+    CapabilityChangeReceiptParseError, CapabilityChangeReceiptPersistenceError,
     CapabilityReviewError,
 };
 pub use source::{
