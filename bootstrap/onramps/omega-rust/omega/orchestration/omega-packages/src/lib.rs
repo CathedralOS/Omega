@@ -40,4 +40,5 @@ pub use source::{
 };
 pub use update::{
     PackageUpdateAdmissionError, PackageUpdateDecision, decide_default_package_update,
+    decide_reviewed_package_update,
 };

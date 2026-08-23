@@ -93,5 +93,6 @@ delegate behavior here.
 - `source`: local-path source identity with deterministic hashing, `.git`
   directory exclusion, traversal limits, symlink escape rejection, and Git
   clone/fetch resolution to exact commit/tree identity.
-- `update`: default package-update admission that permits source-only changes
-  and rejects non-source capability manifest deltas with review guidance.
+- `update`: package-update admission that permits source-only changes, rejects
+  non-source capability manifest deltas with review guidance, and admits
+  capability-changing updates only with exact matching review receipts.

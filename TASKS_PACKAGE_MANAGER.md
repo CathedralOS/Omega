@@ -136,6 +136,15 @@ Completed:
   changes, and reject non-source manifest deltas with severity-ranked diff text
   and explicit review guidance.
 
+- **REVIEWED-UPDATE-ADMISSION.** Add exact receipt matching for explicit
+  capability-changing updates before CLI mutation.
+
+  Done 2026-08-23: `omega-packages` can re-evaluate a rejected update with a
+  capability-change receipt, admit only receipts bound to the exact old/new
+  source identities, old/new manifest fingerprints, and accepted delta
+  fingerprints, and reject mismatched receipts with guidance to regenerate the
+  receipt for the actual candidate diff.
+
 Remaining:
 
 - **PACKAGE-CAPABILITY-MANIFEST.** Define the normalized manifest produced for
@@ -307,9 +316,9 @@ Remaining:
   a deliberate command records reviewer identity, old/new fingerprints, diff,
   source revision pair, and acceptance reason.
 
-  Remaining after `CAPABILITY-REVIEW-RECEIPT-MODEL`: wire receipts into
-  `omega update`, persist them in or beside `omega.lock`, and make update
-  mutation contingent on an exact receipt match.
+  Remaining after `CAPABILITY-REVIEW-RECEIPT-MODEL` and
+  `REVIEWED-UPDATE-ADMISSION`: wire receipt creation/loading into
+  `omega update` and persist accepted receipts in or beside `omega.lock`.
 
   Acceptance: higher-capability updates require an acceptance receipt. New
   root-memory, DMA/IOMMU, executable-installation, interrupt-publication,
