@@ -899,8 +899,25 @@ additional facilities the bootstrap actually needs.
             It makes no typed-exhaustion claim. Twelve isolated variants sever
             the guard/snapshot, capacity/status/payloads, table closure, or one
             branch relation. Shape and meaning remain below 10 KB and 7 KB.
-          - [ ] Compose the at-most-four parameter loop from read_ident,
-            expect, declare, and the fifth-parameter status-252 guard.
+          - [x] Compose the at-most-four parameter loop after the
+            `expect('('); skip_ws()` cutpoint from `read_ident`, `declare`, the
+            separator calls, and the fifth-parameter status-252 guard. Exact
+            procedure-68 control/effect and data/expression modules rejoin
+            blocks 339..344, transitions 274..281, ten calls, three pre-output
+            returns/epilogues, the 48-byte frame, and exhaustive row/decoded
+            ownership. Conditional `PLOP` is rooted in the successful source
+            segment and clean `NLOC=0`/status-zero entry. Every room iteration
+            records the maximal possibly-empty identifier, appends its exact
+            table slice through `DCLS`, optionally consumes a comma, and
+            strictly decreases `4-NLOC`; both separator paths re-establish the
+            loop invariant. A close exits with the parenthesis unconsumed and
+            `0<=NLOC<=4`; a fifth non-close stores numeric 252 and returns zero
+            before output, while the declaration-failure return is unreachable
+            under `NLOC<4`. Eighteen isolated canaries cover exact shape,
+            source custody, table/cursor/identifier retention, status, rank,
+            separator normalization, and successor renaming. The preceding
+            `expect('(')` call is deliberately left for the deterministic
+            procedure-prefix composition below.
           - [ ] Prove literal-aware, terminating `count_lets` and restoration of
             its entry cursor; compose its slot-capacity status-252 guard.
             - [x] Close the identifier keyword leaf. Exact `id_char`/`is_let`
