@@ -70,7 +70,7 @@ mutations retain valid Alpha framing and reject here. This establishes static
 frame shape and parameter handoff conditional on the staged values. Argument
 pushes and values, live stack depth, and dynamic frame contents remain open.
 
-`bc-local-access.alpha` extends the canonical witness format to BCT3 while
+`bc-local-access.alpha` participates in the canonical BCT4 witness while
 keeping name resolution authoritative in Alpha. It records all 27 parameters
 and 51 `let` declarations with their function-scoped slots, distinguishes
 assignment targets from comparison operands and calls, and binds 169 source
@@ -79,3 +79,11 @@ macros. Valid alternate-slot offsets, `r14` replacement, same-width load/store
 swaps, duplicate locations, and reordered source witnesses reject. This closes
 static local-slot selection and opcode custody, not the values carried through
 those slots, definite assignment, expression evaluation, or dynamic aliasing.
+
+`bc-memory-sites.alpha` independently classifies matching source brackets and
+binds all 62 raw loads (56 word, six byte) and 33 raw stores (32 word, one byte)
+to exact Alpha width/opcode/register sites. Every store also checks the immediate
+16-byte address pop. Same-width load/store-width substitutions, register
+changes, pop-step changes, duplicate sites, and reordered BCT4 records retain
+valid Alpha framing and reject. Address-expression values, stored/loaded values,
+aliasing, alignment, and the 64 MiB bounds obligation remain open.
