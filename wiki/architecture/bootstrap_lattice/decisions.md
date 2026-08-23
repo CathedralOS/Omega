@@ -11,7 +11,7 @@ overview says "emergent / to be decided," the calls here are the decision.
 Format: each decision is **D#**, states the call, the rationale, and the resulting
 policy. Decisions bind the construction; they do not touch language *meaning*
 (owned by the language guide) nor prescribe the internals of the current product
-implementation under `compiler/psi/` and `compiler/omega/`.
+implementation under `bootstrap/onramps/omega-rust/psi/` and `bootstrap/onramps/omega-rust/omega/`.
 
 ---
 
@@ -26,7 +26,7 @@ The overview's "Two roles for Rust" is the ordering law. Made concrete, per arti
 | `interp.beta` / `typeck.beta` (γ meaning) | **trusted base** | **DEAD** — Beta, on the seed lineage. |
 | Delta's **meaning** (`gamma_emit.rs`) | **trusted base** | **MIGRATING** — the Beta-written `omega2gamma` route and Gamma execution cover the admitted D0/O1 compiler profile. `gamma_emit.rs` is a differential reference there; each future profile extension must bring lower-rung meaning with it. |
 | Psi/Omega's **meaning** | **trusted base** | Follows the same elaboration discipline through the Delta-built bootstrap compiler and the Omega self-build edge. |
-| `beta-rust`, `delta-rust`, `compiler/psi/`, `compiler/omega/` (producers) | **untrusted producer** | **DEFERRABLE** — replaced for self-sufficiency, not soundness. The current product compiler remains the executable reference producer during migration. |
+| `beta-rust`, `delta-rust`, `bootstrap/onramps/omega-rust/` (producers) | **untrusted producer** | **DEFERRABLE** — replaced for self-sufficiency, not soundness. The current Rust compiler remains the executable reference producer during migration. |
 
 **Policy:** no work removes Rust from a *producer* merely for pedigree while Rust
 still sits in any meaning/checker or while an upstream artifact that builds those
@@ -90,8 +90,8 @@ backdoored output would fail its own refinement check.
   agreement with the Rust-free meaning) and are explicitly **outside the soundness
   base** for proofs about source.
 - **North star:** per-compile refinement certificates (the backend as a checked
-  producer). This is where `compiler/omega/`'s "certs about real binaries vs a hardware
-  model" ambition rejoins the lattice.
+  producer). This is where the Rust on-ramp backend's "certs about real binaries
+  vs a hardware model" ambition rejoins the lattice.
 
 ## D4 — The soundness bridge is built empirically via SEAMS now; every proof-kernel capability ships a paired seam.
 
@@ -253,8 +253,8 @@ the proof kernel accepts is trustworthy back to the seed because the kernel and
 its soundness bridges are audited and every compiler artifact in that path has a
 lower-rooted refinement check. A false proposition cannot get a certificate past
 the kernel merely by controlling the producer. Today the whole-artifact `bc`
-cold-start refinement is still an explicit open edge; cross-compiler agreement
-does not close it.
+cold-start refinement is still an explicit open edge; the fixed point does not
+close it.
 
 ## Execution order (binds the /loop)
 

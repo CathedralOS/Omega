@@ -55,10 +55,20 @@ physical_dir() {
   fail "Omega0 owner is $OMEGA_PATH_OMEGA0"
 [ "$OMEGA_PATH_CORPUS" = "$OMEGA_REPO_ROOT/bootstrap/corpus" ] ||
   fail "shared lattice corpus owner is $OMEGA_PATH_CORPUS"
+[ "$OMEGA_PATH_OMEGA_RUST_ONRAMP_ROOT" = "$OMEGA_REPO_ROOT/bootstrap/onramps/omega-rust" ] ||
+  fail "Omega Rust on-ramp root is $OMEGA_PATH_OMEGA_RUST_ONRAMP_ROOT"
+[ "$OMEGA_PATH_PSI_RUST" = "$OMEGA_REPO_ROOT/bootstrap/onramps/omega-rust/psi" ] ||
+  fail "Psi Rust on-ramp is $OMEGA_PATH_PSI_RUST"
+[ "$OMEGA_PATH_OMEGA_RUST" = "$OMEGA_REPO_ROOT/bootstrap/onramps/omega-rust/omega" ] ||
+  fail "Omega Rust on-ramp is $OMEGA_PATH_OMEGA_RUST"
 [ "$OMEGA_PATH_PSI_PRODUCT" = "$OMEGA_REPO_ROOT/compiler/psi" ] ||
   fail "Psi product owner is $OMEGA_PATH_PSI_PRODUCT"
 [ "$OMEGA_PATH_OMEGA_PRODUCT" = "$OMEGA_REPO_ROOT/compiler/omega" ] ||
   fail "Omega product owner is $OMEGA_PATH_OMEGA_PRODUCT"
+[ -d "$OMEGA_PATH_PSI_RUST" ] && [ ! -L "$OMEGA_PATH_PSI_RUST" ] ||
+  fail "Psi Rust on-ramp is not a physical directory"
+[ -d "$OMEGA_PATH_OMEGA_RUST" ] && [ ! -L "$OMEGA_PATH_OMEGA_RUST" ] ||
+  fail "Omega Rust on-ramp is not a physical directory"
 [ -d "$OMEGA_PATH_PSI_PRODUCT" ] && [ ! -L "$OMEGA_PATH_PSI_PRODUCT" ] ||
   fail "Psi product owner is not a physical directory"
 [ -d "$OMEGA_PATH_OMEGA_PRODUCT" ] && [ ! -L "$OMEGA_PATH_OMEGA_PRODUCT" ] ||
@@ -166,6 +176,16 @@ done
   fail "corpus role lookup disagrees with the manifest"
 [ "$(omega_bootstrap_path lattice-corpus)" = "$OMEGA_PATH_CORPUS" ] ||
   fail "lattice-corpus compatibility role lookup disagrees with the manifest"
+[ "$(omega_bootstrap_path omega-rust-onramp)" = "$OMEGA_PATH_OMEGA_RUST_ONRAMP_ROOT" ] ||
+  fail "omega-rust-onramp role resolution failed"
+[ "$(omega_bootstrap_path psi-rust)" = "$OMEGA_PATH_PSI_RUST" ] ||
+  fail "psi-rust role resolution failed"
+[ "$(omega_bootstrap_path psi-rust/foundation)" = "$OMEGA_PATH_PSI_RUST/foundation" ] ||
+  fail "psi-rust subpath resolution failed"
+[ "$(omega_bootstrap_path omega-rust)" = "$OMEGA_PATH_OMEGA_RUST" ] ||
+  fail "omega-rust role resolution failed"
+[ "$(omega_bootstrap_path omega-rust/backend)" = "$OMEGA_PATH_OMEGA_RUST/backend" ] ||
+  fail "omega-rust subpath resolution failed"
 [ "$(omega_bootstrap_path psi)" = "$OMEGA_PATH_PSI_PRODUCT" ] ||
   fail "psi role lookup disagrees with the product owner"
 [ "$(omega_bootstrap_path psi/foundation)" = "$OMEGA_PATH_PSI_PRODUCT/foundation" ] ||
@@ -175,4 +195,4 @@ done
 [ "$(omega_bootstrap_path omega/backend)" = "$OMEGA_PATH_OMEGA_PRODUCT/backend" ] ||
   fail "omega subpath lookup disagrees with the product owner"
 
-echo "bootstrap paths OK — bootstrap roles and physical Psi/Omega product roots have canonical owners"
+echo "bootstrap paths OK — Rust on-ramp and reserved Psi/Omega product roots are distinct"

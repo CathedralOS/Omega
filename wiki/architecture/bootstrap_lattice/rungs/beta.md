@@ -62,9 +62,9 @@ memory.
   maximal observations.
 
 `bootstrap/rungs/beta/cold-start/full-source.sh`, `selfhost.sh`, and `test.sh`
-gate reconstruction, the fixed point, and language behavior. The comparison-only
-Python compiler and gate were removed because they added no unique semantic
-or lower-rooted refinement coverage.
+gate reconstruction, the fixed point, and language behavior. The obsolete
+Python backend and gate were removed because they added no unique semantic or
+lower-rooted refinement coverage.
 
 ## Implementation frontiers
 

@@ -10,9 +10,9 @@ This directory owns assurance that does not belong to any language rung:
   carries meaning and artifact checks toward the Delta-built Omega compiler.
 
 Artifact-specific obligation reconstruction remains distinct from generic proof
-checking. Product Psi judgments live under `compiler/psi/`; the bootstrap proof
-kernel accepts only the derivations for obligations an independent,
-artifact-aware layer reconstructs.
+checking. The current Rust realization of Psi judgments lives under
+`bootstrap/onramps/omega-rust/psi/`; the bootstrap proof kernel accepts only the
+derivations for obligations an independent, artifact-aware layer reconstructs.
 
 Canonical paths are resolved through [`../paths.sh`](../paths.sh). Historical
 entries under `compiler/` are compatibility paths, not additional owners.

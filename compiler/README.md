@@ -83,11 +83,12 @@ The hosted build has two stages:
    Omega.
 2. Bootstrap Omega compiles the full optimizing compiler from Omega source.
 
-The current Rust implementations remain migration/reference producers while
-that hosted path matures. `bootstrap/omega0/` owns the Rust-free meaning,
-current Delta-written compiler slices/profiles, and validation gates. `compiler/omega/` and
-`compiler/psi/` are the physical roots of the current production
-implementations; neither doubles as a bootstrap compatibility path.
+The current Rust implementation remains a migration/reference producer under
+`bootstrap/onramps/omega-rust/{psi,omega}/` while that hosted path matures.
+`bootstrap/omega0/` owns the Rust-free meaning, current Delta-written compiler
+slices/profiles, and validation gates. The roots here at
+`compiler/{psi,omega}/` are reserved for the eventual Omega-written product
+source and currently contain only placement documentation.
 
 ## Trust and verification
 
@@ -113,7 +114,7 @@ new language dependency.
 ## Entry points
 
 ```sh
-sh compiler/verify-lattice.sh
+sh bootstrap/verify-lattice.sh
 sh bootstrap/rungs/beta/selfhost.sh
 sh bootstrap/rungs/gamma/test-interp.sh
 sh bootstrap/rungs/gamma/test-typeck.sh
@@ -122,8 +123,9 @@ sh bootstrap/assurance/proof-kernel/gates/test.sh
 
 Architecture and standing decisions live in
 [`wiki/architecture/bootstrap_lattice/`](../wiki/architecture/bootstrap_lattice/).
-The product roots now have role-based names. Retained historical compatibility
-entries under `compiler/` are documented in
+The product roots have role-based names; external-language producers are
+explicitly suffixed on-ramps. Retained historical compatibility entries under
+`compiler/` are documented in
 [`repository_structure.md`](../wiki/architecture/bootstrap_lattice/repository_structure.md).
 Live bootstrap work belongs in [`TASKS_BOOTSTRAP.md`](../TASKS_BOOTSTRAP.md),
 while broader product work belongs in [`TASKS.md`](../TASKS.md). Exact corpus and

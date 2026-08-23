@@ -7,7 +7,7 @@
 > diamond exist while the full Rust-free hosting path remains under construction.
 > The proof kernel is a cross-cutting assurance service, independently
 > implemented in Beta and Gamma, rather than a language rung. One command checks
-> the current construction: `sh compiler/verify-lattice.sh`.
+> the current construction: `sh bootstrap/verify-lattice.sh`.
 >
 > **Live build status + onboarding for a fresh agent:**
 > [TASKS_BOOTSTRAP.md](../../../TASKS_BOOTSTRAP.md). Target ownership and paths:
@@ -24,7 +24,7 @@ from two things it is easy to confuse it with:
   [design briefs](../../design_briefs/). The lattice must *preserve* that
   meaning; it does not define it.
 - **How Omega compiles today** — the current Rust implementation under
-  `compiler/psi/` and `compiler/omega/`, exposed by `apps/omega-cli/`. Owned by
+  `bootstrap/onramps/omega-rust/psi/` and `bootstrap/onramps/omega-rust/omega/`, exposed by `bootstrap/onramps/omega-rust/apps/omega-cli/`. Owned by
   [Repository Layout](../repository_layout.md) and
   [Pipeline Architecture](../pipeline/pipeline.md). In this architecture
   the product compiler is a *role*, not a rival (see
@@ -251,7 +251,7 @@ This architecture does not demote the existing docs; it assigns roles.
 
 - **Language docs** (`language_guide/`, `design_briefs/`) own **meaning**. The
   lattice preserves it. Authoritative, unchanged.
-- **`compiler/psi/` + `compiler/omega/`** (`pipeline/`, `repository_layout`) form
+- **`bootstrap/onramps/omega-rust/{psi,omega}/`** (`pipeline/`, `repository_layout`) forms
   the **current fast, untrusted producer** and today's executable reference for the language. In this
   architecture it sits on the *machine* side; it is progressively replaced by
   lattice-built rungs and, in the end-state, its output is *checked* rather than
@@ -294,7 +294,7 @@ different roles:
   result is authoritative. Until that route lands, every Rust verifier,
   reduction family, and denotation rule it supplies is named explicitly as a
   versioned trusted dependency.
-- **Rust as the producer** (`compiler/psi/` plus `compiler/omega/`) is, once a
+- **Rust as the producer** (`bootstrap/onramps/omega-rust/{psi,omega}/`) is, once a
   complete verifier-plus-kernel route exists, *outside the soundness base*. It
   still dies — for self-sufficiency — but it is the **deferrable** kill; a
   verified, Rust-built compiler output is a fine interim state.

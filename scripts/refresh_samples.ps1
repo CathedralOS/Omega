@@ -1,10 +1,9 @@
-# Rebuild the CLI (it is a SEPARATE workspace -- `cargo build --workspace` never
-# relinks it, so it silently runs stale compiler code), then compile every
-# sample in place, in parallel, via the cross-platform `omega refresh-samples`
-# subcommand. Result: every samples/<domain>/<name>/build/omega-program.exe is current.
+# Rebuild the Rust on-ramp CLI, then compile every sample in place, in parallel,
+# via the cross-platform `omega refresh-samples` subcommand. Result: every
+# samples/<domain>/<name>/build/omega-program.exe is current.
 $root = Split-Path -Parent $PSScriptRoot
-Push-Location (Join-Path $root "apps\omega-cli")
-cargo build
+Push-Location $root
+cargo build -p omega-cli
 $ok = $LASTEXITCODE -eq 0
 Pop-Location
 if (-not $ok) { exit 1 }
