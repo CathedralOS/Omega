@@ -124,6 +124,16 @@ fn desugar_generic_data_instances(syntax: &mut SyntaxTrees) -> Result<(), Vec<Di
         if definition.type_parameters.is_empty() {
             continue;
         }
+        // Quotient identity is semantic, not record shape. This temporary
+        // record/container synthesizer cannot yet substitute the quotient's
+        // carrier, relation, and exact Equivalence selection as one unit.
+        // Leaving the generic quotient nominally visible lets the downstream
+        // quotient fences reject representation literals; synthesizing an
+        // empty record with `quotient: None` would make the class freely
+        // constructible.
+        if definition.quotient.is_some() {
+            continue;
+        }
         // These compiler-owned proof algebras never acquire runtime layout.
         // Keep their generic argument structurally visible so checked content
         // plans retain a normalized coordinate-space/unit identity instead of

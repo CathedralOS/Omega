@@ -1,1 +1,1 @@
-`self.handler` = `mut self.c` needs runtime storage write lowering
+`self.handler` = `&mut self.c` needs runtime storage write lowering
