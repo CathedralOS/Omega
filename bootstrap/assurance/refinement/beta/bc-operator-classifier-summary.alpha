@@ -18,7 +18,7 @@
 operator_classifier_summary_init:
         call operator_classifier_require_shape
         call operator_classifier_prove_summary
-        jmp scan_owned_effects_init
+        jmp cmp_op_summary_init
 
 operator_classifier_prove_summary:
         call operator_classifier_reset

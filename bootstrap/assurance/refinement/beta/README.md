@@ -789,6 +789,28 @@ compiler state, and restore their one-slot frames. Twenty-four isolated
 canaries live in a 6.9 KB harness; shape and meaning are 10.0 KB and 9.6 KB,
 and `BC_BLOCK_FOCUS=operator-classifier` passes with a 239,992-byte checker.
 
+`bc-cmp-op-shape.alpha`, `bc-cmp-op-cases.alpha`, and
+`bc-cmp-op-summary.alpha` close procedure 59 conditionally on the reusable
+cursor-leaf premises. Exact shape binds blocks 273..284, transitions 215..224,
+events 443..462, locals 171..177, raw-memory rows 55..56, primitives 628..655,
+binary pushes 185..193, the empty argument-push interval, the one restore-CUR
+address push, its 24-byte/two-slot frame, every explicit and synthetic
+epilogue, and the decoded 12-call/9-return/14-store quiet region at PCs
+39297..40738. Independent 256-byte sweeps close the first-byte
+`<`/`>`/`!`/`=` partition and the optional-`=` lookahead. `<` and `>` return
+codes 0 and 1 after one byte, or 4 and 5 after `=`; `==` returns 2; a single
+`=` restores entry CUR and returns the target Word all-ones value; `!` returns
+3 after two unconditional advances without observing its second byte; every
+other first byte returns all-ones without consumption. Separate clauses retain
+logical-end versus in-range-NUL provenance on the first observation and on the
+zero lookaheads for `<`, `>`, and single `=`, while trailing `!` imports `ADVX`
+and may finish at `LEN+1`. The theorem emits nothing, restores the two-slot
+frame, and changes only branch-specific CUR. Forty-one isolated canaries live
+in an 8.7 KB harness; shape, finite cases, and path composition are 15.9 KB,
+5.7 KB, and 19.8 KB. `BC_BLOCK_FOCUS=cmp-op` passes with a 251,931-byte
+checker. This does not close fixed keyword recognizers, name lookup, or the
+expression SCC.
+
 The eventual `parse_proc` theorem must be maximal, not universally terminating.
 For malformed input, an unrecognized body byte such as `@` can survive both
 `gen_stmt` and the number fallback without cursor progress while `gen_stmts`

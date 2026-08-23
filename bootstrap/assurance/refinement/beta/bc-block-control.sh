@@ -31,6 +31,7 @@ trap 'rm -rf "$T"' EXIT
 . "$GATE_DIR/bc-parse-number-teeth.sh"
 . "$GATE_DIR/bc-parse-char-teeth.sh"
 . "$GATE_DIR/bc-operator-classifier-teeth.sh"
+. "$GATE_DIR/bc-cmp-op-teeth.sh"
 
 # The persisted compiler supplies only a location hint.  Require its Alpha text
 # to assemble to the exact committed artifact before deriving that hint.
@@ -265,7 +266,10 @@ cat "$GATE_DIR/bc-block-control.alpha" \
   "$GATE_DIR/bc-parse-char-cases.alpha" \
   "$GATE_DIR/bc-parse-char-summary.alpha" \
   "$GATE_DIR/bc-operator-classifier-shape.alpha" \
-  "$GATE_DIR/bc-operator-classifier-summary.alpha" > "$T/control-check.alpha"
+  "$GATE_DIR/bc-operator-classifier-summary.alpha" \
+  "$GATE_DIR/bc-cmp-op-shape.alpha" \
+  "$GATE_DIR/bc-cmp-op-cases.alpha" \
+  "$GATE_DIR/bc-cmp-op-summary.alpha" > "$T/control-check.alpha"
 "$ASM" < "$T/control-check.alpha" > "$T/control-check.tape"
 stamp_seed "$T/control-check.tape" "$SEED" "$T/control-check" >/dev/null
 
@@ -288,6 +292,12 @@ case "${BC_BLOCK_FOCUS:-}" in
     operator_classifier_build_teeth
     operator_classifier_reject_teeth
     echo "bc operator classifiers: focused canonical + 24 phase-isolated teeth passed ($(wc -c < "$T/control-check.tape" | tr -d ' ')-byte checker tape)"
+    exit 0
+    ;;
+  cmp-op)
+    cmp_op_build_teeth
+    cmp_op_reject_teeth
+    echo "bc cmp_op: focused canonical + 41 phase-isolated teeth passed ($(wc -c < "$T/control-check.tape" | tr -d ' ')-byte checker tape)"
     exit 0
     ;;
   parse-char)
@@ -893,6 +903,7 @@ gen_stmts_boundary_build_teeth
 parse_number_build_teeth
 parse_char_build_teeth
 operator_classifier_build_teeth
+cmp_op_build_teeth
 
 # Phase-isolated tooth: leave the exact source, tape, witness, and every prior
 # checker phase unchanged, but underreport the prelude fp owner. Adjust only the
@@ -1026,7 +1037,10 @@ cat "$GATE_DIR/bc-block-control.alpha" \
   "$GATE_DIR/bc-parse-char-cases.alpha" \
   "$GATE_DIR/bc-parse-char-summary.alpha" \
   "$GATE_DIR/bc-operator-classifier-shape.alpha" \
-  "$GATE_DIR/bc-operator-classifier-summary.alpha" > "$T/flat-check.alpha"
+  "$GATE_DIR/bc-operator-classifier-summary.alpha" \
+  "$GATE_DIR/bc-cmp-op-shape.alpha" \
+  "$GATE_DIR/bc-cmp-op-cases.alpha" \
+  "$GATE_DIR/bc-cmp-op-summary.alpha" > "$T/flat-check.alpha"
 "$ASM" < "$T/flat-check.alpha" > "$T/flat-check.tape"
 stamp_seed "$T/flat-check.tape" "$SEED" "$T/flat-check" >/dev/null
 
@@ -1266,6 +1280,7 @@ gen_stmts_boundary_reject_teeth
 parse_number_reject_teeth
 parse_char_reject_teeth
 operator_classifier_reject_teeth
+cmp_op_reject_teeth
 coherent_ranged_mutant slurp-cap
 coherent_ranged_mutant declare-cap
 coherent_ranged_mutant nloc-step
@@ -1465,4 +1480,4 @@ for mutation in call-retarget read-register write-register helper-write emit-byt
   fi
 done
 
-echo "bc block control/effects: 70 proc / 355 block / 291 transition; 613 effect sites / 829 fixed emit bytes; 113 __write_str calls instantiated from one length-ranked exact-output summary; main.ready composes emit_prelude/write_str/skip_ws into the exact 187-byte prefix, then a reusable main.loop split sends normalized zero to halt(0) and nonzero to main.body without consuming it; byte classifiers digit/alpha/alnum are exact over all 256 cbyte values, terminating read_ident returns their maximal prefix, parse_number returns the exact maximal digit fold modulo 2^64 after same-cursor observations and one-byte ranked steps, parse_char exhausts ordinary/escape byte mappings with exact bounded malformed-tail cursor outcomes and no closing-quote premise, and is_muldiv/is_addsub are total quiet Word predicates for */% and +-; id_char/is_let recognize the exact let slice, literal skippers terminate honestly through bounded malformed tails, count_lets terminates with exact nested-body let count and restored entry CUR, the bounded parse_proc parameter loop records at most four exact slices or returns numeric 252 before output, pdone composes nparams+count_lets without wrap and reaches slotsready at <=1024 or returns numeric 252 before output, fixed-decimal emitter summaries append exact bounded prologue and parameter-store text, and the PCAP bridge composes saved name/nslots/nparams through the exact at-most-four store loop to genbody; procedure62's root-independent boundary closes depth64/resource/close/zero returns and the unexecuted gen_stmt cutpoint; nonzero expect normalizes then conditionally consumes one delimiter, and declare either appends the identifier slot or records numeric status 252 at capacity; cbyte/adv/is_space leaf summaries compose through terminating skip_ws_step/skip_ws loops; 78 frame slots / 27 parameter stores / 134 call pops; 169 local loads / 73 local stores; 61 raw loads = 54 fixed-safe + 5 SRC-indexed + 2 table-indexed / 34 raw stores; cursor-zero slurp segment/value/termination summary composed from root through main.ready or halt(253); 581 literals / 55 arithmetic / 180 comparison primitives; 235 binary / 134 argument / 34 store-address pushes; syntax-directed composition / relative temporary peak 2; three ranged Alpha operands transferred; all 607 stores partitioned / 70 call-cut frames summarized; 64-row counter contexts; absolute B_bc1 stack <=12720 explicit bytes / <=662 hidden returns; all 2630 explicit-stack effects and 687 artifact effects owned ($(wc -c < "$T/control-check.tape" | tr -d ' ')-byte Alpha checker tape)"
+echo "bc block control/effects: 70 proc / 355 block / 291 transition; 613 effect sites / 829 fixed emit bytes; 113 __write_str calls instantiated from one length-ranked exact-output summary; main.ready composes emit_prelude/write_str/skip_ws into the exact 187-byte prefix, then a reusable main.loop split sends normalized zero to halt(0) and nonzero to main.body without consuming it; byte classifiers digit/alpha/alnum are exact over all 256 cbyte values, terminating read_ident returns their maximal prefix, parse_number returns the exact maximal digit fold modulo 2^64 after same-cursor observations and one-byte ranked steps, parse_char exhausts ordinary/escape byte mappings with exact bounded malformed-tail cursor outcomes and no closing-quote premise, is_muldiv/is_addsub are total quiet Word predicates for */% and +-, and cmp_op returns exact operator codes/deltas including restored single = and unchecked ADVX-bounded ! tail; id_char/is_let recognize the exact let slice, literal skippers terminate honestly through bounded malformed tails, count_lets terminates with exact nested-body let count and restored entry CUR, the bounded parse_proc parameter loop records at most four exact slices or returns numeric 252 before output, pdone composes nparams+count_lets without wrap and reaches slotsready at <=1024 or returns numeric 252 before output, fixed-decimal emitter summaries append exact bounded prologue and parameter-store text, and the PCAP bridge composes saved name/nslots/nparams through the exact at-most-four store loop to genbody; procedure62's root-independent boundary closes depth64/resource/close/zero returns and the unexecuted gen_stmt cutpoint; nonzero expect normalizes then conditionally consumes one delimiter, and declare either appends the identifier slot or records numeric status 252 at capacity; cbyte/adv/is_space leaf summaries compose through terminating skip_ws_step/skip_ws loops; 78 frame slots / 27 parameter stores / 134 call pops; 169 local loads / 73 local stores; 61 raw loads = 54 fixed-safe + 5 SRC-indexed + 2 table-indexed / 34 raw stores; cursor-zero slurp segment/value/termination summary composed from root through main.ready or halt(253); 581 literals / 55 arithmetic / 180 comparison primitives; 235 binary / 134 argument / 34 store-address pushes; syntax-directed composition / relative temporary peak 2; three ranged Alpha operands transferred; all 607 stores partitioned / 70 call-cut frames summarized; 64-row counter contexts; absolute B_bc1 stack <=12720 explicit bytes / <=662 hidden returns; all 2630 explicit-stack effects and 687 artifact effects owned ($(wc -c < "$T/control-check.tape" | tr -d ' ')-byte Alpha checker tape)"
