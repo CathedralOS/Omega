@@ -1,6 +1,6 @@
-; Literal and arithmetic-expression primitive custody for the whole-bc BCT5
-; checker.  The common scanner records source-order literals and + - * / %
-; operators; the untrusted witness supplies only their Alpha locations.
+; Literal, arithmetic, and comparison primitive custody for the whole-bc BCT6
+; checker. The common scanner records source-order literals and operators; the
+; untrusted witness supplies only their Alpha locations.
 ;
 ; Source metadata: block 8388608, kind 8396800, value 8404992.
 ; Witness PCs: 8413184. Per-tape-byte owner map: 8421376. Independently
@@ -10,7 +10,7 @@
 add_expr_primitive:
         imm r1, 524696
         load r2, r1
-        imm r3, 768
+        imm r3, 1024
         jlt r2, r3, add_expr_primitive_room
         jmp reject
 add_expr_primitive_room:
@@ -36,12 +36,17 @@ add_expr_primitive_room:
         jeq r6, r1, count_expr_literal
         imm r1, 2
         jeq r6, r1, count_expr_arithmetic
+        imm r1, 3
+        jeq r6, r1, count_expr_comparison
         jmp reject
 count_expr_literal:
         imm r1, 524704
         jmp increment_expr_kind
 count_expr_arithmetic:
         imm r1, 524712
+        jmp increment_expr_kind
+count_expr_comparison:
+        imm r1, 524744
 increment_expr_kind:
         load r2, r1
         imm r3, 1
@@ -143,10 +148,59 @@ record_arithmetic_primitive:
         call add_expr_primitive
         ret
 
+; Comparison codes follow bc.beta's six semantic variants plus eight:
+; 8 <, 9 >, 10 ==, 11 !=, 12 <=, 13 >=.
+record_comparison_lt:
+        call advance_one
+        call current_byte
+        imm r1, 61
+        jeq r0, r1, record_comparison_le
+        imm r7, 8
+        jmp record_comparison_finish
+record_comparison_le:
+        call advance_one
+        imm r7, 12
+        jmp record_comparison_finish
+record_comparison_gt:
+        call advance_one
+        call current_byte
+        imm r1, 61
+        jeq r0, r1, record_comparison_ge
+        imm r7, 9
+        jmp record_comparison_finish
+record_comparison_ge:
+        call advance_one
+        imm r7, 13
+        jmp record_comparison_finish
+record_comparison_eq:
+        call advance_one
+        call current_byte
+        imm r1, 61
+        jeq r0, r1, record_comparison_eq_pair
+        ; A single '=' is assignment, not an expression primitive.
+        ret
+record_comparison_eq_pair:
+        call advance_one
+        imm r7, 10
+        jmp record_comparison_finish
+record_comparison_ne:
+        call advance_one
+        call current_byte
+        imm r1, 61
+        jeq r0, r1, record_comparison_ne_pair
+        jmp reject
+record_comparison_ne_pair:
+        call advance_one
+        imm r7, 11
+record_comparison_finish:
+        imm r6, 3
+        call add_expr_primitive
+        ret
+
 read_expr_primitive_pcs_init:
         imm r10, 0
 read_expr_primitive_pc:
-        imm r1, 639
+        imm r1, 819
         jlt r10, r1, read_expr_primitive_pc_one
         jmp read_helper_pc
 read_expr_primitive_pc_one:
@@ -205,7 +259,7 @@ expr_primitive_pc_store:
 validate_expr_primitives_init:
         imm r10, 0
 validate_expr_primitive_loop:
-        imm r1, 639
+        imm r1, 819
         jlt r10, r1, validate_expr_primitive_one
         jmp scan_expr_artifact_init
 validate_expr_primitive_one:
@@ -234,6 +288,8 @@ own_expr_primitive:
         jeq r8, r1, validate_literal_primitive
         imm r1, 2
         jeq r8, r1, validate_arithmetic_primitive
+        imm r1, 3
+        jeq r8, r1, validate_comparison_primitive
         jmp reject
 
 validate_literal_primitive:
@@ -327,6 +383,134 @@ validate_arithmetic_primitive:
         add r20, r1
         imm r21, 1
         call require_tape_byte
+        jmp validate_expr_primitive_next
+
+validate_comparison_primitive:
+        mov r11, r9                    ; preserve source comparison code
+        call classify_expr_binary_macro
+        imm r1, 2
+        jeq r0, r1, select_comparison_shape
+        jmp reject
+select_comparison_shape:
+        imm r1, 8
+        jeq r11, r1, comparison_shape_lt
+        imm r1, 9
+        jeq r11, r1, comparison_shape_gt
+        imm r1, 10
+        jeq r11, r1, comparison_shape_eq
+        imm r1, 11
+        jeq r11, r1, comparison_shape_ne
+        imm r1, 12
+        jeq r11, r1, comparison_shape_le
+        imm r1, 13
+        jeq r11, r1, comparison_shape_ge
+        jmp reject
+comparison_shape_lt:
+        imm r4, 15
+        imm r5, 0
+        imm r6, 1
+        imm r7, 0
+        imm r8, 1
+        jmp validate_comparison_shape
+comparison_shape_gt:
+        imm r4, 15
+        imm r5, 1
+        imm r6, 0
+        imm r7, 0
+        imm r8, 1
+        jmp validate_comparison_shape
+comparison_shape_eq:
+        imm r4, 16
+        imm r5, 0
+        imm r6, 1
+        imm r7, 0
+        imm r8, 1
+        jmp validate_comparison_shape
+comparison_shape_ne:
+        imm r4, 16
+        imm r5, 0
+        imm r6, 1
+        imm r7, 1
+        imm r8, 0
+        jmp validate_comparison_shape
+comparison_shape_le:
+        imm r4, 15
+        imm r5, 1
+        imm r6, 0
+        imm r7, 1
+        imm r8, 0
+        jmp validate_comparison_shape
+comparison_shape_ge:
+        imm r4, 15
+        imm r5, 0
+        imm r6, 1
+        imm r7, 1
+        imm r8, 0
+validate_comparison_shape:
+        mov r20, r14
+        imm r1, 19
+        add r20, r1
+        mov r21, r4
+        call require_tape_byte
+        mov r20, r14
+        imm r1, 20
+        add r20, r1
+        mov r21, r5
+        call require_tape_byte
+        mov r20, r14
+        imm r1, 21
+        add r20, r1
+        mov r21, r6
+        call require_tape_byte
+        mov r20, r14
+        imm r1, 22
+        add r20, r1
+        mov r21, r14
+        imm r1, 49
+        add r21, r1
+        call require_tape_word
+        mov r20, r14
+        imm r1, 30
+        add r20, r1
+        imm r21, 1
+        call require_tape_byte
+        mov r20, r14
+        imm r1, 31
+        add r20, r1
+        imm r21, 0
+        call require_tape_byte
+        mov r20, r14
+        imm r1, 32
+        add r20, r1
+        mov r21, r7
+        call require_tape_word
+        mov r20, r14
+        imm r1, 40
+        add r20, r1
+        imm r21, 12
+        call require_tape_byte
+        mov r20, r14
+        imm r1, 41
+        add r20, r1
+        mov r21, r14
+        imm r1, 59
+        add r21, r1
+        call require_tape_word
+        mov r20, r14
+        imm r1, 49
+        add r20, r1
+        imm r21, 1
+        call require_tape_byte
+        mov r20, r14
+        imm r1, 50
+        add r20, r1
+        imm r21, 0
+        call require_tape_byte
+        mov r20, r14
+        imm r1, 51
+        add r20, r1
+        mov r21, r8
+        call require_tape_word
 
 validate_expr_primitive_next:
         imm r1, 1
@@ -386,6 +570,13 @@ count_artifact_arithmetic:
         store r1, r2
         jmp scan_expr_artifact_next
 scan_expr_comparison_macro:
+        imm r1, 8421376
+        add r1, r10
+        loadb r2, r1
+        imm r3, 1
+        jeq r2, r3, reserve_comparison_results
+        jmp reject
+reserve_comparison_results:
         mov r2, r10
         imm r1, 30
         add r2, r1

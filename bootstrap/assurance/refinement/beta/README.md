@@ -70,7 +70,7 @@ mutations retain valid Alpha framing and reject here. This establishes static
 frame shape and parameter handoff conditional on the staged values. Argument
 pushes and values, live stack depth, and dynamic frame contents remain open.
 
-`bc-local-access.alpha` participates in the canonical BCT5 witness while
+`bc-local-access.alpha` participates in the canonical BCT6 witness while
 keeping name resolution authoritative in Alpha. It records all 27 parameters
 and 51 `let` declarations with their function-scoped slots, distinguishes
 assignment targets from comparison operands and calls, and binds 169 source
@@ -84,11 +84,11 @@ those slots, definite assignment, expression evaluation, or dynamic aliasing.
 binds all 62 raw loads (56 word, six byte) and 33 raw stores (32 word, one byte)
 to exact Alpha width/opcode/register sites. Every store also checks the immediate
 16-byte address pop. Same-width load/store-width substitutions, register
-changes, pop-step changes, duplicate sites, and reordered BCT5 records retain
+changes, pop-step changes, duplicate sites, and reordered BCT6 records retain
 valid Alpha framing and reject. Address-expression values, stored/loaded values,
 aliasing, alignment, and the 64 MiB bounds obligation remain open.
 
-`bc-expr-primitives.alpha` extends that same source scan and BCT5 witness with
+`bc-expr-primitives.alpha` extends that same source scan and BCT6 witness with
 all 582 decimal/character literals and all 57 arithmetic operators (`+`, `-`,
 `*`, `/`, `%`). Each literal must be the exact `imm r0,value` instruction; each
 operator must be the exact 22-byte left-value pop and arithmetic macro with the
@@ -97,9 +97,17 @@ comparison-result pairs and 113 emit-address immediates as compiler-synthetic,
 then requires owners for every remaining `imm r0` and arithmetic macro. Literal
 value/register changes, same-valued retargeting to a synthetic comparison
 result, arithmetic opcode/pop-step/register changes, duplicate locations, and
-reordered records all retain valid Alpha framing and reject. Comparison meaning,
-argument pushes, recursive expression composition, carried values, and traps
-remain forward-simulation obligations rather than claims of this static phase.
+reordered records all retain valid Alpha framing and reject.
+
+The BCT6 phase additionally binds all 180 comparison operators to the exact
+59-byte lowering selected by the source operator: signed `jlt` versus full-word
+`jeq`, operand order, left-value pop, branch-taken target, done target, and the
+complementary 0/1 materialization. Same-width branch-opcode, operand-order,
+valid-boundary target, materialized-result, and pop-step mutations reject while
+retaining Alpha framing. This proves the static comparison macro conditional on
+its staged operand values. Argument pushes, recursive expression composition,
+carried values, arithmetic traps, and comparison reachability remain forward-
+simulation obligations rather than claims of this phase.
 Within one source block, identical same-valued primitives remain mutually
-swappable; this phase proves block-local multiset/shape custody, not unique
+swappable; these phases prove block-local multiset/shape custody, not unique
 per-occurrence provenance.

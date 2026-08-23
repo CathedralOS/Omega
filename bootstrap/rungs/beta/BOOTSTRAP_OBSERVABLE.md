@@ -165,12 +165,13 @@ are valuable teeth, but they do not yet establish the quantified observation:
   opcodes and registers, including each store's immediate address pop, but does
   not yet relate address/value expressions or prove the 64 MiB access bounds;
 - its expression-primitive phase binds all 582 decimal/character literals and
-  57 arithmetic operators to exact immediate and stack-pop/operator macros; an
-  exhaustive artifact inventory independently excludes 360 comparison-result
-  and 113 fixed-emit address immediates and requires ownership of every remaining
-  candidate, but does not yet establish comparison meaning, recursive value
+  57 arithmetic operators to exact immediate and stack-pop/operator macros and
+  all 180 comparisons to exact signed-order/full-word-equality branch variants,
+  operand order, targets, and complementary 0/1 results; an exhaustive artifact
+  inventory reserves 360 comparison-result and 113 fixed-emit address immediates
+  and requires ownership of every remaining candidate. Recursive value
   composition, unique ordering among identical block-local primitives, argument
-  pushes, or arithmetic trap correspondence;
+  pushes, arithmetic trap correspondence, and dynamic reachability remain open;
 - Alpha out-of-range memory remains undefined in `alpha/SEMANTICS.md` and must be
   excluded by independently checked `B_bc1` bounds before whole-artifact closure
   (or Alpha must be hardened independently);

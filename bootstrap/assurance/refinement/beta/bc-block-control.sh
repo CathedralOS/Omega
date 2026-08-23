@@ -78,7 +78,12 @@ python3 "$GATE_DIR/bc_block_control_map.py" \
   --arithmetic-register-patch-output "$T/arithmetic-register.patch" \
   --duplicate-primitive-witness-output "$T/duplicate-primitive.witness" \
   --noncanonical-primitive-witness-output "$T/noncanonical-primitive.witness" \
-  --synthetic-literal-witness-output "$T/synthetic-literal.witness"
+  --synthetic-literal-witness-output "$T/synthetic-literal.witness" \
+  --comparison-opcode-patch-output "$T/comparison-opcode.patch" \
+  --comparison-operand-patch-output "$T/comparison-operand.patch" \
+  --comparison-branch-target-patch-output "$T/comparison-branch-target.patch" \
+  --comparison-result-patch-output "$T/comparison-result.patch" \
+  --comparison-pop-step-patch-output "$T/comparison-pop-step.patch"
 
 # The untrusted mapper never writes the source/tape portion of checker input.
 # Assemble every bundle here from the exact repository source and artifact.
@@ -151,6 +156,11 @@ apply_tape_patch literal-register
 apply_tape_patch arithmetic-opcode
 apply_tape_patch arithmetic-pop-step
 apply_tape_patch arithmetic-register
+apply_tape_patch comparison-opcode
+apply_tape_patch comparison-operand
+apply_tape_patch comparison-branch-target
+apply_tape_patch comparison-result
+apply_tape_patch comparison-pop-step
 
 cat "$GATE_DIR/bc-block-control.alpha" \
   "$GATE_DIR/bc-effect-sites.alpha" \
@@ -218,6 +228,11 @@ case_run "arithmetic destination register" 1 "$T/arithmetic-register.bundle"
 case_run "duplicate expression primitive location" 1 "$T/duplicate-primitive.bundle"
 case_run "noncanonical expression primitive order" 1 "$T/noncanonical-primitive.bundle"
 case_run "same-valued synthetic literal location" 1 "$T/synthetic-literal.bundle"
+case_run "comparison branch opcode" 1 "$T/comparison-opcode.bundle"
+case_run "comparison branch operand order" 1 "$T/comparison-operand.bundle"
+case_run "comparison branch target" 1 "$T/comparison-branch-target.bundle"
+case_run "comparison materialized result" 1 "$T/comparison-result.bundle"
+case_run "comparison pop step" 1 "$T/comparison-pop-step.bundle"
 
 # Show that the negative control has teeth beyond the pre-existing structural
 # obligation: its changed target is another real instruction boundary, so the
@@ -241,7 +256,7 @@ if [ "$structure_status" != 0 ] || [ -s "$T/stdout" ]; then
   exit 1
 fi
 
-for mutation in call-retarget read-register write-register helper-write emit-byte emit-length emit-pointer emit-helper orphan-io frame-size saved-fp frame-base param-offset param-register call-pop-order call-pop-step local-load-slot local-store-slot local-base local-load-opcode local-store-opcode memory-load-width memory-store-width memory-load-register memory-store-register memory-pop-step literal-value literal-register arithmetic-opcode arithmetic-pop-step arithmetic-register; do
+for mutation in call-retarget read-register write-register helper-write emit-byte emit-length emit-pointer emit-helper orphan-io frame-size saved-fp frame-base param-offset param-register call-pop-order call-pop-step local-load-slot local-store-slot local-base local-load-opcode local-store-opcode memory-load-width memory-store-width memory-load-register memory-store-register memory-pop-step literal-value literal-register arithmetic-opcode arithmetic-pop-step arithmetic-register comparison-opcode comparison-operand comparison-branch-target comparison-result comparison-pop-step; do
   set +e
   "$T/structure-check" < "$T/$mutation.tape" > "$T/stdout"
   structure_status=$?
@@ -252,4 +267,4 @@ for mutation in call-retarget read-register write-register helper-write emit-byt
   fi
 done
 
-echo "bc block control/effects: 70 proc / 355 block / 291 transition; 612 effect sites / 829 fixed emit bytes; 78 frame slots / 27 parameter stores / 134 call pops; 169 local loads / 73 local stores; 62 raw loads / 33 raw stores; 582 literals / 57 arithmetic primitives; all 686 artifact effects owned ($(wc -c < "$T/control-check.tape" | tr -d ' ')-byte Alpha checker tape)"
+echo "bc block control/effects: 70 proc / 355 block / 291 transition; 612 effect sites / 829 fixed emit bytes; 78 frame slots / 27 parameter stores / 134 call pops; 169 local loads / 73 local stores; 62 raw loads / 33 raw stores; 582 literals / 57 arithmetic / 180 comparison primitives; all 686 artifact effects owned ($(wc -c < "$T/control-check.tape" | tr -d ' ')-byte Alpha checker tape)"

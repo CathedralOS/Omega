@@ -181,13 +181,14 @@ stream admitted by `B_bc1`.
   control successors and static custody for every call/return/I/O/emit site,
   including the fixed-literal output macro, source-derived frame allocations,
   parameter stores, callee arities, and pre-call argument pops, in one Alpha
-  process. Its BCT5 phase also resolves every function-scoped source name and
+  process. Its BCT6 phase also resolves every function-scoped source name and
   checks all 169 local reads and 73 `let`/assignment writes against exact frame
   slots and load/store macros, then binds all 62 raw loads and 33 raw stores to
   exact byte/word opcodes, registers, and store-address pops. Finally it binds
-  all 582 decimal/character literals and 57 arithmetic operators to their exact
-  immediate or 22-byte stack-pop/operator lowering macros, after independently
-  reserving comparison-result and fixed-emit address immediates.
+  all 582 decimal/character literals, 57 arithmetic operators, and 180
+  comparisons to their exact immediate, 22-byte arithmetic, or 59-byte
+  comparison lowering macros. The comparison checks select signed `jlt` versus
+  full-word `jeq`, operand order, branch targets, and complementary 0/1 results.
 
 These gates are evidence. Whole-compiler closure still requires a checked
 forward simulation from these source transitions to Alpha small steps, including
