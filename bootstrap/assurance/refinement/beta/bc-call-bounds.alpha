@@ -845,7 +845,7 @@ call_bounds_hidden_profile:
         jlt r7, r1, call_bounds_done
         jmp reject
 call_bounds_done:
-        jmp scan_owned_effects_init
+        jmp stack_register_custody_init
 
 call_bounds_literal_gen_expr:
         db "gen_expr"

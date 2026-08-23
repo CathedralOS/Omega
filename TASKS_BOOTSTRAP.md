@@ -588,6 +588,20 @@ additional facilities the bootstrap actually needs.
       simulation until raw-memory bounds/aliasing prove unrelated stores cannot
       corrupt those locations; carried local values, return values, and
       reachability also remain open.
+    - [x] Give every explicit-stack register effect one lower-rooted artifact
+      owner. A fresh BC10 per-PC map is derived only from the already checked
+      prelude, 70 prologues, 253 epilogues, and 404 push/pop roots, with
+      duplicates rejected. An independent scan of all decoded starts proves
+      exact equality with 2,634 instructions: 324 writes to `r14`, 1,432 writes
+      to `r15`, and 1,131 memory accesses through `r15` (the 253 saved-frame
+      loads overlap the first and third totals). A phase-isolated checker
+      variant underreports the fixed prelude owner while keeping the exact
+      source, artifact, witness, and all preceding phases unchanged; it rejects
+      only at the exhaustive owner/effect equality scan. This closes static
+      stack-effect custody, not the dynamic frame/value invariant: the three
+      ranged raw-store address families still need guard/value induction before
+      saved-frame, stack-bound, and depth-counter isolation transfer to
+      executions.
     - [x] Freeze supported resource profile `B_bc1` and make its source-side
       ceilings checked. `bc.beta` now refuses a 1,025th name slot, fifth live
       parameter/argument, and expression or nested-block depth 65 before any
