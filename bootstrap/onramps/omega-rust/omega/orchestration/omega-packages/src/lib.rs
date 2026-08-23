@@ -18,5 +18,6 @@ pub use manifest::{
     ProviderSelection, QualificationRoute, ReproducibilityEvidence, SourceIdentity, TrustReceipt,
 };
 pub use source::{
-    LocalSourceLimits, ResolvedLocalSource, SourceResolveError, resolve_local_source,
+    GitSourceSpec, LocalSourceLimits, ResolvedGitSource, ResolvedLocalSource, SourceResolveError,
+    resolve_git_source, resolve_local_source,
 };

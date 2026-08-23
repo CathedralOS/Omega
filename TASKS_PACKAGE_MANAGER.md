@@ -60,6 +60,14 @@ Completed:
   byte, and depth limits, and rejecting symlink escapes outside the package
   root.
 
+- **GIT-SOURCE-IDENTITY.** Add resolver-owned Git transport into an isolated
+  cache checkout, resolving mutable user input to exact commit/tree identity.
+
+  Done 2026-08-23: `omega-packages` can clone/fetch a Git source, resolve the
+  requested revision through `FETCH_HEAD` to an exact commit and tree, detach
+  the cached checkout at that commit, reject `.gitmodules` until submodules are
+  explicit package edges, and reuse local content hashing for the checkout.
+
 Remaining:
 
 - **PACKAGE-CAPABILITY-MANIFEST.** Define the normalized manifest produced for
@@ -90,8 +98,8 @@ Remaining:
   GitHub, GitLab, SSH, HTTPS, and file paths all resolve to exact content
   identity before package code is loaded.
 
-  Remaining after `LOCAL-SOURCE-IDENTITY`: add Git transport, source-cache
-  storage, submodule policy, install-command integration, and lock wiring.
+  Remaining after `LOCAL-SOURCE-IDENTITY` and `GIT-SOURCE-IDENTITY`: add
+  source-cache policy records, install-command integration, and lock wiring.
 
   Acceptance: `omega install alias <source>` resolves a candidate to an exact
   commit/tree or local content identity and stores it in an isolated source
