@@ -563,6 +563,7 @@ dependencies = [
  "psi-extents",
  "psi-language-semantics",
  "psi-layout-plans",
+ "psi-numerics",
  "psi-proof-kernel",
  "psi-terminal",
  "psi-terminal-codec",

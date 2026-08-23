@@ -456,6 +456,21 @@ returns every lease on failure. Only the resulting non-clonable cohort may feed
 the later runtime establishment transition; a closure, prebinding, mutable
 count, compact identity, or individually acquired lease cannot do so.
 
+The Rust on-ramp consumes that cohort into one non-clonable epoch runtime. The
+runtime retains every still-dormant occurrence instead of distributing loose
+mint tokens. A generated installed-entry bridge supplies a single-use subject
+binding naming the exact installed root, physical and semantic parameter
+positions, qualification, carrier, invocation, and runtime place, together
+with the checked proof-natural observations required by the reconstructed
+capacity expression. Establishment replays the complete observation key set,
+evaluates each occurrence independently, rechecks the current lifecycle lease,
+and removes the matching occurrence only at the commit point. Rejection returns
+the subject binding and leaves the occurrence dormant. Success produces one
+non-clonable account retaining the full occurrence, exact evaluated content,
+and lifecycle hold; its copyable lineage identity is reporting data only.
+Interval and subject-dependent expressions are never replaced by aggregate
+scalar multiplication.
+
 Any operation that realizes content against an external substrate must name an
 exact qualified root and carry backing or correspondence evidence connecting
 that root to the same selected provider. The verifier checks that the touched

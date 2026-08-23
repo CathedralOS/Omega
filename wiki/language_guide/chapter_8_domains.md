@@ -262,6 +262,18 @@ replay returns all inputs and establishes nothing. The closed cohort preserves
 each occurrence's exact capacity expression and derives cardinality from its
 member roster. Neither a prebinding nor a mutable count is root authority.
 
+At runtime the cohort remains one non-clonable owner of its dormant
+occurrences. An installed-entry subject binding names the exact root,
+requirement parameter in both semantic and ABI coordinates, qualification,
+carrier, invocation, and runtime place. The bridge supplies only the
+proof-natural field observations named by the verified projection. The runtime
+evaluates that exact expression per occurrence and commits a fresh lineage only
+after the subject, scalar roster, current lifecycle, and pending member all
+match. Failure returns the subject and leaves the member dormant. Success moves
+the occurrence and its epoch lease into the established account, so quiescence
+remains impossible until the account is retired. The copyable lineage identity
+is descriptive; it cannot establish another account.
+
 The route names the authorized requirement; it does not select an authored
 parameter index. The compiler finds every exact matching qualified subject and
 retains its semantic source position internally. Trait inheritance, selected

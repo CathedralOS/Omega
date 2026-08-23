@@ -17,6 +17,7 @@ omega-terminal-installation-evidence = { path = "../../representations/omega-ter
 psi-layout-plans = { path = "../../../psi/foundation/psi-layout-plans" }
 psi-core = { path = "../../../psi/foundation/psi-core" }
 psi-language-semantics = { path = "../../../psi/foundation/psi-language-semantics" }
+psi-numerics = { path = "../../../psi/foundation/psi-numerics" }
 psi-terminal = { path = "../../../psi/representations/psi-terminal" }
 psi-terminal-codec = { path = "../../../psi/semantics/psi-terminal-codec" }
 psi-terminal-fixed-fuel = { path = "../../../psi/semantics/psi-terminal-fixed-fuel" }

@@ -735,9 +735,27 @@ Remaining:
   multiplied across subject-dependent or interval content. It still mints no
   lineage.
 
-  Runtime subject/capacity establishment remains open, as do migration of
-  `ExtentCompilerProvisioning`, ordinary-call mint rejection, closed
-  generic-family coverage, and artifact/installation aggregate canaries. The
+  The sealed cohort now consumes into one non-clonable epoch runtime rather
+  than releasing loose occurrence grants. A generated installed-entry subject
+  binds the exact installed root, ABI and semantic parameter positions,
+  qualification, carrier, invocation, and runtime place. Establishment matches
+  one still-dormant occurrence, requires the exact verified scalar-observation
+  set, evaluates `SubjectField`/runtime-embedding/natural arithmetic into a
+  canonical interval set or counted quantity, and only then commits one exact
+  lineage account carrying the lifecycle lease. Missing or extra scalars,
+  root/position/type substitution, stale lifecycle, ambiguous membership, and
+  replay return the subject and leave the occurrence pending. Exact natural
+  subtraction rejects underflow rather than silently using monus. The account
+  retains the full occurrence and evaluated capacity; its copyable lineage ID
+  is report-only, and failed retirement reconstructs the complete account.
+
+  This closes the generic runtime subject/capacity establishment gate. The
+  existing Terminal unit-call conservation check already rejects an ordinary
+  call whose callee would acquire a content claim absent from the caller; the
+  routed source canary likewise emits producer schema only on the exact
+  boundary requirement. Migration of `ExtentCompilerProvisioning`, explicit
+  parentless-result rejection coverage, closed generic-family coverage, and
+  artifact/installation aggregate canaries remain open. The
   target vocabulary currently exposes one required `ProgramEntry`; expand it
   to an enumerable required-slot set before claiming a finite multi-member-slot
   canary rather than synthesizing test-only target rows.

@@ -1610,6 +1610,18 @@ per-occurrence expressions plus derived cardinality; compact identities remain
 report keys and no scalar multiplication is inferred for interval or
 subject-dependent content.
 
+The closed cohort then becomes a non-clonable epoch runtime, not a vector of
+mint grants. A generated installed-entry subject binds the exact root, ABI and
+semantic parameter positions, qualification, carrier, invocation, and runtime
+place. Runtime establishment checks that subject against one dormant cohort
+member, requires exactly the scalar paths named by the portable expression,
+evaluates proof-natural arithmetic into a canonical content value, and commits
+the fresh account only after the lifecycle lease is still current. Failed
+evaluation or substitution returns the subject without removing the member.
+The resulting account retains the full installed occurrence and lease; its
+lineage ID is only a report key. Aggregate schemas remain accounting evidence
+and are not silently converted into one shared parent root.
+
 The same installation registry owns build-bound progress closure. It seals the
 complete selected provider-plan set to exact installed provider occurrences,
 then admits a `ProgressProfile` receipt only when the exact issuer occurrence
