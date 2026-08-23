@@ -117,4 +117,6 @@ cargo test -p omega-packages --test remote_fixtures -- --ignored --test-threads=
   clone/fetch resolution to exact commit/tree identity.
 - `update`: package-update admission that permits source-only changes, rejects
   non-source capability manifest deltas with review guidance, and admits
-  capability-changing updates only with exact matching review receipts.
+  capability-changing updates only with exact matching review receipts. It can
+  also produce a non-mutating lock update plan that assembles a candidate lock
+  only after policy admission.

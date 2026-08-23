@@ -48,6 +48,7 @@ pub use source::{
     resolve_git_source, resolve_local_source,
 };
 pub use update::{
-    PackageUpdateAdmissionError, PackageUpdateDecision, decide_default_package_update,
-    decide_reviewed_package_update,
+    PackageLockUpdatePlan, PackageLockUpdatePlanError, PackageUpdateAdmissionError,
+    PackageUpdateDecision, decide_default_package_update, decide_reviewed_package_update,
+    plan_package_lock_update,
 };

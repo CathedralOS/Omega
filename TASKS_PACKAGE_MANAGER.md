@@ -215,6 +215,15 @@ Completed:
   build observation class, dependency aliases, and trust receipt identities.
   Assembly rejects duplicate manifest packages and open dependency edges.
 
+- **PACKAGE-LOCK-UPDATE-PLAN.** Add a non-mutating update dry-run plan for
+  future `omega update` wiring.
+
+  Done 2026-08-23: `omega-packages` can validate the current lock against
+  current manifests, compare a target package's current and candidate
+  manifests, apply default or receipt-backed update admission, and assemble a
+  candidate lock only when policy admits the update. Rejected updates produce a
+  plan without a candidate lock.
+
 Remaining:
 
 - **PACKAGE-CAPABILITY-MANIFEST.** Define the normalized manifest produced for
@@ -286,9 +295,10 @@ Remaining:
   update path may move source pins only when the dependency's normalized
   package capability manifest is unchanged.
 
-  Remaining after `DEFAULT-UPDATE-ADMISSION`: wire candidate resolution,
-  package-admission manifest derivation, `build.omg` pin editing, and lock
-  persistence around the update decision.
+  Remaining after `DEFAULT-UPDATE-ADMISSION` and
+  `PACKAGE-LOCK-UPDATE-PLAN`: wire candidate resolution, package-admission
+  manifest derivation, `build.omg` pin editing, and lock persistence around the
+  update decision.
 
   Acceptance: changing source bytes with the same capability manifest updates
   the pin and lock. Any manifest delta rejects before changing `build.omg` or
