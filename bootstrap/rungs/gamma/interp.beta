@@ -22,9 +22,10 @@
 ; state and into the next unless it transitions or returns; a loop is a state that
 ; transitions back to itself.
 ;
-; Memory:  2097152 SRC  2097144 CUR  2097136 LEN  2097128 APTR  2097120 NFUNC
-;          2097112 ENVN 2097104 FRAMEBASE   16777216 ARENA (~48 MB)   4194304 FUNCS   5242880 ENV
-;          12582912 SMALL_INTS (-1..65535, one stable VINT each; ends just above 14 MB)
+; Memory:  2097152 SRC [2 MiB,6 MiB)  2097144 CUR  2097136 LEN  2097128 APTR  2097120 NFUNC
+;          2097112 ENVN 2097104 FRAMEBASE   6291456 FUNCS [6 MiB,7 MiB)
+;          7340032 ENV [7 MiB,12 MiB)  12582912 SMALL_INTS (-1..65535; ends just above 14 MiB)
+;          16777216 ARENA (~48 MiB)
 ; AST/value nodes are 4 words [tag,f0,f1,f2] (32-byte stride). Func entries 3 words
 ; [name_off, paramlist, body]. Env entries 2 words [name_off, value]; -1 = unnamed arg.
 ;
@@ -34,13 +35,15 @@
 ; value tags: 100 VINT(n)  101 VCON(con_off, value-arglist)
 ;             102 VCONS(con_off, head, tail) — compact internal form of `(Cons h t)`
 ;             103 VTAIL(function_off, evaluated-value-list) — evaluator-private trampoline request
+;             104 VNODE(left,right)  105 VCHUNKS(length,root) — compact internal ADT forms
 
 proc slurp() {
     let n = 0
     let c = read_byte()
     state loop {
-        to body when (c >= 0)
-        to done
+        to done when (c < 0)
+        to exhausted when (n == 4194304)  ; 4 MiB source ceiling, before FUNCS at 6 MiB
+        to body
     }
     state body {
         byte[2097152 + n] = c
@@ -59,7 +62,9 @@ proc slurp() {
         word[2097120] = 0        ; NFUNC
         word[2097112] = 0        ; ENVN
         word[2097104] = 0        ; FRAMEBASE
+        return 0
     }
+    state exhausted { return 252 }
 }
 
 proc cbyte() {
@@ -209,6 +214,26 @@ proc is_cons_name(off) {         ; the 4-char constructor name "Cons"
     state yes { return 1 }
 }
 
+proc is_node_name(off) {         ; the 4-char constructor name "Node"
+    state c1 { to c2 when (byte[2097152 + off] == 'N')  return 0 }
+    state c2 { to c3 when (byte[2097152 + off + 1] == 'o')  return 0 }
+    state c3 { to c4 when (byte[2097152 + off + 2] == 'd')  return 0 }
+    state c4 { to c5 when (byte[2097152 + off + 3] == 'e')  return 0 }
+    state c5 { to yes when (is_delim(byte[2097152 + off + 4]) == 1)  return 0 }
+    state yes { return 1 }
+}
+
+proc is_chunks_name(off) {       ; the 6-char constructor name "Chunks"
+    state c1 { to c2 when (byte[2097152 + off] == 'C')  return 0 }
+    state c2 { to c3 when (byte[2097152 + off + 1] == 'h')  return 0 }
+    state c3 { to c4 when (byte[2097152 + off + 2] == 'u')  return 0 }
+    state c4 { to c5 when (byte[2097152 + off + 3] == 'n')  return 0 }
+    state c5 { to c6 when (byte[2097152 + off + 4] == 'k')  return 0 }
+    state c6 { to c7 when (byte[2097152 + off + 5] == 's')  return 0 }
+    state c7 { to yes when (is_delim(byte[2097152 + off + 6]) == 1)  return 0 }
+    state yes { return 1 }
+}
+
 proc is_upper(c) {               ; capitalized head => a constructor (ADT value)
     state c1 { to no when (c < 'A')  to c2 }
     state c2 { to no when (c > 'Z')  return 1 }
@@ -216,8 +241,9 @@ proc is_upper(c) {               ; capitalized head => a constructor (ADT value)
 }
 
 ; ---- boxed values: VINT(100,n), VCON(101, con_off, arglist of value-ptrs),
-;      VCONS(102, con_off, head, tail). VCONS is representation-only: matching
-;      and printing remain exactly those of the ordinary two-argument `Cons` ADT. ----
+;      VCONS(102, con_off, head, tail), VNODE(104,left,right), and
+;      VCHUNKS(105,length,root). The compact tags are representation-only:
+;      matching and printing remain exactly those of the corresponding ADTs. ----
 proc mk_int(n) {
     ; Compiler/interpreter workloads repeatedly recreate loop indices, bytes,
     ; booleans, and bounded offsets. Intern that dense range outside the arena:
@@ -419,9 +445,9 @@ proc parse_def() {               ; (def NAME (PARAMS) BODY) -> add to the func t
     skip_ws()
     adv()                        ; ')'
     let i = word[2097120]
-    word[4194304 + i * 24] = noff
-    word[4194304 + i * 24 + 8] = params
-    word[4194304 + i * 24 + 16] = body
+    word[6291456 + i * 24] = noff
+    word[6291456 + i * 24 + 8] = params
+    word[6291456 + i * 24 + 16] = body
     word[2097120] = i + 1
     return 0
 }
@@ -446,7 +472,7 @@ proc func_lookup(noff) {
         return 0 - 1
     }
     state done {
-        to hit when (name_eq(noff, word[4194304 + i * 24]) == 1)
+        to hit when (name_eq(noff, word[6291456 + i * 24]) == 1)
         i = i + 1
         to loop
     }
@@ -457,8 +483,8 @@ proc func_lookup(noff) {
 
 proc env_push(off, val) {
     let n = word[2097112]
-    word[5242880 + n * 16] = off
-    word[5242880 + n * 16 + 8] = val
+    word[7340032 + n * 16] = off
+    word[7340032 + n * 16 + 8] = val
     word[2097112] = n + 1
 }
 
@@ -468,7 +494,7 @@ proc env_lookup(qoff) {
     let result = 0
     state loop {
         to miss when (j < base)
-        let boff = word[5242880 + j * 16]
+        let boff = word[7340032 + j * 16]
         to named when (boff >= 0)
         to next
     }
@@ -477,7 +503,7 @@ proc env_lookup(qoff) {
         to next
     }
     state hit {
-        result = word[5242880 + j * 16 + 8]
+        result = word[7340032 + j * 16 + 8]
         to miss
     }
     state next { j = j - 1  to loop }
@@ -508,7 +534,7 @@ proc eval_value_args(args, fuel) {
 }
 
 proc bind_value_args(fi, values) {
-    let p = word[4194304 + fi * 24 + 8]
+    let p = word[6291456 + fi * 24 + 8]
     let a = values
     state loop {
         to body when (p != 0)
@@ -597,7 +623,7 @@ proc eval_call(foff, args, fuel) {
         to body
     }
     state body {
-        let r = eval_tail(word[4194304 + fi * 24 + 16], fuel - 1)
+        let r = eval_tail(word[6291456 + fi * 24 + 16], fuel - 1)
         to tail when (word[r] == 103)
         word[2097112] = base
         word[2097104] = savebase
@@ -615,7 +641,7 @@ proc eval_call(foff, args, fuel) {
 proc eval_conapp(con, args, fuel) {
     state cons_name {
         to cons_arity when (is_cons_name(con) == 1)
-        to generic
+        to node_name
     }
     state cons_arity {
         to generic when (args == 0)
@@ -630,6 +656,32 @@ proc eval_conapp(con, args, fuel) {
         let h = eval(word[args + 8], fuel)
         let t = eval(word[rest + 8], fuel)
         return alloc(102, con, h, t)
+    }
+    state node_name {
+        to node_arity when (is_node_name(con) == 1)
+        to chunks_name
+    }
+    state node_arity {
+        to generic when (args == 0)
+        let nrest = word[args + 16]
+        to generic when (nrest == 0)
+        to generic when (word[nrest + 16] != 0)
+        let left = eval(word[args + 8], fuel)
+        let right = eval(word[nrest + 8], fuel)
+        return alloc(104, left, right, 0)
+    }
+    state chunks_name {
+        to chunks_arity when (is_chunks_name(con) == 1)
+        to generic
+    }
+    state chunks_arity {
+        to generic when (args == 0)
+        let crest = word[args + 16]
+        to generic when (crest == 0)
+        to generic when (word[crest + 16] != 0)
+        let length = eval(word[args + 8], fuel)
+        let root = eval(word[crest + 8], fuel)
+        return alloc(105, length, root, 0)
     }
     state generic {
         return alloc(101, con, eval_args(args, fuel), 0)
@@ -651,6 +703,27 @@ proc try_match_compact_cons(pat, val) {
     state done { return 1 }
 }
 
+proc try_match_compact_pair(pat, val, expected) {
+    state namechk {
+        to node when (expected == 104)
+        to chunks
+    }
+    state node { to no when (is_node_name(word[pat + 8]) == 0)  to bind }
+    state chunks { to no when (is_chunks_name(word[pat + 8]) == 0)  to bind }
+    state bind {
+        let pv = word[pat + 16]
+        to no when (pv == 0)
+        env_push(word[pv + 8], word[val + 8])
+        pv = word[pv + 16]
+        to no when (pv == 0)
+        env_push(word[pv + 8], word[val + 16])
+        pv = word[pv + 16]
+        to no when (pv != 0)
+        return 1
+    }
+    state no { return 0 }
+}
+
 ; try to match pattern `pat` against value `val`; on success push its bindings.
 proc try_match(pat, val) {
     state isvar { to pvar when (word[pat] == 9)  to iscon }
@@ -660,10 +733,14 @@ proc try_match(pat, val) {
     }
     state iscon {
         to compact_cons when (word[val] == 102)
+        to compact_node when (word[val] == 104)
+        to compact_chunks when (word[val] == 105)
         to no when (word[val] != 101)        ; PCON needs a constructor value
         to namechk
     }
     state compact_cons { return try_match_compact_cons(pat, val) }
+    state compact_node { return try_match_compact_pair(pat, val, 104) }
+    state compact_chunks { return try_match_compact_pair(pat, val, 105) }
     state no { return 0 }
     state namechk {
         to no when (name_eq(word[pat + 8], word[val + 8]) == 0)   ; constructor must match
@@ -806,7 +883,7 @@ proc print_con_name(off) {           ; the constructor name lives at SRC[off]
 proc print_value(v) {
     state vint { to do_int when (word[v] == 100)  to vcons }
     state do_int { emit_dec(word[v + 8])  return 0 }
-    state vcons { to compact_cons when (word[v] == 102)  to vcon }
+    state vcons { to compact_cons when (word[v] == 102)  to vnode }
     state compact_cons {
         write_byte('(')
         print_con_name(word[v + 8])
@@ -814,6 +891,24 @@ proc print_value(v) {
         print_value(word[v + 16])
         write_byte(' ')
         print_value(word[v + 24])
+        write_byte(')')
+        return 0
+    }
+    state vnode { to compact_node when (word[v] == 104)  to vchunks }
+    state compact_node {
+        emit("(Node ")
+        print_value(word[v + 8])
+        write_byte(' ')
+        print_value(word[v + 16])
+        write_byte(')')
+        return 0
+    }
+    state vchunks { to compact_chunks when (word[v] == 105)  to vcon }
+    state compact_chunks {
+        emit("(Chunks ")
+        print_value(word[v + 8])
+        write_byte(' ')
+        print_value(word[v + 16])
         write_byte(')')
         return 0
     }
@@ -842,8 +937,13 @@ proc print_value(v) {
 }
 
 proc main() {
-    slurp()
-    skip_ws()
+    let slurp_status = slurp()
+    state source {
+        to source_exhausted when (slurp_status != 0)
+        to start
+    }
+    state source_exhausted { return 252 }
+    state start { skip_ws()  to defloop }
     state defloop {
         to defbody when (is_def() == 1)
         to run

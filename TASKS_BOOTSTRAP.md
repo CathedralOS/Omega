@@ -265,6 +265,15 @@ or prescribe work inside the Rust on-ramp or the eventual product compiler.
       lower-rung gate pins the
       retained digest, zero/two-write dual-channel results, semantic rejection,
       and multi-slot method threading. It is part of the default lattice suite.
+  - [x] Admit the current 695-state `lowermachine.alp` source to the Rust-free
+    elaboration route without claiming its execution is closed. State metadata
+    now has a checked 1,024-state-per-machine ceiling, state parameter rows have
+    a checked four-parameter ceiling, and compiler-sized scalar arrays use a
+    bounded persistent tree rather than materializing their full zero backing.
+    The focused gate pins exact/plus-one state capacity, parameter overflow,
+    large-array updates, explicit array overflow, and the canonical Gamma
+    interpreter's exact 4 MiB source boundary. The real compiler elaborates
+    marker-free to a bounded Gamma program.
 - [x] **Build a vertical Omega canary in Delta.** A Delta-written program must
   accept a small Omega source file, perform name/type checks, lower through the
   chosen terminal-Psi path, and produce a runnable artifact whose behavior
@@ -328,6 +337,13 @@ or prescribe work inside the Rust on-ramp or the eventual product compiler.
   deliberately simple, spec-compliant compiler. Prefer direct and auditable
   stages over porting the production optimizer or the entire current Rust
   architecture.
+  - [ ] Close execution of the full current `lowermachine` through canonical
+    Gamma meaning before treating it as a Rust-free compiler root. Marker-free
+    elaboration is already gated, but a tiny compile currently exhausts the
+    interpreter's fixed 48 MiB evaluation arena after parsing. Resolve that
+    evaluator/storage engineering cliff with an explicit bounded strategy and
+    a complete native-versus-Gamma status/stdout differential; do not silently
+    enlarge an undocumented arena or weaken exhaustion behavior.
   - [x] Implement O1 as the first genuinely variable source slice: preserve the
     O0 declaration/entry shell, accept a bounded sequence of zero or more
     literal `write_line` statements followed by exactly one literal

@@ -33,8 +33,10 @@ interpreter fuel, so exhaustion is a reference-evaluation outcome rather than an
 invisible unbounded computation. Tail-position `let`, `if`, `match`, and call
 chains are trampolined: a terminating tail-recursive Gamma program does not also
 depend on the Beta/Alpha return-stack depth. The interpreter may intern bounded
-integers and compact ordinary two-field `Cons` cells internally; matching and
-the canonical printed constructor tree are unchanged by those representations.
+integers and compact ordinary two-field `Cons` cells internally. It may likewise
+compact the ordinary `Node` and `Chunks` constructors used by the bootstrap
+translator's persistent-array carrier; matching and the canonical printed
+constructor tree are unchanged by those representations.
 
 ## Statically checked surface
 
