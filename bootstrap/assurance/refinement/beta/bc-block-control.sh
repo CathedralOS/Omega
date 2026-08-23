@@ -210,7 +210,8 @@ cat "$GATE_DIR/bc-block-control.alpha" \
   "$GATE_DIR/bc-counter-transfer.alpha" \
   "$GATE_DIR/bc-stack-potential-lift.alpha" \
   "$GATE_DIR/bc-slurp-summary.alpha" \
-  "$GATE_DIR/bc-main-slurp-bridge.alpha" > "$T/control-check.alpha"
+  "$GATE_DIR/bc-main-slurp-bridge.alpha" \
+  "$GATE_DIR/bc-write-str-summary.alpha" > "$T/control-check.alpha"
 "$ASM" < "$T/control-check.alpha" > "$T/control-check.tape"
 stamp_seed "$T/control-check.tape" "$SEED" "$T/control-check" >/dev/null
 
@@ -262,6 +263,30 @@ sed 's/imm r1, 525744                ; import success clause/imm r1, 525752     
   "$T/control-check.alpha" > "$T/main-slurp-wrong-clause.alpha"
 "$ASM" < "$T/main-slurp-wrong-clause.alpha" > "$T/main-slurp-wrong-clause.tape"
 stamp_seed "$T/main-slurp-wrong-clause.tape" "$SEED" "$T/main-slurp-wrong-clause" >/dev/null
+
+# Phase-isolated __write_str-summary teeth keep the exact helper and all 113
+# emit macros unchanged while breaking byte provenance, rank, backedge rename,
+# or exhaustive literal-byte accounting inside only the new relational phase.
+sed 's/imm r2, 1                    ; checked load endpoint K/imm r2, 2                    ; checked load endpoint K/' \
+  "$T/control-check.alpha" > "$T/write-str-wrong-byte.alpha"
+"$ASM" < "$T/write-str-wrong-byte.alpha" > "$T/write-str-wrong-byte.tape"
+stamp_seed "$T/write-str-wrong-byte.tape" "$SEED" "$T/write-str-wrong-byte" >/dev/null
+sed 's/imm r3, 1                    ; checked rank delta/imm r3, 0                    ; checked rank delta/' \
+  "$T/control-check.alpha" > "$T/write-str-zero-rank.alpha"
+"$ASM" < "$T/write-str-zero-rank.alpha" > "$T/write-str-zero-rank.tape"
+stamp_seed "$T/write-str-zero-rank.tape" "$SEED" "$T/write-str-zero-rank" >/dev/null
+sed 's/imm r2, 1                    ; checked renamed output segment/imm r2, 2                    ; checked renamed output segment/' \
+  "$T/control-check.alpha" > "$T/write-str-wrong-rename.alpha"
+"$ASM" < "$T/write-str-wrong-rename.alpha" > "$T/write-str-wrong-rename.tape"
+stamp_seed "$T/write-str-wrong-rename.tape" "$SEED" "$T/write-str-wrong-rename" >/dev/null
+sed '/write_str_emit_byte_count:/,/write_str_emit_done:/{s/imm r1, 829/imm r1, 828/;}' \
+  "$T/control-check.alpha" > "$T/write-str-wrong-total.alpha"
+"$ASM" < "$T/write-str-wrong-total.alpha" > "$T/write-str-wrong-total.tape"
+stamp_seed "$T/write-str-wrong-total.tape" "$SEED" "$T/write-str-wrong-total" >/dev/null
+sed 's/imm r20, 70                   ; checked positive cost step/imm r20, 69                   ; checked positive cost step/' \
+  "$T/control-check.alpha" > "$T/write-str-wrong-cost.alpha"
+"$ASM" < "$T/write-str-wrong-cost.alpha" > "$T/write-str-wrong-cost.tape"
+stamp_seed "$T/write-str-wrong-cost.tape" "$SEED" "$T/write-str-wrong-cost" >/dev/null
 
 # Phase-isolated tooth: leave the exact source, tape, witness, and every prior
 # checker phase unchanged, but underreport the prelude fp owner. Adjust only the
@@ -351,7 +376,8 @@ cat "$GATE_DIR/bc-block-control.alpha" \
   "$GATE_DIR/bc-counter-transfer.alpha" \
   "$GATE_DIR/bc-stack-potential-lift.alpha" \
   "$GATE_DIR/bc-slurp-summary.alpha" \
-  "$GATE_DIR/bc-main-slurp-bridge.alpha" > "$T/flat-check.alpha"
+  "$GATE_DIR/bc-main-slurp-bridge.alpha" \
+  "$GATE_DIR/bc-write-str-summary.alpha" > "$T/flat-check.alpha"
 "$ASM" < "$T/flat-check.alpha" > "$T/flat-check.tape"
 stamp_seed "$T/flat-check.tape" "$SEED" "$T/flat-check" >/dev/null
 
@@ -458,6 +484,16 @@ for main_slurp_tooth in main-slurp-wrong-local main-slurp-wrong-branch main-slur
   set -e
   if [ "$main_slurp_tooth_status" != 1 ] || [ -s "$T/stdout" ]; then
     echo "bc block control FAIL — $main_slurp_tooth was not rejected" >&2
+    exit 1
+  fi
+done
+for write_str_tooth in write-str-wrong-byte write-str-zero-rank write-str-wrong-rename write-str-wrong-total write-str-wrong-cost; do
+  set +e
+  "$T/$write_str_tooth" < "$T/control.bundle" > "$T/stdout"
+  write_str_tooth_status=$?
+  set -e
+  if [ "$write_str_tooth_status" != 1 ] || [ -s "$T/stdout" ]; then
+    echo "bc block control FAIL — $write_str_tooth was not rejected" >&2
     exit 1
   fi
 done
@@ -660,4 +696,4 @@ for mutation in call-retarget read-register write-register helper-write emit-byt
   fi
 done
 
-echo "bc block control/effects: 70 proc / 355 block / 291 transition; 613 effect sites / 829 fixed emit bytes; 78 frame slots / 27 parameter stores / 134 call pops; 169 local loads / 73 local stores; 61 raw loads = 54 fixed-safe + 5 SRC-indexed + 2 table-indexed / 34 raw stores; cursor-zero slurp segment/value/termination summary composed from root through main.ready or halt(253); 581 literals / 55 arithmetic / 180 comparison primitives; 235 binary / 134 argument / 34 store-address pushes; syntax-directed composition / relative temporary peak 2; three ranged Alpha operands transferred; all 607 stores partitioned / 70 call-cut frames summarized; 64-row counter contexts; absolute B_bc1 stack <=12720 explicit bytes / <=662 hidden returns; all 2630 explicit-stack effects and 687 artifact effects owned ($(wc -c < "$T/control-check.tape" | tr -d ' ')-byte Alpha checker tape)"
+echo "bc block control/effects: 70 proc / 355 block / 291 transition; 613 effect sites / 829 fixed emit bytes; 113 __write_str calls instantiated from one length-ranked exact-output summary; 78 frame slots / 27 parameter stores / 134 call pops; 169 local loads / 73 local stores; 61 raw loads = 54 fixed-safe + 5 SRC-indexed + 2 table-indexed / 34 raw stores; cursor-zero slurp segment/value/termination summary composed from root through main.ready or halt(253); 581 literals / 55 arithmetic / 180 comparison primitives; 235 binary / 134 argument / 34 store-address pushes; syntax-directed composition / relative temporary peak 2; three ranged Alpha operands transferred; all 607 stores partitioned / 70 call-cut frames summarized; 64-row counter contexts; absolute B_bc1 stack <=12720 explicit bytes / <=662 hidden returns; all 2630 explicit-stack effects and 687 artifact effects owned ($(wc -c < "$T/control-check.tape" | tr -d ' ')-byte Alpha checker tape)"

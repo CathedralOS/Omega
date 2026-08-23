@@ -156,8 +156,10 @@ are valuable teeth, but they do not yet establish the quantified observation:
 - the same lower-rooted process gives every source call, return, read, write, and
   fixed-string emit site exact artifact custody, accounts for every effectful
   artifact opcode, and checks all 829 fixed literal bytes plus their output
-  helper macro; it does not yet prove argument/value correspondence, dynamic
-  frame behavior, reachability, or the complete ordered output trace;
+  helper macro. A following relational phase proves the helper's exact
+  `M[p:p+len]` output and decreasing length rank once, then instantiates it at
+  all 113 checked emit rows / 829 literal bytes; these conditional per-event
+  clauses do not yet prove reachability or the complete ordered output trace;
 - its source-derived frame phase checks all 70 prologues, 78 parameter/local
   slots, 27 parameter stores, callee arities, and 134 immediate pre-call pops;
   a source-name/slot phase additionally binds all 169 local reads and 73
