@@ -340,6 +340,18 @@ are valuable teeth, but they do not yet establish the quantified observation:
   procedure frame active, depth `D+1`, and prior output unchanged. The child is
   not executed, so this clause gives no child outcome, totality, recursive
   fixed-point, or typed numeric-252 meaning;
+- its conditional `parse_number` summary checks procedure 33's exact three
+  blocks, digit split/backedge, two `cbyte` calls, `is_digit` handoff, single
+  `adv`, local/expression rows, frame/epilogues, and decoded quiet footprint.
+  From entry cursor `i`, it carries the exact ASCII digit slice through cursor
+  `j` and its left-to-right fold modulo 2^64. The false classifier result
+  returns that word at the unconsumed `j`; the true result proves `j<LEN`,
+  requires the body's second observation at the same cursor/byte, updates the
+  fold by `10*V+d` modulo 2^64, and advances once with strict `LEN-j` decrease.
+  Ten exact digit-offset cases and zero-wrap/high-bit probes forbid silently
+  strengthening the theorem to signed or nonwrapping arithmetic. This clause
+  gives no `parse_char`, canonical literal, decimal-output, or expression-SCC
+  meaning;
 - no total `parse_proc` claim is currently made. Malformed procedure bodies can
   make `gen_stmts` diverge while emitting—for example when an unrecognized byte
   is never consumed—so closure requires maximal Return-or-Diverge and finite/

@@ -1142,12 +1142,24 @@ bridge compiler is a promise to accept full Omega.
             decimal-emission and parse/lookup/code-emission leaves it actually
             imports. The existing bounded `DECS(0..8192)` theorem is not enough
             for wrapped arbitrary-word literals.
-            - [ ] Prove `parse_number` before any decimal-output generalization.
-              Carry the exact digit slice and the recurrence
-              `V'=(10*V+d) mod 2^64`, with rank `LEN-CUR`, so arbitrary wrapped
-              source words—not merely small nonnegative literals—reach the
-              expression proof. Then close the finite acyclic `parse_char`
-              escape partition with exact cursor consumption and byte result.
+            - [x] Prove `parse_number` before any decimal-output generalization.
+              Procedure 33's exact three-block/four-call shape, both cbyte
+              observations, IDIG handoff, local/expression rows, epilogues, and
+              decoded footprint are lower-rooted. Conditional `PNUM` carries
+              the exact ASCII digit slice and
+              `V'=10*V+d (mod 2^64)` with `LEN-CUR` rank. The true clause proves
+              both observations use the same cursor/byte before one exact
+              advance; the false clause returns the current folded word at the
+              unconsumed cursor with restored caller state. Ten digit-offset
+              rows and two target-word wrap probes retain honest modular
+              semantics. Twenty-four isolated canaries cover shape, censuses,
+              digit/range/same-cursor joins, wrap, return, and backedge facts;
+              the focused checker is 225,147 bytes.
+            - [ ] Close the finite acyclic `parse_char` escape partition with
+              exact cursor consumption and byte result. Include ordinary,
+              recognized escape, unrecognized escape, logical-end, and
+              truncated closing-quote tails; do not assume the two final
+              `adv()` calls are in range or silently require a closing quote.
             - [ ] Close the remaining finite lexical/value leaves: exact fixed
               keyword recognizers, `is_muldiv`, `is_addsub`, `cmp_op`, and
               conditional `name_eq`/`lookup` over the already-carried bounded

@@ -730,6 +730,24 @@ meaning modules produce a 219,443-byte checker. The child call is not executed;
 no child outcome, totality, recursive fixed point, or typed status-252 meaning
 is claimed.
 
+`bc-parse-number-shape.alpha` and `bc-parse-number-summary.alpha` close the
+finite lexical/value leaf for procedure 33. Exact shape binds blocks 167..169,
+both loop transitions, the two `cbyte` calls and same-value `is_digit` handoff,
+the body `adv`, explicit/synthetic epilogues, one local slot, wrapping
+multiply/add/subtract lowering, split push families, exhaustive table slices,
+and a decoded four-call/two-return/eight-store quiet region. Conditional `PNUM`
+starts at arbitrary `0<=i<=LEN`, carries the exact digit slice `SRC[i:j]`, and
+relates slot zero to its left-to-right fold modulo 2^64. Classifier false
+returns that word at the unconsumed cursor. Classifier true proves `j<LEN`,
+requires the body's second observation at the same cursor and byte, applies
+`V'=(10*V+(byte-48)) mod 2^64`, and composes one `ADVE` with strict `LEN-j`
+decrease before capture-avoiding backedge renaming. A complete ten-byte digit
+offset sweep and two concrete wrap/high-bit probes prevent a nonwrapping or
+signed strengthening. Twenty-four isolated canaries live in a 6.4 KB harness;
+shape and meaning remain 9.0 KB and 14.4 KB, and the focused checker is 225,147
+bytes. This does not prove canonical decimal literals, `parse_char`, full-word
+decimal output, or the expression SCC.
+
 The eventual `parse_proc` theorem must be maximal, not universally terminating.
 For malformed input, an unrecognized body byte such as `@` can survive both
 `gen_stmt` and the number fallback without cursor progress while `gen_stmts`
