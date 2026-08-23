@@ -68,6 +68,14 @@ Completed:
   the cached checkout at that commit, reject `.gitmodules` until submodules are
   explicit package edges, and reuse local content hashing for the checkout.
 
+- **PACKAGE-LOCK-MODEL.** Add the machine-written package closure lock data
+  model before CLI integration.
+
+  Done 2026-08-23: `omega-packages` has a deterministic lock model keyed by
+  canonical package names. Lock entries retain source kind/locator/identity,
+  package manifest fingerprints, build observation class, dependency aliases,
+  trust receipts, stable JSON, and a SHA-256 lock fingerprint.
+
 Remaining:
 
 - **PACKAGE-CAPABILITY-MANIFEST.** Define the normalized manifest produced for
@@ -84,6 +92,9 @@ Remaining:
 - **PACKAGE-LOCK-CLOSURE.** Extend the existing `omega.lock` direction from
   trust receipts only to the full package closure without making it a second
   hand-authored manifest.
+
+  Remaining after `PACKAGE-LOCK-MODEL`: wire compiler/package admission output
+  into the existing `omega.lock` artifact and enforce closure consistency.
 
   Acceptance: the lock records exact repository revisions/content identities,
   package manifest fingerprints, dependency edges, build observation verdicts,

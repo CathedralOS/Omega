@@ -8,10 +8,12 @@
 //! derived elsewhere and passed in as normalized data.
 
 mod diff;
+mod lock;
 mod manifest;
 mod source;
 
 pub use diff::{ManifestDelta, ManifestDiff, ManifestSeverity, diff_package_capability_manifests};
+pub use lock::{LockedDependency, LockedPackage, PackageLock};
 pub use manifest::{
     AliasName, BuildMachineManifest, CapabilityFlowSummary, DependencyAlias,
     InstallationBoundReach, PackageCapabilityManifest, PackageName, ProviderRequirement,
