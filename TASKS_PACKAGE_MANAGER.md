@@ -52,6 +52,16 @@ Completed:
   validate as snake_case, equal evidence renders byte-identical manifest JSON,
   and service-reach changes produce high-severity manifest diffs.
 
+- **PACKAGE-MANIFEST-PERSISTENCE.** Add strict package capability manifest
+  JSON read/write support before compiler-derived manifests are wired into CLI
+  audit flows.
+
+  Done 2026-08-23: `omega-packages` can parse package capability manifest JSON
+  with schema-version, required/unknown field, package-name, dependency-alias,
+  array/object, optional string, and integer checks; normalize parsed
+  manifests; and read/write standalone manifest files through same-directory
+  temporary files and atomic rename.
+
 - **LOCAL-SOURCE-IDENTITY.** Add the first resolver-owned local path identity
   pass before network fetch support.
 
@@ -309,6 +319,11 @@ Remaining:
   dependency aliases, provider requirements/selections, routed qualifications,
   capability-flow counts and source rows, unresolved installation rows, and
   trust/admission receipts.
+
+  Remaining after `PACKAGE-MANIFEST-MODEL` and
+  `PACKAGE-MANIFEST-PERSISTENCE`: wire compiler evidence extraction so
+  compiling one package emits the manifest rather than requiring tests or
+  callers to construct it manually.
 
   Acceptance: compiling one package can emit a deterministic machine-readable
   package capability manifest and a concise human diff. Equal source/evidence

@@ -103,7 +103,8 @@ cargo test -p omega-packages --test remote_fixtures -- --ignored --test-threads=
   checks. Audit rows surface source identity, dependency aliases, provider
   requirements/selections, trust receipts, and capability-flow verb counts.
 - `manifest`: canonical package/alias names, normalized package capability
-  manifests, stable JSON, SHA-256 fingerprints, and manifest diffs.
+  manifests, strict JSON parsing, standalone atomic read/write, SHA-256
+  fingerprints, and manifest diffs.
 - `diff`: severity-ranked manifest deltas with concrete reviewer guidance for
   public service, build-host service, provider-requirement, and capability-flow
   changes.

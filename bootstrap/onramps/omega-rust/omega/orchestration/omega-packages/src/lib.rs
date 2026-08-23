@@ -40,8 +40,9 @@ pub use lock::{
 };
 pub use manifest::{
     AliasName, BuildMachineManifest, CapabilityFlowSummary, DependencyAlias,
-    InstallationBoundReach, PackageCapabilityManifest, PackageName, ProviderRequirement,
-    ProviderSelection, QualificationRoute, ReproducibilityEvidence, SourceIdentity, TrustReceipt,
+    InstallationBoundReach, PackageCapabilityManifest, PackageCapabilityManifestParseError,
+    PackageCapabilityManifestPersistenceError, PackageName, ProviderRequirement, ProviderSelection,
+    QualificationRoute, ReproducibilityEvidence, SourceIdentity, TrustReceipt,
 };
 pub use resolver::{
     SourceCachePolicyRecord, SourceCacheRequest, SourceCacheVerdict, resolve_source_cache_record,
