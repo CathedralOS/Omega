@@ -1776,6 +1776,51 @@ fn parses_installation_bound_reach_on_bodyless_boundary_requirement() {
 }
 
 #[test]
+fn parses_installation_bound_reach_on_top_level_boundary_requirement() {
+    let source = r#"
+        boundary machine InterruptAcknowledgement::complete(acknowledgement: u64)
+        reaches <= MachineControl + PortIo;
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("top-level boundary requirement should parse");
+    let machine = parsed
+        .root_items()
+        .find_map(|item| match item {
+            psi_syntax_trees::item::Item::Machine(machine) => Some(machine),
+            _ => None,
+        })
+        .expect("boundary machine");
+    assert!(machine.boundary);
+    assert!(machine.bodyless);
+    assert!(machine.service_reach_is_installation_bound);
+    assert_eq!(machine.service_reaches.len(), 2);
+}
+
+#[test]
+fn rejects_top_level_installation_bound_reach_outside_fresh_boundary_requirement() {
+    for source in [
+        "machine complete() reaches <= MachineControl {}",
+        "boundary machine complete() reaches <= MachineControl {}",
+        "x86_64 machine complete() reaches <= MachineControl {}",
+        "boundary machine complete() satisfies Completion::complete reaches <= MachineControl;",
+        "Named: Subject satisfies Trait { machine complete() reaches <= MachineControl {} }",
+    ] {
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        let error = parse_syntax_trees(&tokens)
+            .expect_err("installation-bound reach must stay on a fresh boundary requirement");
+        assert!(
+            error.message.contains("`reaches <= Bound`"),
+            "got: {}",
+            error.message
+        );
+    }
+}
+
+#[test]
 fn rejects_installation_bound_reach_outside_bodyless_boundary_requirement() {
     for source in [
         "trait Completion { machine complete() reaches <= MachineControl; }",

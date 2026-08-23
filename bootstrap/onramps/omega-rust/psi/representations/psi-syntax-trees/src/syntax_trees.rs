@@ -505,6 +505,7 @@ impl SyntaxTrees {
             } else {
                 crate::expression::ExpressionHandle::invalid()
             },
+            service_reach_is_installation_bound: machine.service_reach_is_installation_bound,
             service_reaches: self.copy_item_identifier_span(other, machine.service_reaches),
             invokes: self.copy_item_identifier_span(other, machine.invokes),
             suspends: machine.suspends,

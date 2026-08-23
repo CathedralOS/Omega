@@ -619,11 +619,17 @@ pub struct MachineSnapshot {
     pub termination_witness: Option<RankingWitnessSnapshot>,
     pub invokes: Vec<String>,
     pub service_reach: Vec<String>,
+    #[serde(skip_serializing_if = "is_false")]
+    pub service_reach_is_installation_bound: bool,
     pub suspends: bool,
     pub blocks: bool,
     pub contracts: Vec<SignatureContractSnapshot>,
     pub owned_data: Vec<OwnedDataSnapshot>,
     pub states: Vec<StateSnapshot>,
+}
+
+fn is_false(value: &bool) -> bool {
+    !*value
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -1280,6 +1286,7 @@ fn machine_snapshot(program: &TypedTrees, machine: &Machine) -> MachineSnapshot 
             .map(ToString::to_string)
             .collect(),
         service_reach: service_reach_names(program, machine.service_reach_row),
+        service_reach_is_installation_bound: machine.service_reach_is_installation_bound,
         suspends: machine.suspends,
         blocks: machine.blocks,
         contracts: program

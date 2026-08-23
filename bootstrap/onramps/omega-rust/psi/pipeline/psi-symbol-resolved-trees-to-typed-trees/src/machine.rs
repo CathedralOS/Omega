@@ -23,6 +23,7 @@ pub(crate) fn lower_machine(
         // requirement guarantees after every trait has been lowered.
         termination_plan: machine.termination_plan.clone(),
         service_reach_row: machine.service_reach_row,
+        service_reach_is_installation_bound: machine.service_reach_is_installation_bound,
         lifetime_parameters: machine
             .lifetime_parameters
             .iter()

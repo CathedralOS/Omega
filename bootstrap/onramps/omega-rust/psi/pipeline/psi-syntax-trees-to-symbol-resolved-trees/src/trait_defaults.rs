@@ -830,6 +830,7 @@ fn machine_from_signature(
         ranking_view: HandleSpan::empty(),
         ranking_view_arguments: HandleSpan::empty(),
         ranking_range: ExpressionHandle::invalid(),
+        service_reach_is_installation_bound: false,
         service_reaches: signature.service_reaches,
         invokes: signature.invokes,
         suspends: signature.suspends,

@@ -29,6 +29,9 @@ pub struct Machine {
     /// EFX: normalized boundary-service row, populated after symbol
     /// assignment. Every member is a resolved boundary trait identity.
     pub service_reach_row: psi_language_semantics::ServiceReachRowId,
+    /// The published row is an installation-selected upper bound rather than
+    /// a fixed callable ceiling.
+    pub service_reach_is_installation_bound: bool,
     pub storage: MachineStorage,
 }
 
