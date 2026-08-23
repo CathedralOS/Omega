@@ -8,7 +8,7 @@ comment.
 Check it (no output is produced; proof machines emit no runtime code):
 
 ```
-omega --check compiler/lattice-corpus/math_proofs/main.omg
+omega --check bootstrap/corpus/math_proofs/main.omg
 ```
 
 The ladder runs from constant arithmetic through ranked induction. Every

@@ -1,4 +1,4 @@
-# `compiler/lattice-corpus/` — the lattice's frozen Omega sample corpus
+# `bootstrap/corpus/` — the lattice's frozen Omega sample corpus
 
 The trust gates (`bootstrap/omega0/gates/omega-meaning.sh`,
 `bootstrap/assurance/proof-kernel/gates/forall-sample.sh`,

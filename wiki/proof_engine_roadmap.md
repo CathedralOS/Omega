@@ -26,7 +26,7 @@ The L0-L7 corpus covers constant arithmetic, order reasoning, range sums,
 polynomial identities, square bounds, remainder bounds, and ranked inductive
 theorems. True programs live under `canaries/pass/proofs`; false twins under
 `canaries/fail/proofs` must reject. The sample and lattice copies under
-`samples/cli/proofs/math_proofs` and `compiler/lattice-corpus/math_proofs` are
+`samples/cli/proofs/math_proofs` and `bootstrap/corpus/math_proofs` are
 readable demonstrations, not a second specification.
 
 ## Trust boundary

@@ -35,6 +35,8 @@ physical_dir() {
   fail "Beta refinement owner is $OMEGA_PATH_BETA_REFINEMENT"
 [ "$OMEGA_PATH_OMEGA0" = "$OMEGA_REPO_ROOT/bootstrap/omega0" ] ||
   fail "Omega0 owner is $OMEGA_PATH_OMEGA0"
+[ "$OMEGA_PATH_CORPUS" = "$OMEGA_REPO_ROOT/bootstrap/corpus" ] ||
+  fail "shared lattice corpus owner is $OMEGA_PATH_CORPUS"
 
 [ -L "$OMEGA_REPO_ROOT/compiler/alpha" ] ||
   fail "compiler/alpha is not a temporary compatibility symlink"
@@ -44,6 +46,8 @@ physical_dir() {
   fail "compiler/beta-lang is not a temporary compatibility symlink"
 [ -L "$OMEGA_REPO_ROOT/compiler/proof-kernel" ] ||
   fail "compiler/proof-kernel is not a temporary compatibility symlink"
+[ -L "$OMEGA_REPO_ROOT/compiler/lattice-corpus" ] ||
+  fail "compiler/lattice-corpus is not a temporary compatibility symlink"
 [ "$(physical_dir "$OMEGA_REPO_ROOT/compiler/alpha")" = "$(physical_dir "$OMEGA_PATH_ALPHA")" ] ||
   fail "compiler/alpha does not resolve to the Alpha owner"
 [ "$(physical_dir "$OMEGA_REPO_ROOT/compiler/beta")" = "$(physical_dir "$OMEGA_PATH_ALPHA_ASSEMBLER")" ] ||
@@ -52,6 +56,8 @@ physical_dir() {
   fail "compiler/beta-lang does not resolve to the Beta owner"
 [ "$(physical_dir "$OMEGA_REPO_ROOT/compiler/proof-kernel")" = "$(physical_dir "$OMEGA_PATH_PROOF_KERNEL")" ] ||
   fail "compiler/proof-kernel does not resolve to the proof-kernel owner"
+[ "$(physical_dir "$OMEGA_REPO_ROOT/compiler/lattice-corpus")" = "$(physical_dir "$OMEGA_PATH_CORPUS")" ] ||
+  fail "compiler/lattice-corpus does not resolve to the shared corpus owner"
 
 [ "$(omega_bootstrap_path alpha)" = "$OMEGA_PATH_ALPHA" ] ||
   fail "alpha role lookup disagrees with the manifest"
@@ -73,5 +79,9 @@ physical_dir() {
   fail "beta-refinement role lookup disagrees with the manifest"
 [ "$(omega_bootstrap_path omega0-gates)" = "$OMEGA_PATH_OMEGA0/gates" ] ||
   fail "omega0-gates role lookup disagrees with the manifest"
+[ "$(omega_bootstrap_path corpus)" = "$OMEGA_PATH_CORPUS" ] ||
+  fail "corpus role lookup disagrees with the manifest"
+[ "$(omega_bootstrap_path lattice-corpus)" = "$OMEGA_PATH_CORPUS" ] ||
+  fail "lattice-corpus compatibility role lookup disagrees with the manifest"
 
-echo "bootstrap paths OK — rungs, assurance roles, and Omega0 have canonical owners"
+echo "bootstrap paths OK — rungs, assurance roles, Omega0, and shared corpus have canonical owners"
