@@ -748,8 +748,8 @@ additional facilities the bootstrap actually needs.
         terminate, preserve the input cursor and compiler heap/raw state, and
         restore the caller frame; result registers and reclaimed stack bytes
         remain caller-clobbered. A wrong first event, eight-byte continuation,
-        underreported total, and wrong end reject only here. Composing these
-        summaries from `main.ready` into the 187-byte prefix remains open.
+        underreported total, and wrong end reject only here. Their ordered
+        root instantiation is closed by the composition item below.
       - [x] Prove reusable conditional summaries for the cursor leaves
         `cbyte`, `adv`, and `is_space`. Under the successful-slurp segment and
         a carried nonnegative signed cursor, `cbyte` follows its exact signed
@@ -787,8 +787,25 @@ additional facilities the bootstrap actually needs.
         a detached opening semicolon, zero rank premises, and broken inner or
         outer successor renaming. The source
         comment “1 if it did” is intentionally not used as semantics: a
-        zero-ended comment consumes its opener but returns zero. Composing these
-        summaries with the two fixed emitters from `main.ready` remains open.
+        zero-ended comment consumes its opener but returns zero. Its root
+        instantiation is closed by the composition item below.
+      - [x] Compose the successful root cutpoint through `main.ready` to
+        `main.loop`. The slurp bridge publishes its ready clause only after
+        rechecking the successful segment/reset/empty-output/frame state. Exact
+        zero-argument, zero-ambient calls at PCs 51226, 51235, and 51244 import
+        the `emit_prelude`, `emit_write_str`, and `skip_ws` theorems, return at
+        their checked nine-byte continuations, and take the sole ready-to-loop
+        transition at PC 51253. The resulting PC is 51262 with the ordered
+        55+132=187-byte prefix, unchanged external input and successful source
+        segment, a cursor normalized to the first nontrivia byte/logical end/
+        in-range NUL, and the active main frame restored. Exact block, owner,
+        transition, event, arity, ambient-height, decoded-region, and
+        local/memory/effect censuses exclude a hidden ready action. Seven
+        phase-isolated variants reject the wrong bridge clause, call
+        continuation, callee theorem, prefix total, output ordering, loop
+        target, or event census only in this phase. This advances the
+        simulation frontier to the first `main.loop` token test; it does not
+        choose the typed observation projection below.
       - [ ] **DESIGN BLOCKED — observation ruling required:** define how the
         theorem assigns typed `Exhaust(ResourceKind, limit, requested)` to the
         exact resource-guard paths whose program-level result is only 252/253.

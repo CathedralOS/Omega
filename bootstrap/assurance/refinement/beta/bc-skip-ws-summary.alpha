@@ -38,7 +38,7 @@ skip_ws_summary_init:
         call skip_step_prove_summary
         call skip_require_shape
         call skip_prove_summary
-        jmp scan_owned_effects_init
+        jmp main_ready_summary_init
 
 ; ---- Exact skip_ws_step shape -----------------------------------------
 

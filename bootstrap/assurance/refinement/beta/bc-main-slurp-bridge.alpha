@@ -25,17 +25,29 @@
 ;   root cursor/output               525712/525720
 ;   outcome kind/payload             525728/525736
 ;   imported slurp clauses           525744/525752 (published by prior phase)
+;   published ready/halt clauses      526440/526448 (consumed by later root phase)
 ;
 ; Provenance kinds: 1=slurp result, 2=storage_ok load, 3=literal one,
 ; 4=equality result, 5=literal 253. Outcome kinds: 1=ready, 2=halt.
 
 main_slurp_bridge_init:
+        imm r1, 526440
+        imm r2, 0
+        store r1, r2
+        imm r1, 526448
+        store r1, r2
         call main_slurp_require_shape
         call main_slurp_require_root_prefix
         call main_slurp_require_entry_frame
         call main_slurp_require_quiet_suffix
         call main_slurp_prove_success
+        imm r1, 526440
+        imm r2, 1                    ; publish main.ready success clause
+        store r1, r2
         call main_slurp_prove_oversize
+        imm r1, 526448
+        imm r2, 2                    ; publish concrete halt(253) clause
+        store r1, r2
         jmp write_str_summary_init
 
 ; ---- Exact source/artifact joins ---------------------------------------

@@ -359,8 +359,8 @@ caller-clobbered `r0..r3` and reclaimed stack bytes are not preserved. Each
 supplied end is the next canonical block PC, and an all-block scan proves each
 procedure owns exactly one block. A wrong first row, eight-byte call
 continuation, underreported prelude total, or wrong procedure end rejects only
-in this phase. Reachability from `main.ready` and the combined 187-byte prefix
-are the next composition step.
+in this phase. The root composition below establishes their reachability and
+combined 187-byte prefix.
 
 `bc-cursor-leaf-summary.alpha` gives the three cursor leaves reusable
 conditional meanings before the whitespace loops are composed. It imports the
@@ -423,5 +423,26 @@ domain, opening-semicolon provenance, rank premises, and both successor
 renamings. The informal
 source comment “1 if it did” is not authoritative for a zero-ended comment,
 which consumes at least `;` but correctly returns zero. Composition from
-`main.ready` through the fixed 187-byte prefix and this cursor fixed point is the
-next root-reachability step.
+`main.ready` through the fixed prefix and this cursor fixed point is discharged
+by the next phase.
+
+`bc-main-ready-summary.alpha` advances the successful root path from
+`main.ready` at PC 51226 to `main.loop` at PC 51262. The bridge first publishes
+a distinct ready clause only after its successful slurp facts have been
+rechecked. The new phase then rejoins ready block 351 and loop block 352 under
+main procedure 69, events 605..607, transition 287, zero arities, zero ambient
+temporary heights, and the exact three call targets and nine-byte
+continuations. A decoded scan of `[51226,51262)` plus the exact block-effect
+census excludes hidden ready actions.
+
+The three calls import the already-published `emit_prelude`, `emit_write_str`,
+and `skip_ws` theorems in source order. Their composition appends exactly the
+55-byte prelude and 132-byte write helper, proves that whitespace appends
+epsilon, preserves external input and the successful `SRC[0:LEN]` relation,
+normalizes `CUR` to the first ordinary byte, logical end, or in-range NUL, and
+restores the active main frame before taking the sole jump at PC 51253. Thus
+the loop cutpoint has the exact ordered 187-byte prefix. Seven isolated teeth
+sever the bridge clause, first continuation, second theorem import, prefix
+total, epsilon ordering, loop target, or exclusive event row; each rejects only
+in this phase. The next blockwise frontier is the `main.loop` cbyte/token split,
+not the independently blocked typed-exhaustion projection.
