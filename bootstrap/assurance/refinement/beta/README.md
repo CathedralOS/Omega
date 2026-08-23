@@ -27,7 +27,11 @@ Run `ownership-test.sh`, `symbolic-loops.sh`, `refinement.sh`, and
 rooted below `bc`. It walks the reachable control-flow graph of the persisted
 Alpha tape, permits jump-skipped inline data, and rejects unknown/truncated or
 overlapping instructions plus invalid direct targets. Its focused gate includes
-mutated negative controls and the exact tape-hole payload boundary. This closes
-instruction framing and direct-control-target reconstruction only; memory
-bounds, call/return discipline, complete stream semantics, and terminal-class
-correspondence remain open.
+mutated negative controls and the exact tape-hole payload boundary. It also
+reconstructs ordered procedure regions from direct-call targets and proves the
+static call/return shape: entry zero is the unique root, only that root halts,
+every callee region has a return, call continuations stay in the caller, and
+non-call edges cannot cross procedure boundaries. This closes instruction
+framing, direct-control-target reconstruction, and static call/return nesting.
+Dynamic call-depth bounds, data-stack and memory bounds, complete stream
+semantics, cyclic progress, and terminal-class correspondence remain open.

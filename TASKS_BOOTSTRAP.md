@@ -419,8 +419,14 @@ additional facilities the bootstrap actually needs.
       It independently walks reachable instructions in `bc.tape`, permits
       jump-skipped inline data, proves instruction framing and direct target
       boundaries, rejects overlap/unknown/truncation/range mutations, and pins
-      the exact 262,140-byte tape-hole payload. This does not yet prove dynamic
-      memory bounds, call/return discipline, output semantics, or termination.
+      the exact 262,140-byte tape-hole payload.
+    - [x] Reconstruct the persisted artifact's static procedure regions and
+      call/return discipline below `bc`. Direct calls define 70 non-root entries;
+      entry zero alone may halt, every callee region has a reachable return,
+      call continuations remain in their caller, and every non-call edge remains
+      inside its region. Focused fixtures reject root returns, callee halts,
+      returnless callees, and cross-region jumps. Dynamic call-depth bounds,
+      frame contents, output semantics, and termination remain open.
     - [x] Freeze supported resource profile `B_bc1` and make its source-side
       ceilings checked. `bc.beta` now refuses a 1,025th name slot, fifth live
       parameter/argument, and expression or nested-block depth 65 before any

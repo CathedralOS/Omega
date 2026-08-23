@@ -67,6 +67,53 @@ printf '\377\377\377\377\377\377\377\377' > "$T/max.le64"
 dd if="$T/max.le64" of="$T/range-target" bs=1 seek=1 conv=notrunc 2>/dev/null
 case_run "out-of-range direct target" 1 "$T/range-target"
 
+# The whole-artifact checker also reconstructs bc's procedure regions from
+# direct-call entries. Only the root may halt; every callee region must return;
+# and non-call control flow may not enter or leave a procedure region.
+printf '%s\n' \
+  'call f' \
+  'imm r0, 0' \
+  'halt r0' \
+  'f:' \
+  'jz r0, done' \
+  'call f' \
+  'done:' \
+  'ret' > "$T/well-nested.alpha"
+"$ASM" < "$T/well-nested.alpha" > "$T/well-nested.tape"
+case_run "well-nested recursive call regions" 0 "$T/well-nested.tape"
+
+printf '\024' > "$T/root-ret.tape"
+case_run "root return without caller" 1 "$T/root-ret.tape"
+
+printf '%s\n' \
+  'call f' \
+  'imm r0, 0' \
+  'halt r0' \
+  'f:' \
+  'imm r0, 0' \
+  'halt r0' > "$T/callee-halt.alpha"
+"$ASM" < "$T/callee-halt.alpha" > "$T/callee-halt.tape"
+case_run "callee halt" 1 "$T/callee-halt.tape"
+
+printf '%s\n' \
+  'call f' \
+  'imm r0, 0' \
+  'halt r0' \
+  'f:' \
+  'jmp f' > "$T/callee-cycle.alpha"
+"$ASM" < "$T/callee-cycle.alpha" > "$T/callee-cycle.tape"
+case_run "callee without return" 1 "$T/callee-cycle.tape"
+
+printf '%s\n' \
+  'call f' \
+  'main_tail:' \
+  'imm r0, 0' \
+  'halt r0' \
+  'f:' \
+  'jmp main_tail' > "$T/cross-region.alpha"
+"$ASM" < "$T/cross-region.alpha" > "$T/cross-region.tape"
+case_run "non-call cross-region edge" 1 "$T/cross-region.tape"
+
 # Pin the exact payload capacity inherited from the committed 256 KiB tape hole.
 dd if=/dev/zero of="$T/exact" bs=262140 count=1 2>/dev/null
 case_run "exact tape-hole payload" 0 "$T/exact"

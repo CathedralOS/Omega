@@ -145,6 +145,9 @@ are valuable teeth, but they do not yet establish the quantified observation:
 - the differential gates cover finite corpora and host-visible low-byte exits;
 - the current symbolic refinement fragment returns one result term and does not
   model the compiler's complete byte stream or every terminal class;
+- the lower-rooted artifact checker proves reachable instruction framing,
+  direct-target boundaries, and static procedure-region/call-return discipline,
+  but not the 8,192-frame dynamic call bound or frame/data-memory contents;
 - Alpha out-of-range memory remains undefined in `alpha/SEMANTICS.md` and must be
   excluded by independently checked `B_bc1` bounds before whole-artifact closure
   (or Alpha must be hardened independently);
