@@ -117,6 +117,15 @@ pub(super) fn build_runtime_storage_body_plan(
     let mut next_frame_offset = 0usize;
     append_parameter_slots(context, body, &mut plan, &mut next_frame_offset);
 
+    // All dispatch bodies in this context share one frame region. Overlapping
+    // parameter offsets are intentional because a state forwards arguments into
+    // sibling-state parameter slots. Private storage (locals and call results),
+    // however, must not overlap any sibling parameter: taking a local's address
+    // and forwarding it into such a slot would otherwise let the parameter write
+    // destroy the local itself. Reserve private storage above the union of every
+    // dispatch body's parameter extent.
+    next_frame_offset = next_frame_offset.max(context_parameter_extent(context));
+
     for operation in operations.iter() {
         match &operation.kind {
             RuntimeDispatchBodyOperationKind::LocalStorage {
@@ -456,6 +465,40 @@ fn append_straight_line_local_slots_for_state(
             local_storage,
         );
     }
+}
+
+/// Returns the maximum parameter end offset across every dispatch body in the
+/// context. Dispatch bodies share a frame region, so private storage begins at
+/// or above this boundary.
+fn context_parameter_extent(context: &RuntimeStorageContext) -> usize {
+    context
+        .runtime_bodies
+        .bodies
+        .storage_slice()
+        .iter()
+        .map(|body| state_parameter_extent(context, body.key))
+        .max()
+        .unwrap_or(0)
+}
+
+/// Computes a state's parameter extent using the same layout rule as
+/// `append_parameter_slots_for_state`.
+fn state_parameter_extent(context: &RuntimeStorageContext, state_key: StateKey) -> usize {
+    let Some(state) = context.control_flow.state_by_key(state_key) else {
+        return 0;
+    };
+    let mut offset = 0usize;
+    for parameter in context.control_flow.state_parameters(state) {
+        let layout = layout_for_type_reference(
+            context,
+            &context.program.type_reference_table,
+            parameter.type_reference,
+        );
+        offset = align_to(offset, layout.alignment)
+            .checked_add(layout.size)
+            .expect("runtime parameter slot size overflow");
+    }
+    offset
 }
 
 fn append_parameter_slots(
