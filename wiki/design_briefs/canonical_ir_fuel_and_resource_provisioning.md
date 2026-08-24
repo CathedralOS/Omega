@@ -172,6 +172,16 @@ region. Ordinary calls remain in their caller's region.
 - **Unavailable realization.** A hosted deployment may interpret; a target
   without an interpreter rejects the installation.
 
+Canonical native-metered installation uses an explicit dual-coordinate
+carrier. Ordinary installation rows continue to name the immutable semantic
+source functions and sites. A separate optional section binds the exact target
+meter recipe and source-text fingerprint, maps every source function span to
+its replay-validated metered span, and records every hot charge, corresponding
+semantic site, and cold dispatcher in physical coordinates. It is report-only
+evidence, not execution authority. Plain images require the section to be
+absent; metered installation rejects any source, target-policy, function-map,
+charge-catalog, or final-image drift.
+
 Fixed provision proves that its region cannot exhaust. It does not imply that
 the complete activation is free from fuel suspension when a reachable call
 crosses into a separately sponsored dynamic region. Installation derives the

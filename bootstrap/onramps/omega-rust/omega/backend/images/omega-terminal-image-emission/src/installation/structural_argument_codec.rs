@@ -1,4 +1,4 @@
-//! Canonical format-35 codec for one structural boundary argument.
+//! Canonical format-36 codec for one structural boundary argument.
 //!
 //! The installation parent owns argument counts and settlement sequencing;
 //! this child owns only the place/path row and its established decode errors.

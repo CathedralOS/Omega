@@ -1,4 +1,4 @@
-//! Canonical format-35 codec for installed function affine cleanup evidence.
+//! Canonical format-36 codec for installed function affine cleanup evidence.
 //!
 //! Function row placement and cleanup canonicality remain in the installation
 //! parent. This child owns the exact Unit cleanup and scalar-control list bytes.

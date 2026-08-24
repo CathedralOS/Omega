@@ -1680,8 +1680,9 @@ realizes one owner-authorized boundary route and the receipt qualifies the
 exact subject occurrence. Issuer and subject need not be the same occurrence.
 Component closure checks every canonical pending row before committing and
 retains the original manifest plus exact evidence. Terminal installation
-format 35 records structural access modes plus the manifest and acceptance report identities in the hashed
-installation bytes. Runnable publication additionally joins the complete
+format 36 records structural access modes plus the manifest and acceptance
+report identities in the hashed installation bytes. Runnable publication
+additionally joins the complete
 terminal object and image, canonical installation record, the linear
 `InstalledCode` claim itself, and opaque acceptance, then retains that
 non-forgeable carrier for the live component era. Failed binding, publication,
