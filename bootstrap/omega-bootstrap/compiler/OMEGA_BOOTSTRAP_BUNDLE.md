@@ -1,8 +1,10 @@
-# Canonical bridge source bundle (format name `Omega0`)
+# Canonical bridge source bundle, version 1
 
-The bridge consumes one deterministic byte stream. The `Omega0`/`OMG0BNDL`
-names are retained version-1 format identifiers, not a language rung. Until
-native package loading is implemented, multiple source files use this canonical
+The bridge consumes one deterministic byte stream. The `OMG0BNDL` magic and
+`.omg0b` extension are retained legacy version-1 wire identifiers; they do not
+name `Omega0`, a compiler generation, or a language rung. New architecture and
+task prose call this artifact the **bridge source bundle**. Until native
+package loading is implemented, multiple source files use this canonical
 length-delimited bundle.
 The bundle is an auditable compiler input artifact: paths and source bytes are
 preserved exactly, and malformed or noncanonical encodings reject.

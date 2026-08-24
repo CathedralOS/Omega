@@ -42,6 +42,17 @@ initial executable may be conservatively generated.
 The proof kernel is orthogonal to this chain. It has independent Beta and Gamma
 implementations and checks certificates emitted at multiple stages.
 
+Only two source-surface freezes remain in this part of the lattice:
+
+1. **Delta v1**, the literal independent language used to write
+   `omega-bootstrap`.
+2. **`Ωself`**, the ordinary-Omega profile used by the production compiler's
+   own complete source closure.
+
+There is no `omega0`, `omega1`, or Epsilon language generation between them.
+O0 and O1 below are bounded vertical-canary labels for the current bridge work,
+not ancestors of `Ωself` and not compiler artifacts in the final lattice.
+
 ## Role map
 
 The former flat `compiler/` inventory has been split by actual ownership.
@@ -213,7 +224,10 @@ bc source-correspondence refinement proceeds independently
 Delta v1 defines the language used to write the bridge. `Ωself` defines the
 ordinary-Omega programs the bridge accepts. Their source manifests provide the
 evidence used to select and prove closure under the contracts; they do not
-replace general specifications with file identities or AST shapes.
+replace general specifications with file identities or AST shapes. A Delta
+feature decision belongs to Delta v1; an Omega feature used or rejected by the
+production compiler source belongs to `Ωself`. Do not solve one contract by
+silently widening the other.
 
 - [ ] **Discover and freeze Delta's literal compiler-host specification.**
   There is no remaining owner-level feature-list ruling. The fixed constraints
@@ -283,9 +297,10 @@ outside that manifest unless the compiler executable imports them.
   dialect or another lattice rung.
 
 - [ ] **Implement `omega-bootstrap` in Delta.**
-  Reuse the closed O0/O1 vertical path as canary evidence, but grow by general
-  capabilities required by the product source rather than by hard-coded source
-  permutations.
+  Reuse the closed O0/O1 test path as vertical-canary evidence only. O0/O1 are
+  not implementation stages that must be extended in numerical order. Grow the
+  bridge by general capabilities required by the product source rather than by
+  hard-coded source permutations.
   - [ ] publish the complete deterministic Delta source manifest and prove each
     transitive unit valid under the provisional profile, then under frozen Delta
     v1; one entry source file alone is not the closure;
@@ -337,7 +352,11 @@ outside that manifest unless the compiler executable imports them.
     operator classifiers, `cmp_op`, the nine fixed keyword recognizers, and
     conditional `name_eq`/`lookup` have exact shape/meaning/negative modules;
     lookup retains distinct hit-slot-zero versus no-match provenance despite
-    their deliberate numeric-zero alias; and
+    their deliberate numeric-zero alias;
+  - the bounded `WSTR`/decimal emitter family has exact conditional contracts
+    for `gen_read_byte`, `emit_pop_into`, `emit_push`, `emit_mnemonic`,
+    `emit_combine`, `emit_slot_addr`, `emit_load_slot`, and `emit_store_slot`,
+    with value-parameterized child custody and no full-word decimal claim; and
   - every claimed source/artifact join remains lower-rooted and mutation-toothed.
 
   Remaining proof plan:
@@ -347,7 +366,7 @@ outside that manifest unless the compiler executable imports them.
   - [x] compose conditional `lookup` over that carried domain and `name_eq`,
     preserving the source's deliberate no-match alias to slot zero while
     retaining distinct proof provenance;
-  - [ ] close the bounded `WSTR`/bounded-decimal emitters:
+  - [x] close the bounded `WSTR`/bounded-decimal emitters:
     `gen_read_byte`, `emit_pop_into`, `emit_push`, `emit_mnemonic`,
     `emit_combine`, `emit_slot_addr`, `emit_load_slot`, and
     `emit_store_slot`;
@@ -408,9 +427,10 @@ outside that manifest unless the compiler executable imports them.
 4. Grow proof-kernel capability and its operational seams only in lockstep with
    real obligation classes.
 5. Build translation-validation evidence for native compiler outputs.
-6. Grow the closed O0/O1 vertical path—source through direct ELF—into
-   `omega-bootstrap`, accepting exactly `Ωself` and carrying correct
-   conservative lowering sufficient for the required hosted compile.
+6. Use the closed O0/O1 source-through-ELF canaries as regression evidence while
+   implementing `omega-bootstrap` directly against `Ωself`; do not manufacture
+   an O2/O3 profile ladder. Carry correct conservative lowering sufficient for
+   the required hosted compile.
 7. Use `omega-bootstrap` once to build and validate the full optimizing Omega
    compiler from the `Ωself` production source manifest. Treat any later
    product self-rebuild as optional assurance evidence, not another rung.

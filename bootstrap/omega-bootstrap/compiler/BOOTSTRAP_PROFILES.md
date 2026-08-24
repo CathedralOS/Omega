@@ -5,7 +5,9 @@ compiler. O0/O1 are frozen profile names; the architectural role and artifact
 owner is `omega-bootstrap`. This file is
 bootstrap-owned and is not a product Omega language specification.
 
-Four contracts are intentionally tracked separately:
+Four contracts are intentionally tracked separately. D0, O0, and O1 are
+implementation/canary labels, not language generations and not steps that the
+final build lattice must preserve:
 
 - **Delta implementation profile D0** is the current Delta surface used by the
   bridge canaries. It is frozen so those slices do not acquire facilities merely
@@ -23,7 +25,8 @@ Four contracts are intentionally tracked separately:
 O0 and O1 are vertical pipeline canaries, not normative ancestors of `Ωself`.
 The eventual profile may reuse their implementation, but it is derived from the
 production source closure rather than declared to be the next numbered canary.
-Sufficiency cannot be established from the current Rust product implementation.
+There is no implied O2 ladder. Sufficiency cannot be established from the
+current Rust product implementation.
 
 Likewise, D0 is discovery evidence rather than a normative ancestor of Delta
 v1. Every listed D0 facility—including arithmetic domains, payload sums,

@@ -27,6 +27,12 @@ The optional rebuild is not another language rung or bootstrap dependency.
 Likewise, a conservatively generated production-compiler executable may still
 contain and run the full optimizer when it compiles user programs.
 
+The names are deliberately non-generational. `omega-bootstrap` is a role, not
+“Omega 0”; the production compiler is `omega`, not “Omega 1”; and an optional
+self-rebuild creates a better executable of the same compiler rather than a new
+language or rung. O0/O1 are only names for already-frozen vertical canaries in
+the bridge implementation.
+
 - **Delta** is an independent, robust compiler-host language. It may resemble
   Omega in spelling and shape, but it is not required to be an Omega subset.
 - **`Ωself`** is the Omega self-hosting source profile: a compositional subset
@@ -154,6 +160,11 @@ Candidates to decide from the actual source and a bootstrap-cost measurement:
 - complex transition payloads versus a simple discriminant and explicit
   compiler context;
 - mixed field-plus-case data versus separate record and sum-data types.
+
+These are `Ωself` source-profile choices, not proposals to remove the features
+from full Omega. Conversely, Delta does not acquire or reject any of them merely
+because the production compiler source does: Delta's literal feature set is a
+separate compiler-host design decision.
 
 For a retained feature, `omega-bootstrap` need implement the feature only within
 the structurally declared bounds of `Ωself`; the production compiler implements
