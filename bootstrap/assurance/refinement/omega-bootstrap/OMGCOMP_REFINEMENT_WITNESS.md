@@ -1,9 +1,13 @@
 # OMGCOMP lower-rooted refinement witness, version 1
 
 This document fixes the private witness and refinement frame for the first
-two-unit `OMGCOMP` nominal-data artifact. It is assurance transport, not Omega
-syntax, a compiler IR, a resolver receipt, or a product ABI. Encoders are
-untrusted. Independent persisted-Beta checkers consume the same exact frame.
+two-unit `OMGCOMP` nominal-data artifact. `OMGRSW1` is also the bridge-private
+normalized frontend/resolution handoff defined by
+[`OMEGA_BOOTSTRAP_RESOLUTION.md`](../../../omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION.md).
+When embedded here it remains an untrusted witness: producer provenance grants
+no authority, and independent persisted-Beta checkers reconstruct the same
+exact rows. It is not Omega syntax, backend checked IR, a resolver receipt, a
+stable product ABI, or a trust grant.
 The canonical source/envelope/reference fixture lives under
 [`gates/fixtures/two-unit-import/`](../../../omega-bootstrap/gates/fixtures/two-unit-import/).
 
@@ -40,7 +44,7 @@ are 251. Nothing is published.
 
 The frame contains no digest and no resolver authority.
 
-## Witness header — 72 bytes
+## `OMGRSW1` header — 72 bytes
 
 All integers are little-endian and fit signed 32-bit bootstrap arithmetic.
 `NO_ID` is `0xffffffff` only where explicitly permitted.
@@ -357,8 +361,8 @@ kind/ID, non-token spans, row/span/order drift, root drift, and all framing and
 resource boundaries. Existing body, result, CKIR-schema, and ELF-byte mutation
 inventories remain applicable.
 
-The first fixture should use package-root modules and one public cross-package
-data import. The language guide does not yet define a finer private-across-module
-visibility lattice; this slice does not need it and the checker must not guess.
-Cross-unit machine calls remain unsupported by CKIR1 despite their reserved
-resolution identity.
+The first fixture uses the nonempty modules `model` and `app` and one public
+cross-package data import. The language guide does not yet define a finer
+private-across-module visibility lattice; this slice does not need it and the
+checker must not guess. Cross-unit machine calls remain unsupported by CKIR1
+despite their reserved resolution identity.

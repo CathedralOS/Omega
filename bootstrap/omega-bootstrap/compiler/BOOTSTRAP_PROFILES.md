@@ -1,28 +1,27 @@
 # Bootstrap compiler profiles
 
-This file freezes the first executable contracts for the Delta-built bridge
-compiler. O0/O1 are frozen profile names; the architectural role and artifact
-owner is `omega-bootstrap`. This file is
+This file freezes executable regression contracts for the Delta-built bridge.
+The architectural role and artifact owner is `omega-bootstrap`; this file is
 bootstrap-owned and is not a product Omega language specification.
 
-Four named profile records are tracked here, but they are not four
-architecture-level feature inventories. D0, O0, and O1 are frozen executable
-regression envelopes:
-they keep today's vertical slices honest without selecting the final language
-or product-source surface. Delta v1 and `Ωself` remain the only two open feature
-inventories, and only `Ωself` is described by one of the labels below. D0, O0,
-and O1 are not language generations or steps that the final build lattice must
-preserve:
+The names D0, O0, and O1 below are legacy canary profiles. They preserve exact
+vertical-slice behavior while the real bridge grows, but they are not language
+generations, build rungs, or candidate names for the final source profile.
+Delta v1 and `Ωself` are the only two source-surface inventories being selected:
+Delta v1 is the literal bridge implementation language, while `Ωself` is the
+ordinary-Omega profile used by the production compiler source.
+
+The retained canary/profile records are:
 
 - **Delta implementation profile D0** is the current Delta surface used by the
   bridge canaries. It is frozen so those slices do not acquire facilities merely
   because the Rust on-ramp has them. It is not the final Delta specification.
-- **Omega canary acceptance profile O0** is the first input the bridge must accept.
-  It is frozen now as a vertical proof of the pipeline, not falsely presented as
-  sufficient to express the future production compiler.
-- **Omega variable acceptance profile O1** is the first table-driven source
-  slice. It is a monotonic extension of O0, frozen at explicit statement and
-  storage ceilings below.
+- **Legacy Omega canary profile O0** is the first input accepted by the bridge
+  regression slice. It is frozen as a vertical proof of the pipeline, not
+  presented as sufficient to express the future production compiler.
+- **Legacy Omega canary profile O1** is the first table-driven source slice. It
+  is a monotonic extension of O0, frozen at explicit statement and storage
+  ceilings below.
 - **Omega product-compiler source profile `Ωself`** is the incidental ordinary-
   Omega profile selected by the source closure from which the production
   compiler is built. Versioned product checkpoints now expose provisional
@@ -30,7 +29,7 @@ preserve:
   closure exists and the general bridge supplies measured implementation and
   assurance cost for the retained features.
 
-O0 and O1 are vertical pipeline canaries, not normative ancestors of `Ωself`.
+O0 and O1 are legacy vertical pipeline canaries, not normative ancestors of `Ωself`.
 The eventual profile may reuse their implementation, but it is derived from the
 production source closure rather than declared to be the next numbered canary.
 There is no implied O2 ladder. Sufficiency cannot be established from the
