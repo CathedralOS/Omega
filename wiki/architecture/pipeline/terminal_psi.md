@@ -1642,8 +1642,24 @@ publication. A selected-entry progress-bearing canary now does the same with
 one exact source-derived `self.field` premise, source-selected provider plan,
 installed provider occurrence, authorized establishment route, and opaque
 acceptance; omitting that acceptance rejects runnable binding. Only the
-production composer remains follow-on integration work. Compact record
-identities remain report keys and grant no authority.
+production composer remains follow-on integration work.
+
+The compiler now exposes one production staging boundary before that owner. It
+lowers an exact source-selected entry through canonical semantic/proof encoding,
+portable verification, target assignment, machine emission, and object/image
+construction into a non-visible terminal component candidate. The candidate
+retains the exact checked target, selected provider-plan closure, owned
+provider-execution identity projections, and any nonempty component-progress
+manifest. Target substitution, unresolved or duplicate boundary settlements,
+and provider executions outside the selected closure reject before a candidate
+exists. The candidate deliberately has no output path, visibility receipt,
+installed provider occurrence, progress-establishment receipt, or
+`InstalledCode` claim: compilation assembles evidence but cannot mint runtime
+or publication authority. The deployment owner must consume the candidate,
+join real installation occurrences and receipts under the live era ledger,
+acquire installed-code custody, and only then publish a runnable carrier. Until
+that owner is wired, the legacy direct `write_output` path remains fenced.
+Compact record identities remain report keys and grant no authority.
 
 ### Placed-occurrence and resident-custody slice
 

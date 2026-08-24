@@ -14,6 +14,7 @@ use std::sync::Arc;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedCompilation {
     program: CheckedTrees,
+    selected_native_target: Option<omega_target::NativeTarget>,
     selected_program_entry_machine: Option<String>,
     selected_provider_plans: omega_effects::SelectedProviderPlanFacts,
     component_progress: Option<omega_effects::ComponentProgressManifest>,
@@ -23,6 +24,12 @@ pub struct CheckedCompilation {
 }
 
 impl CheckedCompilation {
+    /// Exact native target selected for this checked compilation. Semantic-only
+    /// checking has no selected target and therefore cannot be staged.
+    pub const fn selected_native_target(&self) -> Option<omega_target::NativeTarget> {
+        self.selected_native_target
+    }
+
     /// Exact target-owned `ProgramEntry` choice retained by Omega, if this
     /// checked-only compilation had one. Pure semantic checking is entry-
     /// agnostic; an execution caller must not infer a machine from its name.
@@ -177,8 +184,12 @@ fn compile_to_checked_inner(
     // rewrite adapter calls in the interpreter program.
     let provider_plans =
         crate::pipeline::provider_plans::derive_satisfies_plans(&typed, target_name);
-    let selected_native_target = omega_target::NativeTarget::from_omega_target_name(target_name)
-        .unwrap_or_else(|_| omega_target::NativeTarget::host());
+    let selected_native_target = target_name
+        .map(|target_name| omega_target::NativeTarget::from_omega_target_name(Some(target_name)))
+        .transpose()
+        .map_err(|diagnostic| vec![diagnostic])?;
+    let provider_selection_target =
+        selected_native_target.unwrap_or_else(omega_target::NativeTarget::host);
     let diagnostics =
         crate::pipeline::provider_plans::validate_provider_plan_candidates(&typed, &provider_plans);
     if !diagnostics.is_empty() {
@@ -186,7 +197,7 @@ fn compile_to_checked_inner(
     }
     let selected_provider_plans = crate::pipeline::provider_plans::select_provider_plan_names(
         &provider_plans,
-        selected_native_target,
+        provider_selection_target,
         &target_provider_defaults,
         &build_config.provider_selections,
     )?;
@@ -243,13 +254,14 @@ fn compile_to_checked_inner(
     let task_activations = crate::pipeline::task_plans::elaborate_task_activation_plans(
         checked_program,
         &selected_provider_plan_facts,
-        selected_native_target,
+        provider_selection_target,
     )?;
 
     // `typed_trees_to_checked_trees` wraps the program in an `Arc`; unwrap it for the
     // caller (this is the only owner at this point in the pipeline).
     Ok(CheckedCompilation {
         program: Arc::try_unwrap(checked.program).unwrap_or_else(|shared| (*shared).clone()),
+        selected_native_target,
         selected_program_entry_machine,
         selected_provider_plans: selected_provider_plan_facts,
         component_progress,

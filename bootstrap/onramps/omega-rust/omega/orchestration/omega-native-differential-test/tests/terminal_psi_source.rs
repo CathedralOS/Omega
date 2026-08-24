@@ -8,7 +8,9 @@ use omega_calling_conventions::{
     MachineStateSet, RegisterSet, StackDomainRef, StateFootprintEvidence,
     evaluate_ordinary_boundary_entry_plan, validate_entry_stack_domain_closure,
 };
-use omega_compiler::compile_to_checked;
+use omega_compiler::{
+    TerminalComponentProviderSettlement, compile_to_checked, stage_terminal_component,
+};
 use omega_component_publication::{RunnableComponentEraLedger, bind_installed_runnable_component};
 use omega_effects::{
     ComponentEraCandidate, ComponentEraEntryLedger, ComponentEraLedgerId,
@@ -46,16 +48,15 @@ use omega_external_roots::{
     derive_fuel_suspension_free, validate_dynamic_fuel_attribution_basis, validate_external_root,
     validate_installed_terminal_entry_fuel, validate_installed_terminal_entry_stack,
 };
-use omega_native_differential_test::admit_native_provider_for_selected_plan;
+use omega_native_differential_test::{
+    admit_native_provider, admit_native_provider_for_selected_plan,
+};
 use omega_target::NativeTarget;
 use omega_terminal_abstract_operations::{
     TerminalAbstractBlockEntry, TerminalAbstractFunction, TerminalAbstractOperation,
     TerminalAbstractOperationPlan, TerminalValueBinding,
 };
-use omega_terminal_abstract_operations_to_target_operations::{
-    AdmittedTerminalBoundarySettlement, lower_to_target_operations,
-    lower_to_target_operations_with_provider_executions,
-};
+use omega_terminal_abstract_operations_to_target_operations::lower_to_target_operations;
 use omega_terminal_assigned_target_operations::{
     TerminalAssignedBooleanControl, TerminalAssignedIntegerControl, TerminalAssignedOperation,
 };
@@ -136,6 +137,10 @@ fn progress_source_canary() -> PathBuf {
         .nth(6)
         .expect("omega-native-differential-test lives under bootstrap/onramps/omega-rust/omega/orchestration")
         .join("canaries/pass/progress/provider_receiver_progress_installation/main.omg")
+}
+
+fn progress_free_selected_source_canary() -> PathBuf {
+    terminal_source_canary("selected_empty_component")
 }
 
 fn artifact_sections(verified: &VerifiedTerminalModule<'_>) -> (Vec<u8>, Vec<u8>) {
@@ -538,6 +543,44 @@ fn source_terminal_installation_publishes_only_with_retained_code_custody() {
 }
 
 #[test]
+fn selected_progress_free_source_stages_non_visible_terminal_candidate() {
+    let checked = compile_to_checked(&progress_free_selected_source_canary(), Some("linux_x64"))
+        .expect("selected progress-free source entry should compile");
+    let candidate = stage_terminal_component(
+        &checked,
+        NativeTarget::linux_x64(),
+        3,
+        &AdmissionProfile::default(),
+        &[],
+    )
+    .expect("selected progress-free source should stage one terminal candidate");
+    assert_eq!(candidate.target(), NativeTarget::linux_x64());
+    assert_eq!(candidate.entry_machine(), "Main::main");
+    assert!(candidate.component_progress().is_none());
+    assert!(candidate.selected_provider_plans().is_empty());
+    assert!(candidate.provider_executions().is_empty());
+    assert!(!candidate.semantic_bytes().is_empty());
+    assert!(!candidate.proof_bytes().is_empty());
+    assert!(!candidate.object().text_bytes().is_empty());
+    assert!(!candidate.image().output().bytes.is_empty());
+
+    let target_mismatch = stage_terminal_component(
+        &checked,
+        NativeTarget::windows_x64(),
+        3,
+        &AdmissionProfile::default(),
+        &[],
+    )
+    .expect_err("staging must reject a target different from checked selection");
+    assert!(
+        target_mismatch
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("does not match checked target")),
+        "{target_mismatch:#?}"
+    );
+}
+
+#[test]
 fn selected_source_entry_retains_build_bound_progress_for_terminal_publication() {
     let target = NativeTarget::linux_x64();
     let checked = compile_to_checked(&progress_source_canary(), Some("linux_x64"))
@@ -553,28 +596,9 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
     assert_eq!(demand.profile_identity, "Scheduler::WeakFair");
     assert_eq!(demand.establishment_routes.len(), 1);
 
-    let lowered = lower_machine(&checked, "Main::main")
-        .expect("progress-bearing selected source entry should lower to terminal Psi");
-    let verified = verify_module(
-        &lowered.semantic_module,
-        &lowered.proof_bundle,
-        &AdmissionProfile::default(),
-    )
-    .expect("progress-bearing source terminal Psi should verify");
-    let abstract_operations = lower_artifact_sections(
-        &encode_module(verified.module()).expect("progress terminal semantics encode"),
-        &encode_proof_bundle(verified.proof_bundle()).expect("progress terminal proof encodes"),
-        &AdmissionProfile::default(),
-    )
-    .expect("progress terminal artifact lowers without frontend state");
-    let [boundary] = abstract_operations.boundary_machines.as_slice() else {
-        panic!("progress source should retain one exact terminal boundary")
-    };
-    assert_eq!(boundary.identity, demand.requirement_identity);
-
     let provider = admit_native_provider_for_selected_plan(
         target,
-        &boundary.identity,
+        &demand.requirement_identity,
         checked.selected_provider_plans(),
         "Scheduler",
         0x5400,
@@ -587,22 +611,72 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
         provider.provider_plan().normalized_identity(),
         demand.provider_plan_identity
     );
-    let target_operations = lower_to_target_operations_with_provider_executions(
-        &abstract_operations,
+
+    let missing_provider =
+        stage_terminal_component(&checked, target, 3, &AdmissionProfile::default(), &[])
+            .expect_err("staging must reject an unresolved selected boundary");
+    assert!(
+        missing_provider.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("target operation lowering failed")),
+        "{missing_provider:#?}"
+    );
+
+    let unselected = admit_native_provider(
         target,
-        &[AdmittedTerminalBoundarySettlement {
-            boundary: boundary.id,
+        &demand.requirement_identity,
+        0x5410,
+        CallSignature {
+            parameters: vec![omega_calling_conventions::ValueShape::integer(4, 4)],
+            result: None,
+        },
+    );
+    let unselected_error = stage_terminal_component(
+        &checked,
+        target,
+        3,
+        &AdmissionProfile::default(),
+        &[TerminalComponentProviderSettlement {
+            provider_execution: &unselected,
+            realization: TerminalLinuxExitGroupI32Realization.into(),
+        }],
+    )
+    .expect_err("staging must reject a provider execution outside the selected closure");
+    assert!(
+        unselected_error
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("names unselected plan")),
+        "{unselected_error:#?}"
+    );
+
+    let candidate = stage_terminal_component(
+        &checked,
+        target,
+        3,
+        &AdmissionProfile::default(),
+        &[TerminalComponentProviderSettlement {
             provider_execution: &provider,
             realization: TerminalLinuxExitGroupI32Realization.into(),
         }],
     )
-    .expect("selected provider realizes the progress-bearing boundary");
-    let assigned = assign_registers(&target_operations).expect("progress target homes assign");
-    let machine_code = emit_machine_code(&assigned).expect("progress machine code emits");
-    let object = build_terminal_object_artifact(&machine_code)
-        .expect("progress machine code forms an object");
-    let image = emit_terminal_executable_image(&object, 3)
-        .expect("progress terminal object emits an executable image");
+    .expect("production staging should retain the progress-bearing terminal candidate");
+    assert_eq!(candidate.entry_machine(), "Main::main");
+    assert!(!candidate.semantic_bytes().is_empty());
+    assert!(!candidate.proof_bytes().is_empty());
+    assert_eq!(
+        candidate.selected_provider_plans().normalized_identity(),
+        checked.selected_provider_plans().normalized_identity()
+    );
+    assert_eq!(candidate.provider_executions().len(), 1);
+    assert_eq!(
+        candidate
+            .component_progress()
+            .expect("staged progress manifest")
+            .normalized_identity(),
+        manifest.normalized_identity()
+    );
+    let object = candidate.object();
+    let image = candidate.image();
     let entry_offset = u64::try_from(object.entry_function().text_offset)
         .expect("progress terminal entry offset fits installation geometry");
     let (mut installed, _) =
@@ -662,9 +736,9 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
     let progress_fingerprint = progress.fingerprint();
 
     let installation = build_terminal_installation_record_with_evidence(
-        &image,
+        image,
         ProfileDecisionId::new(0x5424).expect("progress publication profile decision"),
-        [&provider],
+        candidate.provider_executions(),
         Some(&progress),
     )
     .expect("progress installation record commits provider and acceptance evidence");
@@ -674,7 +748,7 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
     )
     .expect("progress installation record decodes");
     let terminal_artifact =
-        bind_installed_terminal_artifact(&object, &image, installation, installed)
+        bind_installed_terminal_artifact(object, image, installation, installed)
             .expect("progress terminal join consumes exact installed-code custody");
     let missing = bind_installed_runnable_component(terminal_artifact, None)
         .expect_err("committed progress cannot be omitted at runnable binding");

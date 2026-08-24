@@ -992,8 +992,8 @@ arrival, adapter, and Terminal-body provenance independently, because those
 parts may have different authorities even when they compose into one epoch
 sequence.
 `ProviderSelected` must close in every admissible context to the interrupted
-domain or one exact provisioned domain before final composition; the selected
-domain need not be identical across contexts when a sealed target rule proves
+domain or one exact provisioned domain before final composition. The selected
+stack may differ across contexts when a sealed target rule proves
 conditional hardware switching. Unknown arrival contexts or unresolved domains
 reject; when no narrower phase-specific nesting fact is proven, the root's
 declared nesting policy applies conservatively to every epoch.
