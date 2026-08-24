@@ -125,6 +125,7 @@ pub(super) fn lower_direct_return(
             }
             Ok(TerminalTargetStructuralArgument {
                 place: argument.place,
+                access: argument.access,
                 path: Vec::new(),
                 root_structural_type: source.structural_type,
                 structural_type: source.structural_type,

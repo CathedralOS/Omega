@@ -94,7 +94,7 @@ fn canonical_o0_agrees_from_terminal_meaning_through_runnable_linux_image() {
     let semantic = fixture_bytes();
     let proof = encode_proof_bundle(&ProofBundle::default()).expect("canonical empty proof");
     let profile = AdmissionProfile::default();
-    let decoded = decode_module(&semantic).expect("decode canonical vocabulary-27 O0 fixture");
+    let decoded = decode_module(&semantic).expect("decode canonical vocabulary-28 O0 fixture");
     let (write_boundary, exit_boundary) = o0_boundaries(&decoded);
 
     let mut meaning = O0Meaning::new(Some(write_boundary), exit_boundary);
@@ -431,7 +431,7 @@ fn native_o0_lowering_rejects_a_provider_admitted_for_another_requirement() {
 
 fn fixture_bytes() -> Vec<u8> {
     let hex = include_str!(
-        "../../../../../../../bootstrap/omega-bootstrap/gates/fixtures/omega-bootstrap-terminal-v27.hex"
+        "../../../../../../../bootstrap/omega-bootstrap/gates/fixtures/omega-bootstrap-terminal-v28.hex"
     );
     let digits = hex
         .bytes()

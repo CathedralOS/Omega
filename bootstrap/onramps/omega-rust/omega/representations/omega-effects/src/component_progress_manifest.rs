@@ -204,12 +204,15 @@ mod tests {
         let plan = ProviderPlan {
             name: "scheduler".into(),
             provider_type: "SchedulerProvider".into(),
+            provider_type_package_identity: None,
             target: "test".into(),
             schema: ServiceSchema {
                 trait_name: "Scheduler".into(),
+                trait_package_identity: None,
                 methods: vec![ServiceMethod {
                     name: "wait".into(),
                     requirement_owner: "Scheduler".into(),
+                    requirement_owner_package_identity: None,
                     requirement_identity: "Scheduler::wait#exact".into(),
                     parameter_count: 0,
                     parameter_type_identities: Vec::new(),

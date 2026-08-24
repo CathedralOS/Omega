@@ -528,12 +528,15 @@ fn selected_storage_plan() -> ProviderPlan {
     ProviderPlan {
         name: "selected::Storage".to_owned(),
         provider_type: "StorageProvider".to_owned(),
+        provider_type_package_identity: None,
         target: String::new(),
         schema: ServiceSchema {
             trait_name: "StorageRoot".to_owned(),
+            trait_package_identity: None,
             methods: vec![ServiceMethod {
                 name: "transfer".to_owned(),
                 requirement_owner: "StorageBase".to_owned(),
+                requirement_owner_package_identity: None,
                 requirement_identity: "StorageBase::transfer".to_owned(),
                 parameter_count: 1,
                 parameter_type_identities: vec!["Token".to_owned()],

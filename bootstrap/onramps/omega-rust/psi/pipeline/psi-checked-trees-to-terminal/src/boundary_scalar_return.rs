@@ -92,6 +92,10 @@ pub(super) fn lower_boundary_scalar_return_machine(
         result: Some(terminal_scalar_type(plan.result_type)?),
         requires,
         program_local_root_introductions: Vec::new(),
+        content_guarantees: lower_boundary_content_guarantees(
+            &checked.facts.qualifications.content.conservation_plans,
+            boundary.state,
+        )?,
         published_service_ceiling: lower_published_service_ceiling(
             &checked.facts.service_reaches.rows,
             boundary.contract_service_reach,

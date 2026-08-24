@@ -17,7 +17,7 @@ use psi_terminal::{
     ProofPropositionId, ProofValueDeclaration, ProofValueId, PropositionApplicationIdentity,
     PropositionBinderArgumentIdentity, PropositionBinderArgumentKind, PropositionBinderDeclaration,
     PropositionBinderKind, PropositionDeclaration, PropositionEvidence, ServiceDeclaration,
-    StructuralAffineDiscard, StructuralArgument, StructuralCaseDeclaration,
+    StructuralAccess, StructuralAffineDiscard, StructuralArgument, StructuralCaseDeclaration,
     StructuralContentProjection, StructuralDomainDeclaration, StructuralDomainRequirement,
     StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
     StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
@@ -35,7 +35,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     let bytes = encode_module(&module).expect("fixture should encode");
 
     assert_eq!(&bytes[..8], b"PSITERM\0");
-    assert_eq!(&bytes[8..10], 24_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 26_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 
@@ -43,7 +43,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.vocabulary_marker, VocabularyMarker::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "36ab369495de019cd6e836ab9e27822e9a6474c9222a254afe551360606ea39b"
+        "82662b99e86f136dbdb1c80031bc3128e08ec44a8847cc5caf3b485a503f2077"
     );
     assert_eq!(
         identity.program_fingerprint,
@@ -310,8 +310,8 @@ fn payload_sum_shape_round_trips_exact_fields_and_requires_canonical_order() {
 fn partial_affine_unit_return_round_trips_exact_path_and_leaf_type() {
     let module = partial_affine_fixture();
     let bytes = encode_module(&module).expect("partial affine return should encode");
-    assert_eq!(&bytes[8..10], 24_u16.to_le_bytes());
-    assert_eq!(&bytes[10..12], 27_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 26_u16.to_le_bytes());
+    assert_eq!(&bytes[10..12], 28_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 }
@@ -320,8 +320,8 @@ fn partial_affine_unit_return_round_trips_exact_path_and_leaf_type() {
 fn nominal_affine_unit_return_round_trips_exact_root_type_and_cleanup_machine() {
     let module = nominal_affine_fixture();
     let bytes = encode_module(&module).expect("nominal affine return should encode");
-    assert_eq!(&bytes[8..10], 24_u16.to_le_bytes());
-    assert_eq!(&bytes[10..12], 27_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 26_u16.to_le_bytes());
+    assert_eq!(&bytes[10..12], 28_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 }
@@ -352,7 +352,7 @@ fn scalar_return_round_trips_nominal_affine_cleanup_action() {
     };
 
     let bytes = encode_module(&module).expect("scalar nominal cleanup should encode");
-    assert_eq!(&bytes[8..10], 24_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 26_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 }
@@ -690,6 +690,7 @@ fn trivial_affine_local_declaration_and_establishment_round_trip_canonically() {
                 is_self: false,
                 structural_type: source_type,
                 multiplicity: StructuralMultiplicity::Linear,
+                access: StructuralAccess::Owned,
                 qualifications: Vec::new(),
             },
             StructuralParameterDeclaration {
@@ -698,6 +699,7 @@ fn trivial_affine_local_declaration_and_establishment_round_trip_canonically() {
                 is_self: false,
                 structural_type: local_type,
                 multiplicity: StructuralMultiplicity::Affine,
+                access: StructuralAccess::Owned,
                 qualifications: Vec::new(),
             },
             StructuralParameterDeclaration {
@@ -706,6 +708,7 @@ fn trivial_affine_local_declaration_and_establishment_round_trip_canonically() {
                 is_self: false,
                 structural_type: local_type,
                 multiplicity: StructuralMultiplicity::Affine,
+                access: StructuralAccess::Owned,
                 qualifications: Vec::new(),
             },
         ],
@@ -935,7 +938,7 @@ fn structural_effect_foundation_round_trips_and_has_stable_identity() {
     let module = structural_effect_fixture();
     let bytes = encode_module(&module).expect("structural/effect foundation should encode");
 
-    assert_eq!(&bytes[10..12], 27_u16.to_le_bytes());
+    assert_eq!(&bytes[10..12], 28_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 
@@ -1270,11 +1273,11 @@ fn structural_foundation_rejects_opaque_relevant_and_nonopaque_erased_fields() {
 #[test]
 fn decoder_rejects_the_previous_vocabulary_marker() {
     let mut bytes = encode_module(&structural_effect_fixture()).unwrap();
-    bytes[10..12].copy_from_slice(&25_u16.to_le_bytes());
+    bytes[10..12].copy_from_slice(&29_u16.to_le_bytes());
 
     assert_eq!(
         decode_module(&bytes),
-        Err(CodecError::UnsupportedVocabularyMarker(25))
+        Err(CodecError::UnsupportedVocabularyMarker(29))
     );
 }
 
@@ -1791,10 +1794,10 @@ fn decoder_rejects_noncanonical_or_ambiguous_bytes() {
     assert_eq!(decode_module(&trailing), Err(CodecError::TrailingBytes(1)));
 
     let mut future_format = bytes.clone();
-    future_format[8..10].copy_from_slice(&25_u16.to_le_bytes());
+    future_format[8..10].copy_from_slice(&27_u16.to_le_bytes());
     assert_eq!(
         decode_module(&future_format),
-        Err(CodecError::UnsupportedFormatMarker(25))
+        Err(CodecError::UnsupportedFormatMarker(27))
     );
 
     let mut stale_format = bytes.clone();
@@ -1988,6 +1991,7 @@ fn partial_affine_fixture() -> TerminalModule {
                     is_self: false,
                     structural_type: pair_type,
                     multiplicity: StructuralMultiplicity::Affine,
+                    access: StructuralAccess::Owned,
                     qualifications: Vec::new(),
                 }],
                 result: TerminalMachineResult::Unit,
@@ -2014,6 +2018,7 @@ fn partial_affine_fixture() -> TerminalModule {
                             callee: machine_id(2),
                             structural_arguments: vec![StructuralArgument {
                                 place: pair_place,
+                                access: StructuralAccess::Owned,
                                 path: vec![StructuralPathSegment::Field("right".to_owned())],
                             }],
                             claim_transfers: Vec::new(),
@@ -2048,6 +2053,7 @@ fn partial_affine_fixture() -> TerminalModule {
                     is_self: false,
                     structural_type: token_type,
                     multiplicity: StructuralMultiplicity::Affine,
+                    access: StructuralAccess::Owned,
                     qualifications: Vec::new(),
                 }],
                 result: TerminalMachineResult::Unit,
@@ -2095,6 +2101,7 @@ fn two_nominal_affine_fixture() -> TerminalModule {
             is_self: false,
             structural_type: structural_type_id(1),
             multiplicity: StructuralMultiplicity::Affine,
+            access: StructuralAccess::Owned,
             qualifications: Vec::new(),
         });
     machine.structural_places.push(StructuralPlaceDeclaration {
@@ -2134,6 +2141,7 @@ fn five_nominal_affine_fixture() -> TerminalModule {
                 is_self: false,
                 structural_type: structural_type_id(1),
                 multiplicity: StructuralMultiplicity::Affine,
+                access: StructuralAccess::Owned,
                 qualifications: Vec::new(),
             });
         machine.structural_places.push(StructuralPlaceDeclaration {
@@ -2205,6 +2213,7 @@ fn nominal_affine_fixture() -> TerminalModule {
                     is_self: false,
                     structural_type: resource_type,
                     multiplicity: StructuralMultiplicity::Affine,
+                    access: StructuralAccess::Owned,
                     qualifications: Vec::new(),
                 }],
                 result: TerminalMachineResult::Unit,
@@ -2289,6 +2298,7 @@ fn structural_effect_fixture() -> TerminalModule {
             is_self,
             structural_type,
             multiplicity: StructuralMultiplicity::Linear,
+            access: StructuralAccess::Owned,
             qualifications: vec![domain],
         };
     TerminalModule {
@@ -2356,6 +2366,7 @@ fn structural_effect_fixture() -> TerminalModule {
                 domain,
             }],
             program_local_root_introductions: Vec::new(),
+            content_guarantees: Vec::new(),
             published_service_ceiling: vec![service],
         }],
         provider_candidates: Vec::new(),
@@ -2406,6 +2417,7 @@ fn structural_effect_fixture() -> TerminalModule {
                             callee: machine_id(101),
                             structural_arguments: vec![StructuralArgument {
                                 place: caller_place,
+                                access: StructuralAccess::Owned,
                                 path: Vec::new(),
                             }],
                             claim_transfers: vec![ClaimTransfer {
@@ -2477,6 +2489,7 @@ fn structural_effect_fixture() -> TerminalModule {
                                 arguments: Vec::new(),
                                 structural_arguments: vec![StructuralArgument {
                                     place: callee_place,
+                                    access: StructuralAccess::Owned,
                                     path: Vec::new(),
                                 }],
                                 completion_receipts: vec![CompletionReceipt {
@@ -3036,6 +3049,7 @@ fn partition_composition_fixture() -> TerminalModule {
     ];
     substitutions.sort();
     machine.content_partition_compositions = vec![ContentPartitionComposition {
+        producer_operation: operation_id(90),
         source_fingerprint: 0xfeed_face_dead_beef,
         source_structural_places: vec![
             StructuralPlaceDeclaration {

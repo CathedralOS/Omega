@@ -1,4 +1,4 @@
-//! Canonical format-34 codec for boundary-settlement rows.
+//! Canonical format-35 codec for boundary-settlement rows.
 //!
 //! The installation parent retains upfront count conversion, settlement order,
 //! validation, and admission replay. This child composes the exact row bytes.

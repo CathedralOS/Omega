@@ -99,9 +99,11 @@ fn runnable_fixture(seed: u64) -> RunnableFixture {
     let provider = ProviderPlan {
         name: "scheduler-plan".into(),
         provider_type: "SchedulerProvider".into(),
+        provider_type_package_identity: None,
         target: "test".into(),
         schema: ServiceSchema {
             trait_name: "Scheduler".into(),
+            trait_package_identity: None,
             methods: vec![
                 ServiceMethod {
                     name: "wait".into(),

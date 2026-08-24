@@ -418,7 +418,7 @@ fn validate_structural_arguments(
         });
     }
     for (index, (argument, expected)) in arguments.iter().zip(expected).enumerate() {
-        let Some((actual_type, actual_multiplicity, actual_qualifications)) = caller
+        let Some((actual_type, actual_multiplicity, actual_access, actual_qualifications)) = caller
             .structural_parameters
             .iter()
             .find(|parameter| parameter.place == argument.place)
@@ -426,6 +426,7 @@ fn validate_structural_arguments(
                 (
                     parameter.structural_type,
                     parameter.multiplicity,
+                    parameter.access,
                     parameter.qualifications.as_slice(),
                 )
             })
@@ -443,6 +444,7 @@ fn validate_structural_arguments(
                         } => Some((
                             structural_type,
                             StructuralMultiplicity::Unrestricted,
+                            StructuralAccess::Owned,
                             &[][..],
                         )),
                         _ => None,
@@ -476,6 +478,22 @@ fn validate_structural_arguments(
                 actual: actual_type,
             });
         }
+        if argument.access != expected.access {
+            return Err(ModuleError::StructuralArgumentAccessMismatch {
+                operation,
+                argument_index: index as u32,
+                expected: expected.access,
+                actual: argument.access,
+            });
+        }
+        if !structural_access_can_supply(actual_access, argument.access) {
+            return Err(ModuleError::StructuralArgumentAccessExceedsSource {
+                operation,
+                argument_index: index as u32,
+                source: actual_access,
+                presented: argument.access,
+            });
+        }
         let actual_multiplicity = if argument.path.is_empty() {
             actual_multiplicity
         } else if expected.multiplicity == StructuralMultiplicity::Affine
@@ -504,7 +522,52 @@ fn validate_structural_arguments(
             }
         }
     }
+    for first in 0..arguments.len() {
+        for second in first + 1..arguments.len() {
+            let left = &arguments[first];
+            let right = &arguments[second];
+            if left.place == right.place
+                && structural_paths_may_overlap(&left.path, &right.path)
+                && (structural_access_is_exclusive(left.access)
+                    || structural_access_is_exclusive(right.access))
+            {
+                return Err(ModuleError::OverlappingExclusiveStructuralArguments {
+                    operation,
+                    first_argument: first as u32,
+                    second_argument: second as u32,
+                });
+            }
+        }
+    }
     Ok(())
+}
+
+fn structural_access_can_supply(source: StructuralAccess, presented: StructuralAccess) -> bool {
+    match source {
+        StructuralAccess::Owned => true,
+        StructuralAccess::SharedBorrow => presented == StructuralAccess::SharedBorrow,
+        StructuralAccess::MutableBorrow => matches!(
+            presented,
+            StructuralAccess::SharedBorrow
+                | StructuralAccess::MutableBorrow
+                | StructuralAccess::WriteOnlyBorrow
+        ),
+        StructuralAccess::WriteOnlyBorrow => presented == StructuralAccess::WriteOnlyBorrow,
+    }
+}
+
+fn structural_access_is_exclusive(access: StructuralAccess) -> bool {
+    matches!(
+        access,
+        StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+    )
+}
+
+fn structural_paths_may_overlap(
+    left: &[StructuralPathSegment],
+    right: &[StructuralPathSegment],
+) -> bool {
+    left.iter().zip(right).all(|(left, right)| left == right)
 }
 
 pub(super) fn validate_service_reach(

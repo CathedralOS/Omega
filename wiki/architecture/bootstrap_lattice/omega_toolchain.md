@@ -104,7 +104,7 @@ and terminal-ledger migration remain product-assurance work under P3 in
 Production optimization remains outside the trusted proof kernel.
 
 The first O0 console canary now has its canonical scalar boundary lane.
-Terminal-Psi vocabulary 27 carries ordered scalar parameter types on boundary
+Terminal-Psi vocabulary 28 carries ordered scalar parameter types on boundary
 declarations and ordered scalar values on `BoundaryCall`; the checked producer,
 codec, semantic schema, verifier, interpreter, and Omega abstract consumer all
 preserve that lane. This closed an implementation seam, not a language ruling.

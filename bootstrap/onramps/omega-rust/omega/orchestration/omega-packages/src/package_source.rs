@@ -19,7 +19,7 @@ use std::path::{Path, PathBuf};
 ///
 /// This is source custody, not package admission. Toolchain identity and
 /// compiler-issued package evidence are intentionally absent; only those later
-/// stages can construct a complete `PackageInstance`.
+/// stages can construct the future sealed `PackageInstance`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolvedPackageSource<S> {
     key: PackageKey,

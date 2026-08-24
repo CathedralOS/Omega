@@ -62,10 +62,10 @@ use psi_layout_plans::{
 };
 use psi_terminal::{
     BindingRelevance, BoundaryMachineDeclaration, ClaimContentProjection, CompletionReceipt,
-    ContentEntryClaim, SemanticFingerprint, StructuralArgument, StructuralFieldDeclaration,
-    StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
-    StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape, TerminalPsiIdentity,
-    VocabularyMarker,
+    ContentEntryClaim, SemanticFingerprint, StructuralAccess, StructuralArgument,
+    StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralPathSegment, StructuralTypeDeclaration,
+    StructuralTypeShape, TerminalPsiIdentity, VocabularyMarker,
 };
 
 #[test]
@@ -492,6 +492,7 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
     let custody_place = PlaceId::new(1).unwrap();
     let boundary_place = PlaceId::new(2).unwrap();
     let settlement_arguments = vec![StructuralArgument {
+        access: StructuralAccess::Owned,
         place: custody_place,
         path: vec![StructuralPathSegment::FixedIndex(3)],
     }];
@@ -531,6 +532,7 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
             attachment: None,
             scalar_parameters: Vec::new(),
             structural_parameters: vec![StructuralParameterDeclaration {
+                access: StructuralAccess::Owned,
                 place: boundary_place,
                 position: 0,
                 is_self: false,
@@ -541,6 +543,7 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
             result: None,
             requires: Vec::new(),
             program_local_root_introductions: Vec::new(),
+            content_guarantees: Vec::new(),
             published_service_ceiling: vec![service],
         }],
         provider_candidates: Vec::new(),
@@ -550,6 +553,7 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
             entry: BlockId::new(1).unwrap(),
             parameters: Vec::new(),
             structural_parameters: vec![StructuralParameterDeclaration {
+                access: StructuralAccess::Owned,
                 place: custody_place,
                 position: 0,
                 is_self: false,
@@ -695,6 +699,7 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
         }),
     };
     let direct_arguments = vec![StructuralArgument {
+        access: StructuralAccess::Owned,
         place: custody_place,
         path: Vec::new(),
     }];
@@ -724,6 +729,7 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
             attachment: None,
             scalar_parameters: Vec::new(),
             structural_parameters: vec![StructuralParameterDeclaration {
+                access: StructuralAccess::Owned,
                 place: boundary_place,
                 position: 0,
                 is_self: false,
@@ -734,6 +740,7 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
             result: Some(u8_type),
             requires: Vec::new(),
             program_local_root_introductions: Vec::new(),
+            content_guarantees: Vec::new(),
             published_service_ceiling: vec![service],
         }],
         provider_candidates: Vec::new(),
@@ -743,6 +750,7 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
             entry: BlockId::new(1).unwrap(),
             parameters: Vec::new(),
             structural_parameters: vec![StructuralParameterDeclaration {
+                access: StructuralAccess::Owned,
                 place: custody_place,
                 position: 0,
                 is_self: false,

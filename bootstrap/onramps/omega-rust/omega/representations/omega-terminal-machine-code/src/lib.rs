@@ -405,6 +405,7 @@ pub struct TerminalInternalUnitCallRecord {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalInternalUnitCallArgumentRecord {
     pub place: PlaceId,
+    pub access: psi_terminal::StructuralAccess,
     pub path: Vec<StructuralPathSegment>,
     pub root_structural_type: StructuralTypeId,
     pub structural_type: StructuralTypeId,

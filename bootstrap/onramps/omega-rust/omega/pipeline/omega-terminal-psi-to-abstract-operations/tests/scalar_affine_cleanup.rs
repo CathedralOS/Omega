@@ -14,11 +14,12 @@ use psi_proof_kernel::{
 };
 use psi_terminal::{
     Block, CrashCause, CrashRouteBucket, CrashRouteGuard, EntryClaim, MachineContract,
-    NominalAffineCleanup, Operation, OperationKind, OperationResult, StructuralDomainDeclaration,
-    StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
-    StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralResultDeclaration,
-    StructuralTypeDeclaration, StructuralTypeShape, TerminalAffineCleanupAction, TerminalMachine,
-    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
+    NominalAffineCleanup, Operation, OperationKind, OperationResult, StructuralAccess,
+    StructuralDomainDeclaration, StructuralFieldDeclaration, StructuralFieldType,
+    StructuralMultiplicity, StructuralParameterDeclaration, StructuralPlaceDeclaration,
+    StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape,
+    TerminalAffineCleanupAction, TerminalMachine, TerminalMachineResult, TerminalModule,
+    Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_codec::{encode_module, encode_proof_bundle};
 use psi_terminal_verifier::{ObligationEvidence, ProofBundle};
@@ -55,6 +56,7 @@ fn omega_consumes_verified_jump_affine_cleanup_without_emitting_an_operation() {
                 scalar_type: ScalarType::Boolean,
             }],
             structural_parameters: vec![StructuralParameterDeclaration {
+                access: StructuralAccess::Owned,
                 place,
                 position: 0,
                 is_self: false,
@@ -260,6 +262,7 @@ fn omega_preserves_exact_singleton_structural_return_custody() {
             attachment: None,
             parameters: Vec::new(),
             structural_parameters: vec![StructuralParameterDeclaration {
+                access: StructuralAccess::Owned,
                 place: source,
                 position: 0,
                 is_self: false,
@@ -383,6 +386,7 @@ fn omega_preserves_exact_singleton_structural_return_custody() {
     wider_cleanup.machines[0]
         .structural_parameters
         .push(StructuralParameterDeclaration {
+            access: StructuralAccess::Owned,
             place: extra,
             position: 1,
             is_self: false,
@@ -426,6 +430,7 @@ fn omega_preserves_exact_singleton_structural_return_custody() {
     wider_cleanup.machines[0]
         .structural_parameters
         .push(StructuralParameterDeclaration {
+            access: StructuralAccess::Owned,
             place: second_extra,
             position: 2,
             is_self: false,
@@ -520,6 +525,7 @@ fn contextual_mixed_scalar_cleanup_module() -> (TerminalModule, ProofBundle) {
                 parameters: Vec::new(),
                 structural_parameters: vec![
                     StructuralParameterDeclaration {
+                        access: StructuralAccess::Owned,
                         place: caller_place,
                         position: 0,
                         is_self: false,
@@ -528,6 +534,7 @@ fn contextual_mixed_scalar_cleanup_module() -> (TerminalModule, ProofBundle) {
                         qualifications: Vec::new(),
                     },
                     StructuralParameterDeclaration {
+                        access: StructuralAccess::Owned,
                         place: no_code_place,
                         position: 1,
                         is_self: false,

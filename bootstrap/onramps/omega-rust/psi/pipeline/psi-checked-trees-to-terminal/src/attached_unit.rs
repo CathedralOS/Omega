@@ -198,6 +198,10 @@ pub(super) fn lower_attached_unit_closure_including(
             &parameters,
             &domain_ids,
         )?;
+        let content_guarantees = lower_boundary_content_guarantees(
+            &checked.facts.qualifications.content.conservation_plans,
+            plan.state,
+        )?;
         boundary_machines.push(BoundaryMachineDeclaration {
             id,
             identity: identity.clone(),
@@ -211,6 +215,7 @@ pub(super) fn lower_attached_unit_closure_including(
             result: plan.result_type.map(terminal_scalar_type).transpose()?,
             requires,
             program_local_root_introductions,
+            content_guarantees,
             published_service_ceiling,
         });
         lowered_boundary_parameters.push((plan.machine, id, parameters, scalar_parameters));

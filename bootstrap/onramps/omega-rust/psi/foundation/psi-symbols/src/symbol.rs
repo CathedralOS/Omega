@@ -12,6 +12,9 @@ pub struct Symbol {
     pub children: HandleSpan<Symbol>,
     pub kind: SymbolKind,
     pub name: SymbolNameHandle,
+    /// Exact earlier symbol whose declaration provenance this compiler-created
+    /// symbol derives from. Authored symbols use the invalid handle.
+    pub generated_from: SymbolHandle,
 }
 
 impl HierarchyNode for Symbol {

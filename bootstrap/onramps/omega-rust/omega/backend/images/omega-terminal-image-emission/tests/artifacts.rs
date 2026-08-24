@@ -41,8 +41,9 @@ use psi_core::{
     ServiceId, StructuralTypeId,
 };
 use psi_terminal::{
-    CompletionReceipt, EntryClaim, NominalAffineCleanup, SemanticFingerprint, StructuralArgument,
-    StructuralMultiplicity, TerminalAffineCleanupAction, TerminalPsiIdentity, VocabularyMarker,
+    CompletionReceipt, EntryClaim, NominalAffineCleanup, SemanticFingerprint, StructuralAccess,
+    StructuralArgument, StructuralMultiplicity, TerminalAffineCleanupAction, TerminalPsiIdentity,
+    VocabularyMarker,
 };
 
 #[test]
@@ -338,6 +339,7 @@ fn linux_write_line_then_exit_survives_object_image_and_installation_replay() {
         ),
     };
     let structural_argument = StructuralArgument {
+        access: StructuralAccess::SharedBorrow,
         place: literal_place,
         path: Vec::new(),
     };
@@ -2255,7 +2257,7 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
         terminal_installation_fingerprint(&record)
             .expect("installation fingerprint")
             .to_string(),
-        "a36a073ae6e28816bbba6f60f77acdb6bcd8bb79bd1e044b3e82e1dd554a7ca9"
+        "7673dc656b470b97fd22e0f009c4fcdfd9c0253badaa574d9a989a2625b085ce"
     );
 
     let mut changed_plan = plan;
@@ -2509,10 +2511,12 @@ fn privileged_effect_and_exact_provider_execution_survive_installation() {
     let mut duplicate_completion_claim = plan.clone();
     duplicate_completion_claim.functions[0].boundary_settlements[0].arguments = vec![
         StructuralArgument {
+            access: StructuralAccess::Owned,
             place: PlaceId::new(1).unwrap(),
             path: Vec::new(),
         },
         StructuralArgument {
+            access: StructuralAccess::Owned,
             place: PlaceId::new(2).unwrap(),
             path: Vec::new(),
         },

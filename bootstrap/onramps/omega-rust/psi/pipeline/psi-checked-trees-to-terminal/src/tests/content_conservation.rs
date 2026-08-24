@@ -340,6 +340,15 @@ fn checked_partition_composition_lowers_with_exact_source_and_dense_claims() {
 
     assert_eq!(lowered.compositions.len(), 1);
     let row = &lowered.compositions[0];
+    assert_eq!(
+        row.producer_coordinate,
+        SourceCallCoordinate {
+            state: fact.state_symbol,
+            statement_index: fact.statement_index,
+            call_ordinal: fact.call_ordinal,
+        }
+    );
+    assert_eq!(row.source_callable, fact.source_callable);
     assert_eq!(row.source_fingerprint, fact.source_fingerprint);
     assert_eq!(row.input_claims, vec![ClaimId::new(1).expect("claim")]);
     assert_eq!(row.substitutions.len(), 3);

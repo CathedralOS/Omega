@@ -28,11 +28,22 @@ pub(super) fn inductive_transition_entailment(
     ensures: &[ExpressionHandle],
     all_facts_are_expressions: bool,
     diagnostics: &mut Vec<Diagnostic>,
+    account_stand_downs: bool,
+    ensures_coordinates: &[(ExpressionHandle, usize, usize)],
+    stand_downs: &mut Vec<crate::ContractEntailmentStandDown>,
 ) {
     // Single-state machines only: the state graph IS the recursion structure,
     // and a tail self-call is a transition back to the root state.
     let states = program.machine_states(machine);
     let [root] = states else {
+        record_inductive_stand_downs(
+            account_stand_downs,
+            machine,
+            ensures,
+            crate::ContractEntailmentStandDownReason::UnrecognizedInductiveBody,
+            ensures_coordinates,
+            stand_downs,
+        );
         return;
     };
     let statements = program.statement_table.statements(root.statement_nodes);
@@ -45,9 +56,25 @@ pub(super) fn inductive_transition_entailment(
             continue; // exhaustiveness carrier, not shape
         }
         let StatementNode::Transition(transition) = statement else {
+            record_inductive_stand_downs(
+                account_stand_downs,
+                machine,
+                ensures,
+                crate::ContractEntailmentStandDownReason::UnrecognizedInductiveBody,
+                ensures_coordinates,
+                stand_downs,
+            );
             return; // assignments / locals / calls: out of shape, stand down
         };
         if transition.continuation.is_valid() {
+            record_inductive_stand_downs(
+                account_stand_downs,
+                machine,
+                ensures,
+                crate::ContractEntailmentStandDownReason::UnrecognizedInductiveBody,
+                ensures_coordinates,
+                stand_downs,
+            );
             return;
         }
         let guard = match transition.guard {
@@ -67,9 +94,31 @@ pub(super) fn inductive_transition_entailment(
             ),
             // Transitions to other states (or `self` / terminal targets) are
             // outside the recognized inductive shape.
-            _ => return,
+            _ => {
+                record_inductive_stand_downs(
+                    account_stand_downs,
+                    machine,
+                    ensures,
+                    crate::ContractEntailmentStandDownReason::UnrecognizedInductiveBody,
+                    ensures_coordinates,
+                    stand_downs,
+                );
+                return;
+            }
         };
         arms.push(TransitionArm { guard, kind });
+    }
+
+    if arms.is_empty() {
+        record_inductive_stand_downs(
+            account_stand_downs,
+            machine,
+            ensures,
+            crate::ContractEntailmentStandDownReason::UnrecognizedInductiveBody,
+            ensures_coordinates,
+            stand_downs,
+        );
+        return;
     }
 
     let trace = std::env::var("OMEGA_ENTAILMENT_TRACE").is_ok();
@@ -79,6 +128,14 @@ pub(super) fn inductive_transition_entailment(
         let Some(judged) = prepare_arm(program, machine, root, requires, ensures, arm) else {
             // The arm's value or argument list is unreadable: the whole body
             // cannot be anchored, so nothing can be judged or rejected.
+            record_inductive_stand_downs(
+                account_stand_downs,
+                machine,
+                ensures,
+                crate::ContractEntailmentStandDownReason::OutsideEntailmentLanguage,
+                ensures_coordinates,
+                stand_downs,
+            );
             return;
         };
         every_arm_visible &= judged.fully_visible;
@@ -135,7 +192,7 @@ pub(super) fn inductive_transition_entailment(
                 program.expression_table.display_name(*fact),
                 guard
             )));
-        } else if let Some(guard) = unknown_arm
+        } else if let Some(ref guard) = unknown_arm
             && goal_always_in_language
             && machine_fully_visible
         {
@@ -145,10 +202,31 @@ pub(super) fn inductive_transition_entailment(
                 program.expression_table.display_name(*fact),
                 guard
             )));
+        } else if unknown_arm.is_some() && account_stand_downs {
+            record_expression_stand_down(
+                machine,
+                *fact,
+                crate::ContractEntailmentStandDownReason::OutsideEntailmentLanguage,
+                ensures_coordinates,
+                stand_downs,
+            );
         }
         // An unknown that is not fully visible means some fact lies outside
         // the engine's language: stand down rather than reject what we
         // cannot fully read.
+    }
+}
+
+fn record_inductive_stand_downs(
+    account: bool,
+    machine: &Machine,
+    ensures: &[ExpressionHandle],
+    reason: crate::ContractEntailmentStandDownReason,
+    coordinates: &[(ExpressionHandle, usize, usize)],
+    stand_downs: &mut Vec<crate::ContractEntailmentStandDown>,
+) {
+    if account {
+        record_all_expression_stand_downs(machine, ensures, reason, coordinates, stand_downs);
     }
 }
 

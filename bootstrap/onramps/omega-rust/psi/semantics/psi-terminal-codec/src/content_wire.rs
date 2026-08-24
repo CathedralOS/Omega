@@ -10,13 +10,15 @@ use psi_core::{
     ContentTerm,
 };
 use psi_terminal::{
-    ClaimContentProjection, ContentEntryClaim, ContentIdentityReshuffle,
-    ContentPartitionComposition, ContentPlaceSubstitution, StructuralPlaceDeclaration,
+    ClaimContentProjection, ContentConservationGuarantee, ContentEntryClaim,
+    ContentIdentityReshuffle, ContentPartitionComposition, ContentPlaceSubstitution,
+    StructuralPlaceDeclaration,
 };
 
 use super::wire::{Reader, Writer};
 use super::{
-    CodecError, MAX_CONTENT_TERM_DEPTH, decode_structural_place_kind, encode_structural_place_kind,
+    CodecError, MAX_CONTENT_TERM_DEPTH, decode_counted, decode_structural_place_kind,
+    encode_structural_place_kind,
 };
 
 pub(super) fn encode_content_entry_claim(
@@ -32,6 +34,7 @@ pub(super) fn encode_content_partition_composition(
     writer: &mut Writer,
     composition: &ContentPartitionComposition,
 ) -> Result<(), CodecError> {
+    writer.id(composition.producer_operation);
     writer.u64(composition.source_fingerprint);
     writer.len(
         "partition source structural places",
@@ -55,6 +58,22 @@ pub(super) fn encode_content_partition_composition(
         encode_content_structural_place(writer, &substitution.target)?;
     }
     encode_content_conservation(writer, &composition.derived)
+}
+
+pub(super) fn encode_content_conservation_guarantee(
+    writer: &mut Writer,
+    guarantee: &ContentConservationGuarantee,
+) -> Result<(), CodecError> {
+    writer.u64(guarantee.fingerprint);
+    writer.len(
+        "content guarantee structural places",
+        guarantee.structural_places.len(),
+    )?;
+    for place in &guarantee.structural_places {
+        writer.id(place.id);
+        encode_structural_place_kind(writer, place.kind);
+    }
+    encode_content_conservation(writer, &guarantee.conservation)
 }
 
 fn encode_content_conservation(
@@ -171,6 +190,7 @@ pub(super) fn decode_content_entry_claim(
 pub(super) fn decode_content_partition_composition(
     reader: &mut Reader<'_>,
 ) -> Result<ContentPartitionComposition, CodecError> {
+    let producer_operation = reader.id("OperationId")?;
     let source_fingerprint = reader.u64()?;
     let source_place_count = reader.count()?;
     let mut source_structural_places = Vec::new();
@@ -196,12 +216,31 @@ pub(super) fn decode_content_partition_composition(
     }
     let derived = decode_content_conservation(reader)?;
     Ok(ContentPartitionComposition {
+        producer_operation,
         source_fingerprint,
         source_structural_places,
         source,
         input_claims,
         substitutions,
         derived,
+    })
+}
+
+pub(super) fn decode_content_conservation_guarantee(
+    reader: &mut Reader<'_>,
+) -> Result<ContentConservationGuarantee, CodecError> {
+    let fingerprint = reader.u64()?;
+    let structural_places = decode_counted(reader, |reader| {
+        Ok(StructuralPlaceDeclaration {
+            id: reader.id("PlaceId")?,
+            kind: decode_structural_place_kind(reader)?,
+        })
+    })?;
+    let conservation = decode_content_conservation(reader)?;
+    Ok(ContentConservationGuarantee {
+        fingerprint,
+        structural_places,
+        conservation,
     })
 }
 
@@ -313,4 +352,77 @@ fn decode_content_structural_place(
         root,
         segments,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use psi_core::{OperationId, PlaceId, StructuralPlaceKind};
+
+    fn place() -> ContentStructuralPlace {
+        ContentStructuralPlace {
+            version: ContentPlaceVersion::Current,
+            root: PlaceId::new(3).expect("place identity"),
+            segments: Vec::new(),
+        }
+    }
+
+    fn conservation() -> ContentConservation {
+        let term = ContentTerm::Projection {
+            projection: ContentProjectionIdentity {
+                domain: ContentDomainId::new(5).expect("content domain identity"),
+                projection_fingerprint: 0xfeed,
+            },
+            subject: place(),
+        };
+        ContentConservation::new(
+            ContentAlgebra {
+                kind: ContentAlgebraKind::IntervalSet,
+                parameter: "Address".to_owned(),
+            },
+            term.clone(),
+            term,
+        )
+    }
+
+    #[test]
+    fn producer_operation_and_boundary_guarantee_round_trip_exactly() {
+        let guarantee = ContentConservationGuarantee {
+            fingerprint: 0x1234,
+            structural_places: vec![StructuralPlaceDeclaration {
+                id: PlaceId::new(3).expect("place identity"),
+                kind: StructuralPlaceKind::Parameter {
+                    position: 1,
+                    is_self: false,
+                },
+            }],
+            conservation: conservation(),
+        };
+        let composition = ContentPartitionComposition {
+            producer_operation: OperationId::new(17).expect("operation identity"),
+            source_fingerprint: guarantee.fingerprint,
+            source_structural_places: guarantee.structural_places.clone(),
+            source: guarantee.conservation.clone(),
+            input_claims: Vec::new(),
+            substitutions: Vec::new(),
+            derived: guarantee.conservation.clone(),
+        };
+
+        let mut writer = Writer::default();
+        encode_content_conservation_guarantee(&mut writer, &guarantee).expect("encode guarantee");
+        encode_content_partition_composition(&mut writer, &composition)
+            .expect("encode composition");
+        let bytes = writer.finish();
+        let mut reader = Reader::new(&bytes);
+
+        assert_eq!(
+            decode_content_conservation_guarantee(&mut reader),
+            Ok(guarantee)
+        );
+        assert_eq!(
+            decode_content_partition_composition(&mut reader),
+            Ok(composition)
+        );
+        assert_eq!(reader.remaining(), 0);
+    }
 }

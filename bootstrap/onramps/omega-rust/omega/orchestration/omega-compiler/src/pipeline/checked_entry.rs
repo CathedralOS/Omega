@@ -24,6 +24,7 @@ pub struct CheckedCompilation {
     task_activations: omega_task_plans::TaskActivationPlanSet,
     callback_placements: Vec<omega_backend_plan::BoundNominalCallbackPlacement>,
     build_evaluation_usage: Option<super::build_config::BuildEvaluationUsage>,
+    contract_entailment_stand_downs: Vec<psi_validation::ContractEntailmentStandDown>,
 }
 
 impl CheckedCompilation {
@@ -75,6 +76,15 @@ impl CheckedCompilation {
         &self,
     ) -> Option<super::build_config::BuildEvaluationUsage> {
         self.build_evaluation_usage
+    }
+
+    /// Exact compiler-owned coordinates of checked implementation claims that
+    /// ordinary validation deliberately left unjudged. Package review rejects
+    /// any row until a later-discharge ledger exists.
+    pub fn contract_entailment_stand_downs(
+        &self,
+    ) -> &[psi_validation::ContractEntailmentStandDown] {
+        &self.contract_entailment_stand_downs
     }
 
     pub fn into_program(self) -> CheckedTrees {
@@ -249,6 +259,8 @@ fn compile_to_checked_inner(
         &selected_provider_plans,
     )
     .map_err(|reason| vec![Diagnostic::error(reason)])?;
+    let contract_entailment_stand_downs =
+        psi_validation::collect_contract_entailment_stand_downs(&typed);
     let mut checked = typed_trees_to_checked_trees(typed, &mut timings)?;
     let callback_placements =
         crate::pipeline::calling_policy_plans::validate_nominal_callback_placement_bindings(
@@ -308,5 +320,6 @@ fn compile_to_checked_inner(
         task_activations,
         callback_placements,
         build_evaluation_usage,
+        contract_entailment_stand_downs,
     })
 }

@@ -150,14 +150,15 @@ complete.
   content, toolchain, and evidence identities bind one instance.
 
   Progress 2026-08-23: a typed identity core now binds `PackageKey` to
-  `PackageName` plus `SourceLineage`, and `PackageInstance` to exact typed
-  source, toolchain, and compiler-evidence identities. Construction rejects a
-  source-resolution family that does not match the key lineage. Migrating the
-  legacy name-keyed graph, lock, and evidence APIs remains. Resolved Git and
-  external-local package sources now carry `PackageKey` plus typed immutable
-  source resolution, but deliberately cannot construct `PackageInstance`
-  before compiler/toolchain evidence exists. `PackageKey::identity()` now
-  emits a domain-separated opaque 256-bit commitment shared with the compiler;
+  `PackageName` plus `SourceLineage`, and typed immutable source resolutions
+  reject a family that does not match the key lineage at graph/source custody
+  boundaries. The earlier caller-constructible `PackageInstance` placeholder
+  was removed: its replacement must join exact source, toolchain, and sealed
+  compiler evidence by construction. Migrating the legacy name-keyed graph,
+  lock, and evidence APIs remains. Resolved Git and external-local package
+  sources now carry `PackageKey` plus typed immutable source resolution but
+  deliberately cannot construct an accepted instance. `PackageKey::identity()`
+  now emits a domain-separated opaque 256-bit commitment shared with the compiler;
   it is stable across revisions and changes when package name or canonical
   lineage changes.
 
@@ -190,13 +191,16 @@ complete.
   `omega-packages`. Managed compiler sources retain that identity and
   same-package checks prefer it over path spelling. Managed authored symbols
   recover it from retained source metadata. Provider plans and provider trust
-  rows now retain the compiler-derived package identity of the realizing
-  machine, and exact origin enters the existing normalized plan fingerprint;
-  readable origin labels are diagnostic only. That 64-bit fingerprint remains
-  review/execution compatibility data, not sealed package admission identity.
-  Generated/source-free ownership, package-qualified provider type/schema/
-  requirement/binding identities, toolchain identity, terminal Psi, and sealed
-  emitted evidence remain.
+  rows now retain compiler-derived package identities for the realizing
+  machine, nominal provider type, selected service schema, and each inherited
+  or direct requirement owner. Those identities enter the existing normalized
+  plan fingerprint; readable labels are diagnostic only. That 64-bit
+  fingerprint remains review/execution compatibility data, not sealed package
+  admission identity. Post-resolution compiler symbols now require an existing
+  derivation-origin symbol and inherit its exact package/toolchain provenance;
+  source-free symbols remain deliberately unresolved. Package-qualified binding
+  and selection identities, toolchain identity, terminal Psi, and sealed emitted
+  evidence remain.
 
 ## P2 — Dependency projection and reconciliation
 
@@ -276,11 +280,11 @@ complete.
   already fails checking. This is enough for a compiler-owned, target-scoped
   review projection, but not an admission certificate. General `pub`/`export`
   visibility, generated/toolchain symbol ownership, package-qualified provider
-  schema, requirement, type, and binding identities, source/toolchain/compiler
-  commitments, non-provider trust ownership, build observations, and
-  reproducibility receipts still need one sealed projection. Exact
-  realizing-package provenance is already retained on provider plans and their
-  provider trust rows.
+  binding/selection identities, source/toolchain/compiler commitments,
+  non-provider trust ownership, build observations, and reproducibility
+  receipts still need one sealed projection. Exact provenance for the realizing
+  package, provider type, service schema, and requirement owner is already
+  retained on provider plans and their provider trust rows.
   Until those joins exist, only an authored `boundary machine` is a dependable
   exported-callable classification and no projection may be persisted as
   accepted evidence. The compiler now exposes
@@ -289,10 +293,12 @@ complete.
   package-qualified authored nominals, distinct declared/effective/concrete
   service rows, unresolved installation rows, exact capability-flow
   coordinates, operational outcomes, crashes, mutation, and selected provider
-  mechanisms with exact realizing-package provenance. Provider schema,
-  requirement, type, and binding labels remain unsealed strings. Toolchain
-  identity and generated-symbol ownership remain visibly unbound rather than
-  guessed; standalone and target-free compilations reject projection.
+  mechanisms with exact realizing-package, provider-type, service-schema, and
+  requirement-owner provenance. Provider binding and selection labels remain
+  unsealed strings. Compiler-generated symbols now inherit the exact authored
+  provenance of a mandatory derivation origin; truly source-free symbols and
+  exact toolchain identity remain visibly unbound rather than guessed.
+  Standalone and target-free compilations reject projection.
 
 - **PROOF-AND-BOUNDARY-ADMISSION.** Fail closed on false or incomplete evidence.
 
@@ -304,14 +310,18 @@ complete.
   Progress 2026-08-23: concrete proof, contract, bounds, and termination
   obligations normally reject before checked trees are constructed; accepted
   axioms and admitted boundary qualifications remain identifiable. There is no
-  implemented open/deferred-proof status yet. More importantly, contract
-  entailment deliberately stands down for some out-of-engine-language claims,
-  and no checked artifact currently records `stand-down -> later discharge`.
-  The admission profile must therefore reject every unresolved stand-down or
-  retain an exact later-discharge ledger; ordinary successful compilation is
-  not itself a complete proof verdict. The standalone `psi-proof` boundary
-  obligation ledger is not wired into production and must not be cited as
-  enforcement.
+  implemented open/deferred-proof status yet. Contract entailment deliberately
+  stands down for some out-of-engine-language claims. Package-aware checked
+  compilation now audits the pristine typed graph, including generic
+  templates, and retains exact machine/contract/fact coordinates plus a closed
+  reason for every checked-implementation stand-down. The review projection
+  rejects any such row; accepted/opaque supply remains in the trust lane rather
+  than being mislabeled as an unresolved proof. This is fail-closed review
+  behavior, not sealed evidence: terminal propagation, kernel recheck receipts,
+  and a possible exact later-discharge ledger remain. Ordinary successful
+  compilation is not itself a complete proof verdict. The standalone
+  `psi-proof` boundary obligation ledger is not wired into production and must
+  not be cited as enforcement.
 
 - **SEALED-EVIDENCE-HANDOFF.** Replace public construction/parsing of
   `PackageCapabilityManifest` as an admission input.
@@ -319,6 +329,15 @@ complete.
   Acceptance: production orchestration accepts only compiler-issued evidence
   bound to exact source/toolchain identity. A standalone JSON file cannot
   impersonate compiler output.
+
+  Progress 2026-08-23: legacy manifest, lock, whole-section receipt, install,
+  update, and graph-audit modules now compile only for isolated crate tests and
+  are absent from the release `omega-packages` API. The arbitrary public
+  `PackageInstance` plus caller-derived toolchain/evidence fingerprint tuple was
+  removed rather than adapted. Source diagnostics were split onto a retained
+  production surface. The compiler projection remains explicitly review-only;
+  source/toolchain/compiler binding and the remaining completeness joins must
+  land before a replacement admission type is issued or persisted.
 
 ## P4 — Lock and baseline
 

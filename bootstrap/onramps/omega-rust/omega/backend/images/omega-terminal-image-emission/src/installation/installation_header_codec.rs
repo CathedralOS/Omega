@@ -1,4 +1,4 @@
-//! Canonical format-34 installation header codec.
+//! Canonical format-35 installation header codec.
 //!
 //! The parent retains validation and all count conversions so extraction does
 //! not change encode error precedence. This module owns the fixed header bytes.

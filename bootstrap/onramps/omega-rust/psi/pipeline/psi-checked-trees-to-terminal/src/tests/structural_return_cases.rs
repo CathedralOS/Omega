@@ -10,6 +10,7 @@ fn install_structural_scalar_return_fixture(checked: &mut CheckedTrees) {
         is_self: false,
         type_identity: "example::Acknowledgement".to_owned(),
         multiplicity: Multiplicity::Affine,
+        access: psi_checked_trees::CheckedStructuralAccess::Owned,
         qualifications: Vec::new(),
     };
     checked.facts.flow.terminal_structural_scalar_returns =

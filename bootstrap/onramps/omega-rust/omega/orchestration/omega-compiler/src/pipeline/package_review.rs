@@ -26,8 +26,8 @@ pub enum PackageReviewNominalOwner {
     /// projection does not yet carry the exact toolchain commitment.
     ToolchainUnbound,
     /// Checked lowering retained a nominal reference without an authored
-    /// source owner. Review surfaces it explicitly; admission must reject it
-    /// until generated-symbol ownership is carried by construction.
+    /// source owner or mandatory compiler derivation origin. Review surfaces
+    /// it explicitly; admission must reject it.
     Unresolved,
 }
 
@@ -109,8 +109,9 @@ pub struct CheckedPackageCallableReview {
 /// The realizing package is exact and participates in `plan_fingerprint`.
 /// That existing 64-bit fingerprint is review/execution compatibility data,
 /// not a collision-resistant package-admission identity.
-/// Provider type, schema, requirement, and binding names remain review labels
-/// carried by the existing provider-plan model; they are not yet sealed
+/// Provider type, schema, and requirement labels are paired with exact package
+/// owners in the retained schema. Binding and selection names remain review
+/// labels carried by the existing provider-plan model; they are not yet sealed
 /// package-qualified nominal identities.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedPackageProviderReview {
@@ -118,7 +119,8 @@ pub struct CheckedPackageProviderReview {
     plan_fingerprint: u64,
     realizing_package: Option<PackageKeyIdentity>,
     provider_type: String,
-    service_schema: String,
+    provider_type_package: Option<PackageKeyIdentity>,
+    schema: omega_effects::provider_plan::ServiceSchema,
     target: String,
     rows: Vec<omega_effects::provider_plan::ProviderPlanRow>,
 }
@@ -140,8 +142,16 @@ impl CheckedPackageProviderReview {
         &self.provider_type
     }
 
+    pub const fn provider_type_package(&self) -> Option<PackageKeyIdentity> {
+        self.provider_type_package
+    }
+
     pub fn service_schema(&self) -> &str {
-        &self.service_schema
+        &self.schema.trait_name
+    }
+
+    pub fn schema(&self) -> &omega_effects::provider_plan::ServiceSchema {
+        &self.schema
     }
 
     pub fn target(&self) -> &str {
@@ -240,9 +250,11 @@ impl CheckedPackageReviewProjection {
 /// Project the exact checked authority facts that are already safely joined.
 ///
 /// This refuses standalone and target-free compilations, missing checked fact
-/// rows, and a non-root build machine. Referenced generated/source-free
-/// nominals remain explicit `Unresolved` review rows; a later admission
-/// certificate must reject them rather than treating them as empty authority.
+/// rows, and a non-root build machine. Compiler-generated nominals inherit the
+/// exact authored source provenance of their mandatory derivation origin.
+/// Truly source-free nominals remain explicit `Unresolved` review rows; a later
+/// admission certificate must reject them rather than treating them as empty
+/// authority.
 pub fn project_checked_package_review(
     compilation: &CheckedCompilation,
 ) -> Result<CheckedPackageReviewProjection, Vec<Diagnostic>> {
@@ -256,6 +268,21 @@ pub fn project_checked_package_review(
             "package review requires one explicit target selection",
         )]
     })?;
+    if !compilation.contract_entailment_stand_downs().is_empty() {
+        return Err(compilation
+            .contract_entailment_stand_downs()
+            .iter()
+            .map(|stand_down| {
+                Diagnostic::error(format!(
+                    "package review rejects unresolved contract-entailment stand-down at machine symbol {}, contract {}, fact {}: {}",
+                    stand_down.machine_symbol.arena_index(),
+                    stand_down.contract_index,
+                    stand_down.fact_index,
+                    stand_down.reason.label(),
+                ))
+            })
+            .collect());
+    }
     let build_machine = compilation.selected_build_machine_symbol();
     let mut callables = Vec::new();
     let mut projected_build_machine = false;
@@ -310,7 +337,8 @@ pub fn project_checked_package_review(
             plan_fingerprint: plan.identity_fingerprint(),
             realizing_package: plan.origin_package_identity,
             provider_type: plan.provider_type.clone(),
-            service_schema: plan.schema.trait_name.clone(),
+            provider_type_package: plan.provider_type_package_identity,
+            schema: plan.schema.clone(),
             target: plan.target.clone(),
             rows: plan.rows.clone(),
         })

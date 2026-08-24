@@ -7,7 +7,7 @@ use omega_terminal_abstract_operations::{
 use omega_terminal_target_operations::MachineRegister;
 use psi_core::{BlockId, EdgeId, PlaceId, StructuralFieldId, StructuralTypeId};
 use psi_terminal::{
-    BoundaryMachineDeclaration, SemanticFingerprint, StructuralArgument,
+    BoundaryMachineDeclaration, SemanticFingerprint, StructuralAccess, StructuralArgument,
     StructuralFieldDeclaration, StructuralMultiplicity, StructuralParameterDeclaration,
     StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
     TerminalAffineCleanupAction, TerminalPsiIdentity, VocabularyMarker,
@@ -33,6 +33,7 @@ fn structural_scalar_call_plan() -> TerminalAbstractOperationPlan {
         is_self: false,
         structural_type,
         multiplicity: StructuralMultiplicity::Affine,
+        access: StructuralAccess::Owned,
         qualifications: Vec::new(),
     };
     TerminalAbstractOperationPlan {
@@ -76,6 +77,7 @@ fn structural_scalar_call_plan() -> TerminalAbstractOperationPlan {
                         callee,
                         structural_arguments: vec![StructuralArgument {
                             place: caller_place,
+                            access: StructuralAccess::Owned,
                             path: Vec::new(),
                         }],
                         claim_transfers: Vec::new(),
@@ -250,6 +252,7 @@ fn bounded_boolean_cleanup_plan() -> TerminalAbstractOperationPlan {
                         is_self: false,
                         structural_type: token_type,
                         multiplicity: StructuralMultiplicity::Affine,
+                        access: StructuralAccess::Owned,
                         qualifications: Vec::new(),
                     },
                     StructuralParameterDeclaration {
@@ -258,6 +261,7 @@ fn bounded_boolean_cleanup_plan() -> TerminalAbstractOperationPlan {
                         is_self: false,
                         structural_type: plain_type,
                         multiplicity: StructuralMultiplicity::Affine,
+                        access: StructuralAccess::Owned,
                         qualifications: Vec::new(),
                     },
                 ],
@@ -487,6 +491,7 @@ fn two_nominal_cleanups_admit_zero_one_distinct_or_shared_bounded_executable_bod
             is_self: false,
             structural_type: receiver_type,
             multiplicity: StructuralMultiplicity::Affine,
+            access: StructuralAccess::Owned,
             qualifications: Vec::new(),
         })
         .collect::<Vec<_>>();
@@ -716,6 +721,7 @@ fn unit_fixed_array_call_selects_exact_forty_byte_native_placements() {
         is_self: false,
         structural_type,
         multiplicity: StructuralMultiplicity::Linear,
+        access: StructuralAccess::Owned,
         qualifications: Vec::new(),
     };
     let unit_function = |machine, place, operations| TerminalAbstractFunction {
@@ -751,6 +757,7 @@ fn unit_fixed_array_call_selects_exact_forty_byte_native_placements() {
                         callee,
                         structural_arguments: vec![psi_terminal::StructuralArgument {
                             place: root_place,
+                            access: StructuralAccess::Owned,
                             path: Vec::new(),
                         }],
                         claim_transfers: Vec::new(),
@@ -986,11 +993,13 @@ fn metadata_only_boundary_requires_the_exact_preceding_port_realization() {
                 is_self: false,
                 structural_type: element_type,
                 multiplicity: StructuralMultiplicity::Linear,
+                access: StructuralAccess::Owned,
                 qualifications: Vec::new(),
             }],
             result: None,
             requires: Vec::new(),
             program_local_root_introductions: Vec::new(),
+            content_guarantees: Vec::new(),
             published_service_ceiling: vec![service],
         }],
         provider_candidates: Vec::new(),
@@ -1005,6 +1014,7 @@ fn metadata_only_boundary_requires_the_exact_preceding_port_realization() {
                 is_self: false,
                 structural_type: array_type,
                 multiplicity: StructuralMultiplicity::Affine,
+                access: StructuralAccess::Owned,
                 qualifications: Vec::new(),
             }],
             result: TerminalAbstractFunctionResult::Unit,
@@ -1030,6 +1040,7 @@ fn metadata_only_boundary_requires_the_exact_preceding_port_realization() {
                     arguments: Vec::new(),
                     structural_arguments: vec![psi_terminal::StructuralArgument {
                         place: argument_place,
+                        access: StructuralAccess::Owned,
                         path: vec![StructuralPathSegment::FixedIndex(1)],
                     }],
                     completion_claim_sources: Vec::new(),
@@ -1070,6 +1081,7 @@ fn metadata_only_boundary_requires_the_exact_preceding_port_realization() {
         arguments,
         &[psi_terminal::StructuralArgument {
             place: argument_place,
+            access: StructuralAccess::Owned,
             path: vec![StructuralPathSegment::FixedIndex(1)],
         }]
     );
@@ -1956,6 +1968,7 @@ fn linux_exit_group_i32_requires_exact_literal_shape_and_stays_fail_closed_elsew
             result: None,
             requires: Vec::new(),
             program_local_root_introductions: Vec::new(),
+            content_guarantees: Vec::new(),
             published_service_ceiling: Vec::new(),
         }],
         provider_candidates: Vec::new(),
@@ -2093,11 +2106,13 @@ fn linux_write_line_and_exit_compose_in_one_shared_unit_body() {
                     is_self: false,
                     structural_type: byte_type,
                     multiplicity: StructuralMultiplicity::Unrestricted,
+                    access: StructuralAccess::SharedBorrow,
                     qualifications: Vec::new(),
                 }],
                 result: None,
                 requires: Vec::new(),
                 program_local_root_introductions: Vec::new(),
+                content_guarantees: Vec::new(),
                 published_service_ceiling: Vec::new(),
             },
             BoundaryMachineDeclaration {
@@ -2109,6 +2124,7 @@ fn linux_write_line_and_exit_compose_in_one_shared_unit_body() {
                 result: None,
                 requires: Vec::new(),
                 program_local_root_introductions: Vec::new(),
+                content_guarantees: Vec::new(),
                 published_service_ceiling: Vec::new(),
             },
         ],
@@ -2140,6 +2156,7 @@ fn linux_write_line_and_exit_compose_in_one_shared_unit_body() {
                     arguments: Vec::new(),
                     structural_arguments: vec![StructuralArgument {
                         place: literal_place,
+                        access: StructuralAccess::SharedBorrow,
                         path: Vec::new(),
                     }],
                     completion_claim_sources: Vec::new(),

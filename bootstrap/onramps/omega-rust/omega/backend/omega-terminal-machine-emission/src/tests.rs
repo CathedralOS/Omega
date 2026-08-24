@@ -18,8 +18,8 @@ use psi_core::{
     BoundaryMachineId, EdgeId, MachineId, OperationId, PlaceId, ServiceId, StructuralTypeId,
 };
 use psi_terminal::{
-    ByteSequenceCarrier, NominalAffineCleanup, SemanticFingerprint, StructuralArgument,
-    StructuralMultiplicity, StructuralPathSegment, StructuralPlaceDeclaration,
+    ByteSequenceCarrier, NominalAffineCleanup, SemanticFingerprint, StructuralAccess,
+    StructuralArgument, StructuralMultiplicity, StructuralPathSegment, StructuralPlaceDeclaration,
     StructuralTypeDeclaration, StructuralTypeShape, TerminalPsiIdentity, VocabularyMarker,
 };
 
@@ -149,6 +149,7 @@ fn linux_write_line_then_exit_owns_exact_code_data_and_argument_custody() {
         },
     };
     let argument = StructuralArgument {
+        access: StructuralAccess::SharedBorrow,
         place: literal_place,
         path: Vec::new(),
     };
@@ -404,6 +405,7 @@ fn executable_nominal_cleanup_plan(
         requirement_obligations: Vec::new(),
     };
     let root_parameter = TerminalTargetStructuralParameter {
+        access: StructuralAccess::Owned,
         place: receiver_place,
         structural_type: receiver_type,
         multiplicity: StructuralMultiplicity::Affine,
@@ -1430,6 +1432,7 @@ fn x86_unit_call_port_write_and_settlement_keep_exact_order() {
         value: 0x20,
     };
     let settlement_arguments = vec![StructuralArgument {
+        access: StructuralAccess::Owned,
         place: PlaceId::new(41).expect("custody argument"),
         path: vec![
             StructuralPathSegment::Field("#payload".into()),
@@ -1644,6 +1647,7 @@ fn forty_byte_unit_argument_is_copied_for_sysv_and_forwarded_indirectly_elsewher
         let place = PlaceId::new(1).unwrap();
         let structural_type = StructuralTypeId::new(1).unwrap();
         let argument = TerminalTargetStructuralArgument {
+            access: StructuralAccess::Owned,
             place,
             path: Vec::new(),
             root_structural_type: structural_type,
@@ -1656,6 +1660,7 @@ fn forty_byte_unit_argument_is_copied_for_sysv_and_forwarded_indirectly_elsewher
             destination: call_plan.parameters[0].clone(),
         };
         let parameter = TerminalTargetStructuralParameter {
+            access: StructuralAccess::Owned,
             place,
             structural_type,
             multiplicity: StructuralMultiplicity::Unrestricted,
@@ -1730,6 +1735,7 @@ fn x86_unit_parameter_homes_survive_effects_and_parallel_reordering() {
     let second = PlaceId::new(2).unwrap();
     let ty = StructuralTypeId::new(1).unwrap();
     let parameter = |place: PlaceId, index: usize| TerminalTargetStructuralParameter {
+        access: StructuralAccess::Owned,
         place,
         structural_type: ty,
         multiplicity: StructuralMultiplicity::Unrestricted,
@@ -1738,6 +1744,7 @@ fn x86_unit_parameter_homes_survive_effects_and_parallel_reordering() {
     };
     let argument =
         |place: PlaceId, source: usize, destination: usize| TerminalTargetStructuralArgument {
+            access: StructuralAccess::Owned,
             place,
             path: Vec::new(),
             root_structural_type: ty,
@@ -1829,6 +1836,7 @@ fn aarch64_unit_parameter_homes_survive_parallel_reordering_and_restore_lr() {
     let second = PlaceId::new(2).unwrap();
     let ty = StructuralTypeId::new(1).unwrap();
     let parameter = |place: PlaceId, index: usize| TerminalTargetStructuralParameter {
+        access: StructuralAccess::Owned,
         place,
         structural_type: ty,
         multiplicity: StructuralMultiplicity::Unrestricted,
@@ -1837,6 +1845,7 @@ fn aarch64_unit_parameter_homes_survive_parallel_reordering_and_restore_lr() {
     };
     let argument =
         |place: PlaceId, source: usize, destination: usize| TerminalTargetStructuralArgument {
+            access: StructuralAccess::Owned,
             place,
             path: Vec::new(),
             root_structural_type: ty,
@@ -1957,6 +1966,7 @@ fn aarch64_unit_calls_cover_stack_fragments_and_stack_indirect_copies() {
             .iter()
             .enumerate()
             .map(|(index, shape)| TerminalTargetStructuralParameter {
+                access: StructuralAccess::Owned,
                 place: PlaceId::new(index as u64 + 1).unwrap(),
                 structural_type: ty,
                 multiplicity: StructuralMultiplicity::Unrestricted,
@@ -1967,6 +1977,7 @@ fn aarch64_unit_calls_cover_stack_fragments_and_stack_indirect_copies() {
         let arguments = parameters
             .iter()
             .map(|parameter| TerminalTargetStructuralArgument {
+                access: StructuralAccess::Owned,
                 place: parameter.place,
                 path: Vec::new(),
                 root_structural_type: ty,
@@ -2060,6 +2071,7 @@ fn unit_argument_fragments_cover_native_scalar_widths() {
             let place = PlaceId::new(1).unwrap();
             let ty = StructuralTypeId::new(1).unwrap();
             let parameter = TerminalTargetStructuralParameter {
+                access: StructuralAccess::Owned,
                 place,
                 structural_type: ty,
                 multiplicity: StructuralMultiplicity::Unrestricted,
@@ -2067,6 +2079,7 @@ fn unit_argument_fragments_cover_native_scalar_widths() {
                 placement: call_plan.parameters[0].clone(),
             };
             let argument = TerminalTargetStructuralArgument {
+                access: StructuralAccess::Owned,
                 place,
                 path: Vec::new(),
                 root_structural_type: ty,

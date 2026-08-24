@@ -141,7 +141,7 @@ fn provider_attachment_specialization_rejects_ambiguous_or_unrouted_fields() {
 }
 
 #[test]
-fn rejects_nonliteral_byte_sequence_boundary_source() {
+fn retains_shared_byte_sequence_forwarding_access() {
     let checked = checked(
         r#"
         boundary trait Console {
@@ -157,14 +157,68 @@ fn rejects_nonliteral_byte_sequence_boundary_source() {
         }
         "#,
     );
-    assert!(
-        checked
-            .facts
-            .flow
-            .terminal_unit_effects
-            .for_machine(machine_named(&checked, "enter"))
-            .is_none(),
-        "nonliteral byte-sequence forwarding remains fail-closed"
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    let enter = plans
+        .for_machine(machine_named(&checked, "enter"))
+        .expect("shared byte-sequence forwarding plan");
+    assert_eq!(
+        enter.structural_parameters[0].access,
+        psi_checked_trees::CheckedStructuralAccess::SharedBorrow
+    );
+    let CheckedUnitEffectOperationPlan::BoundaryCall {
+        structural_arguments,
+        ..
+    } = &enter.operations[0]
+    else {
+        panic!("shared forwarding should retain its boundary call")
+    };
+    assert_eq!(
+        structural_arguments[0].access,
+        psi_checked_trees::CheckedStructuralAccess::SharedBorrow
+    );
+}
+
+#[test]
+fn retains_explicit_mutable_to_write_only_attenuation() {
+    let checked = checked(
+        r#"
+        data Sink {}
+        machine Sink::fill(destination: &write [u8]) {}
+
+        data Root {}
+        machine Root::enter(bytes: &mut [u8]) {
+            Sink::fill(&write bytes);
+        }
+        "#,
+    );
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    let enter = plans
+        .for_machine(machine_named(&checked, "enter"))
+        .expect("mutable-to-write-only caller plan");
+    let fill = plans
+        .for_machine(machine_named(&checked, "fill"))
+        .expect("write-only callee plan");
+    assert_eq!(
+        enter.structural_parameters[0].access,
+        psi_checked_trees::CheckedStructuralAccess::MutableBorrow
+    );
+    assert_eq!(
+        fill.structural_parameters[0].access,
+        psi_checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
+    );
+    let CheckedUnitEffectOperationPlan::CallUnit {
+        coordinate,
+        structural_arguments,
+        ..
+    } = &enter.operations[0]
+    else {
+        panic!("attenuation should retain its checked call")
+    };
+    assert_eq!(coordinate.statement_index, 0);
+    assert_eq!(coordinate.call_ordinal, 0);
+    assert_eq!(
+        structural_arguments[0].access,
+        psi_checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
     );
 }
 

@@ -2121,6 +2121,23 @@ pub fn selected_external_root_entry_fact_bindings(
     Ok(bindings)
 }
 
+fn provider_type_package_identity(
+    typed: &TypedTrees,
+    machine: &psi_typed_trees::machine::Machine,
+) -> Option<psi_core::PackageKeyIdentity> {
+    let attached_data = machine.attached_data.as_ref()?;
+    let mut owners = typed
+        .data_definitions()
+        .iter()
+        .filter(|definition| definition.name == *attached_data);
+    let owner = owners.next()?;
+    owners
+        .next()
+        .is_none()
+        .then(|| typed.symbols.symbol_package_identity(owner.symbol))
+        .flatten()
+}
+
 /// PRV4 order step (2): derive plans from explicit SATISFIES edges -- one
 /// plan per (provider type, boundary trait, target), assembled only from
 /// that provider's conformance closure. External leaves and checked adapters
@@ -2144,6 +2161,7 @@ pub(crate) fn derive_satisfies_plans(
     // and supply identities; source syntax is no longer a binding authority.
     for machine in typed.machines() {
         let origin_package_identity = typed.symbols.symbol_package_identity(machine.symbol);
+        let provider_type_package_identity = provider_type_package_identity(typed, machine);
         for clause in typed.machine_trait_conformances(machine) {
             if clause.requirement.as_ref().is_some_and(|requirement| {
                 psi_typed_trees::operator::resolve_satisfied_boundary_operator(
@@ -2242,12 +2260,14 @@ pub(crate) fn derive_satisfies_plans(
                     .iter()
                     .position(|plan| {
                         plan.name == plan_name
+                            && plan.provider_type_package_identity == provider_type_package_identity
                             && plan.origin_package_identity == origin_package_identity
                     })
                     .unwrap_or_else(|| {
                         plans.push(ProviderPlan {
                             name: plan_name.clone(),
                             provider_type: provider_type.clone(),
+                            provider_type_package_identity,
                             target: target.clone(),
                             schema,
                             rows: Vec::new(),
@@ -2342,6 +2362,7 @@ fn derive_boundary_operator_plans(
     let mut plans = Vec::<ProviderPlan>::new();
     for machine in typed.machines() {
         let origin_package_identity = typed.symbols.symbol_package_identity(machine.symbol);
+        let provider_type_package_identity = provider_type_package_identity(typed, machine);
         for clause in typed.machine_trait_conformances(machine) {
             let Some(requirement) = clause.requirement.as_ref() else {
                 continue;
@@ -2404,12 +2425,14 @@ fn derive_boundary_operator_plans(
                 .iter()
                 .position(|plan| {
                     plan.name == plan_name
+                        && plan.provider_type_package_identity == provider_type_package_identity
                         && plan.origin_package_identity == origin_package_identity
                 })
                 .unwrap_or_else(|| {
                     plans.push(ProviderPlan {
                         name: plan_name.clone(),
                         provider_type: provider_type.clone(),
+                        provider_type_package_identity,
                         target: target.clone(),
                         schema: schema.clone(),
                         rows: Vec::new(),

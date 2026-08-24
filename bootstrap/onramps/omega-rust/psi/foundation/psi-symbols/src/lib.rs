@@ -67,7 +67,11 @@ mod tests {
             .find_child_by_name(authored_machine, "entry")
             .expect("authored entry");
 
-        let generated = symbols.insert_generated_root(SymbolKind::Machine, "map$specialized");
+        let generated = symbols.insert_generated_root_from(
+            authored_machine,
+            SymbolKind::Machine,
+            "map$specialized",
+        );
         let children = symbols.insert_generated_children(
             generated,
             [(SymbolKind::State, "entry"), (SymbolKind::State, "next")],
@@ -114,13 +118,48 @@ mod tests {
     }
 
     #[test]
-    fn generated_and_source_free_symbols_have_no_package_identity() {
+    fn generated_symbols_inherit_authored_package_identity() {
         let package_identity =
             PackageKeyIdentity::from_digest([3; 32]).expect("nonzero package identity");
-        let (mut symbols, _) = sourced_symbol_table([(SourceOrigin::User, Some(package_identity))]);
-        let generated = symbols.insert_generated_root(SymbolKind::Machine, "generated");
+        let (mut symbols, authored) =
+            sourced_symbol_table([(SourceOrigin::User, Some(package_identity))]);
+        let generated =
+            symbols.insert_generated_root_from(authored[0], SymbolKind::Machine, "generated");
+        let generated_child = SymbolTableBuilder::child_handles(
+            symbols.insert_generated_children(generated, [(SymbolKind::State, "entry")]),
+        )
+        .next()
+        .expect("generated state");
 
         assert_eq!(symbols.symbol_package_identity(symbols.root()), None);
+        assert_eq!(
+            symbols.symbol_package_identity(generated),
+            Some(package_identity)
+        );
+        assert_eq!(
+            symbols.symbol_package_identity(generated_child),
+            Some(package_identity)
+        );
+        assert_eq!(
+            symbols.symbol_source_origin(generated_child),
+            Some(SourceOrigin::User)
+        );
+        assert!(symbols.same_symbol_source_package(authored[0], generated_child));
+    }
+
+    #[test]
+    fn generated_toolchain_symbols_retain_toolchain_origin_without_package_identity() {
+        let (mut symbols, authored) = sourced_symbol_table([(SourceOrigin::Toolchain, None)]);
+        let generated = symbols.insert_generated_root_from(
+            authored[0],
+            SymbolKind::Machine,
+            "generated_toolchain_machine",
+        );
+
+        assert_eq!(
+            symbols.symbol_source_origin(generated),
+            Some(SourceOrigin::Toolchain)
+        );
         assert_eq!(symbols.symbol_package_identity(generated), None);
     }
 

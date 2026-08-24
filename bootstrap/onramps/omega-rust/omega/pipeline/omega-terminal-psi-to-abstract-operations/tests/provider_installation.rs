@@ -243,7 +243,10 @@ fn provider_module() -> TerminalModule {
             identity: "Signal".into(),
             parents: Vec::new(),
         }],
-        root_service_reach: Default::default(),
+        root_service_reach: psi_terminal::TerminalRootServiceReach {
+            concrete: vec![service],
+            installation_dependencies: Vec::new(),
+        },
         boundary_machines: vec![BoundaryMachineDeclaration {
             id: boundary_id(1),
             identity: REQUIREMENT.into(),
@@ -253,6 +256,7 @@ fn provider_module() -> TerminalModule {
             result: None,
             requires: Vec::new(),
             program_local_root_introductions: Vec::new(),
+            content_guarantees: Vec::new(),
             published_service_ceiling: vec![service],
         }],
         provider_candidates: vec![

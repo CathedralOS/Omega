@@ -1,4 +1,4 @@
-//! Canonical format-34 codec for installed function affine cleanup evidence.
+//! Canonical format-35 codec for installed function affine cleanup evidence.
 //!
 //! Function row placement and cleanup canonicality remain in the installation
 //! parent. This child owns the exact Unit cleanup and scalar-control list bytes.
@@ -50,6 +50,7 @@ pub(super) fn encode_unit_affine_cleanup(
                     bytes,
                     &StructuralArgument {
                         place: discard.place,
+                        access: psi_terminal::StructuralAccess::Owned,
                         path: discard.path.clone(),
                     },
                 )?;

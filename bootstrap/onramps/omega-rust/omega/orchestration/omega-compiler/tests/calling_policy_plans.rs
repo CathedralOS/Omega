@@ -2221,9 +2221,11 @@ fn provider_for_program_storage_binding(
             .expect("selected provider identity"),
         schema: omega_effects::provider_plan::ServiceSchema {
             trait_name: "UefiApplication".into(),
+            trait_package_identity: None,
             methods: vec![omega_effects::provider_plan::ServiceMethod {
                 name: "enter".into(),
                 requirement_owner: "ProgramStorageEntry".into(),
+                requirement_owner_package_identity: None,
                 requirement_identity: binding.requirement_identity().into(),
                 parameter_count: 2,
                 parameter_type_identities: vec![

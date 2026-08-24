@@ -108,7 +108,16 @@ machine build(builder: &mut Build) { }
         panic!("one selected provider review row")
     };
     assert_eq!(provider.realizing_package(), Some(package_identity()));
+    assert_eq!(provider.provider_type_package(), None);
     assert_eq!(provider.service_schema(), "Host");
+    assert_eq!(
+        provider.schema().trait_package_identity,
+        Some(package_identity())
+    );
+    assert_eq!(
+        provider.schema().methods[0].requirement_owner_package_identity,
+        Some(package_identity())
+    );
     assert_eq!(provider.rows().len(), 1);
     assert!(matches!(
         provider.rows()[0].binding,
@@ -143,6 +152,58 @@ fn review_rejects_target_free_and_standalone_checked_programs() {
         diagnostic
             .message
             .contains("requires package-aware checked compilation")
+    }));
+}
+
+#[test]
+fn review_rejects_contract_entailment_stand_downs() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"machine unchecked_claim(a: u64, b: u64)
+requires
+    min(a, b) >= 1
+ensures
+    a >= 1
+{
+}
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { }
+"#,
+    );
+
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some(target),
+        package_inputs(&package.0),
+    )
+    .expect("ordinary checking should retain the out-of-language stand-down");
+    let [stand_down] = checked.contract_entailment_stand_downs() else {
+        panic!("one exact contract-entailment stand-down")
+    };
+    assert_eq!(stand_down.contract_index, 1);
+    assert_eq!(stand_down.fact_index, 0);
+    assert_eq!(
+        stand_down.reason,
+        psi_validation::ContractEntailmentStandDownReason::OutsideEntailmentLanguage
+    );
+
+    let diagnostics = project_checked_package_review(&checked)
+        .expect_err("package review must fail closed on an unresolved stand-down");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("rejects unresolved contract-entailment stand-down")
     }));
 }
 
