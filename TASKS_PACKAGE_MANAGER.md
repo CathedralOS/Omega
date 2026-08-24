@@ -849,6 +849,27 @@ complete.
   Optional reviewer/signature/reason fields are governance metadata and never
   proof that an audit occurred.
 
+  Design decision 2026-08-24: conflict rows are projected by the compiler from
+  the earliest Psi-owned checked representation that already contains each
+  exact fact. Rows need not share one source stage. The compiler may depend on
+  those private representations because the projection moves with the
+  compiler; only the versioned, source-handle-free row encoding crosses into
+  package orchestration. Do not create nominal Chi solely to make this internal
+  join look stable. Introduce another semantic stage only if implementation
+  discovers a real shared invariant or simplification, and freely collapse
+  rows into an existing coherent representation (for example `Exact`) when
+  that removes machinery without losing meaning.
+
+  Progress 2026-08-24: the review projection exposes independently framed,
+  compiler-owned rows for the projection header, public traits, domains, data,
+  representation TCB, callables, dangerous authority, and the selected-provider
+  set. Package orchestration must compare the complete row bytes and must not
+  parse or reconstruct their semantics. Callable details are initially one
+  exact envelope; selected providers remain an opaque blocking set until the
+  compiler has a sealed provider identity. Nested explanation, exact source
+  locations, package-layer conflict fingerprints, and durable resolutions
+  remain.
+
 - **DANGEROUS-AUTHORITY-CLASSIFICATION.** Classify risk from compiler-owned
   nominal metadata.
 

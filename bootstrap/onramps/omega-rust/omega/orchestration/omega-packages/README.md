@@ -385,6 +385,18 @@ the accepted lock and never silently re-resolves mutable source selectors.
 Conflict resolution is row-specific and bound to the exact candidate; there is
 no blanket approval switch.
 
+The compiler owns both the semantic extraction and the canonical conflict-row
+boundaries. It may read different rows from different Psi-owned checked
+representations and move those joins as compiler internals evolve. Package
+orchestration receives only independently framed, versioned bytes and compares
+them exactly; it does not parse compiler IR or duplicate capability semantics.
+This does not create a nominal Chi stage. A new stage is warranted only if
+implementation discovers a genuine shared semantic invariant, not merely to
+stabilize a private checker interface. The initial callable row is one complete
+envelope, and the selected-provider set remains opaque and blocking until exact
+provider identity is sealed; finer explanation can be added without changing
+that ownership boundary.
+
 The former commands accepting `manifest.json`, `receipt.json`, `--package`, or
 mandatory `--alias` are quarantined from the production CLI. Their manifest,
 lock, review, install, update, and audit modules compile only for isolated crate

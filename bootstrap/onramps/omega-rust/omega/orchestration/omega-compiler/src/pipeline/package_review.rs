@@ -9,7 +9,10 @@
 
 mod encoding;
 
-pub use encoding::{PACKAGE_REVIEW_ENCODING_VERSION, PackageReviewEncodingError};
+pub use encoding::{
+    PACKAGE_REVIEW_ENCODING_VERSION, PACKAGE_REVIEW_ROW_ENCODING_VERSION,
+    PackageReviewEncodingError,
+};
 
 use crate::pipeline::CheckedCompilation;
 use psi_core::PackageKeyIdentity;
@@ -1485,6 +1488,61 @@ pub struct CheckedPackageReviewProjection {
     selected_providers: Vec<CheckedPackageProviderReview>,
 }
 
+/// Compiler-owned granularity for review-only capability/API comparison.
+///
+/// Callable rows currently retain the complete callable envelope. Nested
+/// contract/reach/flow decomposition can refine that lane without requiring
+/// package orchestration to parse compiler encoding bytes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum PackageReviewCanonicalRowKind {
+    ProjectionHeader,
+    PublicTrait,
+    PublicDomain,
+    PublicData,
+    RepresentationTcb,
+    Callable,
+    DangerousAuthority,
+    SelectedProviderSet,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum PackageReviewCanonicalRowRisk {
+    Blocking,
+    AuditRecommended,
+    OpaqueBlocking,
+}
+
+/// One independently framed canonical row issued by the compiler.
+///
+/// The key is used only to match one row family across two projections. The
+/// complete bytes bind schema, package, target, kind, key, and value. Neither
+/// byte sequence is a package certificate or accepted lock artifact.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PackageReviewCanonicalRow {
+    kind: PackageReviewCanonicalRowKind,
+    risk: PackageReviewCanonicalRowRisk,
+    key_bytes: Vec<u8>,
+    canonical_bytes: Vec<u8>,
+}
+
+impl PackageReviewCanonicalRow {
+    pub const fn kind(&self) -> PackageReviewCanonicalRowKind {
+        self.kind
+    }
+
+    pub const fn risk(&self) -> PackageReviewCanonicalRowRisk {
+        self.risk
+    }
+
+    pub fn key_bytes(&self) -> &[u8] {
+        &self.key_bytes
+    }
+
+    pub fn canonical_bytes(&self) -> &[u8] {
+        &self.canonical_bytes
+    }
+}
+
 impl CheckedPackageReviewProjection {
     pub const fn package(&self) -> PackageKeyIdentity {
         self.package
@@ -1529,6 +1587,15 @@ impl CheckedPackageReviewProjection {
     /// evidence is separately required only for final-realization claims.
     pub fn canonical_review_bytes(&self) -> Result<Vec<u8>, PackageReviewEncodingError> {
         encoding::encode(self)
+    }
+
+    /// Independently framed rows for review-only conflict explanation.
+    /// Package orchestration compares these bytes but never parses or
+    /// reconstructs compiler semantic rows itself.
+    pub fn canonical_rows(
+        &self,
+    ) -> Result<Vec<PackageReviewCanonicalRow>, PackageReviewEncodingError> {
+        encoding::encode_rows(self)
     }
 }
 
