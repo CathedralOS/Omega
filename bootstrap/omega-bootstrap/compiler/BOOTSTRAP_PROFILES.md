@@ -206,11 +206,11 @@ unsupported input.
 This checker-only measurement remains cost and feasibility evidence. Its
 corresponding artifact tranche has since selected and implemented private
 versioned `CKIR1` plus direct conservative ELF lowering. Exact native/self
-bytes, canonical-Gamma status/publication meaning, representative resources and
-mutations, product fixture behavior, and exact independent reconstruction of
-every selected ELF byte and relation are closed; exhaustive CKIR relation teeth
-and lower-rooted source-to-artifact refinement remain open. ABI/layout/lowering are
-private tranche rules rather than Omega ABI promises, and the final
+bytes, canonical-Gamma status/publication meaning, exhaustive CKIR resource and
+relation teeth, product fixture behavior, and exact independent reconstruction
+of every selected ELF byte and relation are closed; lower-rooted source-to-
+artifact refinement remains open. ABI/layout/lowering are private tranche rules
+rather than Omega ABI promises, and the final
 retain-versus-refactor disposition remains open. The raw-unit interface also
 avoids silently widening the frozen O0/O1
 bundle transport ceiling; eventual bridge admission must compose the measured

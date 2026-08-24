@@ -1,8 +1,8 @@
 #!/usr/bin/env sh
 # CKIR1 artifact tranche: canonical one-unit source bundle -> checked IR ->
-# deterministic Linux x86-64 ELF. This gate closes exact independent artifact
-# reconstruction while leaving exhaustive relation teeth and lower-rooted
-# refinement to their separately named obligations.
+# deterministic Linux x86-64 ELF. This gate closes exhaustive CKIR resource and
+# relation teeth plus exact independent artifact reconstruction. Lower-rooted
+# source-to-CKIR-to-ELF refinement remains a separately named obligation.
 set -eu
 
 GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
@@ -35,9 +35,12 @@ BACKEND="$OMEGA_PATH_OMEGA_BOOTSTRAP_COMPILER/omega-bootstrap-checked-ir-to-elf.
 BUNDLER="$OMEGA_PATH_OMEGA_BOOTSTRAP_COMPILER/omega_bootstrap_bundle.py"
 REFERENCE="$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES/checked_ir_reference.py"
 ELF_REFERENCE="$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES/checked_elf_reference.py"
+RESOURCE_GENERATOR="$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES/checked_ir_resources.py"
+MUTATION_GENERATOR="$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES/checked_ir_mutations.py"
 FIXTURE="$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES/fixtures/source-custody-artifact.omg"
 PRODUCT_SOURCE="$OMEGA_REPO_ROOT/compiler/psi/source/source.omg"
-for REQUIRED in "$PRODUCER" "$BACKEND" "$BUNDLER" "$REFERENCE" "$ELF_REFERENCE" "$FIXTURE" "$PRODUCT_SOURCE"; do
+for REQUIRED in "$PRODUCER" "$BACKEND" "$BUNDLER" "$REFERENCE" "$ELF_REFERENCE" \
+  "$RESOURCE_GENERATOR" "$MUTATION_GENERATOR" "$FIXTURE" "$PRODUCT_SOURCE"; do
   [ -f "$REQUIRED" ] || {
     echo "source-custody artifact: required input absent: $REQUIRED" >&2
     exit 1
@@ -365,6 +368,59 @@ observe mismatched-ckir-elf-relation 1 15 /dev/null "$T/mismatched-ckir-elf" \
   python3 "$ELF_REFERENCE" check \
   "$T/copy-self-alias.ckir" "$T/fixture.native.elf"
 
+# Synthetic CKIR is appropriate for backend aggregate capacities that cannot be
+# reached honestly through the much smaller source-unit/statement profile. The
+# generator independently checks every canonical positive before encoding it;
+# the product/reference decoder then supplies a second acceptance relation.
+mkdir "$T/ckir-resources"
+observe generate-ckir-resources 0 30 /dev/null "$T/generate-ckir-resources.stdout" \
+  python3 "$RESOURCE_GENERATOR" "$T/ckir-resources"
+
+TAB=$(printf '\t')
+RESOURCE_COUNT=0
+RESOURCE_SELF_COUNT=0
+while IFS="$TAB" read -r NAME EXPECTED_STATUS REFERENCE_VALID EXPECTED_OUTPUT SELF_REPRESENTATIVE NOTE; do
+  [ "$NAME" != name ] || continue
+  RESOURCE_COUNT=$((RESOURCE_COUNT + 1))
+  CASE=${NAME%.ckir}
+  RESOURCE_INPUT="$T/ckir-resources/$NAME"
+  case "$REFERENCE_VALID" in
+    true) REFERENCE_STATUS=0 ;;
+    false) REFERENCE_STATUS=1 ;;
+    *) echo "source-custody artifact FAIL - bad resource reference expectation: $NAME" >&2; exit 1 ;;
+  esac
+  observe "resource-$CASE-reference" "$REFERENCE_STATUS" 30 /dev/null \
+    "$T/resource-$CASE.reference" python3 "$REFERENCE" validate "$RESOURCE_INPUT"
+  observe "resource-$CASE-backend-native" "$EXPECTED_STATUS" 45 "$RESOURCE_INPUT" \
+    "$T/resource-$CASE.native.output" "$T/backend.native"
+  case "$EXPECTED_OUTPUT" in
+    empty) assert_empty "$T/resource-$CASE.native.output" "resource $CASE native backend" ;;
+    elf)
+      [ -s "$T/resource-$CASE.native.output" ] || {
+        echo "source-custody artifact FAIL - resource $CASE emitted no ELF" >&2
+        exit 1
+      }
+      observe "resource-$CASE-elf-reconstruction" 0 30 /dev/null \
+        "$T/resource-$CASE.elf-reference" python3 "$ELF_REFERENCE" check \
+        "$RESOURCE_INPUT" "$T/resource-$CASE.native.output"
+      ;;
+    *) echo "source-custody artifact FAIL - bad resource output expectation: $NAME" >&2; exit 1 ;;
+  esac
+  if [ "$SELF_REPRESENTATIVE" = true ]; then
+    RESOURCE_SELF_COUNT=$((RESOURCE_SELF_COUNT + 1))
+    observe "resource-$CASE-backend-self" "$EXPECTED_STATUS" 120 "$RESOURCE_INPUT" \
+      "$T/resource-$CASE.self.output" "$T/backend.self"
+    case "$EXPECTED_OUTPUT" in
+      empty) assert_empty "$T/resource-$CASE.self.output" "resource $CASE self backend" ;;
+      elf) cmp "$T/resource-$CASE.native.output" "$T/resource-$CASE.self.output" ;;
+    esac
+  fi
+done < "$T/ckir-resources/manifest.tsv"
+[ "$RESOURCE_COUNT" -gt 0 ] && [ "$RESOURCE_SELF_COUNT" -gt 0 ] || {
+  echo "source-custody artifact FAIL - empty resource coverage split" >&2
+  exit 1
+}
+
 source_rejection() { # label source expected exercise-self
   CASE=$1
   SOURCE=$2
@@ -412,69 +468,54 @@ for CASE in bundle-truncated bundle-count-two; do
   assert_empty "$OUTPUT" "$CASE producer native"
 done
 
-# Representative CKIR header, extent, owner, opcode, and terminator teeth. The
-# declared type-count tooth intentionally also breaks exact extent; 252 must not
-# be overwritten by that later 251 relation.
+# Generate schema-aware negative controls from the same all-operation fixture.
+# Every mutation is rejected by the independent reference and native backend;
+# the manifest-selected subset also runs through the Delta-self-built backend.
+# The generator owns a fixed required-class inventory so deleting a relation
+# tooth cannot silently shorten this loop.
 mkdir "$T/ckir-mutations"
-python3 - "$T/fixture.native.ckir" "$T/ckir-mutations" <<'PY'
-from pathlib import Path
-import struct
-import sys
-
-source = Path(sys.argv[1]).read_bytes()
-out = Path(sys.argv[2])
-HEADER = struct.Struct("<8sHHHH14I")
-row_sizes = (24, 20, 16, 36, 20, 32, 20, 40, 4, 44)
-header = HEADER.unpack_from(source)
-counts = header[7:]
-
-def write(name, payload):
-    (out / name).write_bytes(payload)
-
-mutated = bytearray(source); mutated[0] ^= 1
-write("magic-251.ckir", mutated)
-mutated = bytearray(source); struct.pack_into("<H", mutated, 14, 0)
-write("entry-flag-251.ckir", mutated)
-write("truncated-251.ckir", source[:-1])
-write("trailing-251.ckir", source + b"\0")
-
-offsets = []
-cursor = HEADER.size
-for count, size in zip(counts[:10], row_sizes):
-    offsets.append(cursor)
-    cursor += count * size
-
-if counts[2] == 0 or counts[7] == 0 or counts[9] == 0:
-    raise SystemExit("fixture lacks representative CKIR relations")
-mutated = bytearray(source)
-struct.pack_into("<I", mutated, offsets[2] + 4, counts[1])
-write("field-owner-251.ckir", mutated)
-mutated = bytearray(source); mutated[offsets[7] + 12] = 0
-write("opcode-251.ckir", mutated)
-mutated = bytearray(source); mutated[offsets[9] + 12] = 0
-write("terminator-251.ckir", mutated)
-
-mutated = bytearray(source)
-struct.pack_into("<I", mutated, 24, 8_193)
-write("declared-type-count-overwrite-252.ckir", mutated)
-PY
-
-for MUTATION in "$T/ckir-mutations"/*-251.ckir; do
-  CASE=$(basename "$MUTATION" .ckir)
-  for BACKEND_KIND in native self; do
-    OUTPUT="$T/$CASE.$BACKEND_KIND.failure"
-    observe "$CASE-backend-$BACKEND_KIND" 251 30 "$MUTATION" "$OUTPUT" \
-      "$T/backend.$BACKEND_KIND"
-    assert_empty "$OUTPUT" "$CASE backend $BACKEND_KIND"
-  done
-done
-for BACKEND_KIND in native self; do
-  OUTPUT="$T/declared-count.$BACKEND_KIND.failure"
-  observe "declared-count-overwrite-backend-$BACKEND_KIND" 252 30 \
-    "$T/ckir-mutations/declared-type-count-overwrite-252.ckir" "$OUTPUT" \
-    "$T/backend.$BACKEND_KIND"
-  assert_empty "$OUTPUT" "declared-count overwrite backend $BACKEND_KIND"
-done
+observe generate-ckir-mutations 0 30 /dev/null "$T/generate-ckir-mutations.stdout" \
+  python3 "$MUTATION_GENERATOR" "$T/fixture.native.ckir" "$T/ckir-mutations"
+EXTERNAL_CONTROL_COUNT=0
+while IFS="$TAB" read -r NAME EXPECTED_OBSERVATION REQUIRED_SHAPE; do
+  [ "$NAME" != required_name ] || continue
+  EXTERNAL_CONTROL_COUNT=$((EXTERNAL_CONTROL_COUNT + 1))
+  awk -F '\t' -v required_name="$NAME" -v expected="$EXPECTED_OBSERVATION" '
+    BEGIN { split(expected, parts, "-"); found = 0 }
+    NR > 1 && $1 == required_name && $2 == parts[1] && $4 == parts[2] { found = 1 }
+    END { exit found ? 0 : 1 }
+  ' "$T/ckir-resources/manifest.tsv" || {
+    echo "source-custody artifact FAIL - missing external mutation control: $NAME" >&2
+    exit 1
+  }
+done < "$T/ckir-mutations/required-external-controls.tsv"
+[ "$EXTERNAL_CONTROL_COUNT" -gt 0 ] || {
+  echo "source-custody artifact FAIL - mutation generator named no external controls" >&2
+  exit 1
+}
+MUTATION_COUNT=0
+MUTATION_SELF_COUNT=0
+while IFS="$TAB" read -r NAME EXPECTED_STATUS MUTATION_CLASS SELF_REPRESENTATIVE; do
+  [ "$NAME" != path ] || continue
+  MUTATION_COUNT=$((MUTATION_COUNT + 1))
+  CASE=${NAME%.ckir}
+  MUTATION_INPUT="$T/ckir-mutations/$NAME"
+  observe "mutation-$CASE-reference" 1 30 /dev/null \
+    "$T/mutation-$CASE.reference" python3 "$REFERENCE" validate "$MUTATION_INPUT"
+  observe "mutation-$CASE-backend-native" "$EXPECTED_STATUS" 30 "$MUTATION_INPUT" \
+    "$T/mutation-$CASE.native.failure" "$T/backend.native"
+  assert_empty "$T/mutation-$CASE.native.failure" "mutation $CASE native backend"
+  if [ "$SELF_REPRESENTATIVE" = 1 ]; then
+    MUTATION_SELF_COUNT=$((MUTATION_SELF_COUNT + 1))
+    observe "mutation-$CASE-backend-self" "$EXPECTED_STATUS" 45 "$MUTATION_INPUT" \
+      "$T/mutation-$CASE.self.failure" "$T/backend.self"
+    assert_empty "$T/mutation-$CASE.self.failure" "mutation $CASE self backend"
+  fi
+done < "$T/ckir-mutations/manifest.tsv"
+[ "$MUTATION_COUNT" -gt 0 ] && [ "$MUTATION_SELF_COUNT" -gt 0 ] || {
+  echo "source-custody artifact FAIL - empty mutation coverage split" >&2
+  exit 1
+}
 
 # Execute directly when this gate gains a Linux x86-64 construction path; on
 # its current Darwin owner, use an available static qemu runner rather than
@@ -521,4 +562,4 @@ print(
     f"{sum(row[0] for row in rows):.2f}s; slowest {slowest[1]} {slowest[0]:.2f}s"
 )
 PY
-echo "source-custody artifact: exhaustive native/repeat producer, representative self producer, broad native/self backend, exact independent ELF reconstruction, representative fail-closed controls, and exact/adjacent resources passed"
+echo "source-custody artifact: exhaustive native/repeat producer, representative self producer, $RESOURCE_COUNT exact/adjacent resources ($RESOURCE_SELF_COUNT self), $MUTATION_COUNT relation mutations ($MUTATION_SELF_COUNT self), and exact independent ELF reconstruction passed"

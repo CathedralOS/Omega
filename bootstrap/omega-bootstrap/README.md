@@ -53,9 +53,9 @@ compiler cannot be confused with either the current Rust on-ramp or the
   exhausted inputs.
 - [`gates/delta-source-custody-artifact.sh`](gates/delta-source-custody-artifact.sh)
   composes source bundle → `CKIR1` → deterministic ELF across native and
-  lowermachine-built producer/backend paths, product behavior, representative
-  limits/mutations, and exact independent ELF reconstruction with byte-wide
-  mutation controls.
+  lowermachine-built producer/backend paths, product behavior, exhaustive
+  schema/resource teeth with a representative self-built split, and exact
+  independent ELF reconstruction with byte-wide mutation controls.
 - [`gates/delta-source-custody-artifact-meaning.sh`](gates/delta-source-custody-artifact-meaning.sh)
   requires the `CKIR1` producer and backend to reproduce native 0/251/252 status
   and every published byte through the persisted Beta-written Gamma route.
@@ -105,12 +105,12 @@ checkpoint-driven compositional frontend/typechecker cost probe over
 claim. Its artifact tranche has selected private `CKIR1` plus direct
 conservative lowering because current Terminal-Psi vocabulary 28 cannot express
 the needed general structural scalar mutation and runtime indexing. That
-artifact tranche remains open while its exhaustive relation teeth and
-lower-rooted refinement close. The exact format, Delta producer/direct backend,
-native/self byte identity, canonical-Gamma 0/251/252 meaning, product behavior
-comparison, representative mutations, and exact reconstruction of the selected
-layout, frame, templates, fixups, segments, padding, and EOF are now executable
-gates. `CKIR1` is a private handoff, not Terminal Psi, a
+artifact tranche remains open while its lower-rooted refinement closes. The
+exact format, Delta producer/direct backend, native/self byte identity,
+canonical-Gamma 0/251/252 meaning, product behavior comparison, exhaustive
+resource/relation teeth, and exact reconstruction of the selected layout,
+frame, templates, fixups, segments, padding, and EOF are now executable gates.
+`CKIR1` is a private handoff, not Terminal Psi, a
 product IR, a source dialect, or a third feature inventory. A Terminal-Psi
 vocabulary change would be product work, not an assumed prerequisite here.
 The backend uses three statically partitioned fixed arenas rather than general

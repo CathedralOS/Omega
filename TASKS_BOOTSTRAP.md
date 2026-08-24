@@ -196,8 +196,6 @@ families to `Ωself`.
   reordered case. This handoff choice settles only the tranche's implementation
   route, not the final `Ωself` disposition of any source feature. Any future
   Terminal-Psi vocabulary work remains product work in `TASKS.md`.
-  - [ ] Finish exhaustive teeth for every CKIR table ceiling and every relation
-    class enumerated by `OMEGA_BOOTSTRAP_CHECKED_IR.md` §10.4.
   - [ ] Land lower-rooted source→CKIR→limited-ELF refinement with perturbed
     source/result/operation/offset/branch/artifact negatives (§10.6).
 - [ ] Continue against later provisional checkpoints until the bridge generally

@@ -568,18 +568,30 @@ ceilings:
 
 | Resource | Ceiling |
 | --- | ---: |
-| encoded CKIR bytes | 4,194,304 |
+| encoded CKIR bytes | 2,260,040 |
 | types / records / fields | 8,192 / 128 / 8,192 |
 | machines / blocks | 128 / 2,048 |
-| machine parameters | 4,096 |
+| machine parameters | 896 |
 | block parameters | 4,096 |
 | both parameter tables combined | 4,096 |
-| operations / operand-vector words | 32,768 / 131,072 |
-| values / places | 40,960 / 32,768 |
+| operations / operand-vector words | 32,768 / 94,208 |
+| values / places | 36,864 / 32,768 |
 | fixed-array length | 65,536 |
-| `layout.data_bytes` (selected-owner layout) | 131,072 |
+| each producer data layout / selected-owner backend layout | 131,072 |
 | selected-machine frame bytes | 262,144 |
 | RX text bytes before page padding | 1,048,576 |
+
+The non-obvious ceilings are tight structural consequences of the schema, not
+larger arena capacities exposed as fictional inputs. At most 128 machines each
+have seven machine parameters, so that table stops at 896. Every operation has
+at most two operands and every one of 2,048 terminators has at most two
+seven-argument edges, so the operand vector stops at
+`2 * 32,768 + 2 * 7 * 2,048 = 94,208`. Values consist of at most 4,096 combined
+parameters plus one result from each operation, hence 36,864. Substituting those
+counts, `terminator_count = block_count`, and the other table ceilings into the
+canonical length formula yields exactly 2,260,040 bytes. The implementation may
+retain larger internal arrays, but CKIR1 does not publish those backing sizes as
+acceptance limits.
 
 The operation ceiling is a backing bound, not permission to bypass the public
 32-statements-per-block or expression-depth limits. A producer must justify that
@@ -596,16 +608,31 @@ array within the lower-rung elaborator's 524,288-cell bound. Crossing one of
 these private capacities is declared exhaustion, not a restriction on Omega's
 language semantics or on a later CKIR schema.
 
+Exact aggregate table maxima are backend-level schema controls. Several cannot
+be produced by an honest source fixture under the much smaller source-byte and
+32-statements-per-block profile; pretending otherwise would test a different
+language. The resource generator therefore constructs canonical CKIR directly,
+checks its own structural relations before encoding, and then subjects the
+result to the independent reference and native/self-built backends. Source-
+derived exact/adjacent limits remain producer tests. These two fixture classes
+cover different contracts and are not substitutes for one another.
+
 Status 0 means complete success. For the producer, raw-unit status 0 publishes
 nothing and exactly-one-unit bundle status 0 publishes one CKIR module. For the
 backend, entry-bearing CKIR status 0 publishes one ELF and library CKIR status 0
 publishes nothing. Malformed/noncanonical CKIR, invalid IDs or relations,
 unsupported CKIR1 forms, static type or mutability failure, recursive layout,
 ambiguous conformance roots, or target mismatch returns 251. Crossing a
-declared source, table, CKIR-byte, layout, frame, text, displacement, or image
+declared source, table, CKIR-byte, layout, frame, text, or derived image
 ceiling returns 252. Arithmetic that would overflow while checking a purported
 count is malformed 251 unless the already validated count simply exceeds a
 declared ceiling, which is 252.
+
+There is no separate rel32 exhaustion ceiling. Every shim, trap, branch, and
+block target lies within the at-most-1-MiB text/image relation and is therefore
+strictly inside signed-rel32 range. Evidence proves that bound and mutates every
+encoded displacement; it must not request an unreachable larger displacement
+from a valid CKIR1 module.
 
 Status is monotonic: once 252 is selected it cannot be overwritten by 251.
 Neither producer nor backend writes one stdout byte before complete decode,
@@ -659,7 +686,8 @@ the contract:
    immediate, target, edge arity, and terminator class reject before output.
    Distinct teeth cover use-before-definition, cross-machine/block references,
    shared-receiver mutation, noncopyable copy, recursive layout, range failure,
-   bad index, code/displacement exhaustion, and a 252-to-251 overwrite attempt.
+   bad index, text exhaustion, displacement corruption, and a 252-to-251
+   overwrite attempt.
 5. An independent artifact check reconstructs the two ELF segments, entry,
    zero-fill size, frame/field/array offsets, block displacements, instruction
    templates, padding, and exact EOF. Mutation of any reconstructed byte or
@@ -671,15 +699,21 @@ the contract:
    CKIR operation, field offset, branch target, or artifact byte must be
    unprovable.
 
-Current evidence closes items 1–3 and 5. The focused artifact gate also closes
-representative exact/adjacent resources and mutations from item 4. Its separate
-artifact checker reconstructs the complete ELF headers and segments, selected
-layout and frame, field/array offsets, shim, all selected instruction templates,
-block and trap displacements, padding, and EOF. The all-template fixture rejects
-one mutation at every artifact byte, and a valid-but-mismatched CKIR/ELF pair
-rejects. Exhaustive table/relation teeth in item 4 and lower-rooted refinement in
-item 6 remain separately visible in `TASKS_BOOTSTRAP.md`; passing the current
-fixture cannot silently promote this tranche to complete.
+Current evidence closes items 1–5. The focused artifact gate checks every tight
+table/wire ceiling, standalone block-parameter and place maxima, exact/adjacent
+array, layout, frame, and text boundaries, and a fixed exhaustive inventory of
+header/count/ID/span/owner/ordinal/type/access/result/opcode/operand/immediate/
+target/edge/terminator relations. Every negative rejects through the independent
+reference and native backend, with a representative set repeated through the
+self-built backend. Separate canonical controls cover valid Jump, ReturnUnit,
+structural edge transfer, and Copy-from-structural-value before isolated shared
+mutation. The artifact checker reconstructs the complete ELF headers and
+segments, selected layout and frame, field/array offsets, shim, all selected
+instruction templates, block and trap displacements, padding, and EOF. The
+all-template fixture rejects one mutation at every artifact byte, including
+displacements, and a valid-but-mismatched CKIR/ELF pair rejects. Lower-rooted
+refinement in item 6 remains separately visible in `TASKS_BOOTSTRAP.md`; passing
+items 1–5 cannot silently promote this tranche to complete.
 
 Only after these obligations and their negative controls pass may CKIR1 support
 the bounded artifact tranche. Later widening must publish a new schema version
