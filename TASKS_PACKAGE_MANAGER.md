@@ -85,9 +85,11 @@ complete.
   Progress 2026-08-23: diagnostic source commands now require an explicit
   `local` or `git` adapter; unknown URLs are no longer guessed to be Git. Local
   source identity now uses injective versioned framing over raw relative-path
-  bytes, entry kind, symlink target spelling, Unix executable mode, length, and
-  content, rejects special files and links into excluded Git metadata, and
-  checks file limits before allocation. Git caches now use full policy-versioned
+  bytes, entry kind, directory presence, symlink target spelling, Unix
+  executable mode, length, and content, rejects special files and links into
+  excluded Git metadata, and checks entry limits before allocation. Directory
+  permissions normalize to the read-only snapshot policy rather than preserving
+  irrelevant host-checkout state. Git caches now use full policy-versioned
   keys, exclusive per-entry locking, staged publication, exact resolver
   metadata/origin/config verification, sealed Git configuration, and
   pre-materialization rejection of `.gitmodules` and gitlinks. Git source is
@@ -98,9 +100,8 @@ complete.
 
   Remaining suspect points:
 
-  - local source hashing has no immutable snapshot/TOCTOU boundary, includes
-    tool-owned build outputs when present, and omits empty-directory identity
-    and directory modes even though authorized build code can observe them;
+  - local source hashing has no immutable snapshot/TOCTOU boundary and includes
+    tool-owned build outputs when present;
   - cache locking coordinates resolver processes but is not protection against
     an independently hostile process that can mutate the cache directory;
   - the Git subprocess has no OS sandbox or resource ceilings, and SSH transport
@@ -126,6 +127,13 @@ complete.
   Acceptance: extraction occurs hermetically before dependency resolution or
   build execution and rejects missing, duplicate, effectful, generated,
   dependency-dependent, or invalidly spelled declarations.
+
+  Progress 2026-08-23: the compiler prelude owns `Package { name: &[u8] }`, and
+  `omega-packages` now extracts the exact literal declaration through the
+  ordinary Psi lexer/parser without loading imports or executing code. It
+  rejects package-authored `Package`, malformed/scoped/duplicate declarations,
+  nonliteral initializers, invalid bytes, and names that cannot map to a default
+  Omega alias. Wiring this extractor into closure resolution remains.
 
 - **PACKAGE-KEY-AND-INSTANCE.** Replace name-keyed graph and lock APIs with
   `PackageKey` and `PackageInstance`.
@@ -285,6 +293,10 @@ complete.
 
   Acceptance: fixture identity comes from source, not directory names or test
   constructors, and compiler admission emits every expected evidence row.
+
+  Progress 2026-08-23: all eight local package fixtures declare `PACKAGE` and
+  use the coherent `builder` parameter name. Compiler-issued admission evidence
+  and refreshed remote pins remain.
 
 - **SECURITY-FIXTURE-MATRIX.** Add local and remote cases for pure code,
   generated files, filesystem, network overreach, retained filesystem+network
