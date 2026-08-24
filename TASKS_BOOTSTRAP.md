@@ -159,9 +159,9 @@ Grow the bridge from checkpoint needs through general capabilities. Do not
 recognize the current compiler files, declaration counts, or syntax-tree
 permutations.
 
-The first checkpoint-driven frontend probe and selected private `CKIR1` direct
-artifact route are established. Their exact completed evidence and remaining
-artifact obligations live in
+The first checkpoint-driven frontend probe, selected private `CKIR1` direct
+artifact route, and exact independent CKIR-to-ELF reconstruction are
+established. Their completed evidence and remaining artifact obligations live in
 [`SOURCE_CUSTODY_FRONTEND_PROBE.md`](bootstrap/omega-bootstrap/compiler/SOURCE_CUSTODY_FRONTEND_PROBE.md)
 and
 [`OMEGA_BOOTSTRAP_CHECKED_IR.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR.md).
@@ -179,8 +179,6 @@ families to `Ωself`.
   Terminal-Psi vocabulary work remains product work in `TASKS.md`.
   - [ ] Finish exhaustive teeth for every CKIR table ceiling and every relation
     class enumerated by `OMEGA_BOOTSTRAP_CHECKED_IR.md` §10.4.
-  - [ ] Reconstruct every selected instruction, displacement, padding byte,
-    frame/field/array offset, and mutation control independently (§10.5).
   - [ ] Land lower-rooted source→CKIR→limited-ELF refinement with perturbed
     source/result/operation/offset/branch/artifact negatives (§10.6).
 - [ ] Continue against later provisional checkpoints until the bridge generally

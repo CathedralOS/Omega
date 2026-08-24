@@ -54,7 +54,8 @@ compiler cannot be confused with either the current Rust on-ramp or the
 - [`gates/delta-source-custody-artifact.sh`](gates/delta-source-custody-artifact.sh)
   composes source bundle → `CKIR1` → deterministic ELF across native and
   lowermachine-built producer/backend paths, product behavior, representative
-  limits/mutations, and an independent ELF envelope.
+  limits/mutations, and exact independent ELF reconstruction with byte-wide
+  mutation controls.
 - [`gates/delta-source-custody-artifact-meaning.sh`](gates/delta-source-custody-artifact-meaning.sh)
   requires the `CKIR1` producer and backend to reproduce native 0/251/252 status
   and every published byte through the persisted Beta-written Gamma route.
@@ -107,8 +108,9 @@ the needed general structural scalar mutation and runtime indexing. That
 artifact tranche remains open while its exhaustive relation teeth and
 lower-rooted refinement close. The exact format, Delta producer/direct backend,
 native/self byte identity, canonical-Gamma 0/251/252 meaning, product behavior
-comparison, representative mutations, and independent ELF envelope are now
-executable gates. `CKIR1` is a private handoff, not Terminal Psi, a
+comparison, representative mutations, and exact reconstruction of the selected
+layout, frame, templates, fixups, segments, padding, and EOF are now executable
+gates. `CKIR1` is a private handoff, not Terminal Psi, a
 product IR, a source dialect, or a third feature inventory. A Terminal-Psi
 vocabulary change would be product work, not an assumed prerequisite here.
 The backend uses three statically partitioned fixed arenas rather than general

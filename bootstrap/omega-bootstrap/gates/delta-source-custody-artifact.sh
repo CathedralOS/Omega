@@ -1,7 +1,8 @@
 #!/usr/bin/env sh
-# Closed CKIR1 artifact tranche: canonical one-unit source bundle -> checked IR
-# -> deterministic Linux x86-64 ELF. This is focused integration evidence; the
-# independent reference and mutations below do not claim exhaustive refinement.
+# CKIR1 artifact tranche: canonical one-unit source bundle -> checked IR ->
+# deterministic Linux x86-64 ELF. This gate closes exact independent artifact
+# reconstruction while leaving exhaustive relation teeth and lower-rooted
+# refinement to their separately named obligations.
 set -eu
 
 GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
@@ -33,9 +34,10 @@ PRODUCER="$OMEGA_PATH_OMEGA_BOOTSTRAP_COMPILER/omega-bootstrap-source-custody-ch
 BACKEND="$OMEGA_PATH_OMEGA_BOOTSTRAP_COMPILER/omega-bootstrap-checked-ir-to-elf.alp"
 BUNDLER="$OMEGA_PATH_OMEGA_BOOTSTRAP_COMPILER/omega_bootstrap_bundle.py"
 REFERENCE="$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES/checked_ir_reference.py"
+ELF_REFERENCE="$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES/checked_elf_reference.py"
 FIXTURE="$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES/fixtures/source-custody-artifact.omg"
 PRODUCT_SOURCE="$OMEGA_REPO_ROOT/compiler/psi/source/source.omg"
-for REQUIRED in "$PRODUCER" "$BACKEND" "$BUNDLER" "$REFERENCE" "$FIXTURE" "$PRODUCT_SOURCE"; do
+for REQUIRED in "$PRODUCER" "$BACKEND" "$BUNDLER" "$REFERENCE" "$ELF_REFERENCE" "$FIXTURE" "$PRODUCT_SOURCE"; do
   [ -f "$REQUIRED" ] || {
     echo "source-custody artifact: required input absent: $REQUIRED" >&2
     exit 1
@@ -345,102 +347,23 @@ positive_case array-limit "$T/sources/array-limit.omg" library 0
 assert_empty "$T/array-limit.native.elf" "array-limit library backend"
 positive_case layout-limit "$T/sources/layout-limit.omg" 0 0
 
-# Independently inspect the ELF envelope and recompute selected-owner BSS from
-# CKIR type/record/field rows. This is intentionally separate from the reference
-# helper's source semantics and from backend byte identity.
-python3 - \
-  "$T/fixture.native.ckir" "$T/fixture.native.elf" \
-  "$T/renamed-reordered.native.ckir" "$T/renamed-reordered.native.elf" \
-  "$T/copy-self-alias.ckir" "$T/copy-self-alias.native.elf" \
-  "$T/layout-limit.native.ckir" "$T/layout-limit.native.elf" <<'PY'
-from pathlib import Path
-import struct
-import sys
-
-HEADER = struct.Struct("<8sHHHH14I")
-TYPE = struct.Struct("<IBBHIIII")
-RECORD = struct.Struct("<IIIIB3x")
-FIELD = struct.Struct("<IIII")
-MACHINE = struct.Struct("<IIBBHIIIIII")
-EHDR = struct.Struct("<16sHHIQQQIHHHHHH")
-PHDR = struct.Struct("<IIQQQQQQ")
-
-def aligned(value, alignment):
-    return (value + alignment - 1) // alignment * alignment
-
-def owner_size(ckir):
-    header = HEADER.unpack_from(ckir)
-    entry = header[5]
-    counts = header[7:]
-    type_count, record_count, field_count, machine_count = counts[:4]
-    cursor = HEADER.size
-    types = [TYPE.unpack_from(ckir, cursor + i * TYPE.size) for i in range(type_count)]
-    cursor += type_count * TYPE.size
-    records = [RECORD.unpack_from(ckir, cursor + i * RECORD.size) for i in range(record_count)]
-    cursor += record_count * RECORD.size
-    fields = [FIELD.unpack_from(ckir, cursor + i * FIELD.size) for i in range(field_count)]
-    cursor += field_count * FIELD.size
-    machines = [MACHINE.unpack_from(ckir, cursor + i * MACHINE.size) for i in range(machine_count)]
-
-    cache = {}
-    active = set()
-    def layout(type_id):
-        if type_id in cache:
-            return cache[type_id]
-        if type_id in active:
-            raise AssertionError("recursive layout in accepted CKIR")
-        active.add(type_id)
-        row = types[type_id]
-        kind, payload0, payload1 = row[1], row[4], row[5]
-        if kind in (1, 3):
-            answer = (1, 1)
-        elif kind == 2:
-            answer = (4, 4)
-        elif kind == 5:
-            size, alignment = layout(payload0)
-            answer = (aligned(size, alignment) * payload1, alignment)
-        else:
-            record = records[payload0]
-            size, maximum = 0, 1
-            for field_id in range(record[2], record[2] + record[3]):
-                field_size, field_alignment = layout(fields[field_id][3])
-                size = aligned(size, field_alignment) + field_size
-                maximum = max(maximum, field_alignment)
-            answer = (aligned(size, maximum), maximum)
-        active.remove(type_id)
-        cache[type_id] = answer
-        return answer
-
-    return layout(records[machines[entry][1]][1])[0]
-
-def inspect(ckir_path, elf_path):
-    ckir = Path(ckir_path).read_bytes()
-    image = Path(elf_path).read_bytes()
-    assert len(image) >= 4096 and len(image) % 4096 == 0
-    ident, e_type, machine, version, entry, phoff, shoff, flags, ehsize, phentsize, phnum, shentsize, shnum, shstr = EHDR.unpack_from(image)
-    assert ident[:7] == b"\x7fELF\x02\x01\x01" and ident[7:] == bytes(9)
-    assert (e_type, machine, version, entry) == (2, 62, 1, 0x401000)
-    assert (phoff, shoff, flags, ehsize, phentsize, phnum) == (64, 0, 0, 64, 56, 2)
-    assert (shentsize, shnum, shstr) == (0, 0, 0)
-    rx = PHDR.unpack_from(image, phoff)
-    rw = PHDR.unpack_from(image, phoff + phentsize)
-    assert rx[0] == 1 and rx[1] == 5 and rx[2] == 0 and rx[3] == 0x400000
-    assert rx[5] == rx[6] == len(image) and rx[7] == 4096
-    expected_bss = aligned(max(owner_size(ckir), 1), 4096)
-    assert rw[0] == 1 and rw[1] == 6 and rw[2] == len(image)
-    assert rw[3] == 0x400000 + len(image) and rw[5] == 0
-    assert rw[6] == expected_bss and rw[7] == 4096
-    assert image[176:4096] == bytes(4096 - 176)
-    text = image[4096:]
-    last_nonzero = max(i for i, byte in enumerate(text) if byte)
-    assert last_nonzero + 1 < len(text)
-    assert text[last_nonzero + 1:] == bytes(len(text) - last_nonzero - 1)
-
-arguments = sys.argv[1:]
-for index in range(0, len(arguments), 2):
-    inspect(arguments[index], arguments[index + 1])
-print(f"independent ELF envelope: {len(arguments) // 2} images")
-PY
+# Reconstruct every ELF byte from CKIR rather than trusting the backend's image
+# length or treating text as opaque. The fixture's byte-wide control flips each
+# artifact offset once; a valid-but-different CKIR/ELF cross-pair pins relation
+# custody in addition to malformed-input rejection.
+for CASE in fixture renamed-reordered layout-limit; do
+  observe "$CASE-elf-reconstruction" 0 15 /dev/null "$T/$CASE.elf-reference" \
+    python3 "$ELF_REFERENCE" check "$T/$CASE.native.ckir" "$T/$CASE.native.elf"
+done
+observe copy-self-alias-elf-reconstruction 0 15 /dev/null \
+  "$T/copy-self-alias.elf-reference" python3 "$ELF_REFERENCE" check \
+  "$T/copy-self-alias.ckir" "$T/copy-self-alias.native.elf"
+observe fixture-elf-byte-mutations 0 30 /dev/null "$T/fixture.elf-mutations" \
+  python3 "$ELF_REFERENCE" mutation-sweep \
+  "$T/fixture.native.ckir" "$T/fixture.native.elf"
+observe mismatched-ckir-elf-relation 1 15 /dev/null "$T/mismatched-ckir-elf" \
+  python3 "$ELF_REFERENCE" check \
+  "$T/copy-self-alias.ckir" "$T/fixture.native.elf"
 
 source_rejection() { # label source expected exercise-self
   CASE=$1
@@ -598,4 +521,4 @@ print(
     f"{sum(row[0] for row in rows):.2f}s; slowest {slowest[1]} {slowest[0]:.2f}s"
 )
 PY
-echo "source-custody artifact: exhaustive native/repeat producer, representative self producer, broad native/self backend, closed reference behavior, representative fail-closed controls, and exact/adjacent resources passed"
+echo "source-custody artifact: exhaustive native/repeat producer, representative self producer, broad native/self backend, exact independent ELF reconstruction, representative fail-closed controls, and exact/adjacent resources passed"
