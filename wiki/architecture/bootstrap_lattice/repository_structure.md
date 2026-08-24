@@ -83,10 +83,9 @@ product roots.
 - `bootstrap/omega-bootstrap/` owns only the Delta-written bridge, its Rust-free
   meaning route, bridge-specific contracts, and gates. It may consume product
   source and canonical Psi/Omega formats, but it does not own production Psi or
-  Omega implementation work. A few historical `omega0` filenames may remain as
-  compatibility inputs, but there is no `omega0` owner, compiler generation, or
-  language role. The bridge accepts `Ωself`, is not the production compiler,
-  and is not another language rung.
+  Omega implementation work. Compatibility filenames have no architectural
+  role. The bridge accepts `Ωself`, is not the production compiler, and is not
+  another language rung.
 - `bootstrap/onramps/omega-rust/` owns the current working Rust compiler as an
   untrusted migration/reference producer. It is removable from bootstrap and
   release builds once the hosted compiler closes, even if retained in the
@@ -152,7 +151,6 @@ that the language, compiler, or assurance work in that directory is finished.
 | cross-cutting proof kernel | `bootstrap/assurance/proof-kernel/{implementations,tools,corpus,gates}/` | complete |
 | Beta-source/Alpha-artifact refinement | `bootstrap/assurance/refinement/beta/` | complete |
 | bridge meaning/artifact reconstruction and gates | `bootstrap/assurance/refinement/omega-bootstrap/` | complete; bridge assurance remains open |
-| historical `bootstrap/omega0/` role | `bootstrap/omega-bootstrap/{meaning,compiler,gates}/` | rename complete; no live `omega0` owner or generation |
 | shared lattice corpus | `bootstrap/corpus/` | complete |
 | Omega-written Psi/Omega compiler | `compiler/{psi,omega}/` | first Psi lexical checkpoint landed; remaining phases open |
 | product compiler closure/profile checkpoints | `compiler/source-checkpoints/` | active |
