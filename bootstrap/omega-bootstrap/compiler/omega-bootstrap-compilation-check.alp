@@ -1,0 +1,468 @@
+// Structural checker for the private OMGCOMP version-1 compilation envelope.
+// This checker grants no resolver authority and performs no source-semantic
+// validation.  It emits no bytes.  Status 251 is malformed/noncanonical input;
+// status 252 is exhaustion of a declared public transport ceiling.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+    machine read_byte() -> i32;
+}
+
+data Main {
+    console: Console;
+    status: i32; c: i32; n: i32; pos: i32; decoded: i32;
+    i: i32; j: i32; k: i32; x: i32; y: i32; scan_index: i32;
+    count: i32; end: i32; expected: i32; comparison: i32;
+    left_start: i32; left_len: i32; right_start: i32; right_len: i32;
+    total_length: i32; bundle_length: i32; string_table_length: i32;
+    string_count: i32; package_count: i32; source_count: i32; alias_count: i32;
+    root_package: i32; root_source: i32; root_owner_string: i32;
+    root_machine_string: i32; package_table: i32; source_table: i32;
+    alias_table: i32; string_table: i32; bundle_start: i32;
+    total_string_payload: i32; total_label_payload: i32;
+    total_content_payload: i32; segment_start: i32; segment_count: i32;
+    segment_len: i32; current_package: i32; progress: i32;
+
+    // One byte beyond the complete-envelope ceiling distinguishes the exact
+    // admitted extent from exhaustion without trusting the declared header.
+    input: [u8; 267281];
+
+    package_key_starts: [i32; 16];
+    package_source_starts: [i32; 16]; package_source_counts: [i32; 16];
+    source_owners: [i32; 16]; source_bundles: [i32; 16];
+    source_modules: [i32; 16]; bundle_seen: [i32; 16];
+    alias_requesters: [i32; 32]; alias_strings: [i32; 32];
+    alias_targets: [i32; 32];
+    string_starts: [i32; 64]; string_lengths: [i32; 64];
+    string_used: [i32; 64]; string_module: [i32; 64];
+    string_alias: [i32; 64]; string_identifier: [i32; 64];
+    bundle_label_starts: [i32; 16]; bundle_label_lengths: [i32; 16];
+    graph: [i32; 256];
+}
+
+machine Main::reject(&mut self) {
+    transition self.status == 0 { true -> set() _ -> done() }
+    state set() { self.status = 251; transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::exhaust(&mut self) {
+    transition self.status == 0 { true -> set() _ -> done() }
+    state set() { self.status = 252; transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::read_u32(&mut self, at: i32) {
+    self.decoded = 0 - 1;
+    transition at >= 0 { true -> upper() _ -> bad() }
+    state upper() { transition at <= self.n - 4 { true -> signed() _ -> bad() } }
+    state signed() { transition self.input[at + 3] < 128 { true -> value() _ -> bad() } }
+    state value() {
+        self.decoded = self.input[at]
+            + self.input[at + 1] * 256
+            + self.input[at + 2] * 65536
+            + self.input[at + 3] * 16777216;
+        transition 0 { _ -> done() }
+    }
+    state bad() { self.reject(); transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::lex_compare(&mut self) {
+    self.comparison = 0; self.scan_index = 0;
+    transition 0 { _ -> loop() }
+    state loop() { transition self.scan_index < self.left_len { true -> right() _ -> left_end() } }
+    state right() { transition self.scan_index < self.right_len { true -> byte() _ -> greater() } }
+    state byte() { transition self.input[self.left_start + self.scan_index] < self.input[self.right_start + self.scan_index] { true -> less() _ -> byte_equal() } }
+    state byte_equal() { transition self.input[self.left_start + self.scan_index] == self.input[self.right_start + self.scan_index] { true -> advance() _ -> greater() } }
+    state advance() { self.scan_index = self.scan_index + 1; transition 0 { _ -> loop() } }
+    state left_end() { transition self.scan_index < self.right_len { true -> less() _ -> done() } }
+    state less() { self.comparison = 0 - 1; transition 0 { _ -> done() } }
+    state greater() { self.comparison = 1; transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::slurp(&mut self) {
+    self.n = 0;
+    transition 0 { _ -> read() }
+    state read() { self.c = read_byte(); transition self.c < 0 { true -> done() _ -> capacity() } }
+    state capacity() { transition self.n < 267281 { true -> store() _ -> over() } }
+    state store() { self.input[self.n] = self.c; self.n = self.n + 1; transition self.n > 267280 { true -> over() _ -> read() } }
+    state over() { self.exhaust(); transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::check_header(&mut self) {
+    transition self.n >= 64 { true -> magic0() _ -> bad() }
+    state magic0() { transition self.input[0] == 79 { true -> magic1() _ -> bad() } }
+    state magic1() { transition self.input[1] == 77 { true -> magic2() _ -> bad() } }
+    state magic2() { transition self.input[2] == 71 { true -> magic3() _ -> bad() } }
+    state magic3() { transition self.input[3] == 67 { true -> magic4() _ -> bad() } }
+    state magic4() { transition self.input[4] == 79 { true -> magic5() _ -> bad() } }
+    state magic5() { transition self.input[5] == 77 { true -> magic6() _ -> bad() } }
+    state magic6() { transition self.input[6] == 80 { true -> magic7() _ -> bad() } }
+    state magic7() { transition self.input[7] == 0 { true -> fixed0() _ -> bad() } }
+    state fixed0() { transition self.input[8] == 1 { true -> fixed1() _ -> bad() } }
+    state fixed1() { transition self.input[9] == 0 { true -> fixed2() _ -> bad() } }
+    state fixed2() { transition self.input[10] == 0 { true -> fixed3() _ -> bad() } }
+    state fixed3() { transition self.input[11] == 0 { true -> fixed4() _ -> bad() } }
+    state fixed4() { transition self.input[12] == 1 { true -> fixed5() _ -> bad() } }
+    state fixed5() { transition self.input[13] == 0 { true -> fixed6() _ -> bad() } }
+    state fixed6() { transition self.input[14] == 0 { true -> fixed7() _ -> bad() } }
+    state fixed7() { transition self.input[15] == 0 { true -> reserved() _ -> bad() } }
+    state reserved() { self.read_u32(60); transition self.status == 0 { true -> reserved_value() _ -> done() } }
+    state reserved_value() { transition self.decoded == 0 { true -> lengths() _ -> bad() } }
+    state lengths() { self.read_u32(16); self.total_length = self.decoded; self.read_u32(20); self.bundle_length = self.decoded; self.read_u32(24); self.string_table_length = self.decoded; transition self.status == 0 { true -> counts() _ -> done() } }
+    state counts() { self.read_u32(28); self.string_count = self.decoded; self.read_u32(32); self.package_count = self.decoded; self.read_u32(36); self.source_count = self.decoded; self.read_u32(40); self.alias_count = self.decoded; transition self.status == 0 { true -> roots() _ -> done() } }
+    state roots() { self.read_u32(44); self.root_package = self.decoded; self.read_u32(48); self.root_source = self.decoded; self.read_u32(52); self.root_owner_string = self.decoded; self.read_u32(56); self.root_machine_string = self.decoded; transition self.status == 0 { true -> minimum_package() _ -> done() } }
+    state minimum_package() { transition self.package_count >= 1 { true -> package_limit() _ -> bad() } }
+    state package_limit() { transition self.package_count <= 16 { true -> minimum_source() _ -> exhausted() } }
+    state minimum_source() { transition self.source_count >= 1 { true -> source_limit() _ -> bad() } }
+    state source_limit() { transition self.source_count <= 16 { true -> alias_limit() _ -> exhausted() } }
+    state alias_limit() { transition self.alias_count <= 32 { true -> string_limit() _ -> exhausted() } }
+    state string_limit() { transition self.string_count <= 64 { true -> bundle_limit() _ -> exhausted() } }
+    state bundle_limit() { transition self.bundle_length <= 263312 { true -> total_limit() _ -> exhausted() } }
+    state total_limit() { transition self.total_length <= 267280 { true -> actual_length() _ -> exhausted() } }
+    state actual_length() { transition self.total_length == self.n { true -> string_extent_room() _ -> bad() } }
+    state string_extent_room() {
+        self.string_table = 64 + self.package_count * 48
+            + self.source_count * 20 + self.alias_count * 16;
+        transition self.string_table_length <= self.total_length - self.string_table { true -> extents() _ -> bad() }
+    }
+    state extents() {
+        self.package_table = 64;
+        self.source_table = self.package_table + self.package_count * 48;
+        self.alias_table = self.source_table + self.source_count * 20;
+        self.bundle_start = self.string_table + self.string_table_length;
+        self.expected = self.bundle_start + self.bundle_length;
+        transition self.expected == self.total_length { true -> root_ranges() _ -> bad() }
+    }
+    state root_ranges() { transition self.root_package < self.package_count { true -> root_source_range() _ -> bad() } }
+    state root_source_range() { transition self.root_source < self.source_count { true -> root_owner_range() _ -> bad() } }
+    state root_owner_range() { transition self.root_owner_string < self.string_count { true -> root_machine_range() _ -> bad() } }
+    state root_machine_range() { transition self.root_machine_string < self.string_count { true -> done() _ -> bad() } }
+    state exhausted() { self.exhaust(); transition 0 { _ -> done() } }
+    state bad() { self.reject(); transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::check_packages(&mut self) {
+    self.i = 0; self.expected = 0;
+    transition 0 { _ -> loop() }
+    state loop() { transition self.i < self.package_count { true -> row() _ -> partition() } }
+    state row() { self.pos = self.package_table + self.i * 48; self.read_u32(self.pos); transition self.status == 0 { true -> dense() _ -> done() } }
+    state dense() { transition self.decoded == self.i { true -> key() _ -> bad() } }
+    state key() { self.package_key_starts[self.i] = self.pos + 4; self.j = 0; self.count = 0; transition 0 { _ -> key_loop() } }
+    state key_loop() { transition self.j < 32 { true -> key_byte() _ -> key_nonzero() } }
+    state key_byte() { transition self.input[self.pos + 4 + self.j] == 0 { true -> key_advance() _ -> key_mark() } }
+    state key_mark() { self.count = 1; transition 0 { _ -> key_advance() } }
+    state key_advance() { self.j = self.j + 1; transition 0 { _ -> key_loop() } }
+    state key_nonzero() { transition self.count == 1 { true -> key_order() _ -> bad() } }
+    state key_order() { transition self.i > 0 { true -> compare_key() _ -> span() } }
+    state compare_key() { self.left_start = self.package_key_starts[self.i - 1]; self.left_len = 32; self.right_start = self.package_key_starts[self.i]; self.right_len = 32; self.lex_compare(); transition self.comparison < 0 { true -> span() _ -> bad() } }
+    state span() { self.read_u32(self.pos + 36); self.package_source_starts[self.i] = self.decoded; self.read_u32(self.pos + 40); self.package_source_counts[self.i] = self.decoded; self.read_u32(self.pos + 44); transition self.status == 0 { true -> reserved() _ -> done() } }
+    state reserved() { transition self.decoded == 0 { true -> span_start() _ -> bad() } }
+    state span_start() { transition self.package_source_starts[self.i] == self.expected { true -> span_nonempty() _ -> bad() } }
+    state span_nonempty() { transition self.package_source_counts[self.i] >= 1 { true -> span_room() _ -> bad() } }
+    state span_room() { transition self.package_source_counts[self.i] <= self.source_count - self.expected { true -> advance() _ -> bad() } }
+    state advance() { self.expected = self.expected + self.package_source_counts[self.i]; self.i = self.i + 1; transition 0 { _ -> loop() } }
+    state partition() { transition self.expected == self.source_count { true -> done() _ -> bad() } }
+    state bad() { self.reject(); transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::check_sources(&mut self) {
+    self.i = 0; self.current_package = 0;
+    transition 0 { _ -> loop() }
+    state loop() { transition self.i < self.source_count { true -> owner_seek() _ -> permutation() } }
+    state owner_seek() { transition self.i < self.package_source_starts[self.current_package] + self.package_source_counts[self.current_package] { true -> row() _ -> next_package() } }
+    state next_package() { self.current_package = self.current_package + 1; transition self.current_package < self.package_count { true -> owner_seek() _ -> bad() } }
+    state row() { self.pos = self.source_table + self.i * 20; self.read_u32(self.pos); transition self.status == 0 { true -> dense() _ -> done() } }
+    state dense() { transition self.decoded == self.i { true -> owner() _ -> bad() } }
+    state owner() { self.read_u32(self.pos + 4); self.source_owners[self.i] = self.decoded; transition self.status == 0 { true -> owner_exact() _ -> done() } }
+    state owner_exact() { transition self.source_owners[self.i] == self.current_package { true -> bundle() _ -> bad() } }
+    state bundle() { self.read_u32(self.pos + 8); self.source_bundles[self.i] = self.decoded; transition self.status == 0 { true -> bundle_range() _ -> done() } }
+    state bundle_range() { transition self.source_bundles[self.i] < self.source_count { true -> bundle_unique() _ -> bad() } }
+    state bundle_unique() { transition self.bundle_seen[self.source_bundles[self.i]] == 0 { true -> bundle_mark() _ -> bad() } }
+    state bundle_mark() { self.bundle_seen[self.source_bundles[self.i]] = 1; self.read_u32(self.pos + 12); self.source_modules[self.i] = self.decoded; transition self.status == 0 { true -> module_range() _ -> done() } }
+    state module_range() { transition self.source_modules[self.i] < self.string_count { true -> flags() _ -> bad() } }
+    state flags() { self.read_u32(self.pos + 16); transition self.status == 0 { true -> flags_value() _ -> done() } }
+    state flags_value() { transition self.decoded == 0 { true -> advance() _ -> bad() } }
+    state advance() { self.i = self.i + 1; transition 0 { _ -> loop() } }
+    state permutation() { self.i = 0; transition 0 { _ -> permutation_loop() } }
+    state permutation_loop() { transition self.i < self.source_count { true -> permutation_value() _ -> root_owner() } }
+    state permutation_value() { transition self.bundle_seen[self.i] == 1 { true -> permutation_advance() _ -> bad() } }
+    state permutation_advance() { self.i = self.i + 1; transition 0 { _ -> permutation_loop() } }
+    state root_owner() { transition self.source_owners[self.root_source] == self.root_package { true -> done() _ -> bad() } }
+    state bad() { self.reject(); transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::check_alias_rows(&mut self) {
+    self.i = 0;
+    transition 0 { _ -> loop() }
+    state loop() { transition self.i < self.alias_count { true -> row() _ -> done() } }
+    state row() { self.pos = self.alias_table + self.i * 16; self.read_u32(self.pos); self.alias_requesters[self.i] = self.decoded; self.read_u32(self.pos + 4); self.alias_strings[self.i] = self.decoded; self.read_u32(self.pos + 8); self.alias_targets[self.i] = self.decoded; transition self.status == 0 { true -> reserved() _ -> done() } }
+    state reserved() { self.read_u32(self.pos + 12); transition self.status == 0 { true -> ranges0() _ -> done() } }
+    state ranges0() { transition self.decoded == 0 { true -> ranges1() _ -> bad() } }
+    state ranges1() { transition self.alias_requesters[self.i] < self.package_count { true -> ranges2() _ -> bad() } }
+    state ranges2() { transition self.alias_strings[self.i] < self.string_count { true -> ranges3() _ -> bad() } }
+    state ranges3() { transition self.alias_targets[self.i] < self.package_count { true -> no_self() _ -> bad() } }
+    state no_self() { transition self.alias_requesters[self.i] == self.alias_targets[self.i] { true -> bad() _ -> advance() } }
+    state advance() { self.i = self.i + 1; transition 0 { _ -> loop() } }
+    state bad() { self.reject(); transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::check_strings(&mut self) {
+    self.i = 0; self.pos = self.string_table; self.end = self.bundle_start;
+    self.total_string_payload = 0;
+    transition 0 { _ -> loop() }
+    state loop() { transition self.i < self.string_count { true -> length_room() _ -> exact_end() } }
+    state length_room() { transition self.pos <= self.end - 4 { true -> length() _ -> bad() } }
+    state length() { self.read_u32(self.pos); self.count = self.decoded; transition self.status == 0 { true -> payload_room() _ -> done() } }
+    state payload_room() { transition self.count <= self.end - self.pos - 4 { true -> save() _ -> bad() } }
+    state save() { self.string_starts[self.i] = self.pos + 4; self.string_lengths[self.i] = self.count; self.total_string_payload = self.total_string_payload + self.count; self.j = 0; transition 0 { _ -> ascii_loop() } }
+    state ascii_loop() { transition self.j < self.count { true -> ascii_byte() _ -> order() } }
+    state ascii_byte() { transition self.input[self.string_starts[self.i] + self.j] < 128 { true -> ascii_advance() _ -> bad() } }
+    state ascii_advance() { self.j = self.j + 1; transition 0 { _ -> ascii_loop() } }
+    state order() { transition self.i > 0 { true -> compare() _ -> advance() } }
+    state compare() { self.left_start = self.string_starts[self.i - 1]; self.left_len = self.string_lengths[self.i - 1]; self.right_start = self.string_starts[self.i]; self.right_len = self.string_lengths[self.i]; self.lex_compare(); transition self.comparison < 0 { true -> advance() _ -> bad() } }
+    state advance() { self.pos = self.string_starts[self.i] + self.string_lengths[self.i]; self.i = self.i + 1; transition 0 { _ -> loop() } }
+    state exact_end() { transition self.pos == self.end { true -> payload_limit() _ -> bad() } }
+    state payload_limit() { transition self.total_string_payload <= 2048 { true -> mark_sources() _ -> exhausted() } }
+    state mark_sources() { self.i = 0; transition 0 { _ -> mark_sources_loop() } }
+    state mark_sources_loop() { transition self.i < self.source_count { true -> mark_source() _ -> mark_aliases() } }
+    state mark_source() { self.x = self.source_modules[self.i]; self.string_used[self.x] = 1; self.string_module[self.x] = 1; self.i = self.i + 1; transition 0 { _ -> mark_sources_loop() } }
+    state mark_aliases() { self.i = 0; transition 0 { _ -> mark_aliases_loop() } }
+    state mark_aliases_loop() { transition self.i < self.alias_count { true -> mark_alias() _ -> mark_roots() } }
+    state mark_alias() { self.x = self.alias_strings[self.i]; self.string_used[self.x] = 1; self.string_alias[self.x] = 1; self.i = self.i + 1; transition 0 { _ -> mark_aliases_loop() } }
+    state mark_roots() { self.string_used[self.root_owner_string] = 1; self.string_identifier[self.root_owner_string] = 1; self.string_used[self.root_machine_string] = 1; self.string_identifier[self.root_machine_string] = 1; self.i = 0; transition 0 { _ -> used_loop() } }
+    state used_loop() { transition self.i < self.string_count { true -> used_value() _ -> done() } }
+    state used_value() { transition self.string_used[self.i] == 1 { true -> used_advance() _ -> bad() } }
+    state used_advance() { self.i = self.i + 1; transition 0 { _ -> used_loop() } }
+    state exhausted() { self.exhaust(); transition 0 { _ -> done() } }
+    state bad() { self.reject(); transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::validate_identifier(&mut self) {
+    self.comparison = 0;
+    transition self.left_len > 0 { true -> length() _ -> done() }
+    state length() { transition self.left_len <= 64 { true -> first_upper0() _ -> exhausted() } }
+    state first_upper0() { self.c = self.input[self.left_start]; transition self.c >= 65 { true -> first_upper1() _ -> first_lower0() } }
+    state first_upper1() { transition self.c < 91 { true -> rest_begin() _ -> first_lower0() } }
+    state first_lower0() { transition self.c >= 97 { true -> first_lower1() _ -> first_under() } }
+    state first_lower1() { transition self.c < 123 { true -> rest_begin() _ -> first_under() } }
+    state first_under() { transition self.c == 95 { true -> rest_begin() _ -> done() } }
+    state rest_begin() { self.scan_index = 1; transition 0 { _ -> rest_loop() } }
+    state rest_loop() { transition self.scan_index < self.left_len { true -> rest_byte() _ -> yes() } }
+    state rest_byte() { self.c = self.input[self.left_start + self.scan_index]; transition self.c >= 65 { true -> rest_upper() _ -> rest_lower0() } }
+    state rest_upper() { transition self.c < 91 { true -> rest_advance() _ -> rest_lower0() } }
+    state rest_lower0() { transition self.c >= 97 { true -> rest_lower() _ -> rest_digit0() } }
+    state rest_lower() { transition self.c < 123 { true -> rest_advance() _ -> rest_digit0() } }
+    state rest_digit0() { transition self.c >= 48 { true -> rest_digit() _ -> rest_under() } }
+    state rest_digit() { transition self.c < 58 { true -> rest_advance() _ -> rest_under() } }
+    state rest_under() { transition self.c == 95 { true -> rest_advance() _ -> done() } }
+    state rest_advance() { self.scan_index = self.scan_index + 1; transition 0 { _ -> rest_loop() } }
+    state yes() { self.comparison = 1; transition 0 { _ -> done() } }
+    state exhausted() { self.exhaust(); transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::validate_path(&mut self) {
+    self.comparison = 0; self.segment_start = 0; self.segment_count = 1; self.j = 0;
+    transition self.left_len > 0 { true -> loop() _ -> yes() }
+    state loop() { transition self.j < self.left_len { true -> colon0() _ -> final_segment() } }
+    state colon0() { transition self.input[self.left_start + self.j] == 58 { true -> colon1_room() _ -> advance() } }
+    state colon1_room() { transition self.j + 1 < self.left_len { true -> colon1() _ -> done() } }
+    state colon1() { transition self.input[self.left_start + self.j + 1] == 58 { true -> segment() _ -> done() } }
+    state segment() { self.segment_len = self.j - self.segment_start; transition self.segment_len > 0 { true -> segment_check() _ -> done() } }
+    state segment_check() { self.right_start = self.left_start; self.right_len = self.left_len; self.left_start = self.left_start + self.segment_start; self.left_len = self.segment_len; self.validate_identifier(); transition self.status == 0 { true -> segment_valid() _ -> restore_fail() } }
+    state segment_valid() { transition self.comparison == 1 { true -> segment_accept() _ -> restore_fail() } }
+    state restore_fail() { self.left_start = self.right_start; self.left_len = self.right_len; transition 0 { _ -> done() } }
+    state segment_accept() { self.left_start = self.right_start; self.left_len = self.right_len; self.segment_count = self.segment_count + 1; transition self.segment_count <= 8 { true -> segment_advance() _ -> exhausted() } }
+    state segment_advance() { self.j = self.j + 2; self.segment_start = self.j; transition 0 { _ -> loop() } }
+    state advance() { self.j = self.j + 1; transition 0 { _ -> loop() } }
+    state final_segment() { self.segment_len = self.left_len - self.segment_start; transition self.segment_len > 0 { true -> final_check() _ -> done() } }
+    state final_check() { self.right_start = self.left_start; self.right_len = self.left_len; self.left_start = self.left_start + self.segment_start; self.left_len = self.segment_len; self.validate_identifier(); transition self.status == 0 { true -> final_valid() _ -> restore_fail() } }
+    state final_valid() { self.left_start = self.right_start; self.left_len = self.right_len; transition self.comparison == 1 { true -> yes() _ -> done() } }
+    state yes() { self.comparison = 1; transition 0 { _ -> done() } }
+    state exhausted() { self.exhaust(); transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::validate_alias(&mut self) {
+    self.comparison = 0;
+    transition self.left_len > 0 { true -> length() _ -> done() }
+    state length() { transition self.left_len <= 64 { true -> first() _ -> exhausted() } }
+    state first() { self.c = self.input[self.left_start]; transition self.c >= 97 { true -> first_hi() _ -> done() } }
+    state first_hi() { transition self.c < 123 { true -> rest_begin() _ -> done() } }
+    state rest_begin() { self.scan_index = 1; self.x = 0; transition 0 { _ -> rest_loop() } }
+    state rest_loop() { transition self.scan_index < self.left_len { true -> byte() _ -> trailing() } }
+    state byte() { self.c = self.input[self.left_start + self.scan_index]; transition self.c >= 97 { true -> lower() _ -> digit0() } }
+    state lower() { transition self.c < 123 { true -> ordinary() _ -> digit0() } }
+    state digit0() { transition self.c >= 48 { true -> digit() _ -> under() } }
+    state digit() { transition self.c < 58 { true -> ordinary() _ -> under() } }
+    state under() { transition self.c == 95 { true -> consecutive() _ -> done() } }
+    state consecutive() { transition self.x == 1 { true -> done() _ -> mark_under() } }
+    state mark_under() { self.x = 1; self.scan_index = self.scan_index + 1; transition 0 { _ -> rest_loop() } }
+    state ordinary() { self.x = 0; self.scan_index = self.scan_index + 1; transition 0 { _ -> rest_loop() } }
+    state trailing() { transition self.x == 0 { true -> yes() _ -> done() } }
+    state yes() { self.comparison = 1; transition 0 { _ -> done() } }
+    state exhausted() { self.exhaust(); transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::check_string_roles(&mut self) {
+    self.i = 0;
+    transition 0 { _ -> loop() }
+    state loop() { transition self.i < self.string_count { true -> module() _ -> done() } }
+    state module() { transition self.string_module[self.i] == 1 { true -> module_check() _ -> alias() } }
+    state module_check() { self.left_start = self.string_starts[self.i]; self.left_len = self.string_lengths[self.i]; self.validate_path(); transition self.status == 0 { true -> module_valid() _ -> done() } }
+    state module_valid() { transition self.comparison == 1 { true -> alias() _ -> bad() } }
+    state alias() { transition self.string_alias[self.i] == 1 { true -> alias_check() _ -> identifier() } }
+    state alias_check() { self.left_start = self.string_starts[self.i]; self.left_len = self.string_lengths[self.i]; self.validate_alias(); transition self.status == 0 { true -> alias_valid() _ -> done() } }
+    state alias_valid() { transition self.comparison == 1 { true -> identifier() _ -> bad() } }
+    state identifier() { transition self.string_identifier[self.i] == 1 { true -> identifier_check() _ -> advance() } }
+    state identifier_check() { self.left_start = self.string_starts[self.i]; self.left_len = self.string_lengths[self.i]; self.validate_identifier(); transition self.status == 0 { true -> identifier_valid() _ -> done() } }
+    state identifier_valid() { transition self.comparison == 1 { true -> advance() _ -> bad() } }
+    state advance() { self.i = self.i + 1; transition 0 { _ -> loop() } }
+    state bad() { self.reject(); transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::check_alias_order_graph(&mut self) {
+    self.i = 0;
+    transition 0 { _ -> rows() }
+    state rows() { transition self.i < self.alias_count { true -> order() _ -> closure_k() } }
+    state order() { transition self.i > 0 { true -> requester_order() _ -> mark() } }
+    state requester_order() { transition self.alias_requesters[self.i - 1] < self.alias_requesters[self.i] { true -> mark() _ -> requester_equal() } }
+    state requester_equal() { transition self.alias_requesters[self.i - 1] == self.alias_requesters[self.i] { true -> alias_compare() _ -> bad() } }
+    state alias_compare() { self.left_start = self.string_starts[self.alias_strings[self.i - 1]]; self.left_len = self.string_lengths[self.alias_strings[self.i - 1]]; self.right_start = self.string_starts[self.alias_strings[self.i]]; self.right_len = self.string_lengths[self.alias_strings[self.i]]; self.lex_compare(); transition self.comparison < 0 { true -> mark() _ -> bad() } }
+    state mark() { self.x = self.alias_requesters[self.i] * 16 + self.alias_targets[self.i]; self.graph[self.x] = 1; self.i = self.i + 1; transition 0 { _ -> rows() } }
+    state closure_k() { self.k = 0; transition 0 { _ -> k_loop() } }
+    state k_loop() { transition self.k < self.package_count { true -> closure_i() _ -> cycles() } }
+    state closure_i() { self.i = 0; transition 0 { _ -> i_loop() } }
+    state i_loop() { transition self.i < self.package_count { true -> through() _ -> k_advance() } }
+    state through() { transition self.graph[self.i * 16 + self.k] == 1 { true -> closure_j() _ -> i_advance() } }
+    state closure_j() { self.j = 0; transition 0 { _ -> j_loop() } }
+    state j_loop() { transition self.j < self.package_count { true -> edge() _ -> i_advance() } }
+    state edge() { transition self.graph[self.k * 16 + self.j] == 1 { true -> edge_mark() _ -> j_advance() } }
+    state edge_mark() { self.graph[self.i * 16 + self.j] = 1; transition 0 { _ -> j_advance() } }
+    state j_advance() { self.j = self.j + 1; transition 0 { _ -> j_loop() } }
+    state i_advance() { self.i = self.i + 1; transition 0 { _ -> i_loop() } }
+    state k_advance() { self.k = self.k + 1; transition 0 { _ -> k_loop() } }
+    state cycles() { self.i = 0; transition 0 { _ -> cycle_loop() } }
+    state cycle_loop() { transition self.i < self.package_count { true -> cycle_value() _ -> reach() } }
+    state cycle_value() { transition self.graph[self.i * 16 + self.i] == 0 { true -> cycle_advance() _ -> bad() } }
+    state cycle_advance() { self.i = self.i + 1; transition 0 { _ -> cycle_loop() } }
+    state reach() { self.i = 0; transition 0 { _ -> reach_loop() } }
+    state reach_loop() { transition self.i < self.package_count { true -> reach_value() _ -> done() } }
+    state reach_value() { transition self.i == self.root_package { true -> reach_advance() _ -> reachable() } }
+    state reachable() { transition self.graph[self.root_package * 16 + self.i] == 1 { true -> reach_advance() _ -> bad() } }
+    state reach_advance() { self.i = self.i + 1; transition 0 { _ -> reach_loop() } }
+    state bad() { self.reject(); transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::validate_bundle_label(&mut self) {
+    self.comparison = 0; self.scan_index = 0; self.segment_start = 0;
+    transition self.left_len > 0 { true -> first() _ -> done() }
+    state first() { transition self.input[self.left_start] == 47 { true -> done() _ -> loop() } }
+    state loop() { transition self.scan_index < self.left_len { true -> byte() _ -> final_segment() } }
+    state byte() { self.c = self.input[self.left_start + self.scan_index]; transition self.c == 47 { true -> slash() _ -> allowed_upper0() } }
+    state slash() { self.segment_len = self.scan_index - self.segment_start; transition self.segment_len > 0 { true -> dot_one_check() _ -> done() } }
+    state dot_one_check() { transition self.segment_len == 1 { true -> dot_one() _ -> dot_two_check() } }
+    state dot_one() { transition self.input[self.left_start + self.segment_start] == 46 { true -> done() _ -> slash_accept() } }
+    state dot_two_check() { transition self.segment_len == 2 { true -> dot_two_first() _ -> slash_accept() } }
+    state dot_two_first() { transition self.input[self.left_start + self.segment_start] == 46 { true -> dot_two_second() _ -> slash_accept() } }
+    state dot_two_second() { transition self.input[self.left_start + self.segment_start + 1] == 46 { true -> done() _ -> slash_accept() } }
+    state slash_accept() { self.segment_start = self.scan_index + 1; self.scan_index = self.scan_index + 1; transition 0 { _ -> loop() } }
+    state allowed_upper0() { transition self.c >= 65 { true -> allowed_upper1() _ -> allowed_lower0() } }
+    state allowed_upper1() { transition self.c < 91 { true -> advance() _ -> allowed_lower0() } }
+    state allowed_lower0() { transition self.c >= 97 { true -> allowed_lower1() _ -> allowed_digit0() } }
+    state allowed_lower1() { transition self.c < 123 { true -> advance() _ -> allowed_digit0() } }
+    state allowed_digit0() { transition self.c >= 48 { true -> allowed_digit1() _ -> allowed_dot() } }
+    state allowed_digit1() { transition self.c < 58 { true -> advance() _ -> allowed_dot() } }
+    state allowed_dot() { transition self.c == 46 { true -> advance() _ -> allowed_under() } }
+    state allowed_under() { transition self.c == 95 { true -> advance() _ -> allowed_hyphen() } }
+    state allowed_hyphen() { transition self.c == 45 { true -> advance() _ -> done() } }
+    state advance() { self.scan_index = self.scan_index + 1; transition 0 { _ -> loop() } }
+    state final_segment() { self.segment_len = self.left_len - self.segment_start; transition self.segment_len > 0 { true -> final_dot_one_check() _ -> done() } }
+    state final_dot_one_check() { transition self.segment_len == 1 { true -> final_dot_one() _ -> final_dot_two_check() } }
+    state final_dot_one() { transition self.input[self.left_start + self.segment_start] == 46 { true -> done() _ -> yes() } }
+    state final_dot_two_check() { transition self.segment_len == 2 { true -> final_dot_two_first() _ -> yes() } }
+    state final_dot_two_first() { transition self.input[self.left_start + self.segment_start] == 46 { true -> final_dot_two_second() _ -> yes() } }
+    state final_dot_two_second() { transition self.input[self.left_start + self.segment_start + 1] == 46 { true -> done() _ -> yes() } }
+    state yes() { self.comparison = 1; transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::check_bundle(&mut self) {
+    self.pos = self.bundle_start; self.total_label_payload = 0;
+    self.total_content_payload = 0;
+    transition self.bundle_length >= 16 { true -> magic0() _ -> bad() }
+    state magic0() { transition self.input[self.pos] == 79 { true -> magic1() _ -> bad() } }
+    state magic1() { transition self.input[self.pos + 1] == 77 { true -> magic2() _ -> bad() } }
+    state magic2() { transition self.input[self.pos + 2] == 71 { true -> magic3() _ -> bad() } }
+    state magic3() { transition self.input[self.pos + 3] == 48 { true -> magic4() _ -> bad() } }
+    state magic4() { transition self.input[self.pos + 4] == 66 { true -> magic5() _ -> bad() } }
+    state magic5() { transition self.input[self.pos + 5] == 78 { true -> magic6() _ -> bad() } }
+    state magic6() { transition self.input[self.pos + 6] == 68 { true -> magic7() _ -> bad() } }
+    state magic7() { transition self.input[self.pos + 7] == 76 { true -> version0() _ -> bad() } }
+    state version0() { transition self.input[self.pos + 8] == 1 { true -> version1() _ -> bad() } }
+    state version1() { transition self.input[self.pos + 9] == 0 { true -> version2() _ -> bad() } }
+    state version2() { transition self.input[self.pos + 10] == 0 { true -> version3() _ -> bad() } }
+    state version3() { transition self.input[self.pos + 11] == 0 { true -> bundle_count() _ -> bad() } }
+    state bundle_count() { self.read_u32(self.pos + 12); transition self.status == 0 { true -> bundle_count_value() _ -> done() } }
+    state bundle_count_value() { transition self.decoded == self.source_count { true -> entries() _ -> bad() } }
+    state entries() { self.pos = self.pos + 16; self.i = 0; transition 0 { _ -> entry_loop() } }
+    state entry_loop() { transition self.i < self.source_count { true -> label_length_room() _ -> exact_end() } }
+    state label_length_room() { transition self.pos <= self.total_length - 8 { true -> label_length() _ -> bad() } }
+    state label_length() { self.read_u32(self.pos); self.count = self.decoded; self.read_u32(self.pos + 4); self.y = self.decoded; transition self.status == 0 { true -> label_min() _ -> done() } }
+    state label_min() { transition self.count >= 1 { true -> label_limit() _ -> bad() } }
+    state label_limit() { transition self.count <= 64 { true -> label_room() _ -> exhausted() } }
+    state label_room() { transition self.count <= self.total_length - self.pos - 8 { true -> content_room_pre() _ -> bad() } }
+    state content_room_pre() { transition self.y <= self.total_length - self.pos - 8 - self.count { true -> label_save() _ -> bad() } }
+    state label_save() { self.bundle_label_starts[self.i] = self.pos + 8; self.bundle_label_lengths[self.i] = self.count; self.total_label_payload = self.total_label_payload + self.count; self.left_start = self.pos + 8; self.left_len = self.count; self.validate_bundle_label(); transition self.comparison == 1 { true -> label_order() _ -> bad_or_done() } }
+    state bad_or_done() { transition self.status == 0 { true -> bad() _ -> done() } }
+    state label_order() { transition self.i > 0 { true -> label_compare() _ -> content_limit() } }
+    state label_compare() { self.left_start = self.bundle_label_starts[self.i - 1]; self.left_len = self.bundle_label_lengths[self.i - 1]; self.right_start = self.bundle_label_starts[self.i]; self.right_len = self.bundle_label_lengths[self.i]; self.lex_compare(); transition self.comparison < 0 { true -> content_limit() _ -> bad() } }
+    state content_limit() { transition self.y <= 131072 { true -> content_accept() _ -> exhausted() } }
+    state content_accept() { self.total_content_payload = self.total_content_payload + self.y; self.pos = self.bundle_label_starts[self.i] + self.bundle_label_lengths[self.i] + self.y; self.i = self.i + 1; transition 0 { _ -> entry_loop() } }
+    state exact_end() { transition self.pos == self.total_length { true -> aggregate_labels() _ -> bad() } }
+    state aggregate_labels() { transition self.total_label_payload <= 1024 { true -> aggregate_content() _ -> exhausted() } }
+    state aggregate_content() { transition self.total_content_payload <= 262144 { true -> done() _ -> exhausted() } }
+    state exhausted() { self.exhaust(); transition 0 { _ -> done() } }
+    state bad() { self.reject(); transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::check_source_label_order(&mut self) {
+    self.i = 0; self.current_package = 0;
+    transition 0 { _ -> loop() }
+    state loop() { transition self.i < self.source_count { true -> package_first() _ -> done() } }
+    state package_first() { transition self.i == self.package_source_starts[self.current_package] { true -> advance() _ -> compare() } }
+    state compare() { self.left_start = self.bundle_label_starts[self.source_bundles[self.i - 1]]; self.left_len = self.bundle_label_lengths[self.source_bundles[self.i - 1]]; self.right_start = self.bundle_label_starts[self.source_bundles[self.i]]; self.right_len = self.bundle_label_lengths[self.source_bundles[self.i]]; self.lex_compare(); transition self.comparison < 0 { true -> advance() _ -> bad() } }
+    state advance() { self.i = self.i + 1; transition self.i < self.source_count { true -> package_end() _ -> loop() } }
+    state package_end() { transition self.i == self.package_source_starts[self.current_package] + self.package_source_counts[self.current_package] { true -> next_package() _ -> loop() } }
+    state next_package() { self.current_package = self.current_package + 1; transition 0 { _ -> loop() } }
+    state bad() { self.reject(); transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::main(&mut self) {
+    self.status = 0;
+    self.slurp();
+    transition self.status == 0 { true -> header() _ -> done() }
+    state header() { self.check_header(); transition self.status == 0 { true -> packages() _ -> done() } }
+    state packages() { self.check_packages(); transition self.status == 0 { true -> sources() _ -> done() } }
+    state sources() { self.check_sources(); transition self.status == 0 { true -> aliases() _ -> done() } }
+    state aliases() { self.check_alias_rows(); transition self.status == 0 { true -> strings() _ -> done() } }
+    state strings() { self.check_strings(); transition self.status == 0 { true -> roles() _ -> done() } }
+    state roles() { self.check_string_roles(); transition self.status == 0 { true -> graph() _ -> done() } }
+    state graph() { self.check_alias_order_graph(); transition self.status == 0 { true -> bundle() _ -> done() } }
+    state bundle() { self.check_bundle(); transition self.status == 0 { true -> source_order() _ -> done() } }
+    state source_order() { self.check_source_label_order(); transition 0 { _ -> done() } }
+    state done() { self.console.exit_process(self.status); }
+}

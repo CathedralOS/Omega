@@ -30,9 +30,15 @@ system.
 - [`samples/lowermachine.alp`](samples/lowermachine.alp) is the Delta-written
   Delta-to-ARM64 compiler and self-host fixed point. Its native publisher
   batches `write_byte` output in a fixed 4 KiB buffer, flushes before ordered
-  line output/input, explicit or implicit entry return, and traps, and retains
-  direct regression teeth at the buffer boundary; this is sealed host I/O, not
-  a general allocator or runtime.
+  line output/input, explicit or implicit machine/state return, and traps, and
+  retains direct regression teeth at the buffer boundary. A state that reaches
+  its closing brace without a transition or explicit return returns zero; it
+  never falls into the next lexical state. This is sealed host I/O, not a
+  general allocator or runtime. Its fixed 18,200-cell typed backing admits at
+  most 128 machine declarations, including the entry machine. The adjacent
+  129th declaration exits with the established storage/array exhaustion status
+  `3` before publishing output; exact-bound gates also resolve and call the last
+  retained machine name through both native and self-built compilers.
 - [`build/`](build/) contains the checked-in bootstrap compiler artifacts.
 - [`../../onramps/delta-rust/`](../../onramps/delta-rust/) is the disposable
   Rust producer and executable reference. It is not Delta's semantic authority.

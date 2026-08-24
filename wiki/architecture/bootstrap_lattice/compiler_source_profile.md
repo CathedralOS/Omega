@@ -199,6 +199,15 @@ general profile. A first record/array/attached-machine cluster now has private
 checked-IR and lower-rooted artifact evidence; that bounded cluster does not
 promote the rest of the checkpoint.
 
+The checkpoint's present dependency replay resolves `use` components through
+repository paths, and most product units omit explicit `module` items. This
+records the exact provisional closure but is not the final module contract.
+The bridge must consume resolver-owned logical placement from its accepted
+compilation input, require any authored module declaration to agree, and apply
+the normative requester-local reach and visibility rules. The final product
+source checkpoint must close under those rules rather than making the bridge
+preserve the Rust on-ramp's compatibility scanner.
+
 Delta v1 and `Ωself` remain separate contracts even though their discovery can
 co-evolve. Delta is derived from the cost of implementing and assuring the
 complete `omega-bootstrap` closure; `Ωself` is derived from the cost and
@@ -308,7 +317,8 @@ refactor costs, and final retain/exclude disposition remain open.
 The next checkpoint-000001 tranche begins with the private
 [`OMEGA_BOOTSTRAP_COMPILATION.md`](../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION.md)
 transport. It canonically maps the exact source bundle onto opaque package
-commitments, requester-local aliases, authored module-path claims, and one exact
+commitments, requester-local aliases, resolver-owned logical module placement,
+optional agreeing authored module claims, and one exact
 root. The format deliberately does not turn labels into identity, interpret
 `build.omg`, or grant resolver authority: compilation must join it to an
 independently accepted lock/closure commitment and independently reconstruct

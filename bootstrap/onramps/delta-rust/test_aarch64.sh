@@ -195,6 +195,7 @@ run "recursion (fact(5))" "$SAMPLES/recursion.alp" 120
 run "data (self fields, sum 1..5)" "$SAMPLES/data.alp" 15
 # Slice 7b: array fields + self/method calls + bounds-checked indexing.
 run "methods (stack in self, 7*10+5)" "$SAMPLES/methods.alp" 75
+run "non-final state falloff returns from method" "$SAMPLES/nonfinal-state-falloff.alp" 42
 run "bootstrap storage (aligned bump allocation + reset)" "$SAMPLES/bootstrap-storage.alp" 42
 if build "omega-bootstrap canonical bundle decoder" "$SAMPLES/omega-bootstrap-bundle-decode.alp"; then
   # One canonical entry: label `main.omg`, content `abc`. Its byte checksum mod
@@ -334,10 +335,10 @@ filter_test "lowerbody emits the machine control skeleton (labels + all transiti
 # lowermachine: CODEGEN -- THE ORCHESTRATOR: a complete machine (scaffold wrapped around lowerbody)
 filter_test "lowermachine emits a complete machine (_main: prologue + body + epilogue)" "$SAMPLES/lowermachine.alp" "data Main { x: i32; } machine Main::main(&mut self) { transition self.x { true -> a() false -> b() } state a(){ transition 0 { _ -> b() } } state b(){} }" "$(printf '_main:\n    sub sp, sp, #32\n    stp x29, x30, [sp]\n    mov x29, sp\n    adrp x9, _selfdata@PAGE\n    add x9, x9, _selfdata@PAGEOFF\n    str x9, [x29, #16]\n    ldr x9, [x29, #16]\n    ldr w0, [x9, #0]\n    str x0, [sp, #-16]!\n    ldr x0, [sp], #16\n    movz w1, #1\n    cmp w0, w1\n    b.eq Lm0s0\n    movz w1, #0\n    cmp w0, w1\n    b.eq Lm0s1\nLm0s0:\n    movz w0, #0\n    str x0, [sp, #-16]!\n    ldr x0, [sp], #16\n    b Lm0s1\nLm0s1:\n    mov w0, #0\n    mov sp, x29\n    ldp x29, x30, [sp]\n    add sp, sp, #32\n    ret')"
 # lowermachine operator subject: a comparison subject (cmp + cset) lowered inside the complete machine
-filter_test "lowermachine lowers a comparison subject (self.x < 0 -> cmp/cset)" "$SAMPLES/lowermachine.alp" "data Main { x: i32; } machine Main::main(&mut self) { transition self.x < 0 { true -> a() false -> b() } state a(){} state b(){} }" "$(printf '_main:\n    sub sp, sp, #32\n    stp x29, x30, [sp]\n    mov x29, sp\n    adrp x9, _selfdata@PAGE\n    add x9, x9, _selfdata@PAGEOFF\n    str x9, [x29, #16]\n    ldr x9, [x29, #16]\n    ldr w0, [x9, #0]\n    str x0, [sp, #-16]!\n    movz w0, #0\n    str x0, [sp, #-16]!\n    ldr x1, [sp], #16\n    ldr x0, [sp], #16\n    cmp w0, w1\n    cset w0, lt\n    str x0, [sp, #-16]!\n    ldr x0, [sp], #16\n    movz w1, #1\n    cmp w0, w1\n    b.eq Lm0s0\n    movz w1, #0\n    cmp w0, w1\n    b.eq Lm0s1\nLm0s0:\nLm0s1:\n    mov w0, #0\n    mov sp, x29\n    ldp x29, x30, [sp]\n    add sp, sp, #32\n    ret')"
+filter_test "lowermachine lowers a comparison subject (self.x < 0 -> cmp/cset)" "$SAMPLES/lowermachine.alp" "data Main { x: i32; } machine Main::main(&mut self) { transition self.x < 0 { true -> a() false -> b() } state a(){} state b(){} }" "$(printf '_main:\n    sub sp, sp, #32\n    stp x29, x30, [sp]\n    mov x29, sp\n    adrp x9, _selfdata@PAGE\n    add x9, x9, _selfdata@PAGEOFF\n    str x9, [x29, #16]\n    ldr x9, [x29, #16]\n    ldr w0, [x9, #0]\n    str x0, [sp, #-16]!\n    movz w0, #0\n    str x0, [sp, #-16]!\n    ldr x1, [sp], #16\n    ldr x0, [sp], #16\n    cmp w0, w1\n    cset w0, lt\n    str x0, [sp, #-16]!\n    ldr x0, [sp], #16\n    movz w1, #1\n    cmp w0, w1\n    b.eq Lm0s0\n    movz w1, #0\n    cmp w0, w1\n    b.eq Lm0s1\nLm0s0:\n    mov w0, #0\n    mov sp, x29\n    ldp x29, x30, [sp]\n    add sp, sp, #32\n    ret\nLm0s1:\n    mov w0, #0\n    mov sp, x29\n    ldp x29, x30, [sp]\n    add sp, sp, #32\n    ret')"
 # lowermachine bit-ops: prec -1 (below comparisons=0), needed the paren/array sentinel shift -1 -> -3
-filter_test "lowermachine lowers a bitwise-and subject (self.x & 3 -> and, prec -1)" "$SAMPLES/lowermachine.alp" "data Main { x: i32; } machine Main::main(&mut self) { transition self.x & 3 { true -> a() false -> b() } state a(){} state b(){} }" "$(printf '_main:\n    sub sp, sp, #32\n    stp x29, x30, [sp]\n    mov x29, sp\n    adrp x9, _selfdata@PAGE\n    add x9, x9, _selfdata@PAGEOFF\n    str x9, [x29, #16]\n    ldr x9, [x29, #16]\n    ldr w0, [x9, #0]\n    str x0, [sp, #-16]!\n    movz w0, #3\n    str x0, [sp, #-16]!\n    ldr x1, [sp], #16\n    ldr x0, [sp], #16\n    and w0, w0, w1\n    str x0, [sp, #-16]!\n    ldr x0, [sp], #16\n    movz w1, #1\n    cmp w0, w1\n    b.eq Lm0s0\n    movz w1, #0\n    cmp w0, w1\n    b.eq Lm0s1\nLm0s0:\nLm0s1:\n    mov w0, #0\n    mov sp, x29\n    ldp x29, x30, [sp]\n    add sp, sp, #32\n    ret')"
-filter_test "lowermachine lowers a left-shift subject (self.x << 2 -> lsl, two-char)" "$SAMPLES/lowermachine.alp" "data Main { x: i32; } machine Main::main(&mut self) { transition self.x << 2 { true -> a() false -> b() } state a(){} state b(){} }" "$(printf '_main:\n    sub sp, sp, #32\n    stp x29, x30, [sp]\n    mov x29, sp\n    adrp x9, _selfdata@PAGE\n    add x9, x9, _selfdata@PAGEOFF\n    str x9, [x29, #16]\n    ldr x9, [x29, #16]\n    ldr w0, [x9, #0]\n    str x0, [sp, #-16]!\n    movz w0, #2\n    str x0, [sp, #-16]!\n    ldr x1, [sp], #16\n    ldr x0, [sp], #16\n    lsl w0, w0, w1\n    str x0, [sp, #-16]!\n    ldr x0, [sp], #16\n    movz w1, #1\n    cmp w0, w1\n    b.eq Lm0s0\n    movz w1, #0\n    cmp w0, w1\n    b.eq Lm0s1\nLm0s0:\nLm0s1:\n    mov w0, #0\n    mov sp, x29\n    ldp x29, x30, [sp]\n    add sp, sp, #32\n    ret')"
+filter_test "lowermachine lowers a bitwise-and subject (self.x & 3 -> and, prec -1)" "$SAMPLES/lowermachine.alp" "data Main { x: i32; } machine Main::main(&mut self) { transition self.x & 3 { true -> a() false -> b() } state a(){} state b(){} }" "$(printf '_main:\n    sub sp, sp, #32\n    stp x29, x30, [sp]\n    mov x29, sp\n    adrp x9, _selfdata@PAGE\n    add x9, x9, _selfdata@PAGEOFF\n    str x9, [x29, #16]\n    ldr x9, [x29, #16]\n    ldr w0, [x9, #0]\n    str x0, [sp, #-16]!\n    movz w0, #3\n    str x0, [sp, #-16]!\n    ldr x1, [sp], #16\n    ldr x0, [sp], #16\n    and w0, w0, w1\n    str x0, [sp, #-16]!\n    ldr x0, [sp], #16\n    movz w1, #1\n    cmp w0, w1\n    b.eq Lm0s0\n    movz w1, #0\n    cmp w0, w1\n    b.eq Lm0s1\nLm0s0:\n    mov w0, #0\n    mov sp, x29\n    ldp x29, x30, [sp]\n    add sp, sp, #32\n    ret\nLm0s1:\n    mov w0, #0\n    mov sp, x29\n    ldp x29, x30, [sp]\n    add sp, sp, #32\n    ret')"
+filter_test "lowermachine lowers a left-shift subject (self.x << 2 -> lsl, two-char)" "$SAMPLES/lowermachine.alp" "data Main { x: i32; } machine Main::main(&mut self) { transition self.x << 2 { true -> a() false -> b() } state a(){} state b(){} }" "$(printf '_main:\n    sub sp, sp, #32\n    stp x29, x30, [sp]\n    mov x29, sp\n    adrp x9, _selfdata@PAGE\n    add x9, x9, _selfdata@PAGEOFF\n    str x9, [x29, #16]\n    ldr x9, [x29, #16]\n    ldr w0, [x9, #0]\n    str x0, [sp, #-16]!\n    movz w0, #2\n    str x0, [sp, #-16]!\n    ldr x1, [sp], #16\n    ldr x0, [sp], #16\n    lsl w0, w0, w1\n    str x0, [sp, #-16]!\n    ldr x0, [sp], #16\n    movz w1, #1\n    cmp w0, w1\n    b.eq Lm0s0\n    movz w1, #0\n    cmp w0, w1\n    b.eq Lm0s1\nLm0s0:\n    mov w0, #0\n    mov sp, x29\n    ldp x29, x30, [sp]\n    add sp, sp, #32\n    ret\nLm0s1:\n    mov w0, #0\n    mov sp, x29\n    ldp x29, x30, [sp]\n    add sp, sp, #32\n    ret')"
 # lowermachine assignment statements: self.field = EXPR; lowered as RHS + storefield, inside the machine
 filter_test "lowermachine lowers assignment statements (self.field = EXPR -> RHS + storefield)" "$SAMPLES/lowermachine.alp" "data Main { x: i32; y: i32; } machine Main::main(&mut self) { self.x = 5; transition 0 { _ -> a() } state a(){ self.y = self.x; transition 0 { _ -> b() } } state b(){} }" "$(printf '_main:\n    sub sp, sp, #32\n    stp x29, x30, [sp]\n    mov x29, sp\n    adrp x9, _selfdata@PAGE\n    add x9, x9, _selfdata@PAGEOFF\n    str x9, [x29, #16]\n    movz w0, #5\n    str x0, [sp, #-16]!\n    ldr x0, [sp], #16\n    ldr x9, [x29, #16]\n    str w0, [x9, #0]\n    movz w0, #0\n    str x0, [sp, #-16]!\n    ldr x0, [sp], #16\n    b Lm0s0\nLm0s0:\n    ldr x9, [x29, #16]\n    ldr w0, [x9, #0]\n    str x0, [sp, #-16]!\n    ldr x0, [sp], #16\n    ldr x9, [x29, #16]\n    str w0, [x9, #8]\n    movz w0, #0\n    str x0, [sp, #-16]!\n    ldr x0, [sp], #16\n    b Lm0s1\nLm0s1:\n    mov w0, #0\n    mov sp, x29\n    ldp x29, x30, [sp]\n    add sp, sp, #32\n    ret')"
 # lowermachine locals: let declarations size the frame (align16(24+8*lc), self_disp 16+8*lc) + let-store
@@ -345,7 +346,7 @@ filter_test "lowermachine sizes the frame for locals and lowers let-store" "$SAM
 # lowermachine local-read: a local used as a value -> ldr w0,[x29,#disp] + push
 filter_test "lowermachine reads a local as an operand (let x; self.y = x)" "$SAMPLES/lowermachine.alp" "data Main { y: i32; } machine Main::main(&mut self) { let x: i32 = 5; self.y = x; transition 0 { _ -> a() } state a(){} }" "$(printf '_main:\n    sub sp, sp, #32\n    stp x29, x30, [sp]\n    mov x29, sp\n    adrp x9, _selfdata@PAGE\n    add x9, x9, _selfdata@PAGEOFF\n    str x9, [x29, #24]\n    movz w0, #5\n    str x0, [sp, #-16]!\n    ldr x0, [sp], #16\n    str w0, [x29, #16]\n    ldr w0, [x29, #16]\n    str x0, [sp, #-16]!\n    ldr x0, [sp], #16\n    ldr x9, [x29, #24]\n    str w0, [x9, #0]\n    movz w0, #0\n    str x0, [sp, #-16]!\n    ldr x0, [sp], #16\n    b Lm0s0\nLm0s0:\n    mov w0, #0\n    mov sp, x29\n    ldp x29, x30, [sp]\n    add sp, sp, #32\n    ret')"
 # lowermachine multi-machine: emits each machine with its own scaffold (entry _main loads _selfdata; others Lmachine<mi> take self in x0)
-filter_test "lowermachine emits multiple machines (entry _main + Lmachine1)" "$SAMPLES/lowermachine.alp" "data Main { x: i32; } machine Main::main(&mut self) { transition self.x { true -> a() false -> b() } state a(){} state b(){} } machine Main::helper(&mut self) { transition 0 { _ -> h() } state h(){} }" "$(printf '_main:\n    sub sp, sp, #32\n    stp x29, x30, [sp]\n    mov x29, sp\n    adrp x9, _selfdata@PAGE\n    add x9, x9, _selfdata@PAGEOFF\n    str x9, [x29, #16]\n    ldr x9, [x29, #16]\n    ldr w0, [x9, #0]\n    str x0, [sp, #-16]!\n    ldr x0, [sp], #16\n    movz w1, #1\n    cmp w0, w1\n    b.eq Lm0s0\n    movz w1, #0\n    cmp w0, w1\n    b.eq Lm0s1\nLm0s0:\nLm0s1:\n    mov w0, #0\n    mov sp, x29\n    ldp x29, x30, [sp]\n    add sp, sp, #32\n    ret\nLmachine1:\n    sub sp, sp, #32\n    stp x29, x30, [sp]\n    mov x29, sp\n    str x0, [x29, #16]\n    movz w0, #0\n    str x0, [sp, #-16]!\n    ldr x0, [sp], #16\n    b Lm1s0\nLm1s0:\n    mov w0, #0\n    mov sp, x29\n    ldp x29, x30, [sp]\n    add sp, sp, #32\n    ret')"
+filter_test "lowermachine emits multiple machines (entry _main + Lmachine1)" "$SAMPLES/lowermachine.alp" "data Main { x: i32; } machine Main::main(&mut self) { transition self.x { true -> a() false -> b() } state a(){} state b(){} } machine Main::helper(&mut self) { transition 0 { _ -> h() } state h(){} }" "$(printf '_main:\n    sub sp, sp, #32\n    stp x29, x30, [sp]\n    mov x29, sp\n    adrp x9, _selfdata@PAGE\n    add x9, x9, _selfdata@PAGEOFF\n    str x9, [x29, #16]\n    ldr x9, [x29, #16]\n    ldr w0, [x9, #0]\n    str x0, [sp, #-16]!\n    ldr x0, [sp], #16\n    movz w1, #1\n    cmp w0, w1\n    b.eq Lm0s0\n    movz w1, #0\n    cmp w0, w1\n    b.eq Lm0s1\nLm0s0:\n    mov w0, #0\n    mov sp, x29\n    ldp x29, x30, [sp]\n    add sp, sp, #32\n    ret\nLm0s1:\n    mov w0, #0\n    mov sp, x29\n    ldp x29, x30, [sp]\n    add sp, sp, #32\n    ret\nLmachine1:\n    sub sp, sp, #32\n    stp x29, x30, [sp]\n    mov x29, sp\n    str x0, [x29, #16]\n    movz w0, #0\n    str x0, [sp, #-16]!\n    ldr x0, [sp], #16\n    b Lm1s0\nLm1s0:\n    mov w0, #0\n    mov sp, x29\n    ldp x29, x30, [sp]\n    add sp, sp, #32\n    ret')"
 # lowermachine no-arg method call: self.m() -> resolve callee via machine table -> self x0 / bl / push / discard
 filter_test "lowermachine lowers a no-arg method call (self.helper() -> bl Lmachine1)" "$SAMPLES/lowermachine.alp" "data Main { x: i32; } machine Main::main(&mut self) { self.helper(); transition 0 { _ -> a() } state a(){} } machine Main::helper(&mut self) { transition 0 { _ -> h() } state h(){} }" "$(printf '_main:\n    sub sp, sp, #32\n    stp x29, x30, [sp]\n    mov x29, sp\n    adrp x9, _selfdata@PAGE\n    add x9, x9, _selfdata@PAGEOFF\n    str x9, [x29, #16]\n    ldr x0, [x29, #16]\n    bl Lmachine1\n    str x0, [sp, #-16]!\n    ldr x0, [sp], #16\n    movz w0, #0\n    str x0, [sp, #-16]!\n    ldr x0, [sp], #16\n    b Lm0s0\nLm0s0:\n    mov w0, #0\n    mov sp, x29\n    ldp x29, x30, [sp]\n    add sp, sp, #32\n    ret\nLmachine1:\n    sub sp, sp, #32\n    stp x29, x30, [sp]\n    mov x29, sp\n    str x0, [x29, #16]\n    movz w0, #0\n    str x0, [sp, #-16]!\n    ldr x0, [sp], #16\n    b Lm1s0\nLm1s0:\n    mov w0, #0\n    mov sp, x29\n    ldp x29, x30, [sp]\n    add sp, sp, #32\n    ret')"
 # lowermachine method call with args: caller pushes/pops args; callee prologue stores param regs + sizes frame
@@ -531,6 +532,65 @@ else
   FAIL=$((FAIL+1)); echo "  FAIL self-compile fixpoint: not byte-identical"
 fi
 
+# The machine-scoped count/name tables admit exactly 128 declarations. Exercise
+# the last call-name row as well as declaration storage, then require the 129th
+# declaration to use lowermachine's established storage-exhaustion status 3
+# before publishing any assembly. Run both the Rust-produced compiler and the
+# compiler assembled from its byte-identical self output.
+make_machine_count_source() {
+  machine_count=$1
+  machine_output=$2
+  printf '%s' 'boundary trait Console { machine exit_process(return_code: i32); } data Main { console: Console; result: i32; } ' > "$machine_output"
+  helper_count=$((machine_count - 1))
+  helper_index=0
+  while [ "$helper_index" -lt "$helper_count" ]; do
+    printf 'machine helper%s() -> i32 { return 0; } ' "$helper_index" >> "$machine_output"
+    helper_index=$((helper_index + 1))
+  done
+  last_helper=$((helper_count - 1))
+  printf 'machine Main::main(&mut self) { self.result = helper%s(); self.console.exit_process(self.result); }' "$last_helper" >> "$machine_output"
+}
+
+make_machine_count_source 128 "$T/machines-128.alp"
+make_machine_count_source 129 "$T/machines-129.alp"
+if clang -arch arm64 -o "$T/lmx-self" "$T/self.s" 2>"$T/cerr" \
+    && codesign -f -s - "$T/lmx-self" 2>/dev/null; then
+  "$T/lmx" < "$T/machines-128.alp" > "$T/machines-128.native.s" 2>/dev/null
+  "$T/lmx-self" < "$T/machines-128.alp" > "$T/machines-128.self.s" 2>/dev/null
+  if cmp -s "$T/machines-128.native.s" "$T/machines-128.self.s" \
+      && grep -q '^Lmachine126:$' "$T/machines-128.native.s" \
+      && grep -q '^    bl Lmachine126$' "$T/machines-128.native.s" \
+      && clang -arch arm64 -o "$T/machines-128" "$T/machines-128.native.s" 2>"$T/cerr" \
+      && codesign -f -s - "$T/machines-128" 2>/dev/null; then
+    set +e
+    "$T/machines-128" >/dev/null 2>&1
+    machines_128_run=$?
+    set -e
+    if [ "$machines_128_run" = 0 ]; then
+      PASS=$((PASS+1)); echo "  ok  lowermachine admits 128 machines and resolves the last call name"
+    else
+      FAIL=$((FAIL+1)); echo "  FAIL lowermachine 128-machine artifact: exit $machines_128_run, expected 0"
+    fi
+  else
+    FAIL=$((FAIL+1)); echo "  FAIL lowermachine 128-machine native/self capacity parity"
+  fi
+
+  set +e
+  "$T/lmx" < "$T/machines-129.alp" > "$T/machines-129.native.s" 2>/dev/null
+  machines_129_native=$?
+  "$T/lmx-self" < "$T/machines-129.alp" > "$T/machines-129.self.s" 2>/dev/null
+  machines_129_self=$?
+  set -e
+  if [ "$machines_129_native" = 3 ] && [ "$machines_129_self" = 3 ] \
+      && [ ! -s "$T/machines-129.native.s" ] && [ ! -s "$T/machines-129.self.s" ]; then
+    PASS=$((PASS+1)); echo "  ok  lowermachine rejects machine 129 with status 3 and no output"
+  else
+    FAIL=$((FAIL+1)); echo "  FAIL lowermachine machine overflow: native=$machines_129_native self=$machines_129_self, expected 3/3 and empty output"
+  fi
+else
+  FAIL=$((FAIL+1)); echo "  FAIL lowermachine self-built capacity compiler: assembly failed"
+fi
+
 # The Delta-written compiler grows its logical source arena one checked cell at
 # a time inside explicit byte backing. It must never accept a prefix after
 # exhausting that backing.
@@ -659,6 +719,7 @@ selfhost_test "self-hosting: lowermachine compiles stateparams.alp (multi-param 
 # handled the qualified call + bare write_byte/read_byte but not bare write_line -> the call was dropped.
 # Fix: ck2wb-false -> ck2wl (is_wline) -> the existing wline string emitter. Prints tick x3, exit 3. (Sweep DIFF.)
 selfhost_test "self-hosting: lowermachine compiles loop.alp (bare write_line); matches reference" "$SAMPLES/loop.alp" ""
+selfhost_test "self-hosting: non-final state falloff returns; matches reference" "$SAMPLES/nonfinal-state-falloff.alp" ""
 # a FALSE assert in a lowermachine-compiled program must TRAP at runtime (cbz w0, Ltrap fires).
 compiler_trap "lowermachine compiles a false assert into a runtime trap" "$SAMPLES/lowermachine.alp" \
   "boundary trait Console { machine exit_process(return_code: i32); } data Main { console: Console; } machine Main::main(&mut self) { let a: i32 = 0; assert a > 5; self.console.exit_process(7) }"

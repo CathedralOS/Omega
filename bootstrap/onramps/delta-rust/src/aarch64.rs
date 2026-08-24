@@ -137,14 +137,32 @@ fn lower_machine(machine_index: usize, program: &Program, asm: &mut String) {
     for statement in &machine.entry {
         lower_statement(statement, machine_index, program, frame, self_disp, asm);
     }
+    if !machine.states.is_empty() && block_falls_through(&machine.entry) {
+        emit_implicit_return(frame, asm);
+    }
     for (state_index, state_statements) in machine.states.iter().enumerate() {
         asm.push_str(&format!("Lm{}s{}:\n", machine_index, state_index));
         for statement in state_statements {
             lower_statement(statement, machine_index, program, frame, self_disp, asm);
         }
+        if state_index + 1 < machine.states.len() && block_falls_through(state_statements) {
+            emit_implicit_return(frame, asm);
+        }
     }
+    // Preserve the existing trailing default for the final state (or entry when
+    // there are no states). Explicit control flow makes it unreachable.
+    emit_implicit_return(frame, asm);
+}
 
-    // Trailing default: reached only by fall-through off the end -> return 0.
+fn block_falls_through(statements: &[Statement]) -> bool {
+    match statements.last() {
+        Some(Statement::Transition(_, _) | Statement::Return(_) | Statement::Exit(_)) => false,
+        Some(Statement::Block(inner)) => block_falls_through(inner),
+        _ => true,
+    }
+}
+
+fn emit_implicit_return(frame: i32, asm: &mut String) {
     asm.push_str("    mov w0, #0\n");
     emit_epilogue(frame, asm);
 }
