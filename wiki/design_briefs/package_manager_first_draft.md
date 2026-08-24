@@ -195,11 +195,16 @@ authority that a later implementation may begin exercising without changing
 the public ceiling. The manifest pins both declared and realized reach, so
 unused-to-used authority still changes evidence.
 
-Open or deferred proofs reject package admission. Checked proofs are rechecked
-by the proof kernel. Accepted axioms and opaque boundary claims remain explicit
-trust-bearing evidence and require admission; authored postconditions are
-obligations, never proof. Boundary realization uses exact package-qualified
-nominal identities and cannot be satisfied by a same-spelled trait.
+Open or deferred proofs reject package admission. The current compiler has no
+explicit deferred-proof status, however, and its contract-entailment engine may
+stand down on facts outside that engine's language. The admission profile must
+reject an unresolved stand-down or retain the exact later checked obligation
+that discharged it; a successful ordinary compilation is not by itself a
+complete proof verdict. Checked proofs are rechecked by the proof kernel.
+Accepted axioms and opaque boundary claims remain explicit trust-bearing
+evidence and require admission; authored postconditions are obligations, never
+proof. Boundary realization uses exact package-qualified nominal identities and
+cannot be satisfied by a same-spelled trait.
 
 Risk classification is compiler-owned metadata attached to exact admitted
 boundary/capability identities. It is never inferred from package-controlled

@@ -21,6 +21,12 @@ pub use table::{SymbolNameStorageCounts, SymbolTable, SymbolTableBuilder};
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
+    use std::sync::Arc;
+
+    use psi_core::PackageKeyIdentity;
+    use psi_source::{SourceMap, SourceOrigin, SourceSpan, Span};
+
     use super::{SymbolHandle, SymbolKind, SymbolNameRef, SymbolTable, SymbolTableBuilder};
 
     #[test]
@@ -79,6 +85,43 @@ mod tests {
         assert_eq!(symbols.name(authored_machine), "main");
         assert_eq!(symbols.name(authored_entry), "entry");
         assert_eq!(symbols.get(authored_entry).parent, authored_machine);
+    }
+
+    #[test]
+    fn resolves_managed_authored_symbol_package_identity() {
+        let package_identity =
+            PackageKeyIdentity::from_digest([1; 32]).expect("nonzero package identity");
+        let (symbols, authored) =
+            sourced_symbol_table([(SourceOrigin::User, Some(package_identity))]);
+
+        assert_eq!(
+            symbols.symbol_package_identity(authored[0]),
+            Some(package_identity)
+        );
+    }
+
+    #[test]
+    fn unmanaged_and_toolchain_symbols_have_no_package_identity() {
+        let package_identity =
+            PackageKeyIdentity::from_digest([2; 32]).expect("nonzero package identity");
+        let (symbols, authored) = sourced_symbol_table([
+            (SourceOrigin::User, None),
+            (SourceOrigin::Toolchain, Some(package_identity)),
+        ]);
+
+        assert_eq!(symbols.symbol_package_identity(authored[0]), None);
+        assert_eq!(symbols.symbol_package_identity(authored[1]), None);
+    }
+
+    #[test]
+    fn generated_and_source_free_symbols_have_no_package_identity() {
+        let package_identity =
+            PackageKeyIdentity::from_digest([3; 32]).expect("nonzero package identity");
+        let (mut symbols, _) = sourced_symbol_table([(SourceOrigin::User, Some(package_identity))]);
+        let generated = symbols.insert_generated_root(SymbolKind::Machine, "generated");
+
+        assert_eq!(symbols.symbol_package_identity(symbols.root()), None);
+        assert_eq!(symbols.symbol_package_identity(generated), None);
     }
 
     #[test]
@@ -240,6 +283,34 @@ mod tests {
         );
 
         builder.finish()
+    }
+
+    fn sourced_symbol_table<const N: usize>(
+        metadata: [(SourceOrigin, Option<PackageKeyIdentity>); N],
+    ) -> (SymbolTable, Vec<SymbolHandle>) {
+        let mut sources = SourceMap::default();
+        let source_spans = metadata.map(|(origin, package_identity)| {
+            let source_id = sources
+                .add_with_metadata(
+                    PathBuf::from(format!("source-{}.omg", sources.len())),
+                    String::from("machine"),
+                    PathBuf::from("package"),
+                    package_identity,
+                    origin,
+                )
+                .source_id;
+            SourceSpan::new(source_id, Span::new(0, 7))
+        });
+        let mut builder = SymbolTableBuilder::with_sources(Some(Arc::new(sources)));
+        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let children = builder.insert_children(
+            root,
+            source_spans
+                .map(|source_span| (SymbolKind::Machine, SymbolNameRef::Source(source_span))),
+        );
+        let authored = SymbolTableBuilder::child_handles(children).collect();
+
+        (builder.finish(), authored)
     }
 
     fn main_console_symbols() -> SymbolTable {
