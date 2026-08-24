@@ -1,0 +1,6 @@
+module model;
+
+pub data Pair [copy] {
+    first: u8;
+    second: u8;
+}
