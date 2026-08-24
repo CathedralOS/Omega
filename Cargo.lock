@@ -441,6 +441,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "omega-component-publication"
+version = "0.1.0"
+dependencies = [
+ "omega-calling-conventions",
+ "omega-effects",
+ "omega-executable-installation",
+ "omega-external-roots",
+ "omega-target",
+ "omega-terminal-image-emission",
+ "omega-terminal-installation-evidence",
+ "omega-terminal-isa-x86_64",
+ "omega-terminal-machine-code",
+ "omega-terminal-target-operations",
+ "psi-core",
+ "psi-extents",
+ "psi-layout-plans",
+ "psi-terminal",
+ "psi-terminal-fuel",
+]
+
+[[package]]
 name = "omega-control-flow"
 version = "0.1.0"
 dependencies = [
@@ -1241,6 +1262,7 @@ version = "0.1.0"
 dependencies = [
  "iced-x86",
  "omega-calling-conventions",
+ "omega-executable-installation",
  "omega-image",
  "omega-image-elf",
  "omega-image-macho",

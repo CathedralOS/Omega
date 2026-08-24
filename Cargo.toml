@@ -45,6 +45,7 @@ members = [
     "bootstrap/onramps/omega-rust/omega/foundation/omega-calling-conventions",
     "bootstrap/onramps/omega-rust/omega/foundation/omega-executable-installation",
     "bootstrap/onramps/omega-rust/omega/orchestration/omega-external-roots",
+    "bootstrap/onramps/omega-rust/omega/orchestration/omega-component-publication",
     "bootstrap/onramps/omega-rust/omega/foundation/omega-task-plans",
     "bootstrap/onramps/omega-rust/omega/foundation/omega-backend-report-types",
     "bootstrap/onramps/omega-rust/omega/foundation/omega-runtime-abi",

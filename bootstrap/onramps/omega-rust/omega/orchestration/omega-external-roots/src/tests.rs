@@ -5035,6 +5035,15 @@ fn component_progress_seals_against_distinct_exact_subject_and_issuer_occurrence
         .expect("exact component progress closure");
     assert_eq!(acceptance.manifest(), &manifest);
     assert_eq!(acceptance.receipts().collect::<Vec<_>>(), vec![&receipt]);
+    assert!(acceptance.binds_installed_code(&code));
+    let mut expected_provider_plans = vec![scheduler_plan, admission_plan];
+    expected_provider_plans.sort_unstable();
+    assert_eq!(
+        acceptance.selected_provider_plans(),
+        expected_provider_plans.as_slice()
+    );
+    let colliding_code = installed_code_with_fill(54_000, entry_id(54_001), 1);
+    assert!(!acceptance.binds_installed_code(&colliding_code));
     assert_ne!(acceptance.fingerprint(), 0);
 }
 

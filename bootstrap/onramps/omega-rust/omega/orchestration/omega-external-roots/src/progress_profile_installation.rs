@@ -312,12 +312,28 @@ struct InstalledComponentProgressBinding {
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[must_use = "installed component progress closure must be retained through publication"]
 pub struct InstalledComponentProgressClosure {
+    installed: InstalledCodeContext,
+    selected_provider_plans: Vec<u64>,
     manifest: ComponentProgressManifest,
     bindings: Vec<InstalledComponentProgressBinding>,
     fingerprint: u64,
 }
 
 impl InstalledComponentProgressClosure {
+    /// Test whether this acceptance belongs to one exact installed-code
+    /// occurrence. The complete opaque installation context participates in
+    /// the comparison; compact installed/artifact identities are insufficient.
+    pub fn binds_installed_code(&self, installed: &InstalledCode) -> bool {
+        self.installed == installed.receipt_context()
+    }
+
+    /// Canonical complete selected-plan set sealed by the installation
+    /// registry. Runnable publication joins this set to the terminal
+    /// installation record rather than reconstructing it from demand rows.
+    pub fn selected_provider_plans(&self) -> &[u64] {
+        &self.selected_provider_plans
+    }
+
     pub const fn manifest(&self) -> &ComponentProgressManifest {
         &self.manifest
     }
@@ -721,9 +737,19 @@ impl InstalledRootLedger {
             });
         }
         accepted.sort_by(|left, right| left.demand.cmp(&right.demand));
+        let mut selected_provider_plans = closure
+            .selected
+            .plans()
+            .iter()
+            .map(omega_effects::provider_plan::ProviderPlan::identity_fingerprint)
+            .collect::<Vec<_>>();
+        selected_provider_plans.sort_unstable();
+        selected_provider_plans.dedup();
         let fingerprint = fingerprint_component_progress(&manifest, &accepted);
         self.accepted_component_progress.push(manifest.clone());
         Ok(InstalledComponentProgressClosure {
+            installed: self.installed_context.clone(),
+            selected_provider_plans,
             manifest,
             bindings: accepted,
             fingerprint,

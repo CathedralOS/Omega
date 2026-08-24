@@ -277,8 +277,11 @@ compact fingerprint or a mutable `discharged` flag is never authority.
 Canonical terminal installation metadata commits both the manifest identity
 and the opaque accepted-closure identity. Those numbers make substitution
 visible in artifact identity but do not replace the retained closure: runnable
-publication must present that opaque value again. A compiler lane that emits a
-native executable without carrying an installation acceptance therefore stays
+publication joins the canonical terminal object, image, installation record,
+exact installed-code occurrence, and opaque accepted closure. Component-era
+publication retains that joined carrier until successful retirement; rejected
+publication and retirement return it unchanged. A compiler lane that emits a
+native executable without those staged installation inputs therefore stays
 fail closed rather than treating selected provider plans as receipts.
 
 The normalized guarantee records the actual pinned premises, not merely the
