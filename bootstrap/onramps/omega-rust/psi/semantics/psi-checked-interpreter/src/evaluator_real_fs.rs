@@ -9,11 +9,13 @@
 //! under a read or write root, writes/creates/removes under a write root;
 //! refusal is -1/EACCES, the same shape as an OS permission denial, so the
 //! wrapper's error surface needs no new cases. Paths and roots are
-//! CANONICALIZED for the check (a not-yet-existing leaf rides its
-//! canonicalized parent), so `..` traversal and symlinks that escape a
-//! granted tree resolve to their real target and are refused, not
-//! string-matched. Fd-based ops need no re-check: an fd only enters the
-//! table through an authorized open.
+//! CANONICALIZED for the check. Operations that follow their final component
+//! authorize the resolved target; operations that create, remove, or replace
+//! a namespace leaf canonicalize only its parent and authorize the leaf
+//! itself. Thus `..` traversal and parent symlink escapes are refused without
+//! mistaking an existing leaf symlink's target for the entry a namespace
+//! syscall actually mutates. Fd-based ops need no re-check: an fd only enters
+//! the table through an authorized open.
 //!
 //! Portable by construction: real files ride `std::fs::File` behind the same
 //! synthetic-fd table shape the virtual fs uses (no libc, no raw handles), so
@@ -589,7 +591,7 @@ impl<'program> super::Evaluator<'program> {
             // the arg bytes ARE the path, so both spellings share one arm.
             PreparedFilesystemCall::Remove { path }
             | PreparedFilesystemCall::RemoveName { path } => {
-                match self.authorized_path(&path, true, 0) {
+                match self.authorized_namespace_leaf(&path, true, 0) {
                     Some(path) => {
                         let prepared = self.prepare_sponsored_unlink(&path)?;
                         let outcome = std::fs::remove_file(path);
@@ -602,7 +604,7 @@ impl<'program> super::Evaluator<'program> {
             | PreparedFilesystemCall::CreateDirName {
                 name: path,
                 mode: _,
-            } => match self.authorized_path(&path, true, 0) {
+            } => match self.authorized_namespace_leaf(&path, true, 0) {
                 Some(path) => {
                     let prepared = self.prepare_sponsored_create_directory(&path)?;
                     let outcome = std::fs::create_dir(path);
@@ -612,7 +614,7 @@ impl<'program> super::Evaluator<'program> {
             },
             PreparedFilesystemCall::RemoveDir { path }
             | PreparedFilesystemCall::RemoveDirName { path } => {
-                match self.authorized_path(&path, true, 0) {
+                match self.authorized_namespace_leaf(&path, true, 0) {
                     Some(path) => {
                         let prepared = self.prepare_sponsored_unlink(&path)?;
                         let outcome = std::fs::remove_dir(path);
@@ -625,8 +627,8 @@ impl<'program> super::Evaluator<'program> {
                 // BOTH ends need write authority: a rename removes `from` and
                 // creates `to`.
                 match (
-                    self.authorized_path(&from, true, 0),
-                    self.authorized_path(&to, true, 1),
+                    self.authorized_namespace_leaf(&from, true, 0),
+                    self.authorized_namespace_leaf(&to, true, 1),
                 ) {
                     (Some(from), Some(to)) => {
                         let prepared = self.prepare_sponsored_rename(&from, &to)?;
@@ -841,8 +843,8 @@ impl<'program> super::Evaluator<'program> {
                 // linking a read-only source object into writable staging would
                 // let later writes mutate the source through the shared inode.
                 match (
-                    self.authorized_path(&original, true, 0),
-                    self.authorized_path(&link, true, 1),
+                    self.authorized_namespace_leaf(&original, true, 0),
+                    self.authorized_namespace_leaf(&link, true, 1),
                 ) {
                     (Some(original), Some(link)) => {
                         let prepared = self.prepare_sponsored_hard_link(&original, &link)?;
@@ -863,8 +865,8 @@ impl<'program> super::Evaluator<'program> {
                 // `hard_link` above; errno doubles as this provider's modeled
                 // GetLastError slot and therefore stores Win32 codes here.
                 match (
-                    self.authorized_path(&existing, true, 1),
-                    self.authorized_path(&link, true, 0),
+                    self.authorized_namespace_leaf(&existing, true, 1),
+                    self.authorized_namespace_leaf(&link, true, 0),
                 ) {
                     (Some(existing), Some(link)) => {
                         let prepared = self.prepare_sponsored_hard_link(&existing, &link)?;
@@ -976,7 +978,7 @@ impl<'program> super::Evaluator<'program> {
                 // `symlink(target, linkpath)`: the TARGET is stored verbatim
                 // (never dereferenced here), so only the link path needs write
                 // authority. Unix-only in std; elsewhere ENOTSUP.
-                match self.authorized_path(&link, true, 1) {
+                match self.authorized_namespace_leaf(&link, true, 1) {
                     Some(link) => {
                         let prepared = self.prepare_sponsored_symlink(&link, &target)?;
                         #[cfg(unix)]
@@ -1236,7 +1238,7 @@ impl<'program> super::Evaluator<'program> {
                     }
                 };
                 let joined_bytes = joined.to_string_lossy().into_owned().into_bytes();
-                match self.authorized_path(&joined_bytes, true, 1) {
+                match self.authorized_namespace_leaf(&joined_bytes, true, 1) {
                     Some(path) => {
                         let prepared = self.prepare_sponsored_unlink(&path)?;
                         if flags & 0x80 != 0 {
@@ -1700,13 +1702,13 @@ impl<'program> super::Evaluator<'program> {
         self.authorized_path_with_follow(path_bytes, write, true, operand_ordinal)
     }
 
-    /// The NO-FOLLOW variant for symlink-INSPECTING ops (read_link,
-    /// read_symlink_metadata, lchown): full canonicalization would resolve
-    /// the final symlink and the op would run on its TARGET (read_link on
-    /// the target is EINVAL; lstat would report the wrong file -- probed
-    /// 2026-07-10m). Resolution goes parent-canonical + reattached leaf, so
-    /// the grant check still compares real locations while the leaf link
-    /// itself stays the operand.
+    /// The NO-FOLLOW variant for operations whose operand is the namespace
+    /// leaf itself. This includes symlink-inspecting operations (read_link,
+    /// read_symlink_metadata, lchown) and namespace mutations (mkdir, unlink,
+    /// rmdir, rename, link, symlink). Full canonicalization would authorize
+    /// and return an existing leaf symlink's TARGET even though the host call
+    /// inspects, creates, removes, or replaces the symlink NAME. Resolution
+    /// therefore canonicalizes the parent and reattaches the leaf.
     fn authorized_path_no_follow(
         &mut self,
         path_bytes: &[u8],
@@ -1714,6 +1716,15 @@ impl<'program> super::Evaluator<'program> {
         operand_ordinal: u8,
     ) -> Option<PathBuf> {
         self.authorized_path_with_follow(path_bytes, write, false, operand_ordinal)
+    }
+
+    fn authorized_namespace_leaf(
+        &mut self,
+        path_bytes: &[u8],
+        write: bool,
+        operand_ordinal: u8,
+    ) -> Option<PathBuf> {
+        self.authorized_path_no_follow(path_bytes, write, operand_ordinal)
     }
 
     fn authorized_path_with_follow(
