@@ -1,6 +1,6 @@
 # Design Brief: Build And Package Model
 
-Current as of 2026-08-23. `build.omg` is ordinary Omega code interpreted in an
+Current as of 2026-08-24. `build.omg` is ordinary Omega code interpreted in an
 explicit build-host context. It produces inspectable build data and may stage
 assets or obtain external inputs through supplied services; it is not a second
 configuration language.
@@ -558,6 +558,30 @@ Policy can consequently distinguish an ordinary development build, a release
 that requires record replay, and a supply-chain release that requires
 transitive source rebuildability. These are graph checks, not transitive
 mutation of one package's local class.
+
+## Package admission projection
+
+The ordinary package baseline is derived inside the compiler from checked
+semantic state. A total internal `PackageAdmissionProjection` converts that
+state into canonical package-visible rows and rejects unresolved requirements,
+unbound identities, compiler-private handles, and any fact it cannot represent
+exactly. The lock persists only the versioned canonical evidence, with source,
+target, evidence-schema, and compiler/toolchain provenance.
+
+This projection is not another public IR stage and does not warrant a nominal
+Chi stage merely for format stability. It has no execution semantics or
+transformation pipeline of its own. A future shared stage is warranted only if
+independent consumers or transformations establish an actual semantic boundary.
+
+Terminal Psi evidence remains a separate evidence class for checked
+final-realization claims: Omega-emitted executable code, asserted properties of
+native or externally supplied code, lowering- or ABI-bound guarantees, fixed
+native resource claims, and hardened profiles that explicitly require
+final-code replay. Opaque executable supply may remain an explicit trust/TCB
+row making no Terminal claim. Ordinary package reach, authority, provider,
+proof-status, and build-contract admission does not require complete Terminal
+coverage. A row without Terminal evidence makes no Terminal claim; a generic
+partial/completeness bit must not blur the distinction.
 
 ## Dependencies and the lock artifact
 

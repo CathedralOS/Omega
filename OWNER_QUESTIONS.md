@@ -131,25 +131,3 @@ native slot declaration and exact callback-requirement path. The compiler
 resolves those names into opaque identities during layout evaluation. Do not
 put raw IDs or field offsets in source, infer the demand from the callback row,
 or expose a callback-address-shaped semantic field.
-
-## Q5 — Must accepted package evidence require complete Terminal coverage?
-
-Context: the compiler can now form an in-memory package review projection from
-checked trees, while final Terminal Psi commitments and verifier replay do not
-yet cover every exported boundary/build callable.
-
-Problem statement: persisting that projection early would turn an incomplete
-compiler-stage summary into accepted evidence. Waiting for complete Terminal
-coverage delays package admission, but avoids creating a second, weaker trust
-meaning that later lock formats must preserve forever.
-
-Proposed solution: require exact Terminal Psi and proof/verifier commitments for
-every exported boundary callable and selected build callable before issuing or
-persisting a `PackageInstance`. Until then, keep the compiler projection
-explicitly review-only and non-persistable.
-
-Alternates: allowing partial evidence with a completeness bit is useful for
-diagnostics, but wrong for admission because users and tooling will eventually
-treat the admitted state as sufficient. Exempting build callables is also
-unsafe: root build orchestration may not run dependency build machines, but the
-package still publishes that code and its claimed authority surface.

@@ -763,6 +763,16 @@ mechanically checked proposition. Projects requiring stronger assurance enforce
 their own reviewers, quorum, isolated builds, bootstrapped toolchain, and merge
 controls around these deterministic facts.
 
+The ordinary rows are derived from checked semantic state by a total internal
+package-admission projection. Unresolved or unprojectable required facts reject;
+the compiler does not serialize raw internal IR or fill gaps with a
+“complete enough” marker. Terminal Psi is required separately when a row claims
+a checked property of final executable realization, lowering, ABI realization,
+or fixed native resources, and when a hardened profile explicitly requests that
+evidence. Opaque executable supply may remain an explicit trust/TCB row making
+no Terminal claim. Terminal evidence is not a blanket prerequisite for checked
+reach and authority admission.
+
 Generated Omega source carries no build authority into the resulting program.
 It is checked under the consuming artifact's ordinary runtime reach, crash,
 work, conservation, and trust ceilings. Standard release-capable build

@@ -1,6 +1,6 @@
 # Tasks: Package Manager
 
-Status: corrected implementation plan, 2026-08-23.
+Status: corrected implementation plan, 2026-08-24.
 
 This file tracks the Cargo-like source/package service under `omega`. The
 governing design is:
@@ -34,6 +34,12 @@ complete.
   the normalized accepted capability/API baseline, and representation-TCB
   review rows.
 - Capabilities are compiler-derived from checked candidate source/build output.
+- Ordinary admission uses a total internal `PackageAdmissionProjection` from
+  checked semantic state. The lock stores only versioned canonical evidence;
+  raw IR and compiler-private identities never become lock format.
+- Complete Terminal coverage is not an ordinary admission prerequisite.
+  Terminal evidence is a separate class required for final-realization claims
+  and hardened profiles. No partial/completeness bit may imply a Terminal claim.
 - Install compares against an empty baseline. Missing lock evidence causes
   fresh graph admission. Missing old source causes standalone source audit but
   does not erase a valid lock baseline.
@@ -218,8 +224,9 @@ complete.
   that machine, reject row transplantation across realizing packages, and
   resolve without short-name fallback in validation, dispatch, progress,
   external-root, TCB, and trust projections. Provider selection identity,
-  compiler-intrinsic toolchain identity, terminal Psi, and sealed emitted
-  evidence remain.
+  compiler-intrinsic toolchain identity and the sealed admission projection
+  remain. Terminal Psi evidence remains separately required for rows that make
+  final-realization claims.
 
 ## P2 — Dependency projection and reconciliation
 
@@ -279,16 +286,18 @@ complete.
   symlink escapes. Translating the package graph into that handoff remains at
   the CLI/orchestration boundary.
 
-## P3 — Compiler-issued package evidence
+## P3 — Compiler-derived package evidence
 
 - **PACKAGE-ADMISSION-COMPILATION.** Add a library/package compilation profile
   independent of executable entry selection.
 
-  Acceptance: the compiler emits source/toolchain-bound evidence for every
-  public callable and build machine, including declared and realized reach,
-  authority flows, provider realization/provenance, trust/claims, proof status,
-  installation rows, operational contracts, executable TCB, observations, and
-  reproducibility.
+  Acceptance: the compiler derives a total `PackageAdmissionProjection` from
+  checked semantic state for every public callable and build machine. It
+  includes declared and realized reach, authority flows, provider realization/
+  provenance, trust/claims, proof status, installation rows, operational
+  contracts, executable TCB, observations, and reproducibility. Required
+  unresolved or unprojectable facts reject. The canonical output contains no
+  arena handles, display strings as identity, or other compiler-private IDs.
 
   Progress 2026-08-23: checked trees already own the useful semantic core. A
   `RealizedMachineContractEnvelope` retains contract identity, effective and
@@ -296,8 +305,9 @@ complete.
   suspension, blocking, termination, crashes, mutation, and exact capability
   flows. Source-authored symbols can be joined back to their opaque
   `PackageKeyIdentity` through the retained source map, and underdeclared reach
-  already fails checking. This is enough for a compiler-owned, target-scoped
-  review projection, but not an admission certificate. General `pub`/`export`
+  already fails checking. This is the intended source for a compiler-owned,
+  target-scoped admission projection, but the current implementation is not yet
+  admissible. General `pub`/`export`
   visibility, generated/toolchain symbol ownership, package-qualified provider
   binding/selection identities, source/toolchain/compiler commitments,
   non-provider trust ownership, build observations, and reproducibility
@@ -337,10 +347,11 @@ complete.
   crash/proof predicate, authority flow, mutation, and selected-provider row.
   It converts platform-width ordinals to portable `u64`, distinguishes exact
   deployment profiles, rejects interner-backed external-supply variants, and
-  remains explicitly review-only rather than a persistable admission
-  certificate. Capability-flow state and propagated `via` state identities are
-  now package-qualified instead of display strings. Compiler/source/toolchain
-  binding and complete Terminal coverage still gate sealed evidence.
+  remains explicitly review-only rather than persistable admission evidence.
+  Capability-flow state and propagated `via` state identities are now
+  package-qualified instead of display strings. Compiler/source/toolchain
+  binding and the remaining required projection joins still gate sealed
+  evidence; blanket Terminal coverage does not.
   Compiler-generated symbols now inherit the exact authored provenance of a
   mandatory derivation origin; truly source-free symbols and exact toolchain
   identity remain visibly unbound rather than guessed.
@@ -363,9 +374,10 @@ complete.
   reason for every checked-implementation stand-down. The review projection
   rejects any such row; accepted/opaque supply remains in the trust lane rather
   than being mislabeled as an unresolved proof. This is fail-closed review
-  behavior, not sealed evidence: terminal propagation, kernel recheck receipts,
-  and a possible exact later-discharge ledger remain. Ordinary successful
-  compilation is not itself a complete proof verdict. The standalone
+  behavior, not sealed evidence: kernel recheck receipts and a possible exact
+  later-discharge ledger remain. Terminal propagation is required only for a
+  row making a final-realization claim. Ordinary successful compilation is not
+  itself a complete proof verdict. The standalone
   `psi-proof` boundary obligation ledger is not wired into production and must
   not be cited as enforcement.
 
@@ -386,6 +398,19 @@ complete.
   production surface. The compiler projection remains explicitly review-only;
   source/toolchain/compiler binding and the remaining completeness joins must
   land before a replacement admission type is issued or persisted.
+
+- **FINAL-REALIZATION-EVIDENCE.** Keep Terminal evidence distinct from ordinary
+  package admission.
+
+  Acceptance: checked claims about Omega-emitted, native, or externally
+  supplied executable code, lowering- or ABI-dependent guarantees, fixed native
+  resource claims, and hardened profiles that request final-code replay require
+  exact Terminal evidence. Opaque executable supply may remain an explicit
+  trust/TCB row making no Terminal claim. Ordinary checked reach,
+  authority-flow, provider, proof-status, and build-contract rows do not require
+  blanket Terminal coverage. Every row carries an exact evidence class; absent
+  Terminal evidence grants no Terminal claim, and no generic completeness bit
+  weakens this rule.
 
 ## P4 — Lock and baseline
 
