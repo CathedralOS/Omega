@@ -27,6 +27,7 @@ pub struct ResolvedPackageSource<S> {
     key: PackageKey,
     resolution: ImmutableSourceResolution,
     snapshot_root: PathBuf,
+    source_limits: LocalSourceLimits,
     dependency_requests: Vec<DependencySourceRequest>,
     source: S,
 }
@@ -48,6 +49,10 @@ impl<S> ResolvedPackageSource<S> {
         &self.dependency_requests
     }
 
+    pub fn source_limits(&self) -> LocalSourceLimits {
+        self.source_limits
+    }
+
     pub fn source(&self) -> &S {
         &self.source
     }
@@ -67,6 +72,7 @@ impl<S> ResolvedPackageSource<S> {
             self.key,
             self.resolution,
             self.snapshot_root,
+            self.source_limits,
             self.dependency_requests,
         )
     }
@@ -169,7 +175,7 @@ pub fn resolve_git_package_source(
     // before granting the resolver transport authority.
     let lineage = SourceLineage::git(&spec.url)?;
     let source = resolve_git_source(spec, cache_dir, limits)?;
-    bind_git_package_source(lineage, source)
+    bind_git_package_source(lineage, source, limits)
 }
 
 /// Snapshot a non-workspace local development source and bind its canonical
@@ -196,6 +202,7 @@ pub fn resolve_external_local_package_source(
         key: PackageKey::new(declaration.name, lineage),
         resolution,
         snapshot_root: source.snapshot_root.clone(),
+        source_limits: limits,
         dependency_requests,
         source,
     })
@@ -246,6 +253,7 @@ pub fn resolve_workspace_member_package_source(
         key: PackageKey::new(declaration.name, lineage),
         resolution,
         snapshot_root: source.snapshot_root.clone(),
+        source_limits: limits,
         dependency_requests,
         source,
     })
@@ -261,6 +269,7 @@ fn canonical_workspace_path(path: &Path) -> Result<PathBuf, ResolvePackageSource
 fn bind_git_package_source(
     lineage: SourceLineage,
     source: ResolvedGitSource,
+    limits: LocalSourceLimits,
 ) -> Result<ResolvedPackageSource<ResolvedGitSource>, ResolvePackageSourceError> {
     let declaration = extract_package_declaration(&source.snapshot_root)?;
     let dependency_requests = extract_dependency_projection(&source.snapshot_root)?;
@@ -274,6 +283,7 @@ fn bind_git_package_source(
         key: PackageKey::new(declaration.name, lineage),
         resolution,
         snapshot_root: source.snapshot_root.clone(),
+        source_limits: limits,
         dependency_requests,
         source,
     })
@@ -406,12 +416,17 @@ mod tests {
         let expected_workspace_identity =
             WorkspaceLineageIdentity::from_root_source(&workspace_root_source)
                 .expect("workspace identity");
+        let source_limits = LocalSourceLimits {
+            max_files: 32,
+            max_bytes: 4096,
+            max_depth: 8,
+        };
         let resolved = resolve_workspace_member_package_source(
             &workspace_root_source,
             member_path.clone(),
             &workspace,
             &cache,
-            LocalSourceLimits::default(),
+            source_limits,
         )
         .expect("resolve workspace member");
 
@@ -439,6 +454,11 @@ mod tests {
         );
         assert!(resolved.snapshot_root().join("main.omg").is_file());
         assert!(!resolved.snapshot_root().join("workspace-only.txt").exists());
+        assert_eq!(resolved.source_limits(), source_limits);
+        assert_eq!(
+            resolved.clone().into_custody().source_limits(),
+            source_limits
+        );
 
         let _ = std::fs::remove_dir_all(&workspace);
         make_tree_owner_writable(&cache);
@@ -678,11 +698,13 @@ mod tests {
         let https = bind_git_package_source(
             https_lineage,
             source("https://github.com/CathedralOS/repository-name-does-not-match.git"),
+            LocalSourceLimits::default(),
         )
         .expect("bind HTTPS source");
         let ssh = bind_git_package_source(
             ssh_lineage,
             source("git@github.com:cathedralos/repository-name-does-not-match.git"),
+            LocalSourceLimits::default(),
         )
         .expect("bind SSH source");
 

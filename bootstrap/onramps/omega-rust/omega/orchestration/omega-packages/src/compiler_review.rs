@@ -1,3 +1,5 @@
+use crate::compiler_handoff::reachable_package_keys;
+use crate::source::{SourceResolveError, verify_package_source_snapshot};
 use crate::{
     ImmutableSourceResolution, PackageKey, ResolvedPackageSourceClosure,
     package_compilation_inputs_for,
@@ -51,6 +53,12 @@ pub struct CompilerIssuedPackageReviewSet {
     reviews: Vec<CompilerIssuedPackageReview>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PackageSourceVerificationPhase {
+    BeforeCompilation,
+    AfterCompilation,
+}
+
 impl CompilerIssuedPackageReviewSet {
     pub fn reviews(&self) -> &[CompilerIssuedPackageReview] {
         &self.reviews
@@ -63,6 +71,12 @@ impl CompilerIssuedPackageReviewSet {
 
 #[derive(Debug)]
 pub enum CompileResolvedPackageReviewsError {
+    SourceCustody {
+        compiling_package: PackageKey,
+        source_package: PackageKey,
+        phase: PackageSourceVerificationPhase,
+        error: SourceResolveError,
+    },
     CompilationInputs {
         package: PackageKey,
         errors: Vec<PackageCompilationInputError>,
@@ -87,6 +101,17 @@ pub enum CompileResolvedPackageReviewsError {
 impl fmt::Display for CompileResolvedPackageReviewsError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::SourceCustody {
+                compiling_package,
+                source_package,
+                phase,
+                error,
+            } => write!(
+                formatter,
+                "source custody verification failed {phase:?} for package `{}` while compiling `{}`: {error}",
+                source_package.name().as_str(),
+                compiling_package.name().as_str()
+            ),
             Self::CompilationInputs { package, errors } => write!(
                 formatter,
                 "compiler input validation failed for package `{}` with {} error(s)",
@@ -140,6 +165,11 @@ pub fn compile_resolved_package_reviews(
 ) -> Result<CompilerIssuedPackageReviewSet, CompileResolvedPackageReviewsError> {
     let mut reviews = Vec::with_capacity(closure.custodies().len());
     for key in dependency_first_package_order(closure) {
+        verify_transitive_source_custody(
+            closure,
+            &key,
+            PackageSourceVerificationPhase::BeforeCompilation,
+        )?;
         let custody = closure
             .custody(&key)
             .expect("validated source closure retains custody for every graph package");
@@ -160,6 +190,11 @@ pub fn compile_resolved_package_reviews(
                 package: key.clone(),
                 diagnostics,
             },
+        )?;
+        verify_transitive_source_custody(
+            closure,
+            &key,
+            PackageSourceVerificationPhase::AfterCompilation,
         )?;
         let projection = project_checked_package_review(&checked).map_err(|diagnostics| {
             CompileResolvedPackageReviewsError::Projection {
@@ -184,6 +219,30 @@ pub fn compile_resolved_package_reviews(
         });
     }
     Ok(CompilerIssuedPackageReviewSet { reviews })
+}
+
+fn verify_transitive_source_custody(
+    closure: &ResolvedPackageSourceClosure,
+    compiling_package: &PackageKey,
+    phase: PackageSourceVerificationPhase,
+) -> Result<(), CompileResolvedPackageReviewsError> {
+    for source_package in reachable_package_keys(closure, compiling_package) {
+        let custody = closure
+            .custody(&source_package)
+            .expect("validated source closure retains every reachable custody");
+        verify_package_source_snapshot(
+            custody.snapshot_root(),
+            custody.resolution().content(),
+            custody.source_limits(),
+        )
+        .map_err(|error| CompileResolvedPackageReviewsError::SourceCustody {
+            compiling_package: compiling_package.clone(),
+            source_package,
+            phase,
+            error,
+        })?;
+    }
+    Ok(())
 }
 
 fn dependency_first_package_order(closure: &ResolvedPackageSourceClosure) -> Vec<PackageKey> {

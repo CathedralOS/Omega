@@ -103,6 +103,14 @@ output directory; it does not trust package-authored ignore files. Nested
 rejects. Resolver-owned materializations are checked under an exact-tree policy,
 so immutable Git snapshots still preserve every selected tree entry.
 
+Transport erasure now retains the original file, byte, and depth limits beside
+each package snapshot. Review orchestration checks canonical read-only modes
+and re-hashes every transitive snapshot under those limits immediately before
+and after each package compilation. Any mismatch rejects the review set. This
+detects custody drift around ordinary compiler use but is not an atomic
+compiler-consumption commitment: a hostile same-user process may still race
+both observations.
+
 Git subprocesses now receive null stdin, concurrent bounded stdout/stderr
 capture, and a deadline. Each subprocess starts in a fresh Unix process group
 or Windows Job Object, and every completion or rejection path terminates that

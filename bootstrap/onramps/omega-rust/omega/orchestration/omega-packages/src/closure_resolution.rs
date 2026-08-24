@@ -4,6 +4,7 @@ use crate::graph::{
     ResolvedSourceIdentity,
 };
 use crate::identity::{AliasName, ImmutableSourceResolution, PackageKey};
+use crate::source::LocalSourceLimits;
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::fmt;
 use std::path::{Path, PathBuf};
@@ -13,19 +14,34 @@ use std::path::{Path, PathBuf};
 /// There is deliberately no public constructor. Source adapters derive this
 /// value from `ResolvedPackageSource<S>` only after source custody, package
 /// declaration extraction, and hermetic dependency projection have succeeded.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct PackageSourceCustody {
     key: PackageKey,
     resolution: ImmutableSourceResolution,
     snapshot_root: PathBuf,
+    /// Resolver work ceiling retained for later custody revalidation. This is
+    /// operational policy, not package/source identity.
+    source_limits: LocalSourceLimits,
     dependency_requests: Vec<DependencySourceRequest>,
 }
+
+impl PartialEq for PackageSourceCustody {
+    fn eq(&self, other: &Self) -> bool {
+        self.key == other.key
+            && self.resolution == other.resolution
+            && self.snapshot_root == other.snapshot_root
+            && self.dependency_requests == other.dependency_requests
+    }
+}
+
+impl Eq for PackageSourceCustody {}
 
 impl PackageSourceCustody {
     pub(crate) fn from_resolved_parts(
         key: PackageKey,
         resolution: ImmutableSourceResolution,
         snapshot_root: PathBuf,
+        source_limits: LocalSourceLimits,
         dependency_requests: Vec<DependencySourceRequest>,
     ) -> Self {
         debug_assert!(resolution.matches_lineage(key.source_lineage()));
@@ -33,6 +49,7 @@ impl PackageSourceCustody {
             key,
             resolution,
             snapshot_root,
+            source_limits,
             dependency_requests,
         }
     }
@@ -47,6 +64,10 @@ impl PackageSourceCustody {
 
     pub fn snapshot_root(&self) -> &Path {
         &self.snapshot_root
+    }
+
+    pub fn source_limits(&self) -> LocalSourceLimits {
+        self.source_limits
     }
 
     pub fn dependency_requests(&self) -> &[DependencySourceRequest] {
@@ -618,6 +639,7 @@ mod tests {
             key(name, repository),
             resolution(marker),
             PathBuf::from(snapshot_root),
+            LocalSourceLimits::default(),
             dependency_requests,
         )
     }

@@ -147,6 +147,10 @@ complete.
   without consulting package-authored ignore files; nested `build` directories
   remain source, and symlinks cannot reintroduce excluded output. Exact Git and
   resolver-owned materializations remain exact-tree checks.
+  Resolver work limits now survive transport erasure into closure custody.
+  Review compilation revalidates canonical read-only modes and re-hashes every
+  transitive snapshot under those original limits both before and after each
+  compiler invocation; changed custody rejects before review rows are issued.
 
   Remaining suspect points:
 
@@ -352,10 +356,11 @@ complete.
   graph, and receives a package-and-source-specific writable build root outside
   resolver snapshots. The returned rows have no public constructor and retain
   exact `PackageKey`, selected immutable resolution, compiler projection, and
-  canonical comparison bytes. This associates locally generated review with
-  resolver custody but is not sealed admission: whole-source revalidation
-  across compilation and compiler/toolchain commitments remain. CLI invocation
-  remains.
+  canonical comparison bytes. Every transitive source snapshot is mode-checked
+  and re-hashed under its retained resolver limits before and after each
+  package compilation. This associates locally generated review with resolver
+  custody but is not sealed admission: a single compiler-consumption source
+  commitment and compiler/toolchain commitments remain. CLI invocation remains.
   The first concrete closure adapter resolves an explicitly named workspace
   member, requester-relative in-workspace Path rows, and Git rows. Each fetched
   Git snapshot becomes its own registered immutable workspace for nested Path
@@ -598,10 +603,12 @@ complete.
   resolver-owned source closure; callers cannot submit standalone manifest or
   review bytes to this path. The row retains the exact package key, selected
   immutable resolution, compiler projection, and canonical comparison bytes.
-  It remains explicitly review-only: source-directory immutability is not yet
-  revalidated as one compiler-consumption commitment, whole compiler/toolchain
-  binding is incomplete, and remaining completeness joins must land before a
-  replacement admission type is issued or persisted.
+  It remains explicitly review-only. Package orchestration re-hashes every
+  transitive source snapshot before and after compilation, but this does not
+  prevent a hostile same-user process from racing both observations and is not
+  one compiler-consumption commitment. Whole compiler/toolchain binding is
+  incomplete, and remaining completeness joins must land before a replacement
+  admission type is issued or persisted.
 
 - **FINAL-REALIZATION-EVIDENCE.** Keep Terminal evidence distinct from ordinary
   package admission.
@@ -747,8 +754,10 @@ complete.
   package identity, public surface, reach, invocation, accepted claim, and
   capability flow represented by the fixture. `provider-switchboard` now also
   selects a real ordinary provider type from its canonical build machine and
-  asserts the compiler-derived selected-provider row. Sealed admission evidence
-  remains gated on the final admission pipeline.
+  asserts the compiler-derived selected-provider row. The integration now uses
+  production review orchestration for every package in each resolved closure;
+  a tampered read-only snapshot canary rejects before compiler consumption.
+  Sealed admission evidence remains gated on the final admission pipeline.
 
 - **SECURITY-FIXTURE-MATRIX.** Add local and remote cases for pure code,
   generated files, filesystem, network overreach, retained filesystem+network

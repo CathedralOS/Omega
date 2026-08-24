@@ -1,3 +1,4 @@
+use crate::identity::SourceContentDigest;
 use command_group::{CommandGroup, GroupChild};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
@@ -155,6 +156,11 @@ pub enum SourceResolveError {
     LocalSourceChanged {
         path: PathBuf,
     },
+    SourceSnapshotContentMismatch {
+        path: PathBuf,
+        expected: SourceContentDigest,
+        actual: SourceContentDigest,
+    },
     LocalSnapshotCacheOverlapsSource {
         canonical_live_root: PathBuf,
         canonical_cache_dir: PathBuf,
@@ -261,6 +267,17 @@ impl fmt::Display for SourceResolveError {
                 "local source `{}` changed while its immutable snapshot was being captured",
                 path.display()
             ),
+            Self::SourceSnapshotContentMismatch {
+                path,
+                expected,
+                actual,
+            } => write!(
+                output,
+                "source snapshot `{}` no longer matches immutable content {} (found {})",
+                path.display(),
+                expected.to_hex(),
+                actual.to_hex()
+            ),
             Self::LocalSnapshotCacheOverlapsSource {
                 canonical_live_root,
                 canonical_cache_dir,
@@ -281,6 +298,28 @@ pub fn resolve_local_source(
     limits: LocalSourceLimits,
 ) -> Result<ResolvedLocalSource, SourceResolveError> {
     Ok(capture_local_source(root.as_ref(), limits, SourceTreePolicy::LocalPackage)?.normalized)
+}
+
+/// Re-hash a published package snapshot under its original resolver limits.
+///
+/// This is a package-compilation custody check, not a defense against a
+/// same-user process that can race both the verification and compiler reads.
+pub(crate) fn verify_package_source_snapshot(
+    root: &Path,
+    expected: &SourceContentDigest,
+    limits: LocalSourceLimits,
+) -> Result<(), SourceResolveError> {
+    verify_local_snapshot_modes(root)?;
+    let normalized = resolve_local_source(root, limits)?;
+    let actual = SourceContentDigest::derive(normalized.content_identity.as_bytes());
+    if &actual != expected {
+        return Err(SourceResolveError::SourceSnapshotContentMismatch {
+            path: root.to_path_buf(),
+            expected: expected.clone(),
+            actual,
+        });
+    }
+    Ok(())
 }
 
 pub fn resolve_local_source_snapshot(
