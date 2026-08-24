@@ -161,7 +161,8 @@ that the language, compiler, or assurance work in that directory is finished.
 | product compiler closure/profile checkpoints | `compiler/source-checkpoints/` | active |
 | hosted product compiler entrypoint | `apps/omega-compiler/` | active |
 
-`compiler/` means source intended to survive in the self-hosted product;
+`compiler/` means Omega-written source intended to survive in the production
+compiler;
 `bootstrap/` contains both the seed-built construction and explicitly named
 external-language on-ramps. No temporary Rust producer occupies an unsuffixed
 product root.

@@ -28,9 +28,9 @@ the same production source ──[optional omega rebuild]──▶ omega
 
 Delta v1 and `Ωself` are the only remaining source-surface contracts in this
 bootstrap design. They are deliberately asymmetric: Delta v1 is a literal
-language specification, while `Ωself` is a restriction on source written in an
-already-specified language. Do not turn the compiler artifacts between them
-into extra languages.
+language specification, while `Ωself` is an incidental authoring restriction
+on source written in an already-specified language. Do not turn the compiler
+artifacts between them into extra languages.
 
 Two source-surface selections therefore discharge three different artifact
 obligations. The lattice-built Delta compiler must compile the exact Delta
@@ -277,7 +277,7 @@ hard-coded compiler-source shapes when it lowers total cost. Conversely, a
 powerful facility used only incidentally should not enter the bridge merely
 because the production compiler can express itself with it.
 
-The working feature disposition is below. These are defaults for authoring and
+The working feature disposition is below. These are biases for authoring and
 measurement, not ratified exclusions or admissions. A checkpoint may omit and
 provisionally reject a facility that its source does not use, but that absence
 does not settle the final profile while later compiler phases remain unwritten.
@@ -287,9 +287,9 @@ establishes the implementation and assurance cost.
 
 | Omega facility in the compiler's own source | Working disposition | Decision test |
 | --- | --- | --- |
-| propositions, proof facts/contracts, quotients, and proof-program mathematics | presumptively exclude | retain only if the compiler implementation itself has an unavoidable use; implementing proof checking for user programs is not such a use |
+| propositions, proof facts/contracts, quotients, and proof-program mathematics | avoid in new compiler source; presumptively exclude | retain only if the compiler implementation itself has an unavoidable use; implementing proof checking for user programs is not such a use |
 | executable termination/ranking clauses | measure | do not conflate ranking evidence used by compiler control flow with the excluded proof surface; checkpoint 000001 already uses one ranking clause |
-| linear and dependent types | presumptively exclude | same source-need and total-cost test |
+| linear and dependent types | avoid in new compiler source; presumptively exclude | same source-need and total-cost test |
 | concrete literal scalar ranges | measure | checkpoint 000001 uses them for fixed-buffer lengths and indexing without dependent bounds; the first Delta checker probe closes endpoints through 65,536 but its signed-`i32` carrier explicitly leaves larger `u32` endpoints unsupported; compare full-width representation with narrow checked helpers |
 | ordinary named record fields | presumptively retain | the first general Delta checker probe establishes frontend feasibility but at substantial fixed-backing/reference-meaning cost; the selected private checked-IR tranche measures conservative layout/lowering, after which compare the total cost with the clarity and regularity loss from positional compiler data |
 | fixed arrays and checked indexing | measure | the same probe closes general frontend rules and guarded-index obligations through length 65,536; the selected private checked-IR tranche measures direct layout/lowering, then compare the total cost with arena/library encodings |

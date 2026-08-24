@@ -32,7 +32,8 @@ In artifact shorthand this is `Alpha → Beta → Gamma → Delta → omega-boot
 → omega [→ omega]`. Language growth stops at Delta. Everything to its right is
 a compiler artifact or a build edge, not another language rung.
 
-Only two source surfaces are still being selected:
+Only two source inventories are still being selected. They are not successive
+Omega editions or two implementations of the same language:
 
 | Surface | Kind | Required closure |
 | --- | --- | --- |
@@ -100,6 +101,9 @@ Product Psi/Omega implementation and any chosen source refactor stay in
 proof, generics, domain, field-tag, data-shape, or transition projects. Those
 choices stay in the single disposition table in
 [`compiler_source_profile.md`](wiki/architecture/bootstrap_lattice/compiler_source_profile.md).
+Likewise, this queue does not decide whether full Omega has those features: the
+language specification already does. Bootstrap work only prices and implements
+the ordinary-Omega forms retained in the compiler's own source profile.
 
 The required execution order is:
 
@@ -190,10 +194,10 @@ Grow the bridge from checkpoint needs through general capabilities. Do not
 recognize the current compiler files, declaration counts, or syntax-tree
 permutations.
 
-The first checkpoint-driven frontend probe and finite, acyclic, returning
-`CKIR1`→limited-ELF tranche are closed. This is one bounded cluster within
-checkpoint 000001, not closure of that checkpoint. Exact evidence and remaining
-boundaries live in
+The first checkpoint-driven frontend probe and its finite, acyclic, returning
+one-unit `CKIR1`→limited-ELF artifact tranche are closed. This is one bounded
+cluster within checkpoint 000001, not closure of that checkpoint. Exact
+evidence and remaining boundaries live in
 [`SOURCE_CUSTODY_FRONTEND_PROBE.md`](bootstrap/omega-bootstrap/compiler/SOURCE_CUSTODY_FRONTEND_PROBE.md)
 and
 [`OMEGA_BOOTSTRAP_CHECKED_IR.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR.md).
@@ -201,24 +205,13 @@ It does not admit those source families to `Ωself`; the private handoff remains
 bridge-local, and Terminal-Psi vocabulary work remains product work in
 `TASKS.md`.
 
-The standalone multi-unit resolver tranche is closed. Exact structurally valid
-`OMGCOMP` produces canonical `OMGRSW1` with independent unit lexing,
-authored-module agreement, direct requester-local aliases and same-package
-paths, visibility and duplicate rejection, deterministic semantic order,
-normalized static bindings/types, and exact selected-root identity. Exhaustive
-native/Delta-self-built coverage and representative Rust-free Gamma
-`0`/`251`/`252` observations agree. This grants neither resolver/lock authority
-nor SHA-256 custody and performs no body lowering, CKIR, or ELF work.
-
-The separate resolved-source lowerer tranche is also closed through CKIR.
-Exact `OMGCOMP + OMGRSW1` framing in `OMGLOW1` is locally revalidated, every
-consumed witness family is joined to its source/envelope extent, exact bodies
-are reparsed without repeating name resolution, and the canonical public
-two-package nominal-data fixture produces the same 996-byte CKIR1 and scalar
-result 70 as the frozen one-unit oracle. Native and Delta-self-built bytes,
-17 phase-isolated relation/resource mutations, and representative Rust-free
-Gamma `0`/`251`/`252` observations agree. This closes neither CKIR→ELF
-composition nor the lower-rooted `OMGRFN2` reconstruction.
+The standalone multi-unit resolver is closed through canonical `OMGRSW1`, and
+the separate resolved-source lowerer is closed from exact `OMGCOMP + OMGRSW1`
+through canonical CKIR for the public two-package nominal-data fixture. Their
+contracts and focused gates carry the exact semantic, resource, native,
+Delta-self-built, and representative Rust-free observations. They grant no
+resolver/lock or digest authority, and they do not close CKIR→ELF composition
+or the lower-rooted `OMGRFN2` reconstruction.
 
 - [ ] Join the structurally checked multi-unit
   [compilation envelope](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION.md)
