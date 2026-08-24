@@ -734,6 +734,13 @@ external, operator, or lifetime-parameterized trait realizations fail closed
 rather than being omitted. Checked realizations of public, ordinary,
 lifetime-free traits retain exact package-qualified trait and requirement
 identities, alpha-normalized arguments, and any explicit conformance alias.
+Public callable `requires`, `ensures`, boundary, and named-evidence clauses
+still need exact proof/contract rows. Review comparison temporarily retains the
+compiler's coarse 64-bit machine-contract fingerprint so accepted boundary
+claims remain visible. Because it also folds private internal-state shape and
+is not collision-resistant, it is review/execution compatibility data rather
+than sealed admission identity; exact accepted/proof rows must replace it
+before sealing.
 
 Claim-free opaque `boundary data` is retained in a separate representation-TCB
 lane. Its row binds the package-qualified declaration to the exact target,

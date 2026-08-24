@@ -175,9 +175,13 @@ and result type. Checked realizations of public, ordinary, lifetime-free traits
 retain exact package-qualified trait/requirement identities, alpha-normalized
 arguments, and aliases. Callable conformance bounds, static machine/proposition
 parameters, and non-public, external, operator, or lifetime-parameterized
-realizations fail closed until complete rows land. The compiler now provides a
-version-13 length-framed binary comparison encoding
-over this review projection; it is explicitly not a package certificate or
+realizations fail closed until complete rows land. Public callable `requires`,
+`ensures`, boundary, and named-evidence clauses still lack exact rows. Review
+comparison temporarily retains the legacy 64-bit machine-contract fingerprint
+so accepted claims remain visible; because it also folds private internal-state
+shape and is not collision-resistant, exact accepted/proof rows must replace it
+before sealed admission. The compiler now provides a version-13 length-framed
+binary comparison encoding over this review projection; it is explicitly not a package certificate or
 accepted-lock payload. Raw Rust/debug serialization is not an alternative. These pieces do
 not become an admission path until the legacy name-keyed lock APIs are replaced
 and sealed, locally regenerated compiler evidence plus the hardened resolver
