@@ -299,8 +299,13 @@ complete.
   coordinates, operational outcomes, crashes, mutation, and selected provider
   mechanisms with exact realizing-package, provider-type, service-schema, and
   requirement-owner provenance. Checked-adapter bindings now retain and verify
-  canonical overload plus realizing-package identity; provider selection names
-  and compiler-intrinsic toolchain ownership remain unsealed.
+  canonical overload plus realizing-package identity. Authored provider names
+  are resolved once and the exact selected plans are retained through cycle,
+  ABI, and checked-fact construction without a name-based candidate rejoin;
+  same-spelled selected slots are distinguished by package identity and an
+  ambiguous readable invocation target rejects. Authored selector resolution,
+  several downstream schema/progress/grant joins, and compiler-intrinsic
+  toolchain ownership are not yet package-qualified or sealed.
   Compiler-generated symbols now inherit the exact authored provenance of a
   mandatory derivation origin; truly source-free symbols and exact toolchain
   identity remain visibly unbound rather than guessed.
