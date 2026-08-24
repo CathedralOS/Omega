@@ -294,6 +294,18 @@ pub(super) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
             return Err(CodecError::NonCanonicalOrder("blocks by BlockId"));
         }
         for operation in machine.blocks.iter().flat_map(|block| &block.operations) {
+            if let psi_terminal::OperationResult::Structural(result) = &operation.result {
+                if !strictly_increasing(result.qualifications.iter().copied()) {
+                    return Err(CodecError::NonCanonicalOrder(
+                        "structural operation result qualifications by StructuralDomainId",
+                    ));
+                }
+                if !strictly_increasing(result.claims.iter().map(|binding| binding.claim)) {
+                    return Err(CodecError::NonCanonicalOrder(
+                        "structural operation result claims by ClaimId",
+                    ));
+                }
+            }
             let crash_continuations = match &operation.kind {
                 OperationKind::Call {
                     crash_continuations,
@@ -304,6 +316,10 @@ pub(super) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
                     ..
                 }
                 | OperationKind::CallStructuralScalar {
+                    crash_continuations,
+                    ..
+                }
+                | OperationKind::CallStructural {
                     crash_continuations,
                     ..
                 } => Some(crash_continuations),
@@ -323,9 +339,20 @@ pub(super) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
                 }
                 | OperationKind::CallStructuralScalar {
                     claim_transfers, ..
+                }
+                | OperationKind::CallStructural {
+                    claim_transfers, ..
                 } if !strictly_increasing(claim_transfers.iter().copied()) => {
                     return Err(CodecError::NonCanonicalOrder(
-                        "unit-call claim transfers by claim and argument index",
+                        "call claim transfers by claim and argument index",
+                    ));
+                }
+                OperationKind::CallStructural {
+                    returned_claim_transfers,
+                    ..
+                } if !strictly_increasing(returned_claim_transfers.iter().copied()) => {
+                    return Err(CodecError::NonCanonicalOrder(
+                        "structural-call returned claim transfers",
                     ));
                 }
                 OperationKind::BoundaryCall {

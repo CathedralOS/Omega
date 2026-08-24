@@ -48,7 +48,8 @@ pub(super) fn validate_root_service_reach_exact(
             match &operation.kind {
                 OperationKind::Call { callee, .. }
                 | OperationKind::CallUnit { callee, .. }
-                | OperationKind::CallStructuralScalar { callee, .. } => pending.push(*callee),
+                | OperationKind::CallStructuralScalar { callee, .. }
+                | OperationKind::CallStructural { callee, .. } => pending.push(*callee),
                 OperationKind::BoundaryCall { boundary, .. } => {
                     let declaration = boundaries.get(boundary).copied().ok_or(
                         ModuleError::UnknownBoundaryCallTarget {

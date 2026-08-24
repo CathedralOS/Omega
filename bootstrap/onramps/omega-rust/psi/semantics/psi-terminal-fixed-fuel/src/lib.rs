@@ -231,7 +231,8 @@ pub fn derive_fixed_safe_point_segments(
         for operation in &block.operations {
             if let OperationKind::Call { callee, .. }
             | OperationKind::CallUnit { callee, .. }
-            | OperationKind::CallStructuralScalar { callee, .. } = &operation.kind
+            | OperationKind::CallStructuralScalar { callee, .. }
+            | OperationKind::CallStructural { callee, .. } = &operation.kind
             {
                 let callee_bounds = maximum_machine_outcomes(
                     *callee,
@@ -432,7 +433,8 @@ fn outcome_bounds_from(
             checked_optional_add(normal_units, schedule.operation_units(&operation.kind))?;
         if let OperationKind::Call { callee, .. }
         | OperationKind::CallUnit { callee, .. }
-        | OperationKind::CallStructuralScalar { callee, .. } = &operation.kind
+        | OperationKind::CallStructuralScalar { callee, .. }
+        | OperationKind::CallStructural { callee, .. } = &operation.kind
         {
             let callee_bounds = maximum_machine_outcomes(
                 *callee,
@@ -644,7 +646,8 @@ fn derive_segment_bound(
                 .ok_or(FixedFuelError::BoundOverflow)?;
             if let OperationKind::Call { callee, .. }
             | OperationKind::CallUnit { callee, .. }
-            | OperationKind::CallStructuralScalar { callee, .. } = &operation.kind
+            | OperationKind::CallStructuralScalar { callee, .. }
+            | OperationKind::CallStructural { callee, .. } = &operation.kind
             {
                 let callee_bounds = maximum_machine_outcomes(
                     *callee,

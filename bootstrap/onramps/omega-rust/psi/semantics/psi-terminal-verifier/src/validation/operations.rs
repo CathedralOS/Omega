@@ -444,6 +444,7 @@ pub(super) fn validate_operation_operands(
         OperationKind::Call { .. }
         | OperationKind::CallUnit { .. }
         | OperationKind::CallStructuralScalar { .. }
+        | OperationKind::CallStructural { .. }
         | OperationKind::BoundaryCall { .. }
         | OperationKind::PortWrite { .. }
         | OperationKind::EstablishByteSequenceLiteral { .. }

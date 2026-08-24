@@ -14,6 +14,7 @@ pub enum CallTargetRule {
 pub enum CallResultRule {
     ScalarCalleeResult,
     UnitCalleeResult,
+    StructuralCalleeResult,
     BoundaryDeclaredResult,
 }
 
@@ -35,6 +36,7 @@ pub enum CallRequirementRule {
 pub enum CallTransferRule {
     NoStructuralTransfer,
     ExactClaimTransfers,
+    ExactClaimAndStructuralResultTransfers,
     ExactCompletionReceipts,
 }
 
@@ -134,7 +136,7 @@ pub struct CallCompositionSemanticRow {
 }
 
 impl CallCompositionSemanticRow {
-    pub const ALL: [Self; 4] = [
+    pub const ALL: [Self; 5] = [
         Self {
             tag: OperationSemanticTag::Call,
             schema: CallCompositionSchema {
@@ -181,6 +183,21 @@ impl CallCompositionSemanticRow {
             },
         },
         Self {
+            tag: OperationSemanticTag::CallStructural,
+            schema: CallCompositionSchema {
+                target: CallTargetRule::ExactModuleMachine,
+                result: CallResultRule::StructuralCalleeResult,
+                arguments: CallArgumentRule::StructuralPositionalArguments,
+                requirements: CallRequirementRule::EnumerateStructuralRequires,
+                transfers: CallTransferRule::ExactClaimAndStructuralResultTransfers,
+                outcomes: CallOutcomeRule::ImportStructuralEnsures,
+                crash: CallCrashRule::ComposeStructuralCrashRoutes,
+                evidence: CallEvidenceRule::SameUnitOrCertifiedStructuralEvidence,
+                fuel: CallFuelPolicy::ConsumeOne,
+                frontier: CallFrontierRule::TransfersStructuralFrontier,
+            },
+        },
+        Self {
             tag: OperationSemanticTag::BoundaryCall,
             schema: CallCompositionSchema {
                 target: CallTargetRule::ExactBoundaryMachine,
@@ -212,6 +229,7 @@ const fn is_call_composition_tag(tag: OperationSemanticTag) -> bool {
         OperationSemanticTag::Call
             | OperationSemanticTag::CallUnit
             | OperationSemanticTag::CallStructuralScalar
+            | OperationSemanticTag::CallStructural
             | OperationSemanticTag::BoundaryCall
     )
 }
@@ -254,6 +272,7 @@ pub fn validate_call_composition_semantic_rows(
         OperationSemanticTag::Call,
         OperationSemanticTag::CallUnit,
         OperationSemanticTag::CallStructuralScalar,
+        OperationSemanticTag::CallStructural,
         OperationSemanticTag::BoundaryCall,
     ] {
         let row = exact_call_composition_semantic_row_in(tag, rows)?
@@ -314,7 +333,7 @@ mod tests {
 
     #[test]
     fn inventory_is_exact_unique_and_exposes_every_independent_axis() {
-        assert_eq!(CallCompositionSemanticRow::ALL.len(), 4);
+        assert_eq!(CallCompositionSemanticRow::ALL.len(), 5);
         assert_eq!(
             CallCompositionSemanticRow::ALL
                 .iter()
@@ -324,6 +343,7 @@ mod tests {
                 OperationSemanticTag::Call,
                 OperationSemanticTag::CallUnit,
                 OperationSemanticTag::CallStructuralScalar,
+                OperationSemanticTag::CallStructural,
                 OperationSemanticTag::BoundaryCall,
             ]),
         );
@@ -417,7 +437,7 @@ mod tests {
         );
 
         let mut weakened = CallCompositionSemanticRow::ALL;
-        weakened[3].schema.frontier = CallFrontierRule::KeepsScalarFrontier;
+        weakened[4].schema.frontier = CallFrontierRule::KeepsScalarFrontier;
         assert_eq!(
             validate_call_composition_semantic_rows(&weakened),
             Err(OperationSemanticError::CallCompositionSchemaMismatch(

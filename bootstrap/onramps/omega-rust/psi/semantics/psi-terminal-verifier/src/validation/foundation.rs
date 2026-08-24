@@ -563,6 +563,29 @@ pub(super) fn validate_structural_foundation(module: &TerminalModule) -> Result<
                 machine.id,
             ));
         }
+        for place in &machine.structural_places {
+            let StructuralPlaceKind::OperationResult {
+                producer,
+                structural_type,
+            } = place.kind
+            else {
+                continue;
+            };
+            let Some(operation) = machine
+                .blocks
+                .iter()
+                .flat_map(|block| &block.operations)
+                .find(|operation| operation.id == producer)
+            else {
+                return Err(ModuleError::StructuralCallResultPlaceMismatch(producer));
+            };
+            let Some(result) = operation.result.structural() else {
+                return Err(ModuleError::StructuralCallResultPlaceMismatch(producer));
+            };
+            if result.place != place.id || result.structural_type != structural_type {
+                return Err(ModuleError::StructuralCallResultPlaceMismatch(producer));
+            }
+        }
         match &machine.result {
             TerminalMachineResult::Unit => {
                 if let Some(place) = machine

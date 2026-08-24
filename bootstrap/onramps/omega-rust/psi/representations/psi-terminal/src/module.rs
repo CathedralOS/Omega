@@ -27,7 +27,7 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        28
+        29
     }
 }
 
@@ -941,41 +941,69 @@ pub struct Operation {
     pub kind: OperationKind,
 }
 
-/// Runtime result of one operation. Unit creates no `ValueId`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+/// Runtime result of one operation. Unit creates no `ValueId` or structural
+/// place. A structural result establishes its declared place only after the
+/// operation succeeds.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum OperationResult {
     Unit,
     Scalar(ValueDeclaration),
+    Structural(StructuralOperationResult),
+}
+
+/// Exact structural value and caller-local claim frontier established only by
+/// successful completion of one operation.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct StructuralOperationResult {
+    pub place: PlaceId,
+    pub structural_type: StructuralTypeId,
+    pub multiplicity: StructuralMultiplicity,
+    pub qualifications: Vec<StructuralDomainId>,
+    /// Strictly ordered caller-local claim occurrences rooted beneath `place`.
+    pub claims: Vec<StructuralResultClaimBinding>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct StructuralResultClaimBinding {
+    pub claim: ClaimId,
+    pub path: Vec<StructuralPathSegment>,
 }
 
 impl OperationResult {
-    pub const fn scalar(self) -> Option<ValueDeclaration> {
+    pub const fn scalar(&self) -> Option<ValueDeclaration> {
         match self {
-            Self::Unit => None,
-            Self::Scalar(value) => Some(value),
+            Self::Unit | Self::Structural(_) => None,
+            Self::Scalar(value) => Some(*value),
         }
     }
 
     pub const fn scalar_ref(&self) -> Option<&ValueDeclaration> {
         match self {
-            Self::Unit => None,
+            Self::Unit | Self::Structural(_) => None,
             Self::Scalar(value) => Some(value),
         }
     }
 
     pub fn scalar_mut(&mut self) -> Option<&mut ValueDeclaration> {
         match self {
-            Self::Unit => None,
+            Self::Unit | Self::Structural(_) => None,
             Self::Scalar(value) => Some(value),
+        }
+    }
+
+    pub const fn structural(&self) -> Option<&StructuralOperationResult> {
+        match self {
+            Self::Structural(result) => Some(result),
+            Self::Unit | Self::Scalar(_) => None,
         }
     }
 
     /// Scalar-only consumer helper. Callers must reject Unit-capable operations
     /// before using this accessor.
-    pub const fn expect_scalar(self) -> ValueDeclaration {
+    pub const fn expect_scalar(&self) -> ValueDeclaration {
         match self {
-            Self::Scalar(value) => value,
-            Self::Unit => panic!("Unit operation has no scalar result"),
+            Self::Scalar(value) => *value,
+            Self::Unit | Self::Structural(_) => panic!("operation has no scalar result"),
         }
     }
 }
@@ -1030,6 +1058,17 @@ pub enum TerminalAffineCleanupAction {
 pub struct ClaimTransfer {
     pub claim: ClaimId,
     pub argument_index: u32,
+}
+
+/// Transfer one claim returned by an in-module structural callee back into the
+/// caller's claim namespace. Claim identities are machine-local, so neither
+/// side may infer that equal numeric ids denote the same occurrence. The
+/// returned claim's structural path is reconstructed from the callee's
+/// verified result frontier and preserved beneath the operation result place.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct StructuralResultClaimTransfer {
+    pub callee_claim: ClaimId,
+    pub caller_claim: ClaimId,
 }
 
 /// Correlate successful completion of one exact bodyless boundary invocation
@@ -1126,6 +1165,18 @@ pub enum OperationKind {
         callee: MachineId,
         structural_arguments: Vec<StructuralArgument>,
         claim_transfers: Vec<ClaimTransfer>,
+        requirement_obligations: Vec<ObligationId>,
+        crash_continuations: Vec<CrashRouteBucket>,
+    },
+    /// Invoke one in-module structural-result machine. Input claims transfer
+    /// into the callee at invocation. Only a normal structural return
+    /// establishes the operation result and applies the exact returned-claim
+    /// namespace mapping; crash and suspension paths establish neither twice.
+    CallStructural {
+        callee: MachineId,
+        structural_arguments: Vec<StructuralArgument>,
+        claim_transfers: Vec<ClaimTransfer>,
+        returned_claim_transfers: Vec<StructuralResultClaimTransfer>,
         requirement_obligations: Vec<ObligationId>,
         crash_continuations: Vec<CrashRouteBucket>,
     },

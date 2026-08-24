@@ -174,6 +174,9 @@ pub(super) fn validate_structural_frontier(
                 }
                 | OperationKind::CallStructuralScalar {
                     claim_transfers, ..
+                }
+                | OperationKind::CallStructural {
+                    claim_transfers, ..
                 } => claim_transfers
                     .iter()
                     .map(|transfer| transfer.claim)
@@ -202,6 +205,11 @@ pub(super) fn validate_structural_frontier(
                     ..
                 }
                 | OperationKind::CallStructuralScalar {
+                    callee,
+                    structural_arguments,
+                    ..
+                }
+                | OperationKind::CallStructural {
                     callee,
                     structural_arguments,
                     ..
@@ -253,6 +261,10 @@ pub(super) fn validate_structural_frontier(
                     structural_arguments,
                     ..
                 }
+                | OperationKind::CallStructural {
+                    structural_arguments,
+                    ..
+                }
                 | OperationKind::BoundaryCall {
                     structural_arguments,
                     ..
@@ -294,6 +306,41 @@ pub(super) fn validate_structural_frontier(
                         operation: operation.id,
                         place: argument.place,
                     });
+                }
+            }
+            if let OperationResult::Structural(result) = &operation.result {
+                if frontier
+                    .owned_places
+                    .insert(result.place, result.multiplicity)
+                    .is_some()
+                {
+                    return Err(ModuleError::OwnedStructuralPlaceNotLiveAtOperation {
+                        operation: operation.id,
+                        place: result.place,
+                    });
+                }
+                for binding in &result.claims {
+                    if frontier
+                        .claims
+                        .insert(
+                            binding.claim,
+                            LiveClaim {
+                                input: Some(result.place),
+                                path: binding.path.clone(),
+                                multiplicity: Some(if binding.path.is_empty() {
+                                    result.multiplicity
+                                } else {
+                                    StructuralMultiplicity::Linear
+                                }),
+                            },
+                        )
+                        .is_some()
+                    {
+                        return Err(ModuleError::ClaimNotLiveAtOperation {
+                            operation: operation.id,
+                            claim: binding.claim,
+                        });
+                    }
                 }
             }
         }
@@ -497,11 +544,33 @@ pub(super) fn validate_structural_frontier(
                     .result
                     .structural()
                     .expect("control validation requires a structural result");
-                let source_parameter = machine
+                let source_signature = machine
                     .structural_parameters
                     .iter()
                     .find(|parameter| parameter.place == *source)
-                    .expect("control validation requires a structural source parameter");
+                    .map(|parameter| {
+                        (
+                            parameter.structural_type,
+                            parameter.multiplicity,
+                            parameter.qualifications.as_slice(),
+                        )
+                    })
+                    .or_else(|| {
+                        machine
+                            .blocks
+                            .iter()
+                            .flat_map(|block| &block.operations)
+                            .find_map(|operation| {
+                                operation.result.structural().and_then(|source_result| {
+                                    (source_result.place == *source).then_some((
+                                        source_result.structural_type,
+                                        source_result.multiplicity,
+                                        source_result.qualifications.as_slice(),
+                                    ))
+                                })
+                            })
+                    })
+                    .expect("control validation requires a structural source declaration");
                 if frontier.owned_places.remove(source).is_none() {
                     return Err(ModuleError::StructuralReturnSourceNotLive {
                         machine: machine.id,
@@ -509,9 +578,9 @@ pub(super) fn validate_structural_frontier(
                         place: *source,
                     });
                 }
-                if source_parameter.structural_type != result.structural_type
-                    || source_parameter.multiplicity != result.multiplicity
-                    || source_parameter.qualifications != result.qualifications
+                if source_signature.0 != result.structural_type
+                    || source_signature.1 != result.multiplicity
+                    || source_signature.2 != result.qualifications
                 {
                     return Err(ModuleError::StructuralReturnSignatureMismatch {
                         machine: machine.id,

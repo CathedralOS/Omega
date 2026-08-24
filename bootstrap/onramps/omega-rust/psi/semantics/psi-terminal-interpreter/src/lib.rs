@@ -15,9 +15,9 @@ use psi_core::{
 use psi_terminal::{
     Block, BoundaryMachineDeclaration, ClaimTransfer, CompletionReceipt, CrashCause, EntryClaim,
     NominalAffineCleanup, OperationKind, StructuralAffineDiscard, StructuralArgument,
-    StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
-    StructuralTypeDeclaration, StructuralTypeShape, TerminalAffineCleanupAction,
-    TerminalMachineResult, Terminator,
+    StructuralMultiplicity, StructuralOperationResult, StructuralParameterDeclaration,
+    StructuralPathSegment, StructuralResultClaimTransfer, StructuralTypeDeclaration,
+    StructuralTypeShape, TerminalAffineCleanupAction, TerminalMachineResult, Terminator,
 };
 use psi_terminal_fuel::{FuelExhaustion, FuelMeterError, TerminalFuelMeter, TerminalFuelUsage};
 use psi_terminal_verifier::VerifiedTerminalModule;
@@ -379,6 +379,10 @@ struct LiveClaim {
 enum SuspendedCallResult {
     Scalar(ValueId),
     Unit,
+    Structural {
+        result: StructuralOperationResult,
+        returned_claim_transfers: Vec<StructuralResultClaimTransfer>,
+    },
     NominalCleanups {
         completed: (NominalAffineCleanup, TerminalStructuralValue),
         remaining: Vec<(NominalAffineCleanup, TerminalStructuralValue)>,
@@ -879,6 +883,121 @@ impl TerminalExecution {
                             current: self.current,
                             next_operation: self.next_operation,
                             result: SuspendedCallResult::Scalar(result.id),
+                        });
+                        self.blocks = callee.blocks;
+                        self.values = BTreeMap::new();
+                        self.structural_values = structural_values;
+                        self.live_affine_frontier = callee_affine_frontier;
+                        self.live_claims = live_claims;
+                        self.current_machine = callee_id;
+                        self.current = callee.entry;
+                        self.next_operation = 0;
+                        continue;
+                    }
+                    OperationKind::CallStructural {
+                        callee,
+                        structural_arguments,
+                        claim_transfers,
+                        returned_claim_transfers,
+                        ..
+                    } => {
+                        let result = operation
+                            .result
+                            .structural()
+                            .cloned()
+                            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+                        let callee_id = callee;
+                        let callee =
+                            self.machines.get(&callee_id).cloned().ok_or(
+                                TerminalInterpretError::VerifiedCallTargetMissing(callee_id),
+                            )?;
+                        let Some(callee_result) = callee.result.structural() else {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        };
+                        if !callee.parameters.is_empty()
+                            || structural_arguments
+                                .iter()
+                                .any(|argument| !argument.path.is_empty())
+                            || result.structural_type != callee_result.structural_type
+                            || result.multiplicity != callee_result.multiplicity
+                            || result.qualifications != callee_result.qualifications
+                            || result.multiplicity == StructuralMultiplicity::Unrestricted
+                            || self.structural_values.contains_key(&result.place)
+                        {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        }
+                        let arguments = resolve_structural_arguments(
+                            &self.structural_types,
+                            &self.structural_values,
+                            &structural_arguments,
+                        )?;
+                        let structural_values =
+                            bind_structural_arguments(&callee.structural_parameters, &arguments)?;
+                        let callee_affine_frontier = bind_affine_frontier(
+                            &callee.structural_parameters,
+                            &structural_values,
+                        )?;
+                        let (remaining_claims, live_claims) = transfer_claims(
+                            &self.live_claims,
+                            &self.structural_values,
+                            &structural_arguments,
+                            &claim_transfers,
+                            &callee.structural_parameters,
+                            &callee.entry_claims,
+                            &callee.content_entry_claims,
+                            &structural_values,
+                        )?;
+
+                        let mut caller_affine_frontier = self.live_affine_frontier.clone();
+                        for (argument, parameter) in structural_arguments
+                            .iter()
+                            .zip(&callee.structural_parameters)
+                        {
+                            if parameter.multiplicity == StructuralMultiplicity::Affine {
+                                consume_affine_projection(
+                                    &self.structural_types,
+                                    &self.structural_values,
+                                    &mut caller_affine_frontier,
+                                    argument,
+                                )?;
+                            }
+                        }
+                        let mut caller_structural_values = self.structural_values.clone();
+                        for (argument, _parameter) in structural_arguments
+                            .iter()
+                            .zip(&callee.structural_parameters)
+                            .filter(|(argument, parameter)| {
+                                argument.path.is_empty()
+                                    && parameter.multiplicity
+                                        != StructuralMultiplicity::Unrestricted
+                            })
+                        {
+                            if caller_structural_values.remove(&argument.place).is_none() {
+                                return Err(
+                                    TerminalInterpretError::VerifiedStructuralPlaceMissing(
+                                        argument.place,
+                                    ),
+                                );
+                            }
+                        }
+
+                        // Invocation commits only after the operation charge and every
+                        // structural/claim preflight succeeds. A suspended callee owns
+                        // the transferred inputs; the caller result is still absent.
+                        self.next_operation += 1;
+                        self.call_stack.push(SuspendedCall {
+                            blocks: std::mem::take(&mut self.blocks),
+                            values: std::mem::take(&mut self.values),
+                            structural_values: caller_structural_values,
+                            live_affine_frontier: caller_affine_frontier,
+                            live_claims: remaining_claims,
+                            current_machine: self.current_machine,
+                            current: self.current,
+                            next_operation: self.next_operation,
+                            result: SuspendedCallResult::Structural {
+                                result,
+                                returned_claim_transfers,
+                            },
                         });
                         self.blocks = callee.blocks;
                         self.values = BTreeMap::new();
@@ -2132,7 +2251,8 @@ impl TerminalExecution {
                                 self.result = Some(result.clone());
                                 return Ok(TerminalExecutionStatus::Complete(result));
                             }
-                            SuspendedCallResult::Scalar(_) => {
+                            SuspendedCallResult::Scalar(_)
+                            | SuspendedCallResult::Structural { .. } => {
                                 return Err(TerminalInterpretError::VerifiedOperationMalformed);
                             }
                         }
@@ -2154,9 +2274,6 @@ impl TerminalExecution {
                     let Some(signature) = machine.result.structural() else {
                         return Err(TerminalInterpretError::VerifiedOperationMalformed);
                     };
-                    if !self.call_stack.is_empty() {
-                        return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                    }
                     let value = self.structural_values.get(source).cloned().ok_or(
                         TerminalInterpretError::VerifiedStructuralPlaceMissing(*source),
                     )?;
@@ -2184,6 +2301,49 @@ impl TerminalExecution {
                     {
                         return Err(TerminalInterpretError::VerifiedOperationMalformed);
                     }
+                    let internal_return = match self.call_stack.last() {
+                        Some(SuspendedCall {
+                            structural_values,
+                            live_affine_frontier,
+                            live_claims,
+                            result:
+                                SuspendedCallResult::Structural {
+                                    result,
+                                    returned_claim_transfers,
+                                },
+                            ..
+                        }) => {
+                            if result.structural_type != signature.structural_type
+                                || result.multiplicity != signature.multiplicity
+                                || result.qualifications != signature.qualifications
+                                || structural_values.contains_key(&result.place)
+                                || live_affine_frontier
+                                    .iter()
+                                    .any(|entry| entry.place == result.place)
+                                || result
+                                    .qualifications
+                                    .iter()
+                                    .any(|domain| !value.qualifications.contains(domain))
+                            {
+                                return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                            }
+                            Some((
+                                result.clone(),
+                                rebind_structural_result_claims(
+                                    live_claims,
+                                    &self.live_claims,
+                                    *source,
+                                    result,
+                                    returned_claim_transfers,
+                                    returned_claims,
+                                )?,
+                            ))
+                        }
+                        Some(_) => {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        }
+                        None => None,
+                    };
                     if let Err(error) = meter.charge_terminator(&terminator) {
                         return meter_status(error);
                     }
@@ -2196,6 +2356,36 @@ impl TerminalExecution {
                     for place in trivial_affine_discards {
                         self.structural_values.remove(place);
                         remove_affine_root(&mut self.live_affine_frontier, *place);
+                    }
+                    if let Some((result, rebound_claims)) = internal_return {
+                        let caller = self
+                            .call_stack
+                            .pop()
+                            .expect("an internal structural return has a caller frame");
+                        let SuspendedCallResult::Structural { .. } = caller.result else {
+                            unreachable!("preflight matched the structural caller frame")
+                        };
+                        self.blocks = caller.blocks;
+                        self.values = caller.values;
+                        self.structural_values = caller.structural_values;
+                        if self.structural_values.insert(result.place, value).is_some() {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        }
+                        self.live_affine_frontier = caller.live_affine_frontier;
+                        if result.multiplicity == StructuralMultiplicity::Affine
+                            && !self.live_affine_frontier.insert(StructuralAffineDiscard {
+                                place: result.place,
+                                path: Vec::new(),
+                                structural_type: result.structural_type,
+                            })
+                        {
+                            return Err(TerminalInterpretError::AffineFrontierMismatch);
+                        }
+                        self.live_claims = rebound_claims;
+                        self.current_machine = caller.current_machine;
+                        self.current = caller.current;
+                        self.next_operation = caller.next_operation;
+                        continue;
                     }
                     let result = TerminalExecutionResult::Structural(TerminalStructuralResult {
                         value,
@@ -2805,6 +2995,77 @@ fn transfer_claims(
         });
     }
     Ok((remaining, callee_claims))
+}
+
+fn rebind_structural_result_claims(
+    caller_claims: &BTreeMap<ClaimId, LiveClaim>,
+    callee_claims: &BTreeMap<ClaimId, LiveClaim>,
+    source: PlaceId,
+    result: &StructuralOperationResult,
+    transfers: &[StructuralResultClaimTransfer],
+    returned_claims: &[ClaimId],
+) -> Result<BTreeMap<ClaimId, LiveClaim>, TerminalInterpretError> {
+    let mut bindings = BTreeMap::new();
+    for binding in &result.claims {
+        if bindings
+            .insert(binding.claim, binding.path.as_slice())
+            .is_some()
+        {
+            return Err(TerminalInterpretError::ClaimTransferMismatch);
+        }
+    }
+    if bindings.len() != transfers.len() || returned_claims.len() != transfers.len() {
+        return Err(TerminalInterpretError::ClaimTransferMismatch);
+    }
+
+    let expected_callee = returned_claims.iter().copied().collect::<BTreeSet<_>>();
+    if expected_callee.len() != returned_claims.len() {
+        return Err(TerminalInterpretError::ClaimTransferMismatch);
+    }
+    let mut mapped_callee = BTreeSet::new();
+    let mut mapped_caller = BTreeSet::new();
+    let mut rebound = caller_claims.clone();
+    for transfer in transfers {
+        if !mapped_callee.insert(transfer.callee_claim)
+            || !mapped_caller.insert(transfer.caller_claim)
+            || !expected_callee.contains(&transfer.callee_claim)
+        {
+            return Err(TerminalInterpretError::ClaimTransferMismatch);
+        }
+        let Some(returned) = callee_claims.get(&transfer.callee_claim) else {
+            return Err(TerminalInterpretError::ClaimTransferMismatch);
+        };
+        let Some(path) = bindings.get(&transfer.caller_claim) else {
+            return Err(TerminalInterpretError::ClaimTransferMismatch);
+        };
+        let expected_multiplicity = if path.is_empty() {
+            result.multiplicity
+        } else {
+            StructuralMultiplicity::Linear
+        };
+        if returned.place != Some(source)
+            || returned.path != *path
+            || returned.multiplicity != Some(expected_multiplicity)
+            || rebound
+                .insert(
+                    transfer.caller_claim,
+                    LiveClaim {
+                        place: Some(result.place),
+                        path: path.to_vec(),
+                        multiplicity: Some(expected_multiplicity),
+                    },
+                )
+                .is_some()
+        {
+            return Err(TerminalInterpretError::ClaimTransferMismatch);
+        }
+    }
+    if mapped_callee != expected_callee
+        || mapped_caller != bindings.keys().copied().collect::<BTreeSet<_>>()
+    {
+        return Err(TerminalInterpretError::ClaimTransferMismatch);
+    }
+    Ok(rebound)
 }
 
 fn validate_boundary_requirements(

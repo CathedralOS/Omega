@@ -245,6 +245,20 @@ partial-value slice separately admits a finite source-ordered set of pairwise
 prefix-disjoint, nonempty all-field moves from one claim-free affine record and
 preserves every maximal live residual subtree in recursive reverse declaration
 order through terminal Psi and Omega artifacts.
+
+An internal call may now continue that same whole-root result through one
+explicit terminal operation-result place. The checked slice is intentionally
+narrow: one final direct call, one whole linear qualified argument, one exact
+checked callee with one whole result claim, and an immediate caller return.
+`CallStructural` records both the ordinary caller-to-callee claim transfer and
+the exact callee-to-caller returned-claim map. The operation result declares its
+structural signature and caller claim binding independently, so canonical
+decoding and verification can reject producer, type, qualification, path, or
+claim drift. Custody becomes live in the caller only after successful return;
+crash creates no result and fuel suspension cannot replay a transfer. Projected
+or multi-claim calls, bodyless structural results, local staging, and native
+aggregate ABI lowering remain later slices rather than implicit fallbacks.
+
 Checked facts retain the first per-edge cleanup subset for ordinary named
 transitions: each exact source-state/statement/target row names the whole,
 claim-free affine parameter positions discarded on that arm after subtracting

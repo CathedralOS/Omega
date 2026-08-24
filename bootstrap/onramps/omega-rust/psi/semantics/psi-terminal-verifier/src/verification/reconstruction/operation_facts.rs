@@ -172,6 +172,7 @@ pub(super) fn append_operation(
         OperationKind::Call { .. }
         | OperationKind::CallUnit { .. }
         | OperationKind::CallStructuralScalar { .. }
+        | OperationKind::CallStructural { .. }
         | OperationKind::BoundaryCall { .. } => {
             unreachable!("call rows return before specialized reconstruction")
         }

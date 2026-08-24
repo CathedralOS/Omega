@@ -209,6 +209,139 @@ pub(super) fn validate_unit_operation_static(
                 operation.id,
             )?;
         }
+        OperationKind::CallStructural {
+            callee,
+            structural_arguments,
+            claim_transfers,
+            returned_claim_transfers,
+            requirement_obligations,
+            crash_continuations,
+        } => {
+            let callee = machines
+                .get(callee)
+                .copied()
+                .ok_or(ModuleError::UnknownCallTarget {
+                    operation: operation.id,
+                    callee: *callee,
+                })?;
+            let Some(callee_result) = callee.result.structural() else {
+                return Err(ModuleError::StructuralCallTargetMismatch {
+                    operation: operation.id,
+                    callee: callee.id,
+                });
+            };
+            let Some(result) = operation.result.structural() else {
+                return Err(ModuleError::StructuralCallResultMismatch(operation.id));
+            };
+            if !callee.parameters.is_empty()
+                || structural_arguments.len() != 1
+                || structural_arguments[0].path.len() != 0
+                || callee.structural_parameters.len() != 1
+                || result.structural_type != callee_result.structural_type
+                || result.multiplicity != callee_result.multiplicity
+                || result.qualifications != callee_result.qualifications
+                || result.multiplicity != StructuralMultiplicity::Linear
+            {
+                return Err(ModuleError::StructuralCallTargetMismatch {
+                    operation: operation.id,
+                    callee: callee.id,
+                });
+            }
+            let result_place = machine
+                .structural_places
+                .iter()
+                .find(|place| place.id == result.place);
+            if !matches!(
+                result_place.map(|place| place.kind),
+                Some(StructuralPlaceKind::OperationResult {
+                    producer,
+                    structural_type,
+                }) if producer == operation.id && structural_type == result.structural_type
+            ) {
+                return Err(ModuleError::StructuralCallResultPlaceMismatch(operation.id));
+            }
+            if result
+                .qualifications
+                .windows(2)
+                .any(|pair| pair[0] >= pair[1])
+                || result.claims.windows(2).any(|pair| pair[0] >= pair[1])
+                || result.claims.len() != 1
+                || !result.claims[0].path.is_empty()
+                || claim_transfers.len() != 1
+                || claim_transfers[0].argument_index != 0
+                || returned_claim_transfers.len() != 1
+                || returned_claim_transfers
+                    .windows(2)
+                    .any(|pair| pair[0] >= pair[1])
+            {
+                return Err(ModuleError::NonCanonicalStructuralOperationResult(
+                    operation.id,
+                ));
+            }
+            let [callee_entry_claim] = callee.entry_claims.as_slice() else {
+                return Err(ModuleError::StructuralCallClaimInterfaceMismatch(
+                    operation.id,
+                ));
+            };
+            let transfer = claim_transfers[0];
+            let returned = returned_claim_transfers[0];
+            let binding = &result.claims[0];
+            if !callee_entry_claim.path.is_empty()
+                || returned.callee_claim != callee_entry_claim.claim
+                || returned.caller_claim != transfer.claim
+                || binding.claim != transfer.claim
+                || callee.blocks.iter().any(|block| {
+                    matches!(
+                        &block.terminator,
+                        Terminator::ReturnStructural {
+                            returned_claims,
+                            ..
+                        } if returned_claims.as_slice() != [callee_entry_claim.claim]
+                    )
+                })
+            {
+                return Err(ModuleError::StructuralCallClaimInterfaceMismatch(
+                    operation.id,
+                ));
+            }
+            validate_structural_arguments(
+                module,
+                machine,
+                structural_arguments,
+                &callee.structural_parameters,
+                operation.id,
+                true,
+                false,
+            )?;
+            validate_unit_call_contract_places(callee, operation.id)?;
+            validate_service_reach(
+                operation.id,
+                &machine.published_service_ceiling,
+                &callee.published_service_ceiling,
+            )?;
+            if requirement_obligations.len() != callee.contract.requires.len() {
+                return Err(ModuleError::CallRequirementArityMismatch {
+                    operation: operation.id,
+                    expected: callee.contract.requires.len(),
+                    actual: requirement_obligations.len(),
+                });
+            }
+            validate_unit_call_claim_transfers(
+                machine,
+                callee,
+                structural_arguments,
+                claim_transfers,
+                operation.id,
+            )?;
+            validate_unit_call_crash_continuations(
+                module,
+                machine,
+                callee,
+                structural_arguments,
+                crash_continuations,
+                operation.id,
+            )?;
+        }
         OperationKind::BoundaryCall {
             boundary,
             arguments: _,

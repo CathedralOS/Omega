@@ -23,6 +23,7 @@ pub(super) fn validate_boundary_content_guarantees(
                         })
                     }
                     StructuralPlaceKind::Result
+                    | StructuralPlaceKind::OperationResult { .. }
                     | StructuralPlaceKind::ByteSequenceLiteral { .. }
                     | StructuralPlaceKind::ProviderAttachment { .. }
                     | StructuralPlaceKind::TrivialAffineLocal { .. } => false,
@@ -477,7 +478,7 @@ fn validate_partition_producer(
                 .get(callee)
                 .copied()
                 .expect("validated call target exists");
-            validate_partition_internal_guarantee(operation.id, composition, callee, &[])
+            validate_partition_internal_guarantee(operation.id, composition, callee, &[], None)
         }
         OperationKind::CallUnit {
             callee,
@@ -498,6 +499,24 @@ fn validate_partition_producer(
                 composition,
                 callee,
                 structural_arguments,
+                None,
+            )
+        }
+        OperationKind::CallStructural {
+            callee,
+            structural_arguments,
+            ..
+        } => {
+            let callee = machines
+                .get(callee)
+                .copied()
+                .expect("validated structural call target exists");
+            validate_partition_internal_guarantee(
+                operation.id,
+                composition,
+                callee,
+                structural_arguments,
+                operation.result.structural(),
             )
         }
         OperationKind::BoundaryCall {
@@ -525,6 +544,7 @@ fn validate_partition_producer(
                 composition,
                 &boundary.structural_parameters,
                 structural_arguments,
+                None,
                 &guarantees,
             )
         }
@@ -537,6 +557,7 @@ fn validate_partition_internal_guarantee(
     composition: &ContentPartitionComposition,
     callee: &TerminalMachine,
     structural_arguments: &[StructuralArgument],
+    operation_result: Option<&psi_terminal::StructuralOperationResult>,
 ) -> Result<(), ModuleError> {
     let guarantees = callee
         .contract
@@ -554,6 +575,7 @@ fn validate_partition_internal_guarantee(
         composition,
         &callee.structural_parameters,
         structural_arguments,
+        operation_result,
         &guarantees,
     )
 }
@@ -563,6 +585,7 @@ fn validate_partition_guarantee_set(
     composition: &ContentPartitionComposition,
     parameters: &[StructuralParameterDeclaration],
     structural_arguments: &[StructuralArgument],
+    operation_result: Option<&psi_terminal::StructuralOperationResult>,
     guarantees: &[(&[StructuralPlaceDeclaration], &ContentConservation)],
 ) -> Result<(), ModuleError> {
     if !guarantees.iter().any(|(places, conservation)| {
@@ -577,7 +600,12 @@ fn validate_partition_guarantee_set(
             operation,
         ));
     }
-    if !partition_substitutions_match_arguments(composition, parameters, structural_arguments) {
+    if !partition_substitutions_match_arguments(
+        composition,
+        parameters,
+        structural_arguments,
+        operation_result,
+    ) {
         return Err(ModuleError::ContentPartitionProducerArgumentMismatch(
             operation,
         ));
@@ -667,6 +695,7 @@ fn partition_substitutions_match_arguments(
     composition: &ContentPartitionComposition,
     parameters: &[StructuralParameterDeclaration],
     structural_arguments: &[StructuralArgument],
+    operation_result: Option<&psi_terminal::StructuralOperationResult>,
 ) -> bool {
     composition.substitutions.iter().all(|substitution| {
         let Some(source_place) = composition
@@ -676,9 +705,15 @@ fn partition_substitutions_match_arguments(
         else {
             return false;
         };
+        if source_place.kind == StructuralPlaceKind::Result {
+            let Some(result) = operation_result else {
+                return false;
+            };
+            return substitution.target.version == substitution.source.version
+                && substitution.target.root == result.place
+                && substitution.target.segments == substitution.source.segments;
+        }
         let StructuralPlaceKind::Parameter { position, is_self } = source_place.kind else {
-            // Current call operations have no structural-result carrier. A
-            // result-rooted partition must wait for that explicit vocabulary.
             return false;
         };
         let Some(argument_index) = parameters
@@ -723,6 +758,11 @@ fn validate_partition_source_places(
                 StructuralRootKey::Parameter(position)
             }
             StructuralPlaceKind::Result => StructuralRootKey::Result,
+            StructuralPlaceKind::OperationResult { .. } => {
+                return Err(ModuleError::ContentPartitionSourceLocalUnsupported(
+                    place.id,
+                ));
+            }
             StructuralPlaceKind::ByteSequenceLiteral { .. } => {
                 return Err(ModuleError::ContentPartitionSourceLocalUnsupported(
                     place.id,
@@ -768,6 +808,12 @@ fn validate_partition_substitution_shape(
             Some(StructuralPlaceKind::Result),
             psi_core::ContentPlaceVersion::Current,
             Some(StructuralPlaceKind::Result),
+        )
+        | (
+            psi_core::ContentPlaceVersion::Current,
+            Some(StructuralPlaceKind::Result),
+            psi_core::ContentPlaceVersion::Current,
+            Some(StructuralPlaceKind::OperationResult { .. }),
         )
         | (
             psi_core::ContentPlaceVersion::Current,

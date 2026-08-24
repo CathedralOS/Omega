@@ -500,6 +500,53 @@ impl CheckedStructuralReturnPlans {
     }
 }
 
+/// Source-handle-free checked plan for the first internal structural-result
+/// call. This deliberately admits only a final direct call whose one
+/// whole-root linear result is immediately returned by the caller.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CheckedStructuralCallReturnPlans {
+    pub structural_types: Vec<CheckedUnitStructuralTypePlan>,
+    pub structural_domains: Vec<CheckedUnitStructuralDomainPlan>,
+    pub machines: Vec<CheckedStructuralCallReturnMachinePlan>,
+}
+
+impl CheckedStructuralCallReturnPlans {
+    pub fn for_machine(
+        &self,
+        machine: SymbolHandle,
+    ) -> Option<&CheckedStructuralCallReturnMachinePlan> {
+        self.machines.iter().find(|plan| plan.machine == machine)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedStructuralCallReturnMachinePlan {
+    pub machine: SymbolHandle,
+    pub state: SymbolHandle,
+    pub attachment_type_identity: String,
+    pub structural_parameters: Vec<CheckedUnitStructuralParameterPlan>,
+    pub result: CheckedStructuralResultPlan,
+    pub entry_claim: CheckedUnitEntryClaimPlan,
+    pub call: CheckedStructuralCallPlan,
+    /// Caller-local identity re-established beneath the operation-result root
+    /// and transferred unchanged to the machine result.
+    pub returned_claim: psi_language_semantics::PermissionClaimIdentity,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedStructuralCallPlan {
+    pub coordinate: CheckedUnitCallCoordinate,
+    pub target_machine: SymbolHandle,
+    pub target_state: SymbolHandle,
+    pub target_contract_fingerprint: u64,
+    pub service_reach: ServiceReachSummary,
+    pub structural_arguments: Vec<CheckedUnitStructuralArgumentPlan>,
+    pub claim_transfers: Vec<CheckedUnitClaimTransferPlan>,
+    /// Exact callee-local result claim mapped back to the caller-local claim
+    /// namespace after successful completion.
+    pub callee_returned_claim: psi_language_semantics::PermissionClaimIdentity,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedStructuralReturnMachinePlan {
     pub machine: SymbolHandle,

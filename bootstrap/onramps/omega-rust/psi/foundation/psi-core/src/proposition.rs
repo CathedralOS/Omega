@@ -2591,7 +2591,10 @@ impl PropositionContext {
                     return Err(PropositionError::UnknownStructuralPlace(subject.root));
                 };
                 if subject.version == ContentPlaceVersion::Entry
-                    && *kind == StructuralPlaceKind::Result
+                    && matches!(
+                        kind,
+                        StructuralPlaceKind::Result | StructuralPlaceKind::OperationResult { .. }
+                    )
                 {
                     return Err(PropositionError::EntryResultStructuralPlace(subject.root));
                 }

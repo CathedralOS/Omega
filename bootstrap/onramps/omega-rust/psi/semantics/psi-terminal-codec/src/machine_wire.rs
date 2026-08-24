@@ -43,20 +43,7 @@ pub(super) fn encode_machine(
         }
         TerminalMachineResult::Structural(result) => {
             writer.u8(2);
-            writer.id(result.place);
-            writer.id(result.structural_type);
-            writer.u8(match result.multiplicity {
-                StructuralMultiplicity::Unrestricted => 1,
-                StructuralMultiplicity::Affine => 2,
-                StructuralMultiplicity::Linear => 3,
-            });
-            writer.len(
-                "structural result qualifications",
-                result.qualifications.len(),
-            )?;
-            for qualification in &result.qualifications {
-                writer.id(*qualification);
-            }
+            encode_structural_result(writer, result)?;
         }
     }
     writer.len("structural places", machine.structural_places.len())?;
@@ -122,17 +109,7 @@ pub(super) fn decode_machine(reader: &mut Reader<'_>) -> Result<TerminalMachine,
     let result = match reader.u8()? {
         0 => TerminalMachineResult::Unit,
         1 => TerminalMachineResult::Scalar(decode_declaration(reader)?),
-        2 => TerminalMachineResult::Structural(StructuralResultDeclaration {
-            place: reader.id("PlaceId")?,
-            structural_type: reader.id("StructuralTypeId")?,
-            multiplicity: match reader.u8()? {
-                1 => StructuralMultiplicity::Unrestricted,
-                2 => StructuralMultiplicity::Affine,
-                3 => StructuralMultiplicity::Linear,
-                tag => return Err(CodecError::InvalidTag("StructuralMultiplicity", tag)),
-            },
-            qualifications: decode_ids(reader, "StructuralDomainId")?,
-        }),
+        2 => TerminalMachineResult::Structural(decode_structural_result(reader)?),
         tag => return Err(CodecError::InvalidTag("TerminalMachineResult", tag)),
     };
     let count = reader.count()?;
@@ -188,6 +165,43 @@ pub(super) fn decode_machine(reader: &mut Reader<'_>) -> Result<TerminalMachine,
         entry,
         blocks,
         contract,
+    })
+}
+
+pub(super) fn encode_structural_result(
+    writer: &mut Writer,
+    result: &StructuralResultDeclaration,
+) -> Result<(), CodecError> {
+    writer.id(result.place);
+    writer.id(result.structural_type);
+    writer.u8(match result.multiplicity {
+        StructuralMultiplicity::Unrestricted => 1,
+        StructuralMultiplicity::Affine => 2,
+        StructuralMultiplicity::Linear => 3,
+    });
+    writer.len(
+        "structural result qualifications",
+        result.qualifications.len(),
+    )?;
+    for qualification in &result.qualifications {
+        writer.id(*qualification);
+    }
+    Ok(())
+}
+
+pub(super) fn decode_structural_result(
+    reader: &mut Reader<'_>,
+) -> Result<StructuralResultDeclaration, CodecError> {
+    Ok(StructuralResultDeclaration {
+        place: reader.id("PlaceId")?,
+        structural_type: reader.id("StructuralTypeId")?,
+        multiplicity: match reader.u8()? {
+            1 => StructuralMultiplicity::Unrestricted,
+            2 => StructuralMultiplicity::Affine,
+            3 => StructuralMultiplicity::Linear,
+            tag => return Err(CodecError::InvalidTag("StructuralMultiplicity", tag)),
+        },
+        qualifications: decode_ids(reader, "StructuralDomainId")?,
     })
 }
 

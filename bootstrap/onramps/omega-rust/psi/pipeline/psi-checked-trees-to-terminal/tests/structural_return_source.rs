@@ -39,6 +39,9 @@ const SOURCE: &str = r#"
     machine Main::forward(region: Region in Owned) -> Region in Owned {
         region
     }
+    machine Main::through_call(region: Region in Owned) -> Region in Owned {
+        Main::forward(region)
+    }
     machine Main::forward_and_drop(region: Region in Owned, scratch: Scratch) -> Region in Owned {
         region
     }
@@ -1147,6 +1150,85 @@ fn whole_root_source_passthrough_reaches_verified_and_interpreted_terminal_psi()
             }
         ))
     );
+}
+
+#[test]
+fn direct_internal_structural_result_call_gets_an_exact_checked_plan() {
+    let checked = checked_source();
+    let plan = checked
+        .facts
+        .flow
+        .terminal_structural_call_returns
+        .machines
+        .iter()
+        .find(|plan| {
+            checked.machines().iter().any(|machine| {
+                machine.symbol == plan.machine && machine.name.as_str() == "Main::through_call"
+            })
+        })
+        .expect("checker should publish the bounded direct structural-call plan");
+    assert_eq!(plan.structural_parameters.len(), 1);
+    assert_eq!(plan.call.coordinate.statement_index, 0);
+    assert_eq!(plan.call.coordinate.call_ordinal, 0);
+    assert_eq!(plan.call.structural_arguments.len(), 1);
+    assert!(plan.call.structural_arguments[0].path.is_empty());
+    assert_eq!(plan.call.claim_transfers.len(), 1);
+    assert_eq!(
+        plan.call.claim_transfers[0].claim_identity,
+        plan.entry_claim.claim_identity
+    );
+    assert_eq!(plan.returned_claim, plan.entry_claim.claim_identity);
+
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Main::through_call")
+        .expect("bounded direct structural-result call should lower");
+    let module = &lowered.semantic_module;
+    assert_eq!(module.machines.len(), 2);
+    let caller = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == module.entry)
+        .expect("module entry is the structural caller");
+    let [operation] = caller.blocks[0].operations.as_slice() else {
+        panic!("structural caller should contain one exact call")
+    };
+    let psi_terminal::OperationResult::Structural(operation_result) = &operation.result else {
+        panic!("internal structural call must retain its structural result carrier")
+    };
+    let psi_terminal::OperationKind::CallStructural {
+        callee,
+        claim_transfers,
+        returned_claim_transfers,
+        ..
+    } = &operation.kind
+    else {
+        panic!("caller should use the dedicated structural call operation")
+    };
+    assert!(module.machines.iter().any(|machine| machine.id == *callee));
+    assert_eq!(claim_transfers.len(), 1);
+    assert_eq!(returned_claim_transfers.len(), 1);
+    assert_eq!(
+        returned_claim_transfers[0].caller_claim,
+        claim_transfers[0].claim
+    );
+    assert_eq!(operation_result.claims[0].claim, claim_transfers[0].claim);
+    assert!(caller.structural_places.iter().any(|place| {
+        place.id == operation_result.place
+            && matches!(
+                place.kind,
+                psi_core::StructuralPlaceKind::OperationResult { producer, .. }
+                    if producer == operation.id
+            )
+    }));
+    let Terminator::ReturnStructural {
+        source,
+        returned_claims,
+        ..
+    } = &caller.blocks[0].terminator
+    else {
+        panic!("caller should immediately return the structural call result")
+    };
+    assert_eq!(*source, operation_result.place);
+    assert_eq!(returned_claims, &[claim_transfers[0].claim]);
 }
 
 #[test]

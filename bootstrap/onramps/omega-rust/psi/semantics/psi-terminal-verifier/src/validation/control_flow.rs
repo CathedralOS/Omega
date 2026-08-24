@@ -251,6 +251,16 @@ pub(super) fn validate_control_flow(
                     .structural_parameters
                     .iter()
                     .any(|parameter| parameter.place == *source)
+                    && !machine
+                        .blocks
+                        .iter()
+                        .flat_map(|block| &block.operations)
+                        .any(|operation| {
+                            operation
+                                .result
+                                .structural()
+                                .is_some_and(|result| result.place == *source)
+                        })
                 {
                     return Err(ModuleError::StructuralReturnRequiresParameterSource {
                         machine: machine.id,

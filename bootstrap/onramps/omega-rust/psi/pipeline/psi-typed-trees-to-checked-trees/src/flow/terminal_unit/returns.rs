@@ -54,6 +54,327 @@ pub(crate) fn build_checked_structural_return_plans(
     }
 }
 
+/// Build the bounded internal structural-result call slice. The caller has
+/// one linear whole-root input, performs one final direct call to an already
+/// admitted structural-return machine, and returns that result immediately.
+/// Bodyless calls, projections, staged locals, and wider result maps remain
+/// deliberately outside this carrier.
+pub(crate) fn build_checked_structural_call_return_plans(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    structural_returns: &CheckedStructuralReturnPlans,
+) -> CheckedStructuralCallReturnPlans {
+    let mut shapes = ShapeCollector::new(program);
+    let machines = program
+        .machines()
+        .iter()
+        .filter(|machine| machine.supply_mode == MachineSupplyMode::CheckedBody)
+        .filter_map(|machine| {
+            build_structural_call_return_machine(
+                program,
+                facts,
+                structural_returns,
+                &mut shapes,
+                machine,
+            )
+        })
+        .collect::<Vec<_>>();
+    let retained = machines
+        .iter()
+        .flat_map(|plan| {
+            std::iter::once(plan.attachment_type_identity.as_str())
+                .chain(
+                    plan.structural_parameters
+                        .iter()
+                        .map(|parameter| parameter.type_identity.as_str()),
+                )
+                .chain(std::iter::once(plan.result.type_identity.as_str()))
+        })
+        .collect::<BTreeSet<_>>();
+    let retained_domains = machines
+        .iter()
+        .flat_map(|plan| {
+            plan.structural_parameters
+                .iter()
+                .flat_map(|parameter| &parameter.qualifications)
+                .chain(&plan.result.qualifications)
+                .map(|domain| domain.0)
+        })
+        .collect::<BTreeSet<_>>();
+    shapes.retain_transitive(&retained);
+    shapes
+        .domains
+        .retain(|domain| retained_domains.contains(&domain.domain.0));
+    shapes.domains.sort_by_key(|domain| domain.domain.0);
+    CheckedStructuralCallReturnPlans {
+        structural_types: shapes.types.into_values().collect(),
+        structural_domains: shapes.domains,
+        machines,
+    }
+}
+
+fn build_structural_call_return_machine(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    structural_returns: &CheckedStructuralReturnPlans,
+    shapes: &mut ShapeCollector<'_>,
+    machine: &psi_typed_trees::machine::Machine,
+) -> Option<CheckedStructuralCallReturnMachinePlan> {
+    let [state] = program.machine_states(machine) else {
+        return None;
+    };
+    let [StatementNode::Expression(return_expression)] =
+        program.statement_table.statements(state.statement_nodes)
+    else {
+        return None;
+    };
+    let ExpressionNode::Call(call_expression) =
+        program.expression_table.expression(*return_expression)
+    else {
+        return None;
+    };
+    if !program.machine_contracts(machine).is_empty() {
+        return None;
+    }
+    let binders = machine_binders(program, machine);
+    let (attachment_type_identity, structural_parameters) =
+        structural_signature(program, shapes, machine, state, &binders)?;
+    let [input] = structural_parameters.as_slice() else {
+        return None;
+    };
+    let source_parameters = program.state_parameters(state);
+    let [source_parameter] = source_parameters else {
+        return None;
+    };
+    if input.position != 0
+        || input.multiplicity != Multiplicity::Linear
+        || input.is_self
+        || parameter_root_symbol(machine.symbol, source_parameter) != source_parameter.symbol
+    {
+        return None;
+    }
+    let result_type_identity = shapes.add_type(state.return_type, &binders, &[])?;
+    let result_qualifications =
+        parameter_qualifications(program, shapes, state.return_type, &binders)?;
+    if result_type_identity != input.type_identity
+        || result_qualifications != input.qualifications
+        || crate::checks::type_multiplicity(program, state.return_type) != Multiplicity::Linear
+        || !state_contracts_are_exact_parameter_qualifications(
+            program,
+            state,
+            source_parameter,
+            &input.qualifications,
+        )
+    {
+        return None;
+    }
+    let checked_entry_claims = entry_claims(
+        program,
+        facts,
+        machine.symbol,
+        state.symbol,
+        &structural_parameters,
+        source_parameters,
+    )?;
+    let [entry_claim] = checked_entry_claims.as_slice() else {
+        return None;
+    };
+    if entry_claim.parameter_index != 0
+        || !entry_claim.path.is_empty()
+        || entry_claim.carry != CarryPolicy::STRICT
+    {
+        return None;
+    }
+    let state_flow = state_flow(facts, machine.symbol, state.symbol)?;
+    let [call] = facts.flow.control.calls.span_or_empty(state_flow.calls) else {
+        return None;
+    };
+    if call.statement_index != 0
+        || call.call_ordinal != 0
+        || call.target_symbol != call_expression.target_symbol
+    {
+        return None;
+    }
+    let call_site = crate::find_call_site(
+        program,
+        machine.symbol,
+        state.symbol,
+        call.statement_index,
+        call.call_ordinal,
+    )?;
+    let crate::CallSite::Expression { expression, .. } = &call_site else {
+        return None;
+    };
+    if *expression != *return_expression {
+        return None;
+    }
+    let target_state = crate::find_state(program, call.target_symbol)?;
+    let target_machine = program.machines().iter().find(|candidate| {
+        candidate.supply_mode == MachineSupplyMode::CheckedBody
+            && program
+                .machine_states(candidate)
+                .iter()
+                .any(|candidate_state| candidate_state.symbol == target_state.symbol)
+    })?;
+    let target = structural_returns.for_machine(target_machine.symbol)?;
+    let [target_parameter] = target.structural_parameters.as_slice() else {
+        return None;
+    };
+    if target.state != target_state.symbol
+        || target.returned_parameter_index != 0
+        || !target.trivial_affine_locals.is_empty()
+        || !target.trivial_affine_local_discard_ordinals.is_empty()
+        || !target.trivial_affine_discards.is_empty()
+        || target_parameter.type_identity != input.type_identity
+        || target_parameter.qualifications != input.qualifications
+        || target.result.type_identity != result_type_identity
+        || target.result.qualifications != result_qualifications
+        || target.result.multiplicity != Multiplicity::Linear
+    {
+        return None;
+    }
+    let structural_arguments = structural_call_arguments(
+        program,
+        facts,
+        call,
+        machine,
+        state,
+        &structural_parameters,
+        target_machine,
+        target_state,
+        &call_site,
+        call.receiver_symbol,
+        call.statement_index,
+        false,
+        false,
+    )?;
+    let [argument] = structural_arguments.as_slice() else {
+        return None;
+    };
+    if argument.source_parameter_index != 0
+        || !argument.path.is_empty()
+        || argument.type_identity != input.type_identity
+        || argument.access != CheckedStructuralAccess::Owned
+        || argument.byte_sequence_literal.is_some()
+    {
+        return None;
+    }
+    let claim_transfers = call_claim_transfers(
+        facts,
+        machine.symbol,
+        state.symbol,
+        call,
+        &structural_parameters,
+        &checked_entry_claims,
+        &structural_arguments,
+        PermissionEventKind::Transfer,
+    )?;
+    let [claim_transfer] = claim_transfers.as_slice() else {
+        return None;
+    };
+    if claim_transfer.argument_index != 0
+        || claim_transfer.claim_identity != entry_claim.claim_identity
+    {
+        return None;
+    }
+    let outcome_maps = facts
+        .flow
+        .ownership
+        .claim_outcome_maps
+        .iter()
+        .filter(|(_, map)| map.machine_symbol == machine.symbol && map.state_symbol == state.symbol)
+        .map(|(_, map)| map)
+        .collect::<Vec<_>>();
+    let [outcome_map] = outcome_maps.as_slice() else {
+        return None;
+    };
+    let [outcome] = facts
+        .flow
+        .ownership
+        .claim_outcome_entries
+        .span_or_empty(outcome_map.entries)
+    else {
+        return None;
+    };
+    let psi_checked_trees::FlowClaimOutcomeSource::Input {
+        parameter_symbol,
+        segments: input_segments,
+    } = outcome.source
+    else {
+        return None;
+    };
+    if parameter_symbol != source_parameter.symbol
+        || !facts
+            .flow
+            .ownership
+            .segments
+            .span_or_empty(input_segments)
+            .is_empty()
+        || !facts
+            .flow
+            .ownership
+            .segments
+            .span_or_empty(outcome.output_segments)
+            .is_empty()
+    {
+        return None;
+    }
+    let reshuffles = facts
+        .qualifications
+        .content
+        .identity_reshuffles
+        .iter()
+        .filter(|fact| fact.machine_symbol == machine.symbol && fact.state_symbol == state.symbol)
+        .collect::<Vec<_>>();
+    let [reshuffle] = reshuffles.as_slice() else {
+        return None;
+    };
+    if reshuffle.claim_identity != entry_claim.claim_identity
+        || reshuffle.input_parameter_symbol != source_parameter.symbol
+        || !facts
+            .flow
+            .ownership
+            .segments
+            .span_or_empty(reshuffle.input_segments)
+            .is_empty()
+        || !facts
+            .flow
+            .ownership
+            .segments
+            .span_or_empty(reshuffle.output_segments)
+            .is_empty()
+    {
+        return None;
+    }
+    let target_contract = facts.contract_plans.for_machine(target_machine.symbol)?;
+    Some(CheckedStructuralCallReturnMachinePlan {
+        machine: machine.symbol,
+        state: state.symbol,
+        attachment_type_identity,
+        structural_parameters,
+        result: CheckedStructuralResultPlan {
+            type_identity: result_type_identity,
+            multiplicity: Multiplicity::Linear,
+            qualifications: result_qualifications,
+        },
+        entry_claim: entry_claim.clone(),
+        call: CheckedStructuralCallPlan {
+            coordinate: CheckedUnitCallCoordinate {
+                statement_index: 0,
+                call_ordinal: 0,
+            },
+            target_machine: target_machine.symbol,
+            target_state: target_state.symbol,
+            target_contract_fingerprint: target_contract.fingerprint,
+            service_reach: call.service_reach.clone(),
+            structural_arguments,
+            claim_transfers,
+            callee_returned_claim: target.transferred_claim,
+        },
+        returned_claim: entry_claim.claim_identity,
+    })
+}
+
 pub(super) fn build_structural_return_machine(
     program: &TypedTrees,
     facts: &CheckFacts,

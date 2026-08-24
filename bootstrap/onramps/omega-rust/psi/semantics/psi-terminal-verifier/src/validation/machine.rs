@@ -39,6 +39,9 @@ pub(super) fn validate_machine(
                 StructuralRootKey::Parameter(position)
             }
             psi_core::StructuralPlaceKind::Result => StructuralRootKey::Result,
+            psi_core::StructuralPlaceKind::OperationResult { producer, .. } => {
+                StructuralRootKey::OperationResult(producer)
+            }
             psi_core::StructuralPlaceKind::ByteSequenceLiteral {
                 declaration_ordinal,
                 ..
@@ -102,6 +105,21 @@ pub(super) fn validate_machine(
                     result.id,
                     result.scalar_type,
                 )?;
+                validate_unit_operation_static(module, machine, machines, operation)?;
+                for obligation in requirement_obligations {
+                    insert_unique(
+                        &mut registry.obligations,
+                        *obligation,
+                        ModuleError::DuplicateObligation,
+                    )?;
+                }
+                continue;
+            }
+            if let OperationKind::CallStructural {
+                requirement_obligations,
+                ..
+            } = &operation.kind
+            {
                 validate_unit_operation_static(module, machine, machines, operation)?;
                 for obligation in requirement_obligations {
                     insert_unique(
@@ -178,6 +196,7 @@ pub(super) fn validate_machine(
             match operation.kind.clone() {
                 OperationKind::CallUnit { .. }
                 | OperationKind::CallStructuralScalar { .. }
+                | OperationKind::CallStructural { .. }
                 | OperationKind::PortWrite { .. }
                 | OperationKind::EstablishByteSequenceLiteral { .. }
                 | OperationKind::EstablishTrivialAffineLocal { .. } => {

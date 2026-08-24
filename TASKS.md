@@ -568,15 +568,26 @@ Remaining:
   lineage, installed occurrence, and route; a generic established-claim identity
   is insufficient. Checked source already derives exact identity-reshuffle and
   authored-partition composition rows, and terminal Psi independently validates
-  their canonical replay. Terminal vocabulary 28 now additionally binds every
+  their canonical replay. Terminal vocabulary 29 now additionally binds every
   partition row to its exact emitted call operation, retains canonical authored
   boundary guarantees, checks internal or boundary target correspondence and
   exact structural arguments, and schedules the derived theorem only after
   that call succeeds. Missing/non-call producers, guarantee drift, argument
-  drift, pre-call use, and fingerprint-only replay reject. Structural-result-
-  rooted call correspondence remains a later slice because the current call
-  vocabulary has no explicit structural-result carrier. The exact root-only
-  source passthrough now produces a
+  drift, pre-call use, and fingerprint-only replay reject. The first internal
+  structural-result call slice now carries one explicit operation-result place,
+  structural signature and qualification set, caller result-claim binding, and
+  exact callee-to-caller returned-claim map. Checked production accepts only a
+  final direct call that moves one whole linear qualified root into an exact
+  one-parameter checked callee and immediately returns the same occurrence.
+  Canonical format 27/vocabulary 29, independent verification, interpretation,
+  and fixed-fuel derivation preserve that transfer; the result and its claims
+  become live only after successful callee return, and crash produces neither.
+  Bodyless results, projections, local staging, multiple claims, and native
+  aggregate ABI lowering remain fenced. Before admitting projected linear
+  calls, replace the verifier's affine-only moved-field bookkeeping with one
+  multiplicity-independent partial-custody frontier so a projected linear move
+  cannot leave an untracked sibling debt or permit a duplicate move. The exact
+  root-only source passthrough now produces a
   structural result/return carrier with claim transfer, exit-time content
   replay, interpretation, and fuel. Omega preserves that carrier through the
   exact one-fragment native ABI path and all artifact/install layers, with claim
@@ -4991,7 +5002,7 @@ Owners:
   structural parameter and call-argument rows carry a closed
   owned/shared/mutable/write-only access value independently of structural type
   identity. Real source proves shared forwarding and explicit mutable-to-write
-  attenuation across lowering, canonical format 26 encoding/decoding, and
+  attenuation across lowering, canonical format 27 encoding/decoding, and
   independent verification. The Terminal verifier rejects argument/target
   access disagreement, access not supplied by the source place, overlapping
   exclusive arguments, and structural Boolean observation through write-only
