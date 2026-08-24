@@ -891,6 +891,12 @@ This is the same proof shape as a library import:
 - The build artifact records the exact selected realization, normalized
   binding, admission receipt, and provider-plan identity.
 
+An accepted bodyless boundary guarantee is therefore a separate blocking trust
+row in package review, not merely another callable API shape. Initial admission
+and a newly introduced package require an exact root-policy decision for that
+row. An unchanged accepted baseline remains visible without a recurring
+blanket-approval prompt. A claim-free boundary declaration emits no such row.
+
 `via` bindings are the external-provider supply form of otherwise ordinary
 machines. Raw syscall numbers, imported DLL functions, firmware jumps,
 compiler intrinsics, and instruction leaves are binding details; sequences,

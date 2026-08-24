@@ -637,10 +637,13 @@ Binary or non-UTF-8 changes are commitment-visible but model-incomplete and
 therefore require standalone audit. Byte escaping protects the packet grammar,
 not the model from semantic instructions embedded in reviewed code. The
 review-input join now requires the complete candidate custody and compiler rows
-to agree bijectively on exact key and immutable resolution, validates each
-recovered baseline custody against its compiler row, and derives unavailable
-old source from absence. Its aggregate ceiling preserves separate compiler and
-hostile-source frames. Invoking a model remains future work. Model output is
+to agree bijectively on exact key and immutable resolution. A shared validator
+also rejects duplicate reviews, package/projection identity mismatch, mixed
+deployment targets, and mixed compiler-executable commitments before either
+capability comparison or source rendering. Recovered baseline custody is
+validated against its compiler row, and unavailable old source is derived from
+absence. Its aggregate ceiling preserves separate compiler and hostile-source
+frames. Invoking a model remains future work. Model output is
 policy advice, never package evidence or proof of review.
 
 ## Package admission projection
@@ -886,6 +889,10 @@ nominal identities, never from package-controlled names.
 The same callable row retains the exact checked-body, boundary, or accepted
 supply tier and canonical entry signature. A bodyless boundary guarantee is an
 explicit trust-bearing accepted claim; a claim-free boundary symbol is not.
+The compiler also emits one distinct blocking accepted-claim row carrying that
+callable's complete published envelope and exact declaration provenance.
+Initial or newly introduced trust requires exact root-policy resolution;
+unchanged accepted evidence does not become a recurring blanket prompt.
 The signature includes lifetime arity, alpha-normalized type/const binders,
 ordered parameter names and modes,
 package-qualified lifetime-sensitive parameter types, and result type. This is

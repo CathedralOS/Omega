@@ -2,7 +2,10 @@ use crate::{
     CompilerIssuedPackageReview, CompilerIssuedPackageReviewSet, PackageKey,
     capability_conflict::changed_review_risk,
 };
-use omega_compiler::{PackageReviewCanonicalRowRisk, PackageReviewDangerousAuthorityClass};
+use omega_compiler::{
+    PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk,
+    PackageReviewDangerousAuthorityClass,
+};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
@@ -30,6 +33,7 @@ pub enum PackageTriageReason {
     CompilerArtifactChanged,
     BuildObservationChanged,
     RepresentationTcbIntroducedOrChanged,
+    AcceptedClaimRequiresResolution,
     RetainedDangerousAuthority(PackageReviewDangerousAuthorityClass),
 }
 
@@ -154,12 +158,15 @@ pub fn triage_initial_install(candidate: &CompilerIssuedPackageReviewSet) -> Com
             .iter()
             .map(|review| {
                 let mut reasons = vec![PackageTriageReason::InitialAdmission];
+                let blocking = append_candidate_blocking_reasons(review, &mut reasons);
                 let recommendation = append_candidate_audit_reasons(review, true, &mut reasons);
                 PackageTriageDecision {
                     package_name: review.key().name().as_str().to_owned(),
                     baseline_key: None,
                     candidate_key: Some(review.key().clone()),
-                    disposition: if recommendation {
+                    disposition: if blocking {
+                        PackageTriageDisposition::BlockedCapabilityChange
+                    } else if recommendation {
                         PackageTriageDisposition::AdmittedWithAuditRecommended
                     } else {
                         PackageTriageDisposition::Admitted
@@ -289,6 +296,7 @@ fn decide_update(
             if unavailable_baseline_sources.contains(baseline.key()) {
                 reasons.push(PackageTriageReason::BaselineSourceUnavailable);
             }
+            append_candidate_blocking_reasons(candidate, &mut reasons);
             append_candidate_audit_reasons(candidate, true, &mut reasons);
             PackageTriageDisposition::BlockedProvenanceChange
         }
@@ -338,8 +346,11 @@ fn decide_update(
         }
         (None, Some(candidate)) => {
             reasons.push(PackageTriageReason::NewTransitivePackage);
+            let blocking = append_candidate_blocking_reasons(candidate, &mut reasons);
             let recommendation = append_candidate_audit_reasons(candidate, true, &mut reasons);
-            if recommendation {
+            if blocking {
+                PackageTriageDisposition::BlockedCapabilityChange
+            } else if recommendation {
                 PackageTriageDisposition::AdmittedWithAuditRecommended
             } else {
                 PackageTriageDisposition::Admitted
@@ -357,6 +368,22 @@ fn decide_update(
         candidate_key: candidate.map(|review| review.key().clone()),
         disposition,
         reasons,
+    }
+}
+
+fn append_candidate_blocking_reasons(
+    candidate: &CompilerIssuedPackageReview,
+    reasons: &mut Vec<PackageTriageReason>,
+) -> bool {
+    if candidate
+        .canonical_rows()
+        .iter()
+        .any(|row| row.kind() == PackageReviewCanonicalRowKind::AcceptedClaim)
+    {
+        reasons.push(PackageTriageReason::AcceptedClaimRequiresResolution);
+        true
+    } else {
+        false
     }
 }
 
@@ -447,6 +474,9 @@ const fn reason_token(reason: PackageTriageReason) -> &'static str {
         PackageTriageReason::RepresentationTcbIntroducedOrChanged => {
             "representation_tcb_introduced_or_changed"
         }
+        PackageTriageReason::AcceptedClaimRequiresResolution => {
+            "accepted_claim_requires_resolution"
+        }
         PackageTriageReason::RetainedDangerousAuthority(
             PackageReviewDangerousAuthorityClass::Filesystem,
         ) => "retained_dangerous_authority_filesystem",
@@ -510,6 +540,10 @@ mod tests {
                 PackageReviewDangerousAuthorityClass::Process,
             )),
             "retained_dangerous_authority_process"
+        );
+        assert_eq!(
+            reason_token(PackageTriageReason::AcceptedClaimRequiresResolution),
+            "accepted_claim_requires_resolution"
         );
         assert_eq!(
             reason_token(PackageTriageReason::RepresentationTcbIntroducedOrChanged),

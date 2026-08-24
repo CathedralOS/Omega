@@ -778,7 +778,7 @@ crashes Abort
         target,
         "review identity must retain the deployment profile, not only its native ABI",
     );
-    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 31);
+    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 32);
     assert_eq!(PACKAGE_REVIEW_ROW_ENCODING_VERSION, 1);
     let [ready] = review.public_domains() else {
         panic!("one package-owned public domain row")
@@ -1052,8 +1052,48 @@ machine build(builder: &mut Build) { }
         **right,
         PackageReviewContractExpression::Integer("0".to_owned())
     );
+    let zero_rows = zero.canonical_rows().expect("zero claim rows");
+    let accepted_claims = zero_rows
+        .iter()
+        .filter(|row| row.kind() == PackageReviewCanonicalRowKind::AcceptedClaim)
+        .collect::<Vec<_>>();
+    let [accepted_claim] = accepted_claims.as_slice() else {
+        panic!("one explicit accepted-claim row")
+    };
+    assert_eq!(
+        accepted_claim.risk(),
+        PackageReviewCanonicalRowRisk::Blocking
+    );
+    assert!(
+        accepted_claim
+            .key_bytes()
+            .windows("trusted_zero".len())
+            .any(|window| window == b"trusted_zero")
+    );
+    let [claim_location] = accepted_claim
+        .source()
+        .authored_locations()
+        .expect("accepted claim declaration source")
+    else {
+        panic!("one accepted claim declaration location")
+    };
+    assert_eq!(claim_location.relative_path(), "main.omg");
+    assert_eq!(
+        claim_location.role(),
+        PackageReviewSourceLocationRole::Declaration
+    );
 
     let one = compile_claim(1);
+    let one_rows = one.canonical_rows().expect("one claim rows");
+    let one_claim = one_rows
+        .iter()
+        .find(|row| row.kind() == PackageReviewCanonicalRowKind::AcceptedClaim)
+        .expect("changed accepted claim row");
+    assert_ne!(
+        accepted_claim.canonical_bytes(),
+        one_claim.canonical_bytes(),
+        "changing an accepted guarantee must change its trust-bearing row",
+    );
     assert_ne!(
         zero.canonical_review_bytes().expect("zero claim encoding"),
         one.canonical_review_bytes().expect("one claim encoding"),
@@ -1095,6 +1135,14 @@ machine build(builder: &mut Build) { }
         psi_language_semantics::MachineSupplyMode::Boundary
     );
     assert!(boundary.contracts().is_empty());
+    assert!(
+        review
+            .canonical_rows()
+            .expect("claim-free boundary rows")
+            .iter()
+            .all(|row| row.kind() != PackageReviewCanonicalRowKind::AcceptedClaim),
+        "claim-free boundary supply must not emit accepted-claim evidence"
+    );
 }
 
 #[test]
@@ -2425,7 +2473,7 @@ invokes waiting;
 }
 
 #[test]
-fn exact_synchronous_invocations_change_v31_comparison_encoding() {
+fn exact_synchronous_invocations_change_v32_comparison_encoding() {
     let quiet = TempPackage::new();
     let invoking = TempPackage::new();
     quiet.write(
@@ -2615,7 +2663,7 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
-fn public_data_and_numbered_wire_shape_changes_change_v31_comparison_encoding() {
+fn public_data_and_numbered_wire_shape_changes_change_v32_comparison_encoding() {
     let first = TempPackage::new();
     let second = TempPackage::new();
     first.write(
@@ -2649,7 +2697,7 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
-fn public_domain_shape_changes_change_v31_comparison_encoding() {
+fn public_domain_shape_changes_change_v32_comparison_encoding() {
     let first = TempPackage::new();
     let second = TempPackage::new();
     first.write(
