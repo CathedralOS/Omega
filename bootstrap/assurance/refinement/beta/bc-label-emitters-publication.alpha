@@ -1,0 +1,57 @@
+; Final Checker-E publication for the exact label/string/comparison emitter
+; family.  This join imports no Checker-A/C/D process-local theorem: every
+; prerequisite above was rebuilt after EROOT in this checker.  Requiring each
+; public relation here makes the family token a consequence of the complete
+; ordered chain rather than a write-only marker. Public cell 534880 = E5PK.
+
+label_emitters_publication_init:
+        imm r1, 534880
+        imm r2, 0
+        store r1, r2
+        call label_emitters_require_public_family
+        imm r1, 534880
+        imm r2, 1263547717           ; E5PK
+        store r1, r2
+        imm r20, 534880
+        imm r21, 1263547717
+        call exact_require_cell
+        jmp scan_owned_effects_init
+
+label_emitters_require_public_family:
+        imm r20, 534800
+        imm r21, 1163022164           ; EROOT
+        call exact_require_cell
+        imm r20, 525816
+        imm r21, 1465074514           ; WSTR
+        call exact_require_cell
+        imm r20, 532560
+        imm r21, 1464026436           ; DECW
+        call exact_require_cell
+        imm r20, 534808
+        imm r21, 1094994008           ; ADVX
+        call exact_require_cell
+        imm r20, 534816
+        imm r21, 1398231896           ; SWSX
+        call exact_require_cell
+        imm r20, 534824
+        imm r21, 1481660485           ; EXPX
+        call exact_require_cell
+        imm r20, 534832
+        imm r21, 1279413326           ; NLBL
+        call exact_require_cell
+        imm r20, 534840
+        imm r21, 1178948172           ; LREF
+        call exact_require_cell
+        imm r20, 534848
+        imm r21, 1112691795           ; STRB
+        call exact_require_cell
+        imm r20, 534856
+        imm r21, 1397572935           ; GEMS
+        call exact_require_cell
+        imm r20, 534864
+        imm r21, 1347240773           ; ECMP
+        call exact_require_cell
+        imm r20, 534872
+        imm r21, 1                    ; exact useful code 0..5 subrelation
+        call exact_require_cell
+        ret

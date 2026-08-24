@@ -1,0 +1,15 @@
+; Continue Checker E from independently rebuilt WSTR into the cursor leaves.
+; This tranche is conditional on the same exact successful source segment used
+; by the cursor theorems; it does not import a dynamic Checker-A slurp result.
+
+bc_post_write_str:
+        imm r20, 534800
+        imm r21, 1163022164           ; EROOT
+        call exact_require_cell
+        imm r20, 525816
+        imm r21, 1465074514           ; WSTR
+        call exact_require_cell
+        imm r1, 525744
+        imm r2, 1                    ; conditional successful source segment
+        store r1, r2
+        jmp cursor_leaf_summary_init

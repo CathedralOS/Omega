@@ -38,6 +38,20 @@ trap 'rm -rf "$T"' EXIT
 . "$GATE_DIR/bc-lookup-teeth.sh"
 . "$GATE_DIR/bc-bounded-emitters-teeth.sh"
 . "$GATE_DIR/bc-emit-dec-word-teeth.sh"
+. "$GATE_DIR/bc-label-emitters-teeth.sh"
+
+bc_timing_start() { # phase
+  BC_TIMING_PHASE=$1
+  BC_TIMING_STARTED=$(date +%s)
+}
+
+bc_timing_finish() {
+  BC_TIMING_FINISHED=$(date +%s)
+  BC_TIMING_SECONDS=$((BC_TIMING_FINISHED - BC_TIMING_STARTED))
+  echo "bc timing: $BC_TIMING_PHASE ${BC_TIMING_SECONDS}s"
+}
+
+bc_timing_start setup-and-witnesses
 
 # The persisted compiler supplies only a location hint.  Require its Alpha text
 # to assemble to the exact committed artifact before deriving that hint.
@@ -210,6 +224,7 @@ apply_tape_patch push-step
 apply_tape_patch push-stack-register
 apply_tape_patch push-value-register
 apply_tape_patch push-opcode
+bc_timing_finish
 
 emit_stack_checker_prefix() {
   cat "$GATE_DIR/bc-block-control.alpha" \
@@ -304,6 +319,80 @@ build_emit_dec_word_checker() {
     "$T/emit-dec-word-check" >/dev/null
 }
 
+label_emitters_require_module_budgets() {
+  for label_emitters_module in \
+    bc-cursor-tail-summary.alpha \
+    bc-label-core-shape.alpha \
+    bc-label-counter-summary.alpha \
+    bc-label-ref-summary.alpha \
+    bc-emit-str-body-shape.alpha \
+    bc-emit-str-body-cases.alpha \
+    bc-emit-str-body-summary.alpha \
+    bc-gen-emit-shape.alpha \
+    bc-gen-emit-summary.alpha \
+    bc-emit-cmp-control-shape.alpha \
+    bc-emit-cmp-data-shape.alpha \
+    bc-emit-cmp-cases.alpha \
+    bc-emit-cmp-summary.alpha \
+    bc-label-emitters-publication.alpha
+  do
+    label_emitters_module_bytes=$(wc -c < "$GATE_DIR/$label_emitters_module" | tr -d ' ')
+    if [ "$label_emitters_module_bytes" -ge 20000 ]; then
+      echo "bc block control FAIL — $label_emitters_module is ${label_emitters_module_bytes} bytes (20KB module cap)" >&2
+      exit 1
+    fi
+  done
+}
+
+build_label_emitters_checker() {
+  label_emitters_require_module_budgets
+  {
+    emit_stack_checker_prefix
+    cat "$GATE_DIR/bc-post-stack-label-emitters.alpha" \
+      "$GATE_DIR/bc-exact-shape-helpers.alpha" \
+      "$GATE_DIR/bc-write-str-summary.alpha" \
+      "$GATE_DIR/bc-post-write-str-label-emitters.alpha" \
+      "$GATE_DIR/bc-cursor-leaf-summary.alpha" \
+      "$GATE_DIR/bc-skip-ws-summary.alpha" \
+      "$GATE_DIR/bc-post-skip-ws-label-emitters.alpha" \
+      "$GATE_DIR/bc-expect-shape.alpha" \
+      "$GATE_DIR/bc-expect-summary.alpha" \
+      "$GATE_DIR/bc-post-expect-label-emitters.alpha" \
+      "$GATE_DIR/bc-emit-dec-shape.alpha" \
+      "$GATE_DIR/bc-emit-dec-word-domain.alpha" \
+      "$GATE_DIR/bc-emit-dec-word-summary.alpha" \
+      "$GATE_DIR/bc-emit-dec-word-label-publication.alpha" \
+      "$GATE_DIR/bc-cursor-tail-summary.alpha" \
+      "$GATE_DIR/bc-label-core-shape.alpha" \
+      "$GATE_DIR/bc-label-counter-summary.alpha" \
+      "$GATE_DIR/bc-label-ref-summary.alpha" \
+      "$GATE_DIR/bc-emit-str-body-shape.alpha" \
+      "$GATE_DIR/bc-emit-str-body-cases.alpha" \
+      "$GATE_DIR/bc-emit-str-body-summary.alpha" \
+      "$GATE_DIR/bc-gen-emit-shape.alpha" \
+      "$GATE_DIR/bc-gen-emit-summary.alpha" \
+      "$GATE_DIR/bc-emit-cmp-control-shape.alpha" \
+      "$GATE_DIR/bc-emit-cmp-data-shape.alpha" \
+      "$GATE_DIR/bc-emit-cmp-cases.alpha" \
+      "$GATE_DIR/bc-emit-cmp-summary.alpha" \
+      "$GATE_DIR/bc-label-emitters-publication.alpha"
+  } > "$T/label-emitters-check.alpha"
+  label_emitters_checker_source_bytes=$(wc -c < "$T/label-emitters-check.alpha" | tr -d ' ')
+  if [ "$label_emitters_checker_source_bytes" -ge 900000 ]; then
+    echo "bc block control FAIL — Checker E source is ${label_emitters_checker_source_bytes} bytes (900KB budget)" >&2
+    exit 1
+  fi
+  "$ASM" < "$T/label-emitters-check.alpha" > "$T/label-emitters-check.tape"
+  python3 "$OMEGA_PATH_ALPHA_ASSEMBLER/asm_ref.py" \
+    < "$T/label-emitters-check.alpha" > "$T/label-emitters-check-ref.tape"
+  if ! cmp -s "$T/label-emitters-check.tape" "$T/label-emitters-check-ref.tape"; then
+    echo "bc block control FAIL — Checker E assembler diamond disagrees" >&2
+    exit 1
+  fi
+  stamp_seed "$T/label-emitters-check.tape" "$SEED" \
+    "$T/label-emitters-check" >/dev/null
+}
+
 smoke_name_eq_checker() {
   set +e
   "$T/name-eq-check" < "$T/control.bundle" > "$T/stdout"
@@ -348,13 +437,39 @@ smoke_emit_dec_word_checker() {
   fi
 }
 
+smoke_label_emitters_checker() {
+  set +e
+  "$T/label-emitters-check" < "$T/control.bundle" > "$T/stdout"
+  label_emitters_smoke_status=$?
+  set -e
+  if [ "$label_emitters_smoke_status" != 0 ] || [ -s "$T/stdout" ]; then
+    echo "bc block control FAIL — label emitters canonical smoke: expected 0/empty, got $label_emitters_smoke_status/$(wc -c < "$T/stdout" | tr -d ' ') bytes" >&2
+    exit 1
+  fi
+}
+
+# Checker E independently rebuilds WSTR/cursor/expect/full-Word DECW before
+# composing the label, string-body, gen_emit, and comparison emitter family.
+if [ "${BC_BLOCK_FOCUS:-}" = label-emitters ]; then
+  bc_timing_start label-emitters-focus
+  build_label_emitters_checker
+  smoke_label_emitters_checker
+  label_emitters_build_teeth
+  label_emitters_reject_teeth
+  bc_timing_finish
+  echo "bc label emitters: focused canonical + 36 phase-isolated teeth passed ($(wc -c < "$T/label-emitters-check.tape" | tr -d ' ')-byte checker tape)"
+  exit 0
+fi
+
 # Checker D independently re-executes exact procedure-40 shape and proves the
 # honest signed full-Word relation without importing bounded DECS.
 if [ "${BC_BLOCK_FOCUS:-}" = emit-dec-word ]; then
+  bc_timing_start emit-dec-word-focus
   build_emit_dec_word_checker
   smoke_emit_dec_word_checker
   emit_dec_word_build_teeth
   emit_dec_word_reject_teeth
+  bc_timing_finish
   echo "bc emit_dec Word: focused canonical + 36 phase-isolated teeth passed ($(wc -c < "$T/emit-dec-word-check.tape" | tr -d ' ')-byte checker tape)"
   exit 0
 fi
@@ -362,21 +477,25 @@ fi
 # The name_eq focus is an independent tranche: it deliberately skips Checker A
 # and imports no process-local theorem cells from it.
 if [ "${BC_BLOCK_FOCUS:-}" = name-eq ]; then
+  bc_timing_start name-eq-focus
   build_name_eq_checker
   smoke_name_eq_checker
   checker_split_build_name_tooth
   name_eq_build_teeth
   checker_split_reject_name_tooth
   name_eq_reject_teeth
+  bc_timing_finish
   echo "bc name_eq: focused canonical + 32 phase-isolated teeth passed ($(wc -c < "$T/name-eq-check.tape" | tr -d ' ')-byte checker tape)"
   exit 0
 fi
 
 if [ "${BC_BLOCK_FOCUS:-}" = lookup ]; then
+  bc_timing_start lookup-focus
   build_lookup_checker
   smoke_lookup_checker
   lookup_build_teeth
   lookup_reject_teeth
+  bc_timing_finish
   echo "bc lookup: focused canonical + 35 phase-isolated teeth passed ($(wc -c < "$T/lookup-check.tape" | tr -d ' ')-byte checker tape)"
   exit 0
 fi
@@ -384,21 +503,33 @@ fi
 # Checker C independently re-executes the lower-rooted WSTR, cursor/expect,
 # and bounded-DECS prerequisites.  Its focus never constructs Checker A or B.
 if [ "${BC_BLOCK_FOCUS:-}" = bounded-emitters ]; then
+  bc_timing_start bounded-emitters-focus
   build_bounded_emitters_checker
   smoke_bounded_emitters_checker
   bounded_emitters_build_teeth
   bounded_emitters_reject_teeth
+  bc_timing_finish
   echo "bc bounded emitters: focused canonical + 52 phase-isolated teeth passed ($(wc -c < "$T/bounded-emitters-check.tape" | tr -d ' ')-byte checker tape)"
   exit 0
 fi
 
-# The unfocused gate closes Checker D before constructing near-capacity
+# The unfocused gate closes Checkers D and E before constructing near-capacity
 # Checker A or either earlier independent checker tranche.
+bc_timing_start emit-dec-word-tranche
 build_emit_dec_word_checker
 smoke_emit_dec_word_checker
 emit_dec_word_build_teeth
 emit_dec_word_reject_teeth
+bc_timing_finish
 
+bc_timing_start label-emitters-tranche
+build_label_emitters_checker
+smoke_label_emitters_checker
+label_emitters_build_teeth
+label_emitters_reject_teeth
+bc_timing_finish
+
+bc_timing_start checker-a-canonical
 cat "$GATE_DIR/bc-block-control.alpha" \
   "$GATE_DIR/bc-effect-sites.alpha" \
   "$GATE_DIR/bc-frame-shape.alpha" \
@@ -484,6 +615,7 @@ if [ "$control_smoke_status" != 0 ] || [ -s "$T/stdout" ]; then
   echo "bc block control FAIL — canonical proof smoke: expected 0/empty, got $control_smoke_status/$(wc -c < "$T/stdout" | tr -d ' ') bytes" >&2
   exit 1
 fi
+bc_timing_finish
 
 # Focused development mode avoids the historical mutation matrix while still
 # using the exact canonical source/artifact bundle and every prerequisite proof.
@@ -524,6 +656,7 @@ esac
 
 # The unfocused historical gate closes both independent tranches before
 # constructing either tranche's mutation family.
+bc_timing_start independent-historical-tranches
 build_name_eq_checker
 smoke_name_eq_checker
 build_lookup_checker
@@ -540,6 +673,9 @@ checker_split_reject_name_tooth
 name_eq_reject_teeth
 lookup_build_teeth
 lookup_reject_teeth
+bc_timing_finish
+
+bc_timing_start checker-a-historical-mutations
 
 # Phase-isolated fixed-load tooth: keep the exact source, artifact, witness,
 # grammar counts, and every prior phase unchanged while omitting one load-class
@@ -1715,5 +1851,7 @@ for mutation in call-retarget read-register write-register helper-write emit-byt
   fi
 done
 
+bc_timing_finish
+
 echo "bc block control/effects: 70 proc / 355 block / 291 transition; 613 effect sites / 829 fixed emit bytes; 113 __write_str calls instantiated from one length-ranked exact-output summary; main.ready composes emit_prelude/write_str/skip_ws into the exact 187-byte prefix, then a reusable main.loop split sends normalized zero to halt(0) and nonzero to main.body without consuming it; byte classifiers digit/alpha/alnum are exact over all 256 cbyte values, terminating read_ident returns their maximal prefix, parse_number returns the exact maximal digit fold modulo 2^64 after same-cursor observations and one-byte ranked steps, parse_char exhausts ordinary/escape byte mappings with exact bounded malformed-tail cursor outcomes and no closing-quote premise, is_muldiv/is_addsub are total quiet Word predicates for */% and +-, cmp_op returns exact operator codes/deltas including restored single = and unchecked ADVX-bounded ! tail, and nine fixed keyword recognizers return one exactly on their bounded identifier spellings with length-first/first-mismatch short circuit; id_char/is_let recognize the exact let slice, literal skippers terminate honestly through bounded malformed tails, count_lets terminates with exact nested-body let count and restored entry CUR, the bounded parse_proc parameter loop records at most four exact slices or returns numeric 252 before output, pdone composes nparams+count_lets without wrap and reaches slotsready at <=1024 or returns numeric 252 before output, fixed-decimal emitter summaries append exact bounded prologue and parameter-store text, and the PCAP bridge composes saved name/nslots/nparams through the exact at-most-four store loop to genbody; procedure62's root-independent boundary closes depth64/resource/close/zero returns and the unexecuted gen_stmt cutpoint; nonzero expect normalizes then conditionally consumes one delimiter, and declare either appends the identifier slot or records numeric status 252 at capacity; cbyte/adv/is_space leaf summaries compose through terminating skip_ws_step/skip_ws loops; 78 frame slots / 27 parameter stores / 134 call pops; 169 local loads / 73 local stores; 61 raw loads = 54 fixed-safe + 5 SRC-indexed + 2 table-indexed / 34 raw stores; cursor-zero slurp segment/value/termination summary composed from root through main.ready or halt(253); 581 literals / 55 arithmetic / 180 comparison primitives; 235 binary / 134 argument / 34 store-address pushes; syntax-directed composition / relative temporary peak 2; three ranged Alpha operands transferred; all 607 stores partitioned / 70 call-cut frames summarized; 64-row counter contexts; absolute B_bc1 stack <=12720 explicit bytes / <=662 hidden returns; all 2630 explicit-stack effects and 687 artifact effects owned ($(wc -c < "$T/control-check.tape" | tr -d ' ')-byte Alpha checker tape)"
-echo "bc independent conditional tranches: name_eq, lookup, and eight bounded emitters passed their canonical and phase-isolated mutation gates"
+echo "bc independent conditional tranches: name_eq, lookup, eight bounded emitters, full-Word emit_dec, and the label/string/comparison emitter family passed canonical and phase-isolated mutation gates"

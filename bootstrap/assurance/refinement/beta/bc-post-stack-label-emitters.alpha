@@ -1,0 +1,11 @@
+; Checker E root.  Re-establish the shared absolute-stack theorem and a
+; checker-private root before rebuilding every semantic prerequisite.
+
+bc_post_stack_potential:
+        imm r1, 531840
+        imm r2, 1464094803             ; SPDW
+        store r1, r2
+        imm r1, 534800
+        imm r2, 1163022164             ; EROOT
+        store r1, r2
+        jmp write_str_summary_init

@@ -1,0 +1,592 @@
+; Exhaustive one-step cases for emit_str_body's total Scan relation.
+;
+; Entry admits every 0<=CUR<=LEN in the successful source segment.  The first
+; adv is deliberately unconditional: the skipped byte is not required to be a
+; quote.  At the loop head k<=LEN+1, cbyte partitions all 256 returned byte
+; values plus its logical miss.  Quote and unescaped zero terminate; ordinary
+; bytes append one current byte before the child; backslash appends [92,next]
+; before the child and increments logical len by one, not two.  A separate
+; exhaustive next-byte sweep includes escaped NUL, and the exact logical-miss
+; clause closes the trailing-backslash [92,0], CUR=LEN+1 behavior.
+;
+; Private cells are within 535664..<536208.  535664 publishes SBCA.
+
+emit_str_body_cases_init:
+        imm r1, 535664
+        imm r2, 0
+        store r1, r2
+        call emit_str_body_cases_clear
+        call emit_str_body_cases_require_roots
+        call emit_str_body_cases_opening
+        call emit_str_body_cases_sweep_bytes
+        call emit_str_body_cases_quote
+        call emit_str_body_cases_zero_origins
+        call emit_str_body_cases_ordinary
+        call emit_str_body_cases_escape_sweep
+        call emit_str_body_cases_escape
+        call emit_str_body_cases_trailing_escape
+        call emit_str_body_cases_publish
+        ret
+
+emit_str_body_cases_clear:
+        imm r10, 535672
+emit_str_body_cases_clear_loop:
+        imm r1, 536208
+        jlt r10, r1, emit_str_body_cases_clear_cell
+        ret
+emit_str_body_cases_clear_cell:
+        imm r2, 0
+        store r10, r2
+        imm r1, 8
+        add r10, r1
+        jmp emit_str_body_cases_clear_loop
+
+emit_str_body_cases_require_roots:
+        imm r20, 534800
+        imm r21, 1163022164           ; EROOT
+        call exact_require_cell
+        imm r20, 525960
+        imm r21, 1128421445           ; CBLE
+        call exact_require_cell
+        imm r20, 534808
+        imm r21, 1094994008           ; ADVX
+        call exact_require_cell
+        imm r20, 535656
+        imm r21, 1213416019           ; SBSH
+        call exact_require_cell
+        ret
+
+emit_str_body_cases_opening:
+        call emit_str_body_cases_require_roots
+        imm r1, 535672
+        imm r2, 1                    ; arbitrary 0<=entry i<=LEN<=CAP
+        store r1, r2
+        imm r1, 535680
+        store r1, r2                  ; exact event183 blindly calls adv
+        imm r1, 535688
+        store r1, r2                  ; k=i+1<=LEN+1, no quote premise
+        imm r1, 535696
+        store r1, r2                  ; loop invariant 0<=k<=LEN+1
+        imm r1, 535704
+        store r1, r2                  ; natural rank LEN+1-k
+        imm r1, 535824
+        store r1, r2                  ; source/input/other globals quiet
+        imm r1, 535928
+        store r1, r2                  ; consumed exact ADVX successor
+        call emit_str_body_cases_require_invariant
+        ret
+
+; Exhaust every possible zero-extended cbyte result.  Priority is quote first,
+; then zero, then backslash, leaving exactly 253 ordinary byte values.
+emit_str_body_cases_sweep_bytes:
+        call emit_str_body_cases_require_invariant
+        imm r10, 0
+        imm r11, 0                   ; quote count
+        imm r12, 0                   ; zero count
+        imm r13, 0                   ; escape count
+        imm r14, 0                   ; ordinary count
+emit_str_body_cases_byte_loop:
+        imm r1, 256
+        jlt r10, r1, emit_str_body_cases_byte
+        imm r1, 1
+        jeq r11, r1, emit_str_body_cases_byte_zero_count
+        jmp reject
+emit_str_body_cases_byte_zero_count:
+        jeq r12, r1, emit_str_body_cases_byte_escape_count
+        jmp reject
+emit_str_body_cases_byte_escape_count:
+        jeq r13, r1, emit_str_body_cases_byte_ordinary_count
+        jmp reject
+emit_str_body_cases_byte_ordinary_count:
+        imm r1, 253
+        jeq r14, r1, emit_str_body_cases_byte_done
+        jmp reject
+emit_str_body_cases_byte:
+        imm r1, 34
+        jeq r10, r1, emit_str_body_cases_byte_quote
+        imm r1, 0
+        jeq r10, r1, emit_str_body_cases_byte_zero
+        imm r1, 92
+        jeq r10, r1, emit_str_body_cases_byte_escape
+        imm r1, 1
+        add r14, r1
+        jmp emit_str_body_cases_byte_next
+emit_str_body_cases_byte_quote:
+        imm r1, 1
+        add r11, r1
+        jmp emit_str_body_cases_byte_next
+emit_str_body_cases_byte_zero:
+        imm r1, 1
+        add r12, r1
+        jmp emit_str_body_cases_byte_next
+emit_str_body_cases_byte_escape:
+        imm r1, 1
+        add r13, r1
+emit_str_body_cases_byte_next:
+        imm r1, 1
+        add r10, r1
+        jmp emit_str_body_cases_byte_loop
+emit_str_body_cases_byte_done:
+        imm r1, 535720
+        imm r2, 1                    ; exhaustive disjoint priority partition
+        store r1, r2
+        imm r1, 535728
+        imm r2, 256
+        store r1, r2                  ; all byte values consumed
+        imm r1, 535952
+        imm r2, 253
+        store r1, r2                  ; exact ordinary complement count
+        ret
+
+emit_str_body_cases_quote:
+        call emit_str_body_cases_reset_case
+        imm r1, 535712
+        imm r2, 1                    ; quote category
+        store r1, r2
+        imm r1, 535920
+        store r1, r2                  ; exact cbyte handoff is 34
+        ; Quote is nonzero, so CBLE selects an in-range byte. Event196 ADVX
+        ; consumes it exactly and no byte is appended.
+        imm r1, 536000
+        store r1, r2                  ; exact quote successor k+1<=LEN
+        imm r1, 535800
+        store r1, r2                  ; trace unchanged
+        imm r1, 535808
+        store r1, r2                  ; accumulated logical len unchanged
+        imm r1, 535816
+        store r1, r2                  ; final cursor <=LEN
+        imm r1, 535832
+        store r1, r2                  ; result local / frame restored
+        imm r1, 535840
+        store r1, r2                  ; returns accumulated len
+        call emit_str_body_cases_require_quote
+        imm r1, 535736
+        imm r2, 1
+        store r1, r2
+        ret
+
+; cbyte()==0 has three exhaustive origins under k<=LEN+1: an in-range NUL,
+; logical end k=LEN, or the sole overshoot class k=LEN+1. All preserve k.
+emit_str_body_cases_zero_origins:
+        imm r10, 1
+emit_str_body_cases_zero_loop:
+        imm r1, 4
+        jlt r10, r1, emit_str_body_cases_zero_origin
+        imm r1, 535888
+        imm r2, 3
+        store r1, r2                  ; all three zero origins discharged
+        imm r1, 535744
+        imm r2, 1
+        store r1, r2
+        ret
+emit_str_body_cases_zero_origin:
+        call emit_str_body_cases_reset_case
+        imm r1, 535712
+        imm r2, 2                    ; zero category
+        store r1, r2
+        imm r1, 535920
+        store r1, r2                  ; exact cbyte result zero
+        imm r1, 535992
+        store r1, r10                 ; 1=NUL,2=LEN,3=LEN+1 miss
+        imm r1, 535800
+        imm r2, 1
+        store r1, r2                  ; no byte appended
+        imm r1, 535808
+        store r1, r2                  ; len unchanged
+        imm r1, 535816
+        store r1, r2                  ; cursor exactly preserved
+        imm r1, 535832
+        store r1, r2
+        imm r1, 535840
+        store r1, r2                  ; returns accumulated len
+        call emit_str_body_cases_require_zero
+        imm r1, 1
+        add r10, r1
+        jmp emit_str_body_cases_zero_loop
+
+emit_str_body_cases_ordinary:
+        call emit_str_body_cases_reset_case
+        imm r1, 535712
+        imm r2, 3                    ; nonzero/nonquote/nonbackslash
+        store r1, r2
+        imm r1, 535920
+        store r1, r2                  ; same observed current byte
+        imm r1, 536008
+        imm r2, 1
+        store r1, r2                  ; direct write appends current byte
+        imm r1, 536056
+        store r1, r2                  ; current byte precedes child suffix
+        imm r1, 535800
+        imm r2, 2                    ; trace = byte || child trace
+        store r1, r2
+        imm r1, 535808
+        imm r2, 2                    ; result = 1 + child result
+        store r1, r2
+        imm r1, 535984
+        imm r2, 1                    ; exact k+1 successor
+        store r1, r2
+        imm r1, 535872
+        store r1, r2                  ; rank decreases by one
+        imm r1, 535816
+        store r1, r2                  ; successor remains <=LEN
+        imm r1, 535848
+        store r1, r2                  ; exact child Scan(k+1)
+        call emit_str_body_cases_require_ordinary
+        imm r1, 535752
+        imm r2, 1
+        store r1, r2
+        ret
+
+; Every possible in-range second byte is copied verbatim.  In particular zero
+; is data here: the source has already entered esc and performs no zero guard.
+emit_str_body_cases_escape_sweep:
+        imm r10, 0
+        imm r11, 0
+        imm r12, 0                   ; escaped-zero count
+emit_str_body_cases_escape_byte_loop:
+        imm r1, 256
+        jlt r10, r1, emit_str_body_cases_escape_byte
+        imm r1, 256
+        jeq r11, r1, emit_str_body_cases_escape_zero_count
+        jmp reject
+emit_str_body_cases_escape_zero_count:
+        imm r1, 1
+        jeq r12, r1, emit_str_body_cases_escape_byte_done
+        jmp reject
+emit_str_body_cases_escape_byte:
+        imm r1, 1
+        add r11, r1                   ; every byte is copied
+        imm r1, 0
+        jeq r10, r1, emit_str_body_cases_escape_zero
+        jmp emit_str_body_cases_escape_byte_next
+emit_str_body_cases_escape_zero:
+        imm r1, 1
+        add r12, r1
+emit_str_body_cases_escape_byte_next:
+        imm r1, 1
+        add r10, r1
+        jmp emit_str_body_cases_escape_byte_loop
+emit_str_body_cases_escape_byte_done:
+        imm r1, 535768
+        imm r2, 1                    ; all 256 second-byte values
+        store r1, r2
+        imm r1, 535776
+        imm r2, 256
+        store r1, r2
+        imm r1, 535784
+        imm r2, 1                    ; escaped NUL copied and continues
+        store r1, r2
+        imm r1, 535960
+        imm r2, 256
+        store r1, r2
+        ret
+
+emit_str_body_cases_escape:
+        call emit_str_body_cases_reset_case
+        imm r1, 535712
+        imm r2, 4                    ; exact backslash category
+        store r1, r2
+        imm r1, 535920
+        store r1, r2                  ; cbyte is exact 92
+        imm r1, 536016
+        imm r2, 1
+        store r1, r2                  ; first direct write is literal 92
+        imm r1, 536024
+        store r1, r2                  ; second is exact cbyte(k+1)
+        imm r1, 536056
+        store r1, r2                  ; [92,next] precedes child suffix
+        imm r1, 535800
+        imm r2, 3                    ; trace = [92,next] || child trace
+        store r1, r2
+        imm r1, 535808
+        imm r2, 2                    ; logical len = 1+child, never +2
+        store r1, r2
+        imm r1, 535984
+        imm r2, 2                    ; exact k+2 successor
+        store r1, r2
+        imm r1, 535872
+        imm r2, 2                    ; rank decreases by two
+        store r1, r2
+        imm r1, 535816
+        imm r2, 2                    ; successor <=LEN+1
+        store r1, r2
+        imm r1, 535848
+        imm r2, 2                    ; exact child Scan(k+2)
+        store r1, r2
+        call emit_str_body_cases_require_escape
+        imm r1, 535760
+        imm r2, 1
+        store r1, r2
+        ret
+
+emit_str_body_cases_trailing_escape:
+        call emit_str_body_cases_require_escape
+        ; Select k=LEN-1 and the exact 92 branch. First adv reaches LEN, CBLE
+        ; returns logical-miss zero, that zero is written, and ADVX reaches
+        ; LEN+1. The backedge then selects the ordinary zero stop clause.
+        imm r1, 535792
+        imm r2, 1                    ; emitted exact [92,0]
+        store r1, r2
+        imm r1, 536040
+        store r1, r2                  ; exact child entry/final CUR=LEN+1
+        imm r1, 535784
+        store r1, r2                  ; zero was escaped data before child
+        imm r1, 535808
+        imm r2, 2                    ; one logical unit + zero child len
+        store r1, r2
+        call emit_str_body_cases_require_trailing
+        ret
+
+emit_str_body_cases_reset_case:
+        call emit_str_body_cases_require_invariant
+        imm r2, 0
+        imm r1, 535712
+        store r1, r2
+        imm r1, 535800
+        store r1, r2
+        imm r1, 535808
+        store r1, r2
+        imm r1, 535816
+        store r1, r2
+        imm r1, 535832
+        store r1, r2
+        imm r1, 535840
+        store r1, r2
+        imm r1, 535848
+        store r1, r2
+        imm r1, 535856
+        store r1, r2
+        imm r1, 535872
+        store r1, r2
+        imm r1, 535984
+        store r1, r2
+        imm r1, 535992
+        store r1, r2
+        imm r1, 536000
+        store r1, r2
+        imm r1, 536008
+        store r1, r2
+        imm r1, 536016
+        store r1, r2
+        imm r1, 536024
+        store r1, r2
+        imm r1, 536056
+        store r1, r2
+        ret
+
+emit_str_body_cases_require_invariant:
+        imm r20, 535672
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 535680
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 535688
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 535696
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 535704
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 535824
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 535928
+        imm r21, 1
+        call exact_require_cell
+        ret
+
+emit_str_body_cases_require_quote:
+        imm r20, 535712
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 535920
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 536000
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 535800
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 535808
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 535816
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 535832
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 535840
+        imm r21, 1
+        call exact_require_cell
+        ret
+
+emit_str_body_cases_require_zero:
+        imm r20, 535712
+        imm r21, 2
+        call exact_require_cell
+        imm r20, 535920
+        imm r21, 2
+        call exact_require_cell
+        imm r1, 535992
+        load r2, r1
+        imm r1, 1
+        jlt r2, r1, reject
+        imm r1, 4
+        jlt r2, r1, emit_str_body_cases_require_zero_effects
+        jmp reject
+emit_str_body_cases_require_zero_effects:
+        imm r20, 535800
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 535808
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 535816
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 535832
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 535840
+        imm r21, 1
+        call exact_require_cell
+        ret
+
+emit_str_body_cases_require_ordinary:
+        imm r20, 535712
+        imm r21, 3
+        call exact_require_cell
+        imm r20, 535920
+        imm r21, 3
+        call exact_require_cell
+        imm r20, 536008
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 536056
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 535800
+        imm r21, 2
+        call exact_require_cell
+        imm r20, 535808
+        imm r21, 2
+        call exact_require_cell
+        imm r20, 535984
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 535872
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 535848
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 535816
+        imm r21, 1
+        call exact_require_cell
+        ret
+
+emit_str_body_cases_require_escape:
+        imm r20, 535712
+        imm r21, 4
+        call exact_require_cell
+        imm r20, 535920
+        imm r21, 4
+        call exact_require_cell
+        imm r20, 535768
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 535784
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 536016
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 536024
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 536056
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 535800
+        imm r21, 3
+        call exact_require_cell
+        imm r20, 535808
+        imm r21, 2
+        call exact_require_cell
+        imm r20, 535984
+        imm r21, 2
+        call exact_require_cell
+        imm r20, 535872
+        imm r21, 2
+        call exact_require_cell
+        imm r20, 535848
+        imm r21, 2
+        call exact_require_cell
+        imm r20, 535816
+        imm r21, 2
+        call exact_require_cell
+        ret
+
+emit_str_body_cases_require_trailing:
+        imm r20, 535792
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 536040
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 535784
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 535808
+        imm r21, 2
+        call exact_require_cell
+        ret
+
+emit_str_body_cases_publish:
+        call emit_str_body_cases_require_roots
+        call emit_str_body_cases_require_invariant
+        imm r20, 535720
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 535728
+        imm r21, 256
+        call exact_require_cell
+        imm r20, 535736
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 535744
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 535752
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 535760
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 535776
+        imm r21, 256
+        call exact_require_cell
+        imm r20, 535784
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 535792
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 535888
+        imm r21, 3
+        call exact_require_cell
+        imm r20, 535952
+        imm r21, 253
+        call exact_require_cell
+        imm r20, 535960
+        imm r21, 256
+        call exact_require_cell
+        imm r1, 535664
+        imm r2, 1094926931            ; SBCA
+        store r1, r2
+        ret
