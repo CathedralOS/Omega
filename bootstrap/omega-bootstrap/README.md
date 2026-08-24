@@ -15,7 +15,9 @@ Delta bridge source ──[lattice-built Delta compiler]──▶ omega-bootstra
 
 `omega-bootstrap` may itself be conservatively built and may conservatively
 lower the product compiler. It must compile the `Ωself` source that implements
-the product optimizer and advanced lowering, but need not contain those passes.
+the product optimizer and advanced lowering, but the bridge need not implement
+or run those passes itself. It treats those modules as ordinary accepted input;
+the resulting production compiler contains and runs them on later compilations.
 A later product self-rebuild can optimize the compiler binary; it is optional
 assurance/performance work, not another rung.
 

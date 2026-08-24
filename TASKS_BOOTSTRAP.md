@@ -45,6 +45,18 @@ full Omega and contains the production optimizer and advanced lowering. A
 compiler does not need to use a language feature in order to implement that
 feature for its users.
 
+Do not collapse those two source choices into the three artifact obligations:
+
+| Artifact | Must accept | Must contain or produce |
+| --- | --- | --- |
+| lattice-built Delta compiler | Delta v1 | a correct `omega-bootstrap` executable from the exact Delta bridge closure |
+| `omega-bootstrap` | frozen `Ωself` | a semantically exact, possibly conservative production-compiler executable |
+| production `omega` | full Omega | the full optimizer, advanced lowering, and specified artifact behavior |
+
+The first production `omega` executable may be slow because of how
+`omega-bootstrap` generated it. That does not make its accepted language or
+the compiler implementation contained in it partial.
+
 Only the optional bracketed `omega` → `omega` edge is strict self-hosting. It
 may improve the compiler executable and add reproducibility evidence, but it is
 not a bootstrap dependency, language generation, or second implementation.
@@ -189,15 +201,18 @@ It does not admit those source families to `Ωself`; the private handoff remains
 bridge-local, and Terminal-Psi vocabulary work remains product work in
 `TASKS.md`.
 
-- [ ] Join the structurally checked multi-unit
-  [compilation envelope](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION.md)
-  to an independently accepted resolver/lock commitment and compare the exact
-  envelope SHA-256. Structural validity alone is never compilation authority.
 - [ ] Resolve logical modules, exact `use` paths, requester-local direct aliases,
   visibility, duplicate identities, authored-module agreement, the selected
   root, and deterministic semantic order from the accepted envelope and source
   bytes. Reject missing, private, transitive-only, ambiguous, or mismatched
   names without publishing checked IR.
+- [ ] Join the structurally checked multi-unit
+  [compilation envelope](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION.md)
+  to an independently accepted resolver/lock commitment and compare the exact
+  envelope SHA-256. Structural validity alone is never compilation authority.
+  This join blocks final artifact acceptance, not fixture-driven implementation
+  and testing of resolution, checking, or lowering against structurally valid
+  envelopes.
 - [ ] Close the first real two-package artifact by importing public nominal data
   into the selected call-free machine, then compare the exact CKIR and limited
   ELF through native, self-built, Rust-free meaning, and lower-rooted
@@ -228,6 +243,11 @@ optimize its own output, use production allocation machinery, or host unrelated
 product tools. The product optimizer and advanced lowering remain ordinary
 modules in that manifest; they are compiled into the resulting production
 compiler rather than reimplemented inside the bridge.
+
+Implementation may advance independently across transport, authority,
+resolution, checking/lowering, and artifact-refinement seams when their byte
+contracts are fixed. Acceptance joins all of them; progress in one seam must
+not be reported as authority for another.
 
 ### 3. Freeze `Ωself` at the completed bridge join
 
