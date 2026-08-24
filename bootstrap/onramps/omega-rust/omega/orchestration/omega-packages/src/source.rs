@@ -309,9 +309,24 @@ pub(crate) fn verify_package_source_snapshot(
     expected: &SourceContentDigest,
     limits: LocalSourceLimits,
 ) -> Result<(), SourceResolveError> {
+    capture_verified_package_source_snapshot(root, expected, limits).map(|_| ())
+}
+
+/// Capture the exact bytes already covered by package-source custody.
+///
+/// Review-only consumers use this after transport resolution so they never
+/// reopen a live checkout or infer a tree from package-authored ignore rules.
+/// The returned paths are the same raw, root-relative bytes used by source
+/// identity; every file and symlink payload has already participated in the
+/// expected content commitment.
+pub(crate) fn capture_verified_package_source_snapshot(
+    root: &Path,
+    expected: &SourceContentDigest,
+    limits: LocalSourceLimits,
+) -> Result<Vec<VerifiedPackageSourceEntry>, SourceResolveError> {
     verify_local_snapshot_modes(root)?;
-    let normalized = resolve_local_source(root, limits)?;
-    let actual = SourceContentDigest::derive(normalized.content_identity.as_bytes());
+    let captured = capture_local_source(root, limits, SourceTreePolicy::ExactMaterialized)?;
+    let actual = SourceContentDigest::derive(captured.normalized.content_identity.as_bytes());
     if &actual != expected {
         return Err(SourceResolveError::SourceSnapshotContentMismatch {
             path: root.to_path_buf(),
@@ -319,7 +334,35 @@ pub(crate) fn verify_package_source_snapshot(
             actual,
         });
     }
-    Ok(())
+    Ok(captured
+        .entries
+        .into_iter()
+        .map(|entry| VerifiedPackageSourceEntry {
+            relative_path: entry.relative_bytes,
+            kind: match entry.kind {
+                CapturedLocalEntryKind::Directory => VerifiedPackageSourceEntryKind::Directory,
+                CapturedLocalEntryKind::File { bytes, executable } => {
+                    VerifiedPackageSourceEntryKind::File { bytes, executable }
+                }
+                CapturedLocalEntryKind::Symlink { target_bytes } => {
+                    VerifiedPackageSourceEntryKind::Symlink { target_bytes }
+                }
+            },
+        })
+        .collect())
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct VerifiedPackageSourceEntry {
+    pub(crate) relative_path: Vec<u8>,
+    pub(crate) kind: VerifiedPackageSourceEntryKind,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum VerifiedPackageSourceEntryKind {
+    Directory,
+    File { bytes: Vec<u8>, executable: bool },
+    Symlink { target_bytes: Vec<u8> },
 }
 
 pub fn resolve_local_source_snapshot(
@@ -1885,6 +1928,7 @@ struct CapturedLocalTree {
 #[derive(Debug)]
 struct CapturedLocalEntry {
     relative_path: PathBuf,
+    relative_bytes: Vec<u8>,
     kind: CapturedLocalEntryKind,
 }
 
@@ -1974,6 +2018,7 @@ fn capture_local_source(
         };
         entries.push(CapturedLocalEntry {
             relative_path: entry.relative_path,
+            relative_bytes: entry.relative_bytes,
             kind,
         });
     }
@@ -4303,5 +4348,35 @@ mod tests {
         assert!(!commit.is_empty());
         let _ = std::fs::remove_dir_all(&repo);
         let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[test]
+    fn verified_published_capture_keeps_root_build_directory() {
+        let root = temp_root("verified-exact-build-directory");
+        std::fs::create_dir_all(root.join("build/nested")).expect("create exact source tree");
+        std::fs::write(root.join("main.omg"), b"machine main() {}\n").expect("write source");
+        std::fs::write(
+            root.join("build/nested/generated.omg"),
+            b"const VALUE: u8 = 1;\n",
+        )
+        .expect("write exact root build entry");
+        let normalized = resolve_materialized_source(&root, LocalSourceLimits::default())
+            .expect("derive exact materialized identity");
+        let expected = SourceContentDigest::derive(normalized.content_identity.as_bytes());
+        make_snapshot_read_only(&root).expect("make exact source tree read-only");
+
+        let captured = capture_verified_package_source_snapshot(
+            &root,
+            &expected,
+            LocalSourceLimits::default(),
+        )
+        .expect("capture exact published source");
+
+        assert!(captured.iter().any(|entry| {
+            entry.relative_path == b"build/nested/generated.omg"
+                && matches!(entry.kind, VerifiedPackageSourceEntryKind::File { .. })
+        }));
+        make_tree_owner_writable(&root);
+        let _ = std::fs::remove_dir_all(&root);
     }
 }

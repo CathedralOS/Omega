@@ -69,9 +69,15 @@ audit; update capability/API drift and source-lineage replacement block;
 unavailable old source and retained dangerous authority recommend audit even
 when canonical capability bytes are unchanged. Its bounded model-facing form
 contains only fixed reason/disposition vocabulary plus canonical package-key
-commitments and rejects rather than truncates. It does not yet include a
-bounded source patch or invoke a model, and no advisory answer can mint
-admission or prove an audit occurred.
+commitments and rejects rather than truncates. A separate bounded source packet
+compares exact-key resolver snapshots directly and binds both immutable
+resolutions. It renders deterministic line hunks plus directory, executable,
+symlink, and entry-kind changes under independent source, metadata, line,
+diff-work, trace-memory, and output ceilings. Paths and source lines are
+byte-escaped into fixed lanes but remain hostile code data; binary/non-UTF-8
+changes retain size and content commitments and require standalone audit. The
+packet does not yet invoke a model, and no advisory answer can mint admission
+or prove an audit occurred.
 
 The complete design is in:
 
@@ -428,6 +434,8 @@ omega-packages/
 |   |-- source_adapter.rs  # Explicit workspace and Git closure policy.
 |   |-- compiler_handoff.rs # Revalidated package-aware compiler inputs.
 |   |-- source_commands.rs # Unhardened source diagnostic command surface.
+|   |-- source_patch.rs    # Bounded hostile-data source review packet.
+|   |-- source_triage.rs   # Compiler-row source/provenance triage.
 |   |-- evidence.rs        # Compiler-issued package admission evidence.
 |   |-- lock.rs            # Accepted closure and evidence baseline.
 |   |-- conflict.rs        # Row-specific admission conflicts/resolutions.
