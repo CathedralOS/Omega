@@ -96,7 +96,12 @@ read-only atomic publication, and revalidation before reuse. The resolver
 rejects source/cache overlap and ordinary mutation observed between capture and
 publication; compilation-facing diagnostics expose the published snapshot, not
 the live tree. Empty directories participate in identity while directory
-permissions normalize to the canonical snapshot policy.
+permissions normalize to the canonical snapshot policy. Local package capture
+excludes only repository metadata and the compiler-reserved root `build/`
+output directory; it does not trust package-authored ignore files. Nested
+`build` directories remain ordinary source, and a symlink into excluded output
+rejects. Resolver-owned materializations are checked under an exact-tree policy,
+so immutable Git snapshots still preserve every selected tree entry.
 
 Git subprocesses now receive null stdin, concurrent bounded stdout/stderr
 capture, and a deadline. Overflow and timeout terminate the child and reject
@@ -105,7 +110,6 @@ parent process without an OS sandbox, descendant containment, or CPU, memory,
 process-count, and transfer ceilings. A deliberately hostile same-user process
 can race cooperative locks and validation, including the local before/after
 observation. SSH retains an external client and credential/configuration
-surface. Local capture also includes tool-owned output already present beneath
-the selected source root. Those conditions keep the resolver diagnostic-only
-until helper confinement, custody, remaining resource ceilings, clean-source
-policy, and opaque-receipt work land.
+surface. Those conditions keep the resolver diagnostic-only until helper
+confinement, hostile-process custody, remaining resource ceilings, and opaque-
+receipt work land.

@@ -407,7 +407,7 @@ pub fn resolve_source_cache_record(
                 max_depth: limits.max_depth,
                 submodule_policy: "git-submodules-not-applicable".to_owned(),
                 path_policy:
-                    "validated-local-snapshot; canonical-root-contained; symlink-escapes-rejected; dot-git-excluded"
+                    "validated-local-snapshot; canonical-root-contained; symlink-escapes-rejected; dot-git-excluded; root-build-output-excluded"
                         .to_owned(),
                 rejection: None,
             },
@@ -484,8 +484,12 @@ fn rejected_record(
         } else {
             "git-submodules-not-applicable".to_owned()
         },
-        path_policy: "canonical-root-contained; symlink-escapes-rejected; dot-git-excluded"
-            .to_owned(),
+        path_policy: if source_kind == "local-path" {
+            "canonical-root-contained; symlink-escapes-rejected; dot-git-excluded; root-build-output-excluded"
+                .to_owned()
+        } else {
+            "canonical-root-contained; symlink-escapes-rejected; dot-git-excluded".to_owned()
+        },
         rejection: Some(error.to_string()),
     }
 }

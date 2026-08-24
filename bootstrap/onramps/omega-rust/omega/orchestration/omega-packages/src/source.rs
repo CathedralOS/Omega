@@ -16,11 +16,12 @@ const GIT_CACHE_REPOSITORY: &str = "repository";
 const GIT_CACHE_SNAPSHOTS: &str = "snapshots";
 const GIT_SNAPSHOT_METADATA: &str = "snapshot.identity";
 const GIT_SNAPSHOT_SOURCE: &str = "source";
-const GIT_SNAPSHOT_POLICY: &[u8] = b"omega-git-snapshot-v2";
+const GIT_SNAPSHOT_POLICY: &[u8] = b"omega-git-snapshot-v3";
 const LOCAL_CACHE_SNAPSHOTS: &str = "local-snapshots";
 const LOCAL_SNAPSHOT_METADATA: &str = "snapshot.identity";
 const LOCAL_SNAPSHOT_SOURCE: &str = "source";
-const LOCAL_SNAPSHOT_POLICY: &[u8] = b"omega-local-source-snapshot-v1";
+const LOCAL_SNAPSHOT_POLICY: &[u8] = b"omega-local-source-snapshot-v2";
+const DEFAULT_BUILD_OUTPUT_DIRECTORY: &str = "build";
 const CANONICAL_DIRECTORY_MODE: u16 = 0o555;
 const GIT_ORIGIN_FETCH: &str = "+refs/heads/*:refs/remotes/origin/*";
 const GIT_COMMAND_TIMEOUT: Duration = Duration::from_secs(120);
@@ -114,6 +115,10 @@ pub enum SourceResolveError {
         link: PathBuf,
         target: PathBuf,
     },
+    SymlinkTargetsExcludedBuildOutput {
+        link: PathBuf,
+        target: PathBuf,
+    },
     UnsupportedFileType {
         path: PathBuf,
     },
@@ -194,6 +199,12 @@ impl fmt::Display for SourceResolveError {
                 link.display(),
                 target.display()
             ),
+            Self::SymlinkTargetsExcludedBuildOutput { link, target } => write!(
+                output,
+                "source symlink `{}` targets excluded root build output at `{}`",
+                link.display(),
+                target.display()
+            ),
             Self::UnsupportedFileType { path } => write!(
                 output,
                 "source path `{}` has an unsupported filesystem entry type",
@@ -268,7 +279,7 @@ pub fn resolve_local_source(
     root: impl AsRef<Path>,
     limits: LocalSourceLimits,
 ) -> Result<ResolvedLocalSource, SourceResolveError> {
-    Ok(capture_local_source(root.as_ref(), limits)?.normalized)
+    Ok(capture_local_source(root.as_ref(), limits, SourceTreePolicy::LocalPackage)?.normalized)
 }
 
 pub fn resolve_local_source_snapshot(
@@ -277,7 +288,7 @@ pub fn resolve_local_source_snapshot(
     limits: LocalSourceLimits,
 ) -> Result<ResolvedLocalSnapshot, SourceResolveError> {
     let requested_root = root.as_ref().to_path_buf();
-    let captured = capture_local_source(&requested_root, limits)?;
+    let captured = capture_local_source(&requested_root, limits, SourceTreePolicy::LocalPackage)?;
     publish_local_snapshot(requested_root, captured, cache_dir.as_ref(), limits)
 }
 
@@ -715,7 +726,7 @@ fn resolve_git_snapshot(
         set_snapshot_directory_read_only(&path)?;
     }
 
-    let staged = resolve_local_source(&source, limits)?;
+    let staged = resolve_materialized_source(&source, limits)?;
     let (expected_byte_count, expected_content_identity) = expected_identity.finish();
     if staged.file_count != entries.len()
         || staged.byte_count != expected_byte_count
@@ -778,7 +789,7 @@ fn verify_git_snapshot(
     }
     verify_snapshot_entry_kinds_and_modes(&source, entries)?;
     verify_snapshot_read_only(publication)?;
-    let local = resolve_local_source(&source, limits)?;
+    let local = resolve_materialized_source(&source, limits)?;
     if local.file_count != expected.file_count
         || local.byte_count != expected.byte_count
         || local.content_identity != expected.content_identity
@@ -1049,7 +1060,7 @@ fn verify_local_snapshot(
         ));
     }
     verify_local_snapshot_modes(publication)?;
-    let normalized = resolve_local_source(&source, limits)?;
+    let normalized = resolve_materialized_source(&source, limits)?;
     if normalized.file_count != expected.file_count
         || normalized.byte_count != expected.byte_count
         || normalized.content_identity != expected.content_identity
@@ -1843,9 +1854,25 @@ enum CapturedLocalEntryKind {
     Symlink { target_bytes: Vec<u8> },
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SourceTreePolicy {
+    /// Mutable local package roots omit only paths reserved for resolver or compiler output.
+    LocalPackage,
+    /// Resolver-owned materializations must be hashed exactly as published.
+    ExactMaterialized,
+}
+
+fn resolve_materialized_source(
+    root: &Path,
+    limits: LocalSourceLimits,
+) -> Result<ResolvedLocalSource, SourceResolveError> {
+    Ok(capture_local_source(root, limits, SourceTreePolicy::ExactMaterialized)?.normalized)
+}
+
 fn capture_local_source(
     requested_root: &Path,
     limits: LocalSourceLimits,
+    policy: SourceTreePolicy,
 ) -> Result<CapturedLocalTree, SourceResolveError> {
     let root = requested_root
         .canonicalize()
@@ -1862,6 +1889,7 @@ fn capture_local_source(
         0,
         &root,
         limits,
+        policy,
         &mut visited_dirs,
         &mut source_entries,
     )?;
@@ -2069,7 +2097,7 @@ fn materialize_local_snapshot(
         }
     }
 
-    let staged = resolve_local_source(&source, limits)?;
+    let staged = resolve_materialized_source(&source, limits)?;
     if !same_source_identity(&staged, &captured.normalized) {
         return Err(local_snapshot_invalid(
             &source,
@@ -2125,6 +2153,7 @@ fn visit_directory(
     depth: usize,
     root: &Path,
     limits: LocalSourceLimits,
+    policy: SourceTreePolicy,
     visited_dirs: &mut BTreeSet<PathBuf>,
     entries: &mut Vec<SourceEntry>,
 ) -> Result<(), SourceResolveError> {
@@ -2155,7 +2184,10 @@ fn visit_directory(
 
     for entry in directory_entries {
         let name = entry.file_name();
-        if name == ".git" {
+        if policy == SourceTreePolicy::LocalPackage
+            && (name == ".git"
+                || (logical_dir.as_os_str().is_empty() && name == DEFAULT_BUILD_OUTPUT_DIRECTORY))
+        {
             continue;
         }
         let real_path = entry.path();
@@ -2163,7 +2195,7 @@ fn visit_directory(
         let metadata =
             std::fs::symlink_metadata(&real_path).map_err(|error| io_error(&real_path, error))?;
         if metadata.file_type().is_symlink() {
-            let raw_target = read_and_validate_symlink_target(root, &real_path)?;
+            let raw_target = read_and_validate_symlink_target(root, &real_path, policy)?;
             push_entry(
                 entries,
                 logical_path,
@@ -2187,6 +2219,7 @@ fn visit_directory(
                 depth + 1,
                 root,
                 limits,
+                policy,
                 visited_dirs,
                 entries,
             )?;
@@ -2207,10 +2240,12 @@ fn visit_directory(
 fn read_and_validate_symlink_target(
     root: &Path,
     link: &Path,
+    policy: SourceTreePolicy,
 ) -> Result<PathBuf, SourceResolveError> {
-    // V1 policy hashes link spelling, requires an existing canonical target inside this root, and
-    // rejects targets under excluded `.git` metadata. Target contents are visited independently
-    // through the ordinary tree walk rather than dereferenced through the link.
+    // Package-local policy hashes link spelling, requires an existing canonical target inside this
+    // root, and rejects targets under paths excluded from that package view. Exact resolver-owned
+    // materializations have no exclusions. Target contents are visited independently through the
+    // ordinary tree walk rather than dereferenced through the link.
     let raw_target = std::fs::read_link(link).map_err(|error| io_error(link, error))?;
     let absolute_target = if raw_target.is_absolute() {
         raw_target.clone()
@@ -2231,11 +2266,23 @@ fn read_and_validate_symlink_target(
     let relative_target = target
         .strip_prefix(root)
         .expect("root containment was checked above");
-    if relative_target
-        .components()
-        .any(|component| component.as_os_str() == ".git")
+    if policy == SourceTreePolicy::LocalPackage
+        && relative_target
+            .components()
+            .any(|component| component.as_os_str() == ".git")
     {
         return Err(SourceResolveError::SymlinkTargetsExcludedMetadata {
+            link: link.to_path_buf(),
+            target,
+        });
+    }
+    if policy == SourceTreePolicy::LocalPackage
+        && relative_target
+            .components()
+            .next()
+            .is_some_and(|component| component.as_os_str() == DEFAULT_BUILD_OUTPUT_DIRECTORY)
+    {
+        return Err(SourceResolveError::SymlinkTargetsExcludedBuildOutput {
             link: link.to_path_buf(),
             target,
         });
@@ -2328,7 +2375,7 @@ struct SourceIdentityHasher {
 impl SourceIdentityHasher {
     fn new(entry_count: usize) -> Self {
         let mut hasher = Sha256::new();
-        hasher.update(b"omega-local-source-v3\0");
+        hasher.update(b"omega-source-tree-v4\0");
         hash_length(&mut hasher, entry_count as u64);
         Self {
             hasher,
@@ -3000,6 +3047,56 @@ mod tests {
     }
 
     #[test]
+    fn local_package_identity_excludes_only_root_build_output() {
+        let root = temp_root("root-build-output");
+        std::fs::create_dir_all(root.join("build")).expect("create root build output");
+        std::fs::create_dir_all(root.join("src/build")).expect("create nested source directory");
+        std::fs::write(root.join("main.omg"), "machine Main::main() {}\n")
+            .expect("write package source");
+        std::fs::write(
+            root.join("build/00_pipeline.html"),
+            "first generated report",
+        )
+        .expect("write generated report");
+        std::fs::write(
+            root.join("src/build/rules.omg"),
+            "machine Rules::apply() {}\n",
+        )
+        .expect("write nested source");
+
+        let first = resolve_local_source(&root, LocalSourceLimits::default())
+            .expect("resolve local package");
+        std::fs::write(
+            root.join("build/00_pipeline.html"),
+            "changed generated report",
+        )
+        .expect("change generated report");
+        let changed_output = resolve_local_source(&root, LocalSourceLimits::default())
+            .expect("resolve package after output change");
+        assert_eq!(first.file_count, 2);
+        assert_eq!(first.content_identity, changed_output.content_identity);
+
+        std::fs::write(
+            root.join("src/build/rules.omg"),
+            "machine Rules::replace() {}\n",
+        )
+        .expect("change nested source");
+        let changed_source = resolve_local_source(&root, LocalSourceLimits::default())
+            .expect("resolve package after source change");
+        assert_ne!(
+            changed_output.content_identity,
+            changed_source.content_identity
+        );
+
+        let exact = resolve_materialized_source(&root, LocalSourceLimits::default())
+            .expect("resolve exact materialized tree");
+        assert_eq!(exact.file_count, 3);
+        assert_ne!(changed_source.content_identity, exact.content_identity);
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
     fn local_source_identity_changes_when_source_bytes_change() {
         let root = temp_root("bytes");
         std::fs::create_dir_all(&root).expect("create source tree");
@@ -3117,6 +3214,26 @@ mod tests {
         assert!(matches!(
             error,
             SourceResolveError::SymlinkTargetsExcludedMetadata { .. }
+        ));
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn local_source_rejects_symlinks_into_excluded_root_build_output() {
+        let root = temp_root("symlink-build-output");
+        std::fs::create_dir_all(root.join("build")).expect("create excluded build output");
+        std::fs::write(root.join("build/generated.omg"), "generated")
+            .expect("write generated output");
+        std::os::unix::fs::symlink("build/generated.omg", root.join("linked.omg"))
+            .expect("create source symlink");
+
+        let error = resolve_local_source(&root, LocalSourceLimits::default())
+            .expect_err("excluded build-output target must reject");
+        assert!(matches!(
+            error,
+            SourceResolveError::SymlinkTargetsExcludedBuildOutput { .. }
         ));
 
         let _ = std::fs::remove_dir_all(&root);
@@ -3302,8 +3419,10 @@ mod tests {
         let cache = temp_root("local-snapshot-empty-directory-cache");
         std::fs::create_dir_all(root.join("generated/empty")).expect("create empty directory");
         std::fs::create_dir_all(root.join(".git")).expect("create excluded metadata");
+        std::fs::create_dir_all(root.join("build")).expect("create excluded build output");
         std::fs::write(root.join("main.omg"), "machine Main::main() {}\n").expect("write source");
         std::fs::write(root.join(".git/index"), "excluded").expect("write Git metadata");
+        std::fs::write(root.join("build/omega-program"), "excluded").expect("write build output");
         let live = resolve_local_source(&root, LocalSourceLimits::default()).expect("resolve live");
 
         let resolved = resolve_local_source_snapshot(&root, &cache, LocalSourceLimits::default())
@@ -3315,6 +3434,7 @@ mod tests {
         assert_eq!(resolved.normalized.root, resolved.snapshot_root);
         assert!(resolved.snapshot_root.join("generated/empty").is_dir());
         assert!(!resolved.snapshot_root.join(".git").exists());
+        assert!(!resolved.snapshot_root.join("build").exists());
         assert_eq!(resolved.normalized.file_count, 1);
         assert_eq!(resolved.normalized.byte_count, live.byte_count);
         assert_eq!(resolved.normalized.content_identity, live.content_identity);
@@ -3345,8 +3465,12 @@ mod tests {
         std::fs::create_dir_all(&root).expect("create source");
         std::fs::write(root.join("main.omg"), "machine Before::main() {}\n")
             .expect("write initial source");
-        let captured =
-            capture_local_source(&root, LocalSourceLimits::default()).expect("capture source");
+        let captured = capture_local_source(
+            &root,
+            LocalSourceLimits::default(),
+            SourceTreePolicy::LocalPackage,
+        )
+        .expect("capture source");
         let captured_identity = captured.normalized.content_identity.clone();
         std::fs::write(root.join("main.omg"), "machine After::main() {}\n")
             .expect("mutate live source");

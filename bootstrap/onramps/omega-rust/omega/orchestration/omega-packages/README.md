@@ -79,6 +79,10 @@ model.
 
 The crate now contains reviewed building blocks for immutable Git/local
 snapshots, hermetic package-name extraction, and typed package/source identity.
+Mutable local-package snapshots omit only `.git` metadata and the reserved
+root-level `build/` compiler output; package-authored ignore files do not control
+source identity, nested `build` directories remain source, and immutable Git
+materialization remains an exact selected-tree check.
 Git, workspace-member, and external-local resolution now bind those pieces into
 a `ResolvedPackageSource`: declaration and identity come from the immutable
 snapshot and canonical source lineage, and canonical literal dependency rows
