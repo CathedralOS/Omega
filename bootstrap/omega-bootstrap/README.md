@@ -133,6 +133,16 @@ language, generation, or architectural role; new documentation and work use
   `0`, semantic `251`, and resource `252` observations through Gamma under a
   1 MiB elaboration ceiling. These gates close normalized resolution, not
   resolver/lock authority, digest custody, body lowering, CKIR, or ELF.
+- [`compiler/omega-bootstrap-resolved-to-ckir.alp`](compiler/omega-bootstrap-resolved-to-ckir.alp)
+  is the separate `OMGLOW1` consumer. It locally validates every witness family
+  it uses, reparses exact resolved bodies without repeating package/name
+  resolution, and emits the canonical two-package CKIR1. Its
+  [native/self gate](gates/delta-resolved-to-ckir.sh) pins the exact 996-byte
+  CKIR, result 70, and 17 phase-isolated relation/resource mutations; its
+  [meaning gate](gates/delta-resolved-to-ckir-meaning.sh) repeats canonical
+  `0`, semantic `251`, and resource `252` through Gamma under a measured
+  393,216-byte elaboration ceiling. CKIR→ELF composition and lower-rooted
+  `OMGRFN2` reconstruction remain separate open seams.
 
 These are seed pieces for `omega-bootstrap`, not that compiler itself. The first
 checkpoint-driven compositional frontend/typechecker cost probe over
