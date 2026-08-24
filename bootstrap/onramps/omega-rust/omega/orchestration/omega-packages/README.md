@@ -181,7 +181,7 @@ operation identity shared exhaustively by both providers; aliases remain
 distinct. Future rooted transcripts must handle potentially absolute
 `read_link` output and necessarily absolute `canonicalize` and
 `final_path_name_by_handle` output.
-Observation schema v3 carries operation-attempt schema v3, retaining exact
+Observation schema v3 carries operation-attempt schema v4, retaining exact
 providers, operation tags, scalar returns, and post-error state in successful-
 run call-start order. Grant-gate denials retain exact operand ordinals,
 read/write access, and closed unresolvable/outside-root reasons; host errors do
@@ -201,13 +201,18 @@ retains validated mutable cells and capacities, including the fixed Win32
 ABI operands; the canonical trait test pins all 50 operand schemas and result
 widths. Preparation traps remain on the outer attempt and occur before grant or
 provider access. Canonicalize enforces its declared 1024-byte `PATH_MAX`
-carrier at that gate; file extent and total staging-tree/process quotas remain
-open.
+carrier at that gate; process memory and CPU ceilings remain open.
 Scoped hard links require write authority on both names, preventing a read-only
-source inode from being aliased into writable staging. Remaining staging quotas
-must be one session-wide object/namespace account across the reviewed closure;
-path-summing or per-package limits are insufficient because of hard links and
-open-but-unlinked files.
+source inode from being aliased into writable staging. `ReviewBuildSession`
+owns one object/namespace sponsor shared by every package compile in the
+closure. Package output roots consume the same account. The compiler permits
+4,096 entries, 256 MiB total logical bytes, and 256 MiB for any one object
+extent; hard links do not double-count bytes, symlink spellings do count, and
+open-but-unlinked files remain charged through their final descriptor. Every
+mutation reserves its candidate accounting state before host mutation and
+commits only after success. Ceiling refusal is resource exhaustion rather than
+a host errno or generic evaluator trap. Path-summing and per-package limits are
+intentionally rejected designs.
 Compiler-issued package review carries this summary
 outside canonical capability/API comparison bytes. It is not a receipt and
 makes no replayability or source-rebuildability claim.

@@ -4,6 +4,10 @@ pub(crate) use psi_source as source;
 pub(crate) use psi_source_files_to_tokens as lexer;
 pub(crate) use psi_tokens_to_syntax_trees as parser;
 
+pub use psi_checked_interpreter::{
+    FilesystemSponsor, FilesystemSponsorError, FilesystemSponsorLimits,
+};
+
 pub use pipeline::{
     AdmittedExternalRootEntryFactHandoff, AggregateFieldSchema, AggregateFieldValue,
     ArtifactEmissionPolicy, BUILD_OBSERVATION_SCHEMA_VERSION,
@@ -111,7 +115,8 @@ pub use pipeline::{
     bind_recorded_program_local_storage_entry_whole_root_arguments,
     bind_recorded_program_storage_entry_whole_root_arguments, census_source_closure, compile,
     compile_to_checked, compile_to_checked_with_packages,
-    compile_to_checked_with_packages_in_build_dir, compile_with_artifact_policy,
+    compile_to_checked_with_packages_in_build_dir,
+    compile_to_checked_with_packages_in_sponsored_build_dir, compile_with_artifact_policy,
     compile_with_packages, compile_with_policy, compile_with_policy_and_packages,
     compile_with_test_entry, compile_with_test_entry_and_artifact_policy,
     compile_with_test_entry_and_worker_count,

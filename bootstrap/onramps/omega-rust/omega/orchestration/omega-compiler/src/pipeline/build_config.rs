@@ -30,8 +30,9 @@
 
 use psi_build_time_evaluation::{
     BuildMachineExecutionMode, BuildMachineFilesystemAccess, BuildMachineFilesystemGrants,
-    BuildTimeValue, PreparedBuildMachineProgram,
+    BuildMachineFilesystemSponsor, BuildTimeValue, PreparedBuildMachineProgram,
 };
+use psi_checked_interpreter::FilesystemSponsorEntry;
 use psi_diagnostics::Diagnostic;
 use psi_symbols::{SymbolHandle, SymbolKind};
 use psi_typed_trees::TypedTrees;
@@ -48,10 +49,15 @@ const BUILD_MACHINE: &str = "build";
 pub(crate) struct BuildMachineFilesystemScope {
     source_root: PathBuf,
     build_dir: PathBuf,
+    sponsor: Option<BuildMachineFilesystemSponsor>,
 }
 
 impl BuildMachineFilesystemScope {
-    pub(crate) fn for_root(root_path: &Path, build_dir: PathBuf) -> Self {
+    pub(crate) fn for_root(
+        root_path: &Path,
+        build_dir: PathBuf,
+        sponsor: Option<BuildMachineFilesystemSponsor>,
+    ) -> Self {
         let source_root = root_path
             .parent()
             .filter(|parent| !parent.as_os_str().is_empty())
@@ -60,23 +66,74 @@ impl BuildMachineFilesystemScope {
         Self {
             source_root,
             build_dir,
+            sponsor,
         }
     }
 
-    fn grants(&self) -> BuildMachineFilesystemGrants {
-        BuildMachineFilesystemGrants {
+    fn filesystem_access(&self) -> BuildMachineFilesystemAccess {
+        let grants = BuildMachineFilesystemGrants {
             read_roots: vec![self.source_root.clone()],
             write_roots: vec![self.build_dir.clone()],
+        };
+        match &self.sponsor {
+            Some(sponsor) => BuildMachineFilesystemAccess::RealScopedSponsored {
+                grants,
+                sponsor: sponsor.clone(),
+            },
+            None => BuildMachineFilesystemAccess::RealScoped(grants),
         }
     }
 
     fn ensure_write_roots(&self) -> Result<(), Vec<Diagnostic>> {
+        if let Some(sponsor) = &self.sponsor {
+            let path = sponsor
+                .bind_path(&self.build_dir)
+                .map_err(|error| self.sponsor_diagnostic(error))?;
+            match sponsor
+                .entry(&path)
+                .map_err(|error| self.sponsor_diagnostic(error))?
+            {
+                Some(FilesystemSponsorEntry::Directory) => return Ok(()),
+                Some(_) => {
+                    return Err(vec![Diagnostic::error(format!(
+                        "sponsored build machine write root `{}` is not a directory",
+                        self.build_dir.display()
+                    ))]);
+                }
+                None => {}
+            }
+            let prepared = sponsor
+                .prepare_create_directory(&path)
+                .map_err(|error| self.sponsor_diagnostic(error))?;
+            if let Err(error) = std::fs::create_dir(&self.build_dir) {
+                prepared.abort();
+                return Err(vec![Diagnostic::error(format!(
+                    "failed to create sponsored build machine filesystem write root `{}`: {error}",
+                    self.build_dir.display()
+                ))]);
+            }
+            if let Err(error) = prepared.commit() {
+                let _ = std::fs::remove_dir(&self.build_dir);
+                return Err(self.sponsor_diagnostic(error));
+            }
+            return Ok(());
+        }
         std::fs::create_dir_all(&self.build_dir).map_err(|error| {
             vec![Diagnostic::error(format!(
                 "failed to create build machine filesystem write root `{}`: {error}",
                 self.build_dir.display()
             ))]
         })
+    }
+
+    fn sponsor_diagnostic(
+        &self,
+        error: psi_checked_interpreter::FilesystemSponsorError,
+    ) -> Vec<Diagnostic> {
+        vec![Diagnostic::error(format!(
+            "build machine staging sponsor rejected `{}`: {error}",
+            self.build_dir.display()
+        ))]
     }
 }
 
@@ -1137,7 +1194,7 @@ pub(crate) fn compute_build_config(
     } else {
         let filesystem = if filesystem_reachable {
             filesystem_scope.ensure_write_roots()?;
-            BuildMachineFilesystemAccess::RealScoped(filesystem_scope.grants())
+            filesystem_scope.filesystem_access()
         } else {
             BuildMachineFilesystemAccess::Virtual
         };
@@ -1653,7 +1710,24 @@ fn extract_build_config(build: &BuildTimeValue) -> Result<BuildConfig, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{BuildConfig, RootBinding, selected_program_entry_machine};
+    use super::{
+        BuildConfig, BuildMachineFilesystemScope, RootBinding, selected_program_entry_machine,
+    };
+    use psi_checked_interpreter::{FilesystemSponsor, FilesystemSponsorLimits};
+    use std::{
+        fs,
+        sync::atomic::{AtomicU64, Ordering},
+    };
+
+    static STAGING_TEST_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+
+    fn temporary_staging_root(label: &str) -> std::path::PathBuf {
+        std::env::temp_dir().join(format!(
+            "omega-build-staging-{label}-{}-{}",
+            std::process::id(),
+            STAGING_TEST_SEQUENCE.fetch_add(1, Ordering::Relaxed)
+        ))
+    }
 
     fn config_with_root_bindings(bindings: &[(&str, &str)]) -> BuildConfig {
         BuildConfig {
@@ -1666,6 +1740,46 @@ mod tests {
                 .collect(),
             ..BuildConfig::default()
         }
+    }
+
+    #[test]
+    fn sponsored_build_roots_share_one_session_entry_ceiling() {
+        let session_root = temporary_staging_root("shared-account");
+        fs::create_dir(&session_root).expect("create session root");
+        let sponsor = FilesystemSponsor::with_limits(
+            &session_root,
+            FilesystemSponsorLimits {
+                maximum_entries: 1,
+                maximum_total_logical_bytes: 64,
+                maximum_object_extent: 64,
+            },
+        )
+        .expect("create filesystem sponsor");
+
+        let first_build_dir = session_root.join("first-package");
+        BuildMachineFilesystemScope::for_root(
+            &session_root.join("first-source/main.omg"),
+            first_build_dir.clone(),
+            Some(sponsor.clone()),
+        )
+        .ensure_write_roots()
+        .expect("first package consumes the one available entry");
+
+        let second_build_dir = session_root.join("second-package");
+        let diagnostics = BuildMachineFilesystemScope::for_root(
+            &session_root.join("second-source/main.omg"),
+            second_build_dir.clone(),
+            Some(sponsor.clone()),
+        )
+        .ensure_write_roots()
+        .expect_err("the second package must share the exhausted session ceiling");
+
+        assert_eq!(sponsor.snapshot().unwrap().entries, 1);
+        assert!(first_build_dir.is_dir());
+        assert!(!second_build_dir.exists());
+        assert!(diagnostics[0].to_string().contains("entry limit 1"));
+
+        fs::remove_dir_all(session_root).expect("remove session root");
     }
 
     #[test]

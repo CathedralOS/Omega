@@ -297,7 +297,7 @@ closed, explicitly tagged operation identity exhaustively handled by both
 filesystem providers. ABI aliases remain distinct. Future rooted transcripts
 must account for conditionally absolute `read_link` results and unconditionally
 absolute `canonicalize` and `final_path_name_by_handle` results. Observation
-schema v3 carries operation-attempt schema v3, retaining in call-start order
+schema v3 carries operation-attempt schema v4, retaining in call-start order
 each completed operation's exact provider, stable tag, scalar return, and
 post-operation error state for a successful build evaluation. Grant-gate
 denials retain each exact operand ordinal, read/write access, and closed
@@ -321,14 +321,19 @@ capacities, including fixed ABI inputs such as Win32 `OVERLAPPED`, before either
 provider or grant gate. It covers otherwise-unused ABI
 operands, and its exact operand/result schema is checked against the canonical
 50-operation trait. Canonicalize enforces its declared 1024-byte `PATH_MAX`
-carrier at that gate. This does not replace total output-tree, file-extent,
-memory, process, or transport quotas.
+carrier at that gate. This does not replace process memory, CPU, or transport
+quotas.
 Scoped hard links require write authority on both names, preventing a package
-from aliasing a read-only source inode into writable staging. The pending
-staging quota must be session-wide and object-aware: entries count names,
-regular-file extents count once per object, symlink spellings count as bytes,
-and open-but-unlinked objects remain charged. Per-package and path-summed
-accounting are intentionally rejected designs.
+from aliasing a read-only source inode into writable staging. Package review
+uses one compiler-owned staging sponsor across the complete closure. Its
+initial ceiling is 4,096 namespace entries, 256 MiB total logical bytes, and
+256 MiB for any one object extent. Entries count names, regular-file extents
+count once per object, symlink spellings count as bytes, and open-but-unlinked
+objects remain charged through their final descriptor. Package build roots are
+entries in the same account. Provider mutations reserve account state before
+touching the OS and commit only after success; a ceiling refusal is reported as
+resource exhaustion. Per-package and path-summed accounting are intentionally
+rejected designs.
 
 The usage record carries a schema identity independently from evaluator-step
 identity: adding telemetry does not change what one step means. It records

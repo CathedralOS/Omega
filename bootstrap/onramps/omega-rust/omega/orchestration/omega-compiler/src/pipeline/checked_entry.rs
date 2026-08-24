@@ -157,7 +157,7 @@ pub fn compile_to_checked(
     let root_path = root_path.to_owned();
     let target_name = target_name.map(str::to_owned);
     super::compiler::run_on_compile_thread(move || {
-        compile_to_checked_inner(&root_path, target_name.as_deref(), None, None)
+        compile_to_checked_inner(&root_path, target_name.as_deref(), None, None, None)
     })
 }
 
@@ -176,6 +176,7 @@ pub fn compile_to_checked_with_packages(
             &root_path,
             target_name.as_deref(),
             Some(&package_inputs),
+            None,
             None,
         )
     })
@@ -199,6 +200,30 @@ pub fn compile_to_checked_with_packages_in_build_dir(
             target_name.as_deref(),
             Some(&package_inputs),
             Some(&build_dir),
+            None,
+        )
+    })
+}
+
+/// Package-aware checked compilation whose build machine consumes one
+/// caller-owned staging sponsor shared across a complete review session.
+pub fn compile_to_checked_with_packages_in_sponsored_build_dir(
+    root_path: &Path,
+    build_dir: &Path,
+    target_name: Option<&str>,
+    package_inputs: PackageCompilationInputs,
+    filesystem_sponsor: psi_build_time_evaluation::BuildMachineFilesystemSponsor,
+) -> Result<CheckedCompilation, Vec<Diagnostic>> {
+    let root_path = root_path.to_owned();
+    let build_dir = build_dir.to_owned();
+    let target_name = target_name.map(str::to_owned);
+    super::compiler::run_on_compile_thread(move || {
+        compile_to_checked_inner(
+            &root_path,
+            target_name.as_deref(),
+            Some(&package_inputs),
+            Some(&build_dir),
+            Some(filesystem_sponsor),
         )
     })
 }
@@ -208,6 +233,7 @@ fn compile_to_checked_inner(
     target_name: Option<&str>,
     package_inputs: Option<&PackageCompilationInputs>,
     build_dir: Option<&Path>,
+    filesystem_sponsor: Option<psi_build_time_evaluation::BuildMachineFilesystemSponsor>,
 ) -> Result<CheckedCompilation, Vec<Diagnostic>> {
     let mut timings = CompileTimings::default();
     let package_identity = package_inputs.map(PackageCompilationInputs::root);
@@ -262,6 +288,7 @@ fn compile_to_checked_inner(
                     .map(|parent| parent.join("build"))
                     .unwrap_or_else(|| std::path::PathBuf::from("build"))
             }),
+            filesystem_sponsor,
         );
     let computed_build_config = crate::pipeline::build_config::compute_build_config(
         &typed,

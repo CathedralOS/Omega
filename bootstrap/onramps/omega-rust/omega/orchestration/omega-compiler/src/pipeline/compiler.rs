@@ -605,6 +605,7 @@ impl Compiler {
             crate::pipeline::build_config::BuildMachineFilesystemScope::for_root(
                 &self.options.root_path,
                 self.options.build_dir(),
+                None,
             );
         let computed_build_config = crate::pipeline::build_config::compute_build_config(
             &typed,

@@ -67,6 +67,7 @@ impl<'program> Evaluator<'program> {
                     Halt::Exit(_) => FilesystemEvaluationHaltKind::Exit,
                     Halt::Unsupported(_) => FilesystemEvaluationHaltKind::Unsupported,
                     Halt::Trap(_) => FilesystemEvaluationHaltKind::Trap,
+                    Halt::Resource(_) => FilesystemEvaluationHaltKind::ResourceExhausted,
                 };
                 self.filesystem_operation_attempts[attempt_index].outcome =
                     Some(FilesystemOperationAttemptOutcome::EvaluationHalted(kind));

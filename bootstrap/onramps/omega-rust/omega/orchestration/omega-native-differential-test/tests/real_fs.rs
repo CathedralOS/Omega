@@ -19,9 +19,10 @@
 use omega_compiler::{CheckedCompilation, compile_to_checked};
 use psi_checked_interpreter::{
     BuildMachineEvaluationFailureKind, BuildTimeValue, FilesystemAccess,
-    FilesystemEvaluationHaltKind, FilesystemOperationAttemptOutcome, FsGrants, InterpretOptions,
-    InterpretOutcome, evaluate_build_machine_with_filesystem,
-    evaluate_build_machine_with_filesystem_measured, interpret_entry, interpret_entry_with_options,
+    FilesystemEvaluationHaltKind, FilesystemOperationAttemptOutcome, FilesystemSponsor,
+    FilesystemSponsorLimits, FsGrants, InterpretOptions, InterpretOutcome,
+    evaluate_build_machine_with_filesystem, evaluate_build_machine_with_filesystem_measured,
+    interpret_entry, interpret_entry_with_options,
 };
 use std::path::Path;
 
@@ -665,6 +666,145 @@ machine CanonicalizeOutputProbe::run(&mut self, build: &mut Build) {{
         canonicalize_attempt.grant_refusals().is_empty(),
         "canonicalize capacity preparation must fail before path grants are consulted"
     );
+
+    let _ = std::fs::remove_dir_all(&base);
+}
+
+#[test]
+fn staging_sponsor_preserves_source_reads_errno_and_resource_ceiling() {
+    let base =
+        std::env::temp_dir().join(format!("omega_filesystem_sponsor_{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&base);
+    let source = base.join("source");
+    let out = base.join("out");
+    std::fs::create_dir_all(&source).expect("create source root");
+    std::fs::create_dir_all(&out).expect("create output root");
+    std::fs::write(source.join("input.txt"), b"source bytes").expect("seed source file");
+
+    let main_path = base.join("main.omg");
+    std::fs::write(
+        &main_path,
+        format!(
+            r#"use omega::language::std::filesystem_host;
+
+data Build {{ target_index: i64; staged: i64; }}
+
+data SourceReadProbe {{
+    fs: FilesystemHost;
+    flags: i32;
+    capacity: u64;
+    fd: i32;
+    read_count: i64;
+    close_result: i64;
+    buffer: [u8; 16];
+}}
+
+machine SourceReadProbe::run(&mut self, build: &mut Build) {{
+    self.flags = 0;
+    self.capacity = 16;
+    self.fd = self.fs.open("{source}/input.txt", self.flags);
+    self.read_count = self.fs.read(self.fd, &mut self.buffer, self.capacity);
+    self.close_result = self.fs.close(self.fd);
+    build.target_index = self.read_count;
+}}
+
+data MissingParentProbe {{ fs: FilesystemHost; fd: i32; error: i64; }}
+
+machine MissingParentProbe::run(&mut self, build: &mut Build) {{
+    self.fd = self.fs.create("{out}/missing/artifact", 438);
+    self.error = self.fs.errno();
+    build.target_index = self.error;
+}}
+
+data ResourceProbe {{ fs: FilesystemHost; fd: i32; written: i64; }}
+
+machine ResourceProbe::run(&mut self, build: &mut Build) {{
+    self.fd = self.fs.create("{out}/artifact", 438);
+    self.written = self.fs.write(self.fd, "12345");
+    build.target_index = self.written;
+}}
+"#,
+            source = omg_path(&source),
+            out = omg_path(&out),
+        ),
+    )
+    .expect("write sponsor probe");
+    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+        panic!(
+            "filesystem sponsor probe compile failed:\n{}",
+            diagnostics
+                .iter()
+                .map(|diagnostic| diagnostic.to_string())
+                .collect::<Vec<_>>()
+                .join("\n")
+        )
+    });
+    let canonical_out = std::fs::canonicalize(&out).expect("canonicalize output root");
+    let sponsor = FilesystemSponsor::with_limits(
+        canonical_out,
+        FilesystemSponsorLimits {
+            maximum_entries: 1,
+            maximum_total_logical_bytes: 4,
+            maximum_object_extent: 4,
+        },
+    )
+    .expect("create staging sponsor");
+    let options = || InterpretOptions {
+        filesystem: FilesystemAccess::RealScopedSponsored {
+            grants: FsGrants {
+                read_roots: vec![source.clone()],
+                write_roots: vec![out.clone()],
+            },
+            sponsor: sponsor.clone(),
+        },
+    };
+
+    evaluate_build_machine_with_filesystem_measured(
+        &checked.typed,
+        "SourceReadProbe::run",
+        vec![zero_build()],
+        options(),
+    )
+    .expect("read-only source access stays outside the staging account");
+    assert_eq!(sponsor.snapshot().unwrap().entries, 0);
+
+    evaluate_build_machine_with_filesystem_measured(
+        &checked.typed,
+        "MissingParentProbe::run",
+        vec![zero_build()],
+        options(),
+    )
+    .expect("a missing output parent remains an ordinary errno result");
+    assert_eq!(sponsor.snapshot().unwrap().entries, 0);
+    assert!(!out.join("missing/artifact").exists());
+
+    let failure = evaluate_build_machine_with_filesystem_measured(
+        &checked.typed,
+        "ResourceProbe::run",
+        vec![zero_build()],
+        options(),
+    )
+    .expect_err("a write beyond the sponsored extent must halt before mutation");
+    assert_eq!(
+        failure.kind(),
+        BuildMachineEvaluationFailureKind::ResourceExhausted
+    );
+    assert!(
+        failure
+            .observations()
+            .expect("resource failure retains operation evidence")
+            .filesystem_operation_attempts()
+            .iter()
+            .any(|attempt| attempt.outcome()
+                == Some(FilesystemOperationAttemptOutcome::EvaluationHalted(
+                    FilesystemEvaluationHaltKind::ResourceExhausted
+                )))
+    );
+    assert_eq!(std::fs::metadata(out.join("artifact")).unwrap().len(), 0);
+    let snapshot = sponsor.snapshot().expect("inspect staging account");
+    assert_eq!(snapshot.entries, 1);
+    assert_eq!(snapshot.total_logical_bytes, 0);
+    assert_eq!(snapshot.open_descriptors, 0);
 
     let _ = std::fs::remove_dir_all(&base);
 }

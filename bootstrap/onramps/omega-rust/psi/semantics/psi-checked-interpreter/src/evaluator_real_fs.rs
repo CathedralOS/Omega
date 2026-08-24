@@ -37,6 +37,66 @@ fn io_errno(error: &std::io::Error) -> i32 {
     error.raw_os_error().unwrap_or(5) // EIO when the host gives no code
 }
 
+fn sponsor_value<T>(result: Result<T, crate::FilesystemSponsorError>) -> EvalResult<T> {
+    match result {
+        Ok(value) => Ok(value),
+        Err(error) => super::filesystem_sponsor_halt(error),
+    }
+}
+
+fn checked_written_count(written: usize) -> EvalResult<i64> {
+    match i64::try_from(written) {
+        Ok(written) => Ok(written),
+        Err(_) => super::filesystem_sponsor_halt(crate::FilesystemSponsorError::ArithmeticOverflow),
+    }
+}
+
+/// A sponsor preflight can be absent, ready to commit, or can predict an
+/// ordinary host-filesystem refusal. The last case still executes the host
+/// operation so callers receive its native errno/BOOL; host success would
+/// reveal sponsor/host divergence and is therefore an invariant halt.
+#[derive(Debug)]
+enum SponsorPreparation<T> {
+    Unsponsored,
+    Prepared(T),
+    ExpectedHostFailure,
+}
+
+fn sponsor_preparation<T>(
+    result: Result<T, crate::FilesystemSponsorError>,
+) -> EvalResult<SponsorPreparation<T>> {
+    match result {
+        Ok(prepared) => Ok(SponsorPreparation::Prepared(prepared)),
+        Err(
+            crate::FilesystemSponsorError::ParentEntryMissing(_)
+            | crate::FilesystemSponsorError::ParentIsNotDirectory(_)
+            | crate::FilesystemSponsorError::EntryAlreadyExists(_)
+            | crate::FilesystemSponsorError::EntryNotFound(_)
+            | crate::FilesystemSponsorError::EntryIsNotRegularObject(_)
+            | crate::FilesystemSponsorError::DirectoryNotEmpty(_)
+            | crate::FilesystemSponsorError::InvalidDirectoryRename(_),
+        ) => Ok(SponsorPreparation::ExpectedHostFailure),
+        Err(error) => super::filesystem_sponsor_halt(error),
+    }
+}
+
+fn unexpected_sponsored_success<T>() -> EvalResult<T> {
+    super::filesystem_sponsor_halt(crate::FilesystemSponsorError::TransactionNoLongerCurrent)
+}
+
+fn read_only_open_bypasses_sponsor(
+    path: &Path,
+    session_root: &Path,
+    may_create: bool,
+    truncates: bool,
+    wants_write: bool,
+) -> bool {
+    (!path.starts_with(session_root) || path == session_root)
+        && !wants_write
+        && !may_create
+        && !truncates
+}
+
 /// ENOTSUP differs per OS (macOS 45, linux 95, windows maps EOPNOTSUPP=130);
 /// the wrapper only tests `rc < 0` + errno passthrough, so macOS's value is
 /// fine as the single modeled "this provider slice does not do that" code.
@@ -88,6 +148,8 @@ impl Grants {
 struct RealFd {
     file: std::fs::File,
     path: PathBuf,
+    sponsor_descriptor: Option<crate::FilesystemOpenDescriptor>,
+    append: bool,
 }
 
 pub(super) struct RealFs {
@@ -100,10 +162,14 @@ pub(super) struct RealFs {
     pub(super) errno: i32,
     /// `Some` under `FilesystemAccess::RealScoped`; `None` is unscoped.
     grants: Option<Grants>,
+    sponsor: Option<crate::FilesystemSponsor>,
 }
 
 impl RealFs {
-    pub(super) fn new(grants: Option<crate::FsGrants>) -> Self {
+    pub(super) fn new(
+        grants: Option<crate::FsGrants>,
+        sponsor: Option<crate::FilesystemSponsor>,
+    ) -> Self {
         Self {
             files: BTreeMap::new(),
             next_fd: 3,
@@ -120,6 +186,7 @@ impl RealFs {
                     .map(|r| canonical_root(r))
                     .collect(),
             }),
+            sponsor,
         }
     }
 
@@ -127,11 +194,49 @@ impl RealFs {
         self.grants.is_some()
     }
 
-    fn insert(&mut self, file: std::fs::File, path: PathBuf) -> i64 {
+    fn insert(
+        &mut self,
+        file: std::fs::File,
+        path: PathBuf,
+        sponsor_descriptor: Option<crate::FilesystemOpenDescriptor>,
+        append: bool,
+    ) -> i64 {
         let fd = self.next_fd;
         self.next_fd += 1;
-        self.files.insert(fd, RealFd { file, path });
+        self.files.insert(
+            fd,
+            RealFd {
+                file,
+                path,
+                sponsor_descriptor,
+                append,
+            },
+        );
         i64::from(fd)
+    }
+}
+
+impl Drop for RealFs {
+    fn drop(&mut self) {
+        let Some(sponsor) = self.sponsor.clone() else {
+            return;
+        };
+        // Evaluator return and every Halt path drop RealFs. Close accounting is
+        // best-effort here because Drop cannot return a Halt; explicit close
+        // operations still propagate every sponsor invariant failure.
+        while let Some(fd) = self.files.keys().next().copied() {
+            let descriptor = self
+                .files
+                .get(&fd)
+                .and_then(|entry| entry.sponsor_descriptor);
+            let prepared = descriptor
+                .as_ref()
+                .and_then(|descriptor| sponsor.prepare_close(descriptor).ok());
+            self.files.remove(&fd);
+            if let Some(prepared) = prepared {
+                let _ = prepared.commit();
+            }
+        }
     }
 }
 
@@ -184,7 +289,8 @@ fn positioned_read(
     count: usize,
 ) -> std::io::Result<Vec<u8>> {
     let saved = file.stream_position()?;
-    file.seek(SeekFrom::Start(offset.max(0) as u64))?;
+    let offset = u64::try_from(offset.max(0)).expect("nonnegative i64 fits in u64");
+    file.seek(SeekFrom::Start(offset))?;
     let mut buffer = vec![0u8; count];
     let outcome = file.read(&mut buffer);
     file.seek(SeekFrom::Start(saved))?;
@@ -196,7 +302,8 @@ fn positioned_read(
 /// `pwrite` emulation, mirroring [`positioned_read`].
 fn positioned_write(file: &mut std::fs::File, offset: i64, bytes: &[u8]) -> std::io::Result<usize> {
     let saved = file.stream_position()?;
-    file.seek(SeekFrom::Start(offset.max(0) as u64))?;
+    let offset = u64::try_from(offset.max(0)).expect("nonnegative i64 fits in u64");
+    file.seek(SeekFrom::Start(offset))?;
     let outcome = file.write(bytes);
     file.seek(SeekFrom::Start(saved))?;
     outcome
@@ -247,18 +354,19 @@ impl<'program> super::Evaluator<'program> {
                 // O_WRONLY|O_CREAT|O_TRUNC: create/truncate, writable.
                 match self.authorized_path(&path, true, 0) {
                     Some(path) => {
+                        let prepared = self.prepare_sponsored_open(&path, true, true, true)?;
                         let opened = std::fs::OpenOptions::new()
                             .write(true)
                             .create(true)
                             .truncate(true)
                             .open(&path);
-                        self.real_result_fd(opened, path)
+                        self.finish_real_open(opened, path, false, prepared, false)?
                     }
                     None => -1,
                 }
             }
             PreparedFilesystemCall::Open { path, flags } => {
-                self.real_open_prepared(path, flags, 0, false)
+                self.real_open_prepared(path, flags, 0, false)?
             }
             PreparedFilesystemCall::OpenCreate { path, flags, mode } => {
                 // Flag bits decode via the same host-flag mirror the virtual
@@ -272,8 +380,21 @@ impl<'program> super::Evaluator<'program> {
                     || host_open_flags::o_append(flags);
                 match self.authorized_path(&path, wants_write, 0) {
                     Some(path) => {
+                        let prepared = self.prepare_sponsored_open(
+                            &path,
+                            host_open_flags::o_creat(flags),
+                            host_open_flags::o_trunc(flags),
+                            wants_write,
+                        )?;
                         let options = open_options_for(flags, mode as u32, true);
-                        self.real_result_fd(open_real(&options, &path, wants_write), path)
+                        let opened = open_real(&options, &path, wants_write);
+                        self.finish_real_open(
+                            opened,
+                            path,
+                            host_open_flags::o_append(flags),
+                            prepared,
+                            false,
+                        )?
                     }
                     None => -1,
                 }
@@ -293,15 +414,11 @@ impl<'program> super::Evaluator<'program> {
                 // and directories.
                 match self.authorized_path(&path, false, 0) {
                     Some(path) => {
+                        let prepared = self.prepare_sponsored_open(&path, false, false, false)?;
                         let mut options = std::fs::OpenOptions::new();
                         options.read(true);
-                        match open_real(&options, &path, false) {
-                            Ok(file) => self.real_fs_mut().insert(file, path),
-                            Err(error) => {
-                                self.real_fs_mut().errno = win32_error_code(&error);
-                                -1
-                            }
-                        }
+                        let opened = open_real(&options, &path, false);
+                        self.finish_real_open(opened, path, false, prepared, true)?
                     }
                     None => {
                         let real = self.real_fs_mut();
@@ -340,17 +457,28 @@ impl<'program> super::Evaluator<'program> {
                 }
             }
             PreparedFilesystemCall::Write { fd, bytes } => {
+                let prepared = match self.prepare_sponsored_write(fd, bytes.len(), None)? {
+                    Ok(prepared) => prepared,
+                    Err(errno) => {
+                        self.real_fs_mut().errno = errno;
+                        return Ok(Value::Int(-1));
+                    }
+                };
                 let real = self.real_fs_mut();
-                match real.files.get_mut(&fd) {
+                let outcome = match real.files.get_mut(&fd) {
                     Some(entry) => match entry.file.write(&bytes) {
-                        Ok(n) => n as i64,
-                        Err(error) => {
-                            real.errno = io_errno(&error);
-                            -1
-                        }
+                        Ok(n) => Ok(n),
+                        Err(error) => Err(io_errno(&error)),
                     },
-                    None => {
-                        real.errno = EBADF;
+                    None => Err(EBADF),
+                };
+                match outcome {
+                    Ok(written) => {
+                        self.commit_sponsored_write(prepared, written)?;
+                        checked_written_count(written)?
+                    }
+                    Err(errno) => {
+                        self.real_fs_mut().errno = errno;
                         -1
                     }
                 }
@@ -377,56 +505,66 @@ impl<'program> super::Evaluator<'program> {
                 }
             }
             PreparedFilesystemCall::Close { fd } => {
-                let real = self.real_fs_mut();
-                if real.files.remove(&fd).is_some() {
+                if self.real_fs_mut().files.contains_key(&fd) {
+                    let prepared = self.prepare_sponsored_close(fd)?;
+                    self.real_fs_mut().files.remove(&fd);
+                    self.commit_sponsored_mutation(prepared)?;
                     0 // the File drop closes the real descriptor
                 } else {
-                    real.errno = EBADF;
+                    self.real_fs_mut().errno = EBADF;
                     -1
                 }
             }
             PreparedFilesystemCall::CloseHandle { handle } => {
-                let real = self.real_fs_mut();
                 match synthetic_handle_fd(handle) {
-                    Some(handle) if real.files.remove(&handle).is_some() => {
+                    Some(handle) if self.real_fs_mut().files.contains_key(&handle) => {
+                        let prepared = self.prepare_sponsored_close(handle)?;
+                        self.real_fs_mut().files.remove(&handle);
+                        self.commit_sponsored_mutation(prepared)?;
                         1 // Win32 BOOL success; dropping File closes the handle.
                     }
                     _ => {
-                        real.errno = 6; // ERROR_INVALID_HANDLE
+                        self.real_fs_mut().errno = 6; // ERROR_INVALID_HANDLE
                         0
                     }
                 }
             }
             PreparedFilesystemCall::Duplicate { fd } => {
-                let real = self.real_fs_mut();
-                let cloned = match real.files.get(&fd) {
+                let prepared = self.prepare_sponsored_duplicate(fd)?;
+                let cloned = match self.real_fs_mut().files.get(&fd) {
                     Some(entry) => entry
                         .file
                         .try_clone()
-                        .map(|file| (file, entry.path.clone()))
+                        .map(|file| (file, entry.path.clone(), entry.append))
                         .map_err(|error| io_errno(&error)),
                     None => Err(EBADF),
                 };
                 match cloned {
-                    Ok((file, path)) => real.insert(file, path),
+                    Ok((file, path, append)) => {
+                        let sponsor_descriptor = self.commit_sponsored_open(prepared)?;
+                        self.real_fs_mut()
+                            .insert(file, path, sponsor_descriptor, append)
+                    }
                     Err(errno) => {
-                        real.errno = errno;
+                        self.real_fs_mut().errno = errno;
                         -1
                     }
                 }
             }
             PreparedFilesystemCall::SetLen { fd, length } => {
-                let real = self.real_fs_mut();
-                match real.files.get_mut(&fd) {
-                    Some(entry) => match entry.file.set_len(length.max(0) as u64) {
-                        Ok(()) => 0,
-                        Err(error) => {
-                            real.errno = io_errno(&error);
-                            -1
-                        }
-                    },
-                    None => {
-                        real.errno = EBADF;
+                let length = u64::try_from(length.max(0)).expect("nonnegative i64 fits in u64");
+                let prepared = self.prepare_sponsored_set_extent(fd, length)?;
+                let outcome = match self.real_fs_mut().files.get_mut(&fd) {
+                    Some(entry) => entry.file.set_len(length).map_err(|error| io_errno(&error)),
+                    None => Err(EBADF),
+                };
+                match outcome {
+                    Ok(()) => {
+                        self.commit_sponsored_mutation(prepared)?;
+                        0
+                    }
+                    Err(errno) => {
+                        self.real_fs_mut().errno = errno;
                         -1
                     }
                 }
@@ -452,7 +590,11 @@ impl<'program> super::Evaluator<'program> {
             PreparedFilesystemCall::Remove { path }
             | PreparedFilesystemCall::RemoveName { path } => {
                 match self.authorized_path(&path, true, 0) {
-                    Some(path) => self.real_result_unit(std::fs::remove_file(path)),
+                    Some(path) => {
+                        let prepared = self.prepare_sponsored_unlink(&path)?;
+                        let outcome = std::fs::remove_file(path);
+                        self.finish_real_mutation(outcome, prepared, false)?
+                    }
                     None => -1,
                 }
             }
@@ -461,13 +603,21 @@ impl<'program> super::Evaluator<'program> {
                 name: path,
                 mode: _,
             } => match self.authorized_path(&path, true, 0) {
-                Some(path) => self.real_result_unit(std::fs::create_dir(path)),
+                Some(path) => {
+                    let prepared = self.prepare_sponsored_create_directory(&path)?;
+                    let outcome = std::fs::create_dir(path);
+                    self.finish_real_mutation(outcome, prepared, false)?
+                }
                 None => -1,
             },
             PreparedFilesystemCall::RemoveDir { path }
             | PreparedFilesystemCall::RemoveDirName { path } => {
                 match self.authorized_path(&path, true, 0) {
-                    Some(path) => self.real_result_unit(std::fs::remove_dir(path)),
+                    Some(path) => {
+                        let prepared = self.prepare_sponsored_unlink(&path)?;
+                        let outcome = std::fs::remove_dir(path);
+                        self.finish_real_mutation(outcome, prepared, false)?
+                    }
                     None => -1,
                 }
             }
@@ -478,7 +628,11 @@ impl<'program> super::Evaluator<'program> {
                     self.authorized_path(&from, true, 0),
                     self.authorized_path(&to, true, 1),
                 ) {
-                    (Some(from), Some(to)) => self.real_result_unit(std::fs::rename(from, to)),
+                    (Some(from), Some(to)) => {
+                        let prepared = self.prepare_sponsored_rename(&from, &to)?;
+                        let outcome = std::fs::rename(from, to);
+                        self.finish_real_mutation(outcome, prepared, false)?
+                    }
                     _ => -1,
                 }
             }
@@ -514,17 +668,27 @@ impl<'program> super::Evaluator<'program> {
             PreparedFilesystemCall::WriteAt { fd, bytes, offset } => {
                 // `pwrite(fd, buf, offset)`: write at an absolute offset
                 // WITHOUT moving the cursor (same emulation).
-                let real = self.real_fs_mut();
-                match real.files.get_mut(&fd) {
+                let prepared = match self.prepare_sponsored_write(fd, bytes.len(), Some(offset))? {
+                    Ok(prepared) => prepared,
+                    Err(errno) => {
+                        self.real_fs_mut().errno = errno;
+                        return Ok(Value::Int(-1));
+                    }
+                };
+                let outcome = match self.real_fs_mut().files.get_mut(&fd) {
                     Some(entry) => match positioned_write(&mut entry.file, offset, &bytes) {
-                        Ok(n) => n as i64,
-                        Err(error) => {
-                            real.errno = io_errno(&error);
-                            -1
-                        }
+                        Ok(n) => Ok(n),
+                        Err(error) => Err(io_errno(&error)),
                     },
-                    None => {
-                        real.errno = EBADF;
+                    None => Err(EBADF),
+                };
+                match outcome {
+                    Ok(written) => {
+                        self.commit_sponsored_write(prepared, written)?;
+                        checked_written_count(written)?
+                    }
+                    Err(errno) => {
+                        self.real_fs_mut().errno = errno;
                         -1
                     }
                 }
@@ -681,7 +845,9 @@ impl<'program> super::Evaluator<'program> {
                     self.authorized_path(&link, true, 1),
                 ) {
                     (Some(original), Some(link)) => {
-                        self.real_result_unit(std::fs::hard_link(original, link))
+                        let prepared = self.prepare_sponsored_hard_link(&original, &link)?;
+                        let outcome = std::fs::hard_link(original, link);
+                        self.finish_real_mutation(outcome, prepared, false)?
                     }
                     _ => -1,
                 }
@@ -700,13 +866,11 @@ impl<'program> super::Evaluator<'program> {
                     self.authorized_path(&existing, true, 1),
                     self.authorized_path(&link, true, 0),
                 ) {
-                    (Some(existing), Some(link)) => match std::fs::hard_link(existing, link) {
-                        Ok(()) => 1,
-                        Err(error) => {
-                            self.real_fs_mut().errno = win32_error_code(&error);
-                            0
-                        }
-                    },
+                    (Some(existing), Some(link)) => {
+                        let prepared = self.prepare_sponsored_hard_link(&existing, &link)?;
+                        let outcome = std::fs::hard_link(existing, link);
+                        self.finish_real_mutation(outcome, prepared, true)?
+                    }
                     _ => 0,
                 }
             }
@@ -814,16 +978,15 @@ impl<'program> super::Evaluator<'program> {
                 // authority. Unix-only in std; elsewhere ENOTSUP.
                 match self.authorized_path(&link, true, 1) {
                     Some(link) => {
+                        let prepared = self.prepare_sponsored_symlink(&link, &target)?;
                         #[cfg(unix)]
                         {
-                            self.real_result_unit(std::os::unix::fs::symlink(
-                                real_path(&target),
-                                link,
-                            ))
+                            let outcome = std::os::unix::fs::symlink(real_path(&target), link);
+                            self.finish_real_mutation(outcome, prepared, false)?
                         }
                         #[cfg(not(unix))]
                         {
-                            let _ = (target, link);
+                            let _ = (target, link, prepared);
                             self.real_fs_mut().errno = ENOTSUP;
                             -1
                         }
@@ -1075,10 +1238,13 @@ impl<'program> super::Evaluator<'program> {
                 let joined_bytes = joined.to_string_lossy().into_owned().into_bytes();
                 match self.authorized_path(&joined_bytes, true, 1) {
                     Some(path) => {
+                        let prepared = self.prepare_sponsored_unlink(&path)?;
                         if flags & 0x80 != 0 {
-                            self.real_result_unit(std::fs::remove_dir(path))
+                            let outcome = std::fs::remove_dir(path);
+                            self.finish_real_mutation(outcome, prepared, false)?
                         } else {
-                            self.real_result_unit(std::fs::remove_file(path))
+                            let outcome = std::fs::remove_file(path);
+                            self.finish_real_mutation(outcome, prepared, false)?
                         }
                     }
                     None => -1,
@@ -1103,8 +1269,21 @@ impl<'program> super::Evaluator<'program> {
                     || host_open_flags::o_append(flags);
                 match self.authorized_path(&joined_bytes, wants_write, 1) {
                     Some(path) => {
+                        let prepared = self.prepare_sponsored_open(
+                            &path,
+                            host_open_flags::o_creat(flags),
+                            host_open_flags::o_trunc(flags),
+                            wants_write,
+                        )?;
                         let options = open_options_for(flags, 0, false);
-                        self.real_result_fd(open_real(&options, &path, wants_write), path)
+                        let opened = open_real(&options, &path, wants_write);
+                        self.finish_real_open(
+                            opened,
+                            path,
+                            host_open_flags::o_append(flags),
+                            prepared,
+                            false,
+                        )?
                     }
                     None => -1,
                 }
@@ -1119,7 +1298,7 @@ impl<'program> super::Evaluator<'program> {
         flags: i32,
         mode: u32,
         create_variant: bool,
-    ) -> i64 {
+    ) -> EvalResult<i64> {
         let access = flags & 0x3;
         let wants_write = access == 1
             || access == 2
@@ -1128,10 +1307,329 @@ impl<'program> super::Evaluator<'program> {
             || host_open_flags::o_append(flags);
         match self.authorized_path(&path, wants_write, 0) {
             Some(path) => {
+                let prepared = self.prepare_sponsored_open(
+                    &path,
+                    host_open_flags::o_creat(flags),
+                    host_open_flags::o_trunc(flags),
+                    wants_write,
+                )?;
                 let options = open_options_for(flags, mode, create_variant);
-                self.real_result_fd(open_real(&options, &path, wants_write), path)
+                let opened = open_real(&options, &path, wants_write);
+                self.finish_real_open(
+                    opened,
+                    path,
+                    host_open_flags::o_append(flags),
+                    prepared,
+                    false,
+                )
             }
-            None => -1,
+            None => Ok(-1),
+        }
+    }
+
+    fn prepare_sponsored_open(
+        &mut self,
+        path: &Path,
+        may_create: bool,
+        truncates: bool,
+        wants_write: bool,
+    ) -> EvalResult<SponsorPreparation<crate::PreparedFilesystemOpen>> {
+        let Some(sponsor) = self
+            .real_fs
+            .as_ref()
+            .and_then(|filesystem| filesystem.sponsor.clone())
+        else {
+            return Ok(SponsorPreparation::Unsponsored);
+        };
+        let session_root = sponsor_value(sponsor.session_root())?;
+        if read_only_open_bypasses_sponsor(path, &session_root, may_create, truncates, wants_write)
+        {
+            return Ok(SponsorPreparation::Unsponsored);
+        }
+        let sponsored_path = sponsor_value(sponsor.bind_path(path))?;
+        let entry = sponsor_value(sponsor.entry(&sponsored_path))?;
+        if matches!(entry, Some(crate::FilesystemSponsorEntry::Directory))
+            && !may_create
+            && !truncates
+        {
+            return Ok(SponsorPreparation::Unsponsored);
+        }
+        let prepared = if entry.is_none() && may_create {
+            sponsor.prepare_create_object_open(&sponsored_path, 0)
+        } else {
+            sponsor.prepare_open_with_extent(&sponsored_path, truncates.then_some(0))
+        };
+        sponsor_preparation(prepared)
+    }
+
+    fn finish_real_open(
+        &mut self,
+        opened: std::io::Result<std::fs::File>,
+        path: PathBuf,
+        append: bool,
+        prepared: SponsorPreparation<crate::PreparedFilesystemOpen>,
+        win32_errors: bool,
+    ) -> EvalResult<i64> {
+        match opened {
+            Ok(file) => {
+                let sponsor_descriptor = self.commit_sponsored_open(prepared)?;
+                Ok(self
+                    .real_fs_mut()
+                    .insert(file, path, sponsor_descriptor, append))
+            }
+            Err(error) => {
+                self.real_fs_mut().errno = if win32_errors {
+                    win32_error_code(&error)
+                } else {
+                    io_errno(&error)
+                };
+                Ok(-1)
+            }
+        }
+    }
+
+    fn commit_sponsored_open(
+        &mut self,
+        prepared: SponsorPreparation<crate::PreparedFilesystemOpen>,
+    ) -> EvalResult<Option<crate::FilesystemOpenDescriptor>> {
+        match prepared {
+            SponsorPreparation::Unsponsored => Ok(None),
+            SponsorPreparation::Prepared(prepared) => Ok(Some(sponsor_value(prepared.commit())?)),
+            SponsorPreparation::ExpectedHostFailure => unexpected_sponsored_success(),
+        }
+    }
+
+    fn prepare_sponsored_duplicate(
+        &mut self,
+        fd: i32,
+    ) -> EvalResult<SponsorPreparation<crate::PreparedFilesystemOpen>> {
+        let real = self.real_fs_mut();
+        let Some(sponsor) = real.sponsor.clone() else {
+            return Ok(SponsorPreparation::Unsponsored);
+        };
+        let Some(descriptor) = real
+            .files
+            .get(&fd)
+            .and_then(|entry| entry.sponsor_descriptor)
+        else {
+            return Ok(SponsorPreparation::Unsponsored);
+        };
+        sponsor_preparation(sponsor.prepare_duplicate(&descriptor))
+    }
+
+    fn prepare_sponsored_close(
+        &mut self,
+        fd: i32,
+    ) -> EvalResult<SponsorPreparation<crate::PreparedFilesystemMutation>> {
+        let real = self.real_fs_mut();
+        let Some(sponsor) = real.sponsor.clone() else {
+            return Ok(SponsorPreparation::Unsponsored);
+        };
+        let Some(descriptor) = real
+            .files
+            .get(&fd)
+            .and_then(|entry| entry.sponsor_descriptor)
+        else {
+            return Ok(SponsorPreparation::Unsponsored);
+        };
+        sponsor_preparation(sponsor.prepare_close(&descriptor))
+    }
+
+    fn prepare_sponsored_set_extent(
+        &mut self,
+        fd: i32,
+        extent: u64,
+    ) -> EvalResult<SponsorPreparation<crate::PreparedFilesystemMutation>> {
+        let real = self.real_fs_mut();
+        let Some(sponsor) = real.sponsor.clone() else {
+            return Ok(SponsorPreparation::Unsponsored);
+        };
+        let Some(entry) = real.files.get(&fd) else {
+            return Ok(SponsorPreparation::ExpectedHostFailure);
+        };
+        let Some(descriptor) = entry.sponsor_descriptor else {
+            return Ok(SponsorPreparation::ExpectedHostFailure);
+        };
+        sponsor_preparation(sponsor.prepare_set_extent(&descriptor, extent))
+    }
+
+    fn prepare_sponsored_write(
+        &mut self,
+        fd: i32,
+        requested_bytes: usize,
+        positioned_offset: Option<i64>,
+    ) -> EvalResult<Result<SponsorPreparation<crate::PreparedFilesystemWrite>, i32>> {
+        let real = self.real_fs_mut();
+        let Some(sponsor) = real.sponsor.clone() else {
+            return Ok(Ok(SponsorPreparation::Unsponsored));
+        };
+        let Some(entry) = real.files.get_mut(&fd) else {
+            return Ok(Err(EBADF));
+        };
+        let Some(descriptor) = entry.sponsor_descriptor else {
+            return Ok(Ok(SponsorPreparation::ExpectedHostFailure));
+        };
+        let offset = if entry.append {
+            match entry.file.metadata() {
+                Ok(metadata) => metadata.len(),
+                Err(error) => return Ok(Err(io_errno(&error))),
+            }
+        } else if let Some(offset) = positioned_offset {
+            u64::try_from(offset.max(0)).expect("nonnegative i64 fits in u64")
+        } else {
+            match entry.file.stream_position() {
+                Ok(offset) => offset,
+                Err(error) => return Ok(Err(io_errno(&error))),
+            }
+        };
+        let requested_bytes = match u64::try_from(requested_bytes) {
+            Ok(bytes) => bytes,
+            Err(_) => {
+                return super::filesystem_sponsor_halt(
+                    crate::FilesystemSponsorError::ArithmeticOverflow,
+                );
+            }
+        };
+        Ok(Ok(sponsor_preparation(sponsor.prepare_write(
+            &descriptor,
+            offset,
+            requested_bytes,
+        ))?))
+    }
+
+    fn commit_sponsored_write(
+        &mut self,
+        prepared: SponsorPreparation<crate::PreparedFilesystemWrite>,
+        written: usize,
+    ) -> EvalResult<()> {
+        let prepared = match prepared {
+            SponsorPreparation::Unsponsored => return Ok(()),
+            SponsorPreparation::Prepared(prepared) => prepared,
+            SponsorPreparation::ExpectedHostFailure => {
+                return unexpected_sponsored_success();
+            }
+        };
+        let written = match u64::try_from(written) {
+            Ok(written) => written,
+            Err(_) => {
+                return super::filesystem_sponsor_halt(
+                    crate::FilesystemSponsorError::ArithmeticOverflow,
+                );
+            }
+        };
+        sponsor_value(prepared.commit_written(written))
+    }
+
+    fn prepare_sponsored_create_directory(
+        &mut self,
+        path: &Path,
+    ) -> EvalResult<SponsorPreparation<crate::PreparedFilesystemMutation>> {
+        let Some((sponsor, path)) = self.sponsor_path(path)? else {
+            return Ok(SponsorPreparation::Unsponsored);
+        };
+        sponsor_preparation(sponsor.prepare_create_directory(&path))
+    }
+
+    fn prepare_sponsored_unlink(
+        &mut self,
+        path: &Path,
+    ) -> EvalResult<SponsorPreparation<crate::PreparedFilesystemMutation>> {
+        let Some((sponsor, path)) = self.sponsor_path(path)? else {
+            return Ok(SponsorPreparation::Unsponsored);
+        };
+        sponsor_preparation(sponsor.prepare_unlink(&path))
+    }
+
+    fn prepare_sponsored_rename(
+        &mut self,
+        from: &Path,
+        to: &Path,
+    ) -> EvalResult<SponsorPreparation<crate::PreparedFilesystemMutation>> {
+        let Some(sponsor) = self
+            .real_fs
+            .as_ref()
+            .and_then(|filesystem| filesystem.sponsor.clone())
+        else {
+            return Ok(SponsorPreparation::Unsponsored);
+        };
+        let from = sponsor_value(sponsor.bind_path(from))?;
+        let to = sponsor_value(sponsor.bind_path(to))?;
+        sponsor_preparation(sponsor.prepare_rename(&from, &to))
+    }
+
+    fn prepare_sponsored_hard_link(
+        &mut self,
+        existing: &Path,
+        new_name: &Path,
+    ) -> EvalResult<SponsorPreparation<crate::PreparedFilesystemMutation>> {
+        let Some(sponsor) = self
+            .real_fs
+            .as_ref()
+            .and_then(|filesystem| filesystem.sponsor.clone())
+        else {
+            return Ok(SponsorPreparation::Unsponsored);
+        };
+        let existing = sponsor_value(sponsor.bind_path(existing))?;
+        let new_name = sponsor_value(sponsor.bind_path(new_name))?;
+        sponsor_preparation(sponsor.prepare_hard_link(&existing, &new_name))
+    }
+
+    fn prepare_sponsored_symlink(
+        &mut self,
+        link: &Path,
+        target_spelling: &[u8],
+    ) -> EvalResult<SponsorPreparation<crate::PreparedFilesystemMutation>> {
+        let Some((sponsor, link)) = self.sponsor_path(link)? else {
+            return Ok(SponsorPreparation::Unsponsored);
+        };
+        sponsor_preparation(sponsor.prepare_create_symlink(&link, target_spelling))
+    }
+
+    fn sponsor_path(
+        &mut self,
+        path: &Path,
+    ) -> EvalResult<Option<(crate::FilesystemSponsor, crate::FilesystemSponsorPath)>> {
+        let Some(sponsor) = self
+            .real_fs
+            .as_ref()
+            .and_then(|filesystem| filesystem.sponsor.clone())
+        else {
+            return Ok(None);
+        };
+        let path = sponsor_value(sponsor.bind_path(path))?;
+        Ok(Some((sponsor, path)))
+    }
+
+    fn commit_sponsored_mutation(
+        &mut self,
+        prepared: SponsorPreparation<crate::PreparedFilesystemMutation>,
+    ) -> EvalResult<()> {
+        match prepared {
+            SponsorPreparation::Unsponsored => Ok(()),
+            SponsorPreparation::Prepared(prepared) => sponsor_value(prepared.commit()),
+            SponsorPreparation::ExpectedHostFailure => unexpected_sponsored_success(),
+        }
+    }
+
+    fn finish_real_mutation(
+        &mut self,
+        outcome: std::io::Result<()>,
+        prepared: SponsorPreparation<crate::PreparedFilesystemMutation>,
+        win32_result: bool,
+    ) -> EvalResult<i64> {
+        match outcome {
+            Ok(()) => {
+                self.commit_sponsored_mutation(prepared)?;
+                Ok(if win32_result { 1 } else { 0 })
+            }
+            Err(error) => {
+                self.real_fs_mut().errno = if win32_result {
+                    win32_error_code(&error)
+                } else {
+                    io_errno(&error)
+                };
+                Ok(if win32_result { 0 } else { -1 })
+            }
         }
     }
 
@@ -1282,16 +1780,6 @@ impl<'program> super::Evaluator<'program> {
                 },
                 reason,
             });
-    }
-
-    fn real_result_fd(&mut self, opened: std::io::Result<std::fs::File>, path: PathBuf) -> i64 {
-        match opened {
-            Ok(file) => self.real_fs_mut().insert(file, path),
-            Err(error) => {
-                self.real_fs_mut().errno = io_errno(&error);
-                -1
-            }
-        }
     }
 
     fn real_result_unit(&mut self, outcome: std::io::Result<()>) -> i64 {
@@ -1483,5 +1971,145 @@ fn win32_error_code(error: &std::io::Error) -> i32 {
         ErrorKind::AlreadyExists => 183,
         ErrorKind::WouldBlock => 33,
         _ => error.raw_os_error().unwrap_or(1),
+    }
+}
+
+#[cfg(test)]
+mod sponsor_provider_tests {
+    use super::*;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static NEXT_TEST_DIRECTORY: AtomicU64 = AtomicU64::new(1);
+
+    struct TestDirectory(PathBuf);
+
+    impl TestDirectory {
+        fn new(label: &str) -> Self {
+            let identity = NEXT_TEST_DIRECTORY.fetch_add(1, Ordering::Relaxed);
+            let path = std::env::temp_dir().join(format!(
+                "omega-real-fs-{label}-{}-{identity}",
+                std::process::id()
+            ));
+            std::fs::create_dir(&path).expect("create provider test directory");
+            Self(path)
+        }
+    }
+
+    impl Drop for TestDirectory {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    #[test]
+    fn source_reads_and_the_session_root_bypass_sponsorship() {
+        let root = Path::new("/staging/session");
+        assert!(read_only_open_bypasses_sponsor(
+            Path::new("/sources/package/input.txt"),
+            root,
+            false,
+            false,
+            false,
+        ));
+        assert!(read_only_open_bypasses_sponsor(
+            root, root, false, false, false,
+        ));
+        assert!(!read_only_open_bypasses_sponsor(
+            Path::new("/staging/session/output.txt"),
+            root,
+            false,
+            false,
+            false,
+        ));
+        assert!(!read_only_open_bypasses_sponsor(
+            Path::new("/sources/package/input.txt"),
+            root,
+            false,
+            false,
+            true,
+        ));
+    }
+
+    #[test]
+    fn ordinary_namespace_preconditions_are_deferred_to_the_host() {
+        let directory = TestDirectory::new("host-precondition");
+        let sponsor = crate::FilesystemSponsor::new(&directory.0).unwrap();
+        let child = sponsor
+            .bind_path(directory.0.join("missing/child"))
+            .unwrap();
+        assert!(matches!(
+            sponsor_preparation(sponsor.prepare_create_directory(&child)),
+            Ok(SponsorPreparation::ExpectedHostFailure)
+        ));
+    }
+
+    #[test]
+    fn real_fs_drop_closes_descriptors_and_preserves_named_charges() {
+        let directory = TestDirectory::new("drop-close");
+        let path = directory.0.join("output.bin");
+        std::fs::write(&path, b"1234567").unwrap();
+        let sponsor = crate::FilesystemSponsor::new(&directory.0).unwrap();
+        let sponsored_path = sponsor.bind_path(&path).unwrap();
+        let descriptor = sponsor
+            .prepare_create_object_open(&sponsored_path, 7)
+            .unwrap()
+            .commit()
+            .unwrap();
+        let file = std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(&path)
+            .unwrap();
+        let mut filesystem = RealFs::new(None, Some(sponsor.clone()));
+        filesystem.insert(file, path, Some(descriptor), false);
+        assert_eq!(sponsor.snapshot().unwrap().open_descriptors, 1);
+
+        drop(filesystem);
+
+        let snapshot = sponsor.snapshot().unwrap();
+        assert_eq!(snapshot.open_descriptors, 0);
+        assert_eq!(snapshot.entries, 1);
+        assert_eq!(snapshot.unique_objects, 1);
+        assert_eq!(snapshot.total_logical_bytes, 7);
+    }
+
+    #[test]
+    fn resource_halt_teardown_closes_remaining_descriptors() {
+        let directory = TestDirectory::new("resource-close");
+        let path = directory.0.join("output.bin");
+        std::fs::write(&path, []).unwrap();
+        let sponsor = crate::FilesystemSponsor::with_limits(
+            &directory.0,
+            crate::FilesystemSponsorLimits {
+                maximum_entries: 1,
+                maximum_total_logical_bytes: 0,
+                maximum_object_extent: 0,
+            },
+        )
+        .unwrap();
+        let sponsored_path = sponsor.bind_path(&path).unwrap();
+        let descriptor = sponsor
+            .prepare_create_object_open(&sponsored_path, 0)
+            .unwrap()
+            .commit()
+            .unwrap();
+        let file = std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(&path)
+            .unwrap();
+        let mut filesystem = RealFs::new(None, Some(sponsor.clone()));
+        filesystem.insert(file, path, Some(descriptor), false);
+
+        assert!(matches!(
+            sponsor_preparation(sponsor.prepare_write(&descriptor, 0, 1)),
+            Err(super::super::Halt::Resource(_))
+        ));
+        drop(filesystem);
+
+        let snapshot = sponsor.snapshot().unwrap();
+        assert_eq!(snapshot.open_descriptors, 0);
+        assert_eq!(snapshot.entries, 1);
+        assert_eq!(snapshot.total_logical_bytes, 0);
     }
 }

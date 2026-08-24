@@ -297,7 +297,9 @@ fn run_const_machine_on_current_thread(
         Err(Halt::Exit(code)) => Err(format!(
             "the machine attempted to exit the process (code {code}) instead of returning a value"
         )),
-        Err(Halt::Unsupported(message)) | Err(Halt::Trap(message)) => Err(message),
+        Err(Halt::Unsupported(message))
+        | Err(Halt::Trap(message))
+        | Err(Halt::Resource(message)) => Err(message),
     }
 }
 
@@ -331,7 +333,9 @@ pub(crate) fn run_build_time_machine(
                     Err(Halt::Exit(code)) => Err(format!(
                         "the machine attempted to exit the process (code {code}) instead of returning a value"
                     )),
-                    Err(Halt::Unsupported(message)) | Err(Halt::Trap(message)) => Err(message),
+                    Err(Halt::Unsupported(message))
+                    | Err(Halt::Trap(message))
+                    | Err(Halt::Resource(message)) => Err(message),
                 }
             })
             .expect("spawn build-time evaluation worker thread")
@@ -371,7 +375,9 @@ pub(crate) fn run_build_time_machine_arguments(
                     Err(Halt::Exit(code)) => Err(format!(
                         "the machine attempted to exit the process (code {code}) instead of returning"
                     )),
-                    Err(Halt::Unsupported(message)) | Err(Halt::Trap(message)) => Err(message),
+                    Err(Halt::Unsupported(message))
+                    | Err(Halt::Trap(message))
+                    | Err(Halt::Resource(message)) => Err(message),
                 }
             })
             .expect("spawn build-time evaluation worker thread")
@@ -404,10 +410,14 @@ pub(crate) fn run_granted_build_machine_arguments(
                 match options.filesystem {
                     FilesystemAccess::Virtual => {}
                     FilesystemAccess::RealUnscoped => {
-                        evaluator.real_fs = Some(real_fs::RealFs::new(None));
+                        evaluator.real_fs = Some(real_fs::RealFs::new(None, None));
                     }
                     FilesystemAccess::RealScoped(grants) => {
-                        evaluator.real_fs = Some(real_fs::RealFs::new(Some(grants)));
+                        evaluator.real_fs = Some(real_fs::RealFs::new(Some(grants), None));
+                    }
+                    FilesystemAccess::RealScopedSponsored { grants, sponsor } => {
+                        evaluator.real_fs =
+                            Some(real_fs::RealFs::new(Some(grants), Some(sponsor)));
                     }
                 }
                 let result = evaluator.run_build_machine_arguments_with_policy(
@@ -474,6 +484,14 @@ pub(crate) fn run_granted_build_machine_arguments(
                             observations,
                         ))
                     }
+                    Err(Halt::Resource(message)) => {
+                        Err(BuildMachineEvaluationFailure::with_evidence(
+                            BuildMachineEvaluationFailureKind::ResourceExhausted,
+                            message,
+                            usage,
+                            observations,
+                        ))
+                    }
                 }
             })
             .map_err(|error| {
@@ -501,10 +519,13 @@ fn run_on_current_thread(
     match options.filesystem {
         FilesystemAccess::Virtual => {}
         FilesystemAccess::RealUnscoped => {
-            evaluator.real_fs = Some(real_fs::RealFs::new(None));
+            evaluator.real_fs = Some(real_fs::RealFs::new(None, None));
         }
         FilesystemAccess::RealScoped(grants) => {
-            evaluator.real_fs = Some(real_fs::RealFs::new(Some(grants)));
+            evaluator.real_fs = Some(real_fs::RealFs::new(Some(grants), None));
+        }
+        FilesystemAccess::RealScopedSponsored { grants, sponsor } => {
+            evaluator.real_fs = Some(real_fs::RealFs::new(Some(grants), Some(sponsor)));
         }
     }
     let result = evaluator.run_entry(entry_machine_name);
@@ -517,7 +538,9 @@ fn run_on_current_thread(
         Err(Halt::Exit(code)) => {
             InterpretOutcome::exited(code, evaluator.stdout, evaluator.stderr, usage)
         }
-        Err(Halt::Unsupported(message)) | Err(Halt::Trap(message)) => {
+        Err(Halt::Unsupported(message))
+        | Err(Halt::Trap(message))
+        | Err(Halt::Resource(message)) => {
             InterpretOutcome::error(message, evaluator.stdout, evaluator.stderr, usage)
         }
     }
@@ -530,6 +553,7 @@ enum Halt {
     Exit(i32),
     Unsupported(String),
     Trap(String),
+    Resource(String),
 }
 
 type EvalResult<T> = Result<T, Halt>;
@@ -583,6 +607,15 @@ fn unsupported<T>(message: impl Into<String>) -> EvalResult<T> {
 
 fn trap<T>(message: impl Into<String>) -> EvalResult<T> {
     Err(Halt::Trap(message.into()))
+}
+
+fn filesystem_sponsor_halt<T>(error: crate::FilesystemSponsorError) -> EvalResult<T> {
+    let message = format!("filesystem staging sponsor rejected operation: {error}");
+    if error.is_limit_exceeded() {
+        Err(Halt::Resource(message))
+    } else {
+        Err(Halt::Trap(message))
+    }
 }
 
 #[derive(Clone)]

@@ -115,7 +115,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     );
     assert_eq!(
         checked_observations.filesystem_operation_schema_version(),
-        3
+        4
     );
     let attempts: Vec<_> = checked_observations
         .filesystem_operation_attempts()

@@ -8,7 +8,8 @@ use psi_checked_interpreter::{BuildTimeValue, MeasuredBuildMachineEvaluation};
 use psi_typed_trees::TypedTrees;
 
 pub use psi_checked_interpreter::{
-    FilesystemAccess as BuildMachineFilesystemAccess, FsGrants as BuildMachineFilesystemGrants,
+    FilesystemAccess as BuildMachineFilesystemAccess,
+    FilesystemSponsor as BuildMachineFilesystemSponsor, FsGrants as BuildMachineFilesystemGrants,
 };
 
 /// Explicit execution authority supplied by build orchestration.

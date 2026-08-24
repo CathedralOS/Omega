@@ -687,7 +687,7 @@ complete.
   boundary dispatcher. `read_link` is recognized as
   conditionally absolute-path-producing; `canonicalize` and
   `final_path_name_by_handle` are unconditionally so. Observation schema v3
-  carries operation-attempt schema v3: an ordered successful-run call-start
+  carries operation-attempt schema v4: an ordered successful-run call-start
   trace of exact provider,
   operation tag, scalar return, and post-operation error state through compiler
   reports and package review. Grant-gate denials additionally retain every exact
@@ -723,18 +723,22 @@ complete.
   transfer counts pass one checked
   conversion shared by both providers and reject negative, wrapped, or
   above-ceiling requests before allocation. This is an evaluator sponsor limit,
-  not a language limit; maximum file extent, total staged bytes/entries, and
-  process memory/CPU quotas remain. Canonicalize enforces its declared
+  not a language limit. Canonicalize enforces its declared
   1024-byte `PATH_MAX` carrier before provider or grant access.
   Scoped hard links now require write authority on both names; a read-only
   source object cannot be aliased into writable staging and then mutated through
-  the shared inode. The remaining staging quota is session-wide across the
-  complete reviewed closure, not per package or path-summed: it must count
-  namespace entries, unique logical objects, symlink payloads, and unlinked
-  objects retained by open descriptors. Hard links may only name objects already
-  owned by that staging account. Initial sponsor policy should align with source
-  custody at 4,096 entries and 256 MiB total logical bytes, with a separately
-  represented 256 MiB maximum file extent.
+  the shared inode. Package review now owns one session-wide staging sponsor
+  shared by every package compilation in the reviewed closure. Package build
+  roots consume that account; namespace entries count by name, regular-file
+  extents count once per unique object, symlink payload spellings count as
+  bytes, and open-but-unlinked objects remain charged until their final
+  descriptor closes. Hard links may only name objects already owned by the
+  account. Mutations reserve the resulting account state before touching the
+  OS and commit it only after the host operation succeeds; ceiling refusal is
+  a distinct resource-exhaustion halt. Compiler policy currently permits 4,096
+  entries, 256 MiB total logical bytes, and a separately enforced 256 MiB
+  maximum object extent across the complete session. Process memory and CPU
+  quotas remain.
 
 - **PROOF-AND-BOUNDARY-ADMISSION.** Fail closed on false or incomplete evidence.
 

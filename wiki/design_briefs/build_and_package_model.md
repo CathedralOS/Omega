@@ -574,7 +574,7 @@ same enum exhaustively, while aliases and platform alternatives stay distinct.
 Future rooted evidence must reject or virtualize absolute path bytes returned
 unconditionally by `canonicalize`/`final_path_name_by_handle` or conditionally
 by `read_link`.
-Observation schema v3 carries operation-attempt schema v3: an ordered
+Observation schema v3 carries operation-attempt schema v4: an ordered
 successful-run call-start trace of exact provider, operation tag, scalar return,
 and post-operation error state. Grant-gate denials retain every exact operand
 ordinal, read/write access, and unresolvable/outside-root reason; host errors
@@ -594,14 +594,19 @@ validated mutable cells/capacities, including fixed ABI inputs such as Win32
 `OVERLAPPED`, before either provider or grant access. It
 includes provider-unused ABI operands, and the canonical source test pins all
 50 operand schemas and result widths. Canonicalize enforces its declared
-1024-byte `PATH_MAX` carrier at that gate. File extent, total staging-tree
-growth, process memory, and CPU remain unbounded.
+1024-byte `PATH_MAX` carrier at that gate. Process memory and CPU remain
+unbounded.
 Scoped hard links require write authority on both names, so source custody
 cannot be bypassed by aliasing a read-only source inode into writable staging.
-The remaining staging bound is one session-wide object/namespace account across
-the closure: namespace entries are counted by name, regular-file bytes once per
-object, symlink payloads as bytes, and unlinked objects until their last open
-descriptor closes. A per-package or path-summed quota is not a valid substitute.
+Package review now owns one session-wide object/namespace account across the
+closure and shares it with every package build. Package output roots count as
+entries; namespace entries are otherwise counted by name, regular-file bytes
+once per object, symlink payloads as bytes, and unlinked objects until their
+last open descriptor closes. Mutations reserve the candidate account state
+before the host operation and commit only after success. Ceiling refusal has a
+distinct resource-exhaustion outcome. The initial compiler ceiling is 4,096
+entries, 256 MiB total logical bytes, and 256 MiB per object extent. A
+per-package or path-summed quota is not a valid substitute.
 This summary is compiler-issued execution evidence kept outside canonical
 capability/API comparison bytes. It is not a receipt and does not claim either
 replay verdict. A `Receipted` row still requires a canonical operation
