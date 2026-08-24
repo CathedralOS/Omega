@@ -1,5 +1,6 @@
 use omega_packages::{
-    GitSourceSpec, LocalSourceLimits, PackageName, resolve_git_source, resolve_local_source,
+    GitSourceSpec, LocalSourceLimits, PackageName, extract_package_declaration, resolve_git_source,
+    resolve_local_source,
 };
 use std::collections::BTreeSet;
 use std::path::PathBuf;
@@ -81,6 +82,9 @@ fn remote_fixture_pins_are_exact_and_match_local_package_names() {
         assert!(pin.commit.chars().all(|ch| ch.is_ascii_hexdigit()));
         assert!(local_package_root(&pin.package).join("build.omg").is_file());
         assert!(local_package_root(&pin.package).join("main.omg").is_file());
+        let declared = extract_package_declaration(local_package_root(&pin.package))
+            .expect("local fixture must declare its package identity");
+        assert_eq!(declared.name.as_str(), pin.package);
         assert!(packages.insert(pin.package.clone()));
     }
 }

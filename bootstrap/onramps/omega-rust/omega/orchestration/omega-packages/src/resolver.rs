@@ -715,7 +715,7 @@ mod tests {
                 .rejection
                 .as_deref()
                 .expect("rejection")
-                .contains("file limit")
+                .contains("identity entry limit")
         );
 
         let _ = std::fs::remove_dir_all(&root);
