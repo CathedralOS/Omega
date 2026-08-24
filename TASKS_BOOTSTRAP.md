@@ -166,15 +166,19 @@ permutations.
   [`SOURCE_CUSTODY_FRONTEND_PROBE.md`](bootstrap/omega-bootstrap/compiler/SOURCE_CUSTODY_FRONTEND_PROBE.md).
   This checker-only measurement does not admit the families to `Ωself` or claim
   an artifact path.
-- [ ] Close the corresponding first artifact tranche after selecting and
-  documenting its conservative checked-IR handoff. Compile and run a
-  self-contained conformance program exercising the same general typed
-  behavior, with explicit layout/lowering rules, resource teeth, deterministic
-  publication, and runnable observations. A direct bridge-specific lowering is
-  valid. Terminal Psi is required only if deliberately selected on total cost;
-  vocabulary 28 currently lacks the needed general structural scalar
-  load/store/copy and runtime-index operations. Any selected vocabulary work is
-  product work in `TASKS.md`.
+- [ ] Close the corresponding first artifact tranche through the selected
+  versioned private checked-IR handoff and a direct conservative backend; do
+  not widen Terminal Psi for bridge-only structural operations. Publish the
+  exact byte format, validation, layout, lowering, publication, and evidence
+  contract, then compile and run a self-contained structural conformance
+  program. Close exact resource/mutation teeth, lower-rung status-and-byte
+  observations, independent artifact reconstruction, and
+  source→checked-IR→artifact refinement. Keep representative self-built
+  publication fast enough to remain a real gate; do not hide per-byte boundary
+  overhead behind a longer timeout or weaken the compositional renamed/
+  reordered case. This handoff choice settles only the tranche's implementation
+  route, not the final `Ωself` disposition of any source feature. Any future
+  Terminal-Psi vocabulary work remains product work in `TASKS.md`.
 - [ ] Continue against later provisional checkpoints until the bridge generally
   parses, resolves, checks, diagnoses, and conservatively lowers every program
   admitted by the candidate `Ωself` profile while rejecting everything else
