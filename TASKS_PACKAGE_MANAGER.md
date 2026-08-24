@@ -79,22 +79,24 @@ complete.
   `local` or `git` adapter; unknown URLs are no longer guessed to be Git. Local
   source identity now uses injective versioned framing over raw relative-path
   bytes, entry kind, symlink target spelling, Unix executable mode, length, and
-  content, rejects special files, and checks file limits before allocation.
+  content, rejects special files and links into excluded Git metadata, and
+  checks file limits before allocation. Git caches now use full policy-versioned
+  keys, exclusive per-entry locking, staged publication, exact resolver
+  metadata/origin/config verification, sealed Git configuration, and
+  pre-checkout rejection of `.gitmodules` and gitlinks.
 
-  Known suspect points:
+  Remaining suspect points:
 
-  - the cache directory uses only a truncated locator/revision hash and reuses
-    an existing repository without proving its origin;
-  - Git inherits system/user configuration, filters, hooks, credential helpers,
-    SSH configuration, and transport subprocess behavior;
-  - checkout happens before all repository policy has been validated;
-  - source hashing lossily converts non-UTF-8 paths and omits file type, symlink
-    identity, and mode semantics;
   - local source hashing has no immutable snapshot/TOCTOU boundary, includes
-    tool-owned build outputs when present, and shared Git checkouts can be
-    mutated by concurrent resolution;
-  - every non-local locator is currently treated as Git, so transport/source
-    kind is guessed rather than selected and receipted;
+    tool-owned build outputs when present, and Git still materializes a mutable
+    working tree before hashing it;
+  - cache locking coordinates resolver processes but is not protection against
+    an independently hostile process that can mutate the cache directory;
+  - the Git subprocess has no OS sandbox or resource ceilings, and SSH transport
+    still necessarily invokes an external client with its own configuration
+    surface;
+  - source should be materialized from the checked object database into an
+    immutable resolver-owned snapshot rather than consumed from `git checkout`;
   - resolver process/network/filesystem authority is not yet represented by a
     hardened execution boundary and receipt.
 
