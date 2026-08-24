@@ -693,6 +693,10 @@ capability bytes, but changed-row conflicts bind the exact old/new coordinates
 shown to the reviewer. Dangerous-authority rows include the toolchain authority
 declaration and package exposure declarations. Generated symbols follow their
 authored derivation origin, while compiler-derived rows state a closed reason.
+Ordinary projection retains the exact declaration symbol beside each semantic
+row and sorts the pair; dangerous-authority projection retains the exact service
+declaration and exact exposing callables while deriving the row. No later source
+join reconstructs those coordinates from reduced nominal identity.
 Provider candidate derivation captures a compiler-internal sidecar beside each
 semantic plan: exact boundary-schema and optional nominal-provider symbols, and
 the exact realizing machine for every external or checked-adapter row. Selection

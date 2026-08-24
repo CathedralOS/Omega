@@ -890,7 +890,13 @@ complete.
   shown. Generated symbols follow their mandatory authored derivation origin,
   toolchain owners reuse the compiler's canonical source-custody framing, and
   absent authored provenance has a closed compiler-derived reason rather than
-  an empty placeholder. Provider candidate derivation now captures an internal
+  an empty placeholder. Public trait, domain, data, representation-TCB, and
+  callable projection now carries each exact declaration symbol beside its
+  semantic row, and canonical sorting moves the pair together. Dangerous-
+  authority projection likewise retains the exact service declaration and
+  every exact exposing callable as it derives the row. None of these families
+  rescans typed trees by reduced nominal identity after projection. Provider
+  candidate derivation now captures an internal
   sidecar beside each semantic plan: its exact boundary schema symbol, optional
   nominal provider symbol, and the exact realizing machine for every row,
   including external leaves and checked adapters. Selection keeps that pair

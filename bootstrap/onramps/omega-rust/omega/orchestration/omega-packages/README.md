@@ -413,7 +413,11 @@ dangerous-authority rows point to both the canonical toolchain declaration and
 the package callables exposing it. Generated symbols follow authored derivation
 provenance. Changed-row fingerprints bind the exact old/new coordinates shown
 by the escaped fixed-vocabulary renderer, but source movement alone is not a
-capability change. Provider candidates now carry compiler-internal provenance
+capability change. Ordinary semantic rows carry their exact declaration symbol
+through canonical sorting; dangerous-authority rows retain their exact service
+declaration and exact exposing callables during derivation. Source issuance no
+longer rescans typed trees by reduced nominal identity. Provider candidates now
+carry compiler-internal provenance
 beside their semantic plans: exact schema and optional nominal-provider symbols,
 plus the exact realizing machine for every external or checked-adapter row.
 Selection and sorting preserve the pair and add exact authored build/target-

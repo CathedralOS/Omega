@@ -220,6 +220,57 @@ target macos_arm64 { }
 }
 
 #[test]
+fn canonical_row_sorting_keeps_exact_declaration_sources_paired() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let source = "pub data Zed {}\npub data Alpha {}\n";
+    let package = TempPackage::new();
+    package.write("main.omg", source);
+    package.write(
+        "build.omg",
+        r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+"#,
+    );
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some(target),
+        package_inputs(&package.0),
+    )
+    .expect("out-of-source-order declarations should check");
+    let review = project_checked_package_review(&checked).expect("package review should close");
+    let canonical_rows = review.canonical_rows().expect("canonical review rows");
+    let data_rows = canonical_rows
+        .iter()
+        .filter(|row| row.kind() == PackageReviewCanonicalRowKind::PublicData)
+        .collect::<Vec<_>>();
+    assert_eq!(review.public_data().len(), 2);
+    assert_eq!(data_rows.len(), 2);
+    for row in data_rows {
+        let [location] = row
+            .source()
+            .authored_locations()
+            .expect("public data declaration source")
+        else {
+            panic!("one exact declaration source")
+        };
+        let start = usize::try_from(location.start_byte()).expect("source start fits usize");
+        let end = usize::try_from(location.end_byte()).expect("source end fits usize");
+        let declaration_name = &source[start..end];
+        assert!(matches!(declaration_name, "Alpha" | "Zed"));
+        assert!(
+            row.key_bytes()
+                .windows(declaration_name.len())
+                .any(|window| window == declaration_name.as_bytes()),
+            "the canonical row key and retained source must name the same exact declaration"
+        );
+    }
+}
+
+#[test]
 fn dangerous_authority_classification_requires_exact_toolchain_provenance() {
     let Some(target) = host_target_name() else {
         return;
