@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use omega_target::{ProgramEntrySlotDeclaration, TargetProfile};
+use omega_target::{ProgramEntrySlotDeclaration, TargetProfile, TargetRequiredRootSlotDeclaration};
 use psi_layout_plans::EntryStubId;
 
 use crate::{
@@ -16,7 +16,7 @@ use crate::{
 /// verified closed set.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TargetRequiredRootSlotSelection {
-    target_slot: ProgramEntrySlotDeclaration,
+    target_slot: TargetRequiredRootSlotDeclaration,
     selected_entry: EntryStubId,
     requirement_identity: String,
 }
@@ -27,7 +27,12 @@ impl TargetRequiredRootSlotSelection {
         selected_entry: EntryStubId,
         requirement_identity: impl Into<String>,
     ) -> Result<Self, ExternalRootDiagnostic> {
-        if target_slot != target_slot.owner.program_entry_slot() {
+        let target_slot = TargetRequiredRootSlotDeclaration::ProgramEntry(target_slot);
+        if target_slot
+            .owner()
+            .required_root_slot(target_slot.slot_name())
+            != Some(target_slot)
+        {
             return Err(ExternalRootDiagnostic(
                 "required root-slot selection names a program-entry declaration from another profile"
                     .into(),
@@ -50,7 +55,7 @@ impl TargetRequiredRootSlotSelection {
 /// One exact member of the target-derived required-slot closure.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VerifiedRequiredRootSlot {
-    target_slot: ProgramEntrySlotDeclaration,
+    target_slot: TargetRequiredRootSlotDeclaration,
     slot: RootSlotId,
     owner: RootSlotOwnerId,
     selected_entry: EntryStubId,
@@ -58,7 +63,7 @@ pub struct VerifiedRequiredRootSlot {
 }
 
 impl VerifiedRequiredRootSlot {
-    pub const fn target_slot(&self) -> ProgramEntrySlotDeclaration {
+    pub const fn target_slot(&self) -> TargetRequiredRootSlotDeclaration {
         self.target_slot
     }
 
@@ -279,51 +284,80 @@ pub fn verify_target_required_root_slot_closure(
     profile: TargetProfile,
     selections: impl IntoIterator<Item = TargetRequiredRootSlotSelection>,
 ) -> Result<VerifiedRequiredRootSlotClosure, ExternalRootDiagnostic> {
-    // The current target vocabulary owns exactly one build-bound root slot.
-    // Keeping the expected set explicit here means adding a target slot cannot
-    // silently turn an absent selection into an open runtime slot.
-    let expected = profile.program_entry_slot();
-    let expected_authority = RootSlotAuthority::for_target_program_entry(expected)?;
+    let mut expected = BTreeMap::new();
+    for declaration in profile.required_root_slots() {
+        let authority = RootSlotAuthority::for_target_required_root_slot(declaration)?;
+        if let Some((existing, _)) = expected.insert(authority.slot(), (declaration, authority)) {
+            let diagnostic = if existing == declaration {
+                format!(
+                    "target profile `{}` declares required root slot `{}::{}` more than once",
+                    profile.target_name(),
+                    declaration.owner().root_slot_owner_name(),
+                    declaration.slot_name()
+                )
+            } else {
+                format!(
+                    "distinct target-required root slots `{}::{}` and `{}::{}` collide on one compact slot identity",
+                    existing.owner().root_slot_owner_name(),
+                    existing.slot_name(),
+                    declaration.owner().root_slot_owner_name(),
+                    declaration.slot_name()
+                )
+            };
+            return Err(ExternalRootDiagnostic(diagnostic));
+        }
+    }
     let mut slots = BTreeMap::new();
 
     for selection in selections {
-        if selection.target_slot.owner != profile {
+        if selection.target_slot.owner() != profile {
             return Err(ExternalRootDiagnostic(format!(
                 "required root slot `{}::{}` belongs to a different target profile",
-                selection.target_slot.owner.root_slot_owner_name(),
-                selection.target_slot.slot_name
+                selection.target_slot.owner().root_slot_owner_name(),
+                selection.target_slot.slot_name()
             )));
         }
-        if selection.target_slot != expected {
+        let authority = RootSlotAuthority::for_target_required_root_slot(selection.target_slot)?;
+        let Some((declaration, expected_authority)) = expected.get(&authority.slot()) else {
             return Err(ExternalRootDiagnostic(format!(
                 "target profile `{}` does not require root slot `{}::{}`",
                 profile.target_name(),
-                selection.target_slot.owner.root_slot_owner_name(),
-                selection.target_slot.slot_name
+                selection.target_slot.owner().root_slot_owner_name(),
+                selection.target_slot.slot_name()
+            )));
+        };
+        if declaration != &selection.target_slot || expected_authority != &authority {
+            return Err(ExternalRootDiagnostic(format!(
+                "required root slot `{}::{}` does not match its target catalog declaration",
+                selection.target_slot.owner().root_slot_owner_name(),
+                selection.target_slot.slot_name()
             )));
         }
         let verified = VerifiedRequiredRootSlot {
             target_slot: selection.target_slot,
-            slot: expected_authority.slot(),
-            owner: expected_authority.owner(),
+            slot: authority.slot(),
+            owner: authority.owner(),
             selected_entry: selection.selected_entry,
             requirement_identity: selection.requirement_identity,
         };
         if slots.insert(verified.slot, verified).is_some() {
             return Err(ExternalRootDiagnostic(format!(
                 "required root slot `{}::{}` is selected more than once",
-                expected.owner.root_slot_owner_name(),
-                expected.slot_name
+                selection.target_slot.owner().root_slot_owner_name(),
+                selection.target_slot.slot_name()
             )));
         }
     }
 
-    if !slots.contains_key(&expected_authority.slot()) {
+    if let Some((_, (missing, _))) = expected
+        .iter()
+        .find(|(identity, _)| !slots.contains_key(identity))
+    {
         return Err(ExternalRootDiagnostic(format!(
             "selected target `{}` has no bound required root slot `{}::{}`",
             profile.target_name(),
-            expected.owner.root_slot_owner_name(),
-            expected.slot_name
+            missing.owner().root_slot_owner_name(),
+            missing.slot_name()
         )));
     }
 
@@ -370,6 +404,12 @@ mod tests {
         .expect("exact closure");
         assert_eq!(closure.slots().len(), 1);
         let slot = closure.slots().next().expect("required slot");
+        assert_eq!(
+            slot.target_slot(),
+            TargetProfile::UefiX64
+                .required_root_slot("ProgramEntry")
+                .expect("catalogued ProgramEntry")
+        );
         assert_eq!(slot.selected_entry(), entry(91));
         assert_eq!(slot.requirement_identity(), "ProgramStorageEntry::enter/v1");
     }

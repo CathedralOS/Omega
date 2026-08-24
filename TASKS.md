@@ -818,9 +818,15 @@ Remaining:
   exact activation and finish, receiver-free ABI binding and recovery, emitted
   wrapper binding, logical values, operand images, caller-frame planning, and
   outgoing-frame reservation. Provider-issued stages remain separate. The
-  target vocabulary currently exposes one required `ProgramEntry`; expand it
-  to an enumerable required-slot set before claiming a finite multi-member-slot
-  canary rather than synthesizing test-only target rows.
+  target vocabulary now exposes a closed, ordered, enumerable required-root
+  catalog. Build selection validates every named row against its owning target,
+  requires the selected profile's complete catalog, and fails closed before
+  ProgramEntry lowering on an unsupported future schema. Root authority and
+  installation closure derive their expected set from the same catalog and
+  reject missing, duplicate, extra, cross-profile, and compact-ID-colliding
+  members. `ProgramEntry` remains the sole authentic member; a finite
+  multi-member-slot canary waits for a real target-owned second slot rather
+  than synthesizing test-only authority.
   Add source, terminal, artifact, and installation canaries for
   a one-root introduction, a finite multi-instance aggregate, an ordinary-call
   mint attempt, an unbounded installation shape, understated producer totals,
