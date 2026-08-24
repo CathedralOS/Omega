@@ -612,9 +612,11 @@ applications, and ordered machine/operator requirement signatures. Requirement
 rows retain parameter names and modes, package-qualified types, and fixed
 operator spelling plus exact declared service reach, installation-bound status,
 synchronous invocations as exact non-`self` parameter ordinals or
-package-qualified services, suspension, and blocking. Lifetimes, conformance
-bounds, invariants, default realizations, and proof/crash/termination contracts
-reject until complete canonical rows exist.
+package-qualified services, suspension, blocking, and termination. Progress
+premises retain package-qualified public profile identity, receiver/non-`self`
+parameter roots, and package-qualified field projections. Lifetimes,
+conformance bounds, invariants, default realizations, and non-progress
+proof/boundary/crash contracts reject until complete canonical rows exist.
 
 Terminal Psi evidence remains a separate evidence class for checked
 final-realization claims: Omega-emitted executable code, asserted properties of
