@@ -133,22 +133,29 @@ certify Git, bind every executable component or helper it may launch, prove
 path ownership, or prove that the file equals an already loaded image.
 Each launch clears the complete inherited environment, installs only the fixed
 Git/protocol/locale/helper-path variables, and uses an explicit absolute cache
-or repository working directory. It also receives null stdin, concurrent
-bounded stdout/stderr capture, and a deadline. Fetch requests only the selected
-revision at depth one and disables automatic maintenance and garbage
-collection, so selecting one package revision does not traverse its unrelated
-reachable history. Each subprocess starts in a fresh Unix process group or
+or repository working directory. It also receives resolver-owned stdin,
+concurrent bounded stdout/stderr capture, and a deadline. Stdin is null except
+for the exact object-ID request file supplied to `cat-file --batch`. Fetch
+requests only the selected revision at depth one and disables automatic
+maintenance and garbage collection, so selecting one package revision does not
+traverse its unrelated reachable history. A whole-resolution budget now caps
+launches at 64, independent of package file count, and limits ordinary elapsed execution to ten
+minutes; each command receives only the smaller remaining interval. One exactly
+framed `cat-file --batch` launch reads all validated blobs in tree order. Each
+subprocess starts in a fresh Unix process group or
 Windows Job Object. Completion and rejection paths attempt to terminate that
 container before returning; ordinary helper and SSH descendants therefore do
-not survive or hold capture pipes open in the tested cases. Termination failure
-and reaping are not yet themselves bounded, so the per-command deadline is not
-a strict wall-clock guarantee. Overflow and timeout reject explicitly once
+not survive or hold capture pipes open in the tested cases. Cleanup/reaping has
+a separate two-second deadline and fails closed if portable process APIs do not
+finish within it. A descendant escaping its Unix session remains outside this
+portable guarantee, and the cleanup allowance means the per-command deadline
+is not a strict wall-clock guarantee. Overflow and timeout reject explicitly once
 cleanup returns, including for blob reads. This process container floor is not
 an OS sandbox: a hostile Unix descendant may deliberately escape into another
 session. Depth-one fetch limits history amplification but does not enforce a
-transferred-byte or object-store quota. There is also no whole-resolution
-deadline or cumulative command-work budget; per-blob Git launches remain.
-Fetch and materialization still run in the parent process
+transferred-byte or object-store quota. The launch ceiling is not a CPU, memory,
+object-store, or transfer-work budget. Fetch and
+materialization still run in the parent process
 without filesystem/network confinement or CPU, memory, process-count, and
 transfer ceilings. A deliberately hostile same-user process can race
 cooperative locks and validation, including the local before/after observation.

@@ -1,11 +1,12 @@
 use crate::identity::SourceContentDigest;
 use command_group::{CommandGroup, GroupChild};
 use sha2::{Digest, Sha256};
+use std::cell::Cell;
 use std::collections::BTreeSet;
 use std::ffi::{OsStr, OsString};
 use std::fmt;
 use std::fs::{File, OpenOptions};
-use std::io::{Read, Write};
+use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -30,6 +31,9 @@ const GIT_COMMAND_TIMEOUT: Duration = Duration::from_secs(120);
 const GIT_STDOUT_LIMIT: usize = 16 * 1024 * 1024;
 const GIT_STDERR_LIMIT: usize = 1024 * 1024;
 const GIT_EXECUTABLE_BYTE_LIMIT: u64 = 256 * 1024 * 1024;
+const GIT_RESOLUTION_TIMEOUT: Duration = Duration::from_secs(10 * 60);
+const GIT_FIXED_COMMAND_ALLOWANCE: usize = 64;
+const GIT_COMMAND_CLEANUP_TIMEOUT: Duration = Duration::from_secs(2);
 const PROCESS_POLL_INTERVAL: Duration = Duration::from_millis(5);
 static STAGING_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
@@ -118,10 +122,14 @@ impl GitExecutableIdentity {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 struct GitExecutor {
     identity: GitExecutableIdentity,
     metadata_identity: GitExecutableMetadataIdentity,
+    started: Instant,
+    timeout: Duration,
+    launches: Cell<usize>,
+    maximum_launches: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -191,6 +199,16 @@ pub enum SourceResolveError {
     },
     GitExecutableChanged {
         path: PathBuf,
+    },
+    GitResolutionCommandLimit {
+        limit: usize,
+    },
+    GitResolutionTimedOut {
+        timeout_millis: u64,
+    },
+    GitCleanupFailed {
+        operation: String,
+        message: String,
     },
     GitSubmodulesUnsupported {
         path: PathBuf,
@@ -308,6 +326,18 @@ impl fmt::Display for SourceResolveError {
                 output,
                 "Git executable `{}` changed during source resolution",
                 path.display()
+            ),
+            Self::GitResolutionCommandLimit { limit } => write!(
+                output,
+                "Git source resolution exceeded its {limit}-command launch ceiling"
+            ),
+            Self::GitResolutionTimedOut { timeout_millis } => write!(
+                output,
+                "Git source resolution exceeded its {timeout_millis}-millisecond whole-operation deadline"
+            ),
+            Self::GitCleanupFailed { operation, message } => write!(
+                output,
+                "git {operation} process cleanup failed: {message}"
             ),
             Self::GitSubmodulesUnsupported { path } => write!(
                 output,
@@ -546,7 +576,7 @@ fn resolve_verified_git_cache_entry(
     verify_git_cache_entry(executor, entry_root, url, requested_rev)?;
     let entries = inspect_git_tree(executor, &repository, &tree, limits)?;
     let (snapshot_root, local) =
-        resolve_git_snapshot(executor, entry_root, &repository, &tree, entries, limits)?;
+        resolve_git_snapshot(executor, entry_root, &tree, entries, limits)?;
     verify_git_cache_entry(executor, entry_root, url, requested_rev)?;
     executor.verify()?;
     Ok(ResolvedGitSource {
@@ -571,7 +601,7 @@ struct GitTreeEntry {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum GitTreeEntryKind {
-    File { executable: bool },
+    File { executable: bool, bytes: Vec<u8> },
     Symlink { target_bytes: Vec<u8> },
 }
 
@@ -600,18 +630,7 @@ fn inspect_git_tree(
         ],
     )?;
     let mut entries = parse_git_tree_entries(&listing, repository, limits)?;
-
-    // Read and validate every link before creating a snapshot directory. Blob size accounting was
-    // already completed for the entire tree, so no object is allocated speculatively.
-    for entry in &mut entries {
-        if matches!(entry.kind, GitTreeEntryKind::Symlink { .. }) {
-            let target = read_git_blob_bounded(executor, repository, &entry.oid, entry.size)?;
-            validate_git_symlink_target(&entry.relative_bytes, &target)?;
-            entry.kind = GitTreeEntryKind::Symlink {
-                target_bytes: target,
-            };
-        }
-    }
+    read_git_blobs_batch(executor, repository, &mut entries, limits)?;
     Ok(entries)
 }
 
@@ -699,8 +718,14 @@ fn parse_git_tree_entries(
             });
         }
         let kind = match mode {
-            b"100644" => GitTreeEntryKind::File { executable: false },
-            b"100755" => GitTreeEntryKind::File { executable: true },
+            b"100644" => GitTreeEntryKind::File {
+                executable: false,
+                bytes: Vec::new(),
+            },
+            b"100755" => GitTreeEntryKind::File {
+                executable: true,
+                bytes: Vec::new(),
+            },
             b"120000" => GitTreeEntryKind::Symlink {
                 target_bytes: Vec::new(),
             },
@@ -839,7 +864,6 @@ fn validate_git_symlink_target(link: &[u8], target: &[u8]) -> Result<(), SourceR
 fn resolve_git_snapshot(
     executor: &GitExecutor,
     entry_root: &Path,
-    repository: &Path,
     tree: &str,
     entries: Vec<GitTreeEntry>,
     limits: LocalSourceLimits,
@@ -864,6 +888,7 @@ fn resolve_git_snapshot(
     let mut expected_identity = SourceIdentityHasher::new(identity_entry_count);
     let mut pending_directories = directory_paths.iter().peekable();
     for entry in &entries {
+        executor.verify_budget()?;
         while pending_directories
             .peek()
             .is_some_and(|directory| directory.as_slice() < entry.relative_bytes.as_slice())
@@ -879,9 +904,8 @@ fn resolve_git_snapshot(
             .expect("validated Git paths always have a snapshot parent");
         std::fs::create_dir_all(parent).map_err(|error| io_error(parent, error))?;
         match &entry.kind {
-            GitTreeEntryKind::File { executable } => {
-                let bytes = read_git_blob_bounded(executor, repository, &entry.oid, entry.size)?;
-                expected_identity.add_file(&entry.relative_bytes, *executable, &bytes)?;
+            GitTreeEntryKind::File { executable, bytes } => {
+                expected_identity.add_file(&entry.relative_bytes, *executable, bytes)?;
                 let mut file = OpenOptions::new()
                     .write(true)
                     .create_new(true)
@@ -1012,7 +1036,7 @@ fn verify_snapshot_entry_kinds_and_modes(
         let path = source.join(&entry.relative_path);
         let metadata = std::fs::symlink_metadata(&path).map_err(|error| io_error(&path, error))?;
         match &entry.kind {
-            GitTreeEntryKind::File { executable } => {
+            GitTreeEntryKind::File { executable, .. } => {
                 if metadata.file_type().is_symlink() || !metadata.is_file() {
                     return Err(cache_invalid(
                         &path,
@@ -1430,42 +1454,185 @@ fn git_tree_invalid(path: impl AsRef<[u8]>, message: impl Into<String>) -> Sourc
     }
 }
 
-fn read_git_blob_bounded(
+fn read_git_blobs_batch(
     executor: &GitExecutor,
     repository: &Path,
-    oid: &str,
-    expected_size: u64,
-) -> Result<Vec<u8>, SourceResolveError> {
-    let stdout_limit = usize::try_from(expected_size)
-        .map_err(|_| git_tree_invalid(oid.as_bytes(), "blob cannot fit in host memory"))?;
+    entries: &mut [GitTreeEntry],
+    limits: LocalSourceLimits,
+) -> Result<(), SourceResolveError> {
+    executor.verify_budget()?;
+    if entries.is_empty() {
+        return Ok(());
+    }
+    let stdout_limit = git_batch_output_limit(entries, limits)?;
+    let sequence = STAGING_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+    let request_path = repository
+        .parent()
+        .expect("validated bare repository has an entry root")
+        .join(format!(
+            ".omega-cat-file-batch.{}.{}",
+            std::process::id(),
+            sequence
+        ));
+    let request_guard = TemporaryFileGuard {
+        path: request_path.clone(),
+    };
+    let mut request = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create_new(true)
+        .open(&request_path)
+        .map_err(|error| io_error(&request_path, error))?;
+    for entry in entries.iter() {
+        request
+            .write_all(entry.oid.as_bytes())
+            .and_then(|_| request.write_all(b"\n"))
+            .map_err(|error| io_error(&request_path, error))?;
+    }
+    request
+        .seek(SeekFrom::Start(0))
+        .map_err(|error| io_error(&request_path, error))?;
+
     let mut command = sealed_git_command(executor, repository)?;
-    command.args([OsStr::new("cat-file"), OsStr::new("blob"), OsStr::new(oid)]);
-    let result = run_command_bounded(
+    let command_timeout = executor.begin_launch()?;
+    command.args([OsStr::new("cat-file"), OsStr::new("--batch")]);
+    let result = run_command_bounded_with_stdin(
         &mut command,
-        "cat-file",
+        Stdio::from(request),
+        "cat-file --batch",
         stdout_limit,
         GIT_STDERR_LIMIT,
-        GIT_COMMAND_TIMEOUT,
+        command_timeout,
     );
     let executable_result = executor.verify();
-    let output = match (result, executable_result) {
-        (_, Err(error)) => return Err(error),
-        (result, Ok(())) => result?,
+    let budget_result = executor.verify_budget();
+    let output = match (result, executable_result, budget_result) {
+        (_, Err(error), _) => return Err(error),
+        (_, _, Err(error)) => return Err(error),
+        (result, Ok(()), Ok(())) => result?,
     };
+    drop(request_guard);
     if !output.status.success() {
         return Err(SourceResolveError::Git {
-            operation: "cat-file".to_owned(),
+            operation: "cat-file --batch".to_owned(),
             status: output.status.code(),
             stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
         });
     }
-    if output.stdout.len() != stdout_limit {
+    assign_git_batch_output(entries, &output.stdout)?;
+    executor.verify_budget()
+}
+
+fn git_batch_output_limit(
+    entries: &[GitTreeEntry],
+    limits: LocalSourceLimits,
+) -> Result<usize, SourceResolveError> {
+    let mut payload_bytes = 0_u64;
+    let mut output_bytes = 0_usize;
+    for entry in entries {
+        payload_bytes =
+            payload_bytes
+                .checked_add(entry.size)
+                .ok_or(SourceResolveError::TooManyBytes {
+                    limit: limits.max_bytes,
+                })?;
+        if payload_bytes > limits.max_bytes {
+            return Err(SourceResolveError::TooManyBytes {
+                limit: limits.max_bytes,
+            });
+        }
+        let size = usize::try_from(entry.size).map_err(|_| {
+            git_tree_invalid(entry.oid.as_bytes(), "blob cannot fit in host memory")
+        })?;
+        output_bytes = output_bytes
+            .checked_add(entry.oid.len())
+            .and_then(|value| value.checked_add(b" blob ".len()))
+            .and_then(|value| value.checked_add(decimal_digit_count(entry.size)))
+            .and_then(|value| value.checked_add(1))
+            .and_then(|value| value.checked_add(size))
+            .and_then(|value| value.checked_add(1))
+            .ok_or_else(|| {
+                git_tree_invalid(
+                    entry.oid.as_bytes(),
+                    "batch output cannot fit in host memory",
+                )
+            })?;
+    }
+    Ok(output_bytes)
+}
+
+fn decimal_digit_count(mut value: u64) -> usize {
+    let mut digits = 1;
+    while value >= 10 {
+        value /= 10;
+        digits += 1;
+    }
+    digits
+}
+
+fn assign_git_batch_output(
+    entries: &mut [GitTreeEntry],
+    mut output: &[u8],
+) -> Result<(), SourceResolveError> {
+    for entry in entries {
+        let Some(header_end) = output.iter().position(|byte| *byte == b'\n') else {
+            return Err(git_tree_invalid(
+                entry.oid.as_bytes(),
+                "truncated cat-file batch header",
+            ));
+        };
+        let header = &output[..=header_end];
+        let expected_header = format!("{} blob {}\n", entry.oid, entry.size);
+        if header != expected_header.as_bytes() {
+            return Err(git_tree_invalid(
+                entry.oid.as_bytes(),
+                "cat-file batch header did not match the exact requested blob",
+            ));
+        }
+        output = &output[header_end + 1..];
+        let size = usize::try_from(entry.size).map_err(|_| {
+            git_tree_invalid(entry.oid.as_bytes(), "blob cannot fit in host memory")
+        })?;
+        let Some(bytes) = output.get(..size) else {
+            return Err(git_tree_invalid(
+                entry.oid.as_bytes(),
+                "truncated cat-file batch blob",
+            ));
+        };
+        if output.get(size) != Some(&b'\n') {
+            return Err(git_tree_invalid(
+                entry.oid.as_bytes(),
+                "cat-file batch blob lacks its separator",
+            ));
+        }
+        match &mut entry.kind {
+            GitTreeEntryKind::File {
+                bytes: entry_bytes, ..
+            } => *entry_bytes = bytes.to_vec(),
+            GitTreeEntryKind::Symlink { target_bytes } => {
+                validate_git_symlink_target(&entry.relative_bytes, bytes)?;
+                *target_bytes = bytes.to_vec();
+            }
+        }
+        output = &output[size + 1..];
+    }
+    if !output.is_empty() {
         return Err(git_tree_invalid(
-            oid.as_bytes(),
-            "blob length did not match its validated object size",
+            Vec::new(),
+            "cat-file batch returned an unexpected trailing response",
         ));
     }
-    Ok(output.stdout)
+    Ok(())
+}
+
+struct TemporaryFileGuard {
+    path: PathBuf,
+}
+
+impl Drop for TemporaryFileGuard {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.path);
+    }
 }
 
 #[cfg(unix)]
@@ -2643,13 +2810,27 @@ impl GitExecutor {
         for candidate in system_git_candidates() {
             let path = Path::new(candidate);
             if path.is_file() {
-                return Self::open(path);
+                return Self::open_with_budget(
+                    path,
+                    GIT_FIXED_COMMAND_ALLOWANCE,
+                    GIT_RESOLUTION_TIMEOUT,
+                );
             }
         }
         Err(SourceResolveError::GitExecutableUnavailable)
     }
 
+    #[cfg(test)]
     fn open(path: &Path) -> Result<Self, SourceResolveError> {
+        Self::open_with_budget(path, GIT_FIXED_COMMAND_ALLOWANCE, GIT_RESOLUTION_TIMEOUT)
+    }
+
+    fn open_with_budget(
+        path: &Path,
+        maximum_launches: usize,
+        timeout: Duration,
+    ) -> Result<Self, SourceResolveError> {
+        let started = Instant::now();
         if !path.is_absolute() {
             return Err(SourceResolveError::GitExecutableInvalid {
                 path: path.to_path_buf(),
@@ -2673,6 +2854,10 @@ impl GitExecutor {
                 content_identity,
             },
             metadata_identity,
+            started,
+            timeout,
+            launches: Cell::new(0),
+            maximum_launches,
         })
     }
 
@@ -2693,7 +2878,35 @@ impl GitExecutor {
                 path: self.identity.path.clone(),
             });
         }
-        self.verify()
+        self.verify()?;
+        self.verify_budget()
+    }
+
+    fn begin_launch(&self) -> Result<Duration, SourceResolveError> {
+        self.verify_budget()?;
+        let launches = self.launches.get();
+        if launches >= self.maximum_launches {
+            return Err(SourceResolveError::GitResolutionCommandLimit {
+                limit: self.maximum_launches,
+            });
+        }
+        self.launches.set(launches + 1);
+        Ok(GIT_COMMAND_TIMEOUT.min(self.remaining_time()?))
+    }
+
+    fn verify_budget(&self) -> Result<(), SourceResolveError> {
+        self.remaining_time().map(|_| ())
+    }
+
+    fn remaining_time(&self) -> Result<Duration, SourceResolveError> {
+        let elapsed = self.started.elapsed();
+        if elapsed >= self.timeout {
+            Err(SourceResolveError::GitResolutionTimedOut {
+                timeout_millis: duration_millis(self.timeout),
+            })
+        } else {
+            Ok(self.timeout - elapsed)
+        }
     }
 }
 
@@ -2893,18 +3106,21 @@ where
     S: AsRef<OsStr>,
 {
     let mut command = sealed_git_command(executor, working_directory)?;
+    let command_timeout = executor.begin_launch()?;
     command.args(args);
     let result = run_command_bounded(
         &mut command,
         "command",
         GIT_STDOUT_LIMIT,
         GIT_STDERR_LIMIT,
-        GIT_COMMAND_TIMEOUT,
+        command_timeout,
     );
     let executable_result = executor.verify();
-    match (result, executable_result) {
-        (_, Err(error)) => Err(error),
-        (result, Ok(())) => result,
+    let budget_result = executor.verify_budget();
+    match (result, executable_result, budget_result) {
+        (_, Err(error), _) => Err(error),
+        (_, _, Err(error)) => Err(error),
+        (result, Ok(()), Ok(())) => result,
     }
 }
 
@@ -2948,9 +3164,27 @@ fn run_command_bounded(
     stderr_limit: usize,
     timeout: Duration,
 ) -> Result<BoundedCommandOutput, SourceResolveError> {
+    run_command_bounded_with_stdin(
+        command,
+        Stdio::null(),
+        operation,
+        stdout_limit,
+        stderr_limit,
+        timeout,
+    )
+}
+
+fn run_command_bounded_with_stdin(
+    command: &mut Command,
+    stdin: Stdio,
+    operation: &str,
+    stdout_limit: usize,
+    stderr_limit: usize,
+    timeout: Duration,
+) -> Result<BoundedCommandOutput, SourceResolveError> {
     let started = Instant::now();
     let mut child = command
-        .stdin(Stdio::null())
+        .stdin(stdin)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .group_spawn()
@@ -2972,21 +3206,27 @@ fn run_command_bounded(
     let (sender, receiver) = mpsc::channel();
     if let Err(error) = spawn_stream_capture(stdout, CapturedStream::Stdout, stdout_limit, &sender)
     {
-        terminate_child(&mut child);
-        return Err(SourceResolveError::Git {
-            operation: format!("{operation} stdout capture"),
-            status: None,
-            stderr: error.to_string(),
-        });
+        return fail_after_cleanup(
+            &mut child,
+            operation,
+            SourceResolveError::Git {
+                operation: format!("{operation} stdout capture"),
+                status: None,
+                stderr: error.to_string(),
+            },
+        );
     }
     if let Err(error) = spawn_stream_capture(stderr, CapturedStream::Stderr, stderr_limit, &sender)
     {
-        terminate_child(&mut child);
-        return Err(SourceResolveError::Git {
-            operation: format!("{operation} stderr capture"),
-            status: None,
-            stderr: error.to_string(),
-        });
+        return fail_after_cleanup(
+            &mut child,
+            operation,
+            SourceResolveError::Git {
+                operation: format!("{operation} stderr capture"),
+                status: None,
+                stderr: error.to_string(),
+            },
+        );
     }
     drop(sender);
 
@@ -2997,17 +3237,20 @@ fn run_command_bounded(
         if status.is_none() {
             status = match child.try_wait() {
                 Ok(Some(status)) => {
-                    terminate_command_group(&mut child);
+                    terminate_child_bounded(&mut child, operation)?;
                     Some(status)
                 }
                 Ok(None) => None,
                 Err(error) => {
-                    terminate_child(&mut child);
-                    return Err(SourceResolveError::Git {
-                        operation: format!("{operation} wait"),
-                        status: None,
-                        stderr: error.to_string(),
-                    });
+                    return fail_after_cleanup(
+                        &mut child,
+                        operation,
+                        SourceResolveError::Git {
+                            operation: format!("{operation} wait"),
+                            status: None,
+                            stderr: error.to_string(),
+                        },
+                    );
                 }
             };
         }
@@ -3021,11 +3264,14 @@ fn run_command_bounded(
 
         let elapsed = started.elapsed();
         if elapsed >= timeout {
-            terminate_child(&mut child);
-            return Err(SourceResolveError::GitTimedOut {
-                operation: operation.to_owned(),
-                timeout_millis: duration_millis(timeout),
-            });
+            return fail_after_cleanup(
+                &mut child,
+                operation,
+                SourceResolveError::GitTimedOut {
+                    operation: operation.to_owned(),
+                    timeout_millis: duration_millis(timeout),
+                },
+            );
         }
         let wait = PROCESS_POLL_INTERVAL.min(timeout.saturating_sub(elapsed));
         match receiver.recv_timeout(wait) {
@@ -3033,23 +3279,29 @@ fn run_command_bounded(
                 let bytes = match capture.result {
                     StreamCaptureResult::Complete(bytes) => bytes,
                     StreamCaptureResult::Overflow => {
-                        terminate_child(&mut child);
-                        return Err(SourceResolveError::GitOutputOverflow {
-                            operation: operation.to_owned(),
-                            stream: capture.stream.name().to_owned(),
-                            limit: match capture.stream {
-                                CapturedStream::Stdout => stdout_limit,
-                                CapturedStream::Stderr => stderr_limit,
+                        return fail_after_cleanup(
+                            &mut child,
+                            operation,
+                            SourceResolveError::GitOutputOverflow {
+                                operation: operation.to_owned(),
+                                stream: capture.stream.name().to_owned(),
+                                limit: match capture.stream {
+                                    CapturedStream::Stdout => stdout_limit,
+                                    CapturedStream::Stderr => stderr_limit,
+                                },
                             },
-                        });
+                        );
                     }
                     StreamCaptureResult::Failed(message) => {
-                        terminate_child(&mut child);
-                        return Err(SourceResolveError::Git {
-                            operation: format!("{operation} {} capture", capture.stream.name()),
-                            status: None,
-                            stderr: message,
-                        });
+                        return fail_after_cleanup(
+                            &mut child,
+                            operation,
+                            SourceResolveError::Git {
+                                operation: format!("{operation} {} capture", capture.stream.name()),
+                                status: None,
+                                stderr: message,
+                            },
+                        );
                     }
                 };
                 match capture.stream {
@@ -3060,12 +3312,15 @@ fn run_command_bounded(
             Err(RecvTimeoutError::Timeout) => {}
             Err(RecvTimeoutError::Disconnected) => {
                 if stdout.is_none() || stderr.is_none() {
-                    terminate_child(&mut child);
-                    return Err(SourceResolveError::Git {
-                        operation: format!("{operation} capture"),
-                        status: None,
-                        stderr: "output capture ended before both streams completed".to_owned(),
-                    });
+                    return fail_after_cleanup(
+                        &mut child,
+                        operation,
+                        SourceResolveError::Git {
+                            operation: format!("{operation} capture"),
+                            status: None,
+                            stderr: "output capture ended before both streams completed".to_owned(),
+                        },
+                    );
                 }
                 std::thread::sleep(wait);
             }
@@ -3117,13 +3372,80 @@ where
     }
 }
 
-fn terminate_child(child: &mut GroupChild) {
-    terminate_command_group(child);
-    let _ = child.wait();
+fn fail_after_cleanup<T>(
+    child: &mut GroupChild,
+    operation: &str,
+    original: SourceResolveError,
+) -> Result<T, SourceResolveError> {
+    match terminate_child_bounded(child, operation) {
+        Ok(()) => Err(original),
+        Err(cleanup) => Err(cleanup),
+    }
 }
 
-fn terminate_command_group(child: &mut GroupChild) {
-    let _ = child.kill();
+fn terminate_child_bounded(
+    child: &mut GroupChild,
+    operation: &str,
+) -> Result<(), SourceResolveError> {
+    let kill_error = child.kill().err();
+    let started = Instant::now();
+    loop {
+        match child.try_wait() {
+            Ok(Some(_)) => {
+                if let Some(error) = kill_error
+                    .as_ref()
+                    .filter(|error| !process_group_already_absent(error))
+                {
+                    return Err(SourceResolveError::GitCleanupFailed {
+                        operation: operation.to_owned(),
+                        message: format!("could not terminate the process group: {error}"),
+                    });
+                }
+                return Ok(());
+            }
+            Ok(None) => {}
+            Err(error) => {
+                return Err(SourceResolveError::GitCleanupFailed {
+                    operation: operation.to_owned(),
+                    message: format!("could not reap the process: {error}"),
+                });
+            }
+        }
+        if started.elapsed() >= GIT_COMMAND_CLEANUP_TIMEOUT {
+            let message = match &kill_error {
+                Some(error) => format!(
+                    "could not terminate the process group ({error}) or reap it within {} milliseconds",
+                    duration_millis(GIT_COMMAND_CLEANUP_TIMEOUT)
+                ),
+                None => format!(
+                    "could not reap the terminated process within {} milliseconds",
+                    duration_millis(GIT_COMMAND_CLEANUP_TIMEOUT)
+                ),
+            };
+            return Err(SourceResolveError::GitCleanupFailed {
+                operation: operation.to_owned(),
+                message,
+            });
+        }
+        std::thread::sleep(PROCESS_POLL_INTERVAL);
+    }
+}
+
+fn process_group_already_absent(error: &std::io::Error) -> bool {
+    if error.kind() == std::io::ErrorKind::InvalidInput {
+        return true;
+    }
+    #[cfg(unix)]
+    {
+        // POSIX ESRCH means the process group is gone. macOS can also report EPERM when the
+        // group leader exits between the signal and wait probes; once `try_wait` has reaped our
+        // child there is no further portable handle with which to distinguish that race.
+        matches!(error.raw_os_error(), Some(1 | 3))
+    }
+    #[cfg(not(unix))]
+    {
+        false
+    }
 }
 
 fn duration_millis(duration: Duration) -> u64 {
@@ -3399,14 +3721,17 @@ mod tests {
                 Duration::from_secs(2),
             )
             .expect_err("capture overflow must fail closed");
-            assert!(matches!(
-                error,
-                SourceResolveError::GitOutputOverflow {
-                    stream: actual,
-                    limit: 1024,
-                    ..
-                } if actual == stream
-            ));
+            assert!(
+                matches!(
+                    error,
+                    SourceResolveError::GitOutputOverflow {
+                        stream: ref actual,
+                        limit: 1024,
+                        ..
+                    } if actual == stream
+                ),
+                "unexpected overflow error: {error:?}"
+            );
         }
     }
 
@@ -3486,35 +3811,152 @@ mod tests {
     }
 
     #[test]
-    fn bounded_git_blob_read_enforces_validated_size() {
-        let (repo, _) = create_git_source("bounded-blob");
+    fn git_blob_batch_uses_one_bounded_launch_for_many_files() {
+        let (repo, _) = create_git_source("batched-blobs");
+        for index in 0..32 {
+            std::fs::write(
+                repo.join(format!("source-{index}.omg")),
+                format!("// {index}\n"),
+            )
+            .expect("write batched source");
+        }
+        run_test_git(&repo, ["add", "."]);
+        run_test_git(&repo, ["commit", "--quiet", "-m", "add batched sources"]);
         let executor = GitExecutor::system().expect("system Git executor");
-        let oid = run_git_stdout(
+        let tree = run_git_stdout(
             &executor,
             &repo,
-            [OsStr::new("rev-parse"), OsStr::new("HEAD:main.omg")],
+            [OsStr::new("rev-parse"), OsStr::new("HEAD^{tree}")],
         )
-        .expect("resolve blob oid");
-        let oid = oid.trim();
-        let expected = std::fs::read(repo.join("main.omg")).expect("read expected blob");
+        .expect("resolve tree");
+        let listing = run_git_bytes_stdout(
+            &executor,
+            &repo,
+            [
+                OsStr::new("ls-tree"),
+                OsStr::new("--full-tree"),
+                OsStr::new("-r"),
+                OsStr::new("-l"),
+                OsStr::new("-z"),
+                OsStr::new(tree.trim()),
+            ],
+        )
+        .expect("list tree");
+        let mut entries = parse_git_tree_entries(
+            &listing,
+            &repo,
+            LocalSourceLimits {
+                max_files: 10_000,
+                ..LocalSourceLimits::default()
+            },
+        )
+        .expect("parse tree");
+        let launches_before = executor.launches.get();
+        read_git_blobs_batch(&executor, &repo, &mut entries, LocalSourceLimits::default())
+            .expect("read all blobs in one batch");
 
-        let actual = read_git_blob_bounded(&executor, &repo, oid, expected.len() as u64)
-            .expect("read exact bounded blob");
-        assert_eq!(actual, expected);
-        let error = read_git_blob_bounded(&executor, &repo, oid, (expected.len() - 1) as u64)
-            .expect_err("blob exceeding its advertised size must fail closed");
+        assert_eq!(entries.len(), 33);
+        assert_eq!(executor.launches.get() - launches_before, 1);
+        assert_eq!(executor.maximum_launches, GIT_FIXED_COMMAND_ALLOWANCE);
+        assert!(entries.iter().any(|entry| {
+            entry.relative_bytes == b"main.omg"
+                && matches!(
+                    &entry.kind,
+                    GitTreeEntryKind::File { bytes, .. }
+                        if bytes == b"machine Main::main() {}\n"
+                )
+        }));
+
+        let oversized = GitTreeEntry {
+            relative_bytes: b"oversized.omg".to_vec(),
+            relative_path: PathBuf::from("oversized.omg"),
+            oid: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".to_owned(),
+            size: 2,
+            kind: GitTreeEntryKind::File {
+                executable: false,
+                bytes: Vec::new(),
+            },
+        };
+        let error = git_batch_output_limit(
+            &[oversized],
+            LocalSourceLimits {
+                max_bytes: 1,
+                ..LocalSourceLimits::default()
+            },
+        )
+        .expect_err("aggregate batch payload must honor the source byte ceiling");
         assert!(matches!(
             error,
-            SourceResolveError::GitOutputOverflow {
-                operation,
-                stream,
-                limit,
-            } if operation == "cat-file"
-                && stream == "stdout"
-                && limit == expected.len() - 1
+            SourceResolveError::TooManyBytes { limit: 1 }
         ));
 
         let _ = std::fs::remove_dir_all(&repo);
+    }
+
+    #[test]
+    fn git_blob_batch_parser_binds_order_type_size_and_framing() {
+        fn entry(oid: char, path: &str, size: u64, symlink: bool) -> GitTreeEntry {
+            GitTreeEntry {
+                relative_bytes: path.as_bytes().to_vec(),
+                relative_path: PathBuf::from(path),
+                oid: std::iter::repeat_n(oid, 40).collect(),
+                size,
+                kind: if symlink {
+                    GitTreeEntryKind::Symlink {
+                        target_bytes: Vec::new(),
+                    }
+                } else {
+                    GitTreeEntryKind::File {
+                        executable: false,
+                        bytes: Vec::new(),
+                    }
+                },
+            }
+        }
+
+        let first_oid = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+        let second_oid = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+        let mut entries = vec![
+            entry('a', "binary.omg", 3, false),
+            entry('b', "link", 6, true),
+        ];
+        let mut valid = format!("{first_oid} blob 3\n").into_bytes();
+        valid.extend_from_slice(&[0, 255, b'\n']);
+        valid.push(b'\n');
+        valid.extend_from_slice(format!("{second_oid} blob 6\n").as_bytes());
+        valid.extend_from_slice(b"target\n");
+        assign_git_batch_output(&mut entries, &valid).expect("parse exact batch response");
+        assert!(matches!(
+            &entries[0].kind,
+            GitTreeEntryKind::File { bytes, .. } if bytes == &[0, 255, b'\n']
+        ));
+        assert!(matches!(
+            &entries[1].kind,
+            GitTreeEntryKind::Symlink { target_bytes } if target_bytes == b"target"
+        ));
+
+        for malformed in [
+            b"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab blob 3\nabc\n".as_slice(),
+            b"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa tree 3\nabc\n".as_slice(),
+            b"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa blob 4\nabc\n".as_slice(),
+            b"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa blob 3".as_slice(),
+            b"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa blob 3\nab".as_slice(),
+            b"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa blob 3\nabc".as_slice(),
+            b"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa blob 3\nabc\nextra".as_slice(),
+        ] {
+            let mut one = vec![entry('a', "file.omg", 3, false)];
+            assert!(matches!(
+                assign_git_batch_output(&mut one, malformed),
+                Err(SourceResolveError::GitTreeInvalid { .. })
+            ));
+        }
+
+        let mut escaping_link = vec![entry('a', "link", 2, true)];
+        let response = format!("{first_oid} blob 2\n..\n");
+        assert!(matches!(
+            assign_git_batch_output(&mut escaping_link, response.as_bytes()),
+            Err(SourceResolveError::GitTreeInvalid { .. })
+        ));
     }
 
     #[test]
@@ -4407,7 +4849,7 @@ mod tests {
     }
 
     #[test]
-    fn git_snapshot_failure_removes_staging_publication() {
+    fn git_batch_failure_precedes_snapshot_staging() {
         let (repo, _) = create_git_source("git-snapshot-cleanup");
         let cache = temp_root("git-snapshot-cleanup-cache");
         let url = repo.display().to_string();
@@ -4419,24 +4861,25 @@ mod tests {
         let entry_root = git_cache_entry_root(&cache, &url, "HEAD");
         let repository = entry_root.join(GIT_CACHE_REPOSITORY);
         let missing_oid = "0000000000000000000000000000000000000000";
-        let fake_tree = "1111111111111111111111111111111111111111";
         let executor = GitExecutor::system().expect("system Git executor");
-        let error = resolve_git_snapshot(
+        let mut entries = vec![GitTreeEntry {
+            relative_bytes: b"missing.omg".to_vec(),
+            relative_path: PathBuf::from("missing.omg"),
+            oid: missing_oid.to_owned(),
+            size: 1,
+            kind: GitTreeEntryKind::File {
+                executable: false,
+                bytes: Vec::new(),
+            },
+        }];
+        let error = read_git_blobs_batch(
             &executor,
-            &entry_root,
             &repository,
-            fake_tree,
-            vec![GitTreeEntry {
-                relative_bytes: b"missing.omg".to_vec(),
-                relative_path: PathBuf::from("missing.omg"),
-                oid: missing_oid.to_owned(),
-                size: 1,
-                kind: GitTreeEntryKind::File { executable: false },
-            }],
+            &mut entries,
             LocalSourceLimits::default(),
         )
-        .expect_err("missing object must fail staged materialization");
-        assert!(matches!(error, SourceResolveError::Git { .. }));
+        .expect_err("missing object must fail before staged materialization");
+        assert!(matches!(error, SourceResolveError::GitTreeInvalid { .. }));
         let snapshots = entry_root.join(GIT_CACHE_SNAPSHOTS);
         assert!(
             std::fs::read_dir(&snapshots)
@@ -4448,7 +4891,11 @@ mod tests {
                     .contains(".stage-")),
             "failed materialization must leave no staging directory"
         );
-        assert!(!snapshots.join(format!("tree-{fake_tree}")).exists());
+        assert!(
+            !snapshots
+                .join("tree-1111111111111111111111111111111111111111")
+                .exists()
+        );
 
         let _ = std::fs::remove_dir_all(&repo);
         make_tree_owner_writable(&cache);
@@ -4815,6 +5262,40 @@ mod tests {
 
             let _ = std::fs::remove_dir_all(root);
         }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn git_executor_enforces_whole_resolution_launch_and_time_budgets() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let root = temp_root("git-resolution-budget");
+        std::fs::create_dir_all(&root).expect("create Git budget root");
+        let fast_git = root.join("fast-git");
+        std::fs::write(&fast_git, b"#!/bin/sh\nexit 0\n").expect("write fast fake Git");
+        std::fs::set_permissions(&fast_git, std::fs::Permissions::from_mode(0o700))
+            .expect("make fast fake Git executable");
+        let launch_bounded = GitExecutor::open_with_budget(&fast_git, 1, Duration::from_secs(1))
+            .expect("capture launch-bounded Git");
+        run_git_output(&launch_bounded, &root, [OsStr::new("first")])
+            .expect("first launch fits the budget");
+        assert!(matches!(
+            run_git_output(&launch_bounded, &root, [OsStr::new("second")]),
+            Err(SourceResolveError::GitResolutionCommandLimit { limit: 1 })
+        ));
+
+        let slow_git = root.join("slow-git");
+        std::fs::write(&slow_git, b"#!/bin/sh\nsleep 1\n").expect("write slow fake Git");
+        std::fs::set_permissions(&slow_git, std::fs::Permissions::from_mode(0o700))
+            .expect("make slow fake Git executable");
+        let time_bounded = GitExecutor::open_with_budget(&slow_git, 1, Duration::from_millis(30))
+            .expect("capture time-bounded Git");
+        assert!(matches!(
+            run_git_output(&time_bounded, &root, [OsStr::new("slow")]),
+            Err(SourceResolveError::GitResolutionTimedOut { .. })
+        ));
+
+        let _ = std::fs::remove_dir_all(root);
     }
 
     #[test]
