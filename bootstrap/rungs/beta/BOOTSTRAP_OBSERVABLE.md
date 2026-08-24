@@ -416,6 +416,20 @@ are valuable teeth, but they do not yet establish the quantified observation:
   theorem never rereads live NLOC, emits nothing, preserves compiler state,
   and restores its caller. NTDM/NEQS establishment by a dynamic producer and
   the expression SCC remain open;
+- its independent conditional bounded-emitter tranche re-executes the
+  lower-rooted structural/stack, WSTR, cursor/skip/EXPS, and bounded-DECS
+  premises before binding procedures 30, 44, and 47..52. `gen_read_byte`
+  orders two permissive delimiter calls, threads their exact cursor outcomes,
+  and appends `read r0\n` even on mismatch. `emit_mnemonic` partitions full
+  Words into five exact operator singletons and a no-output complement, and
+  `emit_combine` passes the same operator to that child before its suffix.
+  The other fixed/bounded emitters preserve exact literal order;
+  `emit_slot_addr` covers `reg in {0,1}`, every `0<=slot<1024`, and the exact
+  nonwrapping decimal children `reg`, `8+8*slot<=8192`, `reg`; load/store
+  wrappers retain the same slot and select distinct reg-zero/reg-one clauses.
+  All eight restore their callers and preserve compiler state apart from the
+  stated cursor/output effects. Synthetic fallthrough results are unclaimed.
+  This clause uses no full-word decimal semantics;
 - no total `parse_proc` claim is currently made. Malformed procedure bodies can
   make `gen_stmts` diverge while emitting—for example when an unrecognized byte
   is never consumed—so closure requires maximal Return-or-Diverge and finite/

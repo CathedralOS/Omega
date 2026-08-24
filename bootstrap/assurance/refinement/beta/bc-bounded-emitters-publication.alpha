@@ -1,0 +1,87 @@
+; Final publication join for the parameterized bounded-emitter summaries.
+; Semantic continuation only; shape, harness, and continuation ownership stay
+; outside this module. Next fresh Checker-C cell is 532504.
+
+bounded_emitters_publish_family:
+        imm r20, 531944
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 531960
+        imm r21, 4
+        call exact_require_cell
+        imm r20, 531968
+        imm r21, 2048
+        call exact_require_cell
+        imm r20, 532224
+        imm r21, 8192
+        call exact_require_cell
+        imm r20, 532168
+        imm r21, 4
+        call exact_require_cell
+        imm r20, 532176
+        imm r21, 6
+        call exact_require_cell
+        imm r20, 532296
+        imm r21, 1093686085
+        call exact_require_cell
+        imm r20, 532304
+        imm r21, 1093751621
+        call exact_require_cell
+        imm r20, 532392
+        imm r21, 1347308869
+        call exact_require_cell
+        imm r20, 531880
+        imm r21, 1111773767
+        call exact_require_cell
+        imm r20, 531888
+        imm r21, 1347375173
+        call exact_require_cell
+        imm r20, 531896
+        imm r21, 1398100037
+        call exact_require_cell
+        imm r20, 531904
+        imm r21, 1162759493
+        call exact_require_cell
+        imm r20, 531912
+        imm r21, 1112359749
+        call exact_require_cell
+        imm r20, 531920
+        imm r21, 1095521093
+        call exact_require_cell
+        imm r20, 531928
+        imm r21, 1396984901
+        call exact_require_cell
+        imm r20, 531936
+        imm r21, 1398035269
+        call exact_require_cell
+        imm r20, 532064
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 532072
+        imm r21, 4
+        call exact_require_cell
+        imm r20, 532080
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 532056
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 532088
+        imm r21, 6
+        call exact_require_cell
+        imm r20, 532096
+        imm r21, 2048
+        call exact_require_cell
+        imm r20, 532104
+        imm r21, 1024
+        call exact_require_cell
+        imm r20, 532112
+        imm r21, 1024
+        call exact_require_cell
+        imm r1, 532120
+        imm r2, 1397572930            ; BEMS
+        store r1, r2
+        imm r20, 532120
+        imm r21, 1397572930
+        call exact_require_cell
+        ret

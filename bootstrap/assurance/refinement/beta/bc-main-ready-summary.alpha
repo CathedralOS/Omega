@@ -21,6 +21,8 @@
 ;   public main.loop theorem          526496
 ;   completed call count              526512
 
+; Checker-A source-only continuation alias for the shared skip_ws theorem.
+bc_post_skip_ws:
 main_ready_summary_init:
         call main_ready_require_shape
         call main_ready_prove_composition
@@ -68,35 +70,35 @@ main_ready_require_shape:
 
         imm r20, 605
         imm r21, 0
-        call skip_require_event_arity
+        call exact_require_event_arity
         imm r20, 606
         imm r21, 0
-        call skip_require_event_arity
+        call exact_require_event_arity
         imm r20, 607
         imm r21, 0
-        call skip_require_event_arity
+        call exact_require_event_arity
         imm r20, 605
         imm r21, 0
-        call main_ready_require_ambient_height
+        call exact_require_ambient_height
         imm r20, 606
         imm r21, 0
-        call main_ready_require_ambient_height
+        call exact_require_ambient_height
         imm r20, 607
         imm r21, 0
-        call main_ready_require_ambient_height
+        call exact_require_ambient_height
 
         imm r20, 51226
         imm r21, 29619
         imm r22, 51235               ; checked first continuation
-        call main_slurp_require_call
+        call exact_require_call
         imm r20, 51235
         imm r21, 20599
         imm r22, 51244
-        call main_slurp_require_call
+        call exact_require_call
         imm r20, 51244
         imm r21, 4277
         imm r22, 51253
-        call main_slurp_require_call
+        call exact_require_call
 
         ; No hidden source actions occur in ready: exactly three calls, one
         ; plain transition, and no locals or raw-memory expressions.
@@ -276,13 +278,3 @@ main_ready_increment_calls:
         add r2, r3
         store r1, r2
         ret
-
-main_ready_require_ambient_height:
-        mov r2, r20
-        imm r1, 8
-        mul r2, r1
-        imm r1, 10035200
-        add r1, r2
-        load r2, r1
-        jeq r2, r21, exact_shape_ok
-        jmp reject

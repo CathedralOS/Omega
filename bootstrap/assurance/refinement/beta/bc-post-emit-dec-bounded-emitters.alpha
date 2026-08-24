@@ -1,0 +1,12 @@
+; Checker-C bridge from bounded DECS into the eight bounded emitter theorems.
+bc_post_emit_dec:
+        imm r20, 531864
+        imm r21, 1162097221                ; E2DE
+        call exact_require_cell
+        imm r20, 528320
+        imm r21, 1396917572                ; DECS
+        call exact_require_cell
+        imm r1, 531872
+        imm r2, 1161966148                 ; D2BE
+        store r1, r2
+        jmp bounded_emitters_summary_init

@@ -24,6 +24,10 @@
 ;   exclusive end pc                  525936
 ;   prelude/write-str theorem tokens  525944/525952
 
+; Checker-A continuation.  The alias is deliberately source-only: the shared
+; WSTR theorem can use a distinct checked continuation in another checker
+; without adding one byte to Checker A.
+bc_post_write_str:
 fixed_emitter_summary_init:
         call fixed_emit_prove_write_str
         call fixed_emit_prove_prelude

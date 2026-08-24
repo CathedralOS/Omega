@@ -25,6 +25,8 @@
 ;   prologue / parameter sweep counts                528632/528640
 ;   exact accumulated fixed bytes                    528656
 
+; Checker-A source-only continuation alias for the shared bounded DECS theorem.
+bc_post_emit_dec:
 fixed_decimal_emitters_summary_init:
         call fixed_decimal_emitters_require_shape
         call fixed_decimal_require_imports
