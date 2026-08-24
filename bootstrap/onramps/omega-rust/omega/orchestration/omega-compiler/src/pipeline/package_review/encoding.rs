@@ -10,7 +10,7 @@ use psi_checked_trees::{
 };
 
 const MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW\0";
-pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 23;
+pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 24;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageReviewEncodingError {
@@ -90,7 +90,13 @@ fn encode_conformance_bound(
     encoder: &mut Encoder,
     bound: &PackageReviewConformanceBound,
 ) -> Result<(), PackageReviewEncodingError> {
-    encoder.u32(bound.binder_ordinal);
+    match bound.binder_ordinal {
+        None => encoder.byte(0),
+        Some(ordinal) => {
+            encoder.byte(1);
+            encoder.u32(ordinal);
+        }
+    }
     encoder.u32(bound.subject_parameter);
     encode_nominal(encoder, &bound.trait_identity)?;
     encoder.sequence(&bound.arguments, encode_type_identity)

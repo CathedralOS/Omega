@@ -434,13 +434,15 @@ complete.
   changes canonical review evidence. Termination guarantees retain exact
   package-qualified public progress profiles, receiver/non-`self` parameter
   roots, and package-qualified field projections.
-  Explicit generic conformance evidence binders on public traits now retain
-  alpha-normalized binder and subject ordinals, exact package-qualified public
-  trait identity, and structural type arguments. The frontend now preserves
+  Generic conformance requirements on public traits now retain an optional
+  alpha-normalized evidence-binder ordinal, exact subject ordinal, package-
+  qualified public trait identity, and structural type arguments. Binder-free
+  `where T satisfies Trait` rows remain explicitly binder-free rather than
+  fabricating evidence. The frontend now preserves
   these settled trait-header binders and assigns them real conformance-
-  parameter symbols instead of discarding them. Non-evidence `where`
-  requirements, specifically selected conformances, invariants, default
-  realizations, and non-progress proof/boundary/crash contracts fail closed
+  parameter symbols instead of discarding them. Specifically selected
+  conformances, invariants, default realizations, and non-progress
+  proof/boundary/crash contracts fail closed
   until their complete rows are joined; no public trait is silently omitted.
   Declaration kinds without retained visibility reject
   `pub` instead of silently compiling a private API. Settled export semantics,
@@ -464,10 +466,10 @@ complete.
   or borrow relationships compare unequal. Checked realizations of public,
   ordinary, lifetime-free traits retain exact package-qualified trait and
   requirement identities, alpha-normalized arguments, and optional conformance
-  alias. Explicit generic conformance evidence binders on reviewed callables
-  use the same alpha-normalized canonical row as public traits. Non-evidence
-  conformance requirements, specifically selected conformances, static
-  machine/proposition parameters, and non-public, external, operator, or
+  alias. Binder-free generic requirements and explicit conformance evidence
+  binders on reviewed callables use the same canonical row as public traits.
+  Specifically selected conformances, static machine/proposition parameters,
+  and non-public, external, operator, or
   lifetime-parameterized realizations reject until their complete rows exist
   rather than disappearing from review.
   Public callable `requires`, `ensures`, and boundary clauses now retain exact
@@ -542,7 +544,7 @@ complete.
   closing the implicit-entry-state ownership gap discovered by the crash
   projection. Review identity now retains the exact deployment target profile,
   so profiles such as Windows and UEFI cannot collapse merely because they
-  share a native ABI. A v23 length-framed binary comparison encoding now covers
+  share a native ABI. A v24 length-framed binary comparison encoding now covers
   every retained public-domain, public-data, public-trait, callable,
   representation-TCB, crash/proof predicate, proposition/witness, authority
   flow, dangerous-authority classification, mutation, and selected-provider
@@ -681,7 +683,7 @@ complete.
   exposed canonical toolchain `FilesystemHost`, selected by exact declaration
   and toolchain-source coordinates rather than package-controlled spelling.
   Canonical and same-named package-owned tests pin both sides of that join, and
-  comparison encoding v23 retains the row. Broader risk classes and sealed
+  comparison encoding v24 retains the row. Broader risk classes and sealed
   package evidence remain.
 
 - **REPRESENTATION-TCB-REVIEW.** Retain claim-free opaque boundary data as a
@@ -701,7 +703,7 @@ complete.
   `boundary data`, including private declarations and declarations with no
   reach or claim. The row is target-scoped by the containing projection and
   explicitly records both ABI commitment and external mechanism as `Unbound`;
-  it does not fabricate layout or realization. Comparison encoding v23 retains
+  it does not fabricate layout or realization. Comparison encoding v24 retains
   the lane. Exact mechanism/ABI selection, source/toolchain/compiler sealing,
   and admission-policy outcomes remain.
 

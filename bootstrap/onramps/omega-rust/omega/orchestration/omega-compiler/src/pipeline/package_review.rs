@@ -42,20 +42,22 @@ pub struct PackageReviewTypeParameter {
     bounds: psi_typed_trees::data::DataProperties,
 }
 
-/// One proof-static conformance parameter in a public generic signature.
+/// One generic conformance requirement in a public signature.
 ///
-/// Binder spellings are alpha-normalized to `binder_ordinal`; the subject is
-/// the ordinal of an ordinary type parameter in the containing declaration.
+/// An explicit proof-static binder is alpha-normalized to `binder_ordinal`;
+/// `None` retains a binder-free `where T satisfies Trait` requirement without
+/// fabricating evidence. The subject is the ordinal of an ordinary type
+/// parameter in the containing declaration.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageReviewConformanceBound {
-    binder_ordinal: u32,
+    binder_ordinal: Option<u32>,
     subject_parameter: u32,
     trait_identity: PackageReviewNominalIdentity,
     arguments: Vec<PackageReviewTypeIdentity>,
 }
 
 impl PackageReviewConformanceBound {
-    pub const fn binder_ordinal(&self) -> u32 {
+    pub const fn binder_ordinal(&self) -> Option<u32> {
         self.binder_ordinal
     }
 
@@ -2321,17 +2323,24 @@ fn project_conformance_bounds(
     declaration_path: &str,
 ) -> Result<Vec<PackageReviewConformanceBound>, Vec<Diagnostic>> {
     let mut projected = Vec::with_capacity(bounds.len());
-    for (binder_ordinal, bound) in bounds.iter().enumerate() {
-        let Some(binder) = bound.binder else {
-            return Err(vec![Diagnostic::error(format!(
-                "{declaration_kind} `{declaration_path}` uses a non-evidence-binder conformance requirement not yet represented by package review"
-            ))]);
+    let mut next_binder_ordinal = 0usize;
+    for bound in bounds {
+        let binder_ordinal = if let Some(binder) = bound.binder {
+            if !binder.is_valid() {
+                return Err(vec![Diagnostic::error(format!(
+                    "{declaration_kind} `{declaration_path}` has an unresolved conformance evidence binder"
+                ))]);
+            }
+            let ordinal = u32::try_from(next_binder_ordinal).map_err(|_| {
+                vec![Diagnostic::error(format!(
+                    "{declaration_kind} `{declaration_path}` has too many conformance binders for portable review evidence"
+                ))]
+            })?;
+            next_binder_ordinal += 1;
+            Some(ordinal)
+        } else {
+            None
         };
-        if !binder.is_valid() {
-            return Err(vec![Diagnostic::error(format!(
-                "{declaration_kind} `{declaration_path}` has an unresolved conformance evidence binder"
-            ))]);
-        }
         if bound.conformance.is_some() {
             return Err(vec![Diagnostic::error(format!(
                 "{declaration_kind} `{declaration_path}` selects a specific conformance whose complete declaration is not yet represented by package review"
@@ -2369,11 +2378,7 @@ fn project_conformance_bounds(
             ))]);
         }
         projected.push(PackageReviewConformanceBound {
-            binder_ordinal: u32::try_from(binder_ordinal).map_err(|_| {
-                vec![Diagnostic::error(format!(
-                    "{declaration_kind} `{declaration_path}` has too many conformance binders for portable review evidence"
-                ))]
-            })?,
+            binder_ordinal,
             subject_parameter: u32::try_from(subject_parameter).map_err(|_| {
                 vec![Diagnostic::error(format!(
                     "{declaration_kind} `{declaration_path}` conformance subject exceeds the portable review parameter range"
