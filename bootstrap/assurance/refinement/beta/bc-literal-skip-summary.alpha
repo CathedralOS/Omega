@@ -45,11 +45,11 @@ literal_skip_prove_extended_adv:
         ; selecting the wider, still nonwrapping numeric premise.
         imm r20, 525968
         imm r21, 1094992965           ; ADVE
-        call cursor_require_cell
+        call exact_require_cell
         call cursor_require_adv_shape
         imm r20, 525744
         imm r21, 1                    ; successful segment, LEN<=CAP
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 527328
         imm r2, 1                    ; checked 0<=CUR<=CAP+1
         store r1, r2
@@ -66,13 +66,13 @@ literal_skip_prove_extended_adv:
 literal_skip_require_extended_adv:
         imm r20, 527328
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527336
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527344
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 ; ---- Character literal ------------------------------------------------
@@ -119,16 +119,16 @@ literal_skip_entry_kind_ok:
 literal_skip_char_reset:
         imm r20, 527528
         imm r21, 1                    ; checked character opening quote kind
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527368
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 527376
         imm r2, 1                    ; rename common post-opening cursor
         store r1, r2
         imm r20, 527376
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 527384
         imm r2, 0
         store r1, r2
@@ -190,7 +190,7 @@ literal_skip_require_char_case:
         load r2, r1
         imm r20, 527384
         mov r21, r2
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527392
         imm r21, 3
         imm r1, 527384
@@ -199,28 +199,28 @@ literal_skip_require_char_case:
         jeq r2, r1, literal_skip_char_require_delta
         imm r21, 4
 literal_skip_char_require_delta:
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527400
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527376
         imm r21, 3                    ; two tail advances finish <=LEN+2
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527408
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 literal_skip_publish_char:
         imm r20, 527416
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527424
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527408
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 527352
         imm r2, 1128808786           ; CHSK
         store r1, r2
@@ -353,13 +353,13 @@ literal_skip_string_escape:
 literal_skip_string_require_invariant:
         imm r20, 527528
         imm r21, 2                    ; checked string opening quote kind
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527432
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527440
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 literal_skip_string_close_backedge:
@@ -367,24 +367,24 @@ literal_skip_string_close_backedge:
         load r2, r1
         imm r20, 527448
         mov r21, r2
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 527456
         load r2, r1
         imm r20, 527456
         mov r21, r2
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 527448
         load r2, r1
         imm r1, 4
         jeq r2, r1, literal_skip_string_require_escape_bound
         imm r20, 527376
         imm r21, 1                    ; ordinary successor remains <=LEN
-        call cursor_require_cell
+        call exact_require_cell
         jmp literal_skip_string_require_rank_decrease
 literal_skip_string_require_escape_bound:
         imm r20, 527376
         imm r21, 2                    ; escape successor remains <=LEN+1
-        call cursor_require_cell
+        call exact_require_cell
 literal_skip_string_require_rank_decrease:
         imm r20, 527464
         imm r21, 1
@@ -396,7 +396,7 @@ literal_skip_string_require_rank_decrease:
 literal_skip_string_escape_decrease:
         imm r21, 2
 literal_skip_string_require_decrease:
-        call cursor_require_cell
+        call exact_require_cell
         ; Rename the strict successor and smaller natural rank to the loop head.
         imm r1, 527432
         imm r2, 1                    ; checked successor satisfies invariant
@@ -411,7 +411,7 @@ literal_skip_require_string_exit:
         load r2, r1
         imm r20, 527448
         mov r21, r2
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 527448
         load r2, r1
         imm r1, 1
@@ -422,40 +422,40 @@ literal_skip_require_string_exit:
 literal_skip_require_quote_successor:
         imm r20, 527456
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         jmp literal_skip_require_exit_result
 literal_skip_require_zero_preserved:
         imm r20, 527456
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
 literal_skip_require_exit_result:
         imm r20, 527472
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527408
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 literal_skip_publish_string:
         imm r20, 527480
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527488
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527496
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527504
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 527512
         imm r2, 1                    ; checked quiet state and restored frame
         store r1, r2
         imm r20, 527512
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 527360
         imm r2, 1398035027           ; STRS
         store r1, r2
@@ -466,29 +466,29 @@ literal_skip_publish_string:
 literal_skip_require_imports:
         imm r20, 525744
         imm r21, 1                    ; successful source segment
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 525960
         imm r21, 1128421445           ; CBYE
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 525968
         imm r21, 1094992965           ; ADVE
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527320
         imm r21, 1094994008           ; ADVX
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 literal_skip_call_cbyte:
         imm r20, 525960
         imm r21, 1128421445
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 527432
         load r2, r1
         imm r1, 1
         jeq r2, r1, literal_skip_call_cbyte_string
         imm r20, 527376
         imm r21, 1                    ; checked selected current cursor
-        call cursor_require_cell
+        call exact_require_cell
         ret
 literal_skip_call_cbyte_string:
         call literal_skip_string_require_invariant
@@ -497,7 +497,7 @@ literal_skip_call_cbyte_string:
 literal_skip_select_entry_in_range:
         imm r20, 527368
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 527520
         imm r2, 1
         store r1, r2
@@ -506,7 +506,7 @@ literal_skip_select_entry_in_range:
 literal_skip_select_char_in_range:
         imm r20, 527384
         imm r21, 2                    ; exact backslash is a nonzero hit
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 527520
         imm r2, 1
         store r1, r2
@@ -531,10 +531,10 @@ literal_skip_select_string_hit:
 literal_skip_call_adv_in_range:
         imm r20, 525968
         imm r21, 1094992965
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527520
         imm r21, 1                    ; checked call-specific CUR<LEN premise
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 527520
         imm r2, 0                    ; each call needs a fresh range selection
         store r1, r2
@@ -546,13 +546,13 @@ literal_skip_call_adv_in_range:
 literal_skip_call_adv_extended:
         imm r20, 527320
         imm r21, 1094994008
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527328
         imm r21, 1                    ; checked call-specific bounded cursor
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527336
         imm r21, 1                    ; exact successor relation
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 527376
         load r2, r1
         imm r1, 1

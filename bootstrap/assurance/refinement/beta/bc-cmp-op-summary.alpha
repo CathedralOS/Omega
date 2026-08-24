@@ -52,16 +52,16 @@ cmp_op_reset_cell:
 cmp_op_require_imports:
         imm r20, 525960
         imm r21, 1128421445           ; CBLE
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 525968
         imm r21, 1094992965           ; ADVE
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527320
         imm r21, 1094994008           ; ADVX
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526320
         imm r21, 1                    ; successful source/cursor domain
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 529960
         imm r2, 1
         store r1, r2
@@ -266,40 +266,40 @@ cmp_op_path_require:
 cmp_op_require_entry:
         imm r20, 529960
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529968
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529976
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 530008
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 530080
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 cmp_op_require_selected_path:
         call cmp_op_require_entry
         imm r20, 530104
         mov r21, r25                  ; consumed exact branch selection
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 8
         jeq r25, r1, cmp_op_require_other
         imm r20, 530112
         imm r21, 1                    ; consumed first-byte hit
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 530128
         imm r21, 1                    ; consumed first ADVE
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526016
         imm r21, 1                    ; recognized first byte consumes CBLE hit
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 525968
         imm r21, 1094992965
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 5
         jeq r25, r1, cmp_op_require_bang
         call cmp_op_require_lookahead
@@ -310,48 +310,48 @@ cmp_op_require_selected_path:
 cmp_op_require_other:
         imm r20, 530112
         imm r21, 3                    ; consumed complete first complement
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 530120
         imm r21, 256
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 530168
         imm r21, 530280
         load r21, r21
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 530176
         imm r21, 0
-        call cursor_require_cell
+        call exact_require_cell
         ret
 cmp_op_require_bang:
         imm r20, 530120
         imm r21, 33
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 530152
         imm r21, 2                    ; consumed unconditional ADVX tail
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527320
         imm r21, 1094994008           ; consumed unconditional tail ADVX
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 530264
         imm r21, 1                    ; consumed absence of second-byte check
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 530168
         imm r21, 3
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 530176
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         ret
 cmp_op_require_single_eq:
         imm r20, 530160
         imm r21, 1                    ; consumed exact restore relation
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 530288
         imm r21, 1                    ; consumed load/local/push/store chain
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 530280
         load r21, r20
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 cmp_op_require_lookahead:
@@ -365,21 +365,21 @@ cmp_op_require_lookahead:
 cmp_op_require_equal_lookahead:
         imm r20, 526016
         imm r21, 1                    ; '=' lookahead consumes CBLE hit
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 530144
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 530152
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 525968
         imm r21, 1094992965
-        call cursor_require_cell
+        call exact_require_cell
         ret
 cmp_op_require_non_equal_lookahead:
         imm r20, 530144
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 cmp_op_require_path_result:
@@ -415,13 +415,13 @@ cmp_op_require_path_result:
 cmp_op_require_result_cells:
         imm r20, 530120
         mov r21, r22                  ; consumed exact first operator byte
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 530168
         mov r21, r23                  ; consumed exact result code
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 530176
         mov r21, r24                  ; consumed exact cursor delta
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 ; Logical end and in-range NUL both return allones without consumption but
@@ -518,23 +518,23 @@ cmp_op_second_zero_selected:
 cmp_op_require_second_zero:
         imm r20, 526016
         imm r21, 1                    ; first operator CBLE hit
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 530136
         mov r21, r26                  ; consumed second hit/boundary join
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 530144
         imm r21, 0                    ; consumed exact zero lookahead
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 1
         jeq r26, r1, cmp_op_second_zero_hit
         imm r20, 526024
         imm r21, 1                    ; second CBLE boundary clause
-        call cursor_require_cell
+        call exact_require_cell
         jmp cmp_op_second_zero_path
 cmp_op_second_zero_hit:
         imm r20, 526016
         imm r21, 1                    ; second CBLE in-range NUL clause
-        call cursor_require_cell
+        call exact_require_cell
 cmp_op_second_zero_path:
         mov r1, r25
         imm r2, 1
@@ -545,7 +545,7 @@ cmp_op_second_zero_path:
         add r1, r2
         mov r20, r1
         imm r21, 1                    ; consumed generic path result
-        call cursor_require_cell
+        call exact_require_cell
         call cmp_op_require_path_result
         imm r1, 6
         jeq r25, r1, cmp_op_require_single_eq
@@ -582,34 +582,34 @@ cmp_op_prove_zero_case:
 cmp_op_require_zero_case:
         imm r20, 530240
         imm r21, 1                    ; consumed complete other path
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 530104
         imm r21, 8
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 530112
         mov r21, r25                  ; consumed hit-vs-boundary provenance
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 530120
         imm r21, 0                    ; consumed exact zero value
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 1
         jeq r25, r1, cmp_op_require_zero_hit
         imm r20, 526024
         imm r21, 1                    ; logical-end miss clause
-        call cursor_require_cell
+        call exact_require_cell
         jmp cmp_op_require_zero_result
 cmp_op_require_zero_hit:
         imm r20, 526016
         imm r21, 1                    ; in-range NUL hit clause
-        call cursor_require_cell
+        call exact_require_cell
 cmp_op_require_zero_result:
         imm r20, 530168
         imm r21, 530280
         load r21, r21
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 530176
         imm r21, 0
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 cmp_op_prove_trailing_bang:
@@ -620,16 +620,16 @@ cmp_op_prove_trailing_bang:
         call cmp_op_prove_path
         imm r20, 530344
         imm r21, 1                    ; consumed trailing-bang entry gap
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 530216
         imm r21, 1                    ; exact bang path
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 530264
         imm r21, 1                    ; no lookahead before second adv
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527320
         imm r21, 1094994008
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 530272
         imm r2, 1                    ; trailing ! exits at LEN+1 with code3
         store r1, r2
@@ -642,17 +642,17 @@ cmp_op_publish_loop:
         jlt r10, r1, cmp_op_publish_path
         imm r20, 530280
         load r21, r20
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 530288
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r10, 530296
 cmp_op_publish_zero_loop:
         imm r1, 530344
         jlt r10, r1, cmp_op_publish_zero
         imm r20, 530344
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 529952
         imm r2, 1347374403            ; CMOP
         store r1, r2
@@ -660,14 +660,14 @@ cmp_op_publish_zero_loop:
 cmp_op_publish_zero:
         mov r20, r10
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 8
         add r10, r1
         jmp cmp_op_publish_zero_loop
 cmp_op_publish_path:
         mov r20, r10
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 8
         add r10, r1
         jmp cmp_op_publish_loop

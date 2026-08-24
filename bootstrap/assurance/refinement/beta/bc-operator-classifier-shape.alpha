@@ -10,40 +10,40 @@ operator_classifier_require_shape:
 
         imm r20, 234
         imm r21, 34977
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 235
         imm r21, 35028
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 236
         imm r21, 35160
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 237
         imm r21, 35292
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 238
         imm r21, 35445
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 234
         imm r21, 238
         imm r22, 53
-        call cursor_require_proc_blocks
+        call exact_require_proc_blocks
 
         imm r20, 239
         imm r21, 35495
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 240
         imm r21, 35546
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 241
         imm r21, 35678
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 242
         imm r21, 35831
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 239
         imm r21, 242
         imm r22, 54
-        call cursor_require_proc_blocks
+        call exact_require_proc_blocks
 
         call operator_classifier_require_transitions
         call operator_classifier_require_events
@@ -66,7 +66,7 @@ operator_classifier_require_proc_frame:
         mov r20, r30
         call call_bounds_frame_bytes
         imm r1, 16                    ; saved fp plus parameter slot
-        jeq r0, r1, cursor_require_ok
+        jeq r0, r1, exact_shape_ok
         jmp reject
 
 operator_classifier_require_transitions:
@@ -76,31 +76,31 @@ operator_classifier_require_transitions:
         imm r22, 1
         imm r23, 238
         imm r24, 35132                ; checked star-true guard
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 179
         imm r21, 235
         imm r22, 0
         imm r23, 236
         imm r24, 35151
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 180
         imm r21, 236
         imm r22, 1
         imm r23, 238
         imm r24, 35264
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 181
         imm r21, 236
         imm r22, 0
         imm r23, 237
         imm r24, 35283
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 182
         imm r21, 237
         imm r22, 1
         imm r23, 238
         imm r24, 35396                ; checked percent-true guard
-        call slurp_summary_require_transition
+        call exact_require_transition
 
         ; is_addsub: plus, minus, complement.
         imm r20, 183
@@ -108,19 +108,19 @@ operator_classifier_require_transitions:
         imm r22, 1
         imm r23, 242
         imm r24, 35650                ; checked plus-true guard
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 184
         imm r21, 240
         imm r22, 0
         imm r23, 241
         imm r24, 35669
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 185
         imm r21, 241
         imm r22, 1
         imm r23, 242
         imm r24, 35782                ; checked minus-true guard
-        call slurp_summary_require_transition
+        call exact_require_transition
         ret
 
 operator_classifier_require_events:
@@ -128,41 +128,41 @@ operator_classifier_require_events:
         imm r21, 237
         imm r22, 5
         imm r23, 35444                ; is_muldiv false return
-        call slurp_summary_require_event
+        call exact_require_event
         imm r20, 380
         imm r21, 238
         imm r22, 5
         imm r23, 35474                ; is_muldiv true return
-        call slurp_summary_require_event
+        call exact_require_event
         imm r20, 35425
         imm r21, 35444
-        call slurp_summary_require_epilogue
+        call exact_require_epilogue
         imm r20, 35455
         imm r21, 35474
-        call slurp_summary_require_epilogue
+        call exact_require_epilogue
         imm r20, 35475
         imm r21, 35494
-        call slurp_summary_require_epilogue
+        call exact_require_epilogue
 
         imm r20, 381
         imm r21, 241
         imm r22, 5
         imm r23, 35830                ; is_addsub false return
-        call slurp_summary_require_event
+        call exact_require_event
         imm r20, 382
         imm r21, 242
         imm r22, 5
         imm r23, 35860                ; is_addsub true return
-        call slurp_summary_require_event
+        call exact_require_event
         imm r20, 35811
         imm r21, 35830
-        call slurp_summary_require_epilogue
+        call exact_require_epilogue
         imm r20, 35841
         imm r21, 35860
-        call slurp_summary_require_epilogue
+        call exact_require_epilogue
         imm r20, 35861
         imm r21, 35880
-        call slurp_summary_require_epilogue
+        call exact_require_epilogue
         ret
 
 operator_classifier_require_locals:
@@ -326,7 +326,7 @@ operator_classifier_require_censuses:
         imm r27, 186                 ; checked exclusive transition row
         imm r28, 379
         imm r29, 383                 ; checked exclusive event row
-        call cursor_require_effect_census
+        call exact_require_effect_census
         imm r20, 234
         imm r21, 242
         imm r22, 572

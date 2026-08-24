@@ -14,16 +14,16 @@ parse_output_prefix_require_shape:
 parse_output_prefix_blocks:
         imm r20, 345
         imm r21, 50400
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 346
         imm r21, 50649
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 347
         imm r21, 50790
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 348
         imm r21, 50945
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         call parse_output_prefix_transitions
         call parse_output_prefix_events
         call parse_output_prefix_locals
@@ -38,25 +38,25 @@ parse_output_prefix_transitions:
         imm r22, 0
         imm r23, 346
         imm r24, 50640
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 283
         imm r21, 346
         imm r22, 1
         imm r23, 347
         imm r24, 50762              ; checked k<nparams guard
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 284
         imm r21, 346
         imm r22, 0
         imm r23, 348
         imm r24, 50781              ; checked loop exit
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 285
         imm r21, 347
         imm r22, 0
         imm r23, 346
         imm r24, 50936              ; checked increment backedge
-        call slurp_summary_require_transition
+        call exact_require_transition
         ret
 
 parse_output_prefix_events:
@@ -72,7 +72,7 @@ parse_output_prefix_events:
         imm r21, 345
         imm r22, 4
         imm r23, 50542              ; exact colon/newline emit
-        call slurp_summary_require_event
+        call exact_require_event
         imm r20, 598
         imm r21, 345
         imm r22, 50602
@@ -219,7 +219,7 @@ parse_output_prefix_censuses:
         imm r27, 286
         imm r28, 596
         imm r29, 600                 ; exclusive event row
-        call cursor_require_effect_census
+        call exact_require_effect_census
         imm r20, 345
         imm r21, 347
         imm r22, 801

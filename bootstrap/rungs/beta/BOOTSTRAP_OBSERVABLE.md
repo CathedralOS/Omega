@@ -392,8 +392,20 @@ are valuable teeth, but they do not yet establish the quantified observation:
   Independent 256-byte singleton/complement sweeps cover all 48
   descriptor positions, and non-aliasable tables retain all 48 byte proofs and
   all 66 length/mismatch/match outcomes. These predicates emit nothing,
-  preserve source/input/CUR/compiler state, and restore their frames. This
-  clause gives no `name_eq`, `lookup`, name-table, or expression-SCC meaning;
+  preserve source/input/CUR/compiler state, and restore their frames;
+- its independent conditional `name_eq` tranche re-executes the lower-rooted
+  structural/frame/stack premises and checks a distinct continuation before
+  introducing `NPFX(n)` for `0<=n<=1024`, a valid current query slice, and a
+  selected `0<=i<n`. An exhaustive address sweep checks all 1,024 aligned,
+  disjoint NAMEOFF/NAMELEN word slots. Exact procedure-35 control, local,
+  memory, primitive, push, frame, epilogue, and decoded read-only censuses bind
+  the source relation: unequal lengths return zero before table-offset/source
+  access; equal-length slices compare left-to-right, return zero at the first
+  differing byte, and return one exactly after a full equal prefix. The
+  natural `len-k` rank closes the byte loop, output and compiler state remain
+  unchanged, and the caller frame is restored. This conditional clause does
+  not establish the runtime name-table prefix, does not close `lookup`, and
+  gives no expression-SCC meaning;
 - no total `parse_proc` claim is currently made. Malformed procedure bodies can
   make `gen_stmts` diverge while emitting—for example when an unrecognized byte
   is never consumed—so closure requires maximal Return-or-Diverge and finite/

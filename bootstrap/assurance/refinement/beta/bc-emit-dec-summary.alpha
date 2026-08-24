@@ -276,45 +276,45 @@ emit_dec_reset_cell:
 emit_dec_require_base_phase:
         imm r20, 528328
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528496
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528344
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528384
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528400
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         call emit_dec_require_arithmetic
         imm r20, 528408
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528424
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         call emit_dec_require_quiet_return
         ret
 
 emit_dec_require_recursive_phase:
         imm r20, 528328
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528496
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528344
         mov r21, r10
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528384
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528392
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         ; The child theorem is the completed immediately preceding phase.
         mov r20, r10
         imm r1, 2                    ; checked immediately prior phase offset
@@ -324,22 +324,22 @@ emit_dec_require_recursive_phase:
         imm r1, 528448
         add r20, r1
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528400
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528480
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528416
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528488
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528424
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         call emit_dec_require_arithmetic
         call emit_dec_require_quiet_return
         ret
@@ -347,49 +347,49 @@ emit_dec_require_recursive_phase:
 emit_dec_require_arithmetic:
         imm r20, 528336
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528352
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528360
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528368
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528376
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 emit_dec_require_quiet_return:
         imm r20, 528432
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528440
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 emit_dec_publish_summary:
         imm r20, 528328
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528504
         imm r21, 8193
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528448
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528456
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528464
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528472
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 528320
         imm r2, 1396917572            ; DECS
         store r1, r2

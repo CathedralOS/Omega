@@ -39,19 +39,19 @@ parse_output_prefix_summary_init:
 parse_output_prefix_require_imports:
         imm r20, 528072
         imm r21, 1346584912            ; PCAP
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528192
         imm r21, 1396984133            ; EIDS
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 525816
         imm r21, 1465074514            ; WSTR
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528512
         imm r21, 1330794565            ; EPRO
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528520
         imm r21, 1380012101            ; EPAR
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 ; Exhaust all (N,k) with 0<=N<=4 and 0<=k<=N: ten body states plus five exits.
@@ -102,22 +102,22 @@ parse_output_prefix_introduce_entry:
         ; are stable across both cases.
         imm r20, 528168
         imm r21, 1                    ; selected room completion
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528096
         imm r21, 1                    ; exact nparams in [0,4]
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528128
         imm r21, 1                    ; exact nonwrapping nslots
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528152
         imm r21, 1                    ; source/input/table/CUR/name retained
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528184
         imm r21, 1                    ; arbitrary prior output unchanged
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528000
         imm r21, 1                    ; saved procedure-name state retained
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 528672
         imm r2, 1
         store r1, r2
@@ -136,7 +136,7 @@ parse_output_prefix_compose_fixed_prefix:
         ; name slice to event596. EIDS appends exactly that source slice.
         imm r20, 528680
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 528688
         imm r2, 1                    ; checked EIDS argument and exact output
         store r1, r2
@@ -187,16 +187,16 @@ parse_output_prefix_colon_ok:
 parse_output_prefix_reset_iteration:
         imm r20, 528672
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528720
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528728
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528808
         imm r21, 4
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 528736
         imm r2, 0
         store r1, r2
@@ -263,70 +263,70 @@ parse_output_prefix_prove_exit:
 parse_output_prefix_require_invariant:
         imm r20, 528720
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528728
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528832
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 parse_output_prefix_require_step:
         imm r20, 528736
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528744
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528752
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528760
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 parse_output_prefix_require_exit:
         imm r20, 528768
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528776
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528816
         imm r21, 50945
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528832
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 parse_output_prefix_publish:
         imm r20, 528784
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528792
         imm r21, 15
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528688
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528696
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528704
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528712
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528840
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528848
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 528824
         imm r2, 1                    ; complete deterministic prefix
         store r1, r2

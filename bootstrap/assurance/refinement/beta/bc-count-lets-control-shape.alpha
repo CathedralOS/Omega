@@ -23,41 +23,41 @@ count_lets_require_control_shape:
 count_lets_shape_blocks:
         imm r20, 193
         imm r21, 27433
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 194
         imm r21, 27555
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 195
         imm r21, 27687
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 196
         imm r21, 28521
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 197
         imm r21, 28559
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 198
         imm r21, 28577
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 199
         imm r21, 28595
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 200
         imm r21, 28699
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 201
         imm r21, 28803
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 202
         imm r21, 28934
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 203
         imm r21, 29029
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 193
         imm r21, 203
         imm r22, 39
-        call cursor_require_proc_blocks
+        call exact_require_proc_blocks
         call count_lets_require_transitions
         call count_lets_require_events
         call count_lets_require_control_census
@@ -69,105 +69,105 @@ count_lets_require_transitions:
         imm r22, 1
         imm r23, 195
         imm r24, 27659              ; checked positive-depth guard
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 147
         imm r21, 194
         imm r22, 0
         imm r23, 203
         imm r24, 27678
-        call slurp_summary_require_transition
+        call exact_require_transition
 
         imm r20, 148
         imm r21, 195
         imm r22, 1
         imm r23, 196
         imm r24, 27828              ; checked cbyte zero guard
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 149
         imm r21, 195
         imm r22, 1
         imm r23, 197
         imm r24, 27951              ; checked character quote guard
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 150
         imm r21, 195
         imm r22, 1
         imm r23, 198
         imm r24, 28074              ; checked string quote guard
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 151
         imm r21, 195
         imm r22, 1
         imm r23, 199
         imm r24, 28197              ; checked open-brace guard
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 152
         imm r21, 195
         imm r22, 1
         imm r23, 200
         imm r24, 28320              ; checked close-brace guard
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 153
         imm r21, 195
         imm r22, 1
         imm r23, 201
         imm r24, 28484              ; checked alpha guard
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 154
         imm r21, 195
         imm r22, 0
         imm r23, 194
         imm r24, 28512
-        call slurp_summary_require_transition
+        call exact_require_transition
 
         imm r20, 155
         imm r21, 196
         imm r22, 0
         imm r23, 194
         imm r24, 28550
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 156
         imm r21, 197
         imm r22, 0
         imm r23, 194
         imm r24, 28568
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 157
         imm r21, 198
         imm r22, 0
         imm r23, 194
         imm r24, 28586
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 158
         imm r21, 199
         imm r22, 0
         imm r23, 194
         imm r24, 28690
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 159
         imm r21, 200
         imm r22, 0
         imm r23, 194
         imm r24, 28794
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 160
         imm r21, 201
         imm r22, 1
         imm r23, 202
         imm r24, 28906              ; checked exact is_let guard
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 161
         imm r21, 201
         imm r22, 0
         imm r23, 194
         imm r24, 28925
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 162
         imm r21, 202
         imm r22, 0
         imm r23, 194
         imm r24, 29020
-        call slurp_summary_require_transition
+        call exact_require_transition
         ret
 
 count_lets_require_events:
@@ -255,13 +255,13 @@ count_lets_require_events:
         imm r21, 203
         imm r22, 5
         imm r23, 29131
-        call slurp_summary_require_event
+        call exact_require_event
         imm r20, 29112
         imm r21, 29131
-        call slurp_summary_require_epilogue
+        call exact_require_epilogue
         imm r20, 29132
         imm r21, 29151
-        call slurp_summary_require_epilogue
+        call exact_require_epilogue
         ret
 
 count_lets_require_control_census:
@@ -275,7 +275,7 @@ count_lets_require_control_census:
         imm r27, 163                 ; checked exclusive count transition row
         imm r28, 297
         imm r29, 308                 ; checked exclusive count event row
-        call cursor_require_effect_census
+        call exact_require_effect_census
         imm r20, 27433
         imm r21, 29152
         imm r22, 10

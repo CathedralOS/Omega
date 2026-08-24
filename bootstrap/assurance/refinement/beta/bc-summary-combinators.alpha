@@ -4,95 +4,6 @@
 ; language-specific theorem state; semantic modules call these routines after
 ; the global source/artifact tables have been reconstructed and checked.
 
-; Exhaust all 816 primitive and 403 push rows for selected blocks [r20,r21].
-; Every matching row must be in the supplied primitive [r22,r23), binary-push
-; [r24,r25), argument-push [r26,r27), or store-address-push [r28,r29)
-; interval, and every supplied row must match. This mirrors the three
-; source-derived push families and complements cursor_require_effect_census.
-summary_require_expr_census:
-        mov r30, r20                  ; first block
-        mov r31, r21                  ; last block
-        mov r32, r22                  ; first primitive
-        mov r33, r23                  ; exclusive primitive
-        mov r34, r24                  ; first binary push
-        mov r35, r25                  ; exclusive binary push
-        mov r36, r26                  ; first argument push
-        mov r37, r27                  ; exclusive argument push
-        mov r38, r28                  ; first store-address push
-        mov r39, r29                  ; exclusive store-address push
-        imm r10, 0
-        imm r11, 0
-summary_primitive_census_loop:
-        imm r1, 816
-        jlt r10, r1, summary_primitive_census_row
-        mov r2, r33
-        sub r2, r32
-        jeq r11, r2, summary_push_census_init
-        jmp reject
-summary_primitive_census_row:
-        mov r2, r10
-        imm r1, 8
-        mul r2, r1
-        imm r1, 8388608
-        add r1, r2
-        load r3, r1
-        jlt r3, r30, summary_primitive_census_next
-        jlt r31, r3, summary_primitive_census_next
-summary_primitive_census_match:
-        jlt r10, r32, reject
-        jlt r10, r33, summary_primitive_census_count
-        jmp reject
-summary_primitive_census_count:
-        imm r1, 1
-        add r11, r1
-summary_primitive_census_next:
-        imm r1, 1
-        add r10, r1
-        jmp summary_primitive_census_loop
-
-summary_push_census_init:
-        imm r10, 0
-        imm r11, 0
-summary_push_census_loop:
-        imm r1, 403
-        jlt r10, r1, summary_push_census_row
-        mov r2, r35
-        sub r2, r34
-        mov r4, r37
-        sub r4, r36
-        add r2, r4
-        mov r4, r39
-        sub r4, r38
-        add r2, r4
-        jeq r11, r2, cursor_require_ok
-        jmp reject
-summary_push_census_row:
-        mov r2, r10
-        imm r1, 8
-        mul r2, r1
-        imm r1, 9437184
-        add r1, r2
-        load r3, r1
-        jlt r3, r30, summary_push_census_next
-        jlt r31, r3, summary_push_census_next
-summary_push_census_match:
-        jlt r10, r34, summary_push_census_argument
-        jlt r10, r35, summary_push_census_count
-summary_push_census_argument:
-        jlt r10, r36, summary_push_census_store
-        jlt r10, r37, summary_push_census_count
-summary_push_census_store:
-        jlt r10, r38, reject
-        jlt r10, r39, summary_push_census_count
-        jmp reject
-summary_push_census_count:
-        imm r1, 1
-        add r11, r1
-summary_push_census_next:
-        imm r1, 1
-        add r10, r1
-        jmp summary_push_census_loop
-
 ; Rejoin one ordinary source call across the event, arity, expression-height,
 ; and decoded-call tables. Inputs are event/block/pc/arity/ambient/target/
 ; continuation in r20..r26.
@@ -108,7 +19,7 @@ summary_require_call_site:
         mov r21, r31
         imm r22, 1
         mov r23, r32
-        call slurp_summary_require_event
+        call exact_require_event
         mov r20, r30
         mov r21, r33
         call skip_require_event_arity

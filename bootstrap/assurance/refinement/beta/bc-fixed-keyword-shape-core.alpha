@@ -47,7 +47,7 @@ fixed_keyword_require_frame:
 	mov r20, r30
 	call call_bounds_frame_bytes
 	imm r1, 8
-	jeq r0, r1, cursor_require_ok
+	jeq r0, r1, exact_shape_ok
 	jmp reject
 
 fixed_keyword_require_blocks:
@@ -55,7 +55,7 @@ fixed_keyword_require_blocks:
 	load r20, r1                  ; entry block
 	imm r1, 530376
 	load r21, r1                  ; procedure pc
-	call slurp_summary_require_block_pc
+	call exact_require_block_pc
 	imm r1, 530384
 	load r20, r1
 	imm r2, 1
@@ -64,7 +64,7 @@ fixed_keyword_require_blocks:
 	load r21, r1
 	imm r2, 19
 	add r21, r2
-	call slurp_summary_require_block_pc
+	call exact_require_block_pc
 	imm r1, 530448
 	imm r2, 0
 	store r1, r2
@@ -90,7 +90,7 @@ fixed_keyword_block_char:
 	imm r3, 185
 	mul r2, r3
 	add r21, r2
-	call slurp_summary_require_block_pc
+	call exact_require_block_pc
 	call fixed_keyword_increment_loop
 	jmp fixed_keyword_block_loop
 fixed_keyword_block_yes:
@@ -107,7 +107,7 @@ fixed_keyword_block_yes:
 	imm r3, 185
 	mul r2, r3
 	add r21, r2
-	call slurp_summary_require_block_pc
+	call exact_require_block_pc
 	imm r1, 530384
 	load r20, r1
 	imm r1, 530368
@@ -119,7 +119,7 @@ fixed_keyword_block_yes:
 	add r21, r2                  ; inclusive final block
 	imm r1, 530360
 	load r22, r1
-	call cursor_require_proc_blocks
+	call exact_require_proc_blocks
 	ret
 
 fixed_keyword_require_transitions:
@@ -164,7 +164,7 @@ fixed_keyword_transition_length_pc:
 	imm r2, 117                  ; checked length-guard pc
 	add r24, r2
 fixed_keyword_transition_require:
-	call slurp_summary_require_transition
+	call exact_require_transition
 	call fixed_keyword_increment_loop
 	jmp fixed_keyword_transition_loop
 
@@ -180,12 +180,12 @@ fixed_keyword_require_events:
 	load r23, r1
 	imm r2, 165
 	add r23, r2
-	call slurp_summary_require_event
+	call exact_require_event
 	mov r21, r23
 	mov r20, r23
 	imm r2, 19
 	sub r20, r2
-	call slurp_summary_require_epilogue
+	call exact_require_epilogue
 	imm r1, 530448
 	imm r2, 0
 	store r1, r2
@@ -250,12 +250,12 @@ fixed_keyword_event_char:
 	mul r2, r3
 	add r23, r2
 	imm r22, 5
-	call slurp_summary_require_event
+	call exact_require_event
 	mov r21, r23
 	mov r20, r23
 	imm r2, 19
 	sub r20, r2
-	call slurp_summary_require_epilogue
+	call exact_require_epilogue
 	call fixed_keyword_increment_loop
 	jmp fixed_keyword_event_loop
 fixed_keyword_event_yes:
@@ -281,12 +281,12 @@ fixed_keyword_event_yes:
 	imm r3, 185
 	mul r2, r3
 	add r23, r2
-	call slurp_summary_require_event
+	call exact_require_event
 	mov r21, r23
 	mov r20, r23
 	imm r2, 19
 	sub r20, r2
-	call slurp_summary_require_epilogue
+	call exact_require_epilogue
 	imm r1, 530376
 	load r21, r1
 	imm r2, 215
@@ -299,7 +299,7 @@ fixed_keyword_event_yes:
 	mov r20, r21
 	imm r2, 19
 	sub r20, r2
-	call slurp_summary_require_epilogue
+	call exact_require_epilogue
 	ret
 
 fixed_keyword_require_memory:
@@ -572,7 +572,7 @@ fixed_keyword_require_censuses:
 	imm r3, 2
 	add r2, r3
 	add r29, r2
-	call cursor_require_effect_census
+	call exact_require_effect_census
 
 	imm r1, 530384
 	load r20, r1

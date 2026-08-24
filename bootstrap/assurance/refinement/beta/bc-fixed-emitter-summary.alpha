@@ -131,7 +131,7 @@ fixed_emit_begin_block_proc:
         call transfer_require_cell
         mov r20, r26
         mov r21, r27
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         ; The next canonical block begins exactly at the supplied exclusive
         ; end, and this procedure owns no second block anywhere in the table.
         mov r2, r26
@@ -314,7 +314,7 @@ fixed_emit_finish_ret:
         mov r21, r2
         imm r1, 1
         sub r21, r1                  ; exact ret pc
-        call slurp_summary_require_epilogue
+        call exact_require_epilogue
         ret
 
 ; No source transition, local access, or raw-memory action belongs to block r20.

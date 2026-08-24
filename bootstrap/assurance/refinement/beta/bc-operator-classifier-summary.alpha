@@ -45,7 +45,7 @@ operator_classifier_reset_cell:
 operator_classifier_require_byte_domain:
         imm r20, 526696
         imm r21, 1                    ; reusable 0<=c<=255 domain theorem
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 529832
         imm r2, 1
         store r1, r2
@@ -105,13 +105,13 @@ operator_classifier_byte_case:
 operator_classifier_require_case:
         imm r20, 529832
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529928
         imm r21, 1                   ; every comparison reloads entry c
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529936
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 ; Exact source order: '*', '/', '%', complement.
@@ -209,16 +209,16 @@ operator_classifier_count_no:
 operator_classifier_finish_bytes:
         imm r20, 529880
         imm r21, 3                    ; exactly '*', '/', '%'
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529888
         imm r21, 253                  ; exact byte complement
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529896
         imm r21, 2                    ; exactly '+', '-'
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529904
         imm r21, 254                  ; exact byte complement
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 529912
         imm r2, 1                    ; checked complete 256-byte sweep
         store r1, r2
@@ -240,7 +240,7 @@ operator_classifier_prove_nonbyte_complement:
         call operator_classifier_require_byte_literal
         imm r20, 529912
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 529920
         imm r2, 1                    ; checked non-byte Word complement is zero
         store r1, r2
@@ -250,28 +250,28 @@ operator_classifier_require_byte_literal:
         imm r2, 0
         jlt r1, r2, reject
         imm r2, 256
-        jlt r1, r2, cursor_require_ok
+        jlt r1, r2, exact_shape_ok
         jmp reject
 
 operator_classifier_publish:
         imm r20, 529912
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529920
         imm r21, 1                   ; non-byte complement required
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529928
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529936
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 529944
         imm r2, 1                    ; exhaustive Word partition complete
         store r1, r2
         imm r20, 529944
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 529816
         imm r2, 1280658767           ; OMUL
         store r1, r2

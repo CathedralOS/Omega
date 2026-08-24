@@ -47,27 +47,27 @@ cursor_require_cbyte_shape:
         call transfer_require_cell
         imm r20, 8
         imm r21, 1609
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 9
         imm r21, 1673
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 10
         imm r21, 1829
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 11
         imm r21, 1939
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 8
         imm r21, 10
         imm r22, 4
-        call cursor_require_proc_blocks
+        call exact_require_proc_blocks
 
         imm r20, 4
         imm r21, 9
         imm r22, 1
         imm r23, 10
         imm r24, 1780
-        call slurp_summary_require_transition
+        call exact_require_transition
 
         imm r20, 14
         imm r21, 8
@@ -158,21 +158,21 @@ cursor_require_cbyte_shape:
         imm r21, 9
         imm r22, 5
         imm r23, 1828
-        call slurp_summary_require_event
+        call exact_require_event
         imm r20, 9
         imm r21, 10
         imm r22, 5
         imm r23, 1918
-        call slurp_summary_require_event
+        call exact_require_event
         imm r20, 1809
         imm r21, 1828
-        call slurp_summary_require_epilogue
+        call exact_require_epilogue
         imm r20, 1899
         imm r21, 1918
-        call slurp_summary_require_epilogue
+        call exact_require_epilogue
         imm r20, 1919
         imm r21, 1938
-        call slurp_summary_require_epilogue
+        call exact_require_epilogue
         imm r20, 1609
         imm r21, 1939
         imm r22, 3
@@ -187,7 +187,7 @@ cursor_require_cbyte_shape:
         imm r27, 5
         imm r28, 8
         imm r29, 10
-        call cursor_require_effect_census
+        call exact_require_effect_census
         ret
 
 cursor_prove_cbyte:
@@ -236,10 +236,10 @@ cursor_prove_cbyte:
 
         imm r20, 526016
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526024
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 525960
         imm r2, 1128421445            ; CBLE
         store r1, r2
@@ -255,30 +255,30 @@ cursor_cbyte_take_hit:
         call cursor_require_domain
         imm r20, 525984
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 525992
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 cursor_cbyte_take_miss:
         call cursor_require_domain
         imm r20, 525984
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 525992
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 cursor_cbyte_load_source:
         call cursor_require_segment
         imm r20, 525984
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 525992
         imm r21, 1                    ; checked SRC index from local i
-        call cursor_require_cell
+        call exact_require_cell
         ; CUR<LEN<=CAP proves SRC+CUR in [2097152,3145728), nonwrapping and
         ; disjoint from stack/global regions. The successful slurp token gives
         ; exact byte provenance, including the possibility that the byte is 0.
@@ -301,7 +301,7 @@ cursor_cbyte_require_value:
 cursor_cbyte_value_payload:
         imm r1, 526008
         load r2, r1
-        jeq r2, r21, cursor_require_ok
+        jeq r2, r21, exact_shape_ok
         jmp reject
 
 ; ---- adv ---------------------------------------------------------------
@@ -317,14 +317,14 @@ cursor_require_adv_shape:
         call transfer_require_cell
         imm r20, 11
         imm r21, 1939
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 12
         imm r21, 2084
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 11
         imm r21, 11
         imm r22, 5
-        call cursor_require_proc_blocks
+        call exact_require_proc_blocks
 
         imm r20, 14
         imm r21, 11
@@ -374,7 +374,7 @@ cursor_require_adv_shape:
         call transfer_require_push
         imm r20, 2064
         imm r21, 2083
-        call slurp_summary_require_epilogue
+        call exact_require_epilogue
         imm r20, 1939
         imm r21, 2084
         imm r22, 1
@@ -389,7 +389,7 @@ cursor_require_adv_shape:
         imm r27, 0                    ; no source transitions
         imm r28, 0
         imm r29, 0                    ; no explicit source events
-        call cursor_require_effect_census
+        call exact_require_effect_census
         ret
 
 cursor_prove_adv:
@@ -410,13 +410,13 @@ cursor_prove_adv:
         call cursor_adv_store_successor
         imm r20, 526040
         imm r21, 2                    ; checked CUR successor
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 526056
         imm r2, 1
         store r1, r2
         imm r20, 526056
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 525968
         imm r2, 1094992965            ; ADVE
         store r1, r2
@@ -426,13 +426,13 @@ cursor_adv_store_successor:
         call cursor_require_domain
         imm r20, 526032
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526040
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526048
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         ; Exact wrapping addition is nonwrapping under CUR<LEN<=CAP; the sole
         ; raw store writes CUR+1<=LEN back to fixed address 2097144.
         imm r1, 526040
@@ -453,72 +453,72 @@ cursor_require_space_shape:
         call transfer_require_cell
         imm r20, 27
         imm r21, 3627
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 28
         imm r21, 3678
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 29
         imm r21, 3810
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 30
         imm r21, 3942
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 31
         imm r21, 4074
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 32
         imm r21, 4227
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 33
         imm r21, 4277
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 27
         imm r21, 32
         imm r22, 9
-        call cursor_require_proc_blocks
+        call exact_require_proc_blocks
 
         imm r20, 18
         imm r21, 28
         imm r22, 1
         imm r23, 32
         imm r24, 3782
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 19
         imm r21, 28
         imm r22, 0
         imm r23, 29
         imm r24, 3801
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 20
         imm r21, 29
         imm r22, 1
         imm r23, 32
         imm r24, 3914
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 21
         imm r21, 29
         imm r22, 0
         imm r23, 30
         imm r24, 3933
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 22
         imm r21, 30
         imm r22, 1
         imm r23, 32
         imm r24, 4046
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 23
         imm r21, 30
         imm r22, 0
         imm r23, 31
         imm r24, 4065
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 24
         imm r21, 31
         imm r22, 1
         imm r23, 32
         imm r24, 4178
-        call slurp_summary_require_transition
+        call exact_require_transition
 
         imm r20, 26
         imm r21, 28
@@ -631,21 +631,21 @@ cursor_require_space_shape:
         imm r21, 31
         imm r22, 5
         imm r23, 4226
-        call slurp_summary_require_event
+        call exact_require_event
         imm r20, 20
         imm r21, 32
         imm r22, 5
         imm r23, 4256
-        call slurp_summary_require_event
+        call exact_require_event
         imm r20, 4207
         imm r21, 4226
-        call slurp_summary_require_epilogue
+        call exact_require_epilogue
         imm r20, 4237
         imm r21, 4256
-        call slurp_summary_require_epilogue
+        call exact_require_epilogue
         imm r20, 4257
         imm r21, 4276
-        call slurp_summary_require_epilogue
+        call exact_require_epilogue
         imm r20, 3627
         imm r21, 4277
         imm r22, 3
@@ -660,7 +660,7 @@ cursor_require_space_shape:
         imm r27, 25
         imm r28, 19
         imm r29, 21
-        call cursor_require_effect_census
+        call exact_require_effect_census
         ret
 
 cursor_prove_space:
@@ -801,7 +801,7 @@ cursor_space_clear_comparisons:
         imm r1, 5
         jlt r11, r1, cursor_space_clear_comparison
         imm r1, 5
-        jeq r25, r1, cursor_require_ok
+        jeq r25, r1, exact_shape_ok
         mov r20, r25
         imm r21, 1
         jmp cursor_space_store_comparison
@@ -833,7 +833,7 @@ cursor_space_require_comparison:
         imm r1, 526120
         add r1, r2
         load r2, r1
-        jeq r2, r21, cursor_require_ok
+        jeq r2, r21, exact_shape_ok
         jmp reject
 
 cursor_space_set_result:
@@ -848,7 +848,7 @@ cursor_space_set_result:
         jmp reject
 cursor_space_expect_one_payload:
         imm r3, 1
-        jeq r21, r3, cursor_require_ok
+        jeq r21, r3, exact_shape_ok
         jmp reject
 cursor_space_expect_zero:
         imm r3, 2
@@ -856,7 +856,7 @@ cursor_space_expect_zero:
         jmp reject
 cursor_space_expect_zero_payload:
         imm r3, 0
-        jeq r21, r3, cursor_require_ok
+        jeq r21, r3, exact_shape_ok
         jmp reject
 
 ; The successful slurp theorem supplies LEN=L in [0,CAP] and exact
@@ -867,7 +867,7 @@ cursor_space_expect_zero_payload:
 cursor_require_success_segment:
         imm r20, 525744
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 526160
         imm r2, 1
         store r1, r2
@@ -883,187 +883,12 @@ cursor_introduce_domain:
 cursor_require_domain:
         imm r20, 526152
         imm r21, 1
-        jmp cursor_require_cell
+        jmp exact_require_cell
 
 cursor_require_segment:
         imm r20, 526160
         imm r21, 1
-        jmp cursor_require_cell
-
-; ---- Shared exact closure ---------------------------------------------
-
-; Exhaust all 242 local, 95 raw-memory, 291 transition, and 613 source-event
-; rows for blocks [r20,r21]. Rows belonging to the selected blocks must be
-; exactly the already-rejoined contiguous intervals [r22,r23), [r24,r25),
-; [r26,r27), and [r28,r29). Together with the global frame/store custody
-; phases and decoded quiet-region scan, this closes both CFG and footprint:
-; cbyte has one private local store and reads only; adv writes only CUR;
-; is_space has parameter-local loads and no raw-memory action.
-cursor_require_effect_census:
-        mov r30, r20                  ; first block
-        mov r31, r21                  ; last block
-        mov r32, r22                  ; first local row
-        mov r33, r23                  ; exclusive local row
-        mov r34, r24                  ; first memory row
-        mov r35, r25                  ; exclusive memory row
-        mov r36, r26                  ; first transition row
-        mov r37, r27                  ; exclusive transition row
-        mov r38, r28                  ; first event row
-        mov r39, r29                  ; exclusive event row
-        imm r10, 0
-        imm r11, 0
-cursor_effect_local_loop:
-        imm r1, 242
-        jlt r10, r1, cursor_effect_local_row
-        mov r2, r33
-        sub r2, r32
-        jeq r11, r2, cursor_effect_memory_init
-        jmp reject
-cursor_effect_local_row:
-        mov r2, r10
-        imm r1, 8
-        mul r2, r1
-        imm r1, 7168000
-        add r1, r2
-        load r3, r1
-        jlt r3, r30, cursor_effect_local_next
-        jlt r31, r3, cursor_effect_local_next
-        jlt r10, r32, reject
-        jlt r10, r33, cursor_effect_local_match
-        jmp reject
-cursor_effect_local_match:
-        imm r1, 1
-        add r11, r1
-cursor_effect_local_next:
-        imm r1, 1
-        add r10, r1
-        jmp cursor_effect_local_loop
-
-cursor_effect_memory_init:
-        imm r10, 0
-        imm r11, 0
-cursor_effect_memory_loop:
-        imm r1, 95
-        jlt r10, r1, cursor_effect_memory_row
-        mov r2, r35
-        sub r2, r34
-        jeq r11, r2, cursor_effect_transition_init
-        jmp reject
-cursor_effect_memory_row:
-        mov r2, r10
-        imm r1, 8
-        mul r2, r1
-        imm r1, 7602176
-        add r1, r2
-        load r3, r1
-        jlt r3, r30, cursor_effect_memory_next
-        jlt r31, r3, cursor_effect_memory_next
-        jlt r10, r34, reject
-        jlt r10, r35, cursor_effect_memory_match
-        jmp reject
-cursor_effect_memory_match:
-        imm r1, 1
-        add r11, r1
-cursor_effect_memory_next:
-        imm r1, 1
-        add r10, r1
-        jmp cursor_effect_memory_loop
-
-cursor_effect_transition_init:
-        imm r10, 0
-        imm r11, 0
-cursor_effect_transition_loop:
-        imm r1, 291
-        jlt r10, r1, cursor_effect_transition_row
-        mov r2, r37
-        sub r2, r36
-        jeq r11, r2, cursor_effect_event_init
-        jmp reject
-cursor_effect_transition_row:
-        mov r2, r10
-        imm r1, 8
-        mul r2, r1
-        imm r1, 3215360
-        add r1, r2
-        load r3, r1
-        jlt r3, r30, cursor_effect_transition_next
-        jlt r31, r3, cursor_effect_transition_next
-        jlt r10, r36, reject
-        jlt r10, r37, cursor_effect_transition_match
-        jmp reject
-cursor_effect_transition_match:
-        imm r1, 1
-        add r11, r1
-cursor_effect_transition_next:
-        imm r1, 1
-        add r10, r1
-        jmp cursor_effect_transition_loop
-
-cursor_effect_event_init:
-        imm r10, 0
-        imm r11, 0
-cursor_effect_event_loop:
-        imm r1, 613
-        jlt r10, r1, cursor_effect_event_row
-        mov r2, r39
-        sub r2, r38
-        jeq r11, r2, cursor_require_ok
-        jmp reject
-cursor_effect_event_row:
-        mov r2, r10
-        imm r1, 8
-        mul r2, r1
-        imm r1, 7077888
-        add r1, r2
-        load r3, r1
-        jlt r3, r30, cursor_effect_event_next
-        jlt r31, r3, cursor_effect_event_next
-        jlt r10, r38, reject
-        jlt r10, r39, cursor_effect_event_match
-        jmp reject
-cursor_effect_event_match:
-        imm r1, 1
-        add r11, r1
-cursor_effect_event_next:
-        imm r1, 1
-        add r10, r1
-        jmp cursor_effect_event_loop
-
-; Blocks [r20,r21] inclusive must all belong to procedure r22, and no other
-; parsed block may do so.
-cursor_require_proc_blocks:
-        mov r25, r20
-        mov r26, r21
-        mov r27, r22
-        imm r10, 0
-        imm r11, 0
-cursor_proc_block_loop:
-        imm r1, 355
-        jlt r10, r1, cursor_proc_block_row
-        mov r2, r26
-        sub r2, r25
-        imm r1, 1
-        add r2, r1
-        jeq r11, r2, cursor_require_ok
-        jmp reject
-cursor_proc_block_row:
-        mov r2, r10
-        imm r1, 8
-        mul r2, r1
-        imm r1, 3145728
-        add r1, r2
-        load r3, r1
-        jeq r3, r27, cursor_proc_block_match
-        jmp cursor_proc_block_next
-cursor_proc_block_match:
-        jlt r10, r25, reject
-        jlt r26, r10, reject
-        imm r1, 1
-        add r11, r1
-cursor_proc_block_next:
-        imm r1, 1
-        add r10, r1
-        jmp cursor_proc_block_loop
+        jmp exact_require_cell
 
 ; Region [r20,r21) has exactly r22 returns and no direct input/output, nested
 ; call, halt, division, or remainder. Stack/local/raw accesses were already
@@ -1075,7 +900,7 @@ cursor_scan_quiet_region:
         imm r28, 0
 cursor_quiet_loop:
         jlt r25, r26, cursor_quiet_pc
-        jeq r28, r27, cursor_require_ok
+        jeq r28, r27, exact_shape_ok
         jmp reject
 cursor_quiet_pc:
         imm r1, 4194304
@@ -1110,10 +935,3 @@ cursor_quiet_next:
         imm r1, 1
         add r25, r1
         jmp cursor_quiet_loop
-
-cursor_require_cell:
-        load r2, r20
-        jeq r2, r21, cursor_require_ok
-        jmp reject
-cursor_require_ok:
-        ret

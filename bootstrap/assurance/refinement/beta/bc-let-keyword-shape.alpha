@@ -38,34 +38,34 @@ let_keyword_shape_is_let_frame:
 let_keyword_shape_blocks:
         imm r20, 47
         imm r21, 5634
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 47
         imm r21, 47
         imm r22, 13
-        call cursor_require_proc_blocks
+        call exact_require_proc_blocks
 
         imm r20, 48
         imm r21, 5846
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 49
         imm r21, 5865
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 50
         imm r21, 6012
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 51
         imm r21, 6197
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 52
         imm r21, 6382
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 53
         imm r21, 6567
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 48
         imm r21, 53
         imm r22, 14
-        call cursor_require_proc_blocks
+        call exact_require_proc_blocks
         call let_keyword_require_transitions
         call let_keyword_require_events
         call let_keyword_require_data
@@ -78,25 +78,25 @@ let_keyword_require_transitions:
         imm r22, 1
         imm r23, 50
         imm r24, 5963               ; checked is_let length guard
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 37
         imm r21, 50
         imm r22, 1
         imm r23, 51
         imm r24, 6148
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 38
         imm r21, 51
         imm r22, 1
         imm r23, 52
         imm r24, 6333
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 39
         imm r21, 52
         imm r22, 1
         imm r23, 53
         imm r24, 6518
-        call slurp_summary_require_transition
+        call exact_require_transition
         ret
 
 let_keyword_require_events:
@@ -104,13 +104,13 @@ let_keyword_require_events:
         imm r21, 47
         imm r22, 5
         imm r23, 5825
-        call slurp_summary_require_event
+        call exact_require_event
         imm r20, 5806
         imm r21, 5825
-        call slurp_summary_require_epilogue
+        call exact_require_epilogue
         imm r20, 5826
         imm r21, 5845
-        call slurp_summary_require_epilogue
+        call exact_require_epilogue
 
         imm r20, 39
         imm r21, 50
@@ -141,45 +141,45 @@ let_keyword_require_events:
         imm r21, 49
         imm r22, 5
         imm r23, 6011
-        call slurp_summary_require_event
+        call exact_require_event
         imm r20, 40
         imm r21, 50
         imm r22, 5
         imm r23, 6196
-        call slurp_summary_require_event
+        call exact_require_event
         imm r20, 42
         imm r21, 51
         imm r22, 5
         imm r23, 6381
-        call slurp_summary_require_event
+        call exact_require_event
         imm r20, 44
         imm r21, 52
         imm r22, 5
         imm r23, 6566
-        call slurp_summary_require_event
+        call exact_require_event
         imm r20, 45
         imm r21, 53
         imm r22, 5
         imm r23, 6596
-        call slurp_summary_require_event
+        call exact_require_event
         imm r20, 5992
         imm r21, 6011
-        call slurp_summary_require_epilogue
+        call exact_require_epilogue
         imm r20, 6177
         imm r21, 6196
-        call slurp_summary_require_epilogue
+        call exact_require_epilogue
         imm r20, 6362
         imm r21, 6381
-        call slurp_summary_require_epilogue
+        call exact_require_epilogue
         imm r20, 6547
         imm r21, 6566
-        call slurp_summary_require_epilogue
+        call exact_require_epilogue
         imm r20, 6577
         imm r21, 6596
-        call slurp_summary_require_epilogue
+        call exact_require_epilogue
         imm r20, 6597
         imm r21, 6616
-        call slurp_summary_require_epilogue
+        call exact_require_epilogue
         ret
 
 let_keyword_require_data:
@@ -396,7 +396,7 @@ let_keyword_require_censuses:
         imm r27, 36
         imm r28, 37
         imm r29, 38
-        call cursor_require_effect_census
+        call exact_require_effect_census
         imm r20, 48
         imm r21, 53
         imm r22, 34
@@ -407,7 +407,7 @@ let_keyword_require_censuses:
         imm r27, 40
         imm r28, 38
         imm r29, 46                  ; checked exclusive is_let event row
-        call cursor_require_effect_census
+        call exact_require_effect_census
         imm r20, 47
         imm r21, 53
         imm r22, 95

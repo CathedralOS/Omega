@@ -313,13 +313,16 @@ unless the compiler executable imports them.
     `main.ready`, loop entry, `parse_proc`'s prefix, and the current
     `gen_stmts`/expression cutpoints;
   - fixed emitters, bounded decimal emission, parse-number, parse-character,
-    operator classifiers, `cmp_op`, and the nine fixed keyword recognizers have
-    exact shape/meaning/negative modules; and
+    operator classifiers, `cmp_op`, the nine fixed keyword recognizers, and
+    conditional `name_eq` have exact shape/meaning/negative modules; and
   - every claimed source/artifact join remains lower-rooted and mutation-toothed.
 
   Remaining proof plan:
-  - [ ] compose conditional `name_eq` and `lookup` over the carried name-table
-    prefix. Preserve the source's deliberate no-match alias to slot zero;
+  - [x] establish the bounded conditional name-table/query-slice domain and
+    exact terminating `name_eq` relation, including length short circuit,
+    first mismatch, and full byte equality;
+  - [ ] compose conditional `lookup` over that carried domain and `name_eq`.
+    Preserve the source's deliberate no-match alias to slot zero;
   - [ ] close the bounded `WSTR`/bounded-decimal emitters:
     `gen_read_byte`, `emit_pop_into`, `emit_push`, `emit_mnemonic`,
     `emit_combine`, `emit_slot_addr`, `emit_load_slot`, and

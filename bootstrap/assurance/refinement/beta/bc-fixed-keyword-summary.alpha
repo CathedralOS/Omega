@@ -165,10 +165,10 @@ fixed_keyword_summary_reset_cell:
 fixed_keyword_require_imports:
 	imm r20, 527184
 	imm r21, 1212367945           ; IDCH
-	call cursor_require_cell
+	call exact_require_cell
 	imm r20, 527200
 	imm r21, 1                    ; bounded identifier source slice
-	call cursor_require_cell
+	call exact_require_cell
 	imm r1, 530464
 	imm r2, 1
 	store r1, r2
@@ -177,10 +177,10 @@ fixed_keyword_require_imports:
 fixed_keyword_introduce_quiet_frame:
 	imm r20, 527224
 	imm r21, 1                    ; IDCH is quiet
-	call cursor_require_cell
+	call exact_require_cell
 	imm r20, 527312
 	imm r21, 1                    ; IDCH restores its frame
-	call cursor_require_cell
+	call exact_require_cell
 	imm r1, 530472
 	imm r2, 1                    ; recognizers emit nothing/change no state
 	store r1, r2
@@ -193,16 +193,16 @@ fixed_keyword_introduce_quiet_frame:
 fixed_keyword_reset_case:
 	imm r20, 530464
 	imm r21, 1
-	call cursor_require_cell
+	call exact_require_cell
 	imm r20, 530472
 	imm r21, 1
-	call cursor_require_cell
+	call exact_require_cell
 	imm r20, 530480
 	imm r21, 1
-	call cursor_require_cell
+	call exact_require_cell
 	imm r20, 530488
 	imm r21, 1
-	call cursor_require_cell
+	call exact_require_cell
 	imm r1, 530520
 	imm r2, 0
 	store r1, r2
@@ -230,7 +230,7 @@ fixed_keyword_call_id_char:
 	mov r26, r21
 	imm r20, 530520
 	imm r21, 2
-	call cursor_require_cell
+	call exact_require_cell
 	imm r1, 0
 	jlt r25, r1, reject
 	imm r1, 530368
@@ -240,7 +240,7 @@ fixed_keyword_call_id_char:
 fixed_keyword_id_char_index_ok:
 	imm r20, 527184
 	imm r21, 1212367945
-	call cursor_require_cell
+	call exact_require_cell
 	imm r1, 527208
 	imm r2, 1
 	store r1, r2                  ; call-specific k<IDLEN
@@ -248,13 +248,13 @@ fixed_keyword_id_char_index_ok:
 	store r1, r2                  ; exact selected identifier byte
 	imm r20, 527208
 	imm r21, 1
-	call cursor_require_cell
+	call exact_require_cell
 	imm r20, 527216
 	imm r21, 1
-	call cursor_require_cell
+	call exact_require_cell
 	imm r20, 531208
 	imm r21, 1363888966           ; FKEQ byte singleton/complement theorem
-	call cursor_require_cell
+	call exact_require_cell
 	imm r1, 530440
 	load r2, r1
 	add r2, r25
@@ -283,25 +283,25 @@ fixed_keyword_require_case:
 	mov r25, r20
 	imm r20, 530472
 	imm r21, 1
-	call cursor_require_cell
+	call exact_require_cell
 	imm r20, 530480
 	imm r21, 1
-	call cursor_require_cell
+	call exact_require_cell
 	imm r20, 530488
 	imm r21, 1
-	call cursor_require_cell
+	call exact_require_cell
 	imm r20, 531208
 	imm r21, 1363888966           ; exact singleton/complement partition
-	call cursor_require_cell
+	call exact_require_cell
 	imm r20, 530664              ; selected descriptor-length join
 	imm r1, 530368
 	load r21, r1
-	call cursor_require_cell       ; length relation is for selected L
+	call exact_require_cell       ; length relation is for selected L
 	imm r1, 1
 	jeq r25, r1, fixed_keyword_require_length_mismatch
 	imm r20, 530520
 	imm r21, 2
-	call cursor_require_cell
+	call exact_require_cell
 	imm r1, 2
 	jeq r25, r1, fixed_keyword_require_byte_mismatch
 	imm r1, 3
@@ -310,10 +310,10 @@ fixed_keyword_require_case:
 fixed_keyword_require_length_mismatch:
 	imm r20, 530520
 	imm r21, 1
-	call cursor_require_cell
+	call exact_require_cell
 	imm r20, 530544
 	imm r21, 0                    ; guard dominates every IDCH call
-	call cursor_require_cell
+	call exact_require_cell
 	jmp fixed_keyword_require_zero
 fixed_keyword_require_byte_mismatch:
 	imm r1, 530552
@@ -321,22 +321,22 @@ fixed_keyword_require_byte_mismatch:
 	imm r2, 1
 	add r21, r2
 	imm r20, 530544
-	call cursor_require_cell
+	call exact_require_cell
 	call fixed_keyword_require_mismatch_prefix
 fixed_keyword_require_zero:
 	imm r20, 530536
 	imm r21, 1
-	call cursor_require_cell
+	call exact_require_cell
 	ret
 fixed_keyword_require_match:
 	imm r20, 530544
 	imm r1, 530368
 	load r21, r1
-	call cursor_require_cell
+	call exact_require_cell
 	call fixed_keyword_require_match_prefix
 	imm r20, 530536
 	imm r21, 2                    ; exact full-match result one
-	call cursor_require_cell
+	call exact_require_cell
 	ret
 
 fixed_keyword_finish_outcome:
@@ -418,7 +418,7 @@ fixed_keyword_finish_proc:
 	load r21, r1
 	imm r2, 2
 	add r21, r2                  ; exact L+2 procedure outcomes
-	call cursor_require_cell       ; exact L+2 outcome partition
+	call exact_require_cell       ; exact L+2 outcome partition
 	imm r1, 530496
 	load r2, r1
 	imm r3, 15
@@ -443,10 +443,10 @@ fixed_keyword_finish_proc:
 fixed_keyword_publish:
 	imm r20, 530504
 	imm r21, 66                   ; exact aggregate outcome count
-	call cursor_require_cell
+	call exact_require_cell
 	imm r20, 530512
 	imm r21, 9                    ; all recognizers complete
-	call cursor_require_cell
+	call exact_require_cell
 	imm r20, 530592
 fixed_keyword_publish_proc_loop:
 	imm r1, 530664
@@ -461,14 +461,14 @@ fixed_keyword_publish_outcome_loop:
 	ret
 fixed_keyword_publish_proc:
 	imm r21, 1
-	call cursor_require_cell
+	call exact_require_cell
 	imm r1, 8
 	add r20, r1
 	jmp fixed_keyword_publish_proc_loop
 
 fixed_keyword_publish_outcome:
 	imm r21, 1
-	call cursor_require_cell
+	call exact_require_cell
 	imm r1, 8
 	add r20, r1
 	jmp fixed_keyword_publish_outcome_loop
@@ -534,7 +534,7 @@ fixed_keyword_require_recorded_byte:
 	mov r20, r3
 	add r20, r4
 	mov r21, r26
-	call cursor_require_cell
+	call exact_require_cell
 	mov r3, r25
 	imm r4, 8
 	mul r3, r4
@@ -545,7 +545,7 @@ fixed_keyword_require_recorded_byte:
 	load r2, r1
 	add r2, r25
 	loadb r21, r2
-	call cursor_require_cell
+	call exact_require_cell
 	ret
 
 fixed_keyword_increment_prior:

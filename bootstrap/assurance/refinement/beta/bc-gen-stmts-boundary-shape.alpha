@@ -23,29 +23,29 @@ gen_stmts_boundary_require_shape:
 gen_stmts_boundary_blocks:
         imm r20, 308
         imm r21, 44066
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 309
         imm r21, 44130
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 310
         imm r21, 44338
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 311
         imm r21, 44468
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 312
         imm r21, 44843
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 313
         imm r21, 44983
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 314
         imm r21, 45119
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 308
         imm r21, 314
         imm r22, 62
-        call cursor_require_proc_blocks
+        call exact_require_proc_blocks
         call gen_stmts_boundary_transitions
         call gen_stmts_boundary_events
         call gen_stmts_boundary_locals
@@ -61,37 +61,37 @@ gen_stmts_boundary_transitions:
         imm r22, 1
         imm r23, 310
         imm r24, 44234              ; depth<64 guard
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 253
         imm r21, 310
         imm r22, 0
         imm r23, 311
         imm r24, 44459
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 254
         imm r21, 311
         imm r22, 1
         imm r23, 314
         imm r24, 44566              ; RESOURCE!=0 guard
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 255
         imm r21, 311
         imm r22, 1
         imm r23, 312
         imm r24, 44679              ; cbyte!='}' guard
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 256
         imm r21, 312
         imm r22, 1
         imm r23, 313
         imm r24, 44937              ; cbyte==0 guard
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 257
         imm r21, 312
         imm r22, 0
         imm r23, 311
         imm r24, 44974              ; post-child loop backedge
-        call slurp_summary_require_transition
+        call exact_require_transition
         ret
 
 gen_stmts_boundary_events:
@@ -99,7 +99,7 @@ gen_stmts_boundary_events:
         imm r21, 309
         imm r22, 5
         imm r23, 44337
-        call slurp_summary_require_event
+        call exact_require_event
         imm r20, 499
         imm r21, 310
         imm r22, 44450
@@ -128,7 +128,7 @@ gen_stmts_boundary_events:
         imm r21, 311
         imm r22, 5
         imm r23, 44842
-        call slurp_summary_require_event
+        call exact_require_event
         imm r20, 503
         imm r21, 312
         imm r22, 44843
@@ -157,28 +157,28 @@ gen_stmts_boundary_events:
         imm r21, 313
         imm r22, 5
         imm r23, 45118
-        call slurp_summary_require_event
+        call exact_require_event
         imm r20, 507
         imm r21, 314
         imm r22, 5
         imm r23, 45254
-        call slurp_summary_require_event
+        call exact_require_event
 
         imm r20, 44318
         imm r21, 44337
-        call slurp_summary_require_epilogue
+        call exact_require_epilogue
         imm r20, 44823
         imm r21, 44842
-        call slurp_summary_require_epilogue
+        call exact_require_epilogue
         imm r20, 45099
         imm r21, 45118
-        call slurp_summary_require_epilogue
+        call exact_require_epilogue
         imm r20, 45235
         imm r21, 45254
-        call slurp_summary_require_epilogue
+        call exact_require_epilogue
         imm r20, 45255
         imm r21, 45274
-        call slurp_summary_require_epilogue
+        call exact_require_epilogue
         ret
 
 gen_stmts_boundary_locals:
@@ -533,7 +533,7 @@ gen_stmts_boundary_censuses:
         imm r27, 258
         imm r28, 498
         imm r29, 508
-        call cursor_require_effect_census
+        call exact_require_effect_census
         imm r20, 308
         imm r21, 314
         imm r22, 694

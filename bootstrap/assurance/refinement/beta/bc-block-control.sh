@@ -33,6 +33,8 @@ trap 'rm -rf "$T"' EXIT
 . "$GATE_DIR/bc-operator-classifier-teeth.sh"
 . "$GATE_DIR/bc-cmp-op-teeth.sh"
 . "$GATE_DIR/bc-fixed-keyword-teeth.sh"
+. "$GATE_DIR/bc-checker-split-teeth.sh"
+. "$GATE_DIR/bc-name-eq-teeth.sh"
 
 # The persisted compiler supplies only a location hint.  Require its Alpha text
 # to assemble to the exact committed artifact before deriving that hint.
@@ -206,6 +208,57 @@ apply_tape_patch push-stack-register
 apply_tape_patch push-value-register
 apply_tape_patch push-opcode
 
+build_name_eq_checker() {
+  cat "$GATE_DIR/bc-block-control.alpha" \
+    "$GATE_DIR/bc-effect-sites.alpha" \
+    "$GATE_DIR/bc-frame-shape.alpha" \
+    "$GATE_DIR/bc-local-access.alpha" \
+    "$GATE_DIR/bc-memory-sites.alpha" \
+    "$GATE_DIR/bc-expr-primitives.alpha" \
+    "$GATE_DIR/bc-stack-pushes.alpha" \
+    "$GATE_DIR/bc-expr-composition.alpha" \
+    "$GATE_DIR/bc-raw-load-families.alpha" \
+    "$GATE_DIR/bc-call-bounds.alpha" \
+    "$GATE_DIR/bc-stack-register-custody.alpha" \
+    "$GATE_DIR/bc-ranged-store-bounds.alpha" \
+    "$GATE_DIR/bc-frame-summary.alpha" \
+    "$GATE_DIR/bc-ranged-store-transfer.alpha" \
+    "$GATE_DIR/bc-counter-transfer.alpha" \
+    "$GATE_DIR/bc-stack-potential-lift.alpha" \
+    "$GATE_DIR/bc-post-stack-name-eq.alpha" \
+    "$GATE_DIR/bc-exact-shape-helpers.alpha" \
+    "$GATE_DIR/bc-name-table-domain.alpha" \
+    "$GATE_DIR/bc-name-eq-control-shape.alpha" \
+    "$GATE_DIR/bc-name-eq-data-shape.alpha" \
+    "$GATE_DIR/bc-name-eq-summary.alpha" > "$T/name-eq-check.alpha"
+  "$ASM" < "$T/name-eq-check.alpha" > "$T/name-eq-check.tape"
+  stamp_seed "$T/name-eq-check.tape" "$SEED" "$T/name-eq-check" >/dev/null
+}
+
+smoke_name_eq_checker() {
+  set +e
+  "$T/name-eq-check" < "$T/control.bundle" > "$T/stdout"
+  name_eq_smoke_status=$?
+  set -e
+  if [ "$name_eq_smoke_status" != 0 ] || [ -s "$T/stdout" ]; then
+    echo "bc block control FAIL — name_eq canonical smoke: expected 0/empty, got $name_eq_smoke_status/$(wc -c < "$T/stdout" | tr -d ' ') bytes" >&2
+    exit 1
+  fi
+}
+
+# The name_eq focus is an independent tranche: it deliberately skips Checker A
+# and imports no process-local theorem cells from it.
+if [ "${BC_BLOCK_FOCUS:-}" = name-eq ]; then
+  build_name_eq_checker
+  smoke_name_eq_checker
+  checker_split_build_name_tooth
+  name_eq_build_teeth
+  checker_split_reject_name_tooth
+  name_eq_reject_teeth
+  echo "bc name_eq: focused canonical + 32 phase-isolated teeth passed ($(wc -c < "$T/name-eq-check.tape" | tr -d ' ')-byte checker tape)"
+  exit 0
+fi
+
 cat "$GATE_DIR/bc-block-control.alpha" \
   "$GATE_DIR/bc-effect-sites.alpha" \
   "$GATE_DIR/bc-frame-shape.alpha" \
@@ -222,6 +275,7 @@ cat "$GATE_DIR/bc-block-control.alpha" \
   "$GATE_DIR/bc-ranged-store-transfer.alpha" \
   "$GATE_DIR/bc-counter-transfer.alpha" \
   "$GATE_DIR/bc-stack-potential-lift.alpha" \
+  "$GATE_DIR/bc-post-stack-fixed.alpha" \
   "$GATE_DIR/bc-slurp-summary.alpha" \
   "$GATE_DIR/bc-main-slurp-bridge.alpha" \
   "$GATE_DIR/bc-write-str-summary.alpha" \
@@ -230,6 +284,7 @@ cat "$GATE_DIR/bc-block-control.alpha" \
   "$GATE_DIR/bc-skip-ws-summary.alpha" \
   "$GATE_DIR/bc-main-ready-summary.alpha" \
   "$GATE_DIR/bc-summary-combinators.alpha" \
+  "$GATE_DIR/bc-exact-shape-helpers.alpha" \
   "$GATE_DIR/bc-main-loop-entry-summary.alpha" \
   "$GATE_DIR/bc-classifier-shape.alpha" \
   "$GATE_DIR/bc-classifier-summary.alpha" \
@@ -307,8 +362,10 @@ case "${BC_BLOCK_FOCUS:-}" in
     ;;
   fixed-keyword)
     fixed_keyword_build_teeth
+    checker_split_build_fixed_tooth
     fixed_keyword_reject_teeth
-    echo "bc fixed keywords: focused canonical + 42 phase-isolated teeth passed ($(wc -c < "$T/control-check.tape" | tr -d ' ')-byte checker tape)"
+    checker_split_reject_fixed_tooth
+    echo "bc fixed keywords: focused canonical + 43 phase-isolated teeth passed ($(wc -c < "$T/control-check.tape" | tr -d ' ')-byte checker tape)"
     exit 0
     ;;
   parse-char)
@@ -324,6 +381,17 @@ case "${BC_BLOCK_FOCUS:-}" in
     exit 2
     ;;
 esac
+
+# The unfocused historical gate closes both independent tranches before
+# constructing either tranche's mutation family.
+build_name_eq_checker
+smoke_name_eq_checker
+checker_split_build_fixed_tooth
+checker_split_build_name_tooth
+name_eq_build_teeth
+checker_split_reject_fixed_tooth
+checker_split_reject_name_tooth
+name_eq_reject_teeth
 
 # Phase-isolated fixed-load tooth: keep the exact source, artifact, witness,
 # grammar counts, and every prior phase unchanged while omitting one load-class
@@ -1004,6 +1072,7 @@ cat "$GATE_DIR/bc-block-control.alpha" \
   "$GATE_DIR/bc-ranged-store-transfer.alpha" \
   "$GATE_DIR/bc-counter-transfer.alpha" \
   "$GATE_DIR/bc-stack-potential-lift.alpha" \
+  "$GATE_DIR/bc-post-stack-fixed.alpha" \
   "$GATE_DIR/bc-slurp-summary.alpha" \
   "$GATE_DIR/bc-main-slurp-bridge.alpha" \
   "$GATE_DIR/bc-write-str-summary.alpha" \
@@ -1012,6 +1081,7 @@ cat "$GATE_DIR/bc-block-control.alpha" \
   "$GATE_DIR/bc-skip-ws-summary.alpha" \
   "$GATE_DIR/bc-main-ready-summary.alpha" \
   "$GATE_DIR/bc-summary-combinators.alpha" \
+  "$GATE_DIR/bc-exact-shape-helpers.alpha" \
   "$GATE_DIR/bc-main-loop-entry-summary.alpha" \
   "$GATE_DIR/bc-classifier-shape.alpha" \
   "$GATE_DIR/bc-classifier-summary.alpha" \
