@@ -52,7 +52,9 @@ that its default kebab-to-snake alias is a valid Omega identifier.
 The declared `PackageName` is not security identity. `PackageKey` joins it to
 canonical source lineage and is the security identity intended to qualify
 package symbols across updates. Managed imports and authored symbols now retain
-it, but generated symbols and provider/boundary nominal identities are not yet
+it. Post-resolution compiler symbols require one existing derivation origin and
+inherit its exact authored package/toolchain provenance; truly source-free
+symbols remain unresolved. Provider/boundary nominal identities are not yet
 fully qualified. `PackageInstance` additionally binds exact source content,
 toolchain identity, and compiler-derived package evidence. Spoof rejection for
 same-named packages from different source lineages remains an admission

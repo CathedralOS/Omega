@@ -26,8 +26,8 @@ pub enum PackageReviewNominalOwner {
     /// projection does not yet carry the exact toolchain commitment.
     ToolchainUnbound,
     /// Checked lowering retained a nominal reference without an authored
-    /// source owner. Review surfaces it explicitly; admission must reject it
-    /// until generated-symbol ownership is carried by construction.
+    /// source owner or mandatory compiler derivation origin. Review surfaces
+    /// it explicitly; admission must reject it.
     Unresolved,
 }
 
@@ -250,9 +250,11 @@ impl CheckedPackageReviewProjection {
 /// Project the exact checked authority facts that are already safely joined.
 ///
 /// This refuses standalone and target-free compilations, missing checked fact
-/// rows, and a non-root build machine. Referenced generated/source-free
-/// nominals remain explicit `Unresolved` review rows; a later admission
-/// certificate must reject them rather than treating them as empty authority.
+/// rows, and a non-root build machine. Compiler-generated nominals inherit the
+/// exact authored source provenance of their mandatory derivation origin.
+/// Truly source-free nominals remain explicit `Unresolved` review rows; a later
+/// admission certificate must reject them rather than treating them as empty
+/// authority.
 pub fn project_checked_package_review(
     compilation: &CheckedCompilation,
 ) -> Result<CheckedPackageReviewProjection, Vec<Diagnostic>> {

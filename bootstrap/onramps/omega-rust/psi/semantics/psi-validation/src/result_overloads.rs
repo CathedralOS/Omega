@@ -152,6 +152,7 @@ pub fn resolve_named_result_overloads(program: &mut TypedTrees) -> Result<(), Ve
                             )));
                         } else {
                             operator_statement_updates.push((
+                                state.symbol,
                                 state.statement_nodes,
                                 index,
                                 call.clone(),
@@ -183,7 +184,7 @@ pub fn resolve_named_result_overloads(program: &mut TypedTrees) -> Result<(), Ve
         };
         call.target_symbol = selected;
     }
-    for (statements, index, call, selected) in operator_statement_updates {
+    for (state_symbol, statements, index, call, selected) in operator_statement_updates {
         let receiver_members = program
             .statement_table
             .name_path_members(call.receiver)
@@ -236,9 +237,11 @@ pub fn resolve_named_result_overloads(program: &mut TypedTrees) -> Result<(), Ve
             "__discarded_named_requirement#{}#{index}",
             statements.start().arena_index()
         );
-        let symbol = program
-            .symbols
-            .insert_generated_root(SymbolKind::Local, &generated_name);
+        let symbol = program.symbols.insert_generated_root_from(
+            state_symbol,
+            SymbolKind::Local,
+            &generated_name,
+        );
         program.statement_table.statements_mut(statements)[index] =
             StatementNode::LocalData(TableLocalData {
                 symbol,

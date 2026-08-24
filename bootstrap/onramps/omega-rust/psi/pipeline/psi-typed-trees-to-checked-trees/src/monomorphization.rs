@@ -2066,9 +2066,11 @@ fn clone_specialized_machine(
         "{}$specialized${fingerprint:016x}${ordinal}",
         candidate.template_name
     );
-    let machine_symbol = program
-        .symbols
-        .insert_generated_root(SymbolKind::Machine, &generated_name);
+    let machine_symbol = program.symbols.insert_generated_root_from(
+        source_machine.symbol,
+        SymbolKind::Machine,
+        &generated_name,
+    );
 
     let machine_children = program.symbols.insert_generated_children(
         machine_symbol,

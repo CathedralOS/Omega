@@ -196,9 +196,11 @@ complete.
   or direct requirement owner. Those identities enter the existing normalized
   plan fingerprint; readable labels are diagnostic only. That 64-bit
   fingerprint remains review/execution compatibility data, not sealed package
-  admission identity. Generated/source-free ownership, package-qualified
-  binding and selection identities, toolchain identity, terminal Psi, and
-  sealed emitted evidence remain.
+  admission identity. Post-resolution compiler symbols now require an existing
+  derivation-origin symbol and inherit its exact package/toolchain provenance;
+  source-free symbols remain deliberately unresolved. Package-qualified binding
+  and selection identities, toolchain identity, terminal Psi, and sealed emitted
+  evidence remain.
 
 ## P2 — Dependency projection and reconciliation
 
@@ -293,9 +295,10 @@ complete.
   coordinates, operational outcomes, crashes, mutation, and selected provider
   mechanisms with exact realizing-package, provider-type, service-schema, and
   requirement-owner provenance. Provider binding and selection labels remain
-  unsealed strings. Toolchain identity and generated-symbol ownership remain
-  visibly unbound rather than guessed; standalone and target-free compilations
-  reject projection.
+  unsealed strings. Compiler-generated symbols now inherit the exact authored
+  provenance of a mandatory derivation origin; truly source-free symbols and
+  exact toolchain identity remain visibly unbound rather than guessed.
+  Standalone and target-free compilations reject projection.
 
 - **PROOF-AND-BOUNDARY-ADMISSION.** Fail closed on false or incomplete evidence.
 
