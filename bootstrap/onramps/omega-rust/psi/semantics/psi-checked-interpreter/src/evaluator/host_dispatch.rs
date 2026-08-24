@@ -24,7 +24,8 @@ impl<'program> Evaluator<'program> {
         call: &TableCall,
         frame: &Frame,
     ) -> EvalResult<Option<Value>> {
-        if !self.is_boundary_call(call, frame) {
+        let filesystem_operation = self.exact_filesystem_host_operation(call.target_symbol);
+        if filesystem_operation.is_none() && !self.is_boundary_call(call, frame) {
             return Ok(None);
         }
         // Any driven host-boundary call marks the run: the build-time
@@ -33,24 +34,23 @@ impl<'program> Evaluator<'program> {
         self.host_boundary_touched = true;
         let target = call.target.as_str();
 
-        // Host dispatch is keyed on the boundary TRAIT, not the bare method
-        // name: a `Filesystem` call routes to the fs handler so `File::write`
-        // is not mistaken for `Console::write` (they share the leaf name).
-        let receiver_trait = self.receiver_boundary_type_name(call, frame);
-        if receiver_trait
-            .as_deref()
-            .is_some_and(|name| name.contains("Filesystem"))
-        {
+        // Filesystem authority is selected only by the exact canonical
+        // toolchain requirement symbol. The trusted requirement leaf routes
+        // within the provider after that selection; package-controlled names
+        // cannot enter this branch.
+        if let Some(filesystem_operation) = filesystem_operation {
             self.filesystem_host_observed = true;
             let args = self
                 .program
                 .statement_table
                 .expression_handles(call.arguments)
                 .to_vec();
-            if let Some(value) = self.try_filesystem_call(target, &args, frame)? {
+            if let Some(value) = self.try_filesystem_call(&filesystem_operation, &args, frame)? {
                 return Ok(Some(value));
             }
-            return unsupported(format!("filesystem host call `{target}` not yet supported"));
+            return unsupported(format!(
+                "canonical filesystem host call `{filesystem_operation}` not yet supported"
+            ));
         }
 
         // Everything past the Filesystem branch is a NON-fs host boundary

@@ -1,35 +1,47 @@
 use super::*;
 
 impl<'program> Evaluator<'program> {
-    /// Return the boundary-trait type of a call's receiver field. Host dispatch
-    /// keys on this complete type rather than on a potentially shared method
-    /// leaf. Non-`self` boundary fields return `None`.
-    pub(super) fn receiver_boundary_type_name(
+    /// Resolve one call target to an exact canonical toolchain
+    /// `FilesystemHost` requirement before any provider authority is touched.
+    /// The returned readable leaf is handler routing only; the opaque target
+    /// symbol and source ownership perform authority selection.
+    pub(super) fn exact_filesystem_host_operation(
         &self,
-        call: &TableCall,
-        frame: &Frame,
+        target_symbol: SymbolHandle,
     ) -> Option<String> {
-        let leaf = self
-            .program
-            .statement_table
-            .name_path_members(call.receiver)
-            .last()
-            .map(|name| name.as_str().to_owned())?;
-        let self_type = match &*frame.self_cell.borrow() {
-            Value::Struct { type_name, .. } => type_name.clone(),
-            _ => return None,
-        };
-        let machine = self.find_machine_by_name(&self_type)?;
-        let data_name = machine.attached_data.as_ref()?;
-        let data = self.find_data_by_name(data_name.as_str())?;
-        for member in self.program.data_members(data) {
-            if let DataMember::Field(field) = member
-                && field.name.as_str() == leaf
-            {
-                return Some(self.program.display_type_reference(field.type_reference));
-            }
+        if !target_symbol.is_valid() {
+            return None;
         }
-        None
+        let trait_definition = self.program.traits().iter().find(|definition| {
+            definition.name.as_str() == "FilesystemHost"
+                && self.symbol_has_exact_toolchain_source(definition.symbol, "filesystem_host.omg")
+        })?;
+        let signature = self
+            .program
+            .trait_machine_signatures(trait_definition)
+            .iter()
+            .find(|signature| {
+                signature.symbol == target_symbol
+                    && self
+                        .symbol_has_exact_toolchain_source(signature.symbol, "filesystem_host.omg")
+            })?;
+        Some(signature.name.as_str().to_owned())
+    }
+
+    fn symbol_has_exact_toolchain_source(
+        &self,
+        symbol: SymbolHandle,
+        expected_source: &str,
+    ) -> bool {
+        self.program
+            .symbols
+            .symbol_source_span(symbol)
+            .and_then(|span| self.program.symbols.source_file(span))
+            .is_some_and(|file| {
+                file.origin == psi_source::SourceOrigin::Toolchain
+                    && file.path.strip_prefix(&file.package_root).ok()
+                        == Some(std::path::Path::new(expected_source))
+            })
     }
 
     /// Consume the next line from the remaining stdin (without the line terminator). CRLF

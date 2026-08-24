@@ -564,6 +564,10 @@ filesystem provider does not yet emit a replay transcript, both reachable and
 realized filesystem use classify as `Volatile`; pure and console-only builds
 remain `Hermetic`. Declared but unreachable filesystem slack does not fabricate
 an observation. Console-only execution receives no real filesystem provider.
+Statement- and value-position calls can enter the real filesystem provider only
+through an exact requirement symbol owned by canonical toolchain
+`filesystem_host.omg`; package-authored lookalikes remain ordinary unsupported
+calls even when an evaluator grant exists.
 This summary is compiler-issued execution evidence kept outside canonical
 capability/API comparison bytes. It is not a receipt and does not claim either
 replay verdict. A `Receipted` row still requires a canonical operation

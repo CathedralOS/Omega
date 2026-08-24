@@ -391,7 +391,10 @@ current real scoped filesystem provider has no replay transcript and is
 therefore `Volatile`; pure and console-only runs are `Hermetic`, and console-
 only execution receives no real filesystem provider. Authored filesystem reach
 with no statically reachable operation remains a hermetic ceiling. These facts
-stay separate from capability/API comparison bytes and make no receipt,
+are driven only by exact canonical toolchain requirement symbols; package-
+authored same-named traits and methods cannot select the provider in statement
+or value position. They stay separate from capability/API comparison bytes and
+make no receipt,
 replayability, or source-rebuildability claim. Canonical operation transcripts,
 recorded inputs, staged-output commitments, and replay checking remain required
 before any `Receipted` verdict.
