@@ -597,8 +597,11 @@ machine/proposition parameter rejects until the projection has an exact row.
 Public domain rows likewise retain exact declaring-package identity,
 alpha-normalized type/const binders, carrier type, and index arguments.
 Synthesized semantic paths retain an authored provenance span without replacing
-their canonical spelling with the source substring. Alias, predicate,
-semantic-role, and operator semantics fail closed until exact rows exist.
+their canonical spelling with the source substring. Transparent aliases
+recursively flatten to sorted, deduplicated package-qualified atoms; compiler
+carry aliases expand to explicit toolchain-unbound atoms until exact toolchain
+commitment lands. Predicate, semantic-role, and operator semantics fail closed
+until exact rows exist.
 Closed compiler-owned classifications and authorized establishment routes
 retain exact route kind plus package-qualified trait and requirement identity;
 alternative routes are canonically sorted and deduplicated.
