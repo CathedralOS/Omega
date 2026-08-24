@@ -134,10 +134,11 @@ hosted validation in steps 2 through 5 are bootstrap work here. The optional
 production `omega` self-rebuild remains product optimization/reproducibility
 work after the required build closes.
 
-Items 1 and 2 therefore co-evolve; they are not sequential phases. The current
-concrete bootstrap edge is the remaining lower-rooted refinement item under
-section 2. Sections 3 through 6 are downstream joins, not parallel language-
-design projects.
+Items 1 and 2 therefore co-evolve; they are not sequential phases. The first
+checkpoint's bounded artifact tranche is closed; the current concrete bootstrap
+edge is the next coherent product checkpoint and its measured general bridge
+capabilities. Sections 3 through 6 are downstream joins, not parallel
+language-design projects.
 
 ### Rolling invariant — maintain the provisional Delta ledger
 
@@ -196,32 +197,18 @@ permutations.
 
 The first checkpoint-driven frontend probe and selected private `CKIR1` direct
 artifact route are established. The lower-rooted CKIR1→limited-ELF checker now
-reconstructs the exact selected bytes and observation. The lower-rooted
-source→CKIR join reconstructs declarations, signatures, copyability, and
-layout; source bodies and their selected result remain open. Completed evidence
-and remaining artifact obligations live in
+reconstructs the exact selected bytes and observation. Independent source
+checkers reconstruct declarations, signatures, copyability, layout, bodies,
+transition facts, canonical operations and terminators, and the full selected
+result. Valid source/artifact and CKIR/ELF cross-pairs close the first finite,
+acyclic, returning source→artifact tranche. Completed evidence and later-profile
+boundaries live in
 [`SOURCE_CUSTODY_FRONTEND_PROBE.md`](bootstrap/omega-bootstrap/compiler/SOURCE_CUSTODY_FRONTEND_PROBE.md)
 and
 [`OMEGA_BOOTSTRAP_CHECKED_IR.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR.md).
 That evidence measures the route; it does not by itself admit the source
-families to `Ωself`.
-
-- [ ] Close the corresponding first artifact tranche through the selected
-  versioned private checked-IR handoff and a direct conservative backend; do
-  not widen Terminal Psi for bridge-only structural operations. Keep
-  representative self-built
-  publication fast enough to remain a real gate; do not hide per-byte boundary
-  overhead behind a longer timeout or weaken the compositional renamed/
-  reordered case. This handoff choice settles only the tranche's implementation
-  route, not the final `Ωself` disposition of any source feature. Any future
-  Terminal-Psi vocabulary work remains product work in `TASKS.md`.
-  - [ ] Reconstruct accepted source semantic tables and their canonical CKIR1
-    relation below Delta. Declaration/type/signature/copy/layout reconstruction
-    and valid-source cross-pairs are established. Independently reconstruct
-    body operations, terminators, transition facts, and the selected source
-    result; perturb source semantics and canonical operation selection, then
-    compose that result with the established CKIR1→limited-ELF relation and
-    its layout, branch, byte, and execution-claim teeth (§10.6).
+families to `Ωself`. The private handoff remains bridge-local, and future
+Terminal-Psi vocabulary work remains product work in `TASKS.md`.
 - [ ] Continue against later provisional checkpoints until the bridge generally
   parses, resolves, checks, diagnoses, and conservatively lowers every program
   admitted by the candidate `Ωself` profile while rejecting everything else
