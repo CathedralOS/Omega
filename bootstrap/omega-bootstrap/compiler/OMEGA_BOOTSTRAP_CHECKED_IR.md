@@ -715,6 +715,15 @@ displacements, and a valid-but-mismatched CKIR/ELF pair rejects. Lower-rooted
 refinement in item 6 remains separately visible in `TASKS_BOOTSTRAP.md`; passing
 items 1–5 cannot silently promote this tranche to complete.
 
+The lower-rooted support for item 6 now includes the exact refinement envelope,
+one-unit source custody and lexing, and a persisted-Beta CKIR checker that
+validates the complete CKIR1 relation and recomputes the selected scalar result.
+That checker accepts the real fixture and library plus valid structural and
+self-aliasing-copy controls, and rejects the complete 142-row schema mutation
+inventory with the specified 251/252 distinction. This is partial item-6
+evidence only: independent source semantic tables → canonical CKIR
+reconstruction and limited-ELF byte/execution reconstruction remain open.
+
 Only after these obligations and their negative controls pass may CKIR1 support
 the bounded artifact tranche. Later widening must publish a new schema version
 or a compatible rule explicitly defined by a later contract; unused flag bits,
