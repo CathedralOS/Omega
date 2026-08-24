@@ -14,7 +14,7 @@ cargo test -p omega-packages --test remote_fixtures -- --ignored --test-threads=
 | Package | Repository | Exact commit |
 | --- | --- | --- |
 | `arithmetic-kernels` | `https://github.com/CathedralOS/arithmetic-kernels` | `dd02c8eabe81b4bbd20cc124b64183992a46fa6e` |
-| `generated-table` | `https://github.com/CathedralOS/generated-table` | `30bc421c91af2286639908e719351df563f3fd99` |
+| `generated-table` | `https://github.com/CathedralOS/generated-table` | `4c71d3257e42bc0cc4912627469eae949cf68129` |
 | `file-journal` | `https://github.com/CathedralOS/file-journal` | `1d30b1e3d94a5bd112a214d81741a762292a5e88` |
 | `network-overreach` | `https://github.com/CathedralOS/network-overreach` | `19406048e972378afc70e295f1fbfa8b0733c1a1` |
 | `remote-journal` | `https://github.com/CathedralOS/remote-journal` | `3aacc4dc185bc44bc56fd1750b9f3622bf932546` |

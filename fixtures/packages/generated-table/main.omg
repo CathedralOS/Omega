@@ -1,4 +1,7 @@
-// Placeholder runtime source for the generated-table package fixture.
+// The canonical build contract names the toolchain-owned service. Executed
+// operations wait for provider injection into the free package build entry.
+use omega::language::std::filesystem_host;
+
 pub machine table_size() -> u64 {
     3
 }

@@ -484,6 +484,9 @@ complete.
   The legacy 64-bit
   machine-contract fingerprint has left package-review bytes, so private
   state-machine shape no longer contaminates public package contract identity.
+  Package-aware checked compilation now also accepts an explicit caller-owned
+  writable build root, so admitted build staging never requires mutation
+  beneath a resolver-owned immutable source snapshot.
   Exact rows for the unsupported forms and proof/admission dispositions still
   gate sealing.
   It retains
@@ -628,6 +631,12 @@ complete.
   executable installation, root memory, DMA/IOMMU, interrupts, and equivalent
   authority cannot be spoofed or hidden by package-controlled names.
 
+  Progress 2026-08-24: the existing build-host staging gate no longer admits a
+  package-authored `FilesystemHost` or `Console` lookalike by spelling. Allowed
+  staging services must resolve to the exact toolchain source origin and
+  canonical std module path; a fail canary pins same-name spoof rejection.
+  General compiler-owned risk classes and their sealed package evidence remain.
+
 - **REPRESENTATION-TCB-REVIEW.** Retain claim-free opaque boundary data as a
   distinct compiler-owned review lane.
 
@@ -719,9 +728,13 @@ complete.
   filesystem+network reach and invocation through resolver-owned custody and
   compiler review evidence; its private CathedralOS mirror is pinned at the
   byte-identical source commit. `provider-switchboard` now covers exact
-  build-owned provider selection and its normalized compiler review row. Build
-  effects, sealed representation mechanism/ABI evidence, escalation, missing
-  baselines, spoofing, and reconciliation conflicts remain.
+  build-owned provider selection and its normalized compiler review row.
+  `generated-table` now covers the canonical build machine's exact toolchain-
+  owned filesystem reach/invocation ceiling from immutable source custody and a
+  separate writable compiler staging root. Executed build-provider operations,
+  observations/receipts, sealed representation mechanism/ABI evidence, general
+  dangerous-authority escalation, missing baselines, graph-level spoofing, and
+  reconciliation conflicts remain.
 
 - [x] **REMOVE-FABRICATED-MANIFEST-TESTS.** Replace integration tests that construct
   manifests from fixture intent with locally regenerated compiler evidence.

@@ -206,6 +206,9 @@ operand, alpha-normalized target, arithmetic policy, package-qualified semantic
 domain and arguments, and value/recast form. Diagnostic spellings are excluded;
 private package domains reject when exposed by a public cast.
 This join does not create a nominal Chi stage.
+Package-aware checked compilation takes a caller-owned writable build root when
+build-host staging is possible. Resolver snapshots remain immutable and are
+never repurposed as output directories.
 The legacy machine-contract fingerprint no longer enters package-review bytes,
 so private state shape is not public contract identity. Complete proof and
 unsupported-clause rows still gate sealed admission. The compiler now provides

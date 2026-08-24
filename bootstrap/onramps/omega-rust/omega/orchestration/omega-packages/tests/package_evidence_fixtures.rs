@@ -1,7 +1,7 @@
 use omega_compiler::{
     CheckedPackageReviewProjection, PackageReviewCallableRole, PackageReviewContractExpression,
     PackageReviewContractFact, PackageReviewContractKind, PackageReviewPropositionEvidence,
-    compile_to_checked_with_packages, project_checked_package_review,
+    compile_to_checked_with_packages_in_build_dir, project_checked_package_review,
 };
 use omega_packages::{
     LocalSourceLimits, PackageSourceClosureLimits, SourceLineage, WorkspaceMemberPath,
@@ -55,14 +55,15 @@ fn root_snapshot<'closure>(
 }
 
 fn assert_fixture_evidence(package: &str, review: &CheckedPackageReviewProjection) {
-    let (trait_count, data_count, role) = match package {
-        "file-journal" | "provider-switchboard" => (1, 1, PackageReviewCallableRole::Public),
-        "remote-journal" => (2, 1, PackageReviewCallableRole::Public),
-        "capability-vault" => (2, 1, PackageReviewCallableRole::Public),
-        "network-overreach" => (1, 0, PackageReviewCallableRole::Public),
-        "axiom-ledger" => (0, 0, PackageReviewCallableRole::Boundary),
-        "opaque-carrier" => (0, 1, PackageReviewCallableRole::Boundary),
-        _ => (0, 0, PackageReviewCallableRole::Public),
+    let (trait_count, data_count, callable_count, role) = match package {
+        "file-journal" | "provider-switchboard" => (1, 1, 2, PackageReviewCallableRole::Public),
+        "remote-journal" => (2, 1, 2, PackageReviewCallableRole::Public),
+        "capability-vault" => (2, 1, 2, PackageReviewCallableRole::Public),
+        "network-overreach" => (1, 0, 2, PackageReviewCallableRole::Public),
+        "axiom-ledger" => (0, 0, 2, PackageReviewCallableRole::Boundary),
+        "opaque-carrier" => (0, 1, 2, PackageReviewCallableRole::Boundary),
+        "generated-table" => (0, 0, 2, PackageReviewCallableRole::Public),
+        _ => (0, 0, 2, PackageReviewCallableRole::Public),
     };
     assert_eq!(
         review.public_traits().len(),
@@ -70,7 +71,11 @@ fn assert_fixture_evidence(package: &str, review: &CheckedPackageReviewProjectio
         "{package} traits"
     );
     assert_eq!(review.public_data().len(), data_count, "{package} data");
-    assert_eq!(review.callables().len(), 2, "{package} callable plus build");
+    assert_eq!(
+        review.callables().len(),
+        callable_count,
+        "{package} callables"
+    );
     let callable = review
         .callables()
         .iter()
@@ -78,6 +83,30 @@ fn assert_fixture_evidence(package: &str, review: &CheckedPackageReviewProjectio
         .unwrap_or_else(|| panic!("{package} intended review callable"));
 
     match package {
+        "generated-table" => {
+            let build = review
+                .callables()
+                .iter()
+                .find(|callable| callable.role() == PackageReviewCallableRole::Build)
+                .expect("generated-table canonical build row");
+            let [service] = build.declared_service_reach().expect("build reach ceiling") else {
+                panic!("generated-table exact build service reach")
+            };
+            assert_eq!(service.path(), "FilesystemHost");
+            assert_eq!(build.realized_service_reach(), [service.clone()]);
+            let invocations = build
+                .declared_synchronous_invocations()
+                .expect("build invocation ceiling");
+            assert_eq!(invocations.len(), 1);
+            assert_eq!(
+                invocations[0]
+                    .service()
+                    .expect("build service invocation ceiling")
+                    .path(),
+                "FilesystemHost"
+            );
+            assert!(build.realized_synchronous_invocations().is_empty());
+        }
         "file-journal" => {
             let [service] = callable.declared_service_reach().expect("published reach") else {
                 panic!("file-journal exact filesystem reach")
@@ -221,8 +250,9 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
         .unwrap_or_else(|error| panic!("{package} source closure should resolve: {error}"));
         let inputs = package_compilation_inputs(&closure)
             .unwrap_or_else(|error| panic!("{package} compiler handoff should close: {error:?}"));
-        let checked = compile_to_checked_with_packages(
+        let checked = compile_to_checked_with_packages_in_build_dir(
             &root_snapshot(&closure).join("main.omg"),
+            &cache.join("compiler-build"),
             Some("windows_x64"),
             inputs,
         )

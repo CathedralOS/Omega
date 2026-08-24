@@ -892,11 +892,36 @@ pub(crate) fn compute_build_config(
             transitive_names.join(", "),
         );
     }
-    const ALLOWED_BUILD_SERVICES: &[&str] = &["FilesystemHost", "Console"];
-    let disallowed: Vec<&str> = transitive_names
+    const ALLOWED_BUILD_SERVICES: &[(&str, &str)] = &[
+        ("FilesystemHost", "filesystem_host.omg"),
+        ("Console", "console.omg"),
+    ];
+    let disallowed: Vec<&str> = transitive
         .iter()
-        .copied()
-        .filter(|name| !ALLOWED_BUILD_SERVICES.contains(name))
+        .filter(|service| {
+            let Some(definition) = typed.service_reaches.definition(**service) else {
+                return true;
+            };
+            !ALLOWED_BUILD_SERVICES.iter().any(|(name, source)| {
+                definition.name == *name
+                    && typed
+                        .symbols
+                        .symbol_source_span(definition.symbol)
+                        .and_then(|span| typed.symbols.source_file(span))
+                        .is_some_and(|file| {
+                            file.origin == psi_source::SourceOrigin::Toolchain
+                                && file.path.strip_prefix(&file.package_root).ok()
+                                    == Some(std::path::Path::new(source))
+                        })
+            })
+        })
+        .map(|service| {
+            typed
+                .service_reaches
+                .definition(*service)
+                .map(|definition| definition.name.as_str())
+                .unwrap_or("<unknown canonical service>")
+        })
         .collect();
     if !disallowed.is_empty() {
         return Err(vec![Diagnostic::error(format!(
@@ -909,7 +934,11 @@ pub(crate) fn compute_build_config(
             } else {
                 "s"
             },
-            ALLOWED_BUILD_SERVICES.join("`, `"),
+            ALLOWED_BUILD_SERVICES
+                .iter()
+                .map(|(name, _)| *name)
+                .collect::<Vec<_>>()
+                .join("`, `"),
         ))]);
     }
     // Allowed services must still be authored on the build machine's stable

@@ -583,6 +583,7 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "build/build_machine_wrong_arity",
     "build/build_effects_undeclared",
     "build/build_boundary_rowless",
+    "build/build_service_name_spoof",
     "core/content_projection_foreign_owner",
     "core/content_projection_duplicate",
     "core/content_projection_legacy_interval",
