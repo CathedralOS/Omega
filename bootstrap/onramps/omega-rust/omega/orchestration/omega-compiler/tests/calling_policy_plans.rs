@@ -38,6 +38,22 @@ fn write_program(name: &str, source: &str) -> PathBuf {
     main_path
 }
 
+fn selected_plan_for_external_root<'a>(
+    facts: &'a omega_effects::SelectedProviderPlanFacts,
+    trait_name: &str,
+) -> &'a omega_effects::provider_plan::ProviderPlan {
+    let identity = selected_external_root_provider_plan_id(facts, trait_name)
+        .unwrap_or_else(|error| panic!("selected `{trait_name}` provider plan: {error}"));
+    facts
+        .plan_by_identity(identity.normalized_identity())
+        .unwrap_or_else(|| {
+            panic!(
+                "selected `{trait_name}` provider identity {:#018x} must address an exact retained plan",
+                identity.normalized_identity()
+            )
+        })
+}
+
 const POLICY: &str = r#"
 use omega::language::std::calling;
 
@@ -240,14 +256,14 @@ fn source_interrupt_policy_publishes_and_selects_the_complete_entry_plan() {
         schema.methods[0].calling_plan_fingerprint,
         Some(validated.contract_fingerprint())
     );
-    let selected = checked
-        .selected_provider_plans()
-        .plan_by_name("TimerProvider::satisfies::TimerRoot")
-        .expect("selected TimerRoot provider plan");
-    let mask_plan = checked
-        .selected_provider_plans()
-        .plan_by_name("MaskProvider::satisfies::InterruptMaskControl")
-        .expect("selected interrupt-mask provider plan");
+    let selected = selected_plan_for_external_root(checked.selected_provider_plans(), "TimerRoot");
+    assert_eq!(selected.name, "TimerProvider::satisfies::TimerRoot");
+    let mask_plan =
+        selected_plan_for_external_root(checked.selected_provider_plans(), "InterruptMaskControl");
+    assert_eq!(
+        mask_plan.name,
+        "MaskProvider::satisfies::InterruptMaskControl"
+    );
     let [mask_save] = mask_plan.schema.methods.as_slice() else {
         panic!("mask provider must publish one save-and-mask requirement");
     };
@@ -283,10 +299,12 @@ fn source_interrupt_policy_publishes_and_selects_the_complete_entry_plan() {
         mask_save.requirement_identity
     );
     assert_eq!(runtime_active.domain, "InterruptMaskGuard::Active");
-    let lookalike_plan = checked
-        .selected_provider_plans()
-        .plan_by_name("LookalikeMaskProvider::satisfies::LookalikeMaskControl")
-        .expect("look-alike mask provider plan");
+    let lookalike_plan =
+        selected_plan_for_external_root(checked.selected_provider_plans(), "LookalikeMaskControl");
+    assert_eq!(
+        lookalike_plan.name,
+        "LookalikeMaskProvider::satisfies::LookalikeMaskControl"
+    );
     let [lookalike_save] = lookalike_plan.schema.methods.as_slice() else {
         panic!("look-alike provider must publish one requirement");
     };
@@ -441,10 +459,12 @@ fn source_interrupt_policy_publishes_and_selects_the_complete_entry_plan() {
         .0
         .contains("maps to 0 checked entry facts")
     );
-    let lookalike_entry_plan = checked
-        .selected_provider_plans()
-        .plan_by_name("LookalikeEntryProvider::satisfies::LookalikeEntry")
-        .expect("look-alike entry provider plan");
+    let lookalike_entry_plan =
+        selected_plan_for_external_root(checked.selected_provider_plans(), "LookalikeEntry");
+    assert_eq!(
+        lookalike_entry_plan.name,
+        "LookalikeEntryProvider::satisfies::LookalikeEntry"
+    );
     let [lookalike_entry] = lookalike_entry_plan.schema.methods.as_slice() else {
         panic!("look-alike entry provider must publish one requirement");
     };

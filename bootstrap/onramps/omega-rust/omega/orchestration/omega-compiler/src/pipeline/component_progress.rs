@@ -25,7 +25,9 @@ pub(super) fn build_component_progress_manifest(
         {
             demands.push(omega_effects::CheckedComponentProgressDemand {
                 provider_service_identity: demand.provider_service_identity.clone(),
+                provider_service_package_identity: demand.provider_service_package_identity,
                 requirement_identity: demand.requirement_identity.clone(),
+                requirement_owner_package_identity: demand.requirement_owner_package_identity,
                 profile_identity: demand.profile_identity.clone(),
                 subject_projections: demand.subject_projections.clone(),
                 origin_callable_identity: machine_callable_identity(program, demand.origin.machine)
@@ -53,15 +55,22 @@ pub(super) fn build_component_progress_manifest(
                     queue.push(target_machine.symbol);
                     continue;
                 }
-                let Some((service, requirement_identity)) =
-                    exact_boundary_requirement(program, call.target_symbol)
+                let Some((
+                    service_package_identity,
+                    service,
+                    requirement_owner_package_identity,
+                    requirement_identity,
+                )) = exact_boundary_requirement(program, call.target_symbol)
                 else {
                     continue;
                 };
                 let plans = selected
                     .plans()
                     .iter()
-                    .filter(|plan| plan.schema.trait_name == service)
+                    .filter(|plan| {
+                        plan.schema.trait_name == service
+                            && plan.schema.trait_package_identity == service_package_identity
+                    })
                     .collect::<Vec<_>>();
                 let plan = match plans.as_slice() {
                     [plan] => *plan,
@@ -83,7 +92,14 @@ pub(super) fn build_component_progress_manifest(
                 let rows = plan
                     .rows
                     .iter()
-                    .filter(|row| row.requirement_identity == requirement_identity)
+                    .filter(|row| {
+                        row.requirement_identity == requirement_identity
+                            && plan.schema.methods.iter().any(|method| {
+                                method.requirement_identity == row.requirement_identity
+                                    && method.requirement_owner_package_identity
+                                        == requirement_owner_package_identity
+                            })
+                    })
                     .collect::<Vec<_>>();
                 let row = match rows.as_slice() {
                     [row] => *row,
@@ -125,7 +141,12 @@ fn owning_machine<'a>(
 fn exact_boundary_requirement(
     program: &psi_checked_trees::CheckedTrees,
     symbol: SymbolHandle,
-) -> Option<(String, String)> {
+) -> Option<(
+    Option<psi_core::PackageKeyIdentity>,
+    String,
+    Option<psi_core::PackageKeyIdentity>,
+    String,
+)> {
     program.traits().iter().find_map(|owner| {
         owner.is_boundary.then_some(()).and_then(|_| {
             program
@@ -134,7 +155,9 @@ fn exact_boundary_requirement(
                 .find(|requirement| requirement.symbol == symbol)
                 .map(|requirement| {
                     (
+                        program.symbols.symbol_package_identity(owner.symbol),
                         owner.name.as_str().to_owned(),
+                        program.symbols.symbol_package_identity(requirement.symbol),
                         program
                             .normalized_trait_requirement_overload_identity(owner, requirement)
                             .identity(),

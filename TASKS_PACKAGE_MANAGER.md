@@ -304,8 +304,16 @@ complete.
   ABI, and checked-fact construction without a name-based candidate rejoin;
   same-spelled selected slots are distinguished by package identity and an
   ambiguous readable invocation target rejects. Authored selector resolution,
-  several downstream schema/progress/grant joins, and compiler-intrinsic
-  toolchain ownership are not yet package-qualified or sealed.
+  several downstream schema/grant joins, and compiler-intrinsic toolchain
+  ownership are not yet package-qualified or sealed. Build-bound progress
+  obligations now retain and match the compiler-derived package owners of both
+  the provider service and exact requirement, including through component
+  manifests and audit rendering; no readable-name lookup remains on retained
+  selected-provider facts. Canonical machine encoding must wait until remaining
+  installation, termination, crash, and mutation rows replace arena-local
+  symbol handles/row IDs with normalized semantic identities; directly
+  serializing the current review projection would not be stable across compiler
+  runs.
   Compiler-generated symbols now inherit the exact authored provenance of a
   mandatory derivation origin; truly source-free symbols and exact toolchain
   identity remain visibly unbound rather than guessed.

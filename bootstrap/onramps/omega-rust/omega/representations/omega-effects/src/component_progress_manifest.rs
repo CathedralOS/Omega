@@ -6,7 +6,9 @@ use crate::{SelectedProviderPlanFacts, provider_plan::ServiceProgressSubject};
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct CheckedComponentProgressDemand {
     pub provider_service_identity: String,
+    pub provider_service_package_identity: Option<psi_core::PackageKeyIdentity>,
     pub requirement_identity: String,
+    pub requirement_owner_package_identity: Option<psi_core::PackageKeyIdentity>,
     pub profile_identity: String,
     pub subject_projections: Vec<String>,
     pub origin_callable_identity: String,
@@ -18,7 +20,9 @@ pub struct CheckedComponentProgressDemand {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ComponentBuildBoundProgressDemand {
     pub provider_service_identity: String,
+    pub provider_service_package_identity: Option<psi_core::PackageKeyIdentity>,
     pub requirement_identity: String,
+    pub requirement_owner_package_identity: Option<psi_core::PackageKeyIdentity>,
     pub profile_identity: String,
     pub subject_projections: Vec<String>,
     pub establishment_routes: Vec<crate::provider_plan::ServiceProgressEstablishmentRoute>,
@@ -64,7 +68,11 @@ impl ComponentProgressManifest {
             let matching_plans = selected
                 .plans()
                 .iter()
-                .filter(|plan| plan.schema.trait_name == demand.provider_service_identity)
+                .filter(|plan| {
+                    plan.schema.trait_name == demand.provider_service_identity
+                        && plan.schema.trait_package_identity
+                            == demand.provider_service_package_identity
+                })
                 .collect::<Vec<_>>();
             let [plan] = matching_plans.as_slice() else {
                 return Err(format!(
@@ -77,7 +85,11 @@ impl ComponentProgressManifest {
                 .schema
                 .methods
                 .iter()
-                .filter(|method| method.requirement_identity == demand.requirement_identity)
+                .filter(|method| {
+                    method.requirement_identity == demand.requirement_identity
+                        && method.requirement_owner_package_identity
+                            == demand.requirement_owner_package_identity
+                })
                 .collect::<Vec<_>>();
             let [method] = matching_methods.as_slice() else {
                 return Err(format!(
@@ -110,7 +122,9 @@ impl ComponentProgressManifest {
             establishment_routes.dedup();
             pending.push(ComponentBuildBoundProgressDemand {
                 provider_service_identity: demand.provider_service_identity,
+                provider_service_package_identity: demand.provider_service_package_identity,
                 requirement_identity: demand.requirement_identity,
+                requirement_owner_package_identity: demand.requirement_owner_package_identity,
                 profile_identity: demand.profile_identity,
                 subject_projections: demand.subject_projections,
                 establishment_routes,
@@ -171,7 +185,21 @@ fn fingerprint(entry: &str, selected: u64, pending: &[ComponentBuildBoundProgres
     write(&(pending.len() as u64).to_le_bytes());
     for demand in pending {
         write(demand.provider_service_identity.as_bytes());
+        match demand.provider_service_package_identity {
+            Some(identity) => {
+                write(&[1]);
+                write(&identity.digest());
+            }
+            None => write(&[0]),
+        }
         write(demand.requirement_identity.as_bytes());
+        match demand.requirement_owner_package_identity {
+            Some(identity) => {
+                write(&[1]);
+                write(&identity.digest());
+            }
+            None => write(&[0]),
+        }
         write(demand.profile_identity.as_bytes());
         write(&(demand.subject_projections.len() as u64).to_le_bytes());
         for projection in &demand.subject_projections {
@@ -200,8 +228,8 @@ mod tests {
         ServiceProgressPremise, ServiceSchema,
     };
 
-    fn selected() -> SelectedProviderPlanFacts {
-        let plan = ProviderPlan {
+    fn selected_plan() -> ProviderPlan {
+        ProviderPlan {
             name: "scheduler".into(),
             provider_type: "SchedulerProvider".into(),
             provider_type_package_identity: None,
@@ -247,7 +275,11 @@ mod tests {
             }],
             origin_package_identity: None,
             origin_package: "test".into(),
-        };
+        }
+    }
+
+    fn selected() -> SelectedProviderPlanFacts {
+        let plan = selected_plan();
         SelectedProviderPlanFacts::from_selection(&[plan], &["scheduler".into()])
             .expect("complete test provider")
     }
@@ -255,7 +287,9 @@ mod tests {
     fn demand(call: usize) -> CheckedComponentProgressDemand {
         CheckedComponentProgressDemand {
             provider_service_identity: "Scheduler".into(),
+            provider_service_package_identity: None,
             requirement_identity: "Scheduler::wait#exact".into(),
+            requirement_owner_package_identity: None,
             profile_identity: "WeakFair".into(),
             subject_projections: vec!["queue".into()],
             origin_callable_identity: "Application::run#exact".into(),
@@ -304,5 +338,45 @@ mod tests {
         )
         .expect_err("a nonmatching schema premise must reject");
         assert!(error.contains("exact provider-receiver premise matches"));
+    }
+
+    #[test]
+    fn progress_demand_selects_the_exact_package_owned_service() {
+        let first_package = psi_core::PackageKeyIdentity::from_digest([0x51; 32])
+            .expect("nonzero package identity");
+        let second_package = psi_core::PackageKeyIdentity::from_digest([0x52; 32])
+            .expect("nonzero package identity");
+        let mut first = selected_plan();
+        first.name = "first-scheduler".into();
+        first.schema.trait_package_identity = Some(first_package);
+        first.schema.methods[0].requirement_owner_package_identity = Some(first_package);
+        let mut second = selected_plan();
+        second.name = "second-scheduler".into();
+        second.schema.trait_package_identity = Some(second_package);
+        second.schema.methods[0].requirement_owner_package_identity = Some(second_package);
+        let selected = SelectedProviderPlanFacts::from_selected_plans(vec![first, second])
+            .expect("same-spelled package-owned services are distinct slots");
+
+        let mut exact = demand(1);
+        exact.provider_service_package_identity = Some(second_package);
+        exact.requirement_owner_package_identity = Some(second_package);
+        let manifest = ComponentProgressManifest::bind(
+            "Application::run#exact".into(),
+            &selected,
+            vec![exact],
+        )
+        .expect("package-qualified demand selects one service");
+        assert_eq!(
+            manifest.pending()[0].provider_service_package_identity,
+            Some(second_package)
+        );
+
+        let error = ComponentProgressManifest::bind(
+            "Application::run#exact".into(),
+            &selected,
+            vec![demand(1)],
+        )
+        .expect_err("an unbound package identity cannot choose a package-owned service");
+        assert!(error.contains("resolves to 0 selected provider plans"));
     }
 }

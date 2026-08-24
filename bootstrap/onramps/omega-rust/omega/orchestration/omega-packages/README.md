@@ -90,8 +90,13 @@ without a short-name fallback. Authored provider choices now resolve once to
 exact plans which remain intact through selected-cycle, ABI, and checked-fact
 construction; package-distinct same-spelled selected slots do not collapse,
 and ambiguous readable invocation targets reject. Authored selector resolution,
-remaining schema/progress/grant joins, compiler-intrinsic toolchain identity,
-and the remaining trust/proof/reproducibility joins are incomplete. These
+remaining schema/grant joins, compiler-intrinsic toolchain identity, and the
+remaining trust/proof/reproducibility joins are incomplete. Build-bound
+progress obligations retain and match package ownership for both service and
+requirement, and retained selected-provider facts expose no name-only plan
+lookup. The review projection is not yet canonically encodable: several
+installation, termination, crash, and mutation rows still carry arena-local
+compiler handles that must first become normalized semantic identities. These
 pieces do not become an admission path until the legacy
 name-keyed lock APIs are replaced and sealed compiler-issued evidence plus the
 hardened resolver receipt are wired through end to end. The earlier public

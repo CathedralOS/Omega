@@ -23,6 +23,7 @@ omega-state-graph = { path = "../../representations/omega-state-graph" }
 omega-task-plans = { path = "../../foundation/omega-task-plans" }
 omega-target-operations = { path = "../../representations/omega-target-operations" }
 psi-checked-trees = { path = "../../../psi/representations/psi-checked-trees" }
+psi-core = { path = "../../../psi/foundation/psi-core" }
 psi-effects = { path = "../../../psi/representations/psi-effects" }
 psi-facts = { path = "../../../psi/representations/psi-facts" }
 psi-language-semantics = { path = "../../../psi/foundation/psi-language-semantics" }
