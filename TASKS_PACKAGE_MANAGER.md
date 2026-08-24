@@ -616,10 +616,12 @@ complete.
   Acceptance: fixture identity comes from source, not directory names or test
   constructors, and compiler admission emits every expected evidence row.
 
-  Progress 2026-08-23: all eight local package fixtures declare `PACKAGE` and
+  Progress 2026-08-24: all eight local package fixtures declare `PACKAGE` and
   use the coherent `builder` parameter name. Their private CathedralOS mirrors
-  carry the same declarations at refreshed exact pins. Compiler-issued
-  admission evidence remains.
+  carry byte-identical source at refreshed exact pins. The optional live-network
+  test now compares package declarations, source content, and canonical
+  dependency projections rather than assuming every fixture is dependency-free.
+  Compiler-issued admission evidence remains.
 
 - **SECURITY-FIXTURE-MATRIX.** Add local and remote cases for pure code,
   generated files, filesystem, network overreach, retained filesystem+network
