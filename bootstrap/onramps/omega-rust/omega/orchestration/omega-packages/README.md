@@ -92,6 +92,11 @@ exact immutable custody root. It derives ordinary aliases from fetched package
 declarations, preserves explicit aliases, reuses identical custody, and reports
 all requesting paths when one package key resolves inconsistently. Package,
 dependency-request, and depth ceilings bound hostile closure traversal.
+The first concrete adapter roots traversal in an explicitly supplied workspace
+member, resolves requester-relative Path rows only within a registered
+workspace, and resolves Git rows through immutable Git custody. A fetched Git
+snapshot becomes a separate registered workspace for its own nested Path rows;
+the adapter never searches parents or guesses an external protocol.
 Toolchain/compiler evidence is intentionally absent, and this closure has no
 persistence, lock, build-execution, or admission API. `PackageKey` also
 derives the opaque stable identity carrier used by package-aware compiler
@@ -203,6 +208,7 @@ omega-packages/
 |   |-- dependency_projection.rs # Hermetic literal source requests.
 |   |-- graph.rs           # Typed pre-admission source reconciliation.
 |   |-- closure_resolution.rs # Bounded recursive immutable source custody.
+|   |-- source_adapter.rs  # Explicit workspace and Git closure policy.
 |   |-- compiler_handoff.rs # Revalidated package-aware compiler inputs.
 |   |-- source_commands.rs # Unhardened source diagnostic command surface.
 |   |-- evidence.rs        # Compiler-issued package admission evidence.
