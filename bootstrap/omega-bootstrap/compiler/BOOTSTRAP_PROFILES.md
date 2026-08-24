@@ -135,8 +135,9 @@ feature defaults for the compiler's own implementation source are:
 - measure concrete domains, domain polymorphism, advanced generic facilities,
   numeric/schema field tags such as `0:`, complex transition payloads, and
   mixed field-plus-case data against the actual compiler source before
-  admitting them. Simple discriminants plus explicit context and separate
-  record/sum shapes are comparison points, not preselected restrictions.
+  admitting them. Numeric tags are distinct from ordinary named fields. Simple
+  discriminants plus explicit context and separate record/sum shapes are
+  comparison points, not preselected restrictions.
 
 The hosted source closure separately omits terminal-Psi interpreters, REPLs,
 proof explorers, viewers, debuggers, and other product tools unless the compiler

@@ -38,8 +38,9 @@ not become a whitelist of files, statement counts, or syntax-tree shapes.
 The bridge binary may run slowly and lower the production compiler
 conservatively. It must compile the `Ωself` source that implements the product
 optimizer and advanced lowering, but need not duplicate those passes. A further
-production self-rebuild can optimize the compiler binary; it is optional
-evidence, not a required dependency.
+production `omega` → `omega` self-rebuild can optimize the compiler binary; it
+is optional evidence, not a required dependency. The required bridge → product
+edge is a cross-language hosted build, not that self-rebuild.
 
 The distinction is architectural:
 

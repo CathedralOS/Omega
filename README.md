@@ -124,7 +124,9 @@ The separate bootstrap architecture rebuilds that product through increasingly
 capable Alpha → Beta → Gamma → Delta languages, then one hosted edge from the
 Delta-written, `Ωself`-limited `omega-bootstrap` into the full production Omega
 compiler. Delta need not be an Omega subset, and `Ωself` is a source profile
-rather than another language rung. Its status and ownership map live in
+rather than another language rung. An optional Omega→Omega rebuild may optimize
+that compiler's own binary, but produces the same compiler and is not another
+rung or required dependency. Its status and ownership map live in
 [`TASKS_BOOTSTRAP.md`](TASKS_BOOTSTRAP.md) and
 [`compiler/README.md`](compiler/README.md); the proof kernel is cross-cutting
 assurance, not another language rung.
