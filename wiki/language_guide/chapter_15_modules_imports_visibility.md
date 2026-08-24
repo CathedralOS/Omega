@@ -74,9 +74,11 @@ checked state for each evidence row through a total internal package-admission
 projection. Different rows may use different compiler-private representations;
 the lock stores only the final versioned canonical rows. This does not make any
 checked IR a public compatibility surface or require another nominal IR stage.
-Terminal Psi evidence is additional and is required only for claims about final
-realization or by a hardened profile; absence of that evidence never implies a
-weaker Terminal guarantee.
+Those representations remain inside the Psi-owned semantic pipeline; "earlier"
+means earlier than Terminal Psi, not outside Psi. Terminal Psi evidence is
+additional and is required only for claims about final realization or by a
+hardened profile; absence of that evidence never implies a weaker Terminal
+guarantee.
 
 ### Build orchestration is not semantic evaluation
 

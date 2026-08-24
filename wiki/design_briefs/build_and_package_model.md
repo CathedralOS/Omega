@@ -576,7 +576,9 @@ internal representations; the final projection must be total, but no single
 intermediate representation must contain every row. This may couple the checker
 to compiler-private representations: the checker is part of the compiler and
 moves with them. That coupling does not make an internal representation a
-package format or public compatibility surface.
+package format or public compatibility surface. The representations remain
+Psi-owned semantic state; using one "earlier" than Terminal Psi does not create
+a separate semantic owner or bypass the Psi pipeline.
 
 This projection is not another public IR stage and does not warrant a nominal
 Chi stage merely for format stability. It has no execution semantics or
