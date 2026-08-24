@@ -74,7 +74,7 @@ fn temp_root(name: &str) -> PathBuf {
 #[test]
 fn remote_fixture_pins_are_exact_and_match_local_package_names() {
     let pins = remote_pins();
-    assert_eq!(pins.len(), 8);
+    assert_eq!(pins.len(), 9);
     let mut packages = BTreeSet::new();
     for pin in &pins {
         PackageName::parse(&pin.package).expect("remote fixture package names must be kebab-case");

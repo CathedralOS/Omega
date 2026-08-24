@@ -1,0 +1,27 @@
+// Retained filesystem-plus-network authority fixture.
+pub boundary trait FilesystemHost {
+    machine append(path: &[u8], bytes: &[u8]);
+}
+
+pub boundary trait NetworkHost {
+    machine send(endpoint: &[u8], bytes: &[u8]);
+}
+
+pub data RemoteJournal {
+    files: FilesystemHost;
+    network: NetworkHost;
+}
+
+pub machine RemoteJournal::append_and_send(
+    &mut self,
+    path: &[u8],
+    endpoint: &[u8],
+    bytes: &[u8]
+)
+reaches FilesystemHost, NetworkHost
+invokes FilesystemHost;
+invokes NetworkHost;
+{
+    self.files.append(path, bytes);
+    self.network.send(endpoint, bytes);
+}
