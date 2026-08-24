@@ -183,8 +183,8 @@ implementation + assurance cost in the omega-bootstrap Delta source closure
 
 Basic generics and payload enums are likely favorable. Proof syntax and
 dependent typing are not. Profile growth is an architectural change and must
-update the allowlist, compiler, meaning route, diagnostics, and negative gates
-together.
+update the profile rules, compiler, meaning route, diagnostics, and negative
+gates together.
 
 ## One required hosted compile
 
@@ -219,10 +219,18 @@ manifest. That enables a joint freeze rather than a circular dependency:
    mechanically.
 
 The bootstrap gate must compile that exact closure under the explicit `Ωself`
-allowlist and reject an excluded-feature canary for every exclusion.
+profile rules and reject an excluded-feature canary for every exclusion.
 The manifest includes compiler modules, compile-time code, build/module
 behavior, and runtime/library dependencies; hiding a feature in a library does
 not remove it from the bootstrap surface.
+
+Delta's freeze is adjacent but separate. Its provisional ledger evolves while
+`omega-bootstrap` is written. Once the complete Delta source closure exists,
+prune unused producer/corpus behavior, publish the general Delta v1 grammar and
+semantics, and prove that exact closure valid under the frozen language. The
+Omega product-source manifest decides `Ωself`; the Delta bridge-source manifest
+decides Delta v1. Neither manifest substitutes for the corresponding general
+profile or language contract.
 
 The current Rust Psi/Omega compiler remains a maintained reference and
 differential producer while useful. It is neither a bootstrap dependency nor an
