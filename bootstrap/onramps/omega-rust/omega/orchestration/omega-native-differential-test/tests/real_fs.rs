@@ -214,13 +214,20 @@ machine Main::main(&mut self) {{
     state denywrite(&mut self) {{
         self.fd = self.fs.create("{src}/evil.txt", self.mode);
         self.e = self.fs.errno();
-        transition self.fd < 0 && self.e == 13 {{ true -> denyread() _ -> bad(76) }}
+        transition self.fd < 0 && self.e == 13 {{ true -> denyhardlink() _ -> bad(76) }}
     }}
-    // (d) READ outside every root must refuse with EACCES.
+    // (d) A hard link from read-only source into writable staging would make
+    // the source inode writable through the alias, so it must be refused.
+    state denyhardlink(&mut self) {{
+        self.n = self.fs.hard_link("{src}/input.txt", "{out}/source-alias.txt") as i64;
+        self.e = self.fs.errno();
+        transition self.n < 0 && self.e == 13 {{ true -> denyread() _ -> bad(77) }}
+    }}
+    // (e) READ outside every root must refuse with EACCES.
     state denyread(&mut self) {{
         self.fd = self.fs.open("{secret}/hidden.txt", self.rd);
         self.e = self.fs.errno();
-        transition self.fd < 0 && self.e == 13 {{ true -> good() _ -> bad(77) }}
+        transition self.fd < 0 && self.e == 13 {{ true -> good() _ -> bad(78) }}
     }}
     state good(&mut self) {{ self.console.exit_process(70); }}
     state bad(&mut self, code: i32) {{ self.console.exit_process(code); }}
@@ -277,7 +284,8 @@ fn scoped_grants_enforce_read_and_write_roots() {
         outcome.exit_code, 70,
         "grant quadrant probe (71=read-root open, 72=read bytes, 73=write-root \
          create, 74=read-back open, 75=read-back bytes, 76=read-only-root create \
-         not EACCES-refused, 77=outside-root open not EACCES-refused)"
+         not EACCES-refused, 77=read-root hard-link alias not EACCES-refused, \
+         78=outside-root open not EACCES-refused)"
     );
 
     // The world after: the artifact is real; the denied writes never happened.
@@ -288,6 +296,14 @@ fn scoped_grants_enforce_read_and_write_roots() {
     assert!(
         !base.join("src").join("evil.txt").exists(),
         "denied create must not touch the read-only root"
+    );
+    assert!(
+        !base.join("out").join("source-alias.txt").exists(),
+        "denied hard link must not alias read-only source into writable staging"
+    );
+    assert_eq!(
+        std::fs::read(base.join("src").join("input.txt")).expect("source remains intact"),
+        b"hello grants\n",
     );
     assert_eq!(
         std::fs::read(base.join("secret").join("hidden.txt")).expect("secret untouched"),
@@ -824,7 +840,7 @@ data Main {{
     n: i64;
     rc: i64;
     flag: i64;
-    buffer: [u8; 256];
+    buffer: [u8; 1024];
     times: [u8; 32];
     stat_buf: [u8; 144];
     mtime: i64 in Wrapping;
@@ -971,7 +987,7 @@ data Main {{
     n: i64;
     rc: i64;
     flag: i64;
-    buffer: [u8; 256];
+    buffer: [u8; 1024];
     times: [u8; 32];
     stat_buf: [u8; 144];
     mtime: i64 in Wrapping;

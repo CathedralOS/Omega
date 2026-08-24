@@ -323,6 +323,12 @@ operands, and its exact operand/result schema is checked against the canonical
 50-operation trait. Canonicalize enforces its declared 1024-byte `PATH_MAX`
 carrier at that gate. This does not replace total output-tree, file-extent,
 memory, process, or transport quotas.
+Scoped hard links require write authority on both names, preventing a package
+from aliasing a read-only source inode into writable staging. The pending
+staging quota must be session-wide and object-aware: entries count names,
+regular-file extents count once per object, symlink spellings count as bytes,
+and open-but-unlinked objects remain charged. Per-package and path-summed
+accounting are intentionally rejected designs.
 
 The usage record carries a schema identity independently from evaluator-step
 identity: adding telemetry does not change what one step means. It records
