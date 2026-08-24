@@ -230,41 +230,24 @@ That evidence is necessary but is not yet `omega-bootstrap`:
 - The exact `Ωself` profile sufficient to express the production Omega compiler
   and every transitive build dependency has not been frozen.
 
-### Permitted Delta bootstrap candidates
+### Delta implementation latitude
 
-Delta is an independent bootstrap implementation language, not the product
-language. It should be a robust C-like compiler-host language, not the smallest
-grammar capable of recognizing one pinned source tree. It may therefore use
-deliberately plain facilities when they reduce total implementation and
-assurance cost, and it need not reproduce Omega's final allocation and
-container model. Candidate concessions include:
+Delta is an independent, robust C-like compiler host, not a minimal recognizer
+for one pinned source tree and not an Omega subset. It may use plain fixed
+backing, deterministic bump or paged allocation, typed/indexed arenas, bulk
+reclamation, a byte-preserving source bundle, and conservative lowering when
+those choices reduce total implementation and assurance cost. It does not need
+Omega's production allocator/container architecture, optimization pipeline, or
+parallel compiler design. Every retained allocation, exhaustion, arithmetic,
+input, and host-I/O behavior must nevertheless have specified meaning and live
+validation; silent truncation and ambient host authority remain forbidden.
 
-- Permit runtime-sized allocations from an explicit, fixed backing extent
-  supplied at compiler startup. A deterministic bump allocator or paged arena
-  is sufficient; general-purpose `free`, compaction, and garbage collection are
-  not prerequisites.
-- Permit multiple typed/indexed arenas over that allocator. Arena handles, not
-  ambient host pointers, remain the normal durable identity.
-- Permit bulk reclamation at the end of a compilation. Exhaustion must have a
-  specified result—checked failure or a defined trap—and must never silently
-  truncate input or tables.
-- Permit one deterministic length-delimited source bundle before a native
-  package/module implementation. Ordered text concatenation is not a source-unit
-  contract; labels and exact bytes must remain auditable.
-- Permit direct, conservative lowering and poor generated code. Parallelism,
-  advanced register allocation, optimization, incremental compilation, and the
-  production `PagedArena` architecture are explicitly not gates for
-  `omega-bootstrap`.
-
-These are available design moves, not a minimum feature list or holes in
-meaning. If simpler bridge source needs fewer facilities—for example only Exact
-integer arithmetic or ordinary fixed arrays—Delta v1 need not inherit the
-broader producer surface. Conversely, direct textual use is not the only valid
-reason to retain a small companion feature: regularity, safe composition,
-debuggability, and avoiding brittle source contortions count in the total-cost
-decision. Allocation, exhaustion, input assembly, and every retained host
-operation must still have explicit semantics and appear in the
-trust/validation story.
+This paragraph grants design latitude, not language features. The canonical
+candidate inventory and freeze test live in
+[`bootstrap/rungs/delta/FEATURE_LEDGER.md`](bootstrap/rungs/delta/FEATURE_LEDGER.md);
+the cross-surface decision procedure lives in
+[`compiler_source_profile.md`](wiki/architecture/bootstrap_lattice/compiler_source_profile.md).
+Do not maintain a second Delta feature list in this task index.
 
 Product Psi/Omega implementation work belongs in `TASKS.md`. This file may name
 a required product interface as an input to a lattice gate, but it must not own
@@ -417,14 +400,11 @@ may advance before the product source manifest exists, while provisional
   - [ ] publish candidate compositional syntax, static-semantics, resource,
     ABI/layout, and lowering rules—not file identities, statement counts, or
     AST permutations—and enforce them provisionally;
-  - [ ] resolve every row in the working feature-disposition table in
-    [`compiler_source_profile.md`](wiki/architecture/bootstrap_lattice/compiler_source_profile.md):
-    proof and linear/dependent features are presumptively excluded; ordinary
-    named fields, payload sums, and basic generics are presumptively retained;
-    domains, advanced generics, numeric/schema field tags, complex transition
-    payloads, and mixed field-plus-case data remain measurement questions;
-    these are working defaults, not admissions or exclusions before the source
-    and bridge-cost evidence exists;
+  - [ ] resolve every row in the canonical working feature-disposition table in
+    [`compiler_source_profile.md`](wiki/architecture/bootstrap_lattice/compiler_source_profile.md).
+    Do not copy that inventory into this task list: its entries remain working
+    defaults, not admissions or exclusions, until source benefit and general
+    bridge-cost evidence settle them;
   - [ ] keep standalone terminal-Psi tools, interpreters, REPLs, proof explorers,
     viewers, and debuggers outside the manifest unless the compiler executable
     imports them; and

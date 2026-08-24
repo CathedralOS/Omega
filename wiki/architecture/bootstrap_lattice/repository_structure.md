@@ -75,11 +75,12 @@ product roots.
   proof kernel is not a compiler rung. Its trusted checker implementations,
   untrusted automation, corpora, and integration gates must be visibly
   separated.
-- `bootstrap/omega-bootstrap/` is the physical owner of work and artifacts for
-  `omega-bootstrap` and the minimum Psi/Omega path it needs. Historical `omega0`
-  path-role aliases remain accepted only as compatibility plumbing. The bridge
-  accepts `Ωself`, is not the production compiler, and is not another language
-  rung.
+- `bootstrap/omega-bootstrap/` owns only the Delta-written bridge, its Rust-free
+  meaning route, bridge-specific contracts, and gates. It may consume product
+  source and canonical Psi/Omega formats, but it does not own production Psi or
+  Omega implementation work. Historical `omega0` path-role aliases remain
+  accepted only as compatibility plumbing. The bridge accepts `Ωself`, is not
+  the production compiler, and is not another language rung.
 - `bootstrap/onramps/omega-rust/` owns the current working Rust compiler as an
   untrusted migration/reference producer. It is removable from bootstrap and
   release builds once the hosted compiler closes, even if retained in the
