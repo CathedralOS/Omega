@@ -38,6 +38,7 @@ mod source;
 mod source_adapter;
 mod source_commands;
 mod source_patch;
+mod source_review;
 mod source_triage;
 #[cfg(test)]
 mod update;
@@ -103,6 +104,11 @@ pub use source_commands::{
 pub use source_patch::{
     PackageSourcePatch, PackageSourcePatchError, PackageSourcePatchLimits, PackageSourcePatchSide,
     render_package_source_patch,
+};
+pub use source_review::{
+    PackageSourceReviewCustodyRole, PackageSourceReviewError, PackageSourceReviewInput,
+    PackageSourceReviewLimits, PackageSourceReviewRenderError, assemble_initial_source_review,
+    assemble_update_source_review,
 };
 pub use source_triage::{
     CompilerReviewTriage, PackageTriageDecision, PackageTriageDisposition, PackageTriageReason,

@@ -76,8 +76,12 @@ symlink, and entry-kind changes under independent source, metadata, line,
 diff-work, trace-memory, and output ceilings. Paths and source lines are
 byte-escaped into fixed lanes but remain hostile code data; binary/non-UTF-8
 changes retain size and content commitments and require standalone audit. The
-packet does not yet invoke a model, and no advisory answer can mint admission
-or prove an audit occurred.
+review-input join requires a complete candidate closure matching every
+compiler-issued key and immutable resolution, validates each recovered baseline
+custody against its compiler row, and derives missing-old-source state itself.
+Its aggregate bounded renderer frames compiler-only triage separately from
+hostile source lanes. It does not yet invoke a model, and no advisory answer
+can mint admission or prove an audit occurred.
 
 The complete design is in:
 
@@ -435,6 +439,7 @@ omega-packages/
 |   |-- compiler_handoff.rs # Revalidated package-aware compiler inputs.
 |   |-- source_commands.rs # Unhardened source diagnostic command surface.
 |   |-- source_patch.rs    # Bounded hostile-data source review packet.
+|   |-- source_review.rs   # Custody/evidence join and aggregate review input.
 |   |-- source_triage.rs   # Compiler-row source/provenance triage.
 |   |-- evidence.rs        # Compiler-issued package admission evidence.
 |   |-- lock.rs            # Accepted closure and evidence baseline.

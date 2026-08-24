@@ -8,8 +8,9 @@ use omega_compiler::{
 use omega_packages::{
     CompileResolvedPackageReviewsError, LocalSourceLimits, PackageSourceClosureLimits,
     PackageSourceVerificationPhase, PackageTriageDisposition, SourceLineage, SourceResolveError,
-    WorkspaceMemberPath, compile_resolved_package_reviews, resolve_workspace_package_closure,
-    triage_initial_install, triage_review_update,
+    WorkspaceMemberPath, assemble_initial_source_review, assemble_update_source_review,
+    compile_resolved_package_reviews, resolve_workspace_package_closure, triage_initial_install,
+    triage_review_update,
 };
 use std::collections::BTreeSet;
 use std::path::PathBuf;
@@ -369,6 +370,24 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
             initial_triage.render_bounded(64 * 1024).is_ok(),
             "{package} compiler evidence should fit the bounded triage projection"
         );
+        let initial_review = assemble_initial_source_review(
+            &reviews,
+            &closure,
+            omega_packages::PackageSourceReviewLimits::default(),
+        )
+        .expect("initial review input joins compiler rows to exact source custody");
+        assert_eq!(
+            initial_review
+                .source_patches()
+                .iter()
+                .any(|patch| patch.candidate_key() == closure.graph().root()),
+            initial_audit_expected,
+            "{package} initial source packet follows compiler-derived audit policy"
+        );
+        let rendered_initial = initial_review
+            .render_bounded(8 * 1024 * 1024)
+            .expect("fixture initial review input stays bounded");
+        assert!(!rendered_initial.contains(&cache.display().to_string()));
 
         let unchanged_triage = triage_review_update(&reviews, &reviews, &BTreeSet::new());
         let unchanged_root = unchanged_triage
@@ -389,6 +408,18 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
             },
             "{package} unchanged source triage"
         );
+        let unchanged_review = assemble_update_source_review(
+            &reviews,
+            &reviews,
+            closure.custodies(),
+            &closure,
+            omega_packages::PackageSourceReviewLimits::default(),
+        )
+        .expect("unchanged review input joins exact baseline and candidate custody");
+        assert!(
+            unchanged_review.source_patches().is_empty(),
+            "{package} unchanged custody needs no redundant source packet"
+        );
         let unavailable = BTreeSet::from([closure.graph().root().clone()]);
         let unavailable_triage = triage_review_update(&reviews, &reviews, &unavailable);
         let unavailable_root = unavailable_triage
@@ -401,6 +432,20 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
             PackageTriageDisposition::AdmittedWithAuditRecommended,
             "{package} missing old source must recommend standalone candidate audit"
         );
+        let unavailable_review = assemble_update_source_review(
+            &reviews,
+            &reviews,
+            &[],
+            &closure,
+            omega_packages::PackageSourceReviewLimits::default(),
+        )
+        .expect("missing old source retains compiler baseline and renders candidate custody");
+        let unavailable_patch = unavailable_review
+            .source_patches()
+            .iter()
+            .find(|patch| patch.candidate_key() == closure.graph().root())
+            .expect("missing old root source receives a standalone source packet");
+        assert!(unavailable_patch.baseline_key().is_none());
         let _ = std::fs::remove_dir_all(cache);
     }
 }
