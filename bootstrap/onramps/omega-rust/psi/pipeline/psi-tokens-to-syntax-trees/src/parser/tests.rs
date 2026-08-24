@@ -6,6 +6,30 @@ use psi_syntax_trees::statement::StatementNode;
 use psi_syntax_trees::types::TypeReferenceNode;
 
 #[test]
+fn retains_public_machine_visibility_in_syntax() {
+    let tokens = Lexer::new("pub machine Package::entry() { }")
+        .tokenize()
+        .expect("tokenize public machine");
+    let parsed = parse_syntax_trees(&tokens).expect("parse public machine");
+    let machine = parsed
+        .root_items()
+        .find_map(|item| match item {
+            psi_syntax_trees::item::Item::Machine(machine) => Some(machine),
+            _ => None,
+        })
+        .expect("public machine");
+
+    assert!(machine.is_public);
+    assert!(!machine.boundary);
+    assert!(
+        parsed
+            .snapshot_json()
+            .expect("snapshot")
+            .contains("\"is_public\":true")
+    );
+}
+
+#[test]
 fn owns_non_utf8_string_literal_bytes_in_syntax_tree() {
     let tokens = Lexer::new(
         r#"

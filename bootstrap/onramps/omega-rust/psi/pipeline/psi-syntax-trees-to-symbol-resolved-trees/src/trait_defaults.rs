@@ -818,6 +818,7 @@ fn machine_from_signature(
     Machine {
         name: machine_name,
         attached_data: Some(Identifier::generated(type_name)),
+        is_public: false,
         bodyless: false,
         target: None,
         boundary: false,

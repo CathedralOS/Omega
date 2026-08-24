@@ -305,7 +305,7 @@ complete.
   state that contains it; this internal coupling moves with the compiler and
   does not create a stable public IR stage.
 
-  Progress 2026-08-23: checked trees already own the useful semantic core. A
+  Progress 2026-08-24: checked trees already own the useful semantic core. A
   `RealizedMachineContractEnvelope` retains contract identity, effective and
   concrete reach, unresolved installation rows, synchronous invocation,
   suspension, blocking, termination, crashes, mutation, and exact capability
@@ -313,18 +313,23 @@ complete.
   `PackageKeyIdentity` through the retained source map, and underdeclared reach
   already fails checking. This is the intended source for a compiler-owned,
   target-scoped admission projection, but the current implementation is not yet
-  admissible. General `pub`/`export`
-  visibility, generated/toolchain symbol ownership, package-qualified provider
+  admissible. Ordinary `pub machine` visibility is now retained through syntax,
+  resolved, typed, checked, snapshot, copy, and specialization paths. Public
+  omission is a strict empty ceiling for service reach, synchronous invocation,
+  suspension, blocking, and crash; checked underdeclaration rejects. Explicit
+  `export` resolution, public non-machine API shape, generated/toolchain symbol
+  ownership, package-qualified provider
   binding/selection identities, source/toolchain/compiler commitments,
   non-provider trust ownership, build observations, and reproducibility
   receipts still need one sealed projection. Exact provenance for the realizing
   package, provider type, service schema, and requirement owner is already
   retained on provider plans and their provider trust rows.
-  Until those joins exist, only an authored `boundary machine` is a dependable
-  exported-callable classification and no projection may be persisted as
-  accepted evidence. The compiler now exposes
+  Until the remaining joins exist, no projection may be persisted as accepted
+  evidence. The compiler now exposes
   an explicitly review-only, in-memory projection for the reconciled root
-  package under an exact target. It retains the selected build-machine symbol,
+  package under an exact target. It includes package-owned boundary and ordinary
+  public machines plus the selected build machine while excluding private
+  machines. It retains
   package-qualified authored nominals, distinct declared/effective/concrete
   service rows, unresolved installation rows, exact capability-flow
   coordinates, operational outcomes, crashes, mutation, and selected provider
@@ -348,14 +353,17 @@ complete.
   closing the implicit-entry-state ownership gap discovered by the crash
   projection. Review identity now retains the exact deployment target profile,
   so profiles such as Windows and UEFI cannot collapse merely because they
-  share a native ABI. A v1 length-framed binary comparison encoding now covers
+  share a native ABI. A v2 length-framed binary comparison encoding now covers
   every retained callable,
   crash/proof predicate, authority flow, mutation, and selected-provider row.
   It converts platform-width ordinals to portable `u64`, distinguishes exact
   deployment profiles, rejects interner-backed external-supply variants, and
   remains explicitly review-only rather than persistable admission evidence.
-  Capability-flow state and propagated `via` state identities are now
-  package-qualified instead of display strings. Compiler/source/toolchain
+  It also covers declared and realized synchronous invocation as either exact
+  non-`self` parameter ordinals or package-qualified service symbols; checked
+  display strings never become comparison identity. Capability-flow state and
+  propagated `via` state identities are package-qualified instead of display
+  strings. Compiler/source/toolchain
   binding and the remaining required projection joins still gate sealed
   evidence; blanket Terminal coverage does not.
   Compiler-generated symbols now inherit the exact authored provenance of a

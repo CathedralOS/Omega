@@ -10,7 +10,7 @@ use psi_checked_trees::{
 };
 
 const MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW\0";
-pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 1;
+pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 2;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageReviewEncodingError {
@@ -141,7 +141,8 @@ fn encode_callable(
 ) -> Result<(), PackageReviewEncodingError> {
     encoder.byte(match callable.role {
         PackageReviewCallableRole::Boundary => 0,
-        PackageReviewCallableRole::Build => 1,
+        PackageReviewCallableRole::Public => 1,
+        PackageReviewCallableRole::Build => 2,
     });
     encode_nominal(encoder, &callable.identity)?;
     encode_supply(encoder, callable.supply)?;
@@ -156,12 +157,37 @@ fn encode_callable(
         &callable.unresolved_installation_reaches,
         encode_installation_reach,
     )?;
+    encoder.option(
+        callable.declared_synchronous_invocations.as_deref(),
+        |encoder, invocations| encoder.sequence(invocations, encode_synchronous_invocation),
+    )?;
+    encoder.sequence(
+        &callable.realized_synchronous_invocations,
+        encode_synchronous_invocation,
+    )?;
     encoder.sequence(&callable.capability_flows, encode_capability_flow)?;
     encoder.boolean(callable.checked_may_suspend);
     encoder.boolean(callable.checked_may_block);
     encode_termination(encoder, &callable.checked_termination)?;
     encode_crash(encoder, &callable.checked_crash)?;
     encoder.sequence(&callable.mutation, encode_mutation)
+}
+
+fn encode_synchronous_invocation(
+    encoder: &mut Encoder,
+    invocation: &PackageReviewSynchronousInvocation,
+) -> Result<(), PackageReviewEncodingError> {
+    match invocation {
+        PackageReviewSynchronousInvocation::Parameter(position) => {
+            encoder.byte(0);
+            encoder.u32(*position);
+        }
+        PackageReviewSynchronousInvocation::Service(service) => {
+            encoder.byte(1);
+            encode_nominal(encoder, service)?;
+        }
+    }
+    Ok(())
 }
 
 fn encode_nominal(

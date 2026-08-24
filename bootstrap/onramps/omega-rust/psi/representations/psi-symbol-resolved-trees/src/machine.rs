@@ -12,6 +12,9 @@ pub struct Machine {
     pub symbol: SymbolHandle,
     pub name: DiagnosticName,
     pub attached_data: Option<DiagnosticName>,
+    /// Retained source-level package visibility. Public checked bodies publish
+    /// strict effect and operational ceilings without changing supply mode.
+    pub is_public: bool,
     /// Populated once at syntax-to-resolved lowering and copied downstream;
     /// semantic consumers must not reconstruct supply from source spelling or
     /// body presence.

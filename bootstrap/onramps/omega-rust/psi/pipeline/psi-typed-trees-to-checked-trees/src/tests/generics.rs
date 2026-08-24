@@ -1318,6 +1318,50 @@ fn value_machine_type_parameter_is_inferred_through_a_borrowed_place() {
 }
 
 #[test]
+fn public_visibility_survives_value_type_specialization() {
+    let source = r#"
+        data Light [copy] { weight: i32 in Wrapping; }
+        data Main { light: Light; }
+
+        pub machine Main::weigh<T [copy]>(&self, value: &T) -> i32 {
+            70
+        }
+
+        machine Main::run(&mut self) {
+            let result: i32 in Wrapping = self.weigh(&self.light);
+        }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let checked = lower_typed_trees(typed).expect("public specialization should check");
+    let specialization = checked
+        .machine_specializations
+        .iter()
+        .find(|specialization| {
+            checked.machines().iter().any(|machine| {
+                machine.symbol == specialization.template && machine.name.as_str() == "Main::weigh"
+            })
+        })
+        .expect("public weigh specialization");
+
+    for symbol in [specialization.template, specialization.instance] {
+        assert!(
+            checked
+                .machines()
+                .iter()
+                .find(|machine| machine.symbol == symbol)
+                .expect("public machine retained through specialization")
+                .is_public
+        );
+    }
+}
+
+#[test]
 fn distinct_static_machine_specializations_clone_the_template() {
     let source = r#"
         data Card {}

@@ -3972,6 +3972,30 @@ fn published_operational_omission_is_a_negative_ceiling() {
 }
 
 #[test]
+fn ordinary_public_machine_reach_omission_is_a_negative_ceiling() {
+    let typed = typed_program_from_source(
+        r#"
+        boundary trait Host {
+            machine ping() reaches Host;
+        }
+
+        pub machine public_api() {
+            Host::ping();
+        }
+        "#,
+    );
+    let operations = psi_effects::infer_operational_may(&typed);
+    let diagnostics = validate_behavior_plan(&typed, &operations)
+        .expect_err("ordinary public omission must reject inferred service reach");
+
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic.message.contains("public_api")
+            && diagnostic.message.contains("undeclared service")
+            && diagnostic.message.contains("Host")
+    }));
+}
+
+#[test]
 fn checked_provider_rejects_undeclared_synchronous_invocation() {
     let typed = typed_program_from_source(
         r#"

@@ -40,7 +40,9 @@ pub fn validate_behavior_plan(
         // both axes are inferred. Validate the declaration-free body fixed
         // points so a published machine cannot launder behavior through a
         // local helper or a pinned requirement.
-        if machine.supply_mode != psi_language_semantics::MachineSupplyMode::CheckedBody {
+        if machine.is_public
+            || machine.supply_mode != psi_language_semantics::MachineSupplyMode::CheckedBody
+        {
             if machine_summary.body_may_suspend && !machine.suspends {
                 diagnostics.push(Diagnostic::error(format!(
                     "machine `{}` omits `suspends;` from its published contract, but its body may suspend",
@@ -67,6 +69,7 @@ fn validate_service_reach_ceilings(
     for machine in program.machines() {
         let publishes = machine.supply_mode
             != psi_language_semantics::MachineSupplyMode::CheckedBody
+            || machine.is_public
             || !program
                 .service_reach_rows
                 .services(machine.service_reach_row)

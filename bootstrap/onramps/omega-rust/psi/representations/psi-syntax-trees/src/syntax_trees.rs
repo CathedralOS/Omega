@@ -468,6 +468,7 @@ impl SyntaxTrees {
         Machine {
             name: machine.name.clone(),
             attached_data: machine.attached_data.clone(),
+            is_public: machine.is_public,
             target: machine.target.clone(),
             boundary: machine.boundary,
             bodyless: machine.bodyless,

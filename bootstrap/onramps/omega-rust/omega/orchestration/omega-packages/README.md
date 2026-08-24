@@ -113,8 +113,13 @@ frontier rows now use normalized package-owned semantic paths, and crash
 predicates retain their existing source-independent canonical identity. Review
 identity retains the exact deployment profile rather than collapsing profiles
 that happen to share a native ABI. Capability-flow states, including propagated
-`via` states, are package-qualified. The compiler now provides a versioned,
-length-framed binary comparison encoding over this review projection; it is
+`via` states, are package-qualified. Ordinary public-machine visibility now
+survives checked compilation; public omission enforces empty reach, invocation,
+suspension, blocking, and crash ceilings. The review includes public and
+boundary callables plus the selected build machine, excludes private machines,
+and projects invocation targets as exact parameter ordinals or package-qualified
+service identities. The compiler now provides a version-2 length-framed binary
+comparison encoding over this review projection; it is
 explicitly not a package certificate or accepted-lock payload. Raw Rust/debug
 serialization is not an alternative. These pieces do not become an
 admission path until the legacy name-keyed lock APIs are replaced and sealed,

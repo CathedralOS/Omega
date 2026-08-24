@@ -56,6 +56,7 @@ fn snapshots_materialize_resolved_roots_and_table_counts() {
         symbol: SymbolHandle::invalid(),
         name: DiagnosticName::generated("main"),
         attached_data: None,
+        is_public: true,
         supply_mode: Default::default(),
         termination_plan: Default::default(),
         service_reach_row: Default::default(),
@@ -98,6 +99,7 @@ fn snapshots_materialize_resolved_roots_and_table_counts() {
 
     let snapshot = SymbolResolvedTreesSnapshot::from_symbol_resolved_trees(&program);
     assert_eq!(snapshot.roots.machines.len(), 1);
+    assert!(snapshot.roots.machines[0].is_public);
     assert_eq!(
         snapshot.roots.domain_definitions[0].predicate_body,
         "present"

@@ -110,6 +110,7 @@ pub(super) fn parse_machine<'tokens, 'source>(
             Machine {
                 name,
                 attached_data,
+                is_public: false,
                 target: None,
                 boundary: false,
                 bodyless: true,
@@ -228,6 +229,7 @@ pub(super) fn parse_machine<'tokens, 'source>(
         Machine {
             name,
             attached_data,
+            is_public: false,
             target: None,
             boundary: false,
             bodyless: false,

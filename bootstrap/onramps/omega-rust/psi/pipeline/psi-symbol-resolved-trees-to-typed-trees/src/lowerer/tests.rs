@@ -4,6 +4,31 @@ use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
 use psi_tokens_to_syntax_trees::parse_syntax_trees;
 
 #[test]
+fn retains_public_machine_visibility_in_typed_trees() {
+    let tokens = Lexer::new("pub machine Package::entry() { }")
+        .tokenize()
+        .expect("tokenize public machine");
+    let syntax = parse_syntax_trees(&tokens).expect("parse public machine");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve public machine");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type public machine");
+    let machine = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Package::entry")
+        .expect("typed public machine");
+
+    assert!(machine.is_public);
+    assert_eq!(
+        machine.attached_data.as_ref().map(|name| name.as_str()),
+        Some("Package")
+    );
+    assert_eq!(
+        machine.supply_mode,
+        psi_language_semantics::MachineSupplyMode::CheckedBody
+    );
+}
+
+#[test]
 fn retains_structured_external_binding_table_in_typed_trees() {
     let source = r#"
         boundary trait Console {
