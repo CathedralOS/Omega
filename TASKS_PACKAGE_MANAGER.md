@@ -43,7 +43,7 @@ complete.
 
 ## P0 — Replace invalid foundations
 
-- **PACKAGE-SCAFFOLDING-AUDIT.** Review every production path in
+- [x] **PACKAGE-SCAFFOLDING-AUDIT.** Review every production path in
   `omega-packages` and classify it as retain, rewrite, or delete.
 
   Known suspect evidence points include unrestricted string identities,
@@ -56,7 +56,10 @@ complete.
   exposure, persistence, and test provenance. No retained API accepts an
   unverified caller-constructed security artifact.
 
-- **QUARANTINE-PROTOTYPE-CLI.** Prevent the existing manifest-file,
+  Completed 2026-08-23: the file-by-file and trust-path classification is in
+  [`omega-packages/SCAFFOLDING_AUDIT.md`](bootstrap/onramps/omega-rust/omega/orchestration/omega-packages/SCAFFOLDING_AUDIT.md).
+
+- [x] **QUARANTINE-PROTOTYPE-CLI.** Prevent the existing manifest-file,
   receipt-file, lock-assembly, and install/update-plan commands from being
   mistaken for package admission.
 
@@ -64,9 +67,10 @@ complete.
   are removed until compiler-issued evidence exists. No command can write an
   accepted production lock from standalone JSON manifests.
 
-  Interim 2026-08-23: affected commands print an explicit untrusted-prototype
-  warning; source-audit commands separately warn that Git/cache isolation is
-  not hardened. Final quarantine/removal remains.
+  Completed 2026-08-23: manifest-based package audit, plan, review, and lock
+  commands are absent from production help and reject before parsing or writing
+  artifacts. Source-audit commands remain separately marked as unhardened until
+  `HARDEN-SOURCE-RESOLVER` closes.
 
 - **HARDEN-SOURCE-RESOLVER.** Re-audit the current Git/local resolver as a
   hostile-input boundary.

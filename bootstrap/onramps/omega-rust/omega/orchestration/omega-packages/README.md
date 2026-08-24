@@ -70,9 +70,11 @@ the accepted lock and never silently re-resolves mutable source selectors.
 Conflict resolution is row-specific and bound to the exact candidate; there is
 no blanket approval switch.
 
-The currently exposed commands accepting `manifest.json`, `receipt.json`,
-`--package`, or mandatory `--alias` are diagnostic prototypes scheduled for
-replacement. They must not be documented as the future user workflow.
+The former commands accepting `manifest.json`, `receipt.json`, `--package`, or
+mandatory `--alias` are quarantined from the production CLI. Their internal
+library scaffolding remains only for isolated tests while the typed replacements
+are built; invoking the old command names fails before parsing or writing any
+artifact.
 
 ## Responsibilities
 

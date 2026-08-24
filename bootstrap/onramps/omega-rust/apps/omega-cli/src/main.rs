@@ -49,29 +49,14 @@ fn main() {
     }
     if first_argument
         .as_deref()
-        .is_some_and(|first| first == "review")
+        .is_some_and(|first| first == "review" || first == "plan" || first == "lock")
     {
-        review(raw_arguments);
-        return;
-    }
-    if first_argument
-        .as_deref()
-        .is_some_and(|first| first == "plan")
-    {
-        plan(raw_arguments);
-        return;
-    }
-    if first_argument
-        .as_deref()
-        .is_some_and(|first| first == "lock")
-    {
-        lock(raw_arguments);
-        return;
+        quarantined_package_command();
     }
 
     let Some(arguments) = parse_arguments() else {
         eprintln!(
-            "usage: omega [--check] [--build-dir <dir>] [--target <name>] <root.omg>\n       omega inspect-terminal --machine <qualified> [--target <name>] <root.omg>\n       omega audit source <locator> [--rev <rev>] [--cache-dir <dir>]\n       omega audit source-cache-policy <locator> [--rev <rev>] [--cache-dir <dir>] [--out <record.json>]\n       omega audit packages [--lock <omega.lock>] --manifest <manifest.json>...\n       omega review capability-change --old-manifest <manifest.json> --new-manifest <manifest.json> --reviewer <id> --reason <text> --out <receipt.json>\n       omega plan install --lock <omega.lock> --current-manifest <manifest.json>... --candidate-manifest <manifest.json>... --alias <alias> --package <package>\n       omega plan update --lock <omega.lock> --current-manifest <manifest.json>... --candidate-manifest <manifest.json>... --package <package> [--receipt <receipt.json>]\n       omega lock assemble --root-package <package> --manifest <manifest.json>... --out <omega.lock>\n       omega refresh-samples [samples-dir]"
+            "usage: omega [--check] [--build-dir <dir>] [--target <name>] <root.omg>\n       omega inspect-terminal --machine <qualified> [--target <name>] <root.omg>\n       omega audit source <locator> [--rev <rev>] [--cache-dir <dir>]\n       omega audit source-cache-policy <locator> [--rev <rev>] [--cache-dir <dir>] [--out <record.json>]\n       omega refresh-samples [samples-dir]"
         );
         std::process::exit(2);
     };
@@ -104,31 +89,25 @@ fn audit(arguments: impl Iterator<Item = std::ffi::OsString>) {
         eprintln!(
             "       omega audit source-cache-policy <locator> [--rev <rev>] [--cache-dir <dir>] [--out <record.json>]"
         );
-        eprintln!(
-            "       omega audit packages [--lock <omega.lock>] --manifest <manifest.json>..."
-        );
         std::process::exit(2);
     };
-    if subcommand != "packages" {
-        if subcommand == "source" {
-            audit_source(arguments);
-            return;
-        }
-        if subcommand == "source-cache-policy" {
-            audit_source_cache_policy(arguments);
-            return;
-        }
-        eprintln!("unknown audit command `{}`", subcommand.to_string_lossy());
-        eprintln!("usage: omega audit source <locator> [--rev <rev>] [--cache-dir <dir>]");
-        eprintln!(
-            "       omega audit source-cache-policy <locator> [--rev <rev>] [--cache-dir <dir>] [--out <record.json>]"
-        );
-        eprintln!(
-            "       omega audit packages [--lock <omega.lock>] --manifest <manifest.json>..."
-        );
-        std::process::exit(2);
+    if subcommand == "source" {
+        audit_source(arguments);
+        return;
     }
-    audit_packages(arguments);
+    if subcommand == "source-cache-policy" {
+        audit_source_cache_policy(arguments);
+        return;
+    }
+    if subcommand == "packages" {
+        quarantined_package_command();
+    }
+    eprintln!("unknown audit command `{}`", subcommand.to_string_lossy());
+    eprintln!("usage: omega audit source <locator> [--rev <rev>] [--cache-dir <dir>]");
+    eprintln!(
+        "       omega audit source-cache-policy <locator> [--rev <rev>] [--cache-dir <dir>] [--out <record.json>]"
+    );
+    std::process::exit(2);
 }
 
 fn audit_source(arguments: impl Iterator<Item = std::ffi::OsString>) {
@@ -188,8 +167,11 @@ fn audit_source_cache_policy(arguments: impl Iterator<Item = std::ffi::OsString>
     }
 }
 
+#[cfg(any())] // Quarantined legacy manifest workflow; retained only as deletion context.
 fn audit_packages(arguments: impl Iterator<Item = std::ffi::OsString>) {
-    warn_untrusted_package_prototype();
+    if package_prototype_is_quarantined() {
+        std::process::exit(2);
+    }
     let Some(arguments) = parse_audit_packages_arguments(arguments) else {
         eprintln!(
             "usage: omega audit packages [--lock <omega.lock>] --manifest <manifest.json>..."
@@ -210,7 +192,11 @@ fn audit_packages(arguments: impl Iterator<Item = std::ffi::OsString>) {
     }
 }
 
+#[cfg(any())]
 fn lock(arguments: impl Iterator<Item = std::ffi::OsString>) {
+    if package_prototype_is_quarantined() {
+        std::process::exit(2);
+    }
     let mut arguments = arguments;
     let Some(subcommand) = arguments.next() else {
         eprintln!(
@@ -228,8 +214,8 @@ fn lock(arguments: impl Iterator<Item = std::ffi::OsString>) {
     lock_assemble(arguments);
 }
 
+#[cfg(any())]
 fn lock_assemble(arguments: impl Iterator<Item = std::ffi::OsString>) {
-    warn_untrusted_package_prototype();
     let Some(arguments) = parse_lock_assemble_arguments(arguments) else {
         eprintln!(
             "usage: omega lock assemble --root-package <package> --manifest <manifest.json>... --out <omega.lock>"
@@ -258,7 +244,11 @@ fn lock_assemble(arguments: impl Iterator<Item = std::ffi::OsString>) {
     }
 }
 
+#[cfg(any())]
 fn plan(arguments: impl Iterator<Item = std::ffi::OsString>) {
+    if package_prototype_is_quarantined() {
+        std::process::exit(2);
+    }
     let mut arguments = arguments;
     let Some(subcommand) = arguments.next() else {
         eprintln!(
@@ -287,8 +277,8 @@ fn plan(arguments: impl Iterator<Item = std::ffi::OsString>) {
     std::process::exit(2);
 }
 
+#[cfg(any())]
 fn plan_install(arguments: impl Iterator<Item = std::ffi::OsString>) {
-    warn_untrusted_package_prototype();
     let Some(arguments) = parse_plan_install_arguments(arguments) else {
         eprintln!(
             "usage: omega plan install --lock <omega.lock> --current-manifest <manifest.json>... --candidate-manifest <manifest.json>... --alias <alias> --package <package>"
@@ -330,8 +320,8 @@ fn plan_install(arguments: impl Iterator<Item = std::ffi::OsString>) {
     }
 }
 
+#[cfg(any())]
 fn plan_update(arguments: impl Iterator<Item = std::ffi::OsString>) {
-    warn_untrusted_package_prototype();
     let Some(arguments) = parse_plan_update_arguments(arguments) else {
         eprintln!(
             "usage: omega plan update --lock <omega.lock> --current-manifest <manifest.json>... --candidate-manifest <manifest.json>... --package <package> [--receipt <receipt.json>]"
@@ -366,6 +356,7 @@ fn plan_update(arguments: impl Iterator<Item = std::ffi::OsString>) {
     }
 }
 
+#[cfg(any())]
 fn read_package_capability_manifests(
     paths: &[PathBuf],
     label: &str,
@@ -384,7 +375,11 @@ fn read_package_capability_manifests(
         .collect()
 }
 
+#[cfg(any())]
 fn review(arguments: impl Iterator<Item = std::ffi::OsString>) {
+    if package_prototype_is_quarantined() {
+        std::process::exit(2);
+    }
     let mut arguments = arguments;
     let Some(subcommand) = arguments.next() else {
         eprintln!(
@@ -402,8 +397,8 @@ fn review(arguments: impl Iterator<Item = std::ffi::OsString>) {
     review_capability_change(arguments);
 }
 
+#[cfg(any())]
 fn review_capability_change(arguments: impl Iterator<Item = std::ffi::OsString>) {
-    warn_untrusted_package_prototype();
     let Some(arguments) = parse_review_capability_change_arguments(arguments) else {
         eprintln!(
             "usage: omega review capability-change --old-manifest <manifest.json> --new-manifest <manifest.json> --reviewer <id> --reason <text> --out <receipt.json>"
@@ -456,11 +451,22 @@ fn review_capability_change(arguments: impl Iterator<Item = std::ffi::OsString>)
     print!("{}", command.to_text());
 }
 
-fn warn_untrusted_package_prototype() {
+#[cfg(any())]
+fn package_prototype_is_quarantined() -> bool {
+    print_package_prototype_quarantine();
+    true
+}
+
+fn quarantined_package_command() -> ! {
+    print_package_prototype_quarantine();
+    std::process::exit(2);
+}
+
+fn print_package_prototype_quarantine() {
     eprintln!(
-        "warning: this package manifest/lock/review command is diagnostic \
-         scaffolding; caller-authored JSON is not compiler-issued admission \
-         evidence and this output must not be treated as an accepted production lock"
+        "error: this caller-authored package manifest/lock/review prototype is \
+         quarantined and unavailable from the production omega CLI; package \
+         admission will return only with compiler-issued evidence"
     );
 }
 
@@ -541,6 +547,7 @@ struct InspectTerminalArguments {
     target_name: Option<String>,
 }
 
+#[cfg(any())]
 struct AuditPackagesArguments {
     lock_path: PathBuf,
     manifest_paths: Vec<PathBuf>,
@@ -559,12 +566,14 @@ struct AuditSourceCachePolicyArguments {
     out_path: Option<PathBuf>,
 }
 
+#[cfg(any())]
 struct LockAssembleArguments {
     root_package: String,
     manifest_paths: Vec<PathBuf>,
     out_path: PathBuf,
 }
 
+#[cfg(any())]
 struct PlanInstallArguments {
     lock_path: PathBuf,
     current_manifest_paths: Vec<PathBuf>,
@@ -573,6 +582,7 @@ struct PlanInstallArguments {
     package: String,
 }
 
+#[cfg(any())]
 struct PlanUpdateArguments {
     lock_path: PathBuf,
     current_manifest_paths: Vec<PathBuf>,
@@ -581,6 +591,7 @@ struct PlanUpdateArguments {
     receipt_path: Option<PathBuf>,
 }
 
+#[cfg(any())]
 struct ReviewCapabilityChangeArguments {
     old_manifest_path: PathBuf,
     new_manifest_path: PathBuf,
@@ -589,6 +600,7 @@ struct ReviewCapabilityChangeArguments {
     out_path: PathBuf,
 }
 
+#[cfg(any())]
 fn parse_lock_assemble_arguments(
     mut arguments: impl Iterator<Item = std::ffi::OsString>,
 ) -> Option<LockAssembleArguments> {
@@ -674,6 +686,7 @@ fn parse_audit_source_cache_policy_arguments(
     })
 }
 
+#[cfg(any())]
 fn parse_plan_install_arguments(
     mut arguments: impl Iterator<Item = std::ffi::OsString>,
 ) -> Option<PlanInstallArguments> {
@@ -731,6 +744,7 @@ fn parse_plan_install_arguments(
     })
 }
 
+#[cfg(any())]
 fn parse_plan_update_arguments(
     mut arguments: impl Iterator<Item = std::ffi::OsString>,
 ) -> Option<PlanUpdateArguments> {
@@ -788,6 +802,7 @@ fn parse_plan_update_arguments(
     })
 }
 
+#[cfg(any())]
 fn parse_review_capability_change_arguments(
     mut arguments: impl Iterator<Item = std::ffi::OsString>,
 ) -> Option<ReviewCapabilityChangeArguments> {
@@ -883,6 +898,7 @@ fn parse_audit_source_arguments(
     })
 }
 
+#[cfg(any())]
 fn parse_audit_packages_arguments(
     mut arguments: impl Iterator<Item = std::ffi::OsString>,
 ) -> Option<AuditPackagesArguments> {
