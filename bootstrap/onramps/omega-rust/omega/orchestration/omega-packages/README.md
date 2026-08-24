@@ -190,9 +190,11 @@ worker failures mark evidence unavailable, and Omega emits no package review
 row. Concrete operands, rooted paths, mutable outputs, logical handles, and
 content remain absent, so this is an incomplete trace rather than a transcript
 or receipt.
-Raw read/count capacities are checked once and reject negative/wrapped values
-or per-operation allocations above the current 16 MiB evaluator sponsor limit.
-File extent and total staging-tree/process quotas remain open.
+Raw byte-valued inputs are evaluated once in the selected provider arm and
+reject above the current 16 MiB evaluator sponsor ceiling before provider
+cloning/allocation. Read/count capacities use one checked conversion and reject
+negative, wrapped, or above-ceiling values. Canonical typed operand preparation,
+file extent, and total staging-tree/process quotas remain open.
 Compiler-issued package review carries this summary
 outside canonical capability/API comparison bytes. It is not a receipt and
 makes no replayability or source-rebuildability claim.
