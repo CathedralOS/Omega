@@ -4,7 +4,7 @@ use std::path::PathBuf;
 fn main() {
     let Some(arguments) = parse_arguments() else {
         eprintln!(
-            "usage: omega-source-snapshot --repository-root <dir> [--target <name>] [--semantic-only] <root.omg>"
+            "usage: omega-source-snapshot --repository-root <dir> [--target <name>] [--semantic-only] [--feature-census] <root.omg>"
         );
         std::process::exit(2);
     };
@@ -14,7 +14,11 @@ fn main() {
         arguments.target_name.as_deref(),
         !arguments.semantic_only,
     ) {
-        Ok(snapshot) => match snapshot.to_json_pretty() {
+        Ok(snapshot) => match if arguments.feature_census {
+            snapshot.feature_census().to_json_pretty()
+        } else {
+            snapshot.to_json_pretty()
+        } {
             Ok(json) => println!("{json}"),
             Err(error) => {
                 eprintln!("cannot encode source-closure snapshot: {error}");
@@ -35,6 +39,7 @@ struct Arguments {
     root_path: PathBuf,
     target_name: Option<String>,
     semantic_only: bool,
+    feature_census: bool,
 }
 
 fn parse_arguments() -> Option<Arguments> {
@@ -42,6 +47,7 @@ fn parse_arguments() -> Option<Arguments> {
     let mut root_path = None;
     let mut target_name = None;
     let mut semantic_only = false;
+    let mut feature_census = false;
     let mut arguments = std::env::args_os().skip(1);
     while let Some(argument) = arguments.next() {
         if argument == "--repository-root" {
@@ -60,6 +66,10 @@ fn parse_arguments() -> Option<Arguments> {
             semantic_only = true;
             continue;
         }
+        if argument == "--feature-census" {
+            feature_census = true;
+            continue;
+        }
         if root_path.is_some() {
             return None;
         }
@@ -70,5 +80,6 @@ fn parse_arguments() -> Option<Arguments> {
         root_path: root_path?,
         target_name,
         semantic_only,
+        feature_census,
     })
 }

@@ -59,6 +59,7 @@ fn snapshots_materialize_handle_backed_syntax_shape() {
                     carry: None,
                 },
                 quotient: None,
+                where_facts: Vec::new(),
                 members: vec![super::DataMemberSnapshot::Field {
                     identity: None,
                     name: super::IdentifierSnapshot {

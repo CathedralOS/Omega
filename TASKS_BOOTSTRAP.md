@@ -414,6 +414,14 @@ may advance before the product source manifest exists, while provisional
     source/alias/import-edge equality, binds all metadata into the closure hash,
     and rejects omitted, padded, rewired, duplicate, bogus-root, and external-
     checksum mutations;
+  - [x] make checkpoint census generation compiler-owned and structurally
+    exhaustive for its used source forms. Source-closure snapshot v2 retains
+    target qualification, bodylessness, `satisfies`/`via`, conformance bounds,
+    ranking arguments/ranges, and data `where` facts; the versioned feature
+    catalog enumerates zero-count alternatives, operator spellings, call and
+    transition flags, parameter flags, and bounded resources. All four target
+    resolutions currently agree. This is census evidence, not yet profile
+    admission enforcement;
   - [ ] measure every feature used by each complete checkpoint closure against
     its production-source benefit and the cost of implementing and assuring it
     in the Delta-written bridge. Absence from a partial checkpoint is provisional
@@ -426,7 +434,10 @@ may advance before the product source manifest exists, while provisional
     permutations;
   - [ ] publish candidate compositional syntax, static-semantics, resource,
     ABI/layout, and lowering rules—not file identities, statement counts, or
-    AST permutations—and enforce them provisionally;
+    AST permutations—and enforce them provisionally. The immediate remaining
+    checkpoint-000001 step is a separately hashed profile artifact bound to the
+    census catalog, ordinary-Omega positive/excluded-feature canaries, and
+    at-limit/over-limit resource mutation teeth;
   - [ ] update every applicable row in the canonical working feature-disposition
     table in [`compiler_source_profile.md`](wiki/architecture/bootstrap_lattice/compiler_source_profile.md).
     Preserve explicit unresolved rows where later product source or general
