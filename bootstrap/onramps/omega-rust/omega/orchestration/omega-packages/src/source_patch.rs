@@ -3,7 +3,7 @@ use crate::source::{
     VerifiedPackageSourceEntryKind, capture_verified_package_source_snapshot,
     verify_package_source_snapshot,
 };
-use crate::{GitObjectIdAlgorithm, ImmutableSourceResolution, PackageSourceCustody};
+use crate::{GitObjectIdAlgorithm, ImmutableSourceResolution, PackageKey, PackageSourceCustody};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
@@ -180,12 +180,22 @@ impl std::error::Error for PackageSourcePatchError {}
 /// are lane-prefixed and byte-escaped but are not claimed prompt-safe.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageSourcePatch {
+    baseline_key: Option<PackageKey>,
+    candidate_key: PackageKey,
     changed_entries: usize,
     incomplete_model_content_entries: usize,
     rendered: String,
 }
 
 impl PackageSourcePatch {
+    pub const fn baseline_key(&self) -> Option<&PackageKey> {
+        self.baseline_key.as_ref()
+    }
+
+    pub const fn candidate_key(&self) -> &PackageKey {
+        &self.candidate_key
+    }
+
     pub const fn changed_entries(&self) -> usize {
         self.changed_entries
     }
@@ -295,6 +305,8 @@ pub fn render_package_source_patch(
     revalidate_snapshot(candidate, PackageSourcePatchSide::Candidate)?;
 
     Ok(PackageSourcePatch {
+        baseline_key: baseline.map(|baseline| baseline.key().clone()),
+        candidate_key: candidate.key().clone(),
         changed_entries,
         incomplete_model_content_entries,
         rendered: output.finish(),

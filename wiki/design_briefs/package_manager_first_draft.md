@@ -560,7 +560,14 @@ than truncate. Binary or non-UTF-8 changes expose only size and a
 domain-separated content commitment and require standalone audit. Fixed
 grammar and byte escaping prevent source from forging renderer structure, but
 cannot prevent semantic prompt injection in code under review. Model invocation
-and the custody-to-triage join remain future work. No output can construct
+remains future work. The implemented join requires a bijection between the
+complete candidate closure and compiler rows by exact key and immutable
+resolution, validates every recovered baseline custody against its row, and
+derives unavailable-old-source state from absence. Initial and newly transitive
+source packets follow compiler-recommended audit policy; changed or unavailable
+existing update sources receive an exact diff or standalone candidate packet.
+The aggregate byte ceiling retains
+separate compiler-only and hostile-source frames. No output can construct
 accepted lock evidence or attest that review happened.
 
 Useful result states include:

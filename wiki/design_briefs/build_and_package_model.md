@@ -635,9 +635,13 @@ directory, symlink, entry-kind, and line-ending distinctions, under independent
 capture, metadata, line, algorithm-work, trace-memory, and output ceilings.
 Binary or non-UTF-8 changes are commitment-visible but model-incomplete and
 therefore require standalone audit. Byte escaping protects the packet grammar,
-not the model from semantic instructions embedded in reviewed code. Joining
-recovered custody to triage and invoking a model remain future work. Model
-output is policy advice, never package evidence or proof of review.
+not the model from semantic instructions embedded in reviewed code. The
+review-input join now requires the complete candidate custody and compiler rows
+to agree bijectively on exact key and immutable resolution, validates each
+recovered baseline custody against its compiler row, and derives unavailable
+old source from absence. Its aggregate ceiling preserves separate compiler and
+hostile-source frames. Invoking a model remains future work. Model output is
+policy advice, never package evidence or proof of review.
 
 ## Package admission projection
 

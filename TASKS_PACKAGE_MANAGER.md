@@ -922,9 +922,18 @@ complete.
   domain-separated content commitment and deterministically require standalone
   audit. Missing baseline source uses the same renderer in complete-candidate
   mode; source-lineage replacement cannot enter ordinary diff mode. Joining
-  recovered baseline/candidate custody to compiler triage, advisory model
-  invocation, row-specific capability conflicts, sealed accepted-baseline
-  loading, and policy application of the advisory result remain.
+  is now implemented: candidate review rows must bijectively match the complete
+  resolved closure by `PackageKey` and immutable resolution; every recovered
+  baseline custody must match its compiler row; absent old custody is derived
+  as `BaselineSourceUnavailable` without erasing compiler evidence. Initial
+  source packets are emitted only for compiler-recommended audits; every
+  changed or unavailable existing update source receives an exact diff or
+  standalone candidate packet, and new packages follow initial-admission risk
+  policy.
+  One aggregate ceiling frames compiler-only triage separately from hostile
+  source lanes. Advisory model invocation, row-specific capability conflicts,
+  sealed accepted-baseline loading, and policy application of the advisory
+  result remain.
 
 - **AUDIT-RESULT-STATES.** Represent at least `admitted`,
   `admitted-with-audit-recommended`,
