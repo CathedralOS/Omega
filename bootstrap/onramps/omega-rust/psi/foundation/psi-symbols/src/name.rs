@@ -12,6 +12,10 @@ enum SymbolNameStorage {
     #[default]
     Missing,
     Source(SourceSpan),
+    OwnedSource {
+        value: Arc<str>,
+        source_span: SourceSpan,
+    },
     Static(&'static str),
     Owned(Arc<str>),
 }
@@ -31,6 +35,12 @@ impl SymbolName {
             storage: match name {
                 SymbolNameRef::Borrowed(value) => SymbolNameStorage::Owned(Arc::from(value)),
                 SymbolNameRef::Source(source_span) => SymbolNameStorage::Source(source_span),
+                SymbolNameRef::OwnedSource { value, source_span } => {
+                    SymbolNameStorage::OwnedSource {
+                        value: Arc::from(value),
+                        source_span,
+                    }
+                }
                 SymbolNameRef::Static(value) => SymbolNameStorage::Static(value),
             },
         }
@@ -42,6 +52,7 @@ impl SymbolName {
             SymbolNameStorage::Source(source_span) => sources
                 .map(|sources| sources.text_at(*source_span))
                 .unwrap_or(""),
+            SymbolNameStorage::OwnedSource { value, .. } => value.as_ref(),
             SymbolNameStorage::Static(value) => value,
             SymbolNameStorage::Owned(value) => value.as_ref(),
         }
@@ -51,6 +62,7 @@ impl SymbolName {
         match self.storage {
             SymbolNameStorage::Missing => SymbolNameStorageKind::Missing,
             SymbolNameStorage::Source(_) => SymbolNameStorageKind::Source,
+            SymbolNameStorage::OwnedSource { .. } => SymbolNameStorageKind::Source,
             SymbolNameStorage::Static(_) => SymbolNameStorageKind::Static,
             SymbolNameStorage::Owned(_) => SymbolNameStorageKind::Owned,
         }
@@ -59,6 +71,7 @@ impl SymbolName {
     pub fn source_span(&self) -> Option<SourceSpan> {
         match self.storage {
             SymbolNameStorage::Source(source_span) => Some(source_span),
+            SymbolNameStorage::OwnedSource { source_span, .. } => Some(source_span),
             SymbolNameStorage::Missing
             | SymbolNameStorage::Static(_)
             | SymbolNameStorage::Owned(_) => None,
@@ -70,6 +83,11 @@ impl SymbolName {
 pub enum SymbolNameRef<'name> {
     Borrowed(&'name str),
     Source(SourceSpan),
+    /// Owned semantic spelling attached to one exact authored declaration span.
+    OwnedSource {
+        value: &'name str,
+        source_span: SourceSpan,
+    },
     Static(&'static str),
 }
 
@@ -78,6 +96,7 @@ impl<'name> SymbolNameRef<'name> {
         match self {
             Self::Borrowed(value) => value,
             Self::Source(_) => "",
+            Self::OwnedSource { value, .. } => value,
             Self::Static(value) => value,
         }
     }

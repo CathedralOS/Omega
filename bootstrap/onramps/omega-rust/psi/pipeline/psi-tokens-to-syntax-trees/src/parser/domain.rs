@@ -41,7 +41,13 @@ pub(super) fn parse_domain_definition<'tokens, 'source>(
         crate::parser::type_reference::parse_domain_argument_handles(syntax_trees, input)?;
     let ((classification, classification_token_count), input) = parse_domain_classification(input)?;
     let name = if generic_parameters.type_parameters.is_empty() {
-        Identifier::generated(format!("{target_label}::{domain_name}"))
+        // The combined semantic path is synthesized, but the declaration is still authored at
+        // the domain-name token. Retaining that span lets symbol provenance recover the exact
+        // package owner without treating the combined spelling as an identity oracle.
+        Identifier::new(
+            format!("{target_label}::{domain_name}"),
+            domain_name.source_span(),
+        )
     } else {
         domain_name
     };

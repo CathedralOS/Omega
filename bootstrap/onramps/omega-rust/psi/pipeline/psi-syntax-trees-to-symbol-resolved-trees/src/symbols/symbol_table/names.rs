@@ -9,7 +9,13 @@ pub(super) fn symbol_seed<'name>(
     has_sources: bool,
 ) -> SymbolSeed<'name> {
     if has_sources && name.is_source_backed() {
-        (kind, SymbolNameRef::Source(name.source_span()))
+        (
+            kind,
+            SymbolNameRef::OwnedSource {
+                value: name.as_str(),
+                source_span: name.source_span(),
+            },
+        )
     } else {
         (kind, SymbolNameRef::Borrowed(name.as_str()))
     }

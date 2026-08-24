@@ -377,9 +377,15 @@ complete.
   fields, variants, payloads, relevance, and package-qualified type identities.
   Quotients, data `where` facts, and static machine/proposition parameters fail
   review until exact canonical rows exist; none are silently omitted.
+  Package-owned public domains now project exact identity, alpha-normalized type
+  and const parameters, carrier type, and index arguments. Synthesized domain
+  paths retain their owned semantic spelling and exact authored package
+  provenance independently. Alias, predicate, classification, semantic-role,
+  establishment-route, and operator semantics reject until their canonical
+  rows exist.
   Declaration kinds without retained visibility reject
   `pub` instead of silently compiling a private API. Settled export semantics,
-  normalized shape for public traits and domains,
+  normalized shape for public traits and the remaining domain semantic lanes,
   generated/toolchain symbol ownership, package-qualified provider
   binding/selection identities, source/toolchain/compiler commitments,
   non-provider trust ownership, build observations, and reproducibility
@@ -417,8 +423,8 @@ complete.
   closing the implicit-entry-state ownership gap discovered by the crash
   projection. Review identity now retains the exact deployment target profile,
   so profiles such as Windows and UEFI cannot collapse merely because they
-  share a native ABI. A v3 length-framed binary comparison encoding now covers
-  every retained public-data, callable,
+  share a native ABI. A v4 length-framed binary comparison encoding now covers
+  every retained public-domain, public-data, callable,
   crash/proof predicate, authority flow, mutation, and selected-provider row.
   It converts platform-width ordinals to portable `u64`, distinguishes exact
   deployment profiles, rejects interner-backed external-supply variants, and

@@ -51,6 +51,32 @@ impl PackageReviewTypeParameter {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PackageReviewDomainShape {
+    identity: PackageReviewNominalIdentity,
+    type_parameters: Vec<PackageReviewTypeParameter>,
+    target_type: PackageReviewTypeIdentity,
+    index_arguments: Vec<PackageReviewTypeIdentity>,
+}
+
+impl PackageReviewDomainShape {
+    pub const fn identity(&self) -> &PackageReviewNominalIdentity {
+        &self.identity
+    }
+
+    pub fn type_parameters(&self) -> &[PackageReviewTypeParameter] {
+        &self.type_parameters
+    }
+
+    pub const fn target_type(&self) -> &PackageReviewTypeIdentity {
+        &self.target_type
+    }
+
+    pub fn index_arguments(&self) -> &[PackageReviewTypeIdentity] {
+        &self.index_arguments
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageReviewDataField {
     identity: Option<u64>,
     name: String,
@@ -663,6 +689,7 @@ impl CheckedPackageCallableReview {
 pub struct CheckedPackageReviewProjection {
     package: PackageKeyIdentity,
     target: omega_target::TargetProfile,
+    public_domains: Vec<PackageReviewDomainShape>,
     public_data: Vec<PackageReviewDataShape>,
     callables: Vec<CheckedPackageCallableReview>,
     selected_providers: Vec<CheckedPackageProviderReview>,
@@ -675,6 +702,10 @@ impl CheckedPackageReviewProjection {
 
     pub const fn target(&self) -> omega_target::TargetProfile {
         self.target
+    }
+
+    pub fn public_domains(&self) -> &[PackageReviewDomainShape] {
+        &self.public_domains
     }
 
     pub fn public_data(&self) -> &[PackageReviewDataShape] {
@@ -736,6 +767,7 @@ pub fn project_checked_package_review(
             .collect());
     }
     let build_machine = compilation.selected_build_machine_symbol();
+    let public_domains = project_public_domains(compilation, package)?;
     let public_data = project_public_data(compilation, package)?;
     let synchronous_invocations = psi_effects::infer_synchronous_invocations(&compilation.typed);
     let mut callables = Vec::new();
@@ -809,10 +841,85 @@ pub fn project_checked_package_review(
     Ok(CheckedPackageReviewProjection {
         package,
         target,
+        public_domains,
         public_data,
         callables,
         selected_providers,
     })
+}
+
+fn project_public_domains(
+    compilation: &CheckedCompilation,
+    package: PackageKeyIdentity,
+) -> Result<Vec<PackageReviewDomainShape>, Vec<Diagnostic>> {
+    let mut rows = Vec::new();
+    for definition in compilation
+        .domain_definitions()
+        .iter()
+        .filter(|row| row.is_public)
+    {
+        let identity = nominal_identity(compilation, definition.symbol)?;
+        if !reviewed_package_owns(&identity, package)? {
+            continue;
+        }
+        if definition.alias.is_some() {
+            return Err(vec![Diagnostic::error(format!(
+                "public domain `{}` uses transparent alias semantics not yet represented by package review",
+                identity.path
+            ))]);
+        }
+        if definition.predicate_body.is_present() || !compilation.proof_facts(definition).is_empty()
+        {
+            return Err(vec![Diagnostic::error(format!(
+                "public domain `{}` uses predicate facts not yet represented by package review",
+                identity.path
+            ))]);
+        }
+        if definition.classification.is_some() {
+            return Err(vec![Diagnostic::error(format!(
+                "public domain `{}` uses a compiler-owned classification not yet represented by package review",
+                identity.path
+            ))]);
+        }
+        if !definition.semantic_roles.is_empty() {
+            return Err(vec![Diagnostic::error(format!(
+                "public domain `{}` uses semantic roles not yet represented by package review",
+                identity.path
+            ))]);
+        }
+        if !definition.establishment_routes.is_empty() {
+            return Err(vec![Diagnostic::error(format!(
+                "public domain `{}` uses establishment routes not yet represented by package review",
+                identity.path
+            ))]);
+        }
+        if !compilation.domain_operators(definition).is_empty() {
+            return Err(vec![Diagnostic::error(format!(
+                "public domain `{}` uses operators not yet represented by package review",
+                identity.path
+            ))]);
+        }
+
+        let parameters = compilation.domain_type_parameters(definition);
+        let (binders, type_parameters) =
+            project_type_parameters(compilation, parameters, "domain", &identity.path)?;
+        rows.push(PackageReviewDomainShape {
+            identity,
+            type_parameters,
+            target_type: review_type_identity_with_binders(
+                compilation,
+                definition.target_type,
+                &binders,
+            ),
+            index_arguments: definition
+                .index_arguments
+                .iter()
+                .map(|argument| review_type_identity_with_binders(compilation, *argument, &binders))
+                .collect(),
+        });
+    }
+    rows.sort_by(|left, right| left.identity.cmp(&right.identity));
+    Ok(rows)
 }
 
 fn project_public_data(
@@ -843,37 +950,8 @@ fn project_public_data(
         }
 
         let parameters = compilation.data_type_parameters(definition);
-        let binders = parameters
-            .iter()
-            .enumerate()
-            .map(|(ordinal, parameter)| (parameter.symbol, format!("type-parameter:{ordinal}")))
-            .collect::<Vec<_>>();
-        let mut type_parameters = Vec::with_capacity(parameters.len());
-        for parameter in parameters {
-            let kind = match parameter.kind {
-                psi_typed_trees::data::TypeParameterKind::Type => {
-                    PackageReviewTypeParameterKind::Type
-                }
-                psi_typed_trees::data::TypeParameterKind::Const { type_reference } => {
-                    PackageReviewTypeParameterKind::Const(review_type_identity_with_binders(
-                        compilation,
-                        type_reference,
-                        &binders,
-                    ))
-                }
-                psi_typed_trees::data::TypeParameterKind::Machine { .. }
-                | psi_typed_trees::data::TypeParameterKind::Proposition { .. } => {
-                    return Err(vec![Diagnostic::error(format!(
-                        "public data `{}` uses a static machine or proposition parameter not yet represented by package review",
-                        identity.path
-                    ))]);
-                }
-            };
-            type_parameters.push(PackageReviewTypeParameter {
-                kind,
-                bounds: parameter.bounds,
-            });
-        }
+        let (binders, type_parameters) =
+            project_type_parameters(compilation, parameters, "data", &identity.path)?;
 
         let members = compilation
             .data_members(definition)
@@ -915,6 +993,43 @@ fn project_public_data(
     }
     rows.sort_by(|left, right| left.identity.cmp(&right.identity));
     Ok(rows)
+}
+
+fn project_type_parameters(
+    compilation: &CheckedCompilation,
+    parameters: &[psi_typed_trees::data::TypeParameter],
+    declaration_kind: &str,
+    declaration_path: &str,
+) -> Result<(Vec<(SymbolHandle, String)>, Vec<PackageReviewTypeParameter>), Vec<Diagnostic>> {
+    let binders = parameters
+        .iter()
+        .enumerate()
+        .map(|(ordinal, parameter)| (parameter.symbol, format!("type-parameter:{ordinal}")))
+        .collect::<Vec<_>>();
+    let mut projected = Vec::with_capacity(parameters.len());
+    for parameter in parameters {
+        let kind = match parameter.kind {
+            psi_typed_trees::data::TypeParameterKind::Type => PackageReviewTypeParameterKind::Type,
+            psi_typed_trees::data::TypeParameterKind::Const { type_reference } => {
+                PackageReviewTypeParameterKind::Const(review_type_identity_with_binders(
+                    compilation,
+                    type_reference,
+                    &binders,
+                ))
+            }
+            psi_typed_trees::data::TypeParameterKind::Machine { .. }
+            | psi_typed_trees::data::TypeParameterKind::Proposition { .. } => {
+                return Err(vec![Diagnostic::error(format!(
+                    "public {declaration_kind} `{declaration_path}` uses a static machine or proposition parameter not yet represented by package review",
+                ))]);
+            }
+        };
+        projected.push(PackageReviewTypeParameter {
+            kind,
+            bounds: parameter.bounds,
+        });
+    }
+    Ok((binders, projected))
 }
 
 fn project_data_field(

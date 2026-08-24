@@ -64,6 +64,8 @@ boundary trait Host { machine ping(); }
 machine ping_leaf() satisfies Host::ping via Binding::VtableSlot(1);
 data Receipt [linear] { code: i32; }
 pub data Packet [copy] { #1 value: u32; }
+pub domain Packet::Ready;
+domain Packet::Private;
 data PrivatePacket { hidden: u32; }
 machine helper()
 crashes Abort
@@ -119,7 +121,14 @@ crashes Abort
         target,
         "review identity must retain the deployment profile, not only its native ABI",
     );
-    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 3);
+    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 4);
+    let [ready] = review.public_domains() else {
+        panic!("one package-owned public domain row")
+    };
+    assert_eq!(ready.identity().path(), "Packet::Ready");
+    assert!(ready.type_parameters().is_empty());
+    assert!(!ready.target_type().canonical().is_empty());
+    assert!(ready.index_arguments().is_empty());
     let [packet] = review.public_data() else {
         panic!("one package-owned public data row")
     };
@@ -413,7 +422,7 @@ invokes waiting;
 }
 
 #[test]
-fn exact_synchronous_invocations_change_v3_comparison_encoding() {
+fn exact_synchronous_invocations_change_v4_comparison_encoding() {
     let quiet = TempPackage::new();
     let invoking = TempPackage::new();
     quiet.write(
@@ -606,7 +615,7 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
-fn public_data_and_numbered_wire_shape_changes_change_v3_comparison_encoding() {
+fn public_data_and_numbered_wire_shape_changes_change_v4_comparison_encoding() {
     let first = TempPackage::new();
     let second = TempPackage::new();
     first.write(
@@ -637,6 +646,78 @@ machine build(builder: &mut Build) { }
     };
 
     assert_ne!(encode(&first), encode(&second));
+}
+
+#[test]
+fn public_domain_shape_changes_change_v4_comparison_encoding() {
+    let first = TempPackage::new();
+    let second = TempPackage::new();
+    first.write(
+        "main.omg",
+        "pub data Packet { value: u32; }\npub domain Packet::Ready;\n",
+    );
+    second.write(
+        "main.omg",
+        "pub data Packet { value: u32; }\npub domain Packet::Prepared;\n",
+    );
+    let build = r#"target windows_x64 { }
+machine build(builder: &mut Build) { }
+"#;
+    first.write("build.omg", build);
+    second.write("build.omg", build);
+
+    let encode = |package: &TempPackage| {
+        let checked = compile_to_checked_with_packages(
+            &package.0.join("main.omg"),
+            Some("windows_x64"),
+            package_inputs(&package.0),
+        )
+        .expect("public-domain fixture should check");
+        project_checked_package_review(&checked)
+            .expect("public-domain review should close")
+            .canonical_review_bytes()
+            .expect("public-domain encoding")
+    };
+
+    assert_ne!(encode(&first), encode(&second));
+}
+
+#[test]
+fn public_domain_generic_binders_are_alpha_normalized() {
+    let first = TempPackage::new();
+    let second = TempPackage::new();
+    first.write(
+        "main.omg",
+        r#"pub data Unit { code: u32; }
+pub domain<Carrier, const Index: Unit> Carrier::Tagged<Index>;
+"#,
+    );
+    second.write(
+        "main.omg",
+        r#"pub data Unit { code: u32; }
+pub domain<Value, const Tag: Unit> Value::Tagged<Tag>;
+"#,
+    );
+    let build = r#"target windows_x64 { }
+machine build(builder: &mut Build) { }
+"#;
+    first.write("build.omg", build);
+    second.write("build.omg", build);
+
+    let encode = |package: &TempPackage| {
+        let checked = compile_to_checked_with_packages(
+            &package.0.join("main.omg"),
+            Some("windows_x64"),
+            package_inputs(&package.0),
+        )
+        .expect("generic public-domain fixture should check");
+        project_checked_package_review(&checked)
+            .expect("generic public-domain review should close")
+            .canonical_review_bytes()
+            .expect("generic public-domain encoding")
+    };
+
+    assert_eq!(encode(&first), encode(&second));
 }
 
 #[test]
@@ -672,6 +753,38 @@ machine build(builder: &mut Build) { }
         diagnostic
             .message
             .contains("uses proof facts not yet represented by package review")
+    }));
+}
+
+#[test]
+fn review_rejects_public_domain_semantics_that_lack_canonical_rows() {
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub data Packet { value: u32; }
+pub domain Packet::Ready
+    requires self.value == 0;
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x64 { }
+machine build(builder: &mut Build) { }
+"#,
+    );
+
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some("windows_x64"),
+        package_inputs(&package.0),
+    )
+    .expect("public domain fact fixture should check");
+    let diagnostics = project_checked_package_review(&checked)
+        .expect_err("review must not silently omit public domain facts");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("uses predicate facts not yet represented by package review")
     }));
 }
 

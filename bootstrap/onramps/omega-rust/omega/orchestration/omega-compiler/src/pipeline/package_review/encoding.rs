@@ -10,7 +10,7 @@ use psi_checked_trees::{
 };
 
 const MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW\0";
-pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 3;
+pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 4;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageReviewEncodingError {
@@ -39,10 +39,21 @@ pub(super) fn encode(
     encoder.u16(PACKAGE_REVIEW_ENCODING_VERSION);
     encoder.package_identity(review.package);
     encoder.string(review.target.target_name())?;
+    encoder.sequence(&review.public_domains, encode_domain_shape)?;
     encoder.sequence(&review.public_data, encode_data_shape)?;
     encoder.sequence(&review.callables, encode_callable)?;
     encoder.sequence(&review.selected_providers, encode_provider)?;
     Ok(encoder.output)
+}
+
+fn encode_domain_shape(
+    encoder: &mut Encoder,
+    shape: &PackageReviewDomainShape,
+) -> Result<(), PackageReviewEncodingError> {
+    encode_nominal(encoder, &shape.identity)?;
+    encoder.sequence(&shape.type_parameters, encode_type_parameter)?;
+    encode_type_identity(encoder, &shape.target_type)?;
+    encoder.sequence(&shape.index_arguments, encode_type_identity)
 }
 
 fn encode_data_shape(
