@@ -15,6 +15,7 @@ const PACKAGES: &[&str] = &[
     "generated-table",
     "file-journal",
     "network-overreach",
+    "remote-journal",
     "axiom-ledger",
     "provider-switchboard",
     "capability-vault",
@@ -55,6 +56,7 @@ fn root_snapshot<'closure>(
 fn assert_fixture_evidence(package: &str, review: &CheckedPackageReviewProjection) {
     let (trait_count, data_count, role) = match package {
         "file-journal" | "provider-switchboard" => (1, 1, PackageReviewCallableRole::Public),
+        "remote-journal" => (2, 1, PackageReviewCallableRole::Public),
         "capability-vault" => (2, 1, PackageReviewCallableRole::Public),
         "network-overreach" => (1, 0, PackageReviewCallableRole::Public),
         "axiom-ledger" => (0, 0, PackageReviewCallableRole::Boundary),
@@ -103,6 +105,34 @@ fn assert_fixture_evidence(package: &str, review: &CheckedPackageReviewProjectio
                     && callable.realized_synchronous_invocations().is_empty(),
                 "network-overreach must retain reach without a hidden invocation"
             );
+        }
+        "remote-journal" => {
+            let reach = callable.declared_service_reach().expect("published reach");
+            assert_eq!(reach.len(), 2, "remote-journal exact dangerous reach");
+            assert!(
+                reach
+                    .iter()
+                    .any(|service| service.path() == "FilesystemHost")
+            );
+            assert!(reach.iter().any(|service| service.path() == "NetworkHost"));
+            let invocations = callable
+                .declared_synchronous_invocations()
+                .expect("published invocation");
+            assert_eq!(
+                invocations.len(),
+                2,
+                "remote-journal exact dangerous invocations"
+            );
+            assert!(invocations.iter().any(|invocation| {
+                invocation
+                    .service()
+                    .is_some_and(|service| service.path() == "FilesystemHost")
+            }));
+            assert!(invocations.iter().any(|invocation| {
+                invocation
+                    .service()
+                    .is_some_and(|service| service.path() == "NetworkHost")
+            }));
         }
         "provider-switchboard" => {
             let [service] = callable.declared_service_reach().expect("published reach") else {

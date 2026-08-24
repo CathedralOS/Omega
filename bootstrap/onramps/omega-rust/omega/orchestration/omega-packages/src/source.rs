@@ -2840,6 +2840,7 @@ mod tests {
         "generated-table",
         "file-journal",
         "network-overreach",
+        "remote-journal",
         "axiom-ledger",
         "provider-switchboard",
         "capability-vault",
