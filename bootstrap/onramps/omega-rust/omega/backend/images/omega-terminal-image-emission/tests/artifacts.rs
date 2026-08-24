@@ -6,6 +6,7 @@ use omega_terminal_image_emission::{
     TERMINAL_INSTALLATION_FORMAT_MARKER, TerminalInstallationError, TerminalObjectError,
     build_terminal_installation_record, build_terminal_installation_record_with_evidence,
     build_terminal_installation_record_with_provider_executions,
+    build_terminal_installation_record_with_selected_provider_plans_and_evidence,
     build_terminal_native_fuel_installation_record, build_terminal_object_artifact,
     can_emit_terminal_executable_image, decode_terminal_installation_record,
     derive_terminal_installation_stack_demand, derive_terminal_stack_demand,
@@ -2421,6 +2422,36 @@ fn installation_record_fingerprints_component_progress_acceptance() {
             Some(&zero),
         ),
         Err(TerminalInstallationError::ZeroComponentProgressManifestIdentity)
+    );
+}
+
+#[test]
+fn installation_record_retains_selected_provider_plan_without_execution() {
+    let artifact = build_terminal_object_artifact(&two_function_plan()).expect("artifact");
+    let image = emit_terminal_executable_image(&artifact, 3).expect("image");
+    let profile = ProfileDecisionId::new(13).expect("profile decision");
+    let record = build_terminal_installation_record_with_selected_provider_plans_and_evidence(
+        &image,
+        profile,
+        [91],
+        std::iter::empty::<&dyn TerminalProviderExecutionEvidence>(),
+        None,
+    )
+    .expect("selected but unexecuted provider plan remains installation identity");
+
+    assert_eq!(record.selected_provider_plans()[0].get(), 91);
+    let bytes = encode_terminal_installation_record(&record).expect("canonical bytes");
+    assert_eq!(decode_terminal_installation_record(&bytes), Ok(record));
+
+    assert_eq!(
+        build_terminal_installation_record_with_selected_provider_plans_and_evidence(
+            &image,
+            profile,
+            [91, 91],
+            std::iter::empty::<&dyn TerminalProviderExecutionEvidence>(),
+            None,
+        ),
+        Err(TerminalInstallationError::DuplicateProviderPlan)
     );
 }
 

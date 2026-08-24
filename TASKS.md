@@ -6983,15 +6983,29 @@ compiler concept is introduced.
   visibility receipt, provider occurrence, progress receipt, or installed-code
   authority; compilation cannot mint deployment custody.
 
-  Remaining TPR6-B engineering: the deployment/composition owner above the
-  compiler must consume that candidate, bind real provider occurrences and
-  progress receipts through the live installation registry and era ledger,
-  acquire `InstalledCode`, and only then create a runnable/public carrier.
-  After that lane exists, retire the legacy compiler's temporary final-output
-  rejection. The current `write_output` lane still publishes a native
-  executable directly and carries neither the manifest nor an installation
-  acceptance, so removing the fence there would erase the obligation;
-  selected plans and authorized routes remain insufficient.
+  The production `omega-component-deployment` owner now consumes that
+  candidate beside one real `InstalledCode` occurrence. It validates exact
+  unrelocated/materialized bytes before the one-shot registry claim, returns a
+  staged session for every later retry, seals the complete selected-plan set
+  to provider occurrences, admits exact progress attestations, canonically
+  builds and decodes installation metadata, and binds the complete
+  object/image/code join. Selected but unexecuted plans remain in installation
+  identity; executions must be a selected subset and must exactly cover image
+  settlements. Runnable binding retains the live registry and checks its exact
+  selected closure even for progress-free artifacts. The current owner rejects
+  ledgers containing installed external-root records: their handles borrow
+  `InstalledCode`, so owned teardown must land before that custody can join the
+  movable runnable carrier. Successful era retirement is the sole public
+  decomposition path for runnable code and registry custody.
+
+  Remaining TPR6-B engineering: retire the legacy compiler's temporary final-
+  output rejection only after `write_output` delegates to this deployment
+  lane. The current path still publishes a native executable directly and
+  carries neither the manifest nor an installation acceptance, so removing
+  the fence there would erase the obligation; selected plans and authorized
+  routes remain insufficient. Add owned installed-root teardown before
+  extending the deployment composer beyond provider-occurrence/progress-only
+  registries.
   Independently add authored
   qualification-preserving correspondence beyond direct parameter/field
   identity. `QualificationEvidence` retains evidence kind and source

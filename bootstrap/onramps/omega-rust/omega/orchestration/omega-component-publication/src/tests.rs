@@ -245,9 +245,9 @@ fn runnable_fixture(seed: u64) -> RunnableFixture {
         Some(&progress),
     )
     .expect("terminal installation record");
-    let artifact = bind_installed_terminal_artifact(&object, &image, installation, installed)
+    let artifact = bind_installed_terminal_artifact(object, image, installation, installed)
         .expect("installed terminal artifact");
-    let runnable = bind_installed_runnable_component(artifact, Some(progress))
+    let runnable = bind_installed_runnable_component(artifact, root_ledger, Some(progress))
         .expect("installed runnable component");
     RunnableFixture {
         installed_code,
@@ -555,8 +555,8 @@ fn runnable_publication_retains_opaque_progress_until_successful_retirement() {
             .identity(),
         second.installed_code
     );
-    let (artifact, progress) = retired.into_parts();
-    let (_, installed) = artifact.into_parts();
+    let (artifact, _, progress) = retired.into_parts();
+    let (_, _, _, installed) = artifact.into_parts();
     assert!(progress.is_some());
     assert_eq!(installed.identity(), first.installed_code);
 }
@@ -574,10 +574,8 @@ fn runnable_publication_rejection_returns_candidate_receipt_and_opaque_evidence(
         .expect_err("artifact occurrence substitution rejects");
     assert!(error.diagnostic().contains("different installed artifact"));
     let (_, _, runnable) = error.into_parts();
-    let (artifact, progress) = runnable.into_parts();
-    let (_, installed) = artifact.into_parts();
-    assert!(progress.is_some());
-    assert_eq!(installed.identity(), fixture.installed_code);
+    assert!(runnable.progress().is_some());
+    assert_eq!(runnable.installed().identity(), fixture.installed_code);
     assert_eq!(ledger.current_era(), None);
 }
 

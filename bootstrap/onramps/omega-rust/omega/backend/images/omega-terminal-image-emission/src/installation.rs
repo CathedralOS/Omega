@@ -407,12 +407,58 @@ where
         + ?Sized
         + 'execution,
 {
+    let provider_executions = provider_executions.into_iter().collect::<Vec<_>>();
+    let mut selected_provider_plans = provider_executions
+        .iter()
+        .map(|execution| execution.provider_plan())
+        .collect::<Vec<_>>();
+    selected_provider_plans.sort_unstable();
+    selected_provider_plans.dedup();
+    build_terminal_installation_record_with_selected_provider_plans_and_evidence(
+        image,
+        profile_decision,
+        selected_provider_plans,
+        provider_executions,
+        component_progress,
+    )
+}
+
+/// Build a terminal installation record from the complete selected provider
+/// plan closure plus the admitted executions actually used by the image.
+///
+/// Selected plans need not all execute in this image, but every execution must
+/// belong to the selected closure and the execution closure must still match
+/// the image's retained boundary settlements exactly.
+pub fn build_terminal_installation_record_with_selected_provider_plans_and_evidence<
+    'execution,
+    Execution,
+>(
+    image: &TerminalExecutableImage,
+    profile_decision: ProfileDecisionId,
+    selected_provider_plans: impl IntoIterator<Item = u64>,
+    provider_executions: impl IntoIterator<Item = &'execution Execution>,
+    component_progress: Option<
+        &dyn omega_terminal_installation_evidence::TerminalComponentProgressAcceptanceEvidence,
+    >,
+) -> Result<TerminalInstallationRecord, TerminalInstallationError>
+where
+    Execution: omega_terminal_installation_evidence::TerminalProviderExecutionEvidence
+        + ?Sized
+        + 'execution,
+{
     let compiler_text_validation = image
         .output()
         .compiler_text_validation
         .ok_or(TerminalInstallationError::MissingCompilerTextValidation)?;
     let mut admitted_executions = std::collections::BTreeSet::new();
-    let mut selected_provider_plans = std::collections::BTreeSet::new();
+    let mut selected_provider_plan_set = std::collections::BTreeSet::new();
+    for identity in selected_provider_plans {
+        let identity = SelectedProviderPlanIdentity::new(identity)
+            .ok_or(TerminalInstallationError::ZeroProviderPlan)?;
+        if !selected_provider_plan_set.insert(identity) {
+            return Err(TerminalInstallationError::DuplicateProviderPlan);
+        }
+    }
     for execution in provider_executions {
         if !admitted_executions.insert((
             execution.provider_plan(),
@@ -423,10 +469,11 @@ where
         )) {
             return Err(TerminalInstallationError::DuplicateProviderExecution);
         }
-        selected_provider_plans.insert(
-            SelectedProviderPlanIdentity::new(execution.provider_plan())
-                .ok_or(TerminalInstallationError::ZeroProviderPlan)?,
-        );
+        let execution_plan = SelectedProviderPlanIdentity::new(execution.provider_plan())
+            .ok_or(TerminalInstallationError::ZeroProviderPlan)?;
+        if !selected_provider_plan_set.contains(&execution_plan) {
+            return Err(TerminalInstallationError::ProviderExecutionOutsideSelectedClosure);
+        }
     }
     let required_executions = image
         .boundary_settlements()
@@ -463,7 +510,7 @@ where
         target: image.target(),
         subsystem: image.subsystem(),
         profile_decision,
-        selected_provider_plans: selected_provider_plans.into_iter().collect(),
+        selected_provider_plans: selected_provider_plan_set.into_iter().collect(),
         component_progress,
         functions: image
             .functions()
@@ -1001,7 +1048,7 @@ fn validate_record_shape(
         .iter()
         .map(|settlement| settlement.settlement.provider_execution.provider_plan)
         .collect::<std::collections::BTreeSet<_>>();
-    if required != selected {
+    if !required.is_subset(&selected) {
         return Err(TerminalInstallationError::ProviderSettlementClosureMismatch);
     }
     if record.functions.is_empty() {
@@ -2721,7 +2768,9 @@ pub enum TerminalInstallationError {
     ZeroComponentProgressManifestIdentity,
     ZeroComponentProgressAcceptanceIdentity,
     ZeroProviderPlan,
+    DuplicateProviderPlan,
     DuplicateProviderExecution,
+    ProviderExecutionOutsideSelectedClosure,
     NonCanonicalProviderPlanOrder,
     TooManyProviderPlans,
     TooManyInstalledFunctions,

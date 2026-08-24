@@ -286,6 +286,16 @@ independently while the runnable carrier is live. A compiler lane that emits a
 native executable without those staged installation inputs stays fail closed
 rather than treating selected provider plans as receipts.
 
+The production deployment join preserves the complete selected provider-plan
+closure independently of executions that happen to occur in one image.
+Selected but unexecuted plans remain fingerprinted; executions must belong to
+that set and exactly cover retained image settlements. The claimed registry is
+carried through retryable provider/progress closure and remains inside the
+runnable carrier until successful era retirement. Runnable decomposition is
+unavailable before retirement. This owner currently accepts provider-
+occurrence and progress records only; installed external-root handles borrow
+installed code and require owned teardown before entering the same carrier.
+
 The normalized guarantee records the actual pinned premises, not merely the
 presence of `suspends` or `blocks` operational clauses. General machine-side
 trace propositions, deadlines, starvation freedom, and entailment between
