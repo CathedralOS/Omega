@@ -1,6 +1,6 @@
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
-use std::ffi::OsStr;
+use std::ffi::{OsStr, OsString};
 use std::fmt;
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Write};
@@ -15,6 +15,10 @@ const GIT_CACHE_SNAPSHOTS: &str = "snapshots";
 const GIT_SNAPSHOT_METADATA: &str = "snapshot.identity";
 const GIT_SNAPSHOT_SOURCE: &str = "source";
 const GIT_SNAPSHOT_POLICY: &[u8] = b"omega-git-snapshot-v2";
+const LOCAL_CACHE_SNAPSHOTS: &str = "local-snapshots";
+const LOCAL_SNAPSHOT_METADATA: &str = "snapshot.identity";
+const LOCAL_SNAPSHOT_SOURCE: &str = "source";
+const LOCAL_SNAPSHOT_POLICY: &[u8] = b"omega-local-source-snapshot-v1";
 const CANONICAL_DIRECTORY_MODE: u16 = 0o555;
 const GIT_ORIGIN_FETCH: &str = "+refs/heads/*:refs/remotes/origin/*";
 static STAGING_SEQUENCE: AtomicU64 = AtomicU64::new(0);
@@ -45,6 +49,20 @@ pub struct ResolvedLocalSource {
     pub file_count: usize,
     pub byte_count: u64,
     pub content_identity: String,
+}
+
+/// A resolver-owned immutable copy of a requested local source tree.
+///
+/// `requested_root` preserves the caller's locator, `canonical_live_root` identifies the mutable
+/// tree that was captured, and `snapshot_root` is the only path downstream consumers should use.
+/// `normalized` is re-resolved from that published snapshot rather than trusted from the live tree
+/// or staging directory.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResolvedLocalSnapshot {
+    pub requested_root: PathBuf,
+    pub canonical_live_root: PathBuf,
+    pub snapshot_root: PathBuf,
+    pub normalized: ResolvedLocalSource,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -108,6 +126,17 @@ pub enum SourceResolveError {
     GitCacheInvalid {
         path: PathBuf,
         message: String,
+    },
+    LocalSnapshotInvalid {
+        path: PathBuf,
+        message: String,
+    },
+    LocalSourceChanged {
+        path: PathBuf,
+    },
+    LocalSnapshotCacheOverlapsSource {
+        canonical_live_root: PathBuf,
+        canonical_cache_dir: PathBuf,
     },
 }
 
@@ -180,6 +209,25 @@ impl fmt::Display for SourceResolveError {
                 "git cache entry `{}` is invalid: {message}",
                 path.display()
             ),
+            Self::LocalSnapshotInvalid { path, message } => write!(
+                output,
+                "local snapshot cache entry `{}` is invalid: {message}",
+                path.display()
+            ),
+            Self::LocalSourceChanged { path } => write!(
+                output,
+                "local source `{}` changed while its immutable snapshot was being captured",
+                path.display()
+            ),
+            Self::LocalSnapshotCacheOverlapsSource {
+                canonical_live_root,
+                canonical_cache_dir,
+            } => write!(
+                output,
+                "local snapshot cache `{}` overlaps live source `{}`",
+                canonical_cache_dir.display(),
+                canonical_live_root.display()
+            ),
         }
     }
 }
@@ -190,66 +238,17 @@ pub fn resolve_local_source(
     root: impl AsRef<Path>,
     limits: LocalSourceLimits,
 ) -> Result<ResolvedLocalSource, SourceResolveError> {
-    let requested_root = root.as_ref();
-    let root = requested_root
-        .canonicalize()
-        .map_err(|error| io_error(requested_root, error))?;
-    if !root.is_dir() {
-        return Err(SourceResolveError::NotDirectory { path: root });
-    }
+    Ok(capture_local_source(root.as_ref(), limits)?.normalized)
+}
 
-    let mut entries = Vec::new();
-    let mut visited_dirs = BTreeSet::new();
-    visit_directory(
-        &root,
-        PathBuf::new(),
-        0,
-        &root,
-        limits,
-        &mut visited_dirs,
-        &mut entries,
-    )?;
-    entries.sort_by(|left, right| left.relative_bytes.cmp(&right.relative_bytes));
-
-    let mut identity = SourceIdentityHasher::new(entries.len());
-    let mut file_count = 0;
-    for entry in &entries {
-        match &entry.kind {
-            SourceEntryKind::Directory { path } => {
-                let metadata =
-                    std::fs::symlink_metadata(path).map_err(|error| io_error(path, error))?;
-                if metadata.file_type().is_symlink() || !metadata.is_dir() {
-                    return Err(SourceResolveError::UnsupportedFileType { path: path.clone() });
-                }
-                // Directory permissions belong to the live checkout, not package content. The
-                // future consumed snapshot canonicalizes all directories to 0555, as Git already
-                // must because trees carry no directory mode. Hash that canonical form for both.
-                identity.add_directory(&entry.relative_bytes, CANONICAL_DIRECTORY_MODE);
-            }
-            SourceEntryKind::File { path } => {
-                let remaining = limits.max_bytes.checked_sub(identity.byte_count).ok_or(
-                    SourceResolveError::TooManyBytes {
-                        limit: limits.max_bytes,
-                    },
-                )?;
-                let (bytes, executable) = read_file_bounded(path, remaining, limits.max_bytes)?;
-                identity.add_file(&entry.relative_bytes, executable, &bytes)?;
-                file_count += 1;
-            }
-            SourceEntryKind::Symlink { target_bytes } => {
-                identity.add_symlink(&entry.relative_bytes, target_bytes);
-                file_count += 1;
-            }
-        }
-    }
-    let (byte_count, content_identity) = identity.finish();
-
-    Ok(ResolvedLocalSource {
-        root,
-        file_count,
-        byte_count,
-        content_identity,
-    })
+pub fn resolve_local_source_snapshot(
+    root: impl AsRef<Path>,
+    cache_dir: impl AsRef<Path>,
+    limits: LocalSourceLimits,
+) -> Result<ResolvedLocalSnapshot, SourceResolveError> {
+    let requested_root = root.as_ref().to_path_buf();
+    let captured = capture_local_source(&requested_root, limits)?;
+    publish_local_snapshot(requested_root, captured, cache_dir.as_ref(), limits)
 }
 
 pub fn resolve_git_source(
@@ -942,6 +941,192 @@ fn verify_path_read_only(
 }
 
 #[derive(Debug, PartialEq, Eq)]
+struct LocalSnapshotMetadata {
+    file_count: usize,
+    byte_count: u64,
+    content_identity: String,
+}
+
+fn local_snapshot_metadata(local: &ResolvedLocalSource) -> Vec<u8> {
+    let mut metadata = LOCAL_SNAPSHOT_POLICY.to_vec();
+    metadata.extend_from_slice(&(local.file_count as u64).to_le_bytes());
+    metadata.extend_from_slice(&local.byte_count.to_le_bytes());
+    append_framed_bytes(&mut metadata, local.content_identity.as_bytes());
+    metadata
+}
+
+fn parse_local_snapshot_metadata(
+    bytes: &[u8],
+    path: &Path,
+) -> Result<LocalSnapshotMetadata, SourceResolveError> {
+    let Some(mut remaining) = bytes.strip_prefix(LOCAL_SNAPSHOT_POLICY) else {
+        return Err(local_snapshot_invalid(
+            path,
+            "snapshot metadata policy does not match",
+        ));
+    };
+    let file_count = take_u64(&mut remaining)
+        .and_then(|count| usize::try_from(count).ok())
+        .ok_or_else(|| local_snapshot_invalid(path, "snapshot file count is invalid"))?;
+    let byte_count = take_u64(&mut remaining)
+        .ok_or_else(|| local_snapshot_invalid(path, "snapshot byte count is invalid"))?;
+    let content_identity = take_framed_bytes(&mut remaining)
+        .and_then(|bytes| std::str::from_utf8(bytes).ok())
+        .filter(|identity| {
+            identity.len() == 64 && identity.bytes().all(|byte| byte.is_ascii_hexdigit())
+        })
+        .ok_or_else(|| local_snapshot_invalid(path, "snapshot content identity is invalid"))?
+        .to_owned();
+    if !remaining.is_empty() {
+        return Err(local_snapshot_invalid(
+            path,
+            "snapshot metadata has trailing bytes",
+        ));
+    }
+    Ok(LocalSnapshotMetadata {
+        file_count,
+        byte_count,
+        content_identity,
+    })
+}
+
+fn verify_local_snapshot(
+    publication: &Path,
+    content_identity: &str,
+    limits: LocalSourceLimits,
+) -> Result<ResolvedLocalSource, SourceResolveError> {
+    require_local_snapshot_directory(publication, "snapshot publication is not a real directory")?;
+    let source = publication.join(LOCAL_SNAPSHOT_SOURCE);
+    require_local_snapshot_directory(&source, "snapshot source is not a real directory")?;
+    let metadata_path = publication.join(LOCAL_SNAPSHOT_METADATA);
+    require_local_snapshot_file(&metadata_path, "snapshot metadata is not a regular file")?;
+    let metadata_length = std::fs::symlink_metadata(&metadata_path)
+        .map_err(|error| io_error(&metadata_path, error))?
+        .len();
+    if metadata_length > 512 {
+        return Err(local_snapshot_invalid(
+            &metadata_path,
+            "snapshot metadata exceeds its limit",
+        ));
+    }
+    let metadata =
+        std::fs::read(&metadata_path).map_err(|error| io_error(&metadata_path, error))?;
+    let expected = parse_local_snapshot_metadata(&metadata, &metadata_path)?;
+    if expected.content_identity != content_identity {
+        return Err(local_snapshot_invalid(
+            &metadata_path,
+            "snapshot content identity does not match its cache key",
+        ));
+    }
+    verify_local_snapshot_modes(publication)?;
+    let normalized = resolve_local_source(&source, limits)?;
+    if normalized.file_count != expected.file_count
+        || normalized.byte_count != expected.byte_count
+        || normalized.content_identity != expected.content_identity
+    {
+        return Err(local_snapshot_invalid(
+            publication,
+            "published snapshot does not match resolver metadata",
+        ));
+    }
+    Ok(normalized)
+}
+
+fn require_local_snapshot_directory(path: &Path, message: &str) -> Result<(), SourceResolveError> {
+    let metadata = std::fs::symlink_metadata(path).map_err(|error| io_error(path, error))?;
+    if metadata.file_type().is_symlink() || !metadata.is_dir() {
+        return Err(local_snapshot_invalid(path, message));
+    }
+    Ok(())
+}
+
+fn require_local_snapshot_file(path: &Path, message: &str) -> Result<(), SourceResolveError> {
+    let metadata = std::fs::symlink_metadata(path).map_err(|error| io_error(path, error))?;
+    if metadata.file_type().is_symlink() || !metadata.is_file() {
+        return Err(local_snapshot_invalid(path, message));
+    }
+    Ok(())
+}
+
+fn verify_local_snapshot_modes(root: &Path) -> Result<(), SourceResolveError> {
+    let mut directories = vec![root.to_path_buf()];
+    let mut cursor = 0;
+    while cursor < directories.len() {
+        let directory = directories[cursor].clone();
+        cursor += 1;
+        verify_local_snapshot_directory_mode(&directory)?;
+        for entry in std::fs::read_dir(&directory).map_err(|error| io_error(&directory, error))? {
+            let entry = entry.map_err(|error| io_error(&directory, error))?;
+            let path = entry.path();
+            let metadata =
+                std::fs::symlink_metadata(&path).map_err(|error| io_error(&path, error))?;
+            if metadata.is_dir() {
+                directories.push(path);
+            } else if metadata.is_file() {
+                verify_local_snapshot_file_mode(&path, &metadata)?;
+            } else if !metadata.file_type().is_symlink() {
+                return Err(local_snapshot_invalid(
+                    &path,
+                    "snapshot contains an unsupported filesystem entry type",
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+#[cfg(unix)]
+fn verify_local_snapshot_directory_mode(path: &Path) -> Result<(), SourceResolveError> {
+    use std::os::unix::fs::PermissionsExt;
+
+    let mode = std::fs::symlink_metadata(path)
+        .map_err(|error| io_error(path, error))?
+        .permissions()
+        .mode()
+        & 0o777;
+    if mode != 0o555 {
+        return Err(local_snapshot_invalid(
+            path,
+            "snapshot directory mode is not canonical 0555",
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn verify_local_snapshot_directory_mode(_path: &Path) -> Result<(), SourceResolveError> {
+    Ok(())
+}
+
+#[cfg(unix)]
+fn verify_local_snapshot_file_mode(
+    path: &Path,
+    metadata: &std::fs::Metadata,
+) -> Result<(), SourceResolveError> {
+    use std::os::unix::fs::PermissionsExt;
+
+    let mode = metadata.permissions().mode() & 0o777;
+    if !matches!(mode, 0o444 | 0o555) {
+        return Err(local_snapshot_invalid(
+            path,
+            "snapshot file mode is not canonical 0444 or 0555",
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn verify_local_snapshot_file_mode(
+    path: &Path,
+    metadata: &std::fs::Metadata,
+) -> Result<(), SourceResolveError> {
+    if !metadata.permissions().readonly() {
+        return Err(local_snapshot_invalid(path, "snapshot file is writable"));
+    }
+    Ok(())
+}
+
+#[derive(Debug, PartialEq, Eq)]
 struct GitSnapshotMetadata {
     tree: String,
     file_count: usize,
@@ -1198,6 +1383,46 @@ impl PendingSnapshot {
 }
 
 impl Drop for PendingSnapshot {
+    fn drop(&mut self) {
+        if !self.published {
+            make_tree_owner_writable(&self.root);
+            let _ = std::fs::remove_dir_all(&self.root);
+        }
+    }
+}
+
+struct PendingLocalSnapshot {
+    root: PathBuf,
+    published: bool,
+}
+
+impl PendingLocalSnapshot {
+    fn create(snapshots: &Path, identity: &str) -> Result<Self, SourceResolveError> {
+        for _ in 0..128 {
+            let sequence = STAGING_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+            let root = snapshots.join(format!(
+                ".source-{identity}.stage-{}-{sequence}",
+                std::process::id()
+            ));
+            match std::fs::create_dir(&root) {
+                Ok(()) => {
+                    return Ok(Self {
+                        root,
+                        published: false,
+                    });
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+                Err(error) => return Err(io_error(&root, error)),
+            }
+        }
+        Err(local_snapshot_invalid(
+            snapshots,
+            "could not allocate a unique snapshot staging directory",
+        ))
+    }
+}
+
+impl Drop for PendingLocalSnapshot {
     fn drop(&mut self) {
         if !self.published {
             make_tree_owner_writable(&self.root);
@@ -1469,6 +1694,13 @@ fn cache_invalid(path: &Path, message: impl Into<String>) -> SourceResolveError 
     }
 }
 
+fn local_snapshot_invalid(path: &Path, message: impl Into<String>) -> SourceResolveError {
+    SourceResolveError::LocalSnapshotInvalid {
+        path: path.to_path_buf(),
+        message: message.into(),
+    }
+}
+
 fn require_real_directory(path: &Path, message: &str) -> Result<(), SourceResolveError> {
     let metadata = std::fs::symlink_metadata(path).map_err(|error| io_error(path, error))?;
     if metadata.file_type().is_symlink() || !metadata.is_dir() {
@@ -1505,6 +1737,33 @@ impl CacheEntryLock {
             .map_err(|error| io_error(path, error))?;
         file.lock().map_err(|error| io_error(path, error))?;
         require_regular_file(path, "cache lock was replaced while being acquired")?;
+        Ok(Self { file })
+    }
+
+    fn acquire_local(path: &Path) -> Result<Self, SourceResolveError> {
+        if let Ok(metadata) = std::fs::symlink_metadata(path)
+            && (metadata.file_type().is_symlink() || !metadata.is_file())
+        {
+            return Err(local_snapshot_invalid(
+                path,
+                "cache lock is not a regular file",
+            ));
+        }
+        let file = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(path)
+            .map_err(|error| io_error(path, error))?;
+        file.lock().map_err(|error| io_error(path, error))?;
+        let metadata = std::fs::symlink_metadata(path).map_err(|error| io_error(path, error))?;
+        if metadata.file_type().is_symlink() || !metadata.is_file() {
+            return Err(local_snapshot_invalid(
+                path,
+                "cache lock was replaced while being acquired",
+            ));
+        }
         Ok(Self { file })
     }
 }
@@ -1559,6 +1818,7 @@ impl Drop for PendingCacheEntry {
 #[derive(Debug)]
 struct SourceEntry {
     relative_bytes: Vec<u8>,
+    relative_path: PathBuf,
     kind: SourceEntryKind,
 }
 
@@ -1567,6 +1827,301 @@ enum SourceEntryKind {
     Directory { path: PathBuf },
     File { path: PathBuf },
     Symlink { target_bytes: Vec<u8> },
+}
+
+#[derive(Debug)]
+struct CapturedLocalTree {
+    normalized: ResolvedLocalSource,
+    entries: Vec<CapturedLocalEntry>,
+}
+
+#[derive(Debug)]
+struct CapturedLocalEntry {
+    relative_path: PathBuf,
+    kind: CapturedLocalEntryKind,
+}
+
+#[derive(Debug)]
+enum CapturedLocalEntryKind {
+    Directory,
+    File { bytes: Vec<u8>, executable: bool },
+    Symlink { target_bytes: Vec<u8> },
+}
+
+fn capture_local_source(
+    requested_root: &Path,
+    limits: LocalSourceLimits,
+) -> Result<CapturedLocalTree, SourceResolveError> {
+    let root = requested_root
+        .canonicalize()
+        .map_err(|error| io_error(requested_root, error))?;
+    if !root.is_dir() {
+        return Err(SourceResolveError::NotDirectory { path: root });
+    }
+
+    let mut source_entries = Vec::new();
+    let mut visited_dirs = BTreeSet::new();
+    visit_directory(
+        &root,
+        PathBuf::new(),
+        0,
+        &root,
+        limits,
+        &mut visited_dirs,
+        &mut source_entries,
+    )?;
+    source_entries.sort_by(|left, right| left.relative_bytes.cmp(&right.relative_bytes));
+
+    let mut identity = SourceIdentityHasher::new(source_entries.len());
+    let mut file_count = 0;
+    let mut entries = Vec::new();
+    entries
+        .try_reserve_exact(source_entries.len())
+        .map_err(|_| SourceResolveError::TooManyFiles {
+            limit: limits.max_files,
+        })?;
+    for entry in source_entries {
+        let kind = match entry.kind {
+            SourceEntryKind::Directory { path } => {
+                let metadata =
+                    std::fs::symlink_metadata(&path).map_err(|error| io_error(&path, error))?;
+                if metadata.file_type().is_symlink() || !metadata.is_dir() {
+                    return Err(SourceResolveError::UnsupportedFileType { path });
+                }
+                identity.add_directory(&entry.relative_bytes, CANONICAL_DIRECTORY_MODE);
+                CapturedLocalEntryKind::Directory
+            }
+            SourceEntryKind::File { path } => {
+                let remaining = limits.max_bytes.checked_sub(identity.byte_count).ok_or(
+                    SourceResolveError::TooManyBytes {
+                        limit: limits.max_bytes,
+                    },
+                )?;
+                let (bytes, executable) = read_file_bounded(&path, remaining, limits.max_bytes)?;
+                identity.add_file(&entry.relative_bytes, executable, &bytes)?;
+                file_count += 1;
+                CapturedLocalEntryKind::File { bytes, executable }
+            }
+            SourceEntryKind::Symlink { target_bytes } => {
+                identity.add_symlink(&entry.relative_bytes, &target_bytes);
+                file_count += 1;
+                CapturedLocalEntryKind::Symlink { target_bytes }
+            }
+        };
+        entries.push(CapturedLocalEntry {
+            relative_path: entry.relative_path,
+            kind,
+        });
+    }
+    let (byte_count, content_identity) = identity.finish();
+    Ok(CapturedLocalTree {
+        normalized: ResolvedLocalSource {
+            root,
+            file_count,
+            byte_count,
+            content_identity,
+        },
+        entries,
+    })
+}
+
+fn publish_local_snapshot(
+    requested_root: PathBuf,
+    captured: CapturedLocalTree,
+    cache_dir: &Path,
+    limits: LocalSourceLimits,
+) -> Result<ResolvedLocalSnapshot, SourceResolveError> {
+    let canonical_cache_dir =
+        validate_local_snapshot_topology(&captured.normalized.root, cache_dir)?;
+    std::fs::create_dir_all(&canonical_cache_dir)
+        .map_err(|error| io_error(&canonical_cache_dir, error))?;
+    require_local_snapshot_directory(
+        &canonical_cache_dir,
+        "local snapshot cache is not a real directory",
+    )?;
+    let snapshots = canonical_cache_dir.join(LOCAL_CACHE_SNAPSHOTS);
+    std::fs::create_dir_all(&snapshots).map_err(|error| io_error(&snapshots, error))?;
+    require_local_snapshot_directory(
+        &snapshots,
+        "local snapshot collection is not a real directory",
+    )?;
+
+    let identity = captured.normalized.content_identity.clone();
+    let publication = snapshots.join(format!("source-{identity}"));
+    let lock_path = snapshots.join(format!("source-{identity}.lock"));
+    let _entry_lock = CacheEntryLock::acquire_local(&lock_path)?;
+
+    let normalized = if publication.exists() {
+        let normalized = verify_local_snapshot(&publication, &identity, limits)?;
+        verify_live_source_unchanged(&captured.normalized, limits)?;
+        normalized
+    } else {
+        materialize_local_snapshot(&snapshots, &publication, &captured, limits)?
+    };
+
+    Ok(ResolvedLocalSnapshot {
+        requested_root,
+        canonical_live_root: captured.normalized.root,
+        snapshot_root: normalized.root.clone(),
+        normalized,
+    })
+}
+
+fn validate_local_snapshot_topology(
+    canonical_live_root: &Path,
+    cache_dir: &Path,
+) -> Result<PathBuf, SourceResolveError> {
+    let canonical_cache_dir = canonicalize_prospective_path(cache_dir)?;
+    let snapshot_collection =
+        canonicalize_prospective_path(&canonical_cache_dir.join(LOCAL_CACHE_SNAPSHOTS))?;
+    if canonical_cache_dir.starts_with(canonical_live_root)
+        || canonical_live_root.starts_with(&snapshot_collection)
+    {
+        return Err(SourceResolveError::LocalSnapshotCacheOverlapsSource {
+            canonical_live_root: canonical_live_root.to_path_buf(),
+            canonical_cache_dir,
+        });
+    }
+    Ok(canonical_cache_dir)
+}
+
+fn canonicalize_prospective_path(path: &Path) -> Result<PathBuf, SourceResolveError> {
+    let mut existing = if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        std::env::current_dir()
+            .map_err(|error| io_error(Path::new("."), error))?
+            .join(path)
+    };
+    let mut suffix = Vec::<OsString>::new();
+    loop {
+        match std::fs::symlink_metadata(&existing) {
+            Ok(_) => {
+                let canonical = existing
+                    .canonicalize()
+                    .map_err(|error| io_error(&existing, error))?;
+                let mut result = canonical;
+                for component in suffix.into_iter().rev() {
+                    if component == "." {
+                        continue;
+                    }
+                    if component == ".." {
+                        result.pop();
+                    } else {
+                        result.push(component);
+                    }
+                }
+                return Ok(result);
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                let Some(component) = existing.file_name().map(OsStr::to_os_string) else {
+                    return Err(io_error(&existing, error));
+                };
+                suffix.push(component);
+                existing.pop();
+            }
+            Err(error) => return Err(io_error(&existing, error)),
+        }
+    }
+}
+
+fn materialize_local_snapshot(
+    snapshots: &Path,
+    publication: &Path,
+    captured: &CapturedLocalTree,
+    limits: LocalSourceLimits,
+) -> Result<ResolvedLocalSource, SourceResolveError> {
+    let identity = &captured.normalized.content_identity;
+    let mut pending = PendingLocalSnapshot::create(snapshots, identity)?;
+    let source = pending.root.join(LOCAL_SNAPSHOT_SOURCE);
+    std::fs::create_dir(&source).map_err(|error| io_error(&source, error))?;
+
+    for entry in &captured.entries {
+        let destination = source.join(&entry.relative_path);
+        match &entry.kind {
+            CapturedLocalEntryKind::Directory => {
+                std::fs::create_dir_all(&destination)
+                    .map_err(|error| io_error(&destination, error))?;
+            }
+            CapturedLocalEntryKind::File { bytes, executable } => {
+                let parent = destination
+                    .parent()
+                    .expect("captured local paths always have a snapshot parent");
+                std::fs::create_dir_all(parent).map_err(|error| io_error(parent, error))?;
+                let mut file = OpenOptions::new()
+                    .write(true)
+                    .create_new(true)
+                    .open(&destination)
+                    .map_err(|error| io_error(&destination, error))?;
+                file.write_all(bytes)
+                    .map_err(|error| io_error(&destination, error))?;
+                file.sync_all()
+                    .map_err(|error| io_error(&destination, error))?;
+                set_snapshot_file_mode(&destination, *executable)?;
+            }
+            CapturedLocalEntryKind::Symlink { target_bytes } => {
+                let parent = destination
+                    .parent()
+                    .expect("captured local paths always have a snapshot parent");
+                std::fs::create_dir_all(parent).map_err(|error| io_error(parent, error))?;
+                create_snapshot_symlink(target_bytes, &destination)?;
+            }
+        }
+    }
+    for entry in captured.entries.iter().rev() {
+        if matches!(entry.kind, CapturedLocalEntryKind::Directory) {
+            set_snapshot_directory_read_only(&source.join(&entry.relative_path))?;
+        }
+    }
+
+    let staged = resolve_local_source(&source, limits)?;
+    if !same_source_identity(&staged, &captured.normalized) {
+        return Err(local_snapshot_invalid(
+            &source,
+            "staged source does not match the captured local tree",
+        ));
+    }
+    verify_live_source_unchanged(&captured.normalized, limits)?;
+
+    let metadata_path = pending.root.join(LOCAL_SNAPSHOT_METADATA);
+    let mut metadata = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&metadata_path)
+        .map_err(|error| io_error(&metadata_path, error))?;
+    metadata
+        .write_all(&local_snapshot_metadata(&staged))
+        .map_err(|error| io_error(&metadata_path, error))?;
+    metadata
+        .sync_all()
+        .map_err(|error| io_error(&metadata_path, error))?;
+    make_snapshot_read_only(&pending.root)?;
+    std::fs::rename(&pending.root, publication).map_err(|error| io_error(publication, error))?;
+    pending.published = true;
+    verify_local_snapshot(publication, identity, limits)
+}
+
+fn verify_live_source_unchanged(
+    captured: &ResolvedLocalSource,
+    limits: LocalSourceLimits,
+) -> Result<(), SourceResolveError> {
+    let current = resolve_local_source(&captured.root, limits).map_err(|_| {
+        SourceResolveError::LocalSourceChanged {
+            path: captured.root.clone(),
+        }
+    })?;
+    if !same_source_identity(&current, captured) {
+        return Err(SourceResolveError::LocalSourceChanged {
+            path: captured.root.clone(),
+        });
+    }
+    Ok(())
+}
+
+fn same_source_identity(left: &ResolvedLocalSource, right: &ResolvedLocalSource) -> bool {
+    left.file_count == right.file_count
+        && left.byte_count == right.byte_count
+        && left.content_identity == right.content_identity
 }
 
 fn visit_directory(
@@ -1706,6 +2261,7 @@ fn push_entry(
     }
     entries.push(SourceEntry {
         relative_bytes: raw_os_bytes(relative.as_os_str()),
+        relative_path: relative,
         kind,
     });
     Ok(())
@@ -2412,6 +2968,209 @@ mod tests {
 
         let _ = std::fs::remove_dir_all(&root);
         let _ = std::fs::remove_dir_all(&outside);
+    }
+
+    #[test]
+    fn local_snapshot_preserves_empty_directories_and_uses_published_identity() {
+        let root = temp_root("local-snapshot-empty-directory");
+        let cache = temp_root("local-snapshot-empty-directory-cache");
+        std::fs::create_dir_all(root.join("generated/empty")).expect("create empty directory");
+        std::fs::create_dir_all(root.join(".git")).expect("create excluded metadata");
+        std::fs::write(root.join("main.omg"), "machine Main::main() {}\n").expect("write source");
+        std::fs::write(root.join(".git/index"), "excluded").expect("write Git metadata");
+        let live = resolve_local_source(&root, LocalSourceLimits::default()).expect("resolve live");
+
+        let resolved = resolve_local_source_snapshot(&root, &cache, LocalSourceLimits::default())
+            .expect("snapshot local source");
+
+        assert_eq!(resolved.requested_root, root);
+        assert_eq!(resolved.canonical_live_root, live.root);
+        assert_ne!(resolved.snapshot_root, resolved.canonical_live_root);
+        assert_eq!(resolved.normalized.root, resolved.snapshot_root);
+        assert!(resolved.snapshot_root.join("generated/empty").is_dir());
+        assert!(!resolved.snapshot_root.join(".git").exists());
+        assert_eq!(resolved.normalized.file_count, 1);
+        assert_eq!(resolved.normalized.byte_count, live.byte_count);
+        assert_eq!(resolved.normalized.content_identity, live.content_identity);
+        assert!(
+            resolved
+                .snapshot_root
+                .parent()
+                .expect("publication root")
+                .join(LOCAL_SNAPSHOT_METADATA)
+                .is_file()
+        );
+        assert!(
+            !resolved
+                .snapshot_root
+                .join(LOCAL_SNAPSHOT_METADATA)
+                .exists()
+        );
+
+        make_tree_owner_writable(&cache);
+        let _ = std::fs::remove_dir_all(&root);
+        let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[test]
+    fn local_snapshot_detects_live_mutation_and_removes_staging_tree() {
+        let root = temp_root("local-snapshot-mutation");
+        let cache = temp_root("local-snapshot-mutation-cache");
+        std::fs::create_dir_all(&root).expect("create source");
+        std::fs::write(root.join("main.omg"), "machine Before::main() {}\n")
+            .expect("write initial source");
+        let captured =
+            capture_local_source(&root, LocalSourceLimits::default()).expect("capture source");
+        let captured_identity = captured.normalized.content_identity.clone();
+        std::fs::write(root.join("main.omg"), "machine After::main() {}\n")
+            .expect("mutate live source");
+
+        let error =
+            publish_local_snapshot(root.clone(), captured, &cache, LocalSourceLimits::default())
+                .expect_err("concurrent mutation must reject");
+        assert!(matches!(
+            error,
+            SourceResolveError::LocalSourceChanged { .. }
+        ));
+        let snapshots = cache.join(LOCAL_CACHE_SNAPSHOTS);
+        assert!(
+            !snapshots
+                .join(format!("source-{captured_identity}"))
+                .exists()
+        );
+        assert!(
+            std::fs::read_dir(&snapshots)
+                .expect("read snapshot collection")
+                .all(|entry| !entry
+                    .expect("snapshot collection entry")
+                    .file_name()
+                    .to_string_lossy()
+                    .contains(".stage-"))
+        );
+
+        make_tree_owner_writable(&cache);
+        let _ = std::fs::remove_dir_all(&root);
+        let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[test]
+    fn local_snapshot_rejects_cache_inside_source_before_creating_it() {
+        let root = temp_root("local-snapshot-overlap");
+        let cache = root.join("target/omega-cache");
+        std::fs::create_dir_all(&root).expect("create source");
+        std::fs::write(root.join("main.omg"), "machine Main::main() {}\n").expect("write source");
+
+        let error = resolve_local_source_snapshot(&root, &cache, LocalSourceLimits::default())
+            .expect_err("overlapping cache must reject");
+        assert!(matches!(
+            error,
+            SourceResolveError::LocalSnapshotCacheOverlapsSource { .. }
+        ));
+        assert!(!cache.exists());
+        assert!(!root.join("target").exists());
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn local_snapshot_rejects_live_source_beneath_snapshot_collection() {
+        let cache = temp_root("local-snapshot-containing-cache");
+        let root = cache.join(LOCAL_CACHE_SNAPSHOTS).join("imported/source");
+        std::fs::create_dir_all(&root).expect("create nested source");
+        std::fs::write(root.join("main.omg"), "machine Main::main() {}\n").expect("write source");
+
+        let error = resolve_local_source_snapshot(&root, &cache, LocalSourceLimits::default())
+            .expect_err("resolver-owned collection source must reject");
+        assert!(matches!(
+            error,
+            SourceResolveError::LocalSnapshotCacheOverlapsSource { .. }
+        ));
+
+        let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn local_snapshot_canonicalizes_permissions_and_preserves_symlink_spelling() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let root = temp_root("local-snapshot-modes-symlink");
+        let cache = temp_root("local-snapshot-modes-symlink-cache");
+        std::fs::create_dir_all(root.join("tools")).expect("create tools");
+        std::fs::write(root.join("main.omg"), "machine Main::main() {}\n").expect("write source");
+        std::fs::write(root.join("tools/generate"), "generator\n").expect("write executable");
+        std::fs::set_permissions(root.join("tools"), std::fs::Permissions::from_mode(0o700))
+            .expect("set live directory mode");
+        std::fs::set_permissions(
+            root.join("tools/generate"),
+            std::fs::Permissions::from_mode(0o711),
+        )
+        .expect("set executable mode");
+        std::os::unix::fs::symlink("generate", root.join("tools/current"))
+            .expect("create relative symlink");
+
+        let resolved = resolve_local_source_snapshot(&root, &cache, LocalSourceLimits::default())
+            .expect("snapshot local source");
+        let mode = |path: &Path| {
+            std::fs::symlink_metadata(path)
+                .expect("snapshot metadata")
+                .permissions()
+                .mode()
+                & 0o777
+        };
+        assert_eq!(mode(&resolved.snapshot_root), 0o555);
+        assert_eq!(mode(&resolved.snapshot_root.join("tools")), 0o555);
+        assert_eq!(mode(&resolved.snapshot_root.join("main.omg")), 0o444);
+        assert_eq!(mode(&resolved.snapshot_root.join("tools/generate")), 0o555);
+        assert_eq!(
+            std::fs::read_link(resolved.snapshot_root.join("tools/current"))
+                .expect("read snapshot symlink"),
+            PathBuf::from("generate")
+        );
+        assert_eq!(
+            std::fs::read(resolved.snapshot_root.join("tools/current"))
+                .expect("follow snapshot symlink"),
+            b"generator\n"
+        );
+
+        make_tree_owner_writable(&cache);
+        let _ = std::fs::remove_dir_all(&root);
+        let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn local_snapshot_reuse_rehashes_and_rejects_tampering() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let root = temp_root("local-snapshot-reuse");
+        let cache = temp_root("local-snapshot-reuse-cache");
+        std::fs::create_dir_all(&root).expect("create source");
+        std::fs::write(root.join("main.omg"), "machine Main::main() {}\n").expect("write source");
+
+        let first = resolve_local_source_snapshot(&root, &cache, LocalSourceLimits::default())
+            .expect("publish snapshot");
+        let second = resolve_local_source_snapshot(&root, &cache, LocalSourceLimits::default())
+            .expect("reuse snapshot");
+        assert_eq!(first, second);
+
+        std::fs::set_permissions(&first.snapshot_root, std::fs::Permissions::from_mode(0o755))
+            .expect("make snapshot root writable");
+        let source = first.snapshot_root.join("main.omg");
+        std::fs::set_permissions(&source, std::fs::Permissions::from_mode(0o644))
+            .expect("make snapshot file writable");
+        std::fs::write(&source, "machine Tampered::main() {}\n").expect("tamper snapshot");
+
+        let error = resolve_local_source_snapshot(&root, &cache, LocalSourceLimits::default())
+            .expect_err("tampered snapshot must reject");
+        assert!(matches!(
+            error,
+            SourceResolveError::LocalSnapshotInvalid { .. }
+        ));
+
+        make_tree_owner_writable(&cache);
+        let _ = std::fs::remove_dir_all(&root);
+        let _ = std::fs::remove_dir_all(&cache);
     }
 
     #[test]

@@ -1,6 +1,7 @@
 use crate::json::{JsonParseError, JsonParser, JsonValue};
 use crate::source::{
-    GitSourceSpec, LocalSourceLimits, SourceResolveError, resolve_git_source, resolve_local_source,
+    GitSourceSpec, LocalSourceLimits, SourceResolveError, resolve_git_source,
+    resolve_local_source_snapshot,
 };
 use sha2::{Digest, Sha256};
 use std::fs;
@@ -382,8 +383,13 @@ pub fn resolve_source_cache_record(
     cache_dir: impl AsRef<Path>,
     limits: LocalSourceLimits,
 ) -> SourceCachePolicyRecord {
+    let cache_dir = cache_dir.as_ref();
     match request {
-        SourceCacheRequest::LocalPath(path) => match resolve_local_source(&path, limits) {
+        SourceCacheRequest::LocalPath(path) => match resolve_local_source_snapshot(
+            &path,
+            cache_dir,
+            limits,
+        ) {
             Ok(resolved) => SourceCachePolicyRecord {
                 schema_version: SOURCE_CACHE_POLICY_SCHEMA_VERSION,
                 verdict: SourceCacheVerdict::DiagnosticObserved,
@@ -392,16 +398,17 @@ pub fn resolve_source_cache_record(
                 requested_rev: None,
                 resolved_commit: None,
                 resolved_tree: None,
-                content_identity: Some(resolved.content_identity),
-                cache_path: Some(resolved.root.display().to_string()),
-                file_count: Some(resolved.file_count),
-                byte_count: Some(resolved.byte_count),
+                content_identity: Some(resolved.normalized.content_identity),
+                cache_path: Some(resolved.snapshot_root.display().to_string()),
+                file_count: Some(resolved.normalized.file_count),
+                byte_count: Some(resolved.normalized.byte_count),
                 max_files: limits.max_files,
                 max_bytes: limits.max_bytes,
                 max_depth: limits.max_depth,
                 submodule_policy: "git-submodules-not-applicable".to_owned(),
-                path_policy: "canonical-root-contained; symlink-escapes-rejected; dot-git-excluded"
-                    .to_owned(),
+                path_policy:
+                    "validated-local-snapshot; canonical-root-contained; symlink-escapes-rejected; dot-git-excluded"
+                        .to_owned(),
                 rejection: None,
             },
             Err(error) => rejected_record(
@@ -677,6 +684,20 @@ mod tests {
         assert_eq!(record.source_kind, "local-path");
         assert_eq!(record.file_count, Some(1));
         assert_eq!(record.max_files, 8);
+        let snapshot_path = PathBuf::from(record.cache_path.as_ref().expect("snapshot path"));
+        assert!(snapshot_path.is_dir());
+        assert_ne!(
+            snapshot_path,
+            root.canonicalize().expect("canonical live root")
+        );
+        assert!(
+            snapshot_path.starts_with(
+                cache
+                    .canonicalize()
+                    .expect("canonical snapshot cache")
+                    .join("local-snapshots")
+            )
+        );
         assert_eq!(
             record.content_identity.as_ref().expect("identity").len(),
             64
@@ -686,6 +707,7 @@ mod tests {
                 .to_json()
                 .contains("\"submodule_policy\": \"git-submodules-not-applicable\"")
         );
+        assert!(record.path_policy.starts_with("validated-local-snapshot;"));
         assert_eq!(record.fingerprint().len(), 64);
 
         let _ = std::fs::remove_dir_all(&root);

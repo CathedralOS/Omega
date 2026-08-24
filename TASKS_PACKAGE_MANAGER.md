@@ -96,12 +96,17 @@ complete.
   now read from validated tree/blob objects, materialized without checkout,
   filters, hooks, or submodules, re-hashed against the expected tree, made
   read-only, and atomically published as a resolver-owned snapshot. Published
-  snapshots are revalidated before reuse.
+  snapshots are revalidated before reuse. Local sources now follow the same
+  custody shape: a bounded capture is re-materialized into a content-addressed,
+  read-only, atomically published resolver snapshot; source/cache overlap and
+  ordinary concurrent mutation reject, and diagnostics expose the snapshot
+  path rather than the live tree.
 
   Remaining suspect points:
 
-  - local source hashing has no immutable snapshot/TOCTOU boundary and includes
-    tool-owned build outputs when present;
+  - local capture still includes tool-owned build outputs already present in
+    the source root, and its before/after check does not defend against a
+    deliberately hostile same-user process racing both observations;
   - cache locking coordinates resolver processes but is not protection against
     an independently hostile process that can mutate the cache directory;
   - the Git subprocess has no OS sandbox or resource ceilings, and SSH transport
@@ -142,6 +147,12 @@ complete.
   nominal symbols; source/name changes are replacement; exact commit, tree,
   content, toolchain, and evidence identities bind one instance.
 
+  Progress 2026-08-23: a typed identity core now binds `PackageKey` to
+  `PackageName` plus `SourceLineage`, and `PackageInstance` to exact typed
+  source, toolchain, and compiler-evidence identities. Construction rejects a
+  source-resolution family that does not match the key lineage. Migrating the
+  legacy name-keyed graph, lock, and evidence APIs remains.
+
 - **SOURCE-LINEAGE-NORMALIZATION.** Define canonical lineage for Git, URL
   archives, and local/workspace paths.
 
@@ -151,6 +162,14 @@ complete.
   workspace lineage plus member-relative path; external paths remain marked
   non-portable development sources. Each archive/protocol adapter defines
   lineage and immutable-content evidence instead of guessing from a locator.
+
+  Progress 2026-08-23: the first conservative lineage adapter normalizes known
+  GitHub HTTPS, SCP-like SSH, and `ssh://` spellings; unknown hosts retain
+  transport, user, port, case-sensitive path, and suffix distinctions.
+  Workspace members bind a normalized relative path to workspace lineage, and
+  external local sources bind canonical absolute path plus consuming context.
+  Archives, mirrors/delegations, additional protocols, and wiring resolver
+  receipts into these types remain.
 
 - **PACKAGE-QUALIFIED-NOMINAL-IDENTITY.** Thread `PackageKey` through package,
   symbol, boundary-trait, provider, and evidence identities.
