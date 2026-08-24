@@ -20,6 +20,13 @@ the exact bridge source-bundle version 1 contract, must contain exactly one
 source unit, and publishes CKIR1 on success. The bundle label and exact source
 bytes remain source custody; no label or source span is copied into CKIR1.
 
+That producer remains the one-unit regression/reference path. The multi-unit
+production path is the separate
+[`OMGCOMP → OMGRSW1 → CKIR`](OMEGA_BOOTSTRAP_RESOLUTION.md) pipeline: resolution
+publishes a normalized binding handoff, and a distinct lowerer reparses exact
+bodies using those identities. Do not extend the one-unit producer into a
+combined transport decoder, resolver, lowerer, and verifier.
+
 ## 1. Scalar conventions and envelope
 
 All multibyte integers are unsigned little-endian. `u8`, `u16`, and `u32` below

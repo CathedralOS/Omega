@@ -116,6 +116,12 @@ compiler cannot be confused with either the current Rust on-ramp or the
   `0`/`251`/`252` gates with empty output. It neither checks the independently
   supplied envelope SHA-256 nor grants resolver/lock authority, resolves source
   names, validates source semantics, compares CKIR, or accepts an artifact.
+- [`compiler/OMEGA_BOOTSTRAP_RESOLUTION.md`](compiler/OMEGA_BOOTSTRAP_RESOLUTION.md)
+  fixes the modular multi-unit frontend boundary. A Delta resolver emits the
+  canonical `OMGRSW1` binding handoff; a separate lowerer consumes exact
+  `OMGCOMP + OMGRSW1` through `OMGLOW1` before publishing CKIR. The same
+  resolution bytes become an untrusted lower-rooted witness, while the existing
+  one-unit source-custody producer remains a regression/reference path.
 
 These are seed pieces for `omega-bootstrap`, not that compiler itself. The first
 checkpoint-driven compositional frontend/typechecker cost probe over

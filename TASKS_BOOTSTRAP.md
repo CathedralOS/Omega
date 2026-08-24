@@ -228,9 +228,11 @@ Terminal-Psi vocabulary work remains product work in `TASKS.md`.
 - [ ] Close the first real two-package artifact by importing public nominal data
   into the selected call-free machine, then compare the exact CKIR and limited
   ELF through native, self-built, Rust-free meaning, and lower-rooted
-  reconstruction. The planned lower-rooted
+  reconstruction. The selected
+  [`OMGCOMP → OMGRSW1 → CKIR`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION.md)
+  boundary and its lower-rooted
   [resolution witness](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS.md)
-  keeps transport checking, source resolution, CKIR comparison, and artifact
+  keep transport checking, source resolution, CKIR comparison, and artifact
   refinement as distinct responsibilities joined by exact bytes.
 - [ ] Continue through the remaining general capabilities used by checkpoint
   000001, then later provisional checkpoints, until the bridge generally parses,
@@ -245,14 +247,14 @@ Terminal-Psi vocabulary work remains product work in `TASKS.md`.
   `omega-bootstrap`, including every transitive source and build input. Prove
   it valid under the provisional Delta ledger; final validity belongs to the
   Delta-v1 freeze.
-- [ ] Compile, rather than duplicate, the product optimizer and advanced
-  lowering source.
 
 Acceptance: the bridge compiles the complete product-source manifest and every
 program admitted by the general candidate profile with exact Omega semantics.
 It rejects unsupported Omega before publication. It need not accept full Omega,
 optimize its own output, use production allocation machinery, or host unrelated
-product tools.
+product tools. The product optimizer and advanced lowering remain ordinary
+modules in that manifest; they are compiled into the resulting production
+compiler rather than reimplemented inside the bridge.
 
 ### 3. Freeze `Ωself` at the completed bridge join
 

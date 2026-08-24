@@ -39,8 +39,9 @@ DELTA_ARCH=aarch64 cargo run -- ../../rungs/delta/samples/shape.alp out  # macOS
 
 ## Status
 
-- **Historical O0/O1 plus bounded-scalar bridge canaries — DONE for native/self-host,
-  direct artifacts, product validation, and current lower-rung observations.**
+- **Legacy O0/O1 fixture profiles plus the bounded-scalar bridge canary — DONE
+  for native/self-host, direct artifacts, product validation, and current
+  lower-rung observations.**
   `../../omega-bootstrap/compiler/omega-bootstrap-frontend.alp` is the canonical
   pre-profile regression compiler slice
   (`samples/omega-bootstrap-frontend.alp` is the canonical sample link and
