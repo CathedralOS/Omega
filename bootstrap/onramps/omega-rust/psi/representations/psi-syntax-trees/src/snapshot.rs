@@ -178,6 +178,7 @@ pub enum ItemSnapshot {
     Trait {
         name: IdentifierSnapshot,
         is_boundary: bool,
+        is_public: bool,
         #[serde(skip_serializing_if = "Vec::is_empty")]
         lifetime_parameters: Vec<IdentifierSnapshot>,
         type_parameters: Vec<TypeParameterSnapshot>,
@@ -193,6 +194,7 @@ pub enum ItemSnapshot {
     },
     WireData {
         name: IdentifierSnapshot,
+        is_public: bool,
         encoding: Option<IdentifierSnapshot>,
         members: Vec<WireDataMemberSnapshot>,
     },
@@ -1049,6 +1051,7 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
         Item::Trait(value) => ItemSnapshot::Trait {
             name: snapshot_identifier(&value.name),
             is_boundary: value.is_boundary,
+            is_public: value.is_public,
             lifetime_parameters: value
                 .lifetime_parameters
                 .iter()
@@ -1128,6 +1131,7 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
         },
         Item::WireData(value) => ItemSnapshot::WireData {
             name: snapshot_identifier(&value.name),
+            is_public: value.is_public,
             encoding: value.encoding.as_ref().map(snapshot_identifier),
             members: snapshot_wire_data_members(syntax_trees, value.members),
         },

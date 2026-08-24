@@ -14,6 +14,7 @@ pub(crate) fn lower_wire_schema(
     Ok(typed::wire::WireSchema {
         symbol: wire_schema.symbol,
         name: crate::name::lower_name(&wire_schema.name),
+        is_public: wire_schema.is_public,
         encoding: wire_schema.encoding.as_ref().map(crate::name::lower_name),
         members,
     })

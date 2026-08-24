@@ -231,6 +231,7 @@ fn records_checked_boundary_edges_for_boundary_trait_calls() {
     let mut program = psi_typed_trees::TypedTrees::default();
 
     let mut boundary_trait = TraitDefinition {
+        is_public: false,
         symbol: boundary_trait_symbol,
         is_boundary: true,
         name: Identifier::generated("Console"),

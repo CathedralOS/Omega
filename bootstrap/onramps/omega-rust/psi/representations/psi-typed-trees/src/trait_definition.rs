@@ -7,6 +7,9 @@ use psi_symbols::SymbolHandle;
 pub struct TraitDefinition {
     pub symbol: SymbolHandle,
     pub is_boundary: bool,
+    /// Source visibility retained independently from nominal and callable
+    /// identity.
+    pub is_public: bool,
     pub name: Identifier,
     pub lifetime_parameters: Vec<Identifier>,
     pub type_parameters: HandleSpan<crate::data::TypeParameter>,
@@ -21,6 +24,7 @@ impl Default for TraitDefinition {
         Self {
             symbol: SymbolHandle::invalid(),
             is_boundary: false,
+            is_public: false,
             name: Identifier::default(),
             lifetime_parameters: Vec::new(),
             type_parameters: HandleSpan::empty(),

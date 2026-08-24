@@ -170,6 +170,7 @@ fn carries_trait_signature_contract_facts_into_checked_proof_facts() {
         .append(psi_typed_trees::domain::ProofFact::Expression(expression));
 
     let mut trait_definition = TraitDefinition {
+        is_public: false,
         symbol: trait_symbol,
         is_boundary: true,
         name: Identifier::generated("Console"),
@@ -379,6 +380,7 @@ fn indexes_inherited_trait_contracts_by_concrete_call_target() {
         .append(psi_typed_trees::domain::ProofFact::Expression(expression));
 
     let mut trait_definition = TraitDefinition {
+        is_public: false,
         symbol: trait_symbol,
         is_boundary: true,
         name: Identifier::generated("Drawable"),

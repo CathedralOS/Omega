@@ -168,6 +168,7 @@ pub struct SymbolResolvedRootsSnapshot {
 pub struct WireSchemaSnapshot {
     pub has_symbol: bool,
     pub name: String,
+    pub is_public: bool,
     pub encoding: Option<String>,
     pub members: Vec<WireMemberSnapshot>,
 }
@@ -490,6 +491,7 @@ pub struct OwnedDataSnapshot {
 pub struct TraitSnapshot {
     pub name: String,
     pub is_boundary: bool,
+    pub is_public: bool,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub lifetime_parameters: Vec<String>,
     pub type_parameters: Vec<String>,
@@ -1178,6 +1180,7 @@ fn trait_definition_snapshot(
     TraitSnapshot {
         name: trait_definition.name.to_string(),
         is_boundary: trait_definition.is_boundary,
+        is_public: trait_definition.is_public,
         lifetime_parameters: trait_definition
             .lifetime_parameters
             .iter()
@@ -1686,6 +1689,7 @@ fn wire_schema_snapshot(
     WireSchemaSnapshot {
         has_symbol: wire_schema.symbol.is_valid(),
         name: wire_schema.name.to_string(),
+        is_public: wire_schema.is_public,
         encoding: wire_schema
             .encoding
             .as_ref()

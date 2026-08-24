@@ -153,6 +153,7 @@ fn wire_snapshot_retains_erased_field_relevance() {
             type_reference: evidence_type,
         }));
     syntax_trees.push_root_item(Item::WireData(WireDataDefinition {
+        is_public: false,
         name: Identifier::generated("Certified"),
         encoding: None,
         members: psi_arena::HandleSpan::from_parts(field, 1),

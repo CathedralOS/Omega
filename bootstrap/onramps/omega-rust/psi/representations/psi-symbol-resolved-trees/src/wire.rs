@@ -11,6 +11,8 @@ use psi_symbols::SymbolHandle;
 pub struct WireSchema {
     pub symbol: SymbolHandle,
     pub name: DiagnosticName,
+    /// Source visibility retained independently from schema identity.
+    pub is_public: bool,
     pub encoding: Option<DiagnosticName>,
     pub members: HandleSpan<WireMember>,
 }

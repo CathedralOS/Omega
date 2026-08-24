@@ -93,6 +93,9 @@ impl Default for ExternalBinding {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct WireDataDefinition {
     pub name: Identifier,
+    /// Source visibility for the numbered data declaration. This does not
+    /// participate in schema or nominal identity.
+    pub is_public: bool,
     pub encoding: Option<Identifier>,
     pub members: HandleSpan<WireDataMember>,
 }
@@ -847,6 +850,9 @@ pub struct State {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TraitDefinition {
     pub is_boundary: bool,
+    /// Source visibility for the trait declaration. This does not participate
+    /// in trait or requirement identity.
+    pub is_public: bool,
     pub name: Identifier,
     /// Erased borrow-region parameters declared in the shared `<>` list.
     pub lifetime_parameters: Vec<Identifier>,
