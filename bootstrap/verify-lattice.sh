@@ -124,6 +124,7 @@ step "logic cross-check — FUZZ: random propositional proofs, all 3 checkers" p
 step "predicate cross-check — FUZZ: random Mem/ProdIs/Perm proofs, all 3 checkers" proof-kernel-gates predicate-diamond-fuzz.sh gamma
 step "predicate soundness — FUZZ: random predicates, kernel vs operational decision" proof-kernel-gates predicate-soundness-fuzz.sh gamma
 step "delta — on-ramp compiles + RUNS its corpus"   delta-rust  test_aarch64.sh
+step "delta compiler scale — aggregate parameter tables remain disjoint beyond machine 64 and signature bounds fail closed" delta-rust lowermachine-scale-test.sh
 step "delta meaning — native exec vs gamma reference interpreter" delta-rust delta-meaning-diamond.sh gamma
 step "delta D0 storage meaning (RUST-FREE) — omega2gamma.beta -> interp.beta" delta-rust delta-storage-meaning.sh omega-bootstrap gamma
 step "omega-bootstrap Delta frontend — O1 regression plus bounded source-unit transport through lexer/parser/checker and Delta-written recompilation" delta-rust omega-bootstrap-frontend-test.sh omega-bootstrap corpus

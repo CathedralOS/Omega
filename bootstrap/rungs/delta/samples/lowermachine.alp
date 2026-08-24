@@ -48,7 +48,7 @@ data Main {
     pns_base: i32; pne_base: i32; pmi_base: i32; ppidx_base: i32;
     fns_base: i32; fne_base: i32;
     sns_base: i32; sne_base: i32; smi_base: i32; ssi_base: i32; dig_base: i32;
-    typed_backing: [i32; 18200];
+    typed_backing: [i32; 19992];
     byte_backing: [u8; 262144];
 }
 
@@ -56,8 +56,8 @@ machine Main::reserve_typed(&mut self, count: i32, align: i32) {
     self.alloc_ok = 0;
     transition count < 0 { true -> fail() false -> align_check() }
     state align_check() { transition align <= 0 { true -> fail() false -> pad() } }
-    state pad() { self.alloc_pad = (align - (self.typed_cursor % align)) % align; transition self.alloc_pad <= 18200 - self.typed_cursor { true -> count_check() false -> fail() } }
-    state count_check() { transition count <= 18200 - (self.typed_cursor + self.alloc_pad) { true -> commit() false -> fail() } }
+    state pad() { self.alloc_pad = (align - (self.typed_cursor % align)) % align; transition self.alloc_pad <= 19992 - self.typed_cursor { true -> count_check() false -> fail() } }
+    state count_check() { transition count <= 19992 - (self.typed_cursor + self.alloc_pad) { true -> commit() false -> fail() } }
     state commit() { self.alloc_base = self.typed_cursor + self.alloc_pad; self.typed_cursor = self.alloc_base + count; self.alloc_ok = 1; }
     state fail() { self.storage_ok = 0; }
 }
@@ -74,7 +74,7 @@ machine Main::reserve_byte(&mut self, count: i32, align: i32) {
 
 machine Main::init_storage(&mut self) {
     self.byte_cursor = 0; self.typed_cursor = 0; self.storage_ok = 1; self.source_base = 0;
-    self.reserve_typed(18200,1); self.storage_ok = self.alloc_ok;
+    self.reserve_typed(19992,1); self.storage_ok = self.alloc_ok;
     self.opaop_base=self.alloc_base;
     self.opcc_base=self.opaop_base+16;
     self.opprec_base=self.opcc_base+16;
@@ -101,11 +101,13 @@ machine Main::init_storage(&mut self) {
     self.hsf_base=self.pcs_base+128;
     self.mns_base=self.hsf_base+128;
     self.mne_base=self.mns_base+128;
+    // The D0 ABI permits four value parameters on each of 128 machines.
+    // Keep every parallel parameter column disjoint through that full product.
     self.pns_base=self.mne_base+128;
-    self.pne_base=self.pns_base+64;
-    self.pmi_base=self.pne_base+64;
-    self.ppidx_base=self.pmi_base+64;
-    self.fns_base=self.ppidx_base+64;
+    self.pne_base=self.pns_base+512;
+    self.pmi_base=self.pne_base+512;
+    self.ppidx_base=self.pmi_base+512;
+    self.fns_base=self.ppidx_base+512;
     self.fne_base=self.fns_base+256;
     self.sns_base=self.fne_base+256;
     self.sne_base=self.sns_base+3072;
@@ -831,7 +833,10 @@ machine Main::main(&mut self) {
     state p1c()   { transition self.byte_backing[self.source_base + self.pos] == 40 { true -> mname()  false -> p1d() } }
     state p1d()   { transition self.byte_backing[self.source_base + self.pos] == 58 { true -> colon()  false -> p1e() } }    // ':'
     state colon() { transition self.insig == 1 { true -> coln2()  false -> padv1() } }
-    state coln2() { self.typed_backing[self.pns_base + self.np] = self.lastws; self.typed_backing[self.pne_base + self.np] = self.lastwe; self.typed_backing[self.pmi_base + self.np] = self.mi; self.typed_backing[self.ppidx_base + self.np] = self.typed_backing[self.pcs_base + self.mi]; self.np = self.np + 1; self.typed_backing[self.pcs_base + self.mi] = self.typed_backing[self.pcs_base + self.mi] + 1; self.pos = self.pos + 1; transition 0 { _ -> sk() } }
+    // `self` consumes the first ABI register, leaving three value registers.
+    state coln2() { transition self.typed_backing[self.pcs_base + self.mi] < 4 - self.typed_backing[self.hsf_base + self.mi] { true -> coln3() false -> machine_exhausted() } }
+    state coln3() { transition self.np < 512 { true -> coln4() false -> machine_exhausted() } }
+    state coln4() { self.typed_backing[self.pns_base + self.np] = self.lastws; self.typed_backing[self.pne_base + self.np] = self.lastwe; self.typed_backing[self.pmi_base + self.np] = self.mi; self.typed_backing[self.ppidx_base + self.np] = self.typed_backing[self.pcs_base + self.mi]; self.np = self.np + 1; self.typed_backing[self.pcs_base + self.mi] = self.typed_backing[self.pcs_base + self.mi] + 1; self.pos = self.pos + 1; transition 0 { _ -> sk() } }
     state p1e()   { transition self.byte_backing[self.source_base + self.pos] == 41 { true -> rparen()  false -> padv1() } } // ')'
     state rparen(){ transition self.insig == 1 { true -> rpar2()  false -> padv1() } }
     state rpar2() { self.insig = 0; self.pos = self.pos + 1; transition 0 { _ -> sk() } }
@@ -849,7 +854,8 @@ machine Main::main(&mut self) {
     state wr1()   { self.w = self.is_word(self.byte_backing[self.source_base + self.pos]); transition self.w == 1 { true -> wa1()  false -> wlw() } }
     state wlw()   { self.lastws = self.start; self.lastwe = self.pos; transition self.insig == 1 { true -> wsig()  false -> wc1() } }
     state wsig()  { self.w = self.is_self(self.start, self.pos); transition self.w == 1 { true -> wsig2()  false -> wc1() } }
-    state wsig2() { self.typed_backing[self.hsf_base + self.mi] = 1; transition 0 { _ -> wc1() } }
+    state wsig2() { transition self.typed_backing[self.pcs_base + self.mi] < 4 { true -> wsig3() false -> machine_exhausted() } }
+    state wsig3() { self.typed_backing[self.hsf_base + self.mi] = 1; transition 0 { _ -> wc1() } }
     state wa1()   { self.pos = self.pos + 1; transition 0 { _ -> wr1() } }
     state wc1()   { transition self.pend == 1 { true -> addS()  false -> wc1b() } }
     state wc1b()  { transition self.lpend == 1 { true -> addL()  false -> ck1m() } }
