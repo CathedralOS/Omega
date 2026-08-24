@@ -40,6 +40,11 @@ complete.
 - Each evidence row comes from its earliest coherent checked representation.
   The final projection is total, but no one internal stage must contain every
   row; do not introduce nominal Chi merely to freeze compiler internals.
+- Proposition and named-evidence rows join the typed structural application to
+  its checked acceptance, witness interface, and admission disposition. Never
+  use checked diagnostic renderings as identity. If an exact binder, argument,
+  or witness coordinate is not retained structurally, extend the existing
+  typed/checked carrier that owns it rather than adding a report-only IR stage.
 - Public type identities in package evidence qualify every non-binder nominal
   with its exact package, toolchain, or unresolved owner. Generic binders are
   alpha-normalized without inventing an owner.
@@ -446,6 +451,13 @@ complete.
   The projection reads the earlier typed semantic tree only after checked
   compilation succeeds. Unsupported proposition/named-evidence, call, member,
   cast, and aggregate forms reject rather than falling back to text or a hash.
+  The settled proposition path is a join, not a new nominal stage: typed trees
+  supply structural declaration, binder, and value-expression coordinates;
+  checked proof facts supply acceptance, evidence-term/interface routing, and
+  the eventual proof/admission disposition. Existing checked `String` fields
+  are diagnostics only. Missing structural witness-interface arguments must be
+  retained in their current owning representation before projection can accept
+  them; they must not be parsed back from display text.
   The legacy 64-bit
   machine-contract fingerprint has left package-review bytes, so private
   state-machine shape no longer contaminates public package contract identity.

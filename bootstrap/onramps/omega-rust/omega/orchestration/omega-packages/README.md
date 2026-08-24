@@ -31,6 +31,10 @@ real package fixture demonstrates an irreducible external contract.
   format. Each row may consume its earliest coherent compiler-private checked
   representation and move with it; totality belongs to the final projection,
   not one frozen source stage. This does not require a nominal Chi stage.
+- Proposition/named-evidence projection joins structural typed applications to
+  checked acceptance and witness disposition. Diagnostic renderings are never
+  package identity; missing structural coordinates are retained in their
+  existing typed or checked owner rather than motivating a report-only stage.
 - Terminal evidence is separate and required only for final-realization claims
   or hardened profiles, not as a blanket package-admission gate.
 - `omega.lock` records the exact reconciled closure and normalized accepted
@@ -181,6 +185,12 @@ boolean/integer expression subset over parameter ordinals, `result`, generic
 binders, and package-qualified nominals. Domain-membership rows retain the exact
 value and package-qualified public domain; private package domains reject.
 Unsupported proposition/named-evidence, call, member, cast, and aggregate forms fail closed.
+For proposition rows, typed declaration/binder/expression structure is joined
+to checked evidence-term and witness-interface routing plus the eventual
+proof/admission disposition. Checked string renderings remain diagnostic only;
+any currently string-only witness argument must gain a structural carrier in
+the existing owning representation before that form can pass review. This join
+does not create a nominal Chi stage.
 The legacy machine-contract fingerprint no longer enters package-review bytes,
 so private state shape is not public contract identity. Complete proof and
 unsupported-clause rows still gate sealed admission. The compiler now provides
