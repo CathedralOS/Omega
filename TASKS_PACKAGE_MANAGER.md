@@ -195,6 +195,12 @@ complete.
   implemented with ordinary Omega vocabulary and may be simplified when
   compiler work proves a smaller existing mechanism sufficient.
 
+  Progress 2026-08-23: the ordinary `Source::Path` and `Source::Git` literal
+  shapes require no parser syntax. A strict package-side extractor now consumes
+  their canonical one-argument `builder.depend(source)` form. The compiler
+  prelude and import path still expose the transitional alias/path API;
+  `depend_as`, conservative editing, and reconciled compiler bindings remain.
+
 - **HERMETIC-DEPENDENCY-PROJECTION.** Derive dependency source requests without
   executing build-host effects or imported code.
 
@@ -202,12 +208,27 @@ complete.
   generated files, clocks, or build outputs. Malformed or unsupported
   projection rejects explicitly; nothing is silently skipped.
 
+  Progress 2026-08-23: `omega-packages` now parses only the immutable root
+  `build.omg`, accepts direct literal Path/Git rows in authored order, and
+  rejects authored toolchain vocabulary, malformed/scoped builds, nonliteral or
+  nested/helper-mediated requests, unsupported cases, and `depend_as`. An
+  absent build machine projects no dependencies. Resolved package-source
+  custody performs this projection before returning. Recursive traversal and
+  replacing the compiler's fail-open transitional scanner remain.
+
 - **CLOSURE-RECONCILIATION.** Resolve the complete source closure before any
   dependency build receives providers.
 
   Acceptance: one `PackageKey` resolves to one immutable instance in v1;
   conflicts report every requesting dependency path. Resolver authority never
   enters package build execution.
+
+  Progress 2026-08-23: a typed pre-admission source graph now validates exact
+  roots and edges, one immutable resolution per `PackageKey`, requester-local
+  alias uniqueness, closed reachability, and same-name/different-lineage
+  separation. Package dependency cycles conservatively reject in v1. Recursive
+  source traversal, request-path provenance, and compiler evidence remain; the
+  structural graph has no persistence or admission API.
 
 ## P3 — Compiler-issued package evidence
 
@@ -329,8 +350,13 @@ complete.
   source, missing lock baseline, same-name/different-lineage spoofing, transport
   normalization, and dependency-version reconciliation conflict.
 
-- **REMOVE-FABRICATED-MANIFEST-TESTS.** Replace integration tests that construct
+- [x] **REMOVE-FABRICATED-MANIFEST-TESTS.** Replace integration tests that construct
   manifests from fixture intent with compiler-issued evidence.
 
   Acceptance: only isolated data-structure unit tests may use synthetic values;
   no end-to-end admission test can pass without compiling the fixture.
+
+  Completed 2026-08-23: the fabricated local fixture admission integration
+  test was removed. Synthetic legacy values remain only in isolated unit tests;
+  the remote integration suite proves source custody and declarations, not
+  package admission.
