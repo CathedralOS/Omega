@@ -685,6 +685,18 @@ Chi stage merely for format stability. It has no execution semantics or
 transformation pipeline of its own. A future shared stage is warranted only if
 independent consumers or transformations establish an actual semantic boundary.
 
+Canonical rows may carry compiler-issued explanatory source coordinates without
+making those coordinates semantic identity. Paths are canonical UTF-8 and
+relative to their package or toolchain source owner; spans are exact byte
+offsets into compiler-consumed source. The coordinates remain outside canonical
+capability bytes, but changed-row conflicts bind the exact old/new coordinates
+shown to the reviewer. Dangerous-authority rows include the toolchain authority
+declaration and package exposure declarations. Generated symbols follow their
+authored derivation origin, while compiler-derived rows state a closed reason.
+Nested use sites and selected-provider selection/realization sites remain
+incremental provenance carriers in existing Psi stages or compiler-internal
+sidecars, not a reason to create nominal Chi.
+
 Proposition and named-evidence projection is the concrete model for this
 cross-representation rule. Typed proposition applications own structural
 declaration symbols, binder arguments, and ordinary value-expression

@@ -4,17 +4,19 @@ use crate::{
 };
 use omega_compiler::{
     CompilerExecutableCommitment, PackageReviewCanonicalRow, PackageReviewCanonicalRowKind,
-    PackageReviewCanonicalRowRisk, PackageSourceConsumptionCommitment,
+    PackageReviewCanonicalRowRisk, PackageReviewCanonicalRowSource,
+    PackageReviewSourceLocationOwner, PackageReviewSourceLocationRole,
+    PackageReviewSyntheticSourceKind, PackageSourceConsumptionCommitment,
 };
 use sha2::{Digest, Sha256};
 use std::cmp::Ordering;
 use std::fmt;
 
 const CONFLICT_FINGERPRINT_DOMAIN: &[u8] = b"OMEGA-PACKAGE-CAPABILITY-CONFLICT\0";
-const CONFLICT_FINGERPRINT_VERSION: u16 = 1;
+const CONFLICT_FINGERPRINT_VERSION: u16 = 2;
 const CANDIDATE_CLOSURE_DOMAIN: &[u8] = b"OMEGA-PACKAGE-CANDIDATE-CLOSURE\0";
 const CANDIDATE_CLOSURE_VERSION: u16 = 1;
-const CONFLICT_RENDER_SCHEMA: &str = "OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V1\n";
+const CONFLICT_RENDER_SCHEMA: &str = "OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V2\n";
 
 /// Resource ceilings for exact review-row comparison.
 ///
@@ -27,8 +29,11 @@ pub struct ReviewOnlyCapabilityConflictLimits {
     maximum_rows: usize,
     maximum_row_key_bytes: usize,
     maximum_encoded_row_bytes: usize,
+    maximum_source_locations: usize,
+    maximum_source_location_path_bytes: usize,
     maximum_conflicts: usize,
     maximum_changed_row_bytes: usize,
+    maximum_changed_source_location_bytes: usize,
     maximum_dependency_path_steps: usize,
 }
 
@@ -38,8 +43,11 @@ impl ReviewOnlyCapabilityConflictLimits {
         maximum_rows: usize,
         maximum_row_key_bytes: usize,
         maximum_encoded_row_bytes: usize,
+        maximum_source_locations: usize,
+        maximum_source_location_path_bytes: usize,
         maximum_conflicts: usize,
         maximum_changed_row_bytes: usize,
+        maximum_changed_source_location_bytes: usize,
         maximum_dependency_path_steps: usize,
     ) -> Self {
         Self {
@@ -47,8 +55,11 @@ impl ReviewOnlyCapabilityConflictLimits {
             maximum_rows,
             maximum_row_key_bytes,
             maximum_encoded_row_bytes,
+            maximum_source_locations,
+            maximum_source_location_path_bytes,
             maximum_conflicts,
             maximum_changed_row_bytes,
+            maximum_changed_source_location_bytes,
             maximum_dependency_path_steps,
         }
     }
@@ -77,6 +88,18 @@ impl ReviewOnlyCapabilityConflictLimits {
         self.maximum_encoded_row_bytes
     }
 
+    pub const fn maximum_source_locations(self) -> usize {
+        self.maximum_source_locations
+    }
+
+    pub const fn maximum_source_location_path_bytes(self) -> usize {
+        self.maximum_source_location_path_bytes
+    }
+
+    pub const fn maximum_changed_source_location_bytes(self) -> usize {
+        self.maximum_changed_source_location_bytes
+    }
+
     pub const fn maximum_dependency_path_steps(self) -> usize {
         self.maximum_dependency_path_steps
     }
@@ -89,7 +112,10 @@ impl Default for ReviewOnlyCapabilityConflictLimits {
             131_072,
             16 * 1024 * 1024,
             32 * 1024 * 1024,
+            262_144,
+            16 * 1024 * 1024,
             65_536,
+            8 * 1024 * 1024,
             8 * 1024 * 1024,
             1_024,
         )
@@ -138,6 +164,8 @@ pub struct ReviewOnlyCapabilityConflict {
     row_key: Vec<u8>,
     baseline_row: Option<Vec<u8>>,
     candidate_row: Option<Vec<u8>>,
+    baseline_source: Option<PackageReviewCanonicalRowSource>,
+    candidate_source: Option<PackageReviewCanonicalRowSource>,
     fingerprint: ReviewOnlyCapabilityConflictFingerprint,
 }
 
@@ -164,6 +192,14 @@ impl ReviewOnlyCapabilityConflict {
 
     pub fn candidate_row(&self) -> Option<&[u8]> {
         self.candidate_row.as_deref()
+    }
+
+    pub const fn baseline_source(&self) -> Option<&PackageReviewCanonicalRowSource> {
+        self.baseline_source.as_ref()
+    }
+
+    pub const fn candidate_source(&self) -> Option<&PackageReviewCanonicalRowSource> {
+        self.candidate_source.as_ref()
     }
 
     pub const fn fingerprint(&self) -> ReviewOnlyCapabilityConflictFingerprint {
@@ -336,10 +372,19 @@ pub enum ReviewOnlyCapabilityConflictError {
     EncodedRowBytesExceeded {
         maximum_bytes: usize,
     },
+    TooManySourceLocations {
+        maximum: usize,
+    },
+    SourceLocationPathBytesExceeded {
+        maximum_bytes: usize,
+    },
     TooManyConflicts {
         maximum: usize,
     },
     ChangedRowBytesExceeded {
+        maximum_bytes: usize,
+    },
+    ChangedSourceLocationBytesExceeded {
         maximum_bytes: usize,
     },
     DependencyPathTooLong {
@@ -410,6 +455,14 @@ impl fmt::Display for ReviewOnlyCapabilityConflictError {
                 formatter,
                 "capability comparison exceeded its {maximum_bytes}-byte encoded-row ceiling"
             ),
+            Self::TooManySourceLocations { maximum } => write!(
+                formatter,
+                "capability comparison exceeded its {maximum}-source-location ceiling"
+            ),
+            Self::SourceLocationPathBytesExceeded { maximum_bytes } => write!(
+                formatter,
+                "capability comparison exceeded its {maximum_bytes}-byte source-location path ceiling"
+            ),
             Self::TooManyConflicts { maximum } => write!(
                 formatter,
                 "capability comparison exceeded its {maximum}-row conflict ceiling"
@@ -417,6 +470,10 @@ impl fmt::Display for ReviewOnlyCapabilityConflictError {
             Self::ChangedRowBytesExceeded { maximum_bytes } => write!(
                 formatter,
                 "capability comparison exceeded its {maximum_bytes}-byte changed-row ceiling"
+            ),
+            Self::ChangedSourceLocationBytesExceeded { maximum_bytes } => write!(
+                formatter,
+                "capability comparison exceeded its {maximum_bytes}-byte changed-source-location ceiling"
             ),
             Self::DependencyPathTooLong {
                 package,
@@ -574,6 +631,8 @@ struct ComparisonInputBudget {
     rows: usize,
     row_key_bytes: usize,
     encoded_row_bytes: usize,
+    source_locations: usize,
+    source_location_path_bytes: usize,
 }
 
 fn validate_reviews<'review>(
@@ -612,6 +671,12 @@ fn validate_reviews<'review>(
             .fold(budget.encoded_row_bytes, |bytes, row| {
                 bytes.saturating_add(row.canonical_bytes().len())
             });
+        for row in review.canonical_rows() {
+            let (locations, path_bytes) = source_metrics(row.source());
+            budget.source_locations = budget.source_locations.saturating_add(locations);
+            budget.source_location_path_bytes =
+                budget.source_location_path_bytes.saturating_add(path_bytes);
+        }
         if budget.rows > limits.maximum_rows {
             return Err(ReviewOnlyCapabilityConflictError::TooManyRows {
                 maximum: limits.maximum_rows,
@@ -626,6 +691,18 @@ fn validate_reviews<'review>(
             return Err(ReviewOnlyCapabilityConflictError::EncodedRowBytesExceeded {
                 maximum_bytes: limits.maximum_encoded_row_bytes,
             });
+        }
+        if budget.source_locations > limits.maximum_source_locations {
+            return Err(ReviewOnlyCapabilityConflictError::TooManySourceLocations {
+                maximum: limits.maximum_source_locations,
+            });
+        }
+        if budget.source_location_path_bytes > limits.maximum_source_location_path_bytes {
+            return Err(
+                ReviewOnlyCapabilityConflictError::SourceLocationPathBytesExceeded {
+                    maximum_bytes: limits.maximum_source_location_path_bytes,
+                },
+            );
         }
         by_key.push(review);
     }
@@ -679,6 +756,7 @@ fn validate_candidate_custody(
 struct OwnedConflictBudget {
     conflicts: usize,
     bytes: usize,
+    source_location_bytes: usize,
 }
 
 fn compare_rows(
@@ -757,6 +835,19 @@ fn compare_rows(
                 maximum_bytes: limits.maximum_changed_row_bytes,
             });
         }
+        let changed_source_location_bytes = baseline_row
+            .map_or(0, |row| source_metrics(row.source()).1)
+            .saturating_add(candidate_row.map_or(0, |row| source_metrics(row.source()).1));
+        budget.source_location_bytes = budget
+            .source_location_bytes
+            .saturating_add(changed_source_location_bytes);
+        if budget.source_location_bytes > limits.maximum_changed_source_location_bytes {
+            return Err(
+                ReviewOnlyCapabilityConflictError::ChangedSourceLocationBytesExceeded {
+                    maximum_bytes: limits.maximum_changed_source_location_bytes,
+                },
+            );
+        }
         let baseline_bytes = baseline_row
             .map(|row| clone_bytes(row.canonical_bytes()))
             .transpose()?;
@@ -764,6 +855,8 @@ fn compare_rows(
             .map(|row| clone_bytes(row.canonical_bytes()))
             .transpose()?;
         let owned_row_key = clone_bytes(row_key)?;
+        let baseline_source = baseline_row.map(|row| row.source().clone());
+        let candidate_source = candidate_row.map(|row| row.source().clone());
         let fingerprint = derive_conflict_fingerprint(
             key,
             baseline_review,
@@ -776,6 +869,8 @@ fn compare_rows(
             row_key,
             baseline_bytes.as_deref(),
             candidate_bytes.as_deref(),
+            baseline_source.as_ref(),
+            candidate_source.as_ref(),
         );
         conflicts.push(ReviewOnlyCapabilityConflict {
             kind,
@@ -784,6 +879,8 @@ fn compare_rows(
             row_key: owned_row_key,
             baseline_row: baseline_bytes,
             candidate_row: candidate_bytes,
+            baseline_source,
+            candidate_source,
             fingerprint,
         });
     }
@@ -887,6 +984,8 @@ fn derive_conflict_fingerprint(
     row_key: &[u8],
     baseline_row: Option<&[u8]>,
     candidate_row: Option<&[u8]>,
+    baseline_source: Option<&PackageReviewCanonicalRowSource>,
+    candidate_source: Option<&PackageReviewCanonicalRowSource>,
 ) -> ReviewOnlyCapabilityConflictFingerprint {
     let mut digest = Sha256::new();
     hash_field(&mut digest, CONFLICT_FINGERPRINT_DOMAIN);
@@ -918,6 +1017,8 @@ fn derive_conflict_fingerprint(
     hash_field(&mut digest, row_key);
     hash_optional_field(&mut digest, baseline_row);
     hash_optional_field(&mut digest, candidate_row);
+    hash_optional_row_source(&mut digest, baseline_source);
+    hash_optional_row_source(&mut digest, candidate_source);
     ReviewOnlyCapabilityConflictFingerprint(digest.finalize().into())
 }
 
@@ -1020,6 +1121,52 @@ fn hash_optional_field(digest: &mut Sha256, bytes: Option<&[u8]>) {
             hash_field(digest, bytes);
         }
         None => digest.update([0]),
+    }
+}
+
+fn hash_optional_row_source(digest: &mut Sha256, source: Option<&PackageReviewCanonicalRowSource>) {
+    match source {
+        None => digest.update([0]),
+        Some(PackageReviewCanonicalRowSource::CompilerDerived(kind)) => {
+            digest.update([1]);
+            digest.update([synthetic_source_kind_tag(*kind)]);
+        }
+        Some(PackageReviewCanonicalRowSource::Authored(locations)) => {
+            digest.update([2]);
+            digest.update(
+                u64::try_from(locations.len())
+                    .expect("bounded source-location count fits u64")
+                    .to_le_bytes(),
+            );
+            for location in locations {
+                match location.owner() {
+                    PackageReviewSourceLocationOwner::Package(package) => {
+                        digest.update([0]);
+                        hash_field(digest, &package.digest());
+                    }
+                    PackageReviewSourceLocationOwner::Toolchain(source) => {
+                        digest.update([1]);
+                        hash_field(digest, &source.digest());
+                    }
+                }
+                hash_field(digest, location.relative_path().as_bytes());
+                digest.update(location.start_byte().to_le_bytes());
+                digest.update(location.end_byte().to_le_bytes());
+                digest.update([source_location_role_tag(location.role())]);
+            }
+        }
+    }
+}
+
+fn source_metrics(source: &PackageReviewCanonicalRowSource) -> (usize, usize) {
+    match source {
+        PackageReviewCanonicalRowSource::CompilerDerived(_) => (0, 0),
+        PackageReviewCanonicalRowSource::Authored(locations) => (
+            locations.len(),
+            locations.iter().fold(0usize, |bytes, location| {
+                bytes.saturating_add(location.relative_path().len())
+            }),
+        ),
     }
 }
 
@@ -1134,6 +1281,8 @@ fn render_package(
         output.push('\n');
         render_optional_bytes_summary(output, "baseline_row", conflict.baseline_row.as_deref());
         render_optional_bytes_summary(output, "candidate_row", conflict.candidate_row.as_deref());
+        render_optional_row_source(output, "baseline", conflict.baseline_source.as_ref());
+        render_optional_row_source(output, "candidate", conflict.candidate_source.as_ref());
         output.push_str("conflict_end\n");
     }
     output.push_str("package_end\n");
@@ -1190,6 +1339,86 @@ fn render_optional_bytes_summary(
         output.push_str("none");
     }
     output.push('\n');
+}
+
+fn render_optional_row_source(
+    output: &mut impl ConflictRenderOutput,
+    label: &str,
+    source: Option<&PackageReviewCanonicalRowSource>,
+) {
+    output.push_str(label);
+    output.push_str("_source ");
+    match source {
+        None => output.push_str("absent_row\n"),
+        Some(PackageReviewCanonicalRowSource::CompilerDerived(kind)) => {
+            output.push_str("compiler_derived ");
+            output.push_str(synthetic_source_kind_token(*kind));
+            output.push('\n');
+        }
+        Some(PackageReviewCanonicalRowSource::Authored(locations)) => {
+            output.push_str("authored ");
+            output.push_str(&locations.len().to_string());
+            output.push('\n');
+            for location in locations {
+                output.push_str(label);
+                output.push_str("_location ");
+                output.push_str(source_location_role_token(location.role()));
+                output.push(' ');
+                match location.owner() {
+                    PackageReviewSourceLocationOwner::Package(package) => {
+                        output.push_str("package ");
+                        push_hex(output, &package.digest());
+                    }
+                    PackageReviewSourceLocationOwner::Toolchain(source) => {
+                        output.push_str("toolchain ");
+                        push_hex(output, &source.digest());
+                    }
+                }
+                output.push(' ');
+                output.push_str(&location.start_byte().to_string());
+                output.push(' ');
+                output.push_str(&location.end_byte().to_string());
+                output.push(' ');
+                push_escaped_path(output, location.relative_path().as_bytes());
+                output.push('\n');
+            }
+        }
+    }
+}
+
+const fn synthetic_source_kind_tag(kind: PackageReviewSyntheticSourceKind) -> u8 {
+    match kind {
+        PackageReviewSyntheticSourceKind::ProjectionHeader => 0,
+        PackageReviewSyntheticSourceKind::SelectedProviderProvenancePending => 1,
+    }
+}
+
+const fn synthetic_source_kind_token(kind: PackageReviewSyntheticSourceKind) -> &'static str {
+    match kind {
+        PackageReviewSyntheticSourceKind::ProjectionHeader => "projection_header",
+        PackageReviewSyntheticSourceKind::SelectedProviderProvenancePending => {
+            "selected_provider_provenance_pending"
+        }
+    }
+}
+
+fn push_escaped_path(output: &mut impl ConflictRenderOutput, path: &[u8]) {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    output.push('"');
+    for byte in path {
+        match byte {
+            b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' | b'.' | b'_' | b'-' | b'/' | b'<' | b'>' => {
+                output.push(char::from(*byte))
+            }
+            b'\\' => output.push_str("\\\\"),
+            _ => {
+                output.push_str("\\x");
+                output.push(char::from(HEX[usize::from(byte >> 4)]));
+                output.push(char::from(HEX[usize::from(byte & 0x0f)]));
+            }
+        }
+    }
+    output.push('"');
 }
 
 fn render_bytes_summary(output: &mut impl ConflictRenderOutput, bytes: &[u8]) {
@@ -1270,5 +1499,23 @@ const fn change_tag(change: ReviewOnlyCapabilityConflictChange) -> u8 {
         ReviewOnlyCapabilityConflictChange::Added => 0,
         ReviewOnlyCapabilityConflictChange::Removed => 1,
         ReviewOnlyCapabilityConflictChange::Changed => 2,
+    }
+}
+
+const fn source_location_role_tag(role: PackageReviewSourceLocationRole) -> u8 {
+    match role {
+        PackageReviewSourceLocationRole::Declaration => 0,
+        PackageReviewSourceLocationRole::DerivationOrigin => 1,
+        PackageReviewSourceLocationRole::AuthorityDeclaration => 2,
+        PackageReviewSourceLocationRole::AuthorityExposure => 3,
+    }
+}
+
+const fn source_location_role_token(role: PackageReviewSourceLocationRole) -> &'static str {
+    match role {
+        PackageReviewSourceLocationRole::Declaration => "declaration",
+        PackageReviewSourceLocationRole::DerivationOrigin => "derivation_origin",
+        PackageReviewSourceLocationRole::AuthorityDeclaration => "authority_declaration",
+        PackageReviewSourceLocationRole::AuthorityExposure => "authority_exposure",
     }
 }

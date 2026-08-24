@@ -879,8 +879,20 @@ complete.
   and output are separately bounded and reject rather than truncate.
   Representation-TCB-only changes now recommend audit without becoming a
   blanket capability block; blocking and opaque-blocking row changes still
-  block. Nested explanation, compiler-issued exact source locations, and
-  durable root-policy resolutions remain.
+  block. Compiler rows now also carry separately bounded, canonical package-
+  relative UTF-8 paths and exact byte spans for declaration anchors. Dangerous-
+  authority rows retain both the canonical toolchain authority declaration and
+  every reviewed package callable exposing it. These explanatory coordinates
+  do not enter semantic row bytes, so moving a declaration does not manufacture
+  a capability change; old/new coordinates do enter each changed-row conflict
+  fingerprint and fixed-vocabulary renderer, binding a resolution to what was
+  shown. Generated symbols follow their mandatory authored derivation origin,
+  toolchain owners reuse the compiler's canonical source-custody framing, and
+  absent authored provenance has a closed compiler-derived reason rather than
+  an empty placeholder. Exact nested clause/use-site anchors, selected-provider
+  provenance sidecars, capture-alongside-projection instead of the current
+  post-projection joins, and durable root-policy resolutions remain engineering
+  work. They do not require nominal Chi or a new owner decision.
 
 - **DANGEROUS-AUTHORITY-CLASSIFICATION.** Classify risk from compiler-owned
   nominal metadata.

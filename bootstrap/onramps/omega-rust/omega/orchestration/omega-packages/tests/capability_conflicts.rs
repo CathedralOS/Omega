@@ -1,4 +1,6 @@
-use omega_compiler::{PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk};
+use omega_compiler::{
+    PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk, PackageReviewCanonicalRowSource,
+};
 use omega_packages::{
     ExternalSourceContext, LocalSourceLimits, PackageSourceClosureLimits, PackageTriageDisposition,
     ReviewOnlyCapabilityConflictChange, ReviewOnlyCapabilityConflictError,
@@ -124,6 +126,14 @@ pub machine identity_u64(value: u64) -> u64 {
     assert_eq!(conflict.change(), ReviewOnlyCapabilityConflictChange::Added);
     assert!(conflict.baseline_row().is_none());
     assert!(conflict.candidate_row().is_some());
+    assert!(conflict.baseline_source().is_none());
+    let Some(PackageReviewCanonicalRowSource::Authored(candidate_locations)) =
+        conflict.candidate_source()
+    else {
+        panic!("added callable has compiler-issued candidate source")
+    };
+    assert_eq!(candidate_locations.len(), 1);
+    assert_eq!(candidate_locations[0].relative_path(), "main.omg");
     assert!(conflict.is_blocking());
     assert_ne!(conflict.fingerprint().digest(), [0; 32]);
     assert_eq!(
@@ -143,8 +153,10 @@ pub machine identity_u64(value: u64) -> u64 {
     let rendered = conflicts
         .render_bounded(1024 * 1024)
         .expect("render bounded conflict evidence");
-    assert!(rendered.starts_with("OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V1\n"));
+    assert!(rendered.starts_with("OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V2\n"));
     assert!(rendered.contains("change added\nkind callable\nrisk blocking\n"));
+    assert!(rendered.contains("candidate_location declaration package "));
+    assert!(rendered.contains(" \"main.omg\"\n"));
     assert!(!rendered.contains(&live.display().to_string()));
     assert!(!rendered.contains(&candidate_cache.display().to_string()));
     assert_eq!(
@@ -167,7 +179,10 @@ pub machine identity_u64(value: u64) -> u64 {
             131_072,
             16 * 1024 * 1024,
             32 * 1024 * 1024,
+            262_144,
+            16 * 1024 * 1024,
             0,
+            8 * 1024 * 1024,
             8 * 1024 * 1024,
             1_024,
         ),
@@ -186,8 +201,11 @@ pub machine identity_u64(value: u64) -> u64 {
             131_072,
             16 * 1024 * 1024,
             32 * 1024 * 1024,
+            262_144,
+            16 * 1024 * 1024,
             65_536,
             0,
+            8 * 1024 * 1024,
             1_024,
         ),
     )

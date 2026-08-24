@@ -232,6 +232,18 @@ justified later only if multiple independent consumers need the same semantic
 stage or it acquires its own transformations, invariants, and verification
 rules.
 
+Conflict explanation follows the same ownership rule. The compiler attaches
+canonical package-relative UTF-8 paths and exact byte spans to its canonical
+rows, separately from semantic row bytes. Declaration movement therefore does
+not create a capability change. When a row does change, its old/new explanatory
+coordinates are included in the conflict fingerprint and escaped bounded
+rendering. Dangerous-authority rows identify both the canonical toolchain
+declaration and each reviewed package callable exposing it. Generated symbols
+follow their authored derivation origin; genuinely compiler-derived rows carry
+a closed reason. Exact nested use-site and selected-provider coordinates may be
+added through their existing typed/checked owners and compiler sidecars without
+creating a report-only stage.
+
 Proposition and named-evidence rows apply that rule as an explicit join. The
 typed application owns the structural proposition declaration, binder
 arguments, and ordinary value-expression arguments. Checked proof state owns
