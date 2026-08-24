@@ -185,3 +185,45 @@ requirement to traits now and require every invariant member path to resolve to
 it. Tempting but wrong alternatives are to canonically encode the string
 `value`, infer an implicit structural member and its type from invariant uses,
 or add a report-only IR stage that merely freezes the unresolved spelling.
+
+## Q7 — Should trait requirements admit named witness contracts?
+
+Concrete machines use named `requires`/`ensures` contracts as erased witness
+input/output lanes. Public trait requirement syntax currently does not admit the
+binding form, validation does not define conformance or call forwarding for it,
+and checked state-signature facts therefore retain no evidence term. The shared
+package projector could encode such a term, but no authored Omega declaration
+can coherently produce one today.
+
+Choose whether named evidence is part of a trait requirement's public callable
+contract. If it is, specify erased lane ordering, call syntax, conformance
+inheritance, default realizations, and whether a renamed `requires` alias remains
+local while a renamed `ensures` selector changes public output identity.
+
+Recommended direction: keep trait requirements fact-only until a concrete use
+needs abstract witness transport. Then extend ordinary signature syntax and
+checked call/conformance semantics together, reusing the existing positional
+evidence lanes. A valid larger alternative is to add that complete feature now.
+Tempting but wrong alternatives are to expose the latent optional binding field
+only to package review, synthesize evidence terms after checking, or invent new
+package-only syntax.
+
+## Q8 — What does a boundary clause mean on an abstract requirement?
+
+Boundary syntax distinguishes host and named boundary levels before semantic
+lowering, but the state-signature path collapses them to one undifferentiated
+`Boundary` contract kind and carries no proof facts. Package review therefore
+cannot preserve the authored level or explain how the clause differs from a
+boundary trait, exact service reach, or an admitted qualification route.
+
+Choose whether abstract requirements need this clause at all. If retained, its
+host/named level, authority effect, inheritance, provider relationship, and
+comparison identity must survive as structural checked semantics.
+
+Recommended direction: do not admit boundary clauses on trait requirements;
+use boundary-trait identity, service reach, and explicit checked establishment
+routes for the one-purpose language's actual boundaries. A coherent alternative
+is to retain an exact nominal boundary-level identity through checking when a
+real external contract requires it. Tempting but wrong alternatives are to
+encode the word `boundary`, treat host and named levels as equal, or infer the
+missing level from a service name during package projection.

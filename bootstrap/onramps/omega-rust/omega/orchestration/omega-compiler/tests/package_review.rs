@@ -509,7 +509,7 @@ crashes Abort
         target,
         "review identity must retain the deployment profile, not only its native ABI",
     );
-    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 28);
+    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 29);
     let [ready] = review.public_domains() else {
         panic!("one package-owned public domain row")
     };
@@ -2086,7 +2086,7 @@ invokes waiting;
 }
 
 #[test]
-fn exact_synchronous_invocations_change_v28_comparison_encoding() {
+fn exact_synchronous_invocations_change_v29_comparison_encoding() {
     let quiet = TempPackage::new();
     let invoking = TempPackage::new();
     quiet.write(
@@ -2276,7 +2276,7 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
-fn public_data_and_numbered_wire_shape_changes_change_v28_comparison_encoding() {
+fn public_data_and_numbered_wire_shape_changes_change_v29_comparison_encoding() {
     let first = TempPackage::new();
     let second = TempPackage::new();
     first.write(
@@ -2310,7 +2310,7 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
-fn public_domain_shape_changes_change_v28_comparison_encoding() {
+fn public_domain_shape_changes_change_v29_comparison_encoding() {
     let first = TempPackage::new();
     let second = TempPackage::new();
     first.write(
@@ -3297,7 +3297,130 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
-fn public_trait_unrepresented_contract_lanes_remain_fail_closed() {
+fn public_trait_crash_ceilings_are_exact_canonical_checked_routes() {
+    let project = |trap_guard: &str, stop_cause: &str| {
+        let package = TempPackage::new();
+        package.write(
+            "main.omg",
+            &format!(
+                "pub trait Worker {{\n    machine run(flag: bool)\n    crashes Trap {trap_guard};\n    machine stop() crashes {stop_cause};\n    machine idle();\n}}\n"
+            ),
+        );
+        package.write(
+            "build.omg",
+            r#"target windows_x64 { }
+machine build(builder: &mut Build) { }
+"#,
+        );
+        let checked = compile_to_checked_with_packages(
+            &package.0.join("main.omg"),
+            Some("windows_x64"),
+            package_inputs(&package.0),
+        )
+        .expect("public trait crash ceiling should check");
+        project_checked_package_review(&checked)
+            .expect("public trait crash ceiling should project from its exact checked capsule")
+    };
+
+    let first = project("flag", "Abort");
+    let guard_changed = project("!flag", "Abort");
+    let cause_changed = project("flag", "Trap");
+    let worker = first
+        .public_traits()
+        .iter()
+        .find(|shape| shape.identity().path() == "Worker")
+        .expect("worker trait row");
+    let run = worker
+        .requirements()
+        .iter()
+        .find(|requirement| requirement.identity().path() == "Worker::run")
+        .expect("run requirement row");
+    let [trap] = run.published_crash() else {
+        panic!("one guarded trap route")
+    };
+    assert_eq!(trap.cause(), psi_checked_trees::CrashCause::Trap);
+    let [PackageReviewCrashRouteGuard::Predicate(predicate)] = trap.alternative_guards() else {
+        panic!("trap route must retain one canonical predicate guard")
+    };
+    assert!(!predicate.canonical_bytes().is_empty());
+    let stop = worker
+        .requirements()
+        .iter()
+        .find(|requirement| requirement.identity().path() == "Worker::stop")
+        .expect("stop requirement row");
+    let [abort] = stop.published_crash() else {
+        panic!("one unconditional abort route")
+    };
+    assert_eq!(abort.cause(), psi_checked_trees::CrashCause::Abort);
+    assert_eq!(
+        abort.alternative_guards(),
+        [PackageReviewCrashRouteGuard::Truth]
+    );
+    let idle = worker
+        .requirements()
+        .iter()
+        .find(|requirement| requirement.identity().path() == "Worker::idle")
+        .expect("idle requirement row");
+    assert!(idle.published_crash().is_empty());
+    assert_ne!(
+        first.canonical_review_bytes().unwrap(),
+        guard_changed.canonical_review_bytes().unwrap(),
+        "changing a crash guard must change package comparison identity"
+    );
+    assert_ne!(
+        first.canonical_review_bytes().unwrap(),
+        cause_changed.canonical_review_bytes().unwrap(),
+        "changing a crash cause must change package comparison identity"
+    );
+}
+
+#[test]
+fn public_trait_crash_projection_rejects_missing_or_duplicate_checked_capsules() {
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub trait Worker {
+    machine run() crashes Trap;
+}
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x64 { }
+machine build(builder: &mut Build) { }
+"#,
+    );
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some("windows_x64"),
+        package_inputs(&package.0),
+    )
+    .expect("public trait crash fixture should check");
+
+    let mut missing = checked.clone();
+    missing.facts.contract_plans.crash_capsules.clear();
+    let diagnostics = project_checked_package_review(&missing)
+        .expect_err("missing checked crash capsule must reject");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("has no exact checked crash capsule")
+    }));
+
+    let mut duplicate = checked;
+    let capsule = duplicate.facts.contract_plans.crash_capsules[0].clone();
+    duplicate.facts.contract_plans.crash_capsules.push(capsule);
+    let diagnostics = project_checked_package_review(&duplicate)
+        .expect_err("duplicate checked crash capsules must reject");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("has duplicate checked crash capsules")
+    }));
+}
+
+#[test]
+fn public_trait_unsupported_contract_expressions_remain_fail_closed() {
     let reject = |source: &str, expected: &str| {
         let package = TempPackage::new();
         package.write("main.omg", source);
@@ -3331,15 +3454,6 @@ pub trait Worker {
 }
 "#,
         "contract expression form not yet represented by package review",
-    );
-    reject(
-        r#"pub trait Worker {
-    machine wait(flag: bool)
-    crashes Trap
-        flag;
-}
-"#,
-        "uses a crash contract not yet represented by public-trait review",
     );
 }
 

@@ -474,11 +474,13 @@ complete.
   `ensures` through the same closed structural fact/expression lane as public
   callables, joined to exactly one checked `StateSignature` owner. Generic
   selected-conformance telescopes, invariants, named evidence contracts,
-  boundary/crash contracts, and unsupported expression forms still fail closed;
-  no public trait is silently omitted.
+  boundary clauses, and unsupported expression forms still fail closed. Exact
+  checked crash capsules keyed by trait and requirement now project each
+  abstract published crash ceiling as canonical cause-and-guard routes without
+  fabricating realized body sites or calls; no public trait is silently omitted.
   Declaration kinds without retained visibility reject
   `pub` instead of silently compiling a private API. Settled export semantics,
-  the remaining named/boundary/crash public-trait contract lanes, domain predicate/semantic-role/
+  the remaining named/boundary public-trait contract lanes, domain predicate/semantic-role/
   operator lanes,
   generated/toolchain symbol ownership, package-qualified provider
   binding/selection identities, source/toolchain/compiler commitments,
@@ -577,7 +579,7 @@ complete.
   closing the implicit-entry-state ownership gap discovered by the crash
   projection. Review identity now retains the exact deployment target profile,
   so profiles such as Windows and UEFI cannot collapse merely because they
-  share a native ABI. A v28 length-framed binary comparison encoding now covers
+  share a native ABI. A v29 length-framed binary comparison encoding now covers
   every retained public-domain, public-data, public-trait, callable,
   representation-TCB, crash/proof predicate, proposition/witness, authority
   flow, dangerous-authority classification, mutation, and selected-provider
@@ -738,7 +740,7 @@ complete.
   `PortIo`, `InterruptMaskControl`, `InterruptEntry`, and
   `ExtentRootProvider` as machine-control, port-I/O, interrupt-control,
   interrupt-entry, and root-memory authority. Canonical and same-named
-  package-owned tests pin both sides of each join, and comparison encoding v28
+  package-owned tests pin both sides of each join, and comparison encoding v29
   retains the rows. `ProgramStorageEntry` is not mislabeled as executable-
   installation authority merely because it receives already-installed roots;
   that class must come from exact installation evidence. Network, process,
@@ -762,7 +764,7 @@ complete.
   `boundary data`, including private declarations and declarations with no
   reach or claim. The row is target-scoped by the containing projection and
   explicitly records both ABI commitment and external mechanism as `Unbound`;
-  it does not fabricate layout or realization. Comparison encoding v28 retains
+  it does not fabricate layout or realization. Comparison encoding v29 retains
   the lane. Exact mechanism/ABI selection, source/toolchain/compiler sealing,
   and admission-policy outcomes remain.
 
