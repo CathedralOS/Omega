@@ -224,6 +224,36 @@ the restriction is derived from its call closure. For an opaque realization it
 is an admitted provider judgment, pinned to the selected implementation and
 receipt, unless installation supplies physical isolation evidence.
 
+### Borrow-compatibility certificates
+
+Ordinary borrow admission ultimately crosses Terminal as two joined but
+independent rows. The resource row retains each loan occurrence's exact owner
+lineage, captured place, access polarity, parent lifetime, and restoration
+obligation. A proposition-derived compatibility row retains the loan-formation
+event, captured loan/place identities, normalized relational conclusion, exact
+premise fact tokens, and proof derivation.
+
+The row does not serialize "dominates" or "is valid" as trusted claims. The
+verifier reconstructs control-flow dominance and path availability from the
+premises' establishment points, checks their exact value/place versions and
+validity scopes at formation, replays the derivation, and confirms that its
+conclusion names the places actually captured by the resource rows. Premises
+may expire after formation: a borrow captures a place rather than a live index
+expression, so compatibility over the frozen loan occurrences survives without
+retargeting either loan.
+
+Relational evidence never repairs a missing resource row or widens its access.
+Conversely, a live exclusive authority does not prove that two projections are
+disjoint. A rule such as "no conflicting writer" is accepted only when the
+resource ledger supplies the write loan and the compatibility certificate
+proves non-interference. Circular justification rejects before either row can
+authorize execution.
+
+Logical place footprints in these rows are not semantic `Content<A>`
+projections or backend physical effect footprints. Terminal retains explicit
+checked bridges when a particular carrier or operation relates those notions;
+it never identifies them by shape.
+
 Nominal proposition declarations retain their binder telescopes,
 fact-only/witness-bearing classification, and any normalized carrierless
 evidence interface in this fingerprinted vocabulary. Changing that interface

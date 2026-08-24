@@ -244,6 +244,69 @@ The checker must know that `i` and `j` refer to disjoint places. That fact may
 come from arithmetic, from a domain, or from a helper machine that establishes
 `i != j`.
 
+Borrow checking coordinates two ledgers without collapsing them. The
+Type/resource ledger owns the existence, provenance, polarity, lifetime, and
+return of each loan. The proof ledger may establish relationships over
+already-existing, versioned values, places, and authority occurrences. Because
+`Prop` is erased and copyable and has no custody disposition, a proposition can
+never create, amplify, transfer, extend, return, consume, or duplicate loan
+authority.
+
+This is a criterion rather than a closed obligation list. Spatial
+disjointness, spatial containment, and non-interference are relational and may
+be proved. Literal comparison, symbolic-bound normalization, arithmetic,
+domains, and explicit theorem citation are different derivation methods for
+those relationships, not separate borrow-obligation kinds. Loan descent from a
+live owner, access attenuation, temporal containment within the parent loan,
+and restoration remain resource judgments. A compound rule such as "no
+conflicting writer" therefore splits: the write loan's existence is Type-side,
+while whether its captured place interferes with another loan is relational.
+
+A loan captures its exact place occurrence when it is formed. In:
+
+```omega
+let view = &mut buffer[table[index]];
+```
+
+later mutation of `table[index]` does not retarget `view`. Any proposition used
+to license compatibility must dominate formation and be valid for the exact
+value/place versions captured at that event. The resulting compatibility fact
+is about those frozen loan occurrences; its premises may later expire without
+moving or merging the captured places. A supposedly retargetable place instead
+violates the Type-side pinning/provenance rule.
+
+The proof context participates from the beginning; it is not a fallback after
+a separate borrow checker rejects. The ordinary checker is the default tactic
+that constructs the same compatibility certificate automatically. A failed
+automatic derivation remains an ordinary borrow diagnostic unless source has
+explicitly engaged with proof vocabulary.
+
+Shared symbolic boundaries are an ordinary automatic case:
+
+```omega
+let left = &mut items[start..mid];
+let right = &mut items[mid..end];
+```
+
+After the usual range-validity obligations, the identical half-open boundary
+`mid` proves adjacency without requiring literal endpoints or a separately
+authored disjointness theorem.
+
+No public `footprint(...)` contract surface follows from this rule. Most
+source contracts state ordinary value relationships such as `mid <= items.len`,
+from which the checker derives projected-place relationships. Public abstract
+footprints for opaque modular APIs remain a separate future feature. Semantic
+`Content<A>` projections, logical place footprints, and physical effect
+footprints are distinct; a checked carrier-specific bridge may relate them,
+as an `Extent` can relate its address-interval content to a place range.
+
+> **Implementation direction (August 2026):** checked trees already retain
+> first-class loans and use borrow accesses to invalidate proof facts, but the
+> convergence is incomplete. Symbolic range comparison is still largely
+> literal-only, arbitrary valid proof facts do not yet discharge one canonical
+> place-compatibility obligation, and ordinary loan compatibility is not yet
+> retained as an independently replayable Terminal certificate.
+
 ## Owners And Borrowed Views
 
 A borrowed view (a slice over an array, a text view over a bounded byte carrier,

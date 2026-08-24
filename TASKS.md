@@ -5011,6 +5011,45 @@ Owners:
   non-observation judgment; do not infer one from ABI shape. Migrate byte-output
   boundary surfaces only after that gate exists, and never reinterpret
   `&write` as vacant storage or typed construction.
+- **BORROW-PROOF-CONVERGENCE — make ordinary borrow checking a proof-producing
+  compatibility tactic.** Preserve existing `&T`, `&mut T`, and `&write T`
+  source syntax. Keep loan existence, owner provenance, access polarity,
+  temporal containment, and restoration in the Type/resource ledger. Permit
+  `Prop` only to establish relationships over already-existing, versioned
+  values, places, and authority occurrences; it must never create, amplify,
+  transfer, extend, return, consume, or duplicate authority.
+
+  Land the work in independent rungs. First normalize symbolic half-open place
+  ranges so identical/forwarded bounds and structural adjacency prove ordinary
+  disjointness without requiring literal endpoints. Then introduce one
+  canonical captured-place compatibility judgment for spatial disjointness,
+  spatial containment, and non-interference. Structural, literal, symbolic,
+  domain, arithmetic, and explicit-theorem reasoning are tactics consuming the
+  same path- and version-valid fact context, never a sequence of fallback
+  obligation kinds.
+
+  Loan formation freezes exact owner/place occurrences and evaluated range
+  values. Every premise must dominate the formation event and be valid at the
+  captured versions; the conclusion is scoped to the resulting loan
+  occurrences and does not expire merely because a selector expression later
+  changes. Reject any derivation depending on the loan or effects it is being
+  used to authorize. Empty footprints may discharge every relational conflict
+  while retaining complete Type-side lifetime and return obligations.
+
+  Retain a checked and Terminal compatibility certificate naming the exact
+  formation event, captured loan/place identities, normalized conclusion,
+  premise fact tokens, and derivation. Terminal independently reconstructs
+  dominance/path availability, checks premise versions and validity, replays
+  the proof, matches captured places to the resource rows, and separately
+  replays owner lineage, polarity, temporal containment, and restoration.
+  Diagnostics remain borrow-oriented unless source explicitly cites proof
+  vocabulary.
+
+  Do not add public footprint syntax in this task. Ordinary contracts expose
+  value relationships such as index inequalities. Defer abstract footprint
+  contracts until an opaque modular API requires them, and keep semantic
+  `Content<A>`, logical place footprints, and physical effect footprints
+  distinct except through explicit checked carrier/operation bridges.
 
 #### ENT4 — registered callbacks
 

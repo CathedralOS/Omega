@@ -150,6 +150,35 @@ Provenance attaches to the evidence, not to proposition identity, and composes
 through every proof so a deployment profile can reject a proof closure
 containing unacceptable admissions.
 
+### Borrow compatibility over existing authority
+
+Borrow reasoning applies the universe split directly. A proposition may prove
+a relationship over already-established, versioned values, places, and
+authority occurrences. It may not itself create, amplify, transfer, extend,
+return, consume, or duplicate authority. The latter operations remain in the
+Type/resource ledger because erased copyable evidence has no custody
+disposition.
+
+The relational obligation family is semantic; individual solvers are not new
+obligation kinds. Structural projection, literal and symbolic interval
+normalization, domain facts, arithmetic entailment, and explicit theorem
+citation may all prove the same spatial-disjointness, spatial-containment, or
+non-interference goal. They consume one shared path- and version-valid proof
+context rather than run as a borrow pass followed by a proof fallback.
+
+Loan formation freezes the exact place occurrences selected by its evaluated
+arguments. Premises licensing compatibility must dominate that event and be
+valid at the captured value/place versions. The derived conclusion is scoped
+to the resulting loan occurrences, not to the later values of expressions
+that selected them. Proof justification must be acyclic: a fact established by
+a loan or its effects cannot authorize formation of that same loan.
+
+The proof certificate and resource ledger meet but do not subsume one another.
+The former records the normalized relation, exact premise tokens, derivation,
+captured place occurrences, and authorized formation event. The latter records
+owner lineage, access polarity, temporal containment, and restoration. Even a
+loan over an empty place footprint retains its complete resource obligation.
+
 The source relevance marker attaches to a binding occurrence:
 
 ```omega
