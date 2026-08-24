@@ -243,7 +243,7 @@ fn compile_to_checked_inner(
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }
-    let selected_provider_plans = crate::pipeline::provider_plans::select_provider_plan_names(
+    let selected_provider_plans = crate::pipeline::provider_plans::select_provider_plans(
         &provider_plans,
         provider_selection_target,
         &target_provider_defaults,
@@ -251,14 +251,11 @@ fn compile_to_checked_inner(
     )?;
     crate::pipeline::provider_plans::validate_selected_synchronous_invocation_cycles(
         &typed,
-        &provider_plans,
         &selected_provider_plans,
     )?;
-    let selected_provider_plan_facts = omega_effects::SelectedProviderPlanFacts::from_selection(
-        &provider_plans,
-        &selected_provider_plans,
-    )
-    .map_err(|reason| vec![Diagnostic::error(reason)])?;
+    let selected_provider_plan_facts =
+        omega_effects::SelectedProviderPlanFacts::from_selected_plans(selected_provider_plans)
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
     let contract_entailment_stand_downs =
         psi_validation::collect_contract_entailment_stand_downs(&typed);
     let mut checked = typed_trees_to_checked_trees(typed, &mut timings)?;

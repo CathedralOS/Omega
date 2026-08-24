@@ -29,6 +29,90 @@ impl Default for SelectedProviderPlanFacts {
 }
 
 impl SelectedProviderPlanFacts {
+    /// Retain already-resolved provider plans without rejoining them through a
+    /// readable plan name. Authored selection paths belong before this
+    /// boundary; every plan here already carries its package-qualified slot,
+    /// provider, requirement, and realization provenance.
+    pub fn from_selected_plans(mut plans: Vec<ProviderPlan>) -> Result<Self, String> {
+        plans.sort_by(|left, right| {
+            left.name
+                .cmp(&right.name)
+                .then_with(|| {
+                    left.origin_package_identity
+                        .cmp(&right.origin_package_identity)
+                })
+                .then_with(|| {
+                    left.provider_type_package_identity
+                        .cmp(&right.provider_type_package_identity)
+                })
+                .then_with(|| {
+                    left.schema
+                        .trait_package_identity
+                        .cmp(&right.schema.trait_package_identity)
+                })
+                .then_with(|| {
+                    left.identity_fingerprint()
+                        .cmp(&right.identity_fingerprint())
+                })
+        });
+
+        let mut identities = BTreeSet::new();
+        let mut boundary_slots = BTreeSet::new();
+        let mut previous: Option<&ProviderPlan> = None;
+        for plan in &plans {
+            if previous.is_some_and(|previous| previous == plan) {
+                return Err(format!(
+                    "selected provider plan `{}` appears more than once",
+                    plan.name
+                ));
+            }
+            previous = Some(plan);
+            let errors = plan.validate_against_schema();
+            if !errors.is_empty() {
+                return Err(format!(
+                    "selected provider plan `{}` is not fully covering: {}",
+                    plan.name,
+                    errors.join("; ")
+                ));
+            }
+            let identity = plan.identity_fingerprint();
+            if identity == 0 {
+                return Err(format!(
+                    "selected provider plan `{}` produced the reserved zero identity",
+                    plan.name
+                ));
+            }
+            if !identities.insert(identity) {
+                return Err(format!(
+                    "selected provider plan `{}` collides with another selected plan at identity {identity:#018x}",
+                    plan.name
+                ));
+            }
+            let slot = (
+                plan.schema.trait_package_identity,
+                plan.schema.trait_name.as_str(),
+            );
+            if !boundary_slots.insert(slot) {
+                return Err(format!(
+                    "boundary slot `{}` has more than one selected provider plan",
+                    plan.schema.trait_name
+                ));
+            }
+        }
+
+        let normalized_identity = fingerprint_selected_plans(&plans);
+        Ok(Self {
+            plans,
+            normalized_identity,
+            execution_scope: crate::ExecutionScope::CallerAddressSpace,
+            opaque_executable_admissions: Vec::new(),
+            installation_reach_resolutions: Vec::new(),
+        })
+    }
+
+    /// Compatibility constructor for focused tests and legacy callers. New
+    /// compiler paths resolve authored names once and call
+    /// [`Self::from_selected_plans`] directly.
     pub fn from_selection(
         candidates: &[ProviderPlan],
         selected_names: &[String],
@@ -43,8 +127,6 @@ impl SelectedProviderPlanFacts {
         }
 
         let mut plans = Vec::with_capacity(names.len());
-        let mut identities = BTreeSet::new();
-        let mut boundary_slots = BTreeSet::new();
         for name in names {
             let matches = candidates
                 .iter()
@@ -60,41 +142,9 @@ impl SelectedProviderPlanFacts {
                     ),
                 });
             };
-            let errors = plan.validate_against_schema();
-            if !errors.is_empty() {
-                return Err(format!(
-                    "selected provider plan `{name}` is not fully covering: {}",
-                    errors.join("; ")
-                ));
-            }
-            let identity = plan.identity_fingerprint();
-            if identity == 0 {
-                return Err(format!(
-                    "selected provider plan `{name}` produced the reserved zero identity"
-                ));
-            }
-            if !identities.insert(identity) {
-                return Err(format!(
-                    "selected provider plan `{name}` collides with another selected plan at identity {identity:#018x}"
-                ));
-            }
-            if !boundary_slots.insert(plan.schema.trait_name.as_str()) {
-                return Err(format!(
-                    "boundary slot `{}` has more than one selected provider plan",
-                    plan.schema.trait_name
-                ));
-            }
             plans.push((*plan).clone());
         }
-
-        let normalized_identity = fingerprint_selected_plans(&plans);
-        Ok(Self {
-            plans,
-            normalized_identity,
-            execution_scope: crate::ExecutionScope::CallerAddressSpace,
-            opaque_executable_admissions: Vec::new(),
-            installation_reach_resolutions: Vec::new(),
-        })
+        Self::from_selected_plans(plans)
     }
 
     pub fn plans(&self) -> &[ProviderPlan] {
@@ -452,6 +502,36 @@ mod tests {
                 .plan_by_identity(alpha.identity_fingerprint())
                 .map(|plan| plan.name.as_str()),
             Some("Alpha")
+        );
+    }
+
+    #[test]
+    fn resolved_selection_retains_same_spelled_plans_from_distinct_packages() {
+        let first_package = psi_core::PackageKeyIdentity::from_digest([0x31; 32])
+            .expect("nonzero package identity");
+        let second_package = psi_core::PackageKeyIdentity::from_digest([0x32; 32])
+            .expect("nonzero package identity");
+        let mut first = candidate("Shared", "run");
+        first.schema.trait_package_identity = Some(first_package);
+        let mut second = first.clone();
+        second.schema.trait_package_identity = Some(second_package);
+
+        let selected =
+            SelectedProviderPlanFacts::from_selected_plans(vec![second.clone(), first.clone()])
+                .expect("package-qualified slots remain distinct after resolution");
+
+        assert_eq!(selected.plans().len(), 2);
+        assert!(selected.plans().contains(&first));
+        assert!(selected.plans().contains(&second));
+        assert!(
+            SelectedProviderPlanFacts::from_selected_plans(vec![first.clone(), first.clone()])
+                .expect_err("the same resolved plan cannot be retained twice")
+                .contains("appears more than once")
+        );
+        assert!(
+            SelectedProviderPlanFacts::from_selection(&[first, second], &["Shared".to_owned()])
+                .expect_err("legacy name-only selection cannot choose between packages")
+                .contains("matches 2 candidates")
         );
     }
 
