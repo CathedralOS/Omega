@@ -6,7 +6,7 @@ use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-pub const SOURCE_CACHE_POLICY_SCHEMA_VERSION: u32 = 1;
+pub const SOURCE_CACHE_POLICY_SCHEMA_VERSION: u32 = 2;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SourceCacheRequest {
@@ -16,19 +16,24 @@ pub enum SourceCacheRequest {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum SourceCacheVerdict {
-    Accepted,
+    DiagnosticObserved,
     Rejected,
 }
 
 impl SourceCacheVerdict {
     pub const fn as_str(self) -> &'static str {
         match self {
-            Self::Accepted => "accepted",
+            Self::DiagnosticObserved => "diagnostic-observed",
             Self::Rejected => "rejected",
         }
     }
 }
 
+/// Legacy machine-readable source diagnostics.
+///
+/// This value records what the exploratory resolver observed. It is not a
+/// `SourceResolutionReceipt`, cannot authorize compilation or lock mutation,
+/// and deliberately has no accepted verdict.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SourceCachePolicyRecord {
     pub schema_version: u32,
@@ -235,7 +240,7 @@ fn source_cache_policy_json_error(error: JsonParseError) -> SourceCachePolicyRec
 
 fn parse_verdict(value: &str) -> Result<SourceCacheVerdict, SourceCachePolicyRecordParseError> {
     match value {
-        "accepted" => Ok(SourceCacheVerdict::Accepted),
+        "diagnostic-observed" => Ok(SourceCacheVerdict::DiagnosticObserved),
         "rejected" => Ok(SourceCacheVerdict::Rejected),
         _ => Err(SourceCachePolicyRecordParseError::InvalidField {
             field: "$.verdict".to_owned(),
@@ -381,7 +386,7 @@ pub fn resolve_source_cache_record(
         SourceCacheRequest::LocalPath(path) => match resolve_local_source(&path, limits) {
             Ok(resolved) => SourceCachePolicyRecord {
                 schema_version: SOURCE_CACHE_POLICY_SCHEMA_VERSION,
-                verdict: SourceCacheVerdict::Accepted,
+                verdict: SourceCacheVerdict::DiagnosticObserved,
                 source_kind: "local-path".to_owned(),
                 locator: path.display().to_string(),
                 requested_rev: None,
@@ -419,7 +424,7 @@ pub fn resolve_source_cache_record(
             ) {
                 Ok(resolved) => SourceCachePolicyRecord {
                     schema_version: SOURCE_CACHE_POLICY_SCHEMA_VERSION,
-                    verdict: SourceCacheVerdict::Accepted,
+                    verdict: SourceCacheVerdict::DiagnosticObserved,
                     source_kind: "git".to_owned(),
                     locator: url,
                     requested_rev: Some(resolved.requested_rev),
@@ -668,7 +673,7 @@ mod tests {
             limits,
         );
 
-        assert_eq!(record.verdict, SourceCacheVerdict::Accepted);
+        assert_eq!(record.verdict, SourceCacheVerdict::DiagnosticObserved);
         assert_eq!(record.source_kind, "local-path");
         assert_eq!(record.file_count, Some(1));
         assert_eq!(record.max_files, 8);
@@ -721,7 +726,7 @@ mod tests {
     fn source_cache_policy_record_json_round_trip_is_normalized() {
         let record = SourceCachePolicyRecord {
             schema_version: SOURCE_CACHE_POLICY_SCHEMA_VERSION,
-            verdict: SourceCacheVerdict::Accepted,
+            verdict: SourceCacheVerdict::DiagnosticObserved,
             source_kind: "git".to_owned(),
             locator: "git@github.com:CathedralOS/file-journal.git".to_owned(),
             requested_rev: Some("0123456789abcdef0123456789abcdef01234567".to_owned()),
@@ -803,7 +808,7 @@ mod tests {
             )
         );
 
-        let unexpected_field = "{\n  \"schema_version\": 1,\n  \"verdict\": \"accepted\",\n  \"source_kind\": \"local-path\",\n  \"locator\": \".\",\n  \"requested_rev\": null,\n  \"resolved_commit\": null,\n  \"resolved_tree\": null,\n  \"content_identity\": null,\n  \"cache_path\": null,\n  \"file_count\": null,\n  \"byte_count\": null,\n  \"max_files\": 4096,\n  \"max_bytes\": 268435456,\n  \"max_depth\": 64,\n  \"submodule_policy\": \"git-submodules-not-applicable\",\n  \"path_policy\": \"canonical-root-contained\",\n  \"rejection\": null,\n  \"extra\": \"no\"\n}\n";
+        let unexpected_field = "{\n  \"schema_version\": 2,\n  \"verdict\": \"diagnostic-observed\",\n  \"source_kind\": \"local-path\",\n  \"locator\": \".\",\n  \"requested_rev\": null,\n  \"resolved_commit\": null,\n  \"resolved_tree\": null,\n  \"content_identity\": null,\n  \"cache_path\": null,\n  \"file_count\": null,\n  \"byte_count\": null,\n  \"max_files\": 4096,\n  \"max_bytes\": 268435456,\n  \"max_depth\": 64,\n  \"submodule_policy\": \"git-submodules-not-applicable\",\n  \"path_policy\": \"canonical-root-contained\",\n  \"rejection\": null,\n  \"extra\": \"no\"\n}\n";
         assert_eq!(
             SourceCachePolicyRecord::from_json(unexpected_field),
             Err(SourceCachePolicyRecordParseError::UnexpectedField {
@@ -833,7 +838,7 @@ mod tests {
             LocalSourceLimits::default(),
         );
 
-        assert_eq!(record.verdict, SourceCacheVerdict::Accepted);
+        assert_eq!(record.verdict, SourceCacheVerdict::DiagnosticObserved);
         assert_eq!(record.source_kind, "git");
         assert_eq!(record.requested_rev.as_deref(), Some("HEAD"));
         assert_eq!(record.resolved_commit.as_ref().expect("commit").len(), 40);

@@ -40,6 +40,10 @@ complete.
   retained dangerous authority always recommends code audit.
 - Conflict resolution is row-specific and candidate-bound, never a blanket
   yes/no receipt.
+- Implementation vocabulary is discovery-driven: reuse ordinary Omega data,
+  machines, arithmetic, and existing provider machinery; do not add a public
+  boundary trait or package-specific policy axis unless a concrete fixture
+  exposes an irreducible contract that needs it.
 
 ## P0 — Replace invalid foundations
 
@@ -75,6 +79,9 @@ complete.
 - **HARDEN-SOURCE-RESOLVER.** Re-audit the current Git/local resolver as a
   hostile-input boundary.
 
+  The production helper/snapshot/receipt contract is recorded in
+  [`SOURCE_RESOLVER_SECURITY.md`](bootstrap/onramps/omega-rust/omega/orchestration/omega-packages/SOURCE_RESOLVER_SECURITY.md).
+
   Progress 2026-08-23: diagnostic source commands now require an explicit
   `local` or `git` adapter; unknown URLs are no longer guessed to be Git. Local
   source identity now uses injective versioned framing over raw relative-path
@@ -83,28 +90,31 @@ complete.
   checks file limits before allocation. Git caches now use full policy-versioned
   keys, exclusive per-entry locking, staged publication, exact resolver
   metadata/origin/config verification, sealed Git configuration, and
-  pre-checkout rejection of `.gitmodules` and gitlinks.
+  pre-materialization rejection of `.gitmodules` and gitlinks. Git source is
+  now read from validated tree/blob objects, materialized without checkout,
+  filters, hooks, or submodules, re-hashed against the expected tree, made
+  read-only, and atomically published as a resolver-owned snapshot. Published
+  snapshots are revalidated before reuse.
 
   Remaining suspect points:
 
-  - local source hashing has no immutable snapshot/TOCTOU boundary, includes
-    tool-owned build outputs when present, and Git still materializes a mutable
-    working tree before hashing it;
+  - local source hashing has no immutable snapshot/TOCTOU boundary and includes
+    tool-owned build outputs when present;
   - cache locking coordinates resolver processes but is not protection against
     an independently hostile process that can mutate the cache directory;
   - the Git subprocess has no OS sandbox or resource ceilings, and SSH transport
     still necessarily invokes an external client with its own configuration
     surface;
-  - source should be materialized from the checked object database into an
-    immutable resolver-owned snapshot rather than consumed from `git checkout`;
+  - Git tree-list and general command output are still captured without a
+    strict process-memory ceiling;
   - resolver process/network/filesystem authority is not yet represented by a
     hardened execution boundary and receipt.
 
   Acceptance: cache ownership/origin is verified, identities use full
   collision-resistant keys, Git runs with sealed configuration in an isolated
-  process boundary, checkout/archive policy is enforced before consumption,
-  and source hashing is injective over every filesystem distinction that can
-  affect compilation or build execution.
+  process boundary, materialization/archive policy is enforced before
+  consumption, and source hashing is injective over every filesystem
+  distinction that can affect compilation or build execution.
 
 ## P1 — Package declaration and identity
 
@@ -143,11 +153,14 @@ complete.
 
 - **BUILD-DEPENDENCY-API.** Replace the transitional
   `build.depend("alias", path("dir"))` seam with ordinary typed source requests:
-  `build.depend(source)` and exceptional `build.depend_as(alias, source)`.
+  `builder.depend(source)` and exceptional
+  `builder.depend_as(alias, source)`.
 
   Acceptance: normal install supplies only source/revision; package name and
   default alias come from the fetched package. The editor rewrites only
-  canonical direct rows and otherwise emits a non-mutating patch.
+  canonical direct rows and otherwise emits a non-mutating patch. The API is
+  implemented with ordinary Omega vocabulary and may be simplified when
+  compiler work proves a smaller existing mechanism sufficient.
 
 - **HERMETIC-DEPENDENCY-PROJECTION.** Derive dependency source requests without
   executing build-host effects or imported code.

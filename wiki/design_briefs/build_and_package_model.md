@@ -10,6 +10,26 @@ configuration language.
 host services and records their observations. The latter evaluates constants,
 proofs, plans, and generators under target semantics with no host reach.
 
+## Design posture
+
+The durable requirements are that build authority is explicit, reach is
+checked, observations are retained, and package-controlled code cannot acquire
+resolver or admission authority. The exact library decomposition remains
+discovery-driven. Prefer ordinary Omega data and machines and remove a
+provisional distinction when concrete compiler work shows that a smaller
+existing mechanism proves the same thing.
+
+This applies to basic language facilities as well as service vocabulary. Build
+logic uses ordinary Omega arithmetic; if all required integer operations can
+be discharged as `Exact`, no package-specific arithmetic policy should be
+invented. A build-host operation needs an explicit checked authority surface,
+but not necessarily a new public `boundary trait`: a pre-existing boundary,
+an ordinary provider machine, or a narrow toolchain-owned operation may be the
+better representation. Introduce a boundary only when there is a genuine
+irreducible external contract with substitutable realizations or trust-bearing
+evidence. Examples below describe intended Omega-shaped APIs, not a commitment
+to preserve abstractions that implementation evidence makes unnecessary.
+
 ## Package declaration and build entry
 
 Every package owns one stable human name declared in its own `build.omg`:
@@ -32,8 +52,6 @@ canonical source lineage and qualifies package symbols across updates.
 and compiler-derived package evidence. Same-name packages from different
 lineages therefore cannot spoof each other's imports or boundary traits.
 
-The package may then define:
-
 Each package may define:
 
 ```omega
@@ -53,7 +71,9 @@ current implementation direction. Console logging is a declared service call,
 not output silently intercepted by the interpreter.
 
 The exact surface may omit unused providers through ordinary requirement/
-provider machinery, but no service or authority is ambient.
+provider machinery. Whether a particular one-purpose build service warrants a
+public boundary trait remains an implementation discovery; no service or
+authority is ambient either way.
 
 ## Code, not config grammar
 
@@ -698,7 +718,10 @@ seams must be replaced before install/update mutation.
 ## Still open
 
 - workspace inheritance/ceiling details;
-- which additional standard provider families ship beyond Filesystem/Console;
+- the minimum concrete representation of each build-host service after package
+  fixtures exercise it, including whether it needs a boundary trait at all;
+- which standard provider families are actually needed beyond
+  Filesystem/Console;
 - initial root policy profiles for volatile-capable, record-replayable, and
   source-rebuildable builds; and
 - UX for displaying the first failed provenance edge.

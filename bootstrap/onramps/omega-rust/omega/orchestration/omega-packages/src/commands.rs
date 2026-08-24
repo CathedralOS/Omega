@@ -871,7 +871,7 @@ mod tests {
         .expect("record local source cache policy");
 
         assert_eq!(record.source_kind, "local-path");
-        assert_eq!(record.verdict.as_str(), "accepted");
+        assert_eq!(record.verdict.as_str(), "diagnostic-observed");
         assert_eq!(record.file_count, Some(1));
         assert!(record.content_identity.as_ref().expect("identity").len() == 64);
 
@@ -899,7 +899,7 @@ mod tests {
         let written = SourceCachePolicyRecord::read_from_path(&out_path).expect("read record");
 
         assert_eq!(written, record);
-        assert_eq!(written.verdict.as_str(), "accepted");
+        assert_eq!(written.verdict.as_str(), "diagnostic-observed");
 
         let _ = std::fs::remove_dir_all(&root);
         let _ = std::fs::remove_dir_all(&cache);

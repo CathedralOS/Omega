@@ -69,6 +69,13 @@ normalized contract and artifact. Semantic evaluation cannot call those
 services. A host observation reaches a proof, type, layout, or constant only
 after `build.omg` turns it into an explicit recorded build input.
 
+Those names describe authority classes, not a requirement to mint one public
+boundary trait per build operation. The concrete build library should use the
+smallest ordinary Omega surface that preserves explicit authority, checked
+reach, trust evidence, and observations; one-purpose services may remain
+narrow toolchain-owned operations. Build logic likewise uses ordinary Omega
+arithmetic rather than a package-specific numeric-policy layer.
+
 Build operations publish an observation ceiling:
 
 ```text
