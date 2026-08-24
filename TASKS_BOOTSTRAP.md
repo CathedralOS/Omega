@@ -232,8 +232,9 @@ replace general specifications with file identities or AST shapes.
     compiler-host interface suffice before retaining general arithmetic
     policies, allocators, sum machinery, or boundary traits;
   - [ ] publish versioned normative grammar, static/dynamic semantics,
-    representation/ABI, allocation, source-bundle, and boundary documents under
-    `bootstrap/rungs/delta/`;
+    representation/ABI, source-bundle, and retained resource/host-interface
+    documents under `bootstrap/rungs/delta/`; do not require an allocation or
+    boundary-trait subsystem when the final bridge does not retain one;
   - [ ] reject every excluded source, type, module, boundary, and resource form
     explicitly;
   - [ ] align every retained arithmetic, layout, call, allocation, trap, and I/O

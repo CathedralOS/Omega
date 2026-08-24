@@ -14,19 +14,20 @@ Delta is the terminal small/Greek language rung in the bootstrap spine:
 Alpha → Beta → Gamma → Delta
 ```
 
-It adds the systems machinery needed to build the bootstrap Psi/Omega toolchain:
-mutable storage, state machines, ownership and regions, effects, boundary
-operations, and the compiler-scale data structures built from them. Delta is an
-independent, robust compiler-host language with C-like power and deterministic
-semantics. It should resemble Omega where consistency is cheap, but it need not
-be an Omega subset. Delta may be slow and conservatively lowered.
+Delta supplies only the systems machinery the bootstrap Psi/Omega bridge
+actually needs. The current experiments demonstrate mutable storage, state
+machines, arenas, effects, and boundary declarations, but none of those
+mechanisms is admitted to v1 merely because it exists today. Delta remains an
+independent, deterministic compiler-host language; it should resemble Omega
+where consistency is cheap, but it need not be an Omega subset and may be slow
+and conservatively lowered.
 
-That list describes demonstrated candidates, not a frozen v1 inventory. Delta
-v1 is pruned from the complete `omega-bootstrap` source closure. D0, the sample
-corpus, and the Rust producer may reveal useful facilities but cannot admit
-them. If the bridge can use only Exact arithmetic, ordinary fixed backing, or a
-sealed byte-I/O host surface, broader arithmetic domains, allocation machinery,
-or general boundary traits stay outside v1.
+Delta v1 is pruned from the complete `omega-bootstrap` source closure. D0, the
+sample corpus, and the Rust producer may reveal useful facilities but cannot
+admit them. If the bridge can use only Exact arithmetic, ordinary fixed
+backing, explicit tags, or a sealed byte-I/O host surface, broader arithmetic
+domains, allocation machinery, payload sums, or general boundary traits stay
+outside v1.
 
 Its job is to implement `omega-bootstrap`, which accepts the exact Omega
 self-hosting profile `Ωself` and rejects the rest. That bridge compiles the
@@ -101,13 +102,13 @@ implementation agreement.
 
 ## Trust boundary
 
-Most Delta facilities erase into lower-rung computation. The working v1 host
-surface is only source-byte input, artifact-byte output, diagnostic-byte output,
-and process termination. Target configuration is explicit input; filesystem,
-environment, clock, network, process-spawn, atomics, MMIO, interrupt, and
-general foreign-call authority are not presumed. If the complete bridge source
-demonstrates another unavoidable host operation, it must be specified and added
-to the trust ledger explicitly.
+Most candidate Delta facilities erase into lower-rung computation. The
+provisional bridge host surface is only source-byte input, artifact-byte output,
+diagnostic-byte output, and process termination. Target configuration is
+explicit input; filesystem, environment, clock, network, process-spawn, atomics,
+MMIO, interrupt, and general foreign-call authority are not presumed. If the
+complete bridge source demonstrates another unavoidable host operation, it must
+be specified and added to the trust ledger explicitly.
 
 ## Open work
 

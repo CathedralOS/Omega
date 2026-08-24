@@ -30,9 +30,10 @@ acceleration checked against that interpreter, never a second definition.
 
 ## Must not contain
 
-No mutable memory, ownership, regions, runtime effects, or hardware boundaries;
-those belong to [Delta](delta.md). Proof checking is not a Gamma language feature
-or language rung. Gamma merely provides a safe language in which one independent
+No mutable memory, ownership, regions, runtime effects, or hardware boundaries.
+Those are outside Gamma; [Delta](delta.md) retains only what its bridge source
+justifies, while Omega owns the complete product model. Proof checking is not a
+Gamma language feature or language rung. Gamma merely provides a safe language in which one independent
 implementation of the generic proof kernel is small and auditable.
 
 ## Current repository reality
