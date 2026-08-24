@@ -610,9 +610,10 @@ Package-owned public traits retain exact identity, boundary status,
 alpha-normalized type/const binders, ordered package-qualified parent
 applications, and ordered machine/operator requirement signatures. Requirement
 rows retain parameter names and modes, package-qualified types, and fixed
-operator spelling. Lifetimes, conformance bounds, invariants,
-default realizations, and operational/proof/crash/termination contracts reject
-until complete canonical rows exist.
+operator spelling plus exact declared service reach, installation-bound status,
+suspension, and blocking. Lifetimes, conformance bounds, invariants, default
+realizations, and synchronous-invocation/proof/crash/termination contracts
+reject until complete canonical rows exist.
 
 Terminal Psi evidence remains a separate evidence class for checked
 final-realization claims: Omega-emitted executable code, asserted properties of

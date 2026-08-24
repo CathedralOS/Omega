@@ -149,16 +149,17 @@ second API row. Quotients, data `where` facts, and static machine/proposition
 parameters reject review until exact canonical rows exist. Public traits now
 retain exact package identity, boundary status, alpha-normalized type/const
 binders, package-qualified parent applications, and ordered machine/operator
-requirement signatures. Trait/requirement lifetimes, conformance bounds,
-invariants, default realizations, and operational/proof/crash/termination
-contracts fail closed until complete rows land. Public domains with
+requirement signatures with exact service reach, installation-bound status,
+suspension, and blocking. Trait/requirement lifetimes, conformance bounds,
+invariants, default realizations, and synchronous-invocation/proof/crash/
+termination contracts fail closed until complete rows land. Public domains with
 representable shape now retain exact package identity, alpha-normalized generic
 carrier/index shape, package-qualified carrier/index types, closed compiler-owned
 classifications, and authorized establishment routes with exact
 package-qualified trait/requirement identities. Transparent aliases recursively
 flatten to canonical package-qualified atoms; compiler carry atoms remain
 explicitly toolchain-unbound. Predicates, semantic roles, and operators fail
-closed until canonical rows land. The compiler now provides a version-7
+closed until canonical rows land. The compiler now provides a version-8
 length-framed binary comparison encoding over this review
 projection; it is explicitly not a package certificate or accepted-lock
 payload. Raw Rust/debug serialization is not an alternative. These pieces do
