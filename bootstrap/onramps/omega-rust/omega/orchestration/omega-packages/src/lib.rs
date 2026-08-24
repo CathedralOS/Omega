@@ -17,6 +17,7 @@ mod install;
 mod json;
 mod lock;
 mod manifest;
+mod package_source;
 mod resolver;
 mod review;
 mod source;
@@ -58,6 +59,10 @@ pub use manifest::{
     InstallationBoundReach, PackageCapabilityManifest, PackageCapabilityManifestParseError,
     PackageCapabilityManifestPersistenceError, ProviderRequirement, ProviderSelection,
     QualificationRoute, ReproducibilityEvidence, SourceIdentity, TrustReceipt,
+};
+pub use package_source::{
+    ResolvePackageSourceError, ResolvedPackageSource, resolve_external_local_package_source,
+    resolve_git_package_source,
 };
 pub use resolver::{
     SourceCachePolicyRecord, SourceCachePolicyRecordParseError,

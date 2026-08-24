@@ -138,7 +138,9 @@ complete.
   ordinary Psi lexer/parser without loading imports or executing code. It
   rejects package-authored `Package`, malformed/scoped/duplicate declarations,
   nonliteral initializers, invalid bytes, and names that cannot map to a default
-  Omega alias. Wiring this extractor into closure resolution remains.
+  Omega alias. Git and external-local source custody now extracts this
+  declaration from the resolver-owned immutable snapshot and joins it to typed
+  lineage; dependency projection and complete closure resolution remain.
 
 - **PACKAGE-KEY-AND-INSTANCE.** Replace name-keyed graph and lock APIs with
   `PackageKey` and `PackageInstance`.
@@ -151,7 +153,10 @@ complete.
   `PackageName` plus `SourceLineage`, and `PackageInstance` to exact typed
   source, toolchain, and compiler-evidence identities. Construction rejects a
   source-resolution family that does not match the key lineage. Migrating the
-  legacy name-keyed graph, lock, and evidence APIs remains.
+  legacy name-keyed graph, lock, and evidence APIs remains. Resolved Git and
+  external-local package sources now carry `PackageKey` plus typed immutable
+  source resolution, but deliberately cannot construct `PackageInstance`
+  before compiler/toolchain evidence exists.
 
 - **SOURCE-LINEAGE-NORMALIZATION.** Define canonical lineage for Git, URL
   archives, and local/workspace paths.

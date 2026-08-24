@@ -1,6 +1,6 @@
 use omega_packages::{
-    GitSourceSpec, LocalSourceLimits, PackageName, extract_package_declaration, resolve_git_source,
-    resolve_local_source,
+    GitSourceSpec, LocalSourceLimits, PackageName, extract_package_declaration,
+    resolve_git_package_source, resolve_git_source, resolve_local_source,
 };
 use std::collections::BTreeSet;
 use std::path::PathBuf;
@@ -120,6 +120,27 @@ fn remote_fixture_pins_resolve_to_local_fixture_contents() {
         assert_eq!(resolved.local.content_identity, local.content_identity);
         assert_eq!(resolved.local.file_count, local.file_count);
         assert_eq!(resolved.local.byte_count, local.byte_count);
+
+        let declared = resolve_git_package_source(
+            &GitSourceSpec {
+                url: ssh_url(&pin),
+                rev: Some(pin.commit.clone()),
+            },
+            &cache,
+            LocalSourceLimits::default(),
+        )
+        .unwrap_or_else(|error| {
+            panic!(
+                "remote fixture {} should bind its declared identity: {error}",
+                pin.package
+            )
+        });
+        assert_eq!(declared.key().name().as_str(), pin.package);
+        assert_eq!(declared.source().commit, pin.commit);
+        assert_eq!(
+            declared.source().local.content_identity,
+            local.content_identity
+        );
     }
     let _ = std::fs::remove_dir_all(cache);
 }
