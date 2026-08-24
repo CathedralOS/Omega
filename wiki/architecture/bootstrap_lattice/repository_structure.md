@@ -83,9 +83,10 @@ product roots.
 - `bootstrap/omega-bootstrap/` owns only the Delta-written bridge, its Rust-free
   meaning route, bridge-specific contracts, and gates. It may consume product
   source and canonical Psi/Omega formats, but it does not own production Psi or
-  Omega implementation work. Historical `omega0` path-role aliases remain
-  accepted only as compatibility plumbing. The bridge accepts `Ωself`, is not
-  the production compiler, and is not another language rung.
+  Omega implementation work. A few historical `omega0` filenames may remain as
+  compatibility inputs, but there is no `omega0` owner, compiler generation, or
+  language role. The bridge accepts `Ωself`, is not the production compiler,
+  and is not another language rung.
 - `bootstrap/onramps/omega-rust/` owns the current working Rust compiler as an
   untrusted migration/reference producer. It is removable from bootstrap and
   release builds once the hosted compiler closes, even if retained in the

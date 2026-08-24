@@ -49,6 +49,11 @@ packages.
 > [bootstrap repository structure](bootstrap_lattice/repository_structure.md),
 > while active lattice work is tracked in
 > [TASKS_BOOTSTRAP.md](../../TASKS_BOOTSTRAP.md).
+>
+> Human-facing reports, HTML visualizations, interpreters, REPLs, and debug
+> viewers shown in the Rust development tree are optional tooling, not members
+> of the hosted compiler closure unless the product executable imports them.
+> Their existence here does not create bootstrap implementation work.
 
 ```text
 Omega/

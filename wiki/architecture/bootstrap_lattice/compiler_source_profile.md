@@ -86,7 +86,7 @@ Keep these implications one-way:
 | Fact | What follows | What does not follow |
 | --- | --- | --- |
 | Delta omits an Omega feature | the Delta bridge source cannot use that feature | `omega-bootstrap` cannot implement that feature for accepted `Ωself` source |
-| `Ωself` omits an Omega feature | the production compiler source cannot use that feature to implement itself | that feature may be omitted from full-Omega acceptance |
+| `Ωself` omits an Omega feature | the production compiler source cannot use that feature to implement itself | permission for the resulting compiler to omit that feature from full-Omega acceptance |
 | `omega-bootstrap` lowers conservatively | the first production compiler executable may be slow or poorly optimized | the compiler source lacks the optimizer or advanced lowering, or the resulting compiler cannot run them on later inputs |
 
 The first two rows are possible because compiler implementation code can parse,
@@ -260,6 +260,14 @@ establishes the implementation and assurance cost.
 | numeric/schema field tags such as `0:` | measure | compare with ordinary named fields; these are distinct from named record fields and may be omitted without making records positional |
 | complex transition payloads | measure | compare with transitions over simple values plus explicit compiler context |
 | mixed field-plus-case data | measure | compare with separate record and sum-data types; either shape remains ordinary Omega |
+
+This table is the single working inventory for those choices. In particular,
+the bootstrap task board must not sprout separate “remove proofs,” “remove
+generics,” or “split every enum” projects. A facility becomes bridge work only
+when a product checkpoint uses it or a retained general profile rule requires
+it; a source refactor remains product work. Final retain/exclude decisions occur
+at the completed source-and-bridge join, not by intuition ahead of either
+implementation.
 
 The table intentionally does not aim for the smallest possible source profile.
 Named fields, basic generics, domains, payload sums, or richer transitions may
