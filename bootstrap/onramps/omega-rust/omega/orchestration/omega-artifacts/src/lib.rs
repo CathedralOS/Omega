@@ -484,8 +484,10 @@ pub struct TrustProviderRequirementRow {
     pub provider_type: String,
     /// Exact normalized target; empty denotes all targets.
     pub target: String,
-    /// Verbatim provider-plan provenance input. Empty remains explicit absence
-    /// and is never repaired from the plan, provider, or schema name.
+    /// Exact compiler-derived package provenance of the realizing machine.
+    /// `None` is explicit unbound provenance and is never repaired from names.
+    pub provider_origin_package_identity: Option<psi_core::PackageKeyIdentity>,
+    /// Legacy readable provider-origin label. Diagnostic only.
     pub provider_origin_package: String,
     /// Exact selected boundary-service schema identity.
     pub service_schema: String,
@@ -580,7 +582,11 @@ pub struct TrustQualificationRow {
     pub provider_type: String,
     /// Exact normalized target; empty denotes all targets.
     pub target: String,
-    /// Verbatim provider-plan provenance input, independent from grant status.
+    /// Exact compiler-derived package provenance of the realizing machine,
+    /// independent from grant status. `None` remains explicit unbound
+    /// provenance.
+    pub provider_origin_package_identity: Option<psi_core::PackageKeyIdentity>,
+    /// Legacy readable provider-origin label. Diagnostic only.
     pub provider_origin_package: String,
     /// Exact selected boundary-service schema identity.
     pub service_schema: String,

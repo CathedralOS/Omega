@@ -425,6 +425,7 @@ mod tests {
                 requirement_identity: "Storage::read".into(),
                 binding,
             }],
+            origin_package_identity: None,
             origin_package: "test".into(),
         };
         SelectedProviderPlanFacts::from_selection(&[plan], &["selected".into()])

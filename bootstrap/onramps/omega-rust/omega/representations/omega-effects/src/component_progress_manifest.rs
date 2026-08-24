@@ -241,6 +241,7 @@ mod tests {
                     machine: "SchedulerProvider::wait".into(),
                 },
             }],
+            origin_package_identity: None,
             origin_package: "test".into(),
         };
         SelectedProviderPlanFacts::from_selection(&[plan], &["scheduler".into()])

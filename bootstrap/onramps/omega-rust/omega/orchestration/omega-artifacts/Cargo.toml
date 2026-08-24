@@ -10,6 +10,7 @@ path = "src/lib.rs"
 
 [dependencies]
 omega-backend-report-types = { path = "../../foundation/omega-backend-report-types" }
+psi-core = { path = "../../../psi/foundation/psi-core" }
 psi-checked-trees = { path = "../../../psi/representations/psi-checked-trees" }
 omega-core = { path = "../../foundation/omega-core" }
 psi-arena = { path = "../../../psi/foundation/psi-arena" }

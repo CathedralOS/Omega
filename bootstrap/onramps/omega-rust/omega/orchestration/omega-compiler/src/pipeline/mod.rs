@@ -70,9 +70,9 @@ pub use package_compilation::{
     PackageSourceBinding,
 };
 pub use package_review::{
-    CheckedPackageCallableReview, CheckedPackageReviewProjection, PackageReviewCallableRole,
-    PackageReviewCapabilityFlow, PackageReviewNominalIdentity, PackageReviewNominalOwner,
-    project_checked_package_review,
+    CheckedPackageCallableReview, CheckedPackageProviderReview, CheckedPackageReviewProjection,
+    PackageReviewCallableRole, PackageReviewCapabilityFlow, PackageReviewNominalIdentity,
+    PackageReviewNominalOwner, project_checked_package_review,
 };
 pub use program_entry_physical::ProgramEntryPhysicalContractPlan;
 pub use program_entry_source_signature::{

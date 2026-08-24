@@ -2,7 +2,8 @@
 //!
 //! This is deliberately a review surface, not admission evidence. It is not
 //! source/toolchain bound, toolchain nominal ownership is not yet committed,
-//! and several provider/proof/trust joins still live outside this projection.
+//! and several provider-nominal/proof/trust joins still live outside this
+//! projection.
 //! Keeping the type distinct prevents an incomplete checked summary from being
 //! persisted as an accepted lock baseline.
 
@@ -103,6 +104,55 @@ pub struct CheckedPackageCallableReview {
     mutation: Vec<psi_checked_trees::StateWriteFramePlan>,
 }
 
+/// One selected provider plan retained for human/LLM review.
+///
+/// The realizing package is exact and participates in `plan_fingerprint`.
+/// That existing 64-bit fingerprint is review/execution compatibility data,
+/// not a collision-resistant package-admission identity.
+/// Provider type, schema, requirement, and binding names remain review labels
+/// carried by the existing provider-plan model; they are not yet sealed
+/// package-qualified nominal identities.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedPackageProviderReview {
+    plan_name: String,
+    plan_fingerprint: u64,
+    realizing_package: Option<PackageKeyIdentity>,
+    provider_type: String,
+    service_schema: String,
+    target: String,
+    rows: Vec<omega_effects::provider_plan::ProviderPlanRow>,
+}
+
+impl CheckedPackageProviderReview {
+    pub fn plan_name(&self) -> &str {
+        &self.plan_name
+    }
+
+    pub const fn plan_fingerprint(&self) -> u64 {
+        self.plan_fingerprint
+    }
+
+    pub const fn realizing_package(&self) -> Option<PackageKeyIdentity> {
+        self.realizing_package
+    }
+
+    pub fn provider_type(&self) -> &str {
+        &self.provider_type
+    }
+
+    pub fn service_schema(&self) -> &str {
+        &self.service_schema
+    }
+
+    pub fn target(&self) -> &str {
+        &self.target
+    }
+
+    pub fn rows(&self) -> &[omega_effects::provider_plan::ProviderPlanRow] {
+        &self.rows
+    }
+}
+
 impl CheckedPackageCallableReview {
     pub const fn role(&self) -> PackageReviewCallableRole {
         self.role
@@ -166,6 +216,7 @@ pub struct CheckedPackageReviewProjection {
     package: PackageKeyIdentity,
     target: omega_target::NativeTarget,
     callables: Vec<CheckedPackageCallableReview>,
+    selected_providers: Vec<CheckedPackageProviderReview>,
 }
 
 impl CheckedPackageReviewProjection {
@@ -179,6 +230,10 @@ impl CheckedPackageReviewProjection {
 
     pub fn callables(&self) -> &[CheckedPackageCallableReview] {
         &self.callables
+    }
+
+    pub fn selected_providers(&self) -> &[CheckedPackageProviderReview] {
+        &self.selected_providers
     }
 }
 
@@ -206,7 +261,6 @@ pub fn project_checked_package_review(
     let mut projected_build_machine = false;
 
     for machine in compilation.machines() {
-        let owner = nominal_identity(compilation, machine.symbol)?;
         let role = if Some(machine.symbol) == build_machine {
             Some(PackageReviewCallableRole::Build)
         } else if machine.supply_mode.is_boundary_declaration() {
@@ -217,6 +271,7 @@ pub fn project_checked_package_review(
         let Some(role) = role else {
             continue;
         };
+        let owner = nominal_identity(compilation, machine.symbol)?;
         match owner.owner {
             PackageReviewNominalOwner::Package(owner) if owner == package => {}
             PackageReviewNominalOwner::Package(_) | PackageReviewNominalOwner::ToolchainUnbound => {
@@ -246,11 +301,26 @@ pub fn project_checked_package_review(
             .then(left.role.cmp(&right.role))
             .then(left.contract_fingerprint.cmp(&right.contract_fingerprint))
     });
+    let selected_providers = compilation
+        .selected_provider_plans()
+        .plans()
+        .iter()
+        .map(|plan| CheckedPackageProviderReview {
+            plan_name: plan.name.clone(),
+            plan_fingerprint: plan.identity_fingerprint(),
+            realizing_package: plan.origin_package_identity,
+            provider_type: plan.provider_type.clone(),
+            service_schema: plan.schema.trait_name.clone(),
+            target: plan.target.clone(),
+            rows: plan.rows.clone(),
+        })
+        .collect();
 
     Ok(CheckedPackageReviewProjection {
         package,
         target,
         callables,
+        selected_providers,
     })
 }
 

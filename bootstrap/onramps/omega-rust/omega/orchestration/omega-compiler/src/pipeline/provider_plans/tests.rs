@@ -171,6 +171,7 @@ fn selection_plan(name: &str, methods: &[&str], rows: &[&str]) -> ProviderPlan {
                 binding: ProviderBinding::VtableSlot { index: 0 },
             })
             .collect(),
+        origin_package_identity: None,
         origin_package: String::new(),
     }
 }

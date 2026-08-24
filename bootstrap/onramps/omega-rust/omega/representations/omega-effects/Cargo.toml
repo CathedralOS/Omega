@@ -9,6 +9,7 @@ name = "omega_effects"
 path = "src/lib.rs"
 
 [dependencies]
+psi-core = { path = "../../../psi/foundation/psi-core" }
 psi-symbols = { path = "../../../psi/foundation/psi-symbols" }
 psi-diagnostics = { path = "../../../psi/foundation/psi-diagnostics" }
 psi-language-core = { path = "../../../psi/foundation/psi-language-core" }

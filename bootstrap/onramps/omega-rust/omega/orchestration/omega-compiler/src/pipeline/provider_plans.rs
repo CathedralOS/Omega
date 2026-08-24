@@ -2143,6 +2143,7 @@ pub(crate) fn derive_satisfies_plans(
     // machines into typed trees. Derive from their exact retained conformance
     // and supply identities; source syntax is no longer a binding authority.
     for machine in typed.machines() {
+        let origin_package_identity = typed.symbols.symbol_package_identity(machine.symbol);
         for clause in typed.machine_trait_conformances(machine) {
             if clause.requirement.as_ref().is_some_and(|requirement| {
                 psi_typed_trees::operator::resolve_satisfied_boundary_operator(
@@ -2239,7 +2240,10 @@ pub(crate) fn derive_satisfies_plans(
                 let plan_name = satisfies_plan_name(&target, &schema_trait, &provider_type);
                 let position = plans
                     .iter()
-                    .position(|plan| plan.name == plan_name)
+                    .position(|plan| {
+                        plan.name == plan_name
+                            && plan.origin_package_identity == origin_package_identity
+                    })
                     .unwrap_or_else(|| {
                         plans.push(ProviderPlan {
                             name: plan_name.clone(),
@@ -2247,6 +2251,7 @@ pub(crate) fn derive_satisfies_plans(
                             target: target.clone(),
                             schema,
                             rows: Vec::new(),
+                            origin_package_identity,
                             origin_package: String::new(),
                         });
                         plans.len() - 1
@@ -2336,6 +2341,7 @@ fn derive_boundary_operator_plans(
 ) -> Vec<ProviderPlan> {
     let mut plans = Vec::<ProviderPlan>::new();
     for machine in typed.machines() {
+        let origin_package_identity = typed.symbols.symbol_package_identity(machine.symbol);
         for clause in typed.machine_trait_conformances(machine) {
             let Some(requirement) = clause.requirement.as_ref() else {
                 continue;
@@ -2396,7 +2402,10 @@ fn derive_boundary_operator_plans(
             let plan_name = satisfies_plan_name(&target, &schema.trait_name, &provider_type);
             let position = plans
                 .iter()
-                .position(|plan| plan.name == plan_name)
+                .position(|plan| {
+                    plan.name == plan_name
+                        && plan.origin_package_identity == origin_package_identity
+                })
                 .unwrap_or_else(|| {
                     plans.push(ProviderPlan {
                         name: plan_name.clone(),
@@ -2404,6 +2413,7 @@ fn derive_boundary_operator_plans(
                         target: target.clone(),
                         schema: schema.clone(),
                         rows: Vec::new(),
+                        origin_package_identity,
                         origin_package: String::new(),
                     });
                     plans.len() - 1
