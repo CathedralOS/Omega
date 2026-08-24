@@ -65,12 +65,14 @@ compiler-host feasibility, not completeness of the latter.
   perturbation through `omega2gamma.beta` and Gamma's `interp.beta`, without the
   Rust Gamma emitter defining the result.
 - `bootstrap/omega-bootstrap/compiler/omega-bootstrap-frontend.alp` is the first actual bridge
-  compiler slice written in Delta. It decodes a canonical single-source bundle,
-  lexes and parses the O0/O1 shape, performs exact name/type/count checks, and
-  retains a checked table of console-boundary operands. Its focused gate also
-  recompiles it through Delta-written `lowermachine`; the lower-rung meaning gate
-  executes the complete 40-machine frontend through `omega2gamma.beta` and
-  Gamma. The old Delta-sample path is compatibility plumbing.
+  compiler slice written in Delta. It decodes the complete bounded canonical
+  bundle, retains unit provenance, validates each unit independently, and admits
+  one O0/O1 program-bearing unit plus trivia-only auxiliaries without cross-unit
+  token fusion. It then performs exact name/type/count checks and retains a
+  checked table of console-boundary operands. Its focused gate also recompiles it
+  through Delta-written `lowermachine`; the lower-rung meaning gate executes the
+  complete frontend through `omega2gamma.beta` and Gamma. The old Delta-sample
+  path is compatibility plumbing.
 - `bootstrap/omega-bootstrap/compiler/BOOTSTRAP_PROFILES.md` freezes the current Delta D0
   implementation profile and Omega O0/O1 vertical-canary input profiles; the
   production `Ωself` profile remains source-derived.

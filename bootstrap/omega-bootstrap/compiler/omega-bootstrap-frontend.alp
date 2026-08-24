@@ -1,6 +1,10 @@
 // Delta-written front end for the frozen Omega O0 and O1 vertical canaries.
 //
-// Input is one canonical OMEGA_BOOTSTRAP_BUNDLE.md version-1 source. The accepted source
+// Input is one canonical OMEGA_BOOTSTRAP_BUNDLE.md version-1 bundle. Every
+// source unit is retained with its label and descriptor, validated independently,
+// and decoded before publication. This bounded canary accepts exactly one
+// nontrivial O1 source plus empty/trivia-only source units; it never concatenates
+// units or permits tokens to cross a source boundary. The accepted program source
 // is the complete O1 grammar, not a prefix. O1 extends O0's one write with zero
 // through sixteen ordered literal write_line statements and retains their
 // decoded bytes in one checked aggregate table. The parser retains the one
@@ -22,7 +26,12 @@ boundary trait Console {
 data Main {
     console: Console;
     status: i32; decoded: i32; c: i32; i: i32; n: i32; pos: i32;
-    label_len: i32; content_len: i32; segment_len: i32;
+    source_count: i32; entry: i32; source_id: i32;
+    label_len: i32; content_len: i32; label_used: i32; source_used: i32;
+    label_start: i32; source_start: i32; source_end: i32;
+    prev_start: i32; prev_len: i32; unit_start: i32; unit_end: i32;
+    program_count: i32; program_source_id: i32; program_start: i32; program_end: i32;
+    trivia_ok: i32; segment_len: i32;
     segment_first: i32; segment_second: i32; char_ok: i32;
     tok: i32; tok_start: i32; tok_len: i32; int_value: i32;
     text_len: i32; text_start: i32; text_used: i32; text_sum: i32;
@@ -30,6 +39,9 @@ data Main {
     match_base: i32; match_len: i32; match_ok: i32;
     b1: i32; b2: i32; b3: i32; digit: i32;
     source: [u8; 2048];
+    labels: [u8; 1024];
+    // Four cells per source ID: label start/length, source start/length.
+    descriptors: [i32; 64];
     text: [u8; 1024];
     text_starts: [i32; 16];
     text_lengths: [i32; 16];
@@ -39,14 +51,14 @@ data Main {
 machine Main::read_u32(&mut self) {
     self.decoded = 0 - 1;
     self.c = read_byte();
-    transition 0 { _ -> byte0() }
-    state byte0() { self.decoded = self.c; self.c = read_byte(); transition 0 { _ -> byte1() } }
-    state byte1() { self.decoded = self.decoded + self.c * 256; self.c = read_byte(); transition 0 { _ -> byte2() } }
-    state byte2() { self.decoded = self.decoded + self.c * 65536; self.c = read_byte(); transition 0 { _ -> byte3() } }
-    // Every admitted O1 framing value is below 2^24 (count 1, label <=64,
-    // source <=2048). Preserve a nonzero high byte as rejection status; callers
-    // already branch on status before using the decoded value.
-    state byte3() { self.status = self.c; }
+    transition self.c < 0 { true -> bad() false -> byte0() }
+    state byte0() { self.decoded = self.c; self.c = read_byte(); transition self.c < 0 { true -> bad() false -> byte1() } }
+    state byte1() { self.decoded = self.decoded + self.c * 256; self.c = read_byte(); transition self.c < 0 { true -> bad() false -> byte2() } }
+    state byte2() { self.decoded = self.decoded + self.c * 65536; self.c = read_byte(); transition self.c < 0 { true -> bad() false -> range() } }
+    state range() { transition self.c < 128 { true -> byte3() false -> bad() } }
+    state byte3() { self.decoded = self.decoded + self.c * 16777216; transition 0 { _ -> done() } }
+    state bad() { self.status = 251; }
+    state done() { }
 }
 
 machine Main::check_label_byte(&mut self) {
@@ -84,13 +96,13 @@ machine Main::read_label(&mut self) {
     state read() { self.c = read_byte(); transition self.c < 0 { true -> bad() false -> classify() } }
     state classify() { self.check_label_byte(); transition self.char_ok == 1 { true -> slash_check() false -> bad() } }
     state slash_check() { transition self.c == 47 { true -> slash() false -> character() } }
-    state slash() { self.finish_label_segment(); transition self.status == 0 { true -> slash_next() false -> done() } }
-    state slash_next() { self.i = self.i + 1; self.segment_len = 0; transition 0 { _ -> loop() } }
+    state slash() { self.finish_label_segment(); transition self.status == 0 { true -> store_slash() false -> done() } }
+    state store_slash() { self.labels[self.label_start + self.i] = self.c; self.i = self.i + 1; self.segment_len = 0; transition 0 { _ -> loop() } }
     state character() { transition self.segment_len == 0 { true -> first() false -> second_check() } }
-    state first() { self.segment_first = self.c; transition 0 { _ -> advance() } }
-    state second_check() { transition self.segment_len == 1 { true -> second() false -> advance() } }
-    state second() { self.segment_second = self.c; transition 0 { _ -> advance() } }
-    state advance() { self.i = self.i + 1; self.segment_len = self.segment_len + 1; transition 0 { _ -> loop() } }
+    state first() { self.segment_first = self.c; transition 0 { _ -> store() } }
+    state second_check() { transition self.segment_len == 1 { true -> second() false -> store() } }
+    state second() { self.segment_second = self.c; transition 0 { _ -> store() } }
+    state store() { self.labels[self.label_start + self.i] = self.c; self.i = self.i + 1; self.segment_len = self.segment_len + 1; transition 0 { _ -> loop() } }
     state finish() { self.finish_label_segment(); transition 0 { _ -> done() } }
     state bad() { self.status = 251; transition 0 { _ -> done() } }
     state done() { }
@@ -101,9 +113,53 @@ machine Main::read_source(&mut self) {
     transition 0 { _ -> loop() }
     state loop() { transition self.i < self.content_len { true -> read() false -> done() } }
     state read() { self.c = read_byte(); transition self.c < 0 { true -> bad() false -> store() } }
-    state store() { self.source[self.i] = self.c; self.i = self.i + 1; transition 0 { _ -> loop() } }
+    state store() { self.source[self.source_start + self.i] = self.c; self.i = self.i + 1; transition 0 { _ -> loop() } }
     state bad() { self.status = 251; }
-    state done() { self.n = self.content_len; }
+    state done() { }
+}
+
+machine Main::check_label_order(&mut self) {
+    transition self.entry == 0 { true -> good() false -> setup() }
+    state setup() {
+        self.prev_start = self.descriptors[(self.entry - 1) * 4];
+        self.prev_len = self.descriptors[(self.entry - 1) * 4 + 1];
+        self.i = 0;
+        transition 0 { _ -> loop() }
+    }
+    state loop() { transition self.i < self.prev_len { true -> current_bound() false -> prev_end() } }
+    state current_bound() { transition self.i < self.label_len { true -> compare() false -> bad() } }
+    state compare() { transition self.labels[self.label_start + self.i] == self.labels[self.prev_start + self.i] { true -> advance() false -> greater() } }
+    state greater() { transition self.labels[self.label_start + self.i] > self.labels[self.prev_start + self.i] { true -> good() false -> bad() } }
+    state advance() { self.i = self.i + 1; transition 0 { _ -> loop() } }
+    state prev_end() { transition self.label_len > self.prev_len { true -> good() false -> bad() } }
+    state bad() { self.status = 251; }
+    state good() { }
+}
+
+machine Main::read_entry(&mut self) {
+    self.read_u32();
+    transition self.status == 0 { true -> label_value() false -> done() }
+    state label_value() { self.label_len = self.decoded; transition self.label_len > 0 { true -> label_limit() false -> bad() } }
+    state label_limit() { transition self.label_len < 65 { true -> label_capacity() false -> exhausted() } }
+    state label_capacity() { transition self.label_len <= 1024 - self.label_used { true -> content_size() false -> exhausted() } }
+    state content_size() { self.read_u32(); transition self.status == 0 { true -> content_value() false -> done() } }
+    state content_value() { self.content_len = self.decoded; transition self.content_len <= 2048 - self.source_used { true -> retain() false -> exhausted() } }
+    state retain() {
+        self.label_start = self.label_used;
+        self.source_start = self.source_used;
+        self.descriptors[self.entry * 4] = self.label_start;
+        self.descriptors[self.entry * 4 + 1] = self.label_len;
+        self.descriptors[self.entry * 4 + 2] = self.source_start;
+        self.descriptors[self.entry * 4 + 3] = self.content_len;
+        self.read_label();
+        transition self.status == 0 { true -> order() false -> done() }
+    }
+    state order() { self.check_label_order(); transition self.status == 0 { true -> content() false -> done() } }
+    state content() { self.read_source(); transition self.status == 0 { true -> retained() false -> done() } }
+    state retained() { self.label_used = self.label_used + self.label_len; self.source_used = self.source_used + self.content_len; transition 0 { _ -> done() } }
+    state bad() { self.status = 251; transition 0 { _ -> done() } }
+    state exhausted() { self.status = 252; transition 0 { _ -> done() } }
+    state done() { }
 }
 
 machine Main::decode_bundle(&mut self) {
@@ -118,36 +174,36 @@ machine Main::decode_bundle(&mut self) {
     state version() { self.read_u32(); transition self.status == 0 { true -> version_value() false -> done() } }
     state version_value() { transition self.decoded == 1 { true -> count() false -> bad() } }
     state count() { self.read_u32(); transition self.status == 0 { true -> count_value() false -> done() } }
-    state count_value() { transition self.decoded == 1 { true -> label_size() false -> bad() } }
-    state label_size() { self.read_u32(); transition self.status == 0 { true -> label_value() false -> done() } }
-    state label_value() { self.label_len = self.decoded; transition self.label_len > 0 { true -> label_capacity() false -> bad() } }
-    state label_capacity() { transition self.label_len < 65 { true -> content_size() false -> exhausted() } }
-    state content_size() { self.read_u32(); transition self.status == 0 { true -> content_value() false -> done() } }
-    state content_value() { self.content_len = self.decoded; transition self.content_len < 2049 { true -> label() false -> exhausted() } }
-    state label() { self.read_label(); transition self.status == 0 { true -> content() false -> done() } }
-    state content() { self.read_source(); transition self.status == 0 { true -> eof() false -> done() } }
+    state count_value() { self.source_count = self.decoded; transition self.source_count > 0 { true -> count_capacity() false -> bad() } }
+    state count_capacity() { transition self.source_count < 17 { true -> entries_begin() false -> exhausted() } }
+    state entries_begin() { self.entry = 0; self.label_used = 0; self.source_used = 0; transition 0 { _ -> entries() } }
+    state entries() { transition self.entry < self.source_count { true -> entry_read() false -> eof() } }
+    state entry_read() { self.read_entry(); transition self.status == 0 { true -> entry_next() false -> done() } }
+    state entry_next() { self.entry = self.entry + 1; transition 0 { _ -> entries() } }
     state eof() { self.c = read_byte(); transition self.c < 0 { true -> done() false -> bad() } }
     state bad() { self.status = 251; transition 0 { _ -> done() } }
     state exhausted() { self.status = 252; transition 0 { _ -> done() } }
     state done() { }
 }
 
-// Validate the complete retained source as canonical UTF-8 before tokenization.
+// Validate one retained source unit as canonical UTF-8. `unit_start` and
+// `unit_end` are exact descriptor bounds, so a sequence cannot continue in the
+// next source unit.
 machine Main::validate_utf8(&mut self) {
-    self.i = 0;
+    self.i = self.unit_start;
     transition 0 { _ -> loop() }
-    state loop() { transition self.i < self.n { true -> byte() false -> done() } }
+    state loop() { transition self.i < self.unit_end { true -> byte() false -> done() } }
     state byte() { self.c = self.source[self.i]; transition self.c < 128 { true -> ascii() false -> two_low() } }
     state ascii() { self.i = self.i + 1; transition 0 { _ -> loop() } }
     state two_low() { transition self.c >= 194 { true -> two_high() false -> bad() } }
     state two_high() { transition self.c < 224 { true -> need1() false -> three_low() } }
-    state need1() { transition self.i + 1 < self.n { true -> cont1() false -> bad() } }
+    state need1() { transition self.i + 1 < self.unit_end { true -> cont1() false -> bad() } }
     state cont1() { self.b1 = self.source[self.i + 1]; transition self.b1 >= 128 { true -> cont1_high() false -> bad() } }
     state cont1_high() { transition self.b1 < 192 { true -> advance2() false -> bad() } }
     state advance2() { self.i = self.i + 2; transition 0 { _ -> loop() } }
     state three_low() { transition self.c >= 224 { true -> three_high() false -> bad() } }
     state three_high() { transition self.c < 240 { true -> need2() false -> four_low() } }
-    state need2() { transition self.i + 2 < self.n { true -> load2() false -> bad() } }
+    state need2() { transition self.i + 2 < self.unit_end { true -> load2() false -> bad() } }
     state load2() { self.b1 = self.source[self.i + 1]; self.b2 = self.source[self.i + 2]; transition self.b2 >= 128 { true -> cont2_high() false -> bad() } }
     state cont2_high() { transition self.b2 < 192 { true -> three_first_low() false -> bad() } }
     state three_first_low() { transition self.b1 >= 128 { true -> three_first_high() false -> bad() } }
@@ -159,7 +215,7 @@ machine Main::validate_utf8(&mut self) {
     state advance3() { self.i = self.i + 3; transition 0 { _ -> loop() } }
     state four_low() { transition self.c >= 240 { true -> four_high() false -> bad() } }
     state four_high() { transition self.c < 245 { true -> need3() false -> bad() } }
-    state need3() { transition self.i + 3 < self.n { true -> load3() false -> bad() } }
+    state need3() { transition self.i + 3 < self.unit_end { true -> load3() false -> bad() } }
     state load3() { self.b1 = self.source[self.i + 1]; self.b2 = self.source[self.i + 2]; self.b3 = self.source[self.i + 3]; transition self.b1 >= 128 { true -> four_b1_high() false -> bad() } }
     state four_b1_high() { transition self.b1 < 192 { true -> four_b2_low() false -> bad() } }
     state four_b2_low() { transition self.b2 >= 128 { true -> four_b2_high() false -> bad() } }
@@ -171,6 +227,71 @@ machine Main::validate_utf8(&mut self) {
     state f4() { transition self.c == 244 { true -> f4_bound() false -> advance4() } }
     state f4_bound() { transition self.b1 < 144 { true -> advance4() false -> bad() } }
     state advance4() { self.i = self.i + 4; transition 0 { _ -> loop() } }
+    state bad() { self.status = 251; }
+    state done() { }
+}
+
+// Decide whether one independently bounded unit contains only whitespace and
+// line comments. This is deliberately not a package or module parser: it only
+// separates auxiliary trivia from the one O1 program-bearing unit.
+machine Main::classify_trivia(&mut self) {
+    self.i = self.unit_start; self.trivia_ok = 1;
+    transition 0 { _ -> loop() }
+    state loop() { transition self.i < self.unit_end { true -> byte() false -> done() } }
+    state byte() { self.c = self.source[self.i]; transition self.c == 32 { true -> advance() false -> lf() } }
+    state lf() { transition self.c == 10 { true -> advance() false -> cr() } }
+    state cr() { transition self.c == 13 { true -> advance() false -> tab() } }
+    state tab() { transition self.c == 9 { true -> advance() false -> slash() } }
+    state slash() { transition self.c == 47 { true -> slash_bound() false -> nontrivial() } }
+    state slash_bound() { transition self.i + 1 < self.unit_end { true -> slash_second() false -> nontrivial() } }
+    state slash_second() { transition self.source[self.i + 1] == 47 { true -> comment_begin() false -> nontrivial() } }
+    state comment_begin() { self.i = self.i + 2; transition 0 { _ -> comment() } }
+    state comment() { transition self.i < self.unit_end { true -> comment_byte() false -> done() } }
+    state comment_byte() { transition self.source[self.i] == 10 { true -> advance() false -> comment_advance() } }
+    state comment_advance() { self.i = self.i + 1; transition 0 { _ -> comment() } }
+    state advance() { self.i = self.i + 1; transition 0 { _ -> loop() } }
+    state nontrivial() { self.trivia_ok = 0; }
+    state done() { }
+}
+
+// Validate every source unit before choosing the one program-bearing unit.
+// Source ID is the descriptor index; parser offsets remain absolute internally
+// and label-local as `pos - source_start` for diagnostics.
+machine Main::validate_sources(&mut self) {
+    self.source_id = 0;
+    transition 0 { _ -> utf8_loop() }
+    state utf8_loop() { transition self.source_id < self.source_count { true -> utf8_load() false -> classify_begin() } }
+    state utf8_load() {
+        self.unit_start = self.descriptors[self.source_id * 4 + 2];
+        self.unit_end = self.unit_start + self.descriptors[self.source_id * 4 + 3];
+        self.validate_utf8();
+        transition self.status == 0 { true -> utf8_next() false -> done() }
+    }
+    state utf8_next() { self.source_id = self.source_id + 1; transition 0 { _ -> utf8_loop() } }
+    state classify_begin() { self.source_id = 0; self.program_count = 0; transition 0 { _ -> classify_loop() } }
+    state classify_loop() { transition self.source_id < self.source_count { true -> classify_load() false -> require_program() } }
+    state classify_load() {
+        self.unit_start = self.descriptors[self.source_id * 4 + 2];
+        self.unit_end = self.unit_start + self.descriptors[self.source_id * 4 + 3];
+        self.classify_trivia();
+        transition self.trivia_ok == 1 { true -> classify_next() false -> program() }
+    }
+    state program() { transition self.program_count == 0 { true -> save_program() false -> bad() } }
+    state save_program() {
+        self.program_count = 1;
+        self.program_source_id = self.source_id;
+        self.program_start = self.unit_start;
+        self.program_end = self.unit_end;
+        transition 0 { _ -> classify_next() }
+    }
+    state classify_next() { self.source_id = self.source_id + 1; transition 0 { _ -> classify_loop() } }
+    state require_program() { transition self.program_count == 1 { true -> selected() false -> bad() } }
+    state selected() {
+        self.source_start = self.program_start;
+        self.source_end = self.program_end;
+        self.n = self.program_end;
+        transition 0 { _ -> done() }
+    }
     state bad() { self.status = 251; }
     state done() { }
 }
@@ -295,7 +416,9 @@ machine Main::next_token(&mut self) {
     state integer_bad() { self.status = 251; transition 0 { _ -> done() } }
     state integer_add() { self.int_value = self.int_value * 10 + self.c - 48; self.pos = self.pos + 1; transition 0 { _ -> integer_loop() } }
     state integer_done() { self.tok = 257; self.tok_len = self.pos - self.tok_start; transition 0 { _ -> done() } }
-    state quote() { transition self.c == 34 { true -> string_call() false -> punctuation() } }
+    state quote() { transition self.c == 34 { true -> string_call() false -> nul() } }
+    state nul() { transition self.c == 0 { true -> invalid_byte() false -> punctuation() } }
+    state invalid_byte() { self.status = 251; transition 0 { _ -> done() } }
     state string_call() { self.scan_string(); transition 0 { _ -> done() } }
     state punctuation() { self.tok = self.c; self.tok_len = 1; self.pos = self.pos + 1; transition 0 { _ -> done() } }
     state eof() { self.tok = 0; self.tok_start = self.pos; }
@@ -354,7 +477,7 @@ machine Main::expect_token(&mut self, expected: i32) {
 }
 
 machine Main::parse_o1(&mut self) {
-    self.pos = 0; self.next_token();
+    self.pos = self.source_start; self.next_token();
     self.expect_name(0,3); self.expect_name(3,5); self.expect_token(58); self.expect_token(58);
     self.expect_name(8,8); self.expect_token(58); self.expect_token(58); self.expect_name(16,3);
     self.expect_token(58); self.expect_token(58); self.expect_name(19,7); self.expect_token(59);
@@ -683,12 +806,12 @@ machine Main::main(&mut self) {
     self.text_used = 0; self.text_sum = 0; self.write_count = 0; self.exit_code = 0;
     self.init_names();
     self.decode_bundle();
-    transition self.status == 0 { true -> utf8() false -> reject_decode() }
-    state utf8() { self.validate_utf8(); transition self.status == 0 { true -> parse() false -> reject_utf8() } }
+    transition self.status == 0 { true -> sources() false -> reject_decode() }
+    state sources() { self.validate_sources(); transition self.status == 0 { true -> parse() false -> reject_sources() } }
     state parse() { self.parse_o1(); transition self.status == 0 { true -> accepted() false -> reject_parse() } }
     state accepted() { self.emit_terminal_module(); transition self.status == 0 { true -> emitted() false -> reject_parse() } }
     state emitted() { self.console.exit_process((self.text_sum + (self.exit_code % 251)) % 251); }
     state reject_decode() { self.console.exit_process(self.status); }
-    state reject_utf8() { self.console.exit_process(self.status); }
+    state reject_sources() { self.console.exit_process(self.status); }
     state reject_parse() { self.console.exit_process(self.status); }
 }

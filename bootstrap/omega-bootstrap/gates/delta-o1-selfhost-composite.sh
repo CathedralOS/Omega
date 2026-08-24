@@ -1,5 +1,5 @@
 #!/usr/bin/env sh
-# Frozen O1 dependency closure: lowermachine-built frontend -> vocabulary-27
+# Frozen O1 dependency closure: lowermachine-built frontend -> vocabulary-28
 # terminal Psi -> lowermachine-built direct backend -> exact Linux x86-64 ELF.
 set -eu
 
@@ -110,13 +110,33 @@ for WRITES in 0 1 2 16; do
   cmp "$T/$CASE.elf" "$T/product-refs/$CASE.x86_64.elf"
 done
 
-run_frontend_rejection() {
+# Pre-profile bundle transport: auxiliary source units are retained and
+# validated independently, but do not change the one O1 program's terminal or
+# native artifact bytes.
+: > "$T/empty.omg"
+printf '// auxiliary transport unit' > "$T/comment.omg"
+python3 "$OMEGA_PATH_OMEGA_BOOTSTRAP/compiler/omega_bootstrap_bundle.py" pack \
+  a/empty.omg="$T/empty.omg" m/program.omg="$T/writes-1.omg" \
+  z/comment.omg="$T/comment.omg" > "$T/auxiliary.bundle"
+set +e
+"$T/frontend" < "$T/auxiliary.bundle" > "$T/auxiliary.terminal"
+AUXILIARY_STATUS=$?
+set -e
+[ "$AUXILIARY_STATUS" -eq 64 ] || {
+  echo "Delta O1 self-host composite: auxiliary bundle status $AUXILIARY_STATUS, expected 64" >&2
+  exit 1
+}
+cmp "$T/auxiliary.terminal" "$T/writes-1.terminal"
+"$T/backend" < "$T/auxiliary.terminal" > "$T/auxiliary.elf"
+cmp "$T/auxiliary.elf" "$T/writes-1.elf"
+cmp "$T/auxiliary.elf" "$T/product-refs/writes-1.x86_64.elf"
+
+run_frontend_bundle_rejection() {
   LABEL=$1
-  SOURCE=$2
+  BUNDLE=$2
   EXPECTED=$3
-  bundle_one "$SOURCE" "$T/$LABEL.bundle"
   set +e
-  "$T/frontend" < "$T/$LABEL.bundle" > "$T/$LABEL.terminal"
+  "$T/frontend" < "$BUNDLE" > "$T/$LABEL.terminal"
   STATUS=$?
   set -e
   [ "$STATUS" -eq "$EXPECTED" ] || {
@@ -127,6 +147,13 @@ run_frontend_rejection() {
     echo "Delta O1 self-host composite: $LABEL published terminal bytes" >&2
     exit 1
   }
+}
+run_frontend_rejection() {
+  LABEL=$1
+  SOURCE=$2
+  EXPECTED=$3
+  bundle_one "$SOURCE" "$T/$LABEL.bundle"
+  run_frontend_bundle_rejection "$LABEL" "$T/$LABEL.bundle" "$EXPECTED"
 }
 
 # Semantic rejection must stop composition before a terminal module exists.
@@ -159,6 +186,32 @@ run_frontend_rejection write-exhaust "$T/write-exhaust.omg" 252
   printf 'self.console.write_line("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");self.console.exit_process(0);}'
 } > "$T/text-exhaust.omg"
 run_frontend_rejection text-exhaust "$T/text-exhaust.omg" 252
+
+python3 "$OMEGA_PATH_OMEGA_BOOTSTRAP/compiler/omega_bootstrap_bundle.py" pack \
+  a.omg="$T/writes-0.omg" b.omg="$T/writes-1.omg" > "$T/two-program.bundle"
+run_frontend_bundle_rejection two-program "$T/two-program.bundle" 251
+
+printf '\377' > "$T/invalid-auxiliary.omg"
+python3 "$OMEGA_PATH_OMEGA_BOOTSTRAP/compiler/omega_bootstrap_bundle.py" pack \
+  a/program.omg="$T/writes-1.omg" z/invalid.omg="$T/invalid-auxiliary.omg" \
+  > "$T/invalid-auxiliary.bundle"
+run_frontend_bundle_rejection invalid-auxiliary "$T/invalid-auxiliary.bundle" 251
+
+python3 - "$T/descriptor-exhaust.bundle" "$T/content-exhaust.bundle" <<'PY'
+import pathlib
+import struct
+import sys
+
+magic = b"OMG0BNDL"
+pathlib.Path(sys.argv[1]).write_bytes(struct.pack("<8sII", magic, 1, 17))
+pathlib.Path(sys.argv[2]).write_bytes(
+    struct.pack("<8sII", magic, 1, 2)
+    + struct.pack("<II", 1, 1) + b"a "
+    + struct.pack("<II", 1, 2048)
+)
+PY
+run_frontend_bundle_rejection descriptor-exhaust "$T/descriptor-exhaust.bundle" 252
+run_frontend_bundle_rejection content-exhaust "$T/content-exhaust.bundle" 252
 
 run_backend_rejection() {
   LABEL=$1
@@ -199,4 +252,4 @@ run_backend_rejection truncated "$T/truncated.terminal" 251
 run_backend_rejection tampered "$T/tampered.terminal" 251
 run_backend_rejection trailing "$T/trailing.terminal" 251
 
-echo "Delta O1 self-host composite: lowermachine-built frontend/backend, exact 0/1/2/16 vocabulary-27 terminal and ELF bytes, and fail-closed controls passed"
+echo "Delta O1 self-host composite: lowermachine-built frontend/backend, exact 0/1/2/16 and auxiliary-bundle terminal/ELF bytes, and fail-closed controls passed"

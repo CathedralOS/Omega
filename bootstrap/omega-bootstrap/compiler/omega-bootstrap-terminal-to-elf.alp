@@ -1,6 +1,6 @@
 // Delta-written O1 terminal-Psi -> Linux x86-64 ELF backend.
 //
-// Input is the vocabulary-27 O1 terminal-module shape emitted by
+// Input is the vocabulary-28 O1 terminal-module shape emitted by
 // omega-bootstrap-frontend.alp: zero to sixteen literal write_line calls followed by one
 // nonnegative i32 exit_process call. The decoder mirrors that canonical schema,
 // retains at most 1,024 aggregate literal bytes and every literal span, and
@@ -81,10 +81,9 @@ machine Main::expect_console_type_identity(&mut self) {
 }
 
 machine Main::expect_bytes_type_identity(&mut self) {
-    self.expect_byte(114); self.expect_byte(101); self.expect_byte(102); self.expect_byte(40); self.expect_byte(115); self.expect_byte(108); self.expect_byte(105); self.expect_byte(99);
-    self.expect_byte(101); self.expect_byte(40); self.expect_byte(110); self.expect_byte(97); self.expect_byte(109); self.expect_byte(101); self.expect_byte(100); self.expect_byte(40);
-    self.expect_byte(110); self.expect_byte(97); self.expect_byte(109); self.expect_byte(101); self.expect_byte(40); self.expect_byte(117); self.expect_byte(56); self.expect_byte(41);
-    self.expect_byte(41); self.expect_byte(41); self.expect_byte(41);
+    self.expect_byte(115); self.expect_byte(108); self.expect_byte(105); self.expect_byte(99); self.expect_byte(101); self.expect_byte(40); self.expect_byte(110); self.expect_byte(97);
+    self.expect_byte(109); self.expect_byte(101); self.expect_byte(100); self.expect_byte(40); self.expect_byte(110); self.expect_byte(97); self.expect_byte(109); self.expect_byte(101);
+    self.expect_byte(40); self.expect_byte(117); self.expect_byte(56); self.expect_byte(41); self.expect_byte(41); self.expect_byte(41);
 }
 
 machine Main::expect_console_service(&mut self) {
@@ -175,7 +174,7 @@ machine Main::read_exit_code(&mut self) {
 machine Main::decode_terminal_module(&mut self) {
     self.expect_byte(80); self.expect_byte(83); self.expect_byte(73); self.expect_byte(84);
     self.expect_byte(69); self.expect_byte(82); self.expect_byte(77); self.expect_byte(0);
-    self.expect_u16(24); self.expect_u16(27); self.expect_id(1);
+    self.expect_u16(26); self.expect_u16(28); self.expect_id(1);
 
     // A zero-write closure has no byte-sequence type or write_line boundary.
     // One-or-more writes share the O0 structural envelope.
@@ -198,7 +197,7 @@ machine Main::decode_terminal_module(&mut self) {
         transition self.has_writes { 1 -> bytes_type() _ -> module_tail() }
     }
     state bytes_type() {
-        self.expect_id(2); self.expect_u32(27); self.expect_bytes_type_identity();
+        self.expect_id(2); self.expect_u32(22); self.expect_bytes_type_identity();
         self.expect_byte(4); self.expect_byte(1);
         transition 0 { _ -> module_tail() }
     }
@@ -217,9 +216,9 @@ machine Main::decode_terminal_module(&mut self) {
     self.expect_id(1); self.expect_u32(147); self.expect_exit_boundary_identity();
     self.expect_byte(0);
     self.expect_u32(1); self.expect_byte(2); self.expect_byte(1); self.expect_u16(32);
-    // No structural requirements or program-local root introductions.
+    // No structural requirements, program-local roots, or content guarantees.
     self.expect_u32(0); self.expect_byte(0); self.expect_u32(0);
-    self.expect_u32(0); self.expect_u32(1); self.expect_id(1);
+    self.expect_u32(0); self.expect_u32(0); self.expect_u32(1); self.expect_id(1);
 
         transition self.has_writes { 1 -> write_boundary() _ -> declarations() }
     }
@@ -228,10 +227,10 @@ machine Main::decode_terminal_module(&mut self) {
     self.expect_byte(0);
     self.expect_u32(0);
     self.expect_u32(1); self.expect_id(1); self.expect_u32(0); self.expect_byte(0);
-    self.expect_id(2); self.expect_byte(1); self.expect_u32(0);
-    // No structural requirements or program-local root introductions.
+    self.expect_id(2); self.expect_byte(1); self.expect_byte(2); self.expect_u32(0);
+    // No structural requirements, program-local roots, or content guarantees.
     self.expect_byte(0); self.expect_u32(0);
-    self.expect_u32(0); self.expect_u32(1); self.expect_id(1);
+    self.expect_u32(0); self.expect_u32(0); self.expect_u32(1); self.expect_id(1);
         transition 0 { _ -> declarations() }
     }
     state declarations() {
@@ -308,7 +307,7 @@ machine Main::decode_terminal_module(&mut self) {
     state write_operation() {
         self.expect_id(self.write_count + 1 + self.write_index); self.expect_byte(0); self.expect_byte(35); self.expect_id(2);
         self.expect_u32(0);
-        self.expect_u32(1); self.expect_id(4 + self.write_index); self.expect_u32(0);
+        self.expect_u32(1); self.expect_id(4 + self.write_index); self.expect_byte(2); self.expect_u32(0);
         self.expect_u32(0); self.expect_u32(0);
         self.write_index = self.write_index + 1;
         transition self.status == 0 { true -> write_operations() false -> done() }

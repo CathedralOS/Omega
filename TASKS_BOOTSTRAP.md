@@ -356,19 +356,19 @@ used by the compiler belong to the manifest. That does not pull in a standalone
 Terminal-Psi interpreter, verifier, viewer, or debugger, and it does not require
 `omega-bootstrap` to use Terminal Psi as its own internal compiler IR.
 
-- [ ] **Complete bundle-wide source-unit ingestion in the canonical Delta
+- [x] **Complete bundle-wide source-unit ingestion in the canonical Delta
   frontend.** This is pre-profile bridge infrastructure, not O2, `Ωself`
   admission, or a package/namespace decision. Apply the already-ruled canonical
   bundle contract to the real frontend rather than only the decoder canary:
-  - [ ] decode every unit before publication, preserve each source ID, label,
+  - [x] decode every unit before publication, preserve each source ID, label,
     exact byte span, and label-local offset, and validate UTF-8 per unit without
     concatenation, injected separators, or cross-unit token fusion;
-  - [ ] retain the present bounded storage model with checked descriptor, label,
+  - [x] retain the present bounded storage model with checked descriptor, label,
     and content exhaustion and deterministic status 252;
-  - [ ] as the bounded end-to-end canary, accept exactly one O1 program-bearing
+  - [x] as the bounded end-to-end canary, accept exactly one O1 program-bearing
     unit plus empty/trivia-only ordinary Omega units, while two nontrivial units
     remain explicit unsupported status 251; and
-  - [ ] carry identical accepted/rejected observations through the native
+  - [x] carry identical accepted/rejected observations through the native
     frontend, Rust-free meaning route, and direct terminal-to-ELF composite,
     including invalid auxiliary UTF-8 and every resource boundary. Publish no
     terminal bytes before the whole bundle validates.

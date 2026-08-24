@@ -45,6 +45,18 @@ run_bundle() {
     FAIL=$((FAIL+1)); echo "  FAIL $label: exit $got, expected $expected"
   fi
 }
+run_bundle_empty() {
+  label=$1 input=$2 expected=$3
+  set +e
+  "$T/frontend" < "$input" > "$T/rejected.terminal" 2>/dev/null
+  got=$?
+  set -e
+  if [ "$got" = "$expected" ] && [ ! -s "$T/rejected.terminal" ]; then
+    PASS=$((PASS+1))
+  else
+    FAIL=$((FAIL+1)); echo "  FAIL $label: exit $got, expected $expected; rejection published bytes"
+  fi
+}
 run_source() {
   label=$1 source=$2 expected=$3
   bundle_one "$source" "$T/case.bundle"
@@ -92,6 +104,46 @@ reference_case 2 129
 reference_case 16 86
 
 run_source "canonical cli_mvp" "$OMEGA_PATH_CORPUS/cli_mvp/main.omg" 107
+
+# The complete bundle is decoded before selecting exactly one program unit.
+# Its label may sort after auxiliary units; empty and line-comment-only units
+# remain independent and cannot fuse tokens with the program.
+: > "$T/empty.omg"
+printf '// auxiliary source without final newline' > "$T/comment.omg"
+python3 "$OMEGA_PATH_OMEGA_BOOTSTRAP/compiler/omega_bootstrap_bundle.py" pack \
+  a/empty.omg="$T/empty.omg" m/comment.omg="$T/comment.omg" \
+  z/program.omg="$OMEGA_PATH_CORPUS/cli_mvp/main.omg" > "$T/auxiliary.bundle"
+bundle_one "$OMEGA_PATH_CORPUS/cli_mvp/main.omg" "$T/canonical.bundle"
+set +e
+"$T/frontend" < "$T/canonical.bundle" > "$T/canonical.terminal"
+canonical_status=$?
+"$T/frontend" < "$T/auxiliary.bundle" > "$T/auxiliary.terminal"
+auxiliary_status=$?
+set -e
+if [ "$canonical_status" = 107 ] && [ "$auxiliary_status" = 107 ] \
+    && cmp -s "$T/canonical.terminal" "$T/auxiliary.terminal"; then
+  PASS=$((PASS+1))
+else
+  FAIL=$((FAIL+1)); echo "  FAIL multi-source auxiliary trivia: canonical=$canonical_status auxiliary=$auxiliary_status"
+fi
+
+python3 "$OMEGA_PATH_OMEGA_BOOTSTRAP/compiler/omega_bootstrap_bundle.py" pack \
+  a00.omg="$T/empty.omg" a01.omg="$T/empty.omg" a02.omg="$T/empty.omg" \
+  a03.omg="$T/empty.omg" a04.omg="$T/empty.omg" a05.omg="$T/empty.omg" \
+  a06.omg="$T/empty.omg" a07.omg="$T/empty.omg" a08.omg="$T/empty.omg" \
+  a09.omg="$T/empty.omg" a10.omg="$T/empty.omg" a11.omg="$T/empty.omg" \
+  a12.omg="$T/empty.omg" a13.omg="$T/empty.omg" a14.omg="$T/empty.omg" \
+  z/program.omg="$OMEGA_PATH_CORPUS/cli_mvp/main.omg" > "$T/descriptor-full.bundle"
+set +e
+"$T/frontend" < "$T/descriptor-full.bundle" > "$T/descriptor-full.terminal"
+descriptor_full_status=$?
+set -e
+if [ "$descriptor_full_status" = 107 ] \
+    && cmp -s "$T/canonical.terminal" "$T/descriptor-full.terminal"; then
+  PASS=$((PASS+1))
+else
+  FAIL=$((FAIL+1)); echo "  FAIL exact 16-source descriptor ceiling: status=$descriptor_full_status"
+fi
 
 printf 'use omega::language::std::console; data Main{console:Console;} machine Main::main(&mut self){self.console.exit_process(7);}' > "$T/zero-write.omg"
 run_source "O1 zero writes" "$T/zero-write.omg" 7
@@ -146,12 +198,83 @@ printf '\377' >> "$T/invalid-utf8.omg"
 printf '");self.console.exit_process(0);}' >> "$T/invalid-utf8.omg"
 run_source "invalid UTF-8" "$T/invalid-utf8.omg" 251
 
+cp "$OMEGA_PATH_CORPUS/cli_mvp/main.omg" "$T/nul-tail.omg"
+printf '\000ignored' >> "$T/nul-tail.omg"
+run_source "raw NUL cannot masquerade as source EOF" "$T/nul-tail.omg" 251
+
 python3 "$OMEGA_PATH_OMEGA_BOOTSTRAP/compiler/omega_bootstrap_bundle.py" pack \
   a.omg="$T/variant.omg" b.omg="$T/variant.omg" > "$T/multi.bundle"
-run_bundle "multiple sources outside O0" "$T/multi.bundle" 251
+run_bundle_empty "two program-bearing sources" "$T/multi.bundle" 251
+
+printf 'use omega::language::std::' > "$T/token-left.omg"
+printf 'console;' > "$T/token-right.omg"
+python3 "$OMEGA_PATH_OMEGA_BOOTSTRAP/compiler/omega_bootstrap_bundle.py" pack \
+  a.omg="$T/token-left.omg" b.omg="$T/token-right.omg" > "$T/token-fragments.bundle"
+run_bundle_empty "cross-source token fragments" "$T/token-fragments.bundle" 251
+
+printf '\377' > "$T/invalid-auxiliary.omg"
+python3 "$OMEGA_PATH_OMEGA_BOOTSTRAP/compiler/omega_bootstrap_bundle.py" pack \
+  a/invalid.omg="$T/invalid-auxiliary.omg" z/program.omg="$OMEGA_PATH_CORPUS/cli_mvp/main.omg" \
+  > "$T/invalid-auxiliary.bundle"
+run_bundle_empty "invalid UTF-8 in auxiliary source" "$T/invalid-auxiliary.bundle" 251
+
+python3 "$OMEGA_PATH_OMEGA_BOOTSTRAP/compiler/omega_bootstrap_bundle.py" pack \
+  a/program.omg="$OMEGA_PATH_CORPUS/cli_mvp/main.omg" z/invalid.omg="$T/invalid-auxiliary.omg" \
+  > "$T/invalid-auxiliary-after.bundle"
+run_bundle_empty "invalid UTF-8 after program source" "$T/invalid-auxiliary-after.bundle" 251
+
+python3 "$OMEGA_PATH_OMEGA_BOOTSTRAP/compiler/omega_bootstrap_bundle.py" pack \
+  a/empty.omg="$T/empty.omg" b/comment.omg="$T/comment.omg" > "$T/all-trivia.bundle"
+run_bundle_empty "bundle without a program-bearing source" "$T/all-trivia.bundle" 251
 
 dd if=/dev/zero of="$T/oversize.omg" bs=2049 count=1 2>/dev/null
 run_source "checked source exhaustion" "$T/oversize.omg" 252
+
+# Aggregate source backing is shared across descriptors. Force exhaustion while
+# decoding the second entry so a multi-source bundle cannot be rejected merely
+# from count > 1.
+dd if=/dev/zero bs=1 count=1500 2>/dev/null | tr '\000' ' ' > "$T/large-trivia.omg"
+python3 "$OMEGA_PATH_OMEGA_BOOTSTRAP/compiler/omega_bootstrap_bundle.py" pack \
+  a/trivia.omg="$T/large-trivia.omg" z/program.omg="$OMEGA_PATH_CORPUS/cli_mvp/main.omg" \
+  > "$T/aggregate-source-exhaust.bundle"
+run_bundle_empty "checked aggregate source exhaustion" "$T/aggregate-source-exhaust.bundle" 252
+
+# The descriptor and per-label ceilings are explicit resource outcomes.
+python3 - "$T/descriptor-exhaust.bundle" "$T/label-exhaust.bundle" \
+  "$T/descending.bundle" "$T/duplicate.bundle" "$T/unsafe-label.bundle" \
+  "$T/high-u32.bundle" "$T/truncated-u32.bundle" <<'PY'
+import pathlib
+import struct
+import sys
+
+magic = b"OMG0BNDL"
+pathlib.Path(sys.argv[1]).write_bytes(struct.pack("<8sII", magic, 1, 17))
+label = b"a" * 65
+pathlib.Path(sys.argv[2]).write_bytes(
+    struct.pack("<8sIIII", magic, 1, 1, len(label), 0) + label
+)
+
+def bundle(entries):
+    data = bytearray(struct.pack("<8sII", magic, 1, len(entries)))
+    for label, content in entries:
+        data.extend(struct.pack("<II", len(label), len(content)))
+        data.extend(label)
+        data.extend(content)
+    return bytes(data)
+
+pathlib.Path(sys.argv[3]).write_bytes(bundle([(b"z.omg", b""), (b"a.omg", b"")]))
+pathlib.Path(sys.argv[4]).write_bytes(bundle([(b"a.omg", b""), (b"a.omg", b"")]))
+pathlib.Path(sys.argv[5]).write_bytes(bundle([(b"../bad.omg", b"")]))
+pathlib.Path(sys.argv[6]).write_bytes(magic + struct.pack("<I", 0x80000001))
+pathlib.Path(sys.argv[7]).write_bytes(magic + b"\x01\x00")
+PY
+run_bundle_empty "checked descriptor exhaustion" "$T/descriptor-exhaust.bundle" 252
+run_bundle_empty "checked label exhaustion" "$T/label-exhaust.bundle" 252
+run_bundle_empty "descending labels reject" "$T/descending.bundle" 251
+run_bundle_empty "duplicate labels reject" "$T/duplicate.bundle" 251
+run_bundle_empty "unsafe label rejects" "$T/unsafe-label.bundle" 251
+run_bundle_empty "high-bit u32 rejects" "$T/high-u32.bundle" 251
+run_bundle_empty "truncated u32 rejects" "$T/truncated-u32.bundle" 251
 
 printf 'use omega::language::std::console; data Main{console:Console;} machine Main::main(&mut self){self.console.write_line("' > "$T/text-exhaust.omg"
 dd if=/dev/zero bs=1 count=1025 2>/dev/null | tr '\000' x >> "$T/text-exhaust.omg"
@@ -192,13 +315,16 @@ clang -arch arm64 -o "$T/frontend-self" "$T/frontend-self.s"
 codesign -f -s - "$T/frontend-self" >/dev/null 2>&1
 bundle_one "$OMEGA_PATH_CORPUS/cli_mvp/main.omg" "$T/canonical.bundle"
 set +e
-"$T/frontend-self" < "$T/canonical.bundle" > /dev/null 2>&1; self_ok=$?
-"$T/frontend-self" < "$T/multi.bundle" > /dev/null 2>&1; self_bad=$?
+"$T/frontend-self" < "$T/canonical.bundle" > "$T/self-canonical.terminal" 2>/dev/null; self_ok=$?
+"$T/frontend-self" < "$T/auxiliary.bundle" > "$T/self-auxiliary.terminal" 2>/dev/null; self_aux=$?
+"$T/frontend-self" < "$T/multi.bundle" > "$T/self-bad.terminal" 2>/dev/null; self_bad=$?
 set -e
-if [ "$self_ok" = 107 ] && [ "$self_bad" = 251 ]; then
-  PASS=$((PASS+2))
+if [ "$self_ok" = 107 ] && [ "$self_aux" = 107 ] && [ "$self_bad" = 251 ] \
+    && cmp -s "$T/self-canonical.terminal" "$T/self-auxiliary.terminal" \
+    && [ ! -s "$T/self-bad.terminal" ]; then
+  PASS=$((PASS+3))
 else
-  FAIL=$((FAIL+1)); echo "  FAIL Delta-written self-host path: accepted=$self_ok rejected=$self_bad"
+  FAIL=$((FAIL+1)); echo "  FAIL Delta-written self-host path: accepted=$self_ok auxiliary=$self_aux rejected=$self_bad"
 fi
 
 echo "omega-bootstrap Delta frontend: $PASS passed, $FAIL failed"

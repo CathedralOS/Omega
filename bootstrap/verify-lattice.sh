@@ -126,8 +126,8 @@ step "predicate soundness — FUZZ: random predicates, kernel vs operational dec
 step "delta — on-ramp compiles + RUNS its corpus"   delta-rust  test_aarch64.sh
 step "delta meaning — native exec vs gamma reference interpreter" delta-rust delta-meaning-diamond.sh gamma
 step "delta D0 storage meaning (RUST-FREE) — omega2gamma.beta -> interp.beta" delta-rust delta-storage-meaning.sh omega-bootstrap gamma
-step "omega-bootstrap Delta O1 frontend — variable straight-line console profile through lexer/parser/checker and Delta-written recompilation" delta-rust omega-bootstrap-frontend-test.sh omega-bootstrap corpus
-step "omega-bootstrap Delta O1 frontend meaning (RUST-FREE) — retained operands + dual-channel output + semantic rejection through Gamma" delta-rust omega-bootstrap-frontend-meaning.sh omega-bootstrap gamma corpus
+step "omega-bootstrap Delta frontend — O1 regression plus bounded source-unit transport through lexer/parser/checker and Delta-written recompilation" delta-rust omega-bootstrap-frontend-test.sh omega-bootstrap corpus
+step "omega-bootstrap Delta frontend meaning (RUST-FREE) — source-unit identity, retained operands, dual-channel rejection, and exhaustion through Gamma" delta-rust omega-bootstrap-frontend-meaning.sh omega-bootstrap gamma corpus
 step "omega kernel cross-check (RUST-FREE) — native vs omega2gamma.beta->interp.beta" omega-bootstrap-gates kernel-diamond.sh delta-rust gamma
 step "convergence — Delta emits a proof; the proof kernel checks it" delta-rust convergence.sh proof-kernel
 step "convergence (self-hosted) — the self-hosted compiler's certifiers, checked by the proof kernel" delta-rust convergence-selfhost.sh proof-kernel
