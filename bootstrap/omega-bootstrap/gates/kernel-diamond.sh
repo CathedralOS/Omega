@@ -260,6 +260,8 @@ diao "doubled filter (out+call)" "$I machine inc2(x: i32) -> i32 { return x + x;
 M='boundary trait Console { machine exit_process(return_code: i32); machine read_byte() -> i32; machine write_byte(b: i32); } data Main { console: Console; tmp: i32; }'
 diao "self-method emits pair" "$M machine Main::emitpair(&mut self, v: i32) { self.tmp = v; self.console.write_byte(self.tmp + 65); self.console.write_byte(self.tmp + 66); } machine Main::main(&mut self) { self.emitpair(0); self.emitpair(1); self.console.exit_process(0); }" "" "65 66 66 67"
 diao "self-method echos input" "$M machine Main::emit(&mut self, v: i32) { self.console.write_byte(v); } machine Main::main(&mut self) { transition 0 { _ -> rd() } state rd() { self.tmp = read_byte(); transition self.tmp < 0 { true -> dn()  false -> ec() } } state ec() { self.emit(self.tmp + 1); transition 0 { _ -> rd() } } state dn() { self.console.exit_process(0); } }" "65 66 67" "66 67 68"
+AWR='boundary trait Console { machine exit_process(return_code: i32); machine read_byte() -> i32; machine write_byte(b: i32); } data Main { console: Console; tmp: i32; buf: [i32; 2]; }'
+diao "array writes sequence value self-calls" "$AWR machine Main::next(&mut self) -> i32 { self.tmp = read_byte(); return self.tmp; } machine Main::main(&mut self) { self.buf[0] = self.next(); self.buf[1] = self.next(); self.console.write_byte(self.buf[0]); self.console.write_byte(self.buf[1]); self.console.exit_process(0); }" "65 66" "65 66"
 
 echo "omega kernel diamond (native == Rust-free omega2gamma->interp == Rust gamma_emit): $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1

@@ -25,7 +25,11 @@ and process termination rather than a general boundary-trait system.
 - [`FEATURE_LEDGER.md`](FEATURE_LEDGER.md) tracks provisional candidates and the
   evidence required to retain or remove them before the v1 freeze.
 - [`samples/lowermachine.alp`](samples/lowermachine.alp) is the Delta-written
-  Delta-to-ARM64 compiler and self-host fixed point.
+  Delta-to-ARM64 compiler and self-host fixed point. Its native publisher
+  batches `write_byte` output in a fixed 4 KiB buffer, flushes before ordered
+  line output/input, explicit or implicit entry return, and traps, and retains
+  direct regression teeth at the buffer boundary; this is sealed host I/O, not
+  a general allocator or runtime.
 - [`build/`](build/) contains the checked-in bootstrap compiler artifacts.
 - [`../../onramps/delta-rust/`](../../onramps/delta-rust/) is the disposable
   Rust producer and executable reference. It is not Delta's semantic authority.

@@ -15,7 +15,7 @@ judgment.
 data Inventory {
     gold: u32;          // zero: 0 gold
     items: [Item; 8];   // zero: 8 zeroed items
-    label: [u8; 64];    // zero carrier: live length 0
+    label: [u8; 64];    // zero: 64 zero bytes
 }
 ```
 
@@ -25,8 +25,10 @@ What makes this hold layer by layer:
 - Fat descriptors (slices and borrowed text windows): `{ ptr: 0, len: 0 }` is
   the canonical empty carrier. Reads see emptiness; nothing dereferences a
   zero pointer with a zero length.
-- Bounded carriers `[T; N]` use `{ len, inline elements }`; all-zero storage has
-  live length zero even though its inline capacity is `N`.
+- Raw fixed arrays `[T; N]` contain exactly `N` inline elements and no hidden
+  live-length word; all-zero storage recursively zeroes every element. A
+  bounded live-length collection is a distinct ordinary record such as
+  `FixedVec { items: [T; N], length }`, whose zeroed length is zero.
 - Case-bearing data (sum and mixed shapes): tag `0` is the first declared
   case, so a zeroed value IS the first case (with zeroed payload if it has
   one). A payload-bearing first case is ordinary: zero may be `Integer(0)` or
