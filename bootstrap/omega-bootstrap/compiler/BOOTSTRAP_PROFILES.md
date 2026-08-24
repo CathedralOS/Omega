@@ -25,8 +25,9 @@ preserve:
   storage ceilings below.
 - **Omega product-compiler source profile `Ωself`** is the incidental ordinary-
   Omega profile selected by the source closure from which the production
-  compiler is built. It remains open until that exact source and dependency
-  manifest exists and the general bridge supplies measured implementation and
+  compiler is built. Versioned product checkpoints now expose provisional
+  profiles; the contract remains open until the final exact source/dependency
+  closure exists and the general bridge supplies measured implementation and
   assurance cost for the retained features.
 
 O0 and O1 are vertical pipeline canaries, not normative ancestors of `Ωself`.
@@ -138,12 +139,14 @@ full-Omega features implemented by the resulting product compiler are not
 re-selected here. Executable optimization quality is likewise outside this
 source-profile inventory.
 
-The profile can first be derived when `OMEGA-PRODUCT-COMPILER-SOURCE` publishes
-a coherent Omega-written compiler checkpoint and its exact deterministic
-transitive manifest. Later versioned checkpoints update the provisional profile.
-It cannot be frozen until the final source closure exists and the general bridge
-supplies measured implementation and assurance cost. The working
-language-feature defaults for the compiler's own implementation source are:
+Checkpoint 000001 now supplies the first coherent Omega-written compiler closure
+and provisional census. Later versioned checkpoints update that provisional
+profile. It cannot be frozen until the final source closure exists and the
+general bridge supplies measured implementation and assurance cost. Absence from
+an early checkpoint can justify rejection by that checkpoint's candidate gate,
+but not a final exclusion while later compiler phases remain unwritten. The
+working language-feature defaults for the compiler's own implementation source
+are:
 
 - omit the math/proof surface and linear/dependent types from compiler source;
 - retain ordinary named fields, payload-bearing enums/sum data, and basic
@@ -172,13 +175,13 @@ and procedures in that same source implement full proof parsing, checking, and
 lowering. Full-Omega suites validate the resulting compiler independently of
 the `Ωself` source census.
 
-The gate must compile the complete manifest under explicit compositional profile
-rules and carry a negative canary for every rejected feature. The candidate
-profile may be enforced before the bridge is complete, but it freezes only when
-the general bridge implementation supplies the implementation and assurance
-cost used to settle every retained feature. The profile includes all transitive
-libraries, generated and compile-time source, build behavior, and
-compiler-imported tools. See
+Each checkpoint gate must compile that checkpoint's complete manifest under
+explicit compositional profile rules and carry a negative canary for every
+rejected feature. The candidate profile may be enforced before the bridge is
+complete, but it freezes only when the final source closure and general bridge
+implementation supply the evidence used to settle every row. The profile
+includes all transitive libraries, generated and compile-time source, build
+behavior, and compiler-imported tools. See
 [`../../../wiki/architecture/bootstrap_lattice/compiler_source_profile.md`](../../../wiki/architecture/bootstrap_lattice/compiler_source_profile.md).
 
 ## O0 — Omega vertical-canary acceptance profile

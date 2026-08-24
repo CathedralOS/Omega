@@ -83,6 +83,8 @@ omega-terminal-target-operations = { path = "../../representations/omega-termina
 omega-terminal-target-operations-to-assigned-target-operations = { path = "../../pipeline/omega-terminal-target-operations-to-assigned-target-operations" }
 omega-terminal-machine-emission = { path = "../../backend/omega-terminal-machine-emission" }
 omega-terminal-image-emission = { path = "../../backend/images/omega-terminal-image-emission" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 
 [dev-dependencies]
 psi-facts = { path = "../../../psi/representations/psi-facts" }

@@ -348,27 +348,29 @@ Psi ............. source semantics + terminal IR inside both compiler products  
 the proof kernel accepts is trustworthy back to the seed because the kernel and
 its soundness bridges are audited and every compiler artifact in that path has a
 lower-rooted refinement check. A false proposition cannot get a certificate past
-the kernel merely by controlling the producer. Today the whole-artifact `bc`
-cold-start refinement is still an explicit open edge; the fixed point does not
-close it.
+the kernel merely by controlling the producer. The whole-artifact `bc`
+cold-start refinement now closes that edge; its fixed point remains dependency-
+closure and reproducibility evidence rather than the reason the artifact is
+authoritative.
 
 ## Execution order (binds the /loop)
 
-1. **Close the `bc` correspondence edge by checked refinement** — the
-   Alpha-rooted construction and fixed-point artifact are complete; now validate
-   that exact artifact against `bc.beta` with authority rooted below `bc`. The
-   Python comparison path and byte-identical self-build are not the closure
-   criterion. *(D3/D5)*
+1. **Keep the closed `bc` correspondence edge closed** — its Alpha-rooted
+   construction and lower-rooted whole-artifact refinement are complete. Reopen
+   it only for a concrete defect, a widened claim, or a changed artifact; Python
+   comparison and byte-identical self-build remain regression evidence.
+   *(D3/D5.)*
 2. **Keep Delta's used profile Rust-free** — retain the existing
    `omega2gamma.beta` → `interp.beta` coverage for D0/O1, and require each newly
    admitted compiler construct to land with lower-rung meaning or fail closed.
    `gamma_emit.rs` remains a differential reference producer. *(D1.)*
 3. **Grow the proof kernel and its seams in lockstep** — no capability without its paired seam. *(D4)*
 4. **Translation-validation backend** — per-compile refinement certs. *(D3 north star, later.)*
-5. **Establish the production Omega source tree and provisional `Ωself`** —
-   publish its deterministic dependency closure, derive the lowest-total-cost
-   compositional source-profile candidate, and mechanically reject excluded
-   features. *(D6.)*
+5. **Grow the production Omega source tree and enforce provisional `Ωself`** —
+   checkpoint 000001 supplies the first deterministic closure. Derive and gate
+   its compositional candidate now, publish later closures as compiler phases
+   land, and keep absent future-phase features provisional until bridge-cost
+   evidence and the final source closure settle them. *(D6.)*
 6. **Complete `omega-bootstrap`, then freeze `Ωself` and Delta v1 at their
    joins** — implement the general profile frontend/semantic path and correct
    conservative lowering needed for the one hosted production build. Feed real

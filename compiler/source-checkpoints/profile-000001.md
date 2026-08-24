@@ -10,7 +10,10 @@ capacity exhaustion with status 252.
 This census is provisional evidence, not the final `Ωself` profile. It records
 general facilities used by the exact manifest in `checkpoint-000001.json`.
 Later product checkpoints rerun the census; the Delta bridge supplies the cost
-evidence needed to settle retain-versus-refactor decisions.
+evidence needed to settle retain-versus-refactor decisions. “Unused” below means
+absent from this lexical checkpoint only. Such a facility may be rejected by
+this checkpoint's provisional profile, but it is not finally excluded from
+`Ωself` while later compiler phases remain unwritten.
 
 | Facility | Checkpoint use | Provisional disposition |
 | --- | --- | --- |
@@ -25,13 +28,13 @@ evidence needed to settle retain-versus-refactor decisions.
 | boundary traits and target-selected realizations | hosted byte input and process exit | retain only the sealed compiler-host byte/exit surface needed by product entrypoints |
 | basic explicit generic calls | standard provider selection in the transitive console closure | measure against a non-generic sealed provider binding |
 | generated ordinary-Omega data | Unicode XID range arrays | retain generated-source closure rules; generator and external data stay pinned inputs |
-| proof/program mathematics | unused | presumptively exclude; full-Omega proof checking does not require proof syntax in compiler source |
-| dependent bounds and linear types | unused | presumptively exclude |
-| domain polymorphism | unused | presumptively exclude |
-| advanced generic constraints, specialization, reflection | unused | presumptively exclude |
-| numeric/schema field tags | unused | presumptively exclude |
-| mixed field-plus-case declarations | unused | presumptively exclude; separate records and sums suffice here |
-| complex aggregate transition payloads | unused | presumptively exclude; scalar/index state parameters suffice here |
+| proof/program mathematics | unused in checkpoint | reject provisionally; likely final exclusion because implementing full-Omega proof checking does not require proof syntax in compiler source |
+| dependent bounds and linear types | unused in checkpoint | reject provisionally; likely final exclusion, subject to later source closures |
+| domain polymorphism | unused in checkpoint | reject provisionally; final disposition awaits later source closures and bridge cost |
+| advanced generic constraints, specialization, reflection | unused in checkpoint | reject provisionally; final disposition awaits later source closures and bridge cost |
+| numeric/schema field tags | unused in checkpoint | reject provisionally; compare ordinary named fields if later source introduces them |
+| mixed field-plus-case declarations | unused in checkpoint | reject provisionally; compare separate records and sums if later source introduces them |
+| complex aggregate transition payloads | unused in checkpoint | reject provisionally; compare scalar/index state parameters plus explicit context if later source introduces them |
 
 The checkpoint deliberately binds branching computations to fields before
 dispatch. This is ordinary Omega and avoids depending on implicit arm-value
@@ -43,8 +46,9 @@ language or a semantic exception.
 Run `compiler/source-checkpoints/checkpoint-000001.sh`. The checkpoint is
 accepted only when all of the following hold:
 
-1. `python3 compiler/source-checkpoints/verify_manifest.py` validates the exact
-   closure and aggregate digest.
+1. `python3 compiler/source-checkpoints/verify_manifest.py` replays all declared
+   target resolutions, validates the exact loaded-source/alias/import closure and
+   provenance digests, and rejects the built-in closure mutations.
 2. The hosted entry compiles through native emission for its selected target.
 3. Empty input, identifiers, integers, punctuation, whitespace, representative
    Omega source with a Unicode identifier, nested block comments, and

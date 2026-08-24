@@ -189,11 +189,12 @@ been retired; bootstrap callers resolve canonical owners through
   Omega. The bridge needs exact `Ωself` coverage and correct conservative output,
   not general full-Omega input acceptance or the product optimizer itself.
 
-> **Immediate next dependency:** establish the Omega-written production compiler
-> source and publish its first deterministic closure snapshot while the bounded
-> Delta substrate and Rust-free meaning route grow. Profile growth follows those
-> actual source snapshots and must carry direct-artifact and Rust-free-meaning
-> coverage in the same milestone.
+> **Immediate next dependency:** mechanically derive and enforce the provisional
+> `Ωself` candidate exposed by product-source checkpoint 000001, then grow the
+> Delta-written bridge only through general capabilities justified by that or a
+> later checkpoint. Continue expanding the Omega-written product source and
+> publishing deterministic closures in parallel. Every bridge capability must
+> carry direct-artifact and Rust-free-meaning coverage in the same milestone.
 
 ## Delta → omega-bootstrap → production Omega readiness
 
@@ -269,15 +270,16 @@ Two source efforts can proceed in parallel:
   maintaining a provisional, explicit Delta feature ledger and lower-rung
   meaning for every used construct.
 
-The first coherent product manifest snapshot permits provisional `Ωself` to be
-derived; later snapshots update it. `Ωself` determines the accepted-source work
-of `omega-bootstrap`; implementing that bridge exposes its complete Delta source
-closure, from which Delta v1 is pruned and frozen. This is an iterative
-discovery loop with two eventual freezes, not a circular runtime or build
-dependency. The pre-snapshot exception for explicitly bounded profile-neutral
-substrate is now closed by checkpoint 000001; further accepted-source growth
-must trace a measured checkpoint need. Neither canary succession, current
-source, nor producer acceptance may silently define a language contract.
+Checkpoint 000001 supplies the first coherent product manifest from which
+provisional `Ωself` can be derived; later snapshots update it. `Ωself` determines
+the accepted-source work of `omega-bootstrap`; implementing that bridge exposes
+its complete Delta source closure, from which Delta v1 is pruned and frozen.
+This is an iterative discovery loop with two eventual freezes, not a circular
+runtime or build dependency. The pre-snapshot exception for explicitly bounded
+profile-neutral substrate is now closed by checkpoint 000001; further
+accepted-source growth must trace a measured checkpoint need. Neither canary
+succession, current source, nor producer acceptance may silently define a
+language contract.
 
 ### Active work packages and acceptance gates
 
@@ -407,22 +409,29 @@ may advance before the product source manifest exists, while provisional
   - [x] publish checkpoint 000001 as a deterministic 12-source closure with
     separate generated/toolchain inputs and a compositional feature census;
     this satisfies the first external-input dependency without pretending the
-    final compiler closure or profile is frozen;
-  - [ ] measure every feature used by the complete source closure against its
-    production-source benefit and the cost of implementing and assuring it in
-    the Delta-written bridge;
-  - [ ] for every disputed facility, record one explicit outcome: retain a
-    general compositional form, or refactor it out of the product source and
-    keep a negative canary. Do not reward feature removal when it merely creates
-    monomorphic duplication or source-shape permutations;
+    final compiler closure or profile is frozen. The standard checkpoint gate
+    now replays all four declared target resolutions, requires exact loaded
+    source/alias/import-edge equality, binds all metadata into the closure hash,
+    and rejects omitted, padded, rewired, duplicate, bogus-root, and external-
+    checksum mutations;
+  - [ ] measure every feature used by each complete checkpoint closure against
+    its production-source benefit and the cost of implementing and assuring it
+    in the Delta-written bridge. Absence from a partial checkpoint is provisional
+    evidence only, not a final exclusion from the completed source profile;
+  - [ ] for every disputed facility exercised by a checkpoint, record an explicit
+    provisional outcome: retain a general compositional candidate, refactor it
+    out of the product source and keep a negative canary, or leave it unresolved
+    with the exact bridge-cost evidence still missing. Do not reward feature
+    removal when it merely creates monomorphic duplication or source-shape
+    permutations;
   - [ ] publish candidate compositional syntax, static-semantics, resource,
     ABI/layout, and lowering rules—not file identities, statement counts, or
     AST permutations—and enforce them provisionally;
-  - [ ] resolve every row in the canonical working feature-disposition table in
-    [`compiler_source_profile.md`](wiki/architecture/bootstrap_lattice/compiler_source_profile.md).
-    Do not copy that inventory into this task list: its entries remain working
-    defaults, not admissions or exclusions, until source benefit and general
-    bridge-cost evidence settle them;
+  - [ ] update every applicable row in the canonical working feature-disposition
+    table in [`compiler_source_profile.md`](wiki/architecture/bootstrap_lattice/compiler_source_profile.md).
+    Preserve explicit unresolved rows where later product source or general
+    bridge-cost evidence is still required. Do not copy that inventory into this
+    task list: final resolution belongs to the freeze join below;
   - [ ] keep standalone terminal-Psi tools, interpreters, REPLs, proof explorers,
     viewers, and debuggers outside the manifest unless the compiler executable
     imports them; and
@@ -436,8 +445,10 @@ may advance before the product source manifest exists, while provisional
   feature/resource profile as distinct artifacts. Every currently retained
   program is ordinary Omega with exact Omega meaning; unsupported Omega rejects.
   Each unresolved candidate names the product-source benefit and bridge-cost
-  evidence still needed at the freeze join. The candidate profile is a true
-  subset, not a dialect, a source-file whitelist, or another lattice rung.
+  evidence still needed at the freeze join. A partial checkpoint may enforce a
+  narrower provisional profile without pretending that features absent from that
+  checkpoint are finally excluded. Every candidate profile is a true subset,
+  not a dialect, a source-file whitelist, or another lattice rung.
 
 - [x] **Advance profile-neutral bridge substrate in Delta.** **Bounded
   pre-snapshot tranche complete.** Reuse the closed O0/O1 path as
@@ -623,10 +634,10 @@ growth.
 ## Execution order
 
 1. In parallel, keep Delta's Rust-free meaning route and provisional feature
-   ledger live, finish only the explicitly bounded profile-neutral bridge
-   substrate listed above, and let `OMEGA-PRODUCT-COMPILER-SOURCE` establish the
-   Omega-written product source and its first deterministic closure snapshot in
-   `TASKS.md`.
+   ledger live while `OMEGA-PRODUCT-COMPILER-SOURCE` expands the Omega-written
+   product source and publishes later deterministic closure snapshots in
+   `TASKS.md`. The first snapshot and the bounded pre-snapshot substrate are
+   complete; accepted-source growth now requires a measured checkpoint need.
 2. Derive and mechanically enforce provisional `Ωself` from each coherent
    product-source snapshot, then implement the remaining `omega-bootstrap`
    capabilities directly against its compositional rules. Use O0/O1 only as
