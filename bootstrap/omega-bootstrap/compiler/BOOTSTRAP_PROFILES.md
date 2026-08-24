@@ -138,11 +138,12 @@ full-Omega features implemented by the resulting product compiler are not
 re-selected here. Executable optimization quality is likewise outside this
 source-profile inventory.
 
-The profile cannot be derived until `OMEGA-PRODUCT-COMPILER-SOURCE` publishes
-the exact transitive compiler source and build manifest, and cannot be frozen
-until the general bridge supplies measured implementation and assurance cost.
-The working language-feature defaults for the compiler's own implementation
-source are:
+The profile can first be derived when `OMEGA-PRODUCT-COMPILER-SOURCE` publishes
+a coherent Omega-written compiler checkpoint and its exact deterministic
+transitive manifest. Later versioned checkpoints update the provisional profile.
+It cannot be frozen until the final source closure exists and the general bridge
+supplies measured implementation and assurance cost. The working
+language-feature defaults for the compiler's own implementation source are:
 
 - omit the math/proof surface and linear/dependent types from compiler source;
 - retain ordinary named fields, payload-bearing enums/sum data, and basic

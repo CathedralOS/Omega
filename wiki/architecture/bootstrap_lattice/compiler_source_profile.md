@@ -165,8 +165,10 @@ the Delta rung's
 ## Working `Ωself` policy
 
 The exact profile cannot be frozen before the production compiler source and
-deterministic dependency manifest exist. The working policy is nevertheless
-specific enough to guide that source.
+deterministic dependency manifest close. It can and should be derived
+provisionally from versioned deterministic snapshots while that source is being
+written. The working policy is specific enough to guide the first snapshot;
+each later snapshot reruns the same feature census and retain/refactor analysis.
 
 Delta v1 and `Ωself` remain separate contracts even though their discovery can
 co-evolve. Delta is derived from the cost of implementing and assuring the
@@ -201,21 +203,25 @@ hard-coded compiler-source shapes when it lowers total cost. Conversely, a
 powerful facility used only incidentally should not enter the bridge merely
 because the production compiler can express itself with it.
 
-The working feature disposition is:
+The working feature disposition is below. These are defaults for authoring and
+measurement, not ratified exclusions or admissions. A row becomes resolved only
+when a deterministic compiler-source snapshot demonstrates the source benefit
+and the general Delta-written bridge demonstrates the implementation and
+assurance cost.
 
 | Omega facility in the compiler's own source | Working disposition | Decision test |
 | --- | --- | --- |
 | mathematical proof/program surface | presumptively exclude | retain only if the compiler implementation itself has an unavoidable use; implementing proof checking for user programs is not such a use |
 | linear and dependent types | presumptively exclude | same source-need and total-cost test |
-| ordinary named record fields | presumptively retain | removing them is likely to make compiler data less clear and more brittle |
-| payload-bearing enums/sum data | presumptively retain | syntax and IR modeling cost versus explicit-tag records |
+| ordinary named record fields | presumptively retain | removing names from ordinary compiler data is likely to make the source less clear and more brittle |
+| payload-bearing enums/sum data | presumptively retain | compare direct syntax/IR modeling with separate explicit-tag records; splitting is a cost option, not a prior ruling |
 | basic generics | presumptively retain | collection, result, arena-ID, and compiler-data reuse versus monomorphic duplication |
 | concrete domains and domain arithmetic | measure | compare with explicit compiler contexts and narrow operations |
 | domain polymorphism | measure | admit only the forms used by the closed source manifest |
 | advanced generic constraints, specialization, and reflection | measure | source benefit versus bridge and assurance cost |
-| numeric/schema field tags such as `0:` | measure | compare with ordinary named fields; these are distinct from named record fields |
-| complex transition payloads | measure | compare with a simple discriminant plus explicit compiler context |
-| mixed field-plus-case data | measure | compare with separate record and sum-data types |
+| numeric/schema field tags such as `0:` | measure | compare with ordinary named fields; these are distinct from named record fields and may be omitted without making records positional |
+| complex transition payloads | measure | compare with transitions over simple values plus explicit compiler context |
+| mixed field-plus-case data | measure | compare with separate record and sum-data types; either shape remains ordinary Omega |
 
 Source-unit membership is a separate question from language features.
 Standalone terminal-Psi tools, interpreters, REPLs, proof explorers, viewers,
@@ -288,24 +294,28 @@ Delta-written-compiler → Omega-source edge is a cross-language hosted build.
 
 ## Mechanical enforcement
 
-The production compiler task must publish one deterministic source/dependency
-manifest. This is a staged discovery loop, not a circular build dependency: the
-product source can be authored under the working policy while the Delta bridge
-and ledger evolve against provisional closures. `Ωself` can be derived and
-enforced provisionally once the product closure is visible, but its cost claims
-cannot be final until the general bridge implementation exists. Keep
-provisional derivation and the freeze join as distinct milestones:
+The production compiler task must publish a deterministic source/dependency
+manifest at each coherent source checkpoint. This is a staged discovery loop,
+not a circular build dependency: the product source can be authored under the
+working policy while the Delta bridge and ledger evolve against versioned
+provisional closures. `Ωself` can be derived and enforced provisionally from the
+first complete checkpoint; neither the final file set nor final profile must be
+pretended frozen at that point. Its cost claims cannot be final until the
+general bridge implementation exists. Keep provisional derivation and the
+freeze join as distinct milestones:
 
-1. Write the product compiler under the conservative working policy and publish
-   its complete source closure.
-2. Measure each used feature against its benefit in the product source and its
-   implementation/assurance cost in Delta.
+1. Write a coherent product-compiler source checkpoint under the conservative
+   working policy and publish its complete deterministic transitive closure.
+2. Derive or update provisional `Ωself`; measure each used feature against its
+   benefit in that source snapshot and its implementation/assurance cost in
+   Delta.
 3. Either refactor the product source to remove the feature or admit it to the
    compositional `Ωself` contract.
 4. Implement and assure those general profile rules in `omega-bootstrap`, feeding
    measured cost back into the retain/refactor decision.
-5. Freeze the source manifest and `Ωself` together at that bridge join; the
-   already-running mechanical enforcement becomes the frozen acceptance gate.
+5. Repeat for later source checkpoints, then freeze the final source manifest
+   and `Ωself` together at the completed bridge join; the already-running
+   mechanical enforcement becomes the frozen acceptance gate.
 
 This process classifies facilities, not individual occurrences. A retained
 facility is implemented compositionally for every source admitted by its
