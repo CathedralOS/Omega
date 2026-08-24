@@ -441,10 +441,12 @@ complete.
   Public callable `requires`, `ensures`, and boundary clauses now retain exact
   structural rows for the closed boolean/integer expression subset over
   parameter ordinals, `result`, generic binders, and package-qualified
-  nominals. The projection reads the earlier typed semantic tree only after
-  checked compilation succeeds. Unsupported membership,
-  proposition/named-evidence, call, member, cast, and aggregate forms reject
-  rather than falling back to text or a hash. The legacy 64-bit
+  nominals. Domain-membership rows additionally retain the exact value and
+  package-qualified public domain; exposing a private package domain rejects.
+  The projection reads the earlier typed semantic tree only after checked
+  compilation succeeds. Unsupported proposition/named-evidence, call, member,
+  cast, and aggregate forms reject rather than falling back to text or a hash.
+  The legacy 64-bit
   machine-contract fingerprint has left package-review bytes, so private
   state-machine shape no longer contaminates public package contract identity.
   Exact rows for the unsupported forms and proof/admission dispositions still
@@ -475,7 +477,7 @@ complete.
   closing the implicit-entry-state ownership gap discovered by the crash
   projection. Review identity now retains the exact deployment target profile,
   so profiles such as Windows and UEFI cannot collapse merely because they
-  share a native ABI. A v14 length-framed binary comparison encoding now covers
+  share a native ABI. A v15 length-framed binary comparison encoding now covers
   every retained public-domain, public-data, public-trait, callable,
   crash/proof predicate, authority flow, mutation, and selected-provider row.
   It converts platform-width ordinals to portable `u64`, distinguishes exact

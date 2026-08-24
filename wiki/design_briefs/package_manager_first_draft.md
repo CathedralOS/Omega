@@ -258,9 +258,11 @@ a runtime-layout-only type identity for this contract surface.
 
 Public callable `requires`, `ensures`, and boundary clauses now retain exact
 structural rows for the closed boolean/integer expression subset over parameter
-ordinals, `result`, generic binders, and package-qualified nominals. This is
-read from the earlier typed semantic tree only after checked compilation
-succeeds. Unsupported membership, proposition/named-evidence, call, member,
+ordinals, `result`, generic binders, and package-qualified nominals. Domain-
+membership rows additionally retain that exact value expression and the
+package-qualified public domain; exposing a private package domain rejects.
+This is read from the earlier typed semantic tree only after checked
+compilation succeeds. Unsupported proposition/named-evidence, call, member,
 cast, and aggregate forms reject rather than falling back to text or a hash.
 The legacy 64-bit machine-contract fingerprint has left package-review bytes,
 so private state-machine shape no longer contaminates public package contract

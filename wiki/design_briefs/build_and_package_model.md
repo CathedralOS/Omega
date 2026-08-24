@@ -736,9 +736,11 @@ lifetime-free traits retain exact package-qualified trait and requirement
 identities, alpha-normalized arguments, and any explicit conformance alias.
 Public callable `requires`, `ensures`, and boundary clauses retain exact
 structural rows for the closed boolean/integer expression subset over parameter
-ordinals, `result`, generic binders, and package-qualified nominals. Projection
-reads the earlier typed semantic tree only after checked compilation succeeds.
-Unsupported membership, proposition/named-evidence, call, member, cast, and
+ordinals, `result`, generic binders, and package-qualified nominals. Domain-
+membership rows retain the exact value expression and package-qualified public
+domain; a private package domain cannot leak through a public callable.
+Projection reads the earlier typed semantic tree only after checked compilation
+succeeds. Unsupported proposition/named-evidence, call, member, cast, and
 aggregate forms fail closed. The coarse 64-bit machine-contract fingerprint is
 no longer package-review identity, so private state-machine shape cannot alter
 the public contract baseline. Complete rows for the unsupported forms and
