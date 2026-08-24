@@ -464,7 +464,15 @@ outside that manifest unless the compiler executable imports them.
     `EXPRDEPTH<=64` induction, including every resource exit;
   - [ ] build `gen_stmt`'s branch relation and the guarded greatest fixed point
     for `gen_stmts`/`gen_block`/`gen_state`/`gen_stmt`, preserving finite
-    or infinite stdout prefixes without assuming output productivity;
+    or infinite stdout prefixes without assuming output productivity:
+    - [x] bind exact p26/p62..p67 source/artifact shape in an independent
+      81,803-byte checker, with every module below 20 KB, an assembler diamond,
+      and eleven phase-isolated teeth;
+    - [ ] establish the finite helper/dispatch relation, including every
+      post-resource suffix and name-table provenance branch; and
+    - [ ] close the block-depth-stratified guarded greatest fixed point, using a
+      completed child/backedge machine step—not cursor or stdout progress—as
+      the coinductive guard;
   - [ ] compose the `parse_proc`/PFXS body cutpoint through the unconditional
     epilogue and return, including finite child returns after numeric resource
     status 252;

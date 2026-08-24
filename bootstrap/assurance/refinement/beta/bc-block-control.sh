@@ -40,6 +40,7 @@ trap 'rm -rf "$T"' EXIT
 . "$GATE_DIR/bc-emit-dec-word-teeth.sh"
 . "$GATE_DIR/bc-label-emitters-teeth.sh"
 . "$GATE_DIR/bc-expression-family-teeth.sh"
+. "$GATE_DIR/bc-statement-family-teeth.sh"
 
 bc_timing_start() { # phase
   BC_TIMING_PHASE=$1
@@ -571,6 +572,60 @@ build_expression_family_checkers() {
   build_expression_family_semantic_checker
 }
 
+statement_family_require_module_budgets() {
+  for statement_family_module in \
+    bc-statement-family-shape-root.alpha \
+    bc-statement-gen-store-shape.alpha \
+    bc-gen-stmts-boundary-shape.alpha \
+    bc-statement-gen-block-shape.alpha \
+    bc-statement-emit-state-label-shape.alpha \
+    bc-statement-gen-state-shape.alpha \
+    bc-statement-gen-to-shape.alpha \
+    bc-statement-gen-stmt-shape.alpha \
+    bc-statement-gen-stmt-data-shape.alpha \
+    bc-statement-family-shape.alpha
+  do
+    statement_family_module_bytes=$(wc -c < "$GATE_DIR/$statement_family_module" | tr -d ' ')
+    if [ "$statement_family_module_bytes" -ge 20000 ]; then
+      echo "bc block control FAIL — $statement_family_module is ${statement_family_module_bytes} bytes (20KB module cap)" >&2
+      exit 1
+    fi
+  done
+}
+
+build_statement_family_shape_checker() {
+  statement_family_require_module_budgets
+  {
+    emit_expression_table_prefix
+    cat "$GATE_DIR/bc-statement-family-shape-root.alpha" \
+      "$GATE_DIR/bc-expression-selected-row-helpers.alpha" \
+      "$GATE_DIR/bc-exact-shape-helpers.alpha" \
+      "$GATE_DIR/bc-statement-gen-store-shape.alpha" \
+      "$GATE_DIR/bc-gen-stmts-boundary-shape.alpha" \
+      "$GATE_DIR/bc-statement-gen-block-shape.alpha" \
+      "$GATE_DIR/bc-statement-emit-state-label-shape.alpha" \
+      "$GATE_DIR/bc-statement-gen-state-shape.alpha" \
+      "$GATE_DIR/bc-statement-gen-to-shape.alpha" \
+      "$GATE_DIR/bc-statement-gen-stmt-shape.alpha" \
+      "$GATE_DIR/bc-statement-gen-stmt-data-shape.alpha" \
+      "$GATE_DIR/bc-statement-family-shape.alpha"
+  } > "$T/statement-family-shape.alpha"
+  "$ASM" < "$T/statement-family-shape.alpha" > "$T/statement-family-shape.tape"
+  python3 "$OMEGA_PATH_ALPHA_ASSEMBLER/asm_ref.py" \
+    < "$T/statement-family-shape.alpha" > "$T/statement-family-shape-ref.tape"
+  cmp -s "$T/statement-family-shape.tape" "$T/statement-family-shape-ref.tape" || {
+    echo "bc block control FAIL — statement shape assembler diamond disagrees" >&2
+    exit 1
+  }
+  statement_shape_tape_bytes=$(wc -c < "$T/statement-family-shape.tape" | tr -d ' ')
+  if [ "$statement_shape_tape_bytes" -gt 262140 ]; then
+    echo "bc block control FAIL — statement shape tape is ${statement_shape_tape_bytes} bytes (262140-byte limit)" >&2
+    exit 1
+  fi
+  stamp_seed "$T/statement-family-shape.tape" "$SEED" \
+    "$T/statement-family-shape" >/dev/null
+}
+
 smoke_name_eq_checker() {
   set +e
   "$T/name-eq-check" < "$T/control.bundle" > "$T/stdout"
@@ -640,6 +695,31 @@ smoke_expression_family_checkers() {
     fi
   done
 }
+
+smoke_statement_family_shape_checker() {
+  set +e
+  "$T/statement-family-shape" < "$T/control.bundle" > "$T/stdout"
+  statement_shape_status=$?
+  set -e
+  if [ "$statement_shape_status" != 0 ] || [ -s "$T/stdout" ]; then
+    echo "bc block control FAIL — statement shape canonical smoke: expected 0/empty, got $statement_shape_status/$(wc -c < "$T/stdout" | tr -d ' ') bytes" >&2
+    exit 1
+  fi
+}
+
+# Exact p26/p62..p67 shape is an independent process. The later statement
+# relation must reconstruct or explicitly transport its own semantic premises;
+# no process-local GSBD/XPUB marker is copied into this executable.
+if [ "${BC_BLOCK_FOCUS:-}" = statement-family ]; then
+  bc_timing_start statement-family-focus
+  build_statement_family_shape_checker
+  smoke_statement_family_shape_checker
+  statement_family_build_teeth
+  statement_family_reject_teeth
+  bc_timing_finish
+  echo "bc statement family shape: focused canonical + 11 phase-isolated teeth passed ($(wc -c < "$T/statement-family-shape.tape" | tr -d ' ')-byte tape)"
+  exit 0
+fi
 
 # Exact family shape and the 65-row semantic induction are intentionally two
 # independent processes over one canonical bundle. Acceptance is conjunction.
@@ -740,6 +820,13 @@ build_expression_family_checkers
 smoke_expression_family_checkers
 expression_family_build_teeth
 expression_family_reject_teeth
+bc_timing_finish
+
+bc_timing_start statement-family-shape-tranche
+build_statement_family_shape_checker
+smoke_statement_family_shape_checker
+statement_family_build_teeth
+statement_family_reject_teeth
 bc_timing_finish
 
 bc_timing_start checker-a-canonical

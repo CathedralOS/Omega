@@ -441,6 +441,14 @@ are valuable teeth, but they do not yet establish the quantified observation:
   All eight restore their callers and preserve compiler state apart from the
   stated cursor/output effects. Synthetic fallthrough results are unclaimed.
   This clause uses no full-word decimal semantics;
+- its independent statement-family shape tranche binds `gen_store` and
+  procedures 62..67 over the exact same canonical bundle. It exhausts their
+  blocks, transitions, events, frames, epilogues, locals, raw-memory rows,
+  primitive/push rows, table censuses, and decoded regions in an 81,803-byte
+  checker with an independent assembler diamond and eleven mutation teeth.
+  This is exact artifact shape only: no expression or `gen_stmts` theorem token
+  crosses from another process, and no branch, return, divergence, or
+  productivity claim follows from it;
 - no total `parse_proc` claim is currently made. Malformed procedure bodies can
   make `gen_stmts` diverge while emitting—for example when an unrecognized byte
   is never consumed—so closure requires maximal Return-or-Diverge and finite/
