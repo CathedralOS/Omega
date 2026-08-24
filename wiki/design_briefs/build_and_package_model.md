@@ -584,10 +584,12 @@ unavailable. Omega emits fixed non-admission counts and no review row. Concrete
 operands, rooted paths, mutable outputs, logical handles, and content remain
 absent; raw
 runtime descriptor returns therefore remain non-replayable.
-Both providers reject negative/wrapped raw transfer counts and per-operation
-read allocations above the evaluator's current 16 MiB sponsor ceiling before
-allocation. This is not a language limit and does not yet bound file extent,
-total staging-tree growth, process memory, or CPU.
+Byte-valued inputs are evaluated once in the selected provider arm, and both
+providers reject them above the evaluator's current 16 MiB sponsor ceiling
+before cloning/allocation. Raw transfer counts use one checked conversion and
+reject negative, wrapped, or above-ceiling values before allocation. This is
+not a language limit and does not provide canonical typed operand preparation
+or yet bound file extent, total staging-tree growth, process memory, or CPU.
 This summary is compiler-issued execution evidence kept outside canonical
 capability/API comparison bytes. It is not a receipt and does not claim either
 replay verdict. A `Receipted` row still requires a canonical operation

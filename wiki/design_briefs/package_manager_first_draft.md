@@ -410,9 +410,11 @@ logical handles, and content, so it remains an incomplete trace and makes no rec
 replayability, or source-rebuildability claim. Canonical operation transcripts,
 recorded inputs, staged-output commitments, and replay checking remain required
 before any `Receipted` verdict.
-Raw read/count capacities reject negative/wrapped values and per-operation
-allocations above the current 16 MiB evaluator sponsor ceiling before provider
-allocation. This is not a language limit; file extent and total staging-tree,
+Raw byte-valued inputs are evaluated once in the selected provider arm and
+reject above the current 16 MiB evaluator sponsor ceiling before provider
+cloning/allocation. Read/count capacities reject negative, wrapped, or
+above-ceiling values through one checked conversion. This is not a language
+limit; canonical typed operand preparation, file extent, total staging-tree,
 memory, and CPU quotas remain open.
 
 Terminal evidence is a separate stronger lane. It is required only for rows

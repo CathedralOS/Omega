@@ -1,8 +1,9 @@
 use super::*;
 
-/// Deterministic per-operation allocation ceiling for raw filesystem reads.
-/// This is an evaluator sponsor limit, not a language or OS API limit. A future
-/// build policy may supply a stricter budget, but package code cannot raise it.
+/// Deterministic per-argument allocation ceiling for raw filesystem byte
+/// inputs and reads. This is an evaluator sponsor limit, not a language or OS
+/// API limit. A future build policy may supply a stricter budget, but package
+/// code cannot raise it.
 const MAX_FILESYSTEM_TRANSFER_BYTES: usize = 16 * 1024 * 1024;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -18,6 +19,15 @@ fn checked_filesystem_transfer_count(raw: i64) -> Result<usize, FilesystemTransf
         return Err(FilesystemTransferCountError::ExceedsEvaluatorLimit);
     }
     Ok(count)
+}
+
+fn check_filesystem_byte_argument_len(length: usize) -> EvalResult<()> {
+    if length > MAX_FILESYSTEM_TRANSFER_BYTES {
+        return Err(Halt::Trap(format!(
+            "filesystem byte argument exceeds evaluator limit of {MAX_FILESYSTEM_TRANSFER_BYTES} bytes"
+        )));
+    }
+    Ok(())
 }
 
 impl<'program> Evaluator<'program> {
@@ -1012,12 +1022,17 @@ impl<'program> Evaluator<'program> {
             return Ok(Vec::new());
         };
         match self.eval_expression(argument, frame)? {
-            Value::Str(text) => Ok(text.borrow().clone()),
+            Value::Str(text) => {
+                let text = text.borrow();
+                check_filesystem_byte_argument_len(text.len())?;
+                Ok(text.clone())
+            }
             // A byte array or a subslice view of one (`buffer` / `buffer[0..n]`):
             // each element cell holds a byte as an `Int`. This is the write-side
             // mirror of `write_fs_buffer`'s `Array` arm, and lets a caller write
             // a bounded prefix of a buffer (Rust `fs::copy`, `write` of a slice).
             Value::Array(cells) => {
+                check_filesystem_byte_argument_len(cells.len())?;
                 let mut bytes = Vec::with_capacity(cells.len());
                 for cell in &cells {
                     bytes.push(cell.borrow().as_int().unwrap_or(0) as u8);
@@ -1028,6 +1043,7 @@ impl<'program> Evaluator<'program> {
             // `set_file_times` timespec buffer built in place). Deref to the array.
             Value::Ref(target) => {
                 if let Value::Array(cells) = &*target.borrow() {
+                    check_filesystem_byte_argument_len(cells.len())?;
                     let mut bytes = Vec::with_capacity(cells.len());
                     for cell in cells {
                         bytes.push(cell.borrow().as_int().unwrap_or(0) as u8);
@@ -1511,7 +1527,7 @@ impl<'program> Evaluator<'program> {
 mod tests {
     use super::{
         FilesystemTransferCountError, MAX_FILESYSTEM_TRANSFER_BYTES,
-        checked_filesystem_transfer_count,
+        check_filesystem_byte_argument_len, checked_filesystem_transfer_count,
     };
 
     #[test]
@@ -1533,5 +1549,16 @@ mod tests {
             checked_filesystem_transfer_count(MAX_FILESYSTEM_TRANSFER_BYTES as i64),
             Ok(MAX_FILESYSTEM_TRANSFER_BYTES)
         );
+    }
+
+    #[test]
+    fn byte_argument_length_rejects_before_provider_allocation() {
+        assert!(check_filesystem_byte_argument_len(MAX_FILESYSTEM_TRANSFER_BYTES).is_ok());
+        let error = check_filesystem_byte_argument_len(MAX_FILESYSTEM_TRANSFER_BYTES + 1)
+            .expect_err("oversized path or write payload must reject");
+        assert!(matches!(
+            error,
+            super::Halt::Trap(message) if message.contains("filesystem byte argument exceeds")
+        ));
     }
 }

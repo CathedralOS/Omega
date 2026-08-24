@@ -708,11 +708,13 @@ complete.
   complete transcript schema and
   serialization, lossless rooted
   paths, transcripts/content custody, cleanup-gated publication, output-tree
-  commitment, and replay remain. Raw transfer counts now pass one checked
-  conversion shared by both providers: negative/wrapped values and requests
-  above a compiler-owned 16 MiB per-operation allocation ceiling reject before
-  allocation. This is an evaluator sponsor limit, not a language limit; maximum
-  file extent, total staged bytes/entries, and process memory/CPU quotas remain.
+  commitment, and replay remain. Raw byte-valued inputs are evaluated once in
+  the selected provider arm and reject above a compiler-owned 16 MiB ceiling
+  before the provider clone/allocation. Raw transfer counts pass one checked
+  conversion shared by both providers and reject negative, wrapped, or
+  above-ceiling requests before allocation. This is an evaluator sponsor limit,
+  not a language limit; canonical typed operand preparation, maximum file
+  extent, total staged bytes/entries, and process memory/CPU quotas remain.
 
 - **PROOF-AND-BOUNDARY-ADMISSION.** Fail closed on false or incomplete evidence.
 
