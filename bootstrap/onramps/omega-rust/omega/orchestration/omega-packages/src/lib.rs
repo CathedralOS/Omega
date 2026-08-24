@@ -14,6 +14,7 @@ mod audit;
 mod closure_resolution;
 #[cfg(test)]
 mod commands;
+mod compiler_handoff;
 mod declaration;
 mod dependency_projection;
 #[cfg(test)]
@@ -43,6 +44,7 @@ pub use closure_resolution::{
     ResolvedPackageSourceClosure, resolve_package_source_closure,
     resolve_package_source_closure_with_limits,
 };
+pub use compiler_handoff::package_compilation_inputs;
 pub use declaration::{PackageDeclaration, PackageDeclarationError, extract_package_declaration};
 pub use dependency_projection::{
     DependencyProjectionError, DependencySourceRequest, extract_dependency_projection,

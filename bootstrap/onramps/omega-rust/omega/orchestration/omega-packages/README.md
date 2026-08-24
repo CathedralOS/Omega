@@ -99,7 +99,9 @@ inputs. The compiler's separate native and checked package entrypoints consume
 a closed requester-local alias graph and canonical source roots without
 consulting downloaded dependency rows; legacy standalone compilation still
 retains a narrow explicit `depend_as(..., Source::Path { ... })` compatibility
-scanner. Checked package compilation now also retains
+scanner. A package-side handoff translates only the validated custody closure
+into compiler inputs, whose constructor independently canonicalizes and checks
+every root and edge again. Checked package compilation now also retains
 the exact root package and selected build-machine symbol and can emit an
 in-memory authority review projection for one explicit target. That projection
 is intentionally not source/toolchain-bound admission evidence: exact toolchain
@@ -200,6 +202,8 @@ omega-packages/
 |   |-- declaration.rs     # Hermetic PACKAGE extraction.
 |   |-- dependency_projection.rs # Hermetic literal source requests.
 |   |-- graph.rs           # Typed pre-admission source reconciliation.
+|   |-- closure_resolution.rs # Bounded recursive immutable source custody.
+|   |-- compiler_handoff.rs # Revalidated package-aware compiler inputs.
 |   |-- source_commands.rs # Unhardened source diagnostic command surface.
 |   |-- evidence.rs        # Compiler-issued package admission evidence.
 |   |-- lock.rs            # Accepted closure and evidence baseline.
