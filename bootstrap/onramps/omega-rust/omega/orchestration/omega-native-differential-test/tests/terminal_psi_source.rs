@@ -11,6 +11,9 @@ use omega_calling_conventions::{
 use omega_compiler::{
     TerminalComponentProviderSettlement, compile_to_checked, stage_terminal_component,
 };
+use omega_component_deployment::{
+    ComponentProgressAttestationBinding, begin_terminal_component_deployment,
+};
 use omega_component_publication::{RunnableComponentEraLedger, bind_installed_runnable_component};
 use omega_effects::{
     ComponentEraCandidate, ComponentEraEntryLedger, ComponentEraLedgerId,
@@ -28,13 +31,13 @@ use omega_executable_installation::{
 };
 use omega_external_roots::{
     AdapterStackRealizationOrigin, AdmittedOpaqueFuelSuspensionFree, ArrivalStackRealizationOrigin,
-    ComponentProgressDemandIdentity, ComponentProgressReceiptBinding,
-    DynamicFuelMeterValidationReceiptId, DynamicNativeFuelMeterPlan, ExternalRootCandidate,
-    ExternalRootId, FixedFuelProviderSummary, FuelExhaustionTransferPlanId, FuelProvisionId,
-    FuelSuspensionValidationReceiptId, FuelValidationReceiptId, InstalledProviderOccurrenceId,
-    InstalledRootLedger, LogicalFuelResourceColumn, MachineStateResourceColumn,
-    NativeFuelContextLayout, NativeFuelMeterPlanId, NativeFuelTargetPlanProjection,
-    NestingRelationId, OpaqueProviderExitAssurance, ProgressProfileEstablishmentAttestation,
+    ComponentProgressDemandIdentity, DynamicFuelMeterValidationReceiptId,
+    DynamicNativeFuelMeterPlan, ExternalRootCandidate, ExternalRootId, FixedFuelProviderSummary,
+    FuelExhaustionTransferPlanId, FuelProvisionId, FuelSuspensionValidationReceiptId,
+    FuelValidationReceiptId, InstalledProviderOccurrenceId, InstalledRootLedger,
+    LogicalFuelResourceColumn, MachineStateResourceColumn, NativeFuelContextLayout,
+    NativeFuelMeterPlanId, NativeFuelTargetPlanProjection, NestingRelationId,
+    OpaqueProviderExitAssurance, ProgressProfileEstablishmentAttestation,
     ProgressProfileEstablishmentReceiptId, ProgressProfileGrantInvocationId, ProviderExecution,
     ProviderExecutionId, ProviderFuelSummaryId, ProviderFuelValidationReceiptId,
     ProviderOccurrenceInstallationReceipt, ProviderOccurrenceInstallationReceiptId,
@@ -463,7 +466,7 @@ fn source_terminal_installation_publishes_only_with_retained_code_custody() {
         .expect("source terminal object emits an executable image");
     let entry_offset = u64::try_from(object.entry_function().text_offset)
         .expect("terminal entry offset fits installation geometry");
-    let (installed, _) =
+    let (mut installed, _) =
         install_terminal_object(&object, object.text_bytes().to_vec(), entry_offset);
     let installed_identity = installed.identity();
     let artifact_identity = installed.artifact();
@@ -477,10 +480,15 @@ fn source_terminal_installation_publishes_only_with_retained_code_custody() {
             .expect("source installation record encodes"),
     )
     .expect("source installation record decodes");
+    let mut roots =
+        InstalledRootLedger::claim(&mut installed).expect("source terminal installation registry");
+    roots
+        .seal_provider_occurrence_closure(checked.selected_provider_plans(), [])
+        .expect("empty selected-provider closure");
     let terminal_artifact =
-        bind_installed_terminal_artifact(&object, &image, installation, installed)
+        bind_installed_terminal_artifact(object, image, installation, installed)
             .expect("source terminal join consumes exact installed-code custody");
-    let runnable = bind_installed_runnable_component(terminal_artifact, None)
+    let runnable = bind_installed_runnable_component(terminal_artifact, roots, None)
         .expect("progress-free source terminal artifact is runnable");
 
     let tcb_acceptance = |identity: u64| {
@@ -578,6 +586,54 @@ fn selected_progress_free_source_stages_non_visible_terminal_candidate() {
             .any(|diagnostic| diagnostic.message.contains("does not match checked target")),
         "{target_mismatch:#?}"
     );
+
+    let entry_offset = u64::try_from(candidate.object().entry_function().text_offset)
+        .expect("progress-free terminal entry offset fits installation geometry");
+    let mut wrong_text = candidate.object().text_bytes().to_vec();
+    wrong_text[0] ^= 0x01;
+    let (wrong_installed, _) =
+        install_terminal_object(candidate.object(), wrong_text, entry_offset);
+    let begin_error = begin_terminal_component_deployment(candidate, wrong_installed)
+        .expect_err("deployment must reject installed bytes that differ from the candidate");
+    assert!(begin_error.diagnostic().contains("exact unrelocated"));
+    let (candidate, _) = begin_error.into_parts();
+
+    let (installed, _) = install_terminal_object(
+        candidate.object(),
+        candidate.object().text_bytes().to_vec(),
+        entry_offset,
+    );
+    let stray_binding = ProviderOccurrencePlanBinding::new(
+        0x55ff,
+        ProviderOccurrenceInstallationReceipt::from_provider(
+            ProviderOccurrenceInstallationReceiptId::from_normalized_identity(0x55f0)
+                .expect("stray provider receipt"),
+            &installed,
+            InstalledProviderOccurrenceId::from_normalized_identity(0x55f1)
+                .expect("stray provider occurrence"),
+            "StrayProvider",
+        ),
+    );
+    let session = begin_terminal_component_deployment(candidate, installed)
+        .expect("exact progress-free deployment begins");
+    let provider_error = session
+        .seal_provider_occurrences(vec![stray_binding])
+        .expect_err("extra provider occurrence must reject against an empty selected closure");
+    assert!(provider_error.diagnostic().contains("exactly cover"));
+    let (session, returned) = provider_error.into_parts();
+    assert_eq!(returned.len(), 1);
+    assert!(session.roots().provider_occurrence_closure().is_none());
+    let provider_closed = session
+        .seal_provider_occurrences(Vec::new())
+        .expect("returned claimed session retries with the exact empty closure");
+    let progress_closed = provider_closed
+        .close_progress(Vec::new())
+        .expect("progress-free candidate closes without attestations");
+    let runnable = progress_closed
+        .finalize(ProfileDecisionId::new(0x55f2).expect("progress-free deployment profile"))
+        .expect("progress-free production deployment finalizes");
+    assert!(runnable.progress().is_none());
+    assert!(runnable.roots().records().next().is_none());
 }
 
 #[test]
@@ -675,12 +731,13 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
             .normalized_identity(),
         manifest.normalized_identity()
     );
-    let object = candidate.object();
-    let image = candidate.image();
-    let entry_offset = u64::try_from(object.entry_function().text_offset)
+    let entry_offset = u64::try_from(candidate.object().entry_function().text_offset)
         .expect("progress terminal entry offset fits installation geometry");
-    let (mut installed, _) =
-        install_terminal_object(&object, object.text_bytes().to_vec(), entry_offset);
+    let (installed, _) = install_terminal_object(
+        candidate.object(),
+        candidate.object().text_bytes().to_vec(),
+        entry_offset,
+    );
     let installed_identity = installed.identity();
     let artifact_identity = installed.artifact();
 
@@ -690,72 +747,69 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
         .expect("progress demand retains its exact selected plan");
     let occurrence = InstalledProviderOccurrenceId::from_normalized_identity(0x5420)
         .expect("installed provider occurrence");
-    let mut roots = InstalledRootLedger::claim(&mut installed)
-        .expect("installed-code claim opens one root ledger");
-    roots
-        .seal_provider_occurrence_closure(
-            checked.selected_provider_plans(),
-            [ProviderOccurrencePlanBinding::new(
-                demand.provider_plan_identity,
-                ProviderOccurrenceInstallationReceipt::from_provider(
-                    ProviderOccurrenceInstallationReceiptId::from_normalized_identity(0x5421)
-                        .expect("provider occurrence receipt"),
-                    &installed,
-                    occurrence,
-                    selected_plan.provider_type.clone(),
-                ),
-            )],
-        )
+    let provider_bindings = vec![ProviderOccurrencePlanBinding::new(
+        demand.provider_plan_identity,
+        ProviderOccurrenceInstallationReceipt::from_provider(
+            ProviderOccurrenceInstallationReceiptId::from_normalized_identity(0x5421)
+                .expect("provider occurrence receipt"),
+            &installed,
+            occurrence,
+            selected_plan.provider_type.clone(),
+        ),
+    )];
+    let progress_bindings = vec![ComponentProgressAttestationBinding::new(
+        ComponentProgressDemandIdentity::from_demand(demand),
+        ProgressProfileEstablishmentAttestation::from_provider(
+            ProgressProfileEstablishmentReceiptId::from_normalized_identity(0x5422)
+                .expect("progress establishment receipt"),
+            &installed,
+            occurrence,
+            occurrence,
+            demand.provider_plan_identity,
+            ProgressProfileGrantInvocationId::from_normalized_identity(0x5423)
+                .expect("progress grant invocation"),
+            demand.profile_identity.clone(),
+            demand.subject_projections.clone(),
+            demand.establishment_routes[0].clone(),
+        ),
+    )];
+    let session = begin_terminal_component_deployment(candidate, installed)
+        .expect("deployment claims the exact installed candidate");
+    let provider_closed = session
+        .seal_provider_occurrences(provider_bindings)
         .expect("source-selected provider occurrence closure seals");
-    let progress_receipt = roots
-        .admit_progress_profile_establishment(
-            ProgressProfileEstablishmentAttestation::from_provider(
-                ProgressProfileEstablishmentReceiptId::from_normalized_identity(0x5422)
-                    .expect("progress establishment receipt"),
-                &installed,
-                occurrence,
-                occurrence,
-                demand.provider_plan_identity,
-                ProgressProfileGrantInvocationId::from_normalized_identity(0x5423)
-                    .expect("progress grant invocation"),
-                demand.profile_identity.clone(),
-                demand.subject_projections.clone(),
-                demand.establishment_routes[0].clone(),
-            ),
-        )
-        .expect("provider-authorized progress establishment admits");
-    let progress = roots
-        .seal_component_progress(
-            manifest.clone(),
-            [ComponentProgressReceiptBinding::new(
-                ComponentProgressDemandIdentity::from_demand(demand),
-                progress_receipt,
-            )],
-        )
-        .expect("source-derived component progress closes");
-    let progress_fingerprint = progress.fingerprint();
-
-    let installation = build_terminal_installation_record_with_evidence(
-        image,
-        ProfileDecisionId::new(0x5424).expect("progress publication profile decision"),
-        candidate.provider_executions(),
-        Some(&progress),
-    )
-    .expect("progress installation record commits provider and acceptance evidence");
-    let installation = decode_terminal_installation_record(
-        &encode_terminal_installation_record(&installation)
-            .expect("progress installation record encodes"),
-    )
-    .expect("progress installation record decodes");
-    let terminal_artifact =
-        bind_installed_terminal_artifact(object, image, installation, installed)
-            .expect("progress terminal join consumes exact installed-code custody");
-    let missing = bind_installed_runnable_component(terminal_artifact, None)
-        .expect_err("committed progress cannot be omitted at runnable binding");
-    let (terminal_artifact, omitted) = missing.into_parts();
-    assert!(omitted.is_none());
-    let runnable = bind_installed_runnable_component(terminal_artifact, Some(progress))
-        .expect("opaque progress closure makes the source terminal artifact runnable");
+    let wrong_progress = vec![ComponentProgressAttestationBinding::new(
+        ComponentProgressDemandIdentity::from_demand(demand),
+        ProgressProfileEstablishmentAttestation::from_provider(
+            ProgressProfileEstablishmentReceiptId::from_normalized_identity(0x5425)
+                .expect("wrong progress establishment receipt"),
+            provider_closed.installed(),
+            occurrence,
+            occurrence,
+            demand.provider_plan_identity,
+            ProgressProfileGrantInvocationId::from_normalized_identity(0x5426)
+                .expect("wrong progress grant invocation"),
+            "Scheduler::WrongProfile",
+            demand.subject_projections.clone(),
+            demand.establishment_routes[0].clone(),
+        ),
+    )];
+    let progress_error = provider_closed
+        .close_progress(wrong_progress)
+        .expect_err("wrong profile attestation cannot close component progress");
+    assert!(progress_error.diagnostic().contains("profile"));
+    let (provider_closed, returned_wrong_progress) = progress_error.into_parts();
+    assert_eq!(returned_wrong_progress.len(), 1);
+    let progress_closed = provider_closed
+        .close_progress(progress_bindings)
+        .expect("returned deployment retries with source-derived component progress");
+    let progress_fingerprint = progress_closed
+        .progress()
+        .expect("progress-bearing deployment retains its opaque closure")
+        .fingerprint();
+    let runnable = progress_closed
+        .finalize(ProfileDecisionId::new(0x5424).expect("progress publication profile decision"))
+        .expect("production deployment binds the runnable component");
 
     let tcb_acceptance = |identity: u64| {
         evaluate_executable_tcb_profile(

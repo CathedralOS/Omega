@@ -88,6 +88,25 @@ pub struct TerminalComponentCandidate {
     component_progress: Option<omega_effects::ComponentProgressManifest>,
 }
 
+/// Complete owned compiler output transferred to deployment.
+///
+/// Only consuming a compiler-produced `TerminalComponentCandidate` yields
+/// these parts. The parts themselves grant no installation or publication
+/// authority; deployment must still bind them to real provider occurrences
+/// and one exact `InstalledCode` occurrence.
+#[derive(Debug)]
+pub struct TerminalComponentCandidateParts {
+    pub target: omega_target::NativeTarget,
+    pub entry_machine: String,
+    pub semantic_bytes: Vec<u8>,
+    pub proof_bytes: Vec<u8>,
+    pub object: omega_terminal_image_emission::TerminalObjectArtifact,
+    pub image: omega_terminal_image_emission::TerminalExecutableImage,
+    pub selected_provider_plans: omega_effects::SelectedProviderPlanFacts,
+    pub provider_executions: Vec<TerminalComponentProviderExecution>,
+    pub component_progress: Option<omega_effects::ComponentProgressManifest>,
+}
+
 impl TerminalComponentCandidate {
     pub const fn target(&self) -> omega_target::NativeTarget {
         self.target
@@ -123,6 +142,21 @@ impl TerminalComponentCandidate {
 
     pub const fn component_progress(&self) -> Option<&omega_effects::ComponentProgressManifest> {
         self.component_progress.as_ref()
+    }
+
+    /// Transfer the complete non-visible compiler candidate into deployment.
+    pub fn into_parts(self) -> TerminalComponentCandidateParts {
+        TerminalComponentCandidateParts {
+            target: self.target,
+            entry_machine: self.entry_machine,
+            semantic_bytes: self.semantic_bytes,
+            proof_bytes: self.proof_bytes,
+            object: self.object,
+            image: self.image,
+            selected_provider_plans: self.selected_provider_plans,
+            provider_executions: self.provider_executions,
+            component_progress: self.component_progress,
+        }
     }
 }
 

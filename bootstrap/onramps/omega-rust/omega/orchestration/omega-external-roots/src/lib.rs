@@ -1122,6 +1122,13 @@ impl InstalledRootLedger {
         self.installed_code
     }
 
+    /// Compare the complete private installation-registry evidence with one
+    /// exact installed-code occurrence. Compact identities are insufficient.
+    pub fn binds_installed_code(&self, installed_code: &InstalledCode) -> bool {
+        self.registry.matches(installed_code)
+            && self.installed_context == installed_code.receipt_context()
+    }
+
     pub const fn artifact(&self) -> ArtifactId {
         self.artifact
     }

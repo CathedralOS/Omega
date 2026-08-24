@@ -204,6 +204,7 @@ pub use psi_layout_plans::{
     IntegerInterpretation, LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport,
 };
 pub use terminal_component_candidate::{
-    TerminalComponentCandidate, TerminalComponentProviderExecution,
-    TerminalComponentProviderSettlement, stage_terminal_component,
+    TerminalComponentCandidate, TerminalComponentCandidateParts,
+    TerminalComponentProviderExecution, TerminalComponentProviderSettlement,
+    stage_terminal_component,
 };

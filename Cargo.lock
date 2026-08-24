@@ -448,6 +448,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "omega-component-deployment"
+version = "0.1.0"
+dependencies = [
+ "omega-compiler",
+ "omega-component-publication",
+ "omega-effects",
+ "omega-executable-installation",
+ "omega-external-roots",
+ "omega-terminal-image-emission",
+ "omega-terminal-installation-evidence",
+ "psi-core",
+]
+
+[[package]]
 name = "omega-component-publication"
 version = "0.1.0"
 dependencies = [
@@ -844,6 +858,7 @@ dependencies = [
  "omega-artifacts",
  "omega-calling-conventions",
  "omega-compiler",
+ "omega-component-deployment",
  "omega-component-publication",
  "omega-effects",
  "omega-executable-installation",
