@@ -229,9 +229,12 @@ applications, and ordered machine/operator requirement signatures. Each
 requirement retains parameter names and modes, package-qualified types, and
 fixed operator spelling plus exact declared service reach, installation-bound
 status, synchronous invocations as exact non-`self` parameter ordinals or
-package-qualified services, suspension, and blocking. Trait or requirement
-lifetimes, conformance bounds, invariants, default realizations, and proof/
-crash/termination contracts reject until their complete canonical rows land.
+package-qualified services, suspension, blocking, and termination. Progress
+premises retain package-qualified public profile identity, receiver/non-`self`
+parameter roots, and package-qualified field projections. Trait or requirement
+lifetimes, conformance bounds, invariants, default realizations, and
+non-progress proof/boundary/crash contracts reject until complete canonical
+rows land.
 
 The eventual normalized package-admission evidence must include, with exact
 provenance:

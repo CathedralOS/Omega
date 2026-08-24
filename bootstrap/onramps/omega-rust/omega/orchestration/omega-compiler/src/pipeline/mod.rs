@@ -80,10 +80,10 @@ pub use package_review::{
     PackageReviewDomainShape, PackageReviewEncodingError, PackageReviewInstallationReach,
     PackageReviewMutation, PackageReviewNominalIdentity, PackageReviewNominalOwner,
     PackageReviewPermissionClaim, PackageReviewPermissionSource, PackageReviewProgressPremise,
-    PackageReviewSynchronousInvocation, PackageReviewTermination, PackageReviewTraitParent,
-    PackageReviewTraitRequirement, PackageReviewTraitRequirementParameter, PackageReviewTraitShape,
-    PackageReviewTypeIdentity, PackageReviewTypeParameter, PackageReviewTypeParameterKind,
-    project_checked_package_review,
+    PackageReviewProgressSubject, PackageReviewSynchronousInvocation, PackageReviewTermination,
+    PackageReviewTraitParent, PackageReviewTraitRequirement,
+    PackageReviewTraitRequirementParameter, PackageReviewTraitShape, PackageReviewTypeIdentity,
+    PackageReviewTypeParameter, PackageReviewTypeParameterKind, project_checked_package_review,
 };
 pub use program_entry_physical::ProgramEntryPhysicalContractPlan;
 pub use program_entry_source_signature::{

@@ -10,7 +10,7 @@ use psi_checked_trees::{
 };
 
 const MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW\0";
-pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 9;
+pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 10;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageReviewEncodingError {
@@ -114,6 +114,7 @@ fn encode_trait_requirement(
     )?;
     encoder.boolean(requirement.suspends);
     encoder.boolean(requirement.blocks);
+    encode_termination(encoder, &requirement.termination)?;
     Ok(())
 }
 
@@ -498,8 +499,18 @@ fn encode_termination(
         PackageReviewTermination::Terminates { premises } => {
             encoder.byte(1);
             encoder.sequence(premises, |encoder, premise| {
-                encoder.string(&premise.profile)?;
-                encode_nominal(encoder, &premise.subject)?;
+                encode_nominal(encoder, &premise.profile)?;
+                match &premise.subject {
+                    PackageReviewProgressSubject::Declaration(identity) => {
+                        encoder.byte(0);
+                        encode_nominal(encoder, identity)?;
+                    }
+                    PackageReviewProgressSubject::Receiver => encoder.byte(1),
+                    PackageReviewProgressSubject::Parameter(position) => {
+                        encoder.byte(2);
+                        encoder.u32(*position);
+                    }
+                }
                 encoder.sequence(&premise.projections, encode_nominal)
             })?;
         }

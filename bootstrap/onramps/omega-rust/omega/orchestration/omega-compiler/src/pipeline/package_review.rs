@@ -114,6 +114,7 @@ pub struct PackageReviewTraitRequirement {
     synchronous_invocations: Vec<PackageReviewSynchronousInvocation>,
     suspends: bool,
     blocks: bool,
+    termination: PackageReviewTermination,
 }
 
 impl PackageReviewTraitRequirement {
@@ -155,6 +156,10 @@ impl PackageReviewTraitRequirement {
 
     pub const fn blocks(&self) -> bool {
         self.blocks
+    }
+
+    pub const fn termination(&self) -> &PackageReviewTermination {
+        &self.termination
     }
 }
 
@@ -640,18 +645,45 @@ impl PackageReviewCrash {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub enum PackageReviewProgressSubject {
+    Declaration(PackageReviewNominalIdentity),
+    Receiver,
+    Parameter(u32),
+}
+
+impl PackageReviewProgressSubject {
+    pub const fn declaration(&self) -> Option<&PackageReviewNominalIdentity> {
+        match self {
+            Self::Declaration(identity) => Some(identity),
+            Self::Receiver | Self::Parameter(_) => None,
+        }
+    }
+
+    pub const fn is_receiver(&self) -> bool {
+        matches!(self, Self::Receiver)
+    }
+
+    pub const fn parameter(&self) -> Option<u32> {
+        match self {
+            Self::Parameter(position) => Some(*position),
+            Self::Declaration(_) | Self::Receiver => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackageReviewProgressPremise {
-    profile: String,
-    subject: PackageReviewNominalIdentity,
+    profile: PackageReviewNominalIdentity,
+    subject: PackageReviewProgressSubject,
     projections: Vec<PackageReviewNominalIdentity>,
 }
 
 impl PackageReviewProgressPremise {
-    pub fn profile(&self) -> &str {
+    pub const fn profile(&self) -> &PackageReviewNominalIdentity {
         &self.profile
     }
 
-    pub fn subject(&self) -> &PackageReviewNominalIdentity {
+    pub const fn subject(&self) -> &PackageReviewProgressSubject {
         &self.subject
     }
 
@@ -1154,20 +1186,9 @@ fn project_trait_requirement(
             identity.path
         ))]);
     }
-    if !compilation
-        .state_signature_contracts(requirement)
-        .is_empty()
-    {
+    if !trait_requirement_contracts_are_progress_premises(compilation, requirement) {
         return Err(vec![Diagnostic::error(format!(
             "public trait requirement `{}` uses proof, boundary, or crash contracts not yet represented by public-trait review",
-            identity.path
-        ))]);
-    }
-    if requirement.termination_guarantee
-        != psi_language_semantics::TerminationGuarantee::NoGuarantee
-    {
-        return Err(vec![Diagnostic::error(format!(
-            "public trait requirement `{}` uses a termination guarantee not yet represented by public-trait review",
             identity.path
         ))]);
     }
@@ -1213,6 +1234,51 @@ fn project_trait_requirement(
         )?,
         suspends: requirement.suspends,
         blocks: requirement.blocks,
+        termination: project_trait_requirement_termination(compilation, requirement)?,
+    })
+}
+
+fn trait_requirement_contracts_are_progress_premises(
+    compilation: &CheckedCompilation,
+    requirement: &psi_typed_trees::signature::StateSignature,
+) -> bool {
+    let contracts = compilation.state_signature_contracts(requirement);
+    if contracts.is_empty() {
+        return true;
+    }
+    let psi_language_semantics::TerminationGuarantee::Terminates { premises } =
+        &requirement.termination_guarantee
+    else {
+        return false;
+    };
+    if premises.is_empty() {
+        return false;
+    }
+    contracts.iter().all(|contract| {
+        matches!(
+            contract.kind,
+            psi_typed_trees::signature::SignatureContractKind::Requires
+        ) && contract.binding.is_none()
+            && !compilation
+                .proof_facts
+                .span_or_empty(contract.facts)
+                .is_empty()
+            && compilation
+                .proof_facts
+                .span_or_empty(contract.facts)
+                .iter()
+                .all(|fact| {
+                    let psi_typed_trees::domain::ProofFact::Membership(membership) = fact else {
+                        return false;
+                    };
+                    compilation.domain_definitions().iter().any(|domain| {
+                        domain.symbol == membership.domain_symbol
+                            && domain.classification
+                                == Some(
+                                    psi_language_semantics::DomainClassification::ProgressProfile,
+                                )
+                    })
+                })
     })
 }
 
@@ -1858,6 +1924,73 @@ fn project_termination(
     compilation: &CheckedCompilation,
     guarantee: &psi_language_semantics::TerminationGuarantee,
 ) -> Result<PackageReviewTermination, Vec<Diagnostic>> {
+    project_termination_with_subject(compilation, guarantee, |root| {
+        nominal_identity(compilation, root).map(PackageReviewProgressSubject::Declaration)
+    })
+}
+
+fn project_trait_requirement_termination(
+    compilation: &CheckedCompilation,
+    requirement: &psi_typed_trees::signature::StateSignature,
+) -> Result<PackageReviewTermination, Vec<Diagnostic>> {
+    let parameters = compilation.state_signature_parameters(requirement);
+    if let psi_language_semantics::TerminationGuarantee::Terminates { premises } =
+        &requirement.termination_guarantee
+    {
+        for premise in premises {
+            let profile = compilation
+                .domain_definitions()
+                .iter()
+                .find(|domain| domain.semantic_id == premise.profile)
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(format!(
+                        "public trait requirement `{}` has an unknown termination profile",
+                        requirement.name
+                    ))]
+                })?;
+            if !profile.is_public {
+                return Err(vec![Diagnostic::error(format!(
+                    "public trait requirement `{}` exposes non-public progress profile `{}`",
+                    requirement.name, profile.name
+                ))]);
+            }
+        }
+    }
+    project_termination_with_subject(compilation, &requirement.termination_guarantee, |root| {
+        let parameter = parameters
+                .iter()
+                .find(|parameter| parameter.symbol == root)
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(format!(
+                        "public trait requirement `{}` has a termination premise outside its parameter telescope",
+                        requirement.name
+                    ))]
+                })?;
+        if parameter.is_self {
+            return Ok(PackageReviewProgressSubject::Receiver);
+        }
+        let position = parameters
+            .iter()
+            .filter(|candidate| !candidate.is_self)
+            .position(|candidate| candidate.symbol == root)
+            .expect("matched non-self requirement parameter must have an ordinal");
+        let position = u32::try_from(position).map_err(|_| {
+                vec![Diagnostic::error(format!(
+                    "public trait requirement `{}` has too many parameters for portable review evidence",
+                    requirement.name
+                ))]
+            })?;
+        Ok(PackageReviewProgressSubject::Parameter(position))
+    })
+}
+
+fn project_termination_with_subject(
+    compilation: &CheckedCompilation,
+    guarantee: &psi_language_semantics::TerminationGuarantee,
+    mut project_subject: impl FnMut(
+        SymbolHandle,
+    ) -> Result<PackageReviewProgressSubject, Vec<Diagnostic>>,
+) -> Result<PackageReviewTermination, Vec<Diagnostic>> {
     let psi_language_semantics::TerminationGuarantee::Terminates { premises } = guarantee else {
         return Ok(PackageReviewTermination::NoGuarantee);
     };
@@ -1865,15 +1998,23 @@ fn project_termination(
         .iter()
         .map(|premise| {
             let profile = compilation
-                .semantic_domains
-                .name(premise.profile)
+                .domain_definitions()
+                .iter()
+                .find(|domain| domain.semantic_id == premise.profile)
                 .ok_or_else(|| {
                     vec![Diagnostic::error(
                         "package review termination premise has an unknown progress-profile identity",
                     )]
-                })?
-                .to_owned();
-            let subject = nominal_identity(compilation, premise.subject.root)?;
+                })?;
+            if profile.classification
+                != Some(psi_language_semantics::DomainClassification::ProgressProfile)
+            {
+                return Err(vec![Diagnostic::error(
+                    "package review termination premise does not name a closed progress-profile domain",
+                )]);
+            }
+            let profile = nominal_identity(compilation, profile.symbol)?;
+            let subject = project_subject(premise.subject.root)?;
             let projections = premise
                 .subject
                 .projections

@@ -122,7 +122,7 @@ crashes Abort
         target,
         "review identity must retain the deployment profile, not only its native ABI",
     );
-    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 9);
+    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 10);
     let [ready] = review.public_domains() else {
         panic!("one package-owned public domain row")
     };
@@ -423,7 +423,7 @@ invokes waiting;
 }
 
 #[test]
-fn exact_synchronous_invocations_change_v9_comparison_encoding() {
+fn exact_synchronous_invocations_change_v10_comparison_encoding() {
     let quiet = TempPackage::new();
     let invoking = TempPackage::new();
     quiet.write(
@@ -616,7 +616,7 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
-fn public_data_and_numbered_wire_shape_changes_change_v9_comparison_encoding() {
+fn public_data_and_numbered_wire_shape_changes_change_v10_comparison_encoding() {
     let first = TempPackage::new();
     let second = TempPackage::new();
     first.write(
@@ -650,7 +650,7 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
-fn public_domain_shape_changes_change_v9_comparison_encoding() {
+fn public_domain_shape_changes_change_v10_comparison_encoding() {
     let first = TempPackage::new();
     let second = TempPackage::new();
     first.write(
@@ -1152,6 +1152,108 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
+fn public_trait_termination_is_parameter_rooted_review_shape() {
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub boundary trait SchedulerRuntime {
+    machine wait(&self, scheduler: SchedulerRuntime)
+    requires self in WeakFair
+    requires scheduler in WeakFair
+    terminates;
+}
+pub domain SchedulerRuntime::WeakFair
+satisfies ProgressProfile
+established by SchedulerAdmission::grant;
+pub boundary trait SchedulerAdmission {
+    machine grant(scheduler: SchedulerRuntime) -> SchedulerRuntime in WeakFair;
+}
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x64 { }
+machine build(builder: &mut Build) { }
+"#,
+    );
+
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some("windows_x64"),
+        package_inputs(&package.0),
+    )
+    .expect("public trait termination fixture should check");
+    let review = project_checked_package_review(&checked)
+        .expect("public trait termination review should close");
+    let runtime = review
+        .public_traits()
+        .iter()
+        .find(|shape| shape.identity().path() == "SchedulerRuntime")
+        .expect("scheduler runtime trait row");
+    let wait = runtime
+        .requirements()
+        .iter()
+        .find(|requirement| requirement.identity().path() == "SchedulerRuntime::wait")
+        .expect("wait requirement row");
+    let premises = wait
+        .termination()
+        .premises()
+        .expect("wait must promise termination");
+    assert_eq!(premises.len(), 2);
+    for premise in premises {
+        assert_eq!(premise.profile().path(), "SchedulerRuntime::WeakFair");
+        assert_eq!(
+            premise.profile().owner(),
+            PackageReviewNominalOwner::Package(package_identity())
+        );
+        assert!(premise.projections().is_empty());
+    }
+    assert!(premises[0].subject().is_receiver());
+    assert_eq!(premises[1].subject().parameter(), Some(0));
+}
+
+#[test]
+fn public_trait_termination_rejects_a_non_public_progress_profile() {
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub data SchedulerHandle { }
+domain SchedulerHandle::WeakFair
+satisfies ProgressProfile
+established by SchedulerAdmission::grant;
+pub boundary trait SchedulerAdmission {
+    machine grant(scheduler: SchedulerHandle) -> SchedulerHandle in WeakFair;
+}
+pub boundary trait SchedulerRuntime {
+    machine wait(scheduler: SchedulerHandle)
+    requires scheduler in WeakFair
+    terminates;
+}
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x64 { }
+machine build(builder: &mut Build) { }
+"#,
+    );
+
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some("windows_x64"),
+        package_inputs(&package.0),
+    )
+    .expect("private progress profile fixture should check");
+    let diagnostics = project_checked_package_review(&checked)
+        .expect_err("review must reject a private profile in a public trait contract");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("exposes non-public progress profile")
+    }));
+}
+
+#[test]
 fn review_rejects_unprojected_public_trait_contract_lanes() {
     let default_package = TempPackage::new();
     default_package.write(
@@ -1179,6 +1281,42 @@ machine build(builder: &mut Build) { }
         diagnostic
             .message
             .contains("default realization not yet joined to package review")
+    }));
+
+    let precondition_package = TempPackage::new();
+    precondition_package.write(
+        "main.omg",
+        r#"pub data SchedulerHandle { }
+pub domain SchedulerHandle::WeakFair
+satisfies ProgressProfile
+established by SchedulerAdmission::grant;
+pub boundary trait SchedulerAdmission {
+    machine grant(scheduler: SchedulerHandle) -> SchedulerHandle in WeakFair;
+}
+pub boundary trait SchedulerRuntime {
+    machine wait(scheduler: SchedulerHandle)
+    requires scheduler in WeakFair;
+}
+"#,
+    );
+    precondition_package.write(
+        "build.omg",
+        r#"target windows_x64 { }
+machine build(builder: &mut Build) { }
+"#,
+    );
+    let checked = compile_to_checked_with_packages(
+        &precondition_package.0.join("main.omg"),
+        Some("windows_x64"),
+        package_inputs(&precondition_package.0),
+    )
+    .expect("public progress precondition fixture should check");
+    let diagnostics = project_checked_package_review(&checked)
+        .expect_err("a progress precondition without termination remains a proof contract");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("uses proof, boundary, or crash contracts")
     }));
 }
 
