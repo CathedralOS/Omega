@@ -97,9 +97,8 @@ Remaining:
   `bootstrap/onramps/omega-rust/` as a parallel differential implementation
   while its bug-finding value justifies its cost. It may compare diagnostics,
   normalized semantics, artifacts, and execution observations against the
-  Omega-written product compiler, but it grants no authority, is not a DDC
-  gate, and must be omittable from bootstrap and release builds once the hosted
-  compiler closes.
+  Omega-written product compiler, but it grants no authority and must be
+  omittable from bootstrap and release builds once the hosted compiler closes.
 
   Acceptance: shared product suites can exercise both implementations without
   making Rust agreement or availability a correctness, bootstrap, or release

@@ -135,27 +135,28 @@ Gate scripts now resolve cross-owner dependencies through
 [`bootstrap/paths.sh`](../../../bootstrap/paths.sh), and
 [`bootstrap/check-path-hygiene.sh`](../../../bootstrap/check-path-hygiene.sh)
 rejects new named sibling-relative references. Broad moves can therefore update
-one role manifest instead of rewriting every gate. The completed ownership map
-is:
+one role manifest instead of rewriting every gate. Placement status below says
+whether a responsibility has reached its canonical directory; it does not claim
+that the language, compiler, or assurance work in that directory is finished.
 
-| Source | Target role |
-| --- | --- |
-| `bootstrap/rungs/alpha/` | Alpha rung and assembler — complete |
-| `bootstrap/rungs/beta/` | Beta rung — complete |
-| `bootstrap/rungs/gamma/` | Gamma rung — complete |
-| `bootstrap/rungs/delta/` | Delta rung — complete |
-| `bootstrap/onramps/delta-rust/` | Delta Rust on-ramp — complete |
-| `bootstrap/onramps/alpha-assembler-rust/` | Alpha assembler Rust on-ramp — complete |
-| `bootstrap/onramps/beta-rust/` | Beta Rust on-ramp — complete |
-| current Rust Psi/Omega compiler and CLI | `bootstrap/onramps/omega-rust/` — complete |
-| `bootstrap/assurance/proof-kernel/` | `bootstrap/assurance/proof-kernel/{implementations,tools,corpus,gates}/` — complete |
-| Beta-source/Alpha-artifact refinement tools (compatibility entries under Alpha) | `bootstrap/assurance/refinement/beta/` — complete |
-| bridge meaning/artifact TV encoders and gates | `bootstrap/assurance/refinement/omega-bootstrap/` — complete |
-| historical `bootstrap/omega0/` references | `bootstrap/omega-bootstrap/{meaning,compiler,gates}/` — rename complete; no live `omega0` owner path, complete `Ωself` bridge open |
-| `bootstrap/corpus/` | shared lattice corpus — complete |
-| Omega-written Psi/Omega compiler | `compiler/{psi,omega}/` — first Psi lexical checkpoint landed; remaining phases open |
-| product compiler closure/profile checkpoints | `compiler/source-checkpoints/` |
-| hosted product compiler entrypoint | `apps/omega-compiler/` |
+| Responsibility | Canonical owner | Placement status |
+| --- | --- | --- |
+| Alpha rung and assembler | `bootstrap/rungs/alpha/` | complete |
+| Beta rung | `bootstrap/rungs/beta/` | complete |
+| Gamma rung | `bootstrap/rungs/gamma/` | complete |
+| Delta rung | `bootstrap/rungs/delta/` | complete; Delta v1 remains open |
+| Delta Rust on-ramp | `bootstrap/onramps/delta-rust/` | complete |
+| Alpha assembler Rust on-ramp | `bootstrap/onramps/alpha-assembler-rust/` | complete |
+| Beta Rust on-ramp | `bootstrap/onramps/beta-rust/` | complete |
+| current Rust Psi/Omega compiler and CLI | `bootstrap/onramps/omega-rust/` | complete |
+| cross-cutting proof kernel | `bootstrap/assurance/proof-kernel/{implementations,tools,corpus,gates}/` | complete |
+| Beta-source/Alpha-artifact refinement | `bootstrap/assurance/refinement/beta/` | complete |
+| bridge meaning/artifact reconstruction and gates | `bootstrap/assurance/refinement/omega-bootstrap/` | complete; bridge assurance remains open |
+| historical `bootstrap/omega0/` role | `bootstrap/omega-bootstrap/{meaning,compiler,gates}/` | rename complete; no live `omega0` owner or generation |
+| shared lattice corpus | `bootstrap/corpus/` | complete |
+| Omega-written Psi/Omega compiler | `compiler/{psi,omega}/` | first Psi lexical checkpoint landed; remaining phases open |
+| product compiler closure/profile checkpoints | `compiler/source-checkpoints/` | active |
+| hosted product compiler entrypoint | `apps/omega-compiler/` | active |
 
 `compiler/` means source intended to survive in the self-hosted product;
 `bootstrap/` contains both the seed-built construction and explicitly named
