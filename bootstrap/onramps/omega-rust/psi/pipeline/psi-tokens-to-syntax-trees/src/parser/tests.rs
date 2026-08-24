@@ -55,6 +55,19 @@ fn retains_public_machine_visibility_in_syntax() {
 }
 
 #[test]
+fn rejects_pub_when_the_declaration_cannot_retain_visibility() {
+    for source in ["pub trait Shape {}", "pub export Shape;"] {
+        let tokens = Lexer::new(source).tokenize().expect("tokenize declaration");
+        let error = parse_syntax_trees(&tokens).expect_err("visibility loss must reject");
+        assert!(
+            error.message.contains("silently private API"),
+            "{}",
+            error.message
+        );
+    }
+}
+
+#[test]
 fn owns_non_utf8_string_literal_bytes_in_syntax_tree() {
     let tokens = Lexer::new(
         r#"
