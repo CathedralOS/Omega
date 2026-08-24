@@ -159,9 +159,9 @@ complete.
   ordinary Psi lexer/parser without loading imports or executing code. It
   rejects package-authored `Package`, malformed/scoped/duplicate declarations,
   nonliteral initializers, invalid bytes, and names that cannot map to a default
-  Omega alias. Git and external-local source custody now extracts this
-  declaration from the resolver-owned immutable snapshot and joins it to typed
-  lineage; dependency projection and complete closure resolution remain.
+  Omega alias. Git, workspace-member, and external-local source custody now
+  extract this declaration from the resolver-owned immutable snapshot and join
+  it to typed lineage; complete closure resolution remains.
 
 - **PACKAGE-KEY-AND-INSTANCE.** Replace name-keyed graph and lock APIs with
   `PackageKey` and `PackageInstance`.
@@ -176,12 +176,12 @@ complete.
   boundaries. The earlier caller-constructible `PackageInstance` placeholder
   was removed: its replacement must join exact source, toolchain, and sealed
   compiler evidence by construction. Migrating the legacy name-keyed graph,
-  lock, and evidence APIs remains. Resolved Git and external-local package
-  sources now carry `PackageKey` plus typed immutable source resolution but
-  deliberately cannot construct an accepted instance. `PackageKey::identity()`
-  now emits a domain-separated opaque 256-bit commitment shared with the compiler;
-  it is stable across revisions and changes when package name or canonical
-  lineage changes.
+  lock, and evidence APIs remains. Resolved Git, workspace-member, and
+  external-local package sources now carry `PackageKey` plus typed immutable
+  source resolution but deliberately cannot construct an accepted instance.
+  `PackageKey::identity()` now emits a domain-separated opaque 256-bit
+  commitment shared with the compiler; it is stable across revisions and
+  changes when package name or canonical lineage changes.
 
 - **SOURCE-LINEAGE-NORMALIZATION.** Define canonical lineage for Git, URL
   archives, and local/workspace paths.
@@ -198,8 +198,13 @@ complete.
   transport, user, port, case-sensitive path, and suffix distinctions.
   Workspace members bind a normalized relative path to workspace lineage, and
   external local sources bind canonical absolute path plus consuming context.
-  Archives, mirrors/delegations, additional protocols, and wiring resolver
-  receipts into these types remain.
+  Workspace-member custody now derives the live member solely from its
+  normalized root-relative location, verifies it remains a strict canonical
+  descendant of the workspace root, and snapshots only that member through the
+  immutable local resolver before extracting its declaration and dependency
+  requests.
+  Archives, mirrors/delegations, additional protocols, recursive workspace
+  traversal, and wiring resolver receipts into these types remain.
 
 - **PACKAGE-QUALIFIED-NOMINAL-IDENTITY.** Thread `PackageKey` through package,
   symbol, boundary-trait, provider, and evidence identities.

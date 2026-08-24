@@ -51,7 +51,7 @@ pub use identity::{
 };
 pub use package_source::{
     ResolvePackageSourceError, ResolvedPackageSource, resolve_external_local_package_source,
-    resolve_git_package_source,
+    resolve_git_package_source, resolve_workspace_member_package_source,
 };
 pub use resolver::{
     SourceCachePolicyRecord, SourceCachePolicyRecordParseError,
