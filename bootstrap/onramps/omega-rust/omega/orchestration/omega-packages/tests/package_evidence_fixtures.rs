@@ -3,13 +3,12 @@ use omega_compiler::{
     PackageReviewContractFact, PackageReviewContractKind, PackageReviewDangerousAuthorityClass,
     PackageReviewNominalOwner, PackageReviewPropositionEvidence,
     PackageReviewRepresentationAbiCommitment, PackageReviewRepresentationMechanism,
-    compile_to_checked_with_packages_in_build_dir, project_checked_package_review,
 };
 use omega_packages::{
     LocalSourceLimits, PackageSourceClosureLimits, SourceLineage, WorkspaceMemberPath,
-    package_compilation_inputs, resolve_workspace_package_closure,
+    compile_resolved_package_reviews, resolve_workspace_package_closure,
 };
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 const PACKAGES: &[&str] = &[
@@ -42,18 +41,6 @@ fn temp_root(name: &str) -> PathBuf {
         "omega-package-evidence-{name}-{}-{stamp}",
         std::process::id()
     ))
-}
-
-fn root_snapshot<'closure>(
-    closure: &'closure omega_packages::ResolvedPackageSourceClosure,
-) -> &'closure Path {
-    let root = closure.graph().root();
-    closure
-        .custodies()
-        .iter()
-        .find(|custody| custody.key() == root)
-        .expect("resolved closure must retain root custody")
-        .snapshot_root()
 }
 
 fn assert_fixture_evidence(package: &str, review: &CheckedPackageReviewProjection) {
@@ -290,30 +277,38 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
             PackageSourceClosureLimits::default(),
         )
         .unwrap_or_else(|error| panic!("{package} source closure should resolve: {error}"));
-        let inputs = package_compilation_inputs(&closure)
-            .unwrap_or_else(|error| panic!("{package} compiler handoff should close: {error:?}"));
-        let checked = compile_to_checked_with_packages_in_build_dir(
-            &root_snapshot(&closure).join("main.omg"),
+        let reviews = compile_resolved_package_reviews(
+            &closure,
+            "windows_x64",
             &cache.join("compiler-build"),
-            Some("windows_x64"),
-            inputs,
         )
-        .unwrap_or_else(|diagnostics| {
-            panic!("{package} package-aware compilation should check: {diagnostics:#?}")
-        });
-        let review = project_checked_package_review(&checked).unwrap_or_else(|diagnostics| {
-            panic!("{package} review should close: {diagnostics:#?}")
-        });
+        .unwrap_or_else(|error| panic!("{package} package reviews should close: {error:#?}"));
 
-        assert_eq!(review.package(), closure.graph().root().identity());
-        assert_fixture_evidence(package, &review);
-        assert!(
-            !review
-                .canonical_review_bytes()
-                .expect("fixture review must encode")
-                .is_empty(),
-            "{package} review encoding must be nonempty"
-        );
+        assert_eq!(reviews.reviews().len(), closure.graph().packages().len());
+        for node in closure.graph().packages() {
+            let custody = closure
+                .custody(node.source().key())
+                .expect("resolved graph package retains source custody");
+            let issued = reviews
+                .review(node.source().key())
+                .expect("every resolved graph package receives compiler review material");
+            assert_eq!(issued.resolution(), custody.resolution());
+            assert_eq!(
+                issued.projection().package(),
+                node.source().key().identity()
+            );
+            assert!(
+                !issued.canonical_review_bytes().is_empty(),
+                "{} review encoding must be nonempty",
+                node.source().key().name().as_str()
+            );
+        }
+
+        let root_review = reviews
+            .review(closure.graph().root())
+            .expect("root package receives compiler review material");
+
+        assert_fixture_evidence(package, root_review.projection());
         let _ = std::fs::remove_dir_all(cache);
     }
 }

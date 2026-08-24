@@ -115,8 +115,8 @@ member, resolves requester-relative Path rows only within a registered
 workspace, and resolves Git rows through immutable Git custody. A fetched Git
 snapshot becomes a separate registered workspace for its own nested Path rows;
 the adapter never searches parents or guesses an external protocol.
-Toolchain/compiler evidence is intentionally absent, and this closure has no
-persistence, lock, build-execution, or admission API. `PackageKey` also
+Toolchain/compiler evidence is intentionally absent from source resolution,
+and this closure has no persistence, lock, or admission API. `PackageKey` also
 derives the opaque stable identity carrier used by package-aware compiler
 inputs. The compiler's separate native and checked package entrypoints consume
 a closed requester-local alias graph and canonical source roots without
@@ -124,7 +124,15 @@ consulting downloaded dependency rows; legacy standalone compilation still
 retains a narrow explicit `depend_as(..., Source::Path { ... })` compatibility
 scanner. A package-side handoff translates only the validated custody closure
 into compiler inputs, whose constructor independently canonicalizes and checks
-every root and edge again. Checked package compilation now also retains
+every root and edge again. Review orchestration compiles every package in
+deterministic dependency-first order, temporarily re-rooting each package over
+only its transitive dependencies and assigning a package-and-source-specific
+writable build root. It returns non-constructible review rows carrying the
+selected `PackageKey`, immutable resolution, compiler projection, and canonical
+comparison bytes. This is review-only custody association: whole-source
+revalidation across compilation, whole-compiler/toolchain commitment, and
+sealed completeness still gate any accepted instance or lock payload. Checked
+package compilation now also retains
 the exact root package and selected build-machine symbol and can emit an
 in-memory authority review projection for one explicit target. That projection
 is intentionally not complete source/toolchain-bound admission evidence.
@@ -222,9 +230,9 @@ never repurposed as output directories.
 The legacy machine-contract fingerprint no longer enters package-review bytes,
 so private state shape is not public contract identity. Complete proof and
 unsupported-clause rows still gate sealed admission. The compiler now provides
-a version-19 length-framed
-binary comparison encoding over this review projection; it is explicitly not a package certificate or
-accepted-lock payload. Raw Rust/debug serialization is not an alternative. These pieces do
+a version-22 length-framed binary comparison encoding over this review
+projection; it is explicitly not a package certificate or accepted-lock
+payload. Raw Rust/debug serialization is not an alternative. These pieces do
 not become an admission path until the legacy name-keyed lock APIs are replaced
 and sealed, locally regenerated compiler evidence plus the hardened resolver
 receipt are wired through end to end. The earlier public
