@@ -94,7 +94,7 @@ pub use package_review::{
     PackageReviewPropositionBinderValue, PackageReviewPropositionEvidence,
     PackageReviewRepresentationAbiCommitment, PackageReviewRepresentationMechanism,
     PackageReviewRepresentationTcb, PackageReviewSynchronousInvocation, PackageReviewTermination,
-    PackageReviewTraitParent, PackageReviewTraitRequirement,
+    PackageReviewToolchainSourceIdentity, PackageReviewTraitParent, PackageReviewTraitRequirement,
     PackageReviewTraitRequirementParameter, PackageReviewTraitShape, PackageReviewTypeIdentity,
     PackageReviewTypeParameter, PackageReviewTypeParameterKind, project_checked_package_review,
 };

@@ -102,10 +102,10 @@ target macos_arm64 { }
         authority.class(),
         PackageReviewDangerousAuthorityClass::Filesystem
     );
-    assert_eq!(
-        authority.service().owner(),
-        PackageReviewNominalOwner::ToolchainUnbound
-    );
+    let PackageReviewNominalOwner::ToolchainSource(source) = authority.service().owner() else {
+        panic!("canonical filesystem authority must retain exact toolchain source")
+    };
+    assert_ne!(source.digest(), [0; 32]);
     assert_eq!(authority.service().path(), "FilesystemHost");
 
     let lookalike = TempPackage::new();
@@ -290,7 +290,7 @@ crashes Abort
         target,
         "review identity must retain the deployment profile, not only its native ABI",
     );
-    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 21);
+    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 22);
     let [ready] = review.public_domains() else {
         panic!("one package-owned public domain row")
     };
@@ -1609,7 +1609,7 @@ invokes waiting;
 }
 
 #[test]
-fn exact_synchronous_invocations_change_v21_comparison_encoding() {
+fn exact_synchronous_invocations_change_v22_comparison_encoding() {
     let quiet = TempPackage::new();
     let invoking = TempPackage::new();
     quiet.write(
@@ -1799,7 +1799,7 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
-fn public_data_and_numbered_wire_shape_changes_change_v21_comparison_encoding() {
+fn public_data_and_numbered_wire_shape_changes_change_v22_comparison_encoding() {
     let first = TempPackage::new();
     let second = TempPackage::new();
     first.write(
@@ -1833,7 +1833,7 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
-fn public_domain_shape_changes_change_v21_comparison_encoding() {
+fn public_domain_shape_changes_change_v22_comparison_encoding() {
     let first = TempPackage::new();
     let second = TempPackage::new();
     first.write(

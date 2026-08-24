@@ -232,7 +232,10 @@ Public domain rows retain exact declaring-package identity, alpha-normalized
 type/const binders, carrier type, and closed index arguments. A synthesized
 domain path retains its semantic spelling separately from the authored span
 that supplies package provenance. Transparent aliases recursively flatten to
-sorted, deduplicated package-qualified atomic domains; compiler carry aliases
+sorted, deduplicated package-qualified atomic domains. Authored toolchain
+nominals bind a canonical toolchain-relative source path plus exact source-byte
+commitment in review evidence; this is narrower than the whole-toolchain
+commitment required for admission. Compiler carry aliases
 expand to explicit toolchain-unbound atoms until exact toolchain commitment
 lands. Predicate facts, semantic roles, and domain operators reject until exact
 canonical rows exist; none is inferred from the domain name. Compiler-owned

@@ -251,16 +251,21 @@ complete.
   fingerprint remains review/execution compatibility data, not sealed package
   admission identity. Post-resolution compiler symbols now require an existing
   derivation-origin symbol and inherit its exact package/toolchain provenance;
-  source-free symbols remain deliberately unresolved. Checked-adapter rows now
+  source-free symbols remain deliberately unresolved. Authored toolchain
+  nominals in package review now bind a domain-separated SHA-256 commitment to
+  the canonical toolchain-relative source path and exact source bytes;
+  canonical virtual prelude coordinates use the same framing. Source-free
+  compiler intrinsics remain explicitly unbound until a whole-compiler
+  commitment exists. Checked-adapter rows now
   bind a canonical typed machine-overload identity to the exact package owning
   that machine, reject row transplantation across realizing packages, and
   resolve without short-name fallback in validation, dispatch, progress,
   external-root, TCB, and trust projections. Authored provider selections now
   retain exact resolved boundary-Trait and provider-Data symbols plus their
   package-qualified canonical paths; plan matching has no leaf-name fallback.
-  Compiler-intrinsic toolchain identity and the sealed admission projection
-  remain. Terminal Psi evidence remains separately required for rows that make
-  final-realization claims.
+  Whole-compiler/intrinsic toolchain identity and the sealed admission
+  projection remain. Terminal Psi evidence remains separately required for
+  rows that make final-realization claims.
 
 ## P2 — Dependency projection and reconciliation
 
@@ -515,7 +520,7 @@ complete.
   closing the implicit-entry-state ownership gap discovered by the crash
   projection. Review identity now retains the exact deployment target profile,
   so profiles such as Windows and UEFI cannot collapse merely because they
-  share a native ABI. A v21 length-framed binary comparison encoding now covers
+  share a native ABI. A v22 length-framed binary comparison encoding now covers
   every retained public-domain, public-data, public-trait, callable,
   representation-TCB, crash/proof predicate, proposition/witness, authority
   flow, dangerous-authority classification, mutation, and selected-provider
@@ -527,12 +532,13 @@ complete.
   non-`self` parameter ordinals or package-qualified service symbols; checked
   display strings never become comparison identity. Capability-flow state and
   propagated `via` state identities are package-qualified instead of display
-  strings. Compiler/source/toolchain
-  binding and the remaining required projection joins still gate sealed
+  strings. Whole-source/compiler/toolchain binding and the remaining required
+  projection joins still gate sealed
   evidence; blanket Terminal coverage does not.
   Compiler-generated symbols now inherit the exact authored provenance of a
-  mandatory derivation origin; truly source-free symbols and exact toolchain
-  identity remain visibly unbound rather than guessed.
+  mandatory derivation origin. Authored toolchain symbols retain exact source
+  commitments; truly source-free symbols and whole-compiler identity remain
+  visibly unbound rather than guessed.
   Standalone and target-free compilations reject projection.
 
 - **PROOF-AND-BOUNDARY-ADMISSION.** Fail closed on false or incomplete evidence.
@@ -640,7 +646,7 @@ complete.
   exposed canonical toolchain `FilesystemHost`, selected by exact declaration
   and toolchain-source coordinates rather than package-controlled spelling.
   Canonical and same-named package-owned tests pin both sides of that join, and
-  comparison encoding v21 retains the row. Broader risk classes and sealed
+  comparison encoding v22 retains the row. Broader risk classes and sealed
   package evidence remain.
 
 - **REPRESENTATION-TCB-REVIEW.** Retain claim-free opaque boundary data as a
@@ -660,7 +666,7 @@ complete.
   `boundary data`, including private declarations and declarations with no
   reach or claim. The row is target-scoped by the containing projection and
   explicitly records both ABI commitment and external mechanism as `Unbound`;
-  it does not fabricate layout or realization. Comparison encoding v21 retains
+  it does not fabricate layout or realization. Comparison encoding v22 retains
   the lane. Exact mechanism/ABI selection, source/toolchain/compiler sealing,
   and admission-policy outcomes remain.
 

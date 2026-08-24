@@ -472,6 +472,7 @@ dependencies = [
  "psi-typed-trees",
  "psi-typed-trees-to-checked-trees",
  "psi-validation",
+ "sha2",
 ]
 
 [[package]]

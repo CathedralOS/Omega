@@ -35,7 +35,7 @@ pub use pipeline::{
     PackageReviewPropositionBinderValue, PackageReviewPropositionEvidence,
     PackageReviewRepresentationAbiCommitment, PackageReviewRepresentationMechanism,
     PackageReviewRepresentationTcb, PackageReviewSynchronousInvocation, PackageReviewTermination,
-    PackageReviewTraitParent, PackageReviewTraitRequirement,
+    PackageReviewToolchainSourceIdentity, PackageReviewTraitParent, PackageReviewTraitRequirement,
     PackageReviewTraitRequirementParameter, PackageReviewTraitShape, PackageReviewTypeIdentity,
     PackageReviewTypeParameter, PackageReviewTypeParameterKind, PackageSourceBinding,
     PartitionedProgramStorageRoots, ProgramEntryPhysicalContractPlan,

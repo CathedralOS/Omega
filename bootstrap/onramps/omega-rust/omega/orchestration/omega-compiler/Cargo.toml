@@ -34,6 +34,7 @@ omega-image-emission = { path = "../../backend/images/omega-image-emission" }
 omega-instruction-selection = { path = "../../backend/omega-instruction-selection" }
 omega-isa-x86_64 = { path = "../../backend/instruction_set_architectures/omega-isa-x86_64" }
 psi-source = { path = "../../../psi/foundation/psi-source" }
+sha2 = "0.10.9"
 psi-source-files-to-tokens = { path = "../../../psi/pipeline/psi-source-files-to-tokens" }
 psi-tokens = { path = "../../../psi/representations/psi-tokens" }
 omega-layout = { path = "../../backend/omega-layout" }
