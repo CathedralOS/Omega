@@ -96,18 +96,9 @@ pub(super) fn build_component_progress_manifest(
                         ))]);
                     }
                 };
-                if let ProviderBinding::CheckedAdapter { machine } = &row.binding {
-                    let matches = program
-                        .machines()
-                        .iter()
-                        .filter(|candidate| candidate.name.as_str() == machine)
-                        .collect::<Vec<_>>();
-                    let [adapter] = matches.as_slice() else {
-                        return Err(vec![Diagnostic::error(format!(
-                            "selected checked adapter `{machine}` for `{requirement_identity}` resolves to {} checked machines",
-                            matches.len()
-                        ))]);
-                    };
+                if let ProviderBinding::CheckedAdapter { .. } = &row.binding {
+                    let adapter = super::provider_plans::exact_checked_adapter(program, plan, row)
+                        .map_err(|diagnostic| vec![diagnostic])?;
                     queue.push(adapter.symbol);
                 }
             }

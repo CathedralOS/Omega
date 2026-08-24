@@ -1527,37 +1527,36 @@ fn selected_operator_provider_identity(
             plan.name,
         )));
     };
-    if let ProviderBinding::CheckedAdapter { machine } = &row.binding {
+    if let ProviderBinding::CheckedAdapter {
+        machine_identity, ..
+    } = &row.binding
+    {
         let [namespace, requirement] = checked.typed.operator_path_members(operator.name) else {
             return Err(psi_diagnostics::Diagnostic::error(format!(
                 "selected checked boundary-operator ProviderPlan `{}` targets `{slot}`, whose source path is not the supported `Namespace::requirement` shape",
                 plan.name,
             )));
         };
-        let checked_provider = checked
-            .typed
-            .machines()
-            .iter()
-            .find(|candidate| candidate.name.as_str() == machine)
-            .filter(|candidate| {
-                checked
-                    .typed
-                    .machine_trait_conformances(candidate)
-                    .iter()
-                    .any(|conformance| {
-                        conformance.external_binding.is_none()
-                            && psi_typed_trees::operator::resolve_satisfied_checked_operator(
-                                &checked.typed,
-                                candidate,
-                                namespace.as_str(),
-                                requirement.as_str(),
-                            )
-                            .is_some_and(|resolved| resolved.symbol == operator.symbol)
-                    })
-            });
-        if checked_provider.is_none() {
+        let checked_provider = exact_checked_adapter(&checked.typed, plan, row)?;
+        let satisfies_slot = {
+            checked
+                .typed
+                .machine_trait_conformances(checked_provider)
+                .iter()
+                .any(|conformance| {
+                    conformance.external_binding.is_none()
+                        && psi_typed_trees::operator::resolve_satisfied_checked_operator(
+                            &checked.typed,
+                            checked_provider,
+                            namespace.as_str(),
+                            requirement.as_str(),
+                        )
+                        .is_some_and(|resolved| resolved.symbol == operator.symbol)
+                })
+        };
+        if !satisfies_slot {
             return Err(psi_diagnostics::Diagnostic::error(format!(
-                "selected boundary-operator ProviderPlan `{}` binds checked adapter `{machine}`, but that machine does not satisfy exact slot `{slot}` with a checked body",
+                "selected boundary-operator ProviderPlan `{}` binds checked adapter `{machine_identity}`, but that machine does not satisfy exact slot `{slot}` with a checked body",
                 plan.name,
             )));
         }
@@ -2016,21 +2015,18 @@ pub fn selected_external_root_entry_fact_bindings(
                     rows.len()
                 )));
             };
-            let ProviderBinding::CheckedAdapter { machine } = &row.binding else {
+            let ProviderBinding::CheckedAdapter {
+                machine_identity, ..
+            } = &row.binding
+            else {
                 return Err(omega_external_roots::ExternalRootDiagnostic(format!(
                     "selected external-root routed requirement `{}::{}` has no checked adapter fact to bind",
                     method.requirement_owner, method.name
                 )));
             };
-            let implementation = checked
-                .typed
-                .machines()
-                .iter()
-                .find(|candidate| candidate.name.as_str() == machine)
-                .ok_or_else(|| {
-                    omega_external_roots::ExternalRootDiagnostic(format!(
-                        "selected external-root checked adapter `{machine}` is absent from checked semantics"
-                    ))
+            let implementation =
+                exact_checked_adapter(&checked.typed, plan, row).map_err(|diagnostic| {
+                    omega_external_roots::ExternalRootDiagnostic(diagnostic.message)
                 })?;
             let state = checked
                 .typed
@@ -2038,7 +2034,7 @@ pub fn selected_external_root_entry_fact_bindings(
                 .first()
                 .ok_or_else(|| {
                     omega_external_roots::ExternalRootDiagnostic(format!(
-                        "selected external-root checked adapter `{machine}` has no entry state"
+                        "selected external-root checked adapter `{machine_identity}` has no entry state"
                     ))
                 })?;
             let parameters = checked
@@ -2049,7 +2045,7 @@ pub fn selected_external_root_entry_fact_bindings(
                 .collect::<Vec<_>>();
             let parameter = parameters.get(claim.parameter_index).ok_or_else(|| {
                 omega_external_roots::ExternalRootDiagnostic(format!(
-                    "selected external-root claim parameter {} is absent from checked adapter `{machine}`",
+                    "selected external-root claim parameter {} is absent from checked adapter `{machine_identity}`",
                     claim.parameter_index
                 ))
             })?;
@@ -2229,7 +2225,11 @@ pub(crate) fn derive_satisfies_plans(
                 .unwrap_or_default();
             let row_binding = match binding {
                 None => ProviderBinding::CheckedAdapter {
-                    machine: machine.name.as_str().to_owned(),
+                    machine_identity: typed
+                        .normalized_machine_overload_identity(machine)
+                        .map(|identity| identity.identity())
+                        .unwrap_or_default(),
+                    machine_package_identity: typed.symbols.symbol_package_identity(machine.symbol),
                 },
                 Some(binding) => external_provider_binding(
                     binding,
@@ -2406,7 +2406,13 @@ fn derive_boundary_operator_plans(
                 }
                 (psi_language_semantics::MachineSupplyMode::CheckedBody, None) => {
                     ProviderBinding::CheckedAdapter {
-                        machine: machine.name.as_str().to_owned(),
+                        machine_identity: typed
+                            .normalized_machine_overload_identity(machine)
+                            .map(|identity| identity.identity())
+                            .unwrap_or_default(),
+                        machine_package_identity: typed
+                            .symbols
+                            .symbol_package_identity(machine.symbol),
                     }
                 }
                 _ => continue, // invalid via/body combinations are refused elsewhere
@@ -2837,34 +2843,66 @@ fn exact_row_for_schema_method<'plan>(
     Ok(*row)
 }
 
-fn exact_checked_adapter<'typed>(
+pub(super) fn exact_checked_adapter<'typed>(
     typed: &'typed TypedTrees,
     plan: &ProviderPlan,
     row: &ProviderPlanRow,
-    machine: &str,
 ) -> Result<&'typed psi_typed_trees::machine::Machine, psi_diagnostics::Diagnostic> {
-    if machine.is_empty() {
+    let ProviderBinding::CheckedAdapter {
+        machine_identity,
+        machine_package_identity,
+    } = &row.binding
+    else {
+        return Err(psi_diagnostics::Diagnostic::error(format!(
+            "ProviderPlan `{}` row `{}` is not a checked-adapter binding",
+            plan.name, row.requirement_identity,
+        )));
+    };
+    if machine_identity.is_empty() {
         return Err(psi_diagnostics::Diagnostic::error(format!(
             "checked adapter for ProviderPlan `{}` row `{}` has no complete machine identity",
             plan.name, row.requirement_identity,
         )));
     }
-    let matches = typed
+    if *machine_package_identity != plan.origin_package_identity {
+        return Err(psi_diagnostics::Diagnostic::error(format!(
+            "checked adapter `{machine_identity}` for ProviderPlan `{}` does not belong to the package realizing the plan",
+            plan.name,
+        )));
+    }
+    let identity_matches = typed
         .machines()
         .iter()
-        .filter(|candidate| candidate.name.as_str() == machine)
+        .filter(|candidate| {
+            typed
+                .normalized_machine_overload_identity(candidate)
+                .is_some_and(|identity| identity.identity() == *machine_identity)
+        })
+        .collect::<Vec<_>>();
+    let matches = identity_matches
+        .iter()
+        .copied()
+        .filter(|candidate| {
+            typed.symbols.symbol_package_identity(candidate.symbol) == *machine_package_identity
+        })
         .collect::<Vec<_>>();
     let adapter = match matches.as_slice() {
         [adapter] => *adapter,
+        [] if identity_matches.is_empty() => {
+            return Err(psi_diagnostics::Diagnostic::error(format!(
+                "checked adapter `{machine_identity}` for `{}::{}` is absent from typed machines",
+                plan.schema.trait_name, row.method,
+            )));
+        }
         [] => {
             return Err(psi_diagnostics::Diagnostic::error(format!(
-                "checked adapter `{machine}` for `{}::{}` is absent from typed machines",
-                plan.schema.trait_name, row.method,
+                "checked adapter `{machine_identity}` for ProviderPlan `{}` does not belong to its retained package identity",
+                plan.name,
             )));
         }
         _ => {
             return Err(psi_diagnostics::Diagnostic::error(format!(
-                "checked adapter `{machine}` for ProviderPlan `{}` row `{}` resolves to {} exact typed machines",
+                "checked adapter `{machine_identity}` for ProviderPlan `{}` row `{}` resolves to {} exact typed machines",
                 plan.name,
                 row.requirement_identity,
                 matches.len(),
@@ -2873,7 +2911,14 @@ fn exact_checked_adapter<'typed>(
     };
     if !adapter.symbol.is_valid() {
         return Err(psi_diagnostics::Diagnostic::error(format!(
-            "checked adapter `{machine}` for ProviderPlan `{}` has no exact typed machine symbol",
+            "checked adapter `{machine_identity}` for ProviderPlan `{}` has no exact typed machine symbol",
+            plan.name,
+        )));
+    }
+    let actual_package_identity = typed.symbols.symbol_package_identity(adapter.symbol);
+    if actual_package_identity != *machine_package_identity {
+        return Err(psi_diagnostics::Diagnostic::error(format!(
+            "checked adapter `{machine_identity}` for ProviderPlan `{}` does not belong to its retained package identity",
             plan.name,
         )));
     }
@@ -2951,9 +2996,17 @@ fn exact_checked_adapter_invocations(
     plan: &ProviderPlan,
     method: &omega_effects::provider_plan::ServiceMethod,
     row: &ProviderPlanRow,
-    machine: &str,
 ) -> Result<Vec<String>, psi_diagnostics::Diagnostic> {
-    let adapter = exact_checked_adapter(typed, plan, row, machine)?;
+    let ProviderBinding::CheckedAdapter {
+        machine_identity, ..
+    } = &row.binding
+    else {
+        return Err(psi_diagnostics::Diagnostic::error(format!(
+            "ProviderPlan `{}` row `{}` is not a checked-adapter binding",
+            plan.name, row.requirement_identity,
+        )));
+    };
+    let adapter = exact_checked_adapter(typed, plan, row)?;
     let summaries = inferred
         .machines
         .iter()
@@ -2961,7 +3014,7 @@ fn exact_checked_adapter_invocations(
         .collect::<Vec<_>>();
     let [summary] = summaries.as_slice() else {
         return Err(psi_diagnostics::Diagnostic::error(format!(
-            "checked adapter `{machine}` resolves to {} exact synchronous-invocation inference summaries",
+            "checked adapter `{machine_identity}` resolves to {} exact synchronous-invocation inference summaries",
             summaries.len(),
         )));
     };
@@ -3099,7 +3152,10 @@ pub(crate) fn validate_provider_plan_candidates(
                 .map(psi_diagnostics::Diagnostic::error),
         );
         for row in &plan.rows {
-            let ProviderBinding::CheckedAdapter { machine } = &row.binding else {
+            let ProviderBinding::CheckedAdapter {
+                machine_identity, ..
+            } = &row.binding
+            else {
                 continue;
             };
             let method = match exact_schema_method_for_row(plan, row) {
@@ -3109,7 +3165,7 @@ pub(crate) fn validate_provider_plan_candidates(
                     continue;
                 }
             };
-            let adapter = match exact_checked_adapter(typed, plan, row, machine) {
+            let adapter = match exact_checked_adapter(typed, plan, row) {
                 Ok(adapter) => adapter,
                 Err(diagnostic) => {
                     diagnostics.push(diagnostic);
@@ -3120,7 +3176,7 @@ pub(crate) fn validate_provider_plan_candidates(
                 != Some(plan.provider_type.as_str())
             {
                 diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
-                    "checked adapter `{machine}` for `{}::{}` belongs to provider `{}`, not selected provider `{}`",
+                    "checked adapter `{machine_identity}` for `{}::{}` belongs to provider `{}`, not selected provider `{}`",
                     plan.schema.trait_name,
                     row.method,
                     adapter
@@ -3135,7 +3191,7 @@ pub(crate) fn validate_provider_plan_candidates(
                 || typed.machine_states(adapter).is_empty()
             {
                 diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
-                    "checked adapter `{machine}` for `{}::{}` does not name a checked body with an entry state",
+                    "checked adapter `{machine_identity}` for `{}::{}` does not name a checked body with an entry state",
                     plan.schema.trait_name, row.method,
                 )));
                 continue;
@@ -3144,34 +3200,29 @@ pub(crate) fn validate_provider_plan_candidates(
                 checked_adapter_has_exact_conformance(typed, adapter, plan, row);
             if !has_exact_conformance {
                 diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
-                    "checked adapter `{machine}` for `{}::{}` has no exact checked satisfies edge for requirement identity `{}`",
+                    "checked adapter `{machine_identity}` for `{}::{}` has no exact checked satisfies edge for requirement identity `{}`",
                     plan.schema.trait_name, row.method, row.requirement_identity,
                 )));
                 continue;
             }
             let service_ceiling = method.service_reach.as_slice();
             let invocation_ceiling = method.synchronous_invocations.as_slice();
-            let hidden_invocations = match exact_checked_adapter_invocations(
-                typed,
-                &invocation_plan,
-                plan,
-                method,
-                row,
-                machine,
-            ) {
-                Ok(invocations) => invocations
-                    .into_iter()
-                    .filter(|target| !invocation_ceiling.contains(target))
-                    .collect::<Vec<_>>(),
-                Err(diagnostic) => {
-                    diagnostics.push(diagnostic);
-                    Vec::new()
-                }
-            };
+            let hidden_invocations =
+                match exact_checked_adapter_invocations(typed, &invocation_plan, plan, method, row)
+                {
+                    Ok(invocations) => invocations
+                        .into_iter()
+                        .filter(|target| !invocation_ceiling.contains(target))
+                        .collect::<Vec<_>>(),
+                    Err(diagnostic) => {
+                        diagnostics.push(diagnostic);
+                        Vec::new()
+                    }
+                };
             if !hidden_invocations.is_empty() {
                 diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
                     "adapter `{}` does not refine `{}::{}`: its body may synchronously invoke boundary binding(s) [{}], but the requirement omits those `invokes` edges",
-                    machine,
+                    machine_identity,
                     plan.schema.trait_name,
                     row.method,
                     hidden_invocations.join(", "),
@@ -3192,7 +3243,7 @@ pub(crate) fn validate_provider_plan_candidates(
             if !hidden_services.is_empty() {
                 diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
                     "adapter `{}` does not refine `{}::{}`: its body reaches boundary service(s) [{}] outside the requirement's declared service ceiling [{}] -- the satisfied requirement is the public contract; widen it or drop the service reach",
-                    machine,
+                    machine_identity,
                     plan.schema.trait_name,
                     row.method,
                     hidden_services.join(", "),
@@ -3227,9 +3278,9 @@ pub(crate) fn validate_selected_synchronous_invocation_cycles(
                 }
             };
             let target_names = match &row.binding {
-                ProviderBinding::CheckedAdapter { machine } => exact_checked_adapter_invocations(
-                    typed, &inferred, source, method, row, machine,
-                ),
+                ProviderBinding::CheckedAdapter { .. } => {
+                    exact_checked_adapter_invocations(typed, &inferred, source, method, row)
+                }
                 _ => exact_authored_invocations(source, method),
             };
             let target_names = match target_names {

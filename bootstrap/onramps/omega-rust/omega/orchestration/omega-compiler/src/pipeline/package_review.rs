@@ -110,9 +110,10 @@ pub struct CheckedPackageCallableReview {
 /// That existing 64-bit fingerprint is review/execution compatibility data,
 /// not a collision-resistant package-admission identity.
 /// Provider type, schema, and requirement labels are paired with exact package
-/// owners in the retained schema. Binding and selection names remain review
-/// labels carried by the existing provider-plan model; they are not yet sealed
-/// package-qualified nominal identities.
+/// owners in the retained schema. A checked-adapter row carries its canonical
+/// overload identity and exact machine package owner; compiler consumers have
+/// already rejoined both to typed semantics. Provider-selection names and
+/// compiler-intrinsic toolchain ownership remain unsealed review data.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedPackageProviderReview {
     plan_name: String,

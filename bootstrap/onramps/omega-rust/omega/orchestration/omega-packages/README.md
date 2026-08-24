@@ -84,8 +84,10 @@ ownership gaps remain explicit. Compiler-generated symbols now inherit the
 package/toolchain provenance of a mandatory authored derivation origin, while
 truly source-free symbols remain unresolved. The projection includes selected provider
 mechanisms, and provider plans/trust rows retain exact package owners for the
-realizing machine, provider type, service schema, and requirement owner. Binding
-and selection nominals plus the remaining trust/proof/reproducibility joins are
+realizing machine, provider type, service schema, and requirement owner.
+Checked-adapter bindings resolve by canonical overload plus exact package owner
+without a short-name fallback. Provider selection and compiler-intrinsic
+toolchain identity plus the remaining trust/proof/reproducibility joins are
 incomplete. These pieces do not become an admission path until the legacy
 name-keyed lock APIs are replaced and sealed compiler-issued evidence plus the
 hardened resolver receipt are wired through end to end. The earlier public

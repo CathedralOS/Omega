@@ -611,15 +611,17 @@ pub(crate) fn derive_static_manifest(
                 requirement_identity: row.requirement_identity.clone(),
             });
             let known = match &row.binding {
-                ProviderBinding::CheckedAdapter { machine } => Some(ExecutableTcbEntry {
+                ProviderBinding::CheckedAdapter {
+                    machine_identity, ..
+                } => Some(ExecutableTcbEntry {
                     provider_identity: provider_identity.clone(),
                     provider_plan_identity,
                     selected_requirement: selected_requirement.clone(),
                     executable_identity: ExecutableIdentity::CurrentArtifactMachine(
-                        machine.clone(),
+                        machine_identity.clone(),
                     ),
                     implementation_evidence: ImplementationEvidence::CheckedBody {
-                        machine: machine.clone(),
+                        machine: machine_identity.clone(),
                     },
                     origin: ExecutableEntryOrigin::StaticSelection,
                     execution_scope: scope,

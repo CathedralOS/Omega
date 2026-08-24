@@ -1,5 +1,17 @@
 use super::*;
 
+fn normalized_machine_identity(typed: &TypedTrees, name: &str) -> String {
+    let machine = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == name)
+        .unwrap_or_else(|| panic!("missing typed machine `{name}`"));
+    typed
+        .normalized_machine_overload_identity(machine)
+        .expect("typed machine must have an entry overload")
+        .identity()
+}
+
 fn derive_provider_fixture(source: &str) -> (TypedTrees, ProviderPlan) {
     let tokens = psi_source_files_to_tokens::Lexer::new(source)
         .tokenize()
@@ -672,6 +684,10 @@ fn checked_invocation_fixture(
         ..Default::default()
     };
     typed.push_machine_state(&mut machine, entry);
+    let machine_identity = typed
+        .normalized_machine_overload_identity(&machine)
+        .expect("checked invocation machine must have an entry overload")
+        .identity();
     typed.push_machine(machine);
 
     let mut plan = selection_plan("provider", &["run"], &["run"]);
@@ -680,7 +696,8 @@ fn checked_invocation_fixture(
     plan.schema.methods[0].requirement_owner = "pkg::Source".to_owned();
     plan.schema.methods[0].parameter_count = parameter_count;
     plan.rows[0].binding = ProviderBinding::CheckedAdapter {
-        machine: "Provider::run".to_owned(),
+        machine_identity,
+        machine_package_identity: None,
     };
     let inferred = psi_effects::InvocationInferencePlan {
         machines: vec![psi_effects::MachineInvocationInference {
@@ -782,7 +799,8 @@ fn checked_synchronous_invocation_targets_reject_every_exact_drift() {
             }
             CheckedInvocationDrift::AbsentMachine => {
                 plan.rows[0].binding = ProviderBinding::CheckedAdapter {
-                    machine: "Provider::missing".to_owned(),
+                    machine_identity: "Provider::missing".to_owned(),
+                    machine_package_identity: None,
                 };
             }
             CheckedInvocationDrift::DuplicateMachine => {
@@ -828,11 +846,7 @@ fn checked_synchronous_invocation_targets_reject_every_exact_drift() {
         }
         let method = &plan.schema.methods[0];
         let row = &plan.rows[0];
-        let ProviderBinding::CheckedAdapter { machine } = &row.binding else {
-            unreachable!()
-        };
-        let result =
-            exact_checked_adapter_invocations(&typed, &inferred, &plan, method, row, machine);
+        let result = exact_checked_adapter_invocations(&typed, &inferred, &plan, method, row);
         match expected {
             None => assert_eq!(
                 result.expect("exact checked target resolves"),
@@ -852,9 +866,6 @@ fn checked_synchronous_invocation_targets_reject_every_exact_drift() {
 #[test]
 fn self_forwarding_erases_only_the_exact_schema_receiver() {
     let (typed, plan, inferred) = checked_invocation_fixture(31, 0);
-    let ProviderBinding::CheckedAdapter { machine } = &plan.rows[0].binding else {
-        unreachable!()
-    };
     assert_eq!(
         exact_checked_adapter_invocations(
             &typed,
@@ -862,16 +873,12 @@ fn self_forwarding_erases_only_the_exact_schema_receiver() {
             &plan,
             &plan.schema.methods[0],
             &plan.rows[0],
-            machine,
         )
         .expect("exact receiver forwarding resolves"),
         Vec::<String>::new(),
     );
 
     let (typed, plan, inferred) = checked_invocation_fixture(33, 0);
-    let ProviderBinding::CheckedAdapter { machine } = &plan.rows[0].binding else {
-        unreachable!()
-    };
     assert_eq!(
         exact_checked_adapter_invocations(
             &typed,
@@ -879,7 +886,6 @@ fn self_forwarding_erases_only_the_exact_schema_receiver() {
             &plan,
             &plan.schema.methods[0],
             &plan.rows[0],
-            machine,
         )
         .expect("same-leaf foreign receiver remains an external edge"),
         vec!["other::Source".to_owned()],
@@ -1616,7 +1622,8 @@ fn checked_adapter_requires_a_nominal_provider_type() {
         method: "first".to_owned(),
         requirement_identity: "Pair::first".to_owned(),
         binding: ProviderBinding::CheckedAdapter {
-            machine: "first_adapter".to_owned(),
+            machine_identity: "first_adapter".to_owned(),
+            machine_package_identity: None,
         },
     });
 
@@ -1679,7 +1686,8 @@ fn checked_adapter_must_resolve_to_its_exact_checked_provider_conformance() {
 
     let mut absent = plan.clone();
     absent.rows[0].binding = ProviderBinding::CheckedAdapter {
-        machine: "Provider::absent".to_owned(),
+        machine_identity: "Provider::absent".to_owned(),
+        machine_package_identity: None,
     };
     assert!(
         validate_provider_plan_candidates(&typed, &[absent])
@@ -1689,7 +1697,8 @@ fn checked_adapter_must_resolve_to_its_exact_checked_provider_conformance() {
 
     let mut wrong_provider = plan.clone();
     wrong_provider.rows[0].binding = ProviderBinding::CheckedAdapter {
-        machine: "OtherProvider::helper".to_owned(),
+        machine_identity: normalized_machine_identity(&typed, "OtherProvider::helper"),
+        machine_package_identity: None,
     };
     assert!(
         validate_provider_plan_candidates(&typed, &[wrong_provider])
@@ -1701,7 +1710,8 @@ fn checked_adapter_must_resolve_to_its_exact_checked_provider_conformance() {
 
     let mut external = plan.clone();
     external.rows[0].binding = ProviderBinding::CheckedAdapter {
-        machine: "Provider::external".to_owned(),
+        machine_identity: normalized_machine_identity(&typed, "Provider::external"),
+        machine_package_identity: None,
     };
     assert!(
         validate_provider_plan_candidates(&typed, &[external])
@@ -1713,7 +1723,8 @@ fn checked_adapter_must_resolve_to_its_exact_checked_provider_conformance() {
 
     let mut unrelated = plan;
     unrelated.rows[0].binding = ProviderBinding::CheckedAdapter {
-        machine: "Provider::helper".to_owned(),
+        machine_identity: normalized_machine_identity(&typed, "Provider::helper"),
+        machine_package_identity: None,
     };
     assert!(
         validate_provider_plan_candidates(&typed, &[unrelated])
@@ -1787,7 +1798,8 @@ fn checked_operator_adapter_must_resolve_to_its_exact_operator_conformance() {
     ] {
         let mut invalid = plan.clone();
         invalid.rows[0].binding = ProviderBinding::CheckedAdapter {
-            machine: unrelated.to_owned(),
+            machine_identity: normalized_machine_identity(&typed, unrelated),
+            machine_package_identity: None,
         };
         assert!(
             validate_provider_plan_candidates(&typed, &[invalid])

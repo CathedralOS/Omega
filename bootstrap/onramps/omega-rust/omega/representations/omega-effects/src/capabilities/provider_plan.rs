@@ -201,7 +201,13 @@ pub enum ProviderBinding {
     /// rows). Admission checks the adapter as a REFINEMENT: its transitive
     /// effects must fit inside the satisfied requirement's declared
     /// ceiling.
-    CheckedAdapter { machine: String },
+    CheckedAdapter {
+        /// Canonical typed machine-overload identity, never a short name.
+        machine_identity: String,
+        /// Exact package owning the checked adapter. `None` is retained only
+        /// for toolchain, standalone, and focused source-free programs.
+        machine_package_identity: Option<psi_core::PackageKeyIdentity>,
+    },
 }
 
 /// One method's normalized provider binding. Composite argument adaptation is
@@ -938,6 +944,18 @@ impl ProviderPlan {
                 ProviderBinding::CompilerIntrinsic { machine, .. } => {
                     format!("CompilerIntrinsic {{ machine: {machine:?} }}")
                 }
+                ProviderBinding::CheckedAdapter {
+                    machine_identity,
+                    machine_package_identity,
+                } => {
+                    let mut identity = format!("CheckedAdapter:{machine_identity}");
+                    push_package_identity(
+                        &mut identity,
+                        "checked-adapter-package",
+                        *machine_package_identity,
+                    );
+                    identity
+                }
                 binding => format!("{binding:?}"),
             };
             rendered.push_str(&format!(
@@ -1330,8 +1348,11 @@ impl ProviderPlan {
                         ));
                     }
                 }
-                ProviderBinding::CheckedAdapter { machine } => {
-                    if machine.is_empty() {
+                ProviderBinding::CheckedAdapter {
+                    machine_identity,
+                    machine_package_identity,
+                } => {
+                    if machine_identity.is_empty() {
                         errors.push(format!(
                             "plan `{}` row `{}` checked adapter has no exact machine identity",
                             self.name, row.method,
@@ -1339,11 +1360,17 @@ impl ProviderPlan {
                     }
                     if self.provider_type.is_empty() {
                         errors.push(format!(
-                            "checked adapter `{machine}` for `{}::{}` has no nominal provider type; attach it as `machine ProviderType::{machine}(...) satisfies {}::{}` and select that provider for the boundary slot",
+                            "checked adapter `{machine_identity}` for `{}::{}` has no nominal provider type; attach it as an ordinary checked machine satisfying {}::{}` and select that provider for the boundary slot",
                             self.schema.trait_name,
                             row.method,
                             self.schema.trait_name,
                             row.method,
+                        ));
+                    }
+                    if *machine_package_identity != self.origin_package_identity {
+                        errors.push(format!(
+                            "plan `{}` row `{}` checked-adapter package identity does not match the realizing package",
+                            self.name, row.method,
                         ));
                     }
                 }
@@ -1565,6 +1592,29 @@ mod tests {
         requirement_owner.schema.methods[0].requirement_owner_package_identity =
             psi_core::PackageKeyIdentity::from_digest([5; 32]);
         assert_ne!(requirement_owner.identity_fingerprint(), first_identity);
+
+        let mut unbound_adapter = windows_console_plan();
+        unbound_adapter.rows[0].binding = ProviderBinding::CheckedAdapter {
+            machine_identity: "named-callable(path(ConsoleProvider::write))".to_owned(),
+            machine_package_identity: None,
+        };
+        let unbound_identity = unbound_adapter.identity_fingerprint();
+        let mut bound_adapter = unbound_adapter.clone();
+        let adapter_package =
+            psi_core::PackageKeyIdentity::from_digest([6; 32]).expect("nonzero package identity");
+        bound_adapter.origin_package_identity = Some(adapter_package);
+        bound_adapter.rows[0].binding = ProviderBinding::CheckedAdapter {
+            machine_identity: "named-callable(path(ConsoleProvider::write))".to_owned(),
+            machine_package_identity: Some(adapter_package),
+        };
+        assert_ne!(bound_adapter.identity_fingerprint(), unbound_identity);
+
+        let mut other_overload = unbound_adapter;
+        other_overload.rows[0].binding = ProviderBinding::CheckedAdapter {
+            machine_identity: "named-callable(path(ConsoleProvider::write))#other".to_owned(),
+            machine_package_identity: None,
+        };
+        assert_ne!(other_overload.identity_fingerprint(), unbound_identity);
     }
 
     #[test]
@@ -2352,7 +2402,8 @@ mod tests {
                 field: "write_line".to_owned(),
             },
             ProviderBinding::CheckedAdapter {
-                machine: "write_line_adapter".to_owned(),
+                machine_identity: "write_line_adapter".to_owned(),
+                machine_package_identity: None,
             },
         ];
         for binding in valid_bindings {
@@ -2460,7 +2511,8 @@ mod tests {
             ),
             (
                 ProviderBinding::CheckedAdapter {
-                    machine: String::new(),
+                    machine_identity: String::new(),
+                    machine_package_identity: None,
                 },
                 "checked adapter has no exact machine identity",
             ),
@@ -2495,7 +2547,8 @@ mod tests {
         }
 
         let mut free_adapter = plan_with_binding(ProviderBinding::CheckedAdapter {
-            machine: "write_line_adapter".to_owned(),
+            machine_identity: "write_line_adapter".to_owned(),
+            machine_package_identity: None,
         });
         free_adapter.provider_type.clear();
         let errors = free_adapter.validate_candidate_against_schema();

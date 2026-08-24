@@ -927,7 +927,8 @@ mod tests {
                 }
                 Drift::CheckedAdapter => {
                     plan.rows[0].binding = ProviderBinding::CheckedAdapter {
-                        machine: "FloatProvider::minimum".into(),
+                        machine_identity: "FloatProvider::minimum".into(),
+                        machine_package_identity: None,
                     };
                     plans = vec![plan.clone()];
                 }

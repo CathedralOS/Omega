@@ -759,8 +759,12 @@ fn trust_provider_realization(
                 field: field.clone(),
             }
         }
-        ProviderBinding::CheckedAdapter { machine } => TrustProviderRealization::CheckedAdapter {
-            machine: machine.clone(),
+        ProviderBinding::CheckedAdapter {
+            machine_identity,
+            machine_package_identity,
+        } => TrustProviderRealization::CheckedAdapter {
+            machine_identity: machine_identity.clone(),
+            machine_package_identity: *machine_package_identity,
         },
     }
 }

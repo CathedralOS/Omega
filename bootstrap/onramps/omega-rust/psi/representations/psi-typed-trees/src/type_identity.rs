@@ -232,6 +232,21 @@ impl TypedTrees {
         ))
     }
 
+    /// Resolve one canonical machine-overload identity exactly. A missing or
+    /// duplicate identity returns `None`; callers must not fall back to a
+    /// short machine spelling.
+    pub fn machine_by_normalized_overload_identity(
+        &self,
+        identity: &str,
+    ) -> Option<&crate::machine::Machine> {
+        let mut matches = self.machines().iter().filter(|machine| {
+            self.normalized_machine_overload_identity(machine)
+                .is_some_and(|candidate| candidate.identity() == identity)
+        });
+        let machine = matches.next()?;
+        matches.next().is_none().then_some(machine)
+    }
+
     /// Canonical identity of one trait machine requirement overload.
     pub fn normalized_trait_requirement_overload_identity(
         &self,
