@@ -86,7 +86,10 @@ materialization remains an exact selected-tree check.
 Git, workspace-member, and external-local resolution now bind those pieces into
 a `ResolvedPackageSource`: declaration and identity come from the immutable
 snapshot and canonical source lineage, and canonical literal dependency rows
-are projected without executing build code. Workspace-member resolution binds
+are projected without executing build code. Known-host lineage normalizes
+GitHub and hosted GitLab HTTPS/SSH clone spellings; GitLab nested namespace
+paths remain exact and case-sensitive, while self-hosted and unknown hosts
+retain transport distinctions. Workspace-member resolution binds
 the workspace root lineage to a normalized member-relative path, verifies the
 live member is the matching strict canonical descendant, and snapshots only
 that member. A transport-neutral recursive resolver accepts only erased custody

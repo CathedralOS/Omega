@@ -201,6 +201,7 @@ fn requester_workspace(
             Some(lineage.member_path().as_str().to_owned()),
         )),
         lineage @ (SourceLineage::GitHub(_)
+        | SourceLineage::GitLab(_)
         | SourceLineage::Git(_)
         | SourceLineage::ExternalLocal(_)) => {
             let identity = register_workspace(workspaces, lineage, requester.snapshot_root())?;

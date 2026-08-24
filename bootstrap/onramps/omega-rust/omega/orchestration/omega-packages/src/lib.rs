@@ -62,9 +62,10 @@ pub use graph::{
 };
 pub use identity::{
     AliasName, ExternalLocalLineage, ExternalSourceContext, GenericGitLineage, GitCommitId,
-    GitHubRepositoryLineage, GitObjectIdAlgorithm, GitTransport, GitTreeId, IdentityError,
-    ImmutableSourceResolution, PackageKey, PackageName, SourceContentDigest, SourceLineage,
-    WorkspaceLineageIdentity, WorkspaceMemberLineage, WorkspaceMemberPath,
+    GitHubRepositoryLineage, GitLabRepositoryLineage, GitObjectIdAlgorithm, GitTransport,
+    GitTreeId, IdentityError, ImmutableSourceResolution, PackageKey, PackageName,
+    SourceContentDigest, SourceLineage, WorkspaceLineageIdentity, WorkspaceMemberLineage,
+    WorkspaceMemberPath,
 };
 pub use package_source::{
     ResolvePackageSourceError, ResolvedPackageSource, resolve_external_local_package_source,
