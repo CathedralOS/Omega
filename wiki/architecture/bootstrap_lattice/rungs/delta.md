@@ -21,6 +21,13 @@ independent, robust compiler-host language with C-like power and deterministic
 semantics. It should resemble Omega where consistency is cheap, but it need not
 be an Omega subset. Delta may be slow and conservatively lowered.
 
+That list describes demonstrated candidates, not a frozen v1 inventory. Delta
+v1 is pruned from the complete `omega-bootstrap` source closure. D0, the sample
+corpus, and the Rust producer may reveal useful facilities but cannot admit
+them. If the bridge can use only Exact arithmetic, ordinary fixed backing, or a
+sealed byte-I/O host surface, broader arithmetic domains, allocation machinery,
+or general boundary traits stay outside v1.
+
 Its job is to implement `omega-bootstrap`, which accepts the exact Omega
 self-hosting profile `Ωself` and rejects the rest. That bridge compiles the
 `Ωself`-constrained production source into the full optimizing compiler. That
@@ -94,16 +101,22 @@ implementation agreement.
 
 ## Trust boundary
 
-Most Delta facilities erase into lower-rung computation. Native hardware
-operations—atomics, fences, MMIO, interrupt entry, and platform runtime calls—are
-explicit boundary surfaces and remain in the platform trust ledger.
+Most Delta facilities erase into lower-rung computation. The working v1 host
+surface is only source-byte input, artifact-byte output, diagnostic-byte output,
+and process termination. Target configuration is explicit input; filesystem,
+environment, clock, network, process-spawn, atomics, MMIO, interrupt, and
+general foreign-call authority are not presumed. If the complete bridge source
+demonstrates another unavoidable host operation, it must be specified and added
+to the trust ledger explicitly.
 
 ## Open work
 
 - Complete the Rust-free Delta implementation and keep its self-host fixed point.
-- Finish Delta's robust literal specification and prove that the complete
-  `omega-bootstrap` Delta source closure fits it; do not force subset
-  compatibility with Omega.
+- Maintain Delta's provisional feature ledger while implementing the bridge,
+  then remove unused producer/corpus features and freeze the smallest robust
+  literal specification containing the complete `omega-bootstrap` source
+  closure. Preserve Omega spelling and ordinary meaning for retained shared
+  constructs without forcing subset compatibility.
 - Build `omega-bootstrap` with exact `Ωself` acceptance and enough conservative
   lowering to compile the source that implements the production optimizer and
   advanced lowering; do not duplicate those product passes in Delta.

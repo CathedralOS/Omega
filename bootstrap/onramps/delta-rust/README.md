@@ -1,12 +1,13 @@
 # Delta Rust on-ramp
 
 The `-rs` suffix marks this as the **throwaway Rust** on-ramp for the Delta rung:
-it compiles `.alp` source — Omega's bootstrap executable surface (state **machines**, **data**
-structs, **transition** dispatch, **enums** with payloads) — to a native binary,
-to discover what the language needs by compiling it. It is an interim producer
-and differential oracle, not Delta's semantic authority; canonical meaning is
-the Delta-to-Gamma route. The implementation is deliberately direct,
-arena/index-based, and monomorphic so the port down to the lattice is mechanical.
+it compiles the current experimental `.alp` surface (state **machines**, **data**
+structs, **transition** dispatch, and payload **enums**) to a native binary to
+discover what the bridge language needs. It is an interim producer and
+differential oracle, not Delta's semantic or feature authority; canonical
+meaning is the Delta-to-Gamma route. Acceptance here does not admit a construct
+to Delta v1. The implementation is deliberately direct, arena/index-based, and
+monomorphic so the port down to the lattice is mechanical.
 
 > **Naming note.** Header, extension (`.alp`), and a few "Alpha" mentions in older
 > samples are inherited from the `alpha-rs` README this was forked from — they do
@@ -136,9 +137,10 @@ DELTA_ARCH=aarch64 cargo run -- ../../rungs/delta/samples/shape.alp out  # macOS
   buffered cat round-trips, `buffer.alp` reverses stdin via a `[u8;4096]` field,
   and i32 arrays (`arena`) still work.
 
-The on-ramp now has a compiler's full vocabulary: arithmetic, control flow + loops,
-a DAG of machines with params/returns, structs with mutable `self` fields, scalar
-and byte arrays with trapping indexing, and byte stdin/stdout I/O.
+The on-ramp now demonstrates a broad candidate compiler vocabulary: arithmetic,
+control flow and loops, a DAG of machines with parameters and returns, structs
+with mutable `self` fields, scalar and byte arrays with trapping indexing, and
+byte stdin/stdout I/O.
 
 - **Slice 9 — `&mut self` method calls on data: DONE.** `self.method(args)` calls
   another method of the same machine, passing the current self-pointer in rcx and
@@ -148,10 +150,12 @@ and byte arrays with trapping indexing, and byte stdin/stdout I/O.
   share one self instance. Verified: counter methods (12), array push/read (44),
   method-of-method (7); `methods.alp` runs a self-resident stack → 75.
 
-The on-ramp is now feature-complete for writing a compiler: a `Main` holds the
-arenas/buffers as self fields, and lexer/parser/emitter helper machines mutate
-them through `self.*` method calls. **`lowermachine.alp` self-compiles** (the
-byte-identical fixed point), so the Rust on-ramp is discardable from steady state.
+The on-ramp now demonstrates enough candidate machinery to write a substantial
+compiler: a `Main` holds arenas/buffers as self fields, and
+lexer/parser/emitter helper machines mutate them through `self.*` method calls.
+**`lowermachine.alp` self-compiles** (the byte-identical fixed point), so the
+Rust on-ramp is discardable from steady state. This does not show that every
+demonstrated feature belongs in the final bridge or Delta v1.
 
 `samples/bootstrap-storage.alp` fixes the current D0 bridge storage convention over
 that surface: runtime-sized, aligned reservations return integer offsets into an
@@ -166,10 +170,11 @@ truncation. The frozen D0 contract is recorded in
 the lower-rung `omega2gamma.beta` → `interp.beta` route without using the Rust
 Gamma emitter.
 
-## Language additions (beyond slice 9)
+## Experimental additions beyond slice 9
 
-Each is on both backends and keeps the self-compile fixed point byte-identical
-(additive — existing programs lower unchanged).
+Each is accepted by both reference backends and keeps the self-compile fixed
+point byte-identical (additive—existing programs lower unchanged). They are
+discovery experiments, not ratified Delta-v1 language additions.
 
 - **Operators.** `%` (remainder, traps on `/0` like `/`); bitwise `& | ^`; shifts
   `<< >>` (arithmetic right, shift amount mod-32 on both backends); unary minus
@@ -194,14 +199,17 @@ Each is on both backends and keeps the self-compile fixed point byte-identical
 
 ## Next
 
-- **Mixed field+case data** (`data X { common: i32; case A; case B(..); }`) — common
-  fields shared across all variants alongside the case part. The last `case` slice.
+- Add mixed field-plus-case data only if the real bridge demonstrates that
+  separate records and sums impose greater total cost. Producer completeness is
+  not independently a goal.
 - **Subset enforcement** the front end should add as it firms up: arena-capacity
   bounds; `>4`-arg free calls already error. The Gamma meaning route remains the
   semantic authority.
 - Retire the remaining inherited `alpha-rs` framing as the Delta surface firms up.
-- Finish Delta's robust literal compiler-host specification, then make it
-  sufficient to implement `omega-bootstrap` with exact `Ωself` acceptance.
+- Grow the real bridge while maintaining a provisional Delta feature ledger;
+  after the complete source closure exists, remove unused experiments and
+  freeze Delta's smallest robust literal compiler-host specification. It must
+  implement `omega-bootstrap` with exact `Ωself` acceptance.
   The bridge may conservatively lower the production compiler, but it must
   correctly compile the `Ωself` source that implements the full optimizer and
   advanced lowering. Those product passes need not be implemented twice.
