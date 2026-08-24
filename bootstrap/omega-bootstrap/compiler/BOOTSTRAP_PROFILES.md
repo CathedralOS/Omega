@@ -66,7 +66,7 @@ the eventual Delta spelling or require a general boundary-trait facility. The
 provisional bridge host authority is narrower: byte input, artifact output,
 diagnostic output, and process termination, supplied through a sealed interface
 unless bridge evidence requires more. Even that interface is retained in Delta
-v1 only in the smallest shape the complete bridge source demonstrates.
+v1 only in the narrowest robust shape the complete bridge source demonstrates.
 
 The calling-profile limits are at most four value parameters for a free machine
 and at most three value parameters for a self method. A D0 compiler slice must
@@ -133,8 +133,10 @@ feature defaults for the compiler's own implementation source are:
   generics unless evidence shows that their Delta implementation and assurance
   cost exceeds their source-level benefit;
 - measure concrete domains, domain polymorphism, advanced generic facilities,
-  numeric/schema field tags such as `0:`, and complex transition payloads
-  against the actual compiler source before admitting them.
+  numeric/schema field tags such as `0:`, complex transition payloads, and
+  mixed field-plus-case data against the actual compiler source before
+  admitting them. Simple discriminants plus explicit context and separate
+  record/sum shapes are comparison points, not preselected restrictions.
 
 The hosted source closure separately omits terminal-Psi interpreters, REPLs,
 proof explorers, viewers, debuggers, and other product tools unless the compiler

@@ -223,7 +223,7 @@ bootstrap rung adds **one coherent idea** and is implemented in the rung below.
 | [alpha](rungs/alpha.md) | raw computation: bytes, fixed-width arithmetic, bounded memory, load/store, branch, byte I/O, trap | native (hand-written per ISA); Alpha assembler written in Alpha | the VM's own small-step semantics ([`SEMANTICS.md`](../../../bootstrap/rungs/alpha/SEMANTICS.md)) | **EXISTS** — 21-opcode tape VM, audited x64/arm64 realizations, written semantics, conformance suite, and self-hosting Alpha assembler |
 | [beta](rungs/beta.md) | names + structure: a small structured systems language (procedures, locals, control flow, memory) | alpha | the Beta-language compiler, **written in Beta** (`bc.beta`), lowers to Alpha assembly | **EXISTS + SELF-HOSTS** — the Alpha-rooted fixed-point artifact exists and is used downstream; complete lower-rooted source-to-artifact validation remains open |
 | [gamma](rungs/gamma.md) | safe definitional computation: algebraic data, pattern matching, pure functions, fuel-bounded evaluation, a simple type system | beta | a Gamma reference interpreter written in Beta ([`interp.beta`](../../../bootstrap/rungs/gamma/interp.beta)) | **EXISTS** — fuel-bounded functional core, ADTs, pattern matching, and a static type checker; also hosts an independent proof-kernel implementation ([`checker.gamma`](../../../bootstrap/assurance/proof-kernel/implementations/gamma/checker.gamma)) |
-| [delta](rungs/delta.md) | the smallest deterministic compiler-host surface justified by the complete `omega-bootstrap` source closure | gamma | Delta-to-Gamma elaboration plus the Gamma reference interpreter | **WORKING RUNG** — native corpus, self-hosting compiler, and meaning diamond exist; the v1 feature inventory and full Rust-free toolchain hosting remain open |
+| [delta](rungs/delta.md) | a robust deterministic compiler-host surface justified by the complete `omega-bootstrap` source closure | gamma | Delta-to-Gamma elaboration plus the Gamma reference interpreter | **WORKING RUNG** — native corpus, self-hosting compiler, and meaning diamond exist; the v1 feature inventory and full Rust-free toolchain hosting remain open |
 
 The [proof kernel](proof_kernel.md) and the [Psi/Omega toolchain](omega_toolchain.md)
 are connected nodes in the architecture, not additional rungs in this table.
@@ -369,9 +369,11 @@ architecture questions:
 - **Certificate coverage** — continue extending the shared, versioned
   proposition and derivation shape without changing the kernel/artifact-verifier
   responsibility split.
-- **Delta sufficiency** — complete the bridge, prune Delta to the smallest
-  coherent compiler-host language justified by its complete source closure,
-  then freeze and prove that closure against the resulting v1 contract.
+- **Delta sufficiency** — complete the bridge, prune Delta to the lowest-total-
+  cost robust compiler-host language justified by its complete source closure,
+  then freeze and prove that closure against the resulting v1 contract. Fewer
+  features are not a win when their absence makes the bridge brittle or much
+  larger.
 - **Omega self-hosting profile** — derive and enforce `Ωself` from the exact
   production compiler dependency manifest, with explicit exclusions and
   negative gates.

@@ -14,17 +14,24 @@ omega-bootstrap  ─────────────────▶  product
  accepts Ωself only                    implements full Ω
 ```
 
-Delta v1 and `Ωself` are the only source-surface contracts left to freeze once
-the full Omega specification is fixed. They are deliberately asymmetric: Delta
-is a literal independent language specification derived from the bridge's
-implementation needs; `Ωself` is the incidental ordinary-Omega profile selected
-by the production compiler's own source. Keep four questions separate:
+Delta v1 and `Ωself` are the only remaining source-surface contracts in this
+bootstrap design. They are deliberately asymmetric. Do not turn the compiler
+artifacts between them into extra languages:
 
-| Artifact | Written in | Accepts | Obligation |
+| Source contract | What it is | Selected from | What does **not** define it |
 | --- | --- | --- | --- |
-| `omega-bootstrap` | Delta | the `Ωself` subset of ordinary Omega | compile every admitted program with exact Omega meaning; unsupported Omega rejects |
-| production `omega` | Omega source constrained to `Ωself` | full Omega | implement the complete language, optimizer, and lowering pipeline |
-| optional rebuilt `omega` | Omega source constrained to `Ωself` (the same source, now compiled by production `omega`) | full Omega | improve the compiler executable itself and add reproducibility evidence |
+| Delta v1 | an independent literal language specification | the complete Delta source closure of `omega-bootstrap` | D0, samples, or whatever the Rust producer happens to accept |
+| `Ωself` | a compositional profile of ordinary Omega | the complete Omega source closure of the production compiler | Delta's features, a file allowlist, or the current compiler's exact AST permutations |
+
+Full Omega is the already-separate product language specification. It is what
+the production compiler must implement, not a third bootstrap source-profile
+choice. The compiler artifacts have corresponding implementation obligations:
+
+| Compiler artifact | Written in | Accepts | Obligation |
+| --- | --- | --- | --- |
+| `omega-bootstrap` | Delta | `Ωself` | compile every admitted program with exact Omega meaning; unsupported Omega rejects |
+| production `omega` | Omega constrained to `Ωself` | full Omega | implement the complete language, optimizer, and lowering pipeline |
+| optional rebuilt `omega` | the same `Ωself`-constrained Omega source, now compiled by production `omega` | full Omega | improve the compiler executable itself and add reproducibility evidence |
 
 The optional rebuild is not another language rung or bootstrap dependency.
 Likewise, a conservatively generated production-compiler executable may still
@@ -138,6 +145,16 @@ complete `omega-bootstrap` closure; `Ωself` is derived from the cost and
 robustness of the production compiler source. Neither contract should be made
 artificially resemble the other, and neither source manifest is allowed to
 stand in for a language/profile definition.
+
+That gives the design loop exactly two feature inventories:
+
+1. What literal facilities must Delta provide so the bridge can be implemented
+   robustly?
+2. Which ordinary Omega facilities may the production compiler use in its own
+   source while the bridge remains tractable?
+
+Everything else in the hosted build is implementation, validation, or optional
+optimization work under those two inventories.
 
 Presumptively excluded language features from the production compiler's own
 implementation source:

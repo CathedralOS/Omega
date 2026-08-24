@@ -34,7 +34,7 @@ or admitted to, the other.
 | machines, states, transitions, loops, and calls | `lowermachine` self-host and O0/O1 bridge slices | remove recursion or other forms not used by the complete bridge | demonstrated, not frozen |
 | integer arithmetic | D0 and the Rust producer accept several overflow policies and disagree at some edges | use Exact throughout; add only a narrow modular operation if artifact encoding requires it | unresolved |
 | records, fixed arrays, slices, and payload sums | compiler corpus and current bridge slices | use records plus explicit tags where payload-sum machinery does not pay for itself | unresolved |
-| fixed-backing reservation and integer-offset arenas | storage canary and `lowermachine` tables | use statically partitioned fixed arrays or ordinary Delta library code | unresolved |
+| runtime-sized reservation from fixed backing and integer-offset arenas | storage canary and `lowermachine` tables | use statically partitioned fixed arrays or ordinary Delta library code; otherwise retain only deterministic bump/paged reservation, specified exhaustion, and bulk reset actually needed by the bridge | unresolved |
 | host boundary | current source declares `boundary trait Console` with partly hardwired operations | use one sealed interface for source bytes, artifact bytes, diagnostics, and termination | general boundary traits not presumed |
 | source units | the canonical length-delimited bridge bundle preserves labels and exact bytes | keep one bundle-wide namespace; add modules only for a demonstrated bridge requirement | bundle demonstrated; language model unresolved |
 | contracts, refinements, and proof-oriented syntax | experimental producer corpus | runtime/static checks plus externally checked emitted certificates | not presumed |
@@ -52,3 +52,10 @@ Before Delta v1 is named complete:
    files that motivated them.
 5. Prove the complete closure valid and run native, self-hosted, and lower-rung
    differentials plus phase-isolated negative gates.
+
+This ledger and the `Ωself` inventory answer different questions. Delta may
+retain a facility the product compiler source never uses when it materially
+simplifies implementation of the bridge, and the product compiler may use an
+Omega feature Delta does not have when `omega-bootstrap` can implement that
+feature directly. There is no requirement that either inventory be a subset of
+the other.
