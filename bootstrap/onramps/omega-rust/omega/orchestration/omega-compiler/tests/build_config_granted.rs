@@ -10,9 +10,9 @@
 //! (undeclared services; unpinned custom boundary).
 
 use omega_compiler::{
-    BuildFilesystemProvider, BuildObservationClass, CompileOptions, PackageCompilationInputs,
-    PackageSourceBinding, compile, compile_to_checked,
-    compile_to_checked_with_packages_in_build_dir,
+    BuildFilesystemGrantAccess, BuildFilesystemGrantRefusalReason, BuildFilesystemProvider,
+    BuildObservationClass, CompileOptions, PackageCompilationInputs, PackageSourceBinding, compile,
+    compile_to_checked, compile_to_checked_with_packages_in_build_dir,
 };
 use psi_core::PackageKeyIdentity;
 use std::path::PathBuf;
@@ -104,7 +104,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     let checked_observations = checked
         .build_observation_summary()
         .expect("build machine evaluation must publish observation evidence");
-    assert_eq!(checked_observations.schema_version(), 2);
+    assert_eq!(checked_observations.schema_version(), 3);
     assert_eq!(
         checked_observations.ceiling(),
         BuildObservationClass::Volatile
@@ -115,7 +115,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     );
     assert_eq!(
         checked_observations.filesystem_operation_schema_version(),
-        1
+        2
     );
     let attempts: Vec<_> = checked_observations
         .filesystem_operation_attempts()
@@ -137,6 +137,12 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
             (43, BuildFilesystemProvider::RealScoped, 0, 0),
             (8, BuildFilesystemProvider::RealScoped, 0, 0),
         ]
+    );
+    assert!(
+        checked_observations
+            .filesystem_operation_attempts()
+            .iter()
+            .all(|attempt| attempt.grant_refusals().is_empty())
     );
 
     let report = compile(CompileOptions {
@@ -182,6 +188,9 @@ fn declared_filesystem_build_machine_cannot_write_under_source_root() {
     std::fs::create_dir_all(project.join("stage")).expect("create project dirs");
 
     let forbidden = project.join("stage/blocked.bin");
+    let unresolvable = project.join("missing-parent/blocked.bin");
+    let rename_from = project.join("stage/rename-from.bin");
+    let rename_to = project.join("stage/rename-to.bin");
     std::fs::write(
         project.join("build.omg"),
         format!(
@@ -195,6 +204,7 @@ data Build {{ subsystem: Subsystem; freestanding: bool; }}
 data SourceWriter {{
     fs: FilesystemHost;
     fd: i32;
+    rc: i32;
 }}
 
 machine SourceWriter::build(&mut self, b: &mut Build)
@@ -203,11 +213,16 @@ reaches
 {{
     b.roots.bind({root_owner}::ProgramEntry, Main::main);
     self.fd = self.fs.create("{forbidden}", 438);
+    self.fd = self.fs.create("{unresolvable}", 438);
+    self.rc = self.fs.rename("{rename_from}", "{rename_to}");
     b.freestanding = false;
 }}
 "#,
             // Forward slashes so the embedded path lexes on windows too.
             forbidden = forbidden.display().to_string().replace('\\', "/"),
+            unresolvable = unresolvable.display().to_string().replace('\\', "/"),
+            rename_from = rename_from.display().to_string().replace('\\', "/"),
+            rename_to = rename_to.display().to_string().replace('\\', "/"),
             target = profile.target_name(),
             root_owner = profile.root_slot_owner_name(),
         ),
@@ -236,23 +251,93 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
         .expect("denied filesystem attempt remains an observed build-host operation");
     assert_eq!(observations.ceiling(), BuildObservationClass::Volatile);
     assert_eq!(observations.realized(), BuildObservationClass::Volatile);
-    let denied_attempt = observations
-        .filesystem_operation_attempts()
-        .first()
-        .expect("denied create must remain in ordered operation evidence");
-    assert_eq!(observations.filesystem_operation_attempts().len(), 1);
-    assert_eq!(denied_attempt.operation_tag(), 1);
+    let [denied_create, unresolved_create, denied_rename] =
+        observations.filesystem_operation_attempts()
+    else {
+        panic!("create and rename denials must remain in ordered operation evidence")
+    };
+    assert_eq!(denied_create.operation_tag(), 1);
     assert_eq!(
-        denied_attempt.provider(),
+        denied_create.provider(),
         BuildFilesystemProvider::RealScoped
     );
-    assert_eq!(denied_attempt.result(), -1);
-    assert_eq!(denied_attempt.post_error(), 13);
+    assert_eq!(denied_create.result(), -1);
+    assert_eq!(denied_create.post_error(), 13);
+    let create_refusal = denied_create
+        .grant_refusals()
+        .first()
+        .expect("denied create must remain in ordered operation evidence");
+    assert_eq!(denied_create.grant_refusals().len(), 1);
+    assert_eq!(create_refusal.operand_ordinal(), 0);
+    assert_eq!(create_refusal.access(), BuildFilesystemGrantAccess::Write);
+    assert_eq!(
+        create_refusal.reason(),
+        BuildFilesystemGrantRefusalReason::OutsideGrantedRoots
+    );
+
+    assert_eq!(unresolved_create.operation_tag(), 1);
+    assert_eq!(
+        unresolved_create.provider(),
+        BuildFilesystemProvider::RealScoped
+    );
+    assert_eq!(unresolved_create.result(), -1);
+    assert_eq!(unresolved_create.post_error(), 2);
+    let unresolved_refusal = unresolved_create
+        .grant_refusals()
+        .first()
+        .expect("unresolvable create must retain the failed operand");
+    assert_eq!(unresolved_create.grant_refusals().len(), 1);
+    assert_eq!(unresolved_refusal.operand_ordinal(), 0);
+    assert_eq!(
+        unresolved_refusal.access(),
+        BuildFilesystemGrantAccess::Write
+    );
+    assert_eq!(
+        unresolved_refusal.reason(),
+        BuildFilesystemGrantRefusalReason::Unresolvable
+    );
+
+    assert_eq!(denied_rename.operation_tag(), 18);
+    assert_eq!(
+        denied_rename.provider(),
+        BuildFilesystemProvider::RealScoped
+    );
+    assert_eq!(denied_rename.result(), -1);
+    assert_eq!(denied_rename.post_error(), 13);
+    let rename_refusals: Vec<_> = denied_rename
+        .grant_refusals()
+        .iter()
+        .map(|refusal| {
+            (
+                refusal.operand_ordinal(),
+                refusal.access(),
+                refusal.reason(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        rename_refusals,
+        vec![
+            (
+                0,
+                BuildFilesystemGrantAccess::Write,
+                BuildFilesystemGrantRefusalReason::OutsideGrantedRoots,
+            ),
+            (
+                1,
+                BuildFilesystemGrantAccess::Write,
+                BuildFilesystemGrantRefusalReason::OutsideGrantedRoots,
+            ),
+        ]
+    );
 
     assert!(
         !forbidden.exists(),
         "scoped build machine filesystem access must deny source-tree writes before touching disk"
     );
+    assert!(!rename_from.exists());
+    assert!(!rename_to.exists());
+    assert!(!unresolvable.exists());
 
     let _ = std::fs::remove_dir_all(&project);
 }

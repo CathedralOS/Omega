@@ -171,10 +171,11 @@ operation identity shared exhaustively by both providers; aliases remain
 distinct. Future rooted transcripts must handle potentially absolute
 `read_link` output and necessarily absolute `canonicalize` and
 `final_path_name_by_handle` output.
-Observation schema v2 retains exact providers, operation tags, scalar returns,
-and post-error state in successful-run call-start order. Denial-shaped results
-remain visible but are not yet typed as grant-policy refusal versus host error.
-It omits failed evaluator attempts, operands, rooted paths, mutable outputs,
+Observation schema v3 carries operation-attempt schema v2, retaining exact
+providers, operation tags, scalar returns, and post-error state in successful-
+run call-start order. Grant-gate denials retain exact operand ordinals,
+read/write access, and closed unresolvable/outside-root reasons; host errors do
+not fabricate one. It omits failed evaluator attempts, operands, rooted paths, mutable outputs,
 logical handles, and content and is therefore an incomplete trace rather than a
 transcript or receipt.
 Raw read/count capacities are checked once and reject negative/wrapped values

@@ -213,12 +213,13 @@ closed, explicitly tagged operation identity exhaustively handled by both
 filesystem providers. ABI aliases remain distinct. Future rooted transcripts
 must account for conditionally absolute `read_link` results and unconditionally
 absolute `canonicalize` and `final_path_name_by_handle` results. Observation
-schema v2 also retains, in call-start order, each completed operation's exact
-provider, stable tag, scalar return, and post-operation error state for a
-successful build evaluation. A denial-shaped return remains visible but is not
-yet distinguished as grant-policy refusal versus host error. Runtime descriptor
-values are not logical handles, and failed evaluator attempts, operands, rooted
-paths, mutable byte regions, and content are absent. It is an incomplete
+schema v3 carries operation-attempt schema v2, retaining in call-start order
+each completed operation's exact provider, stable tag, scalar return, and
+post-operation error state for a successful build evaluation. Grant-gate
+denials retain each exact operand ordinal, read/write access, and closed
+unresolvable/outside-root reason; ordinary host errors do not fabricate one.
+Runtime descriptor values are not logical handles, and failed evaluator
+attempts, concrete operands, rooted paths, mutable byte regions, and content are absent. It is an incomplete
 operation trace, not a transcript or receipt, and makes no replayability or
 source-rebuildability claim.
 
