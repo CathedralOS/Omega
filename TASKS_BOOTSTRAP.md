@@ -213,6 +213,13 @@ Delta-self-built, and representative Rust-free observations. They grant no
 resolver/lock or digest authority, and they do not close CKIR→ELF composition
 or the lower-rooted `OMGRFN2` reconstruction.
 
+The producer-side two-package composition is now closed through the limited
+ELF backend: native, self-built, cross-stage, and Rust-free Gamma paths agree on
+exact witness, CKIR, ELF, and result 70, with independent ELF reconstruction.
+Lower-rooted `OMGRFN2` layer 1 also closes exact frame and complete OMGCOMP
+structural/source-extent custody. Those milestones do not reconstruct source
+resolution, CKIR, result, or ELF below Delta.
+
 - [ ] Join the structurally checked multi-unit
   [compilation envelope](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION.md)
   to an independently accepted resolver/lock commitment and compare the exact
@@ -220,10 +227,12 @@ or the lower-rooted `OMGRFN2` reconstruction.
   This join blocks final artifact acceptance, not fixture-driven implementation
   and testing of resolution, checking, or lowering against structurally valid
   envelopes.
-- [ ] Compose the exact lowerer-produced CKIR for the first real two-package
-  public-nominal-data fixture with the limited-ELF backend and implement the
-  lower-rooted `OMGRFN2` reconstruction. Compare exact CKIR, ELF, and result
-  through native, self-built, Rust-free meaning, and lower-rooted evidence. The selected
+- [ ] Complete the remaining independently authored lower-rooted `OMGRFN2`
+  layers: source→witness, witness→CKIR tables, resolved bodies→CKIR/result, and
+  CKIR→ELF at the v2 offsets. Join them to the closed frame/OMGCOMP-custody
+  layer and producer-side two-package composition; compare exact CKIR, ELF, and
+  result through native, self-built, Rust-free meaning, and lower-rooted
+  evidence. The selected
   [`OMGCOMP → OMGRSW1 → CKIR`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION.md)
   boundary and its lower-rooted
   [resolution witness](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS.md)

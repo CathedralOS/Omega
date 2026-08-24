@@ -323,6 +323,13 @@ The split is required by Beta's 128-procedure ceiling: current one-unit table
 and lowering compositions already use 123 and 115 procedures respectively.
 Adding OMGCOMP resolution to either monolith is not credible modularization.
 
+Implementation status: layer 1 is executable in
+[`omgrfn2-frame-omgcomp-custody.beta`](omgrfn2-frame-omgcomp-custody.beta) with
+its focused gate. It closes framing and complete OMGCOMP structural/source-
+extent custody only. Layers 2–5 remain open and must be independently authored;
+mechanically translating the Delta resolver into Beta would preserve the same
+common-mode mistakes and does not satisfy source-to-witness reconstruction.
+
 ## Authority separation
 
 The semantic conjunction is:
