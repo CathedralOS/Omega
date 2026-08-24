@@ -424,7 +424,8 @@ outside that manifest unless the compiler executable imports them.
     storage bounds are checked;
   - the proof carries exact quiet/cursor and trace summaries through
     `main.ready`, loop entry, `parse_proc`'s prefix, and the current
-    `gen_stmts`/expression cutpoints;
+    `gen_stmts`/expression cutpoints, and now composes the conditional
+    `parse_proc.genbody` tail over every exact entry block depth;
   - fixed emitters, bounded decimal emission, parse-number, parse-character,
     operator classifiers, `cmp_op`, the nine fixed keyword recognizers, and
     conditional `name_eq`/`lookup` have exact shape/meaning/negative modules;
@@ -478,12 +479,23 @@ outside that manifest unless the compiler executable imports them.
       post-resource suffix and name-table provenance branch; and
     - [x] close the block-depth-stratified guarded greatest fixed point, using a
       completed child/backedge machine step—not cursor or stdout progress—as
-      the coinductive guard. The independent 80,086-byte conditional semantic
+      the coinductive guard. The independent 80,138-byte conditional semantic
       checker is conjoined with its six prerequisite owners over the identical
-      canonical bundle and has twenty-one phase-isolated teeth;
-  - [ ] compose the `parse_proc`/PFXS body cutpoint through the unconditional
+      canonical bundle and has twenty-two phase-isolated teeth;
+  - [x] compose the `parse_proc`/PFXS body cutpoint through the unconditional
     epilogue and return, including finite child returns after numeric resource
-    status 252;
+    status 252:
+    - [x] discharge the statement theorem's fifteen antecedents across six
+      owners at the same-bundle gate boundary rather than importing SPUB as its
+      conclusion;
+    - [x] quantify over entry `BLOCKDEPTH D=0..64`, with 64 Ret/status0,
+      65 Ret/numeric252, and 64 Div rows; `D=64` admits only its immediate
+      depth-exhaustion Ret/numeric252 base; and
+    - [x] preserve exact `P || child || 49-byte-epilogue` finite order and
+      `P || maximal-child` divergence, including status/provenance, restored or
+      live frames/depth, and no cursor/output productivity premise. The
+      independent 63,560-byte checker has an assembler diamond, four modules
+      below 20 KB, and twenty-five phase-isolated teeth;
   - [ ] classify each checked resource outcome from its exact proved guard,
     resource profile, and requested amount. Status 252/253 is only a process
     projection and must not be used to recover `ResourceKind`; this is an

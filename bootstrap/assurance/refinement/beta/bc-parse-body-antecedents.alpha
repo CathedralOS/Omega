@@ -1,0 +1,116 @@
+; External proposition schemas for the conditional parse_proc body theorem.
+;
+; PFXS is established by Checker A. SANT and SPUB describe the statement
+; checker's exact implication A=>SREL, where A has fifteen antecedents across
+; six owners. SREL is the explicit schema for SPUB's complete
+; p26/p46/p62..p67 consequent, not an alias for its SGFP component. Recording
+; these identities introduces hypotheses for this implication process; it
+; copies no external theorem cell.
+; The shell runs every owner over the identical immutable control.bundle and
+; performs the explicit modus-ponens conjunction before accepting PBOD.
+
+parse_body_antecedent_init:
+        imm r20, 560416
+        imm r21, 1481785936             ; PBRX
+        call exact_require_cell
+
+        imm r1, 561000
+        imm r2, 528664                  ; external PFXS cell
+        store r1, r2
+        imm r1, 561008
+        imm r2, 1398294096             ; PFXS tag
+        store r1, r2
+        imm r1, 561016
+        imm r2, 1                      ; owner Checker A
+        store r1, r2
+
+        imm r1, 561024
+        imm r2, 546156                  ; external SANT schema cell
+        store r1, r2
+        imm r1, 561032
+        imm r2, 1414414675             ; SANT tag
+        store r1, r2
+        imm r1, 561040
+        imm r2, 15                     ; exact A antecedent count
+        store r1, r2
+
+        imm r1, 561048
+        imm r2, 546220                  ; external SPUB implication cell
+        store r1, r2
+        imm r1, 561056
+        imm r2, 1112887379             ; SPUB tag: A=>SREL
+        store r1, r2
+
+        imm r1, 561064
+        imm r2, 546228                  ; external SREL schema cell
+        store r1, r2
+        imm r1, 561072
+        imm r2, 1279611475             ; full SREL consequent tag
+        store r1, r2
+        imm r1, 561080
+        imm r2, 8                      ; p26,p46,p62..p67 family cardinality
+        store r1, r2
+
+        call parse_body_require_antecedent_schema
+        call parse_body_introduce_statement_hypothesis
+        imm r1, 560424
+        imm r2, 1414414672             ; PANT
+        store r1, r2
+        jmp parse_body_shape_init
+
+parse_body_require_antecedent_schema:
+        imm r20, 561000
+        imm r21, 528664
+        call exact_require_cell
+        imm r20, 561008
+        imm r21, 1398294096
+        call exact_require_cell
+        imm r20, 561016
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 561024
+        imm r21, 546156
+        call exact_require_cell
+        imm r20, 561032
+        imm r21, 1414414675
+        call exact_require_cell
+        imm r20, 561040
+        imm r21, 15
+        call exact_require_cell
+        imm r20, 561048
+        imm r21, 546220
+        call exact_require_cell
+        imm r20, 561056
+        imm r21, 1112887379
+        call exact_require_cell
+        imm r20, 561064
+        imm r21, 546228
+        call exact_require_cell
+        imm r20, 561072
+        imm r21, 1279611475
+        call exact_require_cell
+        imm r20, 561080
+        imm r21, 8
+        call exact_require_cell
+        ret
+
+; Introduce SREL only as the hypothesis of (PFXS and SREL)=>PBOD. This marker
+; is not an imported conclusion. Gate acceptance separately establishes A and
+; A=>SREL, then applies modus ponens over the same canonical bundle.
+parse_body_introduce_statement_hypothesis:
+        imm r20, 561040
+        imm r21, 15
+        call exact_require_cell
+        imm r20, 561056
+        imm r21, 1112887379
+        call exact_require_cell
+        imm r20, 561072
+        imm r21, 1279611475
+        call exact_require_cell
+        imm r20, 561080
+        imm r21, 8
+        call exact_require_cell
+        imm r1, 560448
+        imm r2, 1397310547             ; SDIS, hypothetical SREL introduction
+        store r1, r2
+        ret

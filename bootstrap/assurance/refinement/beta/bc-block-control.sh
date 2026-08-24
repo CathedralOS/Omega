@@ -42,6 +42,7 @@ trap 'rm -rf "$T"' EXIT
 . "$GATE_DIR/bc-expression-family-teeth.sh"
 . "$GATE_DIR/bc-statement-family-teeth.sh"
 . "$GATE_DIR/bc-statement-family-semantic-teeth.sh"
+. "$GATE_DIR/bc-parse-body-teeth.sh"
 
 bc_timing_start() { # phase
   BC_TIMING_PHASE=$1
@@ -706,6 +707,7 @@ smoke_lookup_checker() {
     echo "bc block control FAIL — lookup canonical smoke: expected 0/empty, got $lookup_smoke_status/$(wc -c < "$T/stdout" | tr -d ' ') bytes" >&2
     exit 1
   fi
+  BC_OWNER_LOOKUP=1
 }
 
 smoke_bounded_emitters_checker() {
@@ -717,6 +719,7 @@ smoke_bounded_emitters_checker() {
     echo "bc block control FAIL — bounded emitters canonical smoke: expected 0/empty, got $bounded_emitters_smoke_status/$(wc -c < "$T/stdout" | tr -d ' ') bytes" >&2
     exit 1
   fi
+  BC_OWNER_BOUNDED_EMITTERS=1
 }
 
 smoke_emit_dec_word_checker() {
@@ -739,6 +742,7 @@ smoke_label_emitters_checker() {
     echo "bc block control FAIL — label emitters canonical smoke: expected 0/empty, got $label_emitters_smoke_status/$(wc -c < "$T/stdout" | tr -d ' ') bytes" >&2
     exit 1
   fi
+  BC_OWNER_LABEL_EMITTERS=1
 }
 
 smoke_expression_family_checkers() {
@@ -754,6 +758,7 @@ smoke_expression_family_checkers() {
       exit 1
     fi
   done
+  BC_OWNER_EXPRESSION_FAMILY=1
 }
 
 smoke_statement_family_shape_checker() {
@@ -765,6 +770,7 @@ smoke_statement_family_shape_checker() {
     echo "bc block control FAIL — statement shape canonical smoke: expected 0/empty, got $statement_shape_status/$(wc -c < "$T/stdout" | tr -d ' ') bytes" >&2
     exit 1
   fi
+  BC_OWNER_STATEMENT_SHAPE=1
 }
 
 smoke_statement_family_semantic_checker() {
@@ -774,6 +780,80 @@ smoke_statement_family_semantic_checker() {
   set -e
   if [ "$statement_semantic_status" != 0 ] || [ -s "$T/stdout" ]; then
     echo "bc block control FAIL — statement semantic canonical smoke: expected 0/empty, got $statement_semantic_status/$(wc -c < "$T/stdout" | tr -d ' ') bytes" >&2
+    exit 1
+  fi
+  BC_OWNER_STATEMENT_IMPLICATION=1
+}
+
+parse_body_require_module_budgets() {
+  for parse_body_module in \
+    bc-parse-body-root.alpha \
+    bc-parse-body-antecedents.alpha \
+    bc-parse-body-shape.alpha \
+    bc-parse-body-rules.alpha
+  do
+    parse_body_module_bytes=$(wc -c < "$GATE_DIR/$parse_body_module" | tr -d ' ')
+    if [ "$parse_body_module_bytes" -ge 20000 ]; then
+      echo "bc block control FAIL — $parse_body_module is ${parse_body_module_bytes} bytes (20KB module cap)" >&2
+      exit 1
+    fi
+  done
+}
+
+build_parse_body_checker() {
+  parse_body_require_module_budgets
+  {
+    emit_expression_table_prefix
+    cat "$GATE_DIR/bc-parse-body-root.alpha" \
+      "$GATE_DIR/bc-expression-selected-row-helpers.alpha" \
+      "$GATE_DIR/bc-exact-shape-helpers.alpha" \
+      "$GATE_DIR/bc-parse-body-antecedents.alpha" \
+      "$GATE_DIR/bc-parse-body-shape.alpha" \
+      "$GATE_DIR/bc-parse-body-rules.alpha"
+  } > "$T/parse-body.alpha"
+  python3 "$OMEGA_PATH_ALPHA_ASSEMBLER/asm_ref.py" \
+    < "$T/parse-body.alpha" > "$T/parse-body-ref.tape"
+  "$ASM" < "$T/parse-body.alpha" > "$T/parse-body.tape"
+  cmp -s "$T/parse-body.tape" "$T/parse-body-ref.tape" || {
+    echo "bc block control FAIL — parse body assembler diamond disagrees" >&2
+    exit 1
+  }
+  parse_body_tape_bytes=$(wc -c < "$T/parse-body.tape" | tr -d ' ')
+  if [ "$parse_body_tape_bytes" -gt 100000 ]; then
+    echo "bc block control FAIL — parse body tape is ${parse_body_tape_bytes} bytes (100000-byte engineering budget)" >&2
+    exit 1
+  fi
+  stamp_seed "$T/parse-body.tape" "$SEED" "$T/parse-body" >/dev/null
+}
+
+smoke_parse_body_checker() {
+  set +e
+  "$T/parse-body" < "$T/control.bundle" > "$T/stdout"
+  parse_body_status=$?
+  set -e
+  if [ "$parse_body_status" != 0 ] || [ -s "$T/stdout" ]; then
+    echo "bc block control FAIL — parse body canonical smoke: expected 0/empty, got $parse_body_status/$(wc -c < "$T/stdout" | tr -d ' ') bytes" >&2
+    exit 1
+  fi
+}
+
+# Meta-level modus ponens over one immutable bundle. The parse executable proves
+# (PFXS and SREL)=>PBOD; it does not import SPUB as though SPUB were SREL.
+# These flags are set only after the canonical owner processes have accepted.
+parse_body_discharge_statement_relation() {
+  parse_body_require_owner label "${BC_OWNER_LABEL_EMITTERS:-0}"
+  parse_body_require_owner expression "${BC_OWNER_EXPRESSION_FAMILY:-0}"
+  parse_body_require_owner statement-shape "${BC_OWNER_STATEMENT_SHAPE:-0}"
+  parse_body_require_owner checker-a "${BC_OWNER_CHECKER_A:-0}"
+  parse_body_require_owner lookup "${BC_OWNER_LOOKUP:-0}"
+  parse_body_require_owner bounded-emitters "${BC_OWNER_BOUNDED_EMITTERS:-0}"
+  parse_body_require_owner statement-implication \
+    "${BC_OWNER_STATEMENT_IMPLICATION:-0}"
+}
+
+parse_body_require_owner() { # name accepted
+  if [ "$2" != 1 ]; then
+    echo "bc block control FAIL — parse body missing discharged owner $1" >&2
     exit 1
   fi
 }
@@ -862,7 +942,8 @@ fi
 
 # Statement focus runs only the canonical external owners here. The unfocused
 # gate retains their full historical teeth before constructing Checker A.
-if [ "${BC_BLOCK_FOCUS:-}" = statement-family ]; then
+if [ "${BC_BLOCK_FOCUS:-}" = statement-family ] || \
+   [ "${BC_BLOCK_FOCUS:-}" = parse-proc-body ]; then
   bc_timing_start statement-family-prerequisites
   build_label_emitters_checker
   smoke_label_emitters_checker
@@ -988,11 +1069,29 @@ if [ "$control_smoke_status" != 0 ] || [ -s "$T/stdout" ]; then
   echo "bc block control FAIL — canonical proof smoke: expected 0/empty, got $control_smoke_status/$(wc -c < "$T/stdout" | tr -d ' ') bytes" >&2
   exit 1
 fi
+BC_OWNER_CHECKER_A=1
 bc_timing_finish
 
 # Focused development mode avoids the historical mutation matrix while still
 # using the exact canonical source/artifact bundle and every prerequisite proof.
 case "${BC_BLOCK_FOCUS:-}" in
+  parse-proc-body)
+    bc_timing_start parse-proc-body-conditional-semantics
+    build_lookup_checker
+    smoke_lookup_checker
+    build_bounded_emitters_checker
+    smoke_bounded_emitters_checker
+    build_statement_family_semantic_checker
+    smoke_statement_family_semantic_checker
+    parse_body_discharge_statement_relation
+    build_parse_body_checker
+    smoke_parse_body_checker
+    parse_body_build_teeth
+    parse_body_reject_teeth
+    bc_timing_finish
+    echo "bc parse_proc genbody: same-bundle statement implication discharged; D=0..64 maximal Ret-or-Div composition through unconditional epilogue/return + 25 teeth passed ($(wc -c < "$T/parse-body.tape" | tr -d ' ')-byte tape)"
+    exit 0
+    ;;
   statement-family)
     bc_timing_start statement-family-conditional-semantics
     build_lookup_checker
@@ -1006,7 +1105,7 @@ case "${BC_BLOCK_FOCUS:-}" in
     statement_family_semantic_build_teeth
     statement_family_semantic_reject_teeth
     bc_timing_finish
-    echo "bc statement family: focused prerequisite conjunction + 12 shape and 21 semantic teeth passed ($(wc -c < "$T/statement-family-shape.tape" | tr -d ' ')-byte shape, $(wc -c < "$T/statement-family-semantic.tape" | tr -d ' ')-byte semantic tapes)"
+    echo "bc statement family: focused prerequisite conjunction + 12 shape and 22 semantic teeth passed ($(wc -c < "$T/statement-family-shape.tape" | tr -d ' ')-byte shape, $(wc -c < "$T/statement-family-semantic.tape" | tr -d ' ')-byte semantic tapes)"
     exit 0
     ;;
   operator-classifier)
@@ -1059,6 +1158,14 @@ build_statement_family_semantic_checker
 smoke_statement_family_semantic_checker
 statement_family_semantic_build_teeth
 statement_family_semantic_reject_teeth
+bc_timing_finish
+
+bc_timing_start parse-proc-body-tranche
+parse_body_discharge_statement_relation
+build_parse_body_checker
+smoke_parse_body_checker
+parse_body_build_teeth
+parse_body_reject_teeth
 bc_timing_finish
 
 bc_timing_start independent-historical-teeth

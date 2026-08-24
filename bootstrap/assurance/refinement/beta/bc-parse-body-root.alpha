@@ -1,0 +1,16 @@
+; Root of the independent parse_proc.genbody implication checker.
+;
+; This process never imports another executable's process-local theorem cell.
+; It proves the local implication (PFXS and SREL) => PBOD over the canonical
+; bundle. The shell accepts PBOD only after the same-bundle meta-proof
+;
+;   A and (A => SREL) and PFXS and ((PFXS and SREL) => PBOD)
+;
+; where A is SPUB's exact fifteen antecedents across six owners. PBRX names that
+; identical-bundle implication root; it does not assert SREL unconditionally.
+
+stack_register_custody_init:
+        imm r1, 560416
+        imm r2, 1481785936             ; PBRX
+        store r1, r2
+        jmp parse_body_antecedent_init
