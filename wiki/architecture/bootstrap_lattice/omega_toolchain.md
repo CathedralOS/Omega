@@ -60,7 +60,9 @@ tradeoff.
 
 The bridge binary may run slowly and lower the production compiler
 conservatively. It must compile the `Ωself` source that implements the product
-optimizer and advanced lowering, but need not duplicate those passes. A further
+optimizer and advanced lowering, but need not duplicate or execute those passes
+during the hosted build. The resulting production compiler does execute them
+when compiling later inputs. A further
 production `omega` → `omega` self-rebuild can optimize the compiler binary; it
 is optional evidence, not a required dependency. The required bridge → product
 edge is a cross-language hosted build, not that self-rebuild.

@@ -62,7 +62,10 @@ apps/
 Product-root names describe responsibility rather than host language. On-ramp
 names deliberately expose their external implementation language and temporary
 status. The current Rust compiler therefore does not occupy the unsuffixed
-product roots.
+product roots. Conversely, `compiler/psi/` and `compiler/omega/` need no
+`-omega` suffix: they are the permanent product-role roots, and their source is
+governed by the ordinary-Omega `Ωself` profile. An implementation-language
+suffix marks an on-ramp, not every source directory.
 
 ## Ownership rules
 
@@ -93,6 +96,8 @@ product roots.
 - `compiler/psi/` and `compiler/omega/` own Omega-written product source.
   `compiler/psi/` contains the first source-to-token checkpoint;
   `compiler/omega/` remains an open product owner, not a Rust migration root.
+  These names survive the hosted transition because they identify product
+  responsibilities rather than the compiler that happened to build them.
 - `compiler/source-checkpoints/` owns exact deterministic product-source
   closures and distinct provisional `Ωself` censuses.
 - `apps/omega-compiler/` owns the hosted product compiler entrypoint.

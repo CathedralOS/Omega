@@ -32,6 +32,14 @@ language specification, while `Ωself` is a restriction on source written in an
 already-specified language. Do not turn the compiler artifacts between them
 into extra languages.
 
+Two source-surface selections therefore discharge three different artifact
+obligations. The lattice-built Delta compiler must compile the exact Delta
+bridge closure. `omega-bootstrap` must compile every program admitted by
+`Ωself`, exactly but not necessarily efficiently. The resulting production
+`omega` must implement full Omega, including the optimizer and advanced
+lowering. The last obligation is tested against the full language and compiler
+suites; it is never inferred from the smaller `Ωself` census.
+
 `Ωself` is retained as the short symbol for the product compiler's ordinary-
 Omega source profile. The required use of that profile is a cross-language
 hosted build by `omega-bootstrap`; the name does not imply that this edge is an
@@ -100,6 +108,11 @@ the meaning of the artifacts it produces. It does not require the bootstrap
 source closure to contain every adjacent product tool. A standalone Terminal
 Psi interpreter, REPL, proof explorer, viewer, or debugger belongs in the
 closure only if the production compiler executable actually imports it.
+
+Likewise, excluding a feature from `Ωself` is an authoring restriction, not a
+request to delete its implementation from the production compiler. The
+compiler source may implement that feature with ordinary records, sums,
+tables, procedures, and explicit invariants that remain inside `Ωself`.
 
 The bootstrap closure condition is therefore:
 
@@ -235,6 +248,11 @@ optimization work under those two inventories.
 | Must an Omega→Omega rebuild occur? | settled: no; it is optional optimization and reproducibility work |
 | Which facilities belong to Delta v1? | open until the complete bridge closure and compiler-host arguments close |
 | Which ordinary Omega facilities belong to `Ωself`? | open until the complete product closure and measured bridge join close |
+
+Named fields, payload sums, generics, domains, schema tags, and transition
+shapes remain entries in the measured disposition table below, not decisions
+made by the lattice topology. The topology settles how they are decided; the
+complete source and bridge evidence settle their disposition.
 
 This is also the answer to the apparent “Omega bootstrap language” question:
 there is no third literal specification to design. Delta is the literal
