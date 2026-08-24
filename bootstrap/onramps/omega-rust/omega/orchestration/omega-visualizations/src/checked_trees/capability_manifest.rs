@@ -875,6 +875,7 @@ mod tests {
                     machine: "SchedulerProvider::wait".into(),
                 },
             }],
+            origin_package_identity: None,
             origin_package: "test".into(),
         };
         let selected = omega_effects::SelectedProviderPlanFacts::from_selection(
@@ -1025,6 +1026,7 @@ mod tests {
                     machine: "LegacyPic::complete".into(),
                 },
             }],
+            origin_package_identity: None,
             origin_package: "test".into(),
         };
         let provider_identity = provider.identity_fingerprint();

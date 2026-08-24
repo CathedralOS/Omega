@@ -148,6 +148,7 @@ fn runnable_fixture(seed: u64) -> RunnableFixture {
                 },
             },
         ],
+        origin_package_identity: None,
         origin_package: "omega::test".into(),
     };
     let provider_plan = provider.identity_fingerprint();

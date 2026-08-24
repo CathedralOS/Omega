@@ -76,9 +76,17 @@ derives the opaque stable identity carrier used by package-aware compiler
 inputs. The compiler's separate native and checked package entrypoints consume
 a closed requester-local alias graph and canonical source roots without
 consulting downloaded dependency rows; legacy standalone compilation still
-retains its transitional scanner. These pieces do not become an admission path
-until the legacy name-keyed lock APIs are replaced and compiler-issued evidence
-plus the hardened resolver receipt are wired through end to end.
+retains its transitional scanner. Checked package compilation now also retains
+the exact root package and selected build-machine symbol and can emit an
+in-memory authority review projection for one explicit target. That projection
+is intentionally not source/toolchain-bound admission evidence: toolchain and
+generated-symbol ownership gaps remain explicit. It includes selected provider
+mechanisms, and provider plans/trust rows retain exact realizing-package
+identity, but provider schema/requirement/binding nominals and the remaining
+trust/proof/reproducibility joins are incomplete. These pieces do not become an
+admission path until the legacy name-keyed lock APIs are replaced and sealed
+compiler-issued evidence plus the hardened resolver receipt are wired through
+end to end.
 
 ## Target command surface
 

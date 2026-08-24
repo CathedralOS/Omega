@@ -130,7 +130,7 @@ pub(super) fn write_trust_report(
             .count();
         report.rows.push(TrustReportRow {
             commitment: format!(
-                "provider plan: {} [{:016x}] provider type: {} target: {} provider origin package: {} coverage {covered}/{} selected: {}",
+                "provider plan: {} [{:016x}] provider type: {} target: {} provider origin package: {} provider package key: {} coverage {covered}/{} selected: {}",
                 plan.name,
                 plan.identity_fingerprint(),
                 if plan.provider_type.is_empty() {
@@ -148,6 +148,7 @@ pub(super) fn write_trust_report(
                 } else {
                     plan.origin_package.as_str()
                 },
+                package_key_text(plan.origin_package_identity),
                 plan.schema.methods.len(),
                 if selected { "yes" } else { "no" },
             ),
@@ -179,6 +180,7 @@ pub(super) fn write_trust_report(
                     provider_plan_fingerprint: plan.identity_fingerprint(),
                     provider_type: plan.provider_type.clone(),
                     target: plan.target.clone(),
+                    provider_origin_package_identity: plan.origin_package_identity,
                     provider_origin_package: plan.origin_package.clone(),
                     service_schema: plan.schema.trait_name.clone(),
                     calling_plan_fingerprint: method.calling_plan_fingerprint,
@@ -225,6 +227,7 @@ pub(super) fn write_trust_report(
                     provider_plan_fingerprint: plan.identity_fingerprint(),
                     provider_type: plan.provider_type.clone(),
                     target: plan.target.clone(),
+                    provider_origin_package_identity: plan.origin_package_identity,
                     provider_origin_package: plan.origin_package.clone(),
                     service_schema: plan.schema.trait_name.clone(),
                     calling_plan_fingerprint: method.calling_plan_fingerprint,
@@ -251,6 +254,7 @@ pub(super) fn write_trust_report(
                     provider_plan_fingerprint: plan.identity_fingerprint(),
                     provider_type: plan.provider_type.clone(),
                     target: plan.target.clone(),
+                    provider_origin_package_identity: plan.origin_package_identity,
                     provider_origin_package: plan.origin_package.clone(),
                     service_schema: plan.schema.trait_name.clone(),
                     calling_plan_fingerprint: method.calling_plan_fingerprint,
@@ -433,6 +437,17 @@ pub(super) fn write_trust_report(
             .map_err(|diagnostic| vec![diagnostic])?;
     }
     Ok(())
+}
+
+fn package_key_text(identity: Option<psi_core::PackageKeyIdentity>) -> String {
+    let Some(identity) = identity else {
+        return "<unbound>".to_owned();
+    };
+    identity
+        .digest()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
 }
 
 fn accepted_instance_contract_fingerprint(

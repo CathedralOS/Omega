@@ -14,6 +14,7 @@ pub mod frontend;
 mod operator_adapter_dispatch;
 mod output;
 mod package_compilation;
+mod package_review;
 mod program_entry_physical;
 mod program_entry_source_signature;
 mod program_local_storage_custody;
@@ -67,6 +68,11 @@ pub use compiler::{
 pub use package_compilation::{
     PackageCompilationInputError, PackageCompilationInputs, PackageDependencyBinding,
     PackageSourceBinding,
+};
+pub use package_review::{
+    CheckedPackageCallableReview, CheckedPackageProviderReview, CheckedPackageReviewProjection,
+    PackageReviewCallableRole, PackageReviewCapabilityFlow, PackageReviewNominalIdentity,
+    PackageReviewNominalOwner, project_checked_package_review,
 };
 pub use program_entry_physical::ProgramEntryPhysicalContractPlan;
 pub use program_entry_source_signature::{

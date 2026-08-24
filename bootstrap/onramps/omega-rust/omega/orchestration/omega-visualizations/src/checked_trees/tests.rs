@@ -567,6 +567,7 @@ fn selected_storage_plan() -> ProviderPlan {
                 machine: "StorageProvider::transfer".to_owned(),
             },
         }],
+        origin_package_identity: None,
         origin_package: "omega::providers::storage".to_owned(),
     }
 }

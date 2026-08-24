@@ -136,7 +136,7 @@ impl ArtifactWriter {
         ));
         for row in &trust_report.provider_requirements {
             output.push_str(&format!(
-                "- provider plan: {} [{:016x}] -- provider type: {} -- target: {} -- provider origin package: {} -- service schema: {} -- calling plan: {} -- selected: {} -- requirement owner: {} -- requirement identity: {} -- method: {} -- parameter types: {} -- result type: {} -- service reach: {} -- synchronous invocations: {} -- may suspend: {} -- may block: {} -- termination guarantee: {} -- progress premises: {} -- realization: {} -- {} -- grant selectors: {}",
+                "- provider plan: {} [{:016x}] -- provider type: {} -- target: {} -- provider origin package: {} -- provider package key: {} -- service schema: {} -- calling plan: {} -- selected: {} -- requirement owner: {} -- requirement identity: {} -- method: {} -- parameter types: {} -- result type: {} -- service reach: {} -- synchronous invocations: {} -- may suspend: {} -- may block: {} -- termination guarantee: {} -- progress premises: {} -- realization: {} -- {} -- grant selectors: {}",
                 row.provider_plan,
                 row.provider_plan_fingerprint,
                 if row.provider_type.is_empty() {
@@ -154,6 +154,7 @@ impl ArtifactWriter {
                 } else {
                     row.provider_origin_package.as_str()
                 },
+                package_key_text(row.provider_origin_package_identity),
                 row.service_schema,
                 row.calling_plan_fingerprint
                     .map_or_else(|| "<none>".to_owned(), |value| format!("{value:016x}")),
@@ -201,7 +202,7 @@ impl ArtifactWriter {
         ));
         for row in &trust_report.qualifications {
             output.push_str(&format!(
-                "- provider plan: {} [{:016x}] -- provider type: {} -- target: {} -- provider origin package: {} -- service schema: {} -- calling plan: {} -- selected: {} -- requirement owner: {} -- requirement identity: {} -- method: {} -- subject: {} -- flow: {} -- domain: {} -- carry: {} -- predicate discharge: {} -- {} -- grant selectors: {}",
+                "- provider plan: {} [{:016x}] -- provider type: {} -- target: {} -- provider origin package: {} -- provider package key: {} -- service schema: {} -- calling plan: {} -- selected: {} -- requirement owner: {} -- requirement identity: {} -- method: {} -- subject: {} -- flow: {} -- domain: {} -- carry: {} -- predicate discharge: {} -- {} -- grant selectors: {}",
                 row.provider_plan,
                 row.provider_plan_fingerprint,
                 if row.provider_type.is_empty() {
@@ -219,6 +220,7 @@ impl ArtifactWriter {
                 } else {
                     row.provider_origin_package.as_str()
                 },
+                package_key_text(row.provider_origin_package_identity),
                 row.service_schema,
                 row.calling_plan_fingerprint
                     .map_or_else(|| "<none>".to_owned(), |value| format!("{value:016x}")),
@@ -249,6 +251,17 @@ impl ArtifactWriter {
         }
         self.write_text("trust_report.md", &output)
     }
+}
+
+fn package_key_text(identity: Option<psi_core::PackageKeyIdentity>) -> String {
+    let Some(identity) = identity else {
+        return "<unbound>".to_owned();
+    };
+    identity
+        .digest()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
 }
 
 fn progress_premises_text(premises: &[super::TrustProgressPremiseRow]) -> String {
