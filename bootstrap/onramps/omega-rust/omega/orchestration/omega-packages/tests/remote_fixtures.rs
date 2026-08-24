@@ -1,6 +1,7 @@
 use omega_packages::{
-    GitSourceSpec, LocalSourceLimits, PackageName, extract_package_declaration,
-    resolve_git_package_source, resolve_git_source, resolve_local_source,
+    GitSourceSpec, LocalSourceLimits, PackageName, extract_dependency_projection,
+    extract_package_declaration, resolve_git_package_source, resolve_git_source,
+    resolve_local_source,
 };
 use std::collections::BTreeSet;
 use std::path::PathBuf;
@@ -116,10 +117,22 @@ fn remote_fixture_pins_resolve_to_local_fixture_contents() {
         )
         .expect("local fixture should resolve");
 
-        assert_eq!(resolved.commit, pin.commit);
-        assert_eq!(resolved.local.content_identity, local.content_identity);
-        assert_eq!(resolved.local.file_count, local.file_count);
-        assert_eq!(resolved.local.byte_count, local.byte_count);
+        assert_eq!(resolved.commit, pin.commit, "{} commit drift", pin.package);
+        assert_eq!(
+            resolved.local.content_identity, local.content_identity,
+            "{} content drift",
+            pin.package
+        );
+        assert_eq!(
+            resolved.local.file_count, local.file_count,
+            "{} file-count drift",
+            pin.package
+        );
+        assert_eq!(
+            resolved.local.byte_count, local.byte_count,
+            "{} byte-count drift",
+            pin.package
+        );
 
         let declared = resolve_git_package_source(
             &GitSourceSpec {
@@ -136,11 +149,19 @@ fn remote_fixture_pins_resolve_to_local_fixture_contents() {
             )
         });
         assert_eq!(declared.key().name().as_str(), pin.package);
-        assert!(declared.dependency_requests().is_empty());
+        assert_eq!(
+            declared.dependency_requests(),
+            extract_dependency_projection(local_package_root(&pin.package))
+                .expect("local fixture dependency projection should close"),
+            "{} dependency projection drift",
+            pin.package
+        );
         assert_eq!(declared.source().commit, pin.commit);
         assert_eq!(
             declared.source().local.content_identity,
-            local.content_identity
+            local.content_identity,
+            "{} declared-source content drift",
+            pin.package
         );
     }
     let _ = std::fs::remove_dir_all(cache);

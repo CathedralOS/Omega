@@ -20,4 +20,4 @@ cargo test -p omega-packages --test remote_fixtures -- --ignored --test-threads=
 | `axiom-ledger` | `https://github.com/CathedralOS/axiom-ledger` | `49eef21c21b6e83ee37376c9ea47aaca7aff619b` |
 | `provider-switchboard` | `https://github.com/CathedralOS/provider-switchboard` | `8b2fd2d280089a7c9320b63854df7bd57f69c0ed` |
 | `capability-vault` | `https://github.com/CathedralOS/capability-vault` | `1f9a63402e10527eddaae0fd8b5b8f4b023bf0d7` |
-| `graph-workbench` | `https://github.com/CathedralOS/graph-workbench` | `e90ca5c236ae6c8b20038454a01e8ca194dfdb5b` |
+| `graph-workbench` | `https://github.com/CathedralOS/graph-workbench` | `4e241bd7f0212c1b817d38c8c13366b9a746aef9` |
