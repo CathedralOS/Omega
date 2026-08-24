@@ -274,18 +274,26 @@ ordinals, `result`, generic binders, and package-qualified nominals. Domain-
 membership rows additionally retain that exact value expression and the
 package-qualified public domain; exposing a private package domain rejects.
 This is read from the earlier typed semantic tree only after checked
-compilation succeeds. Unsupported proposition/named-evidence, call, member,
-cast, and aggregate forms reject rather than falling back to text or a hash.
-Proposition support will join that typed structure to checked proposition and
-evidence-term state; it will not introduce a report-only Chi stage. A distinct
-stage remains available only if later consumers or transformations expose a
-real semantic boundary.
+compilation succeeds. Proposition applications retain the package-qualified
+primitive endpoint, alpha-normalized binder schema, parameter types, structural
+binder/value arguments, and fact-only or witness classification. Transparent
+aliases expand before identity. A witness interface retains its exact root
+arguments and complete package-qualified direct/inherited requirement surface.
+Named contracts join the checked evidence term and positional lane: local
+`requires` binding names are omitted from identity, while public `ensures`
+selectors remain. Checked diagnostic renderings are deliberately absent from
+review bytes and adversarial mutation tests enforce that boundary.
+Evidence-projection binder arguments and unsupported call, member, cast, and
+aggregate expressions still reject rather than falling back to text or a hash.
+This join introduces no report-only Chi stage. A distinct stage remains
+available only if later consumers or transformations expose a real semantic
+boundary.
 The legacy 64-bit machine-contract fingerprint has left package-review bytes,
 so private state-machine shape no longer contaminates public package contract
 identity. Exact crash, reach, invocation, termination, signature, and
-conformance rows remain independently encoded. The unsupported contract forms
-and exact proof/admission dispositions must land before the projection can be
-sealed.
+conformance rows remain independently encoded. The remaining unsupported
+contract forms and exact proof/admission dispositions must land before the
+projection can be sealed.
 
 The eventual normalized package-admission evidence must include, with exact
 provenance:

@@ -10,7 +10,7 @@ use psi_checked_trees::{
 };
 
 const MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW\0";
-pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 15;
+pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 16;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageReviewEncodingError {
@@ -451,6 +451,13 @@ fn encode_callable_contract(
     encoder.option(contract.binding.as_deref(), |encoder, binding| {
         encoder.string(binding)
     })?;
+    encoder.option(
+        contract.evidence_lane_position.as_ref(),
+        |encoder, position| {
+            encoder.u32(*position);
+            Ok(())
+        },
+    )?;
     match &contract.fact {
         PackageReviewContractFact::Expression(expression) => {
             encoder.byte(0);
@@ -461,7 +468,68 @@ fn encode_callable_contract(
             encode_contract_expression(encoder, value)?;
             encode_nominal(encoder, domain)
         }
+        PackageReviewContractFact::Proposition(application) => {
+            encoder.byte(2);
+            encode_proposition_application(encoder, application)
+        }
     }
+}
+
+fn encode_proposition_application(
+    encoder: &mut Encoder,
+    application: &PackageReviewPropositionApplication,
+) -> Result<(), PackageReviewEncodingError> {
+    encode_nominal(encoder, &application.declaration)?;
+    encoder.sequence(&application.binders, |encoder, binder| {
+        match &binder.kind {
+            PackageReviewPropositionBinderKind::Type => encoder.byte(0),
+            PackageReviewPropositionBinderKind::Const(type_identity) => {
+                encoder.byte(1);
+                encode_type_identity(encoder, type_identity)?;
+            }
+            PackageReviewPropositionBinderKind::Machine => encoder.byte(2),
+        }
+        encode_data_properties(encoder, binder.bounds);
+        Ok(())
+    })?;
+    encoder.sequence(&application.parameter_types, encode_type_identity)?;
+    encoder.sequence(&application.binder_arguments, |encoder, argument| {
+        encoder.byte(match argument.kind {
+            psi_typed_trees::proposition::PropositionBinderArgumentKind::Type => 0,
+            psi_typed_trees::proposition::PropositionBinderArgumentKind::Const => 1,
+            psi_typed_trees::proposition::PropositionBinderArgumentKind::Machine => 2,
+        });
+        match &argument.value {
+            PackageReviewPropositionBinderValue::Nominal(identity) => {
+                encoder.byte(0);
+                encode_nominal(encoder, identity)?;
+            }
+            PackageReviewPropositionBinderValue::GenericBinder(position) => {
+                encoder.byte(1);
+                encoder.u32(*position);
+            }
+            PackageReviewPropositionBinderValue::Integer(value) => {
+                encoder.byte(2);
+                encoder.string(value)?;
+            }
+        }
+        Ok(())
+    })?;
+    encoder.sequence(&application.arguments, encode_contract_expression)?;
+    match &application.evidence {
+        PackageReviewPropositionEvidence::FactOnly => encoder.byte(0),
+        PackageReviewPropositionEvidence::Witness(interface) => {
+            encoder.byte(1);
+            encode_nominal(encoder, &interface.trait_identity)?;
+            encoder.sequence(&interface.arguments, encode_type_identity)?;
+            encoder.sequence(&interface.requirements, |encoder, requirement| {
+                encode_nominal(encoder, &requirement.declaring_trait)?;
+                encoder.sequence(&requirement.declaring_trait_arguments, encode_type_identity)?;
+                encode_nominal(encoder, &requirement.requirement)
+            })?;
+        }
+    }
+    Ok(())
 }
 
 fn encode_contract_expression(

@@ -752,11 +752,19 @@ ordinals, `result`, generic binders, and package-qualified nominals. Domain-
 membership rows retain the exact value expression and package-qualified public
 domain; a private package domain cannot leak through a public callable.
 Projection reads the earlier typed semantic tree only after checked compilation
-succeeds. Unsupported proposition/named-evidence, call, member, cast, and
-aggregate forms fail closed. The coarse 64-bit machine-contract fingerprint is
-no longer package-review identity, so private state-machine shape cannot alter
-the public contract baseline. Complete rows for the unsupported forms and
-exact proof/admission dispositions still gate sealing.
+succeeds. Proposition rows retain an exact package-qualified primitive
+endpoint, alpha-normalized declaration binders and parameter types, structural
+binder/value arguments, and fact-only or witness classification. Transparent
+aliases expand before identity. Witness rows retain exact root arguments and
+the complete package-qualified direct/inherited requirement surface. Named
+contracts join checked evidence-term identity and positional lane; local
+`requires` alias spelling is omitted while public `ensures` selector spelling
+remains. Diagnostic strings do not enter the row. Evidence-projection binder
+arguments and unsupported call, member, cast, and aggregate expression forms
+fail closed. The coarse 64-bit machine-contract fingerprint is no longer
+package-review identity, so private state-machine shape cannot alter the public
+contract baseline. Complete rows for the remaining unsupported forms and exact
+proof/admission dispositions still gate sealing.
 
 Claim-free opaque `boundary data` is retained in a separate representation-TCB
 lane. Its row binds the package-qualified declaration to the exact target,

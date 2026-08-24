@@ -449,8 +449,17 @@ complete.
   nominals. Domain-membership rows additionally retain the exact value and
   package-qualified public domain; exposing a private package domain rejects.
   The projection reads the earlier typed semantic tree only after checked
-  compilation succeeds. Unsupported proposition/named-evidence, call, member,
-  cast, and aggregate forms reject rather than falling back to text or a hash.
+  compilation succeeds. Proposition applications now retain their exact
+  package-qualified primitive endpoint, alpha-normalized binder schema,
+  parameter types, structural binder/value arguments, and fact-only or witness
+  classification. Transparent proposition aliases expand without minting
+  identity. Witness interfaces retain exact package-qualified root arguments
+  plus direct and inherited requirement surfaces. Named contracts join the
+  exact checked evidence term and positional lane; local `requires` aliases do
+  not enter canonical identity, while public `ensures` selectors do. Checked
+  diagnostic strings are ignored and adversarially tested. Evidence-projection
+  binder arguments and unsupported call, member, cast, and aggregate expression
+  forms still reject rather than falling back to text or a hash.
   The settled proposition path is a join, not a new nominal stage: typed trees
   supply structural declaration, binder, and value-expression coordinates;
   checked proof facts supply acceptance, evidence-term/interface routing, and
@@ -489,9 +498,10 @@ complete.
   closing the implicit-entry-state ownership gap discovered by the crash
   projection. Review identity now retains the exact deployment target profile,
   so profiles such as Windows and UEFI cannot collapse merely because they
-  share a native ABI. A v15 length-framed binary comparison encoding now covers
+  share a native ABI. A v16 length-framed binary comparison encoding now covers
   every retained public-domain, public-data, public-trait, callable,
-  crash/proof predicate, authority flow, mutation, and selected-provider row.
+  crash/proof predicate, proposition/witness, authority flow, mutation, and
+  selected-provider row.
   It converts platform-width ordinals to portable `u64`, distinguishes exact
   deployment profiles, rejects interner-backed external-supply variants, and
   remains explicitly review-only rather than persistable admission evidence.
