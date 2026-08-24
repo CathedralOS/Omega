@@ -26,6 +26,7 @@ pub struct CheckedCompilation {
     task_activations: omega_task_plans::TaskActivationPlanSet,
     callback_placements: Vec<omega_backend_plan::BoundNominalCallbackPlacement>,
     build_evaluation_usage: Option<super::build_config::BuildEvaluationUsage>,
+    build_observation_summary: Option<super::build_config::BuildObservationSummary>,
     contract_entailment_stand_downs: Vec<psi_validation::ContractEntailmentStandDown>,
 }
 
@@ -102,6 +103,15 @@ impl CheckedCompilation {
         &self,
     ) -> Option<super::build_config::BuildEvaluationUsage> {
         self.build_evaluation_usage
+    }
+
+    /// Exact selected build-machine observation ceiling and realized class.
+    /// This execution evidence remains separate from package capability/API
+    /// comparison bytes.
+    pub const fn build_observation_summary(
+        &self,
+    ) -> Option<super::build_config::BuildObservationSummary> {
+        self.build_observation_summary
     }
 
     /// Exact compiler-owned coordinates of checked implementation claims that
@@ -259,6 +269,7 @@ fn compile_to_checked_inner(
         &build_machine_filesystem_scope,
     )?;
     let build_evaluation_usage = computed_build_config.evaluation_usage;
+    let build_observation_summary = computed_build_config.observation_summary;
     let selected_build_machine_symbol = computed_build_config.selected_build_machine_symbol;
     let build_config = computed_build_config.config;
     // A semantic-only checked compilation has no selected target and therefore
@@ -384,6 +395,7 @@ fn compile_to_checked_inner(
         task_activations,
         callback_placements,
         build_evaluation_usage,
+        build_observation_summary,
         contract_entailment_stand_downs,
     })
 }

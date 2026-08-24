@@ -9,7 +9,11 @@
 //! real streams. The fail halves live in canaries/fail/build
 //! (undeclared services; unpinned custom boundary).
 
-use omega_compiler::{CompileOptions, compile, compile_to_checked};
+use omega_compiler::{
+    BuildObservationClass, CompileOptions, PackageCompilationInputs, PackageSourceBinding, compile,
+    compile_to_checked, compile_to_checked_with_packages_in_build_dir,
+};
+use psi_core::PackageKeyIdentity;
 use std::path::PathBuf;
 use std::process::Command;
 
@@ -95,6 +99,18 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     assert_eq!(checked_usage.step_schedule_marker, 1);
     assert!(checked_usage.fuel_units > 0);
     assert!(checked_usage.result_cells > 0);
+    let checked_observations = checked
+        .build_observation_summary()
+        .expect("build machine evaluation must publish observation evidence");
+    assert_eq!(checked_observations.schema_version(), 1);
+    assert_eq!(
+        checked_observations.ceiling(),
+        BuildObservationClass::Volatile
+    );
+    assert_eq!(
+        checked_observations.realized(),
+        BuildObservationClass::Volatile
+    );
 
     let report = compile(CompileOptions {
         root_path: PathBuf::from(project.join("main.omg")),
@@ -105,6 +121,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     .expect("declared filesystem+console build.omg should compile (console rows are SERVED, not backstopped)");
     assert!(report.wrote_output());
     assert_eq!(report.build_evaluation_usage, Some(checked_usage));
+    assert_eq!(report.build_observation_summary, Some(checked_observations));
 
     let staged = std::fs::read_to_string(stage.join("asset.bin"))
         .expect("the build machine should have staged stage/asset.bin at compile time");
@@ -175,7 +192,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     )
     .expect("write main.omg");
 
-    compile(CompileOptions {
+    let report = compile(CompileOptions {
         root_path: PathBuf::from(project.join("main.omg")),
         build_dir: Some(project.join("build")),
         target_name: Some(profile.target_name().to_owned()),
@@ -184,11 +201,81 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     .expect(
         "declared filesystem build.omg should compile while denied source write returns fd < 0",
     );
+    let observations = report
+        .build_observation_summary
+        .expect("denied filesystem attempt remains an observed build-host operation");
+    assert_eq!(observations.ceiling(), BuildObservationClass::Volatile);
+    assert_eq!(observations.realized(), BuildObservationClass::Volatile);
 
     assert!(
         !forbidden.exists(),
         "scoped build machine filesystem access must deny source-tree writes before touching disk"
     );
+
+    let _ = std::fs::remove_dir_all(&project);
+}
+
+#[test]
+fn console_only_build_machine_receives_no_real_filesystem_provider() {
+    let profile = omega_target::TargetProfile::host();
+    let project = std::env::temp_dir().join(format!(
+        "omega-build-config-console-only-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&project);
+    std::fs::create_dir_all(&project).expect("create project directory");
+
+    let non_directory = project.join("not-a-directory");
+    std::fs::write(&non_directory, "blocks accidental build-root creation")
+        .expect("create build-root blocker");
+    let unavailable_build_root = non_directory.join("nested-build-root");
+
+    std::fs::write(
+        project.join("build.omg"),
+        format!(
+            r#"use omega::language::std::console;
+
+target {target} {{}}
+
+data Subsystem {{ case Console; case Gui; case EfiApplication; case Unspecified(value: u16); }}
+data Build {{ subsystem: Subsystem; freestanding: bool; }}
+
+data BuildLogger {{ console: Console; }}
+
+machine BuildLogger::build(&mut self, builder: &mut Build)
+reaches Console
+{{
+    self.console.write_line("build: console only");
+    builder.freestanding = false;
+}}
+"#,
+            target = profile.target_name(),
+        ),
+    )
+    .expect("write build.omg");
+    std::fs::write(project.join("main.omg"), "data Main { value: u8; }\n").expect("write main.omg");
+
+    let package = PackageKeyIdentity::from_digest([83; 32]).expect("nonzero package identity");
+    let package_inputs = PackageCompilationInputs::new(
+        package,
+        vec![PackageSourceBinding::new(package, project.clone())],
+        Vec::new(),
+    )
+    .expect("single-package compiler input");
+    let checked = compile_to_checked_with_packages_in_build_dir(
+        &project.join("main.omg"),
+        &unavailable_build_root,
+        Some(profile.target_name()),
+        package_inputs,
+    )
+    .expect("console-only build must not attempt to install real filesystem authority");
+
+    let observations = checked
+        .build_observation_summary()
+        .expect("console-only build publishes observation evidence");
+    assert_eq!(observations.ceiling(), BuildObservationClass::Hermetic);
+    assert_eq!(observations.realized(), BuildObservationClass::Hermetic);
+    assert!(!unavailable_build_root.exists());
 
     let _ = std::fs::remove_dir_all(&project);
 }

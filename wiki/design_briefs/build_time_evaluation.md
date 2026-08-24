@@ -199,6 +199,15 @@ not enter `BuildConfig`, terminal semantics, or artifact identity. Once build
 machines lower through terminal Psi, the canonical schedule replaces this
 precursor count rather than being inferred from it.
 
+Host observation is retained separately from this meter. The granted evaluator
+reports whether the filesystem host family was actually invoked; the compiler
+joins that fact to the exact statically reachable toolchain service. The
+current scoped real-filesystem provider has no replay transcript, so reachable
+or realized filesystem use is conservatively `Volatile`. A pure or console-only
+build is `Hermetic`, and console-only execution is not supplied real filesystem
+authority. This Boolean rung is not a receipt and makes no replayability or
+source-rebuildability claim.
+
 The usage record carries a schema identity independently from evaluator-step
 identity: adding telemetry does not change what one step means. It records
 `result_cells` for successful semantic evaluation.

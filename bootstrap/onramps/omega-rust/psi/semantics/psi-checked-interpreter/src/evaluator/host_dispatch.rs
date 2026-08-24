@@ -41,6 +41,7 @@ impl<'program> Evaluator<'program> {
             .as_deref()
             .is_some_and(|name| name.contains("Filesystem"))
         {
+            self.filesystem_host_observed = true;
             let args = self
                 .program
                 .statement_table

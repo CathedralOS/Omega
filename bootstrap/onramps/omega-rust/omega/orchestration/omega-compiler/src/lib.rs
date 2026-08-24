@@ -6,10 +6,11 @@ pub(crate) use psi_tokens_to_syntax_trees as parser;
 
 pub use pipeline::{
     AdmittedExternalRootEntryFactHandoff, AggregateFieldSchema, AggregateFieldValue,
-    ArtifactEmissionPolicy, BoundExternalRootPostHandoffWriterInvocation, BuildEvaluationUsage,
-    BuildTimeValue, ByteOrder, CheckedCompilation, CheckedPackageCallableReview,
-    CheckedPackageProviderReview, CheckedPackageReviewProjection, CompileOptions,
-    CompileOutputKind, CompileReport, CompilerExecutableCommitment,
+    ArtifactEmissionPolicy, BUILD_OBSERVATION_SCHEMA_VERSION,
+    BoundExternalRootPostHandoffWriterInvocation, BuildEvaluationUsage, BuildObservationClass,
+    BuildObservationSummary, BuildTimeValue, ByteOrder, CheckedCompilation,
+    CheckedPackageCallableReview, CheckedPackageProviderReview, CheckedPackageReviewProjection,
+    CompileOptions, CompileOutputKind, CompileReport, CompilerExecutableCommitment,
     CompilerExecutableCommitmentError, ConsumptionInstant, DataSymbolId, EntryStubId,
     ExecutablePublicationDestination, ExecutablePublicationReceipt, ExecutableTcbBuildPolicy,
     ExternalRootPostHandoffWriterBindingError, InstalledImageSubextent,

@@ -87,6 +87,8 @@ fn argument_taking_build_machine_runs_through_explicit_pure_and_granted_modes() 
     assert_eq!(pure.value(), granted.value());
     assert!(pure.usage().fuel_units() > 0);
     assert!(granted.usage().fuel_units() > pure.usage().fuel_units());
+    assert!(!pure.observations().filesystem_host_observed());
+    assert!(granted.observations().filesystem_host_observed());
     assert_eq!(
         pure.value(),
         &[BuildTimeValue::Struct {

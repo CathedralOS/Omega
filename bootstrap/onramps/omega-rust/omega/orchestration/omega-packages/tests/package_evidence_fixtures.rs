@@ -1,8 +1,9 @@
 use omega_compiler::{
-    CheckedPackageReviewProjection, PackageReviewCallableRole, PackageReviewContractExpression,
-    PackageReviewContractFact, PackageReviewContractKind, PackageReviewDangerousAuthorityClass,
-    PackageReviewNominalOwner, PackageReviewPropositionEvidence,
-    PackageReviewRepresentationAbiCommitment, PackageReviewRepresentationMechanism,
+    BuildObservationClass, CheckedPackageReviewProjection, PackageReviewCallableRole,
+    PackageReviewContractExpression, PackageReviewContractFact, PackageReviewContractKind,
+    PackageReviewDangerousAuthorityClass, PackageReviewNominalOwner,
+    PackageReviewPropositionEvidence, PackageReviewRepresentationAbiCommitment,
+    PackageReviewRepresentationMechanism,
 };
 use omega_packages::{
     CompileResolvedPackageReviewsError, LocalSourceLimits, PackageSourceClosureLimits,
@@ -319,6 +320,11 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
                 issued.projection().package(),
                 node.source().key().identity()
             );
+            let observations = issued
+                .build_observation_summary()
+                .expect("fixture package build machine publishes observation evidence");
+            assert_eq!(observations.ceiling(), BuildObservationClass::Hermetic);
+            assert_eq!(observations.realized(), BuildObservationClass::Hermetic);
             assert!(
                 !issued.canonical_review_bytes().is_empty(),
                 "{} review encoding must be nonempty",

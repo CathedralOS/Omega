@@ -494,8 +494,9 @@ complete.
   predicates, semantic-role/operator lanes,
   generated/toolchain symbol ownership, package-qualified provider
   binding/selection identities, source/toolchain/compiler commitments,
-  non-provider trust ownership, build observations, and reproducibility
-  receipts still need one sealed projection. Exact provenance for the realizing
+  non-provider trust ownership, receipted build-operation transcripts, staged-
+  output commitments, and reproducibility verdicts still need one sealed
+  projection. Exact provenance for the realizing
   package, provider type, service schema, and requirement owner is already
   retained on provider plans and their provider trust rows.
   Until the remaining joins exist, no projection may be persisted as accepted
@@ -561,6 +562,16 @@ complete.
   Package-aware checked compilation now also accepts an explicit caller-owned
   writable build root, so admitted build staging never requires mutation
   beneath a resolver-owned immutable source snapshot.
+  Selected build-machine execution now separately retains a versioned static
+  observation ceiling and realized class. Exact statically reachable canonical
+  toolchain filesystem use has a `Volatile` ceiling because the current scoped
+  real provider emits no replay transcript; an actual filesystem call realizes
+  `Volatile`, including a denied attempt, while pure, console-only, and declared-
+  but-unreachable filesystem rows remain `Hermetic`. Console-only granted
+  execution no longer installs real filesystem authority. Compiler-issued
+  package review carries this summary outside v30 capability/API comparison
+  bytes. It is explicitly not a receipt and makes no replayability or source-
+  rebuildability claim.
   Exact rows for the unsupported forms and proof/admission dispositions still
   gate sealing.
   It retains
@@ -626,6 +637,34 @@ complete.
   inputs to the package's exact transitive closure and retains the selected
   immutable resolution beside compiler-issued comparison bytes. These rows are
   deliberately review-only and cannot construct an accepted package instance.
+
+- **BUILD-OBSERVATION-EVIDENCE.** Replace the conservative filesystem-touch
+  summary with canonical replay evidence before issuing `Receipted`.
+
+  Acceptance: interpreter dispatch selects a closed operation identity from the
+  exact canonical toolchain signature before authority is touched; package-
+  controlled type or method names cannot select a host operation. One ordered
+  transcript retains every attempted operation, rooted relative path, scalar
+  operand/result, input/output byte region, mutable cursor/result, logical
+  handle identity, and post-operation error state, including failures and grant
+  refusals. A successful run additionally commits to the complete staged output
+  tree. Canonical evidence contains no cache/build absolute path or lossy path
+  conversion. The staging root is fresh and empty, or its exact initial tree is
+  a recorded input. Absolute-path-returning operations remain `Volatile` unless
+  served through a stable virtual root. `Receipted` requires retained content
+  plus a replay executor that rejects the first missing, extra, reordered, or
+  changed event and reproduces the staged tree; a transcript alone is not a
+  replay verdict.
+
+  Progress 2026-08-24: a dedicated measured build-machine result keeps the
+  realized filesystem-touch fact separate from deterministic evaluator usage.
+  The compiler derives the static class from exact reachable toolchain service
+  identity, retains the versioned Hermetic/Volatile summary through checked and
+  full reports and compiler-issued package review, and keeps it outside v30
+  capability/API comparison bytes. Console-only execution no longer installs
+  real filesystem authority. Exact operation-symbol dispatch, lossless rooted
+  paths, canonical transcripts/content custody, fresh staging publication,
+  output-tree commitment, and replay remain.
 
 - **PROOF-AND-BOUNDARY-ADMISSION.** Fail closed on false or incomplete evidence.
 
@@ -866,8 +905,9 @@ complete.
   build-owned provider selection and its normalized compiler review row.
   `generated-table` now covers the canonical build machine's exact toolchain-
   owned filesystem reach/invocation ceiling from immutable source custody and a
-  separate writable compiler staging root. Executed build-provider operations,
-  observations/receipts, sealed representation mechanism/ABI evidence, general
+  separate writable compiler staging root. Fixture-executed build-provider
+  operations, canonical observation transcripts/receipts, sealed representation
+  mechanism/ABI evidence, general
   dangerous-authority escalation, missing baselines, graph-level spoofing, and
   reconciliation conflicts remain.
 

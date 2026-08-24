@@ -53,7 +53,10 @@ mod wire_report;
 pub use artifacts::{
     PROGRAM_STORAGE_INSTALLATION_ARTIFACT, program_storage_installation_record_json,
 };
-pub use build_config::BuildEvaluationUsage;
+pub use build_config::{
+    BUILD_OBSERVATION_SCHEMA_VERSION, BuildEvaluationUsage, BuildObservationClass,
+    BuildObservationSummary,
+};
 pub use calling_policy_plans::evaluate_calling_policy_plan;
 pub use checked_entry::{
     CheckedCompilation, compile_to_checked, compile_to_checked_with_packages,

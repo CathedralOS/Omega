@@ -29,6 +29,7 @@ impl<'program> Evaluator<'program> {
             real_fs: None,
             host_boundary_touched: false,
             non_fs_host_boundary_touched: false,
+            filesystem_host_observed: false,
             usage: EvaluationUsage::empty(),
             // OMEGA_INTERP_STEP_BUDGET overrides the default for
             // measurement / long-running sample runs (dev knob, same

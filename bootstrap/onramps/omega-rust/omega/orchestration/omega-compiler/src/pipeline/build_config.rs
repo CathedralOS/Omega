@@ -118,10 +118,50 @@ pub struct BuildEvaluationUsage {
     pub result_cells: u64,
 }
 
+pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 1;
+
+/// Normalized build-host observation class for one selected build machine.
+///
+/// The current compiler has no receipted build-host provider. Its scoped real
+/// filesystem provider is therefore conservatively volatile; console output
+/// and pure configuration do not observe external input and remain hermetic.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum BuildObservationClass {
+    Hermetic,
+    Receipted,
+    Volatile,
+}
+
+/// Compiler-issued observation facts for one completed build-machine run.
+///
+/// This is execution evidence, not capability/API comparison identity. A
+/// volatile row carries no replay receipt and makes no rebuildability claim.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BuildObservationSummary {
+    schema_version: u32,
+    ceiling: BuildObservationClass,
+    realized: BuildObservationClass,
+}
+
+impl BuildObservationSummary {
+    pub const fn schema_version(self) -> u32 {
+        self.schema_version
+    }
+
+    pub const fn ceiling(self) -> BuildObservationClass {
+        self.ceiling
+    }
+
+    pub const fn realized(self) -> BuildObservationClass {
+        self.realized
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ComputedBuildConfig {
     pub config: BuildConfig,
     pub evaluation_usage: Option<BuildEvaluationUsage>,
+    pub observation_summary: Option<BuildObservationSummary>,
     pub selected_build_machine_symbol: Option<psi_symbols::SymbolHandle>,
 }
 
@@ -834,6 +874,27 @@ pub(crate) fn is_build_machine(
     build_file_machines.iter().any(|declared| declared == name)
 }
 
+fn is_exact_toolchain_build_service(
+    typed: &TypedTrees,
+    service: psi_language_semantics::ServiceReachId,
+    expected_name: &str,
+    expected_source: &str,
+) -> bool {
+    let Some(definition) = typed.service_reaches.definition(service) else {
+        return false;
+    };
+    definition.name == expected_name
+        && typed
+            .symbols
+            .symbol_source_span(definition.symbol)
+            .and_then(|span| typed.symbols.source_file(span))
+            .is_some_and(|file| {
+                file.origin == psi_source::SourceOrigin::Toolchain
+                    && file.path.strip_prefix(&file.package_root).ok()
+                        == Some(std::path::Path::new(expected_source))
+            })
+}
+
 /// Evaluate the program's `build` machine (if any) and extract the config.
 /// No `build` machine -> the default. Every failure names the machine.
 pub(crate) fn compute_build_config(
@@ -852,6 +913,7 @@ pub(crate) fn compute_build_config(
         return Ok(ComputedBuildConfig {
             config: BuildConfig::default(),
             evaluation_usage: None,
+            observation_summary: None,
             selected_build_machine_symbol: None,
         });
     };
@@ -904,15 +966,7 @@ pub(crate) fn compute_build_config(
             };
             !ALLOWED_BUILD_SERVICES.iter().any(|(name, source)| {
                 definition.name == *name
-                    && typed
-                        .symbols
-                        .symbol_source_span(definition.symbol)
-                        .and_then(|span| typed.symbols.source_file(span))
-                        .is_some_and(|file| {
-                            file.origin == psi_source::SourceOrigin::Toolchain
-                                && file.path.strip_prefix(&file.package_root).ok()
-                                    == Some(std::path::Path::new(source))
-                        })
+                    && is_exact_toolchain_build_service(typed, **service, name, source)
             })
         })
         .map(|service| {
@@ -980,15 +1034,24 @@ pub(crate) fn compute_build_config(
         ],
     };
 
+    let filesystem_reachable = transitive.iter().any(|service| {
+        is_exact_toolchain_build_service(typed, *service, "FilesystemHost", "filesystem_host.omg")
+    });
+
     // Omega owns the grant decision. Psi owns the target-neutral interpreter
-    // entry selected by that explicit mode.
+    // entry selected by that explicit mode. Console needs the granted entry so
+    // its output can be served, but it must not incidentally install real
+    // filesystem authority.
     let execution_mode = if transitive.is_empty() {
         BuildMachineExecutionMode::Pure
     } else {
-        filesystem_scope.ensure_write_roots()?;
-        BuildMachineExecutionMode::Granted {
-            filesystem: BuildMachineFilesystemAccess::RealScoped(filesystem_scope.grants()),
-        }
+        let filesystem = if filesystem_reachable {
+            filesystem_scope.ensure_write_roots()?;
+            BuildMachineFilesystemAccess::RealScoped(filesystem_scope.grants())
+        } else {
+            BuildMachineFilesystemAccess::Virtual
+        };
+        BuildMachineExecutionMode::Granted { filesystem }
     };
     let measured = psi_build_time_evaluation::evaluate_build_machine_arguments_measured(
         &prepared,
@@ -1002,6 +1065,21 @@ pub(crate) fn compute_build_config(
         ))]
     })?;
     let usage = measured.usage();
+    let observation_ceiling = if filesystem_reachable {
+        BuildObservationClass::Volatile
+    } else {
+        BuildObservationClass::Hermetic
+    };
+    let realized_observation = if measured.observations().filesystem_host_observed() {
+        BuildObservationClass::Volatile
+    } else {
+        BuildObservationClass::Hermetic
+    };
+    if realized_observation > observation_ceiling {
+        return Err(vec![Diagnostic::error(format!(
+            "build-time evaluation of `{machine_name}` observed filesystem host state outside its static observation ceiling"
+        ))]);
+    }
     let mut arguments = measured.into_value();
     let augmented = arguments.pop().ok_or_else(|| {
         vec![Diagnostic::error(format!(
@@ -1025,6 +1103,11 @@ pub(crate) fn compute_build_config(
             step_schedule_marker: usage.schedule().marker(),
             fuel_units: usage.fuel_units(),
             result_cells: usage.result_cells(),
+        }),
+        observation_summary: Some(BuildObservationSummary {
+            schema_version: BUILD_OBSERVATION_SCHEMA_VERSION,
+            ceiling: observation_ceiling,
+            realized: realized_observation,
         }),
         selected_build_machine_symbol: Some(machine.symbol),
     })

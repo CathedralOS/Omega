@@ -1,7 +1,7 @@
 use omega_compiler::{
-    PACKAGE_REVIEW_ENCODING_VERSION, PackageCompilationInputs, PackageDependencyBinding,
-    PackageReviewArithmeticDomain, PackageReviewCallableRole, PackageReviewCastForm,
-    PackageReviewContractBinaryOperator, PackageReviewContractExpression,
+    BuildObservationClass, PACKAGE_REVIEW_ENCODING_VERSION, PackageCompilationInputs,
+    PackageDependencyBinding, PackageReviewArithmeticDomain, PackageReviewCallableRole,
+    PackageReviewCastForm, PackageReviewContractBinaryOperator, PackageReviewContractExpression,
     PackageReviewContractFact, PackageReviewContractKind, PackageReviewCrashInterface,
     PackageReviewCrashRouteGuard, PackageReviewDangerousAuthorityClass, PackageReviewDataMember,
     PackageReviewDomainClassification, PackageReviewDomainEstablishmentKind,
@@ -486,6 +486,11 @@ crashes Abort
         package_inputs(&package.0),
     )
     .expect("package fixture should check");
+    let observations = checked
+        .build_observation_summary()
+        .expect("selected build machine publishes build observation evidence");
+    assert_eq!(observations.ceiling(), BuildObservationClass::Hermetic);
+    assert_eq!(observations.realized(), BuildObservationClass::Hermetic);
     let review = project_checked_package_review(&checked).expect("review projection should close");
     let encoded = review
         .canonical_review_bytes()

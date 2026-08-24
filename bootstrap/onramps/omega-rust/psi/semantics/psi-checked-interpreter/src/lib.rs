@@ -139,6 +139,24 @@ pub struct EvaluationUsage {
     result_cells: u64,
 }
 
+/// Host observations made while evaluating one machine.
+///
+/// This is deliberately separate from [`EvaluationUsage`]: deterministic
+/// evaluator work and build-host observation/replay are different policy
+/// axes. Ordinary semantic evaluation must always return an empty row. The
+/// granted build-machine entry may report a filesystem observation, which the
+/// compiler classifies according to the exact provider it selected.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct EvaluationObservations {
+    filesystem_host_observed: bool,
+}
+
+impl EvaluationObservations {
+    pub const fn filesystem_host_observed(self) -> bool {
+        self.filesystem_host_observed
+    }
+}
+
 impl EvaluationUsage {
     const fn empty() -> Self {
         Self {
@@ -204,6 +222,53 @@ impl<T> MeasuredEvaluation<T> {
 
     pub fn into_parts(self) -> (T, EvaluationUsage) {
         (self.value, self.usage)
+    }
+}
+
+/// A granted build-machine result keeps host observations beside, but
+/// distinct from, deterministic evaluator work.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MeasuredBuildMachineEvaluation<T> {
+    measured: MeasuredEvaluation<T>,
+    observations: EvaluationObservations,
+}
+
+impl<T> MeasuredBuildMachineEvaluation<T> {
+    fn new(value: T, usage: EvaluationUsage, observations: EvaluationObservations) -> Self {
+        Self {
+            measured: MeasuredEvaluation::new(value, usage),
+            observations,
+        }
+    }
+
+    /// Lift a statically pure build-machine evaluation into the common build
+    /// result without inventing a host observation.
+    pub fn hermetic(measured: MeasuredEvaluation<T>) -> Self {
+        Self {
+            measured,
+            observations: EvaluationObservations::default(),
+        }
+    }
+
+    pub const fn value(&self) -> &T {
+        self.measured.value()
+    }
+
+    pub const fn usage(&self) -> EvaluationUsage {
+        self.measured.usage()
+    }
+
+    pub const fn observations(&self) -> EvaluationObservations {
+        self.observations
+    }
+
+    pub fn into_value(self) -> T {
+        self.measured.into_value()
+    }
+
+    pub fn into_parts(self) -> (T, EvaluationUsage, EvaluationObservations) {
+        let (value, usage) = self.measured.into_parts();
+        (value, usage, self.observations)
     }
 }
 
@@ -420,16 +485,16 @@ pub fn evaluate_build_machine_with_filesystem(
     options: InterpretOptions,
 ) -> Result<Vec<BuildTimeValue>, String> {
     evaluate_build_machine_with_filesystem_measured(program, machine_name, arguments, options)
-        .map(MeasuredEvaluation::into_value)
+        .map(MeasuredBuildMachineEvaluation::into_value)
 }
 
 /// [`evaluate_build_machine_with_filesystem`] with deterministic evaluator
-/// usage.
+/// usage and distinct host observations.
 pub fn evaluate_build_machine_with_filesystem_measured(
     program: &psi_typed_trees::TypedTrees,
     machine_name: &str,
     arguments: Vec<BuildTimeValue>,
     options: InterpretOptions,
-) -> Result<MeasuredEvaluation<Vec<BuildTimeValue>>, String> {
+) -> Result<MeasuredBuildMachineEvaluation<Vec<BuildTimeValue>>, String> {
     evaluator::run_granted_build_machine_arguments(program, machine_name, arguments, options)
 }
