@@ -687,6 +687,10 @@ mod tests {
             snapshot_root: snapshot.clone(),
             local: crate::source::resolve_local_source(&snapshot, LocalSourceLimits::default())
                 .expect("resolve test snapshot"),
+            git_executable: crate::source::GitExecutableIdentity::for_test(
+                PathBuf::from("/test/git"),
+                "11".repeat(32),
+            ),
         };
 
         let https_lineage =

@@ -95,9 +95,9 @@ pub use resolver::{
     resolve_source_cache_record,
 };
 pub use source::{
-    GitSourceSpec, LocalSourceLimits, ResolvedGitSource, ResolvedLocalSnapshot,
-    ResolvedLocalSource, SourceResolveError, resolve_git_source, resolve_local_source,
-    resolve_local_source_snapshot,
+    GitExecutableIdentity, GitSourceSpec, LocalSourceLimits, ResolvedGitSource,
+    ResolvedLocalSnapshot, ResolvedLocalSource, SourceResolveError, resolve_git_source,
+    resolve_local_source, resolve_local_source_snapshot,
 };
 pub use source_adapter::{
     ResolveDependencySourceError, ResolveExternalLocalPackageClosureError,

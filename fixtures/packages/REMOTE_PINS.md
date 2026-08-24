@@ -19,7 +19,7 @@ cargo test -p omega-packages --test remote_fixtures -- --ignored --test-threads=
 | `process-exit` | `https://github.com/CathedralOS/process-exit` | `1fd514b1b46e85deb2cb37a117d68860371b976f` |
 | `network-overreach` | `https://github.com/CathedralOS/network-overreach` | `19406048e972378afc70e295f1fbfa8b0733c1a1` |
 | `remote-journal` | `https://github.com/CathedralOS/remote-journal` | `84765f49151c73a8c957ffd737be368ac8f75145` |
-| `axiom-ledger` | `https://github.com/CathedralOS/axiom-ledger` | `5f0f2ea1b7a576a43563f1c58e4597ffb1f51778` |
+| `axiom-ledger` | `https://github.com/CathedralOS/axiom-ledger` | `60c353e7fbb5defc44bcb658e439de1db80cf6c3` |
 | `opaque-carrier` | `https://github.com/CathedralOS/opaque-carrier` | `3d36453fb608bbdcd079a2e71ac2b9dd968e4049` |
 | `provider-switchboard` | `https://github.com/CathedralOS/provider-switchboard` | `49869722a9bd05a8f5c5453844f9f79b1e77c45f` |
 | `capability-vault` | `https://github.com/CathedralOS/capability-vault` | `1c2e0a3a480adc5ace7249267d3a246a435a0801` |

@@ -122,23 +122,41 @@ mutable-local `.git`/root-`build/` exclusions to a published snapshot. A second
 whole-snapshot verification after rendering detects ordinary intervening
 mutation under the same documented same-user race limitation.
 
-Git subprocesses now receive null stdin, concurrent bounded stdout/stderr
-capture, and a deadline. Fetch requests only the selected revision at depth one
-and disables automatic maintenance and garbage collection, so selecting one
-package revision does not traverse its unrelated reachable history. Each
-subprocess starts in a fresh Unix process group or Windows Job Object, and every
-completion or rejection path terminates that container before returning;
-ordinary helper and SSH descendants therefore cannot survive the resolver
-command or keep inherited capture pipes open. Overflow and timeout reject
-explicitly, including for blob reads. This process container floor is not an OS
-sandbox: a hostile Unix descendant may deliberately escape into another
+Git subprocesses now select the parent Git binary only from a closed platform
+list of absolute concrete paths; they never search ambient `PATH`. macOS does
+not select Apple's `/usr/bin/git` dispatcher. The resolver canonicalizes the
+selected regular file, hashes it under a 256 MiB ceiling, retains that
+observation on `ResolvedGitSource`, checks stable file identity before and after
+every launch, and re-hashes the bytes when the complete resolution returns.
+Drift rejects. This identifies observed parent bytes; it does not
+certify Git, bind every executable component or helper it may launch, prove
+path ownership, or prove that the file equals an already loaded image.
+Each launch clears the complete inherited environment, installs only the fixed
+Git/protocol/locale/helper-path variables, and uses an explicit absolute cache
+or repository working directory. It also receives null stdin, concurrent
+bounded stdout/stderr capture, and a deadline. Fetch requests only the selected
+revision at depth one and disables automatic maintenance and garbage
+collection, so selecting one package revision does not traverse its unrelated
+reachable history. Each subprocess starts in a fresh Unix process group or
+Windows Job Object. Completion and rejection paths attempt to terminate that
+container before returning; ordinary helper and SSH descendants therefore do
+not survive or hold capture pipes open in the tested cases. Termination failure
+and reaping are not yet themselves bounded, so the per-command deadline is not
+a strict wall-clock guarantee. Overflow and timeout reject explicitly once
+cleanup returns, including for blob reads. This process container floor is not
+an OS sandbox: a hostile Unix descendant may deliberately escape into another
 session. Depth-one fetch limits history amplification but does not enforce a
-transferred-byte or object-store quota. Fetch and materialization still run in
-the parent process without filesystem/network confinement or CPU, memory,
-process-count, and transfer ceilings. A deliberately hostile same-user process
-can race cooperative locks and validation, including the local before/after
-observation.
-SSH retains an external client and credential/configuration surface. Those
-conditions keep the resolver diagnostic-only until native helper confinement,
-hostile-process custody, remaining resource ceilings, and opaque-receipt work
-land.
+transferred-byte or object-store quota. There is also no whole-resolution
+deadline or cumulative command-work budget; per-blob Git launches remain.
+Fetch and materialization still run in the parent process
+without filesystem/network confinement or CPU, memory, process-count, and
+transfer ceilings. A deliberately hostile same-user process can race
+cooperative locks and validation, including the local before/after observation.
+The fixed helper path still permits Git to invoke required transport helpers;
+those descendants are not yet bound to retained executable identities. SSH is
+forced through an absolute client with user configuration disabled,
+`BatchMode`, zero password prompts, and strict host-key checking. It still
+consults the user's default known-host and key files, so host and credential
+custody remain ambient and unsuitable for strict admission. Those conditions
+keep the resolver diagnostic-only until native helper confinement, hostile-
+process custody, remaining resource ceilings, and opaque-receipt work land.

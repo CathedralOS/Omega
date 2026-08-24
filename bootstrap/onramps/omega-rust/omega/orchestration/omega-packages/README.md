@@ -128,6 +128,16 @@ materialization remains an exact selected-tree check. Git fetch requests only
 the selected revision at depth one and disables automatic maintenance/GC;
 strict transferred-byte and object-store quotas still require a hardened
 execution backend.
+The Git parent executable is selected from closed absolute concrete platform
+paths, not ambient `PATH`; macOS excludes Apple's dispatcher. Its canonical
+bytes are retained as a diagnostic observation, guarded by stable file identity
+around every launch, and re-hashed when resolution returns. Git receives a
+cleared, fixed environment and an explicit absolute working directory. This
+closes ambient parent-executable and environment selection, but does not
+certify Git or bind every helper it may
+launch. SSH is noninteractive and strict about host keys, but still consumes
+the user's default known-host and key files. Strict OS confinement, explicit
+credential custody, bounded cleanup, and a whole-resolution work budget remain.
 Git, workspace-member, and external-local resolution now bind those pieces into
 a `ResolvedPackageSource`: declaration and identity come from the immutable
 snapshot and canonical source lineage, and canonical literal dependency rows
