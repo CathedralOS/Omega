@@ -1,0 +1,163 @@
+; External proposition schemas for checked-resource classification.
+;
+; Checker A owns source oversize, declare, gen_stmts, parse-parameter, and
+; parse-capacity.  The expression-family checker owns gen_call, gen_expr, and
+; XRSC's exhaustive RESOURCE_FAIL writer census.  These are hypotheses of the
+; local implication, never copied process-local theorem conclusions.  The shell
+; accepts RCLS only after both owners accept the identical control.bundle.
+;
+; Eight rows at 601000, stride32:
+;   +0 public schema cell, +8 public tag/value,
+;   +16 exact guard/completion cell, +24 exact guard/completion value.
+
+resource_antecedent_init:
+        imm r20, 600000
+        imm r21, 1481786194             ; RCRX
+        call exact_require_cell
+        imm r10, 601000
+
+        ; SourceBytes: oversized slurp clause, then root status253 projection.
+        imm r11, 526448
+        imm r12, 2
+        imm r13, 525752
+        imm r14, 2
+        call resource_store_antecedent_row
+
+        ; CallArity: GCAL and its nargs=4 capacity completion.
+        imm r11, 540048
+        imm r12, 1279347783             ; GCAL
+        imm r13, 540520
+        imm r14, 1
+        call resource_store_antecedent_row
+
+        ; ProcedureLocalSlots: DCLS and exact full-table completion.
+        imm r11, 527064
+        imm r12, 1397506884             ; DCLS
+        imm r13, 527168
+        imm r14, 1
+        call resource_store_antecedent_row
+
+        ; ExpressionCodegenDepth: GEXP and exact D=64 depth branch.
+        imm r11, 540080
+        imm r12, 1347960903             ; GEXP
+        imm r13, 545528
+        imm r14, 1
+        call resource_store_antecedent_row
+
+        ; BlockCodegenDepth: GSBD and exact D=64 completion.
+        imm r11, 528856
+        imm r12, 1145197383             ; GSBD
+        imm r13, 529088
+        imm r14, 1
+        call resource_store_antecedent_row
+
+        ; CallArity: PLOP and exact fifth-parameter completion.
+        imm r11, 527928
+        imm r12, 1347178320             ; PLOP
+        imm r13, 528016
+        imm r14, 1
+        call resource_store_antecedent_row
+
+        ; ProcedureLocalSlots: PCAP and exact nslots>1024 completion.
+        imm r11, 528072
+        imm r12, 1346584912             ; PCAP
+        imm r13, 528176
+        imm r14, 1
+        call resource_store_antecedent_row
+
+        ; Exhaustive protected writer schema: zero root plus six literal252.
+        imm r11, 545600
+        imm r12, 1129534036             ; XRSC
+        imm r13, 545608
+        imm r14, 7
+        call resource_store_antecedent_row
+
+        imm r1, 601256
+        jeq r10, r1, resource_antecedent_rows_done
+        jmp reject
+resource_antecedent_rows_done:
+        call resource_require_antecedent_rows
+        imm r1, 600008
+        imm r2, 1414414930             ; RANT
+        store r1, r2
+        jmp resource_profile_init
+
+resource_store_antecedent_row:
+        store r10, r11
+        imm r1, 8
+        add r10, r1
+        store r10, r12
+        add r10, r1
+        store r10, r13
+        add r10, r1
+        store r10, r14
+        add r10, r1
+        ret
+
+resource_require_antecedent_rows:
+        imm r10, 601000
+        imm r11, 526448
+        imm r12, 2
+        imm r13, 525752
+        imm r14, 2
+        call resource_require_antecedent_row
+        imm r11, 540048
+        imm r12, 1279347783
+        imm r13, 540520
+        imm r14, 1
+        call resource_require_antecedent_row
+        imm r11, 527064
+        imm r12, 1397506884
+        imm r13, 527168
+        imm r14, 1
+        call resource_require_antecedent_row
+        imm r11, 540080
+        imm r12, 1347960903
+        imm r13, 545528
+        imm r14, 1
+        call resource_require_antecedent_row
+        imm r11, 528856
+        imm r12, 1145197383
+        imm r13, 529088
+        imm r14, 1
+        call resource_require_antecedent_row
+        imm r11, 527928
+        imm r12, 1347178320
+        imm r13, 528016
+        imm r14, 1
+        call resource_require_antecedent_row
+        imm r11, 528072
+        imm r12, 1346584912
+        imm r13, 528176
+        imm r14, 1
+        call resource_require_antecedent_row
+        imm r11, 545600
+        imm r12, 1129534036
+        imm r13, 545608
+        imm r14, 7
+        call resource_require_antecedent_row
+        imm r1, 601256
+        jeq r10, r1, resource_antecedent_require_done
+        jmp reject
+resource_antecedent_require_done:
+        ret
+
+resource_require_antecedent_row:
+        mov r20, r10
+        mov r21, r11
+        call exact_require_cell
+        imm r1, 8
+        add r10, r1
+        mov r20, r10
+        mov r21, r12
+        call exact_require_cell
+        add r10, r1
+        mov r20, r10
+        mov r21, r13
+        call exact_require_cell
+        add r10, r1
+        mov r20, r10
+        mov r21, r14
+        call exact_require_cell
+        add r10, r1
+        ret

@@ -1,0 +1,202 @@
+; Direct source/artifact custody for every checked resource origin.
+;
+; The conditional owner schemas provide data/trace meaning.  This local shape
+; layer independently rechecks the exact source guard, declared-limit literal,
+; RESOURCE_FAIL store/status literal (where present), and source-oversize exit
+; against the common canonical tables.  A status literal by itself is never a
+; classification premise.
+
+resource_classification_shape_init:
+        call resource_shape_source_bytes
+        call resource_shape_call_arity
+        call resource_shape_local_slots
+        call resource_shape_expression_depth
+        call resource_shape_block_depth
+        call resource_shape_parameter_arity
+        call resource_shape_slot_preflight
+        imm r1, 600056
+        imm r2, 7                    ; seven exact direct guard shapes
+        store r1, r2
+        jmp resource_antecedent_init
+
+resource_shape_source_bytes:
+        imm r20, 2
+        imm r21, 2
+        imm r22, 1
+        imm r23, 3
+        imm r24, 401                 ; exact n==capacity guard
+        call exact_require_transition
+        imm r20, 4
+        imm r21, 2
+        imm r22, 1
+        imm r23, 1048576             ; B_bc1 source capacity literal
+        imm r24, 332
+        call transfer_require_primitive
+        imm r20, 2
+        imm r21, 3
+        imm r22, 5
+        imm r23, 686                 ; full return before the extra store
+        call exact_require_event
+        ret
+
+resource_shape_call_arity:
+        imm r20, 117
+        imm r21, 159
+        imm r22, 1
+        imm r23, 160
+        imm r24, 22573               ; exact nargs<4 guard
+        call exact_require_transition
+        imm r20, 407
+        imm r21, 159
+        imm r22, 1
+        imm r23, 4
+        imm r24, 22504
+        call transfer_require_primitive
+        imm r20, 35
+        imm r21, 159
+        imm r22, 2
+        imm r23, 8
+        imm r24, 22644
+        call transfer_require_memory
+        imm r20, 409
+        imm r21, 159
+        imm r22, 1
+        imm r23, 252
+        imm r24, 22618
+        call transfer_require_primitive
+        ret
+
+resource_shape_local_slots:
+        imm r20, 128
+        imm r21, 171
+        imm r22, 1
+        imm r23, 172
+        imm r24, 24313               ; exact s<1024 guard
+        call exact_require_transition
+        imm r20, 434
+        imm r21, 171
+        imm r22, 1
+        imm r23, 1024
+        imm r24, 24244
+        call transfer_require_primitive
+        imm r20, 38
+        imm r21, 171
+        imm r22, 2
+        imm r23, 8
+        imm r24, 24384
+        call transfer_require_memory
+        imm r20, 436
+        imm r21, 171
+        imm r22, 1
+        imm r23, 252
+        imm r24, 24358
+        call transfer_require_primitive
+        ret
+
+resource_shape_expression_depth:
+        imm r20, 249
+        imm r21, 304
+        imm r22, 1
+        imm r23, 305
+        imm r24, 43302               ; exact EXPRDEPTH<64 guard
+        call exact_require_transition
+        imm r20, 675
+        imm r21, 304
+        imm r22, 1
+        imm r23, 64
+        imm r24, 43233
+        call transfer_require_primitive
+        imm r20, 58
+        imm r21, 304
+        imm r22, 2
+        imm r23, 8
+        imm r24, 43373
+        call transfer_require_memory
+        imm r20, 677
+        imm r21, 304
+        imm r22, 1
+        imm r23, 252
+        imm r24, 43347
+        call transfer_require_primitive
+        ret
+
+resource_shape_block_depth:
+        imm r20, 252
+        imm r21, 309
+        imm r22, 1
+        imm r23, 310
+        imm r24, 44234               ; exact BLOCKDEPTH<64 guard
+        call exact_require_transition
+        imm r20, 696
+        imm r21, 309
+        imm r22, 1
+        imm r23, 64
+        imm r24, 44165
+        call transfer_require_primitive
+        imm r20, 65
+        imm r21, 309
+        imm r22, 2
+        imm r23, 8
+        imm r24, 44305
+        call transfer_require_memory
+        imm r20, 698
+        imm r21, 309
+        imm r22, 1
+        imm r23, 252
+        imm r24, 44279
+        call transfer_require_primitive
+        ret
+
+resource_shape_parameter_arity:
+        imm r20, 276
+        imm r21, 340
+        imm r22, 1
+        imm r23, 341
+        imm r24, 49588               ; exact NLOC<4 parameter guard
+        call exact_require_transition
+        imm r20, 783
+        imm r21, 340
+        imm r22, 1
+        imm r23, 4
+        imm r24, 49519
+        call transfer_require_primitive
+        imm r20, 89
+        imm r21, 340
+        imm r22, 2
+        imm r23, 8
+        imm r24, 49659
+        call transfer_require_memory
+        imm r20, 785
+        imm r21, 340
+        imm r22, 1
+        imm r23, 252
+        imm r24, 49633
+        call transfer_require_primitive
+        ret
+
+resource_shape_slot_preflight:
+        imm r20, 281
+        imm r21, 344
+        imm r22, 1
+        imm r23, 345
+        imm r24, 50296               ; exact nslots<=1024 guard
+        call exact_require_transition
+        imm r20, 797
+        imm r21, 344
+        imm r22, 1
+        imm r23, 1024
+        imm r24, 50227
+        call transfer_require_primitive
+        imm r20, 92
+        imm r21, 344
+        imm r22, 2
+        imm r23, 8
+        imm r24, 50367
+        call transfer_require_memory
+        imm r20, 799
+        imm r21, 344
+        imm r22, 1
+        imm r23, 252
+        imm r24, 50341
+        call transfer_require_primitive
+        ret

@@ -112,6 +112,38 @@ artifact committed together:
 - output: streamed one byte at a time, with no finite compiler-owned output
   buffer.
 
+The checked compiler-origin `ResourceKind` inventory for `B_bc1` is:
+
+```text
+SourceBytes
+ProcedureLocalSlots
+CallArity
+ExpressionCodegenDepth
+BlockCodegenDepth
+```
+
+These identities come from the resource profile and the exact failed admission
+guard, never from a numeric process status. The complete direct-origin mapping
+is:
+
+| Exact failed admission | ResourceKind | Limit | Requested | Process projection |
+| --- | --- | ---: | ---: | ---: |
+| `slurp.full` before the extra source-byte store | `SourceBytes` | 1,048,576 | 1,048,577 | 253 |
+| fifth actual argument in `gen_call` | `CallArity` | 4 | 5 | 252 |
+| first declaration after a full local-name table | `ProcedureLocalSlots` | 1,024 | 1,025 | 252 |
+| recursive `gen_expr` activation at depth 64 | `ExpressionCodegenDepth` | 64 | 65 | 252 |
+| recursive `gen_stmts` activation at depth 64 | `BlockCodegenDepth` | 64 | 65 | 252 |
+| fifth formal parameter in `parse_proc` | `CallArity` | 4 | 5 | 252 |
+| `parse_proc` frame-slot preflight with `nslots > 1024` | `ProcedureLocalSlots` | 1,024 | exact `nslots = nparams + count_lets()`, in `[1025,1048580]` | 252 |
+
+The two shared kinds deliberately retain distinct origins. For the preflight
+case, `requested` is the actual symbolic `nslots` value, not the lower bound
+1,025 or a clamped representative. Once selected, origin, kind, limit, and
+requested amount are sticky ghost provenance through wrapper returns. A later
+failed admission does not overwrite the first resource outcome. Numeric 252/253
+is a one-way process projection of this typed evidence; there is no converse
+rule from status to `ResourceKind`.
+
 The source compiler checks the source, name, argument, expression, and block
 ceilings before the corresponding compiler-owned memory can overlap. Source
 exhaustion projects to status 253 with empty output. The other checked compiler
@@ -192,7 +224,8 @@ are valuable teeth, but they do not yet establish the quantified observation:
   consumed-but-unstored 1,048,577th byte. The following root bridge establishes
   its actual prelude/main entry relation, carries return 1 to `main.ready`, and
   composes return 0 through `main` to canonical `Halt(253)` with empty output,
-  without yet assigning the typed SourceBytes exhaustion identity;
+  while the later independent resource checker assigns the typed SourceBytes
+  exhaustion identity from that exact guard and `B_bc1`;
 - its cursor-leaf phase imports that successful source segment and proves
   conditional exact summaries for `cbyte`, `adv`, and `is_space`: a
   nonnegative signed `CUR<LEN` selects the zero-extended `SRC[CUR]` byte,
@@ -539,6 +572,13 @@ are valuable teeth, but they do not yet establish the quantified observation:
   phases prove the source ranged-address premise and selected compiled operands;
   the protected-counter, all-store/frame-summary, and potential-lift phases then
   close whole-artifact dynamic stack/frame bounds;
+- its checked-resource process independently rejoins all seven direct failed
+  admissions with the five frozen `B_bc1` profile rows and exact requested
+  amounts. It retains the symbolic preflight `nslots` value, scans the complete
+  kind/projection census, and proves status is only a one-way projection. This
+  closes direct typed classification and sticky origin provenance; the root
+  simulation must still instantiate and carry it into the final maximal
+  `Exhaust` observation;
 - Alpha out-of-range memory remains undefined in `alpha/SEMANTICS.md` and must be
   excluded by independently checked `B_bc1` bounds before whole-artifact closure
   (or Alpha must be hardened independently);

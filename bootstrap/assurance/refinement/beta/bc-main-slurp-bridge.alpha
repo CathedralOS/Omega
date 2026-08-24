@@ -14,9 +14,10 @@
 ; earlier frame/potential phases supply absolute stack and hidden-return safety;
 ; the slurp summary supplies termination, source-segment, cursor, reset, and
 ; empty-output facts.  Thus the success cutpoint inherits the complete slurp
-; footprint, while source oversize has exact concrete observation Halt(253)
-; with an empty trace.  Assigning that numeric result the typed observation
-; Exhaust(SourceBytes,1048576,1048577) remains a separate design ruling.
+; footprint, while source oversize has exact concrete projection Halt(253)
+; with an empty trace.  The separate resource-classification checker combines
+; this exact guard with B_bc1 to supply
+; Exhaust(SourceBytes,1048576,1048577); it does not invert status253.
 ;
 ; Fresh relational cells:
 ;   current provenance/payload       525648/525656
