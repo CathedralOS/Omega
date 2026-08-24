@@ -132,38 +132,7 @@ resolves those names into opaque identities during layout evaluation. Do not
 put raw IDs or field offsets in source, infer the demand from the callback row,
 or expose a callback-address-shaped semantic field.
 
-## Q5 — Does claim-free opaque boundary data require admission?
-
-Package admission clearly treats accepted `ensures`, external/provider
-guarantees, and admitted boundary qualifications as trust-bearing claims. An
-opaque boundary data declaration may instead expose only an unchecked external
-representation or handle shape while making no mathematical or authority
-claim. It still enlarges the executable and representation TCB, but admitting
-it as though it asserted a theorem may collapse code/ABI review into proof
-trust and produce noisy conflicts.
-
-Choose whether claim-free opaque boundary data is itself blocking admission or
-only mandatory reported/audit evidence. The rule must:
-
-- distinguish a representation/executable TCB introduction from an accepted
-  proposition or provider guarantee;
-- remain based on compiler-owned nominal metadata, never package-controlled
-  names;
-- make later addition of a guarantee, qualification establishment, or provider
-  authority a blocking evidence change;
-- keep initial install and retained-dangerous-authority review conservative;
-  and
-- compose with exact package/source/toolchain identity so another package's
-  same-spelled boundary cannot inherit a decision.
-
-Recommended direction: always report claim-free opaque boundary data and make
-it a strong code/ABI audit recommendation, but reserve mandatory trust
-admission for an accepted claim, authority establishment, provider guarantee,
-or deployment policy that explicitly classifies the representation mechanism
-as dangerous. Do not silently omit it, and do not label mere opacity as a
-proved or accepted fact.
-
-## Q6 — What compiler build identity authorizes package evidence?
+## Q5 — What compiler build identity authorizes package evidence?
 
 Context: package evidence must be inseparable from the compiler that derived
 it. Source and Terminal Psi already expose useful commitments, but the compiler
@@ -185,7 +154,7 @@ byte-distinct artifacts, but should supplement rather than replace the exact
 artifact digest. A version string, Git commit alone, or a digest supplied by the
 invoking build is tempting but not an authority boundary.
 
-## Q7 — Must accepted package evidence require complete Terminal coverage?
+## Q6 — Must accepted package evidence require complete Terminal coverage?
 
 Context: the compiler can now form an in-memory package review projection from
 checked trees, while final Terminal Psi commitments and verifier replay do not

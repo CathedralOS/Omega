@@ -788,6 +788,15 @@ their representation is supplied by the admitted proof boundary. Runtime
 authority values use ordinary data declarations whose layouts are derived from
 their fields.
 
+Representation supply and accepted facts remain separate evidence lanes. A
+claim-free opaque boundary declaration always produces an exact
+representation-TCB row and recommends code/ABI audit when introduced or
+materially changed, but opacity alone does not admit a proposition or
+authority. Accepted guarantees, qualification establishment, dangerous
+mechanisms, executable supply, and compatibility changes retain their own
+independent admission policy. An absent service-reach row never suppresses the
+representation evidence.
+
 ## Identity and reporting
 
 Public data shape contributes its ordinary package/type identity. Domain
@@ -936,7 +945,9 @@ declarations and compiler metadata while preserving the authority contracts.
 - accepted resource origins default to strict carry, explicit positive
   permissions relax individual axes, and inherited claims preserve them;
 - a fabricated or dequalified linear Extent has no legal consuming path;
-- qualification facts and runtime authority carriers add no implicit runtime tag;
-  and
+- qualification facts and runtime authority carriers add no implicit runtime
+  tag;
+- claim-free boundary representation remains reported without being treated as
+  an accepted fact; and
 - proof-only boundary data remains representation-free unless its boundary
   contract supplies a representation.

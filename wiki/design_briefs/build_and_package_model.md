@@ -649,6 +649,21 @@ requirement owner, but binding/selection and remaining artifact joins are
 unfinished. Risk classes must come from compiler-owned metadata on admitted
 nominal identities, never from package-controlled names.
 
+Claim-free opaque `boundary data` is retained in a separate representation-TCB
+lane. Its row binds the package-qualified declaration to the exact target,
+representation/ABI commitment, external mechanism or explicit unbound status,
+and source/toolchain/compiler evidence. Introduction or material change
+strongly recommends a code/ABI audit, while unchanged rows remain visible
+without recurring blanket approval. Opacity alone is not a blocking trust
+claim. Deployment policy may still classify an exact compiler-owned mechanism
+as dangerous and blocking.
+
+Accepted propositions, boundary/provider guarantees, authority establishment,
+executable mechanisms, and derived dangerous reach remain independent
+admission rows. Public ABI incompatibility may block on the API axis without
+being mislabeled as proof trust. Missing `reaches` does not suppress the
+representation row, and package-controlled type names never determine risk.
+
 Open/deferred proof obligations reject package admission. This is an admission
 requirement, not a claim that ordinary compilation already exposes such a
 status: the current compiler has no explicit deferred-proof carrier, and one
@@ -705,6 +720,9 @@ policy file.
 Every source update also receives provenance and source-diff triage because an
 implementation can misuse already-admitted power without changing capability
 evidence. Retained dangerous authority always produces an audit recommendation.
+Claim-free representation-TCB findings appear in the same command and may
+produce `admitted-with-audit-recommended` without manufacturing a conflict or
+resolution artifact when no independent policy blocks them.
 The prior source tree improves review quality but is not the admission baseline:
 if it is unavailable, lock-based capability comparison still works and source
 review escalates to a standalone candidate audit. If the accepted lock baseline

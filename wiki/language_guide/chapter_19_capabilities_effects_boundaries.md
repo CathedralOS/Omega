@@ -65,6 +65,39 @@ Working interpretation:
 Users can inspect `Slice::index` and its proof contract without depending on the
 private descriptor, pointer, or code-generation mechanism used after proof.
 
+### Representation TCB and claim admission
+
+A claim-free `boundary data` declaration is representation evidence, not by
+itself a proposition, capability establishment, provider guarantee, or service
+reach grant. It can still enlarge the code/ABI trusted computing base because
+an external realization determines some or all of its representation.
+
+Package evidence therefore always reports it as an exact representation-TCB
+row. The row is keyed by the package-qualified declaration, target,
+representation/ABI commitment, selected mechanism or explicit unbound status,
+and source/toolchain/compiler evidence. Package-controlled names never classify
+its risk.
+
+Initial introduction or material change strongly recommends code/ABI audit but
+does not, by opacity alone, create a blocking trust-claim admission. Unchanged
+representation rows remain visible without demanding a recurring blanket
+approval. A deployment profile may elevate an exact compiler-owned mechanism
+to blocking policy when that mechanism is intrinsically dangerous.
+
+Independent facts retain their independent consequences:
+
+- adding an accepted proposition, boundary guarantee, authority
+  establishment, provider guarantee, or executable mechanism creates its own
+  blocking admission row;
+- a breaking public representation/API change may block compatibility policy
+  without being mislabeled as an accepted theorem; and
+- derived dangerous authority remains subject to dangerous-authority review
+  even when it passes through an opaque value.
+
+The absence of a `reaches` row does not make an opaque representation invisible,
+and opacity cannot hide authority derived from the operations that consume or
+produce it.
+
 ## Boundary Traits
 
 A boundary trait names callable behavior whose realization is selected at a

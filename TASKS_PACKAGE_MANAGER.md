@@ -30,8 +30,9 @@ complete.
   derived from the fetched package name; explicit aliases are exceptional.
 - Dependency-source projection is hermetic and completes before dependency
   build execution.
-- `build.omg` records update intent. `omega.lock` records exact reconciliation
-  and the normalized accepted capability/API baseline.
+- `build.omg` records update intent. `omega.lock` records exact reconciliation,
+  the normalized accepted capability/API baseline, and representation-TCB
+  review rows.
 - Capabilities are compiler-derived from checked candidate source/build output.
 - Install compares against an empty baseline. Missing lock evidence causes
   fresh graph admission. Missing old source causes standalone source audit but
@@ -40,6 +41,11 @@ complete.
   retained dangerous authority always recommends code audit.
 - Conflict resolution is row-specific and candidate-bound, never a blanket
   yes/no receipt.
+- Claim-free opaque boundary data always emits package-qualified
+  representation-TCB evidence. Introduction or material change recommends
+  code/ABI audit but is not, by opacity alone, a blocking trust claim; exact
+  dangerous mechanisms, accepted claims, authority, executable supply, and API
+  incompatibility retain their independent blocking policies.
 - Implementation vocabulary is discovery-driven: reuse ordinary Omega data,
   machines, arithmetic, and existing provider machinery; do not add a public
   boundary trait or package-specific policy axis unless a concrete fixture
@@ -410,6 +416,18 @@ complete.
   executable installation, root memory, DMA/IOMMU, interrupts, and equivalent
   authority cannot be spoofed or hidden by package-controlled names.
 
+- **REPRESENTATION-TCB-REVIEW.** Retain claim-free opaque boundary data as a
+  distinct compiler-owned review lane.
+
+  Acceptance: every row binds exact package/declaration, target,
+  representation/ABI, mechanism or explicit unbound status, source, toolchain,
+  and compiler evidence; introduction or material change produces a strong
+  code/ABI audit recommendation; unchanged rows remain visible without
+  recurring blanket approval; exact dangerous mechanisms may be policy-blocked;
+  accepted claims, authority establishment, executable supply, and API
+  compatibility remain separate rows. Package-controlled names and absence of
+  current `reaches` never classify or suppress evidence.
+
 - **SOURCE-AND-PROVENANCE-TRIAGE.** Run automated/LLM triage for every source
   update, independently of capability equality.
 
@@ -461,8 +479,9 @@ complete.
 
 - **SECURITY-FIXTURE-MATRIX.** Add local and remote cases for pure code,
   generated files, filesystem, network overreach, retained filesystem+network
-  authority, accepted claims, provider changes, capability flow, missing old
-  source, missing lock baseline, same-name/different-lineage spoofing, transport
+  authority, claim-free opaque representation, dangerous-mechanism escalation,
+  accepted claims, provider changes, capability flow, missing old source,
+  missing lock baseline, same-name/different-lineage spoofing, transport
   normalization, and dependency-version reconciliation conflict.
 
 - [x] **REMOVE-FABRICATED-MANIFEST-TESTS.** Replace integration tests that construct

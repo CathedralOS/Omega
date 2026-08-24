@@ -28,8 +28,13 @@ real package fixture demonstrates an irreducible external contract.
   evidence from checked source and build results.
 - `omega.lock` records the exact reconciled closure and normalized accepted
   evidence baseline. It should normally be committed.
-- Every update receives source/provenance triage. Evidence changes block on a
-  conflict; retained dangerous authority always recommends code audit.
+- Every update receives source/provenance triage. Blocking capability/API
+  changes produce exact conflicts; retained dangerous authority always
+  recommends code audit.
+- Claim-free opaque boundary data remains visible as package-qualified
+  representation-TCB evidence. Introduction or material change recommends
+  code/ABI audit without becoming a trust claim unless exact mechanism,
+  authority, executable, claim, or compatibility policy independently blocks.
 - Missing old source escalates code review but does not prevent comparison
   against the lock baseline. Missing lock evidence causes fresh graph
   admission.
