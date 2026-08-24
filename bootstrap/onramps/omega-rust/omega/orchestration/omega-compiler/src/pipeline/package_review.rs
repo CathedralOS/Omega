@@ -533,7 +533,8 @@ impl CheckedPackageReviewProjection {
     /// Versioned, source-handle-free comparison bytes for this review-only
     /// projection. These bytes are not a package certificate and must not be
     /// persisted as accepted evidence without the source/toolchain/compiler
-    /// and complete Terminal joins required by package admission.
+    /// binding and remaining required admission-projection joins. Terminal
+    /// evidence is separately required only for final-realization claims.
     pub fn canonical_review_bytes(&self) -> Result<Vec<u8>, PackageReviewEncodingError> {
         encoding::encode(self)
     }

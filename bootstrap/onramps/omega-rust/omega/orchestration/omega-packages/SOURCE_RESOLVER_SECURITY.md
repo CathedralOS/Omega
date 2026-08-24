@@ -1,6 +1,6 @@
 # Source resolver security boundary
 
-Status: engineering contract, 2026-08-23. This document refines
+Status: engineering contract, 2026-08-24. This document refines
 `HARDEN-SOURCE-RESOLVER`; it does not define package or Omega language syntax.
 
 ## Boundary
@@ -98,11 +98,14 @@ publication; compilation-facing diagnostics expose the published snapshot, not
 the live tree. Empty directories participate in identity while directory
 permissions normalize to the canonical snapshot policy.
 
-The fetch and materialization work still runs in the parent process without an
-OS sandbox or strict command-output/resource ceilings. A deliberately hostile
-same-user process can race cooperative locks and validation, including the
-local before/after observation. SSH retains an external client and
-credential/configuration surface. Local capture also includes tool-owned output
-already present beneath the selected source root. Those conditions keep the
-resolver diagnostic-only until helper confinement, custody, resource ceilings,
-clean-source policy, and opaque-receipt work land.
+Git subprocesses now receive null stdin, concurrent bounded stdout/stderr
+capture, and a deadline. Overflow and timeout terminate the child and reject
+explicitly, including for blob reads. Fetch and materialization still run in the
+parent process without an OS sandbox, descendant containment, or CPU, memory,
+process-count, and transfer ceilings. A deliberately hostile same-user process
+can race cooperative locks and validation, including the local before/after
+observation. SSH retains an external client and credential/configuration
+surface. Local capture also includes tool-owned output already present beneath
+the selected source root. Those conditions keep the resolver diagnostic-only
+until helper confinement, custody, remaining resource ceilings, clean-source
+policy, and opaque-receipt work land.
