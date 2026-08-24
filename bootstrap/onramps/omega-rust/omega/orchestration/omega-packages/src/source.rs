@@ -55,7 +55,7 @@ pub struct ResolvedGitSource {
     pub requested_rev: String,
     pub commit: String,
     pub tree: String,
-    pub checkout_root: PathBuf,
+    pub snapshot_root: PathBuf,
     pub local: ResolvedLocalSource,
 }
 
@@ -306,7 +306,7 @@ fn resolve_verified_git_cache_entry(
     let tree = tree.trim().to_owned();
     verify_git_cache_entry(entry_root, url, requested_rev)?;
     let entries = inspect_git_tree(&repository, &tree, limits)?;
-    let (checkout_root, local) =
+    let (snapshot_root, local) =
         resolve_git_snapshot(entry_root, &repository, &tree, entries, limits)?;
     verify_git_cache_entry(entry_root, url, requested_rev)?;
     Ok(ResolvedGitSource {
@@ -314,7 +314,7 @@ fn resolve_verified_git_cache_entry(
         requested_rev: requested_rev.to_owned(),
         commit,
         tree,
-        checkout_root,
+        snapshot_root,
         local,
     })
 }
@@ -2339,8 +2339,8 @@ mod tests {
 
         let resolved =
             resolve_git_source(&spec, &cache, LocalSourceLimits::default()).expect("resolve kinds");
-        let published_script = resolved.checkout_root.join("tools/generate");
-        let published_link = resolved.checkout_root.join("tools/current");
+        let published_script = resolved.snapshot_root.join("tools/generate");
+        let published_link = resolved.snapshot_root.join("tools/current");
 
         assert_eq!(
             std::fs::read(&published_script).expect("read script"),
@@ -2389,7 +2389,7 @@ mod tests {
             .expect("materialize object bytes");
 
         assert_eq!(
-            std::fs::read(resolved.checkout_root.join("main.omg")).expect("read snapshot blob"),
+            std::fs::read(resolved.snapshot_root.join("main.omg")).expect("read snapshot blob"),
             b"machine Main::main() {}\n"
         );
         let _ = std::fs::remove_dir_all(&repo);
@@ -2413,12 +2413,12 @@ mod tests {
             resolve_git_source(&spec, &cache, LocalSourceLimits::default()).expect("first resolve");
         let second = resolve_git_source(&spec, &cache, LocalSourceLimits::default())
             .expect("reuse snapshot");
-        assert_eq!(first.checkout_root, second.checkout_root);
+        assert_eq!(first.snapshot_root, second.snapshot_root);
         assert_eq!(first.local, second.local);
 
-        std::fs::set_permissions(&first.checkout_root, std::fs::Permissions::from_mode(0o755))
+        std::fs::set_permissions(&first.snapshot_root, std::fs::Permissions::from_mode(0o755))
             .expect("make source root writable for tamper simulation");
-        let source = first.checkout_root.join("main.omg");
+        let source = first.snapshot_root.join("main.omg");
         std::fs::set_permissions(&source, std::fs::Permissions::from_mode(0o644))
             .expect("make source writable for tamper simulation");
         std::fs::write(&source, "machine Tampered::main() {}\n").expect("tamper snapshot");
@@ -2494,7 +2494,7 @@ mod tests {
         let resolved =
             resolve_git_source(&spec, &cache, LocalSourceLimits::default()).expect("prime cache");
 
-        assert!(!resolved.checkout_root.join("injected.omg").exists());
+        assert!(!resolved.snapshot_root.join("injected.omg").exists());
         assert_eq!(resolved.local.file_count, 1);
         let _ = std::fs::remove_dir_all(&repo);
         let _ = std::fs::remove_dir_all(&cache);
@@ -2695,8 +2695,8 @@ mod tests {
         };
         let initial = resolve_git_source(&spec, &cache, LocalSourceLimits::default())
             .expect("resolve initial source");
-        let checkout_source = initial.checkout_root.join("main.omg");
-        let initial_checkout = std::fs::read(&checkout_source).expect("read initial checkout");
+        let snapshot_source = initial.snapshot_root.join("main.omg");
+        let initial_snapshot = std::fs::read(&snapshot_source).expect("read initial snapshot");
 
         std::fs::write(repo.join(".gitmodules"), "[submodule \"dep\"]\n")
             .expect("write gitmodules");
@@ -2714,11 +2714,11 @@ mod tests {
             SourceResolveError::GitSubmodulesUnsupported { .. }
         ));
         assert_eq!(
-            std::fs::read(&checkout_source).expect("read checkout after rejection"),
-            initial_checkout,
-            "the fetched submodule tree must be rejected before checkout"
+            std::fs::read(&snapshot_source).expect("read snapshot after rejection"),
+            initial_snapshot,
+            "the fetched submodule tree must be rejected before materialization"
         );
-        assert!(!initial.checkout_root.join("../source.identity").exists());
+        assert!(!initial.snapshot_root.join("../source.identity").exists());
         assert!(!commit.is_empty());
         let _ = std::fs::remove_dir_all(&repo);
         let _ = std::fs::remove_dir_all(&cache);
