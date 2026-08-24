@@ -24,6 +24,13 @@ Standalone Terminal-Psi interpreters, REPLs, proof explorers, viewers, and
 debuggers are not bootstrap dependencies unless imported by the production
 compiler executable.
 
+The product compiler's own Terminal-Psi representation and lowering modules are
+different: because the current ownership cut links them into the compiler, they
+belong to its deterministic source closure as ordinary `Ωself` modules. The
+Delta-written bridge only has to compile that source correctly. It need not
+contain a Terminal-Psi interpreter or adopt Terminal Psi as its own internal IR;
+a direct conservative lowering path is valid.
+
 Three separate properties are involved:
 
 - `omega-bootstrap` is intentionally incomplete in Omega input coverage;
@@ -34,6 +41,10 @@ Three separate properties are involved:
 
 The exact compiler-source manifest demonstrates closure under `Ωself`; it must
 not become a whitelist of files, statement counts, or syntax-tree shapes.
+The manifest yields a provisional profile. The profile freezes at the bridge
+join, after the general implementation supplies real implementation and
+assurance costs for retained features; source census alone cannot settle that
+tradeoff.
 
 The bridge binary may run slowly and lower the production compiler
 conservatively. It must compile the `Ωself` source that implements the product

@@ -302,6 +302,20 @@ use are already Alpha-rooted.
 The exact Delta language inventory and `Ωself` source-profile inventory are
 governed by [`compiler_source_profile.md`](compiler_source_profile.md).
 
+The two freezes occur at explicit joins. The product compiler's deterministic
+Omega source closure first yields a provisional `Ωself`; that profile freezes
+only after the general Delta-written bridge provides the implementation and
+assurance costs used to settle its retained features. Delta v1 then freezes from
+the bridge's complete Delta source closure plus explicit compiler-host
+coherence, safety, and maintainability arguments. This co-evolution is a design
+discovery loop, not a runtime or build cycle.
+
+Terminal Psi follows ordinary source-closure rules. Representation and lowering
+modules linked into the product compiler belong to its manifest; standalone
+interpreters, verifiers, viewers, and debugging tools do not unless imported.
+The bridge may lower directly and is not required to use Terminal Psi as its own
+internal IR merely because it compiles product modules that implement it.
+
 ---
 
 ## The chain, end to end
@@ -342,15 +356,19 @@ close it.
    `gamma_emit.rs` remains a differential reference producer. *(D1.)*
 3. **Grow the proof kernel and its seams in lockstep** — no capability without its paired seam. *(D4)*
 4. **Translation-validation backend** — per-compile refinement certs. *(D3 north star, later.)*
-5. **Establish the production Omega source tree and `Ωself`** — publish its
-   deterministic dependency closure, derive the lowest-total-cost compositional
-   source profile, and mechanically reject excluded features. *(D6.)*
-6. **Complete `omega-bootstrap` and freeze Delta v1 around its source closure** —
-   implement the exact `Ωself` frontend/semantic path and correct conservative
-   lowering needed for the one hosted production build, prune accidental Delta
-   experiments, then freeze the coherent retained language. Compile, rather than
-   duplicate, the product optimizer and advanced lowering source. Do not require
-   unrelated full-Omega source or tool surfaces. *(D2/D6, later.)*
+5. **Establish the production Omega source tree and provisional `Ωself`** —
+   publish its deterministic dependency closure, derive the lowest-total-cost
+   compositional source-profile candidate, and mechanically reject excluded
+   features. *(D6.)*
+6. **Complete `omega-bootstrap`, then freeze `Ωself` and Delta v1 at their
+   joins** — implement the general profile frontend/semantic path and correct
+   conservative lowering needed for the one hosted production build. Feed real
+   implementation and assurance cost back into `Ωself`, freeze it when that
+   bridge closes, then prune accidental Delta experiments and freeze the
+   coherent retained language around the complete bridge source closure.
+   Compile, rather than duplicate, the product optimizer and advanced lowering
+   source. Do not require unrelated full-Omega source or tool surfaces.
+   *(D2/D6, later.)*
 7. **Build production Omega once** — compile the `Ωself`-constrained Omega
    source into the full optimizing compiler, then apply the normal meaning and
    translation-validation gates. Its own binary may be conservative; a further

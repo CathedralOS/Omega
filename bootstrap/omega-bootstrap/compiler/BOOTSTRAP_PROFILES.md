@@ -21,7 +21,8 @@ final build lattice must preserve:
 - **Omega product-compiler source profile `Ωself`** is the incidental ordinary-
   Omega profile selected by the source closure from which the production
   compiler is built. It remains open until that exact source and dependency
-  manifest exists.
+  manifest exists and the general bridge supplies measured implementation and
+  assurance cost for the retained features.
 
 O0 and O1 are vertical pipeline canaries, not normative ancestors of `Ωself`.
 The eventual profile may reuse their implementation, but it is derived from the
@@ -143,6 +144,11 @@ feature defaults for the compiler's own implementation source are:
 The hosted source closure separately omits terminal-Psi interpreters, REPLs,
 proof explorers, viewers, debuggers, and other product tools unless the compiler
 executable imports them. Tool membership is not an Omega language feature.
+The current compiler architecture does import Terminal-Psi representation and
+lowering modules, so those ordinary source modules belong to the manifest. That
+does not require the bridge to contain or run the standalone Terminal-Psi
+interpreter, verifier, viewer, or debugging tools, or to use Terminal Psi as its
+own internal IR.
 
 These exclusions describe syntax used by the compiler implementation, not
 features implemented for compiler users. For example, the product source may
@@ -152,9 +158,12 @@ lowering. Full-Omega suites validate the resulting compiler independently of
 the `Ωself` source census.
 
 The gate must compile the complete manifest under explicit compositional profile
-rules and carry a negative canary for every rejected feature. The profile
-includes all transitive libraries, generated and compile-time source, build
-behavior, and compiler-imported tools. See
+rules and carry a negative canary for every rejected feature. The candidate
+profile may be enforced before the bridge is complete, but it freezes only when
+the general bridge implementation supplies the implementation and assurance
+cost used to settle every retained feature. The profile includes all transitive
+libraries, generated and compile-time source, build behavior, and
+compiler-imported tools. See
 [`../../../wiki/architecture/bootstrap_lattice/compiler_source_profile.md`](../../../wiki/architecture/bootstrap_lattice/compiler_source_profile.md).
 
 ## O0 — Omega vertical-canary acceptance profile

@@ -68,10 +68,15 @@ Remaining:
   implementation does not narrow the language the resulting compiler
   implements. Deriving, enforcing, and closing `Ωself` and the Delta-built
   `omega-bootstrap` compiler are tracked separately in `TASKS_BOOTSTRAP.md`;
-  product Psi/Omega implementation work must not be added there.
+  product Psi/Omega implementation work must not be added there. The source
+  manifest yields a provisional profile; `Ωself` freezes only at the bridge
+  join, after the general implementation supplies the cost evidence used to
+  settle every retained feature.
   Keep compiler-adjacent tools out of the source closure unless the compiler
   executable imports them; full Omega acceptance does not require a hosted
-  Terminal-Psi interpreter, REPL, proof explorer, viewer, or debugger.
+  Terminal-Psi interpreter, REPL, proof explorer, viewer, or debugger. The
+  Terminal-Psi representation and lowering modules linked into the compiler do
+  remain ordinary members of its source closure.
 
 - **OMEGA-RUST-COMPARATOR.** Maintain the current Rust Psi/Omega compiler under
   `bootstrap/onramps/omega-rust/` as a parallel differential implementation

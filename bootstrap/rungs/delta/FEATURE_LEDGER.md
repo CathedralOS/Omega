@@ -18,6 +18,12 @@ this file records which Delta facilities are justified by the implementation of
 that bridge. A feature excluded from one surface is not thereby excluded from,
 or admitted to, the other.
 
+The objective is a small, robust compiler-host language, not the smallest token
+census. A modest facility may remain without many textual occurrences when it
+makes the bridge materially safer, clearer, more modular, or easier to assure.
+Conversely, similarity to Omega is a consistency benefit rather than a subset
+requirement.
+
 ## Fixed constraints
 
 - deterministic specified behavior, with no undefined behavior;
@@ -38,7 +44,7 @@ or admitted to, the other.
 | records, fixed arrays, slices, and payload sums | compiler corpus and current bridge slices | use records plus explicit tags where payload-sum machinery does not pay for itself | unresolved |
 | runtime-sized reservation from fixed backing and integer-offset arenas | storage canary and `lowermachine` tables | use statically partitioned fixed arrays or ordinary Delta library code; otherwise retain only deterministic bump/paged reservation, specified exhaustion, and bulk reset actually needed by the bridge | unresolved |
 | host boundary | current source declares `boundary trait Console` with partly hardwired operations | use one sealed interface for source bytes, artifact bytes, diagnostics, and termination | general boundary traits not presumed |
-| source units | the canonical length-delimited bridge bundle preserves labels and exact bytes | keep one bundle-wide namespace; add modules only for a demonstrated bridge requirement | bundle demonstrated; language model unresolved |
+| source units and modular organization | the canonical length-delimited bridge bundle preserves labels and exact bytes; the completed bridge must publish a transitive multi-source closure | keep a bundle-wide namespace if it supports maintainable separate source units; add native package semantics only for a demonstrated bridge requirement | bundle demonstrated; language model unresolved |
 | contracts, refinements, and proof-oriented syntax | experimental producer corpus | runtime/static checks plus externally checked emitted certificates | not presumed |
 | mixed field-plus-case data and other producer experiments | Rust-producer acceptance or planned slices | separate records and sums | not presumed |
 
