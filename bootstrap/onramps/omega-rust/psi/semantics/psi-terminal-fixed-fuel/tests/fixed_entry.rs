@@ -11,11 +11,11 @@ use psi_terminal::{
     Block, BoundaryMachineDeclaration, ClaimTransfer, CompletionReceipt, ContractClause,
     CrashCause, CrashRouteBucket, CrashRouteGuard, EntryClaim, MachineContract,
     NominalAffineCleanup, Operation, OperationKind, OperationResult, ServiceDeclaration,
-    StructuralArgument, StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
-    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
-    StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge,
-    TerminalAffineCleanupAction, TerminalMachine, TerminalMachineResult, TerminalModule,
-    Terminator, ValueDeclaration, VocabularyMarker,
+    StructuralAccess, StructuralArgument, StructuralFieldDeclaration, StructuralFieldType,
+    StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
+    StructuralPlaceDeclaration, StructuralResultDeclaration, StructuralTypeDeclaration,
+    StructuralTypeShape, SuccessorEdge, TerminalAffineCleanupAction, TerminalMachine,
+    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_codec::{CodecError, decode_module, encode_module, terminal_psi_identity};
 use psi_terminal_fixed_fuel::{
@@ -94,6 +94,7 @@ fn nominal_affine_cleanup_composes_the_cleanup_machine_bound() {
     }];
     let caller = &mut module.machines[0];
     caller.structural_parameters = vec![StructuralParameterDeclaration {
+        access: StructuralAccess::Owned,
         place: source,
         position: 0,
         is_self: false,
@@ -660,6 +661,7 @@ fn structural_return_is_one_normal_edge_unit() {
     let machine = &mut module.machines[0];
     machine.structural_parameters = vec![
         StructuralParameterDeclaration {
+            access: StructuralAccess::Owned,
             place: source,
             position: 0,
             is_self: false,
@@ -668,6 +670,7 @@ fn structural_return_is_one_normal_edge_unit() {
             qualifications: Vec::new(),
         },
         StructuralParameterDeclaration {
+            access: StructuralAccess::Owned,
             place: first_affine,
             position: 1,
             is_self: false,
@@ -676,6 +679,7 @@ fn structural_return_is_one_normal_edge_unit() {
             qualifications: Vec::new(),
         },
         StructuralParameterDeclaration {
+            access: StructuralAccess::Owned,
             place: second_affine,
             position: 2,
             is_self: false,
@@ -763,6 +767,7 @@ fn each_trivial_affine_local_establishment_adds_one_fixed_fuel_unit() {
     ];
     let machine = &mut module.machines[0];
     machine.structural_parameters = vec![StructuralParameterDeclaration {
+        access: StructuralAccess::Owned,
         place: source,
         position: 0,
         is_self: false,
@@ -1003,6 +1008,7 @@ fn projected_unit_calls_compose_each_callee_bound_in_call_order() {
         },
     ];
     module.boundary_machines[0].structural_parameters = vec![StructuralParameterDeclaration {
+        access: StructuralAccess::Owned,
         place: place_id(952),
         position: 0,
         is_self: false,
@@ -1013,6 +1019,7 @@ fn projected_unit_calls_compose_each_callee_bound_in_call_order() {
 
     let caller = &mut module.machines[0];
     caller.structural_parameters = vec![StructuralParameterDeclaration {
+        access: StructuralAccess::Owned,
         place: place_id(950),
         position: 0,
         is_self: false,
@@ -1046,6 +1053,7 @@ fn projected_unit_calls_compose_each_callee_bound_in_call_order() {
             kind: OperationKind::CallUnit {
                 callee: machine_id(701),
                 structural_arguments: vec![StructuralArgument {
+                    access: StructuralAccess::Owned,
                     place: place_id(950),
                     path: vec![StructuralPathSegment::FixedIndex(index)],
                 }],
@@ -1061,6 +1069,7 @@ fn projected_unit_calls_compose_each_callee_bound_in_call_order() {
 
     let callee = &mut module.machines[1];
     callee.structural_parameters = vec![StructuralParameterDeclaration {
+        access: StructuralAccess::Owned,
         place: place_id(951),
         position: 0,
         is_self: false,
@@ -1089,6 +1098,7 @@ fn projected_unit_calls_compose_each_callee_bound_in_call_order() {
         unreachable!()
     };
     *structural_arguments = vec![StructuralArgument {
+        access: StructuralAccess::Owned,
         place: place_id(951),
         path: Vec::new(),
     }];
@@ -1409,6 +1419,7 @@ fn ordered_empty_nominal_affine_fixture(same_target: bool) -> TerminalModule {
     let caller = &mut module.machines[0];
     caller.structural_parameters = vec![
         StructuralParameterDeclaration {
+            access: StructuralAccess::Owned,
             place: first_place,
             position: 0,
             is_self: false,
@@ -1417,6 +1428,7 @@ fn ordered_empty_nominal_affine_fixture(same_target: bool) -> TerminalModule {
             qualifications: Vec::new(),
         },
         StructuralParameterDeclaration {
+            access: StructuralAccess::Owned,
             place: second_place,
             position: 1,
             is_self: false,
@@ -1584,6 +1596,7 @@ fn three_ordered_shared_executable_nominal_affine_fixture() -> TerminalModule {
     caller
         .structural_parameters
         .push(StructuralParameterDeclaration {
+            access: StructuralAccess::Owned,
             place: place_id(902),
             position: 2,
             is_self: false,
@@ -1623,6 +1636,7 @@ fn five_ordered_shared_executable_nominal_affine_fixture() -> TerminalModule {
         caller
             .structural_parameters
             .push(StructuralParameterDeclaration {
+                access: StructuralAccess::Owned,
                 place,
                 position,
                 is_self: false,
@@ -1689,6 +1703,7 @@ fn executable_nominal_affine_fixture() -> TerminalModule {
     ];
     let caller = &mut module.machines[0];
     caller.structural_parameters = vec![StructuralParameterDeclaration {
+        access: StructuralAccess::Owned,
         place: source,
         position: 0,
         is_self: false,

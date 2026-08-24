@@ -9,13 +9,13 @@ use psi_proof_kernel::{
 use psi_terminal::{
     BindingRelevance, Block, BoundaryMachineDeclaration, ByteSequenceCarrier, ClaimTransfer,
     CompletionReceipt, EntryClaim, MachineContract, NominalAffineCleanup, Operation, OperationKind,
-    OperationResult, ServiceDeclaration, StructuralAffineDiscard, StructuralArgument,
-    StructuralDomainDeclaration, StructuralDomainRequirement, StructuralFieldDeclaration,
-    StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
-    StructuralPathSegment, StructuralPlaceDeclaration, StructuralResultDeclaration,
-    StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge, TerminalAffineCleanupAction,
-    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
-    VocabularyMarker,
+    OperationResult, ServiceDeclaration, StructuralAccess, StructuralAffineDiscard,
+    StructuralArgument, StructuralDomainDeclaration, StructuralDomainRequirement,
+    StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
+    StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge,
+    TerminalAffineCleanupAction, TerminalMachine, TerminalMachineResult, TerminalModule,
+    Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_codec::{decode_module, encode_module, encode_proof_bundle};
 use psi_terminal_fuel::{FuelChargeSite, FuelExhaustion, TerminalFuelMeter, TerminalFuelSchedule};
@@ -123,6 +123,7 @@ fn structural_return_transfers_value_and_claim_atomically_after_edge_charge() {
                 is_self: false,
                 structural_type,
                 multiplicity: StructuralMultiplicity::Linear,
+                access: StructuralAccess::Owned,
                 qualifications: vec![domain],
             }],
             result: TerminalMachineResult::Structural(StructuralResultDeclaration {
@@ -1642,6 +1643,7 @@ fn byte_sequence_literal_module(bytes: Vec<u8>) -> TerminalModule {
                 is_self: false,
                 structural_type,
                 multiplicity: StructuralMultiplicity::Unrestricted,
+                access: StructuralAccess::SharedBorrow,
                 qualifications: Vec::new(),
             }],
             result: None,
@@ -1698,6 +1700,7 @@ fn byte_sequence_literal_module(bytes: Vec<u8>) -> TerminalModule {
                             arguments: Vec::new(),
                             structural_arguments: vec![StructuralArgument {
                                 place: literal,
+                                access: StructuralAccess::SharedBorrow,
                                 path: Vec::new(),
                             }],
                             completion_receipts: Vec::new(),
@@ -1891,6 +1894,7 @@ fn effect_module() -> TerminalModule {
                                 callee: machine_id(2),
                                 structural_arguments: vec![StructuralArgument {
                                     place: place_id(1),
+                                    access: StructuralAccess::Owned,
                                     path: Vec::new(),
                                 }],
                                 claim_transfers: vec![ClaimTransfer {
@@ -1950,6 +1954,7 @@ fn effect_module() -> TerminalModule {
                             arguments: Vec::new(),
                             structural_arguments: vec![StructuralArgument {
                                 place: place_id(2),
+                                access: StructuralAccess::Owned,
                                 path: Vec::new(),
                             }],
                             completion_receipts: vec![CompletionReceipt {
@@ -1981,6 +1986,7 @@ fn structural_parameter(
         is_self: true,
         structural_type,
         multiplicity: StructuralMultiplicity::Linear,
+        access: StructuralAccess::Owned,
         qualifications: vec![domain],
     }
 }
@@ -2104,6 +2110,7 @@ fn nominal_affine_module() -> TerminalModule {
                     is_self: false,
                     structural_type: token.id,
                     multiplicity: StructuralMultiplicity::Affine,
+                    access: StructuralAccess::Owned,
                     qualifications: Vec::new(),
                 }],
                 result: TerminalMachineResult::Unit,
@@ -2542,6 +2549,7 @@ fn ordered_empty_nominal_affine_module(same_target: bool) -> TerminalModule {
             is_self: false,
             structural_type: second_type,
             multiplicity: StructuralMultiplicity::Affine,
+            access: StructuralAccess::Owned,
             qualifications: Vec::new(),
         });
     caller.structural_places.push(StructuralPlaceDeclaration {
@@ -2653,6 +2661,7 @@ fn three_ordered_empty_nominal_affine_module(same_target: bool) -> TerminalModul
             is_self: false,
             structural_type: third_type,
             multiplicity: StructuralMultiplicity::Affine,
+            access: StructuralAccess::Owned,
             qualifications: Vec::new(),
         });
     caller.structural_places.push(StructuralPlaceDeclaration {
@@ -2756,6 +2765,7 @@ fn three_ordered_shared_executable_nominal_affine_module() -> TerminalModule {
             is_self: false,
             structural_type: structural_type_id(1),
             multiplicity: StructuralMultiplicity::Affine,
+            access: StructuralAccess::Owned,
             qualifications: Vec::new(),
         });
     caller.structural_places.push(StructuralPlaceDeclaration {
@@ -2943,6 +2953,7 @@ fn partial_affine_field_module() -> TerminalModule {
             is_self: false,
             structural_type: pair.id,
             multiplicity: StructuralMultiplicity::Affine,
+            access: StructuralAccess::Owned,
             qualifications: Vec::new(),
         }],
         result: TerminalMachineResult::Unit,
@@ -2969,6 +2980,7 @@ fn partial_affine_field_module() -> TerminalModule {
                     callee: machine_id(2),
                     structural_arguments: vec![StructuralArgument {
                         place: place_id(1),
+                        access: StructuralAccess::Owned,
                         path: vec![StructuralPathSegment::Field("right".into())],
                     }],
                     claim_transfers: Vec::new(),
@@ -2998,6 +3010,7 @@ fn partial_affine_field_module() -> TerminalModule {
             is_self: false,
             structural_type: token.id,
             multiplicity: StructuralMultiplicity::Affine,
+            access: StructuralAccess::Owned,
             qualifications: Vec::new(),
         }],
         result: TerminalMachineResult::Unit,

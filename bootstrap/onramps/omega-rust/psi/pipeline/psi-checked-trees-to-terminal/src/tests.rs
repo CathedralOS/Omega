@@ -97,6 +97,50 @@ fn lowers_exact_raw_bytes_into_borrowed_boundary_argument() {
 }
 
 #[test]
+fn mutable_to_write_only_access_crosses_source_codec_and_verification() {
+    let source = r#"
+        data Sink {}
+        machine Sink::fill(destination: &write [u8]) {}
+
+        data Root {}
+        machine Root::enter(bytes: &mut [u8]) {
+            Sink::fill(&write bytes);
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    let lowered = lower_machine(&checked, "Root::enter").expect("lower write-only forwarding");
+    let module = &lowered.semantic_module;
+
+    assert_eq!(
+        module.machines[0].structural_parameters[0].access,
+        StructuralAccess::MutableBorrow
+    );
+    assert_eq!(
+        module.machines[1].structural_parameters[0].access,
+        StructuralAccess::WriteOnlyBorrow
+    );
+    let [call] = module.machines[0].blocks[0].operations.as_slice() else {
+        panic!("root emits one forwarding call")
+    };
+    assert!(matches!(
+        &call.kind,
+        OperationKind::CallUnit { structural_arguments, .. }
+            if matches!(structural_arguments.as_slice(), [argument]
+                if argument.access == StructuralAccess::WriteOnlyBorrow)
+    ));
+
+    let encoded = psi_terminal_codec::encode_module(module).expect("encode access-bearing module");
+    let decoded =
+        psi_terminal_codec::decode_module(&encoded).expect("decode access-bearing module");
+    assert_eq!(&decoded, module);
+    psi_terminal_verifier::validate_module(&decoded).expect("verify write-only attenuation");
+}
+
+#[test]
 fn rejects_tampered_owned_carrier_for_source_literal() {
     let mut checked = checked_write_line_literal();
     let literal_type = checked
@@ -507,7 +551,7 @@ fn payloadless_sum_equality_lowers_to_case_membership_equivalence() {
         .expect("case-membership equality validates");
     let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module)
         .expect("case-membership module encodes");
-    assert_eq!(&bytes[8..10], &25_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &26_u16.to_le_bytes());
     assert_eq!(
         psi_terminal_codec::decode_module(&bytes),
         Ok(lowered.semantic_module.clone())
@@ -588,7 +632,7 @@ fn payload_bearing_sum_equality_uses_exact_case_payload_paths() {
         .expect("exact case-payload paths validate");
     let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module)
         .expect("payload-bearing sum module encodes");
-    assert_eq!(&bytes[8..10], &25_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &26_u16.to_le_bytes());
     assert_eq!(
         psi_terminal_codec::decode_module(&bytes),
         Ok(lowered.semantic_module.clone())
@@ -714,6 +758,7 @@ fn hard_root_checked_fixture() -> CheckedTrees {
         is_self: false,
         type_identity: "example::Acknowledgement".to_owned(),
         multiplicity: Multiplicity::Linear,
+        access: psi_checked_trees::CheckedStructuralAccess::Owned,
         qualifications: vec![domain],
     };
     let entry_claim = |machine, state| psi_checked_trees::CheckedUnitEntryClaimPlan {
@@ -804,6 +849,7 @@ fn hard_root_checked_fixture() -> CheckedTrees {
                             psi_checked_trees::CheckedUnitStructuralArgumentPlan {
                                 source_parameter_index: 0,
                                 type_identity: "example::Acknowledgement".to_owned(),
+                                access: psi_checked_trees::CheckedStructuralAccess::Owned,
                                 path: Vec::new(),
                                 byte_sequence_literal: None,
                             },
@@ -856,6 +902,7 @@ fn hard_root_checked_fixture() -> CheckedTrees {
                             psi_checked_trees::CheckedUnitStructuralArgumentPlan {
                                 source_parameter_index: 0,
                                 type_identity: "example::Acknowledgement".to_owned(),
+                                access: psi_checked_trees::CheckedStructuralAccess::Owned,
                                 path: Vec::new(),
                                 byte_sequence_literal: None,
                             },

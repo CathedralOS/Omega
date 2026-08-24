@@ -4927,6 +4927,17 @@ Owners:
   parser, semantic pass/fail, exact-place/frame, checked-loan, and
   checked-to-state-to-control remap tests pin the live slices.
 
+  The first forwarding-only Terminal rung is also live. Checked and Terminal
+  structural parameter and call-argument rows carry a closed
+  owned/shared/mutable/write-only access value independently of structural type
+  identity. Real source proves shared forwarding and explicit mutable-to-write
+  attenuation across lowering, canonical format 26 encoding/decoding, and
+  independent verification. The Terminal verifier rejects argument/target
+  access disagreement, access not supplied by the source place, overlapping
+  exclusive arguments, and structural Boolean observation through write-only
+  access. This does not yet admit a Terminal write event or native/provider
+  realization.
+
   Remaining work is the broader executable access discipline: add
   broader content-independent aggregate and symbolic byte-range projection,
   finer symbolic dynamic-index footprints,
@@ -4934,8 +4945,8 @@ Owners:
   non-discardable displacement, and invariant restoration that depends on
   reading the referent, and retain exact per-outcome write footprints so
   untouched ranges and their facts survive. Carry the admitted operation set
-  through provider selection, canonical plans, Terminal Psi, both execution
-  engines, and native ABI lowering. Opaque providers still need a specified,
+  through provider selection, executable Terminal write operations, both
+  execution engines, and native ABI lowering. Opaque providers still need a specified,
   implementation-pinned
   non-observation judgment; do not infer one from ABI shape. Migrate byte-output
   boundary surfaces only after that gate exists, and never reinterpret
@@ -6915,7 +6926,8 @@ compiler concept is introduced.
   boundary route, and one grant invocation, and closes the component manifest
   transactionally. Receipt facts may serve several matching call sites but
   cannot be rebound by compact identity, profile, route, occurrence, or
-  invocation. Terminal installation format 34 commits the manifest and opaque
+  invocation. Terminal installation format 35 commits the manifest, structural
+  access modes, and opaque
   acceptance identities into the canonical installation bytes, which the
   terminal artifact manifest already fingerprints. Runnable component-era
   publication now binds the complete terminal object and image, canonical

@@ -258,6 +258,7 @@ pub struct TerminalTargetStructuralParameter {
     pub place: PlaceId,
     pub structural_type: StructuralTypeId,
     pub multiplicity: psi_terminal::StructuralMultiplicity,
+    pub access: psi_terminal::StructuralAccess,
     pub shape: ValueShape,
     pub placement: ValuePlacement,
 }
@@ -265,6 +266,7 @@ pub struct TerminalTargetStructuralParameter {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalTargetStructuralArgument {
     pub place: PlaceId,
+    pub access: psi_terminal::StructuralAccess,
     /// Exact source-relative semantic projection retained through native and
     /// installed-artifact custody.
     pub path: Vec<StructuralPathSegment>,

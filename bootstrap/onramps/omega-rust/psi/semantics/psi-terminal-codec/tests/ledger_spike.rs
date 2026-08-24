@@ -7,7 +7,7 @@ use psi_core::{
 use psi_terminal::{
     BindingRelevance, Block, BoundaryMachineDeclaration, ClaimTransfer, CompletionReceipt,
     EntryClaim, MachineContract, NominalAffineCleanup, Operation, OperationKind, OperationResult,
-    ServiceDeclaration, StructuralArgument, StructuralDomainDeclaration,
+    ServiceDeclaration, StructuralAccess, StructuralArgument, StructuralDomainDeclaration,
     StructuralDomainRequirement, StructuralFieldDeclaration, StructuralFieldType,
     StructuralMultiplicity, StructuralParameterDeclaration, StructuralPlaceDeclaration,
     StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge, TerminalAffineCleanupAction,
@@ -141,6 +141,7 @@ fn call_composition_ledger_fixture() -> TerminalModule {
         is_self,
         structural_type: resource,
         multiplicity: StructuralMultiplicity::Linear,
+        access: StructuralAccess::Owned,
         qualifications: vec![pending],
     };
 
@@ -177,6 +178,7 @@ fn call_composition_ledger_fixture() -> TerminalModule {
                     callee: machine_id(20),
                     structural_arguments: vec![StructuralArgument {
                         place: caller_place,
+                        access: StructuralAccess::Owned,
                         path: Vec::new(),
                     }],
                     claim_transfers: vec![ClaimTransfer {
@@ -234,6 +236,7 @@ fn call_composition_ledger_fixture() -> TerminalModule {
                     arguments: Vec::new(),
                     structural_arguments: vec![StructuralArgument {
                         place: callee_place,
+                        access: StructuralAccess::Owned,
                         path: Vec::new(),
                     }],
                     completion_receipts: vec![CompletionReceipt {
@@ -322,6 +325,7 @@ fn structural_effect_ledger_fixture() -> TerminalModule {
             is_self: false,
             structural_type: boolean_box,
             multiplicity: StructuralMultiplicity::Affine,
+            access: StructuralAccess::Owned,
             qualifications: Vec::new(),
         }],
         result: TerminalMachineResult::Scalar(ValueDeclaration {

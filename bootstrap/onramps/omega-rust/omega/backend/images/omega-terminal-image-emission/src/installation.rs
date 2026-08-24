@@ -64,7 +64,7 @@ use structural_scalar_codec::{
 };
 use wire_codec::{Reader, decode_boolean, push_u16, push_u32, push_u64};
 
-pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 34;
+pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 35;
 const MAGIC: &[u8; 8] = b"PSIINST\0";
 
 /// Exact normalized identity of one provider plan selected for this
@@ -2364,6 +2364,7 @@ pub enum TerminalInstallationError {
     ZeroStructuralReturnIdentity(&'static str),
     ZeroInternalUnitCallIdentity,
     InvalidStructuralMultiplicity(u8),
+    InvalidStructuralAccess(u8),
     UnsupportedStructuralReturnShape,
     UnsupportedStructuralReturnPlacement,
     UnsupportedInternalUnitCallPlacement,

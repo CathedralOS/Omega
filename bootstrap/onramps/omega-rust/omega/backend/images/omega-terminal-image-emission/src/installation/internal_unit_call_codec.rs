@@ -1,4 +1,4 @@
-//! Canonical format-34 codec for one installed internal Unit-call row.
+//! Canonical format-35 codec for one installed internal Unit-call row.
 //!
 //! Call ordering, stack composition, and custody validation remain in the
 //! installation parent. This child owns only the exact call-row bytes.
@@ -101,6 +101,7 @@ fn encode_internal_unit_call(
             bytes,
             &StructuralArgument {
                 place: argument.place,
+                access: argument.access,
                 path: argument.path.clone(),
             },
         )?;
@@ -277,6 +278,7 @@ fn decode_internal_unit_call(
         let bytes = reader.take(encoded_count)?.to_vec();
         arguments.push(TerminalInternalUnitCallArgumentRecord {
             place: argument.place,
+            access: argument.access,
             path: argument.path,
             root_structural_type,
             structural_type,

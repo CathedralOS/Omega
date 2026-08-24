@@ -81,7 +81,7 @@ use std::collections::BTreeSet;
 use wire::{Reader, Writer};
 
 const MAGIC: &[u8; 8] = b"PSITERM\0";
-const FORMAT_MARKER: u16 = 25;
+const FORMAT_MARKER: u16 = 26;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
@@ -1109,6 +1109,7 @@ fn encode_structural_arguments(
     writer.len("structural arguments", arguments.len())?;
     for argument in arguments {
         writer.id(argument.place);
+        structural_signature_wire::encode_structural_access(writer, argument.access);
         encode_structural_path(writer, "structural argument path", &argument.path)?;
     }
     Ok(())
@@ -1277,6 +1278,7 @@ fn decode_structural_arguments(
     decode_counted(reader, |reader| {
         Ok(StructuralArgument {
             place: reader.id("PlaceId")?,
+            access: structural_signature_wire::decode_structural_access(reader)?,
             path: decode_structural_path(reader)?,
         })
     })

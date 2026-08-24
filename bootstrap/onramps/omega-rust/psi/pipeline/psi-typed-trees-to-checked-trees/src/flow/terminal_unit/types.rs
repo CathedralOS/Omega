@@ -586,6 +586,69 @@ pub(super) fn is_reference(program: &TypedTrees, mut type_reference: TypeReferen
     }
 }
 
+pub(super) fn structural_access_for_type_reference(
+    program: &TypedTrees,
+    mut type_reference: TypeReferenceHandle,
+) -> Option<CheckedStructuralAccess> {
+    loop {
+        match program.type_reference_table.type_reference(type_reference) {
+            TypeReferenceNode::Constrained { base_type, .. } => type_reference = *base_type,
+            TypeReferenceNode::Reference {
+                access, referee, ..
+            } => {
+                // A structural carrier represents one referent occurrence.
+                // Nested reference values need a separate pointer-as-data
+                // shape and therefore remain outside this rung.
+                if is_reference(program, *referee) {
+                    return None;
+                }
+                return Some(match access {
+                    psi_language_semantics::ReferenceAccess::Shared => {
+                        CheckedStructuralAccess::SharedBorrow
+                    }
+                    psi_language_semantics::ReferenceAccess::Mutable => {
+                        CheckedStructuralAccess::MutableBorrow
+                    }
+                    psi_language_semantics::ReferenceAccess::WriteOnly => {
+                        CheckedStructuralAccess::WriteOnlyBorrow
+                    }
+                });
+            }
+            _ => return Some(CheckedStructuralAccess::Owned),
+        }
+    }
+}
+
+pub(super) fn byte_sequence_type_identity(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+    binders: &[(SymbolHandle, String)],
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+) -> Option<String> {
+    let carrier = byte_sequence_carrier(program, type_reference, substitutions)?;
+    let mut identity_type = type_reference;
+    if carrier == psi_checked_trees::CheckedByteSequenceCarrier::BorrowedView {
+        loop {
+            match program.type_reference_table.type_reference(identity_type) {
+                TypeReferenceNode::Reference { referee, .. }
+                | TypeReferenceNode::Constrained {
+                    base_type: referee, ..
+                } => identity_type = *referee,
+                _ => break,
+            }
+        }
+    }
+    Some(
+        program
+            .normalized_type_identity_with_binders_and_substitutions(
+                identity_type,
+                binders,
+                substitutions,
+            )
+            .into_string(),
+    )
+}
+
 /// True when automatic disposal would have to run a reachable nominal
 /// `::drop`. The currently accepted Terminal Psi cleanup carrier represents
 /// only checked no-code affine disposal, so producers must fail closed here.
@@ -860,14 +923,8 @@ impl<'program> ShapeCollector<'program> {
         substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     ) -> Option<String> {
         if let Some(carrier) = byte_sequence_carrier(self.program, type_reference, substitutions) {
-            let identity = self
-                .program
-                .normalized_type_identity_with_binders_and_substitutions(
-                    type_reference,
-                    binders,
-                    substitutions,
-                )
-                .into_string();
+            let identity =
+                byte_sequence_type_identity(self.program, type_reference, binders, substitutions)?;
             let plan = CheckedUnitStructuralTypePlan {
                 identity: identity.clone(),
                 shape: CheckedUnitStructuralTypeShape::ByteSequence(carrier),

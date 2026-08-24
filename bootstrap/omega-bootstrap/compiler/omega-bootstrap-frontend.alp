@@ -474,7 +474,7 @@ machine Main::emit_write_operations(&mut self) {
         self.emit_id(self.write_count + self.emit_index + 1);
         write_byte(0); write_byte(35); self.emit_id(2);
         self.emit_u32(0);
-        self.emit_u32(1); self.emit_id(4 + self.emit_index); self.emit_u32(0);
+        self.emit_u32(1); self.emit_id(4 + self.emit_index); write_byte(2); self.emit_u32(0);
         self.emit_u32(0); self.emit_u32(0);
         self.emit_index = self.emit_index + 1;
         transition 0 { _ -> loop() }
@@ -499,10 +499,9 @@ machine Main::emit_console_type_identity(&mut self) {
 }
 
 machine Main::emit_bytes_type_identity(&mut self) {
-    write_byte(114); write_byte(101); write_byte(102); write_byte(40); write_byte(115); write_byte(108); write_byte(105); write_byte(99);
-    write_byte(101); write_byte(40); write_byte(110); write_byte(97); write_byte(109); write_byte(101); write_byte(100); write_byte(40);
-    write_byte(110); write_byte(97); write_byte(109); write_byte(101); write_byte(40); write_byte(117); write_byte(56); write_byte(41);
-    write_byte(41); write_byte(41); write_byte(41);
+    write_byte(115); write_byte(108); write_byte(105); write_byte(99); write_byte(101); write_byte(40); write_byte(110); write_byte(97);
+    write_byte(109); write_byte(101); write_byte(100); write_byte(40); write_byte(110); write_byte(97); write_byte(109); write_byte(101);
+    write_byte(40); write_byte(117); write_byte(56); write_byte(41); write_byte(41); write_byte(41);
 }
 
 machine Main::emit_console_service(&mut self) {
@@ -564,7 +563,7 @@ machine Main::emit_structural_type_count(&mut self) {
 machine Main::emit_optional_bytes_type(&mut self) {
     transition self.write_count > 0 { true -> bytes_type() false -> done() }
     state bytes_type() {
-        self.emit_id(2); self.emit_u32(27); self.emit_bytes_type_identity();
+        self.emit_id(2); self.emit_u32(22); self.emit_bytes_type_identity();
         write_byte(4); write_byte(1);
     }
     state done() { }
@@ -584,7 +583,7 @@ machine Main::emit_optional_write_boundary(&mut self) {
         write_byte(0);
         self.emit_u32(0);
         self.emit_u32(1); self.emit_id(1); self.emit_u32(0); write_byte(0);
-        self.emit_id(2); write_byte(1); self.emit_u32(0);
+        self.emit_id(2); write_byte(1); write_byte(2); self.emit_u32(0);
         // No structural requirements, program-local roots, or content guarantees.
         write_byte(0); self.emit_u32(0);
         self.emit_u32(0); self.emit_u32(0); self.emit_u32(1); self.emit_id(1);
@@ -610,10 +609,10 @@ machine Main::emit_machine_places(&mut self) {
 }
 
 machine Main::emit_terminal_module(&mut self) {
-    // Semantic envelope: PSITERM\\0, codec format 25, vocabulary 28, entry #1.
+    // Semantic envelope: PSITERM\\0, codec format 26, vocabulary 28, entry #1.
     write_byte(80); write_byte(83); write_byte(73); write_byte(84);
     write_byte(69); write_byte(82); write_byte(77); write_byte(0);
-    self.emit_u16(25); self.emit_u16(28); self.emit_id(1);
+    self.emit_u16(26); self.emit_u16(28); self.emit_id(1);
 
     // Structural types: attached Main record, then borrowed byte sequence.
     self.emit_structural_type_count();

@@ -89,6 +89,7 @@ pub(super) fn assign(
             .iter()
             .map(|argument| TerminalAssignedAggregateCopy {
                 place: argument.place,
+                access: argument.access,
                 path: argument.path.clone(),
                 root_structural_type: argument.root_structural_type,
                 structural_type: argument.structural_type,

@@ -13,10 +13,10 @@ use psi_terminal::{
     BoundaryMachineDeclaration, ClaimTransfer, CompletionReceipt, ContentPartitionComposition,
     CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard, EntryClaim, EvidenceContractLaneKind,
     OperationKind, OperationResult, PropositionBinderArgumentKind, PropositionBinderKind,
-    PropositionEvidence, StructuralArgument, StructuralFieldType, StructuralMultiplicity,
-    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
-    StructuralTypeShape, TerminalAffineCleanupAction, TerminalMachine, TerminalMachineResult,
-    TerminalModule, Terminator, program_local_root_introduction_identity,
+    PropositionEvidence, StructuralAccess, StructuralArgument, StructuralFieldType,
+    StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
+    StructuralPlaceDeclaration, StructuralTypeShape, TerminalAffineCleanupAction, TerminalMachine,
+    TerminalMachineResult, TerminalModule, Terminator, program_local_root_introduction_identity,
 };
 
 use crate::verification::{
@@ -225,6 +225,9 @@ fn validate_boolean_structural_field(
                 && parameter.qualifications.is_empty()
         })
         .ok_or_else(invalid)?;
+    if parameter.access == StructuralAccess::WriteOnlyBorrow {
+        return Err(ModuleError::StructuralObservationRequiresReadableAccess { operation, source });
+    }
     if machine
         .entry_claims
         .iter()

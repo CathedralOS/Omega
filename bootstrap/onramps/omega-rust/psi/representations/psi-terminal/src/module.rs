@@ -325,6 +325,18 @@ pub enum StructuralMultiplicity {
     Linear,
 }
 
+/// Semantic access carried by a structural parameter or call argument.
+/// Borrowed variants intentionally share a physical pointer representation;
+/// this closed axis prevents semantic authority from being erased by ABI
+/// equivalence.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum StructuralAccess {
+    Owned,
+    SharedBorrow,
+    MutableBorrow,
+    WriteOnlyBorrow,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct StructuralParameterDeclaration {
     pub place: PlaceId,
@@ -332,6 +344,7 @@ pub struct StructuralParameterDeclaration {
     pub is_self: bool,
     pub structural_type: StructuralTypeId,
     pub multiplicity: StructuralMultiplicity,
+    pub access: StructuralAccess,
     /// Strictly ordered exact signature preconditions. A parameter does not
     /// establish these facts by declaration: its caller or root installation
     /// must discharge them at invocation.
@@ -971,6 +984,7 @@ impl OperationResult {
 pub struct StructuralArgument {
     pub place: PlaceId,
     pub path: Vec<StructuralPathSegment>,
+    pub access: StructuralAccess,
 }
 
 /// One exact claim-free affine structural place disposed on an ordinary edge.

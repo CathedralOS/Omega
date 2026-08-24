@@ -150,8 +150,11 @@ storage containing no live `T` is a separate feature.
 > unrestricted primitive leaf through a finite path of relevant unconstrained
 > common fields in plain invariant-free records, and forward the loan explicitly.
 > General symbolic or open-ended range projection, sum projection,
-> opaque providers, Terminal/runtime realization, and native ABI lowering remain
-> gated; `&write` is never temporarily lowered as `&mut`.
+> opaque providers, executable Terminal writes, runtime realization, and native
+> ABI lowering remain gated. Forwarding-only structural parameters and calls do
+> preserve owned/shared/mutable/write-only access through Terminal format 26;
+> the independent verifier checks exact target access, legal attenuation, and
+> exclusive-argument overlap. `&write` is never temporarily lowered as `&mut`.
 
 Code may perform plain typed stores, content-independent field/index/range
 projection, disjoint subdivision, and read view metadata such as a slice's

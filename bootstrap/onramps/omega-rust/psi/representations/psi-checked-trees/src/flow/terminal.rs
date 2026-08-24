@@ -629,6 +629,17 @@ pub struct CheckedUnitStructuralDomainRequirementPlan {
     pub domain: SemanticDomainId,
 }
 
+/// Semantic authority retained by one structural carrier. Borrowed modes have
+/// the same physical pointer ABI, but are deliberately distinct in checked and
+/// Terminal identity so lowering cannot widen a non-observing loan.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CheckedStructuralAccess {
+    Owned,
+    SharedBorrow,
+    MutableBorrow,
+    WriteOnlyBorrow,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedUnitStructuralParameterPlan {
     /// Position in the authored state signature. Structural argument lists use
@@ -637,6 +648,7 @@ pub struct CheckedUnitStructuralParameterPlan {
     pub is_self: bool,
     pub type_identity: String,
     pub multiplicity: Multiplicity,
+    pub access: CheckedStructuralAccess,
     /// Strictly ordered normalized domain identities.
     pub qualifications: Vec<SemanticDomainId>,
 }
@@ -675,6 +687,9 @@ pub struct CheckedUnitStructuralArgumentPlan {
     /// field path; their specialized checked plans constrain the destination.
     pub path: Vec<CheckedUnitStructuralPathSegment>,
     pub type_identity: String,
+    /// Explicit access presented at this call site. This is independently
+    /// checked against both the source carrier and target parameter.
+    pub access: CheckedStructuralAccess,
     /// Present only for an exact byte-sequence literal passed directly to a
     /// bodyless boundary. The parameter index is then deliberately invalid and
     /// must never be interpreted as caller storage.
