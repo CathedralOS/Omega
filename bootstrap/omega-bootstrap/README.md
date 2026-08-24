@@ -53,6 +53,11 @@ reserved `compiler/{psi,omega}/` product roots.
   composes bundle → vocabulary-28 terminal Psi → ELF, and requires exact
   terminal and image bytes for both single-source and auxiliary-trivia bundles,
   plus fail-closed semantic and exhaustion observations.
+- [`gates/scalar-call-reference.sh`](gates/scalar-call-reference.sh) pins the
+  product-owned, deterministic vocabulary-28 signed-`i32` scalar-`Call` fixture,
+  meaning, Linux x86-64 internal-call lowering, and structural mutation teeth.
+  This is differential preparation for a general Delta call tranche, not
+  bootstrap authority or evidence that the bridge implements calls yet.
 - [`../assurance/refinement/omega-bootstrap/`](../assurance/refinement/omega-bootstrap/)
   owns the meaning-TV, input-TV, translation-validation, and
   generated-certificate replay gates and their untrusted encoders.

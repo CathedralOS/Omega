@@ -343,6 +343,26 @@ semantic rejection, and resource exhaustion. Its previously unbounded expansion 
 aliasing at machine 25, not an inherent cost of the route. O1 remains a small
 vertical compiler slice, not the `Ωself` profile.
 
+## Profile-neutral scalar-call reference (bridge implementation open)
+
+[`../gates/fixtures/omega-bootstrap-scalar-call-v28.hex`](../gates/fixtures/omega-bootstrap-scalar-call-v28.hex)
+is the exact product-owned differential reference for the next general compiler
+tranche. It is a proof-free vocabulary-28 module with two machines: the caller
+establishes signed `i32` value 73, passes it through `OperationKind::Call`, and
+returns the callee's scalar result. The owning product test decodes/re-encodes
+the bytes, verifies and interprets them with fixed fuel, lowers them through the
+Linux x86-64 internal-relocation path, and rejects mutated arity, callee,
+argument identity, and result type. The exporter gate requires repeated output
+to equal the committed bytes.
+
+This fixture is differential evidence only. The Delta frontend/backend do not
+yet implement the corresponding general source/call tables, so it admits no
+Omega source form and does not define `Ωself`. The pending conformance slice is
+bounded to one program unit, signed-`i32` literals/parameters/results, multiple
+arbitrarily named machines, and forward acyclic calls. Modules, recursion,
+records, generics, domains, proofs, and general control flow remain separate
+questions.
+
 The same route now admits the current 695-state `lowermachine.alp` source to
 marker-free elaboration. Its explicit translator ceilings are 1,024 states per
 machine, four parameters per state, and 524,288 cells for the private
