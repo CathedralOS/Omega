@@ -125,7 +125,7 @@ crashes Abort
         target,
         "review identity must retain the deployment profile, not only its native ABI",
     );
-    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 16);
+    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 17);
     let [ready] = review.public_domains() else {
         panic!("one package-owned public domain row")
     };
@@ -735,6 +735,116 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
+fn review_projects_proof_static_evidence_members_by_lane_and_requirement() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let original = TempPackage::new();
+    let renamed = TempPackage::new();
+    let source = |binding: &str| {
+        format!(
+            r#"pub trait EvidenceBase<Element> {{
+    machine modulus() -> Element;
+}}
+pub trait Evidence<Element>: EvidenceBase<Element> {{
+}}
+proposition holds<Element>() evidence Evidence<Element>;
+proposition selected<machine Witness>();
+pub machine caller()
+requires {binding}: holds<i32>()
+requires selected<{binding}.modulus>()
+{{ }}
+"#
+        )
+    };
+    original.write("main.omg", &source("proof"));
+    renamed.write("main.omg", &source("evidence"));
+    let build = r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { }
+"#;
+    original.write("build.omg", build);
+    renamed.write("build.omg", build);
+    let project = |package: &TempPackage| {
+        let checked = compile_to_checked_with_packages(
+            &package.0.join("main.omg"),
+            Some(target),
+            package_inputs(&package.0),
+        )
+        .expect("proof-static projection fixture should check");
+        project_checked_package_review(&checked).expect("proof-static projection review")
+    };
+    let original = project(&original);
+    let renamed = project(&renamed);
+    let caller = original
+        .callables()
+        .iter()
+        .find(|callable| callable.identity().path().contains("caller"))
+        .expect("public caller");
+    let selected = caller
+        .contracts()
+        .iter()
+        .find_map(|contract| {
+            let PackageReviewContractFact::Proposition(application) = contract.fact() else {
+                return None;
+            };
+            (application.declaration().path() == "selected").then_some(application)
+        })
+        .expect("selected proposition row");
+    let holds = caller
+        .contracts()
+        .iter()
+        .find_map(|contract| {
+            let PackageReviewContractFact::Proposition(application) = contract.fact() else {
+                return None;
+            };
+            (application.declaration().path() == "holds").then_some(application)
+        })
+        .expect("source witness proposition row");
+    let [argument] = selected.binder_arguments() else {
+        panic!("one projected static machine argument")
+    };
+    let PackageReviewPropositionBinderValue::EvidenceProjection {
+        source_kind,
+        source_lane_position,
+        declaring_trait,
+        declaring_trait_arguments,
+        requirement,
+    } = argument.value()
+    else {
+        panic!("exact proof-static evidence projection")
+    };
+    assert_eq!(*source_kind, PackageReviewContractKind::Requires);
+    assert_eq!(*source_lane_position, 0);
+    assert_eq!(declaring_trait.path(), "EvidenceBase");
+    assert!(requirement.path().contains("modulus"));
+    let PackageReviewPropositionEvidence::Witness(source_interface) = holds.evidence() else {
+        panic!("source witness interface")
+    };
+    let source_requirement = source_interface
+        .requirements()
+        .iter()
+        .find(|candidate| candidate.requirement() == requirement)
+        .expect("inherited source requirement");
+    assert_eq!(
+        declaring_trait_arguments,
+        source_requirement.declaring_trait_arguments(),
+        "the projection must retain the exact inherited requirement template anchored by the source lane",
+    );
+    assert_eq!(
+        original
+            .canonical_review_bytes()
+            .expect("original proof-static encoding"),
+        renamed
+            .canonical_review_bytes()
+            .expect("renamed proof-static encoding"),
+        "renaming the local evidence term must not alter its lane-based package identity",
+    );
+}
+
+#[test]
 fn review_rejects_unrepresented_callable_contract_expressions() {
     let Some(target) = host_target_name() else {
         return;
@@ -1074,7 +1184,7 @@ invokes waiting;
 }
 
 #[test]
-fn exact_synchronous_invocations_change_v16_comparison_encoding() {
+fn exact_synchronous_invocations_change_v17_comparison_encoding() {
     let quiet = TempPackage::new();
     let invoking = TempPackage::new();
     quiet.write(
@@ -1264,7 +1374,7 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
-fn public_data_and_numbered_wire_shape_changes_change_v16_comparison_encoding() {
+fn public_data_and_numbered_wire_shape_changes_change_v17_comparison_encoding() {
     let first = TempPackage::new();
     let second = TempPackage::new();
     first.write(
@@ -1298,7 +1408,7 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
-fn public_domain_shape_changes_change_v16_comparison_encoding() {
+fn public_domain_shape_changes_change_v17_comparison_encoding() {
     let first = TempPackage::new();
     let second = TempPackage::new();
     first.write(
