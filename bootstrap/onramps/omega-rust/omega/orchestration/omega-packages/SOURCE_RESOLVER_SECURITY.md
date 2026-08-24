@@ -95,5 +95,7 @@ The fetch and materialization work still runs in the parent process without an
 OS sandbox or strict command-output/resource ceilings. Same-user cache mutation
 can race cooperative locks and validation. SSH retains an external client and
 credential/configuration surface. Local sources still resolve from a live tree.
-Those conditions keep the resolver diagnostic-only until the helper, local
-snapshot, custody, and opaque-receipt work lands.
+Their current identity also omits empty directories and directory modes even
+though authorized build code can observe them. Those conditions keep the
+resolver diagnostic-only until complete local-tree identity, local snapshot,
+helper, custody, and opaque-receipt work lands.

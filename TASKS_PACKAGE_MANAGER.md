@@ -98,8 +98,9 @@ complete.
 
   Remaining suspect points:
 
-  - local source hashing has no immutable snapshot/TOCTOU boundary and includes
-    tool-owned build outputs when present;
+  - local source hashing has no immutable snapshot/TOCTOU boundary, includes
+    tool-owned build outputs when present, and omits empty-directory identity
+    and directory modes even though authorized build code can observe them;
   - cache locking coordinates resolver processes but is not protection against
     an independently hostile process that can mutate the cache directory;
   - the Git subprocess has no OS sandbox or resource ceilings, and SSH transport
