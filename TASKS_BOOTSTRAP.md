@@ -345,7 +345,9 @@ outside that manifest unless the compiler executable imports them.
     viewers, and debuggers outside the manifest unless the compiler executable
     imports them; and
   - [ ] gate the complete manifest plus one negative canary per excluded
-    language capability.
+    language capability. Separately run the full-Omega product suites so a
+    feature omitted from compiler *source* cannot be confused with a feature
+    omitted from the compiler it implements.
 
   Acceptance: every program admitted by `Ωself` is ordinary Omega with exact
   Omega meaning; unsupported Omega rejects. Publish the deterministic source
@@ -534,7 +536,36 @@ outside that manifest unless the compiler executable imports them.
       thirty-six phase-isolated teeth; and
   - [ ] close the root loop and prove equality of maximal stdout plus
     `Halt`/`Trap`/`Exhaust`/`Diverge` for every finite source stream and
-    supported resource profile in `BOOTSTRAP_OBSERVABLE.md`.
+    supported resource profile in `BOOTSTRAP_OBSERVABLE.md`:
+    - [ ] bind the exact `main.body` call and `parse_proc` entry prefix through
+      `NLOC` reset, whitespace/identifier helpers, saved procedure-name fields,
+      permissive `expect('(')`, and entry to the already-published parameter
+      loop, carrying root trace, frame, depth-zero, and resource provenance;
+    - [ ] instantiate the existing parameter, capacity, output-prefix, and
+      parse-body relations at root block depth zero, partitioning ordinary
+      return, each root-reachable checked resource origin, and child divergence
+      without recovering a resource kind from numeric status 252; prove any
+      conditionally published but root-unreachable origin impossible. Publish
+      this entry-to-return/divergence composition as its own independently
+      checked conditional `parse_proc` relation rather than folding it into the
+      root checker;
+    - [ ] bind the exact post-return status split: ordinary return traverses
+      `skip_ws` and republishes every reusable loop invariant, while resource
+      return preserves first-failure provenance through `main.resource` and its
+      deterministic output suffix;
+    - [ ] generalize the reusable loop split across the honest post-parse cursor
+      bound `0 <= CUR <= LEN+2`: in-range NUL and every `LEN <= CUR` miss halt,
+      while only an in-range nonzero byte enters the body. Do not silently reuse
+      the narrower initial-loop theorem or normalize malformed-tail overshoot;
+    - [ ] close the guarded greatest fixed point over any number of completed
+      parse/backedge iterations without assuming cursor or stdout productivity,
+      then join the source-oversize wrapper; and
+    - [ ] prove the final partition excludes invalid-opcode/arithmetic traps and
+      undefined stack or memory states, and accept the root publication only
+      after the control, parse-body, resource-classification, and completed
+      `parse_proc` owners have checked the identical canonical bundle. The root
+      checker must consume those relations as hypotheses and must not import a
+      process-local publication cell as authority.
 
   Acceptance: one independently reconstructed, lower-rooted proposition proves
   the complete observable of the exact persisted artifact for the supported

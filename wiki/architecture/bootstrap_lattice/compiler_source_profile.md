@@ -189,6 +189,14 @@ from full Omega. Conversely, Delta does not acquire or reject any of them merely
 because the production compiler source does: Delta's literal feature set is a
 separate compiler-host design decision.
 
+The distinction is syntactic as well as architectural. Excluding proof syntax,
+dependent types, or another advanced facility from `Ωself` means that the
+compiler's *own implementation* does not use that facility to express itself.
+It does not prevent ordinary `Ωself` records, sums, tables, and procedures from
+implementing the parser, checker, and lowering rules for that facility. The
+full-Omega language suites, rather than the `Ωself` feature census, establish
+that the resulting product compiler actually implements it.
+
 For a retained feature, `omega-bootstrap` need implement the feature only within
 the structurally declared bounds of `Ωself`; the production compiler implements
 the complete feature. Those bounds must be general enough to compile any source
@@ -246,6 +254,12 @@ the relevant complete source is visible:
    compositional `Ωself` contract.
 4. Freeze the source manifest and profile together, then enforce both
    mechanically.
+
+This process classifies facilities, not individual occurrences. A retained
+facility is implemented compositionally for every source admitted by its
+published bounds. An excluded facility receives a phase-appropriate negative
+canary. The exact compiler manifest is then a closure witness over those rules,
+not a special case accepted by them.
 
 The bootstrap gate must compile that exact closure under the explicit `Ωself`
 profile rules and reject an excluded-feature canary for every exclusion.
