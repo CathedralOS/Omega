@@ -72,9 +72,9 @@ The distinction is architectural:
   subset requirement.
 - `Ωself` is a mechanically enforced Omega source profile, not Epsilon or
   another language rung.
-- The bridge compiler builds the full optimizing production compiler once from
-  the exact `Ωself` source manifest; that compiler's own binary may initially be
-  conservative.
+- The bridge compiler builds the full-spec production compiler once from the
+  exact `Ωself` source manifest, including its optimizer and advanced lowering;
+  that compiler's own binary may initially be conservative.
 - The Psi-aware artifact verifier reconstructs the obligations imposed by an
   exact terminal-Psi module; the [proof kernel](proof_kernel.md) independently
   checks the certificate derivations that discharge those obligations.

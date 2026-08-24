@@ -89,8 +89,9 @@ The hosted build has two source surfaces:
 1. Delta source implements `omega-bootstrap`, including exact `Ωself`
    acceptance and correct conservative lowering of the product source.
 2. `omega-bootstrap` compiles the `Ωself`-constrained Omega product source into
-   the full optimizing compiler. That compiler's own binary may be
-   conservatively lowered until an optional self-rebuild.
+   the full-spec compiler containing the optimizer and advanced lowering. That
+   compiler's own binary may be conservatively lowered until an optional
+   self-rebuild.
 
 `Ωself` has no private semantics and is not another language rung. The feature
 budget and enforcement contract live in

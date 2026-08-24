@@ -120,12 +120,14 @@ At every bridge milestone:
 - use the canonical deterministic source bundle without cross-unit token
   fusion or newline-concatenation semantics.
 
-### 1. Derive and enforce provisional `Ωself`
+### 1. Consume product checkpoints and enforce provisional `Ωself`
 
-- [ ] For every coherent product-source checkpoint, publish a distinct exact
-  deterministic closure and compositional candidate feature/resource profile.
-  Checkpoint 000001 already supplies the first closure and normalized-syntax/
-  resource profile; later compiler phases must publish later checkpoints.
+- [ ] For every coherent product-source checkpoint published by
+  `OMEGA-PRODUCT-COMPILER-SOURCE` in [`TASKS.md`](TASKS.md), verify its exact
+  deterministic closure and derive or update the distinct compositional
+  candidate feature/resource profile. Checkpoint 000001 already supplies the
+  first closure and normalized-syntax/resource profile; later compiler phases
+  publish later checkpoints from their product owner.
 - [ ] Measure every used feature's product-source benefit against the cost of
   implementing and assuring its general form in the Delta-written bridge.
   Absence from a partial checkpoint is provisional evidence, not a final
@@ -144,11 +146,12 @@ At every bridge milestone:
   suites so an omission from compiler source is never confused with an
   omission from the compiler it implements.
 
-Acceptance for each checkpoint: its exact manifest and candidate profile are
-separate, reproducible artifacts; every admitted program is ordinary Omega with
-exact Omega meaning; unsupported forms reject; and every unresolved row names
-the source and bridge evidence needed to settle it. The final profile remains
-unfrozen until the complete source and bridge join.
+Acceptance for each checkpoint: the product-owned exact manifest and the
+separately versioned candidate-profile evidence are reproducible artifacts;
+every admitted program is ordinary Omega with exact Omega meaning; unsupported
+forms reject; and every unresolved row names the source and bridge evidence
+needed to settle it. The final profile remains unfrozen until the complete
+source and bridge join.
 
 ### 2. Implement `omega-bootstrap` in Delta
 
@@ -156,39 +159,24 @@ Grow the bridge from checkpoint needs through general capabilities. Do not
 recognize the current compiler files, declaration counts, or syntax-tree
 permutations.
 
-- [x] Complete the first checkpoint-driven frontend cost probe over
-  `compiler/psi/source/source.omg`. The general checker covers the record,
-  field, attached-machine, fixed-array/index, constrained-scalar, receiver,
-  assignment, result, and guarded-transition families isolated by checkpoint
-  000001, including semantic negatives, resource teeth, self-built execution,
-  and Rust-free meaning. Exact contract, measurements, ceilings, and limitations
-  live in
-  [`SOURCE_CUSTODY_FRONTEND_PROBE.md`](bootstrap/omega-bootstrap/compiler/SOURCE_CUSTODY_FRONTEND_PROBE.md).
-  This checker-only measurement does not admit the families to `Ωself` or claim
-  an artifact path.
+The first checkpoint-driven frontend probe and selected private `CKIR1` direct
+artifact route are established. Their exact completed evidence and remaining
+artifact obligations live in
+[`SOURCE_CUSTODY_FRONTEND_PROBE.md`](bootstrap/omega-bootstrap/compiler/SOURCE_CUSTODY_FRONTEND_PROBE.md)
+and
+[`OMEGA_BOOTSTRAP_CHECKED_IR.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR.md).
+That evidence measures the route; it does not by itself admit the source
+families to `Ωself`.
+
 - [ ] Close the corresponding first artifact tranche through the selected
   versioned private checked-IR handoff and a direct conservative backend; do
-  not widen Terminal Psi for bridge-only structural operations. Publish the
-  exact byte format, validation, layout, lowering, publication, and evidence
-  contract, then compile and run a self-contained structural conformance
-  program. Close exact resource/mutation teeth, lower-rung status-and-byte
-  observations, independent artifact reconstruction, and
-  source→checked-IR→artifact refinement. Keep representative self-built
+  not widen Terminal Psi for bridge-only structural operations. Keep
+  representative self-built
   publication fast enough to remain a real gate; do not hide per-byte boundary
   overhead behind a longer timeout or weaken the compositional renamed/
   reordered case. This handoff choice settles only the tranche's implementation
   route, not the final `Ωself` disposition of any source feature. Any future
   Terminal-Psi vocabulary work remains product work in `TASKS.md`.
-  - [x] Specify versioned `CKIR1`; implement the Delta producer and direct
-    Linux x86-64 ELF backend; require exact repeated/native/self-built bytes for
-    the product source and renamed/reordered structural cases.
-  - [x] Pin product-owned fixture behavior, exact/adjacent source-array-layout
-    limits, representative fail-closed mutations, and independent ELF
-    segment/entry/BSS-envelope reconstruction.
-  - [x] Pin producer and backend 0/251/252 status plus every published byte
-    through the persisted Beta-written Omega-to-Gamma route. Keep the backend's
-    three fixed arenas below Gamma's persistent-array capacity so this remains
-    a practical gate rather than a timeout waiver.
   - [ ] Finish exhaustive teeth for every CKIR table ceiling and every relation
     class enumerated by `OMEGA_BOOTSTRAP_CHECKED_IR.md` §10.4.
   - [ ] Reconstruct every selected instruction, displacement, padding byte,
