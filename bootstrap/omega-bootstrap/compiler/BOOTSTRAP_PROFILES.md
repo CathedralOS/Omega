@@ -18,9 +18,9 @@ final build lattice must preserve:
 - **Omega variable acceptance profile O1** is the first table-driven source
   slice. It is a monotonic extension of O0, frozen at explicit statement and
   storage ceilings below.
-- **Omega self-hosting profile `Ωself`** is the ordinary-Omega source closure
-  from which the production compiler is built. It remains open until that exact
-  source and dependency manifest exists.
+- **Omega self-hosting profile `Ωself`** is the incidental ordinary-Omega profile
+  selected by the source closure from which the production compiler is built.
+  It remains open until that exact source and dependency manifest exists.
 
 O0 and O1 are vertical pipeline canaries, not normative ancestors of `Ωself`.
 The eventual profile may reuse their implementation, but it is derived from the
@@ -125,11 +125,10 @@ accepted construct keeps its ordinary Omega semantics, ABI, layout, and
 artifact contract, and unsupported constructs reject explicitly.
 
 The profile cannot be frozen until `OMEGA-PRODUCT-COMPILER-SOURCE` publishes the
-exact transitive compiler source and build manifest. The working defaults are:
+exact transitive compiler source and build manifest. The working language-
+feature defaults for the compiler's own implementation source are:
 
 - omit the math/proof surface and linear/dependent types from compiler source;
-- omit terminal-Psi interpreters, REPLs, and product tools not imported by the
-  compiler build;
 - retain ordinary named fields, payload-bearing enums/sum data, and basic
   generics unless evidence shows that their Delta implementation and assurance
   cost exceeds their source-level benefit;
@@ -137,10 +136,14 @@ exact transitive compiler source and build manifest. The working defaults are:
   numeric/schema field tags such as `0:`, and complex transition payloads
   against the actual compiler source before admitting them.
 
-The gate must compile the complete manifest under an explicit allowlist and
-carry a negative canary for every rejected feature. The profile includes all
-transitive libraries, generated and compile-time source, build behavior, and
-compiler-imported tools. See
+The hosted source closure separately omits terminal-Psi interpreters, REPLs,
+proof explorers, viewers, debuggers, and other product tools unless the compiler
+executable imports them. Tool membership is not an Omega language feature.
+
+The gate must compile the complete manifest under explicit compositional profile
+rules and carry a negative canary for every rejected feature. The profile
+includes all transitive libraries, generated and compile-time source, build
+behavior, and compiler-imported tools. See
 [`../../../wiki/architecture/bootstrap_lattice/self_hosting_profile.md`](../../../wiki/architecture/bootstrap_lattice/self_hosting_profile.md).
 
 ## O0 — Omega vertical-canary acceptance profile

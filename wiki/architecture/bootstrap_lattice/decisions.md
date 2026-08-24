@@ -191,15 +191,20 @@ Delta is the systems/compiler-host rung and an independent language. It should
 be robust, C-like in systems power, and Omega-shaped where consistency is cheap;
 it is not required to be a syntactic or semantic Omega subset.
 
-Delta v1 is discovered from the complete `omega-bootstrap` source closure, not
-frozen in advance from the current Rust producer or D0 corpus. The fixed design
-constraints are deterministic specified behavior, no undefined behavior or
-ambient host authority, specified failure, lower-rung meaning for every admitted
-construct, and Omega spelling and ordinary meaning whenever Delta retains the
-same construct. The exact scalar, arithmetic, aggregate, control, allocation,
-and boundary inventory remains provisional until compiler-source evidence shows
-it is needed. A facility's presence in D0 or acceptance by the Rust producer
-does not admit it to v1.
+Delta v1 and `Ωself` are separate and asymmetric contracts. Delta v1 is a
+literal independent language discovered from the complete `omega-bootstrap`
+source closure. `Ωself` is an incidental subset of ordinary Omega discovered
+from the production compiler's own complete source closure. Neither manifest
+substitutes for a general language/profile definition.
+
+Delta v1 is not frozen in advance from the current Rust producer or D0 corpus.
+The fixed design constraints are deterministic specified behavior, no undefined
+behavior or ambient host authority, specified failure, lower-rung meaning for
+every admitted construct, and Omega spelling and ordinary meaning whenever
+Delta retains the same construct. The exact scalar, arithmetic, aggregate,
+control, allocation, and boundary inventory remains provisional until compiler-
+source evidence shows it is needed. A facility's presence in D0 or acceptance
+by the Rust producer does not admit it to v1.
 
 The selection rule is whole-bootstrap cost: retain a facility only when it
 makes the bridge materially smaller, safer, or easier to assure than its
@@ -283,8 +288,8 @@ differential producer while its bug-finding value justifies the cost. It grants
 no authority and is never a bootstrap or release dependency. The Beta compiler's
 default construction and downstream use are already Alpha-rooted.
 
-The exact Delta and `Ωself` feature budgets are governed by
-[`self_hosting_profile.md`](self_hosting_profile.md).
+The exact Delta language inventory and `Ωself` source-profile inventory are
+governed by [`self_hosting_profile.md`](self_hosting_profile.md).
 
 ---
 

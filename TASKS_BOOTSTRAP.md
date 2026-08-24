@@ -42,16 +42,20 @@ initial executable may be conservatively generated.
 The proof kernel is orthogonal to this chain. It has independent Beta and Gamma
 implementations and checks certificates emitted at multiple stages.
 
-Only two source-surface freezes remain in this part of the lattice:
+The shape of the hosted edge is settled. Only two source-surface contracts still
+need their exact inventories frozen:
 
 1. **Delta v1**, the literal independent language used to write
    `omega-bootstrap`.
-2. **`Ωself`**, the ordinary-Omega profile used by the production compiler's
-   own complete source closure.
+2. **`Ωself`**, the incidental ordinary-Omega profile used by the production
+   compiler's own complete source closure.
 
 There is no `omega0`, `omega1`, or Epsilon language generation between them.
 O0 and O1 below are bounded vertical-canary labels for the current bridge work,
 not ancestors of `Ωself` and not compiler artifacts in the final lattice.
+The open work is to discover and enforce the two inventories from real source,
+not to revisit whether Delta is an Omega subset, whether the bridge accepts full
+Omega, or whether a second hosted rebuild is required.
 
 ## Role map
 
@@ -123,7 +127,7 @@ compatibility symlinks.
 closed, but not `Ωself`-bootstrap-ready.** Delta has proved that it can host a
 substantial compiler and carry a bounded family of Omega source shapes through
 canonical meaning to runnable artifacts, but it has not yet implemented the
-bridge compiler.
+complete bridge compiler.
 `bootstrap/rungs/delta/samples/lowermachine.alp` is a real
 Delta-written Delta-to-ARM64 compiler: it self-compiles to a fixed point and its
 output is swept against the Rust reference over the sample corpus. This proves
@@ -229,30 +233,27 @@ feature decision belongs to Delta v1; an Omega feature used or rejected by the
 production compiler source belongs to `Ωself`. Do not solve one contract by
 silently widening the other.
 
-- [ ] **Maintain Delta's provisional compiler-host feature ledger.**
-  There is no remaining owner-level feature-list ruling. The fixed constraints
-  are deterministic specified behavior, no undefined behavior or ambient host
-  authority, specified failure, lower-rung meaning for every admitted construct,
-  and Omega spelling/ordinary meaning where Delta retains the same construct.
-  This task co-evolves with the bridge; it is not a prerequisite freeze:
-  - [ ] maintain a provisional feature ledger naming the concrete bridge need,
-    simpler rejected alternative, and meaning/gate coverage for every admitted
-    construct, beginning with
-    [`bootstrap/rungs/delta/FEATURE_LEDGER.md`](bootstrap/rungs/delta/FEATURE_LEDGER.md);
-  - [ ] treat D0, the sample corpus, and Rust-producer acceptance as discovery
-    evidence only, never as admission to Delta v1;
-  - [ ] test whether Exact arithmetic, fixed arrays, direct tags, and a sealed
-    compiler-host interface suffice before retaining general arithmetic
-    policies, allocators, sum machinery, or boundary traits;
-  - [ ] keep every provisionally used arithmetic, layout, call, allocation,
-    trap, and I/O edge aligned across native targets, the Delta self-host, and
-    the Rust-free Delta-to-Gamma meaning route;
-  - [ ] replace newline-concatenated source input with the ruled deterministic,
-    byte-preserving source-unit/bundle contract.
+**Rolling invariant — maintain Delta's provisional compiler-host feature
+ledger.** This is not a separate completion gate or a prerequisite freeze. The
+ledger co-evolves with bridge source until the Delta-v1 freeze below:
 
-  Acceptance: every currently used bridge construct has a concrete need, a
-  recorded simpler alternative, explicit semantics, and live lower-rung/gate
-  coverage. No provisional construct is presented as frozen Delta v1.
+- name the concrete bridge need, simpler rejected alternative, and meaning/gate
+  coverage for every provisionally used construct in
+  [`bootstrap/rungs/delta/FEATURE_LEDGER.md`](bootstrap/rungs/delta/FEATURE_LEDGER.md);
+- treat D0, the sample corpus, and Rust-producer acceptance as discovery evidence
+  only, never as admission to Delta v1;
+- compare Exact arithmetic, fixed arrays, explicit tags, and a sealed
+  compiler-host interface against broader arithmetic policies, allocators, sum
+  machinery, or boundary traits by total source-and-assurance cost;
+- keep every provisionally used arithmetic, layout, call, allocation, trap, and
+  I/O edge aligned across native targets, the Delta self-host, and the Rust-free
+  Delta-to-Gamma meaning route; and
+- use the ruled deterministic, byte-preserving source-unit/bundle contract, not
+  newline-concatenated source input.
+
+At every bridge milestone, each used construct must have a concrete need, a
+recorded simpler alternative, explicit semantics, and live lower-rung/gate
+coverage. No provisional construct is presented as frozen Delta v1.
 
 **External input, not a bootstrap task:**
 `OMEGA-PRODUCT-COMPILER-SOURCE` in `TASKS.md` owns the Omega-written product
@@ -270,14 +271,16 @@ outside that manifest unless the compiler executable imports them.
   - [ ] freeze compositional syntax, static-semantics, resource, ABI/layout, and
     lowering rules—not file identities, statement counts, or AST permutations;
   - [ ] presumptively exclude mathematical proof/program syntax and
-    linear/dependent types;
+    linear/dependent types from the compiler's own implementation source;
   - [ ] presumptively retain ordinary named fields, payload-bearing sums, and
     basic generics unless source evidence makes their removal cheaper overall;
   - [ ] decide domains, advanced generics, numeric/schema field tags, complex
     transition payloads, and mixed field-plus-case data from the actual source;
-    and
+  - [ ] keep standalone terminal-Psi tools, interpreters, REPLs, proof explorers,
+    viewers, and debuggers outside the manifest unless the compiler executable
+    imports them; and
   - [ ] gate the complete manifest plus one negative canary per excluded
-    capability.
+    language capability.
 
   Acceptance: every program admitted by `Ωself` is ordinary Omega with exact
   Omega meaning; unsupported Omega rejects. The profile is a true subset, not a
