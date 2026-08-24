@@ -1216,15 +1216,19 @@ fn trait_definition_snapshot(
             .iter()
             .map(|requirement| {
                 let arguments = program.child_type_references(requirement.arguments);
-                if arguments.is_empty() {
+                if requirement.lifetime_arguments.is_empty() && arguments.is_empty() {
                     requirement.name.to_string()
                 } else {
+                    let lifetime_arguments = requirement
+                        .lifetime_arguments
+                        .iter()
+                        .map(|lifetime| format!("'{lifetime}"));
+                    let type_arguments = arguments.iter().map(|argument| argument.display_name());
                     format!(
                         "{}<{}>",
                         requirement.name,
-                        arguments
-                            .iter()
-                            .map(|argument| argument.display_name())
+                        lifetime_arguments
+                            .chain(type_arguments)
                             .collect::<Vec<_>>()
                             .join(", ")
                     )

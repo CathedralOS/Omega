@@ -83,6 +83,11 @@ pub(crate) fn lower_trait_definition(
             typed::trait_definition::TraitRequirement {
                 symbol: requirement.symbol,
                 name: crate::name::lower_name(&requirement.name),
+                lifetime_arguments: requirement
+                    .lifetime_arguments
+                    .iter()
+                    .map(crate::name::lower_name)
+                    .collect(),
                 arguments,
                 source_span: requirement.name.source_span(),
             },

@@ -1418,15 +1418,21 @@ fn trait_definition_snapshot(
                 let arguments = program
                     .type_reference_table
                     .type_reference_handles(requirement.arguments);
-                if arguments.is_empty() {
+                if requirement.lifetime_arguments.is_empty() && arguments.is_empty() {
                     requirement.name.to_string()
                 } else {
+                    let lifetime_arguments = requirement
+                        .lifetime_arguments
+                        .iter()
+                        .map(|lifetime| format!("'{lifetime}"));
+                    let type_arguments = arguments
+                        .iter()
+                        .map(|argument| program.display_type_reference(*argument));
                     format!(
                         "{}<{}>",
                         requirement.name,
-                        arguments
-                            .iter()
-                            .map(|argument| program.display_type_reference(*argument))
+                        lifetime_arguments
+                            .chain(type_arguments)
                             .collect::<Vec<_>>()
                             .join(", ")
                     )

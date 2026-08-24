@@ -391,15 +391,20 @@ complete.
   lands. Predicate, semantic-role, and operator semantics reject until their
   canonical rows exist.
   Package-owned public traits now project exact identity, boundary status,
-  alpha-normalized type/const binders, ordered package-qualified parent edges,
-  and ordered machine/operator requirement signatures including parameter
-  names/modes, package-qualified types, fixed operator spelling, exact declared
-  service reach, installation-bound status, synchronous invocations as exact
-  non-`self` parameter ordinals or package-qualified services, suspension, and
-  blocking. Termination guarantees retain exact package-qualified public
-  progress profiles, receiver/non-`self` parameter roots, and package-qualified
-  field projections.
-  Trait/requirement lifetimes, conformance bounds, invariants, default
+  alpha-normalized lifetime/type/const binders, ordered package-qualified
+  parent edges, and ordered machine/operator requirement signatures including
+  parameter names/modes, package-qualified types, fixed operator spelling,
+  exact declared service reach, installation-bound status, synchronous
+  invocations as exact non-`self` parameter ordinals or package-qualified
+  services, suspension, and blocking. Trait and requirement lifetime arity is
+  explicit; parent lifetime arguments and lifetime topology inside public
+  data/requirement types are
+  retained as alpha-normalized binder ordinals independently from runtime type
+  identity. Renaming a lifetime is stable while changing a borrow relationship
+  changes canonical review evidence. Termination guarantees retain exact
+  package-qualified public progress profiles, receiver/non-`self` parameter
+  roots, and package-qualified field projections.
+  Trait/requirement conformance bounds, invariants, default
   realizations, and non-progress proof/boundary/crash contracts fail closed
   until their complete rows are joined; no public trait is silently omitted.
   Declaration kinds without retained visibility reject
@@ -443,7 +448,7 @@ complete.
   closing the implicit-entry-state ownership gap discovered by the crash
   projection. Review identity now retains the exact deployment target profile,
   so profiles such as Windows and UEFI cannot collapse merely because they
-  share a native ABI. A v10 length-framed binary comparison encoding now covers
+  share a native ABI. A v11 length-framed binary comparison encoding now covers
   every retained public-domain, public-data, public-trait, callable,
   crash/proof predicate, authority flow, mutation, and selected-provider row.
   It converts platform-width ordinals to portable `u64`, distinguishes exact

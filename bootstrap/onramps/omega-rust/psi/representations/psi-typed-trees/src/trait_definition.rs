@@ -104,6 +104,9 @@ pub enum ConformanceRowSource {
 pub struct TraitRequirement {
     pub symbol: SymbolHandle,
     pub name: Identifier,
+    /// Erased borrow-region arguments retained independently from runtime type
+    /// arguments.
+    pub lifetime_arguments: Vec<Identifier>,
     pub arguments: HandleSpan<crate::types::TypeReferenceHandle>,
     /// Authored relationship location retained for declaration-site semantic
     /// diagnostics after source-backed names are lowered to owned text.
@@ -138,6 +141,7 @@ impl Default for TraitRequirement {
         Self {
             symbol: SymbolHandle::invalid(),
             name: Identifier::default(),
+            lifetime_arguments: Vec::new(),
             arguments: HandleSpan::empty(),
             source_span: psi_source::SourceSpan::default(),
         }

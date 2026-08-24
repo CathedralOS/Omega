@@ -607,15 +607,18 @@ retain exact route kind plus package-qualified trait and requirement identity;
 alternative routes are canonically sorted and deduplicated.
 
 Package-owned public traits retain exact identity, boundary status,
-alpha-normalized type/const binders, ordered package-qualified parent
+alpha-normalized lifetime/type/const binders, ordered package-qualified parent
 applications, and ordered machine/operator requirement signatures. Requirement
-rows retain parameter names and modes, package-qualified types, and fixed
-operator spelling plus exact declared service reach, installation-bound status,
+rows retain lifetime arity, parameter names and modes, package-qualified
+lifetime-sensitive signature types, and fixed operator spelling plus exact
+declared service reach, installation-bound status,
 synchronous invocations as exact non-`self` parameter ordinals or
 package-qualified services, suspension, blocking, and termination. Progress
 premises retain package-qualified public profile identity, receiver/non-`self`
-parameter roots, and package-qualified field projections. Lifetimes,
-conformance bounds, invariants, default realizations, and non-progress
+parameter roots, and package-qualified field projections. Parent applications
+retain exact alpha-normalized lifetime-binder arguments;
+renaming a binder is stable while changing a borrow relationship changes
+evidence. Conformance bounds, invariants, default realizations, and non-progress
 proof/boundary/crash contracts reject until complete canonical rows exist.
 
 Terminal Psi evidence remains a separate evidence class for checked
