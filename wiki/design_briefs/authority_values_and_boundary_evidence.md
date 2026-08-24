@@ -456,6 +456,12 @@ returns every lease on failure. Only the resulting non-clonable cohort may feed
 the later runtime establishment transition; a closure, prebinding, mutable
 count, compact identity, or individually acquired lease cannot do so.
 
+The selected provider schema retains the canonical carrier of each routed
+entry claim separately from both the complete qualified parameter type and the
+domain identity. Installation joins that carrier directly to the verified
+Terminal producer catalog; it never parses a display type or substitutes a
+short source spelling such as `Extent` for `named(name(Extent))`.
+
 The Rust on-ramp consumes that cohort into one non-clonable epoch runtime. The
 runtime retains every still-dormant occurrence instead of distributing loose
 mint tokens. A generated installed-entry bridge supplies a single-use subject

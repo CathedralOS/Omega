@@ -24,7 +24,7 @@ use super::{ProgramLocalStorageCustody, ProgramLocalStorageCustodyError};
 
 const PROGRAM_STORAGE_ENTRY_OWNER: &str = "ProgramStorageEntry";
 const PROGRAM_STORAGE_ENTRY_METHOD: &str = "enter";
-const EXTENT_CARRIER: &str = "Extent";
+const EXTENT_CARRIER: &str = "named(name(Extent))";
 const GRANTED_DOMAIN: &str = "Extent::Granted";
 const IMAGE_PARAMETER_INDEX: usize = 0;
 const INITIAL_STORAGE_PARAMETER_INDEX: usize = 1;
@@ -2057,7 +2057,8 @@ fn bind_parameter(
             claims.len()
         )));
     };
-    if claim.domain != GRANTED_DOMAIN
+    if claim.carrier_identity != EXTENT_CARRIER
+        || claim.domain != GRANTED_DOMAIN
         || !claim.predicate_body.is_present()
         || claim.effective_carry != psi_language_semantics::CarryPolicy::STRICT
         || claim.authority_flow != ServiceEntryAuthorityFlow::Accepts
@@ -2088,7 +2089,7 @@ fn bind_parameter(
     }
     Ok(ProgramStorageEntryParameter {
         parameter_index,
-        carrier_identity: EXTENT_CARRIER.into(),
+        carrier_identity: claim.carrier_identity.clone(),
         parameter_type_identity: method.parameter_type_identities[parameter_index].clone(),
         domain: claim.domain.clone(),
         effective_carry: claim.effective_carry,

@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use omega_calling_conventions::{
@@ -16,7 +16,7 @@ use omega_compiler::{
     bind_program_local_storage_entry_emitted_whole_root_arguments,
     bind_program_local_storage_entry_whole_root_logical_values,
     bind_program_local_storage_entry_whole_root_operands, bind_program_storage_entry_plan,
-    bind_recorded_program_local_storage_entry_whole_root_arguments, compile,
+    bind_recorded_program_local_storage_entry_whole_root_arguments, compile, compile_to_checked,
     establish_program_storage_entry_program_local_roots,
     install_established_program_storage_entry_program_local_roots,
     plan_program_local_storage_entry_wrapper_caller_frame,
@@ -53,12 +53,6 @@ use psi_layout_plans::{
     PlacementPhase, PlacementSite,
 };
 use psi_proof_kernel::AdmissionProfile;
-use psi_terminal::{
-    BoundaryMachineDeclaration, StructuralDomainDeclaration, StructuralDomainRequirement,
-    StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
-    StructuralParameterDeclaration, StructuralTypeDeclaration, StructuralTypeShape, TerminalModule,
-    TerminalRootServiceReach, VocabularyMarker, program_local_root_introduction_identity,
-};
 
 static TEMP_ID: AtomicU64 = AtomicU64::new(1);
 
@@ -89,6 +83,61 @@ impl TerminalObjectEvidence for TestTerminalObject {
     fn fuel_attribution(&self) -> Vec<TerminalFuelAttributionEvidence> {
         Vec::new()
     }
+}
+
+fn verified_source_terminal(
+    root_path: &Path,
+    target_name: Option<&str>,
+    machine: &str,
+) -> (
+    psi_terminal_codec::VerifiedProgramLocalRootProducerCatalog,
+    TestTerminalObject,
+) {
+    let checked = compile_to_checked(root_path, target_name)
+        .unwrap_or_else(|diagnostics| panic!("source fixture should check: {diagnostics:?}"));
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, machine)
+        .expect("source fixture should lower to Terminal Psi");
+    let verified = psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("source-derived Terminal producer should verify");
+    let catalog =
+        psi_terminal_codec::VerifiedProgramLocalRootProducerCatalog::from_verified(&verified)
+            .expect("verified source producer catalog");
+    let terminal = TestTerminalObject {
+        identity: catalog.terminal_psi(),
+        entry: catalog.terminal_entry(),
+        bytes: vec![0; 64],
+    };
+    (catalog, terminal)
+}
+
+fn verified_program_storage_terminal(
+    directory: &Path,
+) -> (
+    psi_terminal_codec::VerifiedProgramLocalRootProducerCatalog,
+    TestTerminalObject,
+) {
+    let source = directory.join("program_local_root_producer.omg");
+    fs::write(
+        &source,
+        r#"use omega::language::core::extent;
+
+data ProgramLocalProducer {}
+machine ProgramLocalProducer::handoff<machine Enter>(
+    image: Extent in Granted,
+    initial_storage: Extent in Granted
+)
+where machine Enter satisfies ProgramStorageEntry::enter;
+{
+    Enter(image, initial_storage);
+}
+"#,
+    )
+    .expect("write real program-local producer source");
+    verified_source_terminal(&source, None, "ProgramLocalProducer::handoff")
 }
 
 fn normalized<T, E: std::fmt::Debug>(identity: u64, constructor: fn(u64) -> Result<T, E>) -> T {
@@ -442,169 +491,6 @@ fn install_program_entry_root<'code>(
     (ledger, installed)
 }
 
-fn terminal_module(requirement_identity: &str) -> TerminalModule {
-    let entry = psi_core::MachineId::new(1).expect("machine identity");
-    let carrier = psi_core::StructuralTypeId::new(1).expect("carrier identity");
-    let domain = psi_core::StructuralDomainId::new(1).expect("domain identity");
-    let algebra = psi_core::ContentAlgebra {
-        kind: psi_core::ContentAlgebraKind::IntervalSet,
-        parameter: "Nat".into(),
-    };
-    let capacity = psi_core::ProgramLocalCapacityExpression::IntervalSet(vec![(
-        psi_core::ProgramLocalCapacityScalar::SubjectField(vec!["base".into()]),
-        psi_core::ProgramLocalCapacityScalar::Add(
-            Box::new(psi_core::ProgramLocalCapacityScalar::SubjectField(vec![
-                "base".into(),
-            ])),
-            Box::new(psi_core::ProgramLocalCapacityScalar::SubjectField(vec![
-                "length".into(),
-            ])),
-        ),
-    )]);
-    let schemas = (0..2)
-        .map(|position| {
-            let mut schema = psi_terminal::ProgramLocalRootIntroductionSchema {
-                argument_index: position,
-                source_parameter_position: position,
-                qualification: domain,
-                carrier,
-                projection: psi_core::ContentProjectionIdentity {
-                    domain: psi_core::ContentDomainId::new(1).expect("content domain"),
-                    projection_fingerprint:
-                        psi_language_semantics::content::terminal_projection_fingerprint(
-                            &algebra, &capacity,
-                        ),
-                },
-                algebra: algebra.clone(),
-                capacity: capacity.clone(),
-                identity: 0,
-            };
-            schema.identity = program_local_root_introduction_identity(
-                requirement_identity,
-                "Extent::Granted",
-                "Extent",
-                &schema,
-            );
-            schema
-        })
-        .collect::<Vec<_>>();
-    TerminalModule {
-        vocabulary_marker: VocabularyMarker::CURRENT,
-        entry,
-        structural_types: vec![StructuralTypeDeclaration {
-            id: carrier,
-            identity: "Extent".into(),
-            shape: StructuralTypeShape::Record {
-                fields: vec![
-                    StructuralFieldDeclaration {
-                        id: psi_core::StructuralFieldId::new(1).expect("base field"),
-                        identity: "base".into(),
-                        relevance: psi_terminal::BindingRelevance::Relevant,
-                        field_type: StructuralFieldType::Scalar(psi_core::ScalarType::Integer(
-                            psi_core::IntegerType::new(psi_core::IntegerSign::Unsigned, 64)
-                                .expect("u64"),
-                        )),
-                    },
-                    StructuralFieldDeclaration {
-                        id: psi_core::StructuralFieldId::new(2).expect("length field"),
-                        identity: "length".into(),
-                        relevance: psi_terminal::BindingRelevance::Relevant,
-                        field_type: StructuralFieldType::Scalar(psi_core::ScalarType::Integer(
-                            psi_core::IntegerType::new(psi_core::IntegerSign::Unsigned, 64)
-                                .expect("u64"),
-                        )),
-                    },
-                ],
-            },
-        }],
-        structural_domains: vec![StructuralDomainDeclaration {
-            id: domain,
-            semantic_domain: psi_core::DomainSemanticId::new(1).expect("semantic domain"),
-            identity: "Extent::Granted".into(),
-            carrier,
-        }],
-        services: Vec::new(),
-        root_service_reach: TerminalRootServiceReach::default(),
-        boundary_machines: vec![BoundaryMachineDeclaration {
-            id: psi_core::BoundaryMachineId::new(1).expect("boundary identity"),
-            identity: requirement_identity.into(),
-            attachment: None,
-            scalar_parameters: Vec::new(),
-            structural_parameters: (0u32..2)
-                .map(|position| StructuralParameterDeclaration {
-                    place: psi_core::PlaceId::new(u64::from(position) + 1)
-                        .expect("parameter place"),
-                    position,
-                    is_self: false,
-                    structural_type: carrier,
-                    multiplicity: StructuralMultiplicity::Linear,
-                    qualifications: vec![domain],
-                })
-                .collect(),
-            result: None,
-            requires: (0u32..2)
-                .map(|argument_index| StructuralDomainRequirement {
-                    argument_index,
-                    domain,
-                })
-                .collect(),
-            program_local_root_introductions: schemas,
-            published_service_ceiling: Vec::new(),
-        }],
-        provider_candidates: Vec::new(),
-        float_meaning_projections: Vec::new(),
-        float_meaning_equalities: Vec::new(),
-        proposition_declarations: Vec::new(),
-        proposition_applications: Vec::new(),
-        evidence_terms: Vec::new(),
-        evidence_contract_lanes: Vec::new(),
-        proof_output_calls: Vec::new(),
-        closed_conformance_applications: Vec::new(),
-        machines: vec![psi_terminal::TerminalMachine {
-            id: entry,
-            attachment: None,
-            parameters: Vec::new(),
-            structural_parameters: Vec::new(),
-            result: psi_terminal::TerminalMachineResult::Unit,
-            structural_places: Vec::new(),
-            entry_claims: Vec::new(),
-            published_service_ceiling: Vec::new(),
-            content_entry_claims: Vec::new(),
-            content_identity_reshuffles: Vec::new(),
-            content_partition_compositions: Vec::new(),
-            entry: psi_core::BlockId::new(1).expect("block"),
-            blocks: vec![psi_terminal::Block {
-                id: psi_core::BlockId::new(1).expect("block"),
-                parameters: Vec::new(),
-                operations: Vec::new(),
-                terminator: psi_terminal::Terminator::ReturnUnit {
-                    edge: psi_core::EdgeId::new(1).expect("edge"),
-                    trivial_affine_discards: Vec::new(),
-                },
-            }],
-            contract: psi_terminal::MachineContract {
-                id: psi_core::ContractId::new(1).expect("contract"),
-                crash_routes: Vec::new(),
-                requires: Vec::new(),
-                ensures: Vec::new(),
-            },
-        }],
-    }
-}
-
-fn terminal_catalog(
-    module: &TerminalModule,
-) -> psi_terminal_codec::VerifiedProgramLocalRootProducerCatalog {
-    let verified = psi_terminal_verifier::verify_module(
-        module,
-        &psi_terminal_verifier::ProofBundle::default(),
-        &AdmissionProfile::default(),
-    )
-    .expect("terminal module verifies");
-    psi_terminal_codec::VerifiedProgramLocalRootProducerCatalog::from_verified(&verified)
-        .expect("program-local catalog")
-}
-
 fn tcb_acceptance(seed: u64) -> ExecutableTcbProfileAcceptance {
     evaluate_executable_tcb_profile(
         &ExecutableTcbManifest {
@@ -656,6 +542,7 @@ fn binding(requirement_identity: &str) -> omega_compiler::ProgramStorageEntryPla
     let claims = (0..2)
         .map(|parameter_index| ServiceEntryClaim {
             parameter_index,
+            carrier_identity: "named(name(Extent))".into(),
             domain: "Extent::Granted".into(),
             predicate_body: psi_language_semantics::DomainPredicateBody::Present,
             effective_carry: psi_language_semantics::CarryPolicy::STRICT,
@@ -702,7 +589,12 @@ fn binding(requirement_identity: &str) -> omega_compiler::ProgramStorageEntryPla
 
 fn compiled_receiver_free_bridge(
     label: &str,
-) -> (PathBuf, omega_compiler::ProgramStorageEntryNativeBridgePlan) {
+) -> (
+    PathBuf,
+    omega_compiler::ProgramStorageEntryNativeBridgePlan,
+    psi_terminal_codec::VerifiedProgramLocalRootProducerCatalog,
+    TestTerminalObject,
+) {
     let directory = temp_directory(&format!("compiled-{label}"));
     fs::create_dir_all(&directory).expect("create compiled entry project");
     let source = include_str!(
@@ -750,6 +642,7 @@ machine build(builder: &mut Build) {{
         ),
     )
     .expect("write receiver-free build root");
+    let (catalog, terminal) = verified_program_storage_terminal(&directory);
     let bridge = compile(CompileOptions {
         root_path: directory.join("main.omg"),
         build_dir: Some(directory.join("build")),
@@ -760,7 +653,7 @@ machine build(builder: &mut Build) {{
     .program_storage_entry_bridge()
     .cloned()
     .expect("compiled entry bridge");
-    (directory, bridge)
+    (directory, bridge, catalog, terminal)
 }
 
 fn subject<'root, 'code>(
@@ -776,15 +669,15 @@ fn subject<'root, 'code>(
         position,
         position,
         "Extent::Granted",
-        "Extent",
+        "named(name(Extent))",
         ProgramLocalRootSubjectPlaceId::from_normalized_identity(place).expect("subject place"),
         [
-            ProgramLocalRootScalarBinding::subject_field(
+            ProgramLocalRootScalarBinding::runtime_scalar_embedding(
                 ["base"],
                 psi_numerics::bignum::BigInt::from_u64(base),
             )
             .expect("base scalar"),
-            ProgramLocalRootScalarBinding::subject_field(
+            ProgramLocalRootScalarBinding::runtime_scalar_embedding(
                 ["length"],
                 psi_numerics::bignum::BigInt::from_u64(length),
             )
@@ -796,9 +689,9 @@ fn subject<'root, 'code>(
 
 fn extent_plan(base: u64, length: u64, domain: &str) -> ProgramLocalExtentMaterializationPlan {
     ProgramLocalExtentMaterializationPlan::new(
-        "Extent",
+        "named(name(Extent))",
         domain,
-        "Nat",
+        "named(name(Nat))",
         base,
         length,
         extent_id(1000, AddressSpaceId::from_normalized_identity),
@@ -830,18 +723,19 @@ fn assert_origin(
 
 #[test]
 fn generated_program_entry_retains_two_exact_program_local_accounts_through_recovery() {
-    let (compiled_directory, exact_bridge) = compiled_receiver_free_bridge("launch");
+    let (compiled_directory, exact_bridge, catalog, terminal) =
+        compiled_receiver_free_bridge("launch");
     let requirement_identity = exact_bridge.binding().requirement_identity().to_owned();
     let entry = EntryStubId::from_normalized_identity(1).expect("entry identity");
     let mut code = installed_code(entry);
     let installed_code_identity = code.identity().normalized_identity();
-    let module = terminal_module(&requirement_identity);
-    let catalog = terminal_catalog(&module);
-    let terminal = TestTerminalObject {
-        identity: psi_terminal_codec::terminal_psi_identity(&module).expect("terminal identity"),
-        entry: module.entry,
-        bytes: vec![0; 64],
-    };
+    assert_eq!(catalog.schemas().len(), 2);
+    assert!(
+        catalog
+            .schemas()
+            .iter()
+            .all(|schema| schema.boundary_requirement_identity() == requirement_identity)
+    );
     let (mut root_ledger, root) =
         install_program_entry_root(&mut code, entry, &requirement_identity);
     let mut installation = root_ledger
@@ -1016,7 +910,7 @@ fn generated_program_entry_retains_two_exact_program_local_accounts_through_reco
             .expect("read installation audit");
     assert_eq!(emitted, json);
 
-    let (other_directory, other_bridge) = compiled_receiver_free_bridge("alternate");
+    let (other_directory, other_bridge, _, _) = compiled_receiver_free_bridge("alternate");
     let rejected =
         bind_recorded_program_local_storage_entry_whole_root_arguments(recorded, &other_bridge)
             .expect_err("a local installation cannot bind another entry");
@@ -1065,17 +959,20 @@ fn generated_program_entry_retains_two_exact_program_local_accounts_through_reco
 
 #[test]
 fn program_local_receiver_activation_never_releases_roots_without_their_registry() {
-    let requirement_identity = "ProgramStorageEntry::enter/receiver-v1";
+    let source_directory = temp_directory("receiver-source");
+    fs::create_dir_all(&source_directory).expect("create receiver source directory");
+    let (catalog, terminal) = verified_program_storage_terminal(&source_directory);
+    let [first, second] = catalog.schemas() else {
+        panic!("source entry must derive two program-local roots")
+    };
+    assert_eq!(
+        first.boundary_requirement_identity(),
+        second.boundary_requirement_identity()
+    );
+    let requirement_identity = first.boundary_requirement_identity();
     let entry = EntryStubId::from_normalized_identity(1).expect("entry identity");
     let mut code = installed_code(entry);
     let installed_code_identity = code.identity().normalized_identity();
-    let module = terminal_module(requirement_identity);
-    let catalog = terminal_catalog(&module);
-    let terminal = TestTerminalObject {
-        identity: psi_terminal_codec::terminal_psi_identity(&module).expect("terminal identity"),
-        entry: module.entry,
-        bytes: vec![0; 64],
-    };
     let (mut root_ledger, root) =
         install_program_entry_root(&mut code, entry, requirement_identity);
     let mut installation = root_ledger
@@ -1185,4 +1082,5 @@ fn program_local_receiver_activation_never_releases_roots_without_their_registry
         Some((0x9010, 0x13))
     );
     fs::remove_dir_all(artifact_directory).expect("remove receiver artifacts");
+    fs::remove_dir_all(source_directory).expect("remove receiver source fixture");
 }

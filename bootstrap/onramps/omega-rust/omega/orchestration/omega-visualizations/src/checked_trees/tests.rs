@@ -539,6 +539,7 @@ fn selected_storage_plan() -> ProviderPlan {
                 parameter_type_identities: vec!["Token".to_owned()],
                 entry_claims: vec![ServiceEntryClaim {
                     parameter_index: 0,
+                    carrier_identity: "named(name(Token))".to_owned(),
                     domain: "Token::Granted".to_owned(),
                     predicate_body: psi_language_semantics::DomainPredicateBody::Bodyless,
                     effective_carry: CarryPolicy::STRICT,

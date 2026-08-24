@@ -72,6 +72,7 @@ psi-typed-trees = { path = "../../../psi/representations/psi-typed-trees" }
 omega-visualizations = { path = "../omega-visualizations" }
 
 [dev-dependencies]
+psi-checked-trees-to-terminal = { path = "../../../psi/pipeline/psi-checked-trees-to-terminal" }
 psi-facts = { path = "../../../psi/representations/psi-facts" }
 psi-validation = { path = "../../../psi/semantics/psi-validation" }
 psi-core = { path = "../../../psi/foundation/psi-core" }
