@@ -7330,6 +7330,7 @@ mod provider_plan {
             target: "t".to_owned(),
             schema: schema.clone(),
             rows,
+            origin_package_identity: None,
             origin_package: "omega::language::std".to_owned(),
         };
         let forward = plan(vec![row("a", 1), row("b", 2)]);

@@ -55,7 +55,13 @@ fn review_projects_root_boundary_and_build_authority() {
         return;
     };
     let package = TempPackage::new();
-    package.write("main.omg", "boundary machine host_ping();\n");
+    package.write(
+        "main.omg",
+        r#"boundary machine host_ping();
+boundary trait Host { machine ping(); }
+machine ping_leaf() satisfies Host::ping via Binding::VtableSlot(1);
+"#,
+    );
     package.write(
         "build.omg",
         r#"target windows_x64 { }
@@ -97,6 +103,17 @@ machine build(builder: &mut Build) { }
         .expect("build row");
     assert_eq!(build.identity().path(), "build");
     assert_eq!(build.declared_service_reach(), None);
+
+    let [provider] = review.selected_providers() else {
+        panic!("one selected provider review row")
+    };
+    assert_eq!(provider.realizing_package(), Some(package_identity()));
+    assert_eq!(provider.service_schema(), "Host");
+    assert_eq!(provider.rows().len(), 1);
+    assert!(matches!(
+        provider.rows()[0].binding,
+        omega_effects::provider_plan::ProviderBinding::VtableSlot { index: 1 }
+    ));
 }
 
 #[test]

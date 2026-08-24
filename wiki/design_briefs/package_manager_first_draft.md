@@ -176,7 +176,8 @@ Package capabilities are derived from the candidate repository after the
 complete source/build closure is available. The package author writes ordinary
 Omega contracts; it cannot author or patch the admission manifest.
 
-The normalized package evidence includes, with exact provenance:
+The eventual normalized package-admission evidence must include, with exact
+provenance:
 
 - public API contract identity;
 - declared and realized transitive service reach for every public callable;
@@ -201,14 +202,17 @@ stand down on facts outside that engine's language. The admission profile must
 reject an unresolved stand-down or retain the exact later checked obligation
 that discharged it; a successful ordinary compilation is not by itself a
 complete proof verdict. Checked proofs are rechecked by the proof kernel.
-Accepted axioms and opaque boundary claims remain explicit trust-bearing
+Accepted axioms and opaque boundary claims must remain explicit trust-bearing
 evidence and require admission; authored postconditions are obligations, never
-proof. Boundary realization uses exact package-qualified nominal identities and
-cannot be satisfied by a same-spelled trait.
+proof. Boundary realization must use exact package-qualified nominal identities
+and reject same-spelled declarations from another lineage. Currently the
+compiler joins the realizing package to provider plans and provider trust rows;
+package-qualified requirement/provider nominal carriers and sealed admission
+evidence remain unfinished.
 
-Risk classification is compiler-owned metadata attached to exact admitted
-boundary/capability identities. It is never inferred from package-controlled
-strings such as `Filesystem` or `Network`.
+Risk classification must be compiler-owned metadata attached to exact admitted
+boundary/capability identities. It must never be inferred from
+package-controlled strings such as `Filesystem` or `Network`.
 
 ## Update, install, and missing baselines
 

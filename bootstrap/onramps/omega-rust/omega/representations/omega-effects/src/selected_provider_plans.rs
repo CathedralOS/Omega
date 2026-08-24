@@ -412,6 +412,7 @@ mod tests {
                     machine: format!("{name}Provider::{method}"),
                 },
             }],
+            origin_package_identity: None,
             origin_package: "test".into(),
         }
     }

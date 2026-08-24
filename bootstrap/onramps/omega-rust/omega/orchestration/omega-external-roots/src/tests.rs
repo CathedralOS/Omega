@@ -566,6 +566,7 @@ fn selected_interrupt_completion() -> omega_effects::SelectedProviderPlanFacts {
                 machine: "LegacyPicController::complete".into(),
             },
         }],
+        origin_package_identity: None,
         origin_package: "test".into(),
     };
     let identity = plan.identity_fingerprint();
@@ -5043,6 +5044,7 @@ fn progress_installation_fixture() -> (
                 machine: "TestScheduler::wait".into(),
             },
         }],
+        origin_package_identity: None,
         origin_package: "omega::test".into(),
     };
     let admission = ProviderPlan {
@@ -5071,6 +5073,7 @@ fn progress_installation_fixture() -> (
                 machine: "TestSchedulerAdmission::grant_weak_fair".into(),
             },
         }],
+        origin_package_identity: None,
         origin_package: "omega::test".into(),
     };
     let scheduler_identity = scheduler.identity_fingerprint();

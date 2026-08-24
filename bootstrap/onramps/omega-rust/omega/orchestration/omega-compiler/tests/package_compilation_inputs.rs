@@ -119,6 +119,43 @@ fn aliases_are_requester_local_and_dependency_imports_are_package_local() {
 }
 
 #[test]
+fn dependency_provider_plan_retains_exact_dependency_package_provenance() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    let dependency = tree.package("dependency");
+
+    TempTree::write(root.join("main.omg"), "use dep::provider;\n");
+    TempTree::write(
+        dependency.join("provider.omg"),
+        r#"boundary trait Pair { machine first(); }
+machine first_leaf() satisfies Pair::first via Binding::VtableSlot(1);
+"#,
+    );
+
+    let inputs = PackageCompilationInputs::new(
+        identity(1),
+        vec![
+            PackageSourceBinding::new(identity(1), root.clone()),
+            PackageSourceBinding::new(identity(2), dependency),
+        ],
+        vec![PackageDependencyBinding::new(
+            identity(1),
+            "dep",
+            identity(2),
+        )],
+    )
+    .expect("reconciled provider graph should validate");
+
+    let checked = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
+        .expect("dependency provider should check");
+    let [plan] = checked.selected_provider_plans().plans() else {
+        panic!("one selected dependency provider plan")
+    };
+    assert_eq!(plan.origin_package_identity, Some(identity(2)));
+    assert_eq!(plan.origin_package, "");
+}
+
+#[test]
 fn dependency_build_files_cannot_join_the_program() {
     let tree = TempTree::new();
     let root = tree.package("root");
