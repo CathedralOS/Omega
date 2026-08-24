@@ -1,5 +1,25 @@
 use super::*;
 
+/// Deterministic per-operation allocation ceiling for raw filesystem reads.
+/// This is an evaluator sponsor limit, not a language or OS API limit. A future
+/// build policy may supply a stricter budget, but package code cannot raise it.
+const MAX_FILESYSTEM_TRANSFER_BYTES: usize = 16 * 1024 * 1024;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum FilesystemTransferCountError {
+    NegativeOrUnrepresentable,
+    ExceedsEvaluatorLimit,
+}
+
+fn checked_filesystem_transfer_count(raw: i64) -> Result<usize, FilesystemTransferCountError> {
+    let count = usize::try_from(raw)
+        .map_err(|_| FilesystemTransferCountError::NegativeOrUnrepresentable)?;
+    if count > MAX_FILESYSTEM_TRANSFER_BYTES {
+        return Err(FilesystemTransferCountError::ExceedsEvaluatorLimit);
+    }
+    Ok(count)
+}
+
 impl<'program> Evaluator<'program> {
     /// Record one exact canonical operation in call-start order around the
     /// selected provider. The placeholder preserves nesting order if argument
@@ -122,7 +142,7 @@ impl<'program> Evaluator<'program> {
             }
             FilesystemHostOperation::Read => {
                 let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
-                let count = self.eval_fs_scalar(arguments.get(2).copied(), frame)? as usize;
+                let count = self.eval_fs_transfer_count(arguments.get(2).copied(), frame)?;
                 match self.virtual_read_n(fd, count) {
                     Some(bytes) => {
                         let n = bytes.len() as i64;
@@ -150,7 +170,7 @@ impl<'program> Evaluator<'program> {
                 // `pread(fd, buf, count, offset)`: read at an absolute offset
                 // WITHOUT moving the cursor (Rust `FileExt::read_at`).
                 let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
-                let count = self.eval_fs_scalar(arguments.get(2).copied(), frame)? as usize;
+                let count = self.eval_fs_transfer_count(arguments.get(2).copied(), frame)?;
                 let offset = self.eval_fs_scalar(arguments.get(3).copied(), frame)?;
                 match self.virtual_read_at(fd, offset, count) {
                     Some(bytes) => {
@@ -597,7 +617,7 @@ impl<'program> Evaluator<'program> {
                 // capacity is too small, 0 for a bad handle (GetLastError
                 // semantics -- no errno touched).
                 let handle = self.eval_fs_scalar(arguments.first().copied(), frame)?;
-                let capacity = self.eval_fs_scalar(arguments.get(2).copied(), frame)? as usize;
+                let capacity = self.eval_fs_transfer_count(arguments.get(2).copied(), frame)?;
                 let path = self
                     .virtual_fds
                     .get(&(handle as i32))
@@ -667,7 +687,7 @@ impl<'program> Evaluator<'program> {
                 // buffer (up to `count`), returning the number written. ENOENT if
                 // `path` is not a symlink in the hermetic model.
                 let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
-                let count = self.eval_fs_scalar(arguments.get(2).copied(), frame)? as usize;
+                let count = self.eval_fs_transfer_count(arguments.get(2).copied(), frame)?;
                 match self.virtual_symlinks.get(&path).cloned() {
                     Some(target) => {
                         let n = target.len().min(count);
@@ -724,7 +744,8 @@ impl<'program> Evaluator<'program> {
                         -1
                     }
                     Some(path) => {
-                        let count = self.eval_fs_scalar(arguments.get(2).copied(), frame)? as usize;
+                        let count =
+                            self.eval_fs_transfer_count(arguments.get(2).copied(), frame)?;
                         let position = self.read_fs_position(arguments.get(3).copied(), frame);
                         let records = self.build_dirent_records(&path);
                         let start = position.max(0) as usize;
@@ -943,6 +964,24 @@ impl<'program> Evaluator<'program> {
             return Ok(0);
         };
         Ok(self.eval_expression(argument, frame)?.as_int().unwrap_or(0))
+    }
+
+    /// Evaluate a raw byte count exactly once and reject values that could wrap
+    /// at the host `usize` boundary or force an unbounded provider allocation.
+    pub(super) fn eval_fs_transfer_count(
+        &mut self,
+        argument: Option<ExpressionHandle>,
+        frame: &Frame,
+    ) -> EvalResult<usize> {
+        let raw = self.eval_fs_scalar(argument, frame)?;
+        checked_filesystem_transfer_count(raw).map_err(|error| match error {
+            FilesystemTransferCountError::NegativeOrUnrepresentable => Halt::Trap(
+                "filesystem transfer count is negative or not host-representable".to_owned(),
+            ),
+            FilesystemTransferCountError::ExceedsEvaluatorLimit => Halt::Trap(format!(
+                "filesystem transfer count exceeds evaluator limit of {MAX_FILESYSTEM_TRANSFER_BYTES} bytes"
+            )),
+        })
     }
 
     /// Evaluate an argument expected to be byte data (a path or a write payload).
@@ -1447,5 +1486,34 @@ impl<'program> Evaluator<'program> {
             self.virtual_errno = 1; // EPERM
             -1
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        FilesystemTransferCountError, MAX_FILESYSTEM_TRANSFER_BYTES,
+        checked_filesystem_transfer_count,
+    };
+
+    #[test]
+    fn transfer_count_rejects_wrap_and_unbounded_allocation() {
+        assert_eq!(
+            checked_filesystem_transfer_count(-1),
+            Err(FilesystemTransferCountError::NegativeOrUnrepresentable)
+        );
+        assert_eq!(
+            checked_filesystem_transfer_count(MAX_FILESYSTEM_TRANSFER_BYTES as i64 + 1),
+            Err(FilesystemTransferCountError::ExceedsEvaluatorLimit)
+        );
+    }
+
+    #[test]
+    fn transfer_count_accepts_the_closed_interval_through_the_limit() {
+        assert_eq!(checked_filesystem_transfer_count(0), Ok(0));
+        assert_eq!(
+            checked_filesystem_transfer_count(MAX_FILESYSTEM_TRANSFER_BYTES as i64),
+            Ok(MAX_FILESYSTEM_TRANSFER_BYTES)
+        );
     }
 }

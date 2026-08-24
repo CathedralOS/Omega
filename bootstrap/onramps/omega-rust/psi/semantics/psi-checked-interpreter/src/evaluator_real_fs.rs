@@ -314,7 +314,7 @@ impl<'program> super::Evaluator<'program> {
             }
             FilesystemHostOperation::Read => {
                 let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
-                let count = self.eval_fs_scalar(arguments.get(2).copied(), frame)? as usize;
+                let count = self.eval_fs_transfer_count(arguments.get(2).copied(), frame)?;
                 let outcome = {
                     let real = self.real_fs_mut();
                     match real.files.get_mut(&fd) {
@@ -500,7 +500,7 @@ impl<'program> super::Evaluator<'program> {
                 // WITHOUT moving the cursor. Emulated portably (std has no
                 // cross-platform pread): seek, read, restore.
                 let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
-                let count = self.eval_fs_scalar(arguments.get(2).copied(), frame)? as usize;
+                let count = self.eval_fs_transfer_count(arguments.get(2).copied(), frame)?;
                 let offset = self.eval_fs_scalar(arguments.get(3).copied(), frame)?;
                 let outcome = {
                     let real = self.real_fs_mut();
@@ -552,7 +552,7 @@ impl<'program> super::Evaluator<'program> {
                 // come from `std::fs::read_dir` and are sorted for determinism;
                 // native getdirentries order remains filesystem-defined.
                 let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
-                let count = self.eval_fs_scalar(arguments.get(2).copied(), frame)? as usize;
+                let count = self.eval_fs_transfer_count(arguments.get(2).copied(), frame)?;
                 let position = self.read_fs_position(arguments.get(3).copied(), frame);
                 let listed = {
                     let real = self.real_fs_mut();
@@ -777,7 +777,7 @@ impl<'program> super::Evaluator<'program> {
                 // NUL when too small, 0 on failure; errno is this provider's
                 // modeled GetLastError slot.
                 let handle = self.eval_fs_scalar(arguments.first().copied(), frame)?;
-                let capacity = self.eval_fs_scalar(arguments.get(2).copied(), frame)? as usize;
+                let capacity = self.eval_fs_transfer_count(arguments.get(2).copied(), frame)?;
                 let path = self
                     .real_fs_mut()
                     .files
@@ -872,7 +872,7 @@ impl<'program> super::Evaluator<'program> {
                 // `readlink(path, buf, count)`: target bytes into the buffer,
                 // returns the count written.
                 let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
-                let count = self.eval_fs_scalar(arguments.get(2).copied(), frame)? as usize;
+                let count = self.eval_fs_transfer_count(arguments.get(2).copied(), frame)?;
                 match self.authorized_path_no_follow(&path, false) {
                     Some(path) => match std::fs::read_link(&path) {
                         Ok(target) => {

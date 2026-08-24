@@ -222,6 +222,12 @@ paths, mutable byte regions, and content are absent. It is an incomplete
 operation trace, not a transcript or receipt, and makes no replayability or
 source-rebuildability claim.
 
+Raw filesystem read/count capacities use one checked evaluator conversion.
+Negative or host-unrepresentable values and values above 16 MiB reject before
+provider allocation. The ceiling is current compiler sponsorship policy, not an
+Omega API limit. It does not replace total output-tree, file-extent, memory,
+process, or transport quotas.
+
 The usage record carries a schema identity independently from evaluator-step
 identity: adding telemetry does not change what one step means. It records
 `result_cells` for successful semantic evaluation.
