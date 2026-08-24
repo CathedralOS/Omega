@@ -6,8 +6,9 @@
 The repository distinguishes architectural role from implementation language.
 The former flat `compiler/` inventory has been split: seed-built language rungs,
 external-language on-ramps, assurance, the bootstrap bridge, and the product compiler
-now have separate owners. Compatibility symlinks preserve selected old entry
-points without restoring their old ownership.
+now have separate owners. Remaining compatibility symlinks and forwarding
+facades are transitional migration debt; they preserve old entry points without
+restoring old ownership and should disappear after their consumers move.
 
 ## Canonical structure
 
@@ -61,12 +62,16 @@ product roots.
 
 ## Ownership rules
 
-- `bootstrap/rungs/` owns language definitions and the smallest implementation
-  that establishes each rung. A program merely *written in* Beta or Gamma does
-  not belong to that language directory.
-- `bootstrap/onramps/` owns disposable external-language producers. On-ramps
-  have no semantic authority and are removable once the corresponding
-  lattice-built route closes.
+- `bootstrap/rungs/` owns canonical language definitions, lattice-built
+  artifacts, and the smallest implementation that establishes each rung. A rung
+  becomes frozen or immutable only after its declared closure gates pass;
+  reopening it is an explicit versioned change. A program merely *written in*
+  Beta or Gamma does not belong to that language directory, and adjacent
+  reference/fuzz tooling has no authority merely because it is role-local.
+- `bootstrap/onramps/` owns external-language producers that are disposable
+  from the required bootstrap and trust closure. “Disposable” does not mean
+  abandoned: an on-ramp may remain maintained as a differential comparator.
+  On-ramps have no semantic authority.
 - `bootstrap/assurance/` owns cross-cutting checking and refinement. The generic
   proof kernel is not a compiler rung. Its trusted checker implementations,
   untrusted automation, corpora, and integration gates must be visibly

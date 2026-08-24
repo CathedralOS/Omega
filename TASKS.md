@@ -73,6 +73,19 @@ Remaining:
   executable imports them; full Omega acceptance does not require a hosted
   Terminal-Psi interpreter, REPL, proof explorer, viewer, or debugger.
 
+- **OMEGA-RUST-COMPARATOR.** Maintain the current Rust Psi/Omega compiler under
+  `bootstrap/onramps/omega-rust/` as a parallel differential implementation
+  while its bug-finding value justifies its cost. It may compare diagnostics,
+  normalized semantics, artifacts, and execution observations against the
+  Omega-written product compiler, but it grants no authority, is not a DDC
+  gate, and must be omittable from bootstrap and release builds once the hosted
+  compiler closes.
+
+  Acceptance: shared product suites can exercise both implementations without
+  making Rust agreement or availability a correctness, bootstrap, or release
+  condition. Rust-specific maintenance stays in its suffixed on-ramp and never
+  moves into `compiler/{psi,omega}/`.
+
 ## Execution order
 
 The numbered groups express dependency order, not an exclusive assignment.

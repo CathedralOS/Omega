@@ -17,6 +17,8 @@ Alpha → Beta → Gamma → Delta
               omega-bootstrap (accepts Ωself)
                            ↓
               omega (full optimizing compiler; own binary may be conservative)
+                           │
+                           └── optional self-rebuild ──▶ omega (same compiler; optimized binary)
 ```
 
 The languages become increasingly capable. Delta is an independent, robust
@@ -67,9 +69,10 @@ Omega, or whether a second hosted rebuild is required.
 - Do not add another language or compiler generation between Delta and the
   product compiler. `omega-bootstrap` is a compiler role; `Ωself` is an Omega
   source profile; O0/O1 remain regression canaries only.
-- Do not require a second hosted compile. One Delta-built `omega-bootstrap`
-  compile must produce the full optimizing product compiler. Rebuilding that
-  compiler with itself is optional performance/reproducibility evidence.
+- Require exactly one hosted/self-host compile: the Delta-built
+  `omega-bootstrap` compiles the `Ωself` product source into the full optimizing
+  product compiler. No second compile is a bootstrap task. Rebuilding that same
+  compiler with itself is optional product performance/reproducibility work.
 - Do not require Delta to be valid Omega or align Delta v1 with `Ωself`. Shared
   spelling is preferred where cheap, but the two source closures select two
   independent contracts.
@@ -121,8 +124,22 @@ compatibility symlinks.
 | `bootstrap/onramps/beta-rust/` (compatibility: `compiler/beta-lang-rs`) | Beta-language disposable/reference Rust producer | `bootstrap/onramps/beta-rust/` |
 | `bootstrap/rungs/beta/reference/` | executable Beta reference meaning and semantic fuzzing | `bootstrap/rungs/beta/reference/`; `compiler/beta-lang-py` forwards compatibility entry points |
 | `bootstrap/assurance/refinement/beta/` | fragmentary symbolic reconstruction plus whole-artifact obligation checkers | `bootstrap/assurance/refinement/beta/` |
-| `bootstrap/onramps/omega-rust/` | current working Rust Psi/Omega compiler and CLI; migration/reference producer | `bootstrap/onramps/omega-rust/` |
+| `bootstrap/onramps/omega-rust/` | current working Rust Psi/Omega compiler and CLI; maintained parallel comparator and differential producer, never bootstrap authority | `bootstrap/onramps/omega-rust/` |
 | `compiler/{psi,omega}/` | eventual Omega-written product compiler source | reserved product roots; implementation remains open |
+
+### Compatibility retirement
+
+- [ ] **Make `compiler/` product-only.** Migrate remaining bootstrap consumers
+  to canonical `bootstrap/` owners, then remove the flat rung/on-ramp/assurance
+  compatibility entries, including the `compiler/beta-lang-py/` forwarding
+  facade and `compiler/proof-kernel` symlink. Remove their compatibility roles
+  from `bootstrap/paths.sh` and invert the path-hygiene tests so they reject
+  reintroduction.
+
+  Acceptance: `compiler/` contains only product-source ownership and its
+  documentation; bootstrap gates import canonical rung, on-ramp, assurance, and
+  corpus paths. This is a placement cleanup, not a new trust argument or a
+  request for redundant compiler implementations.
 
 ## Current architectural state
 
@@ -329,7 +346,8 @@ outside that manifest unless the compiler executable imports them.
     frozen Delta v1 belongs to the subsequent freeze task, and one entry source
     file alone is not the closure;
   - [ ] accept exactly `Ωself` with general parsing, checking, diagnostics,
-    terminal representation, and conservative lowering;
+    and the conservative lowering path selected for the profile; Terminal Psi
+    is required only if that selected compiler closure imports it;
   - [ ] reject unsupported Omega before artifact publication;
   - [ ] carry every admitted capability through the Rust-free meaning route and
     direct artifact path in the same milestone; and
@@ -358,7 +376,8 @@ outside that manifest unless the compiler executable imports them.
   - [ ] publish a classified conformance corpus and feature manifest with
     positive observations, one phase-isolated negative per exclusion,
     exhaustion teeth for every retained resource mechanism, cross-target
-    layout/arithmetic edges, and native/self-host/lower-rung differentials; and
+    layout/arithmetic edges, and native/self-host/lower-rung conformance and
+    meaning differentials (bug-finding evidence, not DDC authority); and
   - [ ] prove the complete deterministic `omega-bootstrap` source closure valid
     under the frozen contract.
 
@@ -376,13 +395,14 @@ outside that manifest unless the compiler executable imports them.
   may remain a differential reference but is never authority or a release
   dependency.
 
-- [ ] **Compile the production Omega compiler once.**
+- [ ] **Perform the sole required hosted/self-host compile.**
   Run the Delta-built bridge on the exact `Ωself` manifest and validate the
   result against canonical meaning plus the full compiler/language suites. The
   required artifact accepts full Omega and contains the production optimizer
   and advanced lowering, although its own binary may have been conservatively
-  generated. A later production self-rebuild is optional optimization and
-  reproducibility evidence, not another rung or dependency.
+  generated. This closes the required build lattice. A later production
+  self-rebuild is optional product optimization and reproducibility work, not a
+  bootstrap task, rung, or dependency.
 
 ## Cross-rung assurance work
 
