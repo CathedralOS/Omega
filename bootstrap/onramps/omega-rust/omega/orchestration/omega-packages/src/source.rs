@@ -5,8 +5,10 @@ use std::fmt;
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::{Child, Command, ExitStatus, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::mpsc::{self, RecvTimeoutError};
+use std::time::{Duration, Instant};
 
 const GIT_CACHE_POLICY: &[u8] = b"omega-git-cache-v4";
 const GIT_CACHE_METADATA: &str = "source.identity";
@@ -21,6 +23,10 @@ const LOCAL_SNAPSHOT_SOURCE: &str = "source";
 const LOCAL_SNAPSHOT_POLICY: &[u8] = b"omega-local-source-snapshot-v1";
 const CANONICAL_DIRECTORY_MODE: u16 = 0o555;
 const GIT_ORIGIN_FETCH: &str = "+refs/heads/*:refs/remotes/origin/*";
+const GIT_COMMAND_TIMEOUT: Duration = Duration::from_secs(120);
+const GIT_STDOUT_LIMIT: usize = 16 * 1024 * 1024;
+const GIT_STDERR_LIMIT: usize = 1024 * 1024;
+const PROCESS_POLL_INTERVAL: Duration = Duration::from_millis(5);
 static STAGING_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -116,6 +122,15 @@ pub enum SourceResolveError {
         status: Option<i32>,
         stderr: String,
     },
+    GitOutputOverflow {
+        operation: String,
+        stream: String,
+        limit: usize,
+    },
+    GitTimedOut {
+        operation: String,
+        timeout_millis: u64,
+    },
     GitSubmodulesUnsupported {
         path: PathBuf,
     },
@@ -193,6 +208,21 @@ impl fmt::Display for SourceResolveError {
                 "git {operation} failed with status {:?}: {}",
                 status,
                 stderr.trim()
+            ),
+            Self::GitOutputOverflow {
+                operation,
+                stream,
+                limit,
+            } => write!(
+                output,
+                "git {operation} exceeded its {stream} capture limit of {limit} bytes"
+            ),
+            Self::GitTimedOut {
+                operation,
+                timeout_millis,
+            } => write!(
+                output,
+                "git {operation} exceeded its deadline of {timeout_millis} milliseconds"
             ),
             Self::GitSubmodulesUnsupported { path } => write!(
                 output,
@@ -1210,58 +1240,23 @@ fn read_git_blob_bounded(
     oid: &str,
     expected_size: u64,
 ) -> Result<Vec<u8>, SourceResolveError> {
-    let capacity = usize::try_from(expected_size)
+    let stdout_limit = usize::try_from(expected_size)
         .map_err(|_| git_tree_invalid(oid.as_bytes(), "blob cannot fit in host memory"))?;
-    let mut child = sealed_git_command()
-        .args([
-            OsStr::new("-C"),
-            repository.as_os_str(),
-            OsStr::new("cat-file"),
-            OsStr::new("blob"),
-            OsStr::new(oid),
-        ])
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|error| SourceResolveError::Git {
-            operation: "cat-file spawn".to_owned(),
-            status: None,
-            stderr: error.to_string(),
-        })?;
-    let mut stdout = child.stdout.take().expect("Git stdout was piped");
-    let mut bytes = Vec::new();
-    bytes
-        .try_reserve_exact(capacity)
-        .map_err(|_| git_tree_invalid(oid.as_bytes(), "blob allocation failed"))?;
-    let mut chunk = [0_u8; 64 * 1024];
-    loop {
-        let count = stdout
-            .read(&mut chunk)
-            .map_err(|error| SourceResolveError::Git {
-                operation: "cat-file read".to_owned(),
-                status: None,
-                stderr: error.to_string(),
-            })?;
-        if count == 0 {
-            break;
-        }
-        if bytes.len().saturating_add(count) > capacity {
-            let _ = child.kill();
-            let _ = child.wait();
-            return Err(git_tree_invalid(
-                oid.as_bytes(),
-                "blob exceeded its validated object size",
-            ));
-        }
-        bytes.extend_from_slice(&chunk[..count]);
-    }
-    let output = child
-        .wait_with_output()
-        .map_err(|error| SourceResolveError::Git {
-            operation: "cat-file wait".to_owned(),
-            status: None,
-            stderr: error.to_string(),
-        })?;
+    let mut command = sealed_git_command();
+    command.args([
+        OsStr::new("-C"),
+        repository.as_os_str(),
+        OsStr::new("cat-file"),
+        OsStr::new("blob"),
+        OsStr::new(oid),
+    ]);
+    let output = run_command_bounded(
+        &mut command,
+        "cat-file",
+        stdout_limit,
+        GIT_STDERR_LIMIT,
+        GIT_COMMAND_TIMEOUT,
+    )?;
     if !output.status.success() {
         return Err(SourceResolveError::Git {
             operation: "cat-file".to_owned(),
@@ -1269,13 +1264,13 @@ fn read_git_blob_bounded(
             stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
         });
     }
-    if bytes.len() != capacity {
+    if output.stdout.len() != stdout_limit {
         return Err(git_tree_invalid(
             oid.as_bytes(),
             "blob length did not match its validated object size",
         ));
     }
-    Ok(bytes)
+    Ok(output.stdout)
 }
 
 #[cfg(unix)]
@@ -2447,19 +2442,226 @@ where
     }
 }
 
-fn run_git_output<I, S>(args: I) -> Result<std::process::Output, SourceResolveError>
+fn run_git_output<I, S>(args: I) -> Result<BoundedCommandOutput, SourceResolveError>
 where
     I: IntoIterator<Item = S>,
     S: AsRef<OsStr>,
 {
-    sealed_git_command()
-        .args(args)
-        .output()
+    let mut command = sealed_git_command();
+    command.args(args);
+    run_command_bounded(
+        &mut command,
+        "command",
+        GIT_STDOUT_LIMIT,
+        GIT_STDERR_LIMIT,
+        GIT_COMMAND_TIMEOUT,
+    )
+}
+
+#[derive(Debug)]
+struct BoundedCommandOutput {
+    status: ExitStatus,
+    stdout: Vec<u8>,
+    stderr: Vec<u8>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CapturedStream {
+    Stdout,
+    Stderr,
+}
+
+impl CapturedStream {
+    fn name(self) -> &'static str {
+        match self {
+            Self::Stdout => "stdout",
+            Self::Stderr => "stderr",
+        }
+    }
+}
+
+enum StreamCaptureResult {
+    Complete(Vec<u8>),
+    Overflow,
+    Failed(String),
+}
+
+struct StreamCapture {
+    stream: CapturedStream,
+    result: StreamCaptureResult,
+}
+
+fn run_command_bounded(
+    command: &mut Command,
+    operation: &str,
+    stdout_limit: usize,
+    stderr_limit: usize,
+    timeout: Duration,
+) -> Result<BoundedCommandOutput, SourceResolveError> {
+    let started = Instant::now();
+    let mut child = command
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
         .map_err(|error| SourceResolveError::Git {
-            operation: "spawn".to_owned(),
+            operation: format!("{operation} spawn"),
             status: None,
             stderr: error.to_string(),
-        })
+        })?;
+    let stdout = child.stdout.take().expect("command stdout was piped");
+    let stderr = child.stderr.take().expect("command stderr was piped");
+    let (sender, receiver) = mpsc::channel();
+    if let Err(error) = spawn_stream_capture(stdout, CapturedStream::Stdout, stdout_limit, &sender)
+    {
+        terminate_child(&mut child);
+        return Err(SourceResolveError::Git {
+            operation: format!("{operation} stdout capture"),
+            status: None,
+            stderr: error.to_string(),
+        });
+    }
+    if let Err(error) = spawn_stream_capture(stderr, CapturedStream::Stderr, stderr_limit, &sender)
+    {
+        terminate_child(&mut child);
+        return Err(SourceResolveError::Git {
+            operation: format!("{operation} stderr capture"),
+            status: None,
+            stderr: error.to_string(),
+        });
+    }
+    drop(sender);
+
+    let mut status = None;
+    let mut stdout = None;
+    let mut stderr = None;
+    loop {
+        if status.is_none() {
+            status = match child.try_wait() {
+                Ok(status) => status,
+                Err(error) => {
+                    terminate_child(&mut child);
+                    return Err(SourceResolveError::Git {
+                        operation: format!("{operation} wait"),
+                        status: None,
+                        stderr: error.to_string(),
+                    });
+                }
+            };
+        }
+        if status.is_some() && stdout.is_some() && stderr.is_some() {
+            return Ok(BoundedCommandOutput {
+                status: status.expect("status was checked"),
+                stdout: stdout.expect("stdout was checked"),
+                stderr: stderr.expect("stderr was checked"),
+            });
+        }
+
+        let elapsed = started.elapsed();
+        if elapsed >= timeout {
+            terminate_child(&mut child);
+            return Err(SourceResolveError::GitTimedOut {
+                operation: operation.to_owned(),
+                timeout_millis: duration_millis(timeout),
+            });
+        }
+        let wait = PROCESS_POLL_INTERVAL.min(timeout.saturating_sub(elapsed));
+        match receiver.recv_timeout(wait) {
+            Ok(capture) => {
+                let bytes = match capture.result {
+                    StreamCaptureResult::Complete(bytes) => bytes,
+                    StreamCaptureResult::Overflow => {
+                        terminate_child(&mut child);
+                        return Err(SourceResolveError::GitOutputOverflow {
+                            operation: operation.to_owned(),
+                            stream: capture.stream.name().to_owned(),
+                            limit: match capture.stream {
+                                CapturedStream::Stdout => stdout_limit,
+                                CapturedStream::Stderr => stderr_limit,
+                            },
+                        });
+                    }
+                    StreamCaptureResult::Failed(message) => {
+                        terminate_child(&mut child);
+                        return Err(SourceResolveError::Git {
+                            operation: format!("{operation} {} capture", capture.stream.name()),
+                            status: None,
+                            stderr: message,
+                        });
+                    }
+                };
+                match capture.stream {
+                    CapturedStream::Stdout => stdout = Some(bytes),
+                    CapturedStream::Stderr => stderr = Some(bytes),
+                }
+            }
+            Err(RecvTimeoutError::Timeout) => {}
+            Err(RecvTimeoutError::Disconnected) => {
+                if stdout.is_none() || stderr.is_none() {
+                    terminate_child(&mut child);
+                    return Err(SourceResolveError::Git {
+                        operation: format!("{operation} capture"),
+                        status: None,
+                        stderr: "output capture ended before both streams completed".to_owned(),
+                    });
+                }
+                std::thread::sleep(wait);
+            }
+        }
+    }
+}
+
+fn spawn_stream_capture<R>(
+    reader: R,
+    stream: CapturedStream,
+    limit: usize,
+    sender: &mpsc::Sender<StreamCapture>,
+) -> std::io::Result<()>
+where
+    R: Read + Send + 'static,
+{
+    let sender = sender.clone();
+    std::thread::Builder::new()
+        .name(format!("omega-git-{}", stream.name()))
+        .spawn(move || {
+            let result = capture_stream_bounded(reader, limit);
+            let _ = sender.send(StreamCapture { stream, result });
+        })?;
+    Ok(())
+}
+
+fn capture_stream_bounded<R>(mut reader: R, limit: usize) -> StreamCaptureResult
+where
+    R: Read,
+{
+    let mut bytes = Vec::new();
+    let mut chunk = [0_u8; 64 * 1024];
+    loop {
+        let count = match reader.read(&mut chunk) {
+            Ok(0) => return StreamCaptureResult::Complete(bytes),
+            Ok(count) => count,
+            Err(error) => return StreamCaptureResult::Failed(error.to_string()),
+        };
+        let Some(next_length) = bytes.len().checked_add(count) else {
+            return StreamCaptureResult::Overflow;
+        };
+        if next_length > limit {
+            return StreamCaptureResult::Overflow;
+        }
+        if bytes.try_reserve(count).is_err() {
+            return StreamCaptureResult::Failed("output capture allocation failed".to_owned());
+        }
+        bytes.extend_from_slice(&chunk[..count]);
+    }
+}
+
+fn terminate_child(child: &mut Child) {
+    let _ = child.kill();
+    let _ = child.wait();
+}
+
+fn duration_millis(duration: Duration) -> u64 {
+    u64::try_from(duration.as_millis()).unwrap_or(u64::MAX)
 }
 
 fn sealed_git_command() -> Command {
@@ -2633,6 +2835,130 @@ mod tests {
 
     fn git_cache_entry_root(cache: &Path, url: &str, requested_rev: &str) -> PathBuf {
         cache.join(format!("git-{}", git_cache_identity(url, requested_rev)))
+    }
+
+    #[cfg(unix)]
+    fn shell_command(script: &str) -> Command {
+        let mut command = Command::new("sh");
+        command.args(["-c", script]);
+        command
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn bounded_command_uses_null_stdin_and_drains_both_streams() {
+        let mut null_stdin =
+            shell_command("if IFS= read -r value; then printf input; else printf eof; fi");
+        let output = run_command_bounded(
+            &mut null_stdin,
+            "test-null-stdin",
+            16,
+            16,
+            Duration::from_secs(2),
+        )
+        .expect("null stdin must reach EOF without blocking");
+        assert!(output.status.success());
+        assert_eq!(output.stdout, b"eof");
+
+        let mut both_streams = shell_command(
+            "dd if=/dev/zero bs=65536 count=2 1>&2 2>/dev/null; \
+             dd if=/dev/zero bs=65536 count=2 2>/dev/null",
+        );
+        let output = run_command_bounded(
+            &mut both_streams,
+            "test-both-streams",
+            128 * 1024,
+            128 * 1024,
+            Duration::from_secs(2),
+        )
+        .expect("stdout and stderr must be drained concurrently");
+        assert!(output.status.success());
+        assert_eq!(output.stdout.len(), 128 * 1024);
+        assert_eq!(output.stderr.len(), 128 * 1024);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn bounded_command_rejects_stdout_and_stderr_overflow() {
+        for (stream, redirect) in [("stdout", ""), ("stderr", "1>&2")] {
+            let script =
+                format!("i=0; while [ $i -lt 4096 ]; do printf x {redirect}; i=$((i + 1)); done");
+            let mut command = shell_command(&script);
+            let error = run_command_bounded(
+                &mut command,
+                "test-overflow",
+                1024,
+                1024,
+                Duration::from_secs(2),
+            )
+            .expect_err("capture overflow must fail closed");
+            assert!(matches!(
+                error,
+                SourceResolveError::GitOutputOverflow {
+                    stream: actual,
+                    limit: 1024,
+                    ..
+                } if actual == stream
+            ));
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn bounded_command_terminates_on_deadline() {
+        let mut command = shell_command("exec sleep 10");
+        let started = Instant::now();
+        let error = run_command_bounded(
+            &mut command,
+            "test-timeout",
+            1024,
+            1024,
+            Duration::from_millis(50),
+        )
+        .expect_err("deadline must fail closed");
+        assert!(matches!(
+            error,
+            SourceResolveError::GitTimedOut {
+                operation,
+                timeout_millis: 50,
+            } if operation == "test-timeout"
+        ));
+        assert!(
+            started.elapsed() < Duration::from_secs(2),
+            "timed out subprocess was not terminated promptly"
+        );
+    }
+
+    #[test]
+    fn bounded_git_blob_read_enforces_validated_size() {
+        let (repo, _) = create_git_source("bounded-blob");
+        let oid = run_git_stdout([
+            OsStr::new("-C"),
+            repo.as_os_str(),
+            OsStr::new("rev-parse"),
+            OsStr::new("HEAD:main.omg"),
+        ])
+        .expect("resolve blob oid");
+        let oid = oid.trim();
+        let expected = std::fs::read(repo.join("main.omg")).expect("read expected blob");
+
+        let actual = read_git_blob_bounded(&repo, oid, expected.len() as u64)
+            .expect("read exact bounded blob");
+        assert_eq!(actual, expected);
+        let error = read_git_blob_bounded(&repo, oid, (expected.len() - 1) as u64)
+            .expect_err("blob exceeding its advertised size must fail closed");
+        assert!(matches!(
+            error,
+            SourceResolveError::GitOutputOverflow {
+                operation,
+                stream,
+                limit,
+            } if operation == "cat-file"
+                && stream == "stdout"
+                && limit == expected.len() - 1
+        ));
+
+        let _ = std::fs::remove_dir_all(&repo);
     }
 
     #[test]
