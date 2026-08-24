@@ -673,10 +673,11 @@ impl<'program> super::Evaluator<'program> {
             }
             PreparedFilesystemCall::HardLink { original, link } => {
                 // `link(original, link)`: real inodes, unlike the virtual
-                // byte-copy approximation. Read authority on the original,
-                // write authority on the new name.
+                // byte-copy approximation. Both names require write authority:
+                // linking a read-only source object into writable staging would
+                // let later writes mutate the source through the shared inode.
                 match (
-                    self.authorized_path(&original, false, 0),
+                    self.authorized_path(&original, true, 0),
                     self.authorized_path(&link, true, 1),
                 ) {
                     (Some(original), Some(link)) => {
@@ -696,7 +697,7 @@ impl<'program> super::Evaluator<'program> {
                 // `hard_link` above; errno doubles as this provider's modeled
                 // GetLastError slot and therefore stores Win32 codes here.
                 match (
-                    self.authorized_path(&existing, false, 1),
+                    self.authorized_path(&existing, true, 1),
                     self.authorized_path(&link, true, 0),
                 ) {
                     (Some(existing), Some(link)) => match std::fs::hard_link(existing, link) {

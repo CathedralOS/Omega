@@ -596,6 +596,12 @@ includes provider-unused ABI operands, and the canonical source test pins all
 50 operand schemas and result widths. Canonicalize enforces its declared
 1024-byte `PATH_MAX` carrier at that gate. File extent, total staging-tree
 growth, process memory, and CPU remain unbounded.
+Scoped hard links require write authority on both names, so source custody
+cannot be bypassed by aliasing a read-only source inode into writable staging.
+The remaining staging bound is one session-wide object/namespace account across
+the closure: namespace entries are counted by name, regular-file bytes once per
+object, symlink payloads as bytes, and unlinked objects until their last open
+descriptor closes. A per-package or path-summed quota is not a valid substitute.
 This summary is compiler-issued execution evidence kept outside canonical
 capability/API comparison bytes. It is not a receipt and does not claim either
 replay verdict. A `Receipted` row still requires a canonical operation

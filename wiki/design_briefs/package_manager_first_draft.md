@@ -422,6 +422,11 @@ unused ABI operands and is source-checked against all 50 canonical signatures
 and result widths. Canonicalize enforces its declared 1024-byte `PATH_MAX`
 carrier at that gate. File extent, total staging-tree, memory, and CPU quotas
 remain open.
+Scoped hard links require write authority on both names, so a read-only source
+inode cannot be introduced into writable staging by alias. The remaining quota
+must be shared across the whole disposable review session and account for
+namespace entries, unique objects, symlink payloads, and open-but-unlinked
+objects; neither per-package limits nor path-summing bound the actual resource.
 
 Terminal evidence is a separate stronger lane. It is required only for rows
 that claim checked properties of final realization—Omega-emitted executable

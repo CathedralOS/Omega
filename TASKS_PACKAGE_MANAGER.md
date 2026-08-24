@@ -726,6 +726,15 @@ complete.
   not a language limit; maximum file extent, total staged bytes/entries, and
   process memory/CPU quotas remain. Canonicalize enforces its declared
   1024-byte `PATH_MAX` carrier before provider or grant access.
+  Scoped hard links now require write authority on both names; a read-only
+  source object cannot be aliased into writable staging and then mutated through
+  the shared inode. The remaining staging quota is session-wide across the
+  complete reviewed closure, not per package or path-summed: it must count
+  namespace entries, unique logical objects, symlink payloads, and unlinked
+  objects retained by open descriptors. Hard links may only name objects already
+  owned by that staging account. Initial sponsor policy should align with source
+  custody at 4,096 entries and 256 MiB total logical bytes, with a separately
+  represented 256 MiB maximum file extent.
 
 - **PROOF-AND-BOUNDARY-ADMISSION.** Fail closed on false or incomplete evidence.
 

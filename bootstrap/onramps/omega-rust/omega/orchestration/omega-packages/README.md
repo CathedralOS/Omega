@@ -203,6 +203,11 @@ widths. Preparation traps remain on the outer attempt and occur before grant or
 provider access. Canonicalize enforces its declared 1024-byte `PATH_MAX`
 carrier at that gate; file extent and total staging-tree/process quotas remain
 open.
+Scoped hard links require write authority on both names, preventing a read-only
+source inode from being aliased into writable staging. Remaining staging quotas
+must be one session-wide object/namespace account across the reviewed closure;
+path-summing or per-package limits are insufficient because of hard links and
+open-but-unlinked files.
 Compiler-issued package review carries this summary
 outside canonical capability/API comparison bytes. It is not a receipt and
 makes no replayability or source-rebuildability claim.
