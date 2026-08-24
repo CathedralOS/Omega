@@ -1,4 +1,5 @@
-// Delta-written front end for the frozen Omega O0 and O1 vertical canaries.
+// Delta-written front end for the frozen Omega O0/O1 vertical canaries and the
+// bounded, profile-neutral scalar in-module call/return conformance slice.
 //
 // Input is one canonical OMEGA_BOOTSTRAP_BUNDLE.md version-1 bundle. Every
 // source unit is retained with its label and descriptor, validated independently,
@@ -14,10 +15,14 @@
 //
 // so both operands remain observable after the accepted program streams its
 // canonical terminal-Psi module to stdout.
-// Exit 251 is malformed/out-of-profile input and 252 is checked local-storage
-// exhaustion. O1 deliberately admits only ASCII identifiers, decimal
+// Scalar-call success exits 0 after streaming a proof-free vocabulary-28
+// module. Exit 251 is malformed/out-of-profile input and 252 is checked
+// local-storage exhaustion. O1 deliberately admits only ASCII identifiers, decimal
 // unsuffixed nonnegative i32 literals, and cooked strings with the basic byte
 // escapes handled below; the complete source is nevertheless UTF-8 validated.
+// The scalar lane's unique zero-parameter, indegree-zero machine is a bounded
+// conformance-adapter entry convention only. It is not Omega's authored,
+// target-qualified target::ProgramEntry root binding.
 boundary trait Console {
     machine exit_process(return_code: i32);
     machine read_byte() -> i32;
@@ -25,7 +30,7 @@ boundary trait Console {
 
 data Main {
     console: Console;
-    status: i32; decoded: i32; c: i32; i: i32; n: i32; pos: i32;
+    status: i32; decoded: i32; c: i32; i: i32; j: i32; k: i32; n: i32; pos: i32;
     source_count: i32; entry: i32; source_id: i32;
     label_len: i32; content_len: i32; label_used: i32; source_used: i32;
     label_start: i32; source_start: i32; source_end: i32;
@@ -34,10 +39,18 @@ data Main {
     trivia_ok: i32; comment_depth: i32; segment_len: i32;
     segment_first: i32; segment_second: i32; char_ok: i32;
     tok: i32; tok_start: i32; tok_len: i32; int_value: i32;
+    int_min_magnitude: i32; retain_text: i32; profile: i32;
     text_len: i32; text_start: i32; text_used: i32; text_sum: i32;
     write_count: i32; emit_index: i32; exit_code: i32;
     match_base: i32; match_len: i32; match_ok: i32;
     b1: i32; b2: i32; b3: i32; digit: i32;
+    machine_count: i32; param_used: i32; op_used: i32; arg_used: i32;
+    current_machine: i32; root_machine: i32; root_count: i32;
+    frame_count: i32; value_ref: i32; return_ref: i32;
+    ident_start: i32; ident_len: i32; literal_value: i32;
+    operation_next: i32; value_next: i32; visited_count: i32;
+    candidate: i32; compare_result: i32; cmp_i: i32;
+    terminal_size: i32; id_value: i32; scalar_emit_machine: i32;
     source: [u8; 2048];
     labels: [u8; 1024];
     // Four cells per source ID: label start/length, source start/length.
@@ -46,6 +59,24 @@ data Main {
     text_starts: [i32; 16];
     text_lengths: [i32; 16];
     names: [u8; 96];
+
+    // Bounded scalar-call retained IR. Names remain exact spans in `source`.
+    machine_name_starts: [i32; 16]; machine_name_lengths: [i32; 16];
+    machine_body_starts: [i32; 16]; machine_body_ends: [i32; 16];
+    machine_param_starts: [i32; 16]; machine_param_counts: [i32; 16];
+    machine_op_starts: [i32; 16]; machine_op_counts: [i32; 16];
+    machine_return_refs: [i32; 16]; machine_result_ids: [i32; 16];
+    machine_ids: [i32; 16]; machine_order: [i32; 16];
+    machine_indegrees: [i32; 16]; machine_seen: [i32; 16];
+    param_name_starts: [i32; 64]; param_name_lengths: [i32; 64];
+    param_owners: [i32; 64]; param_value_ids: [i32; 64];
+    op_kinds: [i32; 256]; op_owners: [i32; 256];
+    op_literals: [i32; 256]; op_callees: [i32; 256];
+    op_arg_starts: [i32; 256]; op_arg_counts: [i32; 256];
+    op_result_ids: [i32; 256]; op_ids: [i32; 256];
+    arg_refs: [i32; 1024]; call_graph: [i32; 256];
+    frame_callees: [i32; 16]; frame_arg_counts: [i32; 16];
+    frame_arg_refs: [i32; 64];
 }
 
 machine Main::read_u32(&mut self) {
@@ -378,7 +409,8 @@ machine Main::scan_string(&mut self) {
     state byte() { self.c = self.source[self.pos]; transition self.c == 34 { true -> complete() false -> slash() } }
     state slash() { transition self.c == 92 { true -> escape_begin() false -> control() } }
     state control() { transition self.c >= 32 { true -> store() false -> bad() } }
-    state store() { self.append_text(); transition self.status == 0 { true -> next() false -> done() } }
+    state store() { transition self.retain_text == 1 { true -> retain() false -> next() } }
+    state retain() { self.append_text(); transition self.status == 0 { true -> next() false -> done() } }
     state next() { self.pos = self.pos + 1; transition 0 { _ -> loop() } }
     state escape_begin() { self.pos = self.pos + 1; transition self.pos < self.n { true -> escape_byte() false -> bad() } }
     state escape_byte() { self.c = self.source[self.pos]; transition self.c == 110 { true -> escape_n() false -> escape_r_check() } }
@@ -396,7 +428,8 @@ machine Main::scan_string(&mut self) {
     state escape_x1() { self.c = self.source[self.pos + 1]; self.hex_value(); transition self.digit >= 0 { true -> escape_x1_save() false -> bad() } }
     state escape_x1_save() { self.b1 = self.digit; self.c = self.source[self.pos + 2]; self.hex_value(); transition self.digit >= 0 { true -> escape_x2_save() false -> bad() } }
     state escape_x2_save() { self.c = self.b1 * 16 + self.digit; self.pos = self.pos + 2; transition 0 { _ -> escape_store() } }
-    state escape_store() { self.append_text(); transition self.status == 0 { true -> next() false -> done() } }
+    state escape_store() { transition self.retain_text == 1 { true -> escape_retain() false -> next() } }
+    state escape_retain() { self.append_text(); transition self.status == 0 { true -> next() false -> done() } }
     state complete() { self.pos = self.pos + 1; self.tok = 258; self.tok_len = self.pos - self.tok_start; transition 0 { _ -> done() } }
     state eof() { self.status = 251; transition 0 { _ -> done() } }
     state bad() { self.status = 251; }
@@ -408,6 +441,7 @@ machine Main::scan_string(&mut self) {
 machine Main::next_token(&mut self) {
     self.tok = 0;
     self.tok_len = 0;
+    self.int_min_magnitude = 0;
     transition self.status == 0 { true -> skip() false -> done() }
     state skip() { transition self.pos < self.n { true -> skip_byte() false -> eof() } }
     state skip_byte() { self.c = self.source[self.pos]; transition self.c == 32 { true -> skip_advance() false -> skip_lf() } }
@@ -442,9 +476,19 @@ machine Main::next_token(&mut self) {
     state integer_digit_high() { transition self.c < 58 { true -> integer_bound() false -> integer_done() } }
     state integer_bound() { transition self.int_value < 214748364 { true -> integer_add() false -> integer_last_bound() } }
     state integer_last_bound() { transition self.int_value == 214748364 { true -> integer_last_digit() false -> integer_bad() } }
-    state integer_last_digit() { transition self.c < 56 { true -> integer_add() false -> integer_bad() } }
+    state integer_last_digit() { transition self.c < 56 { true -> integer_add() false -> integer_min_check() } }
+    state integer_min_check() { transition self.c == 56 { true -> integer_min() false -> integer_bad() } }
+    state integer_min() {
+        self.int_value = 0 - 1073741824 - 1073741824;
+        self.int_min_magnitude = 1;
+        self.pos = self.pos + 1;
+        transition 0 { _ -> integer_min_tail() }
+    }
+    state integer_min_tail() { transition self.pos < self.n { true -> integer_min_byte() false -> integer_done() } }
+    state integer_min_byte() { self.c = self.source[self.pos]; transition self.c >= 48 { true -> integer_min_digit_high() false -> integer_done() } }
+    state integer_min_digit_high() { transition self.c < 58 { true -> integer_bad() false -> integer_done() } }
     state integer_bad() { self.status = 251; transition 0 { _ -> done() } }
-    state integer_add() { self.int_value = self.int_value * 10 + self.c - 48; self.pos = self.pos + 1; transition 0 { _ -> integer_loop() } }
+    state integer_add() { self.digit = self.c - 48; self.int_value = self.int_value * 10 + self.digit; self.pos = self.pos + 1; transition 0 { _ -> integer_loop() } }
     state integer_done() { self.tok = 257; self.tok_len = self.pos - self.tok_start; transition 0 { _ -> done() } }
     state quote() { transition self.c == 34 { true -> string_call() false -> nul() } }
     state nul() { transition self.c == 0 { true -> invalid_byte() false -> punctuation() } }
@@ -456,7 +500,7 @@ machine Main::next_token(&mut self) {
 }
 
 machine Main::init_names(&mut self) {
-    // useomegalanguagestdconsoledataMainConsolemachinemainmutselfwrite_lineexit_process
+    // useomegalanguagestdconsoledataMainConsolemachinemainmutselfwrite_lineexit_processreturni32
     self.names[0]=117; self.names[1]=115; self.names[2]=101;
     self.names[3]=111; self.names[4]=109; self.names[5]=101; self.names[6]=103; self.names[7]=97;
     self.names[8]=108; self.names[9]=97; self.names[10]=110; self.names[11]=103; self.names[12]=117; self.names[13]=97; self.names[14]=103; self.names[15]=101;
@@ -473,6 +517,8 @@ machine Main::init_names(&mut self) {
     self.names[64]=95; self.names[65]=108; self.names[66]=105; self.names[67]=110; self.names[68]=101;
     self.names[69]=101; self.names[70]=120; self.names[71]=105; self.names[72]=116; self.names[73]=95; self.names[74]=112;
     self.names[75]=114; self.names[76]=111; self.names[77]=99; self.names[78]=101; self.names[79]=115; self.names[80]=115;
+    self.names[81]=114; self.names[82]=101; self.names[83]=116; self.names[84]=117; self.names[85]=114; self.names[86]=110;
+    self.names[87]=105; self.names[88]=51; self.names[89]=50;
 }
 
 machine Main::match_name(&mut self, base: i32, count: i32) {
@@ -507,7 +553,7 @@ machine Main::expect_token(&mut self, expected: i32) {
 }
 
 machine Main::parse_o1(&mut self) {
-    self.pos = self.source_start; self.next_token();
+    self.retain_text = 1; self.pos = self.source_start; self.next_token();
     self.expect_name(0,3); self.expect_name(3,5); self.expect_token(58); self.expect_token(58);
     self.expect_name(8,8); self.expect_token(58); self.expect_token(58); self.expect_name(16,3);
     self.expect_token(58); self.expect_token(58); self.expect_name(19,7); self.expect_token(59);
@@ -542,10 +588,364 @@ machine Main::parse_o1(&mut self) {
         self.expect_name(69,12); self.expect_token(40);
         transition self.status == 0 { true -> exit_argument() false -> done() }
     }
-    state exit_argument() { transition self.tok == 257 { true -> save_exit() false -> bad() } }
+    state exit_argument() { transition self.tok == 257 { true -> exit_range() false -> bad() } }
+    state exit_range() { transition self.int_min_magnitude == 0 { true -> save_exit() false -> bad() } }
     state save_exit() { self.exit_code = self.int_value; self.next_token(); self.expect_token(41); self.expect_token(59); self.expect_token(125); transition self.status == 0 { true -> exact_end() false -> done() } }
     state exact_end() { transition self.tok == 0 { true -> done() false -> bad() } }
     state bad() { self.status = 251; transition 0 { _ -> done() } }
+    state exhausted() { self.status = 252; transition 0 { _ -> done() } }
+    state done() { }
+}
+
+// Compare the saved arbitrary identifier span against one retained machine or
+// parameter name. These helpers deliberately operate on source spans so the
+// conformance slice does not acquire a second name arena.
+machine Main::ident_matches_machine(&mut self, machine_index: i32) {
+    self.match_ok = 0;
+    transition self.ident_len == self.machine_name_lengths[machine_index] { true -> setup() false -> done() }
+    state setup() { self.cmp_i = 0; transition 0 { _ -> loop() } }
+    state loop() { transition self.cmp_i < self.ident_len { true -> compare() false -> yes() } }
+    state compare() { transition self.source[self.ident_start + self.cmp_i] == self.source[self.machine_name_starts[machine_index] + self.cmp_i] { true -> advance() false -> done() } }
+    state advance() { self.cmp_i = self.cmp_i + 1; transition 0 { _ -> loop() } }
+    state yes() { self.match_ok = 1; }
+    state done() { }
+}
+
+machine Main::ident_matches_param(&mut self, param_index: i32) {
+    self.match_ok = 0;
+    transition self.ident_len == self.param_name_lengths[param_index] { true -> setup() false -> done() }
+    state setup() { self.cmp_i = 0; transition 0 { _ -> loop() } }
+    state loop() { transition self.cmp_i < self.ident_len { true -> compare() false -> yes() } }
+    state compare() { transition self.source[self.ident_start + self.cmp_i] == self.source[self.param_name_starts[param_index] + self.cmp_i] { true -> advance() false -> done() } }
+    state advance() { self.cmp_i = self.cmp_i + 1; transition 0 { _ -> loop() } }
+    state yes() { self.match_ok = 1; }
+    state done() { }
+}
+
+machine Main::find_machine(&mut self) {
+    self.candidate = 0 - 1; self.i = 0;
+    transition 0 { _ -> loop() }
+    state loop() { transition self.i < self.machine_count { true -> compare() false -> done() } }
+    state compare() { self.ident_matches_machine(self.i); transition self.match_ok == 1 { true -> found() false -> advance() } }
+    state found() { self.candidate = self.i; transition 0 { _ -> done() } }
+    state advance() { self.i = self.i + 1; transition 0 { _ -> loop() } }
+    state done() { }
+}
+
+machine Main::find_current_param(&mut self) {
+    self.candidate = 0 - 1;
+    self.i = self.machine_param_starts[self.current_machine];
+    self.j = self.i + self.machine_param_counts[self.current_machine];
+    transition 0 { _ -> loop() }
+    state loop() { transition self.i < self.j { true -> compare() false -> done() } }
+    state compare() { self.ident_matches_param(self.i); transition self.match_ok == 1 { true -> found() false -> advance() } }
+    state found() { self.candidate = self.i; transition 0 { _ -> done() } }
+    state advance() { self.i = self.i + 1; transition 0 { _ -> loop() } }
+    state done() { }
+}
+
+machine Main::compare_machine_names(&mut self, left: i32, right: i32) {
+    self.compare_result = 0; self.cmp_i = 0;
+    transition 0 { _ -> loop() }
+    state loop() { transition self.cmp_i < self.machine_name_lengths[left] { true -> right_bound() false -> left_end() } }
+    state right_bound() { transition self.cmp_i < self.machine_name_lengths[right] { true -> compare() false -> greater() } }
+    state compare() { transition self.source[self.machine_name_starts[left] + self.cmp_i] == self.source[self.machine_name_starts[right] + self.cmp_i] { true -> advance() false -> less_check() } }
+    state less_check() { transition self.source[self.machine_name_starts[left] + self.cmp_i] < self.source[self.machine_name_starts[right] + self.cmp_i] { true -> less() false -> greater() } }
+    state advance() { self.cmp_i = self.cmp_i + 1; transition 0 { _ -> loop() } }
+    state left_end() { transition self.cmp_i < self.machine_name_lengths[right] { true -> less() false -> done() } }
+    state less() { self.compare_result = 0 - 1; transition 0 { _ -> done() } }
+    state greater() { self.compare_result = 1; transition 0 { _ -> done() } }
+    state done() { }
+}
+
+// First pass: retain every signature and exact body span before resolving any
+// body. Forward references therefore use the same table path as backward ones.
+machine Main::collect_scalar_signatures(&mut self) {
+    self.machine_count = 0; self.param_used = 0; self.retain_text = 0;
+    self.pos = self.source_start; self.next_token();
+    transition self.status == 0 { true -> declaration() false -> done() }
+    state declaration() { transition self.tok == 0 { true -> require_program() false -> machine_word() } }
+    state require_program() { transition self.machine_count > 0 { true -> done() false -> bad() } }
+    state machine_word() { self.match_name(41,7); transition self.match_ok == 1 { true -> machine_capacity() false -> bad() } }
+    state machine_capacity() { transition self.machine_count < 16 { true -> consume_machine() false -> exhausted() } }
+    state consume_machine() { self.expect_name(41,7); transition self.status == 0 { true -> machine_name() false -> done() } }
+    state machine_name() { transition self.tok == 256 { true -> save_machine_name() false -> bad() } }
+    state save_machine_name() {
+        self.ident_start = self.tok_start; self.ident_len = self.tok_len; self.i = 0;
+        transition 0 { _ -> duplicate_machine_loop() }
+    }
+    state duplicate_machine_loop() { transition self.i < self.machine_count { true -> duplicate_machine_compare() false -> retain_machine() } }
+    state duplicate_machine_compare() { self.ident_matches_machine(self.i); transition self.match_ok == 1 { true -> bad() false -> duplicate_machine_advance() } }
+    state duplicate_machine_advance() { self.i = self.i + 1; transition 0 { _ -> duplicate_machine_loop() } }
+    state retain_machine() {
+        self.machine_name_starts[self.machine_count] = self.ident_start;
+        self.machine_name_lengths[self.machine_count] = self.ident_len;
+        self.machine_param_starts[self.machine_count] = self.param_used;
+        self.machine_param_counts[self.machine_count] = 0;
+        self.next_token(); self.expect_token(40);
+        transition self.status == 0 { true -> parameter_or_end() false -> done() }
+    }
+    state parameter_or_end() { transition self.tok == 41 { true -> parameters_done() false -> parameter_name() } }
+    state parameter_name() { transition self.tok == 256 { true -> save_parameter_name() false -> bad() } }
+    state save_parameter_name() {
+        self.ident_start = self.tok_start; self.ident_len = self.tok_len;
+        self.i = self.machine_param_starts[self.machine_count];
+        transition 0 { _ -> duplicate_parameter_loop() }
+    }
+    state duplicate_parameter_loop() { transition self.i < self.param_used { true -> duplicate_parameter_compare() false -> parameter_capacity() } }
+    state duplicate_parameter_compare() { self.ident_matches_param(self.i); transition self.match_ok == 1 { true -> bad() false -> duplicate_parameter_advance() } }
+    state duplicate_parameter_advance() { self.i = self.i + 1; transition 0 { _ -> duplicate_parameter_loop() } }
+    state parameter_capacity() { transition self.machine_param_counts[self.machine_count] < 4 { true -> total_parameter_capacity() false -> exhausted() } }
+    state total_parameter_capacity() { transition self.param_used < 64 { true -> retain_parameter() false -> exhausted() } }
+    state retain_parameter() {
+        self.param_name_starts[self.param_used] = self.ident_start;
+        self.param_name_lengths[self.param_used] = self.ident_len;
+        self.param_owners[self.param_used] = self.machine_count;
+        self.param_used = self.param_used + 1;
+        self.machine_param_counts[self.machine_count] = self.machine_param_counts[self.machine_count] + 1;
+        self.next_token(); self.expect_token(58); self.expect_name(87,3);
+        transition self.status == 0 { true -> parameter_separator() false -> done() }
+    }
+    state parameter_separator() { transition self.tok == 44 { true -> comma() false -> parameter_close() } }
+    state comma() { self.expect_token(44); transition self.status == 0 { true -> parameter_name() false -> done() } }
+    state parameter_close() { transition self.tok == 41 { true -> parameters_done() false -> bad() } }
+    state parameters_done() {
+        self.expect_token(41); self.expect_token(45); self.expect_token(62); self.expect_name(87,3); self.expect_token(123);
+        transition self.status == 0 { true -> body_begin() false -> done() }
+    }
+    state body_begin() { self.machine_body_starts[self.machine_count] = self.tok_start; transition 0 { _ -> body_scan() } }
+    state body_scan() { transition self.tok == 0 { true -> bad() false -> body_close_check() } }
+    state body_close_check() { transition self.tok == 125 { true -> body_done() false -> nested_open_check() } }
+    state nested_open_check() { transition self.tok == 123 { true -> bad() false -> body_advance() } }
+    state body_advance() { self.next_token(); transition self.status == 0 { true -> body_scan() false -> done() } }
+    state body_done() {
+        self.machine_body_ends[self.machine_count] = self.tok_start;
+        self.machine_count = self.machine_count + 1;
+        self.next_token(); transition self.status == 0 { true -> declaration() false -> done() }
+    }
+    state bad() { self.status = 251; transition 0 { _ -> done() } }
+    state exhausted() { self.status = 252; transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::append_scalar_constant(&mut self) {
+    transition self.machine_op_counts[self.current_machine] < 16 { true -> total_capacity() false -> exhausted() }
+    state total_capacity() { transition self.op_used < 256 { true -> retain() false -> exhausted() } }
+    state retain() {
+        self.op_kinds[self.op_used] = 1;
+        self.op_owners[self.op_used] = self.current_machine;
+        self.op_literals[self.op_used] = self.literal_value;
+        self.op_arg_starts[self.op_used] = self.arg_used;
+        self.op_arg_counts[self.op_used] = 0;
+        self.value_ref = 64 + self.op_used;
+        self.op_used = self.op_used + 1;
+        self.machine_op_counts[self.current_machine] = self.machine_op_counts[self.current_machine] + 1;
+        transition 0 { _ -> done() }
+    }
+    state exhausted() { self.status = 252; }
+    state done() { }
+}
+
+machine Main::append_scalar_call(&mut self) {
+    self.candidate = self.frame_count - 1;
+    self.i = self.frame_callees[self.candidate];
+    transition self.frame_arg_counts[self.candidate] == self.machine_param_counts[self.i] { true -> machine_capacity() false -> bad() }
+    state machine_capacity() { transition self.machine_op_counts[self.current_machine] < 16 { true -> total_capacity() false -> exhausted() } }
+    state total_capacity() { transition self.op_used < 256 { true -> argument_capacity() false -> exhausted() } }
+    state argument_capacity() { transition self.frame_arg_counts[self.candidate] <= 1024 - self.arg_used { true -> retain() false -> exhausted() } }
+    state retain() {
+        self.op_kinds[self.op_used] = 2;
+        self.op_owners[self.op_used] = self.current_machine;
+        self.op_callees[self.op_used] = self.i;
+        self.op_arg_starts[self.op_used] = self.arg_used;
+        self.op_arg_counts[self.op_used] = self.frame_arg_counts[self.candidate];
+        self.call_graph[self.current_machine * 16 + self.i] = 1;
+        self.j = 0;
+        transition 0 { _ -> copy_arguments() }
+    }
+    state copy_arguments() { transition self.j < self.frame_arg_counts[self.candidate] { true -> copy_argument() false -> finish() } }
+    state copy_argument() {
+        self.arg_refs[self.arg_used] = self.frame_arg_refs[self.candidate * 4 + self.j];
+        self.arg_used = self.arg_used + 1; self.j = self.j + 1;
+        transition 0 { _ -> copy_arguments() }
+    }
+    state finish() {
+        self.value_ref = 64 + self.op_used;
+        self.op_used = self.op_used + 1;
+        self.machine_op_counts[self.current_machine] = self.machine_op_counts[self.current_machine] + 1;
+        self.frame_count = self.frame_count - 1;
+        transition 0 { _ -> done() }
+    }
+    state bad() { self.status = 251; transition 0 { _ -> done() } }
+    state exhausted() { self.status = 252; transition 0 { _ -> done() } }
+    state done() { }
+}
+
+// Parse one body with an explicit expression-frame stack. Leaves produce a
+// temporary value handle; closing a call appends its operation in postorder.
+machine Main::parse_scalar_body(&mut self) {
+    self.frame_count = 0;
+    self.pos = self.machine_body_starts[self.current_machine]; self.next_token();
+    self.expect_name(81,6);
+    transition self.status == 0 { true -> value() false -> done() }
+    state value() { transition self.tok == 45 { true -> negative_sign() false -> integer_check() } }
+    state negative_sign() { self.next_token(); transition self.tok == 257 { true -> negative_integer() false -> bad() } }
+    state negative_integer() { transition self.int_min_magnitude == 1 { true -> negative_min() false -> negative_regular() } }
+    state negative_min() { self.literal_value = 0 - 1073741824 - 1073741824; transition 0 { _ -> negative_advance() } }
+    state negative_regular() { self.literal_value = 0 - self.int_value; transition 0 { _ -> negative_advance() } }
+    state negative_advance() { self.next_token(); self.append_scalar_constant(); transition self.status == 0 { true -> produced() false -> done() } }
+    state integer_check() { transition self.tok == 257 { true -> positive_integer() false -> identifier_check() } }
+    state positive_integer() { transition self.int_min_magnitude == 0 { true -> positive_retain() false -> bad() } }
+    state positive_retain() { self.literal_value = self.int_value; self.next_token(); self.append_scalar_constant(); transition self.status == 0 { true -> produced() false -> done() } }
+    state identifier_check() { transition self.tok == 256 { true -> identifier() false -> bad() } }
+    state identifier() {
+        self.ident_start = self.tok_start; self.ident_len = self.tok_len; self.next_token();
+        transition self.tok == 40 { true -> call_lookup() false -> parameter_lookup() }
+    }
+    state parameter_lookup() { self.find_current_param(); transition self.candidate >= 0 { true -> parameter_found() false -> bad() } }
+    state parameter_found() { self.value_ref = self.candidate; transition 0 { _ -> produced() } }
+    state call_lookup() { self.find_machine(); transition self.candidate >= 0 { true -> call_depth() false -> bad() } }
+    state call_depth() { transition self.frame_count < 16 { true -> call_push() false -> exhausted() } }
+    state call_push() {
+        self.frame_callees[self.frame_count] = self.candidate;
+        self.frame_arg_counts[self.frame_count] = 0;
+        self.frame_count = self.frame_count + 1;
+        self.expect_token(40);
+        transition self.status == 0 { true -> call_argument_or_close() false -> done() }
+    }
+    state call_argument_or_close() { transition self.tok == 41 { true -> call_close() false -> value() } }
+    state produced() { transition self.frame_count == 0 { true -> returned_value() false -> retain_argument_capacity() } }
+    state retain_argument_capacity() { self.candidate = self.frame_count - 1; transition self.frame_arg_counts[self.candidate] < 4 { true -> retain_argument() false -> exhausted() } }
+    state retain_argument() {
+        self.frame_arg_refs[self.candidate * 4 + self.frame_arg_counts[self.candidate]] = self.value_ref;
+        self.frame_arg_counts[self.candidate] = self.frame_arg_counts[self.candidate] + 1;
+        transition self.tok == 44 { true -> argument_comma() false -> argument_close_check() }
+    }
+    state argument_comma() { self.expect_token(44); transition self.status == 0 { true -> value() false -> done() } }
+    state argument_close_check() { transition self.tok == 41 { true -> call_close() false -> bad() } }
+    state call_close() { self.expect_token(41); self.append_scalar_call(); transition self.status == 0 { true -> produced() false -> done() } }
+    state returned_value() {
+        self.return_ref = self.value_ref;
+        self.expect_token(59);
+        transition self.status == 0 { true -> closing_token() false -> done() }
+    }
+    state closing_token() { transition self.tok == 125 { true -> closing_position() false -> bad() } }
+    state closing_position() { transition self.tok_start == self.machine_body_ends[self.current_machine] { true -> close_body() false -> bad() } }
+    state close_body() {
+        self.expect_token(125);
+        self.machine_return_refs[self.current_machine] = self.return_ref;
+        transition 0 { _ -> done() }
+    }
+    state bad() { self.status = 251; transition 0 { _ -> done() } }
+    state exhausted() { self.status = 252; transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::parse_scalar_bodies(&mut self) {
+    self.op_used = 0; self.arg_used = 0; self.current_machine = 0;
+    transition 0 { _ -> loop() }
+    state loop() { transition self.current_machine < self.machine_count { true -> body() false -> done() } }
+    state body() {
+        self.machine_op_starts[self.current_machine] = self.op_used;
+        self.machine_op_counts[self.current_machine] = 0;
+        self.parse_scalar_body();
+        transition self.status == 0 { true -> advance() false -> done() }
+    }
+    state advance() { self.current_machine = self.current_machine + 1; transition 0 { _ -> loop() } }
+    state done() { }
+}
+
+// Select the conformance root and reject the complete graph if Kahn's walk
+// cannot consume every retained machine.
+machine Main::validate_scalar_graph(&mut self) {
+    self.i = 0;
+    transition 0 { _ -> initialize() }
+    state initialize() { transition self.i < self.machine_count { true -> initialize_one() false -> count_edges_begin() } }
+    state initialize_one() { self.machine_indegrees[self.i] = 0; self.machine_seen[self.i] = 0; self.i = self.i + 1; transition 0 { _ -> initialize() } }
+    state count_edges_begin() { self.i = 0; transition 0 { _ -> count_edges() } }
+    state count_edges() { transition self.i < self.machine_count * 16 { true -> edge_owner_bound() false -> roots_begin() } }
+    state edge_owner_bound() { transition self.i / 16 < self.machine_count { true -> edge_present() false -> roots_begin() } }
+    state edge_present() { transition self.call_graph[self.i] == 1 { true -> increment_indegree() false -> edge_advance() } }
+    state increment_indegree() { self.j = self.i % 16; self.machine_indegrees[self.j] = self.machine_indegrees[self.j] + 1; transition 0 { _ -> edge_advance() } }
+    state edge_advance() { self.i = self.i + 1; transition 0 { _ -> count_edges() } }
+    state roots_begin() { self.root_count = 0; self.root_machine = 0 - 1; self.i = 0; transition 0 { _ -> roots() } }
+    state roots() { transition self.i < self.machine_count { true -> root_check() false -> unique_root() } }
+    state root_check() { transition self.machine_indegrees[self.i] == 0 { true -> root_found() false -> root_advance() } }
+    state root_found() { self.root_count = self.root_count + 1; self.root_machine = self.i; transition 0 { _ -> root_advance() } }
+    state root_advance() { self.i = self.i + 1; transition 0 { _ -> roots() } }
+    state unique_root() { transition self.root_count == 1 { true -> root_parameters() false -> bad() } }
+    state root_parameters() { transition self.machine_param_counts[self.root_machine] == 0 { true -> kahn_begin() false -> bad() } }
+    state kahn_begin() { self.visited_count = 0; transition 0 { _ -> kahn_round() } }
+    state kahn_round() { transition self.visited_count < self.machine_count { true -> find_zero_begin() false -> done() } }
+    state find_zero_begin() { self.candidate = 0 - 1; self.i = 0; transition 0 { _ -> find_zero() } }
+    state find_zero() { transition self.i < self.machine_count { true -> unseen() false -> zero_found_check() } }
+    state unseen() { transition self.machine_seen[self.i] == 0 { true -> zero_indegree() false -> find_zero_advance() } }
+    state zero_indegree() { transition self.machine_indegrees[self.i] == 0 { true -> remember_zero() false -> find_zero_advance() } }
+    state remember_zero() { self.candidate = self.i; transition 0 { _ -> zero_found_check() } }
+    state find_zero_advance() { self.i = self.i + 1; transition 0 { _ -> find_zero() } }
+    state zero_found_check() { transition self.candidate >= 0 { true -> visit() false -> bad() } }
+    state visit() { self.machine_seen[self.candidate] = 1; self.visited_count = self.visited_count + 1; self.j = 0; transition 0 { _ -> outgoing() } }
+    state outgoing() { transition self.j < self.machine_count { true -> outgoing_present() false -> kahn_round() } }
+    state outgoing_present() { transition self.call_graph[self.candidate * 16 + self.j] == 1 { true -> decrement() false -> outgoing_advance() } }
+    state decrement() { self.machine_indegrees[self.j] = self.machine_indegrees[self.j] - 1; transition 0 { _ -> outgoing_advance() } }
+    state outgoing_advance() { self.j = self.j + 1; transition 0 { _ -> outgoing() } }
+    state bad() { self.status = 251; transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::sort_scalar_machines(&mut self) {
+    self.i = 0;
+    transition 0 { _ -> initialize() }
+    state initialize() { transition self.i < self.machine_count { true -> initialize_one() false -> insertion_begin() } }
+    state initialize_one() { self.machine_order[self.i] = self.i; self.i = self.i + 1; transition 0 { _ -> initialize() } }
+    state insertion_begin() { self.i = 1; transition 0 { _ -> insertion() } }
+    state insertion() { transition self.i < self.machine_count { true -> take_candidate() false -> find_root_begin() } }
+    state take_candidate() { self.candidate = self.machine_order[self.i]; self.j = self.i; transition 0 { _ -> shift_check() } }
+    state shift_check() { transition self.j > 0 { true -> compare_previous() false -> place_candidate() } }
+    state compare_previous() { self.compare_machine_names(self.candidate, self.machine_order[self.j - 1]); transition self.compare_result < 0 { true -> shift() false -> place_candidate() } }
+    state shift() { self.machine_order[self.j] = self.machine_order[self.j - 1]; self.j = self.j - 1; transition 0 { _ -> shift_check() } }
+    state place_candidate() { self.machine_order[self.j] = self.candidate; self.i = self.i + 1; transition 0 { _ -> insertion() } }
+    state find_root_begin() { self.i = 0; transition 0 { _ -> find_root() } }
+    state find_root() { transition self.machine_order[self.i] == self.root_machine { true -> move_root_begin() false -> find_root_advance() } }
+    state find_root_advance() { self.i = self.i + 1; transition 0 { _ -> find_root() } }
+    state move_root_begin() { self.j = self.i; transition 0 { _ -> move_root() } }
+    state move_root() { transition self.j > 0 { true -> move_one() false -> install_root() } }
+    state move_one() { self.machine_order[self.j] = self.machine_order[self.j - 1]; self.j = self.j - 1; transition 0 { _ -> move_root() } }
+    state install_root() { self.machine_order[0] = self.root_machine; transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::assign_scalar_ids(&mut self) {
+    self.value_next = 1; self.operation_next = 1; self.i = 0;
+    transition 0 { _ -> machines() }
+    state machines() { transition self.i < self.machine_count { true -> machine_begin() false -> count_kinds_begin() } }
+    state machine_begin() {
+        self.current_machine = self.machine_order[self.i];
+        self.machine_ids[self.current_machine] = self.i + 1;
+        self.j = self.machine_param_starts[self.current_machine];
+        self.k = self.j + self.machine_param_counts[self.current_machine];
+        transition 0 { _ -> parameters() }
+    }
+    state parameters() { transition self.j < self.k { true -> parameter() false -> operations_begin() } }
+    state parameter() { self.param_value_ids[self.j] = self.value_next; self.value_next = self.value_next + 1; self.j = self.j + 1; transition 0 { _ -> parameters() } }
+    state operations_begin() { self.j = self.machine_op_starts[self.current_machine]; self.k = self.j + self.machine_op_counts[self.current_machine]; transition 0 { _ -> operations() } }
+    state operations() { transition self.j < self.k { true -> operation() false -> result() } }
+    state operation() {
+        self.op_ids[self.j] = self.operation_next; self.operation_next = self.operation_next + 1;
+        self.op_result_ids[self.j] = self.value_next; self.value_next = self.value_next + 1;
+        self.j = self.j + 1; transition 0 { _ -> operations() }
+    }
+    state result() { self.machine_result_ids[self.current_machine] = self.value_next; self.value_next = self.value_next + 1; self.i = self.i + 1; transition 0 { _ -> machines() } }
+    state count_kinds_begin() { self.i = 0; self.j = 0; transition 0 { _ -> count_kinds() } }
+    state count_kinds() { transition self.i < self.op_used { true -> kind() false -> size() } }
+    state kind() { transition self.op_kinds[self.i] == 1 { true -> constant() false -> call() } }
+    state constant() { self.j = self.j + 1; self.i = self.i + 1; transition 0 { _ -> count_kinds() } }
+    state call() { self.i = self.i + 1; transition 0 { _ -> count_kinds() } }
+    state size() {
+        self.terminal_size = 84 + 123 * self.machine_count + 12 * self.param_used
+            + 39 * self.j + 42 * (self.op_used - self.j) + 8 * self.arg_used;
+        transition self.terminal_size <= 21764 { true -> done() false -> exhausted() }
+    }
     state exhausted() { self.status = 252; transition 0 { _ -> done() } }
     state done() { }
 }
@@ -569,6 +969,98 @@ machine Main::emit_u32(&mut self, value: i32) {
 machine Main::emit_id(&mut self, value: i32) {
     self.emit_u32(value);
     self.emit_u32(0);
+}
+
+machine Main::emit_signed_i128(&mut self, value: i32) {
+    self.emit_u32(value);
+    transition value < 0 { true -> negative() false -> positive() }
+    state negative() { self.c = 255; transition 0 { _ -> extension() } }
+    state positive() { self.c = 0; transition 0 { _ -> extension() } }
+    state extension() {
+        write_byte(self.c); write_byte(self.c); write_byte(self.c); write_byte(self.c);
+        write_byte(self.c); write_byte(self.c); write_byte(self.c); write_byte(self.c);
+        write_byte(self.c); write_byte(self.c); write_byte(self.c); write_byte(self.c);
+    }
+}
+
+machine Main::scalar_ref_id(&mut self, reference: i32) {
+    transition reference < 64 { true -> parameter() false -> operation() }
+    state parameter() { self.id_value = self.param_value_ids[reference]; transition 0 { _ -> done() } }
+    state operation() { self.id_value = self.op_result_ids[reference - 64]; transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::emit_scalar_operation(&mut self) {
+    self.emit_id(self.op_ids[self.j]); write_byte(1);
+    self.emit_id(self.op_result_ids[self.j]); write_byte(2); write_byte(1); self.emit_u16(32);
+    transition self.op_kinds[self.j] == 1 { true -> constant() false -> call() }
+    state constant() {
+        write_byte(1); write_byte(1); self.emit_signed_i128(self.op_literals[self.j]);
+        transition 0 { _ -> done() }
+    }
+    state call() {
+        write_byte(33); self.emit_id(self.machine_ids[self.op_callees[self.j]]);
+        self.emit_u32(self.op_arg_counts[self.j]); self.k = 0;
+        transition 0 { _ -> arguments() }
+    }
+    state arguments() { transition self.k < self.op_arg_counts[self.j] { true -> argument() false -> call_tail() } }
+    state argument() {
+        self.scalar_ref_id(self.arg_refs[self.op_arg_starts[self.j] + self.k]); self.emit_id(self.id_value);
+        self.k = self.k + 1; transition 0 { _ -> arguments() }
+    }
+    state call_tail() { self.emit_u32(0); self.emit_u32(0); transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::emit_scalar_machine(&mut self) {
+    self.current_machine = self.scalar_emit_machine;
+    self.emit_id(self.machine_ids[self.current_machine]); write_byte(0);
+    self.emit_u32(self.machine_param_counts[self.current_machine]);
+    self.j = self.machine_param_starts[self.current_machine];
+    self.k = self.j + self.machine_param_counts[self.current_machine];
+    transition 0 { _ -> parameters() }
+    state parameters() { transition self.j < self.k { true -> parameter() false -> machine_result() } }
+    state parameter() { self.emit_id(self.param_value_ids[self.j]); write_byte(2); write_byte(1); self.emit_u16(32); self.j = self.j + 1; transition 0 { _ -> parameters() } }
+    state machine_result() {
+        // Empty structural parameters, followed by one scalar result.
+        self.emit_u32(0); write_byte(1); self.emit_id(self.machine_result_ids[self.current_machine]); write_byte(2); write_byte(1); self.emit_u16(32);
+        // Structural places, entry claims, service ceiling, and all content rows.
+        self.emit_u32(0); self.emit_u32(0); self.emit_u32(0);
+        self.emit_u32(0); self.emit_u32(0); self.emit_u32(0);
+        self.emit_id(self.machine_ids[self.current_machine]); self.emit_u32(1);
+        self.emit_id(self.machine_ids[self.current_machine]); self.emit_u32(0);
+        self.emit_u32(self.machine_op_counts[self.current_machine]);
+        self.j = self.machine_op_starts[self.current_machine];
+        self.k = self.j + self.machine_op_counts[self.current_machine];
+        transition 0 { _ -> operations() }
+    }
+    state operations() { transition self.j < self.k { true -> operation() false -> terminator() } }
+    state operation() { self.b1 = self.k; self.emit_scalar_operation(); self.k = self.b1; self.j = self.j + 1; transition 0 { _ -> operations() } }
+    state terminator() {
+        write_byte(2); self.emit_id(self.machine_ids[self.current_machine]);
+        self.scalar_ref_id(self.machine_return_refs[self.current_machine]); self.emit_id(self.id_value);
+        self.emit_u32(0);
+        self.emit_id(self.machine_ids[self.current_machine]);
+        self.emit_u32(0); self.emit_u32(0); self.emit_u32(0);
+        transition 0 { _ -> done() }
+    }
+    state done() { }
+}
+
+machine Main::emit_scalar_terminal_module(&mut self) {
+    write_byte(80); write_byte(83); write_byte(73); write_byte(84);
+    write_byte(69); write_byte(82); write_byte(77); write_byte(0);
+    self.emit_u16(26); self.emit_u16(28); self.emit_id(1);
+    // Fifteen empty top-level tables precede the machine table.
+    self.emit_zeroes(60); self.emit_u32(self.machine_count);
+    self.emit_index = 0;
+    transition 0 { _ -> machines() }
+    state machines() { transition self.emit_index < self.machine_count { true -> machine() false -> done() } }
+    state machine() {
+        self.scalar_emit_machine = self.machine_order[self.emit_index]; self.emit_scalar_machine();
+        self.emit_index = self.emit_index + 1; transition 0 { _ -> machines() }
+    }
+    state done() { }
 }
 
 machine Main::emit_zeroes(&mut self, count: i32) {
@@ -830,17 +1322,28 @@ machine Main::emit_terminal_module(&mut self) {
     self.emit_id(1); self.emit_u32(0); self.emit_u32(0); self.emit_u32(0);
 }
 
-
 machine Main::main(&mut self) {
     self.status = 0; self.n = 0; self.text_len = 0; self.text_start = 0;
     self.text_used = 0; self.text_sum = 0; self.write_count = 0; self.exit_code = 0;
     self.init_names();
     self.decode_bundle();
     transition self.status == 0 { true -> sources() false -> reject_decode() }
-    state sources() { self.validate_sources(); transition self.status == 0 { true -> parse() false -> reject_sources() } }
-    state parse() { self.parse_o1(); transition self.status == 0 { true -> accepted() false -> reject_parse() } }
-    state accepted() { self.emit_terminal_module(); transition self.status == 0 { true -> emitted() false -> reject_parse() } }
-    state emitted() { self.console.exit_process((self.text_sum + (self.exit_code % 251)) % 251); }
+    state sources() { self.validate_sources(); transition self.status == 0 { true -> select_begin() false -> reject_sources() } }
+    state select_begin() { self.profile = 0 - 1; self.retain_text = 0; self.pos = self.source_start; self.next_token(); transition self.status == 0 { true -> select_o1() false -> reject_parse() } }
+    state select_o1() { self.match_name(0,3); transition self.match_ok == 1 { true -> select_o1_done() false -> select_scalar() } }
+    state select_o1_done() { self.profile = 0; transition 0 { _ -> parse_dispatch() } }
+    state select_scalar() { self.match_name(41,7); transition self.match_ok == 1 { true -> select_scalar_done() false -> reject_parse() } }
+    state select_scalar_done() { self.profile = 1; transition 0 { _ -> parse_dispatch() } }
+    state parse_dispatch() { transition self.profile { 0 -> parse_o1() 1 -> scalar_signatures() _ -> reject_parse() } }
+    state parse_o1() { self.parse_o1(); transition self.status == 0 { true -> emit_o1() false -> reject_parse() } }
+    state scalar_signatures() { self.collect_scalar_signatures(); transition self.status == 0 { true -> scalar_bodies() false -> reject_parse() } }
+    state scalar_bodies() { self.parse_scalar_bodies(); transition self.status == 0 { true -> scalar_graph() false -> reject_parse() } }
+    state scalar_graph() { self.validate_scalar_graph(); transition self.status == 0 { true -> scalar_order() false -> reject_parse() } }
+    state scalar_order() { self.sort_scalar_machines(); self.assign_scalar_ids(); transition self.status == 0 { true -> emit_scalar() false -> reject_parse() } }
+    state emit_o1() { self.emit_terminal_module(); transition self.status == 0 { true -> emitted_o1() false -> reject_parse() } }
+    state emit_scalar() { self.emit_scalar_terminal_module(); transition self.status == 0 { true -> emitted_scalar() false -> reject_parse() } }
+    state emitted_o1() { self.console.exit_process((self.text_sum + (self.exit_code % 251)) % 251); }
+    state emitted_scalar() { self.console.exit_process(0); }
     state reject_decode() { self.console.exit_process(self.status); }
     state reject_sources() { self.console.exit_process(self.status); }
     state reject_parse() { self.console.exit_process(self.status); }

@@ -195,11 +195,12 @@ been retired; bootstrap callers resolve canonical owners through
 
 ## Delta → omega-bootstrap → production Omega readiness
 
-**Present status: compiler-capable with O0 and the variable O1 vertical slice
-closed, but not `Ωself`-bootstrap-ready.** Delta has proved that it can host a
-substantial compiler and carry a bounded family of Omega source shapes through
-canonical meaning to runnable artifacts, but it has not yet implemented the
-complete bridge compiler.
+**Present status: compiler-capable with O0, the variable O1 vertical slice, and
+the bounded scalar-call conformance tranche closed, but not
+`Ωself`-bootstrap-ready.** Delta has proved that it can host a substantial
+compiler and carry bounded families of Omega source shapes through canonical
+meaning to runnable artifacts, but it has not yet implemented the complete
+bridge compiler.
 `bootstrap/rungs/delta/samples/lowermachine.alp` is a real
 Delta-written Delta-to-ARM64 compiler: it self-compiles to a fixed point and its
 output is swept against the Rust reference over the sample corpus. This proves
@@ -210,11 +211,13 @@ vocabulary, not automatically admitted Delta-v1 features.
 
 That evidence is necessary but is not yet `omega-bootstrap`:
 
-- The Delta-written O0/O1 slice implements its frozen lexer, parser, exact
-  name/type/count checks, direct canonical terminal-Psi emission, and a direct
-  x86-64 ELF backend for 0–16 literal `write_line` operations followed by one
-  literal `exit_process`. It is not yet a general Omega frontend or a complete
-  Delta-written Omega backend.
+- The Delta-written bridge substrate implements its frozen O0/O1 console lane
+  plus a table-driven scalar-call lane: one program unit, up to 16 arbitrarily
+  named machines, four signed-`i32` parameters/arguments, 16 operations per
+  machine, literals, parameter references, results, and acyclic calls. It emits
+  canonical terminal Psi and a direct x86-64 ELF, rejecting malformed graphs,
+  identifiers, types, and adjacent resource overflows before publication. This
+  is not yet a general Omega frontend or a complete Delta-written Omega backend.
 - Delta's general self-host path emits ARM64 assembly and still uses external
   `clang` and `codesign`. The exact O0/O1 terminal-to-ELF edge no longer does.
 - `lowermachine.alp` is a large, effectively single-source compiler. Its source
@@ -441,7 +444,7 @@ may advance before the product source manifest exists, while provisional
     call, verifies and interprets with fixed fuel, lowers through the Linux
     x86-64 internal-relocation path, and rejects arity, callee, argument-ID, and
     result-type mutations. It is comparison evidence, never bootstrap authority;
-  - [ ] implement a bounded, table-driven scalar in-module call/return
+  - [x] implement a bounded, table-driven scalar in-module call/return
     conformance slice in the Delta frontend and backend. Admit multiple
     arbitrarily named machines in one program unit, signed-`i32` parameters and
     results, literals, parameter references, and forward acyclic calls through
@@ -452,7 +455,11 @@ may advance before the product source manifest exists, while provisional
     lower-rung meaning, terminal-validation, and runnable-artifact observations.
     Recursion, modules, records, generics, domains, proofs, and general control
     flow remain outside this conformance slice; the slice does not admit a row
-    to `Ωself`;
+    to `Ωself`. Its unique zero-parameter indegree-zero root and process-status
+    shim are bounded conformance conventions, not Omega's authored
+    target-qualified `target::ProgramEntry`. Native, lowermachine-built,
+    lower-rung meaning, product validation, terminal mutation, boundary, and
+    runnable-artifact gates carry the tranche;
 
   Acceptance: each named tranche is table-driven rather than fixture-shaped,
   rejects every unsupported or exhausted form before publication, and agrees

@@ -1,6 +1,7 @@
 #!/usr/bin/env sh
-# Frozen O1 dependency closure: lowermachine-built frontend -> vocabulary-28
-# terminal Psi -> lowermachine-built direct backend -> exact Linux x86-64 ELF.
+# Bounded bridge dependency closure: lowermachine-built frontend -> vocabulary-28
+# terminal Psi -> lowermachine-built direct backend -> exact Linux x86-64 ELF
+# for frozen O1 and the profile-neutral scalar call/return conformance slice.
 set -eu
 
 GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
@@ -8,7 +9,7 @@ OMEGA_REPO_ROOT=$GATE_DIR
 while [ ! -f "$OMEGA_REPO_ROOT/bootstrap/paths.sh" ]; do
   PARENT=$(dirname -- "$OMEGA_REPO_ROOT")
   [ "$PARENT" != "$OMEGA_REPO_ROOT" ] || {
-    echo "Delta O1 self-host composite: repository root not found" >&2
+    echo "Delta bounded self-host composite: repository root not found" >&2
     exit 2
   }
   OMEGA_REPO_ROOT=$PARENT
@@ -18,12 +19,12 @@ cd "$OMEGA_REPO_ROOT"
 
 case "$(uname -sm)" in
   "Darwin arm64") ;;
-  *) echo "Delta O1 self-host composite: skipped (requires Darwin arm64)"; exit 0 ;;
+  *) echo "Delta bounded self-host composite: skipped (requires Darwin arm64)"; exit 0 ;;
 esac
 
 for TOOL in cargo python3 clang codesign; do
   command -v "$TOOL" >/dev/null 2>&1 || {
-    echo "Delta O1 self-host composite: skipped ($TOOL absent)"
+    echo "Delta bounded self-host composite: skipped ($TOOL absent)"
     exit 0
   }
 done
@@ -37,6 +38,10 @@ trap 'rm -rf "$T"' EXIT
 cargo build -q --manifest-path "$OMEGA_PATH_DELTA_RUST/Cargo.toml"
 DELTA_ARCH=aarch64 "$OMEGA_PATH_DELTA_RUST/target/debug/delta" \
   "$OMEGA_PATH_DELTA/samples/lowermachine.alp" "$T/lowermachine" >/dev/null
+DELTA_ARCH=aarch64 "$OMEGA_PATH_DELTA_RUST/target/debug/delta" \
+  "$OMEGA_PATH_OMEGA_BOOTSTRAP/compiler/omega-bootstrap-frontend.alp" "$T/native-frontend" >/dev/null
+DELTA_ARCH=aarch64 "$OMEGA_PATH_DELTA_RUST/target/debug/delta" \
+  "$OMEGA_PATH_OMEGA_BOOTSTRAP/compiler/omega-bootstrap-terminal-to-elf.alp" "$T/native-backend" >/dev/null
 
 compile_through_lowermachine() {
   SOURCE=$1
@@ -89,6 +94,50 @@ expected_digest() {
   esac
 }
 
+# The general scalar source path must survive both Delta compiler producers and
+# reproduce the exact product-owned terminal fixture. The Delta backends then
+# agree byte-for-byte on the conservative runnable image; this image has the
+# bridge's direct-entry layout, so it is compared with the product reference by
+# behavior in its owning gate rather than conflated with the product's owned
+# appended entry shim.
+printf '%s' 'machine caller() -> i32 { return passthrough(73); } machine passthrough(value: i32) -> i32 { return value; }' > "$T/scalar.omg"
+bundle_one "$T/scalar.omg" "$T/scalar.bundle"
+python3 - "$OMEGA_PATH_OMEGA_BOOTSTRAP/gates/fixtures/omega-bootstrap-scalar-call-v28.hex" "$T/scalar-reference.terminal" <<'PY'
+import pathlib
+import sys
+pathlib.Path(sys.argv[2]).write_bytes(
+    bytes.fromhex(pathlib.Path(sys.argv[1]).read_text(encoding="ascii"))
+)
+PY
+for FRONTEND in "$T/native-frontend" "$T/frontend"; do
+  "$FRONTEND" < "$T/scalar.bundle" > "$FRONTEND.scalar.terminal"
+  cmp "$FRONTEND.scalar.terminal" "$T/scalar-reference.terminal"
+done
+"$T/native-backend" < "$T/scalar-reference.terminal" > "$T/native-scalar.elf"
+"$T/backend" < "$T/scalar-reference.terminal" > "$T/self-scalar.elf"
+cmp "$T/native-scalar.elf" "$T/self-scalar.elf"
+
+run_scalar_composite_case() {
+  scalar_label=$1
+  scalar_source=$2
+  printf '%s' "$scalar_source" > "$T/$scalar_label.omg"
+  bundle_one "$T/$scalar_label.omg" "$T/$scalar_label.bundle"
+  "$T/native-frontend" < "$T/$scalar_label.bundle" > "$T/$scalar_label.native.terminal"
+  "$T/frontend" < "$T/$scalar_label.bundle" > "$T/$scalar_label.self.terminal"
+  cmp "$T/$scalar_label.native.terminal" "$T/$scalar_label.self.terminal"
+  "$T/native-backend" < "$T/$scalar_label.native.terminal" > "$T/$scalar_label.native.elf"
+  "$T/backend" < "$T/$scalar_label.self.terminal" > "$T/$scalar_label.self.elf"
+  cmp "$T/$scalar_label.native.elf" "$T/$scalar_label.self.elf"
+}
+run_scalar_composite_case scalar-nested \
+  'machine root()->i32{return outer(inner(7));} machine outer(x:i32)->i32{return x;} machine inner(y:i32)->i32{return y;}'
+run_scalar_composite_case scalar-four-arguments \
+  'machine root()->i32{return fourth(1,2,3,4);} machine fourth(a:i32,b:i32,c:i32,d:i32)->i32{return d;}'
+run_scalar_composite_case scalar-minimum \
+  'machine root()->i32{return -2147483648;}'
+run_scalar_composite_case scalar-maximum \
+  'machine root()->i32{return 2147483647;}'
+
 for WRITES in 0 1 2 16; do
   CASE="writes-$WRITES"
   write_numbered_source "$WRITES" "$T/$CASE.omg"
@@ -100,7 +149,7 @@ for WRITES in 0 1 2 16; do
   set -e
   EXPECTED=$(expected_digest "$WRITES")
   [ "$STATUS" -eq "$EXPECTED" ] || {
-    echo "Delta O1 self-host composite: $CASE frontend status $STATUS, expected $EXPECTED" >&2
+    echo "Delta bounded self-host composite: $CASE frontend status $STATUS, expected $EXPECTED" >&2
     exit 1
   }
   cmp "$T/$CASE.terminal" "$T/terminal-refs/$CASE.terminal"
@@ -125,7 +174,7 @@ set +e
 AUXILIARY_STATUS=$?
 set -e
 [ "$AUXILIARY_STATUS" -eq 64 ] || {
-  echo "Delta O1 self-host composite: auxiliary bundle status $AUXILIARY_STATUS, expected 64" >&2
+  echo "Delta bounded self-host composite: auxiliary bundle status $AUXILIARY_STATUS, expected 64" >&2
   exit 1
 }
 cmp "$T/auxiliary.terminal" "$T/writes-1.terminal"
@@ -142,11 +191,11 @@ run_frontend_bundle_rejection() {
   STATUS=$?
   set -e
   [ "$STATUS" -eq "$EXPECTED" ] || {
-    echo "Delta O1 self-host composite: $LABEL status $STATUS, expected $EXPECTED" >&2
+    echo "Delta bounded self-host composite: $LABEL status $STATUS, expected $EXPECTED" >&2
     exit 1
   }
   [ ! -s "$T/$LABEL.terminal" ] || {
-    echo "Delta O1 self-host composite: $LABEL published terminal bytes" >&2
+    echo "Delta bounded self-host composite: $LABEL published terminal bytes" >&2
     exit 1
   }
 }
@@ -162,6 +211,27 @@ run_frontend_rejection() {
 printf '%s' 'use omega::language::std::console; data Main{console:Console;} machine Main::main(&mut self){self.console.exit_process(0);self.console.write_line("x");}' \
   > "$T/bad-order.omg"
 run_frontend_rejection bad-order "$T/bad-order.omg" 251
+
+printf '%s' 'machine root()->i32{return missing(1);}' > "$T/scalar-unknown.omg"
+run_frontend_rejection scalar-unknown "$T/scalar-unknown.omg" 251
+
+make_scalar_chain() {
+  scalar_count=$1
+  scalar_output=$2
+  : > "$scalar_output"
+  scalar_index=0
+  while [ "$scalar_index" -lt "$scalar_count" ]; do
+    scalar_next=$((scalar_index + 1))
+    if [ "$scalar_next" -lt "$scalar_count" ]; then
+      printf 'machine m%d()->i32{return m%d();}' "$scalar_index" "$scalar_next" >> "$scalar_output"
+    else
+      printf 'machine m%d()->i32{return 0;}' "$scalar_index" >> "$scalar_output"
+    fi
+    scalar_index=$scalar_next
+  done
+}
+make_scalar_chain 17 "$T/scalar-machines-17.omg"
+run_frontend_rejection scalar-machines-17 "$T/scalar-machines-17.omg" 252
 
 # Each frozen frontend resource ceiling exhausts without partial publication.
 dd if=/dev/zero of="$T/source-exhaust.omg" bs=2049 count=1 2>/dev/null
@@ -231,11 +301,11 @@ run_backend_rejection() {
   STATUS=$?
   set -e
   [ "$STATUS" -eq "$EXPECTED" ] || {
-    echo "Delta O1 self-host composite: $LABEL backend status $STATUS, expected $EXPECTED" >&2
+    echo "Delta bounded self-host composite: $LABEL backend status $STATUS, expected $EXPECTED" >&2
     exit 1
   }
   [ ! -s "$T/$LABEL.elf" ] || {
-    echo "Delta O1 self-host composite: $LABEL published image bytes" >&2
+    echo "Delta bounded self-host composite: $LABEL published image bytes" >&2
     exit 1
   }
 }
@@ -261,4 +331,12 @@ run_backend_rejection truncated "$T/truncated.terminal" 251
 run_backend_rejection tampered "$T/tampered.terminal" 251
 run_backend_rejection trailing "$T/trailing.terminal" 251
 
-echo "Delta O1 self-host composite: lowermachine-built frontend/backend, exact 0/1/2/16 and auxiliary-bundle terminal/ELF bytes, and fail-closed controls passed"
+python3 "$OMEGA_PATH_OMEGA_BOOTSTRAP/gates/scalar-call-terminal-cases.py" \
+  "$OMEGA_PATH_OMEGA_BOOTSTRAP/gates/fixtures/omega-bootstrap-scalar-call-v28.hex" \
+  "$T/scalar-cases"
+run_backend_rejection scalar-unknown-callee \
+  "$T/scalar-cases/reject-251/unknown-callee.psi" 251
+run_backend_rejection scalar-machine-count-17 \
+  "$T/scalar-cases/reject-252/machine-count-17.psi" 252
+
+echo "Delta bounded self-host composite: lowermachine-built frontend/backend, exact scalar Call plus O1 0/1/2/16 terminal/ELF bytes, and fail-closed controls passed"

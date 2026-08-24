@@ -4,6 +4,7 @@ use omega_terminal_abstract_operations_to_target_operations::lower_to_target_ope
 use omega_terminal_image_emission::{
     TerminalObjectError, build_terminal_object_artifact, derive_terminal_stack_demand,
     emit_terminal_executable_image, emit_terminal_object_container,
+    emit_terminal_scalar_call_reference_linux_x86_64_image,
 };
 use omega_terminal_machine_emission::emit_machine_code;
 use omega_terminal_psi_to_abstract_operations::lower_artifact_sections;
@@ -30,6 +31,56 @@ use psi_terminal_verifier::{ProofBundle, verify_module};
 const SCALAR_CALL_V28_FIXTURE: &str = include_str!(
     "../../../../../../../bootstrap/omega-bootstrap/gates/fixtures/omega-bootstrap-scalar-call-v28.hex"
 );
+
+#[test]
+fn frontend_generated_scalar_terminals_are_product_valid() {
+    let Some(case_directory) = std::env::var_os("OMEGA_BOOTSTRAP_SCALAR_CALL_CASE_DIR") else {
+        return;
+    };
+    let cases = [
+        ("renamed-permuted.terminal", 73_i128),
+        ("nested-three-hop.terminal", 7),
+        ("four-arguments.terminal", 4),
+        ("signed-minimum.terminal", i128::from(i32::MIN)),
+        ("signed-maximum.terminal", i128::from(i32::MAX)),
+    ];
+    let proof = encode_proof_bundle(&ProofBundle::default()).expect("encode empty scalar proof");
+
+    for (file_name, expected) in cases {
+        let path = std::path::Path::new(&case_directory).join(file_name);
+        let semantic = std::fs::read(&path).unwrap_or_else(|error| {
+            panic!("read frontend scalar case {}: {error}", path.display())
+        });
+        let module = decode_module(&semantic)
+            .unwrap_or_else(|error| panic!("decode frontend scalar case {file_name}: {error:?}"));
+        assert_eq!(
+            encode_module(&module),
+            Ok(semantic.clone()),
+            "frontend scalar case {file_name} must be canonical Terminal v28"
+        );
+        verify_module(
+            &module,
+            &ProofBundle::default(),
+            &AdmissionProfile::default(),
+        )
+        .unwrap_or_else(|error| panic!("verify frontend scalar case {file_name}: {error:?}"));
+        let measured = interpret_terminal_artifact_measured(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            &[],
+        )
+        .unwrap_or_else(|error| panic!("interpret frontend scalar case {file_name}: {error:?}"));
+        assert_eq!(
+            measured.value(),
+            TerminalExecutionResult::Scalar(TerminalScalarValue::Integer {
+                scalar_type: i32_type(),
+                value: IntegerValue::Signed(expected),
+            }),
+            "frontend scalar case {file_name} returned the wrong value"
+        );
+    }
+}
 
 #[test]
 fn scalar_i32_call_has_exact_exportable_vocabulary_28_bytes() {
@@ -101,11 +152,93 @@ fn scalar_i32_call_has_exact_exportable_vocabulary_28_bytes() {
     );
     let artifact = build_terminal_object_artifact(&machine_code).expect("build scalar call object");
     derive_terminal_stack_demand(&artifact, machine_id(1)).expect("compose scalar call stack");
-    emit_terminal_executable_image(&artifact, 3).expect("resolve scalar call image");
+    assert_eq!(artifact.functions()[0].text_offset, 0);
+    assert_eq!(artifact.functions()[0].byte_count, 48);
+    assert_eq!(artifact.functions()[1].text_offset, 48);
+    assert_eq!(artifact.functions()[1].byte_count, 3);
+    let image = emit_terminal_scalar_call_reference_linux_x86_64_image(&artifact)
+        .expect("resolve runnable scalar call image");
+    let repeated_image = emit_terminal_scalar_call_reference_linux_x86_64_image(&artifact)
+        .expect("repeat runnable scalar call image");
+    assert_eq!(repeated_image.output().bytes, image.output().bytes);
+    let shim = image.linux_x86_scalar_exit_shim();
+    assert_eq!(shim.text_offset, 51);
+    assert_eq!(shim.byte_count, 16);
+    assert_eq!(shim.relocation_offset, 52);
+    assert_eq!(
+        image.output().final_text_bytes,
+        [
+            0x48, 0x83, 0xec, 0x10, // sub rsp, 16
+            0x48, 0xb8, 0x49, 0, 0, 0, 0, 0, 0, 0, // mov rax, 73
+            0x48, 0x63, 0xc0, // movsxd rax, eax
+            0x48, 0x89, 0x44, 0x24, 0, // spill argument
+            0x48, 0x83, 0xec, 8, // align call
+            0x48, 0x8b, 0x7c, 0x24, 8, // load rdi
+            0xe8, 0x0c, 0, 0, 0, // call machine 2
+            0x48, 0x83, 0xc4, 8, // release call area
+            0x48, 0x63, 0xc0, // normalize i32 result
+            0x48, 0x83, 0xc4, 0x10, // release expression frame
+            0xc3, // return from machine 1
+            0x89, 0xf8, 0xc3, // machine 2: mov eax, edi; ret
+            0xe8, 0xc8, 0xff, 0xff, 0xff, // shim call machine 1
+            0x89, 0xc7, // mov edi, eax
+            0xb8, 0xe7, 0, 0, 0, // mov eax, exit_group
+            0x0f, 0x05, // syscall
+            0x0f, 0x0b, // ud2
+        ]
+    );
+    assert_eq!(image.output().bytes.len(), 8192);
+    assert_eq!(
+        u64::from_le_bytes(image.output().bytes[24..32].try_into().unwrap()),
+        0x401033
+    );
 
     if let Some(path) = std::env::var_os("OMEGA_BOOTSTRAP_SCALAR_CALL_TERMINAL") {
         std::fs::write(path, &semantic).expect("write requested scalar call terminal reference");
     }
+    if let Some(path) = std::env::var_os("OMEGA_BOOTSTRAP_SCALAR_CALL_X64_IMAGE") {
+        std::fs::write(path, &image.output().bytes)
+            .expect("write requested runnable scalar call image reference");
+    }
+
+    // Ordinary scalar arity is not retained in the object function carrier.
+    // This unused entry parameter deliberately leaves native bytes unchanged;
+    // the fixture-specific image API must reject it by semantic identity.
+    let mut parameterized_entry = i32_call_module();
+    parameterized_entry.machines[0]
+        .parameters
+        .push(scalar_declaration(
+            value_id(6),
+            ScalarType::Integer(i32_type()),
+        ));
+    let parameterized_semantic =
+        encode_module(&parameterized_entry).expect("encode parameterized scalar entry");
+    verify_module(
+        &parameterized_entry,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("unused scalar entry parameter remains semantically valid");
+    let parameterized_abstract = lower_artifact_sections(
+        &parameterized_semantic,
+        &encode_proof_bundle(&ProofBundle::default()).expect("empty parameterized proof"),
+        &AdmissionProfile::default(),
+    )
+    .expect("lower parameterized scalar entry");
+    let parameterized_target =
+        lower_to_target_operations(&parameterized_abstract, NativeTarget::linux_x64())
+            .expect("select parameterized scalar entry ABI");
+    let parameterized_assigned =
+        assign_registers(&parameterized_target).expect("assign parameterized scalar entry");
+    let parameterized_code =
+        emit_machine_code(&parameterized_assigned).expect("emit parameterized scalar entry");
+    let parameterized_artifact = build_terminal_object_artifact(&parameterized_code)
+        .expect("build parameterized scalar entry object");
+    assert_eq!(parameterized_artifact.text_bytes(), artifact.text_bytes());
+    assert!(
+        emit_terminal_scalar_call_reference_linux_x86_64_image(&parameterized_artifact).is_err(),
+        "byte-identical parameterized entry must not acquire zero-argument process semantics"
+    );
 
     let mut wrong_arity = module.clone();
     let OperationKind::Call { arguments, .. } =

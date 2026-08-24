@@ -1,0 +1,25 @@
+// Compiler-host regression: an indexed array read may itself contain another
+// indexed array read, and a state/target identifier may spell `machine` without
+// being reclassified as a declaration.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+    machine write_line(text: &[u8] in Utf8);
+}
+data Main {
+    console: Console;
+    starts: [i32; 4];
+    values: [i32; 4];
+    result: i32;
+}
+
+machine Main::main(&mut self) {
+    self.starts[0] = 1;
+    self.values[1] = 73;
+    self.result = self.values[self.starts[0] + 0];
+    transition self.result == 73 {
+        true -> machine()
+        _ -> failed()
+    }
+    state machine() { self.console.exit_process(0) }
+    state failed() { self.console.exit_process(1) }
+}

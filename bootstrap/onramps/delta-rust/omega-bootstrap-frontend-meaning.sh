@@ -99,6 +99,38 @@ bundle_program "$OMEGA_PATH_CORPUS/cli_mvp/main.omg" "$T/canonical.gamma"
 run_gamma "canonical cli_mvp retained-operand digest" "$T/canonical.gamma" 107 pair-nonempty
 cp "$T/result" "$T/canonical.result"
 
+# Profile-neutral scalar call/return source must elaborate through the same
+# Rust-free route and publish the exact product-owned terminal module. Entry
+# inference here is only the bounded conformance convention; production Omega
+# root selection remains target-owned ProgramEntry metadata.
+printf '%s' 'machine caller() -> i32 { return passthrough(73); } machine passthrough(value: i32) -> i32 { return value; }' > "$T/scalar.omg"
+bundle_program "$T/scalar.omg" "$T/scalar.gamma"
+run_gamma "scalar call exact terminal publication" "$T/scalar.gamma" 0 pair-nonempty
+python3 - "$OMEGA_PATH_OMEGA_BOOTSTRAP/gates/fixtures/omega-bootstrap-scalar-call-v28.hex" "$T/scalar.expected" <<'PY'
+import pathlib
+import sys
+
+contents = bytes.fromhex(pathlib.Path(sys.argv[1]).read_text(encoding="ascii"))
+value = "Nil"
+for byte in reversed(contents):
+    value = f"(Cons {byte} {value})"
+pathlib.Path(sys.argv[2]).write_text(f"(Pair 0 {value})\n", encoding="ascii")
+PY
+if cmp -s "$T/scalar.expected" "$T/result"; then
+  PASS=$((PASS + 1))
+else
+  FAIL=$((FAIL + 1))
+  echo "  FAIL scalar call exact terminal publication: emitted bytes differ from product fixture"
+fi
+
+printf '%s' 'machine root()->i32{return missing(1);}' > "$T/scalar-reject.omg"
+bundle_program "$T/scalar-reject.omg" "$T/scalar-reject.gamma"
+run_gamma "scalar unknown callee rejection" "$T/scalar-reject.gamma" 251 pair-empty
+
+printf '%s' 'machine loop()->i32{return loop();}' > "$T/scalar-cycle.omg"
+bundle_program "$T/scalar-cycle.omg" "$T/scalar-cycle.gamma"
+run_gamma "scalar call-cycle rejection" "$T/scalar-cycle.gamma" 251 pair-empty
+
 : > "$T/empty.omg"
 printf '// meaning auxiliary /* remains line text' > "$T/comment.omg"
 printf '/* meaning outer // remains block text /* nested */ tail */' > "$T/block-comment.omg"

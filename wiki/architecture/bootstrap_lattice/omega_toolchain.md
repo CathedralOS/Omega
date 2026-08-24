@@ -166,3 +166,15 @@ Beta-written Omega-to-Gamma elaborator and canonical Gamma interpreter: exact
 canonical and variant images agree with native Delta execution, while malformed
 and exhausted inputs agree on status and empty output. This closes O1's used
 Delta meaning profile; it does not generalize O1 into the production compiler.
+
+The next profile-neutral tranche adds a bounded, table-driven scalar call
+graph: one program unit, arbitrarily named machines, signed-`i32`
+parameters/results, literals and parameter references, and acyclic calls. The
+Delta frontend emits canonical vocabulary-28 terminal Psi; the Delta backend
+validates its general IDs, signatures, definition order, and graph before
+emitting a direct x86-64 ELF. Native, lowermachine-built, Rust-free meaning,
+product validation, boundary, mutation, and runnable-artifact gates agree. The
+frontend's unique zero-parameter indegree-zero root and backend process-status
+shim are conformance conventions only—not the product's authored,
+target-qualified `target::ProgramEntry` semantics—and the tranche admits no
+feature to `Ωself`.
