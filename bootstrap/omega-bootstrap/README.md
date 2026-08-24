@@ -142,7 +142,22 @@ language, generation, or architectural role; new documentation and work use
   [meaning gate](gates/delta-resolved-to-ckir-meaning.sh) repeats canonical
   `0`, semantic `251`, and resource `252` through Gamma under a measured
   393,216-byte elaboration ceiling. CKIR→ELF composition and lower-rooted
-  `OMGRFN2` reconstruction remain separate open seams.
+  `OMGRFN2` reconstruction remain separate seams.
+- [`gates/delta-two-package-composite.sh`](gates/delta-two-package-composite.sh)
+  composes the actual resolver, resolved-source lowerer, and limited backend
+  across native, Delta-self-built, and mixed-stage paths. It requires exact
+  OMGRSW1, 996-byte CKIR, 8,192-byte ELF, result 70, independent ELF
+  reconstruction, valid cross-pair rejection, and representative empty-output
+  251/252 failures at every executable seam. The separate
+  [Gamma composition gate](gates/delta-two-package-composite-meaning.sh) feeds
+  the CKIR bytes produced by the Gamma lowerer directly to the Gamma backend
+  and requires the same exact ELF.
+- [`../assurance/refinement/omega-bootstrap/omgrfn2-frame-omgcomp-custody.beta`](../assurance/refinement/omega-bootstrap/omgrfn2-frame-omgcomp-custody.beta)
+  is lower-rooted `OMGRFN2` layer 1. Its focused gate checks exact v2 framing,
+  complete OMGCOMP structure, graph, nested bundle, resources, EOF, and exact
+  source content extents while deliberately treating witness, CKIR, ELF, and
+  result claims as opaque. Independent source→witness and later refinement
+  layers remain open.
 
 These are seed pieces for `omega-bootstrap`, not that compiler itself. The first
 checkpoint-driven compositional frontend/typechecker cost probe over
