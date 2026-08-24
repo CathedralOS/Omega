@@ -140,13 +140,17 @@ re-selected here. Executable optimization quality is likewise outside this
 source-profile inventory.
 
 Checkpoint 000001 now supplies the first coherent Omega-written compiler closure
-and provisional census. Later versioned checkpoints update that provisional
-profile. It cannot be frozen until the final source closure exists and the
-general bridge supplies measured implementation and assurance cost. Absence from
-an early checkpoint can justify rejection by that checkpoint's candidate gate,
-but not a final exclusion while later compiler phases remain unwritten. The
-working language-feature defaults for the compiler's own implementation source
-are:
+and a separately hashed, mechanically enforced provisional normalized-syntax/
+resource
+[profile](../../../compiler/source-checkpoints/profile-000001.json). Later
+versioned checkpoints update and deepen that profile. Typed semantics,
+ABI/layout, lowering, Delta capacity behavior, and measured bridge costs remain
+open. The profile cannot be frozen until the final source closure exists and the
+general bridge supplies the implementation and assurance evidence used to
+settle them. Absence from an early checkpoint can justify rejection by that
+checkpoint's candidate gate, but not a final exclusion while later compiler
+phases remain unwritten. The working language-feature defaults for the
+compiler's own implementation source are:
 
 - omit the math/proof surface and linear/dependent types from compiler source;
 - retain ordinary named fields, payload-bearing enums/sum data, and basic

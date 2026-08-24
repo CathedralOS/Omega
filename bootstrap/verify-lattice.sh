@@ -49,7 +49,7 @@ hash_inputs() {
         \( -name '*.beta' -o -name '*.alpha' -o -name '*.gamma' -o -name '*.alp' \
            -o -name '*.omg' -o -name '*.sh' -o -name '*.py' -o -name '*.rs' \
            -o -name '*.s' -o -name '*.toml' -o -name '*.md5' -o -name '*.elab' \
-           -o -name '*.hex' \) -print 2>/dev/null
+           -o -name '*.hex' -o -name '*.json' \) -print 2>/dev/null
     done; } | sort | xargs shasum 2>/dev/null | shasum | cut -d' ' -f1
 }
 
@@ -136,7 +136,7 @@ step "convergence (RUST-FREE) — omega2gamma.beta->interp.beta; cert checked by
 step "omega2gamma termination canary — translator halts on every sample, supported or refused (no silent scan-forever)" omega-bootstrap-gates omega2gamma-termination.sh alpha-assembler beta corpus
 step "lowermachine meaning — real compiler executes through Gamma; exact state/tree/source ceilings fail closed" omega-bootstrap-gates lowermachine-meaning.sh delta-rust gamma
 step "omega-bootstrap source bundle — canonical deterministic multi-file input" omega-bootstrap-gates omega-bootstrap-bundle-test.sh
-step "product compiler checkpoint — exact resolver closure plus provisional Ωself admission" compiler source-checkpoints/verify.sh omega-rust psi
+step "product compiler checkpoint — exact resolver closure plus provisional Ωself admission" source-checkpoints verify.sh omega-rust psi
 step "omega-bootstrap scalar Call reference (DIFFERENTIAL ONLY) — exact vocabulary-28 fixture, meaning, lowering, and mutation teeth" omega-bootstrap-gates scalar-call-reference.sh omega-rust psi-rust/semantics/psi-terminal-codec
 step "omega-bootstrap Delta scalar-call frontend — table-driven source, native/self-host identity, product validation, and boundaries" omega-bootstrap-gates delta-scalar-call-frontend.sh delta-rust omega-rust psi-rust/semantics/psi-terminal-codec
 step "omega-bootstrap Delta artifact — O1/scalar terminal-Psi to deterministic x86-64 ELF" omega-bootstrap-gates delta-terminal-to-elf.sh delta-rust omega-rust psi-rust/semantics/psi-terminal-codec

@@ -172,11 +172,15 @@ each later snapshot reruns the same feature census and retain/refactor analysis.
 
 The first measured snapshot now exists:
 [`checkpoint-000001.json`](../../../compiler/source-checkpoints/checkpoint-000001.json)
-closes the product Psi source-to-token phase, and
+closes the product Psi source-to-token phase;
+[`profile-000001.json`](../../../compiler/source-checkpoints/profile-000001.json)
+mechanically binds its provisional normalized-syntax/resource admission rules,
+census, canaries, and ceilings; and
 [`profile-000001.md`](../../../compiler/source-checkpoints/profile-000001.md)
-records its provisional facility census. This is enough to begin evidence-led
-bridge work for those facilities only. It supplies no evidence for later
-parser, checker, terminal-Psi, optimizer, or emitter source needs.
+explains the evidence and unresolved decisions. This is enough to begin
+evidence-led bridge work for those facilities only. It supplies no evidence for
+later parser, checker, terminal-Psi, optimizer, or emitter source needs, and it
+does not yet settle typed semantics, ABI/layout, lowering, or bridge cost.
 
 Delta v1 and `Ωself` remain separate contracts even though their discovery can
 co-evolve. Delta is derived from the cost of implementing and assuring the
@@ -249,10 +253,10 @@ tool belongs to the manifest, nor that `omega-bootstrap` must use Terminal Psi
 as its own internal IR. The bridge must compile those product modules as
 ordinary `Ωself` source; it need not duplicate or execute their product role.
 
-Checkpoint 000001's compiler-produced schema-v2 census establishes that the
-current closure uses target-qualified and bodyless machines, `satisfies`
-clauses, and sealed compiler-intrinsic bindings. It also establishes a useful
-negative source convention:
+Checkpoint 000001's compiler-produced snapshot-v3/census-v2 profile establishes
+that the current closure uses target-qualified and bodyless machines,
+`satisfies` clauses, and sealed compiler-intrinsic bindings. It also establishes
+a useful negative source convention:
 branching computations publish explicit result fields before callers dispatch.
 The closure does not require implicit branching value-machine result
 materialization, dependent bounds, proof syntax, mixed field-plus-case data, or

@@ -189,12 +189,13 @@ been retired; bootstrap callers resolve canonical owners through
   Omega. The bridge needs exact `Ωself` coverage and correct conservative output,
   not general full-Omega input acceptance or the product optimizer itself.
 
-> **Immediate next dependency:** mechanically derive and enforce the provisional
-> `Ωself` candidate exposed by product-source checkpoint 000001, then grow the
-> Delta-written bridge only through general capabilities justified by that or a
-> later checkpoint. Continue expanding the Omega-written product source and
-> publishing deterministic closures in parallel. Every bridge capability must
-> carry direct-artifact and Rust-free-meaning coverage in the same milestone.
+> **Immediate next dependency:** use checkpoint 000001's mechanically enforced
+> provisional normalized-syntax/resource profile to select the first general
+> Delta-written bridge capabilities, while extending later checkpoints with
+> typed-semantic, ABI/layout, and lowering evidence. Continue expanding the
+> Omega-written product source and publishing deterministic closures in
+> parallel. Every bridge capability must carry direct-artifact and Rust-free-
+> meaning coverage in the same milestone.
 
 ## Delta → omega-bootstrap → production Omega readiness
 
@@ -270,16 +271,16 @@ Two source efforts can proceed in parallel:
   maintaining a provisional, explicit Delta feature ledger and lower-rung
   meaning for every used construct.
 
-Checkpoint 000001 supplies the first coherent product manifest from which
-provisional `Ωself` can be derived; later snapshots update it. `Ωself` determines
-the accepted-source work of `omega-bootstrap`; implementing that bridge exposes
-its complete Delta source closure, from which Delta v1 is pruned and frozen.
-This is an iterative discovery loop with two eventual freezes, not a circular
-runtime or build dependency. The pre-snapshot exception for explicitly bounded
-profile-neutral substrate is now closed by checkpoint 000001; further
-accepted-source growth must trace a measured checkpoint need. Neither canary
-succession, current source, nor producer acceptance may silently define a
-language contract.
+Checkpoint 000001 supplies the first coherent product manifest and a
+mechanically enforced provisional normalized-syntax/resource profile; later
+snapshots update and deepen it. `Ωself` determines the accepted-source work of
+`omega-bootstrap`; implementing that bridge exposes its complete Delta source
+closure, from which Delta v1 is pruned and frozen. This is an iterative
+discovery loop with two eventual freezes, not a circular runtime or build
+dependency. The pre-snapshot exception for explicitly bounded profile-neutral
+substrate is now closed by checkpoint 000001; further accepted-source growth
+must trace a measured checkpoint need. Neither canary succession, current
+source, nor producer acceptance may silently define a language contract.
 
 ### Active work packages and acceptance gates
 
@@ -351,11 +352,13 @@ verifier, viewer, or debugger, and it does not require `omega-bootstrap` to use
 Terminal Psi as its own internal compiler IR.
 
 The first external snapshot is now published at
-`compiler/source-checkpoints/checkpoint-000001.json`, with its distinct
-provisional census in `profile-000001.md`. It covers the product Psi
-source-to-token phase only. Bootstrap may consume its measured facilities now;
-it must not extrapolate parser, checker, terminal-Psi, optimizer, or emitter
-needs from this partial closure.
+`compiler/source-checkpoints/checkpoint-000001.json`, with its distinct canonical
+provisional admission artifact in `profile-000001.json` and explanatory record
+in `profile-000001.md`. It covers the product Psi source-to-token phase only.
+Bootstrap may consume its mechanically admitted normalized syntax and resources
+now; it must not extrapolate parser, checker, terminal-Psi, optimizer, or emitter
+needs from this partial closure or treat unresolved typed/ABI/lowering rows as
+already proved.
 
 - [x] **Complete bundle-wide source-unit ingestion in the canonical Delta
   frontend.** This is pre-profile bridge infrastructure, not O2, `Ωself`
@@ -395,7 +398,7 @@ may advance before the product source manifest exists, while provisional
 - do not turn canary succession, producer coverage, or speculative usefulness
   into an `Ωself` feature decision.
 
-- [ ] **Derive and enforce provisional `Ωself` from the product source.**
+- [ ] **Derive, deepen, and enforce provisional `Ωself` from the product source.**
   **Required input:** the first coherent Omega-written production-compiler
   checkpoint and its deterministic transitive manifest. The final product
   closure need not already be frozen; rerun this task as later versioned

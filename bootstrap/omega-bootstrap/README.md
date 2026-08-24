@@ -68,10 +68,12 @@ compiler cannot be confused with either the current Rust on-ramp or the
 - [`compiler/BOOTSTRAP_PROFILES.md`](compiler/BOOTSTRAP_PROFILES.md) freezes the
   current Delta implementation profile, the O0/O1 Omega console canaries, and
   the bounded profile-neutral scalar-call conformance slice.
-  A provisional production `Ωself` profile can be derived and enforced once the
-  exact Omega compiler source and transitive dependency manifest exists; it
-  freezes only when the general bridge supplies the cost evidence used to
-  settle every retained or refactored-away feature.
+  Product checkpoint 000001 now supplies a separately hashed, mechanically
+  enforced provisional `Ωself`
+  [normalized-syntax/resource profile](../../compiler/source-checkpoints/profile-000001.json).
+  Typed semantics, ABI/layout, lowering, Delta capacity behavior, and bridge
+  costs remain open, and the profile freezes only when the final source closure
+  and general bridge settle every retained or refactored-away feature.
 - [`compiler/OMEGA_BOOTSTRAP_BUNDLE.md`](compiler/OMEGA_BOOTSTRAP_BUNDLE.md)
   specifies the canonical length-delimited multi-source artifact;
   `compiler/omega_bootstrap_bundle.py` and
