@@ -866,9 +866,21 @@ complete.
   set. Package orchestration must compare the complete row bytes and must not
   parse or reconstruct their semantics. Callable details are initially one
   exact envelope; selected providers remain an opaque blocking set until the
-  compiler has a sealed provider identity. Nested explanation, exact source
-  locations, package-layer conflict fingerprints, and durable resolutions
-  remain.
+  compiler has a sealed provider identity. The package layer now stores those
+  bounded rows when compiler review is issued, linearly compares exact
+  `(kind, key)` coordinates, and emits added/removed/changed review-only
+  conflicts without decoding compiler payloads. Each conflict retains complete
+  old/new bytes and binds both immutable resolutions, both compiler and source-
+  consumption commitments, whole-review evidence, one bounded explanatory
+  dependency path, and a canonical commitment to the complete candidate
+  closure. The normal renderer exposes fixed vocabulary, lengths, and row
+  commitments rather than hex-dumping payloads; source patches remain the
+  readable audit lane. Input rows, owned changed bytes, paths, conflict counts,
+  and output are separately bounded and reject rather than truncate.
+  Representation-TCB-only changes now recommend audit without becoming a
+  blanket capability block; blocking and opaque-blocking row changes still
+  block. Nested explanation, compiler-issued exact source locations, and
+  durable root-policy resolutions remain.
 
 - **DANGEROUS-AUTHORITY-CLASSIFICATION.** Classify risk from compiler-owned
   nominal metadata.

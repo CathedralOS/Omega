@@ -14,6 +14,45 @@ pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 30;
 const ROW_MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW-ROW\0";
 pub const PACKAGE_REVIEW_ROW_ENCODING_VERSION: u16 = 1;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PackageReviewEncodingLimits {
+    maximum_review_bytes: usize,
+    maximum_rows: usize,
+    maximum_row_key_bytes: usize,
+    maximum_row_bytes: usize,
+    maximum_total_row_bytes: usize,
+}
+
+impl PackageReviewEncodingLimits {
+    pub const fn new(
+        maximum_review_bytes: usize,
+        maximum_rows: usize,
+        maximum_row_key_bytes: usize,
+        maximum_row_bytes: usize,
+        maximum_total_row_bytes: usize,
+    ) -> Self {
+        Self {
+            maximum_review_bytes,
+            maximum_rows,
+            maximum_row_key_bytes,
+            maximum_row_bytes,
+            maximum_total_row_bytes,
+        }
+    }
+}
+
+impl Default for PackageReviewEncodingLimits {
+    fn default() -> Self {
+        Self::new(
+            16 * 1024 * 1024,
+            65_536,
+            1024 * 1024,
+            4 * 1024 * 1024,
+            16 * 1024 * 1024,
+        )
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageReviewEncodingError {
     message: &'static str,
@@ -36,8 +75,15 @@ impl std::error::Error for PackageReviewEncodingError {}
 pub(super) fn encode(
     review: &CheckedPackageReviewProjection,
 ) -> Result<Vec<u8>, PackageReviewEncodingError> {
-    let mut encoder = Encoder::default();
-    encoder.output.extend_from_slice(MAGIC);
+    encode_with_limits(review, PackageReviewEncodingLimits::default())
+}
+
+fn encode_with_limits(
+    review: &CheckedPackageReviewProjection,
+    limits: PackageReviewEncodingLimits,
+) -> Result<Vec<u8>, PackageReviewEncodingError> {
+    let mut encoder = Encoder::bounded(limits.maximum_review_bytes);
+    encoder.fixed_bytes(MAGIC);
     encoder.u16(PACKAGE_REVIEW_ENCODING_VERSION);
     encoder.package_identity(review.package);
     encoder.string(review.target.target_name())?;
@@ -48,81 +94,153 @@ pub(super) fn encode(
     encoder.sequence(&review.callables, encode_callable)?;
     encoder.sequence(&review.dangerous_authorities, encode_dangerous_authority)?;
     encoder.sequence(&review.selected_providers, encode_provider)?;
-    Ok(encoder.output)
+    encoder.finish()
 }
 
 pub(super) fn encode_rows(
     review: &CheckedPackageReviewProjection,
 ) -> Result<Vec<PackageReviewCanonicalRow>, PackageReviewEncodingError> {
+    encode_rows_with_limits(review, PackageReviewEncodingLimits::default())
+}
+
+fn encode_rows_with_limits(
+    review: &CheckedPackageReviewProjection,
+    limits: PackageReviewEncodingLimits,
+) -> Result<Vec<PackageReviewCanonicalRow>, PackageReviewEncodingError> {
+    let required_rows = review
+        .public_traits
+        .len()
+        .saturating_add(review.public_domains.len())
+        .saturating_add(review.public_data.len())
+        .saturating_add(review.representation_tcb.len())
+        .saturating_add(review.callables.len())
+        .saturating_add(review.dangerous_authorities.len())
+        .saturating_add(2);
+    if required_rows > limits.maximum_rows {
+        return Err(PackageReviewEncodingError::new(
+            "package review exceeds the canonical row-count ceiling",
+        ));
+    }
     let mut rows = Vec::new();
-    rows.push(encode_row(
-        review,
-        PackageReviewCanonicalRowKind::ProjectionHeader,
-        PackageReviewCanonicalRowRisk::Blocking,
-        |_| Ok(()),
-        |_| Ok(()),
-    )?);
-    for shape in &review.public_traits {
-        rows.push(encode_row(
+    rows.try_reserve(required_rows)
+        .map_err(|_| PackageReviewEncodingError::new("package review row allocation failed"))?;
+    let mut total_row_bytes = 0usize;
+    push_row(
+        &mut rows,
+        &mut total_row_bytes,
+        limits,
+        encode_row(
             review,
-            PackageReviewCanonicalRowKind::PublicTrait,
+            limits,
+            PackageReviewCanonicalRowKind::ProjectionHeader,
             PackageReviewCanonicalRowRisk::Blocking,
-            |encoder| encode_nominal(encoder, &shape.identity),
-            |encoder| encode_trait_shape(encoder, shape),
-        )?);
+            |_| Ok(()),
+            |_| Ok(()),
+        )?,
+    )?;
+    for shape in &review.public_traits {
+        push_row(
+            &mut rows,
+            &mut total_row_bytes,
+            limits,
+            encode_row(
+                review,
+                limits,
+                PackageReviewCanonicalRowKind::PublicTrait,
+                PackageReviewCanonicalRowRisk::Blocking,
+                |encoder| encode_nominal(encoder, &shape.identity),
+                |encoder| encode_trait_shape(encoder, shape),
+            )?,
+        )?;
     }
     for shape in &review.public_domains {
-        rows.push(encode_row(
-            review,
-            PackageReviewCanonicalRowKind::PublicDomain,
-            PackageReviewCanonicalRowRisk::Blocking,
-            |encoder| encode_nominal(encoder, &shape.identity),
-            |encoder| encode_domain_shape(encoder, shape),
-        )?);
+        push_row(
+            &mut rows,
+            &mut total_row_bytes,
+            limits,
+            encode_row(
+                review,
+                limits,
+                PackageReviewCanonicalRowKind::PublicDomain,
+                PackageReviewCanonicalRowRisk::Blocking,
+                |encoder| encode_nominal(encoder, &shape.identity),
+                |encoder| encode_domain_shape(encoder, shape),
+            )?,
+        )?;
     }
     for shape in &review.public_data {
-        rows.push(encode_row(
-            review,
-            PackageReviewCanonicalRowKind::PublicData,
-            PackageReviewCanonicalRowRisk::Blocking,
-            |encoder| encode_nominal(encoder, &shape.identity),
-            |encoder| encode_data_shape(encoder, shape),
-        )?);
+        push_row(
+            &mut rows,
+            &mut total_row_bytes,
+            limits,
+            encode_row(
+                review,
+                limits,
+                PackageReviewCanonicalRowKind::PublicData,
+                PackageReviewCanonicalRowRisk::Blocking,
+                |encoder| encode_nominal(encoder, &shape.identity),
+                |encoder| encode_data_shape(encoder, shape),
+            )?,
+        )?;
     }
     for row in &review.representation_tcb {
-        rows.push(encode_row(
-            review,
-            PackageReviewCanonicalRowKind::RepresentationTcb,
-            PackageReviewCanonicalRowRisk::AuditRecommended,
-            |encoder| encode_nominal(encoder, &row.declaration),
-            |encoder| encode_representation_tcb(encoder, row),
-        )?);
+        push_row(
+            &mut rows,
+            &mut total_row_bytes,
+            limits,
+            encode_row(
+                review,
+                limits,
+                PackageReviewCanonicalRowKind::RepresentationTcb,
+                PackageReviewCanonicalRowRisk::AuditRecommended,
+                |encoder| encode_nominal(encoder, &row.declaration),
+                |encoder| encode_representation_tcb(encoder, row),
+            )?,
+        )?;
     }
     for callable in &review.callables {
-        rows.push(encode_row(
-            review,
-            PackageReviewCanonicalRowKind::Callable,
-            PackageReviewCanonicalRowRisk::Blocking,
-            |encoder| encode_nominal(encoder, &callable.identity),
-            |encoder| encode_callable(encoder, callable),
-        )?);
+        push_row(
+            &mut rows,
+            &mut total_row_bytes,
+            limits,
+            encode_row(
+                review,
+                limits,
+                PackageReviewCanonicalRowKind::Callable,
+                PackageReviewCanonicalRowRisk::Blocking,
+                |encoder| encode_nominal(encoder, &callable.identity),
+                |encoder| encode_callable(encoder, callable),
+            )?,
+        )?;
     }
     for authority in &review.dangerous_authorities {
-        rows.push(encode_row(
-            review,
-            PackageReviewCanonicalRowKind::DangerousAuthority,
-            PackageReviewCanonicalRowRisk::Blocking,
-            |encoder| encode_nominal(encoder, &authority.service),
-            |encoder| encode_dangerous_authority(encoder, authority),
-        )?);
+        push_row(
+            &mut rows,
+            &mut total_row_bytes,
+            limits,
+            encode_row(
+                review,
+                limits,
+                PackageReviewCanonicalRowKind::DangerousAuthority,
+                PackageReviewCanonicalRowRisk::Blocking,
+                |encoder| encode_nominal(encoder, &authority.service),
+                |encoder| encode_dangerous_authority(encoder, authority),
+            )?,
+        )?;
     }
-    rows.push(encode_row(
-        review,
-        PackageReviewCanonicalRowKind::SelectedProviderSet,
-        PackageReviewCanonicalRowRisk::OpaqueBlocking,
-        |_| Ok(()),
-        |encoder| encoder.sequence(&review.selected_providers, encode_provider),
-    )?);
+    push_row(
+        &mut rows,
+        &mut total_row_bytes,
+        limits,
+        encode_row(
+            review,
+            limits,
+            PackageReviewCanonicalRowKind::SelectedProviderSet,
+            PackageReviewCanonicalRowRisk::OpaqueBlocking,
+            |_| Ok(()),
+            |encoder| encoder.sequence(&review.selected_providers, encode_provider),
+        )?,
+    )?;
     rows.sort_by(|left, right| {
         left.kind
             .cmp(&right.kind)
@@ -139,21 +257,45 @@ pub(super) fn encode_rows(
     Ok(rows)
 }
 
+fn push_row(
+    rows: &mut Vec<PackageReviewCanonicalRow>,
+    total_row_bytes: &mut usize,
+    limits: PackageReviewEncodingLimits,
+    row: PackageReviewCanonicalRow,
+) -> Result<(), PackageReviewEncodingError> {
+    *total_row_bytes = total_row_bytes
+        .checked_add(row.key_bytes.len())
+        .and_then(|total| total.checked_add(row.canonical_bytes.len()))
+        .ok_or_else(|| {
+            PackageReviewEncodingError::new(
+                "package review exceeds the total canonical-row byte ceiling",
+            )
+        })?;
+    if *total_row_bytes > limits.maximum_total_row_bytes {
+        return Err(PackageReviewEncodingError::new(
+            "package review exceeds the total canonical-row byte ceiling",
+        ));
+    }
+    rows.push(row);
+    Ok(())
+}
+
 fn encode_row(
     review: &CheckedPackageReviewProjection,
+    limits: PackageReviewEncodingLimits,
     kind: PackageReviewCanonicalRowKind,
     risk: PackageReviewCanonicalRowRisk,
     encode_key: impl FnOnce(&mut Encoder) -> Result<(), PackageReviewEncodingError>,
     encode_value: impl FnOnce(&mut Encoder) -> Result<(), PackageReviewEncodingError>,
 ) -> Result<PackageReviewCanonicalRow, PackageReviewEncodingError> {
-    let mut key = Encoder::default();
+    let mut key = Encoder::bounded(limits.maximum_row_key_bytes);
     encode_key(&mut key)?;
-    let key_bytes = key.output;
-    let mut value = Encoder::default();
+    let key_bytes = key.finish()?;
+    let mut value = Encoder::bounded(limits.maximum_row_bytes);
     encode_value(&mut value)?;
-    let value_bytes = value.output;
-    let mut canonical = Encoder::default();
-    canonical.output.extend_from_slice(ROW_MAGIC);
+    let value_bytes = value.finish()?;
+    let mut canonical = Encoder::bounded(limits.maximum_row_bytes);
+    canonical.fixed_bytes(ROW_MAGIC);
     canonical.u16(PACKAGE_REVIEW_ROW_ENCODING_VERSION);
     canonical.u16(PACKAGE_REVIEW_ENCODING_VERSION);
     canonical.package_identity(review.package);
@@ -166,7 +308,7 @@ fn encode_row(
         kind,
         risk,
         key_bytes,
-        canonical_bytes: canonical.output,
+        canonical_bytes: canonical.finish()?,
     })
 }
 
@@ -503,14 +645,52 @@ fn encode_optional_u64(encoder: &mut Encoder, value: Option<u64>) {
     }
 }
 
-#[derive(Default)]
 struct Encoder {
     output: Vec<u8>,
+    maximum_bytes: usize,
+    exceeded: bool,
 }
 
 impl Encoder {
+    fn bounded(maximum_bytes: usize) -> Self {
+        Self {
+            output: Vec::new(),
+            maximum_bytes,
+            exceeded: false,
+        }
+    }
+
+    fn finish(self) -> Result<Vec<u8>, PackageReviewEncodingError> {
+        if self.exceeded {
+            Err(PackageReviewEncodingError::new(
+                "package review exceeds its canonical encoding byte ceiling",
+            ))
+        } else {
+            Ok(self.output)
+        }
+    }
+
+    fn append(&mut self, bytes: &[u8]) {
+        if self.exceeded {
+            return;
+        }
+        let Some(required) = self.output.len().checked_add(bytes.len()) else {
+            self.exceeded = true;
+            return;
+        };
+        if required > self.maximum_bytes || self.output.try_reserve(bytes.len()).is_err() {
+            self.exceeded = true;
+            return;
+        }
+        self.output.extend_from_slice(bytes);
+    }
+
+    fn fixed_bytes(&mut self, value: &[u8]) {
+        self.append(value);
+    }
+
     fn byte(&mut self, value: u8) {
-        self.output.push(value);
+        self.append(&[value]);
     }
 
     fn boolean(&mut self, value: bool) {
@@ -518,19 +698,19 @@ impl Encoder {
     }
 
     fn u16(&mut self, value: u16) {
-        self.output.extend_from_slice(&value.to_le_bytes());
+        self.append(&value.to_le_bytes());
     }
 
     fn u32(&mut self, value: u32) {
-        self.output.extend_from_slice(&value.to_le_bytes());
+        self.append(&value.to_le_bytes());
     }
 
     fn u64(&mut self, value: u64) {
-        self.output.extend_from_slice(&value.to_le_bytes());
+        self.append(&value.to_le_bytes());
     }
 
     fn i64(&mut self, value: i64) {
-        self.output.extend_from_slice(&value.to_le_bytes());
+        self.append(&value.to_le_bytes());
     }
 
     fn usize(&mut self, value: usize) -> Result<(), PackageReviewEncodingError> {
@@ -544,8 +724,8 @@ impl Encoder {
 
     fn bytes(&mut self, value: &[u8]) -> Result<(), PackageReviewEncodingError> {
         self.usize(value.len())?;
-        self.output.extend_from_slice(value);
-        Ok(())
+        self.append(value);
+        self.check()
     }
 
     fn string(&mut self, value: &str) -> Result<(), PackageReviewEncodingError> {
@@ -580,7 +760,7 @@ impl Encoder {
     }
 
     fn package_identity(&mut self, identity: PackageKeyIdentity) {
-        self.output.extend_from_slice(&identity.digest());
+        self.append(&identity.digest());
     }
 
     fn optional_package_identity(&mut self, identity: Option<PackageKeyIdentity>) {
@@ -590,6 +770,16 @@ impl Encoder {
                 self.byte(1);
                 self.package_identity(identity);
             }
+        }
+    }
+
+    fn check(&self) -> Result<(), PackageReviewEncodingError> {
+        if self.exceeded {
+            Err(PackageReviewEncodingError::new(
+                "package review exceeds its canonical encoding byte ceiling",
+            ))
+        } else {
+            Ok(())
         }
     }
 }
@@ -901,7 +1091,7 @@ fn encode_nominal(
         }
         PackageReviewNominalOwner::ToolchainSource(source) => {
             encoder.byte(1);
-            encoder.output.extend_from_slice(&source.digest());
+            encoder.fixed_bytes(&source.digest());
         }
         PackageReviewNominalOwner::ToolchainUnbound => encoder.byte(2),
         PackageReviewNominalOwner::Unresolved => encoder.byte(3),
@@ -1506,4 +1696,59 @@ fn encode_provider_row(
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn empty_review() -> CheckedPackageReviewProjection {
+        CheckedPackageReviewProjection {
+            package: PackageKeyIdentity::from_digest([1; 32]).expect("nonzero package identity"),
+            target: omega_target::TargetProfile::WindowsX64,
+            public_traits: Vec::new(),
+            public_domains: Vec::new(),
+            public_data: Vec::new(),
+            representation_tcb: Vec::new(),
+            callables: Vec::new(),
+            dangerous_authorities: Vec::new(),
+            selected_providers: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn bounded_encoders_reject_instead_of_returning_partial_evidence() {
+        let review = empty_review();
+        assert!(encode(&review).is_ok());
+        assert!(encode_rows(&review).is_ok());
+
+        assert!(
+            encode_with_limits(
+                &review,
+                PackageReviewEncodingLimits::new(1, 2, 64, 256, 512)
+            )
+            .is_err()
+        );
+        assert!(
+            encode_rows_with_limits(
+                &review,
+                PackageReviewEncodingLimits::new(256, 1, 64, 256, 512),
+            )
+            .is_err()
+        );
+        assert!(
+            encode_rows_with_limits(
+                &review,
+                PackageReviewEncodingLimits::new(256, 2, 64, 1, 512),
+            )
+            .is_err()
+        );
+        assert!(
+            encode_rows_with_limits(
+                &review,
+                PackageReviewEncodingLimits::new(256, 2, 64, 256, 1),
+            )
+            .is_err()
+        );
+    }
 }

@@ -363,7 +363,7 @@ directories.
 The legacy machine-contract fingerprint no longer enters package-review bytes,
 so private state shape is not public contract identity. Complete proof and
 unsupported-clause rows still gate sealed admission. The compiler now provides
-a version-26 length-framed binary comparison encoding over this review
+a version-30 length-framed binary comparison encoding over this review
 projection; it is explicitly not a package certificate or accepted-lock
 payload. Raw Rust/debug serialization is not an alternative. These pieces do
 not become an admission path until the legacy name-keyed lock APIs are replaced
@@ -396,6 +396,18 @@ stabilize a private checker interface. The initial callable row is one complete
 envelope, and the selected-provider set remains opaque and blocking until exact
 provider identity is sealed; finer explanation can be added without changing
 that ownership boundary.
+
+Compiler issuance now retains a separately bounded canonical row sequence.
+Review-only update comparison joins candidate rows to exact resolver custody,
+matches rows linearly by compiler-owned `(kind, key)` coordinates, and retains
+complete old/new bytes without decoding them. Conflict fingerprints bind both
+source revisions, compiler/source-consumption evidence, the displayed shortest
+dependency path, and a canonical commitment to the entire candidate closure.
+The ordinary model-facing view remains compact and fixed-vocabulary: it shows
+row coordinates, lengths, and commitments while the separately framed source
+patch provides readable code. Representation-TCB-only changes recommend audit;
+blocking and opaque-blocking changes still reject. Exact compiler-issued source
+locations and durable root-policy resolutions remain unfinished.
 
 The former commands accepting `manifest.json`, `receipt.json`, `--package`, or
 mandatory `--alias` are quarantined from the production CLI. Their manifest,
@@ -453,9 +465,10 @@ omega-packages/
 |   |-- source_patch.rs    # Bounded hostile-data source review packet.
 |   |-- source_review.rs   # Custody/evidence join and aggregate review input.
 |   |-- source_triage.rs   # Compiler-row source/provenance triage.
+|   |-- capability_conflict.rs # Bounded review-only exact row conflicts.
 |   |-- evidence.rs        # Compiler-issued package admission evidence.
 |   |-- lock.rs            # Accepted closure and evidence baseline.
-|   |-- conflict.rs        # Row-specific admission conflicts/resolutions.
+|   |-- conflict.rs        # Future durable root-policy resolutions.
 |   |-- audit.rs           # Source/provenance/capability audit rendering.
 |   |-- install.rs         # Fetch, derive, admit, then edit/write.
 |   |-- update.rs          # Candidate reconciliation and admission.

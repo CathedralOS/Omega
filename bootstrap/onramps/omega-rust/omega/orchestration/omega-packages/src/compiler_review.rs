@@ -7,8 +7,9 @@ use crate::{
 use omega_compiler::{
     BuildObservationSummary, CheckedPackageReviewProjection, CompilerExecutableCommitment,
     CompilerExecutableCommitmentError, FilesystemSponsor, FilesystemSponsorError,
-    PackageCompilationInputError, PackageReviewEncodingError, PackageSourceConsumptionCommitment,
-    compile_to_checked_with_packages_in_sponsored_build_dir, project_checked_package_review,
+    PackageCompilationInputError, PackageReviewCanonicalRow, PackageReviewEncodingError,
+    PackageSourceConsumptionCommitment, compile_to_checked_with_packages_in_sponsored_build_dir,
+    project_checked_package_review,
 };
 use psi_diagnostics::Diagnostic;
 use std::collections::BTreeSet;
@@ -34,6 +35,7 @@ pub struct CompilerIssuedPackageReview {
     build_observation_summary: Option<BuildObservationSummary>,
     projection: CheckedPackageReviewProjection,
     canonical_review_bytes: Vec<u8>,
+    canonical_rows: Vec<PackageReviewCanonicalRow>,
 }
 
 impl CompilerIssuedPackageReview {
@@ -65,6 +67,10 @@ impl CompilerIssuedPackageReview {
 
     pub fn canonical_review_bytes(&self) -> &[u8] {
         &self.canonical_review_bytes
+    }
+
+    pub fn canonical_rows(&self) -> &[PackageReviewCanonicalRow] {
+        &self.canonical_rows
     }
 }
 
@@ -352,6 +358,12 @@ fn compile_resolved_package_reviews_in_session(
                 error,
             }
         })?;
+        let canonical_rows = projection.canonical_rows().map_err(|error| {
+            CompileResolvedPackageReviewsError::Encoding {
+                package: key.clone(),
+                error,
+            }
+        })?;
         reviews.push(CompilerIssuedPackageReview {
             key,
             resolution: custody.resolution().clone(),
@@ -360,6 +372,7 @@ fn compile_resolved_package_reviews_in_session(
             build_observation_summary,
             projection,
             canonical_review_bytes,
+            canonical_rows,
         });
     }
     let compiler_executable_commitment_after = CompilerExecutableCommitment::derive_current()
