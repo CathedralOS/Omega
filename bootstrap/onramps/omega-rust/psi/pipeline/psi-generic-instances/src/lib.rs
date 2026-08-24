@@ -46,6 +46,7 @@ use const_evaluation::*;
 
 struct GenericData {
     name: String,
+    is_public: bool,
     lifetime_parameters: Vec<Identifier>,
     parameter_names: Vec<String>,
     const_parameter_types: Vec<Option<TypeReferenceHandle>>,
@@ -229,6 +230,7 @@ fn desugar_generic_data_instances(syntax: &mut SyntaxTrees) -> Result<(), Vec<Di
             definition.name.as_str().to_string(),
             GenericData {
                 name: definition.name.as_str().to_owned(),
+                is_public: definition.is_public,
                 lifetime_parameters: definition.lifetime_parameters.clone(),
                 parameter_names,
                 const_parameter_types,
@@ -455,6 +457,7 @@ fn desugar_generic_data_instances(syntax: &mut SyntaxTrees) -> Result<(), Vec<Di
             }
             syntax.push_root_item(Item::Data(DataDefinition {
                 name: Identifier::generated(instance.synthetic_name.as_str()),
+                is_public: base_info.is_public,
                 supply_mode: base_info.supply_mode,
                 lifetime_parameters: base_info.lifetime_parameters.clone(),
                 type_parameters: HandleSpan::default(),

@@ -15,6 +15,7 @@ fn snapshots_materialize_handle_backed_syntax_shape() {
         .insert(TypeReferenceNode::Named(Identifier::generated("i32")));
     let data = Item::Data(DataDefinition {
         name: Identifier::generated("Example"),
+        is_public: true,
         supply_mode: psi_language_core::DataSupplyMode::CheckedShape,
         lifetime_parameters: Vec::new(),
         type_parameters: psi_arena::HandleSpan::empty(),
@@ -49,6 +50,7 @@ fn snapshots_materialize_handle_backed_syntax_shape() {
                     end: 0,
                     source_backed: false,
                 },
+                is_public: true,
                 supply: "checked_shape",
                 lifetime_parameters: Vec::new(),
                 type_parameters: Vec::new(),
@@ -109,6 +111,7 @@ fn variant_snapshot_retains_payload_only_erased_field() {
         }));
     syntax_trees.push_root_item(Item::Data(DataDefinition {
         name: Identifier::generated("Envelope"),
+        is_public: false,
         supply_mode: psi_language_core::DataSupplyMode::CheckedShape,
         lifetime_parameters: Vec::new(),
         type_parameters: psi_arena::HandleSpan::empty(),

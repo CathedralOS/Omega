@@ -279,6 +279,7 @@ fn operator_snapshot(
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct DataDefinitionSnapshot {
     pub name: String,
+    pub is_public: bool,
     pub supply: String,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub lifetime_parameters: Vec<String>,
@@ -791,6 +792,7 @@ fn data_definition_snapshot(
 ) -> DataDefinitionSnapshot {
     DataDefinitionSnapshot {
         name: data.name.to_string(),
+        is_public: data.is_public,
         supply: match data.supply_mode {
             psi_language_semantics::DataSupplyMode::CheckedShape => "checked_shape",
             psi_language_semantics::DataSupplyMode::BoundaryOpaque => "boundary_opaque",

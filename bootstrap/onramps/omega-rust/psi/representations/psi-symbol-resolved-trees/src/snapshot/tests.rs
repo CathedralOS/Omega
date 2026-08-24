@@ -174,6 +174,7 @@ fn variant_snapshot_retains_payload_only_erased_field() {
     program.data_definitions.push(DataDefinition {
         symbol: SymbolHandle::invalid(),
         name: DiagnosticName::generated("Envelope"),
+        is_public: true,
         storage: DataDefinitionStorage {
             members: HandleSpan::from_parts(member, 1),
             ..Default::default()
@@ -181,6 +182,7 @@ fn variant_snapshot_retains_payload_only_erased_field() {
     });
 
     let snapshot = SymbolResolvedTreesSnapshot::from_symbol_resolved_trees(&program);
+    assert!(snapshot.roots.data_definitions[0].is_public);
     let DataMemberSnapshot::Variant { payload, .. } =
         &snapshot.roots.data_definitions[0].members[0]
     else {

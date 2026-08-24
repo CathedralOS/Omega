@@ -90,6 +90,7 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
         return Ok((
             ParsedDataDefinition::Plain(DataDefinition {
                 name,
+                is_public: false,
                 supply_mode: psi_language_core::DataSupplyMode::CheckedShape,
                 lifetime_parameters,
                 type_parameters,
@@ -164,6 +165,7 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
     Ok((
         ParsedDataDefinition::Plain(DataDefinition {
             name,
+            is_public: false,
             supply_mode: psi_language_core::DataSupplyMode::CheckedShape,
             lifetime_parameters,
             type_parameters,
@@ -239,6 +241,7 @@ pub(super) fn parse_boundary_data_definition<'tokens, 'source>(
     Ok((
         DataDefinition {
             name,
+            is_public: false,
             supply_mode: psi_language_core::DataSupplyMode::BoundaryOpaque,
             lifetime_parameters,
             type_parameters,

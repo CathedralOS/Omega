@@ -85,6 +85,7 @@ pub enum ItemSnapshot {
     },
     Data {
         name: IdentifierSnapshot,
+        is_public: bool,
         supply: &'static str,
         #[serde(skip_serializing_if = "Vec::is_empty")]
         lifetime_parameters: Vec<IdentifierSnapshot>,
@@ -815,6 +816,7 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
         },
         Item::Data(value) => ItemSnapshot::Data {
             name: snapshot_identifier(&value.name),
+            is_public: value.is_public,
             supply: match value.supply_mode {
                 psi_language_core::DataSupplyMode::CheckedShape => "checked_shape",
                 psi_language_core::DataSupplyMode::BoundaryOpaque => "boundary_opaque",

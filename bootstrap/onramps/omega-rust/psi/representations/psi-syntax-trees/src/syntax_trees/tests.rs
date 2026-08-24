@@ -3,13 +3,37 @@ use crate::expression::{
     ExpressionHandle, ExpressionNode, TableCallExpression, TableMemberExpression,
 };
 use crate::identifier::Identifier;
-use crate::item::{Item, Machine, State};
+use crate::item::{DataDefinition, Item, Machine, State};
 use crate::statement::{
     StatementNode, TableAssignment, TableCall, TableTransition, TransitionGuardNode,
     TransitionTargetNode,
 };
 use crate::types::{TypeReferenceHandle, TypeReferenceNode};
 use psi_arena::HandleSpan;
+
+#[test]
+fn syntax_trees_extend_from_preserves_data_visibility() {
+    let mut file = SyntaxTrees::new(Default::default());
+    file.push_root_item(Item::Data(DataDefinition {
+        name: Identifier::generated("PublicRecord"),
+        is_public: true,
+        supply_mode: psi_language_core::DataSupplyMode::CheckedShape,
+        lifetime_parameters: Vec::new(),
+        type_parameters: HandleSpan::empty(),
+        properties: Default::default(),
+        quotient: None,
+        where_facts: HandleSpan::empty(),
+        members: HandleSpan::empty(),
+    }));
+
+    let mut assembled = SyntaxTrees::new(Default::default());
+    assembled.extend_from(&file);
+
+    let Item::Data(data) = assembled.root_items().next().expect("data root") else {
+        panic!("expected data root item");
+    };
+    assert!(data.is_public);
+}
 
 #[test]
 fn syntax_trees_collect_state_expression_and_type_payloads() {

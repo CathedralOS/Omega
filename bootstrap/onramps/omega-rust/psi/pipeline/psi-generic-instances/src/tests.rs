@@ -302,6 +302,27 @@ fn closed_generic_erased_record_still_rejects_generic_evidence_omission() {
 }
 
 #[test]
+fn closed_generic_data_instance_preserves_public_visibility() {
+    let source = r#"
+        pub data Box<T> { value: T; }
+        machine run(value: Box<i32>) {}
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let mut syntax = parse_syntax_trees(&tokens).expect("parse");
+
+    desugar_generic_data_instances(&mut syntax).expect("monomorphize");
+
+    let instance = syntax
+        .root_items()
+        .find_map(|item| match item {
+            Item::Data(definition) if definition.name.as_str() == "Box<i32>" => Some(definition),
+            _ => None,
+        })
+        .expect("closed Box definition");
+    assert!(instance.is_public);
+}
+
+#[test]
 fn closed_generic_sum_preserves_payload_relevance_and_identities() {
     let source = r#"
         data Evidence { case Only; }

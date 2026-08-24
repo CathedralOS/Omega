@@ -67,6 +67,7 @@ pub(crate) fn data_definition_from_wire_schema(
     DataDefinition {
         symbol: SymbolHandle::invalid(),
         name: schema.name.clone(),
+        is_public: false,
         storage: DataDefinitionStorage {
             supply_mode: psi_language_semantics::DataSupplyMode::CheckedShape,
             lifetime_parameters: Vec::new(),

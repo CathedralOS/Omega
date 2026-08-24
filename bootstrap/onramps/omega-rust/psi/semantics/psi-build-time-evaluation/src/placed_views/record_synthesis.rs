@@ -93,6 +93,7 @@ pub(super) fn synthesize_exact_records(
             let accessor_name = accessor_name(syntax, application, field, entry.access())?;
             syntax.push_root_item(Item::Data(DataDefinition {
                 name: Identifier::generated(accessor_name.clone()),
+                is_public: false,
                 supply_mode: DataSupplyMode::BoundaryOpaque,
                 lifetime_parameters: Vec::new(),
                 type_parameters: HandleSpan::empty(),
@@ -284,6 +285,7 @@ fn push_record(syntax: &mut SyntaxTrees, name: &str, members: Vec<DataMember>) {
     }
     syntax.push_root_item(Item::Data(DataDefinition {
         name: Identifier::generated(name),
+        is_public: false,
         supply_mode: DataSupplyMode::CheckedShape,
         lifetime_parameters: Vec::new(),
         type_parameters: HandleSpan::empty(),

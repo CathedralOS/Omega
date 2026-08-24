@@ -7,6 +7,7 @@ use psi_symbols::SymbolHandle;
 pub struct DataDefinition {
     pub symbol: SymbolHandle,
     pub name: Identifier,
+    pub is_public: bool,
     pub supply_mode: psi_language_semantics::DataSupplyMode,
     pub lifetime_parameters: Vec<Identifier>,
     pub type_parameters: HandleSpan<TypeParameter>,
@@ -30,6 +31,7 @@ impl Default for DataDefinition {
         Self {
             symbol: SymbolHandle::invalid(),
             name: Identifier::default(),
+            is_public: false,
             supply_mode: psi_language_semantics::DataSupplyMode::CheckedShape,
             lifetime_parameters: Vec::new(),
             type_parameters: HandleSpan::empty(),

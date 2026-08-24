@@ -320,6 +320,7 @@ fn expression_places_resolve_attached_data_members() {
     program.push_data_definition(psi_typed_trees::data::DataDefinition {
         symbol: player_type_symbol,
         name: Identifier::generated("Player"),
+        is_public: false,
         supply_mode: Default::default(),
         lifetime_parameters: Vec::new(),
         type_parameters: HandleSpan::empty(),
@@ -333,6 +334,7 @@ fn expression_places_resolve_attached_data_members() {
     let mut main_data = psi_typed_trees::data::DataDefinition {
         symbol: main_data_symbol,
         name: Identifier::generated("Main"),
+        is_public: false,
         supply_mode: Default::default(),
         lifetime_parameters: Vec::new(),
         type_parameters: HandleSpan::empty(),

@@ -85,10 +85,15 @@ snapshot and canonical source lineage, and canonical literal dependency rows
 are projected without executing build code. Workspace-member resolution binds
 the workspace root lineage to a normalized member-relative path, verifies the
 live member is the matching strict canonical descendant, and snapshots only
-that member. It does not recursively traverse workspace dependencies.
-Toolchain/compiler evidence is intentionally absent. A separate
-`ResolvedPackageClosure` validates exact typed source topology but has no
-persistence or admission API. `PackageKey` also
+that member. A transport-neutral recursive resolver accepts only erased custody
+derived from these resolved sources, delegates each request to an adapter, and
+returns the complete validated `ResolvedPackageClosure` together with every
+exact immutable custody root. It derives ordinary aliases from fetched package
+declarations, preserves explicit aliases, reuses identical custody, and reports
+all requesting paths when one package key resolves inconsistently. Package,
+dependency-request, and depth ceilings bound hostile closure traversal.
+Toolchain/compiler evidence is intentionally absent, and this closure has no
+persistence, lock, build-execution, or admission API. `PackageKey` also
 derives the opaque stable identity carrier used by package-aware compiler
 inputs. The compiler's separate native and checked package entrypoints consume
 a closed requester-local alias graph and canonical source roots without
@@ -122,8 +127,10 @@ survives checked compilation; public omission enforces empty reach, invocation,
 suspension, blocking, and crash ceilings. The review includes public and
 boundary callables plus the selected build machine, excludes private machines,
 and projects invocation targets as exact parameter ordinals or package-qualified
-service identities. The compiler now provides a version-2 length-framed binary
-comparison encoding over this review projection; it is
+service identities. Public-data visibility also survives frontend lowering,
+snapshots, copies, and generic specialization, although normalized public data
+shape is not yet part of the review projection. The compiler now provides a
+version-2 length-framed binary comparison encoding over this review projection; it is
 explicitly not a package certificate or accepted-lock payload. Raw Rust/debug
 serialization is not an alternative. These pieces do not become an
 admission path until the legacy name-keyed lock APIs are replaced and sealed,

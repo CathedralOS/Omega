@@ -35,12 +35,14 @@ pub(super) fn parse_item<'tokens, 'source>(
     if input.at_keyword(KeywordKind::Pub) {
         let input = input.take_keyword(KeywordKind::Pub, "pub")?;
         // General semantic export rules still live in explicit `export` items
-        // until module scoping grows up. Domains retain this bit because a
-        // public transparent alias may not publish a private constituent;
-        // machines retain it because public checked bodies publish strict
-        // authority and operational ceilings.
+        // until module scoping grows up. Data retains this bit because public
+        // structural declarations publish their source shape. Domains retain
+        // it because a public transparent alias may not publish a private
+        // constituent; machines retain it because public checked bodies
+        // publish strict authority and operational ceilings.
         let (mut item, rest) = parse_item(syntax_trees, input)?;
         match &mut item {
+            Item::Data(data) => data.is_public = true,
             Item::Domain(domain) => domain.is_public = true,
             Item::Machine(machine) => machine.is_public = true,
             _ => {}

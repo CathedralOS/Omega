@@ -8,6 +8,7 @@ use std::ops::{Deref, DerefMut};
 pub struct DataDefinition {
     pub symbol: SymbolHandle,
     pub name: DiagnosticName,
+    pub is_public: bool,
     pub storage: DataDefinitionStorage,
 }
 

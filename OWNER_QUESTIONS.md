@@ -131,3 +131,31 @@ native slot declaration and exact callback-requirement path. The compiler
 resolves those names into opaque identities during layout evaluation. Do not
 put raw IDs or field offsets in source, infer the demand from the callback row,
 or expose a callback-address-shaped semantic field.
+
+## Q5 — Does `export` re-export dependencies, or should it be retired?
+
+The parser accepts `export path [as alias];`, but symbol resolution deliberately
+drops the item. The language guide instead makes `pub` on package-owned
+declarations the visibility boundary and requires imports to stay within the
+requester's declared dependency graph. No settled text says whether `export`
+is a same-package module surface or permits one package to expose another
+package's declaration under a new path.
+
+Choose whether the explicit item has a smaller coherent purpose or is removed.
+If retained, its semantics must specify:
+
+- whether the target must be owned by the exporting package;
+- whether an alias changes presentation only while exact nominal ownership
+  remains the target declaration's `PackageKey`;
+- whether consumers must directly declare the target package or may reach it
+  through the exporter;
+- how public API, capability reach, compatibility, and lock closure record the
+  edge; and
+- exact missing, private, ambiguous, cyclic, and duplicate-export rejection.
+
+Recommended direction: retire explicit `export` in package v1 and use `pub` for
+package-owned declarations. Require an ordinary public wrapper when a package
+intentionally presents dependency behavior. A smaller valid alternative is a
+same-package, module-only export whose target retains exact package-owned
+identity. Do not allow a dependency declaration to be relabeled as exporter-
+owned or let an alias hide the package/reach edge.
