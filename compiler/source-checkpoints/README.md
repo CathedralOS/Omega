@@ -11,10 +11,12 @@ Checkpoint artifacts remain separate:
   sources, generator provenance, resolver-derived dependency edges, and
   content/closure digests;
 - `profile-NNNNNN.md` records the compositional Omega facilities actually used
-  by that closure and the current retain/refactor disposition; and
+  by that closure and the current retain/refactor disposition. The compiler's
+  `omega-source-snapshot --feature-census` mode supplies the exhaustive
+  feature/resource observations; and
 - product and bootstrap task files record what functionality remains.
 
-The manifest is closure evidence, never an allowlist for `omega-bootstrap`.
+The manifest and census are evidence, never an allowlist for `omega-bootstrap`.
 The bridge must implement the published profile generally and reject excluded
 Omega before publication.
 

@@ -3,9 +3,9 @@ use crate::expression::{
 };
 use crate::identifier::Identifier;
 use crate::item::{
-    BoundaryLevel, CapabilityContract, CapabilityContractKind, CapabilityMember, DataMember, Item,
-    LibraryFunction, ProofFact, PropositionBody, StateParameterNode, StateSignature,
-    WireDataMember,
+    BoundaryLevel, CapabilityContract, CapabilityContractKind, CapabilityMember, DataMember,
+    ExternalBinding, GenericConformanceBound, Item, LibraryFunction, ProofFact, PropositionBody,
+    SatisfiesClause, StateParameterNode, StateSignature, WireDataMember,
 };
 use crate::statement::{
     AssemblyFactKind, StatementNode, TransitionGuardNode, TransitionTargetNode,
@@ -93,6 +93,8 @@ pub enum ItemSnapshot {
         properties: DataPropertiesSnapshot,
         #[serde(skip_serializing_if = "Option::is_none")]
         quotient: Option<QuotientSnapshot>,
+        #[serde(skip_serializing_if = "Vec::is_empty")]
+        where_facts: Vec<ProofFactSnapshot>,
         members: Vec<DataMemberSnapshot>,
     },
     Domain {
@@ -156,12 +158,20 @@ pub enum ItemSnapshot {
         name: IdentifierSnapshot,
         attached_data: Option<IdentifierSnapshot>,
         is_public: bool,
+        bodyless: bool,
+        target: Option<IdentifierSnapshot>,
+        boundary: bool,
         #[serde(skip_serializing_if = "Vec::is_empty")]
         lifetime_parameters: Vec<IdentifierSnapshot>,
         type_parameters: Vec<TypeParameterSnapshot>,
+        satisfies: Vec<SatisfiesClauseSnapshot>,
+        conformance_bounds: Vec<GenericConformanceBoundSnapshot>,
         terminates_guarantee: bool,
         ranking_subjects: Vec<ExpressionSnapshot>,
         ranking_view: Vec<IdentifierSnapshot>,
+        ranking_view_arguments: Vec<ExpressionSnapshot>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        ranking_range: Option<Box<ExpressionSnapshot>>,
         #[serde(skip_serializing_if = "is_false")]
         service_reach_is_installation_bound: bool,
         service_reaches: Vec<IdentifierSnapshot>,
@@ -182,6 +192,7 @@ pub enum ItemSnapshot {
         #[serde(skip_serializing_if = "Vec::is_empty")]
         lifetime_parameters: Vec<IdentifierSnapshot>,
         type_parameters: Vec<TypeParameterSnapshot>,
+        conformance_bounds: Vec<GenericConformanceBoundSnapshot>,
         parents: Vec<TypeReferenceSnapshot>,
         invariants: Vec<ProofFactSnapshot>,
         requires: Vec<IdentifierSnapshot>,
@@ -198,6 +209,40 @@ pub enum ItemSnapshot {
         encoding: Option<IdentifierSnapshot>,
         members: Vec<WireDataMemberSnapshot>,
     },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct SatisfiesClauseSnapshot {
+    pub trait_name: IdentifierSnapshot,
+    pub arguments: Vec<TypeReferenceSnapshot>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub requirement: Option<IdentifierSnapshot>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub alias: Option<IdentifierSnapshot>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub via: Option<ExternalBindingSnapshot>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct GenericConformanceBoundSnapshot {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub binder: Option<IdentifierSnapshot>,
+    pub subject: IdentifierSnapshot,
+    pub carrier: IdentifierSnapshot,
+    pub arguments: Vec<TypeReferenceSnapshot>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub conformance: Option<IdentifierSnapshot>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum ExternalBindingSnapshot {
+    Syscall { number: i64 },
+    DllImport { module: String, symbol: String },
+    CompilerIntrinsic,
+    VtableSlot { index: i64 },
+    VtableField { field: IdentifierSnapshot },
+    TableFunction { field: IdentifierSnapshot },
 }
 
 fn is_false(value: &bool) -> bool {
@@ -351,6 +396,8 @@ pub enum CapabilityMemberSnapshot {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct CapabilityContractSnapshot {
     pub kind: CapabilityContractKindSnapshot,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub binding: Option<IdentifierSnapshot>,
     pub facts: Vec<ProofFactSnapshot>,
     pub token_count: usize,
 }
@@ -459,12 +506,14 @@ pub struct StateSignatureSnapshot {
     pub is_default: bool,
     pub parameters: Vec<StateParameterSnapshot>,
     pub return_type: TypeReferenceSnapshot,
+    pub service_reach_is_installation_bound: bool,
     pub service_reaches: Vec<IdentifierSnapshot>,
     pub invokes: Vec<IdentifierSnapshot>,
     pub suspends: bool,
     pub blocks: bool,
     pub contracts: Vec<CapabilityContractSnapshot>,
     pub default_body: Vec<StatementSnapshot>,
+    pub terminates_guarantee: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -860,6 +909,7 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
                     }
                 }),
             }),
+            where_facts: snapshot_proof_facts(syntax_trees, value.where_facts),
             members: syntax_trees
                 .items
                 .data_members(value.members)
@@ -1006,6 +1056,9 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
             name: snapshot_identifier(&value.name),
             attached_data: value.attached_data.as_ref().map(snapshot_identifier),
             is_public: value.is_public,
+            bodyless: value.bodyless,
+            target: value.target.as_ref().map(snapshot_identifier),
+            boundary: value.boundary,
             lifetime_parameters: value
                 .lifetime_parameters
                 .iter()
@@ -1016,6 +1069,17 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
                 .type_parameters(value.type_parameters)
                 .iter()
                 .map(|parameter| snapshot_type_parameter(syntax_trees, parameter))
+                .collect(),
+            satisfies: syntax_trees
+                .items
+                .satisfies_clauses(value.satisfies)
+                .iter()
+                .map(|clause| snapshot_satisfies_clause(syntax_trees, clause))
+                .collect(),
+            conformance_bounds: value
+                .conformance_bounds
+                .iter()
+                .map(|bound| snapshot_generic_conformance_bound(syntax_trees, bound))
                 .collect(),
             terminates_guarantee: value.terminates_guarantee,
             ranking_subjects: syntax_trees
@@ -1029,6 +1093,18 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
                     .items
                     .identifier_path_members(value.ranking_view),
             ),
+            ranking_view_arguments: syntax_trees
+                .expressions
+                .expression_handles(value.ranking_view_arguments)
+                .iter()
+                .map(|handle| snapshot_expression_handle(syntax_trees, *handle))
+                .collect(),
+            ranking_range: value.ranking_range.is_valid().then(|| {
+                Box::new(snapshot_expression_handle(
+                    syntax_trees,
+                    value.ranking_range,
+                ))
+            }),
             service_reach_is_installation_bound: value.service_reach_is_installation_bound,
             service_reaches: snapshot_identifier_slice(
                 syntax_trees
@@ -1062,6 +1138,11 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
                 .type_parameters(value.type_parameters)
                 .iter()
                 .map(|parameter| snapshot_type_parameter(syntax_trees, parameter))
+                .collect(),
+            conformance_bounds: value
+                .conformance_bounds
+                .iter()
+                .map(|bound| snapshot_generic_conformance_bound(syntax_trees, bound))
                 .collect(),
             parents: syntax_trees
                 .type_references
@@ -1344,6 +1425,7 @@ fn snapshot_capability_contract(
                 },
             },
         },
+        binding: contract.binding.as_ref().map(snapshot_identifier),
         facts: snapshot_proof_facts(syntax_trees, contract.facts),
         token_count: contract.token_count,
     }
@@ -1446,6 +1528,62 @@ fn snapshot_boundary_level(level: &BoundaryLevel) -> BoundaryLevelSnapshot {
     }
 }
 
+fn snapshot_satisfies_clause(
+    syntax_trees: &SyntaxTrees,
+    clause: &SatisfiesClause,
+) -> SatisfiesClauseSnapshot {
+    SatisfiesClauseSnapshot {
+        trait_name: snapshot_identifier(&clause.trait_name),
+        arguments: syntax_trees
+            .type_references
+            .type_reference_handles(clause.arguments)
+            .iter()
+            .map(|handle| snapshot_type_reference_handle(syntax_trees, *handle))
+            .collect(),
+        requirement: clause.requirement.as_ref().map(snapshot_identifier),
+        alias: clause.alias.as_ref().map(snapshot_identifier),
+        via: clause.via.as_ref().map(snapshot_external_binding),
+    }
+}
+
+fn snapshot_generic_conformance_bound(
+    syntax_trees: &SyntaxTrees,
+    bound: &GenericConformanceBound,
+) -> GenericConformanceBoundSnapshot {
+    GenericConformanceBoundSnapshot {
+        binder: bound.binder.as_ref().map(snapshot_identifier),
+        subject: snapshot_identifier(&bound.subject),
+        carrier: snapshot_identifier(&bound.carrier),
+        arguments: syntax_trees
+            .type_references
+            .type_reference_handles(bound.arguments)
+            .iter()
+            .map(|handle| snapshot_type_reference_handle(syntax_trees, *handle))
+            .collect(),
+        conformance: bound.conformance.as_ref().map(snapshot_identifier),
+    }
+}
+
+fn snapshot_external_binding(binding: &ExternalBinding) -> ExternalBindingSnapshot {
+    match binding {
+        ExternalBinding::Syscall { number } => ExternalBindingSnapshot::Syscall { number: *number },
+        ExternalBinding::DllImport { module, symbol } => ExternalBindingSnapshot::DllImport {
+            module: module.clone(),
+            symbol: symbol.clone(),
+        },
+        ExternalBinding::CompilerIntrinsic => ExternalBindingSnapshot::CompilerIntrinsic,
+        ExternalBinding::VtableSlot { index } => {
+            ExternalBindingSnapshot::VtableSlot { index: *index }
+        }
+        ExternalBinding::VtableField { field } => ExternalBindingSnapshot::VtableField {
+            field: snapshot_identifier(field),
+        },
+        ExternalBinding::TableFunction { field } => ExternalBindingSnapshot::TableFunction {
+            field: snapshot_identifier(field),
+        },
+    }
+}
+
 fn snapshot_state_node(
     syntax_trees: &SyntaxTrees,
     state: &crate::item::StateNode,
@@ -1506,6 +1644,7 @@ fn snapshot_state_signature(
             })
             .collect(),
         return_type: snapshot_type_reference_handle(syntax_trees, signature.return_type),
+        service_reach_is_installation_bound: signature.service_reach_is_installation_bound,
         service_reaches: snapshot_identifier_slice(
             syntax_trees
                 .items
@@ -1527,6 +1666,7 @@ fn snapshot_state_signature(
                 snapshot_statement(syntax_trees, syntax_trees.statements.statement(*handle))
             })
             .collect(),
+        terminates_guarantee: signature.terminates_guarantee,
     }
 }
 
@@ -1558,6 +1698,7 @@ fn snapshot_state_signature_node(
             })
             .collect(),
         return_type: snapshot_type_reference_handle(syntax_trees, signature.return_type),
+        service_reach_is_installation_bound: signature.service_reach_is_installation_bound,
         service_reaches: snapshot_identifier_slice(
             syntax_trees
                 .items
@@ -1579,6 +1720,7 @@ fn snapshot_state_signature_node(
                 snapshot_statement(syntax_trees, syntax_trees.statements.statement(*handle))
             })
             .collect(),
+        terminates_guarantee: signature.terminates_guarantee,
     }
 }
 

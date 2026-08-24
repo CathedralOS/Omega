@@ -221,7 +221,8 @@ establishes the implementation and assurance cost.
 
 | Omega facility in the compiler's own source | Working disposition | Decision test |
 | --- | --- | --- |
-| mathematical proof/program surface | presumptively exclude | retain only if the compiler implementation itself has an unavoidable use; implementing proof checking for user programs is not such a use |
+| propositions, proof facts/contracts, quotients, and proof-program mathematics | presumptively exclude | retain only if the compiler implementation itself has an unavoidable use; implementing proof checking for user programs is not such a use |
+| executable termination/ranking clauses | measure | do not conflate ranking evidence used by compiler control flow with the excluded proof surface; checkpoint 000001 already uses one ranking clause |
 | linear and dependent types | presumptively exclude | same source-need and total-cost test |
 | concrete literal scalar ranges | measure | checkpoint 000001 uses them for fixed-buffer lengths and indexing without dependent bounds; compare with narrow checked helpers |
 | ordinary named record fields | presumptively retain | removing names from ordinary compiler data is likely to make the source less clear and more brittle |
@@ -229,7 +230,8 @@ establishes the implementation and assurance cost.
 | basic generics | presumptively retain | collection, result, arena-ID, and compiler-data reuse versus monomorphic duplication |
 | concrete domains and domain arithmetic | measure | compare with explicit compiler contexts and narrow operations |
 | domain polymorphism | measure | admit only the forms used by the closed source manifest |
-| advanced generic constraints, specialization, and reflection | measure | source benefit versus bridge and assurance cost |
+| advanced authored generic constraints | measure | source benefit versus bridge and assurance cost |
+| specialization and reflection | no source-profile ruling yet | neither has a distinct accepted authored source spelling to admit or exclude; add a row when there is a censusable Omega surface |
 | numeric/schema field tags such as `0:` | measure | compare with ordinary named fields; these are distinct from named record fields and may be omitted without making records positional |
 | complex transition payloads | measure | compare with transitions over simple values plus explicit compiler context |
 | mixed field-plus-case data | measure | compare with separate record and sum-data types; either shape remains ordinary Omega |
@@ -247,7 +249,10 @@ tool belongs to the manifest, nor that `omega-bootstrap` must use Terminal Psi
 as its own internal IR. The bridge must compile those product modules as
 ordinary `Ωself` source; it need not duplicate or execute their product role.
 
-Checkpoint 000001 also establishes a useful negative source convention:
+Checkpoint 000001's compiler-produced schema-v2 census establishes that the
+current closure uses target-qualified and bodyless machines, `satisfies`
+clauses, and sealed compiler-intrinsic bindings. It also establishes a useful
+negative source convention:
 branching computations publish explicit result fields before callers dispatch.
 The closure does not require implicit branching value-machine result
 materialization, dependent bounds, proof syntax, mixed field-plus-case data, or
@@ -343,8 +348,11 @@ published bounds. An excluded facility receives a phase-appropriate negative
 canary. The exact compiler manifest is then a closure witness over those rules,
 not a special case accepted by them.
 
-The bootstrap gate must compile that exact closure under the explicit `Ωself`
-profile rules and reject an excluded-feature canary for every exclusion.
+The final bootstrap gate must compile that exact closure under the explicit
+`Ωself` profile rules and reject an excluded-feature canary for every exclusion.
+Checkpoint 000001 currently has exhaustive compiler-owned syntax/resource
+census evidence, but not yet a bound admission-profile artifact; its own profile
+document labels that remaining enforcement step explicitly.
 The manifest includes compiler modules, compile-time code, build/module
 behavior, and runtime/library dependencies; hiding a feature in a library does
 not remove it from the bootstrap surface.

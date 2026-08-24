@@ -7,7 +7,7 @@ use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::path::Path;
 
-pub const SOURCE_CLOSURE_SNAPSHOT_SCHEMA: &str = "omega.source-closure-snapshot.v1";
+pub const SOURCE_CLOSURE_SNAPSHOT_SCHEMA: &str = "omega.source-closure-snapshot.v2";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct SourceClosureSnapshotEntry {
@@ -35,6 +35,10 @@ impl SourceClosureSnapshot {
 
     pub fn to_json(&self) -> Result<String, serde_json::Error> {
         serde_json::to_string(self)
+    }
+
+    pub fn feature_census(&self) -> crate::pipeline::SourceFeatureCensus {
+        crate::pipeline::census_source_closure(self)
     }
 }
 
