@@ -199,6 +199,13 @@ That gives the design loop exactly two feature inventories:
 Everything else in the hosted build is implementation, validation, or optional
 optimization work under those two inventories.
 
+This is also the answer to the apparent “Omega bootstrap language” question:
+there is no third literal specification to design. Delta is the literal
+implementation language. `Ωself` is the incidental subset of already-valid
+Omega used by the production compiler source. `omega-bootstrap` is the compiler
+artifact joining them, not a language whose feature list must be chosen
+separately.
+
 For every disputed `Ωself` facility, use one decision procedure:
 
 1. If the complete production-compiler closure does not use the facility,
@@ -249,9 +256,11 @@ The current product architecture does use Terminal Psi as the target-neutral
 compiler boundary. Consequently, the representation and lowering modules the
 compiler links are ordinary members of the product source manifest. This does
 not imply that a standalone Terminal-Psi interpreter, artifact viewer, or debug
-tool belongs to the manifest, nor that `omega-bootstrap` must use Terminal Psi
-as its own internal IR. The bridge must compile those product modules as
-ordinary `Ωself` source; it need not duplicate or execute their product role.
+tool belongs to the manifest, nor that `omega-bootstrap` must use or validate
+Terminal Psi as its own internal IR. The bridge must compile those product
+modules as ordinary `Ωself` source; it need not duplicate or execute their
+product role. A direct bridge-specific checked IR and conservative lowering are
+equally valid when they reduce total bootstrap and assurance cost.
 
 Checkpoint 000001's compiler-produced snapshot-v3/census-v2 profile establishes
 that the current closure uses target-qualified and bodyless machines,
@@ -283,6 +292,14 @@ the complete feature. Those bounds must be general enough to compile any source
 that satisfies the published profile, not encoded as permutations of the
 current compiler source. Simplified cases must preserve full Omega semantics.
 No bootstrap-only Omega dialect or private extension is permitted.
+
+Frontend cost measurement and final profile settlement are separate milestones.
+A bounded parser/typechecker probe may establish the real cost of a provisional
+candidate without yet lowering it or settling its final `Ωself` disposition.
+Final retention requires the general accepted-source rule, negative boundary,
+Rust-free meaning, and chosen artifact path together. This separation prevents
+an exploratory source unit from forcing Terminal Psi or any other product
+representation into the bridge.
 
 The selection rule is total cost, not the smallest feature count:
 

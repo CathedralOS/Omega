@@ -170,7 +170,15 @@ The current compiler architecture does import Terminal-Psi representation and
 lowering modules, so those ordinary source modules belong to the manifest. That
 does not require the bridge to contain or run the standalone Terminal-Psi
 interpreter, verifier, viewer, or debugging tools, or to use Terminal Psi as its
-own internal IR.
+own internal IR. A direct checked-IR conservative lowering path is valid;
+Terminal-Psi validation is a bridge requirement only if that representation is
+explicitly selected on total-cost grounds.
+
+Candidate measurement does not itself settle this profile. A bounded
+frontend/typechecker probe may be used to price a provisionally retained source
+facility before its artifact representation is chosen. The facility is finally
+retained only when its compositional rule, negative boundary, Rust-free meaning,
+and selected artifact path are all enforced.
 
 These exclusions describe syntax used by the compiler implementation, not
 features implemented for compiler users. For example, the product source may

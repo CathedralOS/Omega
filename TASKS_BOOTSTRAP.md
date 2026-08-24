@@ -190,12 +190,13 @@ been retired; bootstrap callers resolve canonical owners through
   not general full-Omega input acceptance or the product optimizer itself.
 
 > **Immediate next dependency:** use checkpoint 000001's mechanically enforced
-> provisional normalized-syntax/resource profile to select the first general
-> Delta-written bridge capabilities, while extending later checkpoints with
-> typed-semantic, ABI/layout, and lowering evidence. Continue expanding the
-> Omega-written product source and publishing deterministic closures in
-> parallel. Every bridge capability must carry direct-artifact and Rust-free-
-> meaning coverage in the same milestone.
+> provisional normalized-syntax/resource profile to measure the first general
+> Delta-written frontend capability, then close the corresponding artifact
+> tranche through the cheapest sound conservative route. A frontend-only cost
+> probe may land as measurement without admitting a capability to `Ωself`; an
+> admitted bridge capability must carry direct-artifact and Rust-free-meaning
+> coverage in the same milestone. Continue expanding the Omega-written product
+> source and publishing deterministic closures in parallel.
 
 ## Delta → omega-bootstrap → production Omega readiness
 
@@ -527,22 +528,37 @@ may advance before the product source manifest exists, while provisional
   source permutations. The exact final manifest is required at the freeze join,
   not before the first implementation tranche.
   - [ ] use `compiler/psi/source/source.omg` as the first checkpoint-driven
-    bridge cost probe. It is a standalone 1,614-byte manifest unit whose
+    **frontend cost probe**. It is a standalone 1,614-byte manifest unit whose
     compiler-owned census isolates ordinary records/fields, attached machines,
     fixed arrays and indexing, Trapping/range-constrained scalars, mutable and
     shared `self`, field assignment, scalar return, and named guarded
     transitions without importing sums, generics, targets, proofs, the lexer,
-    or the generated Unicode table. Implement those families compositionally,
-    check the actual library unit, and compile/run a self-contained conformance
-    program that exercises the same typed behavior. Enforce the published
-    general ceilings rather than the unit's exact counts; unsupported adjacent
-    syntax must remain status 251 with no publication, while table/source/array
-    exhaustion remains status 252. Carry the tranche through native and
-    lowermachine-built frontends, Rust-free meaning, canonical terminal
-    validation, conservative direct-artifact lowering, and runnable behavior.
-    Feed the resulting typed-resolution, record/array layout, arithmetic/range,
-    lowering, capacity, and assurance costs back into the provisional profile;
-    do not present this one unit as checkpoint-wide or `Ωself` completeness;
+    or the generated Unicode table. First implement compositional parsing,
+    resolution, type checking, mutation/lvalue checking, and guarded range/index
+    obligations for those families and check the actual library unit. Enforce
+    published general ceilings rather than the unit's exact counts; unsupported
+    adjacent syntax must remain status 251 with no output, while table/source/
+    array exhaustion remains status 252. Carry that measurement through native,
+    lowermachine-built, and Rust-free-meaning observations. Record its typed-
+    resolution, record/array, arithmetic/range, capacity, and assurance costs.
+    This frontend-only probe is permitted to inform retain-versus-refactor
+    decisions, but does not by itself complete these families in the bridge,
+    settle their final `Ωself` disposition, claim an artifact path, or present
+    one unit as checkpoint-wide coverage;
+  - [ ] close the corresponding first **artifact tranche** only after selecting
+    and documenting its conservative checked-IR handoff. Compile and run a
+    self-contained conformance program that exercises the same general typed
+    behavior, with layout/lowering rules, resource teeth, direct-artifact
+    publication, and runnable observations. A direct bridge-specific lowering
+    is valid. Canonical Terminal Psi is required only if that representation is
+    deliberately selected because it lowers total implementation and assurance
+    cost; the product's use of Terminal Psi does not make it a bridge
+    prerequisite. Vocabulary 28 currently lacks the general structural scalar
+    load/store/copy and runtime-index operations this source family needs. If a
+    Terminal-Psi route is selected, that vocabulary work belongs in product
+    `TASKS.md`, not as an implicit bootstrap subtask. Feed the measured layout/
+    lowering costs back into the provisional profile before marking the bridge
+    capability complete;
   - [ ] publish the complete deterministic Delta source manifest and prove each
     transitive unit valid under the provisional profile; final validity under
     frozen Delta v1 belongs to the subsequent freeze task, and one entry source
@@ -558,7 +574,8 @@ may advance before the product source manifest exists, while provisional
     lowering source.
 
   This task feeds measured implementation and assurance cost back into the
-  provisional profile decision. A capability is complete only when its
+  provisional profile decision. A cost probe may stop at an explicitly bounded
+  frontend/meaning result. A capability is admitted to the bridge only when its
   general profile rule, unsupported-form rejection, Rust-free meaning, and
   artifact path land together; recognizing just the current product source
   shape does not count.

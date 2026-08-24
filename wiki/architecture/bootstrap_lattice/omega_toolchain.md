@@ -15,12 +15,13 @@ Delta bridge source ──[lattice-built Delta compiler]──▶ omega-bootstra
 Ωself source ──[optional omega]───▶ omega (same compiler, optimized binary)
 ```
 
-`omega-bootstrap` is written in Delta and contains only the Psi/Omega input
-surface required by the exact production source closure. It is permitted to
-reject proofs, dependent/linear types, and any other Omega construct absent from
-that closure. Accepted constructs retain exact Omega semantics; this is not a
-bootstrap dialect. The production compiler is written in Omega constrained to
-that `Ωself` profile and implements the full specification for users.
+`omega-bootstrap` is written in Delta and accepts only the compositional
+Psi/Omega source surface required by the production source closure. It is
+permitted to reject proofs, dependent/linear types, and any other Omega
+construct excluded from `Ωself`. Accepted constructs retain exact Omega
+semantics; this is not a bootstrap dialect. The production compiler is written
+in Omega constrained to that `Ωself` profile and implements the full
+specification for users.
 
 Full specification coverage is a compiler property, not a tool-bundling rule.
 Standalone Terminal-Psi interpreters, REPLs, proof explorers, viewers, and
@@ -32,7 +33,9 @@ different: because the current ownership cut links them into the compiler, they
 belong to its deterministic source closure as ordinary `Ωself` modules. The
 Delta-written bridge only has to compile that source correctly. It need not
 contain a Terminal-Psi interpreter or adopt Terminal Psi as its own internal IR;
-a direct conservative lowering path is valid.
+a direct conservative checked-IR/lowering path is valid, and Terminal-Psi
+validation becomes a bridge obligation only if that route is deliberately
+selected.
 
 Three separate properties are involved:
 
