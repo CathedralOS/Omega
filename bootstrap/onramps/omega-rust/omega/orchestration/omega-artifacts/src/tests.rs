@@ -196,6 +196,7 @@ fn trust_report_keeps_inherited_requirement_owner_separate_from_overload_identit
             provider_plan_fingerprint: 0x1234,
             provider_type: "RootProvider".to_owned(),
             target: "windows_x64".to_owned(),
+            provider_origin_package_identity: psi_core::PackageKeyIdentity::from_digest([0x5a; 32]),
             provider_origin_package: "omega::providers::root".to_owned(),
             service_schema: "Root".to_owned(),
             calling_plan_fingerprint: Some(0xfeed),
@@ -226,6 +227,7 @@ fn trust_report_keeps_inherited_requirement_owner_separate_from_overload_identit
     assert!(output.contains("provider type: RootProvider"));
     assert!(output.contains("target: windows_x64"));
     assert!(output.contains("provider origin package: omega::providers::root"));
+    assert!(output.contains(&format!("provider package key: {}", "5a".repeat(32))));
     assert!(output.contains("own-package (dev-active)"));
     assert!(output.contains("service schema: Root"));
     assert!(output.contains("calling plan: 000000000000feed"));
@@ -256,6 +258,7 @@ fn trust_report_keeps_claim_free_provider_requirement_blast_radius_exact() {
             provider_plan_fingerprint: 0x1234,
             provider_type: String::new(),
             target: String::new(),
+            provider_origin_package_identity: None,
             provider_origin_package: String::new(),
             service_schema: "Root".to_owned(),
             calling_plan_fingerprint: None,

@@ -50,10 +50,13 @@ only lowercase ASCII letters, digits, and single hyphen separators, ensuring
 that its default kebab-to-snake alias is a valid Omega identifier.
 
 The declared `PackageName` is not security identity. `PackageKey` joins it to
-canonical source lineage and qualifies package symbols across updates.
-`PackageInstance` additionally binds exact source content, toolchain identity,
-and compiler-derived package evidence. Same-name packages from different
-lineages therefore cannot spoof each other's imports or boundary traits.
+canonical source lineage and is the security identity intended to qualify
+package symbols across updates. Managed imports and authored symbols now retain
+it, but generated symbols and provider/boundary nominal identities are not yet
+fully qualified. `PackageInstance` additionally binds exact source content,
+toolchain identity, and compiler-derived package evidence. Spoof rejection for
+same-named packages from different source lineages remains an admission
+requirement until those joins are sealed.
 
 Each package may define:
 
@@ -344,14 +347,14 @@ slot mechanism chooses among them. The retired top-level
 clause are bootstrap syntax from a parallel primitive registry and must not be
 preserved as a second selection path.
 
-Selection and binding identities are nominal. `Binding::CompilerIntrinsic`
-uses the exact resolved realization-machine symbol, normalized signature, and
-target as its sealed catalog key rather than accepting an authored string.
-Foreign library, symbol, calling-plan, firmware, and similar inputs are typed
-IDs; raw object-format spellings remain sealed target/link metadata and never
-act as Omega symbols or provider-slot keys. The metadata is fingerprinted, so
-changing those foreign bytes changes target/artifact identity and triggers
-fresh admission rather than silently retargeting the nominal ID.
+Selection and binding identities must be nominal. The current compiler validates
+normalized overload strings against typed declarations and binds provider plans
+to the realizing package, but provider bindings, schemas, requirements, and
+selection keys remain string-carried. Admission requires package-qualified
+typed identities and sealed target/catalog metadata rather than trusting those
+spellings. Changing sealed foreign or target metadata must change artifact
+identity and trigger fresh admission rather than silently retargeting a nominal
+ID.
 
 The exact `Build` library method names remain ordinary API design. Conceptually
 the operations are target-profile selection plus type-per-slot override; users
@@ -619,14 +622,14 @@ hot-swap call syntax or `slot` keyword is implied.
 
 ## Authority evidence and admission
 
-Runtime authority uses ordinary data layout plus domain evidence. The compiler
-derives package evidence from the fetched, checked candidate; callers and
-packages cannot author or patch it. The artifact records each owner-authorized
-boundary establishment, checked resource transformation, provider/backing
-requirement, admitted claim, and reachable authority. Public data shape and
-domain trust policy enter contract/component compatibility
-identity; private implementation bodies and proof evidence affect content
-identity while remaining outside public contract identity.
+Runtime authority uses ordinary data layout plus domain evidence. The eventual
+compiler-issued package-admission artifact must derive evidence from the
+fetched, checked candidate; callers and packages cannot author or patch it. It
+must record each owner-authorized boundary establishment, checked resource
+transformation, provider/backing requirement, admitted claim, and reachable
+authority. Public data shape and domain trust policy enter contract/component
+compatibility identity; private implementation bodies and proof evidence affect
+content identity while remaining outside public contract identity.
 
 For every public callable and the build machine, evidence retains both the
 declared service-reach ceiling and the realized transitive reach. An
@@ -634,15 +637,23 @@ underdeclared implementation rejects. An overdeclared ceiling remains visible
 as contract slack; dangerous slack is audit-relevant, and a later transition
 from unused to used authority changes realized evidence even when the public
 ceiling is unchanged. Capability-flow, provider, trust, proof, installation,
-operational, and executable-TCB rows retain exact package-qualified provenance.
-Risk classes come from compiler-owned metadata on admitted nominal identities,
+operational, and executable-TCB rows must retain exact package-qualified
+provenance. Provider-plan and provider-trust rows now retain realizing-package
+identity, but the remaining nominal and artifact joins are unfinished. Risk
+classes must come from compiler-owned metadata on admitted nominal identities,
 never from package-controlled names.
 
-Open/deferred proof obligations reject package admission. Kernel-checked proofs
-are rechecked. Accepted axioms and opaque boundary claims remain explicit
-trust-bearing rows; authored postconditions remain obligations. Boundary
-providers must satisfy exact package-qualified requirement identities, so a
-same-spelled trait from another source lineage grants nothing.
+Open/deferred proof obligations reject package admission. This is an admission
+requirement, not a claim that ordinary compilation already exposes such a
+status: the current compiler has no explicit deferred-proof carrier, and one
+contract-entailment tier may stand down on facts outside its engine language.
+Admission must either reject every such stand-down or retain the exact later
+checked obligation that discharged it. Kernel-checked proofs are rechecked.
+Accepted axioms and opaque boundary claims must remain explicit trust-bearing
+rows; authored postconditions remain obligations. Boundary providers must
+satisfy exact package-qualified requirement identities, so a same-spelled trait
+from another source lineage grants nothing. The current provider carrier does
+not yet fully represent that package-qualified requirement identity.
 
 Package policy admits the transitive reachable-authority set of the final
 resolved artifact. It does not approve dependencies one edge at a time. A new

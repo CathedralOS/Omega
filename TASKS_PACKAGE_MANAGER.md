@@ -188,9 +188,15 @@ complete.
   Progress 2026-08-23: target-neutral Psi now owns only the opaque
   `PackageKeyIdentity` carrier, while source-lineage normalization remains in
   `omega-packages`. Managed compiler sources retain that identity and
-  same-package checks prefer it over path spelling. Threading it through
-  symbols, generated declarations, boundary/provider identities, terminal Psi,
-  and emitted evidence remains.
+  same-package checks prefer it over path spelling. Managed authored symbols
+  recover it from retained source metadata. Provider plans and provider trust
+  rows now retain the compiler-derived package identity of the realizing
+  machine, and exact origin enters the existing normalized plan fingerprint;
+  readable origin labels are diagnostic only. That 64-bit fingerprint remains
+  review/execution compatibility data, not sealed package admission identity.
+  Generated/source-free ownership, package-qualified provider type/schema/
+  requirement/binding identities, toolchain identity, terminal Psi, and sealed
+  emitted evidence remain.
 
 ## P2 — Dependency projection and reconciliation
 
@@ -261,12 +267,51 @@ complete.
   installation rows, operational contracts, executable TCB, observations, and
   reproducibility.
 
+  Progress 2026-08-23: checked trees already own the useful semantic core. A
+  `RealizedMachineContractEnvelope` retains contract identity, effective and
+  concrete reach, unresolved installation rows, synchronous invocation,
+  suspension, blocking, termination, crashes, mutation, and exact capability
+  flows. Source-authored symbols can be joined back to their opaque
+  `PackageKeyIdentity` through the retained source map, and underdeclared reach
+  already fails checking. This is enough for a compiler-owned, target-scoped
+  review projection, but not an admission certificate. General `pub`/`export`
+  visibility, generated/toolchain symbol ownership, package-qualified provider
+  schema, requirement, type, and binding identities, source/toolchain/compiler
+  commitments, non-provider trust ownership, build observations, and
+  reproducibility receipts still need one sealed projection. Exact
+  realizing-package provenance is already retained on provider plans and their
+  provider trust rows.
+  Until those joins exist, only an authored `boundary machine` is a dependable
+  exported-callable classification and no projection may be persisted as
+  accepted evidence. The compiler now exposes
+  an explicitly review-only, in-memory projection for the reconciled root
+  package under an exact target. It retains the selected build-machine symbol,
+  package-qualified authored nominals, distinct declared/effective/concrete
+  service rows, unresolved installation rows, exact capability-flow
+  coordinates, operational outcomes, crashes, mutation, and selected provider
+  mechanisms with exact realizing-package provenance. Provider schema,
+  requirement, type, and binding labels remain unsealed strings. Toolchain
+  identity and generated-symbol ownership remain visibly unbound rather than
+  guessed; standalone and target-free compilations reject projection.
+
 - **PROOF-AND-BOUNDARY-ADMISSION.** Fail closed on false or incomplete evidence.
 
   Acceptance: open/deferred proofs reject, checked proofs are kernel-rechecked,
   accepted axioms/opaque claims remain trust-bearing, exact package-qualified
   boundary identities are enforced, underdeclared reach rejects, and dangerous
   overdeclared slack is reported.
+
+  Progress 2026-08-23: concrete proof, contract, bounds, and termination
+  obligations normally reject before checked trees are constructed; accepted
+  axioms and admitted boundary qualifications remain identifiable. There is no
+  implemented open/deferred-proof status yet. More importantly, contract
+  entailment deliberately stands down for some out-of-engine-language claims,
+  and no checked artifact currently records `stand-down -> later discharge`.
+  The admission profile must therefore reject every unresolved stand-down or
+  retain an exact later-discharge ledger; ordinary successful compilation is
+  not itself a complete proof verdict. The standalone `psi-proof` boundary
+  obligation ledger is not wired into production and must not be cited as
+  enforcement.
 
 - **SEALED-EVIDENCE-HANDOFF.** Replace public construction/parsing of
   `PackageCapabilityManifest` as an admission input.

@@ -209,9 +209,10 @@ pub struct ProviderPlanRow {
 }
 
 /// The PRV1 carrier: one provider type's plan for one service schema on one
-/// target. `origin_package` is provenance INPUT to admission (a package
-/// can never self-grant); the admission verdict itself lives in the
-/// chapter-10 receipts, never here.
+/// target. `origin_package_identity` is exact compiler-derived provenance
+/// INPUT to admission (a package can never self-grant); the legacy readable
+/// `origin_package` is display data only. The admission verdict itself lives
+/// in the chapter-10 receipts, never here.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct ProviderPlan {
     /// The plan's own name (`omega::host::standard::console`, the future
@@ -228,7 +229,12 @@ pub struct ProviderPlan {
     pub schema: ServiceSchema,
     /// One row per bound method.
     pub rows: Vec<ProviderPlanRow>,
-    /// Where the plan came from -- admission provenance input.
+    /// Exact package that authored the realizing machine(s). `None` means the
+    /// source was not package-owned (for example toolchain or standalone
+    /// source); consumers must not infer ownership from any readable name.
+    pub origin_package_identity: Option<psi_core::PackageKeyIdentity>,
+    /// Legacy readable origin label. This is diagnostic data, not admission
+    /// provenance, and must never repair a missing exact package identity.
     pub origin_package: String,
 }
 
@@ -765,14 +771,26 @@ fn boundary_trait_name_for_type(
 
 impl ProviderPlan {
     /// PRV2: the plan's NORMALIZED IDENTITY -- an FNV-1a fingerprint over
-    /// the canonical rendering (name, target, schema surface, rows in
-    /// method order). Two plans with the same fingerprint are the same
-    /// policy; presentation (row order, whitespace) is excluded.
+    /// the canonical rendering (name, exact package provenance, target,
+    /// schema surface, rows in method order). Two plans with the same
+    /// fingerprint are treated as the same execution policy by the current
+    /// provider pipeline; presentation (row order, whitespace) is excluded.
+    /// This 64-bit compatibility key is not collision-resistant package
+    /// admission evidence.
     pub fn identity_fingerprint(&self) -> u64 {
         let mut rendered = format!(
             "{}\n{}\n{}\n{}",
             self.name, self.provider_type, self.target, self.schema.trait_name
         );
+        rendered.push_str("\npackage:");
+        match self.origin_package_identity {
+            Some(identity) => {
+                for byte in identity.digest() {
+                    rendered.push_str(&format!("{byte:02x}"));
+                }
+            }
+            None => rendered.push_str("<unbound>"),
+        }
         let mut methods: Vec<&ServiceMethod> = self.schema.methods.iter().collect();
         methods.sort_by(|left, right| {
             left.name
@@ -1440,6 +1458,7 @@ mod tests {
                     },
                 },
             ],
+            origin_package_identity: None,
             origin_package: "omega::language::std".to_owned(),
         }
     }
@@ -1457,6 +1476,21 @@ mod tests {
             first.identity_fingerprint(),
             refactored.identity_fingerprint()
         );
+    }
+
+    #[test]
+    fn exact_package_provenance_enters_provider_identity_but_legacy_label_does_not() {
+        let mut first = windows_console_plan();
+        first.origin_package_identity = psi_core::PackageKeyIdentity::from_digest([1; 32]);
+        let first_identity = first.identity_fingerprint();
+
+        let mut renamed_label = first.clone();
+        renamed_label.origin_package = "misleading display label".to_owned();
+        assert_eq!(renamed_label.identity_fingerprint(), first_identity);
+
+        let mut second = first;
+        second.origin_package_identity = psi_core::PackageKeyIdentity::from_digest([2; 32]);
+        assert_ne!(second.identity_fingerprint(), first_identity);
     }
 
     #[test]

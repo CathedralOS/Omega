@@ -15,8 +15,10 @@ use std::sync::Arc;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedCompilation {
     program: CheckedTrees,
+    package_identity: Option<psi_core::PackageKeyIdentity>,
     selected_native_target: Option<omega_target::NativeTarget>,
     selected_program_entry_machine: Option<String>,
+    selected_build_machine_symbol: Option<psi_symbols::SymbolHandle>,
     selected_provider_plans: omega_effects::SelectedProviderPlanFacts,
     component_progress: Option<omega_effects::ComponentProgressManifest>,
     task_activations: omega_task_plans::TaskActivationPlanSet,
@@ -25,6 +27,12 @@ pub struct CheckedCompilation {
 }
 
 impl CheckedCompilation {
+    /// Reconciled root package identity for package-aware compilation.
+    /// Standalone compilation has no package identity.
+    pub const fn package_identity(&self) -> Option<psi_core::PackageKeyIdentity> {
+        self.package_identity
+    }
+
     /// Exact native target selected for this checked compilation. Semantic-only
     /// checking has no selected target and therefore cannot be staged.
     pub const fn selected_native_target(&self) -> Option<omega_target::NativeTarget> {
@@ -36,6 +44,12 @@ impl CheckedCompilation {
     /// agnostic; an execution caller must not infer a machine from its name.
     pub fn selected_program_entry_machine(&self) -> Option<&str> {
         self.selected_program_entry_machine.as_deref()
+    }
+
+    /// Exact symbol of the uniquely selected build machine. No build machine
+    /// is represented by `None`; callers must not rediscover one by name.
+    pub const fn selected_build_machine_symbol(&self) -> Option<psi_symbols::SymbolHandle> {
+        self.selected_build_machine_symbol
     }
 
     pub const fn selected_provider_plans(&self) -> &omega_effects::SelectedProviderPlanFacts {
@@ -122,6 +136,7 @@ fn compile_to_checked_inner(
     package_inputs: Option<&PackageCompilationInputs>,
 ) -> Result<CheckedCompilation, Vec<Diagnostic>> {
     let mut timings = CompileTimings::default();
+    let package_identity = package_inputs.map(PackageCompilationInputs::root);
 
     // The interpreter keeps the abstract `boundary trait Gui` for its headless
     // provider; only the native-image pipeline substitutes target providers.
@@ -178,6 +193,7 @@ fn compile_to_checked_inner(
         &build_machine_filesystem_scope,
     )?;
     let build_evaluation_usage = computed_build_config.evaluation_usage;
+    let selected_build_machine_symbol = computed_build_config.selected_build_machine_symbol;
     let build_config = computed_build_config.config;
     // A semantic-only checked compilation has no selected target and therefore
     // no storage root. Authored bindings remain available in the evaluated
@@ -283,8 +299,10 @@ fn compile_to_checked_inner(
     // caller (this is the only owner at this point in the pipeline).
     Ok(CheckedCompilation {
         program: Arc::try_unwrap(checked.program).unwrap_or_else(|shared| (*shared).clone()),
+        package_identity,
         selected_native_target,
         selected_program_entry_machine,
+        selected_build_machine_symbol,
         selected_provider_plans: selected_provider_plan_facts,
         component_progress,
         task_activations,

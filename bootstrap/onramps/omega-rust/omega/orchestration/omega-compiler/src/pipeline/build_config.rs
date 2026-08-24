@@ -121,6 +121,7 @@ pub struct BuildEvaluationUsage {
 pub(crate) struct ComputedBuildConfig {
     pub config: BuildConfig,
     pub evaluation_usage: Option<BuildEvaluationUsage>,
+    pub selected_build_machine_symbol: Option<psi_symbols::SymbolHandle>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -822,6 +823,7 @@ pub(crate) fn compute_build_config(
         return Ok(ComputedBuildConfig {
             config: BuildConfig::default(),
             evaluation_usage: None,
+            selected_build_machine_symbol: None,
         });
     };
     if let Some(second) = build_machines.next() {
@@ -966,6 +968,7 @@ pub(crate) fn compute_build_config(
             fuel_units: usage.fuel_units(),
             result_cells: usage.result_cells(),
         }),
+        selected_build_machine_symbol: Some(machine.symbol),
     })
 }
 
