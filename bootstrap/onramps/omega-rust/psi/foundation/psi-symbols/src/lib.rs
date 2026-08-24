@@ -105,6 +105,49 @@ mod tests {
     }
 
     #[test]
+    fn source_free_structural_children_inherit_authored_parent_provenance() {
+        let package_identity =
+            PackageKeyIdentity::from_digest([4; 32]).expect("nonzero package identity");
+        let mut sources = SourceMap::default();
+        let source_id = sources
+            .add_with_metadata(
+                PathBuf::from("package/main.omg"),
+                String::from("machine"),
+                PathBuf::from("package"),
+                Some(package_identity),
+                SourceOrigin::User,
+            )
+            .source_id;
+        let mut builder = SymbolTableBuilder::with_sources(Some(Arc::new(sources)));
+        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let machine = SymbolTableBuilder::child_handles(builder.insert_children(
+            root,
+            [(
+                SymbolKind::Machine,
+                SymbolNameRef::Source(SourceSpan::new(source_id, Span::new(0, 7))),
+            )],
+        ))
+        .next()
+        .expect("authored machine");
+        let state = SymbolTableBuilder::child_handles(builder.insert_children(
+            machine,
+            [(SymbolKind::State, SymbolNameRef::Static("entry"))],
+        ))
+        .next()
+        .expect("implicit state");
+        let symbols = builder.finish();
+
+        assert_eq!(
+            symbols.symbol_package_identity(state),
+            Some(package_identity)
+        );
+        assert_eq!(
+            symbols.symbol_source_origin(state),
+            Some(SourceOrigin::User)
+        );
+    }
+
+    #[test]
     fn unmanaged_and_toolchain_symbols_have_no_package_identity() {
         let package_identity =
             PackageKeyIdentity::from_digest([2; 32]).expect("nonzero package identity");
