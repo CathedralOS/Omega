@@ -17,6 +17,122 @@ use psi_diagnostics::Diagnostic;
 use psi_language_semantics::MachineSupplyMode;
 use psi_symbols::SymbolHandle;
 
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct PackageReviewTypeIdentity {
+    canonical: String,
+}
+
+impl PackageReviewTypeIdentity {
+    pub fn canonical(&self) -> &str {
+        &self.canonical
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PackageReviewTypeParameterKind {
+    Type,
+    Const(PackageReviewTypeIdentity),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PackageReviewTypeParameter {
+    kind: PackageReviewTypeParameterKind,
+    bounds: psi_typed_trees::data::DataProperties,
+}
+
+impl PackageReviewTypeParameter {
+    pub const fn kind(&self) -> &PackageReviewTypeParameterKind {
+        &self.kind
+    }
+
+    pub const fn bounds(&self) -> psi_typed_trees::data::DataProperties {
+        self.bounds
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PackageReviewDataField {
+    identity: Option<u64>,
+    name: String,
+    relevance: psi_language_core::BindingRelevance,
+    type_identity: PackageReviewTypeIdentity,
+}
+
+impl PackageReviewDataField {
+    pub const fn identity(&self) -> Option<u64> {
+        self.identity
+    }
+
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub const fn relevance(&self) -> psi_language_core::BindingRelevance {
+        self.relevance
+    }
+
+    pub const fn type_identity(&self) -> &PackageReviewTypeIdentity {
+        &self.type_identity
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PackageReviewDataMember {
+    Field(PackageReviewDataField),
+    Variant {
+        identity: Option<u64>,
+        name: String,
+        payload: Vec<PackageReviewDataField>,
+        retired_payload_identities: Vec<u64>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PackageReviewDataShape {
+    identity: PackageReviewNominalIdentity,
+    supply: psi_language_semantics::DataSupplyMode,
+    lifetime_parameter_count: usize,
+    type_parameters: Vec<PackageReviewTypeParameter>,
+    properties: psi_typed_trees::data::DataProperties,
+    zero_gated: bool,
+    retired_identities: Vec<u64>,
+    members: Vec<PackageReviewDataMember>,
+}
+
+impl PackageReviewDataShape {
+    pub const fn identity(&self) -> &PackageReviewNominalIdentity {
+        &self.identity
+    }
+
+    pub const fn supply(&self) -> psi_language_semantics::DataSupplyMode {
+        self.supply
+    }
+
+    pub const fn lifetime_parameter_count(&self) -> usize {
+        self.lifetime_parameter_count
+    }
+
+    pub fn type_parameters(&self) -> &[PackageReviewTypeParameter] {
+        &self.type_parameters
+    }
+
+    pub const fn properties(&self) -> psi_typed_trees::data::DataProperties {
+        self.properties
+    }
+
+    pub const fn zero_gated(&self) -> bool {
+        self.zero_gated
+    }
+
+    pub fn retired_identities(&self) -> &[u64] {
+        &self.retired_identities
+    }
+
+    pub fn members(&self) -> &[PackageReviewDataMember] {
+        &self.members
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackageReviewCallableRole {
     Boundary,
@@ -547,6 +663,7 @@ impl CheckedPackageCallableReview {
 pub struct CheckedPackageReviewProjection {
     package: PackageKeyIdentity,
     target: omega_target::TargetProfile,
+    public_data: Vec<PackageReviewDataShape>,
     callables: Vec<CheckedPackageCallableReview>,
     selected_providers: Vec<CheckedPackageProviderReview>,
 }
@@ -558,6 +675,10 @@ impl CheckedPackageReviewProjection {
 
     pub const fn target(&self) -> omega_target::TargetProfile {
         self.target
+    }
+
+    pub fn public_data(&self) -> &[PackageReviewDataShape] {
+        &self.public_data
     }
 
     pub fn callables(&self) -> &[CheckedPackageCallableReview] {
@@ -615,6 +736,7 @@ pub fn project_checked_package_review(
             .collect());
     }
     let build_machine = compilation.selected_build_machine_symbol();
+    let public_data = project_public_data(compilation, package)?;
     let synchronous_invocations = psi_effects::infer_synchronous_invocations(&compilation.typed);
     let mut callables = Vec::new();
     let mut projected_build_machine = false;
@@ -687,9 +809,155 @@ pub fn project_checked_package_review(
     Ok(CheckedPackageReviewProjection {
         package,
         target,
+        public_data,
         callables,
         selected_providers,
     })
+}
+
+fn project_public_data(
+    compilation: &CheckedCompilation,
+    package: PackageKeyIdentity,
+) -> Result<Vec<PackageReviewDataShape>, Vec<Diagnostic>> {
+    let mut rows = Vec::new();
+    for definition in compilation
+        .data_definitions()
+        .iter()
+        .filter(|row| row.is_public)
+    {
+        let identity = nominal_identity(compilation, definition.symbol)?;
+        if !reviewed_package_owns(&identity, package)? {
+            continue;
+        }
+        if definition.quotient.is_some() {
+            return Err(vec![Diagnostic::error(format!(
+                "public data `{}` uses quotient semantics not yet represented by package review",
+                identity.path
+            ))]);
+        }
+        if !definition.where_facts.is_empty() {
+            return Err(vec![Diagnostic::error(format!(
+                "public data `{}` uses proof facts not yet represented by package review",
+                identity.path
+            ))]);
+        }
+
+        let parameters = compilation.data_type_parameters(definition);
+        let binders = parameters
+            .iter()
+            .enumerate()
+            .map(|(ordinal, parameter)| (parameter.symbol, format!("type-parameter:{ordinal}")))
+            .collect::<Vec<_>>();
+        let mut type_parameters = Vec::with_capacity(parameters.len());
+        for parameter in parameters {
+            let kind = match parameter.kind {
+                psi_typed_trees::data::TypeParameterKind::Type => {
+                    PackageReviewTypeParameterKind::Type
+                }
+                psi_typed_trees::data::TypeParameterKind::Const { type_reference } => {
+                    PackageReviewTypeParameterKind::Const(review_type_identity_with_binders(
+                        compilation,
+                        type_reference,
+                        &binders,
+                    ))
+                }
+                psi_typed_trees::data::TypeParameterKind::Machine { .. }
+                | psi_typed_trees::data::TypeParameterKind::Proposition { .. } => {
+                    return Err(vec![Diagnostic::error(format!(
+                        "public data `{}` uses a static machine or proposition parameter not yet represented by package review",
+                        identity.path
+                    ))]);
+                }
+            };
+            type_parameters.push(PackageReviewTypeParameter {
+                kind,
+                bounds: parameter.bounds,
+            });
+        }
+
+        let members = compilation
+            .data_members(definition)
+            .iter()
+            .map(|member| match member {
+                psi_typed_trees::data::DataMember::Field(field) => {
+                    PackageReviewDataMember::Field(project_data_field(compilation, field, &binders))
+                }
+                psi_typed_trees::data::DataMember::Variant(variant) => {
+                    let mut retired_payload_identities = variant.retired_payload_identities.clone();
+                    retired_payload_identities.sort_unstable();
+                    retired_payload_identities.dedup();
+                    PackageReviewDataMember::Variant {
+                        identity: variant.identity,
+                        name: variant.name.as_str().to_owned(),
+                        payload: compilation
+                            .data_payload_fields(variant)
+                            .iter()
+                            .map(|field| project_data_field(compilation, field, &binders))
+                            .collect(),
+                        retired_payload_identities,
+                    }
+                }
+            })
+            .collect();
+        let mut retired_identities = definition.retired_identities.clone();
+        retired_identities.sort_unstable();
+        retired_identities.dedup();
+        rows.push(PackageReviewDataShape {
+            identity,
+            supply: definition.supply_mode,
+            lifetime_parameter_count: definition.lifetime_parameters.len(),
+            type_parameters,
+            properties: definition.properties,
+            zero_gated: definition.zero_gated,
+            retired_identities,
+            members,
+        });
+    }
+    rows.sort_by(|left, right| left.identity.cmp(&right.identity));
+    Ok(rows)
+}
+
+fn project_data_field(
+    compilation: &CheckedCompilation,
+    field: &psi_typed_trees::data::DataField,
+    binders: &[(SymbolHandle, String)],
+) -> PackageReviewDataField {
+    PackageReviewDataField {
+        identity: field.identity,
+        name: field.name.as_str().to_owned(),
+        relevance: field.relevance,
+        type_identity: review_type_identity_with_binders(
+            compilation,
+            field.type_reference,
+            binders,
+        ),
+    }
+}
+
+fn review_type_identity_with_binders(
+    compilation: &CheckedCompilation,
+    type_reference: psi_typed_trees::types::TypeReferenceHandle,
+    binders: &[(SymbolHandle, String)],
+) -> PackageReviewTypeIdentity {
+    PackageReviewTypeIdentity {
+        canonical: compilation
+            .package_qualified_type_identity_with_binders(type_reference, binders)
+            .into_string(),
+    }
+}
+
+fn reviewed_package_owns(
+    identity: &PackageReviewNominalIdentity,
+    package: PackageKeyIdentity,
+) -> Result<bool, Vec<Diagnostic>> {
+    match identity.owner {
+        PackageReviewNominalOwner::Package(owner) => Ok(owner == package),
+        PackageReviewNominalOwner::ToolchainUnbound => Ok(false),
+        PackageReviewNominalOwner::Unresolved => Err(vec![Diagnostic::error(format!(
+            "reviewed public declaration `{}` has no managed package owner",
+            identity.path
+        ))]),
+    }
 }
 
 fn project_callable(

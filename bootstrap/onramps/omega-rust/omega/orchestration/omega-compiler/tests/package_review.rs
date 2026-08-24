@@ -1,8 +1,8 @@
 use omega_compiler::{
     PACKAGE_REVIEW_ENCODING_VERSION, PackageCompilationInputs, PackageReviewCallableRole,
-    PackageReviewCrashInterface, PackageReviewCrashRouteGuard, PackageReviewNominalOwner,
-    PackageReviewSynchronousInvocation, PackageSourceBinding, compile_to_checked_with_packages,
-    project_checked_package_review,
+    PackageReviewCrashInterface, PackageReviewCrashRouteGuard, PackageReviewDataMember,
+    PackageReviewNominalOwner, PackageReviewSynchronousInvocation, PackageSourceBinding,
+    compile_to_checked_with_packages, project_checked_package_review,
 };
 use psi_core::PackageKeyIdentity;
 use std::fs;
@@ -63,6 +63,8 @@ fn review_projects_root_boundary_and_build_authority() {
 boundary trait Host { machine ping(); }
 machine ping_leaf() satisfies Host::ping via Binding::VtableSlot(1);
 data Receipt [linear] { code: i32; }
+pub data Packet [copy] { #1 value: u32; }
+data PrivatePacket { hidden: u32; }
 machine helper()
 crashes Abort
 {
@@ -117,7 +119,19 @@ crashes Abort
         target,
         "review identity must retain the deployment profile, not only its native ABI",
     );
-    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 2);
+    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 3);
+    let [packet] = review.public_data() else {
+        panic!("one package-owned public data row")
+    };
+    assert_eq!(packet.identity().path(), "Packet");
+    assert_eq!(packet.lifetime_parameter_count(), 0);
+    assert_eq!(packet.members().len(), 1);
+    let PackageReviewDataMember::Field(value) = &packet.members()[0] else {
+        panic!("Packet value field")
+    };
+    assert_eq!(value.identity(), Some(1));
+    assert_eq!(value.name(), "value");
+    assert!(!value.type_identity().canonical().is_empty());
     assert_eq!(review.callables().len(), 3);
     let boundary = review
         .callables()
@@ -399,7 +413,7 @@ invokes waiting;
 }
 
 #[test]
-fn exact_synchronous_invocations_change_v2_comparison_encoding() {
+fn exact_synchronous_invocations_change_v3_comparison_encoding() {
     let quiet = TempPackage::new();
     let invoking = TempPackage::new();
     quiet.write(
@@ -589,6 +603,76 @@ machine build(builder: &mut Build) { }
         .expect("second arena-order encoding");
 
     assert_eq!(first, second);
+}
+
+#[test]
+fn public_data_and_numbered_wire_shape_changes_change_v3_comparison_encoding() {
+    let first = TempPackage::new();
+    let second = TempPackage::new();
+    first.write(
+        "main.omg",
+        "pub data Packet [copy] { #1 value: u32; }\ndata Private { ignored: u32; }\n",
+    );
+    second.write(
+        "main.omg",
+        "pub data Packet [copy] { #1 value: u64; }\ndata Private { changed: i64; }\n",
+    );
+    let build = r#"target windows_x64 { }
+machine build(builder: &mut Build) { }
+"#;
+    first.write("build.omg", build);
+    second.write("build.omg", build);
+
+    let encode = |package: &TempPackage| {
+        let checked = compile_to_checked_with_packages(
+            &package.0.join("main.omg"),
+            Some("windows_x64"),
+            package_inputs(&package.0),
+        )
+        .expect("public-shape fixture should check");
+        project_checked_package_review(&checked)
+            .expect("public-shape review should close")
+            .canonical_review_bytes()
+            .expect("public-shape encoding")
+    };
+
+    assert_ne!(encode(&first), encode(&second));
+}
+
+#[test]
+fn review_rejects_public_data_semantics_that_lack_canonical_rows() {
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub data Ledger
+where
+    count <= len,
+{
+    len: u32;
+    count: u32;
+}
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x64 { }
+machine build(builder: &mut Build) { }
+"#,
+    );
+
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some("windows_x64"),
+        package_inputs(&package.0),
+    )
+    .expect("public data fact fixture should check");
+    let diagnostics = project_checked_package_review(&checked)
+        .expect_err("review must not silently omit public data facts");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("uses proof facts not yet represented by package review")
+    }));
 }
 
 #[test]
