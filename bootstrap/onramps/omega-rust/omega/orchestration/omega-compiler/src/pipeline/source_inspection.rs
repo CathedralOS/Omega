@@ -7,7 +7,7 @@ use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::path::Path;
 
-pub const SOURCE_CLOSURE_SNAPSHOT_SCHEMA: &str = "omega.source-closure-snapshot.v2";
+pub const SOURCE_CLOSURE_SNAPSHOT_SCHEMA: &str = "omega.source-closure-snapshot.v3";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct SourceClosureSnapshotEntry {

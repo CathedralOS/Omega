@@ -14,7 +14,7 @@ use psi_syntax_trees::snapshot::{
 use serde::Serialize;
 use std::collections::BTreeMap;
 
-pub const SOURCE_FEATURE_CENSUS_SCHEMA: &str = "omega.omega-source-feature-census.v1";
+pub const SOURCE_FEATURE_CENSUS_SCHEMA: &str = "omega.omega-source-feature-census.v2";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct SourceFeatureCount {
@@ -77,6 +77,7 @@ pub fn census_source_closure(snapshot: &SourceClosureSnapshot) -> SourceFeatureC
 struct Census {
     features: BTreeMap<&'static str, usize>,
     resources: BTreeMap<&'static str, usize>,
+    expression_depth: usize,
 }
 
 impl Census {
@@ -87,6 +88,7 @@ impl Census {
                 .iter()
                 .map(|(id, _, _)| (*id, 0))
                 .collect(),
+            expression_depth: 0,
         }
     }
 
@@ -174,6 +176,8 @@ impl Census {
                 }
             }
             ItemSnapshot::Conformance {
+                lifetime_parameters,
+                type_parameters,
                 type_name,
                 subjectless: _,
                 trait_name,
@@ -182,6 +186,8 @@ impl Census {
                 body,
             } => {
                 self.bump("item.conformance");
+                self.lifetime_parameters(lifetime_parameters);
+                self.type_parameters(type_parameters);
                 if let Some(type_name) = type_name {
                     self.identifier(type_name);
                 }
@@ -236,7 +242,7 @@ impl Census {
             }
             ItemSnapshot::Data {
                 name,
-                is_public: _,
+                is_public,
                 supply,
                 lifetime_parameters,
                 type_parameters,
@@ -246,6 +252,9 @@ impl Census {
                 members,
             } => {
                 self.bump("item.data");
+                if *is_public {
+                    self.bump("item.public");
+                }
                 self.identifier(name);
                 self.lifetime_parameters(lifetime_parameters);
                 self.type_parameters(type_parameters);
@@ -334,7 +343,7 @@ impl Census {
                 type_parameters,
                 target_type,
                 index_arguments,
-                is_public: _,
+                is_public,
                 alias,
                 authored_routes,
                 classification: _,
@@ -344,6 +353,9 @@ impl Census {
                 semantic_clause_token_count: _,
             } => {
                 self.bump("item.domain");
+                if *is_public {
+                    self.bump("item.public");
+                }
                 self.identifier(name);
                 self.type_parameters(type_parameters);
                 self.type_reference(target_type);
@@ -453,7 +465,7 @@ impl Census {
             ItemSnapshot::Machine {
                 name,
                 attached_data,
-                is_public: _,
+                is_public,
                 bodyless,
                 target,
                 boundary,
@@ -475,6 +487,9 @@ impl Census {
                 states,
             } => {
                 self.bump("item.machine");
+                if *is_public {
+                    self.bump("item.public");
+                }
                 self.identifier(name);
                 if *bodyless {
                     self.bump("machine.bodyless");
@@ -506,10 +521,16 @@ impl Census {
                 if !ranking_subjects.is_empty() || !ranking_view.is_empty() {
                     self.bump("machine.ranking");
                 }
+                if !ranking_subjects.is_empty() {
+                    self.bump("machine.ranking.subject");
+                }
                 for expression in ranking_subjects {
                     self.expression(expression);
                 }
                 self.path(ranking_view);
+                if !ranking_view.is_empty() {
+                    self.bump("machine.ranking.view");
+                }
                 if !ranking_view_arguments.is_empty() {
                     self.bump("machine.ranking.arguments");
                 }
@@ -553,7 +574,7 @@ impl Census {
             ItemSnapshot::Trait {
                 name,
                 is_boundary,
-                is_public: _,
+                is_public,
                 lifetime_parameters,
                 type_parameters,
                 conformance_bounds,
@@ -563,6 +584,9 @@ impl Census {
                 machines,
             } => {
                 self.bump("item.trait");
+                if *is_public {
+                    self.bump("item.public");
+                }
                 self.identifier(name);
                 if *is_boundary {
                     self.bump("trait.boundary");
@@ -630,11 +654,14 @@ impl Census {
             }
             ItemSnapshot::WireData {
                 name,
-                is_public: _,
+                is_public,
                 encoding,
                 members,
             } => {
                 self.bump("item.wire_data");
+                if *is_public {
+                    self.bump("item.public");
+                }
                 self.identifier(name);
                 if let Some(encoding) = encoding {
                     self.identifier(encoding);
@@ -908,13 +935,18 @@ impl Census {
     fn satisfies_clause(&mut self, clause: &SatisfiesClauseSnapshot) {
         self.bump("machine.satisfies");
         self.identifier(&clause.trait_name);
+        if !clause.arguments.is_empty() {
+            self.bump("machine.satisfies.arguments");
+        }
         for argument in &clause.arguments {
             self.type_reference(argument);
         }
         if let Some(requirement) = &clause.requirement {
+            self.bump("machine.satisfies.requirement");
             self.identifier(requirement);
         }
         if let Some(alias) = &clause.alias {
+            self.bump("machine.satisfies.alias");
             self.identifier(alias);
         }
         if let Some(via) = &clause.via {
@@ -978,15 +1010,28 @@ impl Census {
             }
             StatementSnapshot::Call {
                 receiver,
+                receiver_starts_at_self,
                 target,
                 machine_arguments,
                 arguments,
                 evidence_arguments,
-                acknowledgement_synthesized: _,
+                acknowledgement_synthesized,
                 acknowledges_suspend,
                 acknowledges_block,
+                discards_result,
             } => {
                 self.bump("statement.call");
+                if receiver.is_empty() {
+                    self.bump("call.receiver.free");
+                } else {
+                    self.bump("call.receiver.path");
+                }
+                if *receiver_starts_at_self {
+                    self.bump("statement.call.receiver_starts_at_self");
+                }
+                if *discards_result {
+                    self.bump("statement.call.discards_result");
+                }
                 self.path(receiver);
                 self.identifier(target);
                 self.static_arguments(machine_arguments);
@@ -1005,6 +1050,9 @@ impl Census {
                 if *acknowledges_block {
                     self.bump("call.acknowledgement.block");
                 }
+                if *acknowledgement_synthesized {
+                    self.bump("call.acknowledgement.synthesized");
+                }
             }
             StatementSnapshot::ProofOutputBindingStatement { bindings, call } => {
                 self.bump("statement.proof_output_binding");
@@ -1022,8 +1070,12 @@ impl Census {
                 name,
                 type_reference,
                 initial_value,
+                is_mutable,
             } => {
                 self.bump("statement.local_data");
+                if *is_mutable {
+                    self.bump("statement.local_data.mutable");
+                }
                 self.identifier(name);
                 self.type_reference(type_reference);
                 self.expression(initial_value);
@@ -1058,10 +1110,14 @@ impl Census {
         match target {
             TransitionTargetSnapshot::Named {
                 path,
+                path_starts_at_self,
                 arguments,
                 evidence_arguments,
             } => {
                 self.bump("transition.target.named");
+                if *path_starts_at_self {
+                    self.bump("transition.target.named.starts_at_self");
+                }
                 self.path(path);
                 self.maximum("transition.arguments", arguments.len());
                 for argument in arguments {
@@ -1071,7 +1127,7 @@ impl Census {
                             | ExpressionSnapshot::String { .. }
                             | ExpressionSnapshot::StructLiteral { .. }
                     ) {
-                        self.bump("transition.aggregate_argument");
+                        self.bump("transition.aggregate_literal_argument");
                     }
                     self.expression(argument);
                 }
@@ -1118,11 +1174,19 @@ impl Census {
 
     fn type_reference(&mut self, type_reference: &TypeReferenceSnapshot) {
         match type_reference {
-            TypeReferenceSnapshot::Reference { referee, access } => {
+            TypeReferenceSnapshot::Reference {
+                referee,
+                access,
+                lifetime,
+            } => {
                 match *access {
                     "shared" => self.bump("type.reference.shared"),
                     "mutable" => self.bump("type.reference.mutable"),
                     _ => self.bump("type.reference.other"),
+                }
+                if let Some(lifetime) = lifetime {
+                    self.bump("type.reference.lifetime");
+                    self.identifier(lifetime);
                 }
                 self.type_reference(referee);
             }
@@ -1225,12 +1289,23 @@ impl Census {
     }
 
     fn expression(&mut self, expression: &ExpressionSnapshot) {
+        self.expression_at(expression, 1);
+    }
+
+    fn expression_child(&mut self, expression: &ExpressionSnapshot) {
+        self.expression_at(expression, self.expression_depth + 1);
+    }
+
+    fn expression_at(&mut self, expression: &ExpressionSnapshot, depth: usize) {
+        let previous_depth = self.expression_depth;
+        self.expression_depth = depth;
+        self.maximum("expression.nesting_depth", depth);
         match expression {
             ExpressionSnapshot::ArrayLiteral { values } => {
                 self.bump("expression.array_literal");
                 self.maximum("expression.array_elements", values.len());
                 for value in values {
-                    self.expression(value);
+                    self.expression_child(value);
                 }
             }
             ExpressionSnapshot::Atomic {
@@ -1239,9 +1314,9 @@ impl Census {
                 ordering: _,
             } => {
                 self.bump("expression.atomic");
-                self.expression(value);
+                self.expression_child(value);
                 if let Some(result) = result {
-                    self.expression(result);
+                    self.expression_child(result);
                 }
             }
             ExpressionSnapshot::Binary {
@@ -1271,20 +1346,41 @@ impl Census {
                     "subtract" => "expression.binary.subtract",
                     _ => "expression.binary.other",
                 });
-                self.expression(left);
-                self.expression(right);
+                self.expression_child(left);
+                self.expression_child(right);
             }
             ExpressionSnapshot::Boolean { value: _ } => self.bump("expression.boolean"),
             ExpressionSnapshot::Cast {
                 value,
                 target_type,
+                arithmetic_domain,
+                form,
                 semantic_domain,
                 semantic_domain_arguments,
             } => {
                 self.bump("expression.cast");
-                self.expression(value);
+                self.bump(match *arithmetic_domain {
+                    "Exact" => "expression.cast.domain.exact",
+                    "Wrapping" => "expression.cast.domain.wrapping",
+                    "Saturating" => "expression.cast.domain.saturating",
+                    "Trapping" => "expression.cast.domain.trapping",
+                    _ => "expression.cast.domain.other",
+                });
+                self.bump(match *form {
+                    "value" => "expression.cast.form.value",
+                    "recast_shared" => "expression.cast.form.recast_shared",
+                    "recast_mutable" => "expression.cast.form.recast_mutable",
+                    _ => "expression.cast.form.other",
+                });
+                self.expression_child(value);
                 self.type_reference(target_type);
+                if !semantic_domain.is_empty() {
+                    self.bump("expression.cast.semantic_domain");
+                }
                 self.path(semantic_domain);
+                if !semantic_domain_arguments.is_empty() {
+                    self.bump("expression.cast.semantic_domain_argument");
+                }
                 for argument in semantic_domain_arguments {
                     self.type_reference(argument);
                 }
@@ -1295,20 +1391,23 @@ impl Census {
                 machine_arguments,
                 arguments,
                 evidence_arguments,
-                acknowledgement_synthesized: _,
+                acknowledgement_synthesized,
                 acknowledges_suspend,
                 acknowledges_block,
             } => {
                 self.bump("expression.call");
                 if let Some(receiver) = receiver {
-                    self.expression(receiver);
+                    self.bump("call.receiver.expression");
+                    self.expression_child(receiver);
+                } else {
+                    self.bump("call.receiver.free");
                 }
                 self.identifier(target);
                 self.static_arguments(machine_arguments);
                 self.maximum("call.static_arguments", machine_arguments.len());
                 self.maximum("call.arguments", arguments.len());
                 for argument in arguments {
-                    self.expression(argument);
+                    self.expression_child(argument);
                 }
                 for argument in evidence_arguments {
                     self.bump("call.evidence_argument");
@@ -1320,27 +1419,38 @@ impl Census {
                 if *acknowledges_block {
                     self.bump("call.acknowledgement.block");
                 }
+                if *acknowledgement_synthesized {
+                    self.bump("call.acknowledgement.synthesized");
+                }
             }
             ExpressionSnapshot::Float { text: _ } => self.bump("expression.float"),
             ExpressionSnapshot::Indexed { collection, index } => {
                 self.bump("expression.indexed");
-                self.expression(collection);
-                self.expression(index);
+                self.expression_child(collection);
+                self.expression_child(index);
             }
             ExpressionSnapshot::Integer { text: _ } => self.bump("expression.integer"),
             ExpressionSnapshot::Membership { value, domain } => {
                 self.bump("expression.membership");
-                self.expression(value);
+                self.expression_child(value);
                 self.path(domain);
             }
-            ExpressionSnapshot::Member { receiver, member } => {
+            ExpressionSnapshot::Member {
+                receiver,
+                member,
+                case_variant,
+            } => {
                 self.bump("expression.member");
-                self.expression(receiver);
+                if let Some(case_variant) = case_variant {
+                    self.bump("expression.member.case_payload");
+                    self.identifier(case_variant);
+                }
+                self.expression_child(receiver);
                 self.identifier(member);
             }
             ExpressionSnapshot::Borrow { access: _, value } => {
                 self.bump("expression.borrow");
-                self.expression(value);
+                self.expression_child(value);
             }
             ExpressionSnapshot::Name { path } => {
                 self.bump("expression.name");
@@ -1349,20 +1459,33 @@ impl Census {
             ExpressionSnapshot::Range {
                 start,
                 end,
-                end_inclusive: _,
+                end_inclusive,
             } => {
                 self.bump("expression.range");
                 if let Some(start) = start {
-                    self.expression(start);
+                    self.bump("expression.range.start");
+                    self.expression_child(start);
                 }
                 if let Some(end) = end {
-                    self.expression(end);
+                    self.bump("expression.range.end");
+                    self.expression_child(end);
+                }
+                if *end_inclusive {
+                    self.bump("expression.range.inclusive");
                 }
             }
             ExpressionSnapshot::SelfValue => self.bump("expression.self_value"),
-            ExpressionSnapshot::StructLiteral { type_name, fields } => {
+            ExpressionSnapshot::StructLiteral {
+                type_name,
+                case_name,
+                fields,
+            } => {
                 self.bump("expression.struct_literal");
                 self.identifier(type_name);
+                if let Some(case_name) = case_name {
+                    self.bump("expression.struct_literal.case");
+                    self.identifier(case_name);
+                }
                 self.maximum("expression.struct_fields", fields.len());
                 for field in fields {
                     self.struct_literal_field(field);
@@ -1379,18 +1502,19 @@ impl Census {
                     "!" => "expression.unary.logical_not",
                     _ => "expression.unary.other",
                 });
-                self.expression(operand);
+                self.expression_child(operand);
             }
             ExpressionSnapshot::ZeroValue { type_reference } => {
                 self.bump("expression.zero_value");
                 self.type_reference(type_reference);
             }
         }
+        self.expression_depth = previous_depth;
     }
 
     fn struct_literal_field(&mut self, field: &StructLiteralFieldSnapshot) {
         self.identifier(&field.name);
-        self.expression(&field.value);
+        self.expression_child(&field.value);
     }
 }
 

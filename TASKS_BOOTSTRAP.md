@@ -415,13 +415,23 @@ may advance before the product source manifest exists, while provisional
     and rejects omitted, padded, rewired, duplicate, bogus-root, and external-
     checksum mutations;
   - [x] make checkpoint census generation compiler-owned and structurally
-    exhaustive for its used source forms. Source-closure snapshot v2 retains
+    exhaustive for its used source forms. Source-closure snapshot v3 retains
     target qualification, bodylessness, `satisfies`/`via`, conformance bounds,
-    ranking arguments/ranges, and data `where` facts; the versioned feature
-    catalog enumerates zero-count alternatives, operator spellings, call and
-    transition flags, parameter flags, and bounded resources. All four target
-    resolutions currently agree. This is census evidence, not yet profile
-    admission enforcement;
+    ranking arguments/ranges, data `where` facts, cast domain/form, case
+    construction/projection, local mutability, qualification flags, and
+    reference lifetimes; the versioned feature catalog enumerates zero-count
+    alternatives, operator spellings, call and transition flags, parameter
+    flags, and bounded resources. All four target resolutions currently agree;
+  - [x] publish and enforce a separately hashed provisional normalized-syntax
+    and resource profile for checkpoint 000001. `profile-000001.json` binds the
+    manifest closure/content digests, complete catalog partition, every-target
+    census, rounded ceilings, unresolved evidence, and hashed canaries. The
+    gate proves each negative fixture remains valid checked full Omega before
+    profile admission rejects it, admits a compositional positive fixture, and
+    carries schema/feature/resource/canary plus exact-limit/adjacent-over-limit
+    mutation teeth. Typed semantic distinctions, ABI/layout, lowering, Delta
+    capacity behavior, and bridge-cost settlement are not claimed by this
+    tranche;
   - [ ] measure every feature used by each complete checkpoint closure against
     its production-source benefit and the cost of implementing and assuring it
     in the Delta-written bridge. Absence from a partial checkpoint is provisional
@@ -434,10 +444,10 @@ may advance before the product source manifest exists, while provisional
     permutations;
   - [ ] publish candidate compositional syntax, static-semantics, resource,
     ABI/layout, and lowering rules—not file identities, statement counts, or
-    AST permutations—and enforce them provisionally. The immediate remaining
-    checkpoint-000001 step is a separately hashed profile artifact bound to the
-    census catalog, ordinary-Omega positive/excluded-feature canaries, and
-    at-limit/over-limit resource mutation teeth;
+    AST permutations—and enforce them provisionally. Normalized syntax and
+    resource admission are now mechanically enforced; typed semantic, ABI/
+    layout, and lowering rules still require corresponding compiler-owned
+    census facts and bridge evidence;
   - [ ] update every applicable row in the canonical working feature-disposition
     table in [`compiler_source_profile.md`](wiki/architecture/bootstrap_lattice/compiler_source_profile.md).
     Preserve explicit unresolved rows where later product source or general
