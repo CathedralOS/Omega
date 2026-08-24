@@ -112,16 +112,21 @@ compiler-consumption commitment: a hostile same-user process may still race
 both observations.
 
 Git subprocesses now receive null stdin, concurrent bounded stdout/stderr
-capture, and a deadline. Each subprocess starts in a fresh Unix process group
-or Windows Job Object, and every completion or rejection path terminates that
-container before returning; ordinary helper and SSH descendants therefore
-cannot survive the resolver command or keep inherited capture pipes open.
-Overflow and timeout reject explicitly, including for blob reads. This process
-container floor is not an OS sandbox: a hostile Unix descendant may deliberately
-escape into another session. Fetch and materialization still run in the parent
-process without filesystem/network confinement or CPU, memory, process-count,
-and transfer ceilings. A deliberately hostile same-user process can race
-cooperative locks and validation, including the local before/after observation.
+capture, and a deadline. Fetch requests only the selected revision at depth one
+and disables automatic maintenance and garbage collection, so selecting one
+package revision does not traverse its unrelated reachable history. Each
+subprocess starts in a fresh Unix process group or Windows Job Object, and every
+completion or rejection path terminates that container before returning;
+ordinary helper and SSH descendants therefore cannot survive the resolver
+command or keep inherited capture pipes open. Overflow and timeout reject
+explicitly, including for blob reads. This process container floor is not an OS
+sandbox: a hostile Unix descendant may deliberately escape into another
+session. Depth-one fetch limits history amplification but does not enforce a
+transferred-byte or object-store quota. Fetch and materialization still run in
+the parent process without filesystem/network confinement or CPU, memory,
+process-count, and transfer ceilings. A deliberately hostile same-user process
+can race cooperative locks and validation, including the local before/after
+observation.
 SSH retains an external client and credential/configuration surface. Those
 conditions keep the resolver diagnostic-only until native helper confinement,
 hostile-process custody, remaining resource ceilings, and opaque-receipt work
