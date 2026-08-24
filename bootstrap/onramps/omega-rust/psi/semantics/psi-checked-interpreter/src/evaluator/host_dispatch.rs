@@ -39,7 +39,6 @@ impl<'program> Evaluator<'program> {
         // within the provider after that selection; package-controlled names
         // cannot enter this branch.
         if let Some(filesystem_operation) = filesystem_operation {
-            self.filesystem_host_observed = true;
             let args = self
                 .program
                 .statement_table

@@ -171,6 +171,12 @@ operation identity shared exhaustively by both providers; aliases remain
 distinct. Future rooted transcripts must handle potentially absolute
 `read_link` output and necessarily absolute `canonicalize` and
 `final_path_name_by_handle` output.
+Observation schema v2 retains exact providers, operation tags, scalar returns,
+and post-error state in successful-run call-start order. Denial-shaped results
+remain visible but are not yet typed as grant-policy refusal versus host error.
+It omits failed evaluator attempts, operands, rooted paths, mutable outputs,
+logical handles, and content and is therefore an incomplete trace rather than a
+transcript or receipt.
 Compiler-issued package review carries this summary
 outside canonical capability/API comparison bytes. It is not a receipt and
 makes no replayability or source-rebuildability claim.

@@ -673,9 +673,19 @@ complete.
   lacking an encoded identity rejects rather than falling through to another
   boundary dispatcher. `read_link` is recognized as
   conditionally absolute-path-producing; `canonicalize` and
-  `final_path_name_by_handle` are unconditionally so. Transcript schema and
-  serialization, lossless rooted paths, transcripts/content custody, fresh
-  staging publication, output-tree commitment, and replay remain.
+  `final_path_name_by_handle` are unconditionally so. Observation schema v2
+  now retains an ordered successful-run call-start trace of exact provider,
+  operation tag, scalar return, and post-operation error state through compiler
+  reports and package review. A denied call's `-1`/error state remains visible,
+  but this rung cannot distinguish a grant refusal from the same host OS error;
+  pure and console-only traces are empty.
+  This deliberately incomplete trace may still expose runtime descriptor values
+  and omits operands, paths, mutable byte regions, logical handles, and content.
+  It is not called a transcript or receipt. Structured failed-evaluation and
+  exact per-operand grant-refusal events, bounded exactly-once argument
+  preparation, complete transcript schema and serialization, lossless rooted
+  paths, transcripts/content custody, fresh staging publication, output-tree
+  commitment, and replay remain.
 
 - **PROOF-AND-BOUNDARY-ADMISSION.** Fail closed on false or incomplete evidence.
 

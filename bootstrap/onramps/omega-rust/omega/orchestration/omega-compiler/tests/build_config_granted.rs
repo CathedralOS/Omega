@@ -10,8 +10,9 @@
 //! (undeclared services; unpinned custom boundary).
 
 use omega_compiler::{
-    BuildObservationClass, CompileOptions, PackageCompilationInputs, PackageSourceBinding, compile,
-    compile_to_checked, compile_to_checked_with_packages_in_build_dir,
+    BuildFilesystemProvider, BuildObservationClass, CompileOptions, PackageCompilationInputs,
+    PackageSourceBinding, compile, compile_to_checked,
+    compile_to_checked_with_packages_in_build_dir,
 };
 use psi_core::PackageKeyIdentity;
 use std::path::PathBuf;
@@ -103,7 +104,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     let checked_observations = checked
         .build_observation_summary()
         .expect("build machine evaluation must publish observation evidence");
-    assert_eq!(checked_observations.schema_version(), 1);
+    assert_eq!(checked_observations.schema_version(), 2);
     assert_eq!(
         checked_observations.ceiling(),
         BuildObservationClass::Volatile
@@ -111,6 +112,31 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     assert_eq!(
         checked_observations.realized(),
         BuildObservationClass::Volatile
+    );
+    assert_eq!(
+        checked_observations.filesystem_operation_schema_version(),
+        1
+    );
+    let attempts: Vec<_> = checked_observations
+        .filesystem_operation_attempts()
+        .iter()
+        .map(|attempt| {
+            (
+                attempt.operation_tag(),
+                attempt.provider(),
+                attempt.result(),
+                attempt.post_error(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        attempts,
+        vec![
+            (1, BuildFilesystemProvider::RealScoped, 3, 0),
+            (5, BuildFilesystemProvider::RealScoped, 16, 0),
+            (43, BuildFilesystemProvider::RealScoped, 0, 0),
+            (8, BuildFilesystemProvider::RealScoped, 0, 0),
+        ]
     );
 
     let report = compile(CompileOptions {
@@ -122,7 +148,10 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     .expect("declared filesystem+console build.omg should compile (console rows are SERVED, not backstopped)");
     assert!(report.wrote_output());
     assert_eq!(report.build_evaluation_usage, Some(checked_usage));
-    assert_eq!(report.build_observation_summary, Some(checked_observations));
+    assert_eq!(
+        report.build_observation_summary.as_ref(),
+        Some(checked_observations)
+    );
 
     let staged = std::fs::read_to_string(stage.join("asset.bin"))
         .expect("the build machine should have staged stage/asset.bin at compile time");
@@ -207,6 +236,18 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
         .expect("denied filesystem attempt remains an observed build-host operation");
     assert_eq!(observations.ceiling(), BuildObservationClass::Volatile);
     assert_eq!(observations.realized(), BuildObservationClass::Volatile);
+    let denied_attempt = observations
+        .filesystem_operation_attempts()
+        .first()
+        .expect("denied create must remain in ordered operation evidence");
+    assert_eq!(observations.filesystem_operation_attempts().len(), 1);
+    assert_eq!(denied_attempt.operation_tag(), 1);
+    assert_eq!(
+        denied_attempt.provider(),
+        BuildFilesystemProvider::RealScoped
+    );
+    assert_eq!(denied_attempt.result(), -1);
+    assert_eq!(denied_attempt.post_error(), 13);
 
     assert!(
         !forbidden.exists(),
@@ -276,6 +317,7 @@ reaches Console
         .expect("console-only build publishes observation evidence");
     assert_eq!(observations.ceiling(), BuildObservationClass::Hermetic);
     assert_eq!(observations.realized(), BuildObservationClass::Hermetic);
+    assert!(observations.filesystem_operation_attempts().is_empty());
     assert!(!unavailable_build_root.exists());
 
     let _ = std::fs::remove_dir_all(&project);

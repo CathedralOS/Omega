@@ -50,8 +50,8 @@ impl CompilerIssuedPackageReview {
 
     /// Selected build-machine execution evidence. This is deliberately
     /// separate from canonical capability/API comparison bytes.
-    pub const fn build_observation_summary(&self) -> Option<BuildObservationSummary> {
-        self.build_observation_summary
+    pub const fn build_observation_summary(&self) -> Option<&BuildObservationSummary> {
+        self.build_observation_summary.as_ref()
     }
 
     pub fn projection(&self) -> &CheckedPackageReviewProjection {
@@ -279,7 +279,7 @@ pub fn compile_resolved_package_reviews(
                     package: key.clone(),
                 }
             })?;
-        let build_observation_summary = checked.build_observation_summary();
+        let build_observation_summary = checked.build_observation_summary().cloned();
         let projection = project_checked_package_review(&checked).map_err(|diagnostics| {
             CompileResolvedPackageReviewsError::Projection {
                 package: key.clone(),

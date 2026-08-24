@@ -118,7 +118,7 @@ pub struct BuildEvaluationUsage {
     pub result_cells: u64,
 }
 
-pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 1;
+pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 2;
 
 /// Normalized build-host observation class for one selected build machine.
 ///
@@ -137,23 +137,75 @@ pub enum BuildObservationClass {
 /// This is execution evidence, not capability/API comparison identity. A
 /// volatile row carries no replay receipt and makes no rebuildability claim.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BuildFilesystemProvider {
+    /// Deterministic in-memory provider.
+    Virtual,
+    /// Real process filesystem without path grants; never selected by admitted
+    /// build execution.
+    RealUnscoped,
+    /// Real filesystem constrained by compiler-supplied path grants.
+    RealScoped,
+}
+
+/// One completed call from a successful build evaluation. This partial row is
+/// execution evidence, not a replay event or receipt.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BuildFilesystemOperationAttempt {
+    operation_tag: u16,
+    provider: BuildFilesystemProvider,
+    result: i64,
+    post_error: i32,
+}
+
+impl BuildFilesystemOperationAttempt {
+    pub const fn operation_tag(self) -> u16 {
+        self.operation_tag
+    }
+
+    pub const fn provider(self) -> BuildFilesystemProvider {
+        self.provider
+    }
+
+    pub const fn result(self) -> i64 {
+        self.result
+    }
+
+    pub const fn post_error(self) -> i32 {
+        self.post_error
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BuildObservationSummary {
     schema_version: u32,
     ceiling: BuildObservationClass,
     realized: BuildObservationClass,
+    filesystem_operation_schema_version: u32,
+    filesystem_operation_attempts: Vec<BuildFilesystemOperationAttempt>,
 }
 
 impl BuildObservationSummary {
-    pub const fn schema_version(self) -> u32 {
+    pub const fn schema_version(&self) -> u32 {
         self.schema_version
     }
 
-    pub const fn ceiling(self) -> BuildObservationClass {
+    pub const fn ceiling(&self) -> BuildObservationClass {
         self.ceiling
     }
 
-    pub const fn realized(self) -> BuildObservationClass {
+    pub const fn realized(&self) -> BuildObservationClass {
         self.realized
+    }
+
+    pub const fn filesystem_operation_schema_version(&self) -> u32 {
+        self.filesystem_operation_schema_version
+    }
+
+    /// Ordered operation/result/error evidence from the successful evaluator
+    /// run. This is intentionally not a replay transcript: rooted arguments,
+    /// mutable output regions, logical handles, and content custody are absent.
+    pub fn filesystem_operation_attempts(&self) -> &[BuildFilesystemOperationAttempt] {
+        &self.filesystem_operation_attempts
     }
 }
 
@@ -1080,6 +1132,30 @@ pub(crate) fn compute_build_config(
             "build-time evaluation of `{machine_name}` observed filesystem host state outside its static observation ceiling"
         ))]);
     }
+    let filesystem_operation_schema_version = measured
+        .observations()
+        .filesystem_operation_schema_version();
+    let filesystem_operation_attempts = measured
+        .observations()
+        .filesystem_operation_attempts()
+        .iter()
+        .map(|attempt| BuildFilesystemOperationAttempt {
+            operation_tag: attempt.operation_tag(),
+            provider: match attempt.provider() {
+                psi_checked_interpreter::FilesystemObservationProvider::Virtual => {
+                    BuildFilesystemProvider::Virtual
+                }
+                psi_checked_interpreter::FilesystemObservationProvider::RealUnscoped => {
+                    BuildFilesystemProvider::RealUnscoped
+                }
+                psi_checked_interpreter::FilesystemObservationProvider::RealScoped => {
+                    BuildFilesystemProvider::RealScoped
+                }
+            },
+            result: attempt.result(),
+            post_error: attempt.post_error(),
+        })
+        .collect();
     let mut arguments = measured.into_value();
     let augmented = arguments.pop().ok_or_else(|| {
         vec![Diagnostic::error(format!(
@@ -1108,6 +1184,8 @@ pub(crate) fn compute_build_config(
             schema_version: BUILD_OBSERVATION_SCHEMA_VERSION,
             ceiling: observation_ceiling,
             realized: realized_observation,
+            filesystem_operation_schema_version,
+            filesystem_operation_attempts,
         }),
         selected_build_machine_symbol: Some(machine.symbol),
     })

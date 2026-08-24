@@ -666,7 +666,6 @@ impl<'program> Evaluator<'program> {
                         .to_vec();
                     let value = self.try_filesystem_call(filesystem_operation, &fs_args, frame)?;
                     self.host_boundary_touched = true;
-                    self.filesystem_host_observed = true;
                     return Ok(value);
                 }
 
