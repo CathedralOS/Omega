@@ -688,7 +688,9 @@ pub(super) fn validate_machine(
         &context,
     )?;
     content::validate_content_partition_compositions(
+        module,
         machine,
+        machines,
         registry,
         &structural_place_kinds,
         &context,

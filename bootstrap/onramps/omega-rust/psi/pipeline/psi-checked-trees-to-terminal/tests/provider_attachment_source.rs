@@ -86,7 +86,7 @@ fn lowered() -> psi_checked_trees_to_terminal::LoweredTerminalPsi {
 
 fn fixture_bytes() -> Vec<u8> {
     let hex = include_str!(
-        "../../../../../../../bootstrap/omega-bootstrap/gates/fixtures/omega-bootstrap-terminal-v27.hex"
+        "../../../../../../../bootstrap/omega-bootstrap/gates/fixtures/omega-bootstrap-terminal-v28.hex"
     );
     let digits = hex
         .bytes()
@@ -249,8 +249,8 @@ fn source_projection_is_the_shared_o0_fixture_and_perturbations_fail_closed() {
         "source projection must own the O0 fixture"
     );
     assert_eq!(&canonical[..8], b"PSITERM\0");
-    assert_eq!(u16::from_le_bytes([canonical[8], canonical[9]]), 24);
-    assert_eq!(u16::from_le_bytes([canonical[10], canonical[11]]), 27);
+    assert_eq!(u16::from_le_bytes([canonical[8], canonical[9]]), 25);
+    assert_eq!(u16::from_le_bytes([canonical[10], canonical[11]]), 28);
     let decoded = psi_terminal_codec::decode_module(&canonical).expect("decode O0 fixture");
     psi_terminal_verifier::validate_module(&decoded).expect("validate O0 fixture");
     assert_eq!(

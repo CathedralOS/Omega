@@ -479,6 +479,14 @@ fn lower_checked_direct_call_binding(
         return unsupported("direct scalar call crash continuation lacks a checked scalar term");
     }
     Ok(LoweredDirectCallBinding {
+        source_coordinate: SourceCallCoordinate {
+            state: caller_state,
+            statement_index: usize::try_from(statement_ordinal).map_err(|_| {
+                LoweringError::Unsupported("scalar call statement ordinal exceeds usize")
+            })?,
+            call_ordinal: usize::try_from(call_ordinal)
+                .map_err(|_| LoweringError::Unsupported("scalar call ordinal exceeds usize"))?,
+        },
         target_machine,
         result_type,
         arguments,

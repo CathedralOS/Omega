@@ -63,13 +63,13 @@ use psi_proof_kernel::{
 };
 use psi_terminal::{
     Block, BoundaryMachineDeclaration, ByteSequenceCarrier, ClaimContentProjection, ClaimTransfer,
-    CompletionReceipt, ContentEntryClaim, ContentIdentityReshuffle, ContentPartitionComposition,
-    ContentPlaceSubstitution, ContractClause, CrashCause as TerminalCrashCause, EntryClaim,
-    EvidenceContractLane, EvidenceContractLaneKind, EvidenceInterfaceIdentity,
-    EvidenceProjectionIdentity, EvidenceRequirementIdentity, EvidenceTermDeclaration,
-    InstallationReachDependency, MachineContract, NominalAffineCleanup, Operation, OperationKind,
-    ProgramLocalRootIntroductionSchema, ProofOutput, ProofOutputCall, ProofOutputRuntimeCall,
-    PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
+    CompletionReceipt, ContentConservationGuarantee, ContentEntryClaim, ContentIdentityReshuffle,
+    ContentPartitionComposition, ContentPlaceSubstitution, ContractClause,
+    CrashCause as TerminalCrashCause, EntryClaim, EvidenceContractLane, EvidenceContractLaneKind,
+    EvidenceInterfaceIdentity, EvidenceProjectionIdentity, EvidenceRequirementIdentity,
+    EvidenceTermDeclaration, InstallationReachDependency, MachineContract, NominalAffineCleanup,
+    Operation, OperationKind, ProgramLocalRootIntroductionSchema, ProofOutput, ProofOutputCall,
+    ProofOutputRuntimeCall, PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
     PropositionBinderArgumentKind, PropositionBinderDeclaration, PropositionBinderKind,
     PropositionDeclaration, PropositionEvidence, ProviderCandidateConformance,
     ProviderParameterRefinement, ProviderSignatureParameter, ProviderUnitRefinement,
@@ -131,8 +131,8 @@ use boundary_scalar_return::lower_boundary_scalar_return_machine;
 use conformance_applications::lower_closed_conformance_applications;
 use content_conservation::{RESULT_STRUCTURAL_PLACE_ID, merge_content_place_declaration};
 pub use content_conservation::{
-    lower_content_conservation_plan, lower_content_identity_reshuffles,
-    lower_content_partition_compositions,
+    lower_boundary_content_guarantees, lower_content_conservation_plan,
+    lower_content_identity_reshuffles, lower_content_partition_compositions,
 };
 #[cfg(test)]
 use crash_routes::{checked_boolean_proposition, lower_checked_crash_frontier};
@@ -393,11 +393,19 @@ impl LoweredScalarBinding {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct LoweredDirectCallBinding {
+    source_coordinate: SourceCallCoordinate,
     target_machine: psi_symbols::SymbolHandle,
     result_type: ScalarType,
     arguments: Vec<LoweredDirectExpression>,
     crash_continuations: Vec<psi_checked_trees::CrashRouteBucket>,
     parameter_relative_crash_routes: Vec<psi_checked_trees::CrashRouteBucket>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct SourceCallCoordinate {
+    state: psi_symbols::SymbolHandle,
+    statement_index: usize,
+    call_ordinal: usize,
 }
 
 struct PreparedScalarMachine {
@@ -439,6 +447,7 @@ const TERMINAL_UNIT_CALL_OBLIGATION_BASE: u64 = 1_u64 << 63;
 struct OperationBuffer {
     next_identity: u64,
     operations: Vec<Operation>,
+    source_calls: Vec<(SourceCallCoordinate, OperationId, psi_symbols::SymbolHandle)>,
 }
 
 impl OperationBuffer {
@@ -448,6 +457,7 @@ impl OperationBuffer {
                 .checked_add(1)
                 .expect("operation identity base admits one-based identities"),
             operations: Vec::new(),
+            source_calls: Vec::new(),
         }
     }
 
@@ -458,6 +468,23 @@ impl OperationBuffer {
             .checked_add(1)
             .expect("terminal operation identities advance");
         id
+    }
+
+    fn record_source_call(
+        &mut self,
+        coordinate: SourceCallCoordinate,
+        operation: OperationId,
+        target: psi_symbols::SymbolHandle,
+    ) -> Result<(), LoweringError> {
+        if self
+            .source_calls
+            .iter()
+            .any(|(existing, _, _)| *existing == coordinate)
+        {
+            return Err(LoweringError::DuplicateContentPartitionProducerCoordinate);
+        }
+        self.source_calls.push((coordinate, operation, target));
+        Ok(())
     }
 }
 
@@ -701,7 +728,19 @@ pub struct LoweredContentIdentityReshuffles {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LoweredContentPartitionCompositions {
     pub structural_places: Vec<StructuralPlaceDeclaration>,
-    pub compositions: Vec<ContentPartitionComposition>,
+    pub compositions: Vec<LoweredContentPartitionComposition>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LoweredContentPartitionComposition {
+    producer_coordinate: SourceCallCoordinate,
+    source_callable: psi_symbols::SymbolHandle,
+    source_fingerprint: u64,
+    source_structural_places: Vec<StructuralPlaceDeclaration>,
+    source: ContentConservation,
+    input_claims: Vec<ClaimId>,
+    substitutions: Vec<ContentPlaceSubstitution>,
+    derived: ContentConservation,
 }
 
 /// Lower one named checked free machine and its reachable checked scalar callees
@@ -1067,6 +1106,9 @@ pub enum LoweringError {
     OverlappingContentEntryClaimInput,
     DuplicateContentPartitionSubstitution,
     DuplicateContentPartitionComposition,
+    DuplicateContentPartitionProducerCoordinate,
+    ContentPartitionProducerOperationMissing,
+    ContentPartitionProducerTargetMismatch,
     ContentPartitionResultRewriteUnsupported,
     ContentPartitionDerivedSourceUnsupported,
     ContentPartitionSubstitutionCoverageMismatch,

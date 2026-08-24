@@ -1,6 +1,6 @@
 use psi_core::{
-    BlockId, ClaimId, ContentAlgebra, ContentAlgebraKind, ContentConservation, ContentDomainId,
-    ContentPlaceSegment, ContentPlaceVersion, ContentProjectionExpression,
+    BlockId, BoundaryMachineId, ClaimId, ContentAlgebra, ContentAlgebraKind, ContentConservation,
+    ContentDomainId, ContentPlaceSegment, ContentPlaceVersion, ContentProjectionExpression,
     ContentProjectionIdentity, ContentProjectionScalar, ContentStructuralPlace, ContentTerm,
     ContractId, EdgeId, EvidenceIdentity, IntegerSign, IntegerType, IntegerValue, MachineId,
     ObligationId, OperationId, PlaceId, Proposition, PropositionError, ScalarTerm, ScalarType,
@@ -8,22 +8,23 @@ use psi_core::{
     content_conservation_fingerprint,
 };
 use psi_proof_kernel::{
-    AdmissionProfile, CertificateEnvelope, EvidenceError, EvidenceRoute, PrimitiveJudgment,
-    ProofError, ProofNode, ProofRule, ProofSystemMarker,
+    AdmissionProfile, CertificateEnvelope, EvidenceRoute, PrimitiveJudgment, ProofNode, ProofRule,
+    ProofSystemMarker,
 };
 use psi_terminal::{
-    Block, ClaimContentProjection, ContentEntryClaim, ContentIdentityReshuffle,
+    Block, BoundaryMachineDeclaration, ClaimContentProjection, CompletionReceipt,
+    ContentConservationGuarantee, ContentEntryClaim, ContentIdentityReshuffle,
     ContentPartitionComposition, ContentPlaceSubstitution, ContractClause, CrashCause, EntryClaim,
-    MachineContract, Operation, OperationKind, OperationResult, StructuralCaseDeclaration,
-    StructuralContentProjection, StructuralDomainDeclaration, StructuralFieldDeclaration,
-    StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
-    StructuralPlaceDeclaration, StructuralResultDeclaration, StructuralTypeDeclaration,
-    StructuralTypeShape, TerminalMachine, TerminalMachineResult, TerminalModule, Terminator,
-    ValueDeclaration, VocabularyMarker,
+    MachineContract, Operation, OperationKind, OperationResult, StructuralArgument,
+    StructuralCaseDeclaration, StructuralContentProjection, StructuralDomainDeclaration,
+    StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralResultDeclaration,
+    StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine, TerminalMachineResult,
+    TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_verifier::{
     ContractClauseKind, ModuleError, ObligationEvidence, ProofBundle, VerificationError,
-    validate_module, verify_module,
+    reconstruct_operation_obligations, validate_module, verify_module,
 };
 
 #[test]
@@ -2819,7 +2820,7 @@ fn payloadless_sum_case_membership_resolves_exact_case_identity() {
 }
 
 #[test]
-fn partition_composition_replay_is_not_semantic_authority() {
+fn partition_composition_is_available_after_its_exact_successful_call() {
     let (module, goal, obligation) = partition_composition_module();
     validate_module(&module).expect("the partition substitution remains valid replay evidence");
     let bundle = ProofBundle {
@@ -2831,60 +2832,113 @@ fn partition_composition_replay_is_not_semantic_authority() {
                 proof_system_marker: ProofSystemMarker::CURRENT,
                 proof: ProofNode {
                     conclusion: goal,
-                    rule: ProofRule::SemanticAxiom { index: 1 },
-                },
-            }),
-        }],
-    };
-
-    assert_eq!(
-        verify_module(&module, &bundle, &AdmissionProfile::default())
-            .expect_err("producer-carried replay evidence cannot authorize its source theorem"),
-        VerificationError::RejectedEvidence {
-            obligation,
-            error: EvidenceError::Certificate(ProofError::UnknownSemanticAxiom(1)),
-        }
-    );
-}
-
-#[test]
-fn partition_uses_an_entry_claim_without_manufacturing_an_equality() {
-    let (mut module, goal, obligation) = partition_composition_module();
-    module.vocabulary_marker = VocabularyMarker::CURRENT;
-    let machine = &mut module.machines[0];
-    let reshuffle = machine.content_identity_reshuffles[0].clone();
-    let claim = ClaimId::new(1).expect("dense claim");
-    machine.content_entry_claims = vec![ContentEntryClaim {
-        claim,
-        input: reshuffle.input,
-        projections: reshuffle.projections,
-    }];
-    machine.content_identity_reshuffles.clear();
-    machine.content_partition_compositions[0].input_claims = vec![claim];
-    let bundle = ProofBundle {
-        evidence_producers: Vec::new(),
-        evidence: vec![ObligationEvidence {
-            obligation,
-            route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
-                identity: EvidenceIdentity::new(93).expect("certificate"),
-                proof_system_marker: ProofSystemMarker::CURRENT,
-                proof: ProofNode {
-                    conclusion: goal,
                     rule: ProofRule::SemanticAxiom { index: 0 },
                 },
             }),
         }],
     };
 
-    validate_module(&module)
-        .expect("a partition input claim does not require an identity-reshuffle row");
-    assert_eq!(
-        verify_module(&module, &bundle, &AdmissionProfile::default())
-            .expect_err("an entry-claim binding alone does not authorize a partition theorem"),
-        VerificationError::RejectedEvidence {
+    verify_module(&module, &bundle, &AdmissionProfile::default())
+        .expect("the exact successful producer call establishes the replayed theorem");
+}
+
+#[test]
+fn partition_composition_is_scheduled_strictly_after_the_producer_call() {
+    let (module, goal, _) = partition_composition_module();
+    let source_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+    let add_probe = |operation, result, obligation| Operation {
+        id: operation,
+        result: OperationResult::Scalar(ValueDeclaration {
+            id: result,
+            scalar_type: ScalarType::Integer(source_type),
+        }),
+        kind: OperationKind::ExactIntegerAdd {
+            left: ValueId::new(92).expect("probe input"),
+            right: ValueId::new(92).expect("probe input"),
             obligation,
-            error: EvidenceError::Certificate(ProofError::UnknownSemanticAxiom(0)),
-        }
+        },
+    };
+
+    let mut before = module.clone();
+    before.machines[0].parameters.push(ValueDeclaration {
+        id: ValueId::new(92).expect("probe input"),
+        scalar_type: ScalarType::Integer(source_type),
+    });
+    let before_obligation = ObligationId::new(89).expect("before obligation");
+    before.machines[0].blocks[0].operations.insert(
+        0,
+        add_probe(
+            OperationId::new(89).expect("before operation"),
+            ValueId::new(93).expect("before result"),
+            before_obligation,
+        ),
+    );
+    let before_rows =
+        reconstruct_operation_obligations(&before).expect("the before-call probe reconstructs");
+    let before_row = before_rows
+        .iter()
+        .find(|row| row.obligation.id == before_obligation)
+        .expect("before-call obligation");
+    assert!(!before_row.semantic_axioms.contains(&goal));
+
+    let mut after = module;
+    after.machines[0].parameters.push(ValueDeclaration {
+        id: ValueId::new(92).expect("probe input"),
+        scalar_type: ScalarType::Integer(source_type),
+    });
+    let after_obligation = ObligationId::new(91).expect("after obligation");
+    after.machines[0].blocks[0].operations.push(add_probe(
+        OperationId::new(91).expect("after operation"),
+        ValueId::new(93).expect("after result"),
+        after_obligation,
+    ));
+    let after_rows =
+        reconstruct_operation_obligations(&after).expect("the after-call probe reconstructs");
+    let after_row = after_rows
+        .iter()
+        .find(|row| row.obligation.id == after_obligation)
+        .expect("after-call obligation");
+    assert!(after_row.semantic_axioms.contains(&goal));
+}
+
+#[test]
+fn partition_composition_rejects_missing_and_noncall_producers() {
+    let (mut missing, _, _) = partition_composition_module();
+    missing.machines[0].content_partition_compositions[0].producer_operation =
+        OperationId::new(99).expect("missing operation");
+    assert_eq!(
+        validate_module(&missing).expect_err("the producer operation must exist in this machine"),
+        ModuleError::ContentPartitionProducerOperationMissing(
+            OperationId::new(99).expect("missing operation")
+        )
+    );
+
+    let (mut noncall, _, _) = partition_composition_module();
+    let noncall_operation = OperationId::new(91).expect("noncall operation");
+    noncall.machines[0].blocks[0].operations.push(Operation {
+        id: noncall_operation,
+        result: OperationResult::Scalar(ValueDeclaration {
+            id: ValueId::new(92).expect("constant result"),
+            scalar_type: ScalarType::Boolean,
+        }),
+        kind: OperationKind::BooleanConstant { value: true },
+    });
+    noncall.machines[0].content_partition_compositions[0].producer_operation = noncall_operation;
+    assert_eq!(
+        validate_module(&noncall).expect_err("a non-call cannot establish an authored theorem"),
+        ModuleError::ContentPartitionProducerNotCall(noncall_operation)
+    );
+}
+
+#[test]
+fn partition_composition_requires_the_target_authored_guarantee() {
+    let (mut module, _, _) = partition_composition_module();
+    module.boundary_machines[0].content_guarantees.clear();
+    assert_eq!(
+        validate_module(&module).expect_err("a replay row cannot invent its source theorem"),
+        ModuleError::ContentPartitionProducerGuaranteeMissing(
+            OperationId::new(90).expect("producer operation")
+        )
     );
 }
 
@@ -3331,17 +3385,29 @@ fn identity_reshuffle_module() -> (TerminalModule, Proposition, ObligationId) {
 }
 
 fn partition_composition_module() -> (TerminalModule, Proposition, ObligationId) {
-    let (mut module, _, obligation) = identity_reshuffle_module();
-    module.vocabulary_marker = VocabularyMarker::CURRENT;
-    let machine = &mut module.machines[0];
-    let input_root = machine.content_identity_reshuffles[0].input.root;
-    let result_root = machine.content_identity_reshuffles[0].output.root;
-    let projection = machine.content_identity_reshuffles[0].projections[0].projection;
-    let algebra = machine.content_identity_reshuffles[0].projections[0]
-        .algebra
-        .clone();
+    let input_root = PlaceId::new(90).expect("input place");
+    let structural_type = StructuralTypeId::new(90).expect("structural type");
+    let claim = ClaimId::new(1).expect("claim");
+    let parameter = ValueId::new(90).expect("scalar parameter");
+    let result = ValueId::new(91).expect("scalar result");
+    let operation = OperationId::new(90).expect("producer operation");
+    let boundary_id = BoundaryMachineId::new(90).expect("boundary");
+    let obligation = ObligationId::new(90).expect("obligation");
+    let algebra = ContentAlgebra {
+        kind: ContentAlgebraKind::CountedQuantity,
+        parameter: "Byte".to_owned(),
+    };
+    let expression = ContentProjectionExpression::CountedQuantity(
+        ContentProjectionScalar::Natural("1".to_owned()),
+    );
+    let projection = ContentProjectionIdentity {
+        domain: ContentDomainId::new(90).expect("content domain"),
+        projection_fingerprint: psi_language_semantics::content::terminal_projection_fingerprint(
+            &algebra,
+            &expression,
+        ),
+    };
     let source_input_root = PlaceId::new(190).expect("source input");
-    let source_result_root = PlaceId::new(191).expect("source result");
     let place = |version, root, segments| ContentStructuralPlace {
         version,
         root,
@@ -3354,26 +3420,25 @@ fn partition_composition_module() -> (TerminalModule, Proposition, ObligationId)
     let source_input = place(ContentPlaceVersion::Entry, source_input_root, Vec::new());
     let source_left = place(
         ContentPlaceVersion::Current,
-        source_result_root,
+        source_input_root,
         vec![ContentPlaceSegment::Field("left".to_owned())],
     );
     let source_right = place(
         ContentPlaceVersion::Current,
-        source_result_root,
+        source_input_root,
         vec![ContentPlaceSegment::Field("right".to_owned())],
     );
     let target_input = place(ContentPlaceVersion::Entry, input_root, Vec::new());
     let target_left = place(
         ContentPlaceVersion::Current,
-        result_root,
+        input_root,
         vec![ContentPlaceSegment::Field("left".to_owned())],
     );
     let target_right = place(
         ContentPlaceVersion::Current,
-        result_root,
+        input_root,
         vec![ContentPlaceSegment::Field("right".to_owned())],
     );
-    machine.content_identity_reshuffles[0].output = target_left.clone();
     let source = ContentConservation::new(
         algebra.clone(),
         term(source_input.clone()),
@@ -3381,7 +3446,7 @@ fn partition_composition_module() -> (TerminalModule, Proposition, ObligationId)
             .expect("separated source"),
     );
     let derived = ContentConservation::new(
-        algebra,
+        algebra.clone(),
         term(target_input.clone()),
         ContentTerm::separate([term(target_left.clone()), term(target_right.clone())])
             .expect("separated target"),
@@ -3389,7 +3454,7 @@ fn partition_composition_module() -> (TerminalModule, Proposition, ObligationId)
     let mut substitutions = vec![
         ContentPlaceSubstitution {
             source: source_input,
-            target: target_input,
+            target: target_input.clone(),
         },
         ContentPlaceSubstitution {
             source: source_left,
@@ -3401,36 +3466,162 @@ fn partition_composition_module() -> (TerminalModule, Proposition, ObligationId)
         },
     ];
     substitutions.sort();
-    let source_structural_places = vec![
-        StructuralPlaceDeclaration {
-            id: source_input_root,
-            kind: StructuralPlaceKind::Parameter {
-                position: 0,
-                is_self: false,
-            },
+    let source_structural_places = vec![StructuralPlaceDeclaration {
+        id: source_input_root,
+        kind: StructuralPlaceKind::Parameter {
+            position: 0,
+            is_self: false,
         },
-        StructuralPlaceDeclaration {
-            id: source_result_root,
-            kind: StructuralPlaceKind::Result,
-        },
-    ];
+    }];
     let source_place_kinds = source_structural_places
         .iter()
         .map(|place| (place.id, place.kind))
         .collect();
     let source_fingerprint = content_conservation_fingerprint(&source, &source_place_kinds)
         .expect("the fixture source theorem has a checked fingerprint preimage");
-    machine.content_partition_compositions = vec![ContentPartitionComposition {
+    let composition = ContentPartitionComposition {
+        producer_operation: operation,
         source_fingerprint,
-        source_structural_places,
-        source,
-        input_claims: vec![machine.content_identity_reshuffles[0].claim],
+        source_structural_places: source_structural_places.clone(),
+        source: source.clone(),
+        input_claims: vec![claim],
         substitutions,
         derived: derived.clone(),
-    }];
+    };
     let goal = Proposition::ContentConservation(derived);
-    machine.contract.ensures[0].proposition = goal.clone();
-    (module, goal, obligation)
+    let structural_parameter = StructuralParameterDeclaration {
+        place: input_root,
+        position: 0,
+        is_self: false,
+        structural_type,
+        multiplicity: StructuralMultiplicity::Linear,
+        qualifications: Vec::new(),
+    };
+    let machine = TerminalMachine {
+        id: MachineId::new(90).expect("machine"),
+        attachment: None,
+        parameters: vec![ValueDeclaration {
+            id: parameter,
+            scalar_type: ScalarType::Boolean,
+        }],
+        structural_parameters: vec![structural_parameter.clone()],
+        result: TerminalMachineResult::Scalar(ValueDeclaration {
+            id: result,
+            scalar_type: ScalarType::Boolean,
+        }),
+        structural_places: vec![StructuralPlaceDeclaration {
+            id: input_root,
+            kind: StructuralPlaceKind::Parameter {
+                position: 0,
+                is_self: false,
+            },
+        }],
+        entry_claims: vec![EntryClaim {
+            claim,
+            input: input_root,
+            path: Vec::new(),
+        }],
+        published_service_ceiling: Vec::new(),
+        content_entry_claims: vec![ContentEntryClaim {
+            claim,
+            input: target_input,
+            projections: vec![ClaimContentProjection {
+                projection,
+                algebra: algebra.clone(),
+            }],
+        }],
+        content_identity_reshuffles: Vec::new(),
+        content_partition_compositions: vec![composition],
+        entry: BlockId::new(90).expect("block"),
+        blocks: vec![Block {
+            id: BlockId::new(90).expect("block"),
+            parameters: Vec::new(),
+            operations: vec![Operation {
+                id: operation,
+                result: OperationResult::Unit,
+                kind: OperationKind::BoundaryCall {
+                    boundary: boundary_id,
+                    arguments: Vec::new(),
+                    structural_arguments: vec![StructuralArgument {
+                        place: input_root,
+                        path: Vec::new(),
+                    }],
+                    completion_receipts: vec![CompletionReceipt {
+                        claim,
+                        argument_index: 0,
+                    }],
+                    requirement_obligations: Vec::new(),
+                },
+            }],
+            terminator: Terminator::Return {
+                cleanup_actions: Vec::new(),
+                edge: EdgeId::new(90).expect("edge"),
+                value: parameter,
+            },
+        }],
+        contract: MachineContract {
+            id: ContractId::new(90).expect("contract"),
+            crash_routes: Vec::new(),
+            requires: Vec::new(),
+            ensures: vec![ContractClause {
+                obligation,
+                proposition: goal.clone(),
+            }],
+        },
+    };
+    let boundary = BoundaryMachineDeclaration {
+        id: boundary_id,
+        identity: "Splitter::partition".to_owned(),
+        attachment: None,
+        scalar_parameters: Vec::new(),
+        structural_parameters: vec![structural_parameter],
+        result: None,
+        requires: Vec::new(),
+        program_local_root_introductions: Vec::new(),
+        content_guarantees: vec![ContentConservationGuarantee {
+            fingerprint: source_fingerprint,
+            structural_places: source_structural_places,
+            conservation: source,
+        }],
+        published_service_ceiling: Vec::new(),
+    };
+    (
+        TerminalModule {
+            vocabulary_marker: VocabularyMarker::CURRENT,
+            entry: machine.id,
+            structural_types: vec![StructuralTypeDeclaration {
+                id: structural_type,
+                identity: "Region".to_owned(),
+                shape: StructuralTypeShape::Record { fields: Vec::new() },
+            }],
+            structural_domains: vec![StructuralDomainDeclaration {
+                id: psi_core::StructuralDomainId::new(90).expect("structural domain"),
+                semantic_domain: psi_core::DomainSemanticId::new(90).expect("semantic domain"),
+                identity: "Region::Content".to_owned(),
+                carrier: structural_type,
+                content_projection: Some(StructuralContentProjection {
+                    identity: projection,
+                    algebra,
+                    expression,
+                }),
+            }],
+            services: Vec::new(),
+            root_service_reach: Default::default(),
+            boundary_machines: vec![boundary],
+            provider_candidates: Vec::new(),
+            float_meaning_projections: Vec::new(),
+            float_meaning_equalities: Vec::new(),
+            proposition_declarations: Vec::new(),
+            proposition_applications: Vec::new(),
+            evidence_terms: Vec::new(),
+            evidence_contract_lanes: Vec::new(),
+            proof_output_calls: Vec::new(),
+            closed_conformance_applications: Vec::new(),
+            machines: vec![machine],
+        },
+        goal,
+        obligation,
+    )
 }
 
 #[test]

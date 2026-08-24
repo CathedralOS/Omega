@@ -42,7 +42,7 @@ representation.
 ### Boundary-argument realization fence
 
 Ordinary in-module and bodyless boundary calls both carry positional scalar
-arguments. In current terminal-Psi vocabulary 27,
+arguments. In current terminal-Psi vocabulary 28,
 `BoundaryMachineDeclaration` declares ordered scalar parameter types and
 `BoundaryCall` carries the matching ordered `ValueId` arguments alongside its
 structural lane. Canonical encoding binds
@@ -1589,13 +1589,19 @@ partial `separate(...)`, containment and equality, and canonical interval-set
 residual difference. Sealed claim-frontier rows record content introduced into
 or transferred out of checked custody.
 
-The verifier infers identity-preserving reshuffles. It validates canonical
-partition-composition rows and replays their exact substitutions, but those
-producer-carried rows are not semantic axioms by themselves. A following
-vertical slice must bind each composition to the exact operation and authored
-callee guarantee, then introduce the verifier-reconstructed theorem only on
-that operation's successful path. Fingerprints identify canonical content for
-reporting and caches; they never authorize a theorem. At a bodyless partial
+The verifier infers identity-preserving reshuffles. Each canonical partition-
+composition row names the exact call operation that produced it. Validation
+replays the exact substitution, requires that call's internal callee contract
+or bodyless boundary declaration to publish the alpha-equivalent authored
+conservation guarantee, and checks the call's structural arguments against the
+recorded substitution. Reconstruction introduces the derived theorem only
+after that exact call completes successfully; it is unavailable to earlier
+operations and absent from rejection or crash paths. Boundary guarantees are
+canonical semantic rows, not provider admissions. Fingerprints identify
+canonical content for reporting and caches; neither a producer-carried row nor
+a matching fingerprint authorizes a theorem by itself. Structural-result-
+rooted call correspondence remains fenced until Terminal Psi gains an explicit
+structural-result call carrier. At a bodyless partial
 boundary, Psi derives the kept content and residual and permits the provider to
 admit only acceptance of custody for that exact residual—not the partition
 arithmetic. External root correspondence and fresh issuance remain scoped

@@ -3295,6 +3295,7 @@ fn hard_root_module() -> TerminalModule {
             domain: pending.id,
         }],
         program_local_root_introductions: Vec::new(),
+        content_guarantees: Vec::new(),
         published_service_ceiling: vec![port_io.id],
     };
 

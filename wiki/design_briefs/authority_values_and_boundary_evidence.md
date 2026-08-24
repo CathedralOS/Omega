@@ -646,6 +646,16 @@ visible exact terminal call. Checked partial transformations compose the
 authored theorem of the partitioning primitive with the visible terminal call
 on the residual claim.
 
+That composition is operation-fenced. Terminal Psi retains the exact producer
+call identity, the authored source guarantee, and the complete place
+substitution. The verifier requires the named internal callee contract or
+bodyless boundary declaration to publish the same guarantee modulo stable
+place-root renaming, then checks every substituted root against that call's
+actual structural arguments. The composed theorem enters reconstruction only
+after successful completion of that exact call. It is not available before the
+call and does not cross a rejecting or crashing outcome. A fingerprint is an
+identity check, never a source of conservation authority.
+
 A bodyless partial boundary cannot assert its own partition. The compiler
 derives `kept` from result projections, proves `kept` is contained in entry
 content, and computes the canonical residual. The admitted fact states only
@@ -896,7 +906,7 @@ The implementation requires:
 3. Qualified claim metadata must retain the owner-unique `Content<A>`
    conformance, its canonical content-projection expression, and its
    interval-set or counted-quantity identity; admitted receipts must carry
-   backing in the same algebra. Terminal vocabulary 27 retains and independently
+   backing in the same algebra. Terminal vocabulary 28 retains and independently
    validates this owner definition; remaining consumers must preserve it rather
    than reconstructing authority from a route-local schema.
 4. The prover and resource checker must connect subject arithmetic and access

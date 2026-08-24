@@ -1884,6 +1884,7 @@ fn unit_effect_fixture() -> TerminalModule {
             requires: Vec::new(),
             published_service_ceiling: Vec::new(),
             program_local_root_introductions: Vec::new(),
+            content_guarantees: Vec::new(),
         }],
         provider_candidates: Vec::new(),
         float_meaning_projections: Vec::new(),

@@ -13,6 +13,9 @@ use psi_terminal::{
     StructuralMultiplicity, StructuralParameterDeclaration,
 };
 
+use super::content_wire::{
+    decode_content_conservation_guarantee, encode_content_conservation_guarantee,
+};
 use super::scalar_wire::{decode_scalar_type, encode_scalar_type};
 use super::wire::{Reader, Writer};
 use super::{CodecError, decode_counted, decode_ids, decode_optional_id, encode_optional_id};
@@ -65,6 +68,13 @@ pub(super) fn encode_boundary_machine(
         )?;
         encode_content_projection_expression(writer, &schema.capacity)?;
         writer.u64(schema.identity);
+    }
+    writer.len(
+        "boundary content guarantees",
+        declaration.content_guarantees.len(),
+    )?;
+    for guarantee in &declaration.content_guarantees {
+        encode_content_conservation_guarantee(writer, guarantee)?;
     }
     encode_service_ceiling(writer, &declaration.published_service_ceiling)
 }
@@ -218,6 +228,7 @@ pub(super) fn decode_boundary_machine(
                 identity,
             })
         })?,
+        content_guarantees: decode_counted(reader, decode_content_conservation_guarantee)?,
         published_service_ceiling: decode_ids(reader, "ServiceId")?,
     })
 }

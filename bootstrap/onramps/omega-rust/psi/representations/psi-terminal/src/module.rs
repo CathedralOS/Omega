@@ -27,7 +27,7 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        27
+        28
     }
 }
 
@@ -374,8 +374,22 @@ pub struct BoundaryMachineDeclaration {
     /// These rows describe per-occurrence capacity but introduce no authority;
     /// installation must still bind a concrete occurrence and cardinality.
     pub program_local_root_introductions: Vec<ProgramLocalRootIntroductionSchema>,
+    /// Authored content guarantees of this exact boundary requirement. These
+    /// are provider assumptions, not executable proof terms; a caller may use
+    /// one only through the successful `BoundaryCall` operation that selected
+    /// this declaration.
+    pub content_guarantees: Vec<ContentConservationGuarantee>,
     /// Strictly ordered normalized published ceiling.
     pub published_service_ceiling: Vec<ServiceId>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ContentConservationGuarantee {
+    pub fingerprint: u64,
+    /// Guarantee-local structural roots, alpha-matched to the boundary
+    /// signature by parameter position.
+    pub structural_places: Vec<StructuralPlaceDeclaration>,
+    pub conservation: ContentConservation,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -830,6 +844,10 @@ pub struct ContentPlaceSubstitution {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ContentPartitionComposition {
+    /// Exact call operation whose successful normal completion establishes the
+    /// source theorem used by this composition. Merely carrying this row is
+    /// never semantic authority.
+    pub producer_operation: OperationId,
     pub source_fingerprint: u64,
     /// Structural-place declarations for the source callable's theorem. They
     /// live in a namespace local to this witness rather than the wrapper.
