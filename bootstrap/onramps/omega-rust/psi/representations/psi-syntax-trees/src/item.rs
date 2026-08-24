@@ -446,6 +446,7 @@ impl Default for BoundaryMode {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DataDefinition {
     pub name: Identifier,
+    pub is_public: bool,
     pub supply_mode: psi_language_core::DataSupplyMode,
     /// Erased borrow-region parameters declared in the shared `<>` list.
     pub lifetime_parameters: Vec<Identifier>,

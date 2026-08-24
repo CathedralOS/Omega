@@ -191,6 +191,7 @@ pub fn desugar_plan_laid_value_types(
         }
         syntax.push_root_item(Item::Data(DataDefinition {
             name: Identifier::generated(record.synthetic_name.as_str()),
+            is_public: false,
             supply_mode: psi_language_semantics::DataSupplyMode::CheckedShape,
             lifetime_parameters: schema_info.lifetime_parameters.clone(),
             type_parameters: HandleSpan::default(),

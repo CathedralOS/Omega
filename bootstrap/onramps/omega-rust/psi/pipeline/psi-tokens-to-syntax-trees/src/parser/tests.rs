@@ -6,6 +6,31 @@ use psi_syntax_trees::statement::StatementNode;
 use psi_syntax_trees::types::TypeReferenceNode;
 
 #[test]
+fn retains_public_data_visibility_in_syntax() {
+    let tokens = Lexer::new("pub data PublicRecord { value: u32; } data PrivateRecord {}")
+        .tokenize()
+        .expect("tokenize data visibility");
+    let parsed = parse_syntax_trees(&tokens).expect("parse data visibility");
+    let definitions = parsed
+        .root_items()
+        .filter_map(|item| match item {
+            psi_syntax_trees::item::Item::Data(data) => Some(data),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(definitions.len(), 2);
+    assert!(definitions[0].is_public);
+    assert!(!definitions[1].is_public);
+    assert!(
+        parsed
+            .snapshot_json()
+            .expect("snapshot")
+            .contains("\"is_public\":true")
+    );
+}
+
+#[test]
 fn retains_public_machine_visibility_in_syntax() {
     let tokens = Lexer::new("pub machine Package::entry() { }")
         .tokenize()

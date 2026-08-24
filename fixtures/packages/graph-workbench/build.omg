@@ -1,6 +1,4 @@
 // package-manager fixture root.
-// package-manager dependency arithmetic_kernels ../arithmetic-kernels
-// package-manager dependency file_journal ../file-journal
 const PACKAGE: Package = Package {
     name: "graph-workbench"
 };
@@ -11,4 +9,10 @@ target linux_arm64 { }
 target macos_arm64 { }
 
 machine build(builder: &mut Build) {
+    builder.depend(Source::Path {
+        location: "../arithmetic-kernels"
+    });
+    builder.depend(Source::Path {
+        location: "../file-journal"
+    });
 }

@@ -1,3 +1,4 @@
+use crate::closure_resolution::PackageSourceCustody;
 use crate::declaration::{PackageDeclarationError, extract_package_declaration};
 use crate::dependency_projection::{
     DependencyProjectionError, DependencySourceRequest, extract_dependency_projection,
@@ -53,6 +54,21 @@ impl<S> ResolvedPackageSource<S> {
 
     pub fn identity(&self) -> ResolvedSourceIdentity {
         ResolvedSourceIdentity::from_validated_parts(self.key.clone(), self.resolution.clone())
+    }
+
+    /// Erase the transport-specific resolver payload while retaining the
+    /// immutable package source custody needed for closure reconciliation.
+    ///
+    /// `PackageSourceCustody` has no public constructor: adapters obtain it
+    /// only after source resolution, declaration extraction, and dependency
+    /// projection have all succeeded.
+    pub fn into_custody(self) -> PackageSourceCustody {
+        PackageSourceCustody::from_resolved_parts(
+            self.key,
+            self.resolution,
+            self.snapshot_root,
+            self.dependency_requests,
+        )
     }
 
     pub fn into_source(self) -> S {

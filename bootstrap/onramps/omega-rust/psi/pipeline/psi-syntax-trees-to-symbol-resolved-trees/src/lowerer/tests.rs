@@ -7,6 +7,36 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 #[test]
+fn retains_data_visibility_and_keeps_wire_derived_data_private() {
+    let source = r#"
+        pub data PublicRecord { value: u32; }
+        data Packet { #1 value: u32; }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize data");
+    let syntax = parse_syntax_trees(&tokens).expect("parse data");
+    let program = lower_syntax_trees(&syntax).expect("resolve data");
+    let public = program
+        .data_definitions
+        .iter()
+        .find(|data| data.name.as_str() == "PublicRecord")
+        .expect("public data");
+    let wire_derived = program
+        .data_definitions
+        .iter()
+        .find(|data| data.name.as_str() == "Packet")
+        .expect("wire-derived data");
+
+    assert!(public.is_public);
+    assert!(!wire_derived.is_public);
+    assert!(
+        program
+            .snapshot_json()
+            .expect("resolved snapshot")
+            .contains("\"is_public\":true")
+    );
+}
+
+#[test]
 fn retains_public_machine_visibility_in_symbol_resolved_trees() {
     let tokens = Lexer::new("pub machine Package::entry() { }")
         .tokenize()

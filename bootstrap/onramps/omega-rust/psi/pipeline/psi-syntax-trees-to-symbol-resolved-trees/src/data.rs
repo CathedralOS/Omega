@@ -115,6 +115,7 @@ pub(crate) fn lower_data_definition(
     Ok(DataDefinition {
         symbol: SymbolHandle::invalid(),
         name: crate::name::lower_name(&data_definition.name),
+        is_public: data_definition.is_public,
         storage: DataDefinitionStorage {
             supply_mode: data_definition.supply_mode,
             lifetime_parameters: data_definition

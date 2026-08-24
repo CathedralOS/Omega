@@ -272,8 +272,9 @@ complete.
   alias-to-`PackageKeyIdentity` graph and canonical source roots; this mode never
   invokes or combines syntactic discovery. Legacy standalone compilation keeps
   only an explicit `depend_as(..., Source::Path { ... })` compatibility canary.
-  Recursive package-manager traversal, orchestration wiring, and eventual
-  removal of that standalone scanner remain.
+  A transport-neutral package-side resolver now recursively closes those
+  projected requests through an adapter callback before returning any graph.
+  Orchestration wiring and eventual removal of that standalone scanner remain.
 
 - **CLOSURE-RECONCILIATION.** Resolve the complete source closure before any
   dependency build receives providers.
@@ -282,12 +283,21 @@ complete.
   conflicts report every requesting dependency path. Resolver authority never
   enters package build execution.
 
-  Progress 2026-08-23: a typed pre-admission source graph now validates exact
+  Progress 2026-08-24: a typed pre-admission source graph now validates exact
   roots and edges, one immutable resolution per `PackageKey`, requester-local
   alias uniqueness, closed reachability, and same-name/different-lineage
-  separation. Package dependency cycles conservatively reject in v1. Recursive
-  source traversal, request-path provenance, and compiler evidence remain; the
-  structural graph has no persistence or admission API. A compiler-side
+  separation. Package dependency cycles conservatively reject in v1. A sealed,
+  transport-erased custody record is derivable only from resolved package
+  source custody and retains exact key, resolution, immutable snapshot root,
+  and projected requests. Recursive reconciliation delegates transport and
+  requester-relative path interpretation to an adapter, derives default aliases
+  from fetched declarations, honors explicit aliases, reuses exact duplicate
+  custody, and resolves the complete finite closure before constructing the
+  validated graph under package-count, dependency-request, and depth ceilings.
+  Conflicting resolution or custody-root observations retain every root-to-
+  request path and reject. The returned value keeps both the validated graph
+  and exact source custody; it has no compiler, lock,
+  persistence, build-execution, or admission API. A compiler-side
   handoff independently rejects missing/duplicate/overlapping roots, invalid or
   duplicate requester-local aliases, missing targets, unreachable rows, cycles,
   source-root drift, toolchain overlap, dependency `build.omg` imports, and
@@ -318,12 +328,17 @@ complete.
   `PackageKeyIdentity` through the retained source map, and underdeclared reach
   already fails checking. This is the intended source for a compiler-owned,
   target-scoped admission projection, but the current implementation is not yet
-  admissible. Ordinary `pub machine` visibility is now retained through syntax,
+  admissible. Explicit `export` remains owner-blocked: the parser accepts it,
+  symbol resolution drops it, and the language has not settled whether it is a
+  same-package module surface, a cross-package re-export, or retired in favor
+  of `pub`. Ordinary `pub machine` visibility is now retained through syntax,
   resolved, typed, checked, snapshot, copy, and specialization paths. Public
   omission is a strict empty ceiling for service reach, synchronous invocation,
-  suspension, blocking, and crash; checked underdeclaration rejects. Explicit
-  `export` resolution, public non-machine API shape, generated/toolchain symbol
-  ownership, package-qualified provider
+  suspension, blocking, and crash; checked underdeclaration rejects. Ordinary
+  `pub data` visibility likewise survives parsing, copies, snapshots, lowering,
+  and generic specialization, but its normalized public shape is not yet in the
+  review projection. Settled export semantics, the remaining public non-machine
+  API shape, generated/toolchain symbol ownership, package-qualified provider
   binding/selection identities, source/toolchain/compiler commitments,
   non-provider trust ownership, build observations, and reproducibility
   receipts still need one sealed projection. Exact provenance for the realizing

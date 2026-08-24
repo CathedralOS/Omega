@@ -2,6 +2,7 @@ use super::{
     MachineSupplySnapshot, TypeConstraintSnapshot, TypedTreesSnapshot, type_constraint_snapshot,
 };
 use crate::TypedTrees;
+use crate::data::DataDefinition;
 use crate::domain::{DomainAliasConstituent, DomainAliasDefinition, DomainDefinition};
 use crate::machine::Machine;
 use crate::name::Identifier;
@@ -14,6 +15,19 @@ fn snapshots_empty_typed_tree_as_json() {
 
     assert_eq!(snapshot.roots.data_definitions.len(), 0);
     assert!(snapshot.to_json_pretty().is_ok());
+}
+
+#[test]
+fn snapshots_public_data_visibility() {
+    let mut program = TypedTrees::default();
+    program.push_data_definition(DataDefinition {
+        name: Identifier::generated("PublicRecord"),
+        is_public: true,
+        ..DataDefinition::default()
+    });
+
+    let snapshot = TypedTreesSnapshot::from_typed_trees(&program);
+    assert!(snapshot.roots.data_definitions[0].is_public);
 }
 
 #[test]

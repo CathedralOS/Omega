@@ -366,6 +366,7 @@ impl SyntaxTrees {
     ) -> DataDefinition {
         DataDefinition {
             name: data.name.clone(),
+            is_public: data.is_public,
             supply_mode: data.supply_mode,
             lifetime_parameters: data.lifetime_parameters.clone(),
             type_parameters: self.copy_type_parameter_span(other, data.type_parameters),

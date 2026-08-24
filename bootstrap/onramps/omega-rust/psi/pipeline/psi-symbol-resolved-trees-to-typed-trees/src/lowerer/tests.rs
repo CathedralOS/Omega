@@ -4,6 +4,29 @@ use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
 use psi_tokens_to_syntax_trees::parse_syntax_trees;
 
 #[test]
+fn retains_public_data_visibility_in_typed_trees() {
+    let tokens = Lexer::new("pub data PublicRecord { value: u32; }")
+        .tokenize()
+        .expect("tokenize public data");
+    let syntax = parse_syntax_trees(&tokens).expect("parse public data");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve public data");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type public data");
+    let data = typed
+        .data_definitions()
+        .iter()
+        .find(|data| data.name.as_str() == "PublicRecord")
+        .expect("typed public data");
+
+    assert!(data.is_public);
+    assert!(
+        typed
+            .snapshot_json()
+            .expect("typed snapshot")
+            .contains("\"is_public\":true")
+    );
+}
+
+#[test]
 fn retains_public_machine_visibility_in_typed_trees() {
     let tokens = Lexer::new("pub machine Package::entry() { }")
         .tokenize()

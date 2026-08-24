@@ -11,6 +11,7 @@
 
 #[cfg(test)]
 mod audit;
+mod closure_resolution;
 #[cfg(test)]
 mod commands;
 mod declaration;
@@ -35,6 +36,13 @@ mod source_commands;
 #[cfg(test)]
 mod update;
 
+pub use closure_resolution::{
+    DependencyRequestPath, DependencyRequestPathStep, PackageSourceClosureConflict,
+    PackageSourceClosureConflictCandidate, PackageSourceClosureLimitKind,
+    PackageSourceClosureLimits, PackageSourceClosureResolutionError, PackageSourceCustody,
+    ResolvedPackageSourceClosure, resolve_package_source_closure,
+    resolve_package_source_closure_with_limits,
+};
 pub use declaration::{PackageDeclaration, PackageDeclarationError, extract_package_declaration};
 pub use dependency_projection::{
     DependencyProjectionError, DependencySourceRequest, extract_dependency_projection,

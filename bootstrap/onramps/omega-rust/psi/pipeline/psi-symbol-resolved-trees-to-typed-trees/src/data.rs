@@ -11,6 +11,7 @@ pub(crate) fn lower_data_definition(
     let mut typed_data_definition = typed::data::DataDefinition {
         symbol: data_definition.symbol,
         name: crate::name::lower_name(&data_definition.name),
+        is_public: data_definition.is_public,
         supply_mode: data_definition.supply_mode,
         lifetime_parameters: data_definition
             .lifetime_parameters
