@@ -217,6 +217,9 @@ impl PackageReviewTraitRequirementParameter {
 pub struct PackageReviewTraitRequirement {
     identity: PackageReviewNominalIdentity,
     spelling: Option<psi_language_core::OperatorSpelling>,
+    /// Body presence is public conformance behavior. The body itself remains
+    /// checked source, not a compiler-private IR blob in package evidence.
+    has_default_realization: bool,
     lifetime_parameter_count: usize,
     type_parameters: Vec<PackageReviewTypeParameter>,
     parameters: Vec<PackageReviewTraitRequirementParameter>,
@@ -236,6 +239,10 @@ impl PackageReviewTraitRequirement {
 
     pub const fn spelling(&self) -> Option<psi_language_core::OperatorSpelling> {
         self.spelling
+    }
+
+    pub const fn has_default_realization(&self) -> bool {
+        self.has_default_realization
     }
 
     pub const fn lifetime_parameter_count(&self) -> usize {
@@ -1857,12 +1864,6 @@ fn project_trait_requirement(
     trait_lifetime_parameters: &[psi_typed_trees::name::Identifier],
 ) -> Result<PackageReviewTraitRequirement, Vec<Diagnostic>> {
     let identity = nominal_identity(compilation, requirement.symbol)?;
-    if requirement.is_default {
-        return Err(vec![Diagnostic::error(format!(
-            "public trait requirement `{}` has a default realization not yet joined to package review",
-            identity.path
-        ))]);
-    }
     if !trait_requirement_contracts_are_progress_premises(compilation, requirement) {
         return Err(vec![Diagnostic::error(format!(
             "public trait requirement `{}` uses proof, boundary, or crash contracts not yet represented by public-trait review",
@@ -1884,6 +1885,7 @@ fn project_trait_requirement(
     Ok(PackageReviewTraitRequirement {
         identity,
         spelling: requirement.spelling,
+        has_default_realization: requirement.is_default,
         lifetime_parameter_count: requirement.lifetime_parameters.len(),
         type_parameters,
         parameters: compilation

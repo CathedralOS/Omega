@@ -637,9 +637,12 @@ identity, and structural type arguments. Binder-free `where T satisfies Trait`
 does not fabricate evidence. Non-generic selected conformances retain exact
 package-qualified conformance, carrier, and underlying public-trait identities
 plus carrier/trait applications; the semantic declaration owns exact carrier
-and trait symbols. Selected conformances with their own generic telescope,
-invariants, default realizations, and non-progress proof/boundary/crash
-contracts reject until complete canonical rows exist.
+and trait symbols. Generic selected-conformance telescopes, public-trait
+invariants, and non-progress proof/boundary/crash contracts reject until
+complete canonical rows exist. Public trait requirements retain whether their
+checked declaration supplies a default realization; implementation bodies
+remain checked source subject to universal update triage rather than entering
+the evidence format as compiler-private IR.
 
 Terminal Psi evidence remains a separate evidence class for checked
 final-realization claims: Omega-emitted executable code, asserted properties of
