@@ -32,6 +32,11 @@ In artifact shorthand this is `Alpha → Beta → Gamma → Delta → omega-boot
 → omega [→ omega]`. Language growth stops at Delta. Everything to its right is
 a compiler artifact or a build edge, not another language rung.
 
+Alpha through Delta are increasingly capable bootstrap languages. Production
+Omega is more capable still, but it is reached by compiling ordinary Omega
+source rather than by defining another bootstrap language between Delta and
+Omega.
+
 Only two source inventories are still being selected. They are not successive
 Omega editions or two implementations of the same language:
 
@@ -194,31 +199,22 @@ Grow the bridge from checkpoint needs through general capabilities. Do not
 recognize the current compiler files, declaration counts, or syntax-tree
 permutations.
 
-The first checkpoint-driven frontend probe and its finite, acyclic, returning
-one-unit `CKIR1`→limited-ELF artifact tranche are closed. This is one bounded
-cluster within checkpoint 000001, not closure of that checkpoint. Exact
-evidence and remaining boundaries live in
-[`SOURCE_CUSTODY_FRONTEND_PROBE.md`](bootstrap/omega-bootstrap/compiler/SOURCE_CUSTODY_FRONTEND_PROBE.md)
-and
-[`OMEGA_BOOTSTRAP_CHECKED_IR.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR.md).
-It does not admit those source families to `Ωself`; the private handoff remains
-bridge-local, and Terminal-Psi vocabulary work remains product work in
-`TASKS.md`.
+Current bridge status is intentionally reported by responsibility rather than
+as one growing verifier:
 
-The standalone multi-unit resolver is closed through canonical `OMGRSW1`, and
-the separate resolved-source lowerer is closed from exact `OMGCOMP + OMGRSW1`
-through canonical CKIR for the public two-package nominal-data fixture. Their
-contracts and focused gates carry the exact semantic, resource, native,
-Delta-self-built, and representative Rust-free observations. They grant no
-resolver/lock or digest authority, and they do not close CKIR→ELF composition
-or the lower-rooted `OMGRFN2` reconstruction.
+| Responsibility | Current closure | Canonical detail |
+| --- | --- | --- |
+| one-unit source/checking/artifact probe | closed for the finite, acyclic, returning `CKIR1`→limited-ELF tranche; not checkpoint closure | [`SOURCE_CUSTODY_FRONTEND_PROBE.md`](bootstrap/omega-bootstrap/compiler/SOURCE_CUSTODY_FRONTEND_PROBE.md), [`OMEGA_BOOTSTRAP_CHECKED_IR.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR.md) |
+| multi-unit structural custody | closed for exact `OMGCOMP`; no resolver/lock or digest authority | [`OMEGA_BOOTSTRAP_COMPILATION.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION.md) |
+| source resolution | closed through canonical `OMGRSW1` for the selected public two-package fixture | [`OMEGA_BOOTSTRAP_RESOLUTION.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION.md) |
+| resolved-source lowering | closed through canonical CKIR for that fixture | [`OMEGA_BOOTSTRAP_CHECKED_IR.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR.md) |
+| producer composition | closed through the limited ELF backend with exact witness, CKIR, ELF, and result | bridge gates and the contracts above |
+| lower-rooted `OMGRFN2` reconstruction | frame/source custody and CKIR→ELF adaptation closed; intervening semantic joins remain active | [`OMGCOMP_REFINEMENT_WITNESS.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS.md) |
+| compilation authority | open: accepted resolver commitment plus exact envelope SHA-256 still required | compilation and witness contracts above |
 
-The producer-side two-package composition is now closed through the limited
-ELF backend: native, self-built, cross-stage, and Rust-free Gamma paths agree on
-exact witness, CKIR, ELF, and result 70, with independent ELF reconstruction.
-Lower-rooted `OMGRFN2` layer 1 also closes exact frame and complete OMGCOMP
-structural/source-extent custody. Those milestones do not reconstruct source
-resolution, CKIR, result, or ELF below Delta.
+None of these bounded closures admits a source family to final `Ωself` or
+makes Terminal Psi part of the bridge. Terminal-Psi vocabulary and production
+compiler implementation remain product work in `TASKS.md`.
 
 - [ ] Join the structurally checked multi-unit
   [compilation envelope](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION.md)
