@@ -266,8 +266,15 @@ nominals bind a canonical toolchain-relative source path plus exact source-byte
 commitment in review evidence; this is narrower than the whole-toolchain
 commitment required for admission. Compiler carry aliases
 expand to explicit toolchain-unbound atoms until exact toolchain commitment
-lands. Predicate facts, semantic roles, and domain operators reject until exact
-canonical rows exist; none is inferred from the domain name. Compiler-owned
+lands. Predicate-body presence and the currently representable structural
+expression/membership facts retain the domain carrier, package-qualified
+members/domains, and canonical fact ordering. Each fact joins its exact typed
+handle to one checked definition row and one checked ownership record; nested
+members additionally require exact fact-keyed dependency places. Missing,
+duplicate, wrong-origin, private-domain, and member-spoofed evidence rejects.
+Callable/proposition-shaped applications, semantic roles, and domain operators
+reject until their authority and exact rows are settled; none is inferred from
+the domain name. Compiler-owned
 classifications and authorized establishment routes retain the exact route kind and
 package-qualified trait/requirement identities; alternative routes normalize
 as a sorted set.

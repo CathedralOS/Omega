@@ -509,7 +509,7 @@ crashes Abort
         target,
         "review identity must retain the deployment profile, not only its native ABI",
     );
-    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 29);
+    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 30);
     let [ready] = review.public_domains() else {
         panic!("one package-owned public domain row")
     };
@@ -2086,7 +2086,7 @@ invokes waiting;
 }
 
 #[test]
-fn exact_synchronous_invocations_change_v29_comparison_encoding() {
+fn exact_synchronous_invocations_change_v30_comparison_encoding() {
     let quiet = TempPackage::new();
     let invoking = TempPackage::new();
     quiet.write(
@@ -2276,7 +2276,7 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
-fn public_data_and_numbered_wire_shape_changes_change_v29_comparison_encoding() {
+fn public_data_and_numbered_wire_shape_changes_change_v30_comparison_encoding() {
     let first = TempPackage::new();
     let second = TempPackage::new();
     first.write(
@@ -2310,7 +2310,7 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
-fn public_domain_shape_changes_change_v29_comparison_encoding() {
+fn public_domain_shape_changes_change_v30_comparison_encoding() {
     let first = TempPackage::new();
     let second = TempPackage::new();
     first.write(
@@ -2881,7 +2881,7 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
-fn review_rejects_public_domain_semantics_that_lack_canonical_rows() {
+fn review_projects_public_domain_predicates_from_exact_checked_rows() {
     let package = TempPackage::new();
     package.write(
         "main.omg",
@@ -2903,12 +2903,347 @@ machine build(builder: &mut Build) { }
         package_inputs(&package.0),
     )
     .expect("public domain fact fixture should check");
+    let review = project_checked_package_review(&checked)
+        .expect("review should project the checked public domain predicate");
+    let [domain] = review.public_domains() else {
+        panic!("one public domain row")
+    };
+    assert_eq!(
+        domain.predicate_body(),
+        psi_language_semantics::DomainPredicateBody::Present
+    );
+    let [
+        PackageReviewContractFact::Expression(PackageReviewContractExpression::Binary {
+            operator,
+            left,
+            right,
+        }),
+    ] = domain.predicate_facts()
+    else {
+        panic!("one binary domain predicate fact")
+    };
+    assert_eq!(*operator, PackageReviewContractBinaryOperator::Equal);
+    let PackageReviewContractExpression::Member {
+        receiver,
+        member,
+        case_variant,
+    } = left.as_ref()
+    else {
+        panic!("domain-subject member path")
+    };
+    assert_eq!(
+        receiver.as_ref(),
+        &PackageReviewContractExpression::DomainSubject
+    );
+    assert_eq!(member.path(), "Packet::value");
+    assert!(case_variant.is_none());
+    assert_eq!(
+        right.as_ref(),
+        &PackageReviewContractExpression::Integer("0".to_owned())
+    );
+}
+
+#[test]
+fn public_domain_predicate_review_rejects_checked_owner_and_dependency_spoofs() {
+    let compile = || {
+        let package = TempPackage::new();
+        package.write(
+            "main.omg",
+            r#"pub data Packet { value: u32; }
+pub domain Packet::Ready
+    requires self.value == 0;
+"#,
+        );
+        package.write(
+            "build.omg",
+            "target windows_x64 { }\nmachine build(builder: &mut Build) { }\n",
+        );
+        compile_to_checked_with_packages(
+            &package.0.join("main.omg"),
+            Some("windows_x64"),
+            package_inputs(&package.0),
+        )
+        .expect("public domain spoof fixture should check")
+    };
+    let assert_rejects = |checked: &_, expected: &str| {
+        let diagnostics = project_checked_package_review(checked)
+            .expect_err("spoofed checked domain ownership must reject");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains(expected)),
+            "missing `{expected}` in {diagnostics:#?}"
+        );
+    };
+
+    let mut missing_owner = compile();
+    let owner = missing_owner
+        .facts
+        .semantic
+        .domain_definition_facts
+        .iter()
+        .next()
+        .map(|(handle, _)| handle)
+        .expect("domain ownership record");
+    assert!(
+        missing_owner
+            .facts
+            .semantic
+            .domain_definition_facts
+            .free(owner)
+    );
+    assert_rejects(&missing_owner, "0 exact checked ownership records");
+
+    let mut duplicate_owner = compile();
+    let owner = duplicate_owner
+        .facts
+        .semantic
+        .domain_definition_facts
+        .iter()
+        .next()
+        .map(|(_, record)| record.clone())
+        .expect("domain ownership record");
+    duplicate_owner
+        .facts
+        .semantic
+        .domain_definition_facts
+        .append(owner);
+    assert_rejects(&duplicate_owner, "2 exact checked ownership records");
+
+    let mut wrong_origin = compile();
+    let semantic_fact = wrong_origin
+        .facts
+        .semantic
+        .domain_definition_facts
+        .iter()
+        .next()
+        .map(|(_, record)| record.semantic_fact)
+        .expect("domain semantic fact");
+    wrong_origin
+        .facts
+        .semantic
+        .facts
+        .get_mut(semantic_fact)
+        .origin = psi_facts::FactOrigin::Unknown;
+    assert_rejects(&wrong_origin, "0 exact checked definition rows");
+
+    let mut false_evidence = compile();
+    let semantic_fact = false_evidence
+        .facts
+        .semantic
+        .domain_definition_facts
+        .iter()
+        .next()
+        .map(|(_, record)| record.semantic_fact)
+        .expect("domain semantic fact");
+    false_evidence
+        .facts
+        .semantic
+        .facts
+        .get_mut(semantic_fact)
+        .evidence
+        .receipt_identity = 1;
+    assert_rejects(&false_evidence, "0 exact checked definition rows");
+
+    let mut missing_dependency = compile();
+    let owner = missing_dependency
+        .facts
+        .semantic
+        .domain_definition_facts
+        .iter()
+        .next()
+        .map(|(handle, _)| handle)
+        .expect("domain ownership record");
+    missing_dependency
+        .facts
+        .semantic
+        .domain_definition_facts
+        .get_mut(owner)
+        .dependencies
+        .clear();
+    assert_rejects(&missing_dependency, "0 exact checked dependency records");
+
+    let mut duplicate_dependency = compile();
+    let owner = duplicate_dependency
+        .facts
+        .semantic
+        .domain_definition_facts
+        .iter()
+        .next()
+        .map(|(handle, _)| handle)
+        .expect("domain ownership record");
+    let dependency = duplicate_dependency
+        .facts
+        .semantic
+        .domain_definition_facts
+        .get(owner)
+        .dependencies[0];
+    duplicate_dependency
+        .facts
+        .semantic
+        .domain_definition_facts
+        .get_mut(owner)
+        .dependencies
+        .push(dependency);
+    assert_rejects(&duplicate_dependency, "2 exact checked dependency records");
+
+    let mut wrong_member = compile();
+    let dependency = wrong_member
+        .facts
+        .semantic
+        .domain_definition_facts
+        .iter()
+        .next()
+        .and_then(|(_, record)| record.dependencies.first().copied())
+        .expect("domain member dependency");
+    let segment = wrong_member
+        .facts
+        .semantic
+        .places
+        .get(dependency.place)
+        .segments
+        .start();
+    wrong_member
+        .facts
+        .semantic
+        .place_segments
+        .get_mut(segment)
+        .clone_from(&psi_facts::PlaceSegment::Field {
+            symbol: psi_symbols::SymbolHandle::invalid(),
+        });
+    assert_rejects(&wrong_member, "0 exact checked dependency records");
+}
+
+#[test]
+fn review_projects_public_domain_membership_predicates_and_rejects_private_targets() {
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub data Packet { value: u32; }
+pub domain Packet::Base;
+pub domain Packet::Ready
+    requires self in Packet::Base;
+"#,
+    );
+    package.write(
+        "build.omg",
+        "target windows_x64 { }\nmachine build(builder: &mut Build) { }\n",
+    );
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some("windows_x64"),
+        package_inputs(&package.0),
+    )
+    .expect("public domain membership fixture should check");
+    let review = project_checked_package_review(&checked)
+        .expect("public domain membership review should close");
+    let ready = review
+        .public_domains()
+        .iter()
+        .find(|domain| domain.identity().path() == "Packet::Ready")
+        .expect("ready domain row");
+    let [PackageReviewContractFact::Membership { value, domain }] = ready.predicate_facts() else {
+        panic!("one exact membership predicate")
+    };
+    assert_eq!(value, &PackageReviewContractExpression::DomainSubject);
+    assert_eq!(domain.path(), "Packet::Base");
+
+    let private = TempPackage::new();
+    private.write(
+        "main.omg",
+        r#"pub data Packet { value: u32; }
+domain Packet::Base;
+pub domain Packet::Ready
+    requires self in Packet::Base;
+"#,
+    );
+    private.write(
+        "build.omg",
+        "target windows_x64 { }\nmachine build(builder: &mut Build) { }\n",
+    );
+    let checked = compile_to_checked_with_packages(
+        &private.0.join("main.omg"),
+        Some("windows_x64"),
+        package_inputs(&private.0),
+    )
+    .expect("private predicate target fixture should check");
     let diagnostics = project_checked_package_review(&checked)
-        .expect_err("review must not silently omit public domain facts");
+        .expect_err("public predicate must not expose a package-private domain");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| { diagnostic.message.contains("exposes non-public domain") })
+    );
+}
+
+#[test]
+fn public_domain_predicate_fact_order_is_canonical_but_content_changes_encoding() {
+    let first = TempPackage::new();
+    let reordered = TempPackage::new();
+    let changed = TempPackage::new();
+    let source = |facts: &str| {
+        format!(
+            "pub data Packet {{ value: u32; }}\npub domain Packet::Ready\nrequires\n    {facts}\n"
+        )
+    };
+    first.write("main.omg", &source("self.value == 0; self.value <= 1;"));
+    reordered.write("main.omg", &source("self.value <= 1; self.value == 0;"));
+    changed.write("main.omg", &source("self.value == 0; self.value <= 2;"));
+    let build = "target windows_x64 { }\nmachine build(builder: &mut Build) { }\n";
+    first.write("build.omg", build);
+    reordered.write("build.omg", build);
+    changed.write("build.omg", build);
+
+    let encode = |package: &TempPackage| {
+        let checked = compile_to_checked_with_packages(
+            &package.0.join("main.omg"),
+            Some("windows_x64"),
+            package_inputs(&package.0),
+        )
+        .expect("multi-fact public domain fixture should check");
+        project_checked_package_review(&checked)
+            .expect("multi-fact public domain review should close")
+            .canonical_review_bytes()
+            .expect("multi-fact public domain encoding")
+    };
+    assert_eq!(encode(&first), encode(&reordered));
+    assert_ne!(encode(&first), encode(&changed));
+}
+
+#[test]
+fn review_rejects_callable_domain_predicates_until_their_authority_is_defined() {
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub data Reading {
+    value: i64;
+    minimum: i64;
+    maximum: i64;
+}
+pub machine within_calibration(reading: Reading) -> bool {
+    reading.value >= reading.minimum && reading.value <= reading.maximum
+}
+pub domain Reading::Calibrated
+requires
+    within_calibration(self);
+"#,
+    );
+    package.write(
+        "build.omg",
+        "target windows_x64 { }\nmachine build(builder: &mut Build) { }\n",
+    );
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some("windows_x64"),
+        package_inputs(&package.0),
+    )
+    .expect("callable domain predicate fixture should check");
+    let diagnostics = project_checked_package_review(&checked)
+        .expect_err("callable predicate authority is not yet a review claim");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
-            .contains("uses predicate facts not yet represented by package review")
+            .contains("contract expression form not yet represented")
     }));
 }
 

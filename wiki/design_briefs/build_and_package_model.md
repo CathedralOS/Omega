@@ -633,8 +633,13 @@ toolchain nominals bind a canonical toolchain-relative source path plus exact
 source-byte commitment in review evidence; this does not replace the
 whole-toolchain commitment required for sealed admission. Compiler
 carry aliases expand to explicit toolchain-unbound atoms until exact toolchain
-commitment lands. Predicate, semantic-role, and operator semantics fail closed
-until exact rows exist.
+commitment lands. Predicate-body presence and currently representable
+structural expression/membership facts retain the domain carrier and exact
+package-qualified member/domain identities. A typed fact is admissible only
+when it has exactly one checked definition row, one fact-keyed ownership
+record, and exact checked dependency places for nested member paths. Callable
+or proposition-shaped applications, semantic roles, and domain operators fail
+closed until their authority and exact rows are settled.
 Closed compiler-owned classifications and authorized establishment routes
 retain exact route kind plus package-qualified trait and requirement identity;
 alternative routes are canonically sorted and deduplicated.

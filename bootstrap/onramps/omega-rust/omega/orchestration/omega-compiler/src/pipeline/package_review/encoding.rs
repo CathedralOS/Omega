@@ -10,7 +10,7 @@ use psi_checked_trees::{
 };
 
 const MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW\0";
-pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 29;
+pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 30;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageReviewEncodingError {
@@ -197,6 +197,11 @@ fn encode_domain_shape(
     encoder.sequence(&shape.type_parameters, encode_type_parameter)?;
     encode_type_identity(encoder, &shape.target_type)?;
     encoder.sequence(&shape.index_arguments, encode_type_identity)?;
+    encoder.byte(match shape.predicate_body {
+        psi_language_semantics::DomainPredicateBody::Bodyless => 0,
+        psi_language_semantics::DomainPredicateBody::Present => 1,
+    });
+    encoder.sequence(&shape.predicate_facts, encode_contract_fact)?;
     match &shape.alias_expansion {
         None => encoder.byte(0),
         Some(atoms) => {
@@ -524,7 +529,14 @@ fn encode_callable_contract(
             Ok(())
         },
     )?;
-    match &contract.fact {
+    encode_contract_fact(encoder, &contract.fact)
+}
+
+fn encode_contract_fact(
+    encoder: &mut Encoder,
+    fact: &PackageReviewContractFact,
+) -> Result<(), PackageReviewEncodingError> {
+    match fact {
         PackageReviewContractFact::Expression(expression) => {
             encoder.byte(0);
             encode_contract_expression(encoder, expression)
@@ -629,6 +641,7 @@ fn encode_contract_expression(
             encoder.byte(1);
             encoder.string(value)?;
         }
+        PackageReviewContractExpression::DomainSubject => encoder.byte(10),
         PackageReviewContractExpression::Parameter(position) => {
             encoder.byte(2);
             encoder.u32(*position);

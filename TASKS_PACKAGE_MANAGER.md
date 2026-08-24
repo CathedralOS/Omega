@@ -444,8 +444,15 @@ complete.
   and deduplicate canonically. Transparent aliases recursively flatten to
   sorted, deduplicated package-qualified atoms; compiler carry aliases expand
   to explicit toolchain-unbound carry atoms until exact toolchain commitment
-  lands. Predicate, semantic-role, and operator semantics reject until their
-  canonical rows exist.
+  lands. Predicate-body presence and the currently representable structural
+  expression/membership facts now retain `self` as the domain carrier, exact
+  package-qualified members/domains, and canonical fact ordering. Every typed
+  fact must join exactly one checked definition row and one fact-keyed checked
+  ownership record; nested member paths must join exact checked dependency
+  places, so missing, duplicate, wrong-origin, and member-spoofed rows reject.
+  Callable/proposition-shaped predicate applications, semantic roles, and
+  domain operators still reject until their authority and canonical rows are
+  settled.
   Package-owned public traits now project exact identity, boundary status,
   alpha-normalized lifetime/type/const binders, ordered package-qualified
   parent edges, and ordered machine/operator requirement signatures including
@@ -579,7 +586,7 @@ complete.
   closing the implicit-entry-state ownership gap discovered by the crash
   projection. Review identity now retains the exact deployment target profile,
   so profiles such as Windows and UEFI cannot collapse merely because they
-  share a native ABI. A v29 length-framed binary comparison encoding now covers
+  share a native ABI. A v30 length-framed binary comparison encoding now covers
   every retained public-domain, public-data, public-trait, callable,
   representation-TCB, crash/proof predicate, proposition/witness, authority
   flow, dangerous-authority classification, mutation, and selected-provider
@@ -740,7 +747,7 @@ complete.
   `PortIo`, `InterruptMaskControl`, `InterruptEntry`, and
   `ExtentRootProvider` as machine-control, port-I/O, interrupt-control,
   interrupt-entry, and root-memory authority. Canonical and same-named
-  package-owned tests pin both sides of each join, and comparison encoding v29
+  package-owned tests pin both sides of each join, and comparison encoding v30
   retains the rows. `ProgramStorageEntry` is not mislabeled as executable-
   installation authority merely because it receives already-installed roots;
   that class must come from exact installation evidence. Network, process,
@@ -764,7 +771,7 @@ complete.
   `boundary data`, including private declarations and declarations with no
   reach or claim. The row is target-scoped by the containing projection and
   explicitly records both ABI commitment and external mechanism as `Unbound`;
-  it does not fabricate layout or realization. Comparison encoding v29 retains
+  it does not fabricate layout or realization. Comparison encoding v30 retains
   the lane. Exact mechanism/ABI selection, source/toolchain/compiler sealing,
   and admission-policy outcomes remain.
 
