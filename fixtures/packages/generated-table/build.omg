@@ -8,5 +8,8 @@ target linux_x64 { }
 target linux_arm64 { }
 target macos_arm64 { }
 
-machine build(builder: &mut Build) {
+machine build(builder: &mut Build)
+reaches FilesystemHost
+invokes FilesystemHost;
+{
 }

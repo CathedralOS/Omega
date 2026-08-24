@@ -129,7 +129,7 @@ pub fn compile_to_checked(
     let root_path = root_path.to_owned();
     let target_name = target_name.map(str::to_owned);
     super::compiler::run_on_compile_thread(move || {
-        compile_to_checked_inner(&root_path, target_name.as_deref(), None)
+        compile_to_checked_inner(&root_path, target_name.as_deref(), None, None)
     })
 }
 
@@ -144,7 +144,34 @@ pub fn compile_to_checked_with_packages(
     let root_path = root_path.to_owned();
     let target_name = target_name.map(str::to_owned);
     super::compiler::run_on_compile_thread(move || {
-        compile_to_checked_inner(&root_path, target_name.as_deref(), Some(&package_inputs))
+        compile_to_checked_inner(
+            &root_path,
+            target_name.as_deref(),
+            Some(&package_inputs),
+            None,
+        )
+    })
+}
+
+/// Package-aware checked compilation with a caller-owned writable build root.
+/// Resolver snapshots remain immutable; package admission and build execution
+/// must stage outputs in separate custody.
+pub fn compile_to_checked_with_packages_in_build_dir(
+    root_path: &Path,
+    build_dir: &Path,
+    target_name: Option<&str>,
+    package_inputs: PackageCompilationInputs,
+) -> Result<CheckedCompilation, Vec<Diagnostic>> {
+    let root_path = root_path.to_owned();
+    let build_dir = build_dir.to_owned();
+    let target_name = target_name.map(str::to_owned);
+    super::compiler::run_on_compile_thread(move || {
+        compile_to_checked_inner(
+            &root_path,
+            target_name.as_deref(),
+            Some(&package_inputs),
+            Some(&build_dir),
+        )
     })
 }
 
@@ -152,6 +179,7 @@ fn compile_to_checked_inner(
     root_path: &Path,
     target_name: Option<&str>,
     package_inputs: Option<&PackageCompilationInputs>,
+    build_dir: Option<&Path>,
 ) -> Result<CheckedCompilation, Vec<Diagnostic>> {
     let mut timings = CompileTimings::default();
     let package_identity = package_inputs.map(PackageCompilationInputs::root);
@@ -199,11 +227,13 @@ fn compile_to_checked_inner(
     let build_machine_filesystem_scope =
         crate::pipeline::build_config::BuildMachineFilesystemScope::for_root(
             root_path,
-            root_path
-                .parent()
-                .filter(|parent| !parent.as_os_str().is_empty())
-                .map(|parent| parent.join("build"))
-                .unwrap_or_else(|| std::path::PathBuf::from("build")),
+            build_dir.map(Path::to_path_buf).unwrap_or_else(|| {
+                root_path
+                    .parent()
+                    .filter(|parent| !parent.as_os_str().is_empty())
+                    .map(|parent| parent.join("build"))
+                    .unwrap_or_else(|| std::path::PathBuf::from("build"))
+            }),
         );
     let computed_build_config = crate::pipeline::build_config::compute_build_config(
         &typed,

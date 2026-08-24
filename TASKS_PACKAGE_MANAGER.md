@@ -468,9 +468,12 @@ complete.
   contracts retain the receiver ordinal plus each exact package-qualified case
   and field symbol, joined to one checked semantic-place row. Changing only the
   receiver therefore changes review identity. Computed members, proposition-
-  argument members without that checked join, and unsupported call, cast, and
+  argument members without that checked join, and unsupported call and
   aggregate expression forms still reject rather than falling back to text or
-  a hash.
+  a hash. Contract casts retain their structural operand, alpha-normalized
+  target type, exact arithmetic policy, package-qualified semantic domain and
+  arguments, and value/recast form. Diagnostic target/domain spellings are
+  absent, and a private package domain cannot leak through a public cast.
   The settled proposition path is a join, not a new nominal stage: typed trees
   supply structural declaration, binder, and value-expression coordinates;
   checked proof facts supply acceptance, evidence-term/interface routing, and
@@ -481,6 +484,9 @@ complete.
   The legacy 64-bit
   machine-contract fingerprint has left package-review bytes, so private
   state-machine shape no longer contaminates public package contract identity.
+  Package-aware checked compilation now also accepts an explicit caller-owned
+  writable build root, so admitted build staging never requires mutation
+  beneath a resolver-owned immutable source snapshot.
   Exact rows for the unsupported forms and proof/admission dispositions still
   gate sealing.
   It retains
@@ -509,7 +515,7 @@ complete.
   closing the implicit-entry-state ownership gap discovered by the crash
   projection. Review identity now retains the exact deployment target profile,
   so profiles such as Windows and UEFI cannot collapse merely because they
-  share a native ABI. A v18 length-framed binary comparison encoding now covers
+  share a native ABI. A v19 length-framed binary comparison encoding now covers
   every retained public-domain, public-data, public-trait, callable,
   crash/proof predicate, proposition/witness, authority flow, mutation, and
   selected-provider row.
@@ -625,6 +631,12 @@ complete.
   executable installation, root memory, DMA/IOMMU, interrupts, and equivalent
   authority cannot be spoofed or hidden by package-controlled names.
 
+  Progress 2026-08-24: the existing build-host staging gate no longer admits a
+  package-authored `FilesystemHost` or `Console` lookalike by spelling. Allowed
+  staging services must resolve to the exact toolchain source origin and
+  canonical std module path; a fail canary pins same-name spoof rejection.
+  General compiler-owned risk classes and their sealed package evidence remain.
+
 - **REPRESENTATION-TCB-REVIEW.** Retain claim-free opaque boundary data as a
   distinct compiler-owned review lane.
 
@@ -683,7 +695,7 @@ complete.
   Acceptance: fixture identity comes from source, not directory names or test
   constructors, and compiler admission emits every expected evidence row.
 
-  Progress 2026-08-24: all eight local package fixtures declare `PACKAGE` and
+  Progress 2026-08-24: all ten local package fixtures declare `PACKAGE` and
   use the coherent `builder` parameter name. Their private CathedralOS mirrors
   carry byte-identical source at refreshed exact pins. The optional live-network
   test now compares package declarations, source content, and canonical
@@ -692,8 +704,10 @@ complete.
   resolver-owned immutable custody, compiles it through the package-aware
   compiler path, and asserts canonical compiler-issued review evidence for the
   package identity, public surface, reach, invocation, accepted claim, and
-  capability flow represented by the fixture. Sealed admission evidence remains
-  gated on the final admission pipeline.
+  capability flow represented by the fixture. `provider-switchboard` now also
+  selects a real ordinary provider type from its canonical build machine and
+  asserts the compiler-derived selected-provider row. Sealed admission evidence
+  remains gated on the final admission pipeline.
 
 - **SECURITY-FIXTURE-MATRIX.** Add local and remote cases for pure code,
   generated files, filesystem, network overreach, retained filesystem+network
@@ -706,9 +720,21 @@ complete.
   a bodyless accepted boundary claim, exact filesystem reach/invocation,
   retained network reach without a hidden invocation, exact clock-service
   reach/invocation, capability acquisition/return flow, and a two-dependency
-  source graph. Build effects and provider selection, retained combined
-  filesystem+network authority, claim-free opaque representation, escalation,
-  missing baselines, spoofing, and reconciliation conflicts remain.
+  source graph. `opaque-carrier` adds an exact package-qualified public-data row
+  with boundary-opaque supply and no authored semantic claim; its byte-identical
+  private CathedralOS mirror is pinned at an exact commit. It deliberately does
+  not fabricate the still-unsealed mechanism/ABI evidence. The local
+  `remote-journal` fixture now adds exact retained
+  filesystem+network reach and invocation through resolver-owned custody and
+  compiler review evidence; its private CathedralOS mirror is pinned at the
+  byte-identical source commit. `provider-switchboard` now covers exact
+  build-owned provider selection and its normalized compiler review row.
+  `generated-table` now covers the canonical build machine's exact toolchain-
+  owned filesystem reach/invocation ceiling from immutable source custody and a
+  separate writable compiler staging root. Executed build-provider operations,
+  observations/receipts, sealed representation mechanism/ABI evidence, general
+  dangerous-authority escalation, missing baselines, graph-level spoofing, and
+  reconciliation conflicts remain.
 
 - [x] **REMOVE-FABRICATED-MANIFEST-TESTS.** Replace integration tests that construct
   manifests from fixture intent with locally regenerated compiler evidence.

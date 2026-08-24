@@ -147,15 +147,15 @@ provider closure per hosted target, with checked
 target's existing `read_line`, `read_byte`, `write_byte`, and process-exit
 lowerings.
 
-The static build root names a target-owned provider slot and one exact complete
-conformance, for example
-`builder.providers.bind(target::Console, SerialConsole::Polled)`. The binding is
-harvested only from the authoritative `build.omg` machine, and selection
-succeeds only when that conformance's derived candidate exists in the loaded
-dependency closure, applies to the selected target, and covers the complete
-slot schema. Thus the binding grants neither rows nor trust; it spends the build
-root's slot-selection authority over an already-derived and independently
-admitted candidate.
+The static build root names a boundary service and one exact nominal provider
+type, for example
+`builder.select_provider<target::Console, SerialConsole>();`. The selection is
+harvested only from the authoritative `build.omg` machine, and succeeds only
+when that provider's derived candidate exists in the loaded dependency closure,
+applies to the selected target, and covers the complete slot schema. Thus the
+selection grants neither rows nor trust; it spends the build root's slot-
+selection authority over an already-derived and independently admitted
+candidate.
 
 The satisfied requirement supplies the public contract, including service
 reach, suspension, blocking, and guarded-crash ceilings. The external

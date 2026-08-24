@@ -1,6 +1,6 @@
-// package-manager fixture: exact build-owned provider selection.
+// package-manager fixture: claim-free opaque representation.
 const PACKAGE: Package = Package {
-    name: "provider-switchboard"
+    name: "opaque-carrier"
 };
 
 target windows_x64 { }
@@ -9,5 +9,4 @@ target linux_arm64 { }
 target macos_arm64 { }
 
 machine build(builder: &mut Build) {
-    builder.select_provider<ClockHost, MonotonicClock>();
 }
