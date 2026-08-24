@@ -2,6 +2,7 @@ use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 use std::ffi::OsStr;
 use std::fmt;
+use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -69,6 +70,9 @@ pub enum SourceResolveError {
         link: PathBuf,
         target: PathBuf,
     },
+    UnsupportedFileType {
+        path: PathBuf,
+    },
     Git {
         operation: String,
         status: Option<i32>,
@@ -109,6 +113,11 @@ impl fmt::Display for SourceResolveError {
                 link.display(),
                 target.display()
             ),
+            Self::UnsupportedFileType { path } => write!(
+                output,
+                "source path `{}` has an unsupported filesystem entry type",
+                path.display()
+            ),
             Self::Git {
                 operation,
                 status,
@@ -142,7 +151,7 @@ pub fn resolve_local_source(
         return Err(SourceResolveError::NotDirectory { path: root });
     }
 
-    let mut files = Vec::new();
+    let mut entries = Vec::new();
     let mut visited_dirs = BTreeSet::new();
     visit_directory(
         &root,
@@ -151,36 +160,44 @@ pub fn resolve_local_source(
         &root,
         limits,
         &mut visited_dirs,
-        &mut files,
+        &mut entries,
     )?;
-    files.sort_by(|left, right| left.relative.cmp(&right.relative));
+    entries.sort_by(|left, right| left.relative_bytes.cmp(&right.relative_bytes));
 
     let mut hasher = Sha256::new();
-    hasher.update(b"omega-local-source-v1\0");
+    hasher.update(b"omega-local-source-v2\0");
+    hash_length(&mut hasher, entries.len() as u64);
     let mut byte_count = 0_u64;
-    for file in &files {
-        byte_count = byte_count.checked_add(file.bytes.len() as u64).ok_or(
-            SourceResolveError::TooManyBytes {
-                limit: limits.max_bytes,
-            },
-        )?;
-        if byte_count > limits.max_bytes {
-            return Err(SourceResolveError::TooManyBytes {
-                limit: limits.max_bytes,
-            });
+    for entry in &entries {
+        hasher.update(b"entry");
+        hash_bytes(&mut hasher, &entry.relative_bytes);
+        match &entry.kind {
+            SourceEntryKind::File { path } => {
+                let remaining = limits.max_bytes.checked_sub(byte_count).ok_or(
+                    SourceResolveError::TooManyBytes {
+                        limit: limits.max_bytes,
+                    },
+                )?;
+                let (bytes, executable) = read_file_bounded(path, remaining, limits.max_bytes)?;
+                byte_count = byte_count.checked_add(bytes.len() as u64).ok_or(
+                    SourceResolveError::TooManyBytes {
+                        limit: limits.max_bytes,
+                    },
+                )?;
+                hasher.update(b"file");
+                hasher.update([u8::from(executable)]);
+                hash_bytes(&mut hasher, &bytes);
+            }
+            SourceEntryKind::Symlink { target_bytes } => {
+                hasher.update(b"symlink");
+                hash_bytes(&mut hasher, target_bytes);
+            }
         }
-        hasher.update(b"file\0");
-        hasher.update(path_bytes(&file.relative).as_bytes());
-        hasher.update(b"\0");
-        hasher.update((file.bytes.len() as u64).to_le_bytes());
-        hasher.update(b"\0");
-        hasher.update(&file.bytes);
-        hasher.update(b"\0");
     }
 
     Ok(ResolvedLocalSource {
         root,
-        file_count: files.len(),
+        file_count: entries.len(),
         byte_count,
         content_identity: format_sha256(&hasher.finalize()),
     })
@@ -261,9 +278,15 @@ pub fn resolve_git_source(
 }
 
 #[derive(Debug)]
-struct SourceFile {
-    relative: PathBuf,
-    bytes: Vec<u8>,
+struct SourceEntry {
+    relative_bytes: Vec<u8>,
+    kind: SourceEntryKind,
+}
+
+#[derive(Debug)]
+enum SourceEntryKind {
+    File { path: PathBuf },
+    Symlink { target_bytes: Vec<u8> },
 }
 
 fn visit_directory(
@@ -273,7 +296,7 @@ fn visit_directory(
     root: &Path,
     limits: LocalSourceLimits,
     visited_dirs: &mut BTreeSet<PathBuf>,
-    files: &mut Vec<SourceFile>,
+    files: &mut Vec<SourceEntry>,
 ) -> Result<(), SourceResolveError> {
     if depth > limits.max_depth {
         return Err(SourceResolveError::TooDeep {
@@ -310,22 +333,15 @@ fn visit_directory(
         let metadata =
             std::fs::symlink_metadata(&real_path).map_err(|error| io_error(&real_path, error))?;
         if metadata.file_type().is_symlink() {
-            let target = resolve_symlink_target(root, &real_path)?;
-            let target_metadata =
-                std::fs::metadata(&target).map_err(|error| io_error(&target, error))?;
-            if target_metadata.is_dir() {
-                visit_directory(
-                    &target,
-                    logical_path,
-                    depth + 1,
-                    root,
-                    limits,
-                    visited_dirs,
-                    files,
-                )?;
-            } else if target_metadata.is_file() {
-                push_file(files, logical_path, &target, limits)?;
-            }
+            let raw_target = read_and_validate_symlink_target(root, &real_path)?;
+            push_entry(
+                files,
+                logical_path,
+                SourceEntryKind::Symlink {
+                    target_bytes: raw_os_bytes(raw_target.as_os_str()),
+                },
+                limits,
+            )?;
         } else if metadata.is_dir() {
             visit_directory(
                 &real_path,
@@ -337,26 +353,36 @@ fn visit_directory(
                 files,
             )?;
         } else if metadata.is_file() {
-            push_file(files, logical_path, &real_path, limits)?;
+            push_entry(
+                files,
+                logical_path,
+                SourceEntryKind::File { path: real_path },
+                limits,
+            )?;
+        } else {
+            return Err(SourceResolveError::UnsupportedFileType { path: real_path });
         }
     }
     Ok(())
 }
 
-fn resolve_symlink_target(root: &Path, link: &Path) -> Result<PathBuf, SourceResolveError> {
+fn read_and_validate_symlink_target(
+    root: &Path,
+    link: &Path,
+) -> Result<PathBuf, SourceResolveError> {
     let raw_target = std::fs::read_link(link).map_err(|error| io_error(link, error))?;
     let absolute_target = if raw_target.is_absolute() {
-        raw_target
+        raw_target.clone()
     } else {
         link.parent()
             .unwrap_or_else(|| Path::new("."))
-            .join(raw_target)
+            .join(&raw_target)
     };
     let target = absolute_target
         .canonicalize()
         .map_err(|error| io_error(&absolute_target, error))?;
     if target.starts_with(root) {
-        Ok(target)
+        Ok(raw_target)
     } else {
         Err(SourceResolveError::SymlinkEscapesRoot {
             link: link.to_path_buf(),
@@ -365,10 +391,10 @@ fn resolve_symlink_target(root: &Path, link: &Path) -> Result<PathBuf, SourceRes
     }
 }
 
-fn push_file(
-    files: &mut Vec<SourceFile>,
+fn push_entry(
+    files: &mut Vec<SourceEntry>,
     relative: PathBuf,
-    path: &Path,
+    kind: SourceEntryKind,
     limits: LocalSourceLimits,
 ) -> Result<(), SourceResolveError> {
     if files.len() >= limits.max_files {
@@ -376,16 +402,78 @@ fn push_file(
             limit: limits.max_files,
         });
     }
-    let bytes = std::fs::read(path).map_err(|error| io_error(path, error))?;
-    files.push(SourceFile { relative, bytes });
+    files.push(SourceEntry {
+        relative_bytes: raw_os_bytes(relative.as_os_str()),
+        kind,
+    });
     Ok(())
 }
 
-fn path_bytes(path: &Path) -> String {
-    path.components()
-        .map(|component| component.as_os_str().to_string_lossy())
-        .collect::<Vec<_>>()
-        .join("/")
+fn read_file_bounded(
+    path: &Path,
+    remaining: u64,
+    limit: u64,
+) -> Result<(Vec<u8>, bool), SourceResolveError> {
+    let mut file = std::fs::File::open(path).map_err(|error| io_error(path, error))?;
+    let metadata = file.metadata().map_err(|error| io_error(path, error))?;
+    if !metadata.is_file() {
+        return Err(SourceResolveError::UnsupportedFileType {
+            path: path.to_path_buf(),
+        });
+    }
+    if metadata.len() > remaining {
+        return Err(SourceResolveError::TooManyBytes { limit });
+    }
+
+    let initial_capacity =
+        usize::try_from(metadata.len()).map_err(|_| SourceResolveError::TooManyBytes { limit })?;
+    let mut bytes = Vec::new();
+    bytes
+        .try_reserve_exact(initial_capacity)
+        .map_err(|_| SourceResolveError::TooManyBytes { limit })?;
+    let mut chunk = [0_u8; 64 * 1024];
+    loop {
+        let count = file
+            .read(&mut chunk)
+            .map_err(|error| io_error(path, error))?;
+        if count == 0 {
+            break;
+        }
+        let next_len = (bytes.len() as u64)
+            .checked_add(count as u64)
+            .ok_or(SourceResolveError::TooManyBytes { limit })?;
+        if next_len > remaining {
+            return Err(SourceResolveError::TooManyBytes { limit });
+        }
+        bytes.extend_from_slice(&chunk[..count]);
+    }
+
+    Ok((bytes, is_executable(&metadata)))
+}
+
+#[cfg(unix)]
+fn is_executable(metadata: &std::fs::Metadata) -> bool {
+    use std::os::unix::fs::PermissionsExt;
+
+    metadata.permissions().mode() & 0o111 != 0
+}
+
+#[cfg(not(unix))]
+fn is_executable(_metadata: &std::fs::Metadata) -> bool {
+    false
+}
+
+fn raw_os_bytes(value: &OsStr) -> Vec<u8> {
+    value.as_encoded_bytes().to_vec()
+}
+
+fn hash_bytes(hasher: &mut Sha256, bytes: &[u8]) {
+    hash_length(hasher, bytes.len() as u64);
+    hasher.update(bytes);
+}
+
+fn hash_length(hasher: &mut Sha256, length: u64) {
+    hasher.update(length.to_le_bytes());
 }
 
 fn io_error(path: &Path, error: std::io::Error) -> SourceResolveError {
@@ -578,6 +666,131 @@ mod tests {
         let _ = std::fs::remove_dir_all(&root);
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn local_source_path_encoding_preserves_non_utf8_bytes() {
+        use std::ffi::OsString;
+        use std::os::unix::ffi::OsStringExt;
+
+        let first = OsString::from_vec(b"source-\x80.omg".to_vec());
+        let second = OsString::from_vec(b"source-\x81.omg".to_vec());
+
+        assert_eq!(raw_os_bytes(&first), b"source-\x80.omg");
+        assert_eq!(raw_os_bytes(&second), b"source-\x81.omg");
+        assert_ne!(raw_os_bytes(&first), raw_os_bytes(&second));
+    }
+
+    #[cfg(all(unix, not(target_vendor = "apple")))]
+    #[test]
+    fn local_source_identity_distinguishes_non_utf8_paths() {
+        use std::ffi::OsString;
+        use std::os::unix::ffi::OsStringExt;
+
+        let first_root = temp_root("non-utf8-first");
+        let second_root = temp_root("non-utf8-second");
+        std::fs::create_dir_all(&first_root).expect("create first source tree");
+        std::fs::create_dir_all(&second_root).expect("create second source tree");
+        let first_name = OsString::from_vec(b"source-\x80.omg".to_vec());
+        let second_name = OsString::from_vec(b"source-\x81.omg".to_vec());
+        std::fs::write(first_root.join(first_name), "same bytes").expect("write first source");
+        std::fs::write(second_root.join(second_name), "same bytes").expect("write second source");
+
+        let first =
+            resolve_local_source(&first_root, LocalSourceLimits::default()).expect("resolve first");
+        let second = resolve_local_source(&second_root, LocalSourceLimits::default())
+            .expect("resolve second");
+
+        assert_ne!(first.content_identity, second.content_identity);
+
+        let _ = std::fs::remove_dir_all(&first_root);
+        let _ = std::fs::remove_dir_all(&second_root);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn local_source_identity_hashes_symlink_spelling_without_following_it() {
+        let root = temp_root("symlink-identity");
+        std::fs::create_dir_all(root.join(".git")).expect("create ignored target directory");
+        let target = root.join(".git/target.omg");
+        let link = root.join("linked.omg");
+        std::fs::write(&target, "first target bytes").expect("write target");
+        std::os::unix::fs::symlink(".git/target.omg", &link).expect("create symlink");
+
+        let first =
+            resolve_local_source(&root, LocalSourceLimits::default()).expect("resolve first");
+        std::fs::write(&target, "different target bytes").expect("rewrite ignored target");
+        let changed_target = resolve_local_source(&root, LocalSourceLimits::default())
+            .expect("resolve target change");
+        assert_eq!(first.content_identity, changed_target.content_identity);
+
+        std::fs::remove_file(&link).expect("remove symlink");
+        std::os::unix::fs::symlink("./.git/target.omg", &link).expect("recreate symlink");
+        let changed_spelling = resolve_local_source(&root, LocalSourceLimits::default())
+            .expect("resolve spelling change");
+        assert_ne!(first.content_identity, changed_spelling.content_identity);
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn local_source_identity_distinguishes_executable_mode() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let root = temp_root("executable-mode");
+        std::fs::create_dir_all(&root).expect("create source tree");
+        let source = root.join("generate");
+        std::fs::write(&source, "same bytes").expect("write source");
+        std::fs::set_permissions(&source, std::fs::Permissions::from_mode(0o644))
+            .expect("make source non-executable");
+        let non_executable =
+            resolve_local_source(&root, LocalSourceLimits::default()).expect("resolve mode");
+
+        std::fs::set_permissions(&source, std::fs::Permissions::from_mode(0o755))
+            .expect("make source executable");
+        let executable =
+            resolve_local_source(&root, LocalSourceLimits::default()).expect("resolve mode");
+
+        assert_ne!(non_executable.content_identity, executable.content_identity);
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn local_source_rejects_special_file_kind() {
+        use std::os::unix::net::UnixListener;
+
+        let stamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system clock")
+            .as_nanos();
+        let root = PathBuf::from("/tmp").join(format!(
+            "omega-source-socket-{}-{stamp}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&root).expect("create source tree");
+        let socket_path = root.join("source.sock");
+        let listener = UnixListener::bind(&socket_path).expect("create Unix socket");
+        let expected_path = root
+            .canonicalize()
+            .expect("canonicalize source tree")
+            .join("source.sock");
+
+        let error = resolve_local_source(&root, LocalSourceLimits::default())
+            .expect_err("special file should reject");
+
+        assert_eq!(
+            error,
+            SourceResolveError::UnsupportedFileType {
+                path: expected_path
+            }
+        );
+
+        drop(listener);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
     #[test]
     fn local_source_limits_reject_too_many_files() {
         let root = temp_root("files");
@@ -594,6 +807,26 @@ mod tests {
         .expect_err("file limit should reject");
 
         assert_eq!(error, SourceResolveError::TooManyFiles { limit: 0 });
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn local_source_limits_reject_file_before_reading_past_byte_limit() {
+        let root = temp_root("bytes-limit");
+        std::fs::create_dir_all(&root).expect("create source tree");
+        std::fs::write(root.join("source.omg"), "four").expect("write source");
+
+        let error = resolve_local_source(
+            &root,
+            LocalSourceLimits {
+                max_bytes: 3,
+                ..LocalSourceLimits::default()
+            },
+        )
+        .expect_err("byte limit should reject");
+
+        assert_eq!(error, SourceResolveError::TooManyBytes { limit: 3 });
 
         let _ = std::fs::remove_dir_all(&root);
     }
