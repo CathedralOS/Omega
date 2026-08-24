@@ -63,6 +63,16 @@ real package fixture demonstrates an irreducible external contract.
   immutable, and publishes results only after successful session cleanup.
   Ordinary standalone compiler build roots remain caller-owned.
 
+The review-only source-triage layer consumes compiler-issued closure rows
+directly. Initial dangerous authority or representation-TCB exposure recommends
+audit; update capability/API drift and source-lineage replacement block;
+unavailable old source and retained dangerous authority recommend audit even
+when canonical capability bytes are unchanged. Its bounded model-facing form
+contains only fixed reason/disposition vocabulary plus canonical package-key
+commitments and rejects rather than truncates. It does not yet include a
+bounded source patch or invoke a model, and no advisory answer can mint
+admission or prove an audit occurred.
+
 The complete design is in:
 
 - `wiki/design_briefs/package_manager_first_draft.md`
@@ -203,7 +213,11 @@ widths. Preparation traps remain on the outer attempt and occur before grant or
 provider access. Canonicalize enforces its declared 1024-byte `PATH_MAX`
 carrier at that gate; process memory and CPU ceilings remain open.
 Scoped hard links require write authority on both names, preventing a read-only
-source inode from being aliased into writable staging. `ReviewBuildSession`
+source inode from being aliased into writable staging. Namespace mutations
+authorize the canonical parent and actual leaf rather than following an
+existing leaf symlink, preventing a target inside staging from lending write
+authority to an outside name. Target-following operations still authorize the
+resolved target. `ReviewBuildSession`
 owns one object/namespace sponsor shared by every package compile in the
 closure. Package output roots consume the same account. The compiler permits
 4,096 entries, 256 MiB total logical bytes, and 256 MiB for any one object

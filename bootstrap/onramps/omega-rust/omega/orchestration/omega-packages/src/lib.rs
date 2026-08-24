@@ -37,6 +37,7 @@ mod review;
 mod source;
 mod source_adapter;
 mod source_commands;
+mod source_triage;
 #[cfg(test)]
 mod update;
 
@@ -97,4 +98,8 @@ pub use source_commands::{
     PackageSourceRequestParseError, SourceAdapter, SourceCachePolicyCommandError,
     audit_package_source, audit_package_source_locator, resolve_source_cache_record_locator,
     write_source_cache_record_locator,
+};
+pub use source_triage::{
+    CompilerReviewTriage, PackageTriageDecision, PackageTriageDisposition, PackageTriageReason,
+    TriageRenderError, triage_initial_install, triage_review_update,
 };

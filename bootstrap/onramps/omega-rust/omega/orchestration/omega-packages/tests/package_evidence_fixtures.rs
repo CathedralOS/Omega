@@ -7,9 +7,11 @@ use omega_compiler::{
 };
 use omega_packages::{
     CompileResolvedPackageReviewsError, LocalSourceLimits, PackageSourceClosureLimits,
-    PackageSourceVerificationPhase, SourceLineage, SourceResolveError, WorkspaceMemberPath,
-    compile_resolved_package_reviews, resolve_workspace_package_closure,
+    PackageSourceVerificationPhase, PackageTriageDisposition, SourceLineage, SourceResolveError,
+    WorkspaceMemberPath, compile_resolved_package_reviews, resolve_workspace_package_closure,
+    triage_initial_install, triage_review_update,
 };
+use std::collections::BTreeSet;
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -344,6 +346,61 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
             .expect("root package receives compiler review material");
 
         assert_fixture_evidence(package, root_review.projection());
+        let initial_triage = triage_initial_install(&reviews);
+        let initial_root = initial_triage
+            .decisions()
+            .iter()
+            .find(|decision| decision.package_name() == *package)
+            .expect("initial triage retains root package");
+        let initial_audit_expected = matches!(
+            *package,
+            "generated-table" | "file-journal" | "remote-journal" | "opaque-carrier"
+        );
+        assert_eq!(
+            initial_root.disposition(),
+            if initial_audit_expected {
+                PackageTriageDisposition::AdmittedWithAuditRecommended
+            } else {
+                PackageTriageDisposition::Admitted
+            },
+            "{package} initial source triage"
+        );
+        assert!(
+            initial_triage.render_bounded(64 * 1024).is_ok(),
+            "{package} compiler evidence should fit the bounded triage projection"
+        );
+
+        let unchanged_triage = triage_review_update(&reviews, &reviews, &BTreeSet::new());
+        let unchanged_root = unchanged_triage
+            .decisions()
+            .iter()
+            .find(|decision| decision.package_name() == *package)
+            .expect("unchanged triage retains root package");
+        let retained_dangerous_authority = matches!(
+            *package,
+            "generated-table" | "file-journal" | "remote-journal"
+        );
+        assert_eq!(
+            unchanged_root.disposition(),
+            if retained_dangerous_authority {
+                PackageTriageDisposition::AdmittedWithAuditRecommended
+            } else {
+                PackageTriageDisposition::Admitted
+            },
+            "{package} unchanged source triage"
+        );
+        let unavailable = BTreeSet::from([closure.graph().root().clone()]);
+        let unavailable_triage = triage_review_update(&reviews, &reviews, &unavailable);
+        let unavailable_root = unavailable_triage
+            .decisions()
+            .iter()
+            .find(|decision| decision.candidate_key() == Some(closure.graph().root()))
+            .expect("unavailable-source triage retains exact root package");
+        assert_eq!(
+            unavailable_root.disposition(),
+            PackageTriageDisposition::AdmittedWithAuditRecommended,
+            "{package} missing old source must recommend standalone candidate audit"
+        );
         let _ = std::fs::remove_dir_all(cache);
     }
 }
