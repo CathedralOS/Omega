@@ -11,35 +11,9 @@ Code, canaries, and settled documentation must cite a stable named decision or
 the governing guide section rather than an owner-question number. A settled
 decision's durable identity does not change when this queue is pruned.
 
-Last pruned: 2026-08-23.
+Last pruned: 2026-08-24.
 
-## Q1 — How does a target package declare a nominal foreign endpoint?
-
-The foreign-binding model requires source to cite one namespace-owned
-`DllImportId`, for example `Windows::Kernel32::WriteFile`, while raw library and
-export bytes live only in sealed, fingerprinted target/link metadata. The
-repository does not yet define the declaration that creates that nominal value
-or the authored target input that maps it to those raw bytes. An ordinary
-`const` cannot construct the opaque ID without reopening free pairing, and
-deriving the ID from either strings or the realization machine would contradict
-the settled identity rule.
-
-Choose the target-package declaration and metadata-supply surface. It must:
-
-- create one resolved nominal symbol usable as a `DllImportId` expression;
-- bind that symbol inseparably to one library/export pair in sealed target/link
-  metadata, with no raw strings in ordinary Omega source;
-- make ownership, target applicability, duplicate/missing mapping rejection,
-  fingerprinting, and package visibility explicit; and
-- generalize coherently to `CallingPlanId`, firmware/table IDs, and other
-  mechanism-specific nominal values without inventing a string-backed escape.
-
-Recommended direction: a target-package-owned nominal-ID declaration plus a
-separate sealed target metadata record keyed by that resolved declaration. Keep
-`build.omg` limited to selecting target/provider declarations; it must neither
-author linker spellings nor manufacture IDs.
-
-## Q2 — How does a named guarantee declare its result-case guard?
+## Q1 — How does a named guarantee declare its result-case guard?
 
 Named `ensures proof: P` outputs and selective proof-output bindings are live
 for unconditional guarantees. The settled caller surface also allows a proof
@@ -69,7 +43,7 @@ normalize `Success` to the exact result-type case symbol. Keep unconditional
 customer is outcome-specific availability, and general guarded contracts would
 introduce a larger proof and compatibility surface.
 
-## Q3 — What source authority expresses variadic `Respects` evidence?
+## Q2 — What source authority expresses variadic `Respects` evidence?
 
 Quotient operations are selected explicitly as
 `Quotient::lift<F, Respect>(...)` or `Quotient::define<F, Respect>(...)`. The
@@ -101,7 +75,7 @@ ordinary source declarations. Do not encode the telescope as an untyped list,
 generate arity-indexed traits, or let the lift operation discover a proof by
 shape.
 
-## Q4 — How does a native layout declare a private callback demand?
+## Q3 — How does a native layout declare a private callback demand?
 
 Registered-callback lowering already maps one nominal static-machine binder to
 one native parameter or nested layout place. A nested destination is valid only
@@ -132,7 +106,7 @@ resolves those names into opaque identities during layout evaluation. Do not
 put raw IDs or field offsets in source, infer the demand from the callback row,
 or expose a callback-address-shaped semantic field.
 
-## Q5 — Does `export` re-export dependencies, or should it be retired?
+## Q4 — Does `export` re-export dependencies, or should it be retired?
 
 The parser accepts `export path [as alias];`, but symbol resolution deliberately
 drops the item. The language guide instead makes `pub` on package-owned
@@ -160,7 +134,7 @@ same-package, module-only export whose target retains exact package-owned
 identity. Do not allow a dependency declaration to be relabeled as exporter-
 owned or let an alias hide the package/reach edge.
 
-## Q6 — May a trait invariant introduce an undeclared structural member?
+## Q5 — May a trait invariant introduce an undeclared structural member?
 
 The language guide illustrates `invariant self.value in 0..=1000`, but a trait
 declares no field named `value` and has no associated-data/member namespace.
@@ -186,7 +160,7 @@ it. Tempting but wrong alternatives are to canonically encode the string
 `value`, infer an implicit structural member and its type from invariant uses,
 or add a report-only IR stage that merely freezes the unresolved spelling.
 
-## Q7 — Should trait requirements admit named witness contracts?
+## Q6 — Should trait requirements admit named witness contracts?
 
 Concrete machines use named `requires`/`ensures` contracts as erased witness
 input/output lanes. Public trait requirement syntax currently does not admit the
@@ -208,7 +182,7 @@ Tempting but wrong alternatives are to expose the latent optional binding field
 only to package review, synthesize evidence terms after checking, or invent new
 package-only syntax.
 
-## Q8 — What does a boundary clause mean on an abstract requirement?
+## Q7 — What does a boundary clause mean on an abstract requirement?
 
 Boundary syntax distinguishes host and named boundary levels before semantic
 lowering, but the state-signature path collapses them to one undifferentiated
@@ -228,7 +202,7 @@ real external contract requires it. Tempting but wrong alternatives are to
 encode the word `boundary`, treat host and named levels as equal, or infer the
 missing level from a service name during package projection.
 
-## Q9 — What authority does a callable domain predicate publish?
+## Q8 — What authority does a callable domain predicate publish?
 
 Omega currently permits a domain predicate to call an ordinary machine, for
 example `requires within_calibration(self)`. A proposition application written

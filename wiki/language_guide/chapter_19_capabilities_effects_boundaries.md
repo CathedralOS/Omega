@@ -1281,15 +1281,23 @@ toolchain catalog entry containing the lowering and its checked operational
 contract. An absent entry, wrong signature, inapplicable target, unauthorized
 origin package, or non-refining implementation rejects.
 
-Other irreducible bindings likewise use nominal values. `DllImport` carries one
-resolved `DllImportId` plus a `CallingPlanId`; the import ID inseparably owns its
-library and export identity. Syscall, firmware,
-and vtable bindings carry their own typed identifiers. A raw foreign linker
-name may exist in sealed target/link metadata because a foreign object format
-ultimately uses bytes, but that spelling is never an Omega symbol, dispatch
-key, requirement identity, or provider selection. The metadata is fingerprinted:
-changing the foreign bytes changes target/artifact identity and requires fresh
-admission without changing what the nominal Omega symbol means.
+Other irreducible bindings use ordinary typed compile-time values produced by
+target-package machines. `DllImport` carries one object-format locator sum case
+whose case keeps a PE library/export pair, a PE library/ordinal pair, or an ELF
+object/symbol/version triple inseparable. The satisfied requirement's
+`Calling<C, Policy>` relationship separately evaluates the ABI `CallPlan`;
+`Binding` does not carry or reselect it.
+Syscall, firmware, and vtable bindings carry equally typed physical operands.
+Raw foreign bytes are therefore honest target data but never Omega symbols,
+dispatch keys, requirement identities, ambient lookup strings, or provider
+selections.
+
+The complete evaluated binding, its producer closure, and target application
+are fingerprinted. Changing a foreign locator changes every dependent final
+artifact, forces relinking, and requires fresh admission. Audit reports retain
+the actual locator rather than a nominal endpoint whose mapping could redirect
+elsewhere; `build.omg` may select a target/provider but cannot rewrite the
+evaluated binding.
 
 The retired top-level `provider Name : Category;` declaration and
 operator-local `provider Name` clause are bootstrap syntax. Their fixed
@@ -1403,7 +1411,9 @@ A registration operation names that exact nominal requirement on its static
 machine binder:
 
 ```omega
-boundary trait WindowRegistrar {
+boundary trait WindowRegistrar:
+    Calling<MicrosoftX64, MicrosoftX64Policy>
+{
     machine register<machine Procedure>(
         specification: &WindowClassSpecification
     ) -> Registration
@@ -1414,19 +1424,26 @@ let registration =
     WindowRegistrar::register<ApplicationWindow::dispatch>(&specification);
 ```
 
-The target package supplies the ordinary external realization and names one
-evaluated plan; callback placement adds no declaration keyword:
+The registrar requirement owns its evaluated outbound plan. The target package
+supplies only the ordinary external locator binding; callback placement adds no
+declaration keyword:
 
 ```omega
+windows_x64 machine User32Bindings::register_window_procedure() -> Binding {
+    Binding::DllImport {
+        import: DllImport::PeByName {
+            library: "user32.dll",
+            export: "RegisterClassExW",
+        },
+    }
+}
+
 machine User32::register_window_procedure<machine Procedure>(
     specification: &WindowClassSpecification
 ) -> Registration
 where machine Procedure satisfies WindowProcedure::call
 satisfies WindowRegistrar::register
-via Binding::DllImport {
-    import: Windows::User32::RegisterClassExW,
-    plan: User32Plans::register_class,
-};
+via User32Bindings::register_window_procedure();
 ```
 
 The requirement supplies the binder's complete signature and contract; they

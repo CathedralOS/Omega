@@ -26,6 +26,32 @@ that the compiler is evaluating it.
 
 No declaration marker restates that judgment.
 
+Three adjacent concepts remain distinct:
+
+1. an ordinary machine invocation may be evaluated before runtime;
+2. `const` gives the resulting pure value a compile-time name but no storage
+   identity; and
+3. one addressable immutable image occurrence, if later admitted, is a storage
+   feature rather than another meaning of `const`.
+
+They compose directly:
+
+```omega
+machine Imports::write_file() -> DllImport {
+    DllImport::PeByName {
+        library: "kernel32.dll",
+        export: "WriteFile",
+    }
+}
+
+pub const WRITE_FILE: DllImport = Imports::write_file();
+```
+
+No `const machine`, `comptime`, macro language, or declaration-phase predicate
+is introduced. Local mutation, allocation, recursion, and temporary borrows are
+ordinary implementation techniques inside an admitted evaluation; only inputs,
+effects, resource use, and escaping results are restricted.
+
 ## Two pre-runtime execution worlds
 
 | Property | Semantic evaluation | `build.omg` orchestration |
@@ -98,6 +124,16 @@ computed NaN payload bits requires a proof or selected realization that fixes
 them. Cache identity includes every selected realization and semantic control
 state that can affect the result.
 
+An unscoped constant may therefore be target-polymorphic. Its declaration path
+is one source identity, while each closed application retains its type/const/
+machine substitutions and every target-semantic dependency observed by its
+evaluation closure. A target-neutral intermediate exports that recipe and
+dependency rather than pretending it already owns one concrete value. Final
+target selection closes the application. A conservative implementation may key
+the application by the complete target capsule; finer caching may later retain
+only the facts actually observed. Two target applications never share a cached
+value or artifact identity merely because their declaration path matches.
+
 ## Admission uses the complete invocation contract
 
 An empty service-reach row is necessary and nowhere near sufficient.
@@ -132,6 +168,52 @@ state, another invocation, or runtime state. Augmenting `build.omg` evaluation
 uses a separate API that deliberately returns snapshots of its mutated
 arguments and is not this hermetic world.
 
+`StaticBytes` is the owned variable-length byte value for this bridge. A byte
+literal in a result/constant position expecting `StaticBytes` copies its length
+and bytes into the returned snapshot; it does not export a slice into evaluator
+storage. Equality and hashing are structural, and constant-pool interning is an
+unobservable emission optimization. Temporary references and slices remain
+legal inside the evaluation. This value supports generated format tables,
+encoded plans, lookup data, and typed foreign locators without inventing a
+parallel metadata language.
+
+## Evaluation and materialization are separate judgments
+
+The compiler derives two internal properties; neither is a user-satisfiable
+trait or a source keyword:
+
+```text
+ConstEvaluable(T, value)
+    the complete result type is pure/copy-eligible and the semantic value may
+    cross the hermetic evaluator as an owned snapshot
+
+ConstMaterializable(value, layout)
+    the selected representation determines every observable emitted bit
+```
+
+The second judgment is value-sensitive and structural over the realized value,
+not merely its outer type. It traverses the active sum case and its actual
+fields; an inactive case cannot make the current value fail. When a nested
+component fails, the diagnostic retains a compact origin chain from the runtime
+materialization site through the field/index/case path to the evaluated
+operation that produced it. Layout padding is emitted as zero under ZII and
+remains outside program semantics.
+
+A float whose meaning is NaN but whose payload is not fixed remains usable in
+proof and compile-time positions through `Float::meaning`. Materializing that
+value rejects unless the author canonicalizes it, constructs explicit bits, or
+selects a realization publishing exact NaN representation. This prevents an
+arbitrary evaluator choice from becoming accidentally reliable image data.
+
+A quotient is different. Quotient construction carries one exact operational
+representative, and zero-cost evaluation preserves it just as runtime execution
+does; ordinary materialization may emit that carried representative without a
+canonicalization proof. Canonical form is required only when a consumer demands
+representative-independent identity, such as stable serialization, public ABI,
+canonical const-index use, structural hashing/interning, or reproducible raw
+bytes. Equivalent quotient values may otherwise materialize different opaque
+representatives.
+
 Until proof/build-admissible resource inputs have a sealed admission artifact,
 the common gate rejects every declared linear runtime carrier in a reachable
 checked body: attached machine data, machine-owned data, state and callable
@@ -165,7 +247,8 @@ compiled contract writes `terminates;` when consumers may rely on it. This is
 the normal infer-when-closed, declare-when-open split.
 
 Termination proves eventual completion, not affordability. A deliberately
-hours-long terminating proof is legal.
+hours-long terminating proof is semantically legal, while the build sponsor may
+still refuse to spend the resources required to evaluate it.
 
 ## Deterministic work observation and optional policy
 
@@ -251,6 +334,21 @@ This meter supports three policies without becoming program semantics:
 2. deterministic large-work warnings; and
 3. optional root-selected hard ceilings.
 
+An evaluation is resource-admissible by either of two routes:
+
+1. a certified maximum-logical-work ceiling fits the compiler-side grant, so
+   completion within that grant is known before execution; or
+2. the deterministic evaluator meters an otherwise eligible invocation against
+   an explicit sponsor budget.
+
+The evaluated machine cannot observe its budget, catch exhaustion, or change
+behavior when the grant changes. Raising a budget can change whether the build
+obtains a result, never which result it obtains. Published reproducible builds
+either carry the certified ceiling or record the admitted work budget and usage
+receipt. Temporary memory, peak live cells, and result-byte size receive the
+same treatment: termination and a work ceiling alone do not license an
+unbounded allocation or a terabyte constant.
+
 The root may raise or remove ceilings. Dependencies may publish expected usage
 but cannot grant themselves more. Evaluation code cannot inspect remaining
 work, branch on policy, catch exhaustion, or request an increase. Exhaustion is
@@ -275,7 +373,7 @@ ResultKey =
     normalized implementation closure
   + arguments
   + selected conformances/providers
-  + target semantic capsule
+  + observed target-semantic dependencies
   + evaluator semantics version
 
 UsageRecord =
@@ -286,6 +384,9 @@ UsageRecord =
 PolicyCharge =
     interpret(UsageRecord, selected cost policy)
 ```
+
+Using the complete target semantic capsule for the fourth result-key row is the
+initial conservative implementation of that dependency set.
 
 Changing accounting weights must not invalidate a result computed under
 unchanged semantics. If a future policy needs counts an older usage schema did

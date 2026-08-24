@@ -7340,31 +7340,36 @@ in the quotient owner's body; canonical definitions cannot hide wrappers; and
 no structural observer, effect, or custody occurrence crosses the quotient
 boundary without its corresponding checked law.
 
-### Boundary realization and nominal binding identity
+### Boundary realization and evaluated binding data
 
-- **NOMINAL-FOREIGN-BINDINGS — remove the remaining string-backed import
-  bootstrap.** The intrinsic lane is complete: `CompilerIntrinsic` is
-  payloadless and exact realization symbol/signature/target select the sealed
-  catalog entry. The import lane still carries raw library/symbol strings from
-  syntax through provider, calling-convention, trust/artifact, and backend
-  plans.
+- **EVALUATED-FOREIGN-BINDINGS — replace the remaining string-backed import
+  bootstrap with ordinary typed compile-time values.** The intrinsic lane is
+  complete: `CompilerIntrinsic` is payloadless and exact realization symbol,
+  signature, and target select the sealed catalog entry. For imported leaves,
+  add the owned `StaticBytes` compile-time value and typed object-format locator
+  cases (`PeByName`, `PeByOrdinal`, versioned ELF symbols, and later peers).
+  Target-scoped ordinary machines construct complete `Binding` values; `via`
+  evaluates them under the existing hermetic evaluator. The satisfied
+  requirement's `Calling<C, Policy>` relationship already produces ordinary
+  evaluated `CallPlan` data; remove the duplicate plan operand and do not add a
+  parallel `CallingPlanId` registry.
 
-  This task is design-blocked on OWNER Q1's declaration and sealed-metadata
-  supply surface. Once settled, introduce that source identity first, then
-  replace every raw import pair with one exact `DllImportId` through checked
-  provider identity, Terminal/artifact identity, admission, and backend plans.
-  Resolve the ID to raw object-format bytes only in sealed target/link metadata.
-  Reject missing, duplicate, redirected, target-inapplicable, or changed
-  mappings. Apply the same nominal discipline to `CallingPlanId`, firmware/
-  table IDs, and other mechanism-specific operands; never derive an ID from
-  text, display output, ambient lookup, or the realization machine citing it.
+  Carry the normalized locator, evaluated plan, producer closure, target
+  applicability, and evaluation/materialization fingerprints through checked
+  provider identity, Terminal/artifact identity, admission, object planning,
+  and backend emission. Keep each physical locator atomic so independently
+  named library/export values cannot be accidentally paired. Raw foreign bytes
+  are typed target-package data, never Omega symbol names, requirement keys,
+  ambient lookup strings, or `build.omg` redirection inputs. A changed locator
+  changes every dependent final artifact and requires relink plus fresh
+  admission.
 
 Acceptance: the same boundary requirement can select a checked test provider or
 a target intrinsic without editing its declaration; final artifacts contain no
-primitive-provider registry or provider categories; an intrinsic lowering is
-selected only by exact realization symbol/signature/target; and changing raw
-foreign linker bytes preserves the nominal Omega symbol while changing pinned
-target/artifact identity and forcing fresh admission.
+primitive-provider or foreign-endpoint registry; an intrinsic lowering is
+selected only by exact realization symbol/signature/target; audit manifests
+enumerate the actual evaluated locator and plan; and changing raw foreign bytes
+changes the evaluated binding and every dependent target/artifact identity.
 
 ### Float providers
 
@@ -7481,6 +7486,19 @@ checked-result arithmetic decision listed below.
 - Complete hermetic evaluation with crash refinement, target capsule, separate
   result/usage identities, deterministic progress, and runtime equivalence.
   Publish `Hermetic | Receipted | Volatile` ceilings and realized provenance.
+  Add owned, structurally comparable `StaticBytes` snapshots with contextual
+  literal construction, then generalize `const` evaluation beyond the current
+  scalar/record corpus to fixed arrays, copy-eligible sums, `StaticBytes`, and
+  aggregates containing them. Keep temporary evaluator references internal.
+  Derive value-sensitive `ConstEvaluable` and `ConstMaterializable` judgments;
+  walk only the realized active case, retain component/origin diagnostics,
+  zero layout padding, reject underdetermined observable encodings such as an
+  unfixed NaN payload at runtime materialization, and preserve an exact carried
+  quotient representative without demanding canonicalization. Retain target-
+  dependent const application identity through target-neutral intermediates.
+  Admit evaluation through either a certified maximum-logical-work ceiling or
+  deterministic unobservable metering, with corresponding temporary-memory and
+  result-size budgets and published-build receipts.
   Recursive build-time call-closure admission now lives in a focused 299-line
   private owner. Ordinary termination traversal, authored-precondition
   rejection, linear runtime-carrier exclusion, callable-contract validation,
@@ -7586,10 +7604,8 @@ specifications:
   checked arithmetic.
 - **IMPORTED-CRASH-CAPSULES:** realization/import/certificate identity in
   `wiki/language_guide/appendix_open_questions.md`.
-- **NOMINAL-FOREIGN-BINDINGS:** target-package nominal-ID declaration and
-  sealed metadata supply surface in `OWNER_QUESTIONS.md` Q1.
 - **CALLBACK-PRIVATE-LAYOUT-DEMAND:** target-package declaration of a typed
-  private native callback slot in `OWNER_QUESTIONS.md` Q4.
+  private native callback slot in `OWNER_QUESTIONS.md` Q3.
 
 ## Platform-gated verification
 

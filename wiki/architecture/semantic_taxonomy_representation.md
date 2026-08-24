@@ -369,13 +369,16 @@ contract/ceiling; validation and admission check the binding/provider behavior
 as a refinement and produce any trust receipt. `ProviderPlan` is then derived
 from explicit conformance closure rather than authored rows.
 
-`NormalizedBindingId` interns a structured binding kind and nominal typed
-arguments, never a rendered string. The enclosing realization-machine symbol
-and normalized signature remain explicit identity inputs. A payload-free
-`CompilerIntrinsic` uses that realization symbol plus target to select a sealed
-catalog lowering. One nominal `DllImportId` inseparably owns its library and
-export identity; it and calling-plan IDs resolve nominally. Raw linker bytes
-live only in fingerprinted target/link metadata.
+`NormalizedBindingId` interns the complete evaluated structured binding, never
+a rendered lookup string. The producing build-time-machine closure, enclosing
+realization-machine symbol, normalized signature, and target application remain
+explicit identity inputs. A payload-free `CompilerIntrinsic` uses the
+realization symbol plus target to select a sealed catalog lowering. A DLL
+locator is instead one typed object-format variant containing all of its raw
+coordinates as `StaticBytes` and scalars. The satisfied requirement's calling
+policy supplies the independently evaluated `CallPlan`; it is not duplicated in
+the binding. Raw linker bytes are target-package data, enter the binding
+fingerprint directly, and never become Omega names or provider keys.
 
 Target profiles expose the same selection through typed slots:
 

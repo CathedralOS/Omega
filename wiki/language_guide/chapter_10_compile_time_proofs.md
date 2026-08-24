@@ -791,6 +791,15 @@ bridge. The named operation may bind fixed `==` through the ordinary
 Other observer roles state their role-specific correctness as ordinary
 contracts until a named interface exists.
 
+Compile-time evaluation preserves the exact representative supplied by quotient
+construction. An ordinary `const` may therefore materialize that carried
+representative without proving a canonical form; this is no stricter than
+runtime construction and grants no new observer. Canonicalization is required
+only when a consumer asks for representative-independent identity, including a
+stable serialized/wire form, public ABI promise, canonical const-index atom,
+structural interning/hashing, or reproducible raw bytes. Equivalent quotient
+constants may otherwise contain different opaque representatives.
+
 Initial lifting is deliberately pure and terminating. Observable effects,
 crash routes, suspension, blocking, and progress behavior need a richer
 behavioral respect relation and cannot be justified by result congruence alone.

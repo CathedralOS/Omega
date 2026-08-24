@@ -380,6 +380,14 @@ operation, including structural equality. Struct and case literals cannot
 construct the nominal quotient directly; casting an exact carrier instance with
 `as Quotient` is the sole minting path.
 
+The same rule governs compile-time evaluation. The evaluator retains the exact
+representative chosen by construction, so ordinary const materialization may
+emit it without canonicalization. The representation stays opaque, and
+equivalent constants need not have equal bytes. A proved canonical form is
+required only for representation-independent consumers such as stable
+serialization, a public ABI representation, canonical const-index identity,
+structural interning/hashing, or reproducible raw-byte observation.
+
 The initial quotient surface also rejects carriers containing affine or linear
 `Type` content or owned/routed custody. An equivalence that identifies distinct
 authority, lease, root, or provenance occurrences would make those occurrences

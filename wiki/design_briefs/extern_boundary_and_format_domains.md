@@ -1,6 +1,6 @@
 # Design Brief: Extern Boundaries And Foreign Formats
 
-Current as of 2026-08-21. This brief defines the durable extern model. Concrete
+Current as of 2026-08-24. This brief defines the durable extern model. Concrete
 binding/layout grammar remains subject to the referenced subsystem briefs.
 
 ## Abstract API, target binding
@@ -29,10 +29,20 @@ The binding vocabulary is an ordinary closed sum, not a growing family of
 keywords:
 
 ```omega
+data DllImport {
+    case PeByName(library: StaticBytes, export: StaticBytes);
+    case PeByOrdinal(library: StaticBytes, ordinal: u16);
+    case ElfVersioned(
+        object: StaticBytes,
+        symbol: StaticBytes,
+        version: StaticBytes,
+    );
+}
+
 data Binding {
-    case DllImport(import: DllImportId, plan: CallingPlanId);
-    case Syscall(number: u64, plan: CallingPlanId);
-    case Firmware(table: TableId, slot: u32, plan: CallingPlanId);
+    case DllImport(import: DllImport);
+    case Syscall(number: u64);
+    case Firmware(table: FirmwareTable, slot: u32);
     case CompilerIntrinsic;
 }
 ```
@@ -45,13 +55,23 @@ Privileged target instructions belong to parsed, contract-emitting `asm {}`;
 `Binding::Instruction` is retired rather than preserving two ways to state the
 same operation with different visibility to effect and authority analysis.
 
+Target packages use ordinary target-scoped machines to compute these values.
+The locator is one typed variant, so its object-format coordinates cannot drift
+apart, while raw foreign bytes remain honest data rather than Omega names:
+
 ```omega
+windows_x64 machine WindowsBindings::write_file() -> Binding {
+    Binding::DllImport {
+        import: DllImport::PeByName {
+            library: "kernel32.dll",
+            export: "WriteFile",
+        },
+    }
+}
+
 machine Kernel32::write_file(handle: WinHandle, bytes: &[u8]) -> WriteResult
     satisfies Kernel32Requirements::write_file
-    via Binding::DllImport {
-        import: Windows::Kernel32::WriteFile,
-        plan: MsX64,
-    };
+    via WindowsBindings::write_file();
 ```
 
 The `via` expression must be compile-time evaluable to a normalized `Binding`
@@ -60,18 +80,32 @@ an executable body and not a self-authored trust assertion. Its identity feeds
 the derived plan. Structural validation checks the declaration; admission
 assigns the trust class and receipt.
 
-Binding identity is never reconstructed from text. A `DllImportId` is one
-namespace-owned nominal endpoint containing its library and export identity;
-source cannot freely pair a symbol from one library with another. For
-`Binding::CompilerIntrinsic`, the exact resolved realization-machine symbol,
-normalized signature, and selected target key the sealed compiler catalog, so
-the variant needs no duplicate name payload. `DllImportId`, `CallingPlanId`,
-`TableId`, and corresponding foreign identifiers are nominal resolved values.
-Raw library or linker spellings may appear only in sealed
-target/link metadata and never serve as Omega symbols, requirement keys, or
-provider selections. That metadata is fingerprinted, so changing its foreign
-bytes changes target/artifact identity and requires fresh admission while the
-nominal Omega symbol remains stable.
+The satisfied boundary requirement independently owns its `Calling<C, Policy>`
+relationship. Evaluating that policy against the normalized signature produces
+the `CallPlan`; the binding mechanism must refine it but never carries or
+reselects a duplicate plan.
+
+Binding identity is never reconstructed by looking up text. The complete
+evaluated `Binding` is normalized and fingerprinted together with its producer
+closure and selected target. For `Binding::CompilerIntrinsic`, the exact
+resolved realization-machine symbol, normalized signature, and selected target
+key the sealed compiler catalog, so the variant needs no duplicate payload.
+For a DLL import, the typed locator variant owns all physical coordinates as one
+value; a raw library, export, version, or ordinal is neither an Omega symbol nor
+a requirement/provider-selection key. `build.omg` may select the target package
+or provider but cannot replace fields inside its evaluated binding.
+
+Validation is variant- and target-specific: it checks required nonempty fields,
+forbidden terminators/bytes, ordinal ranges, object-format encoding, target
+applicability, and any versioning rules before the binding enters a provider
+plan. `StaticBytes` supplies owned bytes, not an ambient text interpretation;
+the locator case supplies their physical meaning.
+
+Changing raw foreign bytes changes the normalized binding, forces every final
+artifact whose reachable closure contains it to relink, and requires fresh
+admission. No parallel endpoint registry or sealed metadata language exists.
+Audit reports enumerate the actual evaluated locator rather than a nominal name
+that could map elsewhere.
 
 Composite behavior is checked Omega code rather than plan-shaped call
 sequences. A Console adapter that gets a standard handle, appends a newline,
