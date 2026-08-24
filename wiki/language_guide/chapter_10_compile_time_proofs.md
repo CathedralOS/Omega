@@ -1169,9 +1169,11 @@ ensures Real::add(a, b) == Real::add(b, a);            // an axiom: one trust ro
 The carrier is proof-only (nothing without a definition can have a layout);
 its meaning is exactly its axiom machines; the package rides the same
 grant/lockfile/report machinery. An ensures-less declaration claims nothing
-and needs no grant; each axiom is one accepted-tier row. Axioms retire by
-the standard upgrade: ship the constructed type with its proven theorems,
-and consumers swap grant for import.
+and needs no grant; it still appears as claim-free representation-TCB evidence,
+with introduction or material change recommending code/ABI audit under Chapter
+19's package rule. Each axiom is one accepted-tier row. Axioms retire by the
+standard upgrade: ship the constructed type with its proven theorems, and
+consumers swap grant for import.
 
 Core ships classical logic itself this way: excluded middle is a boundary
 machine, granted like anything else — nothing is granted by default, not

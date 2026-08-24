@@ -220,17 +220,38 @@ Risk classification must be compiler-owned metadata attached to exact admitted
 boundary/capability identities. It must never be inferred from
 package-controlled strings such as `Filesystem` or `Network`.
 
+Claim-free opaque boundary data occupies a distinct representation-TCB lane.
+The compiler reports the exact package-qualified declaration, target,
+representation/ABI commitment, selected external mechanism or explicit unbound
+status, and provenance. Its initial introduction or material change strongly
+recommends code/ABI audit but does not, by opacity alone, create a blocking
+trust-claim conflict.
+Unchanged rows remain visible without requiring repeated blanket approval.
+Deployment policy may elevate an exact compiler-owned mechanism to blocking
+when that mechanism is intrinsically dangerous.
+
+Accepted propositions, boundary or provider guarantees, qualification/
+authority establishment, executable mechanisms, and dangerous derived reach
+remain separate blocking or dangerous-authority rows. A public ABI change may
+also block compatibility policy independently. Omega never classifies an
+opaque type from its package-controlled spelling, infers safety from absent
+current use, or omits it merely because it declares no `reaches` service.
+
 ## Update, install, and missing baselines
 
 An install compares the new dependency closure against an empty admission
-baseline. A completely checked package with no suspect authority may pass
-automatically; suspect authority, trust, executable introduction, dangerous
-contract slack, or build-host reach creates a blocking conflict.
+baseline. A completely checked package with neither blocking evidence nor
+review findings may pass as `admitted`; claim-free opacity alone may complete
+as `admitted-with-audit-recommended`. Suspect authority, trust, executable
+introduction, dangerous contract slack, or build-host reach creates a blocking
+conflict.
 
 An update derives candidate evidence and compares it with the normalized
 accepted baseline in `omega.lock`:
 
-- an evidence change creates a blocking capability/API conflict;
+- a blocking capability/API evidence change creates an exact conflict;
+- a claim-free representation-TCB change recommends code/ABI audit unless
+  compatibility or exact-mechanism policy independently blocks it;
 - unchanged evidence permits resolution to continue;
 - retained intrinsically dangerous authority always emits an audit
   recommendation; and
@@ -240,6 +261,13 @@ Every source update also receives automated/LLM provenance and source-diff
 triage. Equal capabilities do not imply safe behavior: code with existing
 filesystem and network authority can become malicious without changing its
 authority set.
+
+Representation-TCB rows participate in the same integrated review. A package
+with only new claim-free opacity may finish as
+`admitted-with-audit-recommended`; a package that also introduces accepted
+claims, dangerous authority, or policy-blocked representation mechanisms
+remains unresolved until those exact rows are reconciled. There is no generic
+approval prompt for either case.
 
 The old source is useful for focused code review but is not the capability
 baseline. If the old source cannot be fetched from its exact commit or cache,
