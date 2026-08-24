@@ -253,9 +253,11 @@ bytes, so this evidence does not claim unused general signed bitwise semantics.
 
 O0 excludes build files, packages beyond the fixed `use`, arbitrary data,
 general expressions, user calls, control flow, allocation, proofs, and
-optimization. Those features enter later numbered acceptance profiles only when
-required by the Omega-source production compiler or a deliberate conformance
-slice.
+optimization. O0 and O1 stay fixed regression canaries. Any of these features
+needed by the production compiler enters the general, compositional `Ωself`
+contract directly; there is no numbered acceptance-profile ladder. A separate
+bounded conformance slice may exercise implementation machinery, but cannot
+admit a feature to `Ωself`.
 
 ## O1 — variable straight-line console profile
 
