@@ -304,6 +304,12 @@ complete.
   symlink escapes. The package side now translates only a validated source-
   custody closure into those compiler inputs; the compiler independently
   canonicalizes and revalidates every root and edge. CLI invocation remains.
+  The first concrete closure adapter resolves an explicitly named workspace
+  member, requester-relative in-workspace Path rows, and Git rows. Each fetched
+  Git snapshot becomes its own registered immutable workspace for nested Path
+  rows. Absolute, nonportable, unknown-context, and escaping paths reject before
+  target access; no parent-directory or protocol discovery occurs. External
+  path and additional protocol adapters remain.
 
 ## P3 — Compiler-derived package evidence
 

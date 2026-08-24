@@ -33,6 +33,7 @@ mod resolver;
 #[cfg(test)]
 mod review;
 mod source;
+mod source_adapter;
 mod source_commands;
 #[cfg(test)]
 mod update;
@@ -72,6 +73,10 @@ pub use source::{
     GitSourceSpec, LocalSourceLimits, ResolvedGitSource, ResolvedLocalSnapshot,
     ResolvedLocalSource, SourceResolveError, resolve_git_source, resolve_local_source,
     resolve_local_source_snapshot,
+};
+pub use source_adapter::{
+    ResolveDependencySourceError, ResolveWorkspacePackageClosureError,
+    resolve_workspace_package_closure,
 };
 pub use source_commands::{
     PackageSourceAudit, PackageSourceAuditCommandError, PackageSourceRequest,
