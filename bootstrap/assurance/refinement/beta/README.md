@@ -326,9 +326,10 @@ local slot zero: one reaches `main.ready` at PC 51226 with the successful slurp
 footprint, while zero materializes 253, restores both caller pairs, and reaches
 `halt r0` at PC 29 with empty output. The selected suffix has no input/output,
 nested call, division, or remainder. Wrong local provenance, reversed equality,
-status relabeling, and cross-clause import reject only in this phase. This proves the concrete
-`Halt(253)` projection for source oversize; whether that projection is exposed
-as typed `Exhaust(SourceBytes,1048576,1048577)` is still a design ruling.
+status relabeling, and cross-clause import reject only in this phase. This proves
+the concrete `Halt(253)` projection for source oversize. The later resource
+checker supplies typed `Exhaust(SourceBytes,1048576,1048577)` from this exact
+guard and `B_bc1`; it never treats 253 as the kind's definition.
 
 `bc-write-str-summary.alpha` gives the synthesized helper at PCs 31..82 one
 reusable relational meaning. For natural `len` and an admitted nonwrapping
@@ -1020,8 +1021,9 @@ provide `Tau`; neither cursor movement nor stdout growth is required. Thus
 all retain their maximal prefixes. Finite p62 exits decrement depth exactly
 once; divergent activations do not. Twenty-two semantic mutations protect the
 antecedent seams, suffixes, provenance, Ret/Div split, guard, fixed-point kind,
-depth restoration, maximality, and publication. The next engineering milestone
-is exact resource-kind classification from each proved guard/profile.
+depth restoration, maximality, and publication. Exact resource-kind
+classification is supplied by the later dedicated checker rather than this
+recursive process interpreting numeric status.
 
 The independent 63,560-byte `parse_proc.genbody` checker now composes `PFXS`
 with that statement relation without copying a process-local theorem cell. The
@@ -1040,5 +1042,30 @@ resumptions live without a depth decrement, and carries the maximal child trace
 without cursor or stdout productivity assumptions. Twenty-five phase-isolated
 teeth protect the implication seam, exact tail shape, depth/outcome partition,
 trace order, numeric252 suffix/provenance, Div lifting, non-productivity, refusal
-to infer ResourceKind, and publication. Root reachability/D=0 instantiation and
-typed resource classification remain later composition work.
+to infer ResourceKind, and publication. Root reachability/D=0 instantiation
+remains later composition work.
+
+The independent 65,069-byte checked-resource process classifies every direct
+`B_bc1` admission failure from its exact proved guard, frozen resource-profile
+row, and requested amount. Seven distinct origins map to five semantic kinds:
+source bytes; the paired declaration/preflight local-slot capacity; the paired
+actual/formal call arity; expression depth; and block depth. The source request
+is exactly 1,048,577; the five literal 252 origins retain requests 5, 1,025, 65,
+65, and 5; and the preflight row retains the exact symbolic
+`nslots=nparams+count_lets()` identity with proved range `[1025,1048580]` rather
+than replacing it with 1,025. The process independently rechecks the seven
+source/artifact guard shapes and the exhaustive zero-root-plus-six-writer XRSC
+census. Its row scan proves one/two/two/one/one kind multiplicities and six/one
+252/253 projections before publishing `RCLS`.
+
+Checker A and the expression-family process discharge the conditional RCLS
+antecedents over the same immutable bundle; no process-local theorem marker is
+copied between them. Every classification row records pre-overlap admission,
+sticky origin provenance, owner trace/state/request custody, and the explicit
+guard+profile+request basis before its numeric projection. All five modules are
+below 20 KB, the lattice and reference assemblers agree, and
+`BC_BLOCK_FOCUS=resource-classification` passes canonical execution plus 36
+phase-isolated guard, profile, kind, request, symbolic-identity, custody,
+census, status-inversion, metadata, and publication mutations. This closes
+direct typed classification; the root theorem must still instantiate and carry
+that provenance through the complete maximal observation.

@@ -520,11 +520,18 @@ outside that manifest unless the compiler executable imports them.
       live frames/depth, and no cursor/output productivity premise. The
       independent 63,560-byte checker has an assembler diamond, four modules
       below 20 KB, and twenty-five phase-isolated teeth;
-  - [ ] classify each checked resource outcome from its exact proved guard,
+  - [x] classify each checked resource outcome from its exact proved guard,
     resource profile, and requested amount. Status 252/253 is only a process
-    projection and must not be used to recover `ResourceKind`; this is an
-    implementation obligation under the already-fixed observable, not a new
-    Beta-language or owner-design blocker; and
+    projection and is never used to recover `ResourceKind`:
+    - [x] map seven exact checked origins to five `B_bc1` kinds while retaining
+      distinct actual/formal arity and declaration/preflight provenance;
+    - [x] retain exact literal requests and the symbolic preflight
+      `nslots=nparams+count_lets()` request with its proved nonwrapping
+      `[1025,1048580]` range, rather than clamping it to the lower bound; and
+    - [x] conjoin Checker A and expression-family ownership over one immutable
+      bundle in an independent 65,069-byte checker, with five modules below
+      20 KB, an assembler diamond, a scanned origin/kind/projection census, and
+      thirty-six phase-isolated teeth; and
   - [ ] close the root loop and prove equality of maximal stdout plus
     `Halt`/`Trap`/`Exhaust`/`Diverge` for every finite source stream and
     supported resource profile in `BOOTSTRAP_OBSERVABLE.md`.

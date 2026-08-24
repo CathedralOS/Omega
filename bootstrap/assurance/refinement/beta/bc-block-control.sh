@@ -43,6 +43,7 @@ trap 'rm -rf "$T"' EXIT
 . "$GATE_DIR/bc-statement-family-teeth.sh"
 . "$GATE_DIR/bc-statement-family-semantic-teeth.sh"
 . "$GATE_DIR/bc-parse-body-teeth.sh"
+. "$GATE_DIR/bc-resource-classification-teeth.sh"
 
 bc_timing_start() { # phase
   BC_TIMING_PHASE=$1
@@ -858,6 +859,73 @@ parse_body_require_owner() { # name accepted
   fi
 }
 
+resource_classification_require_module_budgets() {
+  for resource_module in \
+    bc-resource-classification-root.alpha \
+    bc-resource-classification-shape.alpha \
+    bc-resource-classification-antecedents.alpha \
+    bc-resource-profile.alpha \
+    bc-resource-classification.alpha
+  do
+    resource_module_bytes=$(wc -c < "$GATE_DIR/$resource_module" | tr -d ' ')
+    if [ "$resource_module_bytes" -ge 20000 ]; then
+      echo "bc block control FAIL — $resource_module is ${resource_module_bytes} bytes (20KB module cap)" >&2
+      exit 1
+    fi
+  done
+}
+
+build_resource_classification_checker() {
+  resource_classification_require_module_budgets
+  {
+    emit_expression_table_prefix
+    cat "$GATE_DIR/bc-resource-classification-root.alpha" \
+      "$GATE_DIR/bc-expression-selected-row-helpers.alpha" \
+      "$GATE_DIR/bc-exact-shape-helpers.alpha" \
+      "$GATE_DIR/bc-resource-classification-shape.alpha" \
+      "$GATE_DIR/bc-resource-classification-antecedents.alpha" \
+      "$GATE_DIR/bc-resource-profile.alpha" \
+      "$GATE_DIR/bc-resource-classification.alpha"
+  } > "$T/resource-classification.alpha"
+  python3 "$OMEGA_PATH_ALPHA_ASSEMBLER/asm_ref.py" \
+    < "$T/resource-classification.alpha" > "$T/resource-classification-ref.tape"
+  "$ASM" < "$T/resource-classification.alpha" \
+    > "$T/resource-classification.tape"
+  cmp -s "$T/resource-classification.tape" \
+    "$T/resource-classification-ref.tape" || {
+    echo "bc block control FAIL — resource classification assembler diamond disagrees" >&2
+    exit 1
+  }
+  resource_tape_bytes=$(wc -c < "$T/resource-classification.tape" | tr -d ' ')
+  if [ "$resource_tape_bytes" -gt 100000 ]; then
+    echo "bc block control FAIL — resource classification tape is ${resource_tape_bytes} bytes (100000-byte engineering budget)" >&2
+    exit 1
+  fi
+  stamp_seed "$T/resource-classification.tape" "$SEED" \
+    "$T/resource-classification" >/dev/null
+}
+
+smoke_resource_classification_checker() {
+  set +e
+  "$T/resource-classification" < "$T/control.bundle" > "$T/stdout"
+  resource_smoke_status=$?
+  set -e
+  if [ "$resource_smoke_status" != 0 ] || [ -s "$T/stdout" ]; then
+    echo "bc block control FAIL — resource classification canonical smoke: expected 0/empty, got $resource_smoke_status/$(wc -c < "$T/stdout" | tr -d ' ') bytes" >&2
+    exit 1
+  fi
+  BC_OWNER_RESOURCE_CLASSIFICATION=1
+}
+
+# Meta-level conjunction over the same immutable bundle. RCLS is a conditional
+# implication; its process-local antecedent cells are not imported as owner
+# conclusions. Checker A owns source/declare/block/parse guards, while the
+# expression-family process owns call/expression guards and XRSC.
+resource_classification_discharge_owners() {
+  parse_body_require_owner checker-a "${BC_OWNER_CHECKER_A:-0}"
+  parse_body_require_owner expression "${BC_OWNER_EXPRESSION_FAMILY:-0}"
+}
+
 # Statement-family focus continues through the canonical prerequisite owners
 # below before testing its conditional semantic implication. No process-local
 # GSBD/XPUB/LOOK/BEMS/E5PK marker is copied between executables.
@@ -942,7 +1010,12 @@ fi
 
 # Statement focus runs only the canonical external owners here. The unfocused
 # gate retains their full historical teeth before constructing Checker A.
-if [ "${BC_BLOCK_FOCUS:-}" = statement-family ] || \
+if [ "${BC_BLOCK_FOCUS:-}" = resource-classification ]; then
+  bc_timing_start resource-classification-prerequisites
+  build_expression_family_checkers
+  smoke_expression_family_checkers
+  bc_timing_finish
+elif [ "${BC_BLOCK_FOCUS:-}" = statement-family ] || \
    [ "${BC_BLOCK_FOCUS:-}" = parse-proc-body ]; then
   bc_timing_start statement-family-prerequisites
   build_label_emitters_checker
@@ -1075,6 +1148,17 @@ bc_timing_finish
 # Focused development mode avoids the historical mutation matrix while still
 # using the exact canonical source/artifact bundle and every prerequisite proof.
 case "${BC_BLOCK_FOCUS:-}" in
+  resource-classification)
+    bc_timing_start resource-classification
+    resource_classification_discharge_owners
+    build_resource_classification_checker
+    smoke_resource_classification_checker
+    resource_classification_build_teeth
+    resource_classification_reject_teeth
+    bc_timing_finish
+    echo "bc checked resources: seven exact guards classified into five ResourceKinds without status inversion + 36 phase-isolated teeth passed ($(wc -c < "$T/resource-classification.tape" | tr -d ' ')-byte tape)"
+    exit 0
+    ;;
   parse-proc-body)
     bc_timing_start parse-proc-body-conditional-semantics
     build_lookup_checker
@@ -1166,6 +1250,14 @@ build_parse_body_checker
 smoke_parse_body_checker
 parse_body_build_teeth
 parse_body_reject_teeth
+bc_timing_finish
+
+bc_timing_start resource-classification-tranche
+resource_classification_discharge_owners
+build_resource_classification_checker
+smoke_resource_classification_checker
+resource_classification_build_teeth
+resource_classification_reject_teeth
 bc_timing_finish
 
 bc_timing_start independent-historical-teeth

@@ -1,0 +1,12 @@
+; Root of the independent checked-resource classification implication.
+;
+; Checker A and the expression-family checker establish the seven exact guard
+; schemas over one immutable bundle.  This process proves that those guards,
+; conjoined with B_bc1, determine RCLS.  Numeric process projections are
+; retained only after kind/limit/request have been selected from the guard.
+
+stack_register_custody_init:
+        imm r1, 600000
+        imm r2, 1481786194             ; RCRX
+        store r1, r2
+        jmp resource_classification_shape_init

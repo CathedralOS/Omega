@@ -14,8 +14,8 @@
 ; segment to n+1; the reread closes both successor cases.  The rank CAP-n drops
 ; on every backedge.  This proves a slurp procedure summary given its checked
 ; entry relation.  The following bridge establishes that relation from main and
-; composes main's 253 projection; typed Exhaust identity remains a design
-; ruling.
+; composes main's 253 projection; the separate resource-classification checker
+; supplies typed Exhaust identity from this guard plus B_bc1.
 ;
 ; Symbolic-state globals (fresh after preceding phases):
 ;   n tag/lo/hi          525464/525472/525480
