@@ -140,6 +140,7 @@ fn machine_contract_manifest_keeps_interface_and_witness_separate() {
             published_ceiling: service_row,
             inferred_direct: service_row,
             inferred_transitive: service_row,
+            concrete_transitive: service_row,
             effective: service_row,
             concrete_effective: service_row,
             unresolved_installation_reaches: Vec::new(),

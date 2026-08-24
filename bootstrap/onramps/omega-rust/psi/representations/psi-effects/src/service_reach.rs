@@ -19,6 +19,10 @@ pub struct MachineServiceReachInference {
     pub published: ServiceReachRowId,
     pub inferred_direct: ServiceReachRowId,
     pub inferred_transitive: ServiceReachRowId,
+    /// Exact checked-body reach before unresolved installation-selected upper
+    /// bounds are admitted. This remains independent of the modular
+    /// `concrete_effective` row consumed by callers.
+    pub concrete_transitive: ServiceReachRowId,
     /// Reach not contributed solely by an installation-selected upper bound.
     /// Final composition unions selected rows into this base; it never tries
     /// to subtract upper bounds from the flattened conservative set.
@@ -327,6 +331,7 @@ pub fn infer_service_reaches(
         let published = plan.rows.intern(machine_work.published.clone());
         let inferred_direct = plan.rows.intern(machine_work.direct.clone());
         let inferred_transitive = plan.rows.intern(machine_work.transitive.clone());
+        let concrete_transitive = plan.rows.intern(machine_work.concrete_transitive.clone());
         let effective = plan.rows.intern(effective_services(machine_work).to_vec());
         let concrete_effective = plan
             .rows
@@ -343,6 +348,7 @@ pub fn infer_service_reaches(
                 published,
                 inferred_direct,
                 inferred_transitive,
+                concrete_transitive,
                 concrete_effective,
                 unresolved_installation_reaches: machine_work
                     .unresolved_installation_reaches

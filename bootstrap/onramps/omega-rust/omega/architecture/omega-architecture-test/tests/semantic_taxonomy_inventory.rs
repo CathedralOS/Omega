@@ -95,6 +95,9 @@ fn machine_record_carries_one_public_termination_interface() {
             // Installation-bound reach is a declaration property, not a
             // second service-row identity.
             service_reach_is_installation_bound: _,
+            // Package review distinguishes a checked empty body from a
+            // declaration that has no body to inspect.
+            body_is_present: _,
             lifetime_parameters: _,
             type_parameters: _,
             owned_data: _,

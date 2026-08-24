@@ -53,10 +53,7 @@ pub(super) fn validate_machine_call_type_parameter_bounds(
         .is_some_and(|attached| attached.as_str().starts_with("PlacedField<"));
     if callee_machine.supply_mode == psi_language_semantics::MachineSupplyMode::Boundary
         && !compiler_placed_accessor
-        && program
-            .statement_table
-            .statements(callee_state.statement_nodes)
-            .is_empty()
+        && !callee_machine.body_is_present
     {
         diagnostics.push(Diagnostic::error(format!(
             "bodyless boundary symbol `{target_name}` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider"

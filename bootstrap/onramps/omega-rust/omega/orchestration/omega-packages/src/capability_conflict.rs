@@ -1519,6 +1519,7 @@ const fn row_kind_token(kind: PackageReviewCanonicalRowKind) -> &'static str {
         PackageReviewCanonicalRowKind::DangerousAuthority => "dangerous_authority",
         PackageReviewCanonicalRowKind::SelectedProviderSet => "selected_provider_set",
         PackageReviewCanonicalRowKind::AcceptedClaim => "accepted_claim",
+        PackageReviewCanonicalRowKind::DangerousAuthoritySlack => "dangerous_authority_slack",
     }
 }
 
@@ -1533,6 +1534,7 @@ const fn row_kind_tag(kind: PackageReviewCanonicalRowKind) -> u8 {
         PackageReviewCanonicalRowKind::DangerousAuthority => 6,
         PackageReviewCanonicalRowKind::SelectedProviderSet => 7,
         PackageReviewCanonicalRowKind::AcceptedClaim => 8,
+        PackageReviewCanonicalRowKind::DangerousAuthoritySlack => 9,
     }
 }
 

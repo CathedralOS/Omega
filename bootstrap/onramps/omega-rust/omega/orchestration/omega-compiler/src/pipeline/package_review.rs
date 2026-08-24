@@ -945,6 +945,32 @@ pub struct PackageReviewDangerousAuthority {
     service: PackageReviewNominalIdentity,
 }
 
+/// A dangerous service present in a checked callable's published ceiling but
+/// absent from that callable's checked transitive body reach.
+///
+/// This is review guidance, not a claim that the declaration is malicious or
+/// that bodyless supply failed to realize anything.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct PackageReviewDangerousAuthoritySlack {
+    class: PackageReviewDangerousAuthorityClass,
+    callable: PackageReviewNominalIdentity,
+    service: PackageReviewNominalIdentity,
+}
+
+impl PackageReviewDangerousAuthoritySlack {
+    pub const fn class(&self) -> PackageReviewDangerousAuthorityClass {
+        self.class
+    }
+
+    pub const fn callable(&self) -> &PackageReviewNominalIdentity {
+        &self.callable
+    }
+
+    pub const fn service(&self) -> &PackageReviewNominalIdentity {
+        &self.service
+    }
+}
+
 impl PackageReviewDangerousAuthority {
     pub const fn class(&self) -> PackageReviewDangerousAuthorityClass {
         self.class
@@ -1308,8 +1334,7 @@ pub struct CheckedPackageCallableReview {
     /// one. `None` is retained for the current ordinary build-machine form;
     /// admission must not silently reinterpret it as a public empty promise.
     declared_service_reach: Option<Vec<PackageReviewNominalIdentity>>,
-    realized_service_reach: Vec<PackageReviewNominalIdentity>,
-    concrete_service_reach: Vec<PackageReviewNominalIdentity>,
+    checked_service_reach: PackageReviewCheckedServiceReach,
     unresolved_installation_reaches: Vec<PackageReviewInstallationReach>,
     /// `Some` preserves a published direct synchronous-invocation ceiling,
     /// including an explicitly empty one. Targets retain parameter ordinals
@@ -1322,6 +1347,33 @@ pub struct CheckedPackageCallableReview {
     checked_termination: PackageReviewTermination,
     checked_crash: PackageReviewCrash,
     mutation: Vec<PackageReviewMutation>,
+}
+
+/// Whether package review has a checked implementation body from which exact
+/// service reach can be reported.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PackageReviewCheckedServiceReach {
+    NoCheckedBody,
+    CheckedBody {
+        realized: Vec<PackageReviewNominalIdentity>,
+        concrete: Vec<PackageReviewNominalIdentity>,
+    },
+}
+
+impl PackageReviewCheckedServiceReach {
+    pub fn realized(&self) -> Option<&[PackageReviewNominalIdentity]> {
+        match self {
+            Self::NoCheckedBody => None,
+            Self::CheckedBody { realized, .. } => Some(realized),
+        }
+    }
+
+    pub fn concrete(&self) -> Option<&[PackageReviewNominalIdentity]> {
+        match self {
+            Self::NoCheckedBody => None,
+            Self::CheckedBody { concrete, .. } => Some(concrete),
+        }
+    }
 }
 
 /// One selected provider plan retained for human/LLM review.
@@ -1429,12 +1481,8 @@ impl CheckedPackageCallableReview {
         self.declared_service_reach.as_deref()
     }
 
-    pub fn realized_service_reach(&self) -> &[PackageReviewNominalIdentity] {
-        &self.realized_service_reach
-    }
-
-    pub fn concrete_service_reach(&self) -> &[PackageReviewNominalIdentity] {
-        &self.concrete_service_reach
+    pub const fn checked_service_reach(&self) -> &PackageReviewCheckedServiceReach {
+        &self.checked_service_reach
     }
 
     pub fn unresolved_installation_reaches(&self) -> &[PackageReviewInstallationReach] {
@@ -1486,6 +1534,7 @@ pub struct CheckedPackageReviewProjection {
     representation_tcb: Vec<PackageReviewRepresentationTcb>,
     callables: Vec<CheckedPackageCallableReview>,
     dangerous_authorities: Vec<PackageReviewDangerousAuthority>,
+    dangerous_authority_slack: Vec<PackageReviewDangerousAuthoritySlack>,
     selected_providers: Vec<CheckedPackageProviderReview>,
     row_sources: PackageReviewCanonicalRowSources,
 }
@@ -1500,6 +1549,7 @@ impl PartialEq for CheckedPackageReviewProjection {
             && self.representation_tcb == other.representation_tcb
             && self.callables == other.callables
             && self.dangerous_authorities == other.dangerous_authorities
+            && self.dangerous_authority_slack == other.dangerous_authority_slack
             && self.selected_providers == other.selected_providers
     }
 }
@@ -1514,6 +1564,7 @@ struct PackageReviewCanonicalRowSources {
     representation_tcb: Vec<PackageReviewCanonicalRowSource>,
     callables: Vec<PackageReviewCanonicalRowSource>,
     dangerous_authorities: Vec<PackageReviewCanonicalRowSource>,
+    dangerous_authority_slack: Vec<PackageReviewCanonicalRowSource>,
     selected_provider_set: PackageReviewCanonicalRowSource,
 }
 
@@ -1532,6 +1583,13 @@ struct ProjectedDangerousAuthorityRow {
     row: PackageReviewDangerousAuthority,
     declaration: SymbolHandle,
     exposures: Vec<SymbolHandle>,
+}
+
+#[derive(Debug, Clone)]
+struct ProjectedDangerousAuthoritySlackRow {
+    row: PackageReviewDangerousAuthoritySlack,
+    authority_declaration: SymbolHandle,
+    callable_declaration: SymbolHandle,
 }
 
 /// Compiler-owned granularity for review-only capability/API comparison.
@@ -1553,6 +1611,9 @@ pub enum PackageReviewCanonicalRowKind {
     /// callable API row so admission policy cannot mistake an accepted claim
     /// for checked implementation evidence.
     AcceptedClaim,
+    /// A compiler-classified dangerous service is declared by a checked body
+    /// but absent from its exact inferred transitive reach.
+    DangerousAuthoritySlack,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -1741,6 +1802,10 @@ impl CheckedPackageReviewProjection {
         &self.dangerous_authorities
     }
 
+    pub fn dangerous_authority_slack(&self) -> &[PackageReviewDangerousAuthoritySlack] {
+        &self.dangerous_authority_slack
+    }
+
     pub fn selected_providers(&self) -> &[CheckedPackageProviderReview] {
         &self.selected_providers
     }
@@ -1859,6 +1924,7 @@ pub fn project_checked_package_review(
             .then(left.row.contracts.cmp(&right.row.contracts))
     });
     let dangerous_authorities = project_dangerous_authorities(compilation, &callables)?;
+    let dangerous_authority_slack = project_dangerous_authority_slack(compilation, &callables)?;
     let selected_providers: Vec<_> = compilation
         .selected_provider_plans()
         .plans()
@@ -1901,6 +1967,8 @@ pub fn project_checked_package_review(
     )?;
     let (dangerous_authorities, dangerous_authority_sources) =
         finalize_dangerous_authority_rows(compilation, dangerous_authorities)?;
+    let (dangerous_authority_slack, dangerous_authority_slack_sources) =
+        finalize_dangerous_authority_slack_rows(compilation, dangerous_authority_slack)?;
     let row_sources = PackageReviewCanonicalRowSources {
         public_traits: public_trait_sources,
         public_domains: public_domain_sources,
@@ -1908,6 +1976,7 @@ pub fn project_checked_package_review(
         representation_tcb: representation_tcb_sources,
         callables: callable_sources,
         dangerous_authorities: dangerous_authority_sources,
+        dangerous_authority_slack: dangerous_authority_slack_sources,
         selected_provider_set: selected_provider_row_source(compilation, &selected_providers)?,
     };
     validate_canonical_row_source_limits(&row_sources)?;
@@ -1921,6 +1990,7 @@ pub fn project_checked_package_review(
         representation_tcb,
         callables,
         dangerous_authorities,
+        dangerous_authority_slack,
         selected_providers,
         row_sources,
     })
@@ -1961,8 +2031,12 @@ fn project_dangerous_authorities(
         if let Some(services) = callable.declared_service_reach() {
             exposed_services.extend(services.iter().cloned());
         }
-        exposed_services.extend(callable.realized_service_reach().iter().cloned());
-        exposed_services.extend(callable.concrete_service_reach().iter().cloned());
+        if let Some(services) = callable.checked_service_reach().realized() {
+            exposed_services.extend(services.iter().cloned());
+        }
+        if let Some(services) = callable.checked_service_reach().concrete() {
+            exposed_services.extend(services.iter().cloned());
+        }
         for reach in callable.unresolved_installation_reaches() {
             exposed_services.extend(reach.upper_bound().iter().cloned());
         }
@@ -2012,6 +2086,59 @@ fn project_dangerous_authorities(
     Ok(rows)
 }
 
+fn project_dangerous_authority_slack(
+    compilation: &CheckedCompilation,
+    callables: &[ProjectedReviewRow<CheckedPackageCallableReview>],
+) -> Result<Vec<ProjectedDangerousAuthoritySlackRow>, Vec<Diagnostic>> {
+    let mut catalog = Vec::new();
+    for definition in compilation.facts.service_reaches.services.definitions() {
+        let Some(class) = dangerous_authority_class(compilation, definition) else {
+            continue;
+        };
+        catalog.push((
+            nominal_identity(compilation, definition.symbol)?,
+            class,
+            definition.symbol,
+        ));
+    }
+    catalog.sort_by(|left, right| left.0.cmp(&right.0));
+
+    let mut rows = Vec::new();
+    for callable in callables {
+        let Some(realized) = callable.row.checked_service_reach().realized() else {
+            continue;
+        };
+        let Some(declared) = callable.row.declared_service_reach() else {
+            continue;
+        };
+        for service in declared {
+            if realized.contains(service) {
+                continue;
+            }
+            let Ok(index) = catalog.binary_search_by(|entry| entry.0.cmp(service)) else {
+                continue;
+            };
+            let (_, class, authority_declaration) = &catalog[index];
+            rows.push(ProjectedDangerousAuthoritySlackRow {
+                row: PackageReviewDangerousAuthoritySlack {
+                    class: *class,
+                    callable: callable.row.identity.clone(),
+                    service: service.clone(),
+                },
+                authority_declaration: *authority_declaration,
+                callable_declaration: callable.declaration,
+            });
+        }
+    }
+    rows.sort_by(|left, right| left.row.cmp(&right.row));
+    rows.dedup_by(|left, right| {
+        left.row == right.row
+            && left.authority_declaration == right.authority_declaration
+            && left.callable_declaration == right.callable_declaration
+    });
+    Ok(rows)
+}
+
 fn finalize_projected_rows<Row>(
     compilation: &CheckedCompilation,
     projected: Vec<ProjectedReviewRow<Row>>,
@@ -2053,6 +2180,39 @@ fn finalize_dangerous_authority_rows(
                 PackageReviewSourceLocationRole::AuthorityExposure,
             )?);
         }
+        locations.sort();
+        locations.dedup();
+        sources.push(PackageReviewCanonicalRowSource::authored(locations));
+        rows.push(projected.row);
+    }
+    Ok((rows, sources))
+}
+
+fn finalize_dangerous_authority_slack_rows(
+    compilation: &CheckedCompilation,
+    projected: Vec<ProjectedDangerousAuthoritySlackRow>,
+) -> Result<
+    (
+        Vec<PackageReviewDangerousAuthoritySlack>,
+        Vec<PackageReviewCanonicalRowSource>,
+    ),
+    Vec<Diagnostic>,
+> {
+    let mut rows = Vec::with_capacity(projected.len());
+    let mut sources = Vec::with_capacity(projected.len());
+    for projected in projected {
+        let mut locations = vec![
+            canonical_source_location(
+                compilation,
+                projected.authority_declaration,
+                PackageReviewSourceLocationRole::AuthorityDeclaration,
+            )?,
+            canonical_source_location(
+                compilation,
+                projected.callable_declaration,
+                PackageReviewSourceLocationRole::AuthorityExposure,
+            )?,
+        ];
         locations.sort();
         locations.dedup();
         sources.push(PackageReviewCanonicalRowSource::authored(locations));
@@ -2155,6 +2315,7 @@ fn validate_canonical_row_source_limits(
         .chain(&sources.representation_tcb)
         .chain(&sources.callables)
         .chain(&sources.dangerous_authorities)
+        .chain(&sources.dangerous_authority_slack)
         .chain(std::iter::once(&sources.selected_provider_set));
     let mut count = 0usize;
     let mut path_bytes = 0usize;
@@ -2326,8 +2487,14 @@ fn callable_exposes_service(
     callable
         .declared_service_reach()
         .is_some_and(|services| services.contains(service))
-        || callable.realized_service_reach().contains(service)
-        || callable.concrete_service_reach().contains(service)
+        || callable
+            .checked_service_reach()
+            .realized()
+            .is_some_and(|services| services.contains(service))
+        || callable
+            .checked_service_reach()
+            .concrete()
+            .is_some_and(|services| services.contains(service))
         || callable
             .unresolved_installation_reaches()
             .iter()
@@ -3673,9 +3840,39 @@ fn project_callable(
             ))]);
         }
     };
-    let realized_service_reach = project_service_row(compilation, service_reach.effective)?;
-    let concrete_service_reach =
-        project_service_row(compilation, service_reach.concrete_effective)?;
+    match machine.supply_mode {
+        MachineSupplyMode::CheckedBody if !machine.body_is_present => {
+            return Err(vec![Diagnostic::error(format!(
+                "reviewed callable `{subject}` is classified as checked supply but has no retained body"
+            ))]);
+        }
+        MachineSupplyMode::Accepted
+        | MachineSupplyMode::Requirement
+        | MachineSupplyMode::ExternalRealization { .. }
+            if machine.body_is_present =>
+        {
+            return Err(vec![Diagnostic::error(format!(
+                "reviewed callable `{subject}` has bodyless supply but retains a body"
+            ))]);
+        }
+        MachineSupplyMode::CheckedBody
+        | MachineSupplyMode::Boundary
+        | MachineSupplyMode::Accepted
+        | MachineSupplyMode::Requirement
+        | MachineSupplyMode::ExternalRealization { .. } => {}
+    }
+    let has_checked_body = machine.body_is_present
+        && matches!(
+            machine.supply_mode,
+            MachineSupplyMode::CheckedBody | MachineSupplyMode::Boundary
+        );
+    let checked_service_reach = if has_checked_body {
+        let realized = project_service_row(compilation, service_reach.inferred_transitive)?;
+        let concrete = project_service_row(compilation, service_reach.concrete_transitive)?;
+        PackageReviewCheckedServiceReach::CheckedBody { realized, concrete }
+    } else {
+        PackageReviewCheckedServiceReach::NoCheckedBody
+    };
     let declared_synchronous_invocations = match checked_invocation.plan.interface {
         psi_language_semantics::SynchronousInvocationInterface::PublishedCeiling => Some(
             project_synchronous_invocations(compilation, &invocation_summary.published)?,
@@ -3720,8 +3917,7 @@ fn project_callable(
         conformances,
         contracts,
         declared_service_reach,
-        realized_service_reach,
-        concrete_service_reach,
+        checked_service_reach,
         unresolved_installation_reaches: project_installation_reaches(
             compilation,
             &service_reach.unresolved_installation_reaches,

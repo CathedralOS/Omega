@@ -2,9 +2,10 @@ use omega_compiler::{
     BuildObservationClass, PACKAGE_REVIEW_ENCODING_VERSION, PACKAGE_REVIEW_ROW_ENCODING_VERSION,
     PackageCompilationInputs, PackageDependencyBinding, PackageReviewArithmeticDomain,
     PackageReviewCallableRole, PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk,
-    PackageReviewCastForm, PackageReviewContractBinaryOperator, PackageReviewContractExpression,
-    PackageReviewContractFact, PackageReviewContractKind, PackageReviewCrashInterface,
-    PackageReviewCrashRouteGuard, PackageReviewDangerousAuthorityClass, PackageReviewDataMember,
+    PackageReviewCastForm, PackageReviewCheckedServiceReach, PackageReviewContractBinaryOperator,
+    PackageReviewContractExpression, PackageReviewContractFact, PackageReviewContractKind,
+    PackageReviewCrashInterface, PackageReviewCrashRouteGuard,
+    PackageReviewDangerousAuthorityClass, PackageReviewDataMember,
     PackageReviewDomainClassification, PackageReviewDomainEstablishmentKind,
     PackageReviewNominalOwner, PackageReviewPropositionBinderKind,
     PackageReviewPropositionBinderValue, PackageReviewPropositionEvidence,
@@ -319,6 +320,7 @@ target macos_arm64 { }
     };
     assert_ne!(source.digest(), [0; 32]);
     assert_eq!(authority.service().path(), "FilesystemHost");
+    assert!(canonical_review.dangerous_authority_slack().is_empty());
     let rows = canonical_review
         .canonical_rows()
         .expect("filesystem review rows");
@@ -437,6 +439,7 @@ target macos_arm64 { }
     };
     assert_ne!(source.digest(), [0; 32]);
     assert_eq!(authority.service().path(), "Console");
+    assert!(canonical_review.dangerous_authority_slack().is_empty());
     let rows = canonical_review
         .canonical_rows()
         .expect("process review rows");
@@ -507,6 +510,115 @@ target macos_arm64 { }
 }
 
 #[test]
+fn empty_boundary_body_is_checked_callable_and_remains_directly_invocable() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"use omega::language::std::filesystem_host;
+
+boundary machine adapter() reaches FilesystemHost { }
+
+pub machine caller() reaches FilesystemHost {
+    adapter();
+}
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+"#,
+    );
+
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some(target),
+        package_inputs(&package.0),
+    )
+    .expect("an explicit empty boundary body remains executable");
+    let review =
+        project_checked_package_review(&checked).expect("empty boundary body review should close");
+    let adapter = review
+        .callables()
+        .iter()
+        .find(|callable| callable.identity().path() == "adapter")
+        .expect("adapter review row");
+    assert!(matches!(
+        adapter.checked_service_reach(),
+        PackageReviewCheckedServiceReach::CheckedBody {
+            realized,
+            concrete,
+        } if realized.is_empty() && concrete.is_empty()
+    ));
+    assert!(review.dangerous_authority_slack().iter().any(|slack| {
+        slack.class() == PackageReviewDangerousAuthorityClass::Filesystem
+            && slack.callable().path() == "adapter"
+    }));
+}
+
+#[test]
+fn package_review_rejects_impossible_supply_body_combinations() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+
+    let package = TempPackage::new();
+    package.write("main.omg", "pub machine api() { }\n");
+    package.write(
+        "build.omg",
+        r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+"#,
+    );
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some(target),
+        package_inputs(&package.0),
+    )
+    .expect("ordinary package should check");
+
+    let mut missing_body = checked.clone();
+    missing_body
+        .typed
+        .machines_mut()
+        .iter_mut()
+        .find(|machine| machine.name.as_str() == "api")
+        .expect("api machine")
+        .body_is_present = false;
+    let diagnostics = project_checked_package_review(&missing_body)
+        .expect_err("checked supply without a body must fail closed");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("classified as checked supply but has no retained body")
+    }));
+
+    let mut bodyful_accepted = checked;
+    let api = bodyful_accepted
+        .typed
+        .machines_mut()
+        .iter_mut()
+        .find(|machine| machine.name.as_str() == "api")
+        .expect("api machine");
+    api.supply_mode = psi_language_semantics::MachineSupplyMode::Accepted;
+    let diagnostics = project_checked_package_review(&bodyful_accepted)
+        .expect_err("bodyless supply with a body must fail closed");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("has bodyless supply but retains a body")
+    }));
+}
+
+#[test]
 fn dangerous_hardware_authorities_require_exact_toolchain_provenance() {
     let Some(target) = host_target_name() else {
         return;
@@ -564,6 +676,53 @@ target macos_arm64 { }
                 PackageReviewNominalOwner::ToolchainSource(_)
             ))
     );
+    let hardware = canonical_review
+        .callables()
+        .iter()
+        .find(|callable| callable.identity().path() == "exercise_hardware")
+        .expect("hardware callable review");
+    assert!(matches!(
+        hardware.checked_service_reach(),
+        PackageReviewCheckedServiceReach::CheckedBody {
+            realized,
+            concrete,
+        } if realized.is_empty() && concrete.is_empty()
+    ));
+    let slack_classes = canonical_review
+        .dangerous_authority_slack()
+        .iter()
+        .map(|slack| slack.class())
+        .collect::<std::collections::BTreeSet<_>>();
+    assert_eq!(slack_classes, classes);
+    assert!(
+        canonical_review
+            .dangerous_authority_slack()
+            .iter()
+            .all(|slack| {
+                slack.callable().path() == "exercise_hardware"
+                    && matches!(
+                        slack.service().owner(),
+                        PackageReviewNominalOwner::ToolchainSource(_)
+                    )
+            })
+    );
+    let slack_rows = canonical_review
+        .canonical_rows()
+        .expect("hardware canonical rows")
+        .into_iter()
+        .filter(|row| row.kind() == PackageReviewCanonicalRowKind::DangerousAuthoritySlack)
+        .collect::<Vec<_>>();
+    assert_eq!(slack_rows.len(), 5);
+    assert!(slack_rows.iter().all(|row| {
+        row.risk() == PackageReviewCanonicalRowRisk::AuditRecommended
+            && row.source().authored_locations().is_some_and(|locations| {
+                locations.iter().any(|location| {
+                    location.role() == PackageReviewSourceLocationRole::AuthorityDeclaration
+                }) && locations.iter().any(|location| {
+                    location.role() == PackageReviewSourceLocationRole::AuthorityExposure
+                })
+            })
+    }));
 
     let lookalike = TempPackage::new();
     lookalike.write(
@@ -599,6 +758,10 @@ target macos_arm64 { }
     assert!(
         lookalike_review.dangerous_authorities().is_empty(),
         "package-controlled hardware names must not mint compiler-owned risk classes"
+    );
+    assert!(
+        lookalike_review.dangerous_authority_slack().is_empty(),
+        "package-controlled hardware names must not mint compiler-owned slack classes"
     );
 }
 
@@ -778,7 +941,7 @@ crashes Abort
         target,
         "review identity must retain the deployment profile, not only its native ABI",
     );
-    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 32);
+    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 33);
     assert_eq!(PACKAGE_REVIEW_ROW_ENCODING_VERSION, 1);
     let [ready] = review.public_domains() else {
         panic!("one package-owned public domain row")
@@ -826,12 +989,9 @@ crashes Abort
         PackageReviewNominalOwner::Package(package_identity())
     );
     assert_eq!(
-        boundary.realized_service_reach(),
-        boundary
-            .declared_service_reach()
-            .expect("published upper bound")
+        boundary.checked_service_reach(),
+        &PackageReviewCheckedServiceReach::NoCheckedBody
     );
-    assert!(boundary.concrete_service_reach().is_empty());
     assert!(boundary.capability_flows().is_empty());
     assert_eq!(boundary.declared_synchronous_invocations(), Some(&[][..]));
     assert!(boundary.realized_synchronous_invocations().is_empty());
@@ -881,7 +1041,13 @@ crashes Abort
     );
     assert_eq!(public.declared_service_reach(), Some(&[][..]));
     assert_eq!(public.declared_synchronous_invocations(), Some(&[][..]));
-    assert!(public.realized_service_reach().is_empty());
+    assert!(matches!(
+        public.checked_service_reach(),
+        PackageReviewCheckedServiceReach::CheckedBody {
+            realized,
+            concrete,
+        } if realized.is_empty() && concrete.is_empty()
+    ));
     assert!(public.realized_synchronous_invocations().is_empty());
     assert_eq!(
         public.checked_crash().interface(),
@@ -1033,6 +1199,11 @@ machine build(builder: &mut Build) { }
         psi_language_semantics::MachineSupplyMode::Accepted,
         "a bodyless boundary guarantee must remain an explicit trust-bearing accepted claim",
     );
+    assert_eq!(
+        boundary.checked_service_reach(),
+        &PackageReviewCheckedServiceReach::NoCheckedBody
+    );
+    assert!(zero.dangerous_authority_slack().is_empty());
     let [contract] = boundary.contracts() else {
         panic!("one exact accepted contract row")
     };
@@ -1135,6 +1306,11 @@ machine build(builder: &mut Build) { }
         psi_language_semantics::MachineSupplyMode::Boundary
     );
     assert!(boundary.contracts().is_empty());
+    assert_eq!(
+        boundary.checked_service_reach(),
+        &PackageReviewCheckedServiceReach::NoCheckedBody
+    );
+    assert!(review.dangerous_authority_slack().is_empty());
     assert!(
         review
             .canonical_rows()
@@ -2473,7 +2649,7 @@ invokes waiting;
 }
 
 #[test]
-fn exact_synchronous_invocations_change_v32_comparison_encoding() {
+fn exact_synchronous_invocations_change_v33_comparison_encoding() {
     let quiet = TempPackage::new();
     let invoking = TempPackage::new();
     quiet.write(
@@ -2663,7 +2839,7 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
-fn public_data_and_numbered_wire_shape_changes_change_v32_comparison_encoding() {
+fn public_data_and_numbered_wire_shape_changes_change_v33_comparison_encoding() {
     let first = TempPackage::new();
     let second = TempPackage::new();
     first.write(
@@ -2697,7 +2873,7 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
-fn public_domain_shape_changes_change_v32_comparison_encoding() {
+fn public_domain_shape_changes_change_v33_comparison_encoding() {
     let first = TempPackage::new();
     let second = TempPackage::new();
     first.write(

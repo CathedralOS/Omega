@@ -401,8 +401,10 @@ The eventual normalized package-admission evidence must include, with exact
 provenance:
 
 - public API contract identity;
-- declared and realized transitive service reach for every public callable;
-- declared and realized build-machine reach and build observations;
+- declared reach and either exact checked-body transitive reach or an explicit
+  no-checked-body disposition for every public callable;
+- declared reach, exact checked-body transitive reach, preselection concrete
+  reach, and build observations for the build machine;
 - authority `uses`, `stores`, `acquires`, `returns`, and `derives` rows;
 - exact provider requirements, selected realizations, origins, trust classes,
   containment, and executable TCB entries;
@@ -469,9 +471,15 @@ rows state their exact class; missing Terminal evidence cannot be represented
 as a weaker “complete enough” bit or mistaken for a Terminal-verified claim.
 
 Underdeclared effective reach is a compiler error. Overdeclared reach remains a
-visible contract-slack row. Dangerous slack is suspicious because it reserves
-authority that a later implementation may begin exercising without changing
-the public ceiling. The manifest pins both declared and realized reach, so
+visible contract-slack row. “Realized” here is the exact inferred transitive row
+of an actual checked body, never the authored public ceiling. Bodyless supply
+has no checked realization. The separately retained concrete row is the
+preselection body base; it excludes authority contributed only by unresolved
+installation bounds and does not claim final provider selection. Dangerous
+slack is suspicious because it reserves authority that a later implementation
+may begin exercising without changing the public ceiling. Exact dangerous
+callable-and-service slack is audit-recommended even when retained across an
+update. The manifest pins declared, checked-body, and slack evidence, so
 unused-to-used authority still changes evidence.
 
 Open or deferred proofs reject package admission. The current compiler has no

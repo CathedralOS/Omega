@@ -617,6 +617,7 @@ pub struct MachineSnapshot {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub conformance_bounds: Vec<GenericConformanceBoundSnapshot>,
     pub supply: MachineSupplySnapshot,
+    pub body_is_present: bool,
     pub termination: TerminationInterfaceSnapshot,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub termination_witness: Option<RankingWitnessSnapshot>,
@@ -1270,6 +1271,7 @@ fn machine_snapshot(program: &TypedTrees, machine: &Machine) -> MachineSnapshot 
             })
             .collect(),
         supply: machine_supply_snapshot(machine.supply_mode),
+        body_is_present: machine.body_is_present,
         termination: termination_interface_snapshot(&machine.termination_plan.interface),
         termination_witness: machine
             .termination_plan

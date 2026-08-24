@@ -19,6 +19,11 @@ pub struct Machine {
     /// semantic consumers must not reconstruct supply from source spelling or
     /// body presence.
     pub supply_mode: psi_language_semantics::MachineSupplyMode,
+    /// Exact source-body presence retained independently from supply mode.
+    /// Boundary supply admits both bodyless host declarations and checked
+    /// adapters, so downstream review must not reconstruct this distinction
+    /// from synthesized state rows.
+    pub body_is_present: bool,
     /// TPR2 (decision 23): the normalized termination plan -- the authored
     /// PUBLIC guarantee and the PRIVATE ranking witness as separate fields.
     /// Populated ONCE at the syntax->resolved lowering (bare `terminates;`

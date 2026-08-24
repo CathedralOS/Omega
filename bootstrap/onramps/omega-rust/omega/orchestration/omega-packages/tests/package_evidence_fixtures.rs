@@ -1,10 +1,10 @@
 use omega_compiler::{
     BuildObservationClass, CheckedPackageReviewProjection, PackageReviewCallableRole,
-    PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk, PackageReviewContractExpression,
-    PackageReviewContractFact, PackageReviewContractKind, PackageReviewDangerousAuthorityClass,
-    PackageReviewNominalOwner, PackageReviewPropositionEvidence,
-    PackageReviewRepresentationAbiCommitment, PackageReviewRepresentationMechanism,
-    PackageReviewSourceLocationRole,
+    PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk, PackageReviewCheckedServiceReach,
+    PackageReviewContractExpression, PackageReviewContractFact, PackageReviewContractKind,
+    PackageReviewDangerousAuthorityClass, PackageReviewNominalOwner,
+    PackageReviewPropositionEvidence, PackageReviewRepresentationAbiCommitment,
+    PackageReviewRepresentationMechanism, PackageReviewSourceLocationRole,
 };
 use omega_packages::{
     CompileResolvedPackageReviewsError, LocalSourceLimits, PackageSourceClosureLimits,
@@ -103,6 +103,11 @@ fn assert_fixture_evidence(package: &str, review: &CheckedPackageReviewProjectio
         assert_ne!(source.digest(), [0; 32]);
         assert_eq!(authority.service().path(), expected_service);
     }
+    assert_eq!(
+        review.dangerous_authority_slack().len(),
+        usize::from(package == "generated-table"),
+        "{package} dangerous authority slack"
+    );
 
     match package {
         "generated-table" => {
@@ -115,7 +120,22 @@ fn assert_fixture_evidence(package: &str, review: &CheckedPackageReviewProjectio
                 panic!("generated-table exact build service reach")
             };
             assert_eq!(service.path(), "FilesystemHost");
-            assert_eq!(build.realized_service_reach(), [service.clone()]);
+            assert!(matches!(
+                build.checked_service_reach(),
+                PackageReviewCheckedServiceReach::CheckedBody {
+                    realized,
+                    concrete,
+                } if realized.is_empty() && concrete.is_empty()
+            ));
+            let [slack] = review.dangerous_authority_slack() else {
+                panic!("generated-table exact dangerous slack")
+            };
+            assert_eq!(
+                slack.class(),
+                PackageReviewDangerousAuthorityClass::Filesystem
+            );
+            assert_eq!(slack.callable().path(), "build");
+            assert_eq!(slack.service(), service);
             let invocations = build
                 .declared_synchronous_invocations()
                 .expect("build invocation ceiling");

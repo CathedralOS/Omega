@@ -19,6 +19,7 @@ pub(crate) fn lower_machine(
         is_public: machine.is_public,
         // Copied, never re-derived.
         supply_mode: machine.supply_mode,
+        body_is_present: machine.body_is_present,
         // The authored bit and private witness copy here; the final typed
         // normalization attaches subject-bearing schemas and inherited
         // requirement guarantees after every trait has been lowered.

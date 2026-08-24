@@ -106,22 +106,11 @@ pub(crate) fn call_contract_evidence(
         .iter()
         .find(|machine| machine.symbol == target_symbol)
     {
-        let checked_body = match machine.supply_mode {
-            MachineSupplyMode::CheckedBody => true,
-            MachineSupplyMode::Boundary => program
-                .machine_states(machine)
-                .iter()
-                .find(|state| state.symbol == target_state_symbol)
-                .is_some_and(|state| {
-                    !program
-                        .statement_table
-                        .statements(state.statement_nodes)
-                        .is_empty()
-                }),
-            MachineSupplyMode::Accepted
-            | MachineSupplyMode::Requirement
-            | MachineSupplyMode::ExternalRealization { .. } => false,
-        };
+        let checked_body = machine.body_is_present
+            && matches!(
+                machine.supply_mode,
+                MachineSupplyMode::CheckedBody | MachineSupplyMode::Boundary
+            );
         if checked_body {
             // A checked adapter inherits the boundary requirement so its body
             // can be validated against that requirement, but a direct call to
@@ -244,7 +233,7 @@ fn machine_domain_establishment_origin(
 fn call_carry_permission_evidence(
     program: &TypedTrees,
     target_symbol: SymbolHandle,
-    target_state_symbol: SymbolHandle,
+    _target_state_symbol: SymbolHandle,
     contract: &ContractProofFact,
 ) -> Option<QualificationEvidence> {
     if let Some(machine) = program
@@ -252,22 +241,11 @@ fn call_carry_permission_evidence(
         .iter()
         .find(|machine| machine.symbol == target_symbol)
     {
-        let checked_body = match machine.supply_mode {
-            MachineSupplyMode::CheckedBody => true,
-            MachineSupplyMode::Boundary => program
-                .machine_states(machine)
-                .iter()
-                .find(|state| state.symbol == target_state_symbol)
-                .is_some_and(|state| {
-                    !program
-                        .statement_table
-                        .statements(state.statement_nodes)
-                        .is_empty()
-                }),
-            MachineSupplyMode::Accepted
-            | MachineSupplyMode::Requirement
-            | MachineSupplyMode::ExternalRealization { .. } => false,
-        };
+        let checked_body = machine.body_is_present
+            && matches!(
+                machine.supply_mode,
+                MachineSupplyMode::CheckedBody | MachineSupplyMode::Boundary
+            );
         if checked_body {
             if contract.qualification_authorization.is_some() {
                 return None;

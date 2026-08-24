@@ -139,8 +139,10 @@ launch. SSH is noninteractive and strict about host keys, but still consumes
 the user's default known-host and key files. Strict OS confinement, explicit
 credential custody and full byte/resource enforcement remain. Ordinary
 resolution is now bounded to 64 Git launches, independent of package file
-count, and ten minutes. Validated blobs use one exactly framed
-`cat-file --batch` launch, and cleanup/reaping has a separate two-second
+count, and ten minutes, including cache-lock acquisition. Validated blobs use
+one exactly framed `cat-file --batch` launch; blob payloads are shared ranges
+over that bounded response and released before staged-source revalidation.
+Cleanup/reaping has a separate two-second
 deadline; the combined operation is therefore not a strict ten-minute
 wall-clock bound.
 Git, workspace-member, and external-local resolution now bind those pieces into
@@ -289,7 +291,15 @@ identity retains the exact deployment profile rather than collapsing profiles
 that happen to share a native ABI. Capability-flow states, including propagated
 `via` states, are package-qualified. Ordinary public-machine visibility now
 survives checked compilation; public omission enforces empty reach, invocation,
-suspension, blocking, and crash ceilings. The review includes public and
+suspension, blocking, and crash ceilings. Exact source-body presence survives
+resolved and typed copies. Review v33 uses inferred transitive reach only for
+actual checked bodies and records bodyless supply explicitly instead of copying
+its published ceiling into a false realization. Its concrete row retains the
+preselection body base rather than reconstructing it from the current callable;
+that base is not final selected-provider evidence. Dangerous declared-but-unused
+authority on checked bodies emits exact callable-and-service slack rows with an
+audit-recommended risk; bodyless supply and package-authored lookalikes do not.
+The review includes public and
 boundary callables plus the selected build machine, excludes private machines,
 and projects invocation targets as exact parameter ordinals or package-qualified
 service identities. Package-qualified type identity gives every non-binder
@@ -387,7 +397,7 @@ directories.
 The legacy machine-contract fingerprint no longer enters package-review bytes,
 so private state shape is not public contract identity. Complete proof and
 unsupported-clause rows still gate sealed admission. The compiler now provides
-a version-32 length-framed binary comparison encoding over this review
+a version-33 length-framed binary comparison encoding over this review
 projection; it is explicitly not a package certificate or accepted-lock
 payload. Raw Rust/debug serialization is not an alternative. These pieces do
 not become an admission path until the legacy name-keyed lock APIs are replaced

@@ -10,7 +10,7 @@ use psi_checked_trees::{
 };
 
 const MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW\0";
-pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 32;
+pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 33;
 const ROW_MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW-ROW\0";
 pub const PACKAGE_REVIEW_ROW_ENCODING_VERSION: u16 = 1;
 
@@ -93,6 +93,10 @@ fn encode_with_limits(
     encoder.sequence(&review.representation_tcb, encode_representation_tcb)?;
     encoder.sequence(&review.callables, encode_callable)?;
     encoder.sequence(&review.dangerous_authorities, encode_dangerous_authority)?;
+    encoder.sequence(
+        &review.dangerous_authority_slack,
+        encode_dangerous_authority_slack,
+    )?;
     encoder.sequence(&review.selected_providers, encode_provider)?;
     encoder.finish()
 }
@@ -122,6 +126,7 @@ fn encode_rows_with_limits(
                 .count(),
         )
         .saturating_add(review.dangerous_authorities.len())
+        .saturating_add(review.dangerous_authority_slack.len())
         .saturating_add(2);
     if required_rows > limits.maximum_rows {
         return Err(PackageReviewEncodingError::new(
@@ -260,6 +265,25 @@ fn encode_rows_with_limits(
             )?,
         )?;
     }
+    for (index, slack) in review.dangerous_authority_slack.iter().enumerate() {
+        push_row(
+            &mut rows,
+            &mut total_row_bytes,
+            limits,
+            encode_row(
+                review,
+                limits,
+                PackageReviewCanonicalRowKind::DangerousAuthoritySlack,
+                PackageReviewCanonicalRowRisk::AuditRecommended,
+                row_source(&review.row_sources.dangerous_authority_slack, index)?,
+                |encoder| {
+                    encode_nominal(encoder, &slack.callable)?;
+                    encode_nominal(encoder, &slack.service)
+                },
+                |encoder| encode_dangerous_authority_slack(encoder, slack),
+            )?,
+        )?;
+    }
     push_row(
         &mut rows,
         &mut total_row_bytes,
@@ -377,6 +401,7 @@ const fn canonical_row_kind_tag(kind: PackageReviewCanonicalRowKind) -> u8 {
         PackageReviewCanonicalRowKind::DangerousAuthority => 6,
         PackageReviewCanonicalRowKind::SelectedProviderSet => 7,
         PackageReviewCanonicalRowKind::AcceptedClaim => 8,
+        PackageReviewCanonicalRowKind::DangerousAuthoritySlack => 9,
     }
 }
 
@@ -408,6 +433,23 @@ fn encode_dangerous_authority(
         PackageReviewDangerousAuthorityClass::Process => 6,
     });
     encode_nominal(encoder, &authority.service)
+}
+
+fn encode_dangerous_authority_slack(
+    encoder: &mut Encoder,
+    slack: &PackageReviewDangerousAuthoritySlack,
+) -> Result<(), PackageReviewEncodingError> {
+    encoder.byte(match slack.class {
+        PackageReviewDangerousAuthorityClass::Filesystem => 0,
+        PackageReviewDangerousAuthorityClass::MachineControl => 1,
+        PackageReviewDangerousAuthorityClass::PortIo => 2,
+        PackageReviewDangerousAuthorityClass::InterruptControl => 3,
+        PackageReviewDangerousAuthorityClass::InterruptEntry => 4,
+        PackageReviewDangerousAuthorityClass::RootMemory => 5,
+        PackageReviewDangerousAuthorityClass::Process => 6,
+    });
+    encode_nominal(encoder, &slack.callable)?;
+    encode_nominal(encoder, &slack.service)
 }
 
 fn encode_trait_shape(
@@ -868,8 +910,14 @@ fn encode_callable(
         callable.declared_service_reach.as_deref(),
         |encoder, row| encoder.sequence(row, encode_nominal),
     )?;
-    encoder.sequence(&callable.realized_service_reach, encode_nominal)?;
-    encoder.sequence(&callable.concrete_service_reach, encode_nominal)?;
+    match &callable.checked_service_reach {
+        PackageReviewCheckedServiceReach::NoCheckedBody => encoder.byte(0),
+        PackageReviewCheckedServiceReach::CheckedBody { realized, concrete } => {
+            encoder.byte(1);
+            encoder.sequence(realized, encode_nominal)?;
+            encoder.sequence(concrete, encode_nominal)?;
+        }
+    }
     encoder.sequence(
         &callable.unresolved_installation_reaches,
         encode_installation_reach,
@@ -1760,6 +1808,7 @@ mod tests {
             representation_tcb: Vec::new(),
             callables: Vec::new(),
             dangerous_authorities: Vec::new(),
+            dangerous_authority_slack: Vec::new(),
             selected_providers: Vec::new(),
             row_sources: PackageReviewCanonicalRowSources {
                 public_traits: Vec::new(),
@@ -1768,6 +1817,7 @@ mod tests {
                 representation_tcb: Vec::new(),
                 callables: Vec::new(),
                 dangerous_authorities: Vec::new(),
+                dangerous_authority_slack: Vec::new(),
                 selected_provider_set: PackageReviewCanonicalRowSource::compiler_derived(
                     PackageReviewSyntheticSourceKind::EmptySelectedProviderSet,
                 ),

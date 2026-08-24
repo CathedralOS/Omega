@@ -45,6 +45,7 @@ fn instantiates_call_contract_places_onto_caller_arguments() {
     let caller_statement = program
         .statement_table
         .insert(StatementNode::Call(TableCall {
+            source_span: psi_source::SourceSpan::default(),
             receiver_symbol: SymbolHandle::invalid(),
             target_symbol: callee_state_symbol,
             receiver: HandleSpan::empty(),
@@ -85,6 +86,7 @@ fn instantiates_call_contract_places_onto_caller_arguments() {
         termination_plan: Default::default(),
         service_reach_row: Default::default(),
         service_reach_is_installation_bound: false,
+        body_is_present: true,
         lifetime_parameters: Vec::new(),
         type_parameters: Default::default(),
         owned_data: Default::default(),
@@ -128,6 +130,7 @@ fn instantiates_call_contract_places_onto_caller_arguments() {
         termination_plan: Default::default(),
         service_reach_row: Default::default(),
         service_reach_is_installation_bound: false,
+        body_is_present: true,
         lifetime_parameters: Vec::new(),
         type_parameters: Default::default(),
         owned_data: Default::default(),
@@ -231,6 +234,7 @@ fn instantiates_call_contract_places_for_attached_data_arguments() {
         termination_plan: Default::default(),
         service_reach_row: Default::default(),
         service_reach_is_installation_bound: false,
+        body_is_present: true,
         lifetime_parameters: Vec::new(),
         type_parameters: Default::default(),
         owned_data: Default::default(),
@@ -253,6 +257,7 @@ fn instantiates_call_contract_places_for_attached_data_arguments() {
     program.statement_table.push_statement(
         &mut caller_state.statement_nodes,
         StatementNode::Call(TableCall {
+            source_span: psi_source::SourceSpan::default(),
             receiver_symbol: caller_machine_symbol,
             target_symbol: callee_state_symbol,
             receiver: Default::default(),
@@ -276,6 +281,7 @@ fn instantiates_call_contract_places_for_attached_data_arguments() {
         termination_plan: Default::default(),
         service_reach_row: Default::default(),
         service_reach_is_installation_bound: false,
+        body_is_present: true,
         lifetime_parameters: Vec::new(),
         type_parameters: Default::default(),
         owned_data: Default::default(),
@@ -415,6 +421,7 @@ fn instantiates_call_contract_places_for_expression_statement_calls() {
         termination_plan: Default::default(),
         service_reach_row: Default::default(),
         service_reach_is_installation_bound: false,
+        body_is_present: true,
         lifetime_parameters: Vec::new(),
         type_parameters: Default::default(),
         owned_data: Default::default(),
@@ -450,6 +457,7 @@ fn instantiates_call_contract_places_for_expression_statement_calls() {
         termination_plan: Default::default(),
         service_reach_row: Default::default(),
         service_reach_is_installation_bound: false,
+        body_is_present: true,
         lifetime_parameters: Vec::new(),
         type_parameters: Default::default(),
         owned_data: Default::default(),

@@ -3,7 +3,7 @@ use omega_compiler::{
 };
 use omega_packages::{
     ExternalSourceContext, LocalSourceLimits, PackageSourceClosureLimits, PackageTriageDisposition,
-    ReviewOnlyCapabilityConflictChange, ReviewOnlyCapabilityConflictError,
+    PackageTriageReason, ReviewOnlyCapabilityConflictChange, ReviewOnlyCapabilityConflictError,
     ReviewOnlyCapabilityConflictLimits, compare_review_only_capabilities,
     compile_resolved_package_reviews, resolve_external_local_package_closure, triage_review_update,
 };
@@ -46,6 +46,7 @@ fn exact_compiler_rows_become_candidate_bound_review_conflicts() {
     let baseline_cache = temp_root("baseline-cache");
     let candidate_cache = temp_root("candidate-cache");
     let representation_cache = temp_root("representation-cache");
+    let dangerous_slack_cache = temp_root("dangerous-slack-cache");
     let accepted_claim_baseline_cache = temp_root("accepted-claim-baseline-cache");
     let accepted_claim_candidate_cache = temp_root("accepted-claim-candidate-cache");
     let build_root = temp_root("build");
@@ -287,6 +288,83 @@ pub machine add_u64(left: u64, right: u64) -> u64 {
 
     write_package(
         &live,
+        r#"use omega::language::std::filesystem_host;
+
+pub machine reserved_filesystem_authority()
+reaches FilesystemHost
+{
+}
+"#,
+    );
+    let dangerous_slack_sources = resolve_external_local_package_closure(
+        &live,
+        ExternalSourceContext::derive(b"capability-conflict-test-lock"),
+        &dangerous_slack_cache,
+        LocalSourceLimits::default(),
+        PackageSourceClosureLimits::default(),
+    )
+    .expect("resolve dangerous-slack candidate");
+    let dangerous_slack_reviews =
+        compile_resolved_package_reviews(&dangerous_slack_sources, "windows_x64", &build_root)
+            .expect("compile dangerous-slack review");
+    let dangerous_slack_conflicts = compare_review_only_capabilities(
+        &baseline_reviews,
+        &dangerous_slack_reviews,
+        &dangerous_slack_sources,
+        ReviewOnlyCapabilityConflictLimits::default(),
+    )
+    .expect("compare dangerous-slack row");
+    let dangerous_slack_conflict = dangerous_slack_conflicts
+        .packages()
+        .iter()
+        .flat_map(|package| package.conflicts())
+        .find(|conflict| conflict.kind() == PackageReviewCanonicalRowKind::DangerousAuthoritySlack)
+        .unwrap_or_else(|| {
+            panic!(
+                "declared-but-unused dangerous authority produces an exact slack conflict; got {:?}",
+                dangerous_slack_conflicts
+                    .packages()
+                    .iter()
+                    .flat_map(|package| package.conflicts())
+                    .map(|conflict| conflict.kind())
+                    .collect::<Vec<_>>()
+            )
+        });
+    assert_eq!(
+        dangerous_slack_conflict.change(),
+        ReviewOnlyCapabilityConflictChange::Added
+    );
+    assert_eq!(
+        dangerous_slack_conflict.risk(),
+        PackageReviewCanonicalRowRisk::AuditRecommended
+    );
+    assert!(!dangerous_slack_conflict.is_blocking());
+    let slack_locations = dangerous_slack_conflict
+        .candidate_source()
+        .and_then(PackageReviewCanonicalRowSource::authored_locations)
+        .expect("dangerous slack has authority and callable provenance");
+    assert!(slack_locations.iter().any(|location| {
+        location.role() == omega_compiler::PackageReviewSourceLocationRole::AuthorityDeclaration
+    }));
+    assert!(slack_locations.iter().any(|location| {
+        location.role() == omega_compiler::PackageReviewSourceLocationRole::AuthorityExposure
+            && location.relative_path() == "main.omg"
+    }));
+    let slack_triage = triage_review_update(
+        &baseline_reviews,
+        &dangerous_slack_reviews,
+        &BTreeSet::new(),
+    );
+    assert!(slack_triage.decisions().iter().any(|decision| {
+        decision
+            .reasons()
+            .contains(&PackageTriageReason::DangerousAuthoritySlack(
+                omega_compiler::PackageReviewDangerousAuthorityClass::Filesystem,
+            ))
+    }));
+
+    write_package(
+        &live,
         r#"boundary machine trusted_zero() -> u64
 ensures result == 0;
 "#,
@@ -371,6 +449,7 @@ ensures result == 1;
     let _ = std::fs::remove_dir_all(baseline_cache);
     let _ = std::fs::remove_dir_all(candidate_cache);
     let _ = std::fs::remove_dir_all(representation_cache);
+    let _ = std::fs::remove_dir_all(dangerous_slack_cache);
     let _ = std::fs::remove_dir_all(accepted_claim_baseline_cache);
     let _ = std::fs::remove_dir_all(accepted_claim_candidate_cache);
     let _ = std::fs::remove_dir_all(build_root);

@@ -763,6 +763,19 @@ mechanically checked proposition. Projects requiring stronger assurance enforce
 their own reviewers, quorum, isolated builds, bootstrapped toolchain, and merge
 controls around these deterministic facts.
 
+For a callable with an actual checked source body, “realized reach” means the
+compiler's exact inferred transitive body row, never the authored public
+ceiling. Its separately retained concrete row is the preselection body base:
+it excludes authority contributed only by unresolved installation bounds and
+does not claim that a final provider was selected. Bodyless boundary, accepted, requirement, and external supply instead
+carry an explicit no-checked-body disposition. A compiler-classified dangerous
+service that is declared by a checked body but absent from that inferred row is
+reported as audit-recommended contract slack, keyed by the exact callable and
+service. Bodyless supply and package-authored lookalike services do not acquire
+that classification. Package review rejects impossible internal combinations:
+checked supply requires a body, accepted/requirement/external supply forbids
+one, and boundary supply alone permits either form.
+
 The ordinary rows are derived from the earliest coherent checked state for each
 row by a total internal package-admission projection. Rows may use different
 compiler-private representations; totality is required of the final projection,

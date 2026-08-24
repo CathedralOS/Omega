@@ -39,6 +39,7 @@ fn collects_nested_state_call_ordinals_for_checked_borrow_facts() {
         termination_plan: Default::default(),
         service_reach_row: Default::default(),
         service_reach_is_installation_bound: false,
+        body_is_present: true,
         lifetime_parameters: Vec::new(),
         type_parameters: Default::default(),
         owned_data: Default::default(),
@@ -61,6 +62,7 @@ fn collects_nested_state_call_ordinals_for_checked_borrow_facts() {
     program.statement_table.push_statement(
         &mut entry_state.statement_nodes,
         StatementNode::Call(TableCall {
+            source_span: psi_source::SourceSpan::default(),
             receiver_symbol: SymbolHandle::invalid(),
             target_symbol: outer_symbol,
             receiver: Default::default(),
