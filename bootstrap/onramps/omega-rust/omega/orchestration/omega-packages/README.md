@@ -94,10 +94,11 @@ remaining schema/grant joins, compiler-intrinsic toolchain identity, and the
 remaining trust/proof/reproducibility joins are incomplete. Build-bound
 progress obligations retain and match package ownership for both service and
 requirement, and retained selected-provider facts expose no name-only plan
-lookup. The review projection is not yet canonically encodable: several
-installation-bound reach, termination, and mutation rows now use normalized
-package-owned semantic paths, but crash evidence still carries arena-local
-compiler handles that must first be normalized. These pieces do not become an
+lookup. Installation-bound reach, termination, mutation, crash, and permission
+frontier rows now use normalized package-owned semantic paths, and crash
+predicates retain their existing source-independent canonical identity. The
+projection is therefore ready for a deliberately versioned canonical encoder;
+raw Rust/debug serialization is not one. These pieces do not become an
 admission path until the legacy
 name-keyed lock APIs are replaced and sealed compiler-issued evidence plus the
 hardened resolver receipt are wired through end to end. The earlier public

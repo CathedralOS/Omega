@@ -309,11 +309,14 @@ complete.
   obligations now retain and match the compiler-derived package owners of both
   the provider service and exact requirement, including through component
   manifests and audit rendering; no readable-name lookup remains on retained
-  selected-provider facts. Installation-bound reach, termination premises, and
-  mutation frames now project package-owned semantic paths rather than
-  arena-local handles/row IDs. Crash evidence remains symbol-bearing, so
-  canonical machine encoding must still wait; directly serializing the current
-  review projection would not be stable across compiler runs.
+  selected-provider facts. Installation-bound reach, termination premises,
+  mutation frames, crash sites/calls, and permission frontiers now project
+  package-owned semantic paths rather than arena-local handles/row IDs. Crash
+  predicates retain only their existing source-independent canonical identity.
+  Source-free structural children now inherit authored hierarchy provenance,
+  closing the implicit-entry-state ownership gap discovered by the crash
+  projection. The review projection is ready for a deliberately versioned
+  canonical encoder; raw Rust/debug serialization remains forbidden.
   Compiler-generated symbols now inherit the exact authored provenance of a
   mandatory derivation origin; truly source-free symbols and exact toolchain
   identity remain visibly unbound rather than guessed.
