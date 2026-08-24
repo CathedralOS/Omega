@@ -1750,14 +1750,18 @@ machine Main::exercise(&mut self) {}
     assert!(first_requirement.contains("provider type: FirstProvider"));
     assert!(first_requirement.contains("target: <all>"));
     assert!(first_requirement.contains("selected: no"));
-    assert!(first_requirement.contains("realization: checked adapter `FirstProvider::choose`"));
+    assert!(first_requirement.contains(
+        "realization: checked adapter `named-callable(path(FirstProvider::choose),parameters(),result-dispatch())`"
+    ));
     assert!(first_requirement.contains("grant selectors: none"));
     assert!(first_requirement.contains("STANDING WARNING"));
     assert!(second_requirement.contains("requirement owner: Pair"));
     assert!(second_requirement.contains("provider type: SecondProvider"));
     assert!(second_requirement.contains("target: <all>"));
     assert!(second_requirement.contains("selected: yes"));
-    assert!(second_requirement.contains("realization: checked adapter `SecondProvider::choose`"));
+    assert!(second_requirement.contains(
+        "realization: checked adapter `named-callable(path(SecondProvider::choose),parameters(),result-dispatch())`"
+    ));
     assert!(second_requirement.contains("grant selectors: Pair"));
     assert!(second_requirement.contains("root grant (build.omg)"));
     assert!(!second_requirement.contains("STANDING WARNING"));

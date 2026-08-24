@@ -396,7 +396,7 @@ impl<'program> Evaluator<'program> {
         // harvested statically by the build-config pass; evaluation serves
         // the marker as a no-op so the build machine runs through it.
         if call.target.as_str().starts_with("accept_boundary#")
-            || call.target.as_str().starts_with("select_provider#")
+            || call.target.as_str() == "select_provider"
             || call.target.as_str().starts_with("wire_compatibility#")
             || call.target.as_str().starts_with("bind_root#")
         {

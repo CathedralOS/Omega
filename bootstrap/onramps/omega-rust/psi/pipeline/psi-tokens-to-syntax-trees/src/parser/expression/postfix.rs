@@ -222,37 +222,30 @@ pub(super) fn parse_postfix_expression_handle<'tokens, 'source>(
 
             // PRV4c PROVIDER SLOT SELECTION:
             // `b.select_provider<BoundaryTrait, ProviderType>();` is a
-            // build-declaration marker, not a generic machine call. Static
-            // machine arguments deliberately name MACHINES; these two paths
-            // name TYPES, so routing the spelling through that surface would
-            // lie about their kind. The build-config pass harvests the marker
-            // only from the authoritative build machine and validates both
-            // paths against derived provider candidates.
+            // build-declaration marker, not a runtime generic machine call.
+            // The shared static-argument carrier preserves each path and its
+            // source span until ordinary symbol resolution assigns the exact
+            // trait/data identity. Build harvesting validates the two kinds;
+            // no generated target string becomes selection identity.
             if member.as_str() == "select_provider" && rest.at_punctuation(PunctuationKind::Less) {
-                let mut path_input = rest.take_punctuation(PunctuationKind::Less, "<")?;
-                let mut rendered = Vec::new();
-                for argument_index in 0..2 {
-                    let mut path = String::new();
-                    loop {
-                        let (segment, next) = path_input.take_identifier()?;
-                        if !path.is_empty() {
-                            path.push_str("::");
-                        }
-                        path.push_str(segment.as_str());
-                        if next.at_punctuation(PunctuationKind::ColonColon) {
-                            path_input =
-                                next.take_punctuation(PunctuationKind::ColonColon, "::")?;
-                            continue;
-                        }
-                        path_input = next;
-                        break;
-                    }
-                    rendered.push(path);
-                    path_input = if argument_index == 0 {
-                        path_input.take_punctuation(PunctuationKind::Comma, ",")?
-                    } else {
-                        path_input.take_punctuation(PunctuationKind::Greater, ">")?
-                    };
+                let Some((machine_arguments, path_input)) =
+                    try_parse_static_machine_arguments(rest)?
+                else {
+                    return Err(rest.error_here(
+                        "`select_provider` requires a boundary-trait type and provider type",
+                    ));
+                };
+                if machine_arguments.len() != 2
+                    || machine_arguments.iter().any(|argument| {
+                        argument.path.is_empty()
+                            || argument.application.is_some()
+                            || argument.const_literal.is_some()
+                            || argument.evidence_projection.is_some()
+                    })
+                {
+                    return Err(
+                        rest.error_here("`select_provider` requires exactly two plain type paths")
+                    );
                 }
                 let after_open = path_input.take_punctuation(PunctuationKind::LeftParen, "(")?;
                 if !after_open.at_punctuation(PunctuationKind::RightParen) {
@@ -266,11 +259,8 @@ pub(super) fn parse_postfix_expression_handle<'tokens, 'source>(
                         .expressions
                         .insert(ExpressionNode::Call(TableCallExpression {
                             receiver: expression,
-                            target: psi_syntax_trees::identifier::Identifier::generated(format!(
-                                "select_provider#{}#{}",
-                                rendered[0], rendered[1]
-                            )),
-                            machine_arguments: Box::default(),
+                            target: member,
+                            machine_arguments,
                             arguments: HandleSpan::empty(),
                             evidence_arguments: Box::default(),
                             operational_acknowledgement: Default::default(),

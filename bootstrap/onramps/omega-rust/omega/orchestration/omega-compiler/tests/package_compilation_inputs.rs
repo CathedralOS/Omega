@@ -160,6 +160,13 @@ fn dependency_provider_plan_retains_exact_dependency_package_provenance() {
 
     TempTree::write(root.join("main.omg"), "use dep::provider;\n");
     TempTree::write(
+        root.join("build.omg"),
+        r#"machine build(builder: &mut Build) {
+    builder.select_provider<Pair, Provider>();
+}
+"#,
+    );
+    TempTree::write(
         dependency.join("provider.omg"),
         r#"boundary trait Pair { machine first(); }
 data Provider { }

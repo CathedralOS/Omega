@@ -3414,49 +3414,63 @@ fn synchronous_cycle_from(
     None
 }
 
-fn authored_name_matches(authored: &str, candidate: &str, exact_exists: bool) -> bool {
-    authored == candidate
-        || (!exact_exists
-            && !authored.contains("::")
-            && candidate
-                .rsplit("::")
-                .next()
-                .is_some_and(|leaf| leaf == authored))
+type ProviderSelectionKey = (Option<psi_core::PackageKeyIdentity>, String);
+
+fn provider_slot_key(plan: &omega_effects::provider_plan::ProviderPlan) -> ProviderSelectionKey {
+    (
+        plan.schema.trait_package_identity,
+        plan.schema.trait_name.clone(),
+    )
+}
+
+fn selected_boundary_key(
+    selection: &crate::pipeline::build_config::ProviderSelection,
+) -> ProviderSelectionKey {
+    (
+        selection.boundary_trait.package,
+        selection.boundary_trait.canonical_path.clone(),
+    )
+}
+
+fn selected_provider_key(
+    selection: &crate::pipeline::build_config::ProviderSelection,
+) -> ProviderSelectionKey {
+    (
+        selection.provider_type.package,
+        selection.provider_type.canonical_path.clone(),
+    )
+}
+
+fn provider_plan_key(plan: &omega_effects::provider_plan::ProviderPlan) -> ProviderSelectionKey {
+    (
+        plan.provider_type_package_identity,
+        plan.provider_type.clone(),
+    )
 }
 
 fn resolve_provider_selection_slots(
-    slot_names: &[String],
+    slot_keys: &[ProviderSelectionKey],
     declarations: &[crate::pipeline::build_config::ProviderSelection],
     owner: &str,
 ) -> (
-    Vec<(String, crate::pipeline::build_config::ProviderSelection)>,
+    Vec<(
+        ProviderSelectionKey,
+        crate::pipeline::build_config::ProviderSelection,
+    )>,
     Vec<psi_diagnostics::Diagnostic>,
 ) {
     let mut resolved = Vec::new();
     let mut diagnostics = Vec::new();
     for declaration in declarations {
-        let exact_exists = slot_names
-            .iter()
-            .any(|slot| slot == &declaration.boundary_trait);
-        let matching_slots = slot_names
-            .iter()
-            .map(String::as_str)
-            .filter(|slot| authored_name_matches(&declaration.boundary_trait, slot, exact_exists))
-            .collect::<Vec<_>>();
-        match matching_slots.as_slice() {
-            [slot] => resolved.push(((*slot).to_owned(), declaration.clone())),
-            [] => diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
+        let slot_key = selected_boundary_key(declaration);
+        if slot_keys.contains(&slot_key) {
+            resolved.push((slot_key, declaration.clone()));
+        } else {
+            diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
                 "{owner} selects provider `{}` for unknown boundary slot `{}`; the slot must exist in the loaded dependency closure",
-                declaration.provider_type, declaration.boundary_trait,
-            ))),
-            many => diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
-                "{owner} names ambiguous boundary slot `{}`; it matches {} -- qualify the slot type",
-                declaration.boundary_trait,
-                many.iter()
-                    .map(|slot| format!("`{slot}`"))
-                    .collect::<Vec<_>>()
-                    .join(", "),
-            ))),
+                declaration.provider_type.authored_path,
+                declaration.boundary_trait.authored_path,
+            )));
         }
     }
     (resolved, diagnostics)
@@ -3485,40 +3499,39 @@ pub(crate) fn select_provider_plans(
     };
     let mut diagnostics = Vec::new();
     let mut selected = Vec::new();
-    let mut slot_names: Vec<String> = plans
+    let mut slot_keys: Vec<ProviderSelectionKey> = plans
         .iter()
         .filter(|plan| !plan.schema.methods.is_empty())
-        .map(|plan| plan.schema.trait_name.clone())
+        .map(provider_slot_key)
         .collect();
-    slot_names.sort_unstable();
-    slot_names.dedup();
+    slot_keys.sort_unstable();
+    slot_keys.dedup();
 
-    // Resolve every authored slot path to ONE canonical loaded trait before
-    // applying precedence. A short leaf is convenient when unique, but it is
-    // not an identity: letting `Pick` match both `first::Pick` and
-    // `second::Pick` would turn one type-per-slot declaration into two grants.
-    // Canonicalization here also makes differently spelled aliases of the
-    // same slot participate in duplicate detection.
+    // Provider selections arrive after ordinary name resolution. Preserve
+    // that exact nominal identity: readable paths are diagnostic material and
+    // may never repair or approximate a package-qualified identity.
     let (resolved_requests, request_diagnostics) =
-        resolve_provider_selection_slots(&slot_names, requested, "build");
+        resolve_provider_selection_slots(&slot_keys, requested, "build");
     diagnostics.extend(request_diagnostics);
     let (resolved_defaults, default_diagnostics) =
-        resolve_provider_selection_slots(&slot_names, defaults, "target package");
+        resolve_provider_selection_slots(&slot_keys, defaults, "target package");
     diagnostics.extend(default_diagnostics);
-    for slot_name in &slot_names {
+    for slot_key in &slot_keys {
         let declarations = resolved_requests
             .iter()
-            .filter(|(slot, _)| slot == slot_name)
+            .filter(|(slot, _)| slot == slot_key)
             .map(|(_, declaration)| declaration)
             .collect::<Vec<_>>();
         if declarations.len() > 1 {
+            let slot_name = &slot_key.1;
             diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
                 "build declares provider selection for slot `{slot_name}` more than once: {}",
                 declarations
                     .iter()
                     .map(|declaration| format!(
                         "`{} -> {}`",
-                        declaration.boundary_trait, declaration.provider_type
+                        declaration.boundary_trait.authored_path,
+                        declaration.provider_type.authored_path,
                     ))
                     .collect::<Vec<_>>()
                     .join(", "),
@@ -3526,19 +3539,20 @@ pub(crate) fn select_provider_plans(
         }
     }
 
-    for slot_name in slot_names {
+    for slot_key in slot_keys {
+        let slot_name = &slot_key.1;
         let explicit = resolved_requests
             .iter()
-            .find(|(slot, _)| *slot == slot_name)
+            .find(|(slot, _)| slot == &slot_key)
             .map(|(_, selection)| selection);
         let slot_defaults: Vec<_> = resolved_defaults
             .iter()
-            .filter(|(slot, _)| *slot == slot_name)
+            .filter(|(slot, _)| slot == &slot_key)
             .map(|(_, selection)| selection)
             .collect();
         let candidates: Vec<&ProviderPlan> = plans
             .iter()
-            .filter(|plan| plan.schema.trait_name == slot_name && applies(&plan.target))
+            .filter(|plan| provider_slot_key(plan) == slot_key && applies(&plan.target))
             .collect();
         let covering: Vec<&ProviderPlan> = candidates
             .iter()
@@ -3552,33 +3566,9 @@ pub(crate) fn select_provider_plans(
             // absent from the selected dependency closure.
             Some(("build", explicit))
         } else if let Some(first) = slot_defaults.first().copied() {
-            // Compare target defaults by the canonical candidate type when a
-            // spelling resolves uniquely. `Provider` and `pkg::Provider`
-            // naming the same loaded type are one default, not a conflict.
-            // Ambiguous or absent spellings stay distinct here and receive
-            // the more specific candidate diagnostic below.
-            let mut distinct_provider_types: Vec<String> = slot_defaults
+            let mut distinct_provider_types: Vec<ProviderSelectionKey> = slot_defaults
                 .iter()
-                .map(|selection| {
-                    let exact_exists = candidates
-                        .iter()
-                        .any(|plan| plan.provider_type == selection.provider_type);
-                    let matching = candidates
-                        .iter()
-                        .copied()
-                        .filter(|plan| {
-                            authored_name_matches(
-                                &selection.provider_type,
-                                &plan.provider_type,
-                                exact_exists,
-                            )
-                        })
-                        .collect::<Vec<_>>();
-                    match matching.as_slice() {
-                        [plan] => plan.provider_type.clone(),
-                        _ => selection.provider_type.clone(),
-                    }
-                })
+                .map(|selection| selected_provider_key(selection))
                 .collect();
             distinct_provider_types.sort_unstable();
             distinct_provider_types.dedup();
@@ -3587,7 +3577,7 @@ pub(crate) fn select_provider_plans(
                     "slot `{slot_name}` has conflicting target-package defaults: {} -- a target supplies at most one default provider type per slot",
                     distinct_provider_types
                         .iter()
-                        .map(|provider| format!("`{provider}`"))
+                        .map(|(_, provider)| format!("`{provider}`"))
                         .collect::<Vec<_>>()
                         .join(", "),
                 )));
@@ -3599,51 +3589,35 @@ pub(crate) fn select_provider_plans(
         };
 
         if let Some((owner, declaration)) = selected_declaration {
-            let exact_exists = candidates
-                .iter()
-                .any(|plan| plan.provider_type == declaration.provider_type);
+            let selected_provider = selected_provider_key(declaration);
             let matching: Vec<&ProviderPlan> = candidates
                 .iter()
                 .copied()
-                .filter(|plan| {
-                    authored_name_matches(
-                        &declaration.provider_type,
-                        &plan.provider_type,
-                        exact_exists,
-                    )
-                })
+                .filter(|plan| provider_plan_key(plan) == selected_provider)
                 .collect();
             match matching.as_slice() {
                 [plan] if plan.covers_schema() => selected.push((*plan).clone()),
                 [plan] => diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
                     "{owner} selects provider `{}` for slot `{slot_name}`, but candidate `{}` is partial ({}/{}) and cannot be selected",
-                    declaration.provider_type,
+                    declaration.provider_type.authored_path,
                     plan.name,
                     plan.rows.len(),
                     plan.schema.methods.len(),
                 ))),
                 [] => {
-                    let exact_exists = plans.iter().any(|plan| {
-                        plan.schema.trait_name == slot_name
-                            && plan.provider_type == declaration.provider_type
-                    });
                     let wrong_target = plans.iter().any(|plan| {
-                        plan.schema.trait_name == slot_name
-                            && authored_name_matches(
-                                &declaration.provider_type,
-                                &plan.provider_type,
-                                exact_exists,
-                            )
+                        provider_slot_key(plan) == slot_key
+                            && provider_plan_key(plan) == selected_provider
                     });
                     diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
                         "{owner} selects provider `{}` for slot `{slot_name}`, but no {}candidate exists in the loaded dependency closure",
-                        declaration.provider_type,
+                        declaration.provider_type.authored_path,
                         if wrong_target { "selected-target " } else { "" },
                     )));
                 }
                 _ => diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
-                    "{owner} selection `{}` for slot `{slot_name}` resolves to multiple provider candidates; qualify the provider type",
-                    declaration.provider_type,
+                    "{owner} selection `{}` for slot `{slot_name}` resolves to multiple provider candidates with the same exact identity",
+                    declaration.provider_type.authored_path,
                 ))),
             }
             continue;

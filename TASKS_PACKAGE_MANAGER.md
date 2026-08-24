@@ -392,12 +392,14 @@ complete.
   coordinates, operational outcomes, crashes, mutation, and selected provider
   mechanisms with exact realizing-package, provider-type, service-schema, and
   requirement-owner provenance. Checked-adapter bindings now retain and verify
-  canonical overload plus realizing-package identity. Authored provider names
-  are resolved once and the exact selected plans are retained through cycle,
-  ABI, and checked-fact construction without a name-based candidate rejoin;
-  same-spelled selected slots are distinguished by package identity and an
-  ambiguous readable invocation target rejects. Authored selector resolution,
-  several downstream schema/grant joins, and compiler-intrinsic toolchain
+  canonical overload plus realizing-package identity. Authored provider choices
+  remain two structural paths through parsing and resolve to exact typed
+  boundary-trait/provider-data symbols. Selection matches only exact package
+  plus canonical-path identities; same-spelled cross-package slots/providers
+  remain distinct and no leaf-name fallback remains. The exact selected plans
+  survive cycle, ABI, and checked-fact construction without a name-based
+  candidate rejoin. Several downstream schema/grant joins and
+  compiler-intrinsic toolchain
   ownership are not yet package-qualified or sealed. Build-bound progress
   obligations now retain and match the compiler-derived package owners of both
   the provider service and exact requirement, including through component

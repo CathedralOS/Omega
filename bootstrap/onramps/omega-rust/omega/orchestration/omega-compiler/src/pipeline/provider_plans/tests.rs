@@ -191,6 +191,21 @@ fn selection_plan(name: &str, methods: &[&str], rows: &[&str]) -> ProviderPlan {
     }
 }
 
+fn package_selection(
+    boundary_trait: &str,
+    boundary_package: psi_core::PackageKeyIdentity,
+    provider_type: &str,
+    provider_package: psi_core::PackageKeyIdentity,
+) -> crate::pipeline::build_config::ProviderSelection {
+    let mut selection = crate::pipeline::build_config::ProviderSelection::exact_for_test(
+        boundary_trait,
+        provider_type,
+    );
+    selection.boundary_trait.package = Some(boundary_package);
+    selection.provider_type.package = Some(provider_package);
+    selection
+}
+
 fn selected_plan_names(plans: &[ProviderPlan]) -> Vec<String> {
     plans.iter().map(|plan| plan.name.clone()).collect()
 }
@@ -1350,10 +1365,12 @@ fn explicit_selection_resolves_covering_ambiguity_by_provider_type() {
         &plans,
         omega_target::NativeTarget::host(),
         &[],
-        &[crate::pipeline::build_config::ProviderSelection {
-            boundary_trait: "Pair".to_owned(),
-            provider_type: "SecondProvider".to_owned(),
-        }],
+        &[
+            crate::pipeline::build_config::ProviderSelection::exact_for_test(
+                "Pair",
+                "SecondProvider",
+            ),
+        ],
     )
     .expect("the build root owns the slot choice");
     assert_eq!(
@@ -1363,7 +1380,80 @@ fn explicit_selection_resolves_covering_ambiguity_by_provider_type() {
 }
 
 #[test]
-fn unqualified_selection_refuses_an_ambiguous_boundary_slot_leaf() {
+fn same_spelled_package_slots_and_providers_remain_distinct() {
+    let first_package =
+        psi_core::PackageKeyIdentity::from_digest([0x61; 32]).expect("nonzero package identity");
+    let second_package =
+        psi_core::PackageKeyIdentity::from_digest([0x62; 32]).expect("nonzero package identity");
+
+    let mut first = selection_plan("first-plan", &["choose"], &["choose"]);
+    first.schema.trait_name = "Shared".to_owned();
+    first.schema.trait_package_identity = Some(first_package);
+    first.provider_type = "Provider".to_owned();
+    first.provider_type_package_identity = Some(first_package);
+
+    let mut second = selection_plan("second-plan", &["choose"], &["choose"]);
+    second.schema.trait_name = "Shared".to_owned();
+    second.schema.trait_package_identity = Some(second_package);
+    second.provider_type = "Provider".to_owned();
+    second.provider_type_package_identity = Some(second_package);
+
+    let plans = [first, second];
+    let automatic = select_provider_plans(&plans, omega_target::NativeTarget::host(), &[], &[])
+        .expect("each exact slot has one covering provider");
+    assert_eq!(
+        selected_plan_names(&automatic),
+        vec!["first-plan".to_owned(), "second-plan".to_owned()]
+    );
+
+    let selected = select_provider_plans(
+        &plans,
+        omega_target::NativeTarget::host(),
+        &[
+            package_selection("Shared", first_package, "Provider", first_package),
+            package_selection("Shared", second_package, "Provider", second_package),
+        ],
+        &[],
+    )
+    .expect("same readable paths in distinct packages select their exact plans");
+    assert_eq!(
+        selected_plan_names(&selected),
+        vec!["first-plan".to_owned(), "second-plan".to_owned()]
+    );
+}
+
+#[test]
+fn provider_from_another_package_cannot_satisfy_the_selected_slot() {
+    let boundary_package =
+        psi_core::PackageKeyIdentity::from_digest([0x71; 32]).expect("nonzero package identity");
+    let provider_package =
+        psi_core::PackageKeyIdentity::from_digest([0x72; 32]).expect("nonzero package identity");
+    let mut plan = selection_plan("provider-plan", &["choose"], &["choose"]);
+    plan.schema.trait_package_identity = Some(boundary_package);
+    plan.provider_type = "Provider".to_owned();
+    plan.provider_type_package_identity = Some(boundary_package);
+
+    let diagnostics = select_provider_plans(
+        &[plan],
+        omega_target::NativeTarget::host(),
+        &[],
+        &[package_selection(
+            "Pair",
+            boundary_package,
+            "Provider",
+            provider_package,
+        )],
+    )
+    .expect_err("same provider spelling from another package is not the selected identity");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("no candidate exists in the loaded dependency closure")
+    }));
+}
+
+#[test]
+fn selection_does_not_fall_back_to_a_boundary_slot_leaf() {
     let mut first = selection_plan("FirstProvider", &["choose"], &["choose"]);
     first.schema.trait_name = "first::Pick".to_owned();
     let mut second = selection_plan("SecondProvider", &["choose"], &["choose"]);
@@ -1373,26 +1463,24 @@ fn unqualified_selection_refuses_an_ambiguous_boundary_slot_leaf() {
         &[first, second],
         omega_target::NativeTarget::host(),
         &[],
-        &[crate::pipeline::build_config::ProviderSelection {
-            boundary_trait: "Pick".to_owned(),
-            provider_type: "FirstProvider".to_owned(),
-        }],
+        &[
+            crate::pipeline::build_config::ProviderSelection::exact_for_test(
+                "Pick",
+                "FirstProvider",
+            ),
+        ],
     )
-    .expect_err("one short slot name must not grant two qualified slots");
+    .expect_err("a readable leaf is not a boundary identity");
     assert!(
-        diagnostics.iter().any(|diagnostic| {
-            diagnostic
-                .message
-                .contains("ambiguous boundary slot `Pick`")
-                && diagnostic.message.contains("`first::Pick`")
-                && diagnostic.message.contains("`second::Pick`")
-        }),
-        "expected a qualification diagnostic, got {diagnostics:#?}"
+        diagnostics
+            .iter()
+            .any(|diagnostic| { diagnostic.message.contains("unknown boundary slot `Pick`") }),
+        "expected an exact-identity diagnostic, got {diagnostics:#?}"
     );
 }
 
 #[test]
-fn exact_slot_name_wins_over_a_qualified_leaf_fallback() {
+fn exact_slot_identity_does_not_select_a_qualified_same_leaf_slot() {
     let exact = selection_plan("ExactProvider", &["choose"], &["choose"]);
     let mut qualified = selection_plan("QualifiedProvider", &["choose"], &[]);
     qualified.schema.trait_name = "package::Pair".to_owned();
@@ -1401,12 +1489,14 @@ fn exact_slot_name_wins_over_a_qualified_leaf_fallback() {
         &[exact, qualified],
         omega_target::NativeTarget::host(),
         &[],
-        &[crate::pipeline::build_config::ProviderSelection {
-            boundary_trait: "Pair".to_owned(),
-            provider_type: "ExactProvider".to_owned(),
-        }],
+        &[
+            crate::pipeline::build_config::ProviderSelection::exact_for_test(
+                "Pair",
+                "ExactProvider",
+            ),
+        ],
     )
-    .expect("an exact canonical slot name outranks leaf fallback");
+    .expect("only the exact canonical slot participates in the declaration");
     assert_eq!(
         selected_plan_names(&selected),
         vec!["ExactProvider".to_owned()]
@@ -1414,7 +1504,7 @@ fn exact_slot_name_wins_over_a_qualified_leaf_fallback() {
 }
 
 #[test]
-fn exact_provider_name_wins_over_a_qualified_leaf_fallback() {
+fn exact_provider_identity_does_not_select_a_qualified_same_leaf_provider() {
     let exact = selection_plan("exact-plan", &["choose"], &["choose"]);
     let mut qualified = selection_plan("qualified-plan", &["choose"], &["choose"]);
     qualified.provider_type = "package::exact-plan".to_owned();
@@ -1423,12 +1513,9 @@ fn exact_provider_name_wins_over_a_qualified_leaf_fallback() {
         &[exact, qualified],
         omega_target::NativeTarget::host(),
         &[],
-        &[crate::pipeline::build_config::ProviderSelection {
-            boundary_trait: "Pair".to_owned(),
-            provider_type: "exact-plan".to_owned(),
-        }],
+        &[crate::pipeline::build_config::ProviderSelection::exact_for_test("Pair", "exact-plan")],
     )
-    .expect("an exact canonical provider name outranks leaf fallback");
+    .expect("only the exact canonical provider identity matches");
     assert_eq!(
         selected_plan_names(&selected),
         vec!["exact-plan".to_owned()]
@@ -1445,14 +1532,14 @@ fn canonical_slot_resolution_catches_duplicate_selection_spellings() {
         omega_target::NativeTarget::host(),
         &[],
         &[
-            crate::pipeline::build_config::ProviderSelection {
-                boundary_trait: "Pick".to_owned(),
-                provider_type: "FirstProvider".to_owned(),
-            },
-            crate::pipeline::build_config::ProviderSelection {
-                boundary_trait: "package::Pick".to_owned(),
-                provider_type: "SecondProvider".to_owned(),
-            },
+            crate::pipeline::build_config::ProviderSelection::exact_for_test(
+                "package::Pick",
+                "FirstProvider",
+            ),
+            crate::pipeline::build_config::ProviderSelection::exact_for_test(
+                "package::Pick",
+                "SecondProvider",
+            ),
         ],
     )
     .expect_err("one canonical slot cannot be selected twice through aliases");
@@ -1465,7 +1552,7 @@ fn canonical_slot_resolution_catches_duplicate_selection_spellings() {
 }
 
 #[test]
-fn target_default_refuses_an_ambiguous_boundary_slot_leaf() {
+fn target_default_does_not_fall_back_to_a_boundary_slot_leaf() {
     let mut first = selection_plan("FirstProvider", &["choose"], &["choose"]);
     first.schema.trait_name = "first::Pick".to_owned();
     let mut second = selection_plan("SecondProvider", &["choose"], &["choose"]);
@@ -1474,18 +1561,22 @@ fn target_default_refuses_an_ambiguous_boundary_slot_leaf() {
     let diagnostics = select_provider_plans(
         &[first, second],
         omega_target::NativeTarget::host(),
-        &[crate::pipeline::build_config::ProviderSelection {
-            boundary_trait: "Pick".to_owned(),
-            provider_type: "FirstProvider".to_owned(),
-        }],
+        &[
+            crate::pipeline::build_config::ProviderSelection::exact_for_test(
+                "Pick",
+                "FirstProvider",
+            ),
+        ],
         &[],
     )
     .expect_err("a target default must name one canonical slot");
-    assert!(diagnostics.iter().any(|diagnostic| {
-        diagnostic
-            .message
-            .contains("target package names ambiguous boundary slot `Pick`")
-    }));
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains(
+                "target package selects provider `FirstProvider` for unknown boundary slot `Pick`"
+            ))
+    );
 }
 
 #[test]
@@ -1499,10 +1590,12 @@ fn explicit_selection_refuses_partial_provider() {
         &plans,
         omega_target::NativeTarget::host(),
         &[],
-        &[crate::pipeline::build_config::ProviderSelection {
-            boundary_trait: "Pair".to_owned(),
-            provider_type: "PartialProvider".to_owned(),
-        }],
+        &[
+            crate::pipeline::build_config::ProviderSelection::exact_for_test(
+                "Pair",
+                "PartialProvider",
+            ),
+        ],
     )
     .expect_err("selection never manufactures missing rows");
     assert!(diagnostics[0].message.contains("is partial"));
@@ -1517,10 +1610,12 @@ fn target_default_resolves_covering_ambiguity() {
     let selected = select_provider_plans(
         &plans,
         omega_target::NativeTarget::host(),
-        &[crate::pipeline::build_config::ProviderSelection {
-            boundary_trait: "Pair".to_owned(),
-            provider_type: "FirstProvider".to_owned(),
-        }],
+        &[
+            crate::pipeline::build_config::ProviderSelection::exact_for_test(
+                "Pair",
+                "FirstProvider",
+            ),
+        ],
         &[],
     )
     .expect("the selected target package supplies the slot default");
@@ -1531,25 +1626,25 @@ fn target_default_resolves_covering_ambiguity() {
 }
 
 #[test]
-fn target_default_aliases_of_one_provider_do_not_conflict() {
+fn duplicate_exact_target_defaults_do_not_conflict() {
     let mut plan = selection_plan("package-provider", &["first"], &["first"]);
     plan.provider_type = "package::FirstProvider".to_owned();
     let selected = select_provider_plans(
         &[plan],
         omega_target::NativeTarget::host(),
         &[
-            crate::pipeline::build_config::ProviderSelection {
-                boundary_trait: "Pair".to_owned(),
-                provider_type: "FirstProvider".to_owned(),
-            },
-            crate::pipeline::build_config::ProviderSelection {
-                boundary_trait: "Pair".to_owned(),
-                provider_type: "package::FirstProvider".to_owned(),
-            },
+            crate::pipeline::build_config::ProviderSelection::exact_for_test(
+                "Pair",
+                "package::FirstProvider",
+            ),
+            crate::pipeline::build_config::ProviderSelection::exact_for_test(
+                "Pair",
+                "package::FirstProvider",
+            ),
         ],
         &[],
     )
-    .expect("aliases of one canonical provider type are one target default");
+    .expect("duplicate declarations of one exact provider identity are one target default");
     assert_eq!(
         selected_plan_names(&selected),
         vec!["package-provider".to_owned()]
@@ -1565,14 +1660,18 @@ fn build_override_wins_over_target_default() {
     let selected = select_provider_plans(
         &plans,
         omega_target::NativeTarget::host(),
-        &[crate::pipeline::build_config::ProviderSelection {
-            boundary_trait: "Pair".to_owned(),
-            provider_type: "FirstProvider".to_owned(),
-        }],
-        &[crate::pipeline::build_config::ProviderSelection {
-            boundary_trait: "Pair".to_owned(),
-            provider_type: "SecondProvider".to_owned(),
-        }],
+        &[
+            crate::pipeline::build_config::ProviderSelection::exact_for_test(
+                "Pair",
+                "FirstProvider",
+            ),
+        ],
+        &[
+            crate::pipeline::build_config::ProviderSelection::exact_for_test(
+                "Pair",
+                "SecondProvider",
+            ),
+        ],
     )
     .expect("the build root owns the final slot choice");
     assert_eq!(
@@ -1591,14 +1690,14 @@ fn conflicting_target_defaults_are_loud() {
         &plans,
         omega_target::NativeTarget::host(),
         &[
-            crate::pipeline::build_config::ProviderSelection {
-                boundary_trait: "Pair".to_owned(),
-                provider_type: "FirstProvider".to_owned(),
-            },
-            crate::pipeline::build_config::ProviderSelection {
-                boundary_trait: "Pair".to_owned(),
-                provider_type: "SecondProvider".to_owned(),
-            },
+            crate::pipeline::build_config::ProviderSelection::exact_for_test(
+                "Pair",
+                "FirstProvider",
+            ),
+            crate::pipeline::build_config::ProviderSelection::exact_for_test(
+                "Pair",
+                "SecondProvider",
+            ),
         ],
         &[],
     )

@@ -264,6 +264,49 @@ pub(in crate::symbols) fn assign_static_argument_symbols(
     }
 }
 
+/// Resolve one `Build::select_provider` path as an exact declaration identity.
+/// The marker's two static arguments are type paths, not executable machine
+/// selections; their kind is checked by build harvesting after typed lowering.
+pub(in crate::symbols) fn assign_provider_selection_argument_symbol(
+    symbols: &SymbolTable,
+    argument: &mut psi_symbol_resolved_trees::expression::StaticMachineArgument,
+) {
+    if argument.evidence_projection.is_some()
+        || argument.const_literal.is_some()
+        || argument.application.is_some()
+    {
+        argument.symbol = SymbolHandle::invalid();
+        return;
+    }
+    let rendered = argument
+        .path
+        .iter()
+        .map(|member| member.as_str())
+        .collect::<Vec<_>>()
+        .join("::");
+    let exact = top_level_symbol_by_kinds(
+        symbols,
+        &[SymbolKind::Trait, SymbolKind::Data, SymbolKind::BuiltinType],
+        &rendered,
+    );
+    argument.symbol = if exact.is_valid() {
+        exact
+    } else {
+        symbols
+            .find_descendant_by_path(
+                symbols.root(),
+                argument.path.iter().map(|member| member.as_str()),
+            )
+            .filter(|symbol| {
+                matches!(
+                    symbols.get(*symbol).kind,
+                    SymbolKind::Trait | SymbolKind::Data | SymbolKind::BuiltinType
+                )
+            })
+            .unwrap_or_else(SymbolHandle::invalid)
+    };
+}
+
 /// Resolve a proof-static proposition-family binder argument. Unlike an
 /// executable call's machine selection, proposition arguments may name a
 /// lexical type/const binder, a concrete type, or a machine identity. The
