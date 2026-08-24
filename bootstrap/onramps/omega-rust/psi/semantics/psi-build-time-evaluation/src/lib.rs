@@ -16,8 +16,9 @@ mod wire_plans;
 pub use access_plans::{compute_access_plan, compute_placement_plan};
 pub use admission::BuildTimeAdmissionPlan;
 pub use build_machines::{
-    BuildMachineExecutionMode, BuildMachineFilesystemAccess, BuildMachineFilesystemGrants,
-    PreparedBuildMachineProgram, evaluate_build_machine_arguments_measured,
+    BuildMachineEvaluationError, BuildMachineExecutionMode, BuildMachineFilesystemAccess,
+    BuildMachineFilesystemGrants, PreparedBuildMachineProgram,
+    evaluate_build_machine_arguments_measured,
 };
 pub use const_domain_facts::evaluate_const_domain_facts;
 pub use const_generic_calls::evaluate_const_generic_calls;

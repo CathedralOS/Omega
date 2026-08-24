@@ -573,12 +573,15 @@ same enum exhaustively, while aliases and platform alternatives stay distinct.
 Future rooted evidence must reject or virtualize absolute path bytes returned
 unconditionally by `canonicalize`/`final_path_name_by_handle` or conditionally
 by `read_link`.
-Observation schema v3 carries operation-attempt schema v2: an ordered
+Observation schema v3 carries operation-attempt schema v3: an ordered
 successful-run call-start trace of exact provider, operation tag, scalar return,
 and post-operation error state. Grant-gate denials retain every exact operand
 ordinal, read/write access, and unresolvable/outside-root reason; host errors
-carry no fabricated refusal. It deliberately omits failed evaluator attempts,
-operands, rooted paths, mutable outputs, logical handles, and content; raw
+carry no fabricated refusal. Granted evaluator failures retain partial usage and
+typed returned/evaluator-halt outcomes; worker failures mark evidence
+unavailable. Omega emits fixed non-admission counts and no review row. Concrete
+operands, rooted paths, mutable outputs, logical handles, and content remain
+absent; raw
 runtime descriptor returns therefore remain non-replayable.
 Both providers reject negative/wrapped raw transfer counts and per-operation
 read allocations above the evaluator's current 16 MiB sponsor ceiling before

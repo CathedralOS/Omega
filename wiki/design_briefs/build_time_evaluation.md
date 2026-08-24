@@ -213,13 +213,16 @@ closed, explicitly tagged operation identity exhaustively handled by both
 filesystem providers. ABI aliases remain distinct. Future rooted transcripts
 must account for conditionally absolute `read_link` results and unconditionally
 absolute `canonicalize` and `final_path_name_by_handle` results. Observation
-schema v3 carries operation-attempt schema v2, retaining in call-start order
+schema v3 carries operation-attempt schema v3, retaining in call-start order
 each completed operation's exact provider, stable tag, scalar return, and
 post-operation error state for a successful build evaluation. Grant-gate
 denials retain each exact operand ordinal, read/write access, and closed
 unresolvable/outside-root reason; ordinary host errors do not fabricate one.
-Runtime descriptor values are not logical handles, and failed evaluator
-attempts, concrete operands, rooted paths, mutable byte regions, and content are absent. It is an incomplete
+Runtime descriptor values are not logical handles. A granted evaluation failure
+retains partial usage and observations with an explicit returned/evaluator-halt
+outcome; worker creation or panic marks evidence unavailable. Omega emits only
+fixed non-admission counts and no review row on failure. Concrete operands,
+rooted paths, mutable byte regions, and content are absent. It is an incomplete
 operation trace, not a transcript or receipt, and makes no replayability or
 source-rebuildability claim.
 

@@ -1150,8 +1150,32 @@ pub(crate) fn compute_build_config(
         execution_mode,
     )
     .map_err(|reason| {
+        let partial_evidence = reason
+            .observations()
+            .filter(|observations| !observations.filesystem_operation_attempts().is_empty())
+            .map(|observations| {
+                let attempts = observations.filesystem_operation_attempts();
+                let halted = attempts
+                    .iter()
+                    .filter(|attempt| {
+                        matches!(
+                            attempt.outcome(),
+                            Some(psi_checked_interpreter::FilesystemOperationAttemptOutcome::EvaluationHalted(_))
+                        )
+                    })
+                    .count();
+                let grant_refusals = attempts
+                    .iter()
+                    .map(|attempt| attempt.grant_refusals().len())
+                    .sum::<usize>();
+                format!(
+                    "; partial non-admission filesystem evidence: {} call(s), {halted} evaluator-halted, {grant_refusals} grant refusal(s)",
+                    attempts.len()
+                )
+            })
+            .unwrap_or_default();
         vec![Diagnostic::error(format!(
-            "build-time evaluation of `{machine_name}` failed: {reason}"
+            "build-time evaluation of `{machine_name}` failed: {reason}{partial_evidence}"
         ))]
     })?;
     let usage = measured.usage();
@@ -1190,8 +1214,12 @@ pub(crate) fn compute_build_config(
                     BuildFilesystemProvider::RealScoped
                 }
             },
-            result: attempt.result(),
-            post_error: attempt.post_error(),
+            result: attempt
+                .result()
+                .expect("successful build evaluation cannot retain a halted filesystem call"),
+            post_error: attempt
+                .post_error()
+                .expect("successful build evaluation cannot retain a halted filesystem call"),
             grant_refusals: attempt
                 .grant_refusals()
                 .iter()

@@ -674,7 +674,7 @@ complete.
   boundary dispatcher. `read_link` is recognized as
   conditionally absolute-path-producing; `canonicalize` and
   `final_path_name_by_handle` are unconditionally so. Observation schema v3
-  carries operation-attempt schema v2: an ordered successful-run call-start
+  carries operation-attempt schema v3: an ordered successful-run call-start
   trace of exact provider,
   operation tag, scalar return, and post-operation error state through compiler
   reports and package review. Grant-gate denials additionally retain every exact
@@ -683,8 +683,15 @@ complete.
   no fabricated grant refusal; pure and console-only traces are empty.
   This deliberately incomplete trace may still expose runtime descriptor values
   and omits operands, paths, mutable byte regions, logical handles, and content.
-  It is not called a transcript or receipt. Structured failed-evaluation,
-  bounded exactly-once argument preparation, complete transcript schema and
+  The granted evaluator's structured failure now retains partial usage and
+  operation evidence, with each active call explicitly `Returned` or
+  evaluator-halted rather than represented by placeholder zeroes. Worker
+  creation/panic marks evidence unavailable. Omega emits fixed non-admission
+  attempt/halt/refusal counts in the failure diagnostic and issues no package
+  review row. A failure can follow an earlier staging side effect, so disposable
+  fresh staging and publish-on-success remain required. This evidence is not
+  called a transcript or receipt. Bounded exactly-once argument preparation,
+  complete transcript schema and
   serialization, lossless rooted
   paths, transcripts/content custody, fresh staging publication, output-tree
   commitment, and replay remain. Raw transfer counts now pass one checked

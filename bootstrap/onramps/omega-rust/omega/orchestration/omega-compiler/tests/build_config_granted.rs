@@ -115,7 +115,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     );
     assert_eq!(
         checked_observations.filesystem_operation_schema_version(),
-        2
+        3
     );
     let attempts: Vec<_> = checked_observations
         .filesystem_operation_attempts()
@@ -338,6 +338,84 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     assert!(!rename_from.exists());
     assert!(!rename_to.exists());
     assert!(!unresolvable.exists());
+
+    let _ = std::fs::remove_dir_all(&project);
+}
+
+#[test]
+fn failed_filesystem_build_reports_partial_non_admission_evidence() {
+    let profile = omega_target::TargetProfile::host();
+    let project = std::env::temp_dir().join(format!(
+        "omega-build-config-partial-evidence-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&project);
+    let stage = project.join("build/stage");
+    std::fs::create_dir_all(&stage).expect("create staging directory");
+    let staged = stage.join("partial.bin");
+
+    std::fs::write(
+        project.join("build.omg"),
+        format!(
+            r#"use omega::language::std::filesystem_host;
+
+target {target} {{}}
+
+data Subsystem {{ case Console; case Gui; case EfiApplication; case Unspecified(value: u16); }}
+data Build {{ subsystem: Subsystem; freestanding: bool; }}
+
+data FailingStager {{
+    fs: FilesystemHost;
+    fd: i32;
+    buffer: [u8; 1];
+    n: i64;
+}}
+
+machine FailingStager::build(&mut self, builder: &mut Build)
+reaches FilesystemHost
+{{
+    builder.roots.bind({root_owner}::ProgramEntry, Main::main);
+    self.fd = self.fs.create("{staged}", 438);
+    self.n = self.fs.read(self.fd, &mut self.buffer, 16777217);
+    builder.freestanding = false;
+}}
+"#,
+            target = profile.target_name(),
+            root_owner = profile.root_slot_owner_name(),
+            staged = staged.display().to_string().replace('\\', "/"),
+        ),
+    )
+    .expect("write build.omg");
+    std::fs::write(
+        project.join("main.omg"),
+        r#"use omega::language::std::console;
+data Main { console: Console; }
+machine Main::main(&mut self) { self.console.exit_process(70); }
+"#,
+    )
+    .expect("write main.omg");
+
+    let diagnostics = compile_to_checked(&project.join("main.omg"), Some(profile.target_name()))
+        .expect_err("oversized filesystem transfer must reject build evaluation");
+    let rendered = diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        rendered.contains("filesystem transfer count exceeds evaluator limit"),
+        "{rendered}"
+    );
+    assert!(
+        rendered.contains(
+            "partial non-admission filesystem evidence: 2 call(s), 1 evaluator-halted, 0 grant refusal(s)"
+        ),
+        "{rendered}"
+    );
+    assert!(
+        staged.exists(),
+        "the diagnostic must acknowledge that a prior staged side effect occurred"
+    );
 
     let _ = std::fs::remove_dir_all(&project);
 }
