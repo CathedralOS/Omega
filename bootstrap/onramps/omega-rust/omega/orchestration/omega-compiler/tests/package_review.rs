@@ -122,7 +122,7 @@ crashes Abort
         target,
         "review identity must retain the deployment profile, not only its native ABI",
     );
-    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 7);
+    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 8);
     let [ready] = review.public_domains() else {
         panic!("one package-owned public domain row")
     };
@@ -423,7 +423,7 @@ invokes waiting;
 }
 
 #[test]
-fn exact_synchronous_invocations_change_v7_comparison_encoding() {
+fn exact_synchronous_invocations_change_v8_comparison_encoding() {
     let quiet = TempPackage::new();
     let invoking = TempPackage::new();
     quiet.write(
@@ -616,7 +616,7 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
-fn public_data_and_numbered_wire_shape_changes_change_v7_comparison_encoding() {
+fn public_data_and_numbered_wire_shape_changes_change_v8_comparison_encoding() {
     let first = TempPackage::new();
     let second = TempPackage::new();
     first.write(
@@ -650,7 +650,7 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
-fn public_domain_shape_changes_change_v7_comparison_encoding() {
+fn public_domain_shape_changes_change_v8_comparison_encoding() {
     let first = TempPackage::new();
     let second = TempPackage::new();
     first.write(
@@ -1091,12 +1091,13 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
-fn review_rejects_unprojected_public_trait_contract_lanes() {
+fn public_trait_operational_envelope_is_exact_review_shape() {
     let package = TempPackage::new();
     package.write(
         "main.omg",
-        r#"pub trait Worker {
-    machine wait() suspends;
+        r#"pub boundary trait Console { }
+pub boundary trait Worker {
+    machine wait() reaches <= Console suspends; blocks;
 }
 "#,
     );
@@ -1113,14 +1114,31 @@ machine build(builder: &mut Build) { }
         package_inputs(&package.0),
     )
     .expect("public trait suspension fixture should check");
-    let diagnostics = project_checked_package_review(&checked)
-        .expect_err("review must not silently omit public trait operational contracts");
-    assert!(diagnostics.iter().any(|diagnostic| {
-        diagnostic
-            .message
-            .contains("suspension or blocking contracts not yet represented")
-    }));
+    let review = project_checked_package_review(&checked)
+        .expect("public trait operational review should close");
+    let worker = review
+        .public_traits()
+        .iter()
+        .find(|shape| shape.identity().path() == "Worker")
+        .expect("worker trait row");
+    let [wait] = worker.requirements() else {
+        panic!("one worker requirement")
+    };
+    let [console] = wait.service_reach() else {
+        panic!("one exact service-reach row")
+    };
+    assert_eq!(console.path(), "Console");
+    assert_eq!(
+        console.owner(),
+        PackageReviewNominalOwner::Package(package_identity())
+    );
+    assert!(wait.service_reach_is_installation_bound());
+    assert!(wait.suspends());
+    assert!(wait.blocks());
+}
 
+#[test]
+fn review_rejects_unprojected_public_trait_contract_lanes() {
     let default_package = TempPackage::new();
     default_package.write(
         "main.omg",

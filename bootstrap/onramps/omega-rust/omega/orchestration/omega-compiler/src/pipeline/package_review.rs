@@ -109,6 +109,10 @@ pub struct PackageReviewTraitRequirement {
     type_parameters: Vec<PackageReviewTypeParameter>,
     parameters: Vec<PackageReviewTraitRequirementParameter>,
     return_type: PackageReviewTypeIdentity,
+    service_reach: Vec<PackageReviewNominalIdentity>,
+    service_reach_is_installation_bound: bool,
+    suspends: bool,
+    blocks: bool,
 }
 
 impl PackageReviewTraitRequirement {
@@ -130,6 +134,22 @@ impl PackageReviewTraitRequirement {
 
     pub const fn return_type(&self) -> &PackageReviewTypeIdentity {
         &self.return_type
+    }
+
+    pub fn service_reach(&self) -> &[PackageReviewNominalIdentity] {
+        &self.service_reach
+    }
+
+    pub const fn service_reach_is_installation_bound(&self) -> bool {
+        self.service_reach_is_installation_bound
+    }
+
+    pub const fn suspends(&self) -> bool {
+        self.suspends
+    }
+
+    pub const fn blocks(&self) -> bool {
+        self.blocks
     }
 }
 
@@ -1129,21 +1149,9 @@ fn project_trait_requirement(
             identity.path
         ))]);
     }
-    if !compilation.state_signature_invokes(requirement).is_empty()
-        || !compilation
-            .service_reach_rows
-            .services(requirement.service_reach_row)
-            .is_empty()
-        || requirement.service_reach_is_installation_bound
-    {
+    if !compilation.state_signature_invokes(requirement).is_empty() {
         return Err(vec![Diagnostic::error(format!(
-            "public trait requirement `{}` uses service reach or invocation contracts not yet represented by public-trait review",
-            identity.path
-        ))]);
-    }
-    if requirement.suspends || requirement.blocks {
-        return Err(vec![Diagnostic::error(format!(
-            "public trait requirement `{}` uses suspension or blocking contracts not yet represented by public-trait review",
+            "public trait requirement `{}` uses synchronous invocation contracts not yet represented by public-trait review",
             identity.path
         ))]);
     }
@@ -1198,6 +1206,10 @@ fn project_trait_requirement(
             requirement.return_type,
             &binders,
         ),
+        service_reach: project_service_row(compilation, requirement.service_reach_row)?,
+        service_reach_is_installation_bound: requirement.service_reach_is_installation_bound,
+        suspends: requirement.suspends,
+        blocks: requirement.blocks,
     })
 }
 
