@@ -122,7 +122,7 @@ crashes Abort
         target,
         "review identity must retain the deployment profile, not only its native ABI",
     );
-    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 12);
+    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 13);
     let [ready] = review.public_domains() else {
         panic!("one package-owned public domain row")
     };
@@ -399,7 +399,7 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
-fn review_rejects_unrepresented_public_callable_conformance_surfaces() {
+fn review_projects_exact_public_callable_conformances_and_rejects_unrepresented_forms() {
     let Some(target) = host_target_name() else {
         return;
     };
@@ -412,8 +412,8 @@ machine build(builder: &mut Build) { }
     let satisfying = TempPackage::new();
     satisfying.write(
         "main.omg",
-        r#"pub trait Handler { machine handle(); }
-pub machine handle() satisfies Handler::handle { }
+        r#"pub trait Handler<Element> { machine handle(value: Element) -> Element; }
+pub machine handle(value: u32) -> u32 satisfies Handler<u32>::handle { value }
 "#,
     );
     satisfying.write("build.omg", build);
@@ -423,11 +423,39 @@ pub machine handle() satisfies Handler::handle { }
         package_inputs(&satisfying.0),
     )
     .expect("public satisfier fixture should check");
+    let review = project_checked_package_review(&checked).expect("public conformance review");
+    let handle = review
+        .callables()
+        .iter()
+        .find(|callable| callable.identity().path().contains("handle"))
+        .expect("public handle row");
+    let [conformance] = handle.conformances() else {
+        panic!("one exact public callable conformance")
+    };
+    assert_eq!(conformance.trait_identity().path(), "Handler");
+    assert!(conformance.requirement_identity().path().contains("handle"));
+    assert_eq!(conformance.arguments().len(), 1);
+    assert_eq!(conformance.alias(), None);
+
+    let hidden = TempPackage::new();
+    hidden.write(
+        "main.omg",
+        r#"trait Hidden { machine handle(); }
+pub machine handle() satisfies Hidden::handle { }
+"#,
+    );
+    hidden.write("build.omg", build);
+    let checked = compile_to_checked_with_packages(
+        &hidden.0.join("main.omg"),
+        Some(target),
+        package_inputs(&hidden.0),
+    )
+    .expect("private-trait satisfier fixture should check");
     let diagnostics = project_checked_package_review(&checked).unwrap_err();
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
-            .contains("realizes trait requirements not yet represented")
+            .contains("realizes non-public trait `Hidden`")
     }));
 
     let generic = TempPackage::new();
@@ -583,7 +611,7 @@ invokes waiting;
 }
 
 #[test]
-fn exact_synchronous_invocations_change_v12_comparison_encoding() {
+fn exact_synchronous_invocations_change_v13_comparison_encoding() {
     let quiet = TempPackage::new();
     let invoking = TempPackage::new();
     quiet.write(
@@ -776,7 +804,7 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
-fn public_data_and_numbered_wire_shape_changes_change_v12_comparison_encoding() {
+fn public_data_and_numbered_wire_shape_changes_change_v13_comparison_encoding() {
     let first = TempPackage::new();
     let second = TempPackage::new();
     first.write(
@@ -810,7 +838,7 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
-fn public_domain_shape_changes_change_v12_comparison_encoding() {
+fn public_domain_shape_changes_change_v13_comparison_encoding() {
     let first = TempPackage::new();
     let second = TempPackage::new();
     first.write(

@@ -729,8 +729,11 @@ package-qualified lifetime-sensitive parameter types, and result type. This is
 contract evidence, not merely ABI layout. Binder renames are stable, while a
 changed generic bound, parameter/result type, mode, or borrow relationship
 changes evidence. Until exact canonical rows exist, reviewed callable
-conformance bounds, static machine/proposition parameters, and trait
-realizations fail closed rather than being omitted.
+conformance bounds, static machine/proposition parameters, and non-public,
+external, operator, or lifetime-parameterized trait realizations fail closed
+rather than being omitted. Checked realizations of public, ordinary,
+lifetime-free traits retain exact package-qualified trait and requirement
+identities, alpha-normalized arguments, and any explicit conformance alias.
 
 Claim-free opaque `boundary data` is retained in a separate representation-TCB
 lane. Its row binds the package-qualified declaration to the exact target,

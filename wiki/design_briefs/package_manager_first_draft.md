@@ -248,10 +248,13 @@ rows. This includes lifetime arity, alpha-normalized type/const parameters,
 ordered parameter names and `const`/mutable/`self` modes, package-qualified
 lifetime-sensitive parameter types, and result type. Renaming binders is
 stable; changing a parameter, result, generic bound, or borrow relationship is
-not. Callable conformance bounds, static machine/proposition parameters, and
-trait realizations reject review until their complete canonical forms are
-represented. The projection never substitutes an overload display name or a
-runtime-layout-only type identity for this contract surface.
+not. Checked realizations of public, ordinary, lifetime-free traits retain exact
+package-qualified trait and requirement identities, alpha-normalized arguments,
+and any explicit conformance alias. Callable conformance bounds, static
+machine/proposition parameters, and non-public, external, operator, or
+lifetime-parameterized realizations reject until their complete canonical forms
+are represented. The projection never substitutes an overload display name or
+a runtime-layout-only type identity for this contract surface.
 
 The eventual normalized package-admission evidence must include, with exact
 provenance:

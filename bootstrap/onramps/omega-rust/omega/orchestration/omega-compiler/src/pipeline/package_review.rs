@@ -94,6 +94,32 @@ pub struct PackageReviewCallableParameter {
     is_self: bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct PackageReviewCallableConformance {
+    trait_identity: PackageReviewNominalIdentity,
+    requirement_identity: PackageReviewNominalIdentity,
+    arguments: Vec<PackageReviewTypeIdentity>,
+    alias: Option<String>,
+}
+
+impl PackageReviewCallableConformance {
+    pub const fn trait_identity(&self) -> &PackageReviewNominalIdentity {
+        &self.trait_identity
+    }
+
+    pub const fn requirement_identity(&self) -> &PackageReviewNominalIdentity {
+        &self.requirement_identity
+    }
+
+    pub fn arguments(&self) -> &[PackageReviewTypeIdentity] {
+        &self.arguments
+    }
+
+    pub fn alias(&self) -> Option<&str> {
+        self.alias.as_deref()
+    }
+}
+
 impl PackageReviewCallableParameter {
     pub fn name(&self) -> &str {
         &self.name
@@ -804,6 +830,7 @@ pub struct CheckedPackageCallableReview {
     type_parameters: Vec<PackageReviewTypeParameter>,
     parameters: Vec<PackageReviewCallableParameter>,
     return_type: PackageReviewTypeIdentity,
+    conformances: Vec<PackageReviewCallableConformance>,
     contract_fingerprint: u64,
     /// `Some` preserves a published ceiling, including an explicitly empty
     /// one. `None` is retained for the current ordinary build-machine form;
@@ -912,6 +939,10 @@ impl CheckedPackageCallableReview {
 
     pub const fn return_type(&self) -> &PackageReviewTypeIdentity {
         &self.return_type
+    }
+
+    pub fn conformances(&self) -> &[PackageReviewCallableConformance] {
+        &self.conformances
     }
 
     pub const fn contract_fingerprint(&self) -> u64 {
@@ -1955,11 +1986,6 @@ fn project_callable(
             "reviewed callable `{subject}` uses conformance bounds not yet represented by package review"
         ))]);
     }
-    if !compilation.machine_trait_conformances(machine).is_empty() {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed callable `{subject}` realizes trait requirements not yet represented by package review"
-        ))]);
-    }
     let Some(entry) = compilation.machine_states(machine).first() else {
         return Err(vec![Diagnostic::error(format!(
             "reviewed callable `{subject}` has no canonical entry signature"
@@ -1995,6 +2021,7 @@ fn project_callable(
         &binders,
         &machine.lifetime_parameters,
     )?;
+    let conformances = project_callable_conformances(compilation, machine, &binders)?;
     let service_reach = exactly_one(
         compilation
             .facts
@@ -2101,6 +2128,7 @@ fn project_callable(
         type_parameters,
         parameters,
         return_type,
+        conformances,
         contract_fingerprint: contract.fingerprint,
         declared_service_reach,
         realized_service_reach,
@@ -2118,6 +2146,111 @@ fn project_callable(
         checked_crash: project_crash(compilation, &realized.checked_crash)?,
         mutation: project_mutation(compilation, &realized.mutation)?,
     })
+}
+
+fn project_callable_conformances(
+    compilation: &CheckedCompilation,
+    machine: &psi_typed_trees::machine::Machine,
+    binders: &[(SymbolHandle, String)],
+) -> Result<Vec<PackageReviewCallableConformance>, Vec<Diagnostic>> {
+    let mut projected = Vec::new();
+    for conformance in compilation.machine_trait_conformances(machine) {
+        if conformance.external_binding.is_some() {
+            return Err(vec![Diagnostic::error(format!(
+                "reviewed callable `{}` uses an external trait realization not yet represented by package review",
+                machine.name
+            ))]);
+        }
+        let Some(trait_definition) = compilation
+            .traits()
+            .iter()
+            .find(|definition| definition.symbol == conformance.symbol)
+        else {
+            return Err(vec![Diagnostic::error(format!(
+                "reviewed callable `{}` realizes an operator or unresolved trait requirement not yet represented by package review",
+                machine.name
+            ))]);
+        };
+        if !trait_definition.is_public {
+            return Err(vec![Diagnostic::error(format!(
+                "reviewed callable `{}` realizes non-public trait `{}` whose complete contract is absent from package review",
+                machine.name, trait_definition.name
+            ))]);
+        }
+        if !trait_definition.lifetime_parameters.is_empty() {
+            return Err(vec![Diagnostic::error(format!(
+                "reviewed callable `{}` realizes lifetime-parameterized trait `{}` without retained conformance lifetime arguments",
+                machine.name, trait_definition.name
+            ))]);
+        }
+        let Some(requirement_name) = conformance.requirement.as_ref() else {
+            return Err(vec![Diagnostic::error(format!(
+                "reviewed callable `{}` has a trait realization without an exact requirement",
+                machine.name
+            ))]);
+        };
+        let implementation_dispatch = compilation.normalized_result_dispatch_set(
+            compilation
+                .machine_states(machine)
+                .first()
+                .expect("reviewed callable entry was checked before conformances")
+                .return_type,
+        );
+        let named = compilation
+            .trait_machine_signatures(trait_definition)
+            .iter()
+            .filter(|requirement| requirement.name == *requirement_name)
+            .collect::<Vec<_>>();
+        let matching = if named.len() == 1 {
+            named
+        } else {
+            named
+                .into_iter()
+                .filter(|requirement| {
+                    compilation.normalized_result_dispatch_set(requirement.return_type)
+                        == implementation_dispatch
+                })
+                .collect()
+        };
+        let [requirement] = matching.as_slice() else {
+            return Err(vec![Diagnostic::error(format!(
+                "reviewed callable `{}` trait realization `{}::{}` resolves to {} exact requirement overloads; expected one",
+                machine.name,
+                trait_definition.name,
+                requirement_name,
+                matching.len()
+            ))]);
+        };
+        projected.push(PackageReviewCallableConformance {
+            trait_identity: nominal_identity(compilation, trait_definition.symbol)?,
+            requirement_identity: nominal_identity(compilation, requirement.symbol)?,
+            arguments: compilation
+                .type_reference_table
+                .type_reference_handles(conformance.arguments)
+                .iter()
+                .map(|argument| {
+                    review_signature_type_identity_with_binders(
+                        compilation,
+                        *argument,
+                        binders,
+                        &machine.lifetime_parameters,
+                    )
+                })
+                .collect::<Result<Vec<_>, _>>()?,
+            alias: conformance
+                .alias
+                .as_ref()
+                .map(|alias| alias.as_str().to_owned()),
+        });
+    }
+    projected.sort();
+    if projected.windows(2).any(|rows| rows[0] == rows[1]) {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed callable `{}` contains a duplicate exact trait realization",
+            machine.name
+        ))]);
+    }
+    Ok(projected)
 }
 
 fn project_synchronous_invocations(
