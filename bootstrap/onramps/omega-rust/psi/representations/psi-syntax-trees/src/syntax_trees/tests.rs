@@ -48,6 +48,7 @@ fn syntax_trees_collect_state_expression_and_type_payloads() {
     syntax_trees.push_root_item(Item::Machine(Machine {
         name: Identifier::generated("Main"),
         attached_data: None,
+        is_public: false,
         target: None,
         boundary: false,
         bodyless: false,
@@ -94,6 +95,7 @@ fn syntax_trees_extend_from_preserves_root_payload_handles() {
     file.push_root_item(Item::Machine(Machine {
         name: Identifier::generated("main"),
         attached_data: None,
+        is_public: true,
         target: None,
         boundary: false,
         bodyless: false,
@@ -121,6 +123,7 @@ fn syntax_trees_extend_from_preserves_root_payload_handles() {
     let Item::Machine(machine) = assembled.root_items().next().expect("machine root") else {
         panic!("expected machine root item");
     };
+    assert!(machine.is_public, "syntax assembly must retain visibility");
     let state_handle = assembled
         .items
         .state_handles(machine.states)
@@ -167,6 +170,7 @@ fn syntax_trees_extend_from_preserves_statement_call_arguments() {
     file.push_root_item(Item::Machine(Machine {
         name: Identifier::generated("main"),
         attached_data: None,
+        is_public: false,
         target: None,
         boundary: false,
         bodyless: false,
@@ -291,6 +295,7 @@ fn syntax_trees_extend_from_preserves_nested_expression_argument_spans() {
     file.push_root_item(Item::Machine(Machine {
         name: Identifier::generated("main"),
         attached_data: None,
+        is_public: false,
         target: None,
         boundary: false,
         bodyless: false,

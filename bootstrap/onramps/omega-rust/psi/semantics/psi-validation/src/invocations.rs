@@ -16,6 +16,7 @@ pub(crate) fn validate_invocation_contracts(
         };
         let publishes = machine.supply_mode
             != psi_language_semantics::MachineSupplyMode::CheckedBody
+            || machine.is_public
             || !program.machine_invokes(machine).is_empty();
         if publishes {
             let parameters = program

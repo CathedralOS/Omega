@@ -7,6 +7,30 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 #[test]
+fn retains_public_machine_visibility_in_symbol_resolved_trees() {
+    let tokens = Lexer::new("pub machine Package::entry() { }")
+        .tokenize()
+        .expect("tokenize public machine");
+    let syntax = parse_syntax_trees(&tokens).expect("parse public machine");
+    let program = lower_syntax_trees(&syntax).expect("resolve public machine");
+    let machine = program
+        .machines
+        .iter()
+        .find(|machine| machine.name.as_str() == "Package::entry")
+        .expect("resolved public machine");
+
+    assert!(machine.is_public);
+    assert_eq!(
+        machine.attached_data.as_ref().map(|name| name.as_str()),
+        Some("Package")
+    );
+    assert_eq!(
+        machine.supply_mode,
+        psi_language_semantics::MachineSupplyMode::CheckedBody
+    );
+}
+
+#[test]
 fn resolves_name_owned_conformance_telescope_in_its_own_scope() {
     let source = r#"
         trait Converter<Source, Target> {}

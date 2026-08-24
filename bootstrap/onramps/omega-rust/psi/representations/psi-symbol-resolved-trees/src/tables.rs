@@ -450,6 +450,7 @@ mod tests {
             symbol: SymbolHandle::invalid(),
             name: DiagnosticName::generated("main"),
             attached_data: None,
+            is_public: false,
             supply_mode: Default::default(),
             termination_plan: Default::default(),
             service_reach_row: Default::default(),

@@ -757,6 +757,7 @@ mod tests {
         syntax_trees.push_root_item(Item::Machine(Machine {
             name: Identifier::generated("main"),
             attached_data: None,
+            is_public: false,
             target: None,
             boundary: false,
             bodyless: false,

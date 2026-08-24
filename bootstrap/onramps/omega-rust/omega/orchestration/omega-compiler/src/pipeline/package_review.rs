@@ -20,7 +20,30 @@ use psi_symbols::SymbolHandle;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackageReviewCallableRole {
     Boundary,
+    Public,
     Build,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub enum PackageReviewSynchronousInvocation {
+    Parameter(u32),
+    Service(PackageReviewNominalIdentity),
+}
+
+impl PackageReviewSynchronousInvocation {
+    pub const fn parameter(&self) -> Option<u32> {
+        match self {
+            Self::Parameter(position) => Some(*position),
+            Self::Service(_) => None,
+        }
+    }
+
+    pub const fn service(&self) -> Option<&PackageReviewNominalIdentity> {
+        match self {
+            Self::Parameter(_) => None,
+            Self::Service(service) => Some(service),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -379,6 +402,11 @@ pub struct CheckedPackageCallableReview {
     realized_service_reach: Vec<PackageReviewNominalIdentity>,
     concrete_service_reach: Vec<PackageReviewNominalIdentity>,
     unresolved_installation_reaches: Vec<PackageReviewInstallationReach>,
+    /// `Some` preserves a published direct synchronous-invocation ceiling,
+    /// including an explicitly empty one. Targets retain parameter ordinals
+    /// or package-qualified service identities, never display strings.
+    declared_synchronous_invocations: Option<Vec<PackageReviewSynchronousInvocation>>,
+    realized_synchronous_invocations: Vec<PackageReviewSynchronousInvocation>,
     capability_flows: Vec<PackageReviewCapabilityFlow>,
     checked_may_suspend: bool,
     checked_may_block: bool,
@@ -480,6 +508,16 @@ impl CheckedPackageCallableReview {
         &self.unresolved_installation_reaches
     }
 
+    pub fn declared_synchronous_invocations(
+        &self,
+    ) -> Option<&[PackageReviewSynchronousInvocation]> {
+        self.declared_synchronous_invocations.as_deref()
+    }
+
+    pub fn realized_synchronous_invocations(&self) -> &[PackageReviewSynchronousInvocation] {
+        &self.realized_synchronous_invocations
+    }
+
     pub fn capability_flows(&self) -> &[PackageReviewCapabilityFlow] {
         &self.capability_flows
     }
@@ -577,6 +615,7 @@ pub fn project_checked_package_review(
             .collect());
     }
     let build_machine = compilation.selected_build_machine_symbol();
+    let synchronous_invocations = psi_effects::infer_synchronous_invocations(&compilation.typed);
     let mut callables = Vec::new();
     let mut projected_build_machine = false;
 
@@ -585,6 +624,8 @@ pub fn project_checked_package_review(
             Some(PackageReviewCallableRole::Build)
         } else if machine.supply_mode.is_boundary_declaration() {
             Some(PackageReviewCallableRole::Boundary)
+        } else if machine.is_public {
+            Some(PackageReviewCallableRole::Public)
         } else {
             None
         };
@@ -605,7 +646,13 @@ pub fn project_checked_package_review(
             }
         }
 
-        callables.push(project_callable(compilation, machine, role, owner)?);
+        callables.push(project_callable(
+            compilation,
+            &synchronous_invocations,
+            machine,
+            role,
+            owner,
+        )?);
         projected_build_machine |= role == PackageReviewCallableRole::Build;
     }
 
@@ -647,6 +694,7 @@ pub fn project_checked_package_review(
 
 fn project_callable(
     compilation: &CheckedCompilation,
+    synchronous_invocations: &psi_effects::InvocationInferencePlan,
     machine: &psi_typed_trees::machine::Machine,
     role: PackageReviewCallableRole,
     identity: PackageReviewNominalIdentity,
@@ -682,6 +730,23 @@ fn project_callable(
         subject,
         "realized contract envelope",
     )?;
+    let checked_invocation = exactly_one(
+        compilation
+            .facts
+            .synchronous_invocations
+            .machines
+            .iter()
+            .filter(|fact| fact.machine == machine.symbol),
+        subject,
+        "synchronous-invocation",
+    )?;
+    let invocation_summary = synchronous_invocations
+        .for_machine(machine.symbol)
+        .ok_or_else(|| {
+            vec![Diagnostic::error(format!(
+                "reviewed callable `{subject}` has no exact inferred synchronous-invocation row"
+            ))]
+        })?;
 
     let declared_service_reach = match service_reach.interface {
         psi_language_semantics::ServiceReachInterface::PublishedCeiling(row) => {
@@ -701,6 +766,23 @@ fn project_callable(
     let realized_service_reach = project_service_row(compilation, service_reach.effective)?;
     let concrete_service_reach =
         project_service_row(compilation, service_reach.concrete_effective)?;
+    let declared_synchronous_invocations = match checked_invocation.plan.interface {
+        psi_language_semantics::SynchronousInvocationInterface::PublishedCeiling => Some(
+            project_synchronous_invocations(compilation, &invocation_summary.published)?,
+        ),
+        psi_language_semantics::SynchronousInvocationInterface::InternalInferred
+            if role == PackageReviewCallableRole::Build =>
+        {
+            None
+        }
+        psi_language_semantics::SynchronousInvocationInterface::InternalInferred => {
+            return Err(vec![Diagnostic::error(format!(
+                "reviewed callable `{subject}` has no published synchronous-invocation ceiling"
+            ))]);
+        }
+    };
+    let realized_synchronous_invocations =
+        project_synchronous_invocations(compilation, &invocation_summary.inferred_transitive)?;
     let mut capability_flows = realized
         .capabilities
         .iter()
@@ -728,6 +810,8 @@ fn project_callable(
             compilation,
             &service_reach.unresolved_installation_reaches,
         )?,
+        declared_synchronous_invocations,
+        realized_synchronous_invocations,
         capability_flows,
         checked_may_suspend: realized.checked_may_suspend,
         checked_may_block: realized.checked_may_block,
@@ -735,6 +819,27 @@ fn project_callable(
         checked_crash: project_crash(compilation, &realized.checked_crash)?,
         mutation: project_mutation(compilation, &realized.mutation)?,
     })
+}
+
+fn project_synchronous_invocations(
+    compilation: &CheckedCompilation,
+    invocations: &[psi_effects::InvocationTarget],
+) -> Result<Vec<PackageReviewSynchronousInvocation>, Vec<Diagnostic>> {
+    let mut projected = invocations
+        .iter()
+        .copied()
+        .map(|invocation| match invocation {
+            psi_effects::InvocationTarget::Parameter(position) => {
+                Ok(PackageReviewSynchronousInvocation::Parameter(position))
+            }
+            psi_effects::InvocationTarget::Service(symbol) => Ok(
+                PackageReviewSynchronousInvocation::Service(nominal_identity(compilation, symbol)?),
+            ),
+        })
+        .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
+    projected.sort();
+    projected.dedup();
+    Ok(projected)
 }
 
 fn project_installation_reaches(

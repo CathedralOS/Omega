@@ -77,7 +77,7 @@ pub use package_review::{
     PackageReviewCrashSite, PackageReviewEncodingError, PackageReviewInstallationReach,
     PackageReviewMutation, PackageReviewNominalIdentity, PackageReviewNominalOwner,
     PackageReviewPermissionClaim, PackageReviewPermissionSource, PackageReviewProgressPremise,
-    PackageReviewTermination, project_checked_package_review,
+    PackageReviewSynchronousInvocation, PackageReviewTermination, project_checked_package_review,
 };
 pub use program_entry_physical::ProgramEntryPhysicalContractPlan;
 pub use program_entry_source_signature::{

@@ -608,6 +608,7 @@ pub struct InvariantDefinitionSnapshot {
 pub struct MachineSnapshot {
     pub name: String,
     pub attached_data: Option<String>,
+    pub is_public: bool,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub lifetime_parameters: Vec<String>,
     pub type_parameters: Vec<String>,
@@ -1233,6 +1234,7 @@ fn machine_snapshot(program: &TypedTrees, machine: &Machine) -> MachineSnapshot 
     MachineSnapshot {
         name: machine.name.to_string(),
         attached_data: machine.attached_data.as_ref().map(ToString::to_string),
+        is_public: machine.is_public,
         lifetime_parameters: machine
             .lifetime_parameters
             .iter()

@@ -152,6 +152,7 @@ fn snapshots_normalized_machine_supply_including_external_binding_identity() {
         .intern(psi_language_semantics::ExternalBindingIdentity::CompilerIntrinsic);
     program.push_machine(Machine {
         name: Identifier::generated("checked"),
+        is_public: true,
         ..Machine::default()
     });
     program.push_machine(Machine {
@@ -164,6 +165,7 @@ fn snapshots_normalized_machine_supply_including_external_binding_identity() {
     });
 
     let snapshot = TypedTreesSnapshot::from_typed_trees(&program);
+    assert!(snapshot.roots.machines[0].is_public);
     assert_eq!(
         snapshot.roots.machines[0].supply,
         MachineSupplySnapshot::CheckedBody

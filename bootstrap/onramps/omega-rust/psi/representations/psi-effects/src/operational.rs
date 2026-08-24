@@ -117,8 +117,8 @@ fn build_machine_work(program: &TypedTrees) -> Vec<MachineWork> {
     let mut machines = Vec::with_capacity(program.machines().len());
 
     for machine in program.machines() {
-        let uses_published_contract =
-            machine.supply_mode != psi_language_semantics::MachineSupplyMode::CheckedBody;
+        let uses_published_contract = machine.is_public
+            || machine.supply_mode != psi_language_semantics::MachineSupplyMode::CheckedBody;
         let states = program
             .machine_states(machine)
             .iter()

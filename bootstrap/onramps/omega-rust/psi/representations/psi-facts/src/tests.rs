@@ -365,6 +365,7 @@ fn expression_places_resolve_attached_data_members() {
         lifetime_parameters: Vec::new(),
         type_parameters: HandleSpan::empty(),
         attached_data: Some(Identifier::generated("Main")),
+        is_public: false,
         owned_data: HandleSpan::empty(),
         satisfies: HandleSpan::empty(),
         conformance_bounds: Vec::new(),

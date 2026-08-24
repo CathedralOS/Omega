@@ -81,9 +81,11 @@ fn machine_record_carries_one_public_termination_interface() {
             symbol: _,
             name: _,
             attached_data: _,
+            // Package visibility survives semantic lowering independently of
+            // the normalized supply classification.
+            is_public: _,
             // STR7: the first-class supply mode is populated once at the
-            // syntax-to-resolved boundary and copied downstream. There is no
-            // parallel source-spelling boolean on semantic machine records.
+            // syntax-to-resolved boundary and copied downstream.
             supply_mode: _,
             // TPR2 (2026-07-16): the normalized guarantee/witness split.
             termination_plan: _,

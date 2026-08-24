@@ -11,6 +11,8 @@ pub struct Machine {
     pub symbol: SymbolHandle,
     pub name: Identifier,
     pub attached_data: Option<Identifier>,
+    /// Retained source-level package visibility, independent of supply mode.
+    pub is_public: bool,
     /// Copied from symbol-resolved trees; semantic consumers must not
     /// reconstruct supply from source spelling or body presence.
     pub supply_mode: psi_language_semantics::MachineSupplyMode,
@@ -41,6 +43,7 @@ impl Default for Machine {
             symbol: SymbolHandle::invalid(),
             name: Identifier::default(),
             attached_data: None,
+            is_public: false,
             supply_mode: psi_language_semantics::MachineSupplyMode::CheckedBody,
             termination_plan: psi_language_semantics::MachineTerminationPlan::default(),
             service_reach_row: psi_language_semantics::ServiceReachRowId::NULL,

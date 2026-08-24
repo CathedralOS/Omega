@@ -16,6 +16,7 @@ pub(crate) fn lower_machine(
         symbol: machine.symbol,
         name: crate::name::lower_name(&machine.name),
         attached_data: machine.attached_data.as_ref().map(crate::name::lower_name),
+        is_public: machine.is_public,
         // Copied, never re-derived.
         supply_mode: machine.supply_mode,
         // The authored bit and private witness copy here; the final typed

@@ -57,7 +57,7 @@ pub(crate) fn check_checked_facts_recording(
     }
 
     crashes::infer_path_conditioned_guard_coverage(program, facts, &incoming_guards);
-    if let Err(mut crash_diagnostics) = crashes::check_call_ceiling_coverage(program, facts) {
+    if let Err(mut crash_diagnostics) = crashes::check_published_ceiling_coverage(program, facts) {
         diagnostics.append(&mut crash_diagnostics);
     }
 

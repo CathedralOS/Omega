@@ -777,6 +777,10 @@ pub struct GenericConformanceBound {
 pub struct Machine {
     pub name: Identifier,
     pub attached_data: Option<Identifier>,
+    /// Source-level package visibility. This is independent from `boundary`:
+    /// an ordinary public library callable remains checked Omega code while
+    /// publishing strict effect and operational ceilings.
+    pub is_public: bool,
     /// CH10 ACCEPTED FORM (GR6d): a contract with NO body (`boundary
     /// machine f(..) ensures ..;`) -- the accepted-axiom tier. Only legal
     /// with `boundary`; the item parser enforces the pairing.

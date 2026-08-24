@@ -203,6 +203,7 @@ fn build_machine_work(program: &TypedTrees, machine: &Machine) -> MachineWork {
         published: published.clone(),
         uses_published: machine.supply_mode
             != psi_language_semantics::MachineSupplyMode::CheckedBody
+            || machine.is_public
             || !program.machine_invokes(machine).is_empty(),
         direct: direct.clone(),
         transitive: direct,

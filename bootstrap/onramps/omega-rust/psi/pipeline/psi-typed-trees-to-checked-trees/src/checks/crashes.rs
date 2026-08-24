@@ -180,7 +180,7 @@ pub(crate) fn infer_path_conditioned_guard_coverage(
     }
 }
 
-pub(crate) fn check_call_ceiling_coverage(
+pub(crate) fn check_published_ceiling_coverage(
     program: &TypedTrees,
     facts: &CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
@@ -188,6 +188,27 @@ pub(crate) fn check_call_ceiling_coverage(
     for caller in facts.contract_plans.machines.iter().filter(|plan| {
         plan.crash.interface() == psi_checked_trees::CrashInterface::PublishedCeiling
     }) {
+        let caller_machine = program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == caller.machine);
+        let caller_name = caller_machine
+            .map(|machine| machine.name.as_str())
+            .unwrap_or("<unknown>");
+        if caller_machine.is_some_and(|machine| machine.is_public) {
+            for site in caller
+                .crash
+                .checked_sites()
+                .iter()
+                .filter(|site| site.guard_covering_buckets().is_empty())
+            {
+                diagnostics.push(Diagnostic::error(format!(
+                    "machine `{caller_name}` has an uncovered {:?} crash at statement {}; publish a same-cause `crashes` route whose guard covers this site",
+                    site.cause(),
+                    site.location().statement_ordinal(),
+                )));
+            }
+        }
         for call in caller.crash.checked_calls() {
             for surviving in call.surviving_buckets() {
                 let covered = surviving.alternative_guards().iter().all(|route| {
@@ -205,12 +226,6 @@ pub(crate) fn check_call_ceiling_coverage(
                 if covered {
                     continue;
                 }
-                let caller_name = program
-                    .machines()
-                    .iter()
-                    .find(|machine| machine.symbol == caller.machine)
-                    .map(|machine| machine.name.as_str())
-                    .unwrap_or("<unknown>");
                 let target_name = program
                     .machines()
                     .iter()

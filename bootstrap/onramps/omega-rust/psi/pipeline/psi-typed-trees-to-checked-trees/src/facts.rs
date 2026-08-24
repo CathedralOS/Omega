@@ -317,8 +317,8 @@ fn build_blocking_facts(
         .iter()
         .map(|machine| {
             let blocking_row = blocking.iter().find(|row| row.symbol == machine.symbol);
-            let publishes_operational_contract =
-                machine.supply_mode != psi_language_semantics::MachineSupplyMode::CheckedBody;
+            let publishes_operational_contract = machine.is_public
+                || machine.supply_mode != psi_language_semantics::MachineSupplyMode::CheckedBody;
             psi_checked_trees::MachineBlockingFact {
                 machine: machine.symbol,
                 plan: psi_language_semantics::BlockingPlan {
@@ -344,8 +344,8 @@ fn build_suspension_facts(
         .iter()
         .map(|machine| {
             let suspension_row = suspensions.iter().find(|row| row.symbol == machine.symbol);
-            let publishes_operational_contract =
-                machine.supply_mode != psi_language_semantics::MachineSupplyMode::CheckedBody;
+            let publishes_operational_contract = machine.is_public
+                || machine.supply_mode != psi_language_semantics::MachineSupplyMode::CheckedBody;
             psi_checked_trees::MachineSuspensionFact {
                 machine: machine.symbol,
                 plan: psi_language_semantics::SuspensionPlan {
@@ -399,6 +399,7 @@ fn build_synchronous_invocation_facts(
             checked_inferred.dedup();
             let publishes_invocations = machine.supply_mode
                 != psi_language_semantics::MachineSupplyMode::CheckedBody
+                || machine.is_public
                 || !program.machine_invokes(machine).is_empty();
 
             psi_checked_trees::MachineSynchronousInvocationFact {
@@ -999,7 +1000,8 @@ fn build_published_crash_plan(
         Some(operators),
         exact_integer_casts,
     );
-    let plan = (if machine.supply_mode != psi_language_semantics::MachineSupplyMode::CheckedBody
+    let plan = (if machine.is_public
+        || machine.supply_mode != psi_language_semantics::MachineSupplyMode::CheckedBody
         || !published.is_empty()
     {
         psi_checked_trees::CrashPlan::published_ceiling(published)
