@@ -90,7 +90,7 @@ pub use source::{
 pub use source_adapter::{
     ResolveDependencySourceError, ResolveExternalLocalPackageClosureError,
     ResolveWorkspacePackageClosureError, resolve_external_local_package_closure,
-    resolve_workspace_package_closure,
+    resolve_workspace_package_closure, resolve_workspace_package_closure_in_context,
 };
 pub use source_commands::{
     PackageSourceAudit, PackageSourceAuditCommandError, PackageSourceRequest,

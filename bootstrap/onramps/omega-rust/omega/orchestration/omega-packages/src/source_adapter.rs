@@ -114,6 +114,7 @@ impl From<ResolvePackageSourceError> for ResolveDependencySourceError {
 struct WorkspaceContext {
     root_source: SourceLineage,
     root: PathBuf,
+    allows_external_paths: bool,
 }
 
 /// Resolve one explicit workspace member and its complete Path/Git closure.
@@ -129,7 +130,52 @@ pub fn resolve_workspace_package_closure(
     source_limits: LocalSourceLimits,
     closure_limits: PackageSourceClosureLimits,
 ) -> Result<ResolvedPackageSourceClosure, ResolveWorkspacePackageClosureError> {
-    let cache_dir = cache_dir.as_ref();
+    resolve_workspace_package_closure_impl(
+        workspace_root_source,
+        root_member_path,
+        live_workspace_root.as_ref(),
+        cache_dir.as_ref(),
+        source_limits,
+        closure_limits,
+        None,
+    )
+}
+
+/// Resolve an explicit workspace closure while allowing a Path request that
+/// leaves that live workspace to become a context-bound external-local source.
+///
+/// The supplied context is identity, not ambient authority: no lock or parent
+/// workspace is discovered. Path requests originating in fetched Git snapshots
+/// remain confined to those immutable snapshots.
+pub fn resolve_workspace_package_closure_in_context(
+    workspace_root_source: &SourceLineage,
+    root_member_path: WorkspaceMemberPath,
+    live_workspace_root: impl AsRef<Path>,
+    source_context: ExternalSourceContext,
+    cache_dir: impl AsRef<Path>,
+    source_limits: LocalSourceLimits,
+    closure_limits: PackageSourceClosureLimits,
+) -> Result<ResolvedPackageSourceClosure, ResolveWorkspacePackageClosureError> {
+    resolve_workspace_package_closure_impl(
+        workspace_root_source,
+        root_member_path,
+        live_workspace_root.as_ref(),
+        cache_dir.as_ref(),
+        source_limits,
+        closure_limits,
+        Some(&source_context),
+    )
+}
+
+fn resolve_workspace_package_closure_impl(
+    workspace_root_source: &SourceLineage,
+    root_member_path: WorkspaceMemberPath,
+    live_workspace_root: &Path,
+    cache_dir: &Path,
+    source_limits: LocalSourceLimits,
+    closure_limits: PackageSourceClosureLimits,
+    external_context: Option<&ExternalSourceContext>,
+) -> Result<ResolvedPackageSourceClosure, ResolveWorkspacePackageClosureError> {
     let workspace_cache = cache_dir.join("workspace-members");
     let git_cache = cache_dir.join("git-sources");
     let workspace_identity = WorkspaceLineageIdentity::from_root_source(workspace_root_source)
@@ -138,30 +184,25 @@ pub fn resolve_workspace_package_closure(
     let root = resolve_workspace_member_package_source(
         workspace_root_source,
         root_member_path,
-        live_workspace_root.as_ref(),
+        live_workspace_root,
         &workspace_cache,
         source_limits,
     )
     .map_err(ResolveWorkspacePackageClosureError::Root)?
     .into_custody();
 
-    let canonical_workspace_root =
-        live_workspace_root
-            .as_ref()
-            .canonicalize()
-            .map_err(|error| {
-                ResolveWorkspacePackageClosureError::Root(
-                    ResolvePackageSourceError::WorkspacePath {
-                        path: live_workspace_root.as_ref().to_path_buf(),
-                        message: error.to_string(),
-                    },
-                )
-            })?;
+    let canonical_workspace_root = live_workspace_root.canonicalize().map_err(|error| {
+        ResolveWorkspacePackageClosureError::Root(ResolvePackageSourceError::WorkspacePath {
+            path: live_workspace_root.to_path_buf(),
+            message: error.to_string(),
+        })
+    })?;
     let mut workspaces = BTreeMap::from([(
         workspace_identity,
         WorkspaceContext {
             root_source: workspace_root_source.clone(),
             root: canonical_workspace_root,
+            allows_external_paths: true,
         },
     )]);
 
@@ -174,7 +215,7 @@ pub fn resolve_workspace_package_closure(
         source_limits,
         &mut workspaces,
         &mut BTreeMap::new(),
-        None,
+        external_context,
     )
     .map_err(ResolveWorkspacePackageClosureError::Closure)
 }
@@ -275,21 +316,38 @@ fn resolve_registered_package_closure(
                     );
                 }
                 let (workspace_identity, base) = requester_workspace(requester, workspaces)?;
-                let member_path = normalize_member_path(base.as_deref(), location)?;
                 let context = workspaces.get(&workspace_identity).ok_or_else(|| {
                     ResolveDependencySourceError::UnknownWorkspace {
                         package: requester.key().clone(),
                     }
                 })?;
-                resolve_workspace_member_package_source(
-                    &context.root_source,
-                    member_path,
-                    &context.root,
-                    workspace_cache,
-                    source_limits,
-                )
-                .map(|resolved| resolved.into_custody())
-                .map_err(ResolveDependencySourceError::from)
+                match normalize_member_path(base.as_deref(), location) {
+                    Ok(member_path) => resolve_workspace_member_package_source(
+                        &context.root_source,
+                        member_path,
+                        &context.root,
+                        workspace_cache,
+                        source_limits,
+                    )
+                    .map(|resolved| resolved.into_custody())
+                    .map_err(ResolveDependencySourceError::from),
+                    Err(_)
+                        if context.allows_external_paths
+                            && external_context.is_some()
+                            && workspace_path_escapes(base.as_deref(), location) =>
+                    {
+                        let requester_root = workspace_requester_root(requester, context)?;
+                        resolve_external_dependency_from_root(
+                            location,
+                            &requester_root,
+                            external_roots,
+                            external_context,
+                            external_local_cache,
+                            source_limits,
+                        )
+                    }
+                    Err(error) => Err(error),
+                }
             }
         }
     })
@@ -305,6 +363,7 @@ fn register_workspace(
     let context = WorkspaceContext {
         root_source: root_source.clone(),
         root: root.to_path_buf(),
+        allows_external_paths: false,
     };
     if let Some(existing) = workspaces.get(&identity) {
         if existing != &context {
@@ -324,6 +383,30 @@ fn resolve_external_dependency(
     local_cache: &Path,
     source_limits: LocalSourceLimits,
 ) -> Result<PackageSourceCustody, ResolveDependencySourceError> {
+    let requester_root = external_roots
+        .get(requester.key())
+        .cloned()
+        .ok_or_else(|| ResolveDependencySourceError::UnknownExternalRoot {
+            package: requester.key().clone(),
+        })?;
+    resolve_external_dependency_from_root(
+        location,
+        &requester_root,
+        external_roots,
+        external_context,
+        local_cache,
+        source_limits,
+    )
+}
+
+fn resolve_external_dependency_from_root(
+    location: &str,
+    requester_root: &Path,
+    external_roots: &mut BTreeMap<PackageKey, PathBuf>,
+    external_context: Option<&ExternalSourceContext>,
+    local_cache: &Path,
+    source_limits: LocalSourceLimits,
+) -> Result<PackageSourceCustody, ResolveDependencySourceError> {
     if location.is_empty() || location.bytes().any(|byte| byte.is_ascii_control()) {
         return Err(invalid_path(
             location,
@@ -332,11 +415,6 @@ fn resolve_external_dependency(
     }
     let source_context =
         external_context.ok_or(ResolveDependencySourceError::MissingExternalSourceContext)?;
-    let requester_root = external_roots.get(requester.key()).ok_or_else(|| {
-        ResolveDependencySourceError::UnknownExternalRoot {
-            package: requester.key().clone(),
-        }
-    })?;
     let authored = Path::new(location);
     let target = if authored.is_absolute() {
         authored.to_path_buf()
@@ -355,6 +433,18 @@ fn resolve_external_dependency(
         &resolved.source().canonical_live_root,
     )?;
     Ok(resolved.into_custody())
+}
+
+fn workspace_requester_root(
+    requester: &PackageSourceCustody,
+    context: &WorkspaceContext,
+) -> Result<PathBuf, ResolveDependencySourceError> {
+    let SourceLineage::Workspace(lineage) = requester.key().source_lineage() else {
+        return Err(ResolveDependencySourceError::UnknownWorkspace {
+            package: requester.key().clone(),
+        });
+    };
+    Ok(context.root.join(lineage.member_path().as_str()))
 }
 
 fn register_external_root(
@@ -435,6 +525,32 @@ fn normalize_member_path(
     }
     WorkspaceMemberPath::parse(&components.join("/"))
         .map_err(|error| invalid_path(location, &error.to_string()))
+}
+
+fn workspace_path_escapes(requester_member: Option<&str>, location: &str) -> bool {
+    if Path::new(location).is_absolute() {
+        return true;
+    }
+    if location.is_empty()
+        || location.ends_with('/')
+        || location.contains('\\')
+        || location.bytes().any(|byte| byte.is_ascii_control())
+    {
+        return false;
+    }
+    let mut depth = requester_member
+        .map(|member| member.split('/').count())
+        .unwrap_or(0);
+    for component in location.split('/') {
+        match component {
+            "" => return false,
+            "." => {}
+            ".." if depth == 0 => return true,
+            ".." => depth -= 1,
+            _ => depth += 1,
+        }
+    }
+    false
 }
 
 fn invalid_path(location: &str, reason: &str) -> ResolveDependencySourceError {
@@ -611,6 +727,65 @@ mod tests {
         let _ = std::fs::remove_dir_all(sources);
         let _ = std::fs::remove_dir_all(first_cache);
         let _ = std::fs::remove_dir_all(second_cache);
+    }
+
+    #[test]
+    fn contextual_workspace_escape_becomes_external_local_lineage() {
+        let sources = temp_root("contextual-workspace-sources");
+        let workspace = sources.join("workspace");
+        let root = workspace.join("packages/root");
+        let external = sources.join("external");
+        let cache = temp_root("contextual-workspace-cache");
+        write_package(&root, "root-package", Some("../../../external"));
+        write_package(&external, "external-package", None);
+        let source_context = ExternalSourceContext::derive(b"workspace-consuming-lock");
+
+        let closure = resolve_workspace_package_closure_in_context(
+            &fixture_lineage(),
+            WorkspaceMemberPath::parse("packages/root").expect("root member"),
+            &workspace,
+            source_context.clone(),
+            &cache,
+            LocalSourceLimits::default(),
+            PackageSourceClosureLimits::default(),
+        )
+        .expect("explicit context should route the workspace escape");
+
+        assert_eq!(closure.graph().packages().len(), 2);
+        let external = closure
+            .custodies()
+            .iter()
+            .find(|custody| custody.key().name().as_str() == "external-package")
+            .expect("external dependency custody");
+        assert!(matches!(
+            external.key().source_lineage(),
+            SourceLineage::ExternalLocal(lineage)
+                if lineage.source_context() == &source_context
+        ));
+
+        write_package(&root, "root-package", Some("../../../external/"));
+        let malformed = resolve_workspace_package_closure_in_context(
+            &fixture_lineage(),
+            WorkspaceMemberPath::parse("packages/root").expect("root member"),
+            &workspace,
+            source_context,
+            &cache,
+            LocalSourceLimits::default(),
+            PackageSourceClosureLimits::default(),
+        )
+        .expect_err("a malformed workspace spelling must not switch source lanes");
+        assert!(matches!(
+            malformed,
+            ResolveWorkspacePackageClosureError::Closure(
+                PackageSourceClosureResolutionError::Adapter {
+                    error: ResolveDependencySourceError::InvalidPath { .. },
+                    ..
+                }
+            )
+        ));
+
+        let _ = std::fs::remove_dir_all(sources);
+        let _ = std::fs::remove_dir_all(cache);
     }
 
     #[test]
