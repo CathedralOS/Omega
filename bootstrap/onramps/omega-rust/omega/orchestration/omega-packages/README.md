@@ -182,7 +182,9 @@ synchronous invocations as exact non-`self` parameter ordinals or
 package-qualified services, suspension, blocking, and termination. Progress
 premises retain package-qualified public profile identity, receiver/non-`self`
 parameter roots, and package-qualified field projections. Trait/requirement
-conformance bounds, invariants, default realizations, and
+generic conformance evidence binders retain alpha-normalized binder/subject
+ordinals, exact public trait identity, and structural arguments. Non-evidence
+requirements, selected conformances, invariants, default realizations, and
 non-progress proof/boundary/crash contracts fail closed until complete rows
 land. Public domains with representable shape now retain exact package identity,
 alpha-normalized generic carrier/index shape, package-qualified carrier/index
@@ -198,7 +200,8 @@ and result type. Checked realizations of public, ordinary, lifetime-free traits
 retain exact package-qualified trait/requirement identities, alpha-normalized
 arguments, and aliases. Callable conformance bounds, static machine/proposition
 parameters, and non-public, external, operator, or lifetime-parameterized
-realizations fail closed until complete rows land. Public callable `requires`,
+realizations fail closed until complete rows land, except that explicit generic
+evidence binders use the canonical public-trait row. Public callable `requires`,
 `ensures`, and boundary clauses retain exact structural rows for the closed
 boolean/integer expression subset over parameter ordinals, `result`, generic
 binders, and package-qualified nominals. Domain-membership rows retain the exact
@@ -231,7 +234,7 @@ never repurposed as output directories.
 The legacy machine-contract fingerprint no longer enters package-review bytes,
 so private state shape is not public contract identity. Complete proof and
 unsupported-clause rows still gate sealed admission. The compiler now provides
-a version-22 length-framed binary comparison encoding over this review
+a version-23 length-framed binary comparison encoding over this review
 projection; it is explicitly not a package certificate or accepted-lock
 payload. Raw Rust/debug serialization is not an alternative. These pieces do
 not become an admission path until the legacy name-keyed lock APIs are replaced

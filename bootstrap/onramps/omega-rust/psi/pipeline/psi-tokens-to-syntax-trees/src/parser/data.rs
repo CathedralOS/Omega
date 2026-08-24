@@ -846,7 +846,7 @@ pub(super) fn parse_proposition_type_parameters<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, ParsedGenericParameters> {
-    parse_type_parameters_in(syntax_trees, input, false, true, false)
+    parse_type_parameters_in(syntax_trees, input, false, true, true)
 }
 
 pub(super) fn parse_machine_type_parameters<'tokens, 'source>(

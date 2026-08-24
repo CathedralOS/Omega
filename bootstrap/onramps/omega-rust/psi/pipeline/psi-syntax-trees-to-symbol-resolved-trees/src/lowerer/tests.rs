@@ -399,6 +399,40 @@ fn resolves_explicit_conformance_binder_as_proof_static_machine_child() {
 }
 
 #[test]
+fn resolves_explicit_conformance_binder_as_proof_static_trait_child() {
+    let source = r#"
+        trait Ranked<Metric> {}
+
+        trait Ordering<Element, Order: Element satisfies Ranked<u32>> {}
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let program = lower_syntax_trees(&syntax).expect("resolve");
+    let ordering = program
+        .traits
+        .iter()
+        .find(|definition| definition.name.as_str() == "Ordering")
+        .expect("Ordering trait");
+    let [bound] = ordering.conformance_bounds.as_slice() else {
+        panic!("one explicit conformance binder");
+    };
+    let binder = bound.binder.expect("binder symbol");
+    assert!(binder.is_valid());
+    assert_eq!(program.symbols.name(binder), "Order");
+    assert_eq!(program.symbols.get(binder).parent, ordering.symbol);
+    assert_eq!(
+        program.symbols.get(binder).kind,
+        psi_symbols::SymbolKind::ConformanceParameter
+    );
+    let parameters = program.trait_type_parameters(ordering);
+    assert_eq!(parameters.len(), 1);
+    assert_eq!(bound.subject, parameters[0].symbol);
+    assert!(bound.carrier.is_valid());
+    assert_eq!(program.symbols.name(bound.carrier), "Ranked");
+    assert_eq!(program.child_type_references(bound.arguments).len(), 1);
+}
+
+#[test]
 fn lowers_closed_conformance_rows_to_exact_machine_states() {
     let source = r#"
         trait Ranked {

@@ -290,7 +290,7 @@ crashes Abort
         target,
         "review identity must retain the deployment profile, not only its native ABI",
     );
-    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 22);
+    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 23);
     let [ready] = review.public_domains() else {
         panic!("one package-owned public domain row")
     };
@@ -1483,6 +1483,181 @@ where machine Selected();
 }
 
 #[test]
+fn review_projects_alpha_normalized_public_conformance_binders() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let build = r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { }
+"#;
+    let original = TempPackage::new();
+    original.write(
+        "main.omg",
+        r#"pub trait Ranked<Metric> { }
+pub trait Alternate<Metric> { }
+pub trait Ordering<Element, Other, Evidence: Element satisfies Ranked<u32>> { }
+pub machine identity<Element, Other, Evidence: Element satisfies Ranked<u32>>(value: Element) -> Element {
+    value
+}
+"#,
+    );
+    original.write("build.omg", build);
+    let renamed = TempPackage::new();
+    renamed.write(
+        "main.omg",
+        r#"pub trait Ranked<Measure> { }
+pub trait Alternate<Measure> { }
+pub trait Ordering<Value, Unused, OrderingEvidence: Value satisfies Ranked<u32>> { }
+pub machine identity<Value, Unused, IdentityEvidence: Value satisfies Ranked<u32>>(value: Value) -> Value {
+    value
+}
+"#,
+    );
+    renamed.write("build.omg", build);
+    let changed = TempPackage::new();
+    changed.write(
+        "main.omg",
+        r#"pub trait Ranked<Metric> { }
+pub trait Alternate<Metric> { }
+pub trait Ordering<Element, Other, Evidence: Element satisfies Alternate<u32>> { }
+pub machine identity<Element, Other, Evidence: Element satisfies Alternate<u32>>(value: Element) -> Element {
+    value
+}
+"#,
+    );
+    changed.write("build.omg", build);
+    let changed_subject = TempPackage::new();
+    changed_subject.write(
+        "main.omg",
+        r#"pub trait Ranked<Metric> { }
+pub trait Alternate<Metric> { }
+pub trait Ordering<Element, Other, Evidence: Other satisfies Ranked<u32>> { }
+pub machine identity<Element, Other, Evidence: Other satisfies Ranked<u32>>(value: Element) -> Element {
+    value
+}
+"#,
+    );
+    changed_subject.write("build.omg", build);
+    let changed_argument = TempPackage::new();
+    changed_argument.write(
+        "main.omg",
+        r#"pub trait Ranked<Metric> { }
+pub trait Alternate<Metric> { }
+pub trait Ordering<Element, Other, Evidence: Element satisfies Ranked<u64>> { }
+pub machine identity<Element, Other, Evidence: Element satisfies Ranked<u64>>(value: Element) -> Element {
+    value
+}
+"#,
+    );
+    changed_argument.write("build.omg", build);
+
+    let review = |package: &TempPackage| {
+        let checked = compile_to_checked_with_packages(
+            &package.0.join("main.omg"),
+            Some(target),
+            package_inputs(&package.0),
+        )
+        .expect("generic conformance-binder fixture should check");
+        project_checked_package_review(&checked)
+            .expect("generic conformance-binder review should close")
+    };
+    let original = review(&original);
+    let renamed = review(&renamed);
+    let changed = review(&changed);
+    let changed_subject = review(&changed_subject);
+    let changed_argument = review(&changed_argument);
+
+    let ordering = original
+        .public_traits()
+        .iter()
+        .find(|shape| shape.identity().path() == "Ordering")
+        .expect("public Ordering row");
+    let [trait_bound] = ordering.conformance_bounds() else {
+        panic!("one exact trait conformance binder")
+    };
+    assert_eq!(trait_bound.binder_ordinal(), 0);
+    assert_eq!(trait_bound.subject_parameter(), 0);
+    assert_eq!(trait_bound.trait_identity().path(), "Ranked");
+    assert_eq!(trait_bound.arguments().len(), 1);
+
+    let identity = original
+        .callables()
+        .iter()
+        .find(|callable| callable.identity().path().contains("identity"))
+        .expect("public identity row");
+    let [callable_bound] = identity.conformance_bounds() else {
+        panic!("one exact callable conformance binder")
+    };
+    assert_eq!(callable_bound.binder_ordinal(), 0);
+    assert_eq!(callable_bound.subject_parameter(), 0);
+    assert_eq!(callable_bound.trait_identity().path(), "Ranked");
+
+    assert_eq!(
+        original.canonical_review_bytes().unwrap(),
+        renamed.canonical_review_bytes().unwrap(),
+        "renaming conformance, type, and lifetime-free evidence binders must not change review identity"
+    );
+    assert_ne!(
+        original.canonical_review_bytes().unwrap(),
+        changed.canonical_review_bytes().unwrap(),
+        "changing the exact conformance trait must change review identity"
+    );
+    assert_ne!(
+        original.canonical_review_bytes().unwrap(),
+        changed_subject.canonical_review_bytes().unwrap(),
+        "changing the conformance subject parameter must change review identity"
+    );
+    assert_ne!(
+        original.canonical_review_bytes().unwrap(),
+        changed_argument.canonical_review_bytes().unwrap(),
+        "changing a conformance trait argument must change review identity"
+    );
+}
+
+#[test]
+fn review_rejects_conformance_requirements_without_an_explicit_evidence_binder() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub trait Ranked { }
+pub machine identity<Element>(value: Element) -> Element
+where Element satisfies Ranked
+{
+    value
+}
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { }
+"#,
+    );
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some(target),
+        package_inputs(&package.0),
+    )
+    .expect("unbound conformance-requirement fixture should check before review");
+    let diagnostics = project_checked_package_review(&checked)
+        .expect_err("review must not silently omit an unbound conformance requirement");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("non-evidence-binder conformance requirement")
+    }));
+}
+
+#[test]
 fn public_machine_visibility_survives_checked_compilation_and_strict_empty_contracts() {
     let package = TempPackage::new();
     package.write("main.omg", "pub machine Package::entry() { }\n");
@@ -1609,7 +1784,7 @@ invokes waiting;
 }
 
 #[test]
-fn exact_synchronous_invocations_change_v22_comparison_encoding() {
+fn exact_synchronous_invocations_change_v23_comparison_encoding() {
     let quiet = TempPackage::new();
     let invoking = TempPackage::new();
     quiet.write(
@@ -1799,7 +1974,7 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
-fn public_data_and_numbered_wire_shape_changes_change_v22_comparison_encoding() {
+fn public_data_and_numbered_wire_shape_changes_change_v23_comparison_encoding() {
     let first = TempPackage::new();
     let second = TempPackage::new();
     first.write(
@@ -1833,7 +2008,7 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
-fn public_domain_shape_changes_change_v22_comparison_encoding() {
+fn public_domain_shape_changes_change_v23_comparison_encoding() {
     let first = TempPackage::new();
     let second = TempPackage::new();
     first.write(
