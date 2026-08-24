@@ -145,12 +145,18 @@ complete.
   re-hashed when the complete resolution returns. Drift rejects. Every
   launch clears the inherited environment, installs a fixed Git/protocol/
   locale/helper-path environment, requires an explicit absolute working
-  directory, and receives null stdin, concurrently bounded stdout/stderr
-  capture, and a deadline. It
+  directory, and receives resolver-owned stdin, concurrently bounded
+  stdout/stderr capture, and a deadline. Stdin is null except for the exact
+  object-ID request file supplied to `cat-file --batch`. It
   also runs in a fresh Unix process group or Windows Job Object. Every exit
   path attempts termination, preventing ordinary helper/SSH descendants from
   surviving or holding capture pipes open in tested cases; overflow or timeout
-  rejects once cleanup returns. This is a portable-executor floor, not strict hostile-process
+  rejects once cleanup returns. Cleanup and reaping receive a separate bounded
+  two-second deadline. A whole-resolution budget permits at most 64 launches,
+  independent of package file count, and ten minutes of ordinary elapsed
+  execution, passing only the smaller remaining interval to each command. One
+  exactly framed `cat-file --batch` launch reads all validated blobs in tree
+  order. This is a portable-executor floor, not strict hostile-process
   confinement. Fetch requests only the selected revision at depth one and
   disables Git automatic maintenance and garbage collection; unrelated
   reachable history is not traversed merely to resolve one package revision.
@@ -181,9 +187,10 @@ complete.
     Git may launch from the fixed helper path;
   - the Git subprocess has no OS sandbox or CPU/memory/process/transfer
     ceilings; process-container cleanup contains ordinary descendants but not a
-    hostile Unix process that deliberately changes session; termination failure
-    and reaping are not bounded, and there is no whole-resolution deadline or
-    cumulative command-work budget;
+    hostile Unix process that deliberately changes session; cleanup has its own
+    two-second allowance, so neither the per-command nor whole-resolution
+    deadline is a strict wall-clock guarantee; the launch ceiling is not a CPU,
+    memory, object-store, or transfer-work budget;
   - SSH uses an absolute client with user configuration disabled, batch mode,
     zero password prompts, and strict host-key checking, but still consumes the
     user's default known-host and key files without explicit credential custody;

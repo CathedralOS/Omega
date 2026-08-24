@@ -137,7 +137,12 @@ closes ambient parent-executable and environment selection, but does not
 certify Git or bind every helper it may
 launch. SSH is noninteractive and strict about host keys, but still consumes
 the user's default known-host and key files. Strict OS confinement, explicit
-credential custody, bounded cleanup, and a whole-resolution work budget remain.
+credential custody and full byte/resource enforcement remain. Ordinary
+resolution is now bounded to 64 Git launches, independent of package file
+count, and ten minutes. Validated blobs use one exactly framed
+`cat-file --batch` launch, and cleanup/reaping has a separate two-second
+deadline; the combined operation is therefore not a strict ten-minute
+wall-clock bound.
 Git, workspace-member, and external-local resolution now bind those pieces into
 a `ResolvedPackageSource`: declaration and identity come from the immutable
 snapshot and canonical source lineage, and canonical literal dependency rows
