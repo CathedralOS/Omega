@@ -43,7 +43,7 @@ emit_dec_word_reset_cell:
 
 emit_dec_word_require_stack_root:
         imm r20, 531840
-        imm r21, 1464094803            ; SPDW
+        imm r21, 1481003091            ; SPFX
         call exact_require_cell
         ret
 

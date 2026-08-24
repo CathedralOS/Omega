@@ -1,0 +1,500 @@
+; Whole-root relation and guarded GFP. Outcome codes: 1=Halt, 2=Exhaust,
+; 3=Trap, 4=Diverge, 5=Body/Continue. Parse: 1=Ret0, 2=Ret252(rho), 3=Div.
+; The sole coinductive guard is a completed parse/guard/skip/backedge step.
+
+root_observation_gfp_init:
+        call root_observation_gfp_require_imports
+        call root_observation_build_loop_split
+        call root_observation_resource_join_init
+        imm r1, 616088
+        imm r2, 1313819218             ; RJON
+        store r1, r2
+        imm r20, 616088
+        imm r21, 1313819218
+        call exact_require_cell
+        call root_observation_build_iteration
+        call root_observation_build_resource_rows
+        call root_observation_build_fixed_point
+        call root_observation_memory_safety_init
+        call root_observation_build_maximal_equality
+        call root_observation_build_exclusion
+        imm r1, 616024
+        imm r2, 1346783058             ; RGFP
+        store r1, r2
+        jmp root_observation_publication_init
+
+root_observation_gfp_require_imports:
+        imm r20, 616008
+        imm r21, 1414414674             ; RANT
+        call exact_require_cell
+        imm r20, 616016
+        imm r21, 826823506              ; RSH1
+        call exact_require_cell
+        ; Require the local antecedent identities, not the named private cells.
+        imm r20, 617000
+        imm r21, 610024                 ; PPRC schema identity
+        call exact_require_cell
+        imm r20, 617008
+        imm r21, 1129467984
+        call exact_require_cell
+        imm r20, 617032
+        imm r21, 600024                 ; RCLS schema identity
+        call exact_require_cell
+        imm r20, 617040
+        imm r21, 1397506898
+        call exact_require_cell
+        imm r20, 617096
+        imm r21, 526664                 ; MLSP identity
+        call exact_require_cell
+        imm r20, 617128
+        imm r21, 526216                 ; SWSQ identity
+        call exact_require_cell
+        imm r20, 617160
+        imm r21, 527536                 ; SWSX identity
+        call exact_require_cell
+        imm r20, 617192
+        imm r21, 525960                 ; CBLE identity
+        call exact_require_cell
+        imm r20, 617320
+        imm r21, 524360                 ; ASTR identity
+        call exact_require_cell
+        imm r20, 617352
+        imm r21, 531840                 ; stable SPFX identity
+        call exact_require_cell
+        imm r20, 617384
+        imm r21, 532560                 ; DECW identity
+        call exact_require_cell
+        ret
+
+; Row at 621000 + 80*case:
+;   +0 case, +8 cursor domain, +16 cbyte clause, +24 selected value,
+;   +32 outcome, +40 payload/body PC, +48 exact trace retained,
+;   +56 active-main relation, +64 basis, +72 completion.
+root_observation_build_loop_split:
+        ; In-range NUL -> Halt(0).
+        imm r10, 1
+        imm r11, 1
+        imm r12, 1                    ; exact cbyte hit
+        imm r13, 0
+        imm r14, 1                    ; Halt
+        imm r15, 0
+        imm r16, 1
+        imm r17, 0                    ; main frame restored
+        imm r18, 1                    ; MLSP + exact loop shape
+        call root_observation_store_loop_row
+
+        ; Miss on LEN<=CUR<=LEN+2; do not derive CUR=LEN or rewrite CUR.
+        imm r10, 2
+        imm r11, 2
+        imm r12, 2                    ; exact cbyte miss
+        imm r13, 0
+        imm r14, 1                    ; Halt
+        imm r15, 0
+        imm r16, 1
+        imm r17, 0
+        imm r18, 2                    ; CBLE miss + caller safe bound
+        call root_observation_store_loop_row
+
+        ; In-range nonzero -> body; byte unconsumed, main frame active.
+        imm r10, 3
+        imm r11, 1
+        imm r12, 1
+        imm r13, 1                    ; selected nonzero source byte
+        imm r14, 5                    ; Body
+        imm r15, 51405
+        imm r16, 1
+        imm r17, 1
+        imm r18, 1
+        call root_observation_store_loop_row
+
+        call root_observation_require_loop_rows
+        imm r1, 616056
+        imm r2, 1347374162             ; RLOP
+        store r1, r2
+        ret
+
+root_observation_store_loop_row:
+        mov r20, r10
+        imm r1, 80
+        mul r20, r1
+        imm r1, 620920               ; case1 begins621000
+        add r20, r1
+        store r20, r10
+        imm r1, 8
+        add r20, r1
+        store r20, r11
+        add r20, r1
+        store r20, r12
+        add r20, r1
+        store r20, r13
+        add r20, r1
+        store r20, r14
+        add r20, r1
+        store r20, r15
+        add r20, r1
+        store r20, r16
+        add r20, r1
+        store r20, r17
+        add r20, r1
+        store r20, r18
+        add r20, r1
+        imm r2, 1
+        store r20, r2
+        ret
+
+root_observation_require_loop_rows:
+        imm r10, 1
+root_observation_require_loop_row:
+        imm r1, 4
+        jlt r10, r1, root_observation_require_loop_one
+        ret
+root_observation_require_loop_one:
+        mov r20, r10
+        imm r1, 80
+        mul r20, r1
+        imm r1, 620920
+        add r20, r1
+        mov r21, r10
+        call exact_require_cell
+        imm r1, 72
+        add r20, r1
+        imm r21, 1
+        call exact_require_cell
+        imm r1, 1
+        add r10, r1
+        jmp root_observation_require_loop_row
+
+; Eight rows at 622000, stride96:
+;   +0 case, +8 exact PPRC outcome-row id, +16 suffix schema,
+;   +24 process status, +32 next outcome/PC, +40 exact PPRC trace class,
+;   +48 sticky provenance, +56 completed-machine-step guard,
+;   +64 frame/depth relation, +72 RJON id, +80 resource origin,
+;   +88 completion.
+root_observation_build_iteration:
+        ; Ret0 with CUR<=LEN: exact RESOURCE false, SWSQ, transition290.
+        imm r10, 1
+        imm r11, 1                    ; PPRC row1 Ret0
+        imm r12, 1                    ; SWSQ
+        imm r13, 0
+        imm r14, 51262
+        imm r15, 3                    ; exact finite PPRC trace class
+        imm r16, 0
+        imm r17, 1                    ; completed parse/guard/skip/backedge Tau
+        imm r18, 1                    ; main active, both depths zero
+        imm r19, 0                    ; no resource join
+        imm r22, 0                    ; no resource origin
+        call root_observation_store_iteration_row
+
+        ; Ret0 overshot by at most two: SWSX preserves CUR, then same backedge.
+        imm r10, 2
+        imm r11, 1
+        imm r12, 2                    ; SWSX, LEN<CUR<=LEN+2
+        imm r13, 0
+        imm r14, 51262
+        imm r15, 3
+        imm r16, 0
+        imm r17, 1
+        imm r18, 1
+        imm r19, 0
+        imm r22, 0
+        call root_observation_store_iteration_row
+
+        ; Five Ret252 alternatives consume one exact PPRC->RCLS join each.
+        imm r10, 3
+        imm r11, 2                    ; PPRC row2
+        imm r15, 3                    ; exact finite emitted trace
+        imm r19, 1                    ; RJON row1
+        imm r22, 2                    ; resource origin2
+        call root_observation_build_resource_iteration
+
+        imm r10, 4
+        imm r11, 3                    ; PPRC row3
+        imm r15, 3
+        imm r19, 2                    ; RJON row2
+        imm r22, 4                    ; resource origin4
+        call root_observation_build_resource_iteration
+
+        imm r10, 5
+        imm r11, 4                    ; PPRC row4
+        imm r15, 3
+        imm r19, 3                    ; RJON row3
+        imm r22, 5                    ; resource origin5
+        call root_observation_build_resource_iteration
+
+        imm r10, 6
+        imm r11, 5                    ; PPRC row5
+        imm r15, 1                    ; epsilon before output prefix
+        imm r19, 4                    ; RJON row4
+        imm r22, 6                    ; resource origin6
+        call root_observation_build_resource_iteration
+
+        imm r10, 7
+        imm r11, 6                    ; PPRC row6
+        imm r15, 1
+        imm r19, 5                    ; RJON row5
+        imm r22, 7                    ; resource origin7
+        call root_observation_build_resource_iteration
+
+        ; Div: maximal child trace, live resumptions, no suffix at all.
+        imm r10, 8
+        imm r11, 7                    ; PPRC row7 Div
+        imm r12, 0                    ; Div appends no suffix
+        imm r13, 0                    ; no fabricated status
+        imm r14, 4                    ; Diverge
+        imm r15, 2                    ; maximal PPRC divergence trace
+        imm r16, 1                    ; child provenance/resumptions retained
+        imm r17, 0
+        imm r18, 3                    ; live p68/main frames
+        imm r19, 0
+        imm r22, 0
+        call root_observation_store_iteration_row
+
+        call root_observation_require_iteration_rows
+        imm r1, 616080
+        imm r2, 1                    ; exact eight-way iteration relation
+        store r1, r2
+        ret
+
+root_observation_build_resource_iteration:
+        ; Bind this terminal branch to its exact join row before constructing
+        ; the root observation. No numeric252 or opaque rho selects an origin.
+        mov r20, r19
+        imm r1, 1
+        sub r20, r1
+        imm r1, 160
+        mul r20, r1
+        imm r1, 628000
+        add r20, r1
+        mov r21, r19
+        call root_observation_iteration_require_join_next
+        mov r21, r11
+        call root_observation_iteration_require_join_next
+        mov r21, r22
+        call root_observation_iteration_require_join_next
+        mov r21, r22
+        call root_observation_iteration_require_join_next
+        mov r21, r15
+        call root_observation_iteration_require_join_next
+        imm r1, 48
+        add r20, r1                    ; PPRC status at offset88
+        imm r21, 252
+        call exact_require_cell
+        imm r1, 40
+        add r20, r1                    ; sticky-rho flag at offset128
+        imm r21, 1
+        call exact_require_cell
+        imm r1, 16
+        add r20, r1                    ; typed terminal at offset144
+        call exact_require_cell
+        imm r1, 8
+        add r20, r1                    ; row completion at offset152
+        call exact_require_cell
+
+        imm r12, 3                    ; exact quiet resource cleanup suffix
+        imm r13, 252
+        imm r14, 2                    ; typed Exhaust after joined cleanup
+        imm r16, 1                    ; sticky first-failure provenance
+        imm r17, 0                    ; terminal, not a coinductive step
+        imm r18, 2                    ; main restored, root return relation
+        call root_observation_store_iteration_row
+        ret
+
+root_observation_iteration_require_join_next:
+        call exact_require_cell
+        imm r1, 8
+        add r20, r1
+        ret
+
+root_observation_store_iteration_row:
+        mov r20, r10
+        imm r1, 96
+        mul r20, r1
+        imm r1, 621904
+        add r20, r1
+        store r20, r10
+        imm r1, 8
+        add r20, r1
+        store r20, r11
+        add r20, r1
+        store r20, r12
+        add r20, r1
+        store r20, r13
+        add r20, r1
+        store r20, r14
+        add r20, r1
+        store r20, r15
+        add r20, r1
+        store r20, r16
+        add r20, r1
+        store r20, r17
+        add r20, r1
+        store r20, r18
+        add r20, r1
+        store r20, r19
+        add r20, r1
+        store r20, r22
+        add r20, r1
+        imm r2, 1
+        store r20, r2
+        ret
+
+root_observation_require_iteration_rows:
+        imm r10, 1
+root_observation_require_iteration_row:
+        imm r1, 9
+        jlt r10, r1, root_observation_require_iteration_one
+        ret
+root_observation_require_iteration_one:
+        mov r20, r10
+        imm r1, 96
+        mul r20, r1
+        imm r1, 621904
+        add r20, r1
+        mov r21, r10
+        call exact_require_cell
+        imm r1, 88
+        add r20, r1
+        imm r21, 1
+        call exact_require_cell
+        imm r1, 1
+        add r10, r1
+        jmp root_observation_require_iteration_row
+
+; Sole source-wrapper row at 623000:
+;   +0 origin, +8 kind, +16 limit, +24 request mode,
+;   +32 request lower, +40 request upper, +48 request token,
+;   +56 raw projection, +64 sticky rho, +72 trace custody,
+;   +80 RCLS guard/profile/request basis, +88 completion.
+root_observation_build_resource_rows:
+        ; Source overflow bypasses parse and has empty stdout.
+        imm r10, 1
+        imm r11, 1                    ; SourceBytes
+        imm r12, 1048576
+        imm r13, 1
+        imm r14, 1048577
+        imm r15, 1048577
+        imm r16, 1048577
+        imm r17, 253                  ; raw source projection only
+        call root_observation_store_resource_row
+        call root_observation_require_resource_rows
+        imm r1, 616064
+        imm r2, 1                    ; source origin1 plus five joined origins
+        store r1, r2
+        ret
+
+root_observation_store_resource_row:
+        ; Select semantic payload only under the local RCLS hypothesis.
+        imm r20, 617040
+        imm r21, 1397506898             ; RCLS
+        call exact_require_cell
+        mov r20, r10
+        imm r1, 96
+        mul r20, r1
+        imm r1, 622904               ; origin1 begins623000
+        add r20, r1
+        store r20, r10
+        imm r1, 8
+        add r20, r1
+        store r20, r11
+        add r20, r1
+        store r20, r12
+        add r20, r1
+        store r20, r13
+        add r20, r1
+        store r20, r14
+        add r20, r1
+        store r20, r15
+        add r20, r1
+        store r20, r16
+        add r20, r1
+        store r20, r17               ; numeric projection recorded afterward
+        add r20, r1
+        imm r2, 1
+        store r20, r2                ; exact rho remains sticky
+        add r20, r1
+        store r20, r2                ; accumulated trace/request custody
+        add r20, r1
+        store r20, r2                ; RCLS guard+profile+request basis
+        add r20, r1
+        store r20, r2
+        ret
+
+root_observation_require_resource_rows:
+        imm r20, 623000
+        imm r21, 1                    ; sole wrapper resource origin
+        call exact_require_cell
+        imm r1, 88
+        add r20, r1
+        imm r21, 1
+        call exact_require_cell       ; wrapper row completion
+        ret
+
+root_observation_build_fixed_point:
+        ; Root source wrapper: overflow is one typed Exhaust, never Halt253.
+        imm r1, 624000
+        imm r2, 2                    ; greatest fixed point, not least
+        store r1, r2
+        imm r1, 624008
+        imm r2, 1                    ; source overflow -> origin1 Exhaust
+        store r1, r2
+        imm r1, 624016
+        store r1, r2                  ; successful slurp -> MLRP/loop
+        imm r1, 624024
+        store r1, r2                  ; in-range NUL/miss -> Halt(0)
+        imm r1, 624032
+        store r1, r2                  ; five joined Ret252 alternatives -> Exhaust
+        imm r1, 624040
+        store r1, r2                  ; child Div -> Diverge
+        imm r1, 624048
+        store r1, r2                  ; successful iteration -> recursive node
+        imm r1, 624056
+        store r1, r2                  ; completed machine step is sole guard
+        imm r1, 624064
+        imm r2, 0
+        store r1, r2                  ; cursor-productivity premise absent
+        imm r1, 624072
+        store r1, r2                  ; output-productivity premise absent
+        imm r1, 624080
+        imm r2, 1
+        store r1, r2                  ; finite silent divergence admitted
+        imm r1, 624088
+        store r1, r2                  ; finite output then silent divergence
+        imm r1, 624096
+        store r1, r2                  ; infinite output divergence
+        imm r1, 624104
+        store r1, r2                  ; arbitrary carried trace/state, not MLBD187
+        imm r1, 624112
+        store r1, r2                  ; finite input does not imply termination
+        call root_observation_require_fixed_point
+        imm r1, 616072
+        imm r2, 1
+        store r1, r2
+        ret
+
+root_observation_require_fixed_point:
+        imm r20, 624000
+        imm r21, 2
+        call exact_require_cell
+        imm r10, 624008
+root_observation_require_fixed_point_flag:
+        imm r1, 624120
+        jlt r10, r1, root_observation_require_fixed_point_one
+        ret
+root_observation_require_fixed_point_one:
+        ; 624064 and624072 deliberately contain zero: no productivity premise.
+        imm r1, 624064
+        jeq r10, r1, root_observation_require_fixed_point_zero
+        imm r1, 624072
+        jeq r10, r1, root_observation_require_fixed_point_zero
+        mov r20, r10
+        imm r21, 1
+        call exact_require_cell
+        jmp root_observation_require_fixed_point_next
+root_observation_require_fixed_point_zero:
+        mov r20, r10
+        imm r21, 0
+        call exact_require_cell
+root_observation_require_fixed_point_next:
+        imm r1, 8
+        add r10, r1
+        jmp root_observation_require_fixed_point_flag

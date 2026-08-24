@@ -1,0 +1,12 @@
+; Root of the independent whole-root observable implication checker.
+;
+; This executable does not import proof memory from the PPRC, PBOD, RCLS, or
+; Checker-A processes.  Their public schemas are antecedents of this local
+; implication.  The gate must discharge their owners over the same immutable
+; control.bundle before accepting ROOT.
+
+stack_register_custody_init:
+        imm r1, 616000
+        imm r2, 1481789266             ; RORX
+        store r1, r2
+        jmp root_observation_antecedent_init

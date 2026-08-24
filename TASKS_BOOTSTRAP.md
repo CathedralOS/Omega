@@ -174,8 +174,9 @@ compatibility symlinks.
   native seeds.
 - Beta's `bc.beta` self-hosts. Its fixed point establishes dependency closure;
   the persisted artifact is now reconstructed entirely through Alpha and used by
-  downstream gates. Complete lower-rooted validation of that artifact against
-  `bc.beta` remains open.
+  downstream gates. The independently reconstructed ROOT proposition now proves
+  its complete maximal observable against `bc.beta` for `B_bc1`, closing the
+  lower-rooted source-correspondence edge.
 - Gamma's canonical surface is the functional interpreter-first language. It is
   capable of hosting one proof-kernel implementation, but proof checking is not
   Gamma's role in the build chain. The imperative `gamma.alpha` language is
@@ -190,10 +191,10 @@ compatibility symlinks.
   Omega. The bridge needs exact `Ωself` coverage and correct conservative output,
   not general full-Omega input acceptance or the product optimizer itself.
 
-> **Immediate closure:** finish the Alpha-rooted `bc` blockwise correspondence
-> check described under [Cross-rung assurance work](#cross-rung-assurance-work).
-> Omega-profile growth follows the actual production Omega source tree and must
-> carry its direct-artifact and Rust-free-meaning coverage in the same milestone.
+> **Immediate next dependency:** establish the Omega-written production compiler
+> source closure while the Delta bridge and its Rust-free meaning route grow.
+> Profile growth follows that actual source tree and must carry direct-artifact
+> and Rust-free-meaning coverage in the same milestone.
 
 ## Delta → omega-bootstrap → production Omega readiness
 
@@ -300,8 +301,6 @@ production compiler source ──▶ Ωself ──┐
 provisional Delta ledger ◀──▶ omega-bootstrap source ──▶ Delta v1 freeze
 
 Delta v1 + omega-bootstrap + Ωself ──▶ hosted production build
-
-bc source-correspondence refinement proceeds independently
 ```
 
 Delta v1 defines the language used to write the bridge. `Ωself` defines the
@@ -500,7 +499,7 @@ Terminal-Psi interpreter, verifier, viewer, or debugger, and it does not require
 
 ## Cross-rung assurance work
 
-- [ ] **Close the `bc` source-correspondence edge by checked refinement.**
+- [x] **Close the `bc` source-correspondence edge by checked refinement.**
   Validate the exact persisted Alpha tape against `bc.beta` with authority
   rooted below `bc`. Fixed-point identity and corpus agreement establish
   dependency closure and regression evidence, not this theorem.
@@ -534,7 +533,12 @@ Terminal-Psi interpreter, verifier, viewer, or debugger, and it does not require
     opening, escaped-NUL continuation, exact `[92,0]` malformed-tail behavior,
     the 48-byte/four-label `gen_emit` trace, both final-expect cursor classes,
     invalid-comparison no-op output, signed high-bit materialization, and exact
-    `set,done,set,done` label order; and
+    `set,done,set,done` label order;
+  - the ROOT checker composes source slurp, the reusable main loop,
+    complete `parse_proc`, all root-reachable resource joins, guarded
+    divergence, and maximal trace equality. Its independent memory-safety
+    closure rescans all 95 raw-memory rows and joins the five SRC-indexed and
+    two table-indexed loads to exact guards and nonwrapping extents; and
   - every claimed source/artifact join remains lower-rooted and mutation-toothed.
 
   Remaining proof plan:
@@ -596,14 +600,14 @@ Terminal-Psi interpreter, verifier, viewer, or debugger, and it does not require
       bundle in an independent 65,069-byte checker, with five modules below
       20 KB, an assembler diamond, a scanned origin/kind/projection census, and
       thirty-six phase-isolated teeth; and
-  - [ ] close the root loop and prove equality of maximal stdout plus
+  - [x] close the root loop and prove equality of maximal stdout plus
     `Halt`/`Trap`/`Exhaust`/`Diverge` for every finite source stream and
     supported resource profile in `BOOTSTRAP_OBSERVABLE.md`:
-    - [ ] bind the exact `main.body` call and `parse_proc` entry prefix through
+    - [x] bind the exact `main.body` call and `parse_proc` entry prefix through
       `NLOC` reset, whitespace/identifier helpers, saved procedure-name fields,
       permissive `expect('(')`, and entry to the already-published parameter
       loop, carrying root trace, frame, depth-zero, and resource provenance;
-    - [ ] instantiate the existing parameter, capacity, output-prefix, and
+    - [x] instantiate the existing parameter, capacity, output-prefix, and
       parse-body relations at root block depth zero, partitioning ordinary
       return, each root-reachable checked resource origin, and child divergence
       without recovering a resource kind from numeric status 252; prove any
@@ -611,18 +615,18 @@ Terminal-Psi interpreter, verifier, viewer, or debugger, and it does not require
       this entry-to-return/divergence composition as its own independently
       checked conditional `parse_proc` relation rather than folding it into the
       root checker;
-    - [ ] bind the exact post-return status split: ordinary return traverses
+    - [x] bind the exact post-return status split: ordinary return traverses
       `skip_ws` and republishes every reusable loop invariant, while resource
       return preserves first-failure provenance through `main.resource` and its
       deterministic output suffix;
-    - [ ] generalize the reusable loop split across the honest post-parse cursor
+    - [x] generalize the reusable loop split across the honest post-parse cursor
       bound `0 <= CUR <= LEN+2`: in-range NUL and every `LEN <= CUR` miss halt,
       while only an in-range nonzero byte enters the body. Do not silently reuse
       the narrower initial-loop theorem or normalize malformed-tail overshoot;
-    - [ ] close the guarded greatest fixed point over any number of completed
+    - [x] close the guarded greatest fixed point over any number of completed
       parse/backedge iterations without assuming cursor or stdout productivity,
       then join the source-oversize wrapper; and
-    - [ ] prove the final partition excludes invalid-opcode/arithmetic traps and
+    - [x] prove the final partition excludes invalid-opcode/arithmetic traps and
       undefined stack or memory states, and accept the root publication only
       after the control, parse-body, resource-classification, and completed
       `parse_proc` owners have checked the identical canonical bundle. The root
@@ -652,26 +656,24 @@ Terminal-Psi interpreter, verifier, viewer, or debugger, and it does not require
 
 ## Execution order
 
-1. Close the Alpha-rooted `bc` source-correspondence edge with lower-rooted
-   checking.
-2. In parallel, keep Delta's Rust-free meaning route and provisional feature
+1. In parallel, keep Delta's Rust-free meaning route and provisional feature
    ledger live while `OMEGA-PRODUCT-COMPILER-SOURCE` establishes the Omega-written
    product source and deterministic closure in `TASKS.md`.
-3. Derive and mechanically enforce a provisional `Ωself` from that product
+2. Derive and mechanically enforce a provisional `Ωself` from that product
    closure, then implement `omega-bootstrap` directly against its compositional
    rules. Use O0/O1 only as regression canaries; do not manufacture an O2/O3
    ladder. Feed measured bridge and assurance cost back into each
    retained/excluded profile decision.
-4. At the completed bridge join, freeze `Ωself` from the exact Omega product
+3. At the completed bridge join, freeze `Ωself` from the exact Omega product
    closure and general accepted-source implementation. Separately freeze a
    coherent Delta v1 from the bridge's complete Delta source closure after
    removing accidental producer and corpus surface. These are the only two
    feature inventories being settled.
-5. Build the exact bridge through the canonical lattice path, join source,
+4. Build the exact bridge through the canonical lattice path, join source,
    meaning, artifact, and negative-profile evidence, then use it once to build
    and validate the full optimizing Omega compiler. Any later product
    self-rebuild is optional performance/reproducibility work.
-6. Throughout those steps, grow proof-kernel seams and translation-validation
+5. Throughout those steps, grow proof-kernel seams and translation-validation
    evidence only for real obligation classes introduced by the compiler edges.
 
 This ordering follows D1–D6. Producer optimization does not outrank removal of a

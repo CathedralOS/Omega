@@ -960,8 +960,8 @@ materialization side as codes 0..2, and the four label children retain exact
 All fourteen family modules are below 20 KB (`bc-gen-emit-summary.alpha` is
 largest at 19,708 bytes). The complete checker source is 673,638 bytes; the
 lattice assembler and independent `asm_ref.py` agree byte-for-byte on its
-167,060-byte tape. `BC_BLOCK_FOCUS=label-emitters` passes canonical execution
-plus 36 phase-isolated premise, shape, full-Word boundary, trace-order,
+167,082-byte tape. `BC_BLOCK_FOCUS=label-emitters` passes canonical execution
+plus 37 phase-isolated premise, stack-bridge, shape, full-Word boundary, trace-order,
 malformed-tail, complement, signed-split, and publication mutations. This
 closes the label/string/comparison emitter family, not the expression SCC.
 
@@ -1042,8 +1042,8 @@ resumptions live without a depth decrement, and carries the maximal child trace
 without cursor or stdout productivity assumptions. Twenty-five phase-isolated
 teeth protect the implication seam, exact tail shape, depth/outcome partition,
 trace order, numeric252 suffix/provenance, Div lifting, non-productivity, refusal
-to infer ResourceKind, and publication. Root reachability/D=0 instantiation
-remains later composition work.
+to infer ResourceKind, and publication. The final ROOT process supplies root
+reachability and D=0 instantiation.
 
 The independent 65,069-byte checked-resource process classifies every direct
 `B_bc1` admission failure from its exact proved guard, frozen resource-profile
@@ -1067,5 +1067,28 @@ below 20 KB, the lattice and reference assemblers agree, and
 `BC_BLOCK_FOCUS=resource-classification` passes canonical execution plus 36
 phase-isolated guard, profile, kind, request, symbolic-identity, custody,
 census, status-inversion, metadata, and publication mutations. This closes
-direct typed classification; the root theorem must still instantiate and carry
+direct typed classification; the final ROOT theorem instantiates and carries
 that provenance through the complete maximal observation.
+
+The final whole-root tranche closes the declared `B_bc1` refinement edge. Its
+separate complete-`parse_proc` process composes the entry/name/parameter prefix,
+declaration preflight, output prefix, the D=0 statement/body relation, the exact
+49-byte epilogue, all root-reachable resource returns, and child divergence.
+The ROOT process then joins source overflow, the generalized
+`0<=CUR<=LEN+2` loop split, successful parse/backedge iterations, quiet resource
+cleanup, and a guarded greatest fixed point. Completed machine steps—not cursor
+or stdout progress—guard recursion, so silent divergence and finite or infinite
+maximal traces remain honest.
+
+Before publishing no-stuck/no-OOB, MSAF independently rescans all 95 memory
+rows and admits exactly 54 fixed, five SRC-indexed, and two table-indexed loads.
+It binds the seven dynamic rows to their exact procedure/block/PC/class/width,
+the CBLE/RIDS/IDCH/NTDM/NEQS/EIDS relations, and explicit nonwrapping source or
+1,024-slot table extents. ROOT finally proves exact maximal stdout and terminal
+constructor equality for `Halt`, `Trap`, typed `Exhaust`, and `Diverge` over
+every finite source and supported resource profile. Every module is below
+20 KB; the lattice/reference assembler diamond agrees on the checker tape; and
+49 isolated ROOT mutations reject altered antecedents, shapes, joins, guards,
+bounds, maximality, or publication. This is authority for the exact persisted
+artifact/profile, not a claim that fixed-point identity or finite corpora prove
+compiler correctness.

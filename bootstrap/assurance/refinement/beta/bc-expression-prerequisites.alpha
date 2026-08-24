@@ -54,13 +54,13 @@ expression_prove_literal_prerequisites:
         ret
 
 expression_prove_name_prerequisites:
-        ; SPNE is a checker-private conditional name-domain root, not a dynamic
-        ; claim that main has already populated the table.
+        ; SPFX is the stable common-prefix safety root, not a dynamic claim that
+        ; main has already populated the table.
         imm r1, 531840
-        imm r2, 1162760275             ; SPNE
+        imm r2, 1481003091             ; SPFX
         store r1, r2
         imm r20, 531840
-        imm r21, 1162760275
+        imm r21, 1481003091
         call exact_require_cell
         call name_table_domain_reset
         call name_table_require_load_classes

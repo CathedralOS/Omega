@@ -1,0 +1,204 @@
+; Antecedent schemas for the declaration-budget implication.
+;
+; Rows at 633000, stride48:
+;   id, external publication cell, publication tag,
+;   exact supporting cell, supporting value, owner class.
+; Owner1 is Checker A, owner2 is the accepted statement implication, and
+; owner3 is the accepted PBOD implication.  Rows introduce hypotheses only.
+
+declaration_budget_antecedent_init:
+        imm r20, 632000
+        imm r21, 1480938052             ; DREX
+        call exact_require_cell
+
+        imm r10, 1
+        imm r11, 527064                 ; DCLS
+        imm r12, 1397506884
+        imm r13, 527176                 ; exact room completion
+        imm r14, 1
+        imm r15, 1
+        call declaration_budget_store_antecedent
+
+        imm r10, 2
+        imm r11, 527728                 ; CNTS
+        imm r12, 1129206867             ; CNTS tag
+        imm r13, 527904                 ; exact-let fixed-point completion
+        imm r14, 1
+        imm r15, 1
+        call declaration_budget_store_antecedent
+
+        imm r10, 3
+        imm r11, 528072                 ; PCAP
+        imm r12, 1346584912
+        imm r13, 528168                 ; nslots<=1024 room completion
+        imm r14, 1
+        imm r15, 1
+        call declaration_budget_store_antecedent
+
+        imm r10, 4
+        imm r11, 528664                 ; PFXS
+        imm r12, 1398294096
+        imm r13, 528832                 ; retained state at genbody
+        imm r14, 1
+        imm r15, 1
+        call declaration_budget_store_antecedent
+
+        imm r10, 5
+        imm r11, 546228                 ; SREL
+        imm r12, 1279611475             ; SREL tag
+        imm r13, 547248                 ; exact p67 let branch selected
+        imm r14, 1
+        imm r15, 2
+        call declaration_budget_store_antecedent
+
+        imm r10, 6
+        imm r11, 546196                 ; STBR finite p67 branches
+        imm r12, 1380078675
+        imm r13, 547296                 ; let-room NLOC increment
+        imm r14, 1
+        imm r15, 2
+        call declaration_budget_store_antecedent
+
+        imm r10, 7
+        imm r11, 560440                 ; PBOD
+        imm r12, 1146045008
+        imm r13, 560544                 ; reachable explicit p68 return path
+        imm r14, 1
+        imm r15, 3
+        call declaration_budget_store_antecedent
+
+        call declaration_budget_require_antecedents
+        imm r1, 632008
+        imm r2, 1312903748             ; DRAN
+        store r1, r2
+        jmp declaration_budget_shape_init
+
+; r10=id,r11=publication cell,r12=tag,r13=support cell,r14=value,r15=owner.
+declaration_budget_store_antecedent:
+        mov r20, r10
+        imm r1, 1
+        sub r20, r1
+        imm r1, 48
+        mul r20, r1
+        imm r1, 633000
+        add r20, r1
+        store r20, r10
+        imm r1, 8
+        add r20, r1
+        store r20, r11
+        add r20, r1
+        store r20, r12
+        add r20, r1
+        store r20, r13
+        add r20, r1
+        store r20, r14
+        add r20, r1
+        store r20, r15
+        ret
+
+declaration_budget_require_antecedents:
+        imm r10, 1
+declaration_budget_require_antecedent_loop:
+        imm r1, 8
+        jlt r10, r1, declaration_budget_require_antecedent_row
+        imm r20, 633336
+        imm r21, 0
+        ; The first cell after the seven-row table must remain untouched.
+        call exact_require_cell
+        ret
+declaration_budget_require_antecedent_row:
+        call declaration_budget_select_antecedent
+        mov r20, r10
+        imm r1, 1
+        sub r20, r1
+        imm r1, 48
+        mul r20, r1
+        imm r1, 633000
+        add r20, r1
+        mov r21, r10
+        call exact_require_cell
+        imm r1, 8
+        add r20, r1
+        mov r21, r11
+        call exact_require_cell
+        add r20, r1
+        mov r21, r12
+        call exact_require_cell
+        add r20, r1
+        mov r21, r13
+        call exact_require_cell
+        add r20, r1
+        mov r21, r14
+        call exact_require_cell
+        add r20, r1
+        mov r21, r15
+        call exact_require_cell
+        imm r1, 1
+        add r10, r1
+        jmp declaration_budget_require_antecedent_loop
+
+declaration_budget_select_antecedent:
+        imm r1, 1
+        jeq r10, r1, declaration_budget_ant_dcls
+        imm r1, 2
+        jeq r10, r1, declaration_budget_ant_cnts
+        imm r1, 3
+        jeq r10, r1, declaration_budget_ant_pcap
+        imm r1, 4
+        jeq r10, r1, declaration_budget_ant_pfxs
+        imm r1, 5
+        jeq r10, r1, declaration_budget_ant_srel
+        imm r1, 6
+        jeq r10, r1, declaration_budget_ant_stbr
+        imm r1, 7
+        jeq r10, r1, declaration_budget_ant_pbod
+        jmp reject
+declaration_budget_ant_dcls:
+        imm r11, 527064
+        imm r12, 1397506884
+        imm r13, 527176
+        imm r14, 1
+        imm r15, 1
+        ret
+declaration_budget_ant_cnts:
+        imm r11, 527728
+        imm r12, 1129206867
+        imm r13, 527904
+        imm r14, 1
+        imm r15, 1
+        ret
+declaration_budget_ant_pcap:
+        imm r11, 528072
+        imm r12, 1346584912
+        imm r13, 528168
+        imm r14, 1
+        imm r15, 1
+        ret
+declaration_budget_ant_pfxs:
+        imm r11, 528664
+        imm r12, 1398294096
+        imm r13, 528832
+        imm r14, 1
+        imm r15, 1
+        ret
+declaration_budget_ant_srel:
+        imm r11, 546228
+        imm r12, 1279611475
+        imm r13, 547248
+        imm r14, 1
+        imm r15, 2
+        ret
+declaration_budget_ant_stbr:
+        imm r11, 546196
+        imm r12, 1380078675
+        imm r13, 547296
+        imm r14, 1
+        imm r15, 2
+        ret
+declaration_budget_ant_pbod:
+        imm r11, 560440
+        imm r12, 1146045008
+        imm r13, 560544
+        imm r14, 1
+        imm r15, 3
+        ret

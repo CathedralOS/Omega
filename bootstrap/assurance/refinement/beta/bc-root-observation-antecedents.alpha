@@ -1,0 +1,285 @@
+; External schemas for the whole-root observable implication.
+;
+; Each row names one public hypothesis twice.  The repeated pair makes the
+; implication executable without naming auxiliary private cells from another
+; checker. Same-bundle owner discharge remains a shell-level conjunction.
+;
+; Rows at 617000, stride32:
+;   +0 schema cell, +8 schema tag/value,
+;   +16 repeated public cell, +24 repeated public tag/value.
+
+root_observation_antecedent_init:
+        imm r20, 616000
+        imm r21, 1481789266             ; RORX
+        call exact_require_cell
+        imm r10, 617000
+
+        ; Complete parse_proc Ret0 / Ret252(rho) / Div relation.  PPRC itself
+        ; must have been discharged from the exact prefix plus PLOP/PCAP/PBOD.
+        imm r11, 610024
+        imm r12, 1129467984             ; PPRC
+        imm r13, 610024
+        imm r14, 1129467984             ; one public contract, named twice
+        call root_observation_store_antecedent
+
+        ; Exact checked-resource classifier.  Kind/limit/request are obtained
+        ; from this schema and its guard/profile basis, never from status252.
+        imm r11, 600024
+        imm r12, 1397506898             ; RCLS
+        imm r13, 600024
+        imm r14, 1397506898
+        call root_observation_store_antecedent
+
+        ; PBOD remains a transitive dependency witness only.  It is not used
+        ; as a total parse_proc theorem and does not manufacture root D=0.
+        imm r11, 560440
+        imm r12, 1146045008             ; PBOD
+        imm r13, 560440
+        imm r14, 1146045008
+        call root_observation_store_antecedent
+
+        ; Existing normalized loop split.  The local GFP extends its miss case
+        ; to the honest post-parse domain CUR<=LEN+2; MLSP alone is insufficient.
+        imm r11, 526664
+        imm r12, 1347636301             ; MLSP
+        imm r13, 526664
+        imm r14, 1347636301
+        call root_observation_store_antecedent
+
+        ; Terminating in-domain skip_ws.
+        imm r11, 526216
+        imm r12, 1398231888             ; SWSQ
+        imm r13, 526216
+        imm r14, 1398231888
+        call root_observation_store_antecedent
+
+        ; Exact out-of-range skip_ws for LEN<CUR<=LEN+2.
+        imm r11, 527536
+        imm r12, 1398231896             ; SWSX
+        imm r13, 527536
+        imm r14, 1398231896
+        call root_observation_store_antecedent
+
+        ; cbyte exact bounded hit/miss relation, used to extend the loop split.
+        imm r11, 525960
+        imm r12, 1128421445             ; CBLE
+        imm r13, 525960
+        imm r14, 1128421445
+        call root_observation_store_antecedent
+
+        ; Concrete successful root-to-first-loop bridge and ordered prefix.
+        imm r11, 526496
+        imm r12, 1297238352             ; MLRP
+        imm r13, 526496
+        imm r14, 1297238352
+        call root_observation_store_antecedent
+
+        ; Exact source-overflow projection and its slurp completion.  RCLS, not
+        ; the numeric 253, supplies SourceBytes/limit/request.
+        imm r11, 526448
+        imm r12, 2                      ; concrete root raw status253 clause
+        imm r13, 526448
+        imm r14, 2
+        call root_observation_store_antecedent
+
+        ; Successful slurp/main.ready relation, including root call custody.
+        imm r11, 526440
+        imm r12, 1
+        imm r13, 526440
+        imm r14, 1
+        call root_observation_store_antecedent
+
+        ; Reachable artifact decode/edge structure.  The independent structure
+        ; owner publishes ASTR only after its complete scan.
+        imm r11, 524360
+        imm r12, 1381258049             ; ASTR
+        imm r13, 524360
+        imm r14, 1381258049
+        call root_observation_store_antecedent
+
+        ; Stable common-prefix publication: complete static access custody plus
+        ; the absolute explicit/hidden stack theorem. Dynamic source/table
+        ; indices remain discharged by the relational schemas below ROOT.
+        imm r11, 531840
+        imm r12, 1481003091             ; SPFX
+        imm r13, 531840
+        imm r14, 1481003091
+        call root_observation_store_antecedent
+
+        ; Full signed-Word decimal division/remainder theorem.
+        imm r11, 532560
+        imm r12, 1464026436             ; DECW
+        imm r13, 532560
+        imm r14, 1464026436
+        call root_observation_store_antecedent
+
+        ; Exact source-slice premises used by cbyte/read-ident/emit-ident.
+        imm r11, 526792
+        imm r12, 1396984146             ; RIDS
+        imm r13, 526792
+        imm r14, 1396984146
+        call root_observation_store_antecedent
+        imm r11, 527184
+        imm r12, 1212367945             ; IDCH
+        imm r13, 527184
+        imm r14, 1212367945
+        call root_observation_store_antecedent
+
+        ; Exact bounded name-table and name_eq relations.
+        imm r11, 531848
+        imm r12, 1296323662             ; NTDM
+        imm r13, 531848
+        imm r14, 1296323662
+        call root_observation_store_antecedent
+        imm r11, 531952
+        imm r12, 1397839182             ; NEQS
+        imm r13, 531952
+        imm r14, 1397839182
+        call root_observation_store_antecedent
+
+        ; Exact emit-ident slice relation.
+        imm r11, 528192
+        imm r12, 1396984133             ; EIDS
+        imm r13, 528192
+        imm r14, 1396984133
+        call root_observation_store_antecedent
+
+        imm r1, 617576
+        jeq r10, r1, root_observation_antecedent_rows_done
+        jmp reject
+root_observation_antecedent_rows_done:
+        call root_observation_require_antecedents
+        imm r1, 616008
+        imm r2, 1414414674             ; RANT
+        store r1, r2
+        jmp root_observation_shape_init
+
+root_observation_store_antecedent:
+        store r10, r11
+        imm r1, 8
+        add r10, r1
+        store r10, r12
+        add r10, r1
+        store r10, r13
+        add r10, r1
+        store r10, r14
+        add r10, r1
+        ret
+
+root_observation_require_antecedents:
+        imm r10, 617000
+        imm r11, 610024
+        imm r12, 1129467984
+        imm r13, 610024
+        imm r14, 1129467984
+        call root_observation_require_antecedent
+        imm r11, 600024
+        imm r12, 1397506898
+        imm r13, 600024
+        imm r14, 1397506898
+        call root_observation_require_antecedent
+        imm r11, 560440
+        imm r12, 1146045008
+        imm r13, 560440
+        imm r14, 1146045008
+        call root_observation_require_antecedent
+        imm r11, 526664
+        imm r12, 1347636301
+        imm r13, 526664
+        imm r14, 1347636301
+        call root_observation_require_antecedent
+        imm r11, 526216
+        imm r12, 1398231888
+        imm r13, 526216
+        imm r14, 1398231888
+        call root_observation_require_antecedent
+        imm r11, 527536
+        imm r12, 1398231896
+        imm r13, 527536
+        imm r14, 1398231896
+        call root_observation_require_antecedent
+        imm r11, 525960
+        imm r12, 1128421445
+        imm r13, 525960
+        imm r14, 1128421445
+        call root_observation_require_antecedent
+        imm r11, 526496
+        imm r12, 1297238352
+        imm r13, 526496
+        imm r14, 1297238352
+        call root_observation_require_antecedent
+        imm r11, 526448
+        imm r12, 2
+        imm r13, 526448
+        imm r14, 2
+        call root_observation_require_antecedent
+        imm r11, 526440
+        imm r12, 1
+        imm r13, 526440
+        imm r14, 1
+        call root_observation_require_antecedent
+        imm r11, 524360
+        imm r12, 1381258049
+        imm r13, 524360
+        imm r14, 1381258049
+        call root_observation_require_antecedent
+        imm r11, 531840
+        imm r12, 1481003091
+        imm r13, 531840
+        imm r14, 1481003091
+        call root_observation_require_antecedent
+        imm r11, 532560
+        imm r12, 1464026436
+        imm r13, 532560
+        imm r14, 1464026436
+        call root_observation_require_antecedent
+        imm r11, 526792
+        imm r12, 1396984146
+        imm r13, 526792
+        imm r14, 1396984146
+        call root_observation_require_antecedent
+        imm r11, 527184
+        imm r12, 1212367945
+        imm r13, 527184
+        imm r14, 1212367945
+        call root_observation_require_antecedent
+        imm r11, 531848
+        imm r12, 1296323662
+        imm r13, 531848
+        imm r14, 1296323662
+        call root_observation_require_antecedent
+        imm r11, 531952
+        imm r12, 1397839182
+        imm r13, 531952
+        imm r14, 1397839182
+        call root_observation_require_antecedent
+        imm r11, 528192
+        imm r12, 1396984133
+        imm r13, 528192
+        imm r14, 1396984133
+        call root_observation_require_antecedent
+        imm r1, 617576
+        jeq r10, r1, root_observation_antecedents_complete
+        jmp reject
+root_observation_antecedents_complete:
+        ret
+
+root_observation_require_antecedent:
+        mov r20, r10
+        mov r21, r11
+        call exact_require_cell
+        imm r1, 8
+        add r10, r1
+        mov r20, r10
+        mov r21, r12
+        call exact_require_cell
+        add r10, r1
+        mov r20, r10
+        mov r21, r13
+        call exact_require_cell
+        add r10, r1
+        mov r20, r10
+        mov r21, r14
+        call exact_require_cell
+        add r10, r1
+        ret

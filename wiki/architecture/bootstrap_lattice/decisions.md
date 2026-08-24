@@ -23,7 +23,7 @@ The overview's "Two roles for Rust" is the ordering law. Made concrete, per arti
 | Where Rust sits | Role | Status / plan |
 | --- | --- | --- |
 | `check.beta` / `checker.gamma` (the proof kernel) | **trusted base** | **DEAD** — Beta + Gamma implementations, cross-checked against shared seams. |
-| cold-started `bc` artifact vs `bc.beta` | **trusted compilation edge** | **OPEN** — the Alpha-rooted fixed point and persisted artifact exist; complete lower-rooted source-to-artifact refinement does not. |
+| cold-started `bc` artifact vs `bc.beta` | **trusted compilation edge** | **CLOSED for `B_bc1`** — an independently reconstructed ROOT proposition binds the exact persisted tape to the complete maximal source observable, including exhaustion and divergence. |
 | `interp.beta` / `typeck.beta` (γ meaning) | **trusted base** | **DEAD** — Beta, on the seed lineage. |
 | Delta's **meaning** (`gamma_emit.rs`) | **trusted base** | **MIGRATING** — the Beta-written `omega2gamma` route and Gamma execution cover the admitted D0/O1 compiler canaries. `gamma_emit.rs` is a differential reference there; each bridge capability added toward `Ωself` must bring lower-rung meaning with it. |
 | Psi/Omega's **meaning** | **trusted base** | Follows the same elaboration discipline through `omega-bootstrap` and the hosted production compile. |
@@ -148,10 +148,12 @@ The current `bc` cold start no longer passes through
 path). An Alpha-written compiler accepts the exact pinned `bc.beta` surface,
 reconstructs the persisted fixed-point tape, and runs the complete Beta corpus.
 That closes the external-producer dependency and establishes reproducible
-lineage; it does not by itself establish source correspondence. The latter is an
-**unfinished lower-rooted refinement edge**.
-Close it by validating the complete `bc` artifact against `bc.beta` with
-authority rooted below `bc`.
+lineage. The separate lower-rooted refinement gate now establishes source
+correspondence: its independently reconstructed ROOT proposition proves exact
+maximal-observation equality for the persisted artifact over every finite source
+and supported `B_bc1` resource profile. This does not turn fixed-point identity
+or corpus agreement into correctness evidence; they remain separate regression
+and dependency-closure checks.
 
 The dedicated `compiler/beta-lang-py` comparison gate and `bc2.py` backend have
 been removed because they supplied no unique semantic or refinement coverage. Shared
@@ -333,7 +335,7 @@ internal IR merely because it compiles product modules that implement it.
 α  seed VM ...... small written semantics + audited x64/arm64 realizations               [ROOT: execution]
 │                 hand-audited; own small-step semantics
 α  assembler .... written in α-asm, run by α; self-hosts                                [derived from α]
-β  bc ........... Beta compiler in Beta; self-hosts; whole-artifact refinement open      [D5 work]
+β  bc ........... Beta compiler in Beta; self-hosts; B_bc1 whole-artifact refinement closed [D5]
 γ  interpreter .. interp.beta (+ typeck): the canonical MEANING substrate               [Rust-free]
 δ  systems ...... independent compiler-host language; meaning elaborates δ → γ           [D2; Rust removal active]
                   builds omega-bootstrap from Delta source                                [bootstrap producer]

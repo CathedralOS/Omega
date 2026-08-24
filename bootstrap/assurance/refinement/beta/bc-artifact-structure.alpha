@@ -13,7 +13,7 @@
 ; committed 256 KiB tape-hole payload (262,140 bytes after its length prefix).
 ;
 ; Memory map (all within Alpha's fixed 64 MiB):
-;   globals     524288 .. 524343
+;   globals     524288 .. 524367  (final cell 524360 publishes ASTR)
 ;   source     1048576 .. 1310715  (262140 bytes)
 ;   coverage   1310720 .. 1572859  (0 unseen, 1 instruction start, 2 operand)
 ;   queued     1572864 .. 1835003  (one byte per possible instruction start)
@@ -382,6 +382,21 @@ verify_edges_loop:
         imm   r3, 524288
         load  r8, r3
         jlt   r6, r8, verify_edges_pc
+        jmp   publish_artifact_structure
+
+; Durable lower-rooted publication.  This point is reachable only after the
+; complete reachable-instruction, procedure-partition, terminal, and edge
+; checks above have succeeded.  Reconsume the fixed tag before accepting so a
+; damaged publication write cannot be mistaken for a successful certificate.
+publish_artifact_structure:
+        imm   r1, 524360
+        imm   r2, 1381258049            ; ASTR
+        store r1, r2
+        load  r3, r1
+        jeq   r3, r2, accept
+        jmp   reject
+
+accept:
         imm   r0, 0
         halt  r0
 

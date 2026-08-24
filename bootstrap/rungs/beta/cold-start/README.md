@@ -60,8 +60,9 @@ producer cold-start dependency. [`full-source.sh`](full-source.sh) builds `bc.be
 Alpha-written compiler, advances to the self-hosted fixed point, reconstructs
 [`../artifacts/bc.tape`](../artifacts/README.md) byte-for-byte, and runs the whole
 Beta corpus through that persisted artifact. This proves construction lineage,
-reproducibility, and retained behavior; complete lower-rooted source-to-artifact
-refinement remains a separate assurance task.
+reproducibility, and retained behavior. The separate ROOT gate under
+`bootstrap/assurance/refinement/beta/` now closes lower-rooted source-to-artifact
+refinement for the exact persisted tape and `B_bc1` profile.
 
 ## Full-source target profile
 

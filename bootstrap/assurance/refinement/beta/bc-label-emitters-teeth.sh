@@ -32,6 +32,10 @@ label_emitters_build_teeth() {
     'imm r2, 1                    ; conditional successful source segment' \
     'imm r2, 0                    ; conditional successful source segment'
 
+  label_emitters_build_tooth label-emitters-wrong-stack-bridge \
+    'imm r2, 1481003091             ; SPFX' \
+    'imm r2, 1481003090             ; SPFX'
+
   # NLBL is a modular full-Word theorem, including WORD_MAX -> 0.
   label_emitters_build_tooth label-emitters-break-word-max-wrap \
     'sub r10, r11                 ; WORD_MAX = 0-1' \
@@ -151,6 +155,7 @@ label_emitters_build_teeth() {
 label_emitters_reject_teeth() {
   for label_emitters_tooth_name in \
     label-emitters-drop-source-premise \
+    label-emitters-wrong-stack-bridge \
     label-emitters-break-word-max-wrap \
     label-emitters-drop-word-max-endpoint \
     label-emitters-wrong-nlbl-publication \

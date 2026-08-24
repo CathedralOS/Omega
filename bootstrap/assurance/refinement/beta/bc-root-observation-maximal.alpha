@@ -1,0 +1,343 @@
+; Maximal-observation equality and explicit root safety exclusion.
+;
+; Equality rows retain the exact Alpha/Beta observation constructor and maximal
+; trace relation.  Exclusion rows are conditional implications over durable
+; same-bundle schema identities.  ASTR closes reachable decoding and stable
+; SPFX closes static machine-access custody plus absolute explicit/hidden stack
+; bounds. MSAF independently joins all seven dynamic raw loads to exact
+; source/table guards and nonwrapping extents. DECW is named separately for the
+; reachable division/remainder path.
+
+; Rows at625000, stride56: case, Alpha observation constructor, Beta
+; constructor, same trace DAG/supremum, payload/provenance equality,
+; maximality, completion.
+root_observation_build_maximal_equality:
+        imm r10, 1                    ; Halt0
+        imm r11, 1
+        call root_observation_store_equality_row
+        imm r10, 2                    ; source Exhaust
+        imm r11, 2
+        call root_observation_store_equality_row
+        imm r10, 3                    ; structural Exhaust(rho)
+        imm r11, 2
+        call root_observation_store_equality_row
+        imm r10, 4                    ; Diverge, finite maximal prefix
+        imm r11, 4
+        call root_observation_store_equality_row
+        imm r10, 5                    ; Diverge, infinite trace supremum
+        imm r11, 4
+        call root_observation_store_equality_row
+        call root_observation_require_equality_rows
+        imm r1, 616032
+        imm r2, 1480674642             ; RMAX
+        store r1, r2
+        ret
+
+root_observation_store_equality_row:
+        mov r20, r10
+        imm r1, 56
+        mul r20, r1
+        imm r1, 624944
+        add r20, r1
+        store r20, r10
+        imm r1, 8
+        add r20, r1
+        store r20, r11               ; exact Alpha constructor
+        add r20, r1
+        store r20, r11               ; exact Beta constructor
+        add r20, r1
+        imm r2, 1
+        store r20, r2                ; identical trace DAG/supremum
+        add r20, r1
+        store r20, r2                ; payload/rho equality
+        add r20, r1
+        store r20, r2                ; maximal, not arbitrary finite prefix
+        add r20, r1
+        store r20, r2
+        ret
+
+root_observation_require_equality_rows:
+        imm r10, 1
+root_observation_require_equality_row:
+        imm r1, 6
+        jlt r10, r1, root_observation_require_equality_one
+        ret
+root_observation_require_equality_one:
+        mov r20, r10
+        imm r1, 56
+        mul r20, r1
+        imm r1, 624944
+        add r20, r1
+        mov r21, r10
+        call exact_require_cell
+        imm r1, 48
+        add r20, r1
+        imm r21, 1
+        call exact_require_cell
+        imm r1, 1
+        add r10, r1
+        jmp root_observation_require_equality_row
+
+; Six rows at629000, stride104:
+;   +0 component, +8 Trap count, +16 stuck count,
+;   +24/+32 primary schema cell/tag, +40/+48 secondary schema cell/tag,
+;   +56 ASTR basis, +64 SPFX stack basis, +72 MSAF indexed-access closure,
+;   +80 DECW basis required, +88 exact dynamic relation class,
+;   +96 completion.
+root_observation_build_exclusion:
+        call root_observation_require_safety_antecedents
+        imm r10, 1
+root_observation_build_exclusion_loop:
+        imm r1, 7
+        jlt r10, r1, root_observation_build_exclusion_row
+        call root_observation_require_exclusion_rows
+        imm r1, 616040
+        imm r2, 558845522              ; RNO!
+        store r1, r2
+        ret
+root_observation_build_exclusion_row:
+        call root_observation_select_exclusion_build
+        call root_observation_store_exclusion_row
+        imm r1, 1
+        add r10, r1
+        jmp root_observation_build_exclusion_loop
+
+; Producer selector. The verifier below reconstructs every field separately.
+root_observation_select_exclusion_build:
+        imm r11, 526496                ; MLRP
+        imm r12, 1297238352
+        imm r13, 600024                ; RCLS
+        imm r14, 1397506898
+        imm r15, 0                     ; no DECW path in source wrapper
+        imm r16, 1
+        imm r1, 1
+        jeq r10, r1, root_observation_exclusion_build_selected
+        imm r1, 2
+        jeq r10, r1, root_observation_exclusion_build_loop
+        imm r1, 3
+        jeq r10, r1, root_observation_exclusion_build_skip
+        imm r1, 4
+        jeq r10, r1, root_observation_exclusion_build_parse
+        imm r1, 5
+        jeq r10, r1, root_observation_exclusion_build_resource
+        imm r1, 6
+        jeq r10, r1, root_observation_exclusion_build_suffix
+        jmp reject
+root_observation_exclusion_build_loop:
+        imm r11, 526664                ; MLSP
+        imm r12, 1347636301
+        imm r13, 525960                ; CBLE
+        imm r14, 1128421445
+        imm r16, 2
+        ret
+root_observation_exclusion_build_skip:
+        imm r11, 526216                ; SWSQ
+        imm r12, 1398231888
+        imm r13, 527536                ; SWSX
+        imm r14, 1398231896
+        imm r16, 3
+        ret
+root_observation_exclusion_build_parse:
+        imm r11, 610024                ; PPRC
+        imm r12, 1129467984
+        imm r13, 560440                ; PBOD
+        imm r14, 1146045008
+        imm r15, 1                     ; DECW closes reachable div/rem
+        imm r16, 4
+        ret
+root_observation_exclusion_build_resource:
+        imm r11, 616088                ; RJON
+        imm r12, 1313819218
+        imm r13, 600024                ; RCLS
+        imm r14, 1397506898
+        imm r16, 5
+        ret
+root_observation_exclusion_build_suffix:
+        imm r11, 616016                ; RSH1
+        imm r12, 826823506
+        imm r13, 524360                ; ASTR
+        imm r14, 1381258049
+        imm r16, 6
+        ret
+root_observation_exclusion_build_selected:
+        ret
+
+root_observation_store_exclusion_row:
+        mov r20, r10
+        imm r1, 1
+        sub r20, r1
+        imm r1, 104
+        mul r20, r1
+        imm r1, 629000
+        add r20, r1
+        store r20, r10
+        imm r1, 8
+        add r20, r1
+        imm r2, 0
+        store r20, r2                ; no Trap under named bases
+        add r20, r1
+        store r20, r2                ; no stuck/OOB under named bases
+        add r20, r1
+        store r20, r11
+        add r20, r1
+        store r20, r12
+        add r20, r1
+        store r20, r13
+        add r20, r1
+        store r20, r14
+        add r20, r1
+        imm r2, 1
+        store r20, r2                ; durable ASTR antecedent
+        add r20, r1
+        store r20, r2                ; stable SPFX stack antecedent
+        add r20, r1
+        store r20, r2                ; MSAF indexed-access closure
+        add r20, r1
+        store r20, r15               ; DECW used exactly where reachable
+        add r20, r1
+        store r20, r16               ; dynamic relation class
+        add r20, r1
+        store r20, r2                ; exclusion row complete
+        ret
+
+root_observation_require_exclusion_rows:
+        imm r10, 1
+root_observation_require_exclusion_row:
+        imm r1, 7
+        jlt r10, r1, root_observation_require_exclusion_one
+        ret
+root_observation_require_exclusion_one:
+        call root_observation_select_exclusion_expected
+        mov r20, r10
+        imm r1, 1
+        sub r20, r1
+        imm r1, 104
+        mul r20, r1
+        imm r1, 629000
+        add r20, r1
+        mov r21, r10
+        call root_observation_exclusion_require_next
+        imm r21, 0
+        call root_observation_exclusion_require_next
+        imm r21, 0
+        call root_observation_exclusion_require_next
+        mov r21, r11
+        call root_observation_exclusion_require_next
+        mov r21, r12
+        call root_observation_exclusion_require_next
+        mov r21, r13
+        call root_observation_exclusion_require_next
+        mov r21, r14
+        call root_observation_exclusion_require_next
+        imm r21, 1
+        call root_observation_exclusion_require_next
+        imm r21, 1
+        call root_observation_exclusion_require_next
+        imm r21, 1
+        call root_observation_exclusion_require_next
+        mov r21, r15
+        call root_observation_exclusion_require_next
+        mov r21, r16
+        call root_observation_exclusion_require_next
+        imm r21, 1
+        call exact_require_cell
+        imm r1, 1
+        add r10, r1
+        jmp root_observation_require_exclusion_row
+
+root_observation_exclusion_require_next:
+        call exact_require_cell
+        imm r1, 8
+        add r20, r1
+        ret
+
+; Independent expected selector; do not alias producer registers by loading
+; the row itself or reuse its dispatch labels.
+root_observation_select_exclusion_expected:
+        imm r11, 526496
+        imm r12, 1297238352
+        imm r13, 600024
+        imm r14, 1397506898
+        imm r15, 0
+        imm r16, 1
+        imm r1, 1
+        jeq r10, r1, root_observation_exclusion_expected_selected
+        imm r1, 2
+        jeq r10, r1, root_observation_exclusion_expected_loop
+        imm r1, 3
+        jeq r10, r1, root_observation_exclusion_expected_skip
+        imm r1, 4
+        jeq r10, r1, root_observation_exclusion_expected_parse
+        imm r1, 5
+        jeq r10, r1, root_observation_exclusion_expected_resource
+        imm r1, 6
+        jeq r10, r1, root_observation_exclusion_expected_suffix
+        jmp reject
+root_observation_exclusion_expected_loop:
+        imm r11, 526664
+        imm r12, 1347636301
+        imm r13, 525960
+        imm r14, 1128421445
+        imm r16, 2
+        ret
+root_observation_exclusion_expected_skip:
+        imm r11, 526216
+        imm r12, 1398231888
+        imm r13, 527536
+        imm r14, 1398231896
+        imm r16, 3
+        ret
+root_observation_exclusion_expected_parse:
+        imm r11, 610024
+        imm r12, 1129467984
+        imm r13, 560440
+        imm r14, 1146045008
+        imm r15, 1
+        imm r16, 4
+        ret
+root_observation_exclusion_expected_resource:
+        imm r11, 616088
+        imm r12, 1313819218
+        imm r13, 600024
+        imm r14, 1397506898
+        imm r16, 5
+        ret
+root_observation_exclusion_expected_suffix:
+        imm r11, 616016
+        imm r12, 826823506
+        imm r13, 524360
+        imm r14, 1381258049
+        imm r16, 6
+        ret
+root_observation_exclusion_expected_selected:
+        ret
+
+root_observation_require_safety_antecedents:
+        ; ASTR row11.
+        imm r20, 617320
+        imm r21, 524360
+        call exact_require_cell
+        imm r20, 617328
+        imm r21, 1381258049
+        call exact_require_cell
+        ; Stable SPFX row12: static access custody and absolute stack theorem.
+        imm r20, 617352
+        imm r21, 531840
+        call exact_require_cell
+        imm r20, 617360
+        imm r21, 1481003091
+        call exact_require_cell
+        ; DECW row13.
+        imm r20, 617384
+        imm r21, 532560
+        call exact_require_cell
+        imm r20, 617392
+        imm r21, 1464026436
+        call exact_require_cell
+        imm r20, 616088
+        imm r21, 1313819218             ; local explicit resource join
+        call exact_require_cell
+        imm r20, 631224
+        imm r21, 1178686285             ; MSAF indexed-access closure
+        call exact_require_cell
+        ret

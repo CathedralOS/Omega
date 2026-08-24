@@ -1,0 +1,454 @@
+; Complete root outcome relation for p68 at BLOCKDEPTH=0.
+;
+; Direct declaration-full origin3 is excluded under the explicit DREM
+; remaining-let hypothesis, not by erasure.  DREM's separate owner links
+; PCAP's exact count to the distinct declaration-leading `let` tokens consumed
+; by SREL.  Before a real current declaration, remaining>=1, so
+; NLOC=nparams+consumed<=nslots-1<=1023 and DCLS must select its room branch.
+; Origins1 and3 therefore do not occur at p68 root; origins2,4,5 retain exact
+; child provenance, and6/7 are early failures.
+
+parse_proc_outcomes_init:
+        call parse_proc_outcomes_require_imports
+        call parse_proc_build_remaining_let_rows
+        call parse_proc_require_remaining_let_rows
+        call parse_proc_build_composition
+        call parse_proc_require_composition
+        call parse_proc_build_outcome_rows
+        call parse_proc_require_outcome_rows
+        imm r1, 606032
+        imm r2, 1414877008             ; POUT
+        store r1, r2
+        jmp parse_proc_publication_init
+
+parse_proc_outcomes_require_imports:
+        imm r20, 606024
+        imm r21, 1414415696             ; PENT
+        call exact_require_cell
+        ; Rejoin the exact hypotheses used by the strengthening.
+        imm r20, 607112                 ; DCLS row tag
+        imm r21, 1397506884
+        call exact_require_cell
+        imm r20, 607144                 ; CNTS row tag
+        imm r21, 1129206867
+        call exact_require_cell
+        imm r20, 607208                 ; PCAP row tag
+        imm r21, 1346584912
+        call exact_require_cell
+        imm r20, 607272                 ; SREL row tag
+        imm r21, 1279611475
+        call exact_require_cell
+        imm r20, 606040
+        imm r21, 1296388676             ; hypothetical DREM
+        call exact_require_cell
+        ret
+
+; Five worst-case arithmetic rows, one for each admitted nparams N=0..4.
+; Fields: N, max count, max consumed before a real declaration, max NLOC,
+; room bound.  count=0 is vacuous; the row records the universal maximum.
+parse_proc_build_remaining_let_rows:
+        imm r10, 0
+parse_proc_build_remaining_loop:
+        imm r1, 5
+        jlt r10, r1, parse_proc_build_remaining_row
+        ret
+parse_proc_build_remaining_row:
+        imm r11, 1024
+        sub r11, r10                   ; max count=1024-N
+        mov r12, r11
+        imm r1, 1
+        sub r12, r1                    ; max consumed=count-1
+        mov r13, r10
+        add r13, r12                   ; max NLOC=1023
+        imm r14, 1023                  ; last admitted DCLS index
+        call parse_proc_store_remaining_row
+        imm r1, 1
+        add r10, r1
+        jmp parse_proc_build_remaining_loop
+
+parse_proc_store_remaining_row:
+        mov r20, r10
+        imm r1, 40
+        mul r20, r1
+        imm r1, 609000
+        add r20, r1
+        store r20, r10
+        imm r1, 8
+        add r20, r1
+        store r20, r11
+        add r20, r1
+        store r20, r12
+        add r20, r1
+        store r20, r13
+        add r20, r1
+        store r20, r14
+        ret
+
+parse_proc_require_remaining_let_rows:
+        imm r10, 0
+parse_proc_require_remaining_loop:
+        imm r1, 5
+        jlt r10, r1, parse_proc_require_remaining_row
+        imm r20, 606040
+        imm r21, 1296388676
+        call exact_require_cell
+        ret
+parse_proc_require_remaining_row:
+        imm r11, 1024
+        sub r11, r10
+        mov r12, r11
+        imm r1, 1
+        sub r12, r1
+        mov r13, r10
+        add r13, r12
+        imm r14, 1023
+        jeq r13, r14, parse_proc_require_remaining_cells
+        jmp reject
+parse_proc_require_remaining_cells:
+        mov r20, r10
+        imm r1, 40
+        mul r20, r1
+        imm r1, 609000
+        add r20, r1
+        mov r21, r10
+        call exact_require_cell
+        imm r1, 8
+        add r20, r1
+        mov r21, r11
+        call exact_require_cell
+        add r20, r1
+        mov r21, r12
+        call exact_require_cell
+        add r20, r1
+        mov r21, r13
+        call exact_require_cell
+        add r20, r1
+        mov r21, r14
+        call exact_require_cell
+        imm r1, 1
+        add r10, r1
+        jmp parse_proc_require_remaining_loop
+
+; Exact root composition spine.  Branch counts are explicit: PLOP either
+; fails at origin6 or reaches PCAP; PCAP either fails at origin7 or reaches
+; PFXS; PFXS and PBOD at D=0 supply the body finite/divergent partition.
+parse_proc_build_composition:
+        imm r20, 609240
+        imm r21, 1414415696             ; PENT
+        call parse_proc_store_composition_cell
+        imm r21, 1347178320             ; PLOP
+        call parse_proc_store_composition_cell
+        imm r21, 2                      ; early6 / close-success
+        call parse_proc_store_composition_cell
+        imm r21, 1346584912             ; PCAP
+        call parse_proc_store_composition_cell
+        imm r21, 2                      ; early7 / room
+        call parse_proc_store_composition_cell
+        imm r21, 1398294096             ; PFXS
+        call parse_proc_store_composition_cell
+        imm r21, 1146045008             ; PBOD
+        call parse_proc_store_composition_cell
+        imm r21, 0                      ; exact PBOD entry D
+        call parse_proc_store_composition_cell
+        imm r21, 1296388676             ; DREM strengthening
+        call parse_proc_store_composition_cell
+        imm r21, 49                     ; finite PBOD epilogue suffix
+        call parse_proc_store_composition_cell
+        imm r21, 7                      ; complete root outcome rows
+        call parse_proc_store_composition_cell
+        imm r21, 1                      ; spine complete
+        call parse_proc_store_composition_cell
+        ret
+
+parse_proc_store_composition_cell:
+        store r20, r21
+        imm r1, 8
+        add r20, r1
+        ret
+
+parse_proc_require_composition:
+        imm r20, 609240
+        imm r21, 1414415696
+        call parse_proc_require_composition_next
+        imm r21, 1347178320
+        call parse_proc_require_composition_next
+        imm r21, 2
+        call parse_proc_require_composition_next
+        imm r21, 1346584912
+        call parse_proc_require_composition_next
+        imm r21, 2
+        call parse_proc_require_composition_next
+        imm r21, 1398294096
+        call parse_proc_require_composition_next
+        imm r21, 1146045008
+        call parse_proc_require_composition_next
+        imm r21, 0
+        call parse_proc_require_composition_next
+        imm r21, 1296388676
+        call parse_proc_require_composition_next
+        imm r21, 49
+        call parse_proc_require_composition_next
+        imm r21, 7
+        call parse_proc_require_composition_next
+        imm r21, 1
+        call parse_proc_require_composition_next
+        ret
+
+parse_proc_require_composition_next:
+        call exact_require_cell
+        imm r1, 8
+        add r20, r1
+        ret
+
+; Seven rows: Ret0; Ret252 origins2,4,5,6,7; and Div.
+parse_proc_build_outcome_rows:
+        imm r10, 1
+parse_proc_build_outcome_loop:
+        imm r1, 8
+        jlt r10, r1, parse_proc_build_outcome_row
+        ret
+parse_proc_build_outcome_row:
+        call parse_proc_select_outcome
+        call parse_proc_store_outcome
+        imm r1, 1
+        add r10, r1
+        jmp parse_proc_build_outcome_loop
+
+; Selected fields r11 kind(1 Ret0,2 Ret252,3 Div), r12 origin,
+; r13 status-valid, r14 status, r15 trace, r16 caller, r17 depth,
+; r18 cursor-bound, r19 source-result-valid.
+parse_proc_select_outcome:
+        imm r11, 2
+        imm r12, 2
+        imm r13, 1
+        imm r14, 252
+        imm r15, 3
+        imm r16, 1
+        imm r17, 1
+        imm r18, 1
+        imm r19, 1
+        imm r1, 1
+        jeq r10, r1, parse_proc_outcome_ret0
+        imm r1, 2
+        jeq r10, r1, parse_proc_outcome_selected
+        imm r1, 3
+        jeq r10, r1, parse_proc_outcome_origin4
+        imm r1, 4
+        jeq r10, r1, parse_proc_outcome_origin5
+        imm r1, 5
+        jeq r10, r1, parse_proc_outcome_origin6
+        imm r1, 6
+        jeq r10, r1, parse_proc_outcome_origin7
+        imm r1, 7
+        jeq r10, r1, parse_proc_outcome_div
+        jmp reject
+parse_proc_outcome_ret0:
+        imm r11, 1
+        imm r12, 0
+        imm r14, 0
+        ret
+parse_proc_outcome_origin4:
+        imm r12, 4
+        ret
+parse_proc_outcome_origin5:
+        imm r12, 5
+        ret
+parse_proc_outcome_origin6:
+        imm r12, 6
+        imm r15, 1                    ; epsilon, before output prefix
+        ret
+parse_proc_outcome_origin7:
+        imm r12, 7
+        imm r15, 1
+        ret
+parse_proc_outcome_div:
+        imm r11, 3
+        imm r12, 0                    ; nonterminal has no failure origin
+        imm r13, 0
+        imm r14, 0
+        imm r15, 2                    ; maximal PFXS||child, no epilogue
+        imm r16, 0                    ; resumptions remain live
+        imm r17, 0
+        imm r18, 0                    ; no terminal cursor premise
+        imm r19, 0
+parse_proc_outcome_selected:
+        ret
+
+; Row width160.  In addition to selected fields, every row records no origin1,
+; no origin3, input preservation, exact/maximal trace, no entry output, D=0,
+; CUR<=LEN+2 when finite, source return0 when finite, sticky provenance, and
+; completion.
+parse_proc_store_outcome:
+        mov r20, r10
+        imm r1, 1
+        sub r20, r1
+        imm r1, 160
+        mul r20, r1
+        imm r1, 611000
+        add r20, r1
+        store r20, r10
+        imm r1, 8
+        add r20, r1
+        store r20, r11
+        add r20, r1
+        store r20, r12
+        add r20, r1
+        store r20, r13
+        add r20, r1
+        store r20, r14
+        add r20, r1
+        store r20, r15
+        add r20, r1
+        store r20, r16
+        add r20, r1
+        store r20, r17
+        add r20, r1
+        store r20, r18                 ; finite CUR<=LEN+2 category
+        add r20, r1
+        store r20, r19
+        add r20, r1
+        imm r2, 1
+        store r20, r2                  ; origin1 excluded
+        add r20, r1
+        store r20, r2                  ; origin3 excluded by DREM
+        add r20, r1
+        store r20, r2                  ; SOURCE/LEN preserved
+        add r20, r1
+        store r20, r2                  ; trace exact/maximal
+        add r20, r1
+        imm r3, 0
+        store r20, r3                  ; entry-prefix emitted bytes
+        add r20, r1
+        store r20, r3                  ; exact entry depth D=0
+        add r20, r1
+        store r20, r19                 ; source result0 valid iff finite
+        add r20, r1
+        store r20, r2                  ; provenance retained exactly
+        add r20, r1
+        store r20, r2                  ; permissive grammar retained
+        add r20, r1
+        store r20, r2                  ; row complete
+        ret
+
+parse_proc_require_outcome_rows:
+        imm r10, 1
+parse_proc_require_outcome_loop:
+        imm r1, 8
+        jlt r10, r1, parse_proc_require_outcome_row
+        ret
+parse_proc_require_outcome_row:
+        call parse_proc_select_expected_outcome
+        mov r20, r10
+        imm r1, 1
+        sub r20, r1
+        imm r1, 160
+        mul r20, r1
+        imm r1, 611000
+        add r20, r1
+        mov r21, r10
+        call parse_proc_require_outcome_next
+        mov r21, r11
+        call parse_proc_require_outcome_next
+        mov r21, r12
+        call parse_proc_require_outcome_next
+        mov r21, r13
+        call parse_proc_require_outcome_next
+        mov r21, r14
+        call parse_proc_require_outcome_next
+        mov r21, r15
+        call parse_proc_require_outcome_next
+        mov r21, r16
+        call parse_proc_require_outcome_next
+        mov r21, r17
+        call parse_proc_require_outcome_next
+        mov r21, r18
+        call parse_proc_require_outcome_next
+        mov r21, r19
+        call parse_proc_require_outcome_next
+        imm r21, 1
+        call parse_proc_require_outcome_next
+        imm r21, 1
+        call parse_proc_require_outcome_next
+        imm r21, 1
+        call parse_proc_require_outcome_next
+        imm r21, 1
+        call parse_proc_require_outcome_next
+        imm r21, 0
+        call parse_proc_require_outcome_next
+        imm r21, 0
+        call parse_proc_require_outcome_next
+        mov r21, r19
+        call parse_proc_require_outcome_next
+        imm r21, 1
+        call parse_proc_require_outcome_next
+        imm r21, 1
+        call parse_proc_require_outcome_next
+        imm r21, 1
+        call parse_proc_require_outcome_next
+        imm r1, 1
+        add r10, r1
+        jmp parse_proc_require_outcome_loop
+
+; Reconstruct the expected partition independently of the builder's selector.
+parse_proc_select_expected_outcome:
+        imm r11, 2
+        imm r12, 2
+        imm r13, 1
+        imm r14, 252
+        imm r15, 3
+        imm r16, 1
+        imm r17, 1
+        imm r18, 1
+        imm r19, 1
+        imm r1, 1
+        jeq r10, r1, parse_proc_expected_ret0
+        imm r1, 2
+        jeq r10, r1, parse_proc_expected_selected
+        imm r1, 3
+        jeq r10, r1, parse_proc_expected_origin4
+        imm r1, 4
+        jeq r10, r1, parse_proc_expected_origin5
+        imm r1, 5
+        jeq r10, r1, parse_proc_expected_origin6
+        imm r1, 6
+        jeq r10, r1, parse_proc_expected_origin7
+        imm r1, 7
+        jeq r10, r1, parse_proc_expected_div
+        jmp reject
+parse_proc_expected_ret0:
+        imm r11, 1
+        imm r12, 0
+        imm r14, 0
+        ret
+parse_proc_expected_origin4:
+        imm r12, 4
+        ret
+parse_proc_expected_origin5:
+        imm r12, 5
+        ret
+parse_proc_expected_origin6:
+        imm r12, 6
+        imm r15, 1
+        ret
+parse_proc_expected_origin7:
+        imm r12, 7
+        imm r15, 1
+        ret
+parse_proc_expected_div:
+        imm r11, 3
+        imm r12, 0
+        imm r13, 0
+        imm r14, 0
+        imm r15, 2
+        imm r16, 0
+        imm r17, 0
+        imm r18, 0
+        imm r19, 0
+parse_proc_expected_selected:
+        ret
+
+parse_proc_require_outcome_next:
+        call exact_require_cell
+        imm r1, 8
+        add r20, r1
+        ret

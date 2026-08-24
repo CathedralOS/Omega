@@ -43,7 +43,7 @@ translation validation supply the assurance.
 | Language | Role | Principal gate |
 | --- | --- | --- |
 | **Alpha** | 21-opcode raw executor and native seed | written semantics, conformance, audited x64/arm64 realizations |
-| **Beta** | small structured compiler language with Omega-shaped state graphs | `bc` self-host, language corpus, source-to-artifact refinement (incomplete for the whole compiler) |
+| **Beta** | small structured compiler language with Omega-shaped state graphs | `bc` self-host, language corpus, complete `B_bc1` source-to-artifact refinement |
 | **Gamma** | pure ADTs, matching, types, and fuel-bounded definitional meaning | interpreter/type-checker gates and meaning corpora |
 | **Delta** | independent systems/compiler-host language that can build `omega-bootstrap` | self-host, native corpus, Delta-to-Gamma meaning diamond |
 
