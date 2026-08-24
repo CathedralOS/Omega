@@ -3,7 +3,8 @@ use crate::expression::{
     ExpressionHandle, ExpressionNode, TableCallExpression, TableMemberExpression,
 };
 use crate::identifier::Identifier;
-use crate::item::{DataDefinition, Item, Machine, State};
+use crate::item::{DataDefinition, Item, Machine, State, TraitDefinition, WireDataDefinition};
+use crate::snapshot::ItemSnapshot;
 use crate::statement::{
     StatementNode, TableAssignment, TableCall, TableTransition, TransitionGuardNode,
     TransitionTargetNode,
@@ -33,6 +34,58 @@ fn syntax_trees_extend_from_preserves_data_visibility() {
         panic!("expected data root item");
     };
     assert!(data.is_public);
+}
+
+#[test]
+fn syntax_trees_extend_from_preserves_trait_and_wire_visibility() {
+    let mut file = SyntaxTrees::new(Default::default());
+    file.push_root_item(Item::Trait(TraitDefinition {
+        is_boundary: false,
+        is_public: true,
+        name: Identifier::generated("PublicTrait"),
+        lifetime_parameters: Vec::new(),
+        type_parameters: HandleSpan::empty(),
+        conformance_bounds: Vec::new(),
+        parents: HandleSpan::empty(),
+        invariants: HandleSpan::empty(),
+        requires: HandleSpan::empty(),
+        machines: HandleSpan::empty(),
+    }));
+    file.push_root_item(Item::WireData(WireDataDefinition {
+        name: Identifier::generated("PublicWire"),
+        is_public: true,
+        encoding: None,
+        members: HandleSpan::empty(),
+    }));
+
+    let mut assembled = SyntaxTrees::new(Default::default());
+    assembled.extend_from(&file);
+
+    let mut roots = assembled.root_items();
+    let Item::Trait(trait_definition) = roots.next().expect("trait root") else {
+        panic!("expected trait root item");
+    };
+    let Item::WireData(wire_data) = roots.next().expect("wire root") else {
+        panic!("expected wire-data root item");
+    };
+    assert!(trait_definition.is_public);
+    assert!(wire_data.is_public);
+
+    let snapshot = assembled.snapshot();
+    assert!(matches!(
+        &snapshot.root_items[0],
+        ItemSnapshot::Trait {
+            is_public: true,
+            ..
+        }
+    ));
+    assert!(matches!(
+        &snapshot.root_items[1],
+        ItemSnapshot::WireData {
+            is_public: true,
+            ..
+        }
+    ));
 }
 
 #[test]

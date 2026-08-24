@@ -18,6 +18,7 @@ pub(crate) fn lower_wire_schema(
     Ok(WireSchema {
         symbol: SymbolHandle::invalid(),
         name: crate::name::lower_name(&wire_data.name),
+        is_public: wire_data.is_public,
         encoding: wire_data
             .encoding
             .as_ref()
@@ -67,7 +68,7 @@ pub(crate) fn data_definition_from_wire_schema(
     DataDefinition {
         symbol: SymbolHandle::invalid(),
         name: schema.name.clone(),
-        is_public: false,
+        is_public: schema.is_public,
         storage: DataDefinitionStorage {
             supply_mode: psi_language_semantics::DataSupplyMode::CheckedShape,
             lifetime_parameters: Vec::new(),

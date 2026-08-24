@@ -36,15 +36,19 @@ pub(super) fn parse_item<'tokens, 'source>(
         let input = input.take_keyword(KeywordKind::Pub, "pub")?;
         // General semantic export rules still live in explicit `export` items
         // until module scoping grows up. Data retains this bit because public
-        // structural declarations publish their source shape. Domains retain
-        // it because a public transparent alias may not publish a private
-        // constituent; machines retain it because public checked bodies
-        // publish strict authority and operational ceilings.
+        // structural declarations publish their source shape. Numbered data
+        // retains it on both its schema and wire-derived plain-data roots.
+        // Domains retain it because a public transparent alias may not publish
+        // a private constituent; machines retain it because public checked
+        // bodies publish strict authority and operational ceilings. Traits
+        // retain it as source-level API metadata independent of trait identity.
         let (mut item, rest) = parse_item(syntax_trees, input)?;
         match &mut item {
             Item::Data(data) => data.is_public = true,
             Item::Domain(domain) => domain.is_public = true,
             Item::Machine(machine) => machine.is_public = true,
+            Item::Trait(trait_definition) => trait_definition.is_public = true,
+            Item::WireData(wire_data) => wire_data.is_public = true,
             _ => {
                 return Err(rest.error_here(
                     "`pub` is not yet retained for this declaration kind; refusing to compile a silently private API",
@@ -558,6 +562,7 @@ pub(super) fn parse_identity_data_body<'tokens, 'source>(
     Ok((
         WireDataDefinition {
             name,
+            is_public: false,
             encoding: None,
             members,
         },

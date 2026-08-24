@@ -7,10 +7,11 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 #[test]
-fn retains_data_visibility_and_keeps_wire_derived_data_private() {
+fn retains_public_data_trait_and_wire_visibility() {
     let source = r#"
         pub data PublicRecord { value: u32; }
-        data Packet { #1 value: u32; }
+        pub data Packet { #1 value: u32; }
+        pub trait PublicTrait {}
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize data");
     let syntax = parse_syntax_trees(&tokens).expect("parse data");
@@ -25,14 +26,35 @@ fn retains_data_visibility_and_keeps_wire_derived_data_private() {
         .iter()
         .find(|data| data.name.as_str() == "Packet")
         .expect("wire-derived data");
+    let wire_schema = program
+        .wire_schemas
+        .iter()
+        .find(|schema| schema.name.as_str() == "Packet")
+        .expect("wire schema");
+    let trait_definition = program
+        .traits
+        .iter()
+        .find(|definition| definition.name.as_str() == "PublicTrait")
+        .expect("public trait");
 
     assert!(public.is_public);
-    assert!(!wire_derived.is_public);
+    assert!(wire_derived.is_public);
+    assert!(wire_schema.is_public);
+    assert!(trait_definition.is_public);
+    let snapshot = program.snapshot();
     assert!(
-        program
-            .snapshot_json()
-            .expect("resolved snapshot")
-            .contains("\"is_public\":true")
+        snapshot
+            .roots
+            .wire_schemas
+            .iter()
+            .any(|schema| schema.name == "Packet" && schema.is_public)
+    );
+    assert!(
+        snapshot
+            .roots
+            .traits
+            .iter()
+            .any(|definition| definition.name == "PublicTrait" && definition.is_public)
     );
 }
 

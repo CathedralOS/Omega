@@ -8,6 +8,9 @@ use std::ops::{Deref, DerefMut};
 pub struct TraitDefinition {
     pub symbol: SymbolHandle,
     pub is_boundary: bool,
+    /// Source visibility retained independently from symbol and requirement
+    /// identity.
+    pub is_public: bool,
     pub name: DiagnosticName,
     pub storage: TraitStorage,
 }

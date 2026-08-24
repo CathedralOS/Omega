@@ -161,6 +161,7 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
     Ok((
         TraitDefinition {
             is_boundary,
+            is_public: false,
             name,
             lifetime_parameters: generic_parameters.lifetime_parameters,
             type_parameters,

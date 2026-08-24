@@ -56,7 +56,7 @@ fn retains_public_machine_visibility_in_syntax() {
 
 #[test]
 fn rejects_pub_when_the_declaration_cannot_retain_visibility() {
-    for source in ["pub trait Shape {}", "pub export Shape;"] {
+    for source in ["pub export Shape;"] {
         let tokens = Lexer::new(source).tokenize().expect("tokenize declaration");
         let error = parse_syntax_trees(&tokens).expect_err("visibility loss must reject");
         assert!(
@@ -65,6 +65,23 @@ fn rejects_pub_when_the_declaration_cannot_retain_visibility() {
             error.message
         );
     }
+}
+
+#[test]
+fn retains_public_trait_and_numbered_data_visibility() {
+    let tokens = Lexer::new("pub trait Shape {} pub data Envelope { #1 value: u32; }")
+        .tokenize()
+        .expect("tokenize public declarations");
+    let parsed = parse_syntax_trees(&tokens).expect("parse public declarations");
+
+    assert!(parsed.root_items().any(|item| matches!(
+        item,
+        psi_syntax_trees::item::Item::Trait(definition) if definition.is_public
+    )));
+    assert!(parsed.root_items().any(|item| matches!(
+        item,
+        psi_syntax_trees::item::Item::WireData(definition) if definition.is_public
+    )));
 }
 
 #[test]

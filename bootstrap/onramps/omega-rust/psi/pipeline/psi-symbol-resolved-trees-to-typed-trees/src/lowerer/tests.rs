@@ -4,8 +4,10 @@ use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
 use psi_tokens_to_syntax_trees::parse_syntax_trees;
 
 #[test]
-fn retains_public_data_visibility_in_typed_trees() {
-    let tokens = Lexer::new("pub data PublicRecord { value: u32; }")
+fn retains_public_data_trait_and_wire_visibility_in_typed_trees() {
+    let tokens = Lexer::new(
+        "pub data PublicRecord { value: u32; } pub data Packet { #1 value: u32; } pub trait PublicTrait {}",
+    )
         .tokenize()
         .expect("tokenize public data");
     let syntax = parse_syntax_trees(&tokens).expect("parse public data");
@@ -16,13 +18,40 @@ fn retains_public_data_visibility_in_typed_trees() {
         .iter()
         .find(|data| data.name.as_str() == "PublicRecord")
         .expect("typed public data");
+    let wire_data = typed
+        .data_definitions()
+        .iter()
+        .find(|data| data.name.as_str() == "Packet")
+        .expect("typed wire-derived data");
+    let wire_schema = typed
+        .wire_schemas()
+        .iter()
+        .find(|schema| schema.name.as_str() == "Packet")
+        .expect("typed wire schema");
+    let trait_definition = typed
+        .traits()
+        .iter()
+        .find(|definition| definition.name.as_str() == "PublicTrait")
+        .expect("typed public trait");
 
     assert!(data.is_public);
+    assert!(wire_data.is_public);
+    assert!(wire_schema.is_public);
+    assert!(trait_definition.is_public);
+    let snapshot = typed.snapshot();
     assert!(
-        typed
-            .snapshot_json()
-            .expect("typed snapshot")
-            .contains("\"is_public\":true")
+        snapshot
+            .roots
+            .wire_schemas
+            .iter()
+            .any(|schema| schema.name == "Packet" && schema.is_public)
+    );
+    assert!(
+        snapshot
+            .roots
+            .traits
+            .iter()
+            .any(|definition| definition.name == "PublicTrait" && definition.is_public)
     );
 }
 

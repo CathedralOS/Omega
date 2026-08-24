@@ -42,6 +42,7 @@ pub(crate) fn lower_trait_definition(
     Ok(TraitDefinition {
         symbol: SymbolHandle::invalid(),
         is_boundary: trait_definition.is_boundary,
+        is_public: trait_definition.is_public,
         name,
         storage: TraitStorage {
             lifetime_parameters: trait_definition

@@ -524,6 +524,7 @@ impl SyntaxTrees {
     ) -> TraitDefinition {
         TraitDefinition {
             is_boundary: trait_definition.is_boundary,
+            is_public: trait_definition.is_public,
             name: trait_definition.name.clone(),
             lifetime_parameters: trait_definition.lifetime_parameters.clone(),
             type_parameters: self.copy_type_parameter_span(other, trait_definition.type_parameters),
@@ -567,6 +568,7 @@ impl SyntaxTrees {
     ) -> WireDataDefinition {
         WireDataDefinition {
             name: wire_data.name.clone(),
+            is_public: wire_data.is_public,
             encoding: wire_data.encoding.clone(),
             members: self.copy_wire_data_member_span(other, wire_data.members),
         }

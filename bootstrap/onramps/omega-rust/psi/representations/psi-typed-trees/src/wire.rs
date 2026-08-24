@@ -87,6 +87,8 @@ pub enum WireEncodeOutputCapacityObligation {
 pub struct WireSchema {
     pub symbol: SymbolHandle,
     pub name: Identifier,
+    /// Source visibility retained independently from schema identity.
+    pub is_public: bool,
     pub encoding: Option<Identifier>,
     pub members: HandleSpan<WireMember>,
 }
