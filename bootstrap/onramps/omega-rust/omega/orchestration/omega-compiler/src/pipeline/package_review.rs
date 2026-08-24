@@ -484,10 +484,19 @@ pub enum PackageReviewContractExpression {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub enum PackageReviewContractFact {
+    Expression(PackageReviewContractExpression),
+    Membership {
+        value: PackageReviewContractExpression,
+        domain: PackageReviewNominalIdentity,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackageReviewCallableContract {
     kind: PackageReviewContractKind,
     binding: Option<String>,
-    expression: PackageReviewContractExpression,
+    fact: PackageReviewContractFact,
 }
 
 impl PackageReviewCallableContract {
@@ -499,8 +508,8 @@ impl PackageReviewCallableContract {
         self.binding.as_deref()
     }
 
-    pub const fn expression(&self) -> &PackageReviewContractExpression {
-        &self.expression
+    pub const fn fact(&self) -> &PackageReviewContractFact {
+        &self.fact
     }
 }
 
@@ -2217,6 +2226,11 @@ fn project_callable_contracts(
 ) -> Result<Vec<PackageReviewCallableContract>, Vec<Diagnostic>> {
     use psi_typed_trees::{domain::ProofFact, signature::SignatureContractKind};
 
+    let reviewed_package = compilation.package_identity().ok_or_else(|| {
+        vec![Diagnostic::error(
+            "callable contract review requires package-aware checked compilation",
+        )]
+    })?;
     let mut projected = Vec::new();
     for contract in compilation.machine_contracts(machine) {
         let kind = match contract.kind {
@@ -2233,20 +2247,48 @@ fn project_callable_contracts(
             ))]);
         }
         for fact in facts {
-            let expression = match fact {
-                ProofFact::Expression(expression) => project_contract_expression(
-                    compilation,
-                    machine,
-                    entry,
-                    binders,
-                    *expression,
-                    0,
-                )?,
-                ProofFact::Membership(_) => {
-                    return Err(vec![Diagnostic::error(format!(
-                        "reviewed callable `{}` uses a domain-membership contract not yet represented by package review",
-                        machine.name
-                    ))]);
+            let fact = match fact {
+                ProofFact::Expression(expression) => {
+                    PackageReviewContractFact::Expression(project_contract_expression(
+                        compilation,
+                        machine,
+                        entry,
+                        binders,
+                        *expression,
+                        0,
+                    )?)
+                }
+                ProofFact::Membership(membership) => {
+                    let domain = compilation
+                        .domain_definitions()
+                        .iter()
+                        .find(|domain| domain.symbol == membership.domain_symbol)
+                        .ok_or_else(|| {
+                            vec![Diagnostic::error(format!(
+                                "reviewed callable `{}` contract refers to an unresolved domain",
+                                machine.name
+                            ))]
+                        })?;
+                    let domain_identity = nominal_identity(compilation, domain.symbol)?;
+                    if reviewed_package_owns(&domain_identity, reviewed_package)?
+                        && !domain.is_public
+                    {
+                        return Err(vec![Diagnostic::error(format!(
+                            "reviewed callable `{}` exposes non-public domain `{}` in its contract",
+                            machine.name, domain.name
+                        ))]);
+                    }
+                    PackageReviewContractFact::Membership {
+                        value: project_contract_expression(
+                            compilation,
+                            machine,
+                            entry,
+                            binders,
+                            membership.value,
+                            0,
+                        )?,
+                        domain: domain_identity,
+                    }
                 }
                 ProofFact::Proposition(_) => {
                     return Err(vec![Diagnostic::error(format!(
@@ -2261,7 +2303,7 @@ fn project_callable_contracts(
                     .binding
                     .as_ref()
                     .map(|binding| binding.as_str().to_owned()),
-                expression,
+                fact,
             });
         }
     }

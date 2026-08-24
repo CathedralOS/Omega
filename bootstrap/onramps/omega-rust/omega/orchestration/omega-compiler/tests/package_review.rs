@@ -1,8 +1,8 @@
 use omega_compiler::{
     PACKAGE_REVIEW_ENCODING_VERSION, PackageCompilationInputs, PackageReviewCallableRole,
     PackageReviewContractBinaryOperator, PackageReviewContractExpression,
-    PackageReviewContractKind, PackageReviewCrashInterface, PackageReviewCrashRouteGuard,
-    PackageReviewDataMember, PackageReviewDomainClassification,
+    PackageReviewContractFact, PackageReviewContractKind, PackageReviewCrashInterface,
+    PackageReviewCrashRouteGuard, PackageReviewDataMember, PackageReviewDomainClassification,
     PackageReviewDomainEstablishmentKind, PackageReviewNominalOwner,
     PackageReviewSynchronousInvocation, PackageSourceBinding, compile_to_checked_with_packages,
     project_checked_package_review,
@@ -124,7 +124,7 @@ crashes Abort
         target,
         "review identity must retain the deployment profile, not only its native ABI",
     );
-    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 14);
+    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 15);
     let [ready] = review.public_domains() else {
         panic!("one package-owned public domain row")
     };
@@ -350,11 +350,11 @@ machine build(builder: &mut Build) { }
     };
     assert_eq!(contract.kind(), PackageReviewContractKind::Ensures);
     assert_eq!(contract.binding(), None);
-    let PackageReviewContractExpression::Binary {
+    let PackageReviewContractFact::Expression(PackageReviewContractExpression::Binary {
         operator,
         left,
         right,
-    } = contract.expression()
+    }) = contract.fact()
     else {
         panic!("exact equality expression")
     };
@@ -370,6 +370,91 @@ machine build(builder: &mut Build) { }
         zero.canonical_review_bytes().expect("zero claim encoding"),
         one.canonical_review_bytes().expect("one claim encoding"),
         "changing an accepted guarantee must change exact review evidence",
+    );
+}
+
+#[test]
+fn review_projects_exact_public_domain_membership_contracts() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub domain u64::Trusted;
+
+pub machine consume(value: u64)
+requires value in u64::Trusted
+{ }
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { }
+"#,
+    );
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some(target),
+        package_inputs(&package.0),
+    )
+    .expect("checked public-domain membership requirement should check");
+    let review = project_checked_package_review(&checked).expect("membership contract review");
+    let callable = review
+        .callables()
+        .iter()
+        .find(|callable| callable.role() == PackageReviewCallableRole::Public)
+        .expect("public callable row");
+    let [contract] = callable.contracts() else {
+        panic!("one exact membership contract")
+    };
+    let PackageReviewContractFact::Membership { value, domain } = contract.fact() else {
+        panic!("exact membership row")
+    };
+    assert_eq!(*value, PackageReviewContractExpression::Parameter(0));
+    assert_eq!(domain.path(), "u64::Trusted");
+    assert_eq!(
+        domain.owner(),
+        PackageReviewNominalOwner::Package(package_identity())
+    );
+
+    let hidden = TempPackage::new();
+    hidden.write(
+        "main.omg",
+        r#"domain u64::Hidden;
+pub machine consume(value: u64)
+requires value in u64::Hidden
+{ }
+"#,
+    );
+    hidden.write(
+        "build.omg",
+        r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { }
+"#,
+    );
+    let checked = compile_to_checked_with_packages(
+        &hidden.0.join("main.omg"),
+        Some(target),
+        package_inputs(&hidden.0),
+    )
+    .expect("private-domain contract fixture should check before package review");
+    let diagnostics = project_checked_package_review(&checked)
+        .expect_err("a public callable must not expose a private domain");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("exposes non-public domain `u64::Hidden`")
+        }),
+        "unexpected diagnostics: {diagnostics:#?}"
     );
 }
 
@@ -713,7 +798,7 @@ invokes waiting;
 }
 
 #[test]
-fn exact_synchronous_invocations_change_v14_comparison_encoding() {
+fn exact_synchronous_invocations_change_v15_comparison_encoding() {
     let quiet = TempPackage::new();
     let invoking = TempPackage::new();
     quiet.write(
@@ -903,7 +988,7 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
-fn public_data_and_numbered_wire_shape_changes_change_v14_comparison_encoding() {
+fn public_data_and_numbered_wire_shape_changes_change_v15_comparison_encoding() {
     let first = TempPackage::new();
     let second = TempPackage::new();
     first.write(
@@ -937,7 +1022,7 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
-fn public_domain_shape_changes_change_v14_comparison_encoding() {
+fn public_domain_shape_changes_change_v15_comparison_encoding() {
     let first = TempPackage::new();
     let second = TempPackage::new();
     first.write(

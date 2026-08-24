@@ -178,12 +178,13 @@ parameters, and non-public, external, operator, or lifetime-parameterized
 realizations fail closed until complete rows land. Public callable `requires`,
 `ensures`, and boundary clauses retain exact structural rows for the closed
 boolean/integer expression subset over parameter ordinals, `result`, generic
-binders, and package-qualified nominals. Unsupported membership,
-proposition/named-evidence, call, member, cast, and aggregate forms fail closed.
+binders, and package-qualified nominals. Domain-membership rows retain the exact
+value and package-qualified public domain; private package domains reject.
+Unsupported proposition/named-evidence, call, member, cast, and aggregate forms fail closed.
 The legacy machine-contract fingerprint no longer enters package-review bytes,
 so private state shape is not public contract identity. Complete proof and
 unsupported-clause rows still gate sealed admission. The compiler now provides
-a version-14 length-framed
+a version-15 length-framed
 binary comparison encoding over this review projection; it is explicitly not a package certificate or
 accepted-lock payload. Raw Rust/debug serialization is not an alternative. These pieces do
 not become an admission path until the legacy name-keyed lock APIs are replaced
