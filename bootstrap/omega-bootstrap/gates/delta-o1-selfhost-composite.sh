@@ -114,9 +114,11 @@ done
 # validated independently, but do not change the one O1 program's terminal or
 # native artifact bytes.
 : > "$T/empty.omg"
-printf '// auxiliary transport unit' > "$T/comment.omg"
+printf '// auxiliary transport /* remains line text' > "$T/comment.omg"
+printf '/* outer auxiliary // remains block text /* nested */ tail */' > "$T/block-comment.omg"
 python3 "$OMEGA_PATH_OMEGA_BOOTSTRAP/compiler/omega_bootstrap_bundle.py" pack \
-  a/empty.omg="$T/empty.omg" m/program.omg="$T/writes-1.omg" \
+  a/empty.omg="$T/empty.omg" b/block.omg="$T/block-comment.omg" \
+  m/program.omg="$T/writes-1.omg" \
   z/comment.omg="$T/comment.omg" > "$T/auxiliary.bundle"
 set +e
 "$T/frontend" < "$T/auxiliary.bundle" > "$T/auxiliary.terminal"
@@ -196,6 +198,13 @@ python3 "$OMEGA_PATH_OMEGA_BOOTSTRAP/compiler/omega_bootstrap_bundle.py" pack \
   a/program.omg="$T/writes-1.omg" z/invalid.omg="$T/invalid-auxiliary.omg" \
   > "$T/invalid-auxiliary.bundle"
 run_frontend_bundle_rejection invalid-auxiliary "$T/invalid-auxiliary.bundle" 251
+
+printf '/*' > "$T/comment-open.omg"
+printf '*/' > "$T/comment-close.omg"
+python3 "$OMEGA_PATH_OMEGA_BOOTSTRAP/compiler/omega_bootstrap_bundle.py" pack \
+  a/open.omg="$T/comment-open.omg" b/close.omg="$T/comment-close.omg" \
+  z/program.omg="$T/writes-1.omg" > "$T/cross-unit-comment.bundle"
+run_frontend_bundle_rejection cross-unit-comment "$T/cross-unit-comment.bundle" 251
 
 python3 - "$T/descriptor-exhaust.bundle" "$T/content-exhaust.bundle" <<'PY'
 import pathlib

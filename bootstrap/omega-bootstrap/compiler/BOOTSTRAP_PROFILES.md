@@ -185,8 +185,9 @@ compiler-imported tools. See
 O0 is exactly the single-file console program shape represented by
 [`../../corpus/cli_mvp/main.omg`](../../corpus/cli_mvp/main.omg):
 
-- UTF-8 source with whitespace, line comments, identifiers, integer literals,
-  string literals, and the punctuation used by the declarations below;
+- UTF-8 source with whitespace, line comments, nested block comments,
+  identifiers, integer literals, string literals, and the punctuation used by
+  the declarations below;
 - `use omega::language::std::console;`;
 - one `data Main` declaration with one `console: Console` field;
 - one `machine Main::main(&mut self)` entry;
@@ -207,8 +208,10 @@ compatibility path; the former top-level `compiler/delta-rs` facade is retired.
 The frozen O0/O1 program remains one source unit. The frontend now decodes the
 complete bounded canonical bundle first, retains every label and exact source
 span, validates UTF-8 per unit, and selects exactly one nontrivial O1 unit while
-allowing empty or line-comment-only auxiliary units. It never concatenates
-units or injects separators. Fixed O0 names use ASCII
+allowing empty, line-comment-only, or nested-block-comment-only auxiliary units.
+The reusable block-comment scanner is bounded by each exact unit span, so an
+unterminated comment rejects and delimiters cannot pair across units. It never
+concatenates units or injects separators. Fixed O0 names use ASCII
 identifiers; integers are unsuffixed nonnegative decimal `i32` literals; cooked
 strings admit direct UTF-8 bytes plus `\n`, `\r`, `\t`, `\0`, `\"`, `\\`, and
 `\xNN` byte escapes. The parser consumes the complete frozen declaration/call
@@ -313,8 +316,9 @@ The frozen O1 language ceiling remains one program-bearing source, at most 16
 separate pre-profile transport canary admits a bundle of at most 16 source units,
 64 bytes per label, 1,024 aggregate label bytes, and 2,048 aggregate exact source
 bytes. Exactly one unit may contain the O1 program; all others must be empty or
-contain only O1 whitespace and line comments. These transport bounds do not add
-modules, namespaces, cross-source lexing, O2, or a feature to `Ωself`.
+contain only O1 whitespace, line comments, and nested block comments. These
+transport/scanner bounds do not add modules, namespaces, cross-source lexing,
+O2, or a feature to `Ωself`.
 Exceeding a declared storage/image ceiling reports checked exhaustion; malformed
 or out-of-profile source reports semantic rejection. Neither case may publish a
 partial terminal module or native image.

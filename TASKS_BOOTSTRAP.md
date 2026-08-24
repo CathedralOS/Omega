@@ -425,6 +425,13 @@ Terminal-Psi interpreter, verifier, viewer, or debugger, and it does not require
   not implementation stages that must be extended in numerical order. Grow the
   bridge by general capabilities required by the product source rather than by
   hard-coded source permutations.
+  - [x] establish profile-neutral, source-unit-bounded nested block-comment
+    scanning in the real frontend. Program and auxiliary comments use the same
+    reusable scanner; nesting is exact, delimiters cannot cross units, and an
+    unterminated comment rejects before terminal or image publication. Native,
+    lower-rung meaning, and lowermachine-built terminal-to-ELF observations
+    agree. This is ordinary lexical substrate, not `Ωself` admission or a
+    module/package decision;
   - [ ] publish the complete deterministic Delta source manifest and prove each
     transitive unit valid under the provisional profile; final validity under
     frozen Delta v1 belongs to the subsequent freeze task, and one entry source

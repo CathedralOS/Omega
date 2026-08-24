@@ -31,7 +31,7 @@ data Main {
     label_start: i32; source_start: i32; source_end: i32;
     prev_start: i32; prev_len: i32; unit_start: i32; unit_end: i32;
     program_count: i32; program_source_id: i32; program_start: i32; program_end: i32;
-    trivia_ok: i32; segment_len: i32;
+    trivia_ok: i32; comment_depth: i32; segment_len: i32;
     segment_first: i32; segment_second: i32; char_ok: i32;
     tok: i32; tok_start: i32; tok_len: i32; int_value: i32;
     text_len: i32; text_start: i32; text_used: i32; text_sum: i32;
@@ -231,9 +231,31 @@ machine Main::validate_utf8(&mut self) {
     state done() { }
 }
 
-// Decide whether one independently bounded unit contains only whitespace and
-// line comments. This is deliberately not a package or module parser: it only
-// separates auxiliary trivia from the one O1 program-bearing unit.
+// Skip one nested block comment without crossing the caller's exact source-unit
+// bound in `n`. The caller positions `pos` at the opening slash. Unterminated
+// comments are malformed source, including when another unit begins with the
+// bytes that would otherwise close the comment.
+machine Main::skip_block_comment(&mut self) {
+    self.pos = self.pos + 2; self.comment_depth = 1;
+    transition 0 { _ -> loop() }
+    state loop() { transition self.pos < self.n { true -> byte() false -> bad() } }
+    state byte() { self.c = self.source[self.pos]; transition self.c == 47 { true -> open_bound() false -> close_first() } }
+    state open_bound() { transition self.pos + 1 < self.n { true -> open_second() false -> advance() } }
+    state open_second() { transition self.source[self.pos + 1] == 42 { true -> open() false -> advance() } }
+    state open() { self.comment_depth = self.comment_depth + 1; self.pos = self.pos + 2; transition 0 { _ -> loop() } }
+    state close_first() { transition self.c == 42 { true -> close_bound() false -> advance() } }
+    state close_bound() { transition self.pos + 1 < self.n { true -> close_second() false -> advance() } }
+    state close_second() { transition self.source[self.pos + 1] == 47 { true -> close() false -> advance() } }
+    state close() { self.comment_depth = self.comment_depth - 1; self.pos = self.pos + 2; transition self.comment_depth == 0 { true -> done() false -> loop() } }
+    state advance() { self.pos = self.pos + 1; transition 0 { _ -> loop() } }
+    state bad() { self.status = 251; }
+    state done() { }
+}
+
+// Decide whether one independently bounded unit contains only O1 whitespace,
+// line comments, and nested block comments. This is deliberately not a package
+// or module parser: it only separates auxiliary trivia from the one O1
+// program-bearing unit.
 machine Main::classify_trivia(&mut self) {
     self.i = self.unit_start; self.trivia_ok = 1;
     transition 0 { _ -> loop() }
@@ -244,7 +266,12 @@ machine Main::classify_trivia(&mut self) {
     state tab() { transition self.c == 9 { true -> advance() false -> slash() } }
     state slash() { transition self.c == 47 { true -> slash_bound() false -> nontrivial() } }
     state slash_bound() { transition self.i + 1 < self.unit_end { true -> slash_second() false -> nontrivial() } }
-    state slash_second() { transition self.source[self.i + 1] == 47 { true -> comment_begin() false -> nontrivial() } }
+    state slash_second() { transition self.source[self.i + 1] == 47 { true -> comment_begin() false -> block_second() } }
+    state block_second() { transition self.source[self.i + 1] == 42 { true -> block_begin() false -> nontrivial() } }
+    state block_begin() {
+        self.pos = self.i; self.n = self.unit_end; self.skip_block_comment(); self.i = self.pos;
+        transition self.status == 0 { true -> loop() false -> done() }
+    }
     state comment_begin() { self.i = self.i + 2; transition 0 { _ -> comment() } }
     state comment() { transition self.i < self.unit_end { true -> comment_byte() false -> done() } }
     state comment_byte() { transition self.source[self.i] == 10 { true -> advance() false -> comment_advance() } }
@@ -274,8 +301,9 @@ machine Main::validate_sources(&mut self) {
         self.unit_start = self.descriptors[self.source_id * 4 + 2];
         self.unit_end = self.unit_start + self.descriptors[self.source_id * 4 + 3];
         self.classify_trivia();
-        transition self.trivia_ok == 1 { true -> classify_next() false -> program() }
+        transition self.status == 0 { true -> classify_result() false -> done() }
     }
+    state classify_result() { transition self.trivia_ok == 1 { true -> classify_next() false -> program() } }
     state program() { transition self.program_count == 0 { true -> save_program() false -> bad() } }
     state save_program() {
         self.program_count = 1;
@@ -389,7 +417,9 @@ machine Main::next_token(&mut self) {
     state skip_advance() { self.pos = self.pos + 1; transition 0 { _ -> skip() } }
     state slash() { transition self.c == 47 { true -> slash_bound() false -> classify() } }
     state slash_bound() { transition self.pos + 1 < self.n { true -> slash_second() false -> classify() } }
-    state slash_second() { transition self.source[self.pos + 1] == 47 { true -> comment_advance() false -> classify() } }
+    state slash_second() { transition self.source[self.pos + 1] == 47 { true -> comment_advance() false -> block_second() } }
+    state block_second() { transition self.source[self.pos + 1] == 42 { true -> block_comment() false -> classify() } }
+    state block_comment() { self.skip_block_comment(); transition self.status == 0 { true -> skip() false -> done() } }
     state comment_advance() { self.pos = self.pos + 2; transition 0 { _ -> comment() } }
     state comment() { transition self.pos < self.n { true -> comment_byte() false -> eof() } }
     state comment_byte() { transition self.source[self.pos] == 10 { true -> skip_advance() false -> comment_next() } }

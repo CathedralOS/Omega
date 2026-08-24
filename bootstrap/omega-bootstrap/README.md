@@ -76,9 +76,11 @@ is the canonical Delta-written frontend source. It decodes the canonical bundle,
 retains bounded labels and exact source spans, validates every unit independently,
 selects exactly one O1 program-bearing unit without concatenation, lexes, parses,
 resolves, and type/count-checks O0 plus O1's variable straight-line console
-body, then emits canonical terminal-Psi bytes. Empty and line-comment-only
-auxiliary units are a pre-profile transport canary, not module semantics or an
-O1 language widening. The old Delta-sample path is a
+body, then emits canonical terminal-Psi bytes. Empty, line-comment-only, and
+nested-block-comment-only auxiliary units are a pre-profile transport/scanner
+canary, not module semantics or `Ωself` admission. The same bounded nested
+comment scanner is used inside the program unit and rejects a delimiter that
+would need another source unit to close. The old Delta-sample path is a
 compatibility symlink.
 [`compiler/omega-bootstrap-terminal-to-elf.alp`](compiler/omega-bootstrap-terminal-to-elf.alp)
 accepts the same 0–16-write profile and emits a deterministic Linux x86-64 ELF
