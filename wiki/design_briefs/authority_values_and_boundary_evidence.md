@@ -415,6 +415,15 @@ no authority. Cathedral composes those verified aggregates across concurrently
 live artifacts and replacement eras; coexistence is charged at peak, not at
 steady state.
 
+The composition input is an opaque aggregate snapshot projected from the
+sealed cohort or its runtime. It retains the exact installed-slot closure,
+lifecycle-qualified cohort identity, occurrence roster, algebra, and symbolic
+per-occurrence expression while carrying no authority. A live report accepts
+exactly one snapshot for every era in the authoritative lifecycle roster and
+rejects stale, missing, duplicate, or substituted contributors. Omega does not
+collapse the rows to one scalar; Cathedral applies deployment policy to the
+preserved exact demands.
+
 These scopes are deliberate. Four installed workers may consume four times a
 per-worker capacity. A component that promises one shared cap instead receives
 children split from one aggregate parent root, so conservation rejects another

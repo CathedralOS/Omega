@@ -1470,6 +1470,154 @@ impl ProgramLocalRootEpochAggregate {
     }
 }
 
+/// Cloneable reporting snapshot of one exact sealed program-local epoch
+/// cohort. This value retains the exact installed required-slot closure,
+/// verifier-derived aggregate rows, and cohort identity, but carries no
+/// occurrence, lifecycle lease, lineage, or establishment authority. The
+/// closure keeps even an empty row set bound to its installed artifact and
+/// installation scope.
+///
+/// Construction remains private to the sealed cohort/runtime owners so a
+/// consumer cannot present authored aggregate rows as installation evidence.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[must_use = "program-local aggregate snapshots are reporting evidence only"]
+pub struct ProgramLocalRootEpochAggregateSnapshot {
+    identity: InstalledProgramLocalRootEpochCohortId,
+    installed_required_slots: InstalledRequiredRootSlotClosure,
+    aggregates: Vec<ProgramLocalRootEpochAggregate>,
+}
+
+impl ProgramLocalRootEpochAggregateSnapshot {
+    pub const fn identity(&self) -> InstalledProgramLocalRootEpochCohortId {
+        self.identity
+    }
+
+    pub const fn installed_required_slots(&self) -> &InstalledRequiredRootSlotClosure {
+        &self.installed_required_slots
+    }
+
+    pub fn aggregates(&self) -> impl ExactSizeIterator<Item = &ProgramLocalRootEpochAggregate> {
+        self.aggregates.iter()
+    }
+}
+
+/// Exact, non-authoritative union of the program-local aggregate snapshots for
+/// every era currently retained by one component lifecycle ledger.
+///
+/// Rows remain attributed to their epoch and preserve their original content
+/// algebra and symbolic per-occurrence expression. This report deliberately
+/// does not multiply cardinalities or reduce unlike algebras to a scalar:
+/// deployment policy may compose those exact rows, but reporting cannot invent
+/// a resource interpretation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[must_use = "program-local coexistence reports are exact audit inputs"]
+pub struct ProgramLocalRootCoexistenceReport {
+    lifecycle_ledger: ComponentEraLedgerId,
+    epoch_snapshots: Vec<ProgramLocalRootEpochAggregateSnapshot>,
+}
+
+impl ProgramLocalRootCoexistenceReport {
+    pub const fn lifecycle_ledger(&self) -> ComponentEraLedgerId {
+        self.lifecycle_ledger
+    }
+
+    pub fn epoch_snapshots(
+        &self,
+    ) -> impl ExactSizeIterator<Item = &ProgramLocalRootEpochAggregateSnapshot> {
+        self.epoch_snapshots.iter()
+    }
+
+    pub fn aggregates(&self) -> impl Iterator<Item = (u64, &ProgramLocalRootEpochAggregate)> {
+        self.epoch_snapshots.iter().flat_map(|snapshot| {
+            let epoch = snapshot.identity.lifecycle_epoch;
+            snapshot
+                .aggregates
+                .iter()
+                .map(move |aggregate| (epoch, aggregate))
+        })
+    }
+}
+
+/// Compose the exact root-demand report for one live component-era set.
+///
+/// The lifecycle ledger supplies the complete live-era roster. Every supplied
+/// snapshot must have been derived from a sealed cohort for that exact ledger,
+/// and every live era must appear exactly once, including eras whose snapshot
+/// contains no aggregate rows. A stale or partial roster rejects instead of
+/// silently understating coexistence demand.
+pub fn compose_program_local_root_coexistence_report<'snapshot>(
+    lifecycle: &ComponentEraEntryLedger,
+    snapshots: impl IntoIterator<Item = &'snapshot ProgramLocalRootEpochAggregateSnapshot>,
+) -> Result<ProgramLocalRootCoexistenceReport, ExternalRootDiagnostic> {
+    let live_epochs = lifecycle
+        .live_eras()
+        .map(|(epoch, _, _)| epoch)
+        .collect::<BTreeSet<_>>();
+    let mut supplied_epochs = BTreeSet::new();
+    let mut normalized = Vec::new();
+
+    for snapshot in snapshots {
+        let identity = snapshot.identity;
+        if identity.lifecycle_ledger != lifecycle.identity() {
+            return Err(ExternalRootDiagnostic(
+                "program-local coexistence snapshot belongs to another lifecycle ledger".into(),
+            ));
+        }
+        if !live_epochs.contains(&identity.lifecycle_epoch) {
+            return Err(ExternalRootDiagnostic(
+                "program-local coexistence snapshot belongs to a non-live lifecycle epoch".into(),
+            ));
+        }
+        if !supplied_epochs.insert(identity.lifecycle_epoch) {
+            return Err(ExternalRootDiagnostic(
+                "program-local coexistence report repeats one lifecycle epoch".into(),
+            ));
+        }
+        if snapshot.installed_required_slots.installed_code() != identity.installed_code {
+            return Err(ExternalRootDiagnostic(
+                "program-local coexistence snapshot substitutes its installed-code closure".into(),
+            ));
+        }
+
+        let mut occurrence_identities = BTreeSet::new();
+        for aggregate in &snapshot.aggregates {
+            if aggregate.artifact != snapshot.installed_required_slots.artifact() {
+                return Err(ExternalRootDiagnostic(
+                    "program-local coexistence aggregate substitutes its installed artifact".into(),
+                ));
+            }
+            for occurrence in &aggregate.occurrence_identities {
+                if occurrence.prebinding.installed_code != identity.installed_code
+                    || occurrence.lifecycle_ledger != identity.lifecycle_ledger
+                    || occurrence.lifecycle_epoch != identity.lifecycle_epoch
+                {
+                    return Err(ExternalRootDiagnostic(
+                        "program-local coexistence aggregate contains a cross-cohort occurrence"
+                            .into(),
+                    ));
+                }
+                if !occurrence_identities.insert(*occurrence) {
+                    return Err(ExternalRootDiagnostic(
+                        "program-local coexistence aggregate repeats one occurrence".into(),
+                    ));
+                }
+            }
+        }
+        normalized.push(snapshot.clone());
+    }
+
+    if supplied_epochs != live_epochs {
+        return Err(ExternalRootDiagnostic(
+            "program-local coexistence report omits or adds a live lifecycle epoch".into(),
+        ));
+    }
+    normalized.sort_by_key(|snapshot| snapshot.identity.lifecycle_epoch);
+    Ok(ProgramLocalRootCoexistenceReport {
+        lifecycle_ledger: lifecycle.identity(),
+        epoch_snapshots: normalized,
+    })
+}
+
 /// Report identity of one freshly established program-local lineage. The exact
 /// authority remains the non-clonable account retaining the full installed
 /// occurrence; this copyable identity is never accepted as minting evidence.
@@ -1588,6 +1736,16 @@ impl<'root, 'code> ProgramLocalRootEpochRuntime<'root, 'code> {
         self.aggregates.iter()
     }
 
+    /// Snapshot the exact cohort aggregate rows for reporting without exposing
+    /// any dormant occurrence or establishment authority.
+    pub fn aggregate_snapshot(&self) -> ProgramLocalRootEpochAggregateSnapshot {
+        ProgramLocalRootEpochAggregateSnapshot {
+            identity: self.identity,
+            installed_required_slots: self.installed_required_slots.clone(),
+            aggregates: self.aggregates.clone(),
+        }
+    }
+
     /// Cancel every still-dormant occurrence without establishing authority.
     /// The returned occurrences may only be retired through their installation
     /// ledger; cancellation never reopens cohort sealing or same-epoch use.
@@ -1672,6 +1830,16 @@ impl<'root, 'code> InstalledProgramLocalRootEpochCohort<'root, 'code> {
 
     pub fn aggregates(&self) -> impl ExactSizeIterator<Item = &ProgramLocalRootEpochAggregate> {
         self.aggregates.iter()
+    }
+
+    /// Snapshot the exact cohort aggregate rows for reporting without exposing
+    /// any installed occurrence or lifecycle authority.
+    pub fn aggregate_snapshot(&self) -> ProgramLocalRootEpochAggregateSnapshot {
+        ProgramLocalRootEpochAggregateSnapshot {
+            identity: self.identity,
+            installed_required_slots: self.installed_required_slots.clone(),
+            aggregates: self.aggregates.clone(),
+        }
     }
 
     /// Consume the exact sealed cohort into its runtime owner. No loose mint
