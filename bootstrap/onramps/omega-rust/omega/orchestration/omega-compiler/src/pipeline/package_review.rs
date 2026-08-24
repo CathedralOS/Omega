@@ -266,6 +266,21 @@ pub fn project_checked_package_review(
             "package review requires one explicit target selection",
         )]
     })?;
+    if !compilation.contract_entailment_stand_downs().is_empty() {
+        return Err(compilation
+            .contract_entailment_stand_downs()
+            .iter()
+            .map(|stand_down| {
+                Diagnostic::error(format!(
+                    "package review rejects unresolved contract-entailment stand-down at machine symbol {}, contract {}, fact {}: {}",
+                    stand_down.machine_symbol.arena_index(),
+                    stand_down.contract_index,
+                    stand_down.fact_index,
+                    stand_down.reason.label(),
+                ))
+            })
+            .collect());
+    }
     let build_machine = compilation.selected_build_machine_symbol();
     let mut callables = Vec::new();
     let mut projected_build_machine = false;

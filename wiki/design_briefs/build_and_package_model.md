@@ -648,8 +648,14 @@ Open/deferred proof obligations reject package admission. This is an admission
 requirement, not a claim that ordinary compilation already exposes such a
 status: the current compiler has no explicit deferred-proof carrier, and one
 contract-entailment tier may stand down on facts outside its engine language.
-Admission must either reject every such stand-down or retain the exact later
-checked obligation that discharged it. Kernel-checked proofs are rechecked.
+Package-aware checked compilation now records exact machine/contract/fact
+coordinates and a closed reason for each checked-implementation stand-down
+found on the pristine typed graph; the review projection rejects every row.
+Accepted and opaque supply stays trust-bearing rather than becoming a proof
+stand-down.
+This closes the in-memory review hole, but sealed/terminal propagation and any
+exact later-discharge ledger remain before admission evidence exists.
+Kernel-checked proofs are rechecked.
 Accepted axioms and opaque boundary claims must remain explicit trust-bearing
 rows; authored postconditions remain obligations. Boundary providers must
 satisfy exact package-qualified requirement identities, so a same-spelled trait
