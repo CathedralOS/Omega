@@ -117,12 +117,18 @@ machine-body syntax; even a one-expression predicate uses braces. `via` is not
 an expression-body operator. It selects the external-provider supply variant:
 
 ```omega
+windows_x64 machine WindowsBindings::write_file() -> Binding {
+    Binding::DllImport {
+        import: DllImport::PeByName {
+            library: "kernel32.dll",
+            export: "WriteFile",
+        },
+    }
+}
+
 machine Kernel32::write_file(handle: WinHandle, bytes: &[u8]) -> WriteResult
     satisfies Kernel32Requirements::write_file
-    via Binding::DllImport {
-        import: Windows::Kernel32::WriteFile,
-        plan: MsX64,
-    };
+    via WindowsBindings::write_file();
 ```
 
 Proposition declarations have their own non-executable forms: `;` introduces a
@@ -139,12 +145,16 @@ the binding kind and evidence. Merely writing `via` asserts no trust class.
 The realization machine already supplies the canonical Omega symbol.
 `Binding::CompilerIntrinsic` therefore has no textual name payload: the
 resolved realization symbol, normalized signature, and selected target key the
-sealed intrinsic catalog. Other binding operands are nominal `DllImportId`,
-`CallingPlanId`, or mechanism-specific typed values. A `DllImportId`
-inseparably names its library and export. Native linker
-bytes may occur only in sealed target metadata and are never semantic identity.
-That metadata is fingerprinted; changing its foreign bytes changes the selected
-target/artifact identity and forces fresh admission.
+sealed intrinsic catalog. Other binding operands are ordinary typed compile-time
+values. A DLL locator is one object-format-specific sum case containing all of
+its name, ordinal, or version coordinates as owned `StaticBytes` and scalars.
+The satisfied requirement's `Calling<C, Policy>` relationship separately
+produces the evaluated `CallPlan`; `Binding` neither carries nor reselects it. Raw
+linker bytes are target-package data and never Omega symbols, requirement keys,
+ambient lookup strings, or provider selections. The complete evaluated binding,
+producer closure, and target are fingerprinted; changing foreign bytes changes
+the selected target/artifact identity, forces dependent relinking, and requires
+fresh admission.
 
 `satisfies` identifies the requirement and inherits its contract. The
 requirement's service-reach row, `suspends`/`blocks` fields, and guarded

@@ -28,6 +28,7 @@ A `const` is a named value evaluated in a constant position:
 ```omega
 pub const PAGE_SIZE: u64 = 4096;
 pub const EFI_SUCCESS: EfiStatus = EfiStatus { code: 0 };
+pub const IMPORT_NAME: StaticBytes = "WriteFile";
 ```
 
 Constants may be free-standing or genuinely type-scoped:
@@ -40,6 +41,23 @@ They are never data fields and therefore never contribute to `sizeof`.
 Their types must have no cleanup obligation, shared ownership, or interior
 mutability. Each use may copy the value freely. A constant carries no storage
 identity and grants no authority.
+
+Constants are not scalar-only. Fixed arrays, records, copy-eligible sums, and
+owned `StaticBytes` values are eligible when their complete types recursively
+obey the pure-value/multiplicity rule. An unrestricted active case does not make
+a structurally linear sum eligible. An initializer may be an admitted call to
+an ordinary machine; the constant position requests semantic evaluation, and
+the concrete invocation contract decides whether it is legal. No parallel
+`const machine` species exists.
+
+Evaluation and runtime materialization are separate judgments. A compile-time
+value may be used by proofs, layouts, or further evaluation without ever
+occupying bytes. If a runtime use demands representation, the selected layout
+must determine every observable bit of the active value. The check traverses
+the realized active case and fields, reports the exact offending component and
+producer origin, and emits zero for semantically unobservable padding. A
+`const` still has no stable address; one addressable immutable image occurrence
+would be a separate future storage feature, not an extension of `const`.
 
 ## Stateless entry
 

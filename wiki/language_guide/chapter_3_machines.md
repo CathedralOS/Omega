@@ -264,12 +264,18 @@ An external realization binds an irreducible imported operation to a
 requirement without pretending the binding is executable Omega code:
 
 ```omega
+windows_x64 machine WindowsBindings::write_file() -> Binding {
+    Binding::DllImport {
+        import: DllImport::PeByName {
+            library: "kernel32.dll",
+            export: "WriteFile",
+        },
+    }
+}
+
 machine Kernel32::write_file(handle: WinHandle, bytes: &[u8]) -> WriteResult
     satisfies Kernel32Requirements::write_file
-    via Binding::DllImport {
-        import: Windows::Kernel32::WriteFile,
-        plan: MsX64,
-    };
+    via WindowsBindings::write_file();
 ```
 
 The value after `via` must be compile-time evaluable to the closed `Binding`
@@ -280,15 +286,19 @@ public service/suspension/blocking and guarded-crash ceilings; the
 binding/provider behavior must refine each one. A `via` machine does not repeat
 those clauses.
 
-Every semantic binding input is nominal. The `import` and `plan` expressions
-above resolve to typed IDs rather than strings. One `DllImportId` inseparably
-owns its library and export identity, so source cannot pair unrelated values.
-A compiler-intrinsic
-binding has no name payload: its exact realization-machine symbol, normalized
-signature, and target select the sealed lowering catalog entry. Raw foreign
-linker spellings exist only in target/link metadata and never identify an Omega
-machine or provider row. That metadata is fingerprinted, so changing the raw
-foreign spelling changes target/artifact identity and requires fresh admission.
+Binding operands are ordinary typed compile-time values. A DLL locator is one
+object-format-specific sum case, so its library/export, library/ordinal, or
+object/symbol/version coordinates cannot be independently paired. Its textual
+bytes are physical target data, not Omega names or provider-selection keys. The
+satisfied requirement's `Calling<C, Policy>` relationship separately evaluates
+the ABI `CallPlan`; the binding cannot select a second one. A compiler-intrinsic
+binding has no payload: its exact realization-machine symbol, normalized
+signature, and target select the sealed lowering catalog entry.
+
+The compiler fingerprints the complete evaluated binding, its producer closure,
+and selected target. Changing a raw foreign spelling therefore changes every
+dependent final artifact and requires relink plus fresh admission. `build.omg`
+may select a target/provider declaration but cannot rewrite a binding value.
 
 Composite adaptation is ordinary checked code. For example, an implementation
 of `Console::write_line` may call separately bound `get_stdout` and

@@ -285,6 +285,7 @@ is a *value*, not runtime storage.
 ```omega
 pub const PAGE_SIZE: u64 = 4096;
 pub const EFI_SUCCESS: EfiStatus = EfiStatus { code: 0 };
+pub const IMPORT_NAME: StaticBytes = "WriteFile";
 ```
 
 - **Free-floating, namespaced by package/module** (the default), resolved by the
@@ -300,12 +301,31 @@ pub const EFI_SUCCESS: EfiStatus = EfiStatus { code: 0 };
   a drop/cleanup obligation cannot be a `const`; the restriction is checked from
   the cleanup facts ([Drops And Cleanup](chapter_17_drops_and_cleanup.md)), and
   it is what makes a `const` safe to reference from anywhere without analysis.
+- **Not scalar-only.** Fixed arrays, records, copy-eligible sums, and
+  `StaticBytes` are const-evaluable when their complete types recursively
+  satisfy the same pure-value/multiplicity rule. An unrestricted active case
+  does not make a structurally linear sum eligible. A constant initializer may
+  call any ordinary machine whose concrete invocation passes semantic-
+  evaluation admission; there is no `const machine` category.
 - **Not authority.** A constant grants nothing, so free-floating constants are
   consistent with the capability model — unlike ambient *mutable* state, which
   does not exist. There is no `static` keyword. A receiver-bound program entry
   gets one target-provisioned receiver, reachable only through its explicit
   `&mut self` parameter; see
   [Constants And Provisioned Entry State](../design_briefs/static_root_and_constants.md).
+
+`const` names a value, not one addressable image occurrence. Compile-time-only
+uses may erase completely. When runtime use requires bytes, the compiler applies
+a separate value-sensitive materialization judgment to the evaluated value and
+selected layout. The active case and its actual fields must recursively have a
+fully determined observable encoding; inactive cases do not participate, and
+layout padding is emitted as zero and remains outside program semantics. The
+diagnostic names the first offending component and the computation that
+produced it.
+
+This is deliberately distinct from immutable static/image storage. Omega has no
+source `static` declaration today; a future addressable read-only image object
+would promise one storage identity, which a `const` never does.
 
 ## String Literals And Bytes
 
@@ -320,6 +340,20 @@ borrowing a state-local owner.
 ```omega
 let greeting = "Hello, Omega.";   // : &[u8]  -- just bytes, no Utf8 yet
 ```
+
+`StaticBytes` is the owned compile-time counterpart. In a constant/evaluator
+result position whose expected type is `StaticBytes`, the same literal copies
+its bytes into that value rather than returning an evaluator reference:
+
+```omega
+pub const DLL_NAME: StaticBytes = "kernel32.dll";
+```
+
+Its length and every byte are structural value content. Equality and hashing
+are structural; constant-pool interning is an emission optimization with no
+semantic identity. Ordinary temporary references and slices of `StaticBytes`
+may be used inside an evaluated machine, but only an owned value snapshot may
+cross back out of the evaluator.
 
 The rule is **copy, never synthesize or interpret**:
 

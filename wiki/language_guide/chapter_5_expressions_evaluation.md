@@ -801,6 +801,13 @@ prove non-NaN, canonicalize NaN, or require an exact raw-NaN refinement from
 the selected realization. A runtime recast (`&self.f as &u32`) still reads
 whatever bits are honestly there and makes no reproducibility promise.
 
+A compile-time NaN with an unfixed payload remains usable through
+`Float::meaning`, but a `const` use that would materialize it into runtime/image
+bytes rejects. The author must prove non-NaN, canonicalize the NaN, construct
+explicit bits, or select an exact raw-NaN realization. This check occurs at
+materialization rather than at the const declaration, so proof-only constants
+do not acquire a representation obligation they never use.
+
 ### Two orders
 
 Arithmetic comparison is the partial order above — floats never pretend to

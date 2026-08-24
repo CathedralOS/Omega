@@ -353,17 +353,18 @@ slot mechanism chooses among them. The retired top-level
 clause are bootstrap syntax from a parallel primitive registry and must not be
 preserved as a second selection path.
 
-Selection and binding identities are nominal. `select_provider` retains two
-structural type paths through parsing, resolves them to an exact boundary-trait
-symbol and provider-data symbol, and carries their compiler-derived package
-owners into selection. Plans match only exact `(package, canonical path)` slot
-and provider identities; authored spellings remain diagnostic data and there is
-no leaf-name fallback. Checked adapters likewise bind normalized overloads to
-exact package owners for the realizing machine, provider type, selected service
-schema, and requirement owner. Sealed target/catalog metadata remains required
-for final admission. Changing sealed foreign or target metadata must change
-artifact identity and trigger fresh admission rather than silently retargeting
-a nominal ID.
+Selection identities are nominal; binding identities are normalized evaluated
+values. `select_provider` retains two structural type paths through parsing,
+resolves them to an exact boundary-trait symbol and provider-data symbol, and
+carries their compiler-derived package owners into selection. Plans match only
+exact `(package, canonical path)` slot and provider identities; authored
+spellings remain diagnostic data and there is no leaf-name fallback. Checked
+adapters likewise bind normalized overloads to exact package owners for the
+realizing machine, provider type, selected service schema, and requirement
+owner. The complete target-scoped binding producer closure and result enter
+final admission. Changing a typed foreign locator, evaluated plan, or sealed
+compiler-catalog entry changes artifact identity and triggers fresh admission;
+`build.omg` cannot rewrite any of them while selecting a provider.
 
 `Build::select_provider<Service, Provider>()` is ordinary typed API vocabulary.
 It performs a type-per-slot override; users do not repeat every default and

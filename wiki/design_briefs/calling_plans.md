@@ -1,6 +1,6 @@
 # Design Brief: Calling And Machine-State Plans
 
-Current as of 2026-08-21. Boundary conventions are normalized policy artifacts;
+Current as of 2026-08-24. Boundary conventions are normalized policy artifacts;
 Omega's internal calling convention remains compiler-sovereign. This brief now
 includes inbound machine-state preservation, which ordinary calls do not expose.
 Engineering is incomplete. The normalized compiler model, initial built-in
@@ -551,7 +551,9 @@ The registration operation binds its static machine parameter to the exact
 callback requirement with the nominal `where machine` form:
 
 ```omega
-boundary trait WindowRegistrar {
+boundary trait WindowRegistrar:
+    Calling<MicrosoftX64, MicrosoftX64Policy>
+{
     machine register<machine Selected>(
         specification: &WindowClassSpecification
     ) -> Registration
@@ -559,19 +561,26 @@ boundary trait WindowRegistrar {
 }
 ```
 
-The concrete registrar realization supplies an ordinary evaluated calling
-plan; no callback-specific declaration keyword is added:
+The registrar requirement supplies its ordinary evaluated outbound calling
+plan. The concrete realization supplies only the external locator binding; no
+callback-specific declaration keyword is added:
 
 ```omega
+windows_x64 machine User32Bindings::register_window_procedure() -> Binding {
+    Binding::DllImport {
+        import: DllImport::PeByName {
+            library: "user32.dll",
+            export: "RegisterClassExW",
+        },
+    }
+}
+
 machine User32::register_window_procedure<machine Selected>(
     specification: &WindowClassSpecification
 ) -> Registration
 where machine Selected satisfies WindowProcedure::call
 satisfies WindowRegistrar::register
-via Binding::DllImport {
-    import: Windows::User32::RegisterClassExW,
-    plan: User32Plans::register_class,
-};
+via User32Bindings::register_window_procedure();
 ```
 
 That plan maps the nominal binder slot to one native place, conceptually:
