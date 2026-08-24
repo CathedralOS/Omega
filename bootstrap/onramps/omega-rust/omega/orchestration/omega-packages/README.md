@@ -79,8 +79,10 @@ consulting downloaded dependency rows; legacy standalone compilation still
 retains its transitional scanner. Checked package compilation now also retains
 the exact root package and selected build-machine symbol and can emit an
 in-memory authority review projection for one explicit target. That projection
-is intentionally not source/toolchain-bound admission evidence: toolchain and
-generated-symbol ownership gaps remain explicit. It includes selected provider
+is intentionally not source/toolchain-bound admission evidence: exact toolchain
+ownership gaps remain explicit. Compiler-generated symbols now inherit the
+package/toolchain provenance of a mandatory authored derivation origin, while
+truly source-free symbols remain unresolved. The projection includes selected provider
 mechanisms, and provider plans/trust rows retain exact package owners for the
 realizing machine, provider type, service schema, and requirement owner. Binding
 and selection nominals plus the remaining trust/proof/reproducibility joins are
