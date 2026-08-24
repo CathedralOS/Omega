@@ -283,8 +283,17 @@ Named contracts join the checked evidence term and positional lane: local
 `requires` binding names are omitted from identity, while public `ensures`
 selectors remain. Checked diagnostic renderings are deliberately absent from
 review bytes and adversarial mutation tests enforce that boundary.
-Evidence-projection binder arguments and unsupported call, member, cast, and
-aggregate expressions still reject rather than falling back to text or a hash.
+A proof-static `evidence.member` binder argument retains the source named-
+`requires` lane, exact package-qualified declaring trait, structural
+requirement-argument template, and exact requirement. The lane binds that
+template to the source proposition application's concrete arguments; the local
+evidence alias is omitted. It is accepted only when checked evidence-term,
+interface, and projection facts all match the structural typed declaration.
+Direct parameter-rooted member paths in ordinary contracts retain the receiver
+ordinal and exact package-qualified case/field chain after joining one checked
+semantic-place row. Computed members, proposition-argument members without that
+join, and unsupported call, cast, and aggregate expressions still reject rather
+than falling back to text or a hash.
 This join introduces no report-only Chi stage. A distinct stage remains
 available only if later consumers or transformations expose a real semantic
 boundary.

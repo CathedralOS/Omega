@@ -10,7 +10,7 @@ use psi_checked_trees::{
 };
 
 const MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW\0";
-pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 16;
+pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 18;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageReviewEncodingError {
@@ -512,6 +512,24 @@ fn encode_proposition_application(
                 encoder.byte(2);
                 encoder.string(value)?;
             }
+            PackageReviewPropositionBinderValue::EvidenceProjection {
+                source_kind,
+                source_lane_position,
+                declaring_trait,
+                declaring_trait_arguments,
+                requirement,
+            } => {
+                encoder.byte(3);
+                encoder.byte(match source_kind {
+                    PackageReviewContractKind::Requires => 0,
+                    PackageReviewContractKind::Ensures => 1,
+                    PackageReviewContractKind::Boundary => 2,
+                });
+                encoder.u32(*source_lane_position);
+                encode_nominal(encoder, declaring_trait)?;
+                encoder.sequence(declaring_trait_arguments, encode_type_identity)?;
+                encode_nominal(encoder, requirement)?;
+            }
         }
         Ok(())
     })?;
@@ -557,6 +575,16 @@ fn encode_contract_expression(
         PackageReviewContractExpression::Nominal(identity) => {
             encoder.byte(5);
             encode_nominal(encoder, identity)?;
+        }
+        PackageReviewContractExpression::Member {
+            receiver,
+            member,
+            case_variant,
+        } => {
+            encoder.byte(8);
+            encode_contract_expression(encoder, receiver)?;
+            encode_nominal(encoder, member)?;
+            encoder.option(case_variant.as_ref(), encode_nominal)?;
         }
         PackageReviewContractExpression::Binary {
             operator,
