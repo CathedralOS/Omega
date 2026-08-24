@@ -517,8 +517,9 @@ complete.
   so profiles such as Windows and UEFI cannot collapse merely because they
   share a native ABI. A v21 length-framed binary comparison encoding now covers
   every retained public-domain, public-data, public-trait, callable,
-  crash/proof predicate, proposition/witness, authority flow, dangerous-
-  authority classification, mutation, and selected-provider row.
+  representation-TCB, crash/proof predicate, proposition/witness, authority
+  flow, dangerous-authority classification, mutation, and selected-provider
+  row.
   It converts platform-width ordinals to portable `u64`, distinguishes exact
   deployment profiles, rejects interner-backed external-supply variants, and
   remains explicitly review-only rather than persistable admission evidence.
