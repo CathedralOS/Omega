@@ -1,5 +1,4 @@
 // Placeholder runtime source for the generated-table package fixture.
-machine table_size() -> u64 {
-    return 3;
+pub machine table_size() -> u64 {
+    3
 }
-

@@ -621,7 +621,12 @@ complete.
   carry byte-identical source at refreshed exact pins. The optional live-network
   test now compares package declarations, source content, and canonical
   dependency projections rather than assuming every fixture is dependency-free.
-  Compiler-issued admission evidence remains.
+  A local integration canary now resolves each real package closure through
+  resolver-owned immutable custody, compiles it through the package-aware
+  compiler path, and asserts canonical compiler-issued review evidence for the
+  package identity, public surface, reach, invocation, accepted claim, and
+  capability flow represented by the fixture. Sealed admission evidence remains
+  gated on the final admission pipeline.
 
 - **SECURITY-FIXTURE-MATRIX.** Add local and remote cases for pure code,
   generated files, filesystem, network overreach, retained filesystem+network
@@ -630,13 +635,22 @@ complete.
   missing lock baseline, same-name/different-lineage spoofing, transport
   normalization, and dependency-version reconciliation conflict.
 
+  Progress 2026-08-24: real compiler evidence now covers a pure public package,
+  a bodyless accepted boundary claim, exact filesystem reach/invocation,
+  retained network reach without a hidden invocation, exact clock-service
+  reach/invocation, capability acquisition/return flow, and a two-dependency
+  source graph. Build effects and provider selection, retained combined
+  filesystem+network authority, claim-free opaque representation, escalation,
+  missing baselines, spoofing, and reconciliation conflicts remain.
+
 - [x] **REMOVE-FABRICATED-MANIFEST-TESTS.** Replace integration tests that construct
   manifests from fixture intent with locally regenerated compiler evidence.
 
   Acceptance: only isolated data-structure unit tests may use synthetic values;
   no end-to-end admission test can pass without compiling the fixture.
 
-  Completed 2026-08-23: the fabricated local fixture admission integration
-  test was removed. Synthetic legacy values remain only in isolated unit tests;
-  the remote integration suite proves source custody and declarations, not
-  package admission.
+  Completed 2026-08-24: the fabricated local fixture admission integration
+  test was removed. Synthetic legacy values remain only in isolated unit tests.
+  The local integration canary now regenerates compiler review evidence from
+  resolver-owned fixture custody; the remote suite independently proves exact
+  source custody and declaration parity, not sealed package admission.

@@ -1,13 +1,19 @@
-// Capability flow fixture.
-boundary trait SecretHost {
-    machine read_secret(name: String) -> String;
+// Capability acquisition/return fixture.
+pub boundary trait SecretLease {
+    machine read_word() -> u64 reaches SecretLease;
 }
 
-data Vault {
+pub boundary trait SecretHost {
+    machine open(name: &[u8]) -> SecretLease reaches SecretHost;
+}
+
+pub data Vault {
     host: SecretHost;
 }
 
-machine Vault::return_host(&mut self) -> SecretHost {
-    return self.host;
+pub machine Vault::open_secret(&mut self, name: &[u8]) -> SecretLease
+reaches SecretHost
+invokes SecretHost;
+{
+    self.host.open(name)
 }
-
