@@ -150,14 +150,15 @@ complete.
   content, toolchain, and evidence identities bind one instance.
 
   Progress 2026-08-23: a typed identity core now binds `PackageKey` to
-  `PackageName` plus `SourceLineage`, and `PackageInstance` to exact typed
-  source, toolchain, and compiler-evidence identities. Construction rejects a
-  source-resolution family that does not match the key lineage. Migrating the
-  legacy name-keyed graph, lock, and evidence APIs remains. Resolved Git and
-  external-local package sources now carry `PackageKey` plus typed immutable
-  source resolution, but deliberately cannot construct `PackageInstance`
-  before compiler/toolchain evidence exists. `PackageKey::identity()` now
-  emits a domain-separated opaque 256-bit commitment shared with the compiler;
+  `PackageName` plus `SourceLineage`, and typed immutable source resolutions
+  reject a family that does not match the key lineage at graph/source custody
+  boundaries. The earlier caller-constructible `PackageInstance` placeholder
+  was removed: its replacement must join exact source, toolchain, and sealed
+  compiler evidence by construction. Migrating the legacy name-keyed graph,
+  lock, and evidence APIs remains. Resolved Git and external-local package
+  sources now carry `PackageKey` plus typed immutable source resolution but
+  deliberately cannot construct an accepted instance. `PackageKey::identity()`
+  now emits a domain-separated opaque 256-bit commitment shared with the compiler;
   it is stable across revisions and changes when package name or canonical
   lineage changes.
 
@@ -325,6 +326,15 @@ complete.
   Acceptance: production orchestration accepts only compiler-issued evidence
   bound to exact source/toolchain identity. A standalone JSON file cannot
   impersonate compiler output.
+
+  Progress 2026-08-23: legacy manifest, lock, whole-section receipt, install,
+  update, and graph-audit modules now compile only for isolated crate tests and
+  are absent from the release `omega-packages` API. The arbitrary public
+  `PackageInstance` plus caller-derived toolchain/evidence fingerprint tuple was
+  removed rather than adapted. Source diagnostics were split onto a retained
+  production surface. The compiler projection remains explicitly review-only;
+  source/toolchain/compiler binding and the remaining completeness joins must
+  land before a replacement admission type is issued or persisted.
 
 ## P4 — Lock and baseline
 

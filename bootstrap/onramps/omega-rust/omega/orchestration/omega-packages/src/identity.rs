@@ -106,49 +106,6 @@ impl PackageKey {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct PackageInstance {
-    key: PackageKey,
-    source_resolution: ImmutableSourceResolution,
-    toolchain: ToolchainIdentity,
-    compiler_evidence: CompilerEvidenceFingerprint,
-}
-
-impl PackageInstance {
-    pub fn new(
-        key: PackageKey,
-        source_resolution: ImmutableSourceResolution,
-        toolchain: ToolchainIdentity,
-        compiler_evidence: CompilerEvidenceFingerprint,
-    ) -> Result<Self, IdentityError> {
-        if !source_resolution.matches_lineage(key.source_lineage()) {
-            return Err(IdentityError::ResolutionLineageMismatch);
-        }
-        Ok(Self {
-            key,
-            source_resolution,
-            toolchain,
-            compiler_evidence,
-        })
-    }
-
-    pub fn key(&self) -> &PackageKey {
-        &self.key
-    }
-
-    pub fn source_resolution(&self) -> &ImmutableSourceResolution {
-        &self.source_resolution
-    }
-
-    pub fn toolchain(&self) -> &ToolchainIdentity {
-        &self.toolchain
-    }
-
-    pub fn compiler_evidence(&self) -> &CompilerEvidenceFingerprint {
-        &self.compiler_evidence
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum SourceLineage {
     GitHub(GitHubRepositoryLineage),
     Git(GenericGitLineage),
@@ -423,8 +380,6 @@ impl ExternalLocalLineage {
 domain_digest!(WorkspaceLineageIdentity, b"omega-workspace-lineage-v1");
 domain_digest!(ExternalSourceContext, b"omega-external-source-context-v1");
 domain_digest!(SourceContentDigest, b"omega-source-content-v1");
-domain_digest!(ToolchainIdentity, b"omega-toolchain-identity-v1");
-domain_digest!(CompilerEvidenceFingerprint, b"omega-compiler-evidence-v1");
 
 impl WorkspaceLineageIdentity {
     fn as_bytes(&self) -> &[u8] {
@@ -965,16 +920,6 @@ mod tests {
         .unwrap()
     }
 
-    fn instance(key: PackageKey, seed: u8) -> PackageInstance {
-        PackageInstance::new(
-            key,
-            git_resolution(seed),
-            ToolchainIdentity::derive(&[seed, 1]),
-            CompilerEvidenceFingerprint::derive(&[seed, 2]),
-        )
-        .unwrap()
-    }
-
     #[test]
     fn package_names_require_canonical_kebab_case_and_reject_spoofs() {
         assert!(PackageName::parse("arithmetic-kernels").is_ok());
@@ -1204,7 +1149,7 @@ mod tests {
         assert_eq!(original_key, transport_equivalent_key);
         assert_ne!(original_key, other_source_key);
         assert_ne!(original_key, other_name_key);
-        assert_ne!(instance(original_key.clone(), 1), instance(original_key, 2));
+        assert_ne!(git_resolution(1), git_resolution(2));
     }
 
     #[test]
@@ -1229,55 +1174,10 @@ mod tests {
         assert_eq!(https.identity(), ssh.identity());
         assert_ne!(https.identity(), other_name.identity());
         assert_ne!(https.identity(), other_lineage.identity());
-
-        let old_revision = instance(https.clone(), 1);
-        let new_revision = instance(https, 2);
-        assert_eq!(old_revision.key().identity(), new_revision.key().identity());
     }
 
     #[test]
-    fn every_instance_evidence_axis_changes_instance_but_not_key() {
-        let key = PackageKey::new(
-            package_name(),
-            lineage("https://github.com/CathedralOS/arithmetic-kernels.git"),
-        );
-        let base = PackageInstance::new(
-            key.clone(),
-            git_resolution(1),
-            ToolchainIdentity::derive(b"toolchain-a"),
-            CompilerEvidenceFingerprint::derive(b"evidence-a"),
-        )
-        .unwrap();
-        let changed_source = PackageInstance::new(
-            key.clone(),
-            git_resolution(2),
-            ToolchainIdentity::derive(b"toolchain-a"),
-            CompilerEvidenceFingerprint::derive(b"evidence-a"),
-        )
-        .unwrap();
-        let changed_toolchain = PackageInstance::new(
-            key.clone(),
-            git_resolution(1),
-            ToolchainIdentity::derive(b"toolchain-b"),
-            CompilerEvidenceFingerprint::derive(b"evidence-a"),
-        )
-        .unwrap();
-        let changed_evidence = PackageInstance::new(
-            key.clone(),
-            git_resolution(1),
-            ToolchainIdentity::derive(b"toolchain-a"),
-            CompilerEvidenceFingerprint::derive(b"evidence-b"),
-        )
-        .unwrap();
-
-        assert_eq!(base.key(), &key);
-        assert_ne!(base, changed_source);
-        assert_ne!(base, changed_toolchain);
-        assert_ne!(base, changed_evidence);
-    }
-
-    #[test]
-    fn commit_tree_and_content_each_independently_change_the_instance() {
+    fn commit_tree_and_content_each_independently_change_source_resolution() {
         fn source(commit: u8, tree: u8, content: u8) -> ImmutableSourceResolution {
             ImmutableSourceResolution::git(
                 GitCommitId::parse_hex(&format!("{commit:02x}").repeat(20)).unwrap(),
@@ -1287,35 +1187,17 @@ mod tests {
             .unwrap()
         }
 
-        let key = PackageKey::new(
-            package_name(),
-            lineage("https://github.com/CathedralOS/arithmetic-kernels.git"),
-        );
-        let make_instance = |resolution| {
-            PackageInstance::new(
-                key.clone(),
-                resolution,
-                ToolchainIdentity::derive(b"toolchain"),
-                CompilerEvidenceFingerprint::derive(b"evidence"),
-            )
-            .unwrap()
-        };
-        let base = make_instance(source(1, 2, 3));
+        let base = source(1, 2, 3);
 
-        assert_ne!(base, make_instance(source(4, 2, 3)));
-        assert_ne!(base, make_instance(source(1, 4, 3)));
-        assert_ne!(base, make_instance(source(1, 2, 4)));
+        assert_ne!(base, source(4, 2, 3));
+        assert_ne!(base, source(1, 4, 3));
+        assert_ne!(base, source(1, 2, 4));
     }
 
     #[test]
-    fn digest_domains_do_not_collapse() {
+    fn source_digest_is_canonical_and_rejects_incomplete_hex() {
         let source = SourceContentDigest::derive(b"same bytes");
-        let toolchain = ToolchainIdentity::derive(b"same bytes");
-        let evidence = CompilerEvidenceFingerprint::derive(b"same bytes");
-
-        assert_ne!(source.to_hex(), toolchain.to_hex());
-        assert_ne!(source.to_hex(), evidence.to_hex());
-        assert_ne!(toolchain.to_hex(), evidence.to_hex());
+        assert_eq!(SourceContentDigest::parse_hex(&source.to_hex()), Ok(source));
         assert!(SourceContentDigest::parse_hex("abc").is_err());
     }
 
@@ -1334,21 +1216,5 @@ mod tests {
             ImmutableSourceResolution::git(commit, tree, SourceContentDigest::derive(b"content")),
             Err(IdentityError::GitObjectFormatMismatch)
         );
-    }
-
-    #[test]
-    fn source_resolution_family_must_match_lineage() {
-        let key = PackageKey::new(
-            package_name(),
-            lineage("https://github.com/CathedralOS/arithmetic-kernels.git"),
-        );
-        let result = PackageInstance::new(
-            key,
-            ImmutableSourceResolution::workspace(SourceContentDigest::derive(b"content")),
-            ToolchainIdentity::derive(b"toolchain"),
-            CompilerEvidenceFingerprint::derive(b"evidence"),
-        );
-
-        assert_eq!(result, Err(IdentityError::ResolutionLineageMismatch));
     }
 }
