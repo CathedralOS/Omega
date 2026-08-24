@@ -2,6 +2,23 @@ use std::fmt;
 use std::num::NonZeroU32;
 use std::num::NonZeroU64;
 
+/// Opaque commitment to a canonical package name and source lineage.
+///
+/// Construction of the commitment belongs to the package layer. Psi carries
+/// the resulting identity without depending on source-location policy.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct PackageKeyIdentity([u8; 32]);
+
+impl PackageKeyIdentity {
+    pub fn from_digest(digest: [u8; 32]) -> Option<Self> {
+        (digest != [0; 32]).then_some(Self(digest))
+    }
+
+    pub const fn digest(self) -> [u8; 32] {
+        self.0
+    }
+}
+
 /// Identity of the current logical-cost schedule, independent from terminal
 /// Psi semantics. The schedule implementation lives above this dependency-
 /// light identity so installation/resource records can name its units without
@@ -161,6 +178,19 @@ mod tests {
                 .expect("nonzero fuel schedule")
                 .marker(),
             3
+        );
+    }
+
+    #[test]
+    fn package_key_identity_rejects_the_reserved_zero_digest() {
+        assert_eq!(PackageKeyIdentity::from_digest([0; 32]), None);
+
+        let digest = [7; 32];
+        assert_eq!(
+            PackageKeyIdentity::from_digest(digest)
+                .expect("nonzero package key identity")
+                .digest(),
+            digest
         );
     }
 }

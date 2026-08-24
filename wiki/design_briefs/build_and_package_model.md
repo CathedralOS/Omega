@@ -111,9 +111,14 @@ than the parser. These dependency calls are the target core-library surface;
 the transitional compiler currently recognizes only
 `builder.depend("alias", path("directory"))` and must migrate.
 Package orchestration can already project canonical direct `Source::Path` and
-`Source::Git` literals hermetically from an immutable root `build.omg`; the
-remaining compiler seam is to consume reconciled alias-to-`PackageKey` snapshot
-bindings instead of rescanning package-authored paths during import discovery.
+`Source::Git` literals hermetically from an immutable root `build.omg`.
+Package-aware compiler entrypoints now consume a closed requester-local graph
+of alias-to-opaque-`PackageKey` bindings and canonical source roots. That mode
+does not scan or combine package-authored dependency rows during import
+discovery; source paths route loading but do not become nominal identity.
+Orchestration still needs to translate the resolved package closure into this
+handoff, and legacy standalone compilation retains the transitional scanner
+until its canaries migrate.
 
 ## Normalized `Build` core
 

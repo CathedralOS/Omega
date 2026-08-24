@@ -1,3 +1,4 @@
+use psi_core::PackageKeyIdentity;
 use sha2::{Digest, Sha256};
 use std::fmt;
 use std::path::{Component, Path, PathBuf};
@@ -92,6 +93,15 @@ impl PackageKey {
 
     pub fn source_lineage(&self) -> &SourceLineage {
         &self.source_lineage
+    }
+
+    pub fn identity(&self) -> PackageKeyIdentity {
+        let mut hasher = Sha256::new();
+        hash_field(&mut hasher, b"omega-package-key-identity-v1");
+        hash_field(&mut hasher, self.name.as_str().as_bytes());
+        self.source_lineage.hash_canonical(&mut hasher);
+        PackageKeyIdentity::from_digest(hasher.finalize().into())
+            .expect("domain-separated SHA-256 package identity must be nonzero")
     }
 }
 
@@ -1195,6 +1205,34 @@ mod tests {
         assert_ne!(original_key, other_source_key);
         assert_ne!(original_key, other_name_key);
         assert_ne!(instance(original_key.clone(), 1), instance(original_key, 2));
+    }
+
+    #[test]
+    fn package_key_identity_uses_canonical_name_and_source_lineage() {
+        let https = PackageKey::new(
+            package_name(),
+            lineage("https://github.com/CathedralOS/arithmetic-kernels.git"),
+        );
+        let ssh = PackageKey::new(
+            package_name(),
+            lineage("git@github.com:cathedralos/arithmetic-kernels"),
+        );
+        let other_name = PackageKey::new(
+            PackageName::parse("arithmetic-core").unwrap(),
+            lineage("https://github.com/CathedralOS/arithmetic-kernels.git"),
+        );
+        let other_lineage = PackageKey::new(
+            package_name(),
+            lineage("https://github.com/Other/arithmetic-kernels.git"),
+        );
+
+        assert_eq!(https.identity(), ssh.identity());
+        assert_ne!(https.identity(), other_name.identity());
+        assert_ne!(https.identity(), other_lineage.identity());
+
+        let old_revision = instance(https.clone(), 1);
+        let new_revision = instance(https, 2);
+        assert_eq!(old_revision.key().identity(), new_revision.key().identity());
     }
 
     #[test]

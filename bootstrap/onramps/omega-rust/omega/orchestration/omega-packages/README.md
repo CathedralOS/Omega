@@ -71,10 +71,14 @@ identity. Git and external-local resolution now bind those pieces into a
 snapshot and canonical source lineage, and canonical literal dependency rows
 are projected without executing build code. Toolchain/compiler evidence is
 intentionally absent. A separate `ResolvedPackageClosure` validates exact typed
-source topology but has no persistence or admission API. These pieces do not
-become an admission path until the legacy name-keyed lock APIs are replaced and
-compiler-issued evidence plus the hardened resolver receipt are wired through
-end to end.
+source topology but has no persistence or admission API. `PackageKey` also
+derives the opaque stable identity carrier used by package-aware compiler
+inputs. The compiler's separate native and checked package entrypoints consume
+a closed requester-local alias graph and canonical source roots without
+consulting downloaded dependency rows; legacy standalone compilation still
+retains its transitional scanner. These pieces do not become an admission path
+until the legacy name-keyed lock APIs are replaced and compiler-issued evidence
+plus the hardened resolver receipt are wired through end to end.
 
 ## Target command surface
 

@@ -163,6 +163,13 @@ feature. Package dependency cycles reject in v1, keeping build order and
 request-path provenance finite; supporting a cycle later requires an explicit
 semantic and custody model rather than accidental graph acceptance.
 
+The compiler handoff contains the reconciled root package, one opaque stable
+identity plus canonical source root per package, and requester-local alias
+edges between those identities. Package-aware compilation validates that
+closed graph again and never combines it with `build.omg` scanning. Canonical
+paths are import-custody locations only; the opaque `PackageKey` commitment is
+the semantic identity that survives source loading.
+
 ## Compiler-derived package evidence
 
 Package capabilities are derived from the candidate repository after the

@@ -2,6 +2,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use crate::{SourceId, SourceSpan, Span};
+use psi_core::PackageKeyIdentity;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum SourceOrigin {
@@ -18,6 +19,11 @@ pub struct SourceFile {
     /// package members by location, so ownership must not be inferred from a
     /// declaration spelling later in the pipeline.
     pub package_root: PathBuf,
+    /// Stable package identity supplied by a reconciled package graph. Paths
+    /// remain source-loading locations and diagnostic context; they are not
+    /// nominal identity. Transitional, toolchain, and standalone sources may
+    /// not have an admitted package identity yet.
+    pub package_identity: Option<PackageKeyIdentity>,
     pub origin: SourceOrigin,
     pub source: Arc<str>,
 }
@@ -77,6 +83,7 @@ mod tests {
             source_id: SourceId(7),
             path: PathBuf::from("main.omg"),
             package_root: PathBuf::from("."),
+            package_identity: None,
             origin: SourceOrigin::User,
             source: Arc::from("machine main {}"),
         };

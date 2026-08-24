@@ -156,7 +156,10 @@ complete.
   legacy name-keyed graph, lock, and evidence APIs remains. Resolved Git and
   external-local package sources now carry `PackageKey` plus typed immutable
   source resolution, but deliberately cannot construct `PackageInstance`
-  before compiler/toolchain evidence exists.
+  before compiler/toolchain evidence exists. `PackageKey::identity()` now
+  emits a domain-separated opaque 256-bit commitment shared with the compiler;
+  it is stable across revisions and changes when package name or canonical
+  lineage changes.
 
 - **SOURCE-LINEAGE-NORMALIZATION.** Define canonical lineage for Git, URL
   archives, and local/workspace paths.
@@ -182,6 +185,13 @@ complete.
   Acceptance: a same-spelled package or boundary declaration from another
   source lineage cannot satisfy or replace the admitted identity.
 
+  Progress 2026-08-23: target-neutral Psi now owns only the opaque
+  `PackageKeyIdentity` carrier, while source-lineage normalization remains in
+  `omega-packages`. Managed compiler sources retain that identity and
+  same-package checks prefer it over path spelling. Threading it through
+  symbols, generated declarations, boundary/provider identities, terminal Psi,
+  and emitted evidence remains.
+
 ## P2 — Dependency projection and reconciliation
 
 - **BUILD-DEPENDENCY-API.** Replace the transitional
@@ -199,7 +209,8 @@ complete.
   shapes require no parser syntax. A strict package-side extractor now consumes
   their canonical one-argument `builder.depend(source)` form. The compiler
   prelude and import path still expose the transitional alias/path API;
-  `depend_as`, conservative editing, and reconciled compiler bindings remain.
+  `depend_as`, conservative editing, target vocabulary, and orchestration of
+  the reconciled compiler bindings remain.
 
 - **HERMETIC-DEPENDENCY-PROJECTION.** Derive dependency source requests without
   executing build-host effects or imported code.
@@ -213,8 +224,12 @@ complete.
   rejects authored toolchain vocabulary, malformed/scoped builds, nonliteral or
   nested/helper-mediated requests, unsupported cases, and `depend_as`. An
   absent build machine projects no dependencies. Resolved package-source
-  custody performs this projection before returning. Recursive traversal and
-  replacing the compiler's fail-open transitional scanner remain.
+  custody performs this projection before returning. The compiler now has
+  separate native and checked package-aware entrypoints that accept only a
+  validated, closed, requester-local alias-to-`PackageKeyIdentity` graph and
+  canonical source roots; this mode never invokes or combines the transitional
+  scanner. Recursive package-manager traversal, orchestration wiring, and
+  removal of the scanner from legacy standalone compilation remain.
 
 - **CLOSURE-RECONCILIATION.** Resolve the complete source closure before any
   dependency build receives providers.
@@ -228,7 +243,12 @@ complete.
   alias uniqueness, closed reachability, and same-name/different-lineage
   separation. Package dependency cycles conservatively reject in v1. Recursive
   source traversal, request-path provenance, and compiler evidence remain; the
-  structural graph has no persistence or admission API.
+  structural graph has no persistence or admission API. A compiler-side
+  handoff independently rejects missing/duplicate/overlapping roots, invalid or
+  duplicate requester-local aliases, missing targets, unreachable rows, cycles,
+  source-root drift, toolchain overlap, dependency `build.omg` imports, and
+  symlink escapes. Translating the package graph into that handoff remains at
+  the CLI/orchestration boundary.
 
 ## P3 — Compiler-issued package evidence
 

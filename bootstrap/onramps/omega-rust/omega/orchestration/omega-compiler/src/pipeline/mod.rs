@@ -13,6 +13,7 @@ mod float_intrinsic_dispatch;
 pub mod frontend;
 mod operator_adapter_dispatch;
 mod output;
+mod package_compilation;
 mod program_entry_physical;
 mod program_entry_source_signature;
 mod program_local_storage_custody;
@@ -49,7 +50,7 @@ pub use artifacts::{
 };
 pub use build_config::BuildEvaluationUsage;
 pub use calling_policy_plans::evaluate_calling_policy_plan;
-pub use checked_entry::{CheckedCompilation, compile_to_checked};
+pub use checked_entry::{CheckedCompilation, compile_to_checked, compile_to_checked_with_packages};
 pub use compile_options::{ArtifactEmissionPolicy, CompileOptions};
 pub use compile_policy::ExecutableTcbBuildPolicy;
 pub use compile_report::{
@@ -57,10 +58,15 @@ pub use compile_report::{
     ExecutablePublicationReceipt,
 };
 pub use compiler::{
-    compile, compile_with_artifact_policy, compile_with_policy, compile_with_test_entry,
+    compile, compile_with_artifact_policy, compile_with_packages, compile_with_policy,
+    compile_with_policy_and_packages, compile_with_test_entry,
     compile_with_test_entry_and_artifact_policy, compile_with_test_entry_and_worker_count,
     compile_with_test_entry_worker_count_and_artifact_policy,
     compile_with_worker_count_and_artifact_policy,
+};
+pub use package_compilation::{
+    PackageCompilationInputError, PackageCompilationInputs, PackageDependencyBinding,
+    PackageSourceBinding,
 };
 pub use program_entry_physical::ProgramEntryPhysicalContractPlan;
 pub use program_entry_source_signature::{
@@ -171,10 +177,6 @@ pub use provider_plans::{
     compiler_intrinsic_diagnostic_label, selected_external_root_entry_fact_bindings,
     selected_external_root_provider_plan, selected_external_root_provider_plan_id,
 };
-pub use terminal_component_candidate::{
-    TerminalComponentCandidate, TerminalComponentProviderExecution,
-    TerminalComponentProviderSettlement, stage_terminal_component,
-};
 pub use psi_access_plans::{ValidatedAccessPlan, ValidatedPlacementPlan};
 pub use psi_build_time_evaluation::{
     BuildTimeValue, compute_access_plan, compute_layout_plan, compute_placement_plan,
@@ -190,4 +192,8 @@ pub use psi_layout_plans::{
 };
 pub use psi_layout_plans::{
     IntegerInterpretation, LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport,
+};
+pub use terminal_component_candidate::{
+    TerminalComponentCandidate, TerminalComponentProviderExecution,
+    TerminalComponentProviderSettlement, stage_terminal_component,
 };

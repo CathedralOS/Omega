@@ -42,6 +42,12 @@ Omega reads the dependency's own `PACKAGE` and derives the default local alias
 by mapping kebab-case to snake_case. Explicit aliases are exceptional local
 renames and never package identity.
 
+After reconciliation, the compiler receives the complete requester-local alias
+graph together with an opaque commitment to each `PackageKey` and each
+resolver-owned source root. It does not rediscover dependencies from package
+build code. The commitment, not the cache path, governs same-package and future
+nominal-identity checks; source roots only constrain where imports may load.
+
 `omega.lock` is machine-written accepted state: it records the reconciled
 closure, exact commits/trees/content, source-qualified package identities,
 compiler-derived capability/API baselines, build observations, and admission
