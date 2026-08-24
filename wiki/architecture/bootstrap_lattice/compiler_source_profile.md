@@ -1,4 +1,4 @@
-# Delta and the Omega self-hosting profile
+# Delta and the Omega product-compiler source profile
 
 [Lattice overview](bootstrap_lattice.md) | [Standing decisions](decisions.md) |
 [Delta rung](rungs/delta.md) | [Psi/Omega toolchain](omega_toolchain.md)
@@ -17,6 +17,12 @@ omega-bootstrap  ─────────────────▶  product
 Delta v1 and `Ωself` are the only remaining source-surface contracts in this
 bootstrap design. They are deliberately asymmetric. Do not turn the compiler
 artifacts between them into extra languages:
+
+`Ωself` is retained as the short symbol for the product compiler's ordinary-
+Omega source profile. The required use of that profile is a cross-language
+hosted build by `omega-bootstrap`; the name does not imply that this edge is an
+Omega self-rebuild. Only the optional later `omega` → `omega` build is strict
+self-hosting.
 
 | Source contract | What it is | Selected from | What does **not** define it |
 | --- | --- | --- | --- |

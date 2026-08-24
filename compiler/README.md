@@ -14,11 +14,11 @@ Alpha → Beta → Gamma → Delta
 ```
 
 Delta is an independent compiler-host language, not necessarily an Omega
-subset. `omega-bootstrap` accepts only the Omega self-hosting profile `Ωself`
-required by the exact product source closure and rejects the rest. The product
-source is normal Omega constrained to that profile; the resulting compiler
-implements full Omega. This hosted dependency replaces a historical tower of
-external implementation-language dependencies.
+subset. `omega-bootstrap` accepts only the Omega product-compiler source
+profile `Ωself` required by the exact product source closure and rejects the
+rest. The product source is normal Omega constrained to that profile; the
+resulting compiler implements full Omega. This hosted dependency replaces a
+historical tower of external implementation-language dependencies.
 
 “Full Omega” refers to accepted language and artifact semantics, not a mandate
 to import every adjacent tool. Standalone Terminal-Psi interpreters, REPLs,
@@ -102,7 +102,7 @@ The hosted build has two source surfaces:
 
 `Ωself` has no private semantics and is not another language rung. The feature
 budget and enforcement contract live in
-[`self_hosting_profile.md`](../wiki/architecture/bootstrap_lattice/self_hosting_profile.md).
+[`compiler_source_profile.md`](../wiki/architecture/bootstrap_lattice/compiler_source_profile.md).
 
 The current Rust implementation remains a migration/reference producer under
 `bootstrap/onramps/omega-rust/{psi,omega}/` while that hosted path matures.

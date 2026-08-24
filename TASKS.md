@@ -56,7 +56,7 @@ Remaining:
   reserved product roots. Publish a deterministic manifest of every transitive
   compiler module, library, generated/compile-time source, build input, and tool
   imported by that build. Develop against the conservative working policy in
-  `wiki/architecture/bootstrap_lattice/self_hosting_profile.md`; this task does
+  `wiki/architecture/bootstrap_lattice/compiler_source_profile.md`; this task does
   not wait for Delta v1 or a frozen `Ωself`. Once the exact source closure
   exists, jointly derive the profile: for each disputed source feature, either
   refactor it away or propose its measured bootstrap and assurance cost. Keep

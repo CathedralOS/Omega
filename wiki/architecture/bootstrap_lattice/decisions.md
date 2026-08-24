@@ -220,8 +220,9 @@ The provisional evidence ledger is
 [`bootstrap/rungs/delta/FEATURE_LEDGER.md`](../../../bootstrap/rungs/delta/FEATURE_LEDGER.md).
 
 Delta source builds `omega-bootstrap`. That compiler is intentionally
-input-incomplete: it accepts only the Omega self-hosting profile `Ωself`, rejects
-everything else, and gives accepted programs their exact normal Omega meaning.
+input-incomplete: it accepts only the Omega product-compiler source profile
+`Ωself`, rejects everything else, and gives accepted programs their exact
+normal Omega meaning.
 The production compiler source and all of its transitive dependencies are
 deliberately constrained to `Ωself`, while the resulting production compiler
 implements the complete Omega specification:
@@ -281,10 +282,12 @@ stage between Gamma and Delta.
 
 Psi remains the source-semantics and terminal-portable-IR owner inside the Omega
 product toolchain. `omega-bootstrap` hosts only the Psi/Omega path required by
-the exact `Ωself` source closure. Terminal Psi tools, interpreters, proof-facing
-source features, and other product breadth are outside that closure unless the
-production compiler imports them. Neither Psi nor either compiler artifact is
-another Greek bootstrap language.
+the exact `Ωself` source closure. Omega proof syntax may be absent from `Ωself`
+even though ordinary `Ωself` code implementing full proof-feature parsing and
+checking belongs to the production compiler closure. Standalone Terminal Psi
+tools, interpreters, and other product breadth are outside that closure unless
+the production compiler imports them. Neither Psi nor either compiler artifact
+is another Greek bootstrap language.
 
 The current Rust Psi/Omega compiler remains a maintained reference and
 differential producer while its bug-finding value justifies the cost. It grants
@@ -293,7 +296,7 @@ release dependency. The Beta compiler's default construction and downstream
 use are already Alpha-rooted.
 
 The exact Delta language inventory and `Ωself` source-profile inventory are
-governed by [`self_hosting_profile.md`](self_hosting_profile.md).
+governed by [`compiler_source_profile.md`](compiler_source_profile.md).
 
 ---
 
@@ -310,7 +313,7 @@ governed by [`self_hosting_profile.md`](self_hosting_profile.md).
 
 proof kernel .... check.beta + checker.gamma; cross-cutting derivation checker           [Rust-free, audited]
 omega-bootstrap . accepts exact Ωself and rejects the rest; may itself run slowly         [hosted bridge]
-omega ........... full optimizing compiler; own binary may be conservative                 [one hosted compile]
+omega ........... full optimizing compiler; own binary may be conservative          [one hosted production build]
 Psi ............. source semantics + terminal IR inside both compiler products            [not a rung]
 ```
 

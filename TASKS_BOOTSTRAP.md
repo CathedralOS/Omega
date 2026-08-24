@@ -24,10 +24,10 @@ Alpha → Beta → Gamma → Delta
 The languages become increasingly capable. Delta is an independent, robust
 compiler-host language with C-like power and Omega-shaped conventions where
 useful; it is not required to be an Omega subset. Delta source builds
-`omega-bootstrap`, which accepts only the exact Omega self-hosting profile
-`Ωself`. The production compiler source is normal Omega constrained to that
-profile and implements the complete Omega specification. `Ωself` is not another
-language rung or dialect.
+`omega-bootstrap`, which accepts only the exact Omega product-compiler source
+profile `Ωself`. The production compiler source is normal Omega constrained to
+that profile; the compiler it defines implements the complete Omega
+specification. `Ωself` is not another language rung or dialect.
 
 The bridge binary may run slowly and lower the production compiler
 conservatively. It must compile the `Ωself` source that implements the product
@@ -54,7 +54,7 @@ need their exact inventories frozen:
 | Contract | Evidence that selects it | Working owner | Freeze point |
 | --- | --- | --- | --- |
 | **Delta v1** — the literal independent language used to write `omega-bootstrap` | the bridge's complete deterministic Delta source closure | [`bootstrap/rungs/delta/FEATURE_LEDGER.md`](bootstrap/rungs/delta/FEATURE_LEDGER.md) | after the complete bridge source exists and unused producer/corpus behavior is pruned |
-| **`Ωself`** — the incidental ordinary-Omega profile used by the production compiler | the product compiler's complete deterministic Omega source closure | [`self_hosting_profile.md`](wiki/architecture/bootstrap_lattice/self_hosting_profile.md) and the bootstrap profile gate | after `OMEGA-PRODUCT-COMPILER-SOURCE` publishes that closure and each disputed feature is measured |
+| **`Ωself`** — the incidental ordinary-Omega product-compiler source profile | the product compiler's complete deterministic Omega source closure | [`compiler_source_profile.md`](wiki/architecture/bootstrap_lattice/compiler_source_profile.md) and the bootstrap profile gate | after `OMEGA-PRODUCT-COMPILER-SOURCE` publishes that closure and each disputed feature is measured |
 
 Delta's source manifest decides what its independent language must support;
 Omega's product-source manifest decides what ordinary Omega the bridge must
@@ -313,7 +313,7 @@ lane consumes its deterministic transitive manifest; product Psi/Omega
 implementation work must not be duplicated here. Compiler-adjacent tools are
 outside that manifest unless the compiler executable imports them.
 
-- [ ] **Derive and freeze the Omega self-hosting profile (`Ωself`).**
+- [ ] **Derive and freeze the Omega product-compiler source profile (`Ωself`).**
   Dependency: the exact production-compiler source manifest above must exist
   before the profile can freeze. Standard library samples and current Rust
   source cannot substitute for it; provisional bridge work may continue.
@@ -323,7 +323,7 @@ outside that manifest unless the compiler executable imports them.
   - [ ] freeze compositional syntax, static-semantics, resource, ABI/layout, and
     lowering rules—not file identities, statement counts, or AST permutations;
   - [ ] resolve every row in the working feature-disposition table in
-    [`self_hosting_profile.md`](wiki/architecture/bootstrap_lattice/self_hosting_profile.md):
+    [`compiler_source_profile.md`](wiki/architecture/bootstrap_lattice/compiler_source_profile.md):
     proof and linear/dependent features are presumptively excluded; ordinary
     named fields, payload sums, and basic generics are presumptively retained;
     domains, advanced generics, numeric/schema field tags, complex transition
@@ -392,13 +392,21 @@ outside that manifest unless the compiler executable imports them.
   an explicit versioned language change, never silent bridge pressure.
 
 - [ ] **Validate Delta → `omega-bootstrap`.**
-  Gate the complete Delta source closure, exact `Ωself` coverage,
-  excluded-feature diagnostics, deterministic publication, canonical-meaning
-  agreement, conservative lowering, and relevant proof/translation-validation
-  seams. Include profile-wide compositional canaries so compiling the exact
-  product source cannot conceal source-shape specialization. The Rust compiler
-  may remain a differential reference but is never authority or a release
-  dependency.
+  Build the exact bridge artifact from its published Delta source closure using
+  the canonical lattice path. Join that source manifest, the produced artifact,
+  and the lower-rooted source-to-artifact refinement in one gate; a Rust-built
+  bridge or native/self-host agreement cannot substitute for that join. Gate
+  exact `Ωself` coverage, excluded-feature diagnostics, deterministic
+  publication, canonical-meaning agreement, conservative lowering, and the
+  relevant proof/translation-validation seams. Include profile-wide
+  compositional canaries so compiling the exact product source cannot conceal
+  source-shape specialization. The Rust compiler may remain a differential
+  reference but is never authority or a release dependency.
+
+  Acceptance: the exact lattice-built `omega-bootstrap` executable is bound to
+  its exact Delta source and canonical meaning, requires no Rust producer or
+  ambient assembler/linker in the required path, and correctly accepts and
+  rejects the published compositional `Ωself` profile.
 
 - [ ] **Perform the sole required hosted production build.**
   Run the Delta-built bridge on the exact `Ωself` manifest and validate the
@@ -541,7 +549,7 @@ outside that manifest unless the compiler executable imports them.
 6. Use the closed O0/O1 source-through-ELF canaries as regression evidence while
    implementing `omega-bootstrap` directly against `Ωself`; do not manufacture
    an O2/O3 profile ladder. Carry correct conservative lowering sufficient for
-   the required hosted compile.
+   the required hosted production build.
 7. Use `omega-bootstrap` once to build and validate the full optimizing Omega
    compiler from the `Ωself` production source manifest. Treat any later
    product self-rebuild as optional assurance evidence, not another rung.

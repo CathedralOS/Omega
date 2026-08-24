@@ -18,9 +18,10 @@ final build lattice must preserve:
 - **Omega variable acceptance profile O1** is the first table-driven source
   slice. It is a monotonic extension of O0, frozen at explicit statement and
   storage ceilings below.
-- **Omega self-hosting profile `Ωself`** is the incidental ordinary-Omega profile
-  selected by the source closure from which the production compiler is built.
-  It remains open until that exact source and dependency manifest exists.
+- **Omega product-compiler source profile `Ωself`** is the incidental ordinary-
+  Omega profile selected by the source closure from which the production
+  compiler is built. It remains open until that exact source and dependency
+  manifest exists.
 
 O0 and O1 are vertical pipeline canaries, not normative ancestors of `Ωself`.
 The eventual profile may reuse their implementation, but it is derived from the
@@ -147,7 +148,7 @@ The gate must compile the complete manifest under explicit compositional profile
 rules and carry a negative canary for every rejected feature. The profile
 includes all transitive libraries, generated and compile-time source, build
 behavior, and compiler-imported tools. See
-[`../../../wiki/architecture/bootstrap_lattice/self_hosting_profile.md`](../../../wiki/architecture/bootstrap_lattice/self_hosting_profile.md).
+[`../../../wiki/architecture/bootstrap_lattice/compiler_source_profile.md`](../../../wiki/architecture/bootstrap_lattice/compiler_source_profile.md).
 
 ## O0 — Omega vertical-canary acceptance profile
 

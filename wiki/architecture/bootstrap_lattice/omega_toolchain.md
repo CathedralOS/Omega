@@ -85,7 +85,7 @@ still comes from the canonical meaning route, reconstructed proof obligations,
 derivation checking, and translation validation across that edge.
 
 The exact distinction between Delta's literal specification and `Ωself` is
-defined in [`self_hosting_profile.md`](self_hosting_profile.md).
+defined in [`compiler_source_profile.md`](compiler_source_profile.md).
 
 The current Rust `psi-terminal-verifier` demonstrates the artifact-aware half:
 it validates canonical terminal Psi, reconstructs its exact obligation set,

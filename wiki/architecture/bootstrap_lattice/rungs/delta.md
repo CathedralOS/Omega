@@ -31,9 +31,9 @@ traits enter v1 only when they reduce total bridge-source and assurance cost;
 their omission is not a goal in itself.
 
 Its job is to implement `omega-bootstrap`, which accepts the exact Omega
-self-hosting profile `Ωself` and rejects the rest. That bridge compiles the
-`Ωself`-constrained production source into the full optimizing compiler. That
-compiler's own machine code may initially be conservative.
+product-compiler source profile `Ωself` and rejects the rest. That bridge
+compiles the `Ωself`-constrained production source into the full optimizing
+compiler. That compiler's own machine code may initially be conservative.
 
 ## Implementation
 
@@ -89,7 +89,7 @@ Delta → omega-bootstrap (accepts Ωself)
       → omega (implements full Ω)
 ```
 
-See [`../self_hosting_profile.md`](../self_hosting_profile.md) for the separate
+See [`../compiler_source_profile.md`](../compiler_source_profile.md) for the separate
 Delta and `Ωself` feature budgets.
 
 ## Proofs
