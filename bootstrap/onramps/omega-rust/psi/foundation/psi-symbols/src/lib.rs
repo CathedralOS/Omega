@@ -148,6 +148,45 @@ mod tests {
     }
 
     #[test]
+    fn owned_semantic_symbol_name_retains_authored_provenance() {
+        let package_identity =
+            PackageKeyIdentity::from_digest([5; 32]).expect("nonzero package identity");
+        let mut sources = SourceMap::default();
+        let source_id = sources
+            .add_with_metadata(
+                PathBuf::from("package/main.omg"),
+                String::from("Ready"),
+                PathBuf::from("package"),
+                Some(package_identity),
+                SourceOrigin::User,
+            )
+            .source_id;
+        let source_span = SourceSpan::new(source_id, Span::new(0, 5));
+        let mut builder = SymbolTableBuilder::with_sources(Some(Arc::new(sources)));
+        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let domain = SymbolTableBuilder::child_handles(builder.insert_children(
+            root,
+            [(
+                SymbolKind::Domain,
+                SymbolNameRef::OwnedSource {
+                    value: "Packet::Ready",
+                    source_span,
+                },
+            )],
+        ))
+        .next()
+        .expect("authored semantic domain");
+        let symbols = builder.finish();
+
+        assert_eq!(symbols.name(domain), "Packet::Ready");
+        assert_eq!(symbols.symbol_source_span(domain), Some(source_span));
+        assert_eq!(
+            symbols.symbol_package_identity(domain),
+            Some(package_identity)
+        );
+    }
+
+    #[test]
     fn unmanaged_and_toolchain_symbols_have_no_package_identity() {
         let package_identity =
             PackageKeyIdentity::from_digest([2; 32]).expect("nonzero package identity");

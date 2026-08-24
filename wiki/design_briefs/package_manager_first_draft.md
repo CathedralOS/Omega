@@ -211,6 +211,12 @@ structural surface and stable numbered/retired identities. Numbered ordinary
 not create a parallel package surface. If a public data form contains quotient
 semantics, default-domain proof facts, or static callable/proposition contracts
 that the projection cannot yet encode exactly, projection rejects it.
+Public domain rows retain exact declaring-package identity, alpha-normalized
+type/const binders, carrier type, and closed index arguments. A synthesized
+domain path retains its semantic spelling separately from the authored span
+that supplies package provenance. Alias expansion, predicate facts, closed
+classifications, semantic roles, establishment routes, and domain operators
+reject until exact canonical rows exist; none is inferred from the domain name.
 
 The eventual normalized package-admission evidence must include, with exact
 provenance:

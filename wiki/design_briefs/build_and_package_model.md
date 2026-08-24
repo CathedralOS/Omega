@@ -594,6 +594,12 @@ numbered and retired identities. Those numbered ordinary-data identities are
 the wire contract; the retired standalone `wire data` form is not projected as
 a duplicate API. Any public quotient, default-domain proof fact, or static
 machine/proposition parameter rejects until the projection has an exact row.
+Public domain rows likewise retain exact declaring-package identity,
+alpha-normalized type/const binders, carrier type, and index arguments.
+Synthesized semantic paths retain an authored provenance span without replacing
+their canonical spelling with the source substring. Alias, predicate,
+classification, semantic-role, establishment-route, and operator semantics fail
+closed until exact rows exist.
 
 Terminal Psi evidence remains a separate evidence class for checked
 final-realization claims: Omega-emitted executable code, asserted properties of

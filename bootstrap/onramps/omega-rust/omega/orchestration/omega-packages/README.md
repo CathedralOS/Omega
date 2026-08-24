@@ -146,8 +146,12 @@ with supply, generic shape, properties, stable field/variant identities,
 retired identities, relevance, and exact field/payload types. Numbered ordinary
 data is the wire contract; the retired standalone `wire data` form is not a
 second API row. Quotients, data `where` facts, and static machine/proposition
-parameters reject review until exact canonical rows exist. Public trait and
-domain shapes remain. The compiler now provides a version-3 length-framed
+parameters reject review until exact canonical rows exist. Public trait shapes
+and the remaining domain semantic lanes remain. Public domains with representable
+shape now retain exact package identity, alpha-normalized generic carrier/index
+shape, and package-qualified carrier/index types; aliases, predicates,
+classifications, semantic roles, establishment routes, and operators fail
+closed until canonical rows land. The compiler now provides a version-4 length-framed
 binary comparison encoding over this review
 projection; it is explicitly not a package certificate or accepted-lock
 payload. Raw Rust/debug serialization is not an alternative. These pieces do
