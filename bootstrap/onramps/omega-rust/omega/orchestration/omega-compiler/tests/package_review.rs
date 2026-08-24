@@ -290,7 +290,7 @@ crashes Abort
         target,
         "review identity must retain the deployment profile, not only its native ABI",
     );
-    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 25);
+    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 26);
     let [ready] = review.public_domains() else {
         panic!("one package-owned public domain row")
     };
@@ -1867,7 +1867,7 @@ invokes waiting;
 }
 
 #[test]
-fn exact_synchronous_invocations_change_v25_comparison_encoding() {
+fn exact_synchronous_invocations_change_v26_comparison_encoding() {
     let quiet = TempPackage::new();
     let invoking = TempPackage::new();
     quiet.write(
@@ -2057,7 +2057,7 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
-fn public_data_and_numbered_wire_shape_changes_change_v25_comparison_encoding() {
+fn public_data_and_numbered_wire_shape_changes_change_v26_comparison_encoding() {
     let first = TempPackage::new();
     let second = TempPackage::new();
     first.write(
@@ -2091,7 +2091,7 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
-fn public_domain_shape_changes_change_v25_comparison_encoding() {
+fn public_domain_shape_changes_change_v26_comparison_encoding() {
     let first = TempPackage::new();
     let second = TempPackage::new();
     first.write(
@@ -2857,7 +2857,7 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
-fn review_rejects_unprojected_public_trait_contract_lanes() {
+fn review_projects_trait_defaults_and_rejects_unprojected_trait_contract_lanes() {
     let default_package = TempPackage::new();
     default_package.write(
         "main.omg",
@@ -2878,13 +2878,38 @@ machine build(builder: &mut Build) { }
         package_inputs(&default_package.0),
     )
     .expect("public trait default fixture should check");
-    let diagnostics = project_checked_package_review(&checked)
-        .expect_err("review must not omit a public trait default realization");
-    assert!(diagnostics.iter().any(|diagnostic| {
-        diagnostic
-            .message
-            .contains("default realization not yet joined to package review")
-    }));
+    let default_review = project_checked_package_review(&checked)
+        .expect("review should retain a public trait default realization");
+    let default_requirement = &default_review.public_traits()[0].requirements()[0];
+    assert!(default_requirement.has_default_realization());
+
+    let abstract_package = TempPackage::new();
+    abstract_package.write(
+        "main.omg",
+        r#"pub trait Worker {
+    machine wait();
+}
+"#,
+    );
+    abstract_package.write(
+        "build.omg",
+        r#"target windows_x64 { }
+machine build(builder: &mut Build) { }
+"#,
+    );
+    let abstract_checked = compile_to_checked_with_packages(
+        &abstract_package.0.join("main.omg"),
+        Some("windows_x64"),
+        package_inputs(&abstract_package.0),
+    )
+    .expect("abstract public trait fixture should check");
+    let abstract_review = project_checked_package_review(&abstract_checked)
+        .expect("review should retain an abstract public trait requirement");
+    assert!(!abstract_review.public_traits()[0].requirements()[0].has_default_realization());
+    assert_ne!(
+        default_review.canonical_review_bytes().unwrap(),
+        abstract_review.canonical_review_bytes().unwrap(),
+    );
 
     let precondition_package = TempPackage::new();
     precondition_package.write(

@@ -190,10 +190,13 @@ binder ordinals, exact subject ordinals, public trait identity, and structural
 arguments. Binder-free requirements do not fabricate evidence. Non-generic
 selected conformances retain exact package-qualified conformance, carrier, and
 underlying public-trait identities plus carrier/trait applications. Their
-semantic declarations retain exact carrier/trait symbols. Selected
-conformances with their own generic telescope, invariants, default
-realizations, and non-progress proof/boundary/crash contracts fail closed until
-complete rows land. Public domains with representable shape now retain exact package identity,
+semantic declarations retain exact carrier/trait symbols. Generic selected-
+conformance telescopes, public-trait invariants, and non-progress proof,
+boundary, or crash contracts fail closed until complete rows land. Public trait
+requirements retain whether their checked declaration supplies a default
+realization; implementation bodies remain checked source subject to universal
+update triage rather than compiler-private IR in package evidence. Public
+domains with representable shape now retain exact package identity,
 alpha-normalized generic carrier/index shape, package-qualified carrier/index
 types, closed compiler-owned classifications, and authorized establishment
 routes with exact package-qualified trait/requirement identities. Transparent
@@ -242,7 +245,7 @@ never repurposed as output directories.
 The legacy machine-contract fingerprint no longer enters package-review bytes,
 so private state shape is not public contract identity. Complete proof and
 unsupported-clause rows still gate sealed admission. The compiler now provides
-a version-25 length-framed binary comparison encoding over this review
+a version-26 length-framed binary comparison encoding over this review
 projection; it is explicitly not a package certificate or accepted-lock
 payload. Raw Rust/debug serialization is not an alternative. These pieces do
 not become an admission path until the legacy name-keyed lock APIs are replaced
