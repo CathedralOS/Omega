@@ -149,6 +149,12 @@ fn assert_fixture_evidence(package: &str, review: &CheckedPackageReviewProjectio
                 invocation.service().expect("service invocation").path(),
                 "ClockHost"
             );
+            let [provider] = review.selected_providers() else {
+                panic!("provider-switchboard exact selected provider")
+            };
+            assert_eq!(provider.provider_type(), "MonotonicClock");
+            assert_eq!(provider.service_schema(), "ClockHost");
+            assert_eq!(provider.rows().len(), 1);
         }
         "capability-vault" => assert!(
             !callable.capability_flows().is_empty(),

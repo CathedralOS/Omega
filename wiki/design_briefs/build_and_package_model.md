@@ -262,20 +262,18 @@ machine build(builder: &mut Build) {
         windows_x86_64::ProgramEntry,
         Application::start
     );
-    builder.providers.bind(
-        windows_x86_64::Console,
-        TestConsole::Complete
-    );
+    builder.select_provider<windows_x86_64::Console, TestConsole>();
 }
 ```
 
 `Application::start` is the exact machine selected by the entry-machine slot.
 It may be free or carry one `&mut self` receiver according to the slot's entry
-shape. `TestConsole::Complete` is a named complete conformance because `Console`
-requests a complete trait surface. Binding shape is declared by the slot, not
-inferred from the trait's current requirement count. Exact slot consumers can
-cite only the selected requirement's normalized contract; they possess no
-conformance identity from which trait laws could be cited.
+shape. `TestConsole` is the nominal provider type selected for the complete
+`Console` surface; its ordinary conformances and `via` leaves determine the
+derived plan. Binding shape is declared by the slot, not inferred from the
+trait's current requirement count. Exact slot consumers can cite only the
+selected requirement's normalized contract; they possess no conformance
+identity from which trait laws could be cited.
 
 The physical arrival requirement, semantic arrival requirement, and selected
 source entry are different layers, not competing entry identities. For example,
@@ -367,9 +365,9 @@ for final admission. Changing sealed foreign or target metadata must change
 artifact identity and trigger fresh admission rather than silently retargeting
 a nominal ID.
 
-The exact `Build` library method names remain ordinary API design. Conceptually
-the operations are target-profile selection plus type-per-slot override; users
-do not repeat every default and cannot append or mutate derived plan rows.
+`Build::select_provider<Service, Provider>()` is ordinary typed API vocabulary.
+It performs a type-per-slot override; users do not repeat every default and
+cannot append or mutate derived plan rows.
 
 An indexed provider requirement is one schema rather than one ambient slot per
 type application. In particular, `ResidentContentTransfer<P, T>` is selected

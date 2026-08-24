@@ -1,4 +1,4 @@
-// package-manager fixture: future build provider selection lives here.
+// package-manager fixture: exact build-owned provider selection.
 const PACKAGE: Package = Package {
     name: "provider-switchboard"
 };
@@ -9,4 +9,5 @@ target linux_arm64 { }
 target macos_arm64 { }
 
 machine build(builder: &mut Build) {
+    builder.select_provider<ClockHost, MonotonicClock>();
 }
