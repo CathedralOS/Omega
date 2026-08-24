@@ -68,6 +68,8 @@ reject_role() {
   fail "Psi product owner is $OMEGA_PATH_PSI_PRODUCT"
 [ "$OMEGA_PATH_OMEGA_PRODUCT" = "$OMEGA_REPO_ROOT/compiler/omega" ] ||
   fail "Omega product owner is $OMEGA_PATH_OMEGA_PRODUCT"
+[ "$OMEGA_PATH_PRODUCT_SOURCE_CHECKPOINTS" = "$OMEGA_REPO_ROOT/compiler/source-checkpoints" ] ||
+  fail "product source-checkpoint owner is $OMEGA_PATH_PRODUCT_SOURCE_CHECKPOINTS"
 
 for owner in \
   "$OMEGA_PATH_ALPHA" "$OMEGA_PATH_ALPHA_ASSEMBLER" \
@@ -78,12 +80,13 @@ for owner in \
   "$OMEGA_PATH_PROOF_KERNEL" "$OMEGA_PATH_OMEGA_BOOTSTRAP" \
   "$OMEGA_PATH_OMEGA_BOOTSTRAP_REFINEMENT" "$OMEGA_PATH_CORPUS" \
   "$OMEGA_PATH_PSI_RUST" "$OMEGA_PATH_OMEGA_RUST" \
-  "$OMEGA_PATH_PSI_PRODUCT" "$OMEGA_PATH_OMEGA_PRODUCT"; do
+  "$OMEGA_PATH_PSI_PRODUCT" "$OMEGA_PATH_OMEGA_PRODUCT" \
+  "$OMEGA_PATH_PRODUCT_SOURCE_CHECKPOINTS"; do
   [ -d "$owner" ] && [ ! -L "$owner" ] || fail "canonical owner is not a physical directory: $owner"
 done
 
-# compiler/ owns product compiler sources only. Test both predicates because
-# -e is false for a broken symlink.
+# compiler/ owns product compiler source and its checkpoint evidence only. Test
+# both predicates because -e is false for a broken symlink.
 for entry in alpha beta beta-rs beta-lang beta-lang-rs beta-lang-py gamma \
   delta delta-rs proof-kernel lattice-corpus verify-lattice.sh; do
   retired="$OMEGA_PATH_COMPILER_ROOT/$entry"
@@ -93,7 +96,7 @@ done
 [ -z "$(find "$OMEGA_PATH_COMPILER_ROOT" -mindepth 1 -maxdepth 1 -type l -print)" ] ||
   fail "compiler contains a top-level symlink"
 unexpected=$(find "$OMEGA_PATH_COMPILER_ROOT" -mindepth 1 -maxdepth 1 \
-  ! -name README.md ! -name psi ! -name omega \
+  ! -name README.md ! -name psi ! -name omega ! -name source-checkpoints \
   ! -name .lattice-cache ! -name .DS_Store -print)
 [ -z "$unexpected" ] || fail "compiler contains non-product top-level entries: $unexpected"
 
@@ -156,6 +159,8 @@ expect_role psi "$OMEGA_PATH_PSI_PRODUCT"
 expect_role psi/foundation "$OMEGA_PATH_PSI_PRODUCT/foundation"
 expect_role omega "$OMEGA_PATH_OMEGA_PRODUCT"
 expect_role omega/backend "$OMEGA_PATH_OMEGA_PRODUCT/backend"
+expect_role source-checkpoints "$OMEGA_PATH_PRODUCT_SOURCE_CHECKPOINTS"
+expect_role source-checkpoints/verify.sh "$OMEGA_PATH_PRODUCT_SOURCE_CHECKPOINTS/verify.sh"
 
 for role in beta-rs beta-assembler beta-lang beta-lang-rs beta-lang-py \
   delta-rs lattice-corpus; do

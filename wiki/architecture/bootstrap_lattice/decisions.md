@@ -367,10 +367,11 @@ authoritative.
 3. **Grow the proof kernel and its seams in lockstep** — no capability without its paired seam. *(D4)*
 4. **Translation-validation backend** — per-compile refinement certs. *(D3 north star, later.)*
 5. **Grow the production Omega source tree and enforce provisional `Ωself`** —
-   checkpoint 000001 supplies the first deterministic closure. Derive and gate
-   its compositional candidate now, publish later closures as compiler phases
-   land, and keep absent future-phase features provisional until bridge-cost
-   evidence and the final source closure settle them. *(D6.)*
+   checkpoint 000001 supplies the first deterministic closure and mechanically
+   enforced normalized-syntax/resource candidate. Extend later closures with
+   typed-semantic, ABI/layout, lowering, and bridge-cost evidence as compiler
+   phases land, and keep absent future-phase features provisional until the
+   final source closure settles them. *(D6.)*
 6. **Complete `omega-bootstrap`, then freeze `Ωself` and Delta v1 at their
    joins** — implement the general profile frontend/semantic path and correct
    conservative lowering needed for the one hosted production build. Feed real
