@@ -145,7 +145,7 @@ pub struct EvaluationUsage {
 /// and post-operation error state. It is not the canonical replay transcript:
 /// failed evaluator attempts, arguments, rooted paths, mutable output regions,
 /// logical handles, and retained content are not present yet.
-pub const FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION: u32 = 2;
+pub const FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION: u32 = 3;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FilesystemObservationProvider {
@@ -177,6 +177,19 @@ pub struct FilesystemGrantRefusal {
     reason: FilesystemGrantRefusalReason,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FilesystemEvaluationHaltKind {
+    Exit,
+    Unsupported,
+    Trap,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FilesystemOperationAttemptOutcome {
+    Returned { result: i64, post_error: i32 },
+    EvaluationHalted(FilesystemEvaluationHaltKind),
+}
+
 impl FilesystemGrantRefusal {
     pub const fn operand_ordinal(self) -> u8 {
         self.operand_ordinal
@@ -202,8 +215,7 @@ impl FilesystemGrantRefusal {
 pub struct FilesystemOperationAttempt {
     operation_tag: u16,
     provider: FilesystemObservationProvider,
-    result: i64,
-    post_error: i32,
+    outcome: Option<FilesystemOperationAttemptOutcome>,
     grant_refusals: Vec<FilesystemGrantRefusal>,
 }
 
@@ -212,8 +224,7 @@ impl FilesystemOperationAttempt {
         Self {
             operation_tag,
             provider,
-            result: 0,
-            post_error: 0,
+            outcome: None,
             grant_refusals: Vec::new(),
         }
     }
@@ -226,12 +237,24 @@ impl FilesystemOperationAttempt {
         self.provider
     }
 
-    pub const fn result(&self) -> i64 {
-        self.result
+    pub const fn outcome(&self) -> Option<FilesystemOperationAttemptOutcome> {
+        self.outcome
     }
 
-    pub const fn post_error(&self) -> i32 {
-        self.post_error
+    pub const fn result(&self) -> Option<i64> {
+        match self.outcome {
+            Some(FilesystemOperationAttemptOutcome::Returned { result, .. }) => Some(result),
+            _ => None,
+        }
+    }
+
+    pub const fn post_error(&self) -> Option<i32> {
+        match self.outcome {
+            Some(FilesystemOperationAttemptOutcome::Returned { post_error, .. }) => {
+                Some(post_error)
+            }
+            _ => None,
+        }
     }
 
     pub fn grant_refusals(&self) -> &[FilesystemGrantRefusal] {
@@ -283,6 +306,80 @@ impl EvaluationObservations {
         &self.filesystem_operation_attempts
     }
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BuildMachineEvaluationFailureKind {
+    Exit,
+    Unsupported,
+    Trap,
+    ResultAccountingOverflow,
+    WorkerUnavailable,
+    WorkerPanicked,
+}
+
+/// A failed granted build evaluation keeps partial work and host observations
+/// when the evaluator returned normally. Worker creation/panic failures mark
+/// both as unavailable rather than fabricating empty evidence.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BuildMachineEvaluationFailure {
+    kind: BuildMachineEvaluationFailureKind,
+    diagnostic: String,
+    usage: Option<EvaluationUsage>,
+    observations: Option<EvaluationObservations>,
+}
+
+impl BuildMachineEvaluationFailure {
+    fn with_evidence(
+        kind: BuildMachineEvaluationFailureKind,
+        diagnostic: String,
+        usage: EvaluationUsage,
+        observations: EvaluationObservations,
+    ) -> Self {
+        Self {
+            kind,
+            diagnostic,
+            usage: Some(usage),
+            observations: Some(observations),
+        }
+    }
+
+    fn without_evidence(kind: BuildMachineEvaluationFailureKind, diagnostic: String) -> Self {
+        Self {
+            kind,
+            diagnostic,
+            usage: None,
+            observations: None,
+        }
+    }
+
+    pub const fn kind(&self) -> BuildMachineEvaluationFailureKind {
+        self.kind
+    }
+
+    pub fn diagnostic(&self) -> &str {
+        &self.diagnostic
+    }
+
+    pub const fn usage(&self) -> Option<EvaluationUsage> {
+        self.usage
+    }
+
+    pub const fn observations(&self) -> Option<&EvaluationObservations> {
+        self.observations.as_ref()
+    }
+
+    pub fn into_diagnostic(self) -> String {
+        self.diagnostic
+    }
+}
+
+impl std::fmt::Display for BuildMachineEvaluationFailure {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(&self.diagnostic)
+    }
+}
+
+impl std::error::Error for BuildMachineEvaluationFailure {}
 
 impl EvaluationUsage {
     const fn empty() -> Self {
@@ -613,6 +710,7 @@ pub fn evaluate_build_machine_with_filesystem(
 ) -> Result<Vec<BuildTimeValue>, String> {
     evaluate_build_machine_with_filesystem_measured(program, machine_name, arguments, options)
         .map(MeasuredBuildMachineEvaluation::into_value)
+        .map_err(BuildMachineEvaluationFailure::into_diagnostic)
 }
 
 /// [`evaluate_build_machine_with_filesystem`] with deterministic evaluator
@@ -622,6 +720,6 @@ pub fn evaluate_build_machine_with_filesystem_measured(
     machine_name: &str,
     arguments: Vec<BuildTimeValue>,
     options: InterpretOptions,
-) -> Result<MeasuredBuildMachineEvaluation<Vec<BuildTimeValue>>, String> {
+) -> Result<MeasuredBuildMachineEvaluation<Vec<BuildTimeValue>>, BuildMachineEvaluationFailure> {
     evaluator::run_granted_build_machine_arguments(program, machine_name, arguments, options)
 }

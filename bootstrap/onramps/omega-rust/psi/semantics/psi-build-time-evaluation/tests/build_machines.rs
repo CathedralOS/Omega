@@ -81,7 +81,9 @@ fn granted_mode_does_not_authorize_a_package_authored_filesystem_lookalike() {
     )
     .expect_err("the pure mode must not silently grant a filesystem boundary");
     assert!(
-        pure_error.contains("unknown value-call target `create`"),
+        pure_error
+            .to_string()
+            .contains("unknown value-call target `create`"),
         "{pure_error}"
     );
 
@@ -97,7 +99,11 @@ fn granted_mode_does_not_authorize_a_package_authored_filesystem_lookalike() {
 
     assert!(pure.usage().fuel_units() > 0);
     assert!(!pure.observations().filesystem_host_observed());
-    assert!(granted_error.contains("unknown value-call target `create`"));
+    assert!(
+        granted_error
+            .to_string()
+            .contains("unknown value-call target `create`")
+    );
     let statement_error = evaluate_build_machine_arguments_measured(
         &prepared,
         "StatementStager::build",
@@ -111,7 +117,9 @@ fn granted_mode_does_not_authorize_a_package_authored_filesystem_lookalike() {
     )
     .expect_err("statement dispatch must reject the same package-authored lookalike");
     assert!(
-        statement_error.contains("host boundary call `create` not yet supported"),
+        statement_error
+            .to_string()
+            .contains("host boundary call `create` not yet supported"),
         "{statement_error}"
     );
     assert_eq!(

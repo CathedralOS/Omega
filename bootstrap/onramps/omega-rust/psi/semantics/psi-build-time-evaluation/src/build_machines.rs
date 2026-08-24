@@ -27,6 +27,32 @@ pub enum BuildMachineExecutionMode {
     },
 }
 
+#[derive(Debug)]
+pub enum BuildMachineEvaluationError {
+    Pure(String),
+    Granted(psi_checked_interpreter::BuildMachineEvaluationFailure),
+}
+
+impl BuildMachineEvaluationError {
+    pub fn observations(&self) -> Option<&psi_checked_interpreter::EvaluationObservations> {
+        match self {
+            Self::Pure(_) => None,
+            Self::Granted(failure) => failure.observations(),
+        }
+    }
+}
+
+impl std::fmt::Display for BuildMachineEvaluationError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Pure(diagnostic) => formatter.write_str(diagnostic),
+            Self::Granted(failure) => std::fmt::Display::fmt(failure, formatter),
+        }
+    }
+}
+
+impl std::error::Error for BuildMachineEvaluationError {}
+
 /// A private, target-neutral program prepared for build-machine evaluation.
 ///
 /// Build machines run before ordinary checked lowering, but static machine
@@ -57,7 +83,7 @@ pub fn evaluate_build_machine_arguments_measured(
     machine_name: &str,
     arguments: Vec<BuildTimeValue>,
     mode: BuildMachineExecutionMode,
-) -> Result<MeasuredBuildMachineEvaluation<Vec<BuildTimeValue>>, String> {
+) -> Result<MeasuredBuildMachineEvaluation<Vec<BuildTimeValue>>, BuildMachineEvaluationError> {
     match mode {
         BuildMachineExecutionMode::Pure => {
             psi_checked_interpreter::evaluate_build_time_machine_arguments_measured(
@@ -66,6 +92,7 @@ pub fn evaluate_build_machine_arguments_measured(
                 arguments,
             )
             .map(MeasuredBuildMachineEvaluation::hermetic)
+            .map_err(BuildMachineEvaluationError::Pure)
         }
         BuildMachineExecutionMode::Granted { filesystem } => {
             psi_checked_interpreter::evaluate_build_machine_with_filesystem_measured(
@@ -74,6 +101,7 @@ pub fn evaluate_build_machine_arguments_measured(
                 arguments,
                 psi_checked_interpreter::InterpretOptions { filesystem },
             )
+            .map_err(BuildMachineEvaluationError::Granted)
         }
     }
 }

@@ -1,8 +1,9 @@
 use crate::{
-    EvaluationObservations, EvaluationUsage, FilesystemAccess, FilesystemGrantAccess,
+    BuildMachineEvaluationFailure, BuildMachineEvaluationFailureKind, EvaluationObservations,
+    EvaluationUsage, FilesystemAccess, FilesystemEvaluationHaltKind, FilesystemGrantAccess,
     FilesystemGrantRefusal, FilesystemGrantRefusalReason, FilesystemObservationProvider,
-    FilesystemOperationAttempt, InterpretOptions, InterpretOutcome, MeasuredBuildMachineEvaluation,
-    MeasuredEvaluation,
+    FilesystemOperationAttempt, FilesystemOperationAttemptOutcome, InterpretOptions,
+    InterpretOutcome, MeasuredBuildMachineEvaluation, MeasuredEvaluation,
 };
 
 mod filesystem_host_operation;
@@ -387,9 +388,12 @@ pub(crate) fn run_granted_build_machine_arguments(
     machine_name: &str,
     arguments: Vec<crate::build_time::BuildTimeValue>,
     options: InterpretOptions,
-) -> Result<MeasuredBuildMachineEvaluation<Vec<crate::build_time::BuildTimeValue>>, String> {
+) -> Result<
+    MeasuredBuildMachineEvaluation<Vec<crate::build_time::BuildTimeValue>>,
+    BuildMachineEvaluationFailure,
+> {
     std::thread::scope(|scope| {
-        std::thread::Builder::new()
+        let worker = std::thread::Builder::new()
             .stack_size(256 * 1024 * 1024)
             .spawn_scoped(scope, move || {
                 let mut evaluator = Evaluator::new(program, &[]);
@@ -425,11 +429,16 @@ pub(crate) fn run_granted_build_machine_arguments(
                 );
                 match result {
                     Ok(values) => {
-                        let result_cells = values.iter().try_fold(0u64, |count, value| {
+                        let Some(result_cells) = values.iter().try_fold(0u64, |count, value| {
                             count.checked_add(value.retained_cell_count()?)
-                        }).ok_or_else(|| {
-                            "build-time evaluator result-cell count overflowed".to_owned()
-                        })?;
+                        }) else {
+                            return Err(BuildMachineEvaluationFailure::with_evidence(
+                                BuildMachineEvaluationFailureKind::ResultAccountingOverflow,
+                                "build-time evaluator result-cell count overflowed".to_owned(),
+                                usage,
+                                observations,
+                            ));
+                        };
                         usage.record_result_cells(result_cells);
                         Ok(MeasuredBuildMachineEvaluation::new(
                             values,
@@ -437,15 +446,44 @@ pub(crate) fn run_granted_build_machine_arguments(
                             observations,
                         ))
                     }
-                    Err(Halt::Exit(code)) => Err(format!(
-                        "the machine attempted to exit the process (code {code}) instead of returning"
+                    Err(Halt::Exit(code)) => Err(BuildMachineEvaluationFailure::with_evidence(
+                        BuildMachineEvaluationFailureKind::Exit,
+                        format!(
+                            "the machine attempted to exit the process (code {code}) instead of returning"
+                        ),
+                        usage,
+                        observations,
                     )),
-                    Err(Halt::Unsupported(message)) | Err(Halt::Trap(message)) => Err(message),
+                    Err(Halt::Unsupported(message)) => {
+                        Err(BuildMachineEvaluationFailure::with_evidence(
+                            BuildMachineEvaluationFailureKind::Unsupported,
+                            message,
+                            usage,
+                            observations,
+                        ))
+                    }
+                    Err(Halt::Trap(message)) => {
+                        Err(BuildMachineEvaluationFailure::with_evidence(
+                            BuildMachineEvaluationFailureKind::Trap,
+                            message,
+                            usage,
+                            observations,
+                        ))
+                    }
                 }
             })
-            .expect("spawn granted build evaluation worker thread")
-            .join()
-            .unwrap_or_else(|_| Err("granted build evaluator thread panicked".to_owned()))
+            .map_err(|error| {
+                BuildMachineEvaluationFailure::without_evidence(
+                    BuildMachineEvaluationFailureKind::WorkerUnavailable,
+                    format!("failed to spawn granted build evaluator thread: {error}"),
+                )
+            })?;
+        worker.join().unwrap_or_else(|_| {
+            Err(BuildMachineEvaluationFailure::without_evidence(
+                BuildMachineEvaluationFailureKind::WorkerPanicked,
+                "granted build evaluator thread panicked".to_owned(),
+            ))
+        })
     })
 }
 

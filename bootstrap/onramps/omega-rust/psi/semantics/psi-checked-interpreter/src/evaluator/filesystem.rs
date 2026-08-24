@@ -50,21 +50,36 @@ impl<'program> Evaluator<'program> {
             .pop()
             .expect("filesystem operation attempt stack must balance");
         debug_assert_eq!(completed_index, attempt_index);
-        if let Ok(value) = &outcome {
-            let result = value.as_int().ok_or_else(|| {
-                Halt::Trap(format!(
-                    "canonical filesystem operation `{operation}` returned a non-integer value"
-                ))
-            })?;
-            let post_error = self
-                .real_fs
-                .as_ref()
-                .map_or(self.virtual_errno, |filesystem| filesystem.errno);
-            let attempt = &mut self.filesystem_operation_attempts[attempt_index];
-            attempt.result = result;
-            attempt.post_error = post_error;
+        match outcome {
+            Ok(value) => {
+                let Some(result) = value.as_int() else {
+                    self.filesystem_operation_attempts[attempt_index].outcome =
+                        Some(FilesystemOperationAttemptOutcome::EvaluationHalted(
+                            FilesystemEvaluationHaltKind::Trap,
+                        ));
+                    return Err(Halt::Trap(format!(
+                        "canonical filesystem operation `{operation}` returned a non-integer value"
+                    )));
+                };
+                let post_error = self
+                    .real_fs
+                    .as_ref()
+                    .map_or(self.virtual_errno, |filesystem| filesystem.errno);
+                self.filesystem_operation_attempts[attempt_index].outcome =
+                    Some(FilesystemOperationAttemptOutcome::Returned { result, post_error });
+                Ok(value)
+            }
+            Err(halt) => {
+                let kind = match &halt {
+                    Halt::Exit(_) => FilesystemEvaluationHaltKind::Exit,
+                    Halt::Unsupported(_) => FilesystemEvaluationHaltKind::Unsupported,
+                    Halt::Trap(_) => FilesystemEvaluationHaltKind::Trap,
+                };
+                self.filesystem_operation_attempts[attempt_index].outcome =
+                    Some(FilesystemOperationAttemptOutcome::EvaluationHalted(kind));
+                Err(halt)
+            }
         }
-        outcome
     }
 
     /// Drive a value-returning `FilesystemHost` operation against the selected
