@@ -526,6 +526,23 @@ may advance before the product source manifest exists, while provisional
   by general capabilities required by those snapshots rather than by hard-coded
   source permutations. The exact final manifest is required at the freeze join,
   not before the first implementation tranche.
+  - [ ] use `compiler/psi/source/source.omg` as the first checkpoint-driven
+    bridge cost probe. It is a standalone 1,614-byte manifest unit whose
+    compiler-owned census isolates ordinary records/fields, attached machines,
+    fixed arrays and indexing, Trapping/range-constrained scalars, mutable and
+    shared `self`, field assignment, scalar return, and named guarded
+    transitions without importing sums, generics, targets, proofs, the lexer,
+    or the generated Unicode table. Implement those families compositionally,
+    check the actual library unit, and compile/run a self-contained conformance
+    program that exercises the same typed behavior. Enforce the published
+    general ceilings rather than the unit's exact counts; unsupported adjacent
+    syntax must remain status 251 with no publication, while table/source/array
+    exhaustion remains status 252. Carry the tranche through native and
+    lowermachine-built frontends, Rust-free meaning, canonical terminal
+    validation, conservative direct-artifact lowering, and runnable behavior.
+    Feed the resulting typed-resolution, record/array layout, arithmetic/range,
+    lowering, capacity, and assurance costs back into the provisional profile;
+    do not present this one unit as checkpoint-wide or `Ωself` completeness;
   - [ ] publish the complete deterministic Delta source manifest and prove each
     transitive unit valid under the provisional profile; final validity under
     frozen Delta v1 belongs to the subsequent freeze task, and one entry source
