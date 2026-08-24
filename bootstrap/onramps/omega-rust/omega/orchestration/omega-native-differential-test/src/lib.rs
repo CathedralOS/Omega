@@ -3,4 +3,4 @@
 
 mod admitted_provider;
 
-pub use admitted_provider::admit_native_provider;
+pub use admitted_provider::{admit_native_provider, admit_native_provider_for_selected_plan};

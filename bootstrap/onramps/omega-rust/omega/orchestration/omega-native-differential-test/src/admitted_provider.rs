@@ -46,6 +46,55 @@ pub fn admit_native_provider(
     seed: u64,
     signature: CallSignature,
 ) -> ProviderExecution {
+    admit_native_provider_with_plan(
+        target,
+        requirement_identity,
+        seed,
+        signature,
+        root_id(seed + 10, ProviderPlanId::from_normalized_identity),
+        ResolvedRootServiceReach::from_selected_provider_closure(
+            Vec::new(),
+            Vec::new(),
+            &omega_effects::SelectedProviderPlanFacts::default(),
+        )
+        .expect("closed provider service reach"),
+    )
+}
+
+/// Construct provider execution evidence from the exact provider selection
+/// retained by source/build evaluation rather than a test-local plan ID.
+pub fn admit_native_provider_for_selected_plan(
+    target: NativeTarget,
+    requirement_identity: &str,
+    selected: &omega_effects::SelectedProviderPlanFacts,
+    service: &str,
+    seed: u64,
+    signature: CallSignature,
+) -> ProviderExecution {
+    let provider_plan = omega_compiler::selected_external_root_provider_plan(selected, service)
+        .expect("selected external-root provider plan")
+        .identity;
+    let service_reach =
+        ResolvedRootServiceReach::from_selected_provider_closure(Vec::new(), Vec::new(), selected)
+            .expect("selected provider service reach");
+    admit_native_provider_with_plan(
+        target,
+        requirement_identity,
+        seed,
+        signature,
+        provider_plan,
+        service_reach,
+    )
+}
+
+fn admit_native_provider_with_plan(
+    target: NativeTarget,
+    requirement_identity: &str,
+    seed: u64,
+    signature: CallSignature,
+    provider_plan: ProviderPlanId,
+    service_reach: ResolvedRootServiceReach,
+) -> ProviderExecution {
     let boundary =
         evaluate_ordinary_boundary_entry_plan(CallingPolicy::native_for_target(target), &signature)
             .expect("provider boundary plan");
@@ -119,17 +168,12 @@ pub fn admit_native_provider(
         identity: root,
         entry,
         provider,
-        provider_plan: root_id(seed + 10, ProviderPlanId::from_normalized_identity),
+        provider_plan,
         requirement_identity: requirement_identity.into(),
         entry_claims: Vec::new(),
         acknowledgement_parameter_index: None,
         interrupt_mask_guard_claim: None,
-        service_reach: ResolvedRootServiceReach::from_selected_provider_closure(
-            Vec::new(),
-            Vec::new(),
-            &omega_effects::SelectedProviderPlanFacts::default(),
-        )
-        .expect("closed provider service reach"),
+        service_reach,
         effects: BTreeSet::new(),
         trust_receipts: BTreeSet::from([trust]),
         nesting_relation: relation,

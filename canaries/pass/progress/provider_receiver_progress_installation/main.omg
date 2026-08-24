@@ -1,0 +1,33 @@
+boundary trait Scheduler {
+    machine finish(&self, code: i32)
+    requires self in WeakFair
+    terminates;
+
+    machine grant(scheduler: Scheduler) -> Scheduler in WeakFair;
+}
+
+domain Scheduler::WeakFair
+satisfies ProgressProfile
+established by Scheduler::grant;
+
+data SchedulerProvider {}
+
+linux_x64 machine SchedulerProvider::finish(&self, code: i32)
+satisfies Scheduler::finish
+via Binding::Syscall(231);
+
+machine SchedulerProvider::grant(scheduler: Scheduler) -> Scheduler in WeakFair
+satisfies Scheduler::grant
+via Binding::VtableSlot(1);
+
+data Main {
+    scheduler: Scheduler;
+}
+
+machine Main::main(&mut self)
+reaches Scheduler
+requires self.scheduler in Scheduler::WeakFair
+terminates
+{
+    self.scheduler.finish(0);
+}

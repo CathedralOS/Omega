@@ -185,13 +185,18 @@ pub(super) fn build_call_operation(
     if let [(definition, signature, selected_parameter)] = static_boundaries.as_slice() {
         let arguments = crate::call_site_argument_expressions(program, &call_site);
         let source_parameters = program.state_signature_parameters(signature);
+        let abi_parameters = source_parameters
+            .iter()
+            .enumerate()
+            .filter(|(_, parameter)| !parameter.is_self)
+            .collect::<Vec<_>>();
         let caller_source_parameters = program.state_parameters(state);
         let mut scalar_parameters = Vec::new();
         let mut structural_arguments = Vec::new();
-        for (position, (parameter, argument)) in
-            source_parameters.iter().zip(arguments.iter()).enumerate()
+        for (abi_position, ((_, parameter), argument)) in
+            abi_parameters.iter().zip(arguments.iter()).enumerate()
         {
-            let source_position = u32::try_from(position).ok()?;
+            let source_position = u32::try_from(abi_position).ok()?;
             if let Some(primitive_type) = program.primitive_type_reference(parameter.type_reference)
             {
                 scalar_parameters.push(CheckedStructuralScalarParameterPlan {
@@ -259,8 +264,8 @@ pub(super) fn build_call_operation(
             || program
                 .state_signature_parameters(signature)
                 .iter()
-                .any(|parameter| parameter.is_self || parameter.is_const || parameter.is_mutable)
-            || arguments.len() != source_parameters.len()
+                .any(|parameter| !parameter.is_self && (parameter.is_const || parameter.is_mutable))
+            || arguments.len() != abi_parameters.len()
             || if *selected_parameter {
                 call.has_receiver
             } else {

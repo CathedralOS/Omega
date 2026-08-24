@@ -158,6 +158,25 @@ pub(super) fn checked_state_contracts_supported(
                     ) else {
                         return false;
                     };
+                    if program.domain_definitions().iter().any(|domain| {
+                        domain.symbol == membership.domain_symbol
+                            && domain.classification
+                                == Some(
+                                    psi_language_semantics::DomainClassification::ProgressProfile,
+                                )
+                    }) {
+                        let psi_facts::PlaceRoot::Symbol(root) = place.root else {
+                            return false;
+                        };
+                        let rooted_in_telescope = source_parameters.iter().any(|parameter| {
+                            parameter_root_symbol(machine.symbol, parameter) == root
+                                || parameter.symbol == root
+                        });
+                        return rooted_in_telescope
+                            && place.segments.iter().all(|segment| {
+                                matches!(segment, psi_facts::PlaceSegment::Field { .. })
+                            });
+                    }
                     if !place.segments.is_empty() {
                         return false;
                     }
@@ -216,6 +235,17 @@ pub(super) fn signature_contracts_are_exact_parameter_qualifications(
                         if !domain.semantic_id.is_valid() {
                             return false;
                         }
+                        if parameter.is_self
+                            && program.domain_definitions().iter().any(|definition| {
+                                definition.symbol == domain.symbol
+                                    && definition.classification
+                                        == Some(
+                                            psi_language_semantics::DomainClassification::ProgressProfile,
+                                        )
+                            })
+                        {
+                            continue;
+                        }
                         expected.push((position, domain.semantic_id));
                     }
                     type_reference = *base_type;
@@ -228,10 +258,7 @@ pub(super) fn signature_contracts_are_exact_parameter_qualifications(
 
     let mut actual = Vec::<(usize, SemanticDomainId)>::new();
     for contract in program.state_signature_contracts(signature) {
-        if contract.kind != SignatureContractKind::Requires
-            || contract.binding.is_some()
-            || contract.token_count != 0
-        {
+        if contract.kind != SignatureContractKind::Requires || contract.binding.is_some() {
             return false;
         }
         for fact in program.proof_facts.span_or_empty(contract.facts) {
@@ -250,12 +277,30 @@ pub(super) fn signature_contracts_are_exact_parameter_qualifications(
             {
                 return false;
             }
-            let Some(position) = parameters
-                .iter()
-                .position(|parameter| parameter.symbol == path.symbol)
-            else {
+            let [name] = program.expression_table.name_path_members(path.members) else {
                 return false;
             };
+            let Some(position) = parameters.iter().position(|parameter| {
+                parameter.symbol == path.symbol
+                    || parameter.name == *name
+                    || (parameter.is_self && name.as_str() == "self")
+            }) else {
+                return false;
+            };
+            // A provider receiver's progress profile is an installation-time
+            // premise, not an outbound structural ABI qualification.
+            if parameters[position].is_self
+                && program.domain_definitions().iter().any(|domain| {
+                    domain.symbol == membership.domain_symbol
+                        && domain.classification
+                            == Some(psi_language_semantics::DomainClassification::ProgressProfile)
+                })
+            {
+                continue;
+            }
+            if contract.token_count != 0 {
+                return false;
+            }
             let Some(domain) = type_domain_semantic_id(
                 program,
                 parameters[position].type_reference,
