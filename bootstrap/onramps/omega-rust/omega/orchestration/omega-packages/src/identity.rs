@@ -46,6 +46,30 @@ impl PackageName {
     pub fn as_str(&self) -> &str {
         &self.0
     }
+
+    pub fn default_alias(&self) -> AliasName {
+        AliasName(self.0.replace('-', "_"))
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct AliasName(String);
+
+impl AliasName {
+    pub fn parse(value: impl Into<String>) -> Result<Self, String> {
+        let value = value.into();
+        if is_snake_case(&value) {
+            Ok(Self(value))
+        } else {
+            Err(format!(
+                "dependency alias `{value}` must use snake_case Omega identifier spelling"
+            ))
+        }
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -461,7 +485,7 @@ impl ImmutableSourceResolution {
         }
     }
 
-    fn matches_lineage(&self, lineage: &SourceLineage) -> bool {
+    pub(crate) fn matches_lineage(&self, lineage: &SourceLineage) -> bool {
         matches!(
             (self, lineage.family()),
             (Self::Git { .. }, SourceLineageFamily::Git)
@@ -852,6 +876,15 @@ fn is_kebab_case(value: &str) -> bool {
     true
 }
 
+fn is_snake_case(value: &str) -> bool {
+    value.as_bytes().first().is_some_and(u8::is_ascii_lowercase)
+        && !value.ends_with('_')
+        && !value.contains("__")
+        && value.chars().all(|character| {
+            character.is_ascii_lowercase() || character.is_ascii_digit() || character == '_'
+        })
+}
+
 fn hash_field(hasher: &mut Sha256, bytes: &[u8]) {
     hasher.update((bytes.len() as u64).to_be_bytes());
     hasher.update(bytes);
@@ -950,6 +983,29 @@ mod tests {
         ] {
             assert!(PackageName::parse(invalid).is_err(), "accepted {invalid:?}");
         }
+    }
+
+    #[test]
+    fn aliases_require_canonical_snake_case_identifiers() {
+        for valid in ["arithmetic_kernels", "sha256", "codec_2"] {
+            assert_eq!(AliasName::parse(valid).unwrap().as_str(), valid);
+        }
+        for invalid in [
+            "",
+            "Arithmetic_kernels",
+            "arithmetic-kernels",
+            "_arithmetic",
+            "arithmetic_",
+            "arithmetic__kernels",
+            "123_tools",
+            "arithmetіc_kernels",
+        ] {
+            assert!(AliasName::parse(invalid).is_err(), "accepted {invalid:?}");
+        }
+        assert_eq!(
+            package_name().default_alias().as_str(),
+            "arithmetic_kernels"
+        );
     }
 
     #[test]

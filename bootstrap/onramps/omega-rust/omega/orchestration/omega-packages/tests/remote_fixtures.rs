@@ -136,6 +136,7 @@ fn remote_fixture_pins_resolve_to_local_fixture_contents() {
             )
         });
         assert_eq!(declared.key().name().as_str(), pin.package);
+        assert!(declared.dependency_requests().is_empty());
         assert_eq!(declared.source().commit, pin.commit);
         assert_eq!(
             declared.source().local.content_identity,

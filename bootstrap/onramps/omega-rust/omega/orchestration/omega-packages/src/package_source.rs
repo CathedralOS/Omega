@@ -1,4 +1,8 @@
 use crate::declaration::{PackageDeclarationError, extract_package_declaration};
+use crate::dependency_projection::{
+    DependencyProjectionError, DependencySourceRequest, extract_dependency_projection,
+};
+use crate::graph::ResolvedSourceIdentity;
 use crate::identity::{
     ExternalLocalLineage, ExternalSourceContext, GitCommitId, GitTreeId, IdentityError,
     ImmutableSourceResolution, PackageKey, SourceContentDigest, SourceLineage,
@@ -21,6 +25,7 @@ pub struct ResolvedPackageSource<S> {
     key: PackageKey,
     resolution: ImmutableSourceResolution,
     snapshot_root: PathBuf,
+    dependency_requests: Vec<DependencySourceRequest>,
     source: S,
 }
 
@@ -37,8 +42,16 @@ impl<S> ResolvedPackageSource<S> {
         &self.snapshot_root
     }
 
+    pub fn dependency_requests(&self) -> &[DependencySourceRequest] {
+        &self.dependency_requests
+    }
+
     pub fn source(&self) -> &S {
         &self.source
+    }
+
+    pub fn identity(&self) -> ResolvedSourceIdentity {
+        ResolvedSourceIdentity::from_validated_parts(self.key.clone(), self.resolution.clone())
     }
 
     pub fn into_source(self) -> S {
@@ -50,6 +63,7 @@ impl<S> ResolvedPackageSource<S> {
 pub enum ResolvePackageSourceError {
     Source(SourceResolveError),
     Declaration(PackageDeclarationError),
+    DependencyProjection(DependencyProjectionError),
     Identity(IdentityError),
 }
 
@@ -59,6 +73,9 @@ impl fmt::Display for ResolvePackageSourceError {
             Self::Source(error) => write!(formatter, "cannot resolve package source: {error}"),
             Self::Declaration(error) => {
                 write!(formatter, "cannot establish package declaration: {error}")
+            }
+            Self::DependencyProjection(error) => {
+                write!(formatter, "cannot project package dependencies: {error}")
             }
             Self::Identity(error) => {
                 write!(formatter, "cannot establish package identity: {error}")
@@ -78,6 +95,12 @@ impl From<SourceResolveError> for ResolvePackageSourceError {
 impl From<PackageDeclarationError> for ResolvePackageSourceError {
     fn from(error: PackageDeclarationError) -> Self {
         Self::Declaration(error)
+    }
+}
+
+impl From<DependencyProjectionError> for ResolvePackageSourceError {
+    fn from(error: DependencyProjectionError) -> Self {
+        Self::DependencyProjection(error)
     }
 }
 
@@ -117,6 +140,7 @@ pub fn resolve_external_local_package_source(
         source_context,
     )?);
     let declaration = extract_package_declaration(&source.snapshot_root)?;
+    let dependency_requests = extract_dependency_projection(&source.snapshot_root)?;
     let resolution = ImmutableSourceResolution::external_local(SourceContentDigest::derive(
         source.normalized.content_identity.as_bytes(),
     ));
@@ -125,6 +149,7 @@ pub fn resolve_external_local_package_source(
         key: PackageKey::new(declaration.name, lineage),
         resolution,
         snapshot_root: source.snapshot_root.clone(),
+        dependency_requests,
         source,
     })
 }
@@ -134,6 +159,7 @@ fn bind_git_package_source(
     source: ResolvedGitSource,
 ) -> Result<ResolvedPackageSource<ResolvedGitSource>, ResolvePackageSourceError> {
     let declaration = extract_package_declaration(&source.snapshot_root)?;
+    let dependency_requests = extract_dependency_projection(&source.snapshot_root)?;
     let resolution = ImmutableSourceResolution::git(
         GitCommitId::parse_hex(&source.commit)?,
         GitTreeId::parse_hex(&source.tree)?,
@@ -144,6 +170,7 @@ fn bind_git_package_source(
         key: PackageKey::new(declaration.name, lineage),
         resolution,
         snapshot_root: source.snapshot_root.clone(),
+        dependency_requests,
         source,
     })
 }
@@ -200,11 +227,15 @@ mod tests {
             resolved.resolution(),
             ImmutableSourceResolution::ExternalLocal { .. }
         ));
+        assert!(resolved.dependency_requests().is_empty());
         assert_ne!(
             resolved.snapshot_root(),
             root.canonicalize().expect("canonical live root")
         );
         assert_eq!(resolved.snapshot_root(), resolved.source().snapshot_root);
+        let identity = resolved.identity();
+        assert_eq!(identity.key(), resolved.key());
+        assert_eq!(identity.resolution(), resolved.resolution());
 
         let _ = std::fs::remove_dir_all(&root);
         make_tree_owner_writable(&cache);
@@ -260,6 +291,90 @@ mod tests {
             error,
             ResolvePackageSourceError::Declaration(
                 PackageDeclarationError::MissingBuildFile { .. }
+            )
+        ));
+
+        let _ = std::fs::remove_dir_all(&root);
+        make_tree_owner_writable(&cache);
+        let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[test]
+    fn source_custody_projects_only_canonical_dependency_rows() {
+        let root = temp_root("dependencies");
+        let cache = temp_root("dependencies-cache");
+        write_package(&root, "application");
+        std::fs::write(
+            root.join("build.omg"),
+            r#"
+            const PACKAGE: Package = Package { name: "application" };
+            machine build(builder: &mut Build) {
+                builder.depend(Source::Path { location: "../local-library" });
+                builder.depend(Source::Git {
+                    repository: "https://github.com/CathedralOS/arithmetic-kernels.git",
+                    revision: "main"
+                });
+            }
+            "#,
+        )
+        .expect("write dependency projection");
+
+        let resolved = resolve_external_local_package_source(
+            &root,
+            &cache,
+            LocalSourceLimits::default(),
+            ExternalSourceContext::derive(b"consumer-lock"),
+        )
+        .expect("resolve package and dependency projection");
+
+        assert_eq!(
+            resolved.dependency_requests(),
+            [
+                DependencySourceRequest::Path {
+                    location: "../local-library".to_owned(),
+                },
+                DependencySourceRequest::Git {
+                    repository: "https://github.com/CathedralOS/arithmetic-kernels.git".to_owned(),
+                    revision: "main".to_owned(),
+                },
+            ]
+        );
+
+        let _ = std::fs::remove_dir_all(&root);
+        make_tree_owner_writable(&cache);
+        let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[test]
+    fn source_custody_rejects_hidden_dependency_requests() {
+        let root = temp_root("hidden-dependency");
+        let cache = temp_root("hidden-dependency-cache");
+        write_package(&root, "application");
+        std::fs::write(
+            root.join("build.omg"),
+            r#"
+            const PACKAGE: Package = Package { name: "application" };
+            machine helper(builder: &mut Build) {
+                builder.depend(Source::Path { location: "../hidden" });
+            }
+            machine build(builder: &mut Build) {
+                helper(builder);
+            }
+            "#,
+        )
+        .expect("write hidden dependency");
+
+        let error = resolve_external_local_package_source(
+            &root,
+            &cache,
+            LocalSourceLimits::default(),
+            ExternalSourceContext::derive(b"consumer-lock"),
+        )
+        .expect_err("hidden dependency request must reject");
+        assert!(matches!(
+            error,
+            ResolvePackageSourceError::DependencyProjection(
+                DependencyProjectionError::UnsupportedDependencyShape
             )
         ));
 
