@@ -122,7 +122,7 @@ crashes Abort
         target,
         "review identity must retain the deployment profile, not only its native ABI",
     );
-    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 6);
+    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 7);
     let [ready] = review.public_domains() else {
         panic!("one package-owned public domain row")
     };
@@ -423,7 +423,7 @@ invokes waiting;
 }
 
 #[test]
-fn exact_synchronous_invocations_change_v6_comparison_encoding() {
+fn exact_synchronous_invocations_change_v7_comparison_encoding() {
     let quiet = TempPackage::new();
     let invoking = TempPackage::new();
     quiet.write(
@@ -616,7 +616,7 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
-fn public_data_and_numbered_wire_shape_changes_change_v6_comparison_encoding() {
+fn public_data_and_numbered_wire_shape_changes_change_v7_comparison_encoding() {
     let first = TempPackage::new();
     let second = TempPackage::new();
     first.write(
@@ -650,7 +650,7 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
-fn public_domain_shape_changes_change_v6_comparison_encoding() {
+fn public_domain_shape_changes_change_v7_comparison_encoding() {
     let first = TempPackage::new();
     let second = TempPackage::new();
     first.write(
@@ -925,6 +925,104 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
+fn public_trait_shape_retains_boundary_parent_and_alpha_normalized_requirements() {
+    let first = TempPackage::new();
+    let second = TempPackage::new();
+    first.write(
+        "main.omg",
+        r#"pub trait Parent<Element> {
+    operator < compare(left: Element, right: Element) -> bool;
+}
+pub boundary trait Service<Element>: Parent<Element> {
+    machine Self::exchange(&mut self, item: Element) -> Element;
+}
+"#,
+    );
+    second.write(
+        "main.omg",
+        r#"pub trait Parent<Value> {
+    operator < compare(left: Value, right: Value) -> bool;
+}
+pub boundary trait Service<Value>: Parent<Value> {
+    machine Self::exchange(&mut self, item: Value) -> Value;
+}
+"#,
+    );
+    let build = r#"target windows_x64 { }
+machine build(builder: &mut Build) { }
+"#;
+    first.write("build.omg", build);
+    second.write("build.omg", build);
+
+    let compile = |package: &TempPackage| {
+        let checked = compile_to_checked_with_packages(
+            &package.0.join("main.omg"),
+            Some("windows_x64"),
+            package_inputs(&package.0),
+        )
+        .expect("public-trait fixture should check");
+        project_checked_package_review(&checked).expect("public-trait review should close")
+    };
+    let first_review = compile(&first);
+    let parent_shape = first_review
+        .public_traits()
+        .iter()
+        .find(|shape| shape.identity().path() == "Parent")
+        .expect("parent trait row");
+    let [compare] = parent_shape.requirements() else {
+        panic!("one fixed-operator requirement")
+    };
+    assert_eq!(
+        compare.spelling(),
+        Some(psi_language_core::OperatorSpelling::Less)
+    );
+    let service = first_review
+        .public_traits()
+        .iter()
+        .find(|shape| shape.identity().path() == "Service")
+        .expect("service trait row");
+    assert!(service.is_boundary());
+    assert_eq!(service.type_parameters().len(), 1);
+    let [parent] = service.parents() else {
+        panic!("one exact parent edge")
+    };
+    assert_eq!(
+        parent.kind(),
+        psi_typed_trees::trait_definition::TraitCompositionKind::Policy
+    );
+    assert_eq!(parent.identity().path(), "Parent");
+    assert_eq!(parent.arguments().len(), 1);
+    let [exchange] = service.requirements() else {
+        panic!("one exact requirement row")
+    };
+    assert_eq!(exchange.identity().path(), "Service::exchange");
+    assert!(exchange.spelling().is_none());
+    assert!(exchange.type_parameters().is_empty());
+    let [receiver, item] = exchange.parameters() else {
+        panic!("receiver and item parameters")
+    };
+    assert!(receiver.is_self());
+    assert!(receiver.is_mutable());
+    assert!(!receiver.is_const());
+    assert!(receiver.type_identity().canonical().contains("trait-self"));
+    assert_eq!(item.name(), "item");
+    assert!(!item.is_self());
+    assert_eq!(
+        item.type_identity().canonical(),
+        exchange.return_type().canonical()
+    );
+
+    assert_eq!(
+        first_review
+            .canonical_review_bytes()
+            .expect("first public-trait encoding"),
+        compile(&second)
+            .canonical_review_bytes()
+            .expect("renamed-binder public-trait encoding")
+    );
+}
+
+#[test]
 fn review_rejects_public_data_semantics_that_lack_canonical_rows() {
     let package = TempPackage::new();
     package.write(
@@ -989,6 +1087,66 @@ machine build(builder: &mut Build) { }
         diagnostic
             .message
             .contains("uses predicate facts not yet represented by package review")
+    }));
+}
+
+#[test]
+fn review_rejects_unprojected_public_trait_contract_lanes() {
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub trait Worker {
+    machine wait() suspends;
+}
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x64 { }
+machine build(builder: &mut Build) { }
+"#,
+    );
+
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some("windows_x64"),
+        package_inputs(&package.0),
+    )
+    .expect("public trait suspension fixture should check");
+    let diagnostics = project_checked_package_review(&checked)
+        .expect_err("review must not silently omit public trait operational contracts");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("suspension or blocking contracts not yet represented")
+    }));
+
+    let default_package = TempPackage::new();
+    default_package.write(
+        "main.omg",
+        r#"pub trait Worker {
+    machine wait() { }
+}
+"#,
+    );
+    default_package.write(
+        "build.omg",
+        r#"target windows_x64 { }
+machine build(builder: &mut Build) { }
+"#,
+    );
+    let checked = compile_to_checked_with_packages(
+        &default_package.0.join("main.omg"),
+        Some("windows_x64"),
+        package_inputs(&default_package.0),
+    )
+    .expect("public trait default fixture should check");
+    let diagnostics = project_checked_package_review(&checked)
+        .expect_err("review must not omit a public trait default realization");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("default realization not yet joined to package review")
     }));
 }
 
