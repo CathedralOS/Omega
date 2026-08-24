@@ -575,16 +575,20 @@ pub(super) fn build_static_boundary_requirements(
             let mut structural_parameters = Vec::new();
             let mut scalar_parameters = Vec::new();
             let mut supported = true;
-            for (position, parameter) in program
-                .state_signature_parameters(signature)
-                .iter()
-                .enumerate()
-            {
-                let Some(source_position) = u32::try_from(position).ok() else {
+            let mut abi_position = 0_usize;
+            for parameter in program.state_signature_parameters(signature) {
+                // A boundary-trait receiver selects the provider occurrence;
+                // it is not an outbound ABI argument. Its progress premise is
+                // closed by installation rather than materialized here.
+                if parameter.is_self {
+                    continue;
+                }
+                let Some(source_position) = u32::try_from(abi_position).ok() else {
                     supported = false;
                     break;
                 };
-                if parameter.is_self || parameter.is_const || parameter.is_mutable {
+                abi_position += 1;
+                if parameter.is_const || parameter.is_mutable {
                     supported = false;
                     break;
                 }

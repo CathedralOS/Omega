@@ -26,13 +26,17 @@ use omega_executable_installation::{
 };
 use omega_external_roots::{
     AdapterStackRealizationOrigin, AdmittedOpaqueFuelSuspensionFree, ArrivalStackRealizationOrigin,
+    ComponentProgressDemandIdentity, ComponentProgressReceiptBinding,
     DynamicFuelMeterValidationReceiptId, DynamicNativeFuelMeterPlan, ExternalRootCandidate,
     ExternalRootId, FixedFuelProviderSummary, FuelExhaustionTransferPlanId, FuelProvisionId,
-    FuelSuspensionValidationReceiptId, FuelValidationReceiptId, InstalledRootLedger,
-    LogicalFuelResourceColumn, MachineStateResourceColumn, NativeFuelContextLayout,
-    NativeFuelMeterPlanId, NativeFuelTargetPlanProjection, NestingRelationId,
-    OpaqueProviderExitAssurance, ProviderExecution, ProviderExecutionId, ProviderFuelSummaryId,
-    ProviderFuelValidationReceiptId, ProviderPlanId, ProviderStackSummary, RootAdmission,
+    FuelSuspensionValidationReceiptId, FuelValidationReceiptId, InstalledProviderOccurrenceId,
+    InstalledRootLedger, LogicalFuelResourceColumn, MachineStateResourceColumn,
+    NativeFuelContextLayout, NativeFuelMeterPlanId, NativeFuelTargetPlanProjection,
+    NestingRelationId, OpaqueProviderExitAssurance, ProgressProfileEstablishmentAttestation,
+    ProgressProfileEstablishmentReceiptId, ProgressProfileGrantInvocationId, ProviderExecution,
+    ProviderExecutionId, ProviderFuelSummaryId, ProviderFuelValidationReceiptId,
+    ProviderOccurrenceInstallationReceipt, ProviderOccurrenceInstallationReceiptId,
+    ProviderOccurrencePlanBinding, ProviderPlanId, ProviderStackSummary, RootAdmission,
     RootAdmissionId, RootProviderId, RootSlotAuthority, RootSlotId, RootSlotOwnerId,
     SponsorContextTransport, StackNestingRelation, StackResourceColumn, StackValidationReceiptId,
     StateValidationReceiptId, TrustReceiptId, admit_fixed_native_fuel,
@@ -42,27 +46,32 @@ use omega_external_roots::{
     derive_fuel_suspension_free, validate_dynamic_fuel_attribution_basis, validate_external_root,
     validate_installed_terminal_entry_fuel, validate_installed_terminal_entry_stack,
 };
+use omega_native_differential_test::admit_native_provider_for_selected_plan;
 use omega_target::NativeTarget;
 use omega_terminal_abstract_operations::{
     TerminalAbstractBlockEntry, TerminalAbstractFunction, TerminalAbstractOperation,
     TerminalAbstractOperationPlan, TerminalValueBinding,
 };
-use omega_terminal_abstract_operations_to_target_operations::lower_to_target_operations;
+use omega_terminal_abstract_operations_to_target_operations::{
+    AdmittedTerminalBoundarySettlement, lower_to_target_operations,
+    lower_to_target_operations_with_provider_executions,
+};
 use omega_terminal_assigned_target_operations::{
     TerminalAssignedBooleanControl, TerminalAssignedIntegerControl, TerminalAssignedOperation,
 };
 use omega_terminal_image_emission::{
     TerminalObjectArtifact, bind_installed_terminal_artifact, build_terminal_installation_record,
-    build_terminal_object_artifact, decode_terminal_installation_record,
-    derive_terminal_installation_stack_demand, derive_terminal_stack_demand,
-    emit_terminal_executable_image, emit_terminal_object_container,
+    build_terminal_installation_record_with_evidence, build_terminal_object_artifact,
+    decode_terminal_installation_record, derive_terminal_installation_stack_demand,
+    derive_terminal_stack_demand, emit_terminal_executable_image, emit_terminal_object_container,
     encode_terminal_installation_record, validate_terminal_installation_record,
 };
 use omega_terminal_machine_emission::emit_machine_code;
 use omega_terminal_psi_to_abstract_operations::{ArtifactLoweringError, lower_artifact_sections};
 use omega_terminal_target_operations::{
-    TerminalTargetBooleanControl, TerminalTargetBooleanExpression, TerminalTargetIntegerControl,
-    TerminalTargetIntegerExpression, TerminalTargetOperation,
+    TerminalLinuxExitGroupI32Realization, TerminalTargetBooleanControl,
+    TerminalTargetBooleanExpression, TerminalTargetIntegerControl, TerminalTargetIntegerExpression,
+    TerminalTargetOperation,
 };
 use omega_terminal_target_operations_to_assigned_target_operations::assign_registers;
 use psi_checked_trees_to_terminal::{LoweringError, lower_machine};
@@ -119,6 +128,14 @@ fn terminal_source_canary(name: &str) -> PathBuf {
 
 fn source_canary() -> PathBuf {
     terminal_source_canary("integer_control_contract")
+}
+
+fn progress_source_canary() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .nth(6)
+        .expect("omega-native-differential-test lives under bootstrap/onramps/omega-rust/omega/orchestration")
+        .join("canaries/pass/progress/provider_receiver_progress_installation/main.omg")
 }
 
 fn artifact_sections(verified: &VerifiedTerminalModule<'_>) -> (Vec<u8>, Vec<u8>) {
@@ -518,6 +535,217 @@ fn source_terminal_installation_publishes_only_with_retained_code_custody() {
     assert_eq!(retained.installed_code(), installed_identity);
     assert_eq!(retained.artifact(), artifact_identity);
     assert!(retained.progress().is_none());
+}
+
+#[test]
+fn selected_source_entry_retains_build_bound_progress_for_terminal_publication() {
+    let target = NativeTarget::linux_x64();
+    let checked = compile_to_checked(&progress_source_canary(), Some("linux_x64"))
+        .expect("selected progress-bearing source entry should compile");
+    assert_eq!(checked.selected_program_entry_machine(), Some("Main::main"));
+    let manifest = checked
+        .component_progress()
+        .expect("selected source entry should retain its build-bound progress manifest");
+    assert_eq!(manifest.pending().len(), 1);
+    assert_eq!(checked.selected_provider_plans().plans().len(), 1);
+    let demand = &manifest.pending()[0];
+    assert_eq!(demand.provider_service_identity, "Scheduler");
+    assert_eq!(demand.profile_identity, "Scheduler::WeakFair");
+    assert_eq!(demand.establishment_routes.len(), 1);
+
+    let lowered = lower_machine(&checked, "Main::main")
+        .expect("progress-bearing selected source entry should lower to terminal Psi");
+    let verified = verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("progress-bearing source terminal Psi should verify");
+    let abstract_operations = lower_artifact_sections(
+        &encode_module(verified.module()).expect("progress terminal semantics encode"),
+        &encode_proof_bundle(verified.proof_bundle()).expect("progress terminal proof encodes"),
+        &AdmissionProfile::default(),
+    )
+    .expect("progress terminal artifact lowers without frontend state");
+    let [boundary] = abstract_operations.boundary_machines.as_slice() else {
+        panic!("progress source should retain one exact terminal boundary")
+    };
+    assert_eq!(boundary.identity, demand.requirement_identity);
+
+    let provider = admit_native_provider_for_selected_plan(
+        target,
+        &boundary.identity,
+        checked.selected_provider_plans(),
+        "Scheduler",
+        0x5400,
+        CallSignature {
+            parameters: vec![omega_calling_conventions::ValueShape::integer(4, 4)],
+            result: None,
+        },
+    );
+    assert_eq!(
+        provider.provider_plan().normalized_identity(),
+        demand.provider_plan_identity
+    );
+    let target_operations = lower_to_target_operations_with_provider_executions(
+        &abstract_operations,
+        target,
+        &[AdmittedTerminalBoundarySettlement {
+            boundary: boundary.id,
+            provider_execution: &provider,
+            realization: TerminalLinuxExitGroupI32Realization.into(),
+        }],
+    )
+    .expect("selected provider realizes the progress-bearing boundary");
+    let assigned = assign_registers(&target_operations).expect("progress target homes assign");
+    let machine_code = emit_machine_code(&assigned).expect("progress machine code emits");
+    let object = build_terminal_object_artifact(&machine_code)
+        .expect("progress machine code forms an object");
+    let image = emit_terminal_executable_image(&object, 3)
+        .expect("progress terminal object emits an executable image");
+    let entry_offset = u64::try_from(object.entry_function().text_offset)
+        .expect("progress terminal entry offset fits installation geometry");
+    let (mut installed, _) =
+        install_terminal_object(&object, object.text_bytes().to_vec(), entry_offset);
+    let installed_identity = installed.identity();
+    let artifact_identity = installed.artifact();
+
+    let selected_plan = checked
+        .selected_provider_plans()
+        .plan_by_identity(demand.provider_plan_identity)
+        .expect("progress demand retains its exact selected plan");
+    let occurrence = InstalledProviderOccurrenceId::from_normalized_identity(0x5420)
+        .expect("installed provider occurrence");
+    let mut roots = InstalledRootLedger::claim(&mut installed)
+        .expect("installed-code claim opens one root ledger");
+    roots
+        .seal_provider_occurrence_closure(
+            checked.selected_provider_plans(),
+            [ProviderOccurrencePlanBinding::new(
+                demand.provider_plan_identity,
+                ProviderOccurrenceInstallationReceipt::from_provider(
+                    ProviderOccurrenceInstallationReceiptId::from_normalized_identity(0x5421)
+                        .expect("provider occurrence receipt"),
+                    &installed,
+                    occurrence,
+                    selected_plan.provider_type.clone(),
+                ),
+            )],
+        )
+        .expect("source-selected provider occurrence closure seals");
+    let progress_receipt = roots
+        .admit_progress_profile_establishment(
+            ProgressProfileEstablishmentAttestation::from_provider(
+                ProgressProfileEstablishmentReceiptId::from_normalized_identity(0x5422)
+                    .expect("progress establishment receipt"),
+                &installed,
+                occurrence,
+                occurrence,
+                demand.provider_plan_identity,
+                ProgressProfileGrantInvocationId::from_normalized_identity(0x5423)
+                    .expect("progress grant invocation"),
+                demand.profile_identity.clone(),
+                demand.subject_projections.clone(),
+                demand.establishment_routes[0].clone(),
+            ),
+        )
+        .expect("provider-authorized progress establishment admits");
+    let progress = roots
+        .seal_component_progress(
+            manifest.clone(),
+            [ComponentProgressReceiptBinding::new(
+                ComponentProgressDemandIdentity::from_demand(demand),
+                progress_receipt,
+            )],
+        )
+        .expect("source-derived component progress closes");
+    let progress_fingerprint = progress.fingerprint();
+
+    let installation = build_terminal_installation_record_with_evidence(
+        &image,
+        ProfileDecisionId::new(0x5424).expect("progress publication profile decision"),
+        [&provider],
+        Some(&progress),
+    )
+    .expect("progress installation record commits provider and acceptance evidence");
+    let installation = decode_terminal_installation_record(
+        &encode_terminal_installation_record(&installation)
+            .expect("progress installation record encodes"),
+    )
+    .expect("progress installation record decodes");
+    let terminal_artifact =
+        bind_installed_terminal_artifact(&object, &image, installation, installed)
+            .expect("progress terminal join consumes exact installed-code custody");
+    let missing = bind_installed_runnable_component(terminal_artifact, None)
+        .expect_err("committed progress cannot be omitted at runnable binding");
+    let (terminal_artifact, omitted) = missing.into_parts();
+    assert!(omitted.is_none());
+    let runnable = bind_installed_runnable_component(terminal_artifact, Some(progress))
+        .expect("opaque progress closure makes the source terminal artifact runnable");
+
+    let tcb_acceptance = |identity: u64| {
+        evaluate_executable_tcb_profile(
+            &ExecutableTcbManifest {
+                known_entries: Vec::new(),
+                completeness: ScopeCompleteness::Complete {
+                    scope: ExecutionScope::CallerAddressSpace,
+                    selected_provider_closure_identity: identity,
+                    opaque_closure_evidence: Vec::new(),
+                    runtime_closure_evidence: Vec::new(),
+                },
+            },
+            &ExecutableTcbProfile {
+                name: format!("source-progress-publication-{identity}"),
+                scope: ExecutionScope::CallerAddressSpace,
+                allow_static_current_artifact_checked_bodies: true,
+                exact_allowances: Vec::new(),
+                incomplete_scope: IncompleteScopePolicy::Reject,
+            },
+        )
+        .expect("progress source terminal TCB acceptance")
+    };
+    let mut lifecycle = RunnableComponentEraLedger::new(
+        ComponentEraEntryLedger::new(
+            ComponentEraLedgerId::from_normalized_identity(0x5425)
+                .expect("progress source lifecycle ledger"),
+            "SourceProgressBinding/v1".into(),
+            "Main::main".into(),
+            1,
+            tcb_acceptance(0x5426),
+        )
+        .expect("progress source lifecycle"),
+    );
+    let candidate = ComponentEraCandidate {
+        era_identity: 1,
+        artifact_instance_identity: installed_identity.normalized_identity(),
+        binding_contract_identity: "SourceProgressBinding/v1".into(),
+        entry_contract_identity: "Main::main".into(),
+        entry_plan_identity: "source-progress-entry-plan".into(),
+        entry_plan_admission_receipt_identity: "source-progress-entry-plan-receipt".into(),
+        executable_tcb_acceptance: tcb_acceptance(0x5427),
+    };
+    let publication = ComponentEraPublicationReceipt::from_runtime(
+        0x5428,
+        lifecycle.lifecycle(),
+        &candidate,
+        true,
+        false,
+    );
+    lifecycle
+        .publish(candidate, publication, runnable)
+        .expect("progress source terminal artifact publishes one runnable era");
+    let retained = lifecycle
+        .retained_component(1)
+        .expect("published progress era retains installation and progress custody");
+    assert_eq!(retained.installed_code(), installed_identity);
+    assert_eq!(retained.artifact(), artifact_identity);
+    assert_eq!(
+        retained
+            .progress()
+            .expect("published era retains progress")
+            .fingerprint(),
+        progress_fingerprint
+    );
 }
 
 #[cfg(target_os = "macos")]

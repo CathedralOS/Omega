@@ -6877,12 +6877,15 @@ compiler concept is introduced.
   candidate, receipt, and evidence without partial commitment. A
   source-derived progress-free Terminal-Psi canary now crosses lowering,
   verification, object/image emission, installation, runnable binding, and
-  component-era publication while retaining that exact custody. The
-  progress-bearing carrier path remains covered by focused fixtures.
+  component-era publication while retaining that exact custody. A selected-
+  entry source-derived progress-bearing canary now crosses the same path: its
+  exact `self.field` premise remains in the installation manifest, the
+  boundary receiver selects the provider occurrence without becoming an ABI
+  argument, and publication rejects when the committed opaque acceptance is
+  omitted before retaining it with the installed code.
 
-  Remaining TPR6-B engineering: make a selected-entry, source-derived progress
-  canary reach the same publication path; route the production
-  composition/install lane through that staged carrier; then retire the legacy
+  Remaining TPR6-B engineering: route the production composition/install lane
+  through that staged carrier; then retire the legacy
   compiler's temporary final-output rejection. The current `write_output` lane
   still publishes a native executable directly and carries neither the
   manifest nor an installation acceptance, so removing the fence there would

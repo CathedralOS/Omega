@@ -1638,9 +1638,12 @@ non-forgeable carrier for the live component era. Failed binding, publication,
 or retirement returns the exact custody unchanged; successful retirement is
 the only operation that releases it. A source-derived progress-free canary
 exercises this path from Terminal-Psi lowering through component-era
-publication. The selected-entry progress-bearing source path and production
-composer remain explicit follow-on integration work. Compact record identities
-remain report keys and grant no authority.
+publication. A selected-entry progress-bearing canary now does the same with
+one exact source-derived `self.field` premise, source-selected provider plan,
+installed provider occurrence, authorized establishment route, and opaque
+acceptance; omitting that acceptance rejects runnable binding. Only the
+production composer remains follow-on integration work. Compact record
+identities remain report keys and grant no authority.
 
 ### Placed-occurrence and resident-custody slice
 

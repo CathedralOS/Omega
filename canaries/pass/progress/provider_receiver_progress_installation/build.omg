@@ -1,0 +1,6 @@
+target linux_x64 { }
+
+machine build(b: &mut Build) {
+    b.select_provider<Scheduler, SchedulerProvider>();
+    b.roots.bind(linux_x86_64::ProgramEntry, Main::main);
+}
