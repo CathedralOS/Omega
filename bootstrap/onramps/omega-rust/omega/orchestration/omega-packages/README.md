@@ -64,6 +64,12 @@ Source fetching, content hashing, traversal limits, normalization, and graph
 algorithms may be reusable only after focused review against the corrected
 model.
 
+The crate now contains reviewed building blocks for immutable Git/local
+snapshots, hermetic package-name extraction, and typed package/source/instance
+identity. They do not become an admission path until the legacy name-keyed
+graph and lock APIs are replaced and compiler-issued evidence plus the hardened
+resolver receipt are wired through end to end.
+
 ## Target command surface
 
 ```text

@@ -46,6 +46,9 @@ build vocabulary, not a new grammar form. Omega extracts the declaration before
 executing `build`, resolving imports, or supplying build-host services. The
 declaration must be unique, compile-time evaluable, effect-free, independent of
 dependencies and generated files, and use canonical kebab-case spelling.
+Canonical spelling begins with an ASCII lowercase letter, contains only
+lowercase ASCII letters, digits, and single hyphen separators, and therefore
+maps mechanically to a valid snake-case Omega alias.
 
 Three identities remain deliberately separate:
 
@@ -70,6 +73,11 @@ development sources scoped to the consuming lock and cannot satisfy a
 source-rebuildable release profile. Archive and future protocol adapters must
 define their own canonical lineage and immutable-content receipt; an unknown
 URL is never guessed to be Git or delegated to an ambient protocol helper.
+
+The first implementation deliberately normalizes only GitHub's established
+HTTPS and SSH repository namespace. Other Git hosts retain transport, user,
+port, path case, and suffix distinctions until a host adapter can prove more;
+conservative duplication is preferable to false package identity.
 
 Canonical symbol and boundary identities include `PackageKey`. A package that
 declares a lookalike trait or package name therefore cannot impersonate an

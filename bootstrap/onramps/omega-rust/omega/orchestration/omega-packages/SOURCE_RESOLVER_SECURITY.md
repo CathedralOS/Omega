@@ -91,11 +91,18 @@ filters, hooks, submodules, or package code. It re-hashes the published source
 and revalidates it before reuse. This establishes the object-to-snapshot shape,
 not the complete production boundary.
 
+Local sources now use a bounded in-memory capture, content-addressed staging,
+read-only atomic publication, and revalidation before reuse. The resolver
+rejects source/cache overlap and ordinary mutation observed between capture and
+publication; compilation-facing diagnostics expose the published snapshot, not
+the live tree. Empty directories participate in identity while directory
+permissions normalize to the canonical snapshot policy.
+
 The fetch and materialization work still runs in the parent process without an
-OS sandbox or strict command-output/resource ceilings. Same-user cache mutation
-can race cooperative locks and validation. SSH retains an external client and
-credential/configuration surface. Local sources still resolve from a live tree.
-Their identity now includes empty directories while normalizing directory
-permissions to the future read-only snapshot policy, but the local TOCTOU
-boundary is not closed. Those conditions keep the resolver diagnostic-only
-until local snapshot, helper, custody, and opaque-receipt work lands.
+OS sandbox or strict command-output/resource ceilings. A deliberately hostile
+same-user process can race cooperative locks and validation, including the
+local before/after observation. SSH retains an external client and
+credential/configuration surface. Local capture also includes tool-owned output
+already present beneath the selected source root. Those conditions keep the
+resolver diagnostic-only until helper confinement, custody, resource ceilings,
+clean-source policy, and opaque-receipt work land.
