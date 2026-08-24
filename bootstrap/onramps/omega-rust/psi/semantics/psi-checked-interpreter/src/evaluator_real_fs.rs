@@ -24,7 +24,10 @@
 //! so a build program tested hermetically cannot hit a refusal surprise in
 //! real mode on the same host family.
 
-use super::{EvalResult, ExpressionHandle, FilesystemHostOperation, Frame, Value, host_open_flags};
+use super::{
+    EvalResult, ExpressionHandle, FilesystemGrantAccess, FilesystemGrantRefusal,
+    FilesystemGrantRefusalReason, FilesystemHostOperation, Frame, Value, host_open_flags,
+};
 use std::collections::BTreeMap;
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
@@ -247,7 +250,7 @@ impl<'program> super::Evaluator<'program> {
             FilesystemHostOperation::Create => {
                 // O_WRONLY|O_CREAT|O_TRUNC: create/truncate, writable.
                 let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
-                match self.authorized_path(&path, true) {
+                match self.authorized_path(&path, true, 0) {
                     Some(path) => {
                         let opened = std::fs::OpenOptions::new()
                             .write(true)
@@ -275,7 +278,7 @@ impl<'program> super::Evaluator<'program> {
                     || host_open_flags::o_creat(flags)
                     || host_open_flags::o_trunc(flags)
                     || host_open_flags::o_append(flags);
-                match self.authorized_path(&path, wants_write) {
+                match self.authorized_path(&path, wants_write, 0) {
                     Some(path) => {
                         let options = open_options_for(
                             flags,
@@ -293,7 +296,7 @@ impl<'program> super::Evaluator<'program> {
                 // on Windows, so the same synthetic handle table serves files
                 // and directories.
                 let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
-                match self.authorized_path(&path, false) {
+                match self.authorized_path(&path, false, 0) {
                     Some(path) => {
                         let mut options = std::fs::OpenOptions::new();
                         options.read(true);
@@ -463,21 +466,21 @@ impl<'program> super::Evaluator<'program> {
             // the arg bytes ARE the path, so both spellings share one arm.
             FilesystemHostOperation::Remove | FilesystemHostOperation::RemoveName => {
                 let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
-                match self.authorized_path(&path, true) {
+                match self.authorized_path(&path, true, 0) {
                     Some(path) => self.real_result_unit(std::fs::remove_file(path)),
                     None => -1,
                 }
             }
             FilesystemHostOperation::CreateDir | FilesystemHostOperation::CreateDirName => {
                 let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
-                match self.authorized_path(&path, true) {
+                match self.authorized_path(&path, true, 0) {
                     Some(path) => self.real_result_unit(std::fs::create_dir(path)),
                     None => -1,
                 }
             }
             FilesystemHostOperation::RemoveDir | FilesystemHostOperation::RemoveDirName => {
                 let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
-                match self.authorized_path(&path, true) {
+                match self.authorized_path(&path, true, 0) {
                     Some(path) => self.real_result_unit(std::fs::remove_dir(path)),
                     None => -1,
                 }
@@ -488,8 +491,8 @@ impl<'program> super::Evaluator<'program> {
                 // BOTH ends need write authority: a rename removes `from` and
                 // creates `to`.
                 match (
-                    self.authorized_path(&from, true),
-                    self.authorized_path(&to, true),
+                    self.authorized_path(&from, true, 0),
+                    self.authorized_path(&to, true, 1),
                 ) {
                     (Some(from), Some(to)) => self.real_result_unit(std::fs::rename(from, to)),
                     _ => -1,
@@ -595,7 +598,7 @@ impl<'program> super::Evaluator<'program> {
                 // fresh handle, and fill the FIRST entry's find-data record.
                 let pattern = self.eval_fs_bytes(arguments.first().copied(), frame)?;
                 let listed = match pattern.strip_suffix(b"/*") {
-                    Some(dir_path) => match self.authorized_path(dir_path, false) {
+                    Some(dir_path) => match self.authorized_path(dir_path, false, 0) {
                         Some(path) => real_dirent_entries(&path),
                         None => {
                             return Ok(Value::Int(-1));
@@ -651,9 +654,9 @@ impl<'program> super::Evaluator<'program> {
             | FilesystemHostOperation::ReadSymlinkMetadata => {
                 let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
                 let authorized = if operation == FilesystemHostOperation::ReadSymlinkMetadata {
-                    self.authorized_path_no_follow(&path, false)
+                    self.authorized_path_no_follow(&path, false, 0)
                 } else {
-                    self.authorized_path(&path, false)
+                    self.authorized_path(&path, false, 0)
                 };
                 let looked_up = match authorized {
                     Some(path) => {
@@ -701,7 +704,7 @@ impl<'program> super::Evaluator<'program> {
                 // buffer; non-zero success flag, 0 (NULL) + errno on failure --
                 // the virtual contract's shape.
                 let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
-                match self.authorized_path(&path, false) {
+                match self.authorized_path(&path, false, 0) {
                     Some(path) => match std::fs::canonicalize(&path) {
                         Ok(resolved) => {
                             let mut bytes = resolved.to_string_lossy().into_owned().into_bytes();
@@ -724,8 +727,8 @@ impl<'program> super::Evaluator<'program> {
                 let original = self.eval_fs_bytes(arguments.first().copied(), frame)?;
                 let link = self.eval_fs_bytes(arguments.get(1).copied(), frame)?;
                 match (
-                    self.authorized_path(&original, false),
-                    self.authorized_path(&link, true),
+                    self.authorized_path(&original, false, 0),
+                    self.authorized_path(&link, true, 1),
                 ) {
                     (Some(original), Some(link)) => {
                         self.real_result_unit(std::fs::hard_link(original, link))
@@ -742,8 +745,8 @@ impl<'program> super::Evaluator<'program> {
                 let link = self.eval_fs_bytes(arguments.first().copied(), frame)?;
                 let existing = self.eval_fs_bytes(arguments.get(1).copied(), frame)?;
                 match (
-                    self.authorized_path(&existing, false),
-                    self.authorized_path(&link, true),
+                    self.authorized_path(&existing, false, 1),
+                    self.authorized_path(&link, true, 0),
                 ) {
                     (Some(existing), Some(link)) => match std::fs::hard_link(existing, link) {
                         Ok(()) => 1,
@@ -849,7 +852,7 @@ impl<'program> super::Evaluator<'program> {
                 // authority. Unix-only in std; elsewhere ENOTSUP.
                 let target = self.eval_fs_bytes(arguments.first().copied(), frame)?;
                 let link = self.eval_fs_bytes(arguments.get(1).copied(), frame)?;
-                match self.authorized_path(&link, true) {
+                match self.authorized_path(&link, true, 1) {
                     Some(link) => {
                         #[cfg(unix)]
                         {
@@ -873,7 +876,7 @@ impl<'program> super::Evaluator<'program> {
                 // returns the count written.
                 let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
                 let count = self.eval_fs_transfer_count(arguments.get(2).copied(), frame)?;
-                match self.authorized_path_no_follow(&path, false) {
+                match self.authorized_path_no_follow(&path, false, 0) {
                     Some(path) => match std::fs::read_link(&path) {
                         Ok(target) => {
                             let bytes = target.to_string_lossy().into_owned().into_bytes();
@@ -893,7 +896,7 @@ impl<'program> super::Evaluator<'program> {
                 // `chmod(path, mode)`: metadata mutation = write authority.
                 let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
                 let mode = self.eval_fs_scalar(arguments.get(1).copied(), frame)? as u32;
-                match self.authorized_path(&path, true) {
+                match self.authorized_path(&path, true, 0) {
                     Some(path) => {
                         #[cfg(unix)]
                         {
@@ -1035,9 +1038,9 @@ impl<'program> super::Evaluator<'program> {
                 let uid = self.eval_fs_scalar(arguments.get(1).copied(), frame)? as i32;
                 let gid = self.eval_fs_scalar(arguments.get(2).copied(), frame)? as i32;
                 let authorized = if operation == FilesystemHostOperation::ChangeOwnerNoFollow {
-                    self.authorized_path_no_follow(&path, true)
+                    self.authorized_path_no_follow(&path, true, 0)
                 } else {
-                    self.authorized_path(&path, true)
+                    self.authorized_path(&path, true, 0)
                 };
                 match authorized {
                     Some(path) => {
@@ -1111,7 +1114,7 @@ impl<'program> super::Evaluator<'program> {
                     }
                 };
                 let joined_bytes = joined.to_string_lossy().into_owned().into_bytes();
-                match self.authorized_path(&joined_bytes, true) {
+                match self.authorized_path(&joined_bytes, true, 1) {
                     Some(path) => {
                         if flags & 0x80 != 0 {
                             self.real_result_unit(std::fs::remove_dir(path))
@@ -1142,7 +1145,7 @@ impl<'program> super::Evaluator<'program> {
                     || host_open_flags::o_creat(flags)
                     || host_open_flags::o_trunc(flags)
                     || host_open_flags::o_append(flags);
-                match self.authorized_path(&joined_bytes, wants_write) {
+                match self.authorized_path(&joined_bytes, wants_write, 1) {
                     Some(path) => {
                         let options = open_options_for(flags, 0, false);
                         self.real_result_fd(open_real(&options, &path, wants_write), path)
@@ -1163,8 +1166,13 @@ impl<'program> super::Evaluator<'program> {
     /// Authorize a path-taking op against the grants (no-op when unscoped).
     /// `None` means REFUSED with errno already set: EACCES outside the
     /// granted roots, ENOENT when the path's parent does not even resolve.
-    fn authorized_path(&mut self, path_bytes: &[u8], write: bool) -> Option<PathBuf> {
-        self.authorized_path_with_follow(path_bytes, write, true)
+    fn authorized_path(
+        &mut self,
+        path_bytes: &[u8],
+        write: bool,
+        operand_ordinal: u8,
+    ) -> Option<PathBuf> {
+        self.authorized_path_with_follow(path_bytes, write, true, operand_ordinal)
     }
 
     /// The NO-FOLLOW variant for symlink-INSPECTING ops (read_link,
@@ -1174,8 +1182,13 @@ impl<'program> super::Evaluator<'program> {
     /// 2026-07-10m). Resolution goes parent-canonical + reattached leaf, so
     /// the grant check still compares real locations while the leaf link
     /// itself stays the operand.
-    fn authorized_path_no_follow(&mut self, path_bytes: &[u8], write: bool) -> Option<PathBuf> {
-        self.authorized_path_with_follow(path_bytes, write, false)
+    fn authorized_path_no_follow(
+        &mut self,
+        path_bytes: &[u8],
+        write: bool,
+        operand_ordinal: u8,
+    ) -> Option<PathBuf> {
+        self.authorized_path_with_follow(path_bytes, write, false, operand_ordinal)
     }
 
     fn authorized_path_with_follow(
@@ -1183,10 +1196,14 @@ impl<'program> super::Evaluator<'program> {
         path_bytes: &[u8],
         write: bool,
         follow: bool,
+        operand_ordinal: u8,
     ) -> Option<PathBuf> {
         let path = real_path(path_bytes);
-        let real = self.real_fs_mut();
-        let Some(grants) = &real.grants else {
+        let Some(grants) = self
+            .real_fs
+            .as_ref()
+            .and_then(|filesystem| filesystem.grants.as_ref())
+        else {
             return Some(path); // unscoped: full process authority
         };
         let resolved = if follow {
@@ -1195,7 +1212,12 @@ impl<'program> super::Evaluator<'program> {
             resolve_parent_for_check(&path)
         };
         let Some(resolved) = resolved else {
-            real.errno = ENOENT;
+            self.real_fs_mut().errno = ENOENT;
+            self.record_grant_refusal(
+                operand_ordinal,
+                write,
+                FilesystemGrantRefusalReason::Unresolvable,
+            );
             return None;
         };
         if grants.allows(&resolved, write) {
@@ -1203,9 +1225,36 @@ impl<'program> super::Evaluator<'program> {
             // operated-on location must be the same real file.
             Some(resolved)
         } else {
-            real.errno = EACCES;
+            self.real_fs_mut().errno = EACCES;
+            self.record_grant_refusal(
+                operand_ordinal,
+                write,
+                FilesystemGrantRefusalReason::OutsideGrantedRoots,
+            );
             None
         }
+    }
+
+    fn record_grant_refusal(
+        &mut self,
+        operand_ordinal: u8,
+        write: bool,
+        reason: FilesystemGrantRefusalReason,
+    ) {
+        let Some(attempt_index) = self.filesystem_operation_attempt_stack.last().copied() else {
+            return;
+        };
+        self.filesystem_operation_attempts[attempt_index]
+            .grant_refusals
+            .push(FilesystemGrantRefusal {
+                operand_ordinal,
+                access: if write {
+                    FilesystemGrantAccess::Write
+                } else {
+                    FilesystemGrantAccess::Read
+                },
+                reason,
+            });
     }
 
     fn real_result_fd(&mut self, opened: std::io::Result<std::fs::File>, path: PathBuf) -> i64 {

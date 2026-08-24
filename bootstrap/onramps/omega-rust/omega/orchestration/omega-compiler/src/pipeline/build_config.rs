@@ -118,7 +118,7 @@ pub struct BuildEvaluationUsage {
     pub result_cells: u64,
 }
 
-pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 2;
+pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 3;
 
 /// Normalized build-host observation class for one selected build machine.
 ///
@@ -147,31 +147,69 @@ pub enum BuildFilesystemProvider {
     RealScoped,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BuildFilesystemGrantAccess {
+    Read,
+    Write,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BuildFilesystemGrantRefusalReason {
+    Unresolvable,
+    OutsideGrantedRoots,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BuildFilesystemGrantRefusal {
+    operand_ordinal: u8,
+    access: BuildFilesystemGrantAccess,
+    reason: BuildFilesystemGrantRefusalReason,
+}
+
+impl BuildFilesystemGrantRefusal {
+    pub const fn operand_ordinal(self) -> u8 {
+        self.operand_ordinal
+    }
+
+    pub const fn access(self) -> BuildFilesystemGrantAccess {
+        self.access
+    }
+
+    pub const fn reason(self) -> BuildFilesystemGrantRefusalReason {
+        self.reason
+    }
+}
+
 /// One completed call from a successful build evaluation. This partial row is
 /// execution evidence, not a replay event or receipt.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BuildFilesystemOperationAttempt {
     operation_tag: u16,
     provider: BuildFilesystemProvider,
     result: i64,
     post_error: i32,
+    grant_refusals: Vec<BuildFilesystemGrantRefusal>,
 }
 
 impl BuildFilesystemOperationAttempt {
-    pub const fn operation_tag(self) -> u16 {
+    pub const fn operation_tag(&self) -> u16 {
         self.operation_tag
     }
 
-    pub const fn provider(self) -> BuildFilesystemProvider {
+    pub const fn provider(&self) -> BuildFilesystemProvider {
         self.provider
     }
 
-    pub const fn result(self) -> i64 {
+    pub const fn result(&self) -> i64 {
         self.result
     }
 
-    pub const fn post_error(self) -> i32 {
+    pub const fn post_error(&self) -> i32 {
         self.post_error
+    }
+
+    pub fn grant_refusals(&self) -> &[BuildFilesystemGrantRefusal] {
+        &self.grant_refusals
     }
 }
 
@@ -1154,6 +1192,29 @@ pub(crate) fn compute_build_config(
             },
             result: attempt.result(),
             post_error: attempt.post_error(),
+            grant_refusals: attempt
+                .grant_refusals()
+                .iter()
+                .map(|refusal| BuildFilesystemGrantRefusal {
+                    operand_ordinal: refusal.operand_ordinal(),
+                    access: match refusal.access() {
+                        psi_checked_interpreter::FilesystemGrantAccess::Read => {
+                            BuildFilesystemGrantAccess::Read
+                        }
+                        psi_checked_interpreter::FilesystemGrantAccess::Write => {
+                            BuildFilesystemGrantAccess::Write
+                        }
+                    },
+                    reason: match refusal.reason() {
+                        psi_checked_interpreter::FilesystemGrantRefusalReason::Unresolvable => {
+                            BuildFilesystemGrantRefusalReason::Unresolvable
+                        }
+                        psi_checked_interpreter::FilesystemGrantRefusalReason::OutsideGrantedRoots => {
+                            BuildFilesystemGrantRefusalReason::OutsideGrantedRoots
+                        }
+                    },
+                })
+                .collect(),
         })
         .collect();
     let mut arguments = measured.into_value();

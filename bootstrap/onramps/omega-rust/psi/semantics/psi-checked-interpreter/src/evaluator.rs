@@ -1,5 +1,6 @@
 use crate::{
-    EvaluationObservations, EvaluationUsage, FilesystemAccess, FilesystemObservationProvider,
+    EvaluationObservations, EvaluationUsage, FilesystemAccess, FilesystemGrantAccess,
+    FilesystemGrantRefusal, FilesystemGrantRefusalReason, FilesystemObservationProvider,
     FilesystemOperationAttempt, InterpretOptions, InterpretOutcome, MeasuredBuildMachineEvaluation,
     MeasuredEvaluation,
 };
@@ -725,6 +726,9 @@ struct Evaluator<'program> {
     /// calls. This remains deliberately incomplete until rooted arguments,
     /// mutable outputs, logical handles, and retained content are recorded.
     filesystem_operation_attempts: Vec<FilesystemOperationAttempt>,
+    /// Stack of call-start indices used to attach nested provider-side facts to
+    /// the exact active operation attempt.
+    filesystem_operation_attempt_stack: Vec<usize>,
     usage: EvaluationUsage,
     /// Total step allowance for this run. Full-program interpretation uses
     /// `STEP_BUDGET`; const evaluation uses the much smaller

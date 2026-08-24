@@ -145,7 +145,7 @@ pub struct EvaluationUsage {
 /// and post-operation error state. It is not the canonical replay transcript:
 /// failed evaluator attempts, arguments, rooted paths, mutable output regions,
 /// logical handles, and retained content are not present yet.
-pub const FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION: u32 = 1;
+pub const FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION: u32 = 2;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FilesystemObservationProvider {
@@ -158,6 +158,39 @@ pub enum FilesystemObservationProvider {
     RealScoped,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FilesystemGrantAccess {
+    Read,
+    Write,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FilesystemGrantRefusalReason {
+    Unresolvable,
+    OutsideGrantedRoots,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FilesystemGrantRefusal {
+    operand_ordinal: u8,
+    access: FilesystemGrantAccess,
+    reason: FilesystemGrantRefusalReason,
+}
+
+impl FilesystemGrantRefusal {
+    pub const fn operand_ordinal(self) -> u8 {
+        self.operand_ordinal
+    }
+
+    pub const fn access(self) -> FilesystemGrantAccess {
+        self.access
+    }
+
+    pub const fn reason(self) -> FilesystemGrantRefusalReason {
+        self.reason
+    }
+}
+
 /// One completed canonical filesystem operation attempted by a successful
 /// build-machine evaluation.
 ///
@@ -165,12 +198,13 @@ pub enum FilesystemObservationProvider {
 /// string enters this row. Runtime descriptor numbers may still appear in
 /// `result`; they are not logical replay handles and keep this evidence below
 /// receipt strength.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FilesystemOperationAttempt {
     operation_tag: u16,
     provider: FilesystemObservationProvider,
     result: i64,
     post_error: i32,
+    grant_refusals: Vec<FilesystemGrantRefusal>,
 }
 
 impl FilesystemOperationAttempt {
@@ -180,23 +214,28 @@ impl FilesystemOperationAttempt {
             provider,
             result: 0,
             post_error: 0,
+            grant_refusals: Vec::new(),
         }
     }
 
-    pub const fn operation_tag(self) -> u16 {
+    pub const fn operation_tag(&self) -> u16 {
         self.operation_tag
     }
 
-    pub const fn provider(self) -> FilesystemObservationProvider {
+    pub const fn provider(&self) -> FilesystemObservationProvider {
         self.provider
     }
 
-    pub const fn result(self) -> i64 {
+    pub const fn result(&self) -> i64 {
         self.result
     }
 
-    pub const fn post_error(self) -> i32 {
+    pub const fn post_error(&self) -> i32 {
         self.post_error
+    }
+
+    pub fn grant_refusals(&self) -> &[FilesystemGrantRefusal] {
+        &self.grant_refusals
     }
 }
 

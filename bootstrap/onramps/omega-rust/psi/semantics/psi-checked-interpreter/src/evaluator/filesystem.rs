@@ -43,7 +43,13 @@ impl<'program> Evaluator<'program> {
                 operation.operation_tag(),
                 provider,
             ));
+        self.filesystem_operation_attempt_stack.push(attempt_index);
         let outcome = self.serve_filesystem_call(operation, arguments, frame);
+        let completed_index = self
+            .filesystem_operation_attempt_stack
+            .pop()
+            .expect("filesystem operation attempt stack must balance");
+        debug_assert_eq!(completed_index, attempt_index);
         if let Ok(value) = &outcome {
             let result = value.as_int().ok_or_else(|| {
                 Halt::Trap(format!(
@@ -54,12 +60,9 @@ impl<'program> Evaluator<'program> {
                 .real_fs
                 .as_ref()
                 .map_or(self.virtual_errno, |filesystem| filesystem.errno);
-            self.filesystem_operation_attempts[attempt_index] = FilesystemOperationAttempt {
-                operation_tag: operation.operation_tag(),
-                provider,
-                result,
-                post_error,
-            };
+            let attempt = &mut self.filesystem_operation_attempts[attempt_index];
+            attempt.result = result;
+            attempt.post_error = post_error;
         }
         outcome
     }
