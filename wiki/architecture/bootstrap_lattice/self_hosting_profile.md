@@ -14,8 +14,11 @@ omega-bootstrap  ─────────────────▶  product
  accepts Ωself only                    implements full Ω
 ```
 
-Delta and `Ωself` are the only bootstrap feature choices left once the full
-Omega specification is fixed. Keep four questions separate:
+Delta v1 and `Ωself` are the only source-surface contracts left to freeze once
+the full Omega specification is fixed. They are deliberately asymmetric: Delta
+is a literal independent language specification derived from the bridge's
+implementation needs; `Ωself` is the incidental ordinary-Omega profile selected
+by the production compiler's own source. Keep four questions separate:
 
 | Artifact | Written in | Accepts | Obligation |
 | --- | --- | --- | --- |
@@ -136,15 +139,19 @@ robustness of the production compiler source. Neither contract should be made
 artificially resemble the other, and neither source manifest is allowed to
 stand in for a language/profile definition.
 
-Presumptively excluded from compiler source:
+Presumptively excluded language features from the production compiler's own
+implementation source:
 
 - the mathematical proof/program surface;
-- linear and dependent types;
-- standalone terminal-Psi tools, interpreters, REPLs, and other product tooling
-  not imported by the compiler build.
+- linear and dependent types.
 
-Presumptively retained because removing them is likely to make the compiler
-larger or less robust:
+Presumptively excluded source units from the hosted closure:
+
+- standalone terminal-Psi tools, interpreters, REPLs, proof explorers, viewers,
+  debuggers, and other product tooling not imported by the compiler executable.
+
+Presumptively retained in the compiler's own source profile because removing
+them is likely to make the compiler larger or less robust:
 
 - ordinary named record fields;
 - payload-bearing enums/sum data for syntax trees and IR;
@@ -207,7 +214,10 @@ language functionality nor bootstrap dependency closure waits for it.
 ## Mechanical enforcement
 
 The production compiler task must publish one deterministic source/dependency
-manifest. That enables a joint freeze rather than a circular dependency:
+manifest. This is a staged discovery loop, not a circular build dependency: the
+product source can be authored under the working policy while the Delta bridge
+and ledger evolve against provisional closures. The freezes happen only after
+the relevant complete source is visible:
 
 1. Write the product compiler under the conservative working policy and publish
    its complete source closure.

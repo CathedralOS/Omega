@@ -60,10 +60,12 @@ Remaining:
   not wait for Delta v1 or a frozen `Ωself`. Once the exact source closure
   exists, jointly derive the profile: for each disputed source feature, either
   refactor it away or propose its measured bootstrap and assurance cost. Keep
-  the final closure within that ordinary-Omega profile. The manifest is closure
-  evidence, not permission for `omega-bootstrap` to whitelist particular files
-  or AST shapes. Using a deliberately narrow set of Omega features in the
-  compiler implementation does not narrow the language the resulting compiler
+  the final closure within that ordinary-Omega profile. `Ωself` is the incidental
+  feature footprint of this implementation made into a compositional contract;
+  it is not a second product language. The manifest is closure evidence, not
+  permission for `omega-bootstrap` to whitelist particular files or AST shapes.
+  Using a deliberately narrow set of Omega features in the compiler
+  implementation does not narrow the language the resulting compiler
   implements. Deriving, enforcing, and closing `Ωself` and the Delta-built
   `omega-bootstrap` compiler are tracked separately in `TASKS_BOOTSTRAP.md`;
   product Psi/Omega implementation work must not be added there.

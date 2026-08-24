@@ -24,10 +24,11 @@ and conservatively lowered.
 
 Delta v1 is pruned from the complete `omega-bootstrap` source closure. D0, the
 sample corpus, and the Rust producer may reveal useful facilities but cannot
-admit them. If the bridge can use only Exact arithmetic, ordinary fixed
-backing, explicit tags, or a sealed byte-I/O host surface, broader arithmetic
-domains, allocation machinery, payload sums, or general boundary traits stay
-outside v1.
+admit them. Exact arithmetic, ordinary fixed backing, explicit tags, and a
+sealed byte-I/O host surface are simpler candidates to measure first. Broader
+arithmetic domains, allocation machinery, payload sums, or general boundary
+traits enter v1 only when they reduce total bridge-source and assurance cost;
+their omission is not a goal in itself.
 
 Its job is to implement `omega-bootstrap`, which accepts the exact Omega
 self-hosting profile `Ωself` and rejects the rest. That bridge compiles the
