@@ -72,7 +72,9 @@ pub use package_compilation::{
 pub use package_review::{
     CheckedPackageCallableReview, CheckedPackageProviderReview, CheckedPackageReviewProjection,
     PACKAGE_REVIEW_ENCODING_VERSION, PackageReviewCallableConformance,
-    PackageReviewCallableParameter, PackageReviewCallableRole, PackageReviewCapabilityFlow,
+    PackageReviewCallableContract, PackageReviewCallableParameter, PackageReviewCallableRole,
+    PackageReviewCapabilityFlow, PackageReviewContractBinaryOperator,
+    PackageReviewContractExpression, PackageReviewContractKind, PackageReviewContractUnaryOperator,
     PackageReviewCrash, PackageReviewCrashCall, PackageReviewCrashInterface,
     PackageReviewCrashPredicate, PackageReviewCrashRoute, PackageReviewCrashRouteGuard,
     PackageReviewCrashSite, PackageReviewDataField, PackageReviewDataMember,

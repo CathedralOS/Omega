@@ -438,14 +438,17 @@ complete.
   alias. Callable conformance bounds, static machine/proposition parameters,
   and non-public, external, operator, or lifetime-parameterized realizations
   reject until their complete rows exist rather than disappearing from review.
-  Public callable `requires`, `ensures`, boundary, and named-evidence clauses
-  still lack exact canonical proof/contract rows. The review comparison retains
-  the legacy 64-bit machine-contract fingerprint so accepted boundary claims
-  such as `ensures result == 0` do not disappear before those rows land. That
-  fingerprint also folds compiler-private internal-state shape and is neither
-  exact nor collision-resistant; it remains review/execution compatibility
-  data, blocks sealed admission, and must leave canonical evidence only after
-  exact accepted/proof contract rows replace it.
+  Public callable `requires`, `ensures`, and boundary clauses now retain exact
+  structural rows for the closed boolean/integer expression subset over
+  parameter ordinals, `result`, generic binders, and package-qualified
+  nominals. The projection reads the earlier typed semantic tree only after
+  checked compilation succeeds. Unsupported membership,
+  proposition/named-evidence, call, member, cast, and aggregate forms reject
+  rather than falling back to text or a hash. The legacy 64-bit
+  machine-contract fingerprint has left package-review bytes, so private
+  state-machine shape no longer contaminates public package contract identity.
+  Exact rows for the unsupported forms and proof/admission dispositions still
+  gate sealing.
   It retains
   package-qualified authored nominals, distinct declared/effective/concrete
   service rows, unresolved installation rows, exact capability-flow
@@ -472,7 +475,7 @@ complete.
   closing the implicit-entry-state ownership gap discovered by the crash
   projection. Review identity now retains the exact deployment target profile,
   so profiles such as Windows and UEFI cannot collapse merely because they
-  share a native ABI. A v13 length-framed binary comparison encoding now covers
+  share a native ABI. A v14 length-framed binary comparison encoding now covers
   every retained public-domain, public-data, public-trait, callable,
   crash/proof predicate, authority flow, mutation, and selected-provider row.
   It converts platform-width ordinals to portable `u64`, distinguishes exact

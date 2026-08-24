@@ -10,7 +10,7 @@ use psi_checked_trees::{
 };
 
 const MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW\0";
-pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 13;
+pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 14;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageReviewEncodingError {
@@ -412,7 +412,7 @@ fn encode_callable(
             encoder.string(alias)
         })
     })?;
-    encoder.u64(callable.contract_fingerprint);
+    encoder.sequence(&callable.contracts, encode_callable_contract)?;
     encoder.option(
         callable.declared_service_reach.as_deref(),
         |encoder, row| encoder.sequence(row, encode_nominal),
@@ -437,6 +437,88 @@ fn encode_callable(
     encode_termination(encoder, &callable.checked_termination)?;
     encode_crash(encoder, &callable.checked_crash)?;
     encoder.sequence(&callable.mutation, encode_mutation)
+}
+
+fn encode_callable_contract(
+    encoder: &mut Encoder,
+    contract: &PackageReviewCallableContract,
+) -> Result<(), PackageReviewEncodingError> {
+    encoder.byte(match contract.kind {
+        PackageReviewContractKind::Requires => 0,
+        PackageReviewContractKind::Ensures => 1,
+        PackageReviewContractKind::Boundary => 2,
+    });
+    encoder.option(contract.binding.as_deref(), |encoder, binding| {
+        encoder.string(binding)
+    })?;
+    encode_contract_expression(encoder, &contract.expression)
+}
+
+fn encode_contract_expression(
+    encoder: &mut Encoder,
+    expression: &PackageReviewContractExpression,
+) -> Result<(), PackageReviewEncodingError> {
+    match expression {
+        PackageReviewContractExpression::Boolean(value) => {
+            encoder.byte(0);
+            encoder.boolean(*value);
+        }
+        PackageReviewContractExpression::Integer(value) => {
+            encoder.byte(1);
+            encoder.string(value)?;
+        }
+        PackageReviewContractExpression::Parameter(position) => {
+            encoder.byte(2);
+            encoder.u32(*position);
+        }
+        PackageReviewContractExpression::Result => encoder.byte(3),
+        PackageReviewContractExpression::GenericBinder(position) => {
+            encoder.byte(4);
+            encoder.u32(*position);
+        }
+        PackageReviewContractExpression::Nominal(identity) => {
+            encoder.byte(5);
+            encode_nominal(encoder, identity)?;
+        }
+        PackageReviewContractExpression::Binary {
+            operator,
+            left,
+            right,
+        } => {
+            encoder.byte(6);
+            encoder.byte(match operator {
+                PackageReviewContractBinaryOperator::Add => 0,
+                PackageReviewContractBinaryOperator::And => 1,
+                PackageReviewContractBinaryOperator::BitwiseAnd => 2,
+                PackageReviewContractBinaryOperator::BitwiseOr => 3,
+                PackageReviewContractBinaryOperator::BitwiseXor => 4,
+                PackageReviewContractBinaryOperator::Divide => 5,
+                PackageReviewContractBinaryOperator::Equal => 6,
+                PackageReviewContractBinaryOperator::Greater => 7,
+                PackageReviewContractBinaryOperator::GreaterOrEqual => 8,
+                PackageReviewContractBinaryOperator::Less => 9,
+                PackageReviewContractBinaryOperator::LessOrEqual => 10,
+                PackageReviewContractBinaryOperator::Modulo => 11,
+                PackageReviewContractBinaryOperator::Multiply => 12,
+                PackageReviewContractBinaryOperator::NotEqual => 13,
+                PackageReviewContractBinaryOperator::Or => 14,
+                PackageReviewContractBinaryOperator::ShiftLeft => 15,
+                PackageReviewContractBinaryOperator::ShiftRight => 16,
+                PackageReviewContractBinaryOperator::Subtract => 17,
+            });
+            encode_contract_expression(encoder, left)?;
+            encode_contract_expression(encoder, right)?;
+        }
+        PackageReviewContractExpression::Unary { operator, operand } => {
+            encoder.byte(7);
+            encoder.byte(match operator {
+                PackageReviewContractUnaryOperator::BitwiseNot => 0,
+                PackageReviewContractUnaryOperator::LogicalNot => 1,
+            });
+            encode_contract_expression(encoder, operand)?;
+        }
+    }
+    Ok(())
 }
 
 fn encode_synchronous_invocation(
@@ -655,7 +737,6 @@ fn encode_crash_call(
     encoder.u32(call.call_ordinal);
     encode_nominal(encoder, &call.target_machine)?;
     encode_nominal(encoder, &call.target_state)?;
-    encoder.u64(call.target_contract_fingerprint);
     encoder.sequence(&call.path_guard_conjuncts, encode_crash_predicate)?;
     encoder.sequence(&call.path_guard_consequences, encode_crash_predicate)?;
     encoder.sequence(&call.surviving_buckets, encode_crash_route)

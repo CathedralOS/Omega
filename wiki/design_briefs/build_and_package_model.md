@@ -734,13 +734,15 @@ external, operator, or lifetime-parameterized trait realizations fail closed
 rather than being omitted. Checked realizations of public, ordinary,
 lifetime-free traits retain exact package-qualified trait and requirement
 identities, alpha-normalized arguments, and any explicit conformance alias.
-Public callable `requires`, `ensures`, boundary, and named-evidence clauses
-still need exact proof/contract rows. Review comparison temporarily retains the
-compiler's coarse 64-bit machine-contract fingerprint so accepted boundary
-claims remain visible. Because it also folds private internal-state shape and
-is not collision-resistant, it is review/execution compatibility data rather
-than sealed admission identity; exact accepted/proof rows must replace it
-before sealing.
+Public callable `requires`, `ensures`, and boundary clauses retain exact
+structural rows for the closed boolean/integer expression subset over parameter
+ordinals, `result`, generic binders, and package-qualified nominals. Projection
+reads the earlier typed semantic tree only after checked compilation succeeds.
+Unsupported membership, proposition/named-evidence, call, member, cast, and
+aggregate forms fail closed. The coarse 64-bit machine-contract fingerprint is
+no longer package-review identity, so private state-machine shape cannot alter
+the public contract baseline. Complete rows for the unsupported forms and
+exact proof/admission dispositions still gate sealing.
 
 Claim-free opaque `boundary data` is retained in a separate representation-TCB
 lane. Its row binds the package-qualified declaration to the exact target,

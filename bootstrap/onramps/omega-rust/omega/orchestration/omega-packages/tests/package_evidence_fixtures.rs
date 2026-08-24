@@ -1,6 +1,6 @@
 use omega_compiler::{
-    CheckedPackageReviewProjection, PackageReviewCallableRole, compile_to_checked_with_packages,
-    project_checked_package_review,
+    CheckedPackageReviewProjection, PackageReviewCallableRole, PackageReviewContractExpression,
+    PackageReviewContractKind, compile_to_checked_with_packages, project_checked_package_review,
 };
 use omega_packages::{
     LocalSourceLimits, PackageSourceClosureLimits, SourceLineage, WorkspaceMemberPath,
@@ -123,6 +123,18 @@ fn assert_fixture_evidence(package: &str, review: &CheckedPackageReviewProjectio
             !callable.capability_flows().is_empty(),
             "capability-vault must issue exact capability-flow evidence"
         ),
+        "axiom-ledger" => {
+            let [contract] = callable.contracts() else {
+                panic!("axiom-ledger exact accepted claim")
+            };
+            assert_eq!(contract.kind(), PackageReviewContractKind::Ensures);
+            assert!(matches!(
+                contract.expression(),
+                PackageReviewContractExpression::Binary { left, right, .. }
+                    if matches!(left.as_ref(), PackageReviewContractExpression::Result)
+                        && matches!(right.as_ref(), PackageReviewContractExpression::Integer(value) if value == "0")
+            ));
+        }
         _ => {}
     }
 }
