@@ -11,6 +11,7 @@
 
 #[cfg(test)]
 mod audit;
+mod capability_conflict;
 mod closure_resolution;
 #[cfg(test)]
 mod commands;
@@ -43,6 +44,13 @@ mod source_triage;
 #[cfg(test)]
 mod update;
 
+pub use capability_conflict::{
+    ReviewOnlyCandidateClosureCommitment, ReviewOnlyCapabilityConflict,
+    ReviewOnlyCapabilityConflictChange, ReviewOnlyCapabilityConflictError,
+    ReviewOnlyCapabilityConflictFingerprint, ReviewOnlyCapabilityConflictLimits,
+    ReviewOnlyCapabilityConflictRenderError, ReviewOnlyCapabilityConflictSet,
+    ReviewOnlyPackageCapabilityConflicts, ReviewSetRole, compare_review_only_capabilities,
+};
 pub use closure_resolution::{
     DependencyRequestPath, DependencyRequestPathStep, PackageSourceClosureConflict,
     PackageSourceClosureConflictCandidate, PackageSourceClosureLimitKind,

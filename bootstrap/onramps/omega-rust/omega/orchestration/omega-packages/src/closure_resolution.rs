@@ -279,6 +279,67 @@ impl ResolvedPackageSourceClosure {
     pub fn source_root(&self, key: &PackageKey) -> Option<&Path> {
         self.custody(key).map(PackageSourceCustody::snapshot_root)
     }
+
+    /// One deterministic shortest root-to-package request path.
+    ///
+    /// Review evidence needs a useful explanation path, not the potentially
+    /// exponential set of every path through a diamond-shaped DAG. Breadth-
+    /// first traversal follows each requester's authored dependency order and
+    /// visits every package at most once.
+    pub fn dependency_path(&self, target: &PackageKey) -> Option<DependencyRequestPath> {
+        self.custody(target)?;
+        let root = self.graph.root();
+        if root == target {
+            return Some(DependencyRequestPath {
+                root: root.clone(),
+                steps: Vec::new(),
+            });
+        }
+
+        let mut pending = VecDeque::from([root.clone()]);
+        let mut visited = BTreeSet::from([root.clone()]);
+        let mut predecessors = BTreeMap::<PackageKey, DependencyRequestPathStep>::new();
+        while let Some(requester) = pending.pop_front() {
+            let node = self
+                .graph
+                .package(&requester)
+                .expect("validated closure traversal contains only package nodes");
+            for (dependency_index, dependency) in node.dependencies().iter().enumerate() {
+                if !visited.insert(dependency.target().clone()) {
+                    continue;
+                }
+                predecessors.insert(
+                    dependency.target().clone(),
+                    DependencyRequestPathStep {
+                        requester: requester.clone(),
+                        dependency_index,
+                        alias: dependency.alias().clone(),
+                        target: dependency.target().clone(),
+                    },
+                );
+                if dependency.target() == target {
+                    let mut steps = Vec::new();
+                    let mut current = target.clone();
+                    while &current != root {
+                        let step = predecessors
+                            .get(&current)
+                            .expect("discovered package has a predecessor")
+                            .clone();
+                        current = step.requester.clone();
+                        steps.push(step);
+                    }
+                    steps.reverse();
+                    return Some(DependencyRequestPath {
+                        root: root.clone(),
+                        steps,
+                    });
+                }
+                pending.push_back(dependency.target().clone());
+            }
+        }
+
+        None
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -756,6 +817,21 @@ mod tests {
                 .dependencies(),
             []
         );
+        let path = closure
+            .dependency_path(shared.key())
+            .expect("shared package has one bounded explanation path");
+        assert_eq!(path.root().name().as_str(), "application");
+        assert_eq!(path.steps().len(), 2);
+        assert_eq!(path.steps()[0].alias().as_str(), "left_math");
+        assert_eq!(path.steps()[1].alias().as_str(), "shared_math");
+        assert!(
+            closure
+                .dependency_path(closure.graph().root())
+                .unwrap()
+                .steps()
+                .is_empty()
+        );
+        assert!(closure.dependency_path(&key("absent", "absent")).is_none());
     }
 
     #[test]

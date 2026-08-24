@@ -1,5 +1,8 @@
-use crate::{CompilerIssuedPackageReview, CompilerIssuedPackageReviewSet, PackageKey};
-use omega_compiler::PackageReviewDangerousAuthorityClass;
+use crate::{
+    CompilerIssuedPackageReview, CompilerIssuedPackageReviewSet, PackageKey,
+    capability_conflict::changed_review_risk,
+};
+use omega_compiler::{PackageReviewCanonicalRowRisk, PackageReviewDangerousAuthorityClass};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
@@ -293,7 +296,16 @@ fn decide_update(
             let mut disposition = PackageTriageDisposition::Admitted;
             if baseline.canonical_review_bytes() != candidate.canonical_review_bytes() {
                 reasons.push(PackageTriageReason::CapabilityOrApiChanged);
-                disposition = PackageTriageDisposition::BlockedCapabilityChange;
+                disposition = match changed_review_risk(baseline, candidate) {
+                    Some(PackageReviewCanonicalRowRisk::AuditRecommended) => {
+                        PackageTriageDisposition::AdmittedWithAuditRecommended
+                    }
+                    Some(
+                        PackageReviewCanonicalRowRisk::Blocking
+                        | PackageReviewCanonicalRowRisk::OpaqueBlocking,
+                    )
+                    | None => PackageTriageDisposition::BlockedCapabilityChange,
+                };
             }
             if baseline.resolution() != candidate.resolution()
                 || baseline.source_consumption_commitment()
