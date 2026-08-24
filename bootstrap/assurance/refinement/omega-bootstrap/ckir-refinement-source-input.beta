@@ -1,0 +1,294 @@
+; Independent first-tranche source input and lexical custody below Delta.
+; Concatenate after ckir-refinement-envelope.beta.
+;
+; Globals:
+;   524376 label offset in bundle; 524384 label length
+;   524392 source offset in bundle; 524400 source length
+;   524408 cursor; 524416 token; 524424 token start
+;   524432 token length/value; 524440 token count
+
+proc refinement_source_bundle_u32(at) {
+    return refinement_bundle_byte(at)
+        + refinement_bundle_byte(at + 1) * 256
+        + refinement_bundle_byte(at + 2) * 65536
+        + refinement_bundle_byte(at + 3) * 16777216
+}
+
+proc refinement_source_byte(index) {
+    return refinement_bundle_byte(word[524392] + index)
+}
+
+proc refinement_source_label_allowed(c) {
+    state upper_low { to upper_high when (c >= 'A')  to lower_low }
+    state upper_high { to accept when (c <= 'Z')  to lower_low }
+    state lower_low { to lower_high when (c >= 'a')  to digit_low }
+    state lower_high { to accept when (c <= 'z')  to digit_low }
+    state digit_low { to digit_high when (c >= '0')  to punctuation }
+    state digit_high { to accept when (c <= '9')  to punctuation }
+    state punctuation {
+        to accept when (c == '.')
+        to accept when (c == '_')
+        to accept when (c == '-')
+        to accept when (c == '/')
+        return 0
+    }
+    state accept { return 1 }
+}
+
+proc refinement_source_component_ok(start, count) {
+    state nonempty { to reject when (count < 1)  to dot }
+    state dot {
+        to maybe_dot when (refinement_bundle_byte(start) == '.')
+        return 1
+    }
+    state maybe_dot {
+        to reject when (count == 1)
+        to second when (count == 2)
+        return 1
+    }
+    state second { to reject when (refinement_bundle_byte(start + 1) == '.')  return 1 }
+    state reject { return 0 }
+}
+
+proc refinement_source_validate_label(start, count) {
+    let i = 0
+    let component_start = 0
+    let c = 0
+    state bounds {
+        to reject when (count < 1)
+        to reject when (refinement_bundle_byte(start) == '/')
+        to reject when (refinement_bundle_byte(start + count - 1) == '/')
+        to loop
+    }
+    state loop {
+        to byte when (i < count)
+        to final_component
+    }
+    state byte {
+        c = refinement_bundle_byte(start + i)
+        to reject when (refinement_source_label_allowed(c) == 0)
+        to slash when (c == '/')
+        i = i + 1
+        to loop
+    }
+    state slash {
+        to reject when (refinement_source_component_ok(start + component_start, i - component_start) == 0)
+        component_start = i + 1
+        i = i + 1
+        to loop
+    }
+    state final_component {
+        to reject when (refinement_source_component_ok(start + component_start, count - component_start) == 0)
+        return 1
+    }
+    state reject { return 0 }
+}
+
+proc refinement_source_decode_bundle() {
+    let n = word[524320]
+    let label_length = 0
+    let content_length = 0
+    state size { to malformed when (n < 24)  to magic0 }
+    state magic0 { to malformed when (refinement_bundle_byte(0) != 'O')  to magic1 }
+    state magic1 { to malformed when (refinement_bundle_byte(1) != 'M')  to magic2 }
+    state magic2 { to malformed when (refinement_bundle_byte(2) != 'G')  to magic3 }
+    state magic3 { to malformed when (refinement_bundle_byte(3) != '0')  to magic4 }
+    state magic4 { to malformed when (refinement_bundle_byte(4) != 'B')  to magic5 }
+    state magic5 { to malformed when (refinement_bundle_byte(5) != 'N')  to magic6 }
+    state magic6 { to malformed when (refinement_bundle_byte(6) != 'D')  to magic7 }
+    state magic7 { to malformed when (refinement_bundle_byte(7) != 'L')  to header }
+    state header {
+        to malformed when (refinement_source_bundle_u32(8) != 1)
+        to malformed when (refinement_source_bundle_u32(12) != 1)
+        label_length = refinement_source_bundle_u32(16)
+        content_length = refinement_source_bundle_u32(20)
+        to malformed when (label_length < 1)
+        to exhausted when (label_length > 64)
+        to exhausted when (content_length > 131072)
+        to malformed when (n != 24 + label_length + content_length)
+        word[524376] = 24
+        word[524384] = label_length
+        word[524392] = 24 + label_length
+        word[524400] = content_length
+        to label
+    }
+    state label {
+        to malformed when (refinement_source_validate_label(24, label_length) == 0)
+        word[524408] = 0
+        word[524440] = 0
+        return 0
+    }
+    state exhausted { return 252 }
+    state malformed { return 251 }
+}
+
+proc refinement_source_ident_start(c) {
+    state upper0 { to upper1 when (c >= 'A')  to lower0 }
+    state upper1 { to yes when (c <= 'Z')  to lower0 }
+    state lower0 { to lower1 when (c >= 'a')  return 0 }
+    state lower1 { to yes when (c <= 'z')  return 0 }
+    state yes { return 1 }
+}
+
+proc refinement_source_ident_continue(c) {
+    state ident { to yes when (refinement_source_ident_start(c) == 1)  to digit0 }
+    state digit0 { to digit1 when (c >= '0')  to underscore }
+    state digit1 { to yes when (c <= '9')  to underscore }
+    state underscore { to yes when (c == '_')  return 0 }
+    state yes { return 1 }
+}
+
+proc refinement_source_skip_block_comment() {
+    let depth = 1
+    let p = word[524408]
+    let n = word[524400]
+    let c = 0
+    state loop { to byte when (p < n)  return 251 }
+    state byte {
+        c = refinement_source_byte(p)
+        to slash when (c == '/')
+        to star when (c == '*')
+        p = p + 1
+        to loop
+    }
+    state slash {
+        to advance when (p + 1 >= n)
+        to open when (refinement_source_byte(p + 1) == '*')
+        to advance
+    }
+    state open { depth = depth + 1  p = p + 2  to loop }
+    state star {
+        to advance when (p + 1 >= n)
+        to close when (refinement_source_byte(p + 1) == '/')
+        to advance
+    }
+    state close {
+        depth = depth - 1
+        p = p + 2
+        to done when (depth == 0)
+        to loop
+    }
+    state advance { p = p + 1  to loop }
+    state done { word[524408] = p  return 0 }
+}
+
+proc refinement_source_next_token() {
+    let p = word[524408]
+    let n = word[524400]
+    let c = 0
+    let value = 0
+    state skip { to skip_byte when (p < n)  to eof }
+    state skip_byte {
+        c = refinement_source_byte(p)
+        to whitespace when (c == ' ')
+        to whitespace when (c == 9)
+        to whitespace when (c == 10)
+        to whitespace when (c == 13)
+        to slash when (c == '/')
+        to classify
+    }
+    state whitespace { p = p + 1  to skip }
+    state slash {
+        to classify when (p + 1 >= n)
+        to line_begin when (refinement_source_byte(p + 1) == '/')
+        to block_begin when (refinement_source_byte(p + 1) == '*')
+        to classify
+    }
+    state line_begin { p = p + 2  to line }
+    state line { to eof when (p >= n)  to line_byte }
+    state line_byte { to whitespace when (refinement_source_byte(p) == 10)  p = p + 1  to line }
+    state block_begin {
+        word[524408] = p + 2
+        to malformed when (refinement_source_skip_block_comment() != 0)
+        p = word[524408]
+        to skip
+    }
+    state classify {
+        word[524424] = p
+        to ident_begin when (refinement_source_ident_start(c) == 1)
+        to digit_begin when (c >= '0')
+        to punctuation
+    }
+    state ident_begin { p = p + 1  to ident_loop }
+    state ident_loop { to ident_byte when (p < n)  to ident_done }
+    state ident_byte {
+        c = refinement_source_byte(p)
+        to ident_done when (refinement_source_ident_continue(c) == 0)
+        to ident_exhausted when (p - word[524424] >= 64)
+        p = p + 1
+        to ident_loop
+    }
+    state ident_done {
+        word[524416] = 256
+        word[524432] = p - word[524424]
+        word[524408] = p
+        word[524440] = word[524440] + 1
+        return 0
+    }
+    state digit_begin {
+        to punctuation when (c > '9')
+        value = 0
+        to digit_loop
+    }
+    state digit_loop { to digit_byte when (p < n)  to digit_done }
+    state digit_byte {
+        c = refinement_source_byte(p)
+        to digit_done when (c < '0')
+        to digit_done when (c > '9')
+        to malformed when (value > 214748364)
+        to final_digit when (value == 214748364)
+        value = value * 10 + c - '0'
+        p = p + 1
+        to digit_loop
+    }
+    state final_digit {
+        to malformed when (c > '7')
+        value = value * 10 + c - '0'
+        p = p + 1
+        to digit_loop
+    }
+    state digit_done {
+        word[524416] = 257
+        word[524432] = value
+        word[524408] = p
+        word[524440] = word[524440] + 1
+        return 0
+    }
+    state punctuation {
+        to malformed when (c >= 128)
+        word[524416] = c
+        word[524432] = 1
+        word[524408] = p + 1
+        word[524440] = word[524440] + 1
+        return 0
+    }
+    state eof {
+        word[524416] = 0
+        word[524424] = p
+        word[524432] = 0
+        word[524408] = p
+        return 0
+    }
+    state ident_exhausted { return 252 }
+    state malformed { return 251 }
+}
+
+proc refinement_source_lex_all() {
+    let status = 0
+    state loop {
+        status = refinement_source_next_token()
+        to done when (status != 0)
+        to accept when (word[524416] == 0)
+        to loop
+    }
+    state accept { return 0 }
+    state done { return status }
+}
+
+proc main() {
+    let status = refinement_envelope_read()
+    state envelope { to done when (status != 0)  to bundle }
+    state bundle { status = refinement_source_decode_bundle()  to done when (status != 0)  to lex }
+    state lex { status = refinement_source_lex_all()  to done }
+    state done { return status }
+}

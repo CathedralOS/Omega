@@ -32,6 +32,16 @@ Beta compiler and Alpha seed. Source-table reconstruction and artifact-template
 semantics remain the next two implementation layers; envelope acceptance alone
 does not close §10.6.
 
+The next source-side layer is
+`ckir-refinement-source-input.beta`. It independently decodes the exact
+one-unit `OMG0BNDL` input retained by the envelope, validates the canonical
+label and exact content extent, and lexes the complete source with nested
+comments, bounded identifiers, checked decimal integers, and exact EOF.
+`checked-ir-refinement-source-input.sh` carries positive comment/trivia forms
+and isolated bundle, label, lexical, and exhaustion negatives. Declaration and
+semantic-table reconstruction still follows; lexical custody alone is not a
+source→CKIR claim.
+
 All encoders are untrusted. They gain no authority from this location; accepted
 claims still require the lower-rooted meaning and proof-kernel checks described
 by the standing bootstrap decisions.
