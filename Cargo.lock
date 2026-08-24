@@ -964,6 +964,7 @@ dependencies = [
  "command-group",
  "omega-compiler",
  "psi-core",
+ "psi-diagnostics",
  "psi-source",
  "psi-source-files-to-tokens",
  "psi-syntax-trees",

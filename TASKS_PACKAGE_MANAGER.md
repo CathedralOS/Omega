@@ -339,14 +339,23 @@ complete.
   validated graph under package-count, dependency-request, and depth ceilings.
   Conflicting resolution or custody-root observations retain every root-to-
   request path and reject. The returned value keeps both the validated graph
-  and exact source custody; it has no compiler, lock,
-  persistence, build-execution, or admission API. A compiler-side
-  handoff independently rejects missing/duplicate/overlapping roots, invalid or
-  duplicate requester-local aliases, missing targets, unreachable rows, cycles,
-  source-root drift, toolchain overlap, dependency `build.omg` imports, and
-  symlink escapes. The package side now translates only a validated source-
-  custody closure into those compiler inputs; the compiler independently
-  canonicalizes and revalidates every root and edge. CLI invocation remains.
+  and exact source custody; it has no lock, persistence, or admission API. A
+  compiler-side handoff independently rejects missing/duplicate/overlapping
+  roots, invalid or duplicate requester-local aliases, missing targets,
+  unreachable rows, cycles, source-root drift, toolchain overlap, dependency
+  `build.omg` imports, and symlink escapes. The package side now translates only
+  a validated source-custody closure into those compiler inputs; the compiler
+  independently canonicalizes and revalidates every root and edge. A production review-only
+  orchestrator now compiles every closure package in deterministic
+  dependency-first order. Each package is temporarily re-rooted over only its
+  transitive dependencies, so unrelated siblings cannot enter its compiler
+  graph, and receives a package-and-source-specific writable build root outside
+  resolver snapshots. The returned rows have no public constructor and retain
+  exact `PackageKey`, selected immutable resolution, compiler projection, and
+  canonical comparison bytes. This associates locally generated review with
+  resolver custody but is not sealed admission: whole-source revalidation
+  across compilation and compiler/toolchain commitments remain. CLI invocation
+  remains.
   The first concrete closure adapter resolves an explicitly named workspace
   member, requester-relative in-workspace Path rows, and Git rows. Each fetched
   Git snapshot becomes its own registered immutable workspace for nested Path
@@ -540,6 +549,11 @@ complete.
   commitments; truly source-free symbols and whole-compiler identity remain
   visibly unbound rather than guessed.
   Standalone and target-free compilations reject projection.
+  Package orchestration now invokes this path for every package in the resolved
+  closure rather than projecting only the requested root. It re-roots compiler
+  inputs to the package's exact transitive closure and retains the selected
+  immutable resolution beside compiler-issued comparison bytes. These rows are
+  deliberately review-only and cannot construct an accepted package instance.
 
 - **PROOF-AND-BOUNDARY-ADMISSION.** Fail closed on false or incomplete evidence.
 
@@ -579,9 +593,15 @@ complete.
   are absent from the release `omega-packages` API. The arbitrary public
   `PackageInstance` plus caller-derived toolchain/evidence fingerprint tuple was
   removed rather than adapted. Source diagnostics were split onto a retained
-  production surface. The compiler projection remains explicitly review-only;
-  source/toolchain/compiler binding and the remaining completeness joins must
-  land before a replacement admission type is issued or persisted.
+  production surface. Production package orchestration can now obtain
+  non-caller-constructible review rows only by compiling every package from a
+  resolver-owned source closure; callers cannot submit standalone manifest or
+  review bytes to this path. The row retains the exact package key, selected
+  immutable resolution, compiler projection, and canonical comparison bytes.
+  It remains explicitly review-only: source-directory immutability is not yet
+  revalidated as one compiler-consumption commitment, whole compiler/toolchain
+  binding is incomplete, and remaining completeness joins must land before a
+  replacement admission type is issued or persisted.
 
 - **FINAL-REALIZATION-EVIDENCE.** Keep Terminal evidence distinct from ordinary
   package admission.

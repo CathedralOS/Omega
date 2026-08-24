@@ -15,6 +15,7 @@ mod closure_resolution;
 #[cfg(test)]
 mod commands;
 mod compiler_handoff;
+mod compiler_review;
 mod declaration;
 mod dependency_edit;
 mod dependency_projection;
@@ -46,7 +47,11 @@ pub use closure_resolution::{
     ResolvedPackageSourceClosure, resolve_package_source_closure,
     resolve_package_source_closure_with_limits,
 };
-pub use compiler_handoff::package_compilation_inputs;
+pub use compiler_handoff::{package_compilation_inputs, package_compilation_inputs_for};
+pub use compiler_review::{
+    CompileResolvedPackageReviewsError, CompilerIssuedPackageReview,
+    CompilerIssuedPackageReviewSet, compile_resolved_package_reviews,
+};
 pub use declaration::{PackageDeclaration, PackageDeclarationError, extract_package_declaration};
 pub use dependency_edit::{
     BuildDependencyEditError, BuildDependencyEditPlan, BuildDependencyManualPatch,

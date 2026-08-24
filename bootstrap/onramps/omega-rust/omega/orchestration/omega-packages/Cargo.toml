@@ -12,6 +12,7 @@ path = "src/lib.rs"
 command-group = "5.0.1"
 omega-compiler = { path = "../omega-compiler" }
 psi-core = { path = "../../../psi/foundation/psi-core" }
+psi-diagnostics = { path = "../../../psi/foundation/psi-diagnostics" }
 psi-source = { path = "../../../psi/foundation/psi-source" }
 psi-source-files-to-tokens = { path = "../../../psi/pipeline/psi-source-files-to-tokens" }
 psi-syntax-trees = { path = "../../../psi/representations/psi-syntax-trees" }

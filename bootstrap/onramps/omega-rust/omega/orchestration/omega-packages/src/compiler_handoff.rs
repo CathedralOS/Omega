@@ -3,6 +3,7 @@ use omega_compiler::{
     PackageCompilationInputError, PackageCompilationInputs, PackageDependencyBinding,
     PackageSourceBinding,
 };
+use std::collections::BTreeSet;
 
 /// Translate resolver-owned closure custody into the compiler's independently
 /// validated package-aware input graph.
@@ -13,9 +14,24 @@ use omega_compiler::{
 pub fn package_compilation_inputs(
     closure: &ResolvedPackageSourceClosure,
 ) -> Result<PackageCompilationInputs, Vec<PackageCompilationInputError>> {
+    package_compilation_inputs_for(closure, closure.graph().root())
+}
+
+/// Build the independently validated compiler graph for one package and only
+/// its transitive dependencies inside an already closed source custody graph.
+///
+/// Re-rooting is required when every dependency is compiled for its own review:
+/// passing unrelated sibling packages would correctly fail the compiler's
+/// unreachable-package check.
+pub fn package_compilation_inputs_for(
+    closure: &ResolvedPackageSourceClosure,
+    root: &crate::identity::PackageKey,
+) -> Result<PackageCompilationInputs, Vec<PackageCompilationInputError>> {
+    let reachable = reachable_packages(closure, root);
     let packages = closure
         .custodies()
         .iter()
+        .filter(|custody| reachable.contains(custody.key()))
         .map(|custody| {
             PackageSourceBinding::new(
                 custody.key().identity(),
@@ -27,6 +43,7 @@ pub fn package_compilation_inputs(
         .graph()
         .packages()
         .iter()
+        .filter(|package| reachable.contains(package.source().key()))
         .flat_map(|package| {
             package.dependencies().iter().map(|dependency| {
                 PackageDependencyBinding::new(
@@ -38,7 +55,30 @@ pub fn package_compilation_inputs(
         })
         .collect();
 
-    PackageCompilationInputs::new(closure.graph().root().identity(), packages, dependencies)
+    PackageCompilationInputs::new(root.identity(), packages, dependencies)
+}
+
+fn reachable_packages(
+    closure: &ResolvedPackageSourceClosure,
+    root: &crate::identity::PackageKey,
+) -> BTreeSet<crate::identity::PackageKey> {
+    let mut reachable = BTreeSet::new();
+    let mut pending = vec![root.clone()];
+    while let Some(package) = pending.pop() {
+        if !reachable.insert(package.clone()) {
+            continue;
+        }
+        let Some(node) = closure.graph().package(&package) else {
+            continue;
+        };
+        pending.extend(
+            node.dependencies()
+                .iter()
+                .rev()
+                .map(|dependency| dependency.target().clone()),
+        );
+    }
+    reachable
 }
 
 #[cfg(test)]
@@ -141,6 +181,48 @@ mod tests {
             error,
             PackageCompilationInputError::InvalidSourceRoot { .. }
         )));
+
+        let _ = std::fs::remove_dir_all(roots);
+    }
+
+    #[test]
+    fn rerooted_handoff_excludes_unreachable_siblings() {
+        let roots = temp_root("rerooted");
+        let first = custody("arithmetic-kernels", 2, roots.join("first"), vec![]);
+        let second = custody("capability-vault", 3, roots.join("second"), vec![]);
+        let first_key = first.key().clone();
+        let root = custody(
+            "application",
+            1,
+            roots.join("root"),
+            vec![
+                DependencySourceRequest::Path {
+                    explicit_alias: None,
+                    location: "first".to_owned(),
+                },
+                DependencySourceRequest::Path {
+                    explicit_alias: None,
+                    location: "second".to_owned(),
+                },
+            ],
+        );
+        let closure = resolve_package_source_closure(root, |_, request| match request {
+            DependencySourceRequest::Path { location, .. } if location == "first" => {
+                Ok::<_, &'static str>(first.clone())
+            }
+            DependencySourceRequest::Path { location, .. } if location == "second" => {
+                Ok(second.clone())
+            }
+            _ => Err("unexpected request"),
+        })
+        .expect("resolve diamond-free sibling closure");
+
+        let inputs = package_compilation_inputs_for(&closure, &first_key)
+            .expect("leaf package can be compiled as a temporary root");
+
+        assert_eq!(inputs.root(), first_key.identity());
+        assert_eq!(inputs.packages().count(), 1);
+        assert!(inputs.package_root(first_key.identity()).is_some());
 
         let _ = std::fs::remove_dir_all(roots);
     }
