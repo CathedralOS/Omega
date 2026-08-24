@@ -68,22 +68,30 @@ fn lower_trait_requirements(
     let mut span = HandleSpan::empty();
 
     for parent_handle in syntax_trees.type_references.type_reference_handles(parents) {
-        let (name, arguments) = match syntax_trees.type_references.type_reference(*parent_handle) {
-            syntax::types::TypeReferenceNode::Named(name) => (name, HandleSpan::empty()),
-            syntax::types::TypeReferenceNode::Generic {
-                base_name,
-                arguments,
-                ..
-            } => (
-                base_name,
-                lower_child_type_references(lowerer, syntax_trees, *arguments)?,
-            ),
-            _ => {
-                return Err(Diagnostic::error(
-                    "a trait parent must be a named trait, optionally with generic arguments",
-                ));
-            }
-        };
+        let (name, lifetime_arguments, arguments) =
+            match syntax_trees.type_references.type_reference(*parent_handle) {
+                syntax::types::TypeReferenceNode::Named(name) => {
+                    (name, Vec::new(), HandleSpan::empty())
+                }
+                syntax::types::TypeReferenceNode::Generic {
+                    base_name,
+                    lifetime_arguments,
+                    arguments,
+                    ..
+                } => (
+                    base_name,
+                    lifetime_arguments
+                        .iter()
+                        .map(crate::name::lower_name)
+                        .collect(),
+                    lower_child_type_references(lowerer, syntax_trees, *arguments)?,
+                ),
+                _ => {
+                    return Err(Diagnostic::error(
+                        "a trait parent must be a named trait, optionally with generic arguments",
+                    ));
+                }
+            };
         lowerer
             .symbol_resolved_trees
             .tables
@@ -94,6 +102,7 @@ fn lower_trait_requirements(
                 TraitRequirement {
                     symbol: SymbolHandle::invalid(),
                     name: crate::name::lower_name(name),
+                    lifetime_arguments,
                     arguments,
                 },
             );
@@ -110,6 +119,7 @@ fn lower_trait_requirements(
                 TraitRequirement {
                     symbol: SymbolHandle::invalid(),
                     name: crate::name::lower_name(required_trait),
+                    lifetime_arguments: Vec::new(),
                     arguments: HandleSpan::empty(),
                 },
             );

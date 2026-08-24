@@ -102,6 +102,10 @@ pub enum ConformanceRowSource {
 pub struct TraitRequirement {
     pub symbol: SymbolHandle,
     pub name: DiagnosticName,
+    /// Erased borrow-region arguments authored on a header parent. These are
+    /// semantic relationship data even though they do not affect runtime
+    /// generic identity.
+    pub lifetime_arguments: Vec<DiagnosticName>,
     /// Generic arguments authored on a header parent (`Policy<C>`). Empty for
     /// the body-level `requires Policy;` form.
     pub arguments: HandleSpan<crate::types::TypeReference>,
@@ -112,6 +116,7 @@ impl Default for TraitRequirement {
         Self {
             symbol: SymbolHandle::invalid(),
             name: DiagnosticName::default(),
+            lifetime_arguments: Vec::new(),
             arguments: HandleSpan::empty(),
         }
     }

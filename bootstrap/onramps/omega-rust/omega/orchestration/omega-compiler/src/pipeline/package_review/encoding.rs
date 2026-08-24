@@ -10,7 +10,7 @@ use psi_checked_trees::{
 };
 
 const MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW\0";
-pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 10;
+pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 11;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageReviewEncodingError {
@@ -53,6 +53,7 @@ fn encode_trait_shape(
 ) -> Result<(), PackageReviewEncodingError> {
     encode_nominal(encoder, &shape.identity)?;
     encoder.boolean(shape.is_boundary);
+    encoder.usize(shape.lifetime_parameter_count)?;
     encoder.sequence(&shape.type_parameters, encode_type_parameter)?;
     encoder.sequence(&shape.parents, encode_trait_parent)?;
     encoder.sequence(&shape.requirements, encode_trait_requirement)
@@ -67,6 +68,10 @@ fn encode_trait_parent(
         psi_typed_trees::trait_definition::TraitCompositionKind::ServiceReach => 1,
     });
     encode_nominal(encoder, &parent.identity)?;
+    encoder.sequence(&parent.lifetime_arguments, |encoder, argument| {
+        encoder.u32(*argument);
+        Ok(())
+    })?;
     encoder.sequence(&parent.arguments, encode_type_identity)
 }
 
@@ -96,6 +101,7 @@ fn encode_trait_requirement(
             });
         }
     }
+    encoder.usize(requirement.lifetime_parameter_count)?;
     encoder.sequence(&requirement.type_parameters, encode_type_parameter)?;
     encoder.sequence(&requirement.parameters, |encoder, parameter| {
         encoder.string(&parameter.name)?;

@@ -122,7 +122,7 @@ crashes Abort
         target,
         "review identity must retain the deployment profile, not only its native ABI",
     );
-    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 10);
+    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 11);
     let [ready] = review.public_domains() else {
         panic!("one package-owned public domain row")
     };
@@ -423,7 +423,7 @@ invokes waiting;
 }
 
 #[test]
-fn exact_synchronous_invocations_change_v10_comparison_encoding() {
+fn exact_synchronous_invocations_change_v11_comparison_encoding() {
     let quiet = TempPackage::new();
     let invoking = TempPackage::new();
     quiet.write(
@@ -616,7 +616,7 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
-fn public_data_and_numbered_wire_shape_changes_change_v10_comparison_encoding() {
+fn public_data_and_numbered_wire_shape_changes_change_v11_comparison_encoding() {
     let first = TempPackage::new();
     let second = TempPackage::new();
     first.write(
@@ -650,7 +650,7 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
-fn public_domain_shape_changes_change_v10_comparison_encoding() {
+fn public_domain_shape_changes_change_v11_comparison_encoding() {
     let first = TempPackage::new();
     let second = TempPackage::new();
     first.write(
@@ -1020,6 +1020,168 @@ machine build(builder: &mut Build) { }
             .canonical_review_bytes()
             .expect("renamed-binder public-trait encoding")
     );
+}
+
+#[test]
+fn public_lifetime_contracts_are_alpha_normalized_and_relationship_sensitive() {
+    let first = TempPackage::new();
+    let renamed = TempPackage::new();
+    let changed = TempPackage::new();
+    first.write(
+        "main.omg",
+        r#"pub data View<'left, 'right> {
+    first: &'left [u8];
+    second: &'right [u8];
+}
+pub trait Parent<'source> {
+    machine borrow<'temporary>(source: &'source [u8], temporary: &'temporary [u8]) -> &'source [u8];
+}
+pub trait Child<'child>: Parent<'child> { }
+"#,
+    );
+    renamed.write(
+        "main.omg",
+        r#"pub data View<'primary, 'secondary> {
+    first: &'primary [u8];
+    second: &'secondary [u8];
+}
+pub trait Parent<'origin> {
+    machine borrow<'scratch>(source: &'origin [u8], temporary: &'scratch [u8]) -> &'origin [u8];
+}
+pub trait Child<'region>: Parent<'region> { }
+"#,
+    );
+    changed.write(
+        "main.omg",
+        r#"pub data View<'left, 'right> {
+    first: &'left [u8];
+    second: &'left [u8];
+}
+pub trait Parent<'source> {
+    machine borrow<'temporary>(source: &'source [u8], temporary: &'temporary [u8]) -> &'temporary [u8];
+}
+pub trait Child<'child>: Parent<'child> { }
+"#,
+    );
+    let build = r#"target windows_x64 { }
+machine build(builder: &mut Build) { }
+"#;
+    first.write("build.omg", build);
+    renamed.write("build.omg", build);
+    changed.write("build.omg", build);
+
+    let compile = |package: &TempPackage| {
+        let checked = compile_to_checked_with_packages(
+            &package.0.join("main.omg"),
+            Some("windows_x64"),
+            package_inputs(&package.0),
+        )
+        .expect("public lifetime fixture should check");
+        project_checked_package_review(&checked).expect("public lifetime review should close")
+    };
+    let first_review = compile(&first);
+    let view = first_review
+        .public_data()
+        .iter()
+        .find(|shape| shape.identity().path() == "View")
+        .expect("view data row");
+    assert_eq!(view.lifetime_parameter_count(), 2);
+    let [
+        PackageReviewDataMember::Field(first_field),
+        PackageReviewDataMember::Field(second_field),
+    ] = view.members()
+    else {
+        panic!("two view fields")
+    };
+    assert_ne!(
+        first_field.type_identity().canonical(),
+        second_field.type_identity().canonical()
+    );
+
+    let parent = first_review
+        .public_traits()
+        .iter()
+        .find(|shape| shape.identity().path() == "Parent")
+        .expect("parent trait row");
+    assert_eq!(parent.lifetime_parameter_count(), 1);
+    let [borrow] = parent.requirements() else {
+        panic!("borrow requirement")
+    };
+    assert_eq!(borrow.lifetime_parameter_count(), 1);
+    let [source, temporary] = borrow.parameters() else {
+        panic!("borrow parameters")
+    };
+    assert_ne!(
+        source.type_identity().canonical(),
+        temporary.type_identity().canonical()
+    );
+    assert_eq!(
+        source.type_identity().canonical(),
+        borrow.return_type().canonical()
+    );
+
+    let child = first_review
+        .public_traits()
+        .iter()
+        .find(|shape| shape.identity().path() == "Child")
+        .expect("child trait row");
+    let [parent_edge] = child.parents() else {
+        panic!("parent edge")
+    };
+    assert_eq!(parent_edge.lifetime_arguments(), &[0]);
+
+    let first_bytes = first_review
+        .canonical_review_bytes()
+        .expect("first lifetime encoding");
+    assert_eq!(
+        first_bytes,
+        compile(&renamed)
+            .canonical_review_bytes()
+            .expect("renamed lifetime encoding")
+    );
+    assert_ne!(
+        first_bytes,
+        compile(&changed)
+            .canonical_review_bytes()
+            .expect("changed lifetime encoding")
+    );
+}
+
+#[test]
+fn public_trait_lifetime_declarations_validate_before_review() {
+    for (source, expected) in [
+        (
+            "pub trait Parent<'left, 'right> { }\npub trait Child<'child>: Parent<'child> { }\n",
+            "expects 2 lifetime argument(s), got 1",
+        ),
+        (
+            "pub trait Parent<'source> { }\npub trait Child<'child>: Parent<'ghost> { }\n",
+            "uses undeclared lifetime argument `'ghost'",
+        ),
+        (
+            "pub trait Parent<'source> { machine borrow<'source>(value: &'source [u8]) -> &'source [u8]; }\n",
+            "redeclares inherited lifetime `'source'",
+        ),
+    ] {
+        let package = TempPackage::new();
+        package.write("main.omg", source);
+        package.write(
+            "build.omg",
+            "target windows_x64 { }\nmachine build(builder: &mut Build) { }\n",
+        );
+        let diagnostics = compile_to_checked_with_packages(
+            &package.0.join("main.omg"),
+            Some("windows_x64"),
+            package_inputs(&package.0),
+        )
+        .expect_err("invalid parent lifetime application must reject");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains(expected)),
+            "missing `{expected}` in {diagnostics:#?}"
+        );
+    }
 }
 
 #[test]

@@ -146,18 +146,20 @@ service identities. Package-qualified type identity gives every non-binder
 nominal an exact package, toolchain, or unresolved owner while preserving
 owner-free alpha-normalized binders. Package-owned public data is now projected
 with supply, generic shape, properties, stable field/variant identities,
-retired identities, relevance, and exact field/payload types. Numbered ordinary
-data is the wire contract; the retired standalone `wire data` form is not a
+retired identities, relevance, lifetime arity, and exact lifetime-sensitive
+field/payload types. Numbered ordinary data is the wire contract; the retired
+standalone `wire data` form is not a
 second API row. Quotients, data `where` facts, and static machine/proposition
 parameters reject review until exact canonical rows exist. Public traits now
-retain exact package identity, boundary status, alpha-normalized type/const
-binders, package-qualified parent applications, and ordered machine/operator
-requirement signatures with exact service reach, installation-bound status,
+retain exact package identity, boundary status, alpha-normalized
+lifetime/type/const binders, package-qualified parent applications with exact
+lifetime-binder arguments, and ordered machine/operator requirement signatures
+with exact service reach, installation-bound status,
 synchronous invocations as exact non-`self` parameter ordinals or
 package-qualified services, suspension, blocking, and termination. Progress
 premises retain package-qualified public profile identity, receiver/non-`self`
 parameter roots, and package-qualified field projections. Trait/requirement
-lifetimes, conformance bounds, invariants, default realizations, and
+conformance bounds, invariants, default realizations, and
 non-progress proof/boundary/crash contracts fail closed until complete rows
 land. Public domains with representable shape now retain exact package identity,
 alpha-normalized generic carrier/index shape, package-qualified carrier/index
@@ -166,7 +168,7 @@ routes with exact package-qualified trait/requirement identities. Transparent
 aliases recursively flatten to canonical package-qualified atoms; compiler
 carry atoms remain explicitly toolchain-unbound. Predicates, semantic roles,
 and operators fail closed until canonical rows land. The compiler now provides
-a version-10 length-framed binary comparison encoding over this review
+a version-11 length-framed binary comparison encoding over this review
 projection; it is explicitly not a package certificate or accepted-lock
 payload. Raw Rust/debug serialization is not an alternative. These pieces do
 not become an admission path until the legacy name-keyed lock APIs are replaced

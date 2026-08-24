@@ -36,6 +36,29 @@ pub(crate) fn validate_trait_requirements(
                 seen.push(requirement.symbol);
             }
 
+            let expected_lifetimes = required_trait.lifetime_parameters.len();
+            let actual_lifetimes = requirement.lifetime_arguments.len();
+            if actual_lifetimes != 0 && expected_lifetimes != actual_lifetimes {
+                diagnostics.push(Diagnostic::error(format!(
+                    "trait `{}` parent `{}` expects {expected_lifetimes} lifetime argument(s), got {actual_lifetimes}",
+                    trait_definition.name, requirement.name
+                )));
+            }
+            for lifetime in &requirement.lifetime_arguments {
+                if !trait_definition
+                    .lifetime_parameters
+                    .iter()
+                    .any(|declared| declared == lifetime)
+                {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "trait `{}` parent `{}` uses undeclared lifetime argument `'{}'",
+                        trait_definition.name,
+                        requirement.name,
+                        lifetime.as_str()
+                    )));
+                }
+            }
+
             let expected = program.trait_type_parameters(required_trait).len();
             let actual = requirement.arguments.len();
             if expected != actual {

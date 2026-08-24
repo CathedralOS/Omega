@@ -96,6 +96,19 @@ pub(crate) fn validate_callable_state_signatures(
         for machine in program.trait_machine_signatures(trait_definition) {
             let mut type_parameters = program.trait_type_parameters(trait_definition).to_vec();
             type_parameters.extend_from_slice(program.state_signature_type_parameters(machine));
+            for lifetime in &machine.lifetime_parameters {
+                if trait_definition
+                    .lifetime_parameters
+                    .iter()
+                    .any(|inherited| inherited == lifetime)
+                {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "trait requirement `{}` redeclares inherited lifetime `'{}'",
+                        machine.name,
+                        lifetime.as_str()
+                    )));
+                }
+            }
             let mut lifetime_parameters = trait_definition.lifetime_parameters.clone();
             lifetime_parameters.extend_from_slice(&machine.lifetime_parameters);
             validate_state_signature_types(
