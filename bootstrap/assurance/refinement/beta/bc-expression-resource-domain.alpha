@@ -1,0 +1,270 @@
+; Independently reconstruct the protected-writer domain needed by the
+; expression semantics. The common grammar pass classifies every raw-store
+; address, so this scan does not trust procedure-local comments or numeric exit
+; status to recover which resource changed.
+
+expression_semantic_rules_init:
+        call expression_resource_count_protected
+        call expression_resource_require_writers
+        call expression_resource_require_depth_writers
+        imm r1, 545600
+        imm r2, 1129534036             ; XRSC
+        store r1, r2
+        jmp expression_tail_rules_init
+
+expression_resource_count_protected:
+        imm r10, 0                     ; memory row
+        imm r11, 0                     ; EXPRDEPTH writer count
+        imm r12, 0                     ; RESOURCE writer count
+expression_resource_count_loop:
+        imm r1, 95
+        jlt r10, r1, expression_resource_count_row
+        imm r1, 4
+        jeq r11, r1, expression_resource_count_status
+        jmp reject
+expression_resource_count_status:
+        imm r1, 7
+        jeq r12, r1, expression_resource_count_done
+        jmp reject
+expression_resource_count_row:
+        mov r13, r10
+        imm r1, 8
+        mul r13, r1
+        imm r1, 7610368               ; memory kind table
+        add r1, r13
+        load r2, r1
+        imm r3, 2
+        jeq r2, r3, expression_resource_count_fixed
+        jmp expression_resource_count_next
+expression_resource_count_fixed:
+        imm r1, 10616832              ; address class: literal fixed
+        add r1, r13
+        load r2, r1
+        imm r3, 1
+        jeq r2, r3, expression_resource_count_address
+        jmp expression_resource_count_next
+expression_resource_count_address:
+        imm r1, 10618880
+        add r1, r13
+        load r2, r1
+        imm r3, 2097080
+        jeq r2, r3, expression_resource_count_depth
+        imm r3, 2097072
+        jeq r2, r3, expression_resource_count_resource
+        jmp expression_resource_count_next
+expression_resource_count_depth:
+        imm r1, 1
+        add r11, r1
+        jmp expression_resource_count_next
+expression_resource_count_resource:
+        imm r1, 1
+        add r12, r1
+expression_resource_count_next:
+        imm r1, 1
+        add r10, r1
+        jmp expression_resource_count_loop
+expression_resource_count_done:
+        ret
+
+; r20 mem,row; r21 block; r22 store pc; r23 address primitive row;
+; r24 address pc; r25 value primitive row; r26 value; r27 value pc;
+; r28 store-address push row; r29 push pc.
+expression_resource_require_writer:
+        mov r30, r20
+        mov r31, r21
+        mov r32, r22
+        mov r33, r23
+        mov r34, r24
+        mov r35, r25
+        mov r36, r26
+        mov r37, r27
+        mov r38, r28
+        mov r39, r29
+        mov r20, r30
+        mov r21, r31
+        imm r22, 2
+        imm r23, 8
+        mov r24, r32
+        call transfer_require_memory
+        mov r20, r33
+        mov r21, r31
+        imm r22, 1
+        imm r23, 2097072
+        mov r24, r34
+        call transfer_require_primitive
+        mov r20, r35
+        mov r21, r31
+        imm r22, 1
+        mov r23, r36
+        mov r24, r37
+        call transfer_require_primitive
+        mov r20, r38
+        mov r21, r31
+        imm r22, 3
+        mov r23, r39
+        call transfer_require_push
+        ret
+
+expression_resource_require_writers:
+        ; slurp initialization is the unique zero writer.
+        imm r20, 6
+        imm r21, 4
+        imm r22, 1023
+        imm r23, 19
+        imm r24, 971
+        imm r25, 20
+        imm r26, 0
+        imm r27, 997
+        imm r28, 375
+        imm r29, 981
+        call expression_resource_require_writer
+        ; Every remaining protected writer stores literal252.
+        imm r20, 35
+        imm r21, 159
+        imm r22, 22644
+        imm r23, 408
+        imm r24, 22592
+        imm r25, 409
+        imm r26, 252
+        imm r27, 22618
+        imm r28, 381
+        imm r29, 22602
+        call expression_resource_require_writer
+        imm r20, 38
+        imm r21, 171
+        imm r22, 24384
+        imm r23, 435
+        imm r24, 24332
+        imm r25, 436
+        imm r26, 252
+        imm r27, 24358
+        imm r28, 382
+        imm r29, 24342
+        call expression_resource_require_writer
+        imm r20, 58
+        imm r21, 304
+        imm r22, 43373
+        imm r23, 676
+        imm r24, 43321
+        imm r25, 677
+        imm r26, 252
+        imm r27, 43347
+        imm r28, 388
+        imm r29, 43331
+        call expression_resource_require_writer
+        imm r20, 65
+        imm r21, 309
+        imm r22, 44305
+        imm r23, 697
+        imm r24, 44253
+        imm r25, 698
+        imm r26, 252
+        imm r27, 44279
+        imm r28, 392
+        imm r29, 44263
+        call expression_resource_require_writer
+        imm r20, 89
+        imm r21, 340
+        imm r22, 49659
+        imm r23, 784
+        imm r24, 49607
+        imm r25, 785
+        imm r26, 252
+        imm r27, 49633
+        imm r28, 401
+        imm r29, 49617
+        call expression_resource_require_writer
+        imm r20, 92
+        imm r21, 344
+        imm r22, 50367
+        imm r23, 798
+        imm r24, 50315
+        imm r25, 799
+        imm r26, 252
+        imm r27, 50341
+        imm r28, 402
+        imm r29, 50325
+        call expression_resource_require_writer
+        imm r1, 545608
+        imm r2, 7                     ; exhaustive {zero, six literal252}
+        store r1, r2
+        ret
+
+expression_resource_require_depth_writers:
+        ; Exact zero root plus the three p61 increment/decrement stores. Value
+        ; flow for the latter is closed by the descending induction module.
+        imm r20, 5
+        call expression_resource_require_depth_class
+        imm r20, 5
+        imm r21, 4
+        imm r22, 2
+        imm r23, 8
+        imm r24, 968
+        call transfer_require_memory
+        imm r20, 17
+        imm r21, 4
+        imm r22, 1
+        imm r23, 2097080
+        imm r24, 916
+        call transfer_require_primitive
+        imm r20, 18
+        imm r21, 4
+        imm r22, 1
+        imm r23, 0
+        imm r24, 942
+        call transfer_require_primitive
+
+        imm r20, 59
+        call expression_resource_require_depth_class
+        imm r20, 59
+        imm r21, 305
+        imm r22, 2
+        imm r23, 8
+        imm r24, 43515
+        call transfer_require_memory
+        imm r20, 60
+        call expression_resource_require_depth_class
+        imm r20, 60
+        imm r21, 306
+        imm r22, 2
+        imm r23, 8
+        imm r24, 43799
+        call transfer_require_memory
+        imm r20, 62
+        call expression_resource_require_depth_class
+        imm r20, 62
+        imm r21, 307
+        imm r22, 2
+        imm r23, 8
+        imm r24, 44013
+        call transfer_require_memory
+        imm r1, 545616
+        imm r2, 4
+        store r1, r2
+        imm r20, 545608
+        imm r21, 7
+        call exact_require_cell
+        imm r20, 545616
+        imm r21, 4
+        call exact_require_cell
+        ret
+
+; Selected row must be one of the globally counted literal fixed stores and
+; its independently parsed address must be EXPRDEPTH exactly.
+expression_resource_require_depth_class:
+        mov r10, r20
+        imm r1, 8
+        mul r10, r1
+        imm r1, 10616832
+        add r1, r10
+        load r2, r1
+        imm r3, 1
+        jeq r2, r3, expression_resource_depth_address
+        jmp reject
+expression_resource_depth_address:
+        imm r1, 10618880
+        add r1, r10
+        load r2, r1
+        imm r3, 2097080
+        jeq r2, r3, exact_shape_ok
+        jmp reject

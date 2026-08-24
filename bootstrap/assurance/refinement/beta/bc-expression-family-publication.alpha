@@ -1,0 +1,51 @@
+; Semantic publication for the expression family. Exact shape is established
+; in a separate process over the identical source/artifact/witness bundle; the
+; shell gate accepts the family only when both processes accept.
+
+expression_family_publication_init:
+        imm r20, 545600
+        imm r21, 1129534036             ; XRSC
+        call exact_require_cell
+        imm r20, 540032
+        imm r21, 1380207687             ; GLDR
+        call exact_require_cell
+        imm r20, 540040
+        imm r21, 1414682439             ; GWRT
+        call exact_require_cell
+        imm r20, 540048
+        imm r21, 1279347783             ; GCAL
+        call exact_require_cell
+        imm r20, 540056
+        imm r21, 1128351303             ; GFAC
+        call exact_require_cell
+        imm r20, 540064
+        imm r21, 1297237063             ; GTRM
+        call exact_require_cell
+        imm r20, 540072
+        imm r21, 1297437511             ; GSUM
+        call exact_require_cell
+        imm r20, 540080
+        imm r21, 1347960903             ; GEXP
+        call exact_require_cell
+        imm r20, 542424                 ; D64 base completion
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 545496                 ; D0/root context completion
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 545528                 ; depth failure branch
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 545568                 ; no-comparison branch
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 545576                 ; comparison branch
+        imm r21, 1
+        call exact_require_cell
+        imm r1, 540088
+        imm r2, 1112559704             ; XPUB
+        store r1, r2
+        imm r20, 540088
+        imm r21, 1112559704
+        call exact_require_cell
+        jmp scan_owned_effects_init

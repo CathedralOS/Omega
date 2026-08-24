@@ -1,0 +1,166 @@
+; Compact exact-shape and relation bridge for id_char(k), needed by the fixed
+; keyword family in the expression semantic checker.  The historical ILET
+; proof carries a second procedure that this tranche does not consume; keeping
+; only p13 here avoids spending audited tape capacity on an unrelated theorem.
+
+expression_id_char_require_shape:
+        imm r20, 7151616
+        imm r21, 13
+        imm r22, 1
+        call transfer_require_cell
+        imm r20, 7159808
+        imm r21, 13
+        imm r22, 1
+        call transfer_require_cell
+        imm r20, 13
+        call call_bounds_frame_bytes
+        imm r1, 16
+        jeq r0, r1, expression_id_char_require_block
+        jmp reject
+
+expression_id_char_require_block:
+        imm r20, 47
+        imm r21, 5634
+        call exact_require_block_pc
+        imm r20, 47
+        imm r21, 47
+        imm r22, 13
+        call exact_require_proc_blocks
+
+        imm r20, 37
+        imm r21, 47
+        imm r22, 5
+        imm r23, 5825
+        call exact_require_event
+        imm r20, 5806
+        imm r21, 5825
+        call exact_require_epilogue
+        imm r20, 5826
+        imm r21, 5845
+        call exact_require_epilogue
+
+        imm r20, 33
+        imm r21, 47
+        imm r22, 1
+        imm r23, 0
+        imm r24, 5762
+        call transfer_require_local
+        imm r20, 21
+        imm r21, 47
+        imm r22, 1
+        imm r23, 1
+        imm r24, 5803
+        call transfer_require_memory
+        imm r20, 22
+        imm r21, 47
+        imm r22, 1
+        imm r23, 8
+        imm r24, 5721
+        call transfer_require_memory
+
+        imm r20, 95
+        imm r21, 47
+        imm r22, 1
+        imm r23, 2097152
+        imm r24, 5685
+        call transfer_require_primitive
+        imm r20, 96
+        imm r21, 47
+        imm r22, 2
+        imm r23, 3
+        imm r24, 5724
+        call transfer_require_primitive
+        imm r20, 97
+        imm r21, 47
+        imm r22, 1
+        imm r23, 2097120
+        imm r24, 5711
+        call transfer_require_primitive
+        imm r20, 98
+        imm r21, 47
+        imm r22, 2
+        imm r23, 3
+        imm r24, 5781
+        call transfer_require_primitive
+
+        imm r20, 27
+        imm r21, 47
+        imm r22, 1
+        imm r23, 5695
+        call transfer_require_push
+        imm r20, 28
+        imm r21, 47
+        imm r22, 1
+        imm r23, 5746
+        call transfer_require_push
+
+        imm r20, 47
+        imm r21, 47
+        imm r22, 33
+        imm r23, 34
+        imm r24, 21
+        imm r25, 23
+        imm r26, 36
+        imm r27, 36
+        imm r28, 37
+        imm r29, 38
+        call exact_require_effect_census
+        imm r20, 47
+        imm r21, 47
+        imm r22, 95
+        imm r23, 99
+        imm r24, 27
+        imm r25, 29
+        imm r26, 0
+        imm r27, 0
+        imm r28, 0
+        imm r29, 0
+        call summary_require_expr_census
+        imm r20, 5634
+        imm r21, 5846
+        imm r22, 0
+        imm r23, 2
+        call skip_scan_call_region
+        ret
+
+; Conditional on read_ident's exact source slice and 0<=k<IDLEN, bind the
+; selected zero-extended byte, quiet state, and restored frame.  This is the
+; IDCH interface consumed by all nine fixed keyword predicates.
+expression_id_char_prove_summary:
+        imm r20, 526792
+        imm r21, 1396984146             ; RIDS
+        call exact_require_cell
+        imm r1, 527200
+        imm r2, 1                       ; identifier slice premise
+        store r1, r2
+        imm r1, 527208
+        store r1, r2                    ; 0<=k<IDLEN premise
+        imm r1, 527216
+        store r1, r2                    ; exact SRC[IDOFF+k] byte
+        imm r1, 527224
+        store r1, r2                    ; quiet compiler state
+        imm r1, 527312
+        store r1, r2                    ; caller frame restored
+        call expression_id_char_require_relation
+        imm r1, 527184
+        imm r2, 1212367945              ; IDCH
+        store r1, r2
+        ret
+
+expression_id_char_require_relation:
+        imm r20, 527200
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 527208
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 527216
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 527224
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 527312
+        imm r21, 1
+        call exact_require_cell
+        ret

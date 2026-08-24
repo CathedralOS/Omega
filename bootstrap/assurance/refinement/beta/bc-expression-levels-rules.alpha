@@ -1,0 +1,285 @@
+; Exact semantic schemas for gen_term and gen_sum.  Both are the same ranked
+; left-associative loop with different child/classifier procedures.  A body
+; consumes its operator before invoking the child, so LEN-CUR strictly falls on
+; every backedge even when the child itself consumes no byte. Numeric252 never
+; suppresses the caller's push/child/combine/skip suffix.
+
+expression_levels_rules_init:
+        call expression_levels_reset
+        call expression_levels_require_imports
+        call expression_levels_prove_term
+        call expression_levels_prove_sum
+        call expression_levels_publish
+        jmp expression_gen_expr_rules_init
+
+expression_levels_reset:
+        imm r1, 541800
+        imm r2, 0
+expression_levels_reset_loop:
+        imm r3, 542240
+        jlt r1, r3, expression_levels_reset_one
+        ret
+expression_levels_reset_one:
+        store r1, r2
+        imm r3, 8
+        add r1, r3
+        jmp expression_levels_reset_loop
+
+expression_levels_require_imports:
+        imm r20, 540056
+        imm r21, 1128351303             ; GFAC
+        call exact_require_cell
+        imm r20, 529816
+        imm r21, 1280658767             ; OMUL
+        call exact_require_cell
+        imm r20, 529824
+        imm r21, 1145323855             ; OADD
+        call exact_require_cell
+        imm r20, 531896
+        imm r21, 1398100037             ; EPUS
+        call exact_require_cell
+        imm r20, 531912
+        imm r21, 1112359749             ; ECMB
+        call exact_require_cell
+        imm r20, 540024
+        imm r21, 1279347796             ; XTAL
+        call exact_require_cell
+        imm r1, 541800
+        imm r2, 1
+        store r1, r2
+        ret
+
+; r20=event,r21=block,r22=pc,r23=arity,r24=target,r25=continuation.
+expression_levels_require_site:
+        mov r30, r20
+        mov r31, r21
+        mov r32, r22
+        mov r33, r23
+        mov r34, r24
+        mov r35, r25
+        mov r20, r30
+        mov r21, r31
+        mov r22, r32
+        mov r23, r33
+        imm r24, 0
+        mov r25, r34
+        mov r26, r35
+        call summary_require_call_site
+        ret
+
+expression_levels_prove_term:
+        imm r20, 421
+        imm r21, 267
+        imm r22, 38555
+        imm r23, 0
+        imm r24, 35881
+        imm r25, 38564
+        call expression_levels_require_site
+        imm r20, 422
+        imm r21, 267
+        imm r22, 38564
+        imm r23, 0
+        imm r24, 4277
+        imm r25, 38573
+        call expression_levels_require_site
+        imm r20, 424
+        imm r21, 268
+        imm r22, 38573
+        imm r23, 0
+        imm r24, 1609
+        imm r25, 38582
+        call expression_levels_require_site
+        imm r20, 423
+        imm r21, 268
+        imm r22, 38614
+        imm r23, 1
+        imm r24, 34977
+        imm r25, 38623
+        call expression_levels_require_site
+        imm r20, 427
+        imm r21, 269
+        imm r22, 38785
+        imm r23, 0
+        imm r24, 1939
+        imm r25, 38794
+        call expression_levels_require_site
+        imm r20, 428
+        imm r21, 269
+        imm r22, 38794
+        imm r23, 0
+        imm r24, 32248
+        imm r25, 38803
+        call expression_levels_require_site
+        imm r20, 429
+        imm r21, 269
+        imm r22, 38803
+        imm r23, 0
+        imm r24, 35881
+        imm r25, 38812
+        call expression_levels_require_site
+        imm r20, 430
+        imm r21, 269
+        imm r22, 38863
+        imm r23, 1
+        imm r24, 33541
+        imm r25, 38872
+        call expression_levels_require_site
+        imm r20, 431
+        imm r21, 269
+        imm r22, 38872
+        imm r23, 0
+        imm r24, 4277
+        imm r25, 38881
+        call expression_levels_require_site
+        imm r1, 541816
+        imm r2, 1                     ; exact initial factor then SWS
+        store r1, r2
+        imm r1, 541824
+        imm r2, 3                     ; *, /, % singleton operator set
+        store r1, r2
+        imm r1, 541832
+        imm r2, 1                     ; push/child/combine/SWS exact order
+        store r1, r2
+        call expression_levels_prove_rank_and_status
+        imm r1, 541840
+        imm r2, 1
+        store r1, r2
+        ret
+
+expression_levels_prove_sum:
+        imm r20, 432
+        imm r21, 270
+        imm r22, 38942
+        imm r23, 0
+        imm r24, 38523
+        imm r25, 38951
+        call expression_levels_require_site
+        imm r20, 433
+        imm r21, 270
+        imm r22, 38951
+        imm r23, 0
+        imm r24, 4277
+        imm r25, 38960
+        call expression_levels_require_site
+        imm r20, 435
+        imm r21, 271
+        imm r22, 38960
+        imm r23, 0
+        imm r24, 1609
+        imm r25, 38969
+        call expression_levels_require_site
+        imm r20, 434
+        imm r21, 271
+        imm r22, 39001
+        imm r23, 1
+        imm r24, 35495
+        imm r25, 39010
+        call expression_levels_require_site
+        imm r20, 438
+        imm r21, 272
+        imm r22, 39172
+        imm r23, 0
+        imm r24, 1939
+        imm r25, 39181
+        call expression_levels_require_site
+        imm r20, 439
+        imm r21, 272
+        imm r22, 39181
+        imm r23, 0
+        imm r24, 32248
+        imm r25, 39190
+        call expression_levels_require_site
+        imm r20, 440
+        imm r21, 272
+        imm r22, 39190
+        imm r23, 0
+        imm r24, 38523
+        imm r25, 39199
+        call expression_levels_require_site
+        imm r20, 441
+        imm r21, 272
+        imm r22, 39250
+        imm r23, 1
+        imm r24, 33541
+        imm r25, 39259
+        call expression_levels_require_site
+        imm r20, 442
+        imm r21, 272
+        imm r22, 39259
+        imm r23, 0
+        imm r24, 4277
+        imm r25, 39268
+        call expression_levels_require_site
+        imm r1, 541856
+        imm r2, 1                     ; exact initial term then SWS
+        store r1, r2
+        imm r1, 541864
+        imm r2, 2                     ; + and - singleton operator set
+        store r1, r2
+        imm r1, 541872
+        imm r2, 1                     ; push/child/combine/SWS exact order
+        store r1, r2
+        call expression_levels_prove_rank_and_status
+        imm r1, 541880
+        imm r2, 1
+        store r1, r2
+        ret
+
+expression_levels_prove_rank_and_status:
+        ; Two status inputs times two child outcomes. The loop never tests
+        ; RESOURCE; its own staged push is always consumed by ECMB. Existing or
+        ; child numeric252 is carried, and the exact output prefix is retained.
+        imm r10, 0
+        imm r11, 0
+expression_levels_status_loop:
+        imm r1, 4
+        jlt r10, r1, expression_levels_status_case
+        imm r1, 4
+        jeq r11, r1, expression_levels_status_done
+        jmp reject
+expression_levels_status_case:
+        imm r1, 541896
+        store r1, r10
+        imm r1, 541904
+        imm r2, 1
+        store r1, r2                   ; no RESOURCE guard/writer
+        imm r1, 541912
+        store r1, r2                   ; caller push is balanced by ECMB
+        imm r1, 541920
+        store r1, r2                   ; status/output child prefix retained
+        imm r1, 1
+        add r10, r1
+        add r11, r1
+        jmp expression_levels_status_loop
+expression_levels_status_done:
+        ; Recognized operator performs ADVE before child: for CUR<LEN the
+        ; nonnegative rank LEN-CUR falls by at least one. CUR>=LEN uses XTAL's
+        ; cbyte-zero complement and exits without a backedge.
+        imm r1, 541928
+        imm r2, 1
+        store r1, r2
+        imm r1, 541936
+        imm r2, 4                     ; complete status-product cases
+        store r1, r2
+        ret
+
+expression_levels_publish:
+        imm r20, 541800
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 541840
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 541880
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 541928
+        imm r21, 1
+        call exact_require_cell
+        imm r1, 540064
+        imm r2, 1297237063             ; GTRM
+        store r1, r2
+        imm r1, 540072
+        imm r2, 1297437511             ; GSUM
+        store r1, r2
+        ret
