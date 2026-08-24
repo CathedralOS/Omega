@@ -114,6 +114,16 @@ pub(super) fn append_operation(
         axioms,
         operation_obligations,
     )? {
+        for composition in machine
+            .content_partition_compositions
+            .iter()
+            .filter(|composition| composition.producer_operation == operation.id)
+        {
+            let proposition = composition.inferred_proposition();
+            if !axioms.contains(&proposition) {
+                axioms.push(proposition);
+            }
+        }
         return Ok(());
     }
     match operation.kind.clone() {

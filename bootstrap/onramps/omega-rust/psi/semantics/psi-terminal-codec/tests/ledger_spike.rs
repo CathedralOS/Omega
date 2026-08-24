@@ -285,6 +285,7 @@ fn call_composition_ledger_fixture() -> TerminalModule {
                 domain: pending,
             }],
             program_local_root_introductions: Vec::new(),
+            content_guarantees: Vec::new(),
             published_service_ceiling: Vec::new(),
         }],
         provider_candidates: Vec::new(),

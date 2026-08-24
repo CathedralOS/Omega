@@ -14,9 +14,9 @@ use psi_terminal::{
     CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard, EntryClaim, EvidenceContractLaneKind,
     OperationKind, OperationResult, PropositionBinderArgumentKind, PropositionBinderKind,
     PropositionEvidence, StructuralArgument, StructuralFieldType, StructuralMultiplicity,
-    StructuralParameterDeclaration, StructuralPathSegment, StructuralTypeShape,
-    TerminalAffineCleanupAction, TerminalMachine, TerminalMachineResult, TerminalModule,
-    Terminator, program_local_root_introduction_identity,
+    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
+    StructuralTypeShape, TerminalAffineCleanupAction, TerminalMachine, TerminalMachineResult,
+    TerminalModule, Terminator, program_local_root_introduction_identity,
 };
 
 use crate::verification::{
@@ -146,6 +146,7 @@ fn validate_module_with_policy(
             ));
         }
     }
+    content::validate_boundary_content_guarantees(module, &mut registry)?;
     for machine in &module.machines {
         insert_unique(
             &mut registry.machines,

@@ -230,6 +230,7 @@ fn unit_return_performs_affine_discard_only_after_edge_charge() {
     *trivial_affine_discards = vec![place_id(2)];
     module.entry = machine.id;
     module.machines = vec![machine];
+    module.root_service_reach = Default::default();
     let semantic = encode_module(&module).expect("affine cleanup module encodes");
     let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
     let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
@@ -941,6 +942,7 @@ fn scalar_return_performs_affine_discard_only_after_edge_charge() {
     };
     module.entry = machine.id;
     module.machines = vec![machine];
+    module.root_service_reach = Default::default();
     let semantic = encode_module(&module).expect("scalar affine cleanup module encodes");
     let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
     let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
@@ -1008,6 +1010,7 @@ fn jump_performs_affine_discard_only_after_edge_charge() {
     ];
     module.entry = machine.id;
     module.machines = vec![machine];
+    module.root_service_reach = Default::default();
     let semantic = encode_module(&module).expect("jump affine cleanup module encodes");
     let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
     let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
@@ -1102,6 +1105,7 @@ fn conditional_commits_only_the_selected_affine_cleanup_after_edge_charge() {
     ];
     module.entry = machine.id;
     module.machines = vec![machine];
+    module.root_service_reach = Default::default();
     let semantic = encode_module(&module).expect("conditional affine cleanup module encodes");
     let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
 
@@ -1643,6 +1647,7 @@ fn byte_sequence_literal_module(bytes: Vec<u8>) -> TerminalModule {
             result: None,
             requires: Vec::new(),
             program_local_root_introductions: Vec::new(),
+            content_guarantees: Vec::new(),
             published_service_ceiling: Vec::new(),
         }],
         provider_candidates: Vec::new(),
@@ -1734,6 +1739,7 @@ fn scalar_boundary_effect_module() -> TerminalModule {
             result: None,
             requires: Vec::new(),
             program_local_root_introductions: Vec::new(),
+            content_guarantees: Vec::new(),
             published_service_ceiling: Vec::new(),
         }],
         provider_candidates: Vec::new(),
@@ -1824,7 +1830,10 @@ fn effect_module() -> TerminalModule {
             identity: "test::PortIo".into(),
             parents: Vec::new(),
         }],
-        root_service_reach: Default::default(),
+        root_service_reach: psi_terminal::TerminalRootServiceReach {
+            concrete: vec![service],
+            installation_dependencies: Vec::new(),
+        },
         boundary_machines: vec![BoundaryMachineDeclaration {
             id: boundary_id(1),
             identity: "test::acknowledge".into(),
@@ -1837,6 +1846,7 @@ fn effect_module() -> TerminalModule {
                 domain,
             }],
             program_local_root_introductions: Vec::new(),
+            content_guarantees: Vec::new(),
             published_service_ceiling: Vec::new(),
         }],
         provider_candidates: Vec::new(),

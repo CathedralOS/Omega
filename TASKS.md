@@ -521,7 +521,15 @@ Remaining:
   lineage, installed occurrence, and route; a generic established-claim identity
   is insufficient. Checked source already derives exact identity-reshuffle and
   authored-partition composition rows, and terminal Psi independently validates
-  their canonical replay. The exact root-only source passthrough now produces a
+  their canonical replay. Terminal vocabulary 28 now additionally binds every
+  partition row to its exact emitted call operation, retains canonical authored
+  boundary guarantees, checks internal or boundary target correspondence and
+  exact structural arguments, and schedules the derived theorem only after
+  that call succeeds. Missing/non-call producers, guarantee drift, argument
+  drift, pre-call use, and fingerprint-only replay reject. Structural-result-
+  rooted call correspondence remains a later slice because the current call
+  vocabulary has no explicit structural-result carrier. The exact root-only
+  source passthrough now produces a
   structural result/return carrier with claim transfer, exit-time content
   replay, interpretation, and fuel. Omega preserves that carrier through the
   exact one-fragment native ABI path and all artifact/install layers, with claim

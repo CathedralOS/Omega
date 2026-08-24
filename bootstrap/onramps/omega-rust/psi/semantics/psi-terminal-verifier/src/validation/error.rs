@@ -656,6 +656,12 @@ pub enum ModuleError {
     ContentPartitionInputProjectionNotClaimBound(ContentStructuralPlace),
     ContentPartitionInputClaimNotListed(ClaimId),
     ContentPartitionInputClaimUnused,
+    ContentPartitionProducerOperationMissing(OperationId),
+    ContentPartitionProducerNotCall(OperationId),
+    ContentPartitionProducerGuaranteeMissing(OperationId),
+    ContentPartitionProducerArgumentMismatch(OperationId),
+    NonCanonicalBoundaryContentGuarantees(BoundaryMachineId),
+    InvalidBoundaryContentGuarantee(BoundaryMachineId),
     ContentConservationRequiresEnsures {
         contract: ContractId,
     },

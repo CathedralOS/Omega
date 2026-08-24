@@ -35,7 +35,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     let bytes = encode_module(&module).expect("fixture should encode");
 
     assert_eq!(&bytes[..8], b"PSITERM\0");
-    assert_eq!(&bytes[8..10], 24_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 25_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 
@@ -43,7 +43,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.vocabulary_marker, VocabularyMarker::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "36ab369495de019cd6e836ab9e27822e9a6474c9222a254afe551360606ea39b"
+        "4354977b15bd907146de844c3e727064ec655ed0a42bfc82e07a81987af461b5"
     );
     assert_eq!(
         identity.program_fingerprint,
@@ -310,8 +310,8 @@ fn payload_sum_shape_round_trips_exact_fields_and_requires_canonical_order() {
 fn partial_affine_unit_return_round_trips_exact_path_and_leaf_type() {
     let module = partial_affine_fixture();
     let bytes = encode_module(&module).expect("partial affine return should encode");
-    assert_eq!(&bytes[8..10], 24_u16.to_le_bytes());
-    assert_eq!(&bytes[10..12], 27_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 25_u16.to_le_bytes());
+    assert_eq!(&bytes[10..12], 28_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 }
@@ -320,8 +320,8 @@ fn partial_affine_unit_return_round_trips_exact_path_and_leaf_type() {
 fn nominal_affine_unit_return_round_trips_exact_root_type_and_cleanup_machine() {
     let module = nominal_affine_fixture();
     let bytes = encode_module(&module).expect("nominal affine return should encode");
-    assert_eq!(&bytes[8..10], 24_u16.to_le_bytes());
-    assert_eq!(&bytes[10..12], 27_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 25_u16.to_le_bytes());
+    assert_eq!(&bytes[10..12], 28_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 }
@@ -352,7 +352,7 @@ fn scalar_return_round_trips_nominal_affine_cleanup_action() {
     };
 
     let bytes = encode_module(&module).expect("scalar nominal cleanup should encode");
-    assert_eq!(&bytes[8..10], 24_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 25_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 }
@@ -935,7 +935,7 @@ fn structural_effect_foundation_round_trips_and_has_stable_identity() {
     let module = structural_effect_fixture();
     let bytes = encode_module(&module).expect("structural/effect foundation should encode");
 
-    assert_eq!(&bytes[10..12], 27_u16.to_le_bytes());
+    assert_eq!(&bytes[10..12], 28_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 
@@ -1270,11 +1270,11 @@ fn structural_foundation_rejects_opaque_relevant_and_nonopaque_erased_fields() {
 #[test]
 fn decoder_rejects_the_previous_vocabulary_marker() {
     let mut bytes = encode_module(&structural_effect_fixture()).unwrap();
-    bytes[10..12].copy_from_slice(&25_u16.to_le_bytes());
+    bytes[10..12].copy_from_slice(&29_u16.to_le_bytes());
 
     assert_eq!(
         decode_module(&bytes),
-        Err(CodecError::UnsupportedVocabularyMarker(25))
+        Err(CodecError::UnsupportedVocabularyMarker(29))
     );
 }
 
@@ -1791,10 +1791,10 @@ fn decoder_rejects_noncanonical_or_ambiguous_bytes() {
     assert_eq!(decode_module(&trailing), Err(CodecError::TrailingBytes(1)));
 
     let mut future_format = bytes.clone();
-    future_format[8..10].copy_from_slice(&25_u16.to_le_bytes());
+    future_format[8..10].copy_from_slice(&26_u16.to_le_bytes());
     assert_eq!(
         decode_module(&future_format),
-        Err(CodecError::UnsupportedFormatMarker(25))
+        Err(CodecError::UnsupportedFormatMarker(26))
     );
 
     let mut stale_format = bytes.clone();
@@ -2356,6 +2356,7 @@ fn structural_effect_fixture() -> TerminalModule {
                 domain,
             }],
             program_local_root_introductions: Vec::new(),
+            content_guarantees: Vec::new(),
             published_service_ceiling: vec![service],
         }],
         provider_candidates: Vec::new(),
@@ -3036,6 +3037,7 @@ fn partition_composition_fixture() -> TerminalModule {
     ];
     substitutions.sort();
     machine.content_partition_compositions = vec![ContentPartitionComposition {
+        producer_operation: operation_id(90),
         source_fingerprint: 0xfeed_face_dead_beef,
         source_structural_places: vec![
             StructuralPlaceDeclaration {
