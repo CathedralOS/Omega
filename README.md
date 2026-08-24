@@ -90,6 +90,11 @@ Important artifact files:
 - `13_emitted_output.txt`: emitted native output information.
 - `14_finalization.txt`: executable finalization and permission stamping for directly emitted images.
 
+These are outputs of the current Rust development command, not required
+bootstrap artifacts. Human-only reports and HTML views may be disabled or
+removed from default validation paths when they impose measurable cost; the
+hosted product closure includes only tooling the compiler executable imports.
+
 ## Current Native Status
 
 The native path runs real programs on macOS ARM64, Windows x64, and Linux

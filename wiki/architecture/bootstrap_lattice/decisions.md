@@ -20,14 +20,14 @@ implementation under `bootstrap/onramps/omega-rust/psi/` and `bootstrap/onramps/
 
 The overview's "Two roles for Rust" is the ordering law. Made concrete, per artifact:
 
-| Where Rust sits | Role | Status / plan |
+| Rust-dependent role | Architectural role | Status / plan |
 | --- | --- | --- |
-| `check.beta` / `checker.gamma` (the proof kernel) | **trusted base** | **DEAD** — Beta + Gamma implementations, cross-checked against shared seams. |
+| proof checking, now supplied by `check.beta` / `checker.gamma` | **trusted base** | **RUST CLOSED** — the surviving Beta and Gamma implementations are on the seed lineage and cross-checked against shared seams. The proof kernel itself is live cross-cutting assurance. |
 | cold-started `bc` artifact vs `bc.beta` | **trusted compilation edge** | **CLOSED for `B_bc1`** — an independently reconstructed ROOT proposition binds the exact persisted tape to the complete maximal source observable, including exhaustion and divergence. |
-| `interp.beta` / `typeck.beta` (γ meaning) | **trusted base** | **DEAD** — Beta, on the seed lineage. |
+| Gamma meaning, now supplied by `interp.beta` / `typeck.beta` | **trusted base** | **RUST CLOSED** — the surviving meaning implementation is Beta on the seed lineage. |
 | Delta's **meaning** (`gamma_emit.rs`) | **trusted base** | **MIGRATING** — the Beta-written `omega2gamma` route and Gamma execution cover the admitted D0/O1 compiler canaries. `gamma_emit.rs` is a differential reference there; each bridge capability added toward `Ωself` must bring lower-rung meaning with it. |
-| Psi/Omega's **meaning** | **trusted base** | Follows the same elaboration discipline through `omega-bootstrap` and the hosted production compile. |
-| `beta-rust`, `delta-rust`, `bootstrap/onramps/omega-rust/` (producers) | **untrusted producer** | **DEFERRABLE** — replaced for self-sufficiency, not soundness. The current Rust compiler remains the executable reference producer during migration. |
+| Psi/Omega meaning and artifact-aware verification | **trusted base** | **OPEN** — the current Rust interpreter/verifier remains an explicit migration dependency until the lower-rung semantic-ledger and hosted meaning route close. |
+| `beta-rust`, `delta-rust`, `bootstrap/onramps/omega-rust/` | **untrusted producers** | **DEFERRABLE** — replaced as required dependencies for self-sufficiency, not for soundness pedigree. The current Rust Omega compiler remains a maintained reference producer while useful. |
 
 **Policy:** no work removes Rust from a *producer* merely for pedigree while Rust
 still sits in any meaning/checker or while an upstream artifact that builds those

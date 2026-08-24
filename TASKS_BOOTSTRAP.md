@@ -1,5 +1,7 @@
 # Bootstrap lattice — active work
 
+Last pruned: 2026-08-24.
+
 This file is the current bootstrap execution queue, not an architecture essay or
 changelog. Standing decisions live in
 [`wiki/architecture/bootstrap_lattice/decisions.md`](wiki/architecture/bootstrap_lattice/decisions.md),
@@ -103,6 +105,13 @@ Product source is an external input to this queue.
 `OMEGA-PRODUCT-COMPILER-SOURCE` in [`TASKS.md`](TASKS.md) owns implementation
 under `compiler/{psi,omega}/` and publishes deterministic source checkpoints.
 Do not duplicate product Psi/Omega implementation tasks here.
+
+Likewise, do not turn candidate `Ωself` exclusions into standalone bootstrap
+projects. Proof syntax, linear/dependent types, generics, domains, field tags,
+data shapes, and transition payloads remain rows in the one working disposition
+table until checkpoint evidence and measured bridge cost settle them. This queue
+implements and assures the resulting general profile; `TASKS.md` owns any
+chosen product-source refactor.
 
 The two work streams meet at explicit joins rather than forming a circular
 task dependency:
