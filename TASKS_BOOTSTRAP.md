@@ -62,6 +62,31 @@ The open work is to discover and enforce the two inventories from real source,
 not to revisit whether Delta is an Omega subset, whether the bridge accepts full
 Omega, or whether a second hosted rebuild is required.
 
+### Resolved architecture — not bootstrap tasks
+
+- Do not add another language or compiler generation between Delta and the
+  product compiler. `omega-bootstrap` is a compiler role; `Ωself` is an Omega
+  source profile; O0/O1 remain regression canaries only.
+- Do not require a second hosted compile. One Delta-built `omega-bootstrap`
+  compile must produce the full optimizing product compiler. Rebuilding that
+  compiler with itself is optional performance/reproducibility evidence.
+- Do not require Delta to be valid Omega or align Delta v1 with `Ωself`. Shared
+  spelling is preferred where cheap, but the two source closures select two
+  independent contracts.
+- Do not put the proof kernel in the language spine or make Gamma “the proof
+  checker.” Gamma may host one checker implementation; cross-cutting assurance
+  owns the kernel and artifact-specific obligation reconstruction.
+- Do not add DDC or redundant compiler implementations as trust gates. Direct
+  lower-rooted source-to-artifact refinement grants authority; maintained
+  reference compilers are optional bug-finding tools.
+- Do not move Rust product code into unsuffixed `compiler/{psi,omega}/`. The
+  current Rust implementation remains the explicitly named on-ramp; those
+  product roots are reserved for the eventual Omega-written compiler source.
+
+Only the exact Delta-v1 inventory and the exact compositional `Ωself` inventory
+remain open at this architectural layer. Their feature choices are resolved by
+the source-and-assurance measurements below, not by creating another rung.
+
 ## Role map
 
 The former flat `compiler/` inventory has been split by actual ownership.

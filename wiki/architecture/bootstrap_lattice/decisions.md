@@ -24,7 +24,7 @@ The overview's "Two roles for Rust" is the ordering law. Made concrete, per arti
 | `check.beta` / `checker.gamma` (the proof kernel) | **trusted base** | **DEAD** — Beta + Gamma implementations, cross-checked against shared seams. |
 | cold-started `bc` artifact vs `bc.beta` | **trusted compilation edge** | **OPEN** — the Alpha-rooted fixed point and persisted artifact exist; complete lower-rooted source-to-artifact refinement does not. |
 | `interp.beta` / `typeck.beta` (γ meaning) | **trusted base** | **DEAD** — Beta, on the seed lineage. |
-| Delta's **meaning** (`gamma_emit.rs`) | **trusted base** | **MIGRATING** — the Beta-written `omega2gamma` route and Gamma execution cover the admitted D0/O1 compiler profile. `gamma_emit.rs` is a differential reference there; each future profile extension must bring lower-rung meaning with it. |
+| Delta's **meaning** (`gamma_emit.rs`) | **trusted base** | **MIGRATING** — the Beta-written `omega2gamma` route and Gamma execution cover the admitted D0/O1 compiler canaries. `gamma_emit.rs` is a differential reference there; each bridge capability added toward `Ωself` must bring lower-rung meaning with it. |
 | Psi/Omega's **meaning** | **trusted base** | Follows the same elaboration discipline through `omega-bootstrap` and the hosted production compile. |
 | `beta-rust`, `delta-rust`, `bootstrap/onramps/omega-rust/` (producers) | **untrusted producer** | **DEFERRABLE** — replaced for self-sufficiency, not soundness. The current Rust compiler remains the executable reference producer during migration. |
 
