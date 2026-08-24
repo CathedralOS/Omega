@@ -66,9 +66,12 @@ model.
 
 The crate now contains reviewed building blocks for immutable Git/local
 snapshots, hermetic package-name extraction, and typed package/source/instance
-identity. They do not become an admission path until the legacy name-keyed
-graph and lock APIs are replaced and compiler-issued evidence plus the hardened
-resolver receipt are wired through end to end.
+identity. Git and external-local resolution now bind those pieces into a
+`ResolvedPackageSource`: declaration and identity come from the immutable
+snapshot and canonical source lineage, while toolchain/compiler evidence is
+intentionally absent. These pieces do not become an admission path until the
+legacy name-keyed graph and lock APIs are replaced and compiler-issued evidence
+plus the hardened resolver receipt are wired through end to end.
 
 ## Target command surface
 
@@ -120,8 +123,9 @@ artifact.
 omega-packages/
 |-- README.md
 |-- src/
-|   |-- identity.rs        # PackageName, PackageKey, PackageInstance.
-|   |-- source.rs          # Source requests, lineage, immutable resolution.
+|   |-- identity.rs        # Package/source lineage and instance identity.
+|   |-- source.rs          # Source requests and immutable snapshots.
+|   |-- package_source.rs  # Snapshot-to-declared-PackageKey custody.
 |   |-- resolver.rs        # Fetch/cache boundary and transport receipts.
 |   |-- declaration.rs     # Hermetic PACKAGE extraction.
 |   |-- graph.rs           # Dependency projection and reconciliation.
