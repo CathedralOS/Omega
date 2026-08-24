@@ -81,6 +81,12 @@ compiler cannot be confused with either the current Rust on-ramp or the
   tools for that format.
 
 These are seed pieces for `omega-bootstrap`, not that compiler itself.
+The next checkpoint-driven work deliberately separates a compositional
+frontend/typechecker cost probe over `compiler/psi/source/source.omg` from the
+later artifact tranche. Current Terminal-Psi vocabulary 28 cannot represent the
+unit's general structural scalar mutation and runtime indexing; the bridge may
+therefore choose a direct checked-IR lowering. A Terminal-Psi vocabulary change
+would be product work, not an assumed prerequisite here.
 [`compiler/omega-bootstrap-frontend.alp`](compiler/omega-bootstrap-frontend.alp)
 is the canonical Delta-written frontend source. It decodes the canonical bundle,
 retains bounded labels and exact source spans, validates every unit independently,
