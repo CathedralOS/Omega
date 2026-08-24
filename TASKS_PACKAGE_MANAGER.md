@@ -309,11 +309,11 @@ complete.
   obligations now retain and match the compiler-derived package owners of both
   the provider service and exact requirement, including through component
   manifests and audit rendering; no readable-name lookup remains on retained
-  selected-provider facts. Canonical machine encoding must wait until remaining
-  installation, termination, crash, and mutation rows replace arena-local
-  symbol handles/row IDs with normalized semantic identities; directly
-  serializing the current review projection would not be stable across compiler
-  runs.
+  selected-provider facts. Installation-bound reach, termination premises, and
+  mutation frames now project package-owned semantic paths rather than
+  arena-local handles/row IDs. Crash evidence remains symbol-bearing, so
+  canonical machine encoding must still wait; directly serializing the current
+  review projection would not be stable across compiler runs.
   Compiler-generated symbols now inherit the exact authored provenance of a
   mandatory derivation origin; truly source-free symbols and exact toolchain
   identity remain visibly unbound rather than guessed.

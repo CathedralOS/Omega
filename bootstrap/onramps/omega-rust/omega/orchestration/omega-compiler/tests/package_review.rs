@@ -57,7 +57,7 @@ fn review_projects_root_boundary_and_build_authority() {
     let package = TempPackage::new();
     package.write(
         "main.omg",
-        r#"boundary machine host_ping();
+        r#"boundary machine host_ping() reaches <= Host;
 boundary trait Host { machine ping(); }
 machine ping_leaf() satisfies Host::ping via Binding::VtableSlot(1);
 "#,
@@ -92,9 +92,41 @@ machine build(builder: &mut Build) { }
         boundary.identity().owner(),
         PackageReviewNominalOwner::Package(package_identity())
     );
-    assert_eq!(boundary.declared_service_reach(), Some(&[][..]));
-    assert!(boundary.realized_service_reach().is_empty());
+    let [declared] = boundary
+        .declared_service_reach()
+        .expect("installation-bound declaration retains its upper bound")
+    else {
+        panic!("one declared upper-bound service")
+    };
+    assert_eq!(declared.path(), "Host");
+    assert_eq!(
+        declared.owner(),
+        PackageReviewNominalOwner::Package(package_identity())
+    );
+    assert_eq!(
+        boundary.realized_service_reach(),
+        boundary
+            .declared_service_reach()
+            .expect("published upper bound")
+    );
+    assert!(boundary.concrete_service_reach().is_empty());
     assert!(boundary.capability_flows().is_empty());
+    let [installation] = boundary.unresolved_installation_reaches() else {
+        panic!("one normalized installation-bound reach row")
+    };
+    assert_eq!(
+        installation.requirement().owner(),
+        PackageReviewNominalOwner::Package(package_identity())
+    );
+    assert!(installation.requirement().path().contains("host_ping"));
+    let [upper_bound] = installation.upper_bound() else {
+        panic!("one normalized installation upper-bound service")
+    };
+    assert_eq!(
+        upper_bound.owner(),
+        PackageReviewNominalOwner::Package(package_identity())
+    );
+    assert_eq!(upper_bound.path(), "Host");
 
     let build = review
         .callables()

@@ -10,7 +10,7 @@
 use crate::pipeline::CheckedCompilation;
 use psi_core::PackageKeyIdentity;
 use psi_diagnostics::Diagnostic;
-use psi_language_semantics::{MachineSupplyMode, TerminationGuarantee};
+use psi_language_semantics::MachineSupplyMode;
 use psi_symbols::SymbolHandle;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -57,6 +57,81 @@ pub struct PackageReviewCapabilityFlow {
     via_state: Option<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct PackageReviewInstallationReach {
+    requirement: PackageReviewNominalIdentity,
+    upper_bound: Vec<PackageReviewNominalIdentity>,
+}
+
+impl PackageReviewInstallationReach {
+    pub fn requirement(&self) -> &PackageReviewNominalIdentity {
+        &self.requirement
+    }
+
+    pub fn upper_bound(&self) -> &[PackageReviewNominalIdentity] {
+        &self.upper_bound
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PackageReviewMutation {
+    state: PackageReviewNominalIdentity,
+    completeness: psi_facts::WriteFrameCompleteness,
+    paths: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct PackageReviewProgressPremise {
+    profile: String,
+    subject: PackageReviewNominalIdentity,
+    projections: Vec<PackageReviewNominalIdentity>,
+}
+
+impl PackageReviewProgressPremise {
+    pub fn profile(&self) -> &str {
+        &self.profile
+    }
+
+    pub fn subject(&self) -> &PackageReviewNominalIdentity {
+        &self.subject
+    }
+
+    pub fn projections(&self) -> &[PackageReviewNominalIdentity] {
+        &self.projections
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PackageReviewTermination {
+    NoGuarantee,
+    Terminates {
+        premises: Vec<PackageReviewProgressPremise>,
+    },
+}
+
+impl PackageReviewTermination {
+    pub fn premises(&self) -> Option<&[PackageReviewProgressPremise]> {
+        match self {
+            Self::NoGuarantee => None,
+            Self::Terminates { premises } => Some(premises),
+        }
+    }
+}
+
+impl PackageReviewMutation {
+    pub fn state(&self) -> &PackageReviewNominalIdentity {
+        &self.state
+    }
+
+    pub const fn completeness(&self) -> psi_facts::WriteFrameCompleteness {
+        self.completeness
+    }
+
+    pub fn paths(&self) -> &[String] {
+        &self.paths
+    }
+}
+
 impl PackageReviewCapabilityFlow {
     pub fn capability(&self) -> &PackageReviewNominalIdentity {
         &self.capability
@@ -95,13 +170,13 @@ pub struct CheckedPackageCallableReview {
     declared_service_reach: Option<Vec<PackageReviewNominalIdentity>>,
     realized_service_reach: Vec<PackageReviewNominalIdentity>,
     concrete_service_reach: Vec<PackageReviewNominalIdentity>,
-    unresolved_installation_reaches: Vec<psi_effects::InstallationReachRequirement>,
+    unresolved_installation_reaches: Vec<PackageReviewInstallationReach>,
     capability_flows: Vec<PackageReviewCapabilityFlow>,
     checked_may_suspend: bool,
     checked_may_block: bool,
-    checked_termination: TerminationGuarantee,
+    checked_termination: PackageReviewTermination,
     checked_crash: psi_checked_trees::CrashPlan,
-    mutation: Vec<psi_checked_trees::StateWriteFramePlan>,
+    mutation: Vec<PackageReviewMutation>,
 }
 
 /// One selected provider plan retained for human/LLM review.
@@ -193,7 +268,7 @@ impl CheckedPackageCallableReview {
         &self.concrete_service_reach
     }
 
-    pub fn unresolved_installation_reaches(&self) -> &[psi_effects::InstallationReachRequirement] {
+    pub fn unresolved_installation_reaches(&self) -> &[PackageReviewInstallationReach] {
         &self.unresolved_installation_reaches
     }
 
@@ -209,7 +284,7 @@ impl CheckedPackageCallableReview {
         self.checked_may_block
     }
 
-    pub const fn checked_termination(&self) -> &TerminationGuarantee {
+    pub const fn checked_termination(&self) -> &PackageReviewTermination {
         &self.checked_termination
     }
 
@@ -217,7 +292,7 @@ impl CheckedPackageCallableReview {
         &self.checked_crash
     }
 
-    pub fn mutation(&self) -> &[psi_checked_trees::StateWriteFramePlan] {
+    pub fn mutation(&self) -> &[PackageReviewMutation] {
         &self.mutation
     }
 }
@@ -432,14 +507,164 @@ fn project_callable(
         declared_service_reach,
         realized_service_reach,
         concrete_service_reach,
-        unresolved_installation_reaches: service_reach.unresolved_installation_reaches.clone(),
+        unresolved_installation_reaches: project_installation_reaches(
+            compilation,
+            &service_reach.unresolved_installation_reaches,
+        )?,
         capability_flows,
         checked_may_suspend: realized.checked_may_suspend,
         checked_may_block: realized.checked_may_block,
-        checked_termination: realized.checked_termination.clone(),
+        checked_termination: project_termination(compilation, &realized.checked_termination)?,
         checked_crash: realized.checked_crash.clone(),
-        mutation: realized.mutation.clone(),
+        mutation: project_mutation(compilation, &realized.mutation)?,
     })
+}
+
+fn project_installation_reaches(
+    compilation: &CheckedCompilation,
+    requirements: &[psi_effects::InstallationReachRequirement],
+) -> Result<Vec<PackageReviewInstallationReach>, Vec<Diagnostic>> {
+    let mut projected = requirements
+        .iter()
+        .map(|requirement| {
+            Ok(PackageReviewInstallationReach {
+                requirement: installation_requirement_identity(
+                    compilation,
+                    requirement.requirement,
+                )?,
+                upper_bound: project_service_row(compilation, requirement.upper_bound)?,
+            })
+        })
+        .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
+    projected.sort();
+    projected.dedup();
+    Ok(projected)
+}
+
+fn installation_requirement_identity(
+    compilation: &CheckedCompilation,
+    symbol: SymbolHandle,
+) -> Result<PackageReviewNominalIdentity, Vec<Diagnostic>> {
+    let trait_matches = compilation
+        .traits()
+        .iter()
+        .flat_map(|owner| {
+            compilation
+                .trait_machine_signatures(owner)
+                .iter()
+                .filter(move |requirement| requirement.symbol == symbol)
+                .map(move |requirement| (owner, requirement))
+        })
+        .collect::<Vec<_>>();
+    let machine_matches = compilation
+        .machines()
+        .iter()
+        .filter(|machine| machine.symbol == symbol)
+        .collect::<Vec<_>>();
+    match (trait_matches.as_slice(), machine_matches.as_slice()) {
+        ([(owner, requirement)], []) => Ok(PackageReviewNominalIdentity {
+            owner: nominal_owner(compilation, owner.symbol),
+            path: compilation
+                .normalized_trait_requirement_overload_identity(owner, requirement)
+                .identity(),
+        }),
+        ([], [machine])
+            if machine.service_reach_is_installation_bound
+                && machine.supply_mode == MachineSupplyMode::Boundary =>
+        {
+            let path = compilation
+                .normalized_machine_overload_identity(machine)
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "package review installation reach has no normalized machine overload identity",
+                    )]
+                })?
+                .identity();
+            Ok(PackageReviewNominalIdentity {
+                owner: nominal_owner(compilation, machine.symbol),
+                path,
+            })
+        }
+        _ => Err(vec![Diagnostic::error(format!(
+            "package review installation reach resolves to {} trait requirements and {} boundary machines; expected exactly one",
+            trait_matches.len(),
+            machine_matches.len(),
+        ))]),
+    }
+}
+
+fn project_mutation(
+    compilation: &CheckedCompilation,
+    plans: &[psi_checked_trees::StateWriteFramePlan],
+) -> Result<Vec<PackageReviewMutation>, Vec<Diagnostic>> {
+    let mut projected = plans
+        .iter()
+        .map(|plan| {
+            Ok(PackageReviewMutation {
+                state: nominal_identity(compilation, plan.state)?,
+                completeness: plan.frame.completeness(),
+                paths: plan.frame.paths().to_vec(),
+            })
+        })
+        .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
+    projected.sort_by(|left, right| {
+        left.state
+            .cmp(&right.state)
+            .then_with(|| {
+                mutation_completeness_tag(left.completeness)
+                    .cmp(&mutation_completeness_tag(right.completeness))
+            })
+            .then_with(|| left.paths.cmp(&right.paths))
+    });
+    projected.dedup();
+    Ok(projected)
+}
+
+fn project_termination(
+    compilation: &CheckedCompilation,
+    guarantee: &psi_language_semantics::TerminationGuarantee,
+) -> Result<PackageReviewTermination, Vec<Diagnostic>> {
+    let psi_language_semantics::TerminationGuarantee::Terminates { premises } = guarantee else {
+        return Ok(PackageReviewTermination::NoGuarantee);
+    };
+    let mut projected = premises
+        .iter()
+        .map(|premise| {
+            let profile = compilation
+                .semantic_domains
+                .name(premise.profile)
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "package review termination premise has an unknown progress-profile identity",
+                    )]
+                })?
+                .to_owned();
+            let subject = nominal_identity(compilation, premise.subject.root)?;
+            let projections = premise
+                .subject
+                .projections
+                .iter()
+                .map(|projection| nominal_identity(compilation, *projection))
+                .collect::<Result<Vec<_>, _>>()?;
+            Ok(PackageReviewProgressPremise {
+                profile,
+                subject,
+                projections,
+            })
+        })
+        .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
+    projected.sort();
+    projected.dedup();
+    Ok(PackageReviewTermination::Terminates {
+        premises: projected,
+    })
+}
+
+const fn mutation_completeness_tag(completeness: psi_facts::WriteFrameCompleteness) -> u8 {
+    match completeness {
+        psi_facts::WriteFrameCompleteness::Complete => 1,
+        psi_facts::WriteFrameCompleteness::Opaque => 2,
+    }
 }
 
 fn project_service_row(
@@ -499,7 +724,21 @@ fn nominal_identity(
     compilation: &CheckedCompilation,
     symbol: SymbolHandle,
 ) -> Result<PackageReviewNominalIdentity, Vec<Diagnostic>> {
-    let owner = if let Some(package) = compilation.typed.symbols.symbol_package_identity(symbol) {
+    let owner = nominal_owner(compilation, symbol);
+    let path = compilation.typed.symbols.display_path(symbol, "::");
+    if path.is_empty() {
+        return Err(vec![Diagnostic::error(
+            "package review encountered a symbol without a stable declaration path",
+        )]);
+    }
+    Ok(PackageReviewNominalIdentity { owner, path })
+}
+
+fn nominal_owner(
+    compilation: &CheckedCompilation,
+    symbol: SymbolHandle,
+) -> PackageReviewNominalOwner {
+    if let Some(package) = compilation.typed.symbols.symbol_package_identity(symbol) {
         PackageReviewNominalOwner::Package(package)
     } else {
         match compilation.typed.symbols.symbol_source_origin(symbol) {
@@ -508,14 +747,7 @@ fn nominal_identity(
             }
             Some(psi_source::SourceOrigin::User) | None => PackageReviewNominalOwner::Unresolved,
         }
-    };
-    let path = compilation.typed.symbols.display_path(symbol, "::");
-    if path.is_empty() {
-        return Err(vec![Diagnostic::error(
-            "package review encountered a symbol without a stable declaration path",
-        )]);
     }
-    Ok(PackageReviewNominalIdentity { owner, path })
 }
 
 fn exactly_one<'item, Item>(
