@@ -285,6 +285,13 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
             &cache.join("compiler-build"),
         )
         .unwrap_or_else(|error| panic!("{package} package reviews should close: {error:#?}"));
+        assert!(
+            std::fs::read_dir(cache.join("compiler-build"))
+                .expect("review build workspace remains readable")
+                .next()
+                .is_none(),
+            "successful review must dispose its private build session"
+        );
 
         assert_eq!(reviews.reviews().len(), closure.graph().packages().len());
         let compiler_executable_commitment = reviews
@@ -381,5 +388,12 @@ fn review_compilation_rejects_snapshot_tampering_before_compiler_consumption() {
             ..
         } if source_package == root
     ));
+    assert!(
+        std::fs::read_dir(cache.join("compiler-build"))
+            .expect("review build workspace remains readable")
+            .next()
+            .is_none(),
+        "failed review must dispose its private build session"
+    );
     let _ = std::fs::remove_dir_all(cache);
 }

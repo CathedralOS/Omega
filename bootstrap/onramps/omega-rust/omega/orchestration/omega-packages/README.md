@@ -28,9 +28,10 @@ real package fixture demonstrates an irreducible external contract.
   evidence from checked source and build results.
 - Ordinary admission uses a total internal projection from checked semantic
   state into versioned canonical evidence. Raw compiler IR is never a lock
-  format. Each row may consume its earliest coherent compiler-private checked
-  representation and move with it; totality belongs to the final projection,
-  not one frozen source stage. This does not require a nominal Chi stage.
+  format. The projection may read each row from the earliest coherent Psi-owned
+  checked representation that contains it; totality belongs to the final
+  projection, not one frozen source stage. No nominal Chi stage is introduced
+  merely to stabilize compiler internals.
 - Proposition/named-evidence projection joins structural typed applications to
   checked acceptance and witness disposition. Diagnostic renderings are never
   package identity; missing structural coordinates are retained in their
@@ -57,6 +58,10 @@ real package fixture demonstrates an irreducible external contract.
 - Missing old source escalates code review but does not prevent comparison
   against the lock baseline. Missing lock evidence causes fresh graph
   admission.
+- Package review takes a caller-supplied workspace. Orchestration creates a
+  fresh disposable child session beneath it, leaves resolver snapshots
+  immutable, and publishes results only after successful session cleanup.
+  Ordinary standalone compiler build roots remain caller-owned.
 
 The complete design is in:
 
@@ -137,8 +142,13 @@ scanner. A package-side handoff translates only the validated custody closure
 into compiler inputs, whose constructor independently canonicalizes and checks
 every root and edge again. Review orchestration compiles every package in
 deterministic dependency-first order, temporarily re-rooting each package over
-only its transitive dependencies and assigning a package-and-source-specific
-writable build root. It returns non-constructible review rows carrying the
+only its transitive dependencies. The caller supplies a workspace;
+orchestration creates one fresh disposable child session beneath it and assigns
+package-and-source-specific writable roots inside that session. Resolver
+snapshots remain immutable. Orchestration retains results privately, cleans up
+the complete child session, and publishes the review rows only after cleanup
+succeeds; cleanup failure rejects the review. It returns non-constructible
+review rows carrying the
 selected `PackageKey`, immutable resolution, compiler projection, and canonical
 comparison bytes. Every transitive snapshot is re-hashed under its original
 resolver limits before and after each compilation. Package-aware checked
@@ -301,9 +311,11 @@ operand, alpha-normalized target, arithmetic policy, package-qualified semantic
 domain and arguments, and value/recast form. Diagnostic spellings are excluded;
 private package domains reject when exposed by a public cast.
 This join does not create a nominal Chi stage.
-Package-aware checked compilation takes a caller-owned writable build root when
-build-host staging is possible. Resolver snapshots remain immutable and are
-never repurposed as output directories.
+Ordinary standalone checked compilation still takes a caller-owned writable
+build root when build-host staging is possible. Package review instead supplies
+a package-specific root inside its orchestration-owned disposable child
+session. Resolver snapshots remain immutable and are never repurposed as output
+directories.
 The legacy machine-contract fingerprint no longer enters package-review bytes,
 so private state shape is not public contract identity. Complete proof and
 unsupported-clause rows still gate sealed admission. The compiler now provides
