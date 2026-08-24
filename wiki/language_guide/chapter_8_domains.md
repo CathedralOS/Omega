@@ -262,6 +262,14 @@ replay returns all inputs and establishes nothing. The closed cohort preserves
 each occurrence's exact capacity expression and derives cardinality from its
 member roster. Neither a prebinding nor a mutable count is root authority.
 
+For coexistence accounting, a sealed cohort or its runtime can yield a
+non-authoritative aggregate snapshot. It retains the exact installed-slot
+closure, lifecycle ledger and epoch, and unreduced aggregate rows. Composing a
+live report requires exactly one such snapshot for every era in the
+authoritative component lifecycle ledger; omission, duplication, stale epochs,
+and ledger or occurrence substitution reject. No generic rule multiplies an
+interval or subject-dependent expression by cardinality.
+
 At runtime the cohort remains one non-clonable owner of its dormant
 occurrences. An installed-entry subject binding names the exact root,
 requirement parameter in both semantic and ABI coordinates, qualification,

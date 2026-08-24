@@ -826,11 +826,21 @@ Remaining:
   reject missing, duplicate, extra, cross-profile, and compact-ID-colliding
   members. `ProgramEntry` remains the sole authentic member; a finite
   multi-member-slot canary waits for a real target-owned second slot rather
-  than synthesizing test-only authority.
+  than synthesizing test-only authority. The sealed cohort and runtime now
+  expose one private-construction, cloneable aggregate snapshot retaining the
+  exact required-slot closure, lifecycle-qualified cohort identity, and every
+  unreduced schema row. Live-era composition takes the authoritative
+  component-era roster and requires exactly one snapshot for every live epoch;
+  stale, missing, duplicate, cross-ledger, cross-artifact, and cross-cohort
+  rows reject. The report preserves each algebra, symbolic per-occurrence
+  expression, occurrence roster, and cardinality separately rather than
+  fabricating one scalar total. A two-era external-root regression and the
+  real source-to-Terminal-to-installation storage handoff cover this
+  coexistence-reporting seam.
   Add source, terminal, artifact, and installation canaries for
   a one-root introduction, a finite multi-instance aggregate, an ordinary-call
   mint attempt, an unbounded installation shape, understated producer totals,
-  cross-origin composition, stale epoch replay, and coexistence-peak reporting.
+  cross-origin composition, and stale epoch replay.
   A shared cap is one aggregate parent root divided among children; another
   child without supply rejects. Cross-epoch limits require persistent authority.
 - **BOUNDARY-ISSUANCE** (after conservation): derive invocation geometry from

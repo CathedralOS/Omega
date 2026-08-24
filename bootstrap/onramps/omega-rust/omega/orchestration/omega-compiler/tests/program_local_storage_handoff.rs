@@ -770,6 +770,20 @@ fn generated_program_entry_retains_two_exact_program_local_accounts_through_reco
         .seal_epoch_cohort(&lifecycle, members)
         .expect("two-position epoch cohort");
     assert_eq!(cohort.occurrences().len(), 2);
+    let aggregate_snapshot = cohort.aggregate_snapshot();
+    let coexistence = compose_program_local_root_coexistence_report(
+        &lifecycle,
+        std::iter::once(&aggregate_snapshot),
+    )
+    .expect("source-derived installed roots report their exact live-era demand");
+    assert_eq!(coexistence.lifecycle_ledger(), lifecycle.identity());
+    assert_eq!(coexistence.epoch_snapshots().len(), 1);
+    assert_eq!(coexistence.aggregates().count(), 2);
+    assert!(
+        coexistence
+            .aggregates()
+            .all(|(epoch, aggregate)| epoch == 10 && aggregate.cardinality().get() == 1)
+    );
     let mut runtime = cohort.into_runtime();
 
     let image_subject = subject(&root, 0, 901, 0x2000, 0x400);
