@@ -585,6 +585,18 @@ Chi stage merely for format stability. It has no execution semantics or
 transformation pipeline of its own. A future shared stage is warranted only if
 independent consumers or transformations establish an actual semantic boundary.
 
+Proposition and named-evidence projection is the concrete model for this
+cross-representation rule. Typed proposition applications own structural
+declaration symbols, binder arguments, and ordinary value-expression
+arguments. Checked proof facts own acceptance, evidence-term and witness-
+interface routing, and proof/admission disposition. The package projector joins
+those facts into one canonical row without making either source representation
+public. Checked display strings remain diagnostics and may never become
+package identity. Where a witness-interface argument is currently retained
+only as text, the responsible existing typed or checked representation must
+gain a structural carrier before that form is admissible; parsing diagnostic
+text back into semantics is forbidden.
+
 Package-visible structural identity follows the same rule: every non-binder
 nominal in a public type is qualified by exact package ownership, an explicit
 toolchain marker, or an unresolved marker, while generic binders are

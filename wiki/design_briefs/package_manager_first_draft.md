@@ -203,6 +203,18 @@ justified later only if multiple independent consumers need the same semantic
 stage or it acquires its own transformations, invariants, and verification
 rules.
 
+Proposition and named-evidence rows apply that rule as an explicit join. The
+typed application owns the structural proposition declaration, binder
+arguments, and ordinary value-expression arguments. Checked proof state owns
+whether the application was accepted, how an evidence term or witness
+interface is routed, and its proof/admission disposition. Canonical package
+evidence is projected from both; neither representation is required to absorb
+the other's job. Checked display strings are diagnostics, never declaration,
+binder, argument, trait, or requirement identity. If a checked witness
+interface currently retains an argument only as text, its existing typed or
+checked owner must retain a structural coordinate before package projection can
+accept that form. The projector must not parse the text back into semantics.
+
 The current review projection follows this rule directly. Package-visible type
 identity qualifies each non-binder nominal by exact package ownership, an
 explicit toolchain marker, or an unresolved marker; generic binders remain
@@ -264,6 +276,10 @@ package-qualified public domain; exposing a private package domain rejects.
 This is read from the earlier typed semantic tree only after checked
 compilation succeeds. Unsupported proposition/named-evidence, call, member,
 cast, and aggregate forms reject rather than falling back to text or a hash.
+Proposition support will join that typed structure to checked proposition and
+evidence-term state; it will not introduce a report-only Chi stage. A distinct
+stage remains available only if later consumers or transformations expose a
+real semantic boundary.
 The legacy 64-bit machine-contract fingerprint has left package-review bytes,
 so private state-machine shape no longer contaminates public package contract
 identity. Exact crash, reach, invocation, termination, signature, and
