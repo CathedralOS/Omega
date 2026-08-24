@@ -33,7 +33,7 @@ call/exit evidence that made each state operation admissible.
 | Places | First strongly useful place layer via `psi_facts::Place` and checked-flow `CanonicalPlace`. |
 | Values | First checked value fact layer via `CheckedValueFacts`, keyed by typed expression handles and value origins. |
 | Facts | First-class fact contexts, origins, payloads, proof obligations, and contract facts. |
-| Loans | First-class borrow facts, accesses, loans, activations, weakenings, and overlap checks. |
+| Loans | First-class borrow facts, accesses, loans, activations, weakenings, and overlap checks; destination work joins canonical captured-place compatibility certificates without merging them into proof custody. |
 | Moves | First-class checked-flow event arenas/spans exist. Initial producers are type-aware for direct assignments, local initializers, indexed element reads, aggregate literals, binary/range operands, by-value direct-call arguments, nested expression-call arguments, and transition target arguments. |
 | Drops | First-class checked-flow event arenas/spans exist. Initial state-exit local drop producers skip copy-like scalar locals. |
 | Calls | First-class call facts for contracts, borrows, flow, reach, and synchronous invocation. |
@@ -47,6 +47,17 @@ Must own:
 
 - Proof obligations and whether current facts discharge them.
 - Borrow facts, accesses, loans, activations, weakenings, and overlap failures.
+- The two-ledger borrow join: resource facts retain owner lineage, polarity,
+  temporal containment, and restoration, while proposition-derived rows prove
+  only relationships over already-existing captured places. The complete valid
+  proof context participates in one compatibility judgment; literal,
+  symbolic, domain, arithmetic, and theorem solvers are derivation tactics, not
+  separate fallback obligation families.
+- Loan-formation certificates keyed by the exact authorized event, captured
+  place occurrences, normalized relation, premise fact tokens, and derivation.
+  Premises must dominate and be valid at the captured versions, and cyclic
+  authorization rejects. The certificate never manufactures or widens loan
+  authority.
 - The exact shared, write-only-exclusive, or read/write-exclusive access mode
   of every loan. Write-only checking admits only content-independent
   projection and non-observing writes, composes the restriction through calls,
@@ -88,6 +99,9 @@ Must not own:
   and checked evidence that refer to it.
 - Rewriting checked obligations into backend convenience data without preserving
   the original semantic evidence.
+- Treating semantic `Content<A>`, logical borrowed-place footprints, and
+  physical effect footprints as one structural notion. Relate them only through
+  an explicit checked carrier/operation bridge.
 
 ## Implementation Map
 
