@@ -129,10 +129,11 @@ deterministic dependency-first order, temporarily re-rooting each package over
 only its transitive dependencies and assigning a package-and-source-specific
 writable build root. It returns non-constructible review rows carrying the
 selected `PackageKey`, immutable resolution, compiler projection, and canonical
-comparison bytes. This is review-only custody association: whole-source
-revalidation across compilation, whole-compiler/toolchain commitment, and
-sealed completeness still gate any accepted instance or lock payload. Checked
-package compilation now also retains
+comparison bytes. Every transitive snapshot is re-hashed under its original
+resolver limits before and after each compilation. This is still review-only
+custody association: one compiler-consumption source commitment, whole-
+compiler/toolchain commitment, and sealed completeness gate any accepted
+instance or lock payload. Checked package compilation now also retains
 the exact root package and selected build-machine symbol and can emit an
 in-memory authority review projection for one explicit target. That projection
 is intentionally not complete source/toolchain-bound admission evidence.

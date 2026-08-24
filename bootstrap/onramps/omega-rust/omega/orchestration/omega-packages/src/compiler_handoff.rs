@@ -27,7 +27,7 @@ pub fn package_compilation_inputs_for(
     closure: &ResolvedPackageSourceClosure,
     root: &crate::identity::PackageKey,
 ) -> Result<PackageCompilationInputs, Vec<PackageCompilationInputError>> {
-    let reachable = reachable_packages(closure, root);
+    let reachable = reachable_package_keys(closure, root);
     let packages = closure
         .custodies()
         .iter()
@@ -58,7 +58,7 @@ pub fn package_compilation_inputs_for(
     PackageCompilationInputs::new(root.identity(), packages, dependencies)
 }
 
-fn reachable_packages(
+pub(crate) fn reachable_package_keys(
     closure: &ResolvedPackageSourceClosure,
     root: &crate::identity::PackageKey,
 ) -> BTreeSet<crate::identity::PackageKey> {
@@ -123,7 +123,13 @@ mod tests {
             SourceContentDigest::derive(&[marker]),
         )
         .expect("resolution");
-        PackageSourceCustody::from_resolved_parts(key, resolution, source_root, dependency_requests)
+        PackageSourceCustody::from_resolved_parts(
+            key,
+            resolution,
+            source_root,
+            crate::LocalSourceLimits::default(),
+            dependency_requests,
+        )
     }
 
     #[test]

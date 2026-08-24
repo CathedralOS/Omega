@@ -50,7 +50,8 @@ pub use closure_resolution::{
 pub use compiler_handoff::{package_compilation_inputs, package_compilation_inputs_for};
 pub use compiler_review::{
     CompileResolvedPackageReviewsError, CompilerIssuedPackageReview,
-    CompilerIssuedPackageReviewSet, compile_resolved_package_reviews,
+    CompilerIssuedPackageReviewSet, PackageSourceVerificationPhase,
+    compile_resolved_package_reviews,
 };
 pub use declaration::{PackageDeclaration, PackageDeclarationError, extract_package_declaration};
 pub use dependency_edit::{
