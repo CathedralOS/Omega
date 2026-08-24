@@ -776,8 +776,11 @@ requirement owner, but binding/selection and remaining artifact joins are
 unfinished. Risk classes must come from compiler-owned metadata on admitted
 nominal identities, never from package-controlled names.
 
-The same callable row retains the exact canonical entry signature: lifetime
-arity, alpha-normalized type/const binders, ordered parameter names and modes,
+The same callable row retains the exact checked-body, boundary, or accepted
+supply tier and canonical entry signature. A bodyless boundary guarantee is an
+explicit trust-bearing accepted claim; a claim-free boundary symbol is not.
+The signature includes lifetime arity, alpha-normalized type/const binders,
+ordered parameter names and modes,
 package-qualified lifetime-sensitive parameter types, and result type. This is
 contract evidence, not merely ABI layout. Binder renames are stable, while a
 changed generic bound, parameter/result type, mode, or borrow relationship
