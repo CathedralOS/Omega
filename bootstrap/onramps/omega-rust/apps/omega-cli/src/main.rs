@@ -56,7 +56,7 @@ fn main() {
 
     let Some(arguments) = parse_arguments() else {
         eprintln!(
-            "usage: omega [--check] [--build-dir <dir>] [--target <name>] <root.omg>\n       omega inspect-terminal --machine <qualified> [--target <name>] <root.omg>\n       omega audit source <locator> [--rev <rev>] [--cache-dir <dir>]\n       omega audit source-cache-policy <locator> [--rev <rev>] [--cache-dir <dir>] [--out <record.json>]\n       omega refresh-samples [samples-dir]"
+            "usage: omega [--check] [--build-dir <dir>] [--target <name>] <root.omg>\n       omega inspect-terminal --machine <qualified> [--target <name>] <root.omg>\n       omega audit source --kind <local|git> <locator> [--rev <rev>] [--cache-dir <dir>]\n       omega audit source-cache-policy --kind <local|git> <locator> [--rev <rev>] [--cache-dir <dir>] [--out <record.json>]\n       omega refresh-samples [samples-dir]"
         );
         std::process::exit(2);
     };
@@ -85,9 +85,11 @@ fn main() {
 fn audit(arguments: impl Iterator<Item = std::ffi::OsString>) {
     let mut arguments = arguments;
     let Some(subcommand) = arguments.next() else {
-        eprintln!("usage: omega audit source <locator> [--rev <rev>] [--cache-dir <dir>]");
         eprintln!(
-            "       omega audit source-cache-policy <locator> [--rev <rev>] [--cache-dir <dir>] [--out <record.json>]"
+            "usage: omega audit source --kind <local|git> <locator> [--rev <rev>] [--cache-dir <dir>]"
+        );
+        eprintln!(
+            "       omega audit source-cache-policy --kind <local|git> <locator> [--rev <rev>] [--cache-dir <dir>] [--out <record.json>]"
         );
         std::process::exit(2);
     };
@@ -103,9 +105,11 @@ fn audit(arguments: impl Iterator<Item = std::ffi::OsString>) {
         quarantined_package_command();
     }
     eprintln!("unknown audit command `{}`", subcommand.to_string_lossy());
-    eprintln!("usage: omega audit source <locator> [--rev <rev>] [--cache-dir <dir>]");
     eprintln!(
-        "       omega audit source-cache-policy <locator> [--rev <rev>] [--cache-dir <dir>] [--out <record.json>]"
+        "usage: omega audit source --kind <local|git> <locator> [--rev <rev>] [--cache-dir <dir>]"
+    );
+    eprintln!(
+        "       omega audit source-cache-policy --kind <local|git> <locator> [--rev <rev>] [--cache-dir <dir>] [--out <record.json>]"
     );
     std::process::exit(2);
 }
@@ -113,10 +117,20 @@ fn audit(arguments: impl Iterator<Item = std::ffi::OsString>) {
 fn audit_source(arguments: impl Iterator<Item = std::ffi::OsString>) {
     warn_unhardened_source_resolver();
     let Some(arguments) = parse_audit_source_arguments(arguments) else {
-        eprintln!("usage: omega audit source <locator> [--rev <rev>] [--cache-dir <dir>]");
+        eprintln!(
+            "usage: omega audit source --kind <local|git> <locator> [--rev <rev>] [--cache-dir <dir>]"
+        );
         std::process::exit(2);
     };
+    let adapter = match omega_packages::SourceAdapter::parse(&arguments.source_kind) {
+        Ok(adapter) => adapter,
+        Err(error) => {
+            eprintln!("invalid source adapter: {error:?}");
+            std::process::exit(2);
+        }
+    };
     match omega_packages::audit_package_source_locator(
+        adapter,
         arguments.locator,
         arguments.rev,
         &arguments.cache_dir,
@@ -136,12 +150,20 @@ fn audit_source_cache_policy(arguments: impl Iterator<Item = std::ffi::OsString>
     warn_unhardened_source_resolver();
     let Some(arguments) = parse_audit_source_cache_policy_arguments(arguments) else {
         eprintln!(
-            "usage: omega audit source-cache-policy <locator> [--rev <rev>] [--cache-dir <dir>] [--out <record.json>]"
+            "usage: omega audit source-cache-policy --kind <local|git> <locator> [--rev <rev>] [--cache-dir <dir>] [--out <record.json>]"
         );
         std::process::exit(2);
     };
+    let adapter = match omega_packages::SourceAdapter::parse(&arguments.source_kind) {
+        Ok(adapter) => adapter,
+        Err(error) => {
+            eprintln!("invalid source adapter: {error:?}");
+            std::process::exit(2);
+        }
+    };
     let record = if let Some(out_path) = &arguments.out_path {
         omega_packages::write_source_cache_record_locator(
+            adapter,
             arguments.locator,
             arguments.rev,
             &arguments.cache_dir,
@@ -150,6 +172,7 @@ fn audit_source_cache_policy(arguments: impl Iterator<Item = std::ffi::OsString>
         )
     } else {
         omega_packages::resolve_source_cache_record_locator(
+            adapter,
             arguments.locator,
             arguments.rev,
             &arguments.cache_dir,
@@ -554,12 +577,14 @@ struct AuditPackagesArguments {
 }
 
 struct AuditSourceArguments {
+    source_kind: String,
     locator: String,
     rev: Option<String>,
     cache_dir: PathBuf,
 }
 
 struct AuditSourceCachePolicyArguments {
+    source_kind: String,
     locator: String,
     rev: Option<String>,
     cache_dir: PathBuf,
@@ -645,10 +670,19 @@ fn parse_audit_source_cache_policy_arguments(
     mut arguments: impl Iterator<Item = std::ffi::OsString>,
 ) -> Option<AuditSourceCachePolicyArguments> {
     let mut locator = None;
+    let mut source_kind = None;
     let mut rev = None;
     let mut cache_dir = None;
     let mut out_path = None;
     while let Some(argument) = arguments.next() {
+        if argument == "--kind" {
+            if source_kind.is_some() {
+                return None;
+            }
+            source_kind = arguments.next().and_then(|value| value.into_string().ok());
+            source_kind.as_ref()?;
+            continue;
+        }
         if argument == "--rev" {
             if rev.is_some() {
                 return None;
@@ -679,6 +713,7 @@ fn parse_audit_source_cache_policy_arguments(
         locator = Some(argument.into_string().ok()?);
     }
     Some(AuditSourceCachePolicyArguments {
+        source_kind: source_kind?,
         locator: locator?,
         rev,
         cache_dir: cache_dir.unwrap_or_else(|| PathBuf::from(".omega/package-cache")),
@@ -867,9 +902,18 @@ fn parse_audit_source_arguments(
     mut arguments: impl Iterator<Item = std::ffi::OsString>,
 ) -> Option<AuditSourceArguments> {
     let mut locator = None;
+    let mut source_kind = None;
     let mut rev = None;
     let mut cache_dir = None;
     while let Some(argument) = arguments.next() {
+        if argument == "--kind" {
+            if source_kind.is_some() {
+                return None;
+            }
+            source_kind = arguments.next().and_then(|value| value.into_string().ok());
+            source_kind.as_ref()?;
+            continue;
+        }
         if argument == "--rev" {
             if rev.is_some() {
                 return None;
@@ -892,6 +936,7 @@ fn parse_audit_source_arguments(
         locator = Some(argument.into_string().ok()?);
     }
     Some(AuditSourceArguments {
+        source_kind: source_kind?,
         locator: locator?,
         rev,
         cache_dir: cache_dir.unwrap_or_else(|| PathBuf::from(".omega/package-cache")),

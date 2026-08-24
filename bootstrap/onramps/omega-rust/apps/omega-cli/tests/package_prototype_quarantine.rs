@@ -62,3 +62,20 @@ fn production_usage_does_not_advertise_manifest_or_receipt_inputs() {
     assert!(!stderr.contains("receipt.json"), "stderr was: {stderr}");
     assert!(!stderr.contains("lock assemble"), "stderr was: {stderr}");
 }
+
+#[test]
+fn source_audit_requires_an_explicit_supported_adapter() {
+    let missing = omega(&["audit", "source", "https://example.invalid/package"]);
+    assert_eq!(missing.status.code(), Some(2));
+    assert!(String::from_utf8_lossy(&missing.stderr).contains("--kind <local|git>"));
+
+    let unsupported = omega(&[
+        "audit",
+        "source",
+        "--kind",
+        "archive",
+        "https://example.invalid/package.tar",
+    ]);
+    assert_eq!(unsupported.status.code(), Some(2));
+    assert!(String::from_utf8_lossy(&unsupported.stderr).contains("UnsupportedSourceAdapter"));
+}
