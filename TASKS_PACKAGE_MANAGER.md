@@ -685,7 +685,11 @@ complete.
   exact per-operand grant-refusal events, bounded exactly-once argument
   preparation, complete transcript schema and serialization, lossless rooted
   paths, transcripts/content custody, fresh staging publication, output-tree
-  commitment, and replay remain.
+  commitment, and replay remain. Raw transfer counts now pass one checked
+  conversion shared by both providers: negative/wrapped values and requests
+  above a compiler-owned 16 MiB per-operation allocation ceiling reject before
+  allocation. This is an evaluator sponsor limit, not a language limit; maximum
+  file extent, total staged bytes/entries, and process memory/CPU quotas remain.
 
 - **PROOF-AND-BOUNDARY-ADMISSION.** Fail closed on false or incomplete evidence.
 

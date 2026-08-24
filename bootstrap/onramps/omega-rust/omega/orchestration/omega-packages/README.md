@@ -177,6 +177,9 @@ remain visible but are not yet typed as grant-policy refusal versus host error.
 It omits failed evaluator attempts, operands, rooted paths, mutable outputs,
 logical handles, and content and is therefore an incomplete trace rather than a
 transcript or receipt.
+Raw read/count capacities are checked once and reject negative/wrapped values
+or per-operation allocations above the current 16 MiB evaluator sponsor limit.
+File extent and total staging-tree/process quotas remain open.
 Compiler-issued package review carries this summary
 outside canonical capability/API comparison bytes. It is not a receipt and
 makes no replayability or source-rebuildability claim.

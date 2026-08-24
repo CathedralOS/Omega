@@ -579,6 +579,10 @@ A denial-shaped return remains visible but does not yet distinguish grant-policy
 refusal from host error. It deliberately omits failed evaluator attempts,
 operands, rooted paths, mutable outputs, logical handles, and content; raw
 runtime descriptor returns therefore remain non-replayable.
+Both providers reject negative/wrapped raw transfer counts and per-operation
+read allocations above the evaluator's current 16 MiB sponsor ceiling before
+allocation. This is not a language limit and does not yet bound file extent,
+total staging-tree growth, process memory, or CPU.
 This summary is compiler-issued execution evidence kept outside canonical
 capability/API comparison bytes. It is not a receipt and does not claim either
 replay verdict. A `Receipted` row still requires a canonical operation
