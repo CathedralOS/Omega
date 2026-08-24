@@ -71,8 +71,13 @@ relocation/delegation evidence; a matching declared name is never sufficient.
 Workspace path packages use the workspace source lineage plus normalized
 member-relative path. Paths outside the workspace are explicitly non-portable
 development sources scoped to the consuming lock and cannot satisfy a
-source-rebuildable release profile. Archive and future protocol adapters must
-define their own canonical lineage and immutable-content receipt; an unknown
+source-rebuildable release profile. Resolution of an explicitly selected
+external-local root carries one consuming context through its recursive
+relative or absolute local Path closure; each package retains its own canonical
+absolute lineage and immutable snapshot. The resolver does not discover a
+parent workspace or lock from the ambient filesystem. Archive and future
+protocol adapters must define their own canonical lineage and immutable-content
+receipt; an unknown
 URL is never guessed to be Git or delegated to an ambient protocol helper.
 
 The implementation normalizes GitHub's and hosted GitLab's established HTTPS

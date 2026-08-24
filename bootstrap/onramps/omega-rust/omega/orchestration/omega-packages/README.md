@@ -106,8 +106,12 @@ paths remain exact and case-sensitive, while self-hosted and unknown hosts
 retain transport distinctions. Workspace-member resolution binds
 the workspace root lineage to a normalized member-relative path, verifies the
 live member is the matching strict canonical descendant, and snapshots only
-that member. A transport-neutral recursive resolver accepts only erased custody
-derived from these resolved sources, delegates each request to an adapter, and
+that member. An explicit external-local closure adapter instead binds every
+relative or absolute local Path request to the same supplied consuming context,
+retains each canonical absolute lineage, and snapshots each package without
+ambient workspace/lock discovery. A transport-neutral recursive resolver
+accepts only erased custody derived from these resolved sources, delegates each
+request to an adapter, and
 returns the complete validated `ResolvedPackageClosure` together with every
 exact immutable custody root. It derives ordinary aliases from fetched package
 declarations, preserves explicit aliases, reuses identical custody, and reports

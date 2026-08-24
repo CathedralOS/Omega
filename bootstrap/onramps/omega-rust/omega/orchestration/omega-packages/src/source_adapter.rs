@@ -3,9 +3,12 @@ use crate::closure_resolution::{
     ResolvedPackageSourceClosure, resolve_package_source_closure_with_limits,
 };
 use crate::dependency_projection::DependencySourceRequest;
-use crate::identity::{SourceLineage, WorkspaceLineageIdentity, WorkspaceMemberPath};
+use crate::identity::{
+    ExternalSourceContext, PackageKey, SourceLineage, WorkspaceLineageIdentity, WorkspaceMemberPath,
+};
 use crate::package_source::{
-    ResolvePackageSourceError, resolve_git_package_source, resolve_workspace_member_package_source,
+    ResolvePackageSourceError, resolve_external_local_package_source, resolve_git_package_source,
+    resolve_workspace_member_package_source,
 };
 use crate::source::{GitSourceSpec, LocalSourceLimits};
 use std::collections::BTreeMap;
@@ -17,6 +20,23 @@ pub enum ResolveWorkspacePackageClosureError {
     Root(ResolvePackageSourceError),
     Closure(PackageSourceClosureResolutionError<ResolveDependencySourceError>),
 }
+
+#[derive(Debug)]
+pub enum ResolveExternalLocalPackageClosureError {
+    Root(ResolvePackageSourceError),
+    Closure(PackageSourceClosureResolutionError<ResolveDependencySourceError>),
+}
+
+impl fmt::Display for ResolveExternalLocalPackageClosureError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Root(error) => write!(formatter, "cannot resolve root package: {error}"),
+            Self::Closure(error) => write!(formatter, "cannot resolve package closure: {error}"),
+        }
+    }
+}
+
+impl std::error::Error for ResolveExternalLocalPackageClosureError {}
 
 impl fmt::Display for ResolveWorkspacePackageClosureError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -41,6 +61,13 @@ pub enum ResolveDependencySourceError {
     ConflictingWorkspaceRoot {
         identity: WorkspaceLineageIdentity,
     },
+    UnknownExternalRoot {
+        package: PackageKey,
+    },
+    ConflictingExternalRoot {
+        package: PackageKey,
+    },
+    MissingExternalSourceContext,
     Source(ResolvePackageSourceError),
 }
 
@@ -57,6 +84,19 @@ impl fmt::Display for ResolveDependencySourceError {
             ),
             Self::ConflictingWorkspaceRoot { .. } => formatter
                 .write_str("one workspace lineage resolved to conflicting immutable source roots"),
+            Self::UnknownExternalRoot { package } => write!(
+                formatter,
+                "external-local package `{}` has no registered live source root",
+                package.name().as_str()
+            ),
+            Self::ConflictingExternalRoot { package } => write!(
+                formatter,
+                "external-local package `{}` resolved to conflicting live source roots",
+                package.name().as_str()
+            ),
+            Self::MissingExternalSourceContext => formatter.write_str(
+                "an external-local dependency requires an explicit consuming source context",
+            ),
             Self::Source(error) => error.fmt(formatter),
         }
     }
@@ -125,6 +165,79 @@ pub fn resolve_workspace_package_closure(
         },
     )]);
 
+    resolve_registered_package_closure(
+        root,
+        closure_limits,
+        &workspace_cache,
+        &git_cache,
+        &workspace_cache,
+        source_limits,
+        &mut workspaces,
+        &mut BTreeMap::new(),
+        None,
+    )
+    .map_err(ResolveWorkspacePackageClosureError::Closure)
+}
+
+/// Resolve one explicitly selected non-workspace local package and its complete
+/// Path/Git closure.
+///
+/// Every local package is snapshotted before its declaration or dependency rows
+/// are consumed. Its lineage binds the canonical absolute path to the supplied
+/// consuming context, so relative and absolute Path rows may cross directory
+/// boundaries without pretending to be portable workspace dependencies. No
+/// parent workspace or lock is discovered from the ambient filesystem.
+pub fn resolve_external_local_package_closure(
+    live_root: impl AsRef<Path>,
+    source_context: ExternalSourceContext,
+    cache_dir: impl AsRef<Path>,
+    source_limits: LocalSourceLimits,
+    closure_limits: PackageSourceClosureLimits,
+) -> Result<ResolvedPackageSourceClosure, ResolveExternalLocalPackageClosureError> {
+    let cache_dir = cache_dir.as_ref();
+    let local_cache = cache_dir.join("external-local-sources");
+    let workspace_cache = cache_dir.join("workspace-members");
+    let git_cache = cache_dir.join("git-sources");
+    let root = resolve_external_local_package_source(
+        live_root,
+        &local_cache,
+        source_limits,
+        source_context.clone(),
+    )
+    .map_err(ResolveExternalLocalPackageClosureError::Root)?;
+    let mut external_roots = BTreeMap::from([(
+        root.key().clone(),
+        root.source().canonical_live_root.clone(),
+    )]);
+
+    resolve_registered_package_closure(
+        root.into_custody(),
+        closure_limits,
+        &workspace_cache,
+        &git_cache,
+        &local_cache,
+        source_limits,
+        &mut BTreeMap::new(),
+        &mut external_roots,
+        Some(&source_context),
+    )
+    .map_err(ResolveExternalLocalPackageClosureError::Closure)
+}
+
+fn resolve_registered_package_closure(
+    root: PackageSourceCustody,
+    closure_limits: PackageSourceClosureLimits,
+    workspace_cache: &Path,
+    git_cache: &Path,
+    external_local_cache: &Path,
+    source_limits: LocalSourceLimits,
+    workspaces: &mut BTreeMap<WorkspaceLineageIdentity, WorkspaceContext>,
+    external_roots: &mut BTreeMap<PackageKey, PathBuf>,
+    external_context: Option<&ExternalSourceContext>,
+) -> Result<
+    ResolvedPackageSourceClosure,
+    PackageSourceClosureResolutionError<ResolveDependencySourceError>,
+> {
     resolve_package_source_closure_with_limits(root, closure_limits, |requester, request| {
         match request {
             DependencySourceRequest::Git {
@@ -137,18 +250,31 @@ pub fn resolve_workspace_package_closure(
                         url: repository.clone(),
                         rev: Some(revision.clone()),
                     },
-                    &git_cache,
+                    git_cache,
                     source_limits,
                 )?;
                 register_workspace(
-                    &mut workspaces,
+                    workspaces,
                     resolved.key().source_lineage(),
                     resolved.snapshot_root(),
                 )?;
                 Ok(resolved.into_custody())
             }
             DependencySourceRequest::Path { location, .. } => {
-                let (workspace_identity, base) = requester_workspace(requester, &mut workspaces)?;
+                if matches!(
+                    requester.key().source_lineage(),
+                    SourceLineage::ExternalLocal(_)
+                ) {
+                    return resolve_external_dependency(
+                        requester,
+                        location,
+                        external_roots,
+                        external_context,
+                        external_local_cache,
+                        source_limits,
+                    );
+                }
+                let (workspace_identity, base) = requester_workspace(requester, workspaces)?;
                 let member_path = normalize_member_path(base.as_deref(), location)?;
                 let context = workspaces.get(&workspace_identity).ok_or_else(|| {
                     ResolveDependencySourceError::UnknownWorkspace {
@@ -159,7 +285,7 @@ pub fn resolve_workspace_package_closure(
                     &context.root_source,
                     member_path,
                     &context.root,
-                    &workspace_cache,
+                    workspace_cache,
                     source_limits,
                 )
                 .map(|resolved| resolved.into_custody())
@@ -167,7 +293,6 @@ pub fn resolve_workspace_package_closure(
             }
         }
     })
-    .map_err(ResolveWorkspacePackageClosureError::Closure)
 }
 
 fn register_workspace(
@@ -189,6 +314,64 @@ fn register_workspace(
         workspaces.insert(identity.clone(), context);
     }
     Ok(identity)
+}
+
+fn resolve_external_dependency(
+    requester: &PackageSourceCustody,
+    location: &str,
+    external_roots: &mut BTreeMap<PackageKey, PathBuf>,
+    external_context: Option<&ExternalSourceContext>,
+    local_cache: &Path,
+    source_limits: LocalSourceLimits,
+) -> Result<PackageSourceCustody, ResolveDependencySourceError> {
+    if location.is_empty() || location.bytes().any(|byte| byte.is_ascii_control()) {
+        return Err(invalid_path(
+            location,
+            "external-local path must be nonempty and contain no control bytes",
+        ));
+    }
+    let source_context =
+        external_context.ok_or(ResolveDependencySourceError::MissingExternalSourceContext)?;
+    let requester_root = external_roots.get(requester.key()).ok_or_else(|| {
+        ResolveDependencySourceError::UnknownExternalRoot {
+            package: requester.key().clone(),
+        }
+    })?;
+    let authored = Path::new(location);
+    let target = if authored.is_absolute() {
+        authored.to_path_buf()
+    } else {
+        requester_root.join(authored)
+    };
+    let resolved = resolve_external_local_package_source(
+        target,
+        local_cache,
+        source_limits,
+        source_context.clone(),
+    )?;
+    register_external_root(
+        external_roots,
+        resolved.key(),
+        &resolved.source().canonical_live_root,
+    )?;
+    Ok(resolved.into_custody())
+}
+
+fn register_external_root(
+    external_roots: &mut BTreeMap<PackageKey, PathBuf>,
+    package: &PackageKey,
+    canonical_live_root: &Path,
+) -> Result<(), ResolveDependencySourceError> {
+    if let Some(existing) = external_roots.get(package) {
+        if existing != canonical_live_root {
+            return Err(ResolveDependencySourceError::ConflictingExternalRoot {
+                package: package.clone(),
+            });
+        }
+    } else {
+        external_roots.insert(package.clone(), canonical_live_root.to_path_buf());
+    }
+    Ok(())
 }
 
 fn requester_workspace(
@@ -291,6 +474,7 @@ mod tests {
         std::fs::create_dir_all(root).expect("create package");
         let dependency = dependency
             .map(|location| {
+                let location = location.replace('\\', "\\\\").replace('"', "\\\"");
                 format!("    builder.depend(Source::Path {{ location: \"{location}\" }});\n")
             })
             .unwrap_or_default();
@@ -369,6 +553,64 @@ mod tests {
 
         let _ = std::fs::remove_dir_all(workspace);
         let _ = std::fs::remove_dir_all(cache);
+    }
+
+    #[test]
+    fn resolves_external_local_closure_across_directory_boundaries_in_one_context() {
+        let sources = temp_root("external-sources");
+        let first_cache = temp_root("external-first-cache");
+        let second_cache = temp_root("external-second-cache");
+        write_package(&sources.join("root"), "root-package", Some("../middle"));
+        let leaf = sources.join("leaf");
+        let leaf_location = leaf.display().to_string();
+        write_package(
+            &sources.join("middle"),
+            "middle-package",
+            Some(&leaf_location),
+        );
+        write_package(&leaf, "leaf-package", None);
+        let first_context = ExternalSourceContext::derive(b"first-consuming-lock");
+
+        let first = resolve_external_local_package_closure(
+            sources.join("root"),
+            first_context.clone(),
+            &first_cache,
+            LocalSourceLimits::default(),
+            PackageSourceClosureLimits::default(),
+        )
+        .expect("resolve context-bound external closure");
+
+        assert_eq!(first.graph().packages().len(), 3);
+        assert!(first.custodies().iter().all(|custody| {
+            matches!(
+                custody.key().source_lineage(),
+                SourceLineage::ExternalLocal(lineage)
+                    if lineage.source_context() == &first_context
+            )
+        }));
+
+        let second_context = ExternalSourceContext::derive(b"second-consuming-lock");
+        let second = resolve_external_local_package_closure(
+            sources.join("root"),
+            second_context,
+            &second_cache,
+            LocalSourceLimits::default(),
+            PackageSourceClosureLimits::default(),
+        )
+        .expect("resolve same sources in a different consuming context");
+        for first_custody in first.custodies() {
+            let second_custody = second
+                .custodies()
+                .iter()
+                .find(|custody| custody.key().name() == first_custody.key().name())
+                .expect("same declared package in second closure");
+            assert_ne!(first_custody.key(), second_custody.key());
+            assert_eq!(first_custody.resolution(), second_custody.resolution());
+        }
+
+        let _ = std::fs::remove_dir_all(sources);
+        let _ = std::fs::remove_dir_all(first_cache);
+        let _ = std::fs::remove_dir_all(second_cache);
     }
 
     #[test]
