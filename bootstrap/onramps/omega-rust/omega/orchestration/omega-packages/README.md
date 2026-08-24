@@ -200,13 +200,16 @@ the local evidence alias is not identity. Matching checked evidence-term,
 interface, and projection facts are mandatory. Direct parameter-rooted member
 paths retain the receiver ordinal and exact package-qualified case/field chain
 only when a unique checked semantic-place row agrees. Computed members,
-proposition-argument members without that join, and unsupported call, cast, and
-aggregate expressions still fail closed.
+proposition-argument members without that join, and unsupported call and
+aggregate expressions still fail closed. Contract casts retain the structural
+operand, alpha-normalized target, arithmetic policy, package-qualified semantic
+domain and arguments, and value/recast form. Diagnostic spellings are excluded;
+private package domains reject when exposed by a public cast.
 This join does not create a nominal Chi stage.
 The legacy machine-contract fingerprint no longer enters package-review bytes,
 so private state shape is not public contract identity. Complete proof and
 unsupported-clause rows still gate sealed admission. The compiler now provides
-a version-18 length-framed
+a version-19 length-framed
 binary comparison encoding over this review projection; it is explicitly not a package certificate or
 accepted-lock payload. Raw Rust/debug serialization is not an alternative. These pieces do
 not become an admission path until the legacy name-keyed lock APIs are replaced

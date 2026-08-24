@@ -292,8 +292,11 @@ interface, and projection facts all match the structural typed declaration.
 Direct parameter-rooted member paths in ordinary contracts retain the receiver
 ordinal and exact package-qualified case/field chain after joining one checked
 semantic-place row. Computed members, proposition-argument members without that
-join, and unsupported call, cast, and aggregate expressions still reject rather
-than falling back to text or a hash.
+join, and unsupported call and aggregate expressions still reject rather than
+falling back to text or a hash. Contract casts retain their structural operand,
+alpha-normalized target type, arithmetic policy, package-qualified semantic
+domain and arguments, and value/recast form. Diagnostic spellings are omitted;
+a private package domain cannot be exposed through a public cast.
 This join introduces no report-only Chi stage. A distinct stage remains
 available only if later consumers or transformations expose a real semantic
 boundary.

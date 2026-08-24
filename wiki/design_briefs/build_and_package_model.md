@@ -768,8 +768,12 @@ arguments. Matching checked evidence-term, interface, and projection facts are
 required. Direct parameter-rooted member paths retain their receiver ordinal
 and exact package-qualified case/field chain after a unique checked semantic-
 place join. Computed members, proposition-argument members without that join,
-and unsupported call, cast, and aggregate expression forms fail closed. The
-coarse 64-bit machine-contract fingerprint is no longer
+and unsupported call and aggregate expression forms fail closed. Contract
+casts retain their structural operand, alpha-normalized target, arithmetic
+policy, package-qualified semantic domain and arguments, and value/recast form.
+Diagnostic spellings are absent, and private package domains reject when a
+public cast would expose them. The coarse 64-bit machine-contract fingerprint
+is no longer
 package-review identity, so private state-machine shape cannot alter the public
 contract baseline. Complete rows for the remaining unsupported forms and exact
 proof/admission dispositions still gate sealing.
