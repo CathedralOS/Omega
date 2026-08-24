@@ -10,7 +10,7 @@ use psi_checked_trees::{
 };
 
 const MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW\0";
-pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 11;
+pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 12;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageReviewEncodingError {
@@ -393,6 +393,17 @@ fn encode_callable(
     });
     encode_nominal(encoder, &callable.identity)?;
     encode_supply(encoder, callable.supply)?;
+    encoder.usize(callable.lifetime_parameter_count)?;
+    encoder.sequence(&callable.type_parameters, encode_type_parameter)?;
+    encoder.sequence(&callable.parameters, |encoder, parameter| {
+        encoder.string(&parameter.name)?;
+        encode_type_identity(encoder, &parameter.type_identity)?;
+        encoder.boolean(parameter.is_const);
+        encoder.boolean(parameter.is_mutable);
+        encoder.boolean(parameter.is_self);
+        Ok(())
+    })?;
+    encode_type_identity(encoder, &callable.return_type)?;
     encoder.u64(callable.contract_fingerprint);
     encoder.option(
         callable.declared_service_reach.as_deref(),

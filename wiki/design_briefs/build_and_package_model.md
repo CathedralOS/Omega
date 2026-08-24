@@ -723,6 +723,15 @@ requirement owner, but binding/selection and remaining artifact joins are
 unfinished. Risk classes must come from compiler-owned metadata on admitted
 nominal identities, never from package-controlled names.
 
+The same callable row retains the exact canonical entry signature: lifetime
+arity, alpha-normalized type/const binders, ordered parameter names and modes,
+package-qualified lifetime-sensitive parameter types, and result type. This is
+contract evidence, not merely ABI layout. Binder renames are stable, while a
+changed generic bound, parameter/result type, mode, or borrow relationship
+changes evidence. Until exact canonical rows exist, reviewed callable
+conformance bounds, static machine/proposition parameters, and trait
+realizations fail closed rather than being omitted.
+
 Claim-free opaque `boundary data` is retained in a separate representation-TCB
 lane. Its row binds the package-qualified declaration to the exact target,
 representation/ABI commitment, external mechanism or explicit unbound status,

@@ -122,7 +122,7 @@ crashes Abort
         target,
         "review identity must retain the deployment profile, not only its native ABI",
     );
-    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 11);
+    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 12);
     let [ready] = review.public_domains() else {
         panic!("one package-owned public domain row")
     };
@@ -149,6 +149,10 @@ crashes Abort
         .find(|callable| callable.role() == PackageReviewCallableRole::Boundary)
         .expect("boundary row");
     assert_eq!(boundary.identity().path(), "host_ping");
+    assert_eq!(boundary.lifetime_parameter_count(), 0);
+    assert!(boundary.type_parameters().is_empty());
+    assert!(boundary.parameters().is_empty());
+    assert!(!boundary.return_type().canonical().is_empty());
     assert_eq!(
         boundary.identity().owner(),
         PackageReviewNominalOwner::Package(package_identity())
@@ -197,6 +201,14 @@ crashes Abort
         .find(|callable| callable.role() == PackageReviewCallableRole::Build)
         .expect("build row");
     assert_eq!(build.identity().path(), "build");
+    let [builder] = build.parameters() else {
+        panic!("build entry retains its builder parameter")
+    };
+    assert_eq!(builder.name(), "builder");
+    assert!(builder.is_mutable());
+    assert!(!builder.is_const());
+    assert!(!builder.is_self());
+    assert!(!builder.type_identity().canonical().is_empty());
     assert_eq!(build.declared_service_reach(), None);
     assert_eq!(build.declared_synchronous_invocations(), None);
 
@@ -294,6 +306,154 @@ crashes Abort
         provider.rows()[0].binding,
         omega_effects::provider_plan::ProviderBinding::VtableSlot { index: 1 }
     ));
+}
+
+#[test]
+fn public_callable_signatures_are_exact_and_lifetime_alpha_normalized() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let original = TempPackage::new();
+    let renamed = TempPackage::new();
+    let changed = TempPackage::new();
+    original.write(
+        "main.omg",
+        r#"pub machine borrow<'source, 'temporary>(
+    source: &'source [u8],
+    temporary: &'temporary [u8]
+) -> &'source [u8] { source }
+pub machine identity<Element [copy]>(value: Element) -> Element { value }
+"#,
+    );
+    renamed.write(
+        "main.omg",
+        r#"pub machine borrow<'origin, 'scratch>(
+    source: &'origin [u8],
+    temporary: &'scratch [u8]
+) -> &'origin [u8] { source }
+pub machine identity<Value [copy]>(value: Value) -> Value { value }
+"#,
+    );
+    changed.write(
+        "main.omg",
+        r#"pub machine borrow<'source, 'temporary>(
+    source: &'source [u8],
+    temporary: &'temporary [u8]
+) -> &'temporary [u8] { temporary }
+pub machine identity<Element [copy]>(value: Element) -> Element { value }
+"#,
+    );
+    let build = r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { }
+"#;
+    original.write("build.omg", build);
+    renamed.write("build.omg", build);
+    changed.write("build.omg", build);
+
+    let review = |package: &TempPackage| {
+        let checked = compile_to_checked_with_packages(
+            &package.0.join("main.omg"),
+            Some(target),
+            package_inputs(&package.0),
+        )
+        .expect("public callable signature fixture should check");
+        project_checked_package_review(&checked).expect("callable signature review should close")
+    };
+    let original = review(&original);
+    let renamed = review(&renamed);
+    let changed = review(&changed);
+    let borrow = original
+        .callables()
+        .iter()
+        .find(|callable| callable.identity().path().contains("borrow"))
+        .expect("borrow callable row");
+    assert_eq!(borrow.lifetime_parameter_count(), 2);
+    assert_eq!(borrow.parameters().len(), 2);
+    assert!(borrow.type_parameters().is_empty());
+    assert!(!borrow.return_type().canonical().is_empty());
+    let identity = original
+        .callables()
+        .iter()
+        .find(|callable| callable.identity().path().contains("identity"))
+        .expect("generic identity callable row");
+    assert_eq!(identity.type_parameters().len(), 1);
+    assert_eq!(identity.parameters().len(), 1);
+
+    assert_eq!(
+        original
+            .canonical_review_bytes()
+            .expect("original encoding"),
+        renamed.canonical_review_bytes().expect("renamed encoding"),
+        "renaming lifetime and type binders must not alter canonical review evidence",
+    );
+    assert_ne!(
+        original
+            .canonical_review_bytes()
+            .expect("original encoding"),
+        changed.canonical_review_bytes().expect("changed encoding"),
+        "changing the result's borrow relationship must alter canonical review evidence",
+    );
+}
+
+#[test]
+fn review_rejects_unrepresented_public_callable_conformance_surfaces() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let build = r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { }
+"#;
+    let satisfying = TempPackage::new();
+    satisfying.write(
+        "main.omg",
+        r#"pub trait Handler { machine handle(); }
+pub machine handle() satisfies Handler::handle { }
+"#,
+    );
+    satisfying.write("build.omg", build);
+    let checked = compile_to_checked_with_packages(
+        &satisfying.0.join("main.omg"),
+        Some(target),
+        package_inputs(&satisfying.0),
+    )
+    .expect("public satisfier fixture should check");
+    let diagnostics = project_checked_package_review(&checked).unwrap_err();
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("realizes trait requirements not yet represented")
+    }));
+
+    let generic = TempPackage::new();
+    generic.write(
+        "main.omg",
+        r#"pub machine register<machine Selected>()
+where machine Selected();
+{ }
+"#,
+    );
+    generic.write("build.omg", build);
+    let checked = compile_to_checked_with_packages(
+        &generic.0.join("main.omg"),
+        Some(target),
+        package_inputs(&generic.0),
+    )
+    .expect("public static-machine fixture should check");
+    let diagnostics = project_checked_package_review(&checked).unwrap_err();
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("conformance bounds not yet represented")
+            || diagnostic
+                .message
+                .contains("static machine or proposition parameter not yet represented")
+    }));
 }
 
 #[test]
@@ -423,7 +583,7 @@ invokes waiting;
 }
 
 #[test]
-fn exact_synchronous_invocations_change_v11_comparison_encoding() {
+fn exact_synchronous_invocations_change_v12_comparison_encoding() {
     let quiet = TempPackage::new();
     let invoking = TempPackage::new();
     quiet.write(
@@ -616,7 +776,7 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
-fn public_data_and_numbered_wire_shape_changes_change_v11_comparison_encoding() {
+fn public_data_and_numbered_wire_shape_changes_change_v12_comparison_encoding() {
     let first = TempPackage::new();
     let second = TempPackage::new();
     first.write(
@@ -650,7 +810,7 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
-fn public_domain_shape_changes_change_v11_comparison_encoding() {
+fn public_domain_shape_changes_change_v12_comparison_encoding() {
     let first = TempPackage::new();
     let second = TempPackage::new();
     first.write(

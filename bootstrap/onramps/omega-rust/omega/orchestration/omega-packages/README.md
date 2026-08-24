@@ -167,10 +167,15 @@ types, closed compiler-owned classifications, and authorized establishment
 routes with exact package-qualified trait/requirement identities. Transparent
 aliases recursively flatten to canonical package-qualified atoms; compiler
 carry atoms remain explicitly toolchain-unbound. Predicates, semantic roles,
-and operators fail closed until canonical rows land. The compiler now provides
-a version-11 length-framed binary comparison encoding over this review
-projection; it is explicitly not a package certificate or accepted-lock
-payload. Raw Rust/debug serialization is not an alternative. These pieces do
+and operators fail closed until canonical rows land. Reviewed boundary/public
+machines and the selected build machine retain exact canonical entry
+signatures: lifetime arity, alpha-normalized type/const parameters, ordered
+parameter names/modes, package-qualified lifetime-sensitive parameter types,
+and result type. Callable conformance bounds, static machine/proposition
+parameters, and trait realizations fail closed until complete rows land. The
+compiler now provides a version-12 length-framed binary comparison encoding
+over this review projection; it is explicitly not a package certificate or
+accepted-lock payload. Raw Rust/debug serialization is not an alternative. These pieces do
 not become an admission path until the legacy name-keyed lock APIs are replaced
 and sealed, locally regenerated compiler evidence plus the hardened resolver
 receipt are wired through end to end. The earlier public
