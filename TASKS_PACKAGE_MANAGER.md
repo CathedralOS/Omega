@@ -75,6 +75,12 @@ complete.
 - **HARDEN-SOURCE-RESOLVER.** Re-audit the current Git/local resolver as a
   hostile-input boundary.
 
+  Progress 2026-08-23: diagnostic source commands now require an explicit
+  `local` or `git` adapter; unknown URLs are no longer guessed to be Git. Local
+  source identity now uses injective versioned framing over raw relative-path
+  bytes, entry kind, symlink target spelling, Unix executable mode, length, and
+  content, rejects special files, and checks file limits before allocation.
+
   Known suspect points:
 
   - the cache directory uses only a truncated locator/revision hash and reuses

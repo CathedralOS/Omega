@@ -18,6 +18,24 @@ use crate::source::{
 use crate::update::{PackageLockUpdatePlan, PackageLockUpdatePlanError, plan_package_lock_update};
 use std::path::{Path, PathBuf};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SourceAdapter {
+    Local,
+    Git,
+}
+
+impl SourceAdapter {
+    pub fn parse(value: &str) -> Result<Self, PackageSourceRequestParseError> {
+        match value {
+            "local" => Ok(Self::Local),
+            "git" => Ok(Self::Git),
+            _ => Err(PackageSourceRequestParseError::UnsupportedSourceAdapter {
+                adapter: value.to_owned(),
+            }),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PackageSourceRequest {
     LocalPath(PathBuf),
@@ -26,6 +44,7 @@ pub enum PackageSourceRequest {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PackageSourceRequestParseError {
+    UnsupportedSourceAdapter { adapter: String },
     EmptySourceLocator,
     LocalSourceCannotUseRevision { locator: String, rev: String },
     UnsupportedFileUrl { locator: String },
@@ -33,6 +52,7 @@ pub enum PackageSourceRequestParseError {
 
 impl PackageSourceRequest {
     pub fn parse(
+        adapter: SourceAdapter,
         locator: impl Into<String>,
         rev: Option<String>,
     ) -> Result<Self, PackageSourceRequestParseError> {
@@ -41,20 +61,16 @@ impl PackageSourceRequest {
         if locator.is_empty() {
             return Err(PackageSourceRequestParseError::EmptySourceLocator);
         }
-        if let Some(path) = file_url_path(locator)? {
-            reject_local_rev(locator, &rev)?;
-            return Ok(Self::LocalPath(path));
-        }
-
-        let path = PathBuf::from(locator);
-        if is_local_path_locator(locator, &path) {
-            reject_local_rev(locator, &rev)?;
-            Ok(Self::LocalPath(path))
-        } else {
-            Ok(Self::Git {
+        match adapter {
+            SourceAdapter::Local => {
+                let path = file_url_path(locator)?.unwrap_or_else(|| PathBuf::from(locator));
+                reject_local_rev(locator, &rev)?;
+                Ok(Self::LocalPath(path))
+            }
+            SourceAdapter::Git => Ok(Self::Git {
                 url: locator.to_owned(),
                 rev,
-            })
+            }),
         }
     }
 }
@@ -304,15 +320,6 @@ fn file_url_path(locator: &str) -> Result<Option<PathBuf>, PackageSourceRequestP
     Ok(Some(PathBuf::from(rest)))
 }
 
-fn is_local_path_locator(locator: &str, path: &Path) -> bool {
-    path.is_absolute()
-        || locator == "."
-        || locator == ".."
-        || locator.starts_with("./")
-        || locator.starts_with("../")
-        || path.exists()
-}
-
 fn reject_local_rev(
     locator: &str,
     rev: &Option<String>,
@@ -371,25 +378,27 @@ pub fn audit_package_source(
 }
 
 pub fn audit_package_source_locator(
+    adapter: SourceAdapter,
     locator: impl Into<String>,
     rev: Option<String>,
     cache_dir: impl AsRef<Path>,
     limits: LocalSourceLimits,
 ) -> Result<PackageSourceAudit, PackageSourceAuditCommandError> {
-    let request =
-        PackageSourceRequest::parse(locator, rev).map_err(PackageSourceAuditCommandError::Parse)?;
+    let request = PackageSourceRequest::parse(adapter, locator, rev)
+        .map_err(PackageSourceAuditCommandError::Parse)?;
     audit_package_source(request, cache_dir, limits)
         .map_err(PackageSourceAuditCommandError::Resolve)
 }
 
 pub fn resolve_source_cache_record_locator(
+    adapter: SourceAdapter,
     locator: impl Into<String>,
     rev: Option<String>,
     cache_dir: impl AsRef<Path>,
     limits: LocalSourceLimits,
 ) -> Result<SourceCachePolicyRecord, SourceCachePolicyCommandError> {
-    let request =
-        PackageSourceRequest::parse(locator, rev).map_err(SourceCachePolicyCommandError::Parse)?;
+    let request = PackageSourceRequest::parse(adapter, locator, rev)
+        .map_err(SourceCachePolicyCommandError::Parse)?;
     Ok(resolve_source_cache_record(
         source_cache_request_from_package_request(request),
         cache_dir,
@@ -398,13 +407,14 @@ pub fn resolve_source_cache_record_locator(
 }
 
 pub fn write_source_cache_record_locator(
+    adapter: SourceAdapter,
     locator: impl Into<String>,
     rev: Option<String>,
     cache_dir: impl AsRef<Path>,
     limits: LocalSourceLimits,
     out_path: impl AsRef<Path>,
 ) -> Result<SourceCachePolicyRecord, SourceCachePolicyCommandError> {
-    let record = resolve_source_cache_record_locator(locator, rev, cache_dir, limits)?;
+    let record = resolve_source_cache_record_locator(adapter, locator, rev, cache_dir, limits)?;
     record
         .write_to_path(out_path)
         .map_err(SourceCachePolicyCommandError::Write)?;
@@ -701,13 +711,17 @@ mod tests {
     #[test]
     fn source_request_parse_classifies_local_paths_and_file_urls() {
         assert_eq!(
-            PackageSourceRequest::parse("./fixtures/packages/file-journal", None),
+            PackageSourceRequest::parse(
+                SourceAdapter::Local,
+                "./fixtures/packages/file-journal",
+                None,
+            ),
             Ok(PackageSourceRequest::LocalPath(PathBuf::from(
                 "./fixtures/packages/file-journal"
             )))
         );
         assert_eq!(
-            PackageSourceRequest::parse("file:///tmp/file-journal", None),
+            PackageSourceRequest::parse(SourceAdapter::Local, "file:///tmp/file-journal", None),
             Ok(PackageSourceRequest::LocalPath(PathBuf::from(
                 "/tmp/file-journal"
             )))
@@ -718,6 +732,7 @@ mod tests {
     fn source_request_parse_classifies_git_like_locators() {
         assert_eq!(
             PackageSourceRequest::parse(
+                SourceAdapter::Git,
                 "https://github.com/CathedralOS/file-journal",
                 Some("fd4ff9824c83a85584661acad93033304512f8c8".to_owned())
             ),
@@ -727,7 +742,11 @@ mod tests {
             })
         );
         assert_eq!(
-            PackageSourceRequest::parse("git@github.com:CathedralOS/file-journal.git", None),
+            PackageSourceRequest::parse(
+                SourceAdapter::Git,
+                "git@github.com:CathedralOS/file-journal.git",
+                None,
+            ),
             Ok(PackageSourceRequest::Git {
                 url: "git@github.com:CathedralOS/file-journal.git".to_owned(),
                 rev: None,
@@ -737,12 +756,21 @@ mod tests {
 
     #[test]
     fn source_request_parse_rejects_empty_or_revisioned_local_sources() {
+        assert_eq!(SourceAdapter::parse("local"), Ok(SourceAdapter::Local));
+        assert_eq!(SourceAdapter::parse("git"), Ok(SourceAdapter::Git));
         assert_eq!(
-            PackageSourceRequest::parse("", None),
+            SourceAdapter::parse("archive"),
+            Err(PackageSourceRequestParseError::UnsupportedSourceAdapter {
+                adapter: "archive".to_owned(),
+            })
+        );
+        assert_eq!(
+            PackageSourceRequest::parse(SourceAdapter::Local, "", None),
             Err(PackageSourceRequestParseError::EmptySourceLocator)
         );
         assert_eq!(
             PackageSourceRequest::parse(
+                SourceAdapter::Local,
                 "./fixtures/packages/file-journal",
                 Some("HEAD".to_owned())
             ),
@@ -754,7 +782,7 @@ mod tests {
             )
         );
         assert_eq!(
-            PackageSourceRequest::parse("file://relative/path", None),
+            PackageSourceRequest::parse(SourceAdapter::Local, "file://relative/path", None),
             Err(PackageSourceRequestParseError::UnsupportedFileUrl {
                 locator: "file://relative/path".to_owned(),
             })
@@ -792,6 +820,7 @@ mod tests {
         std::fs::write(root.join("main.omg"), "machine Main::main() {}\n").expect("write source");
 
         let audit = audit_package_source_locator(
+            SourceAdapter::Local,
             root.display().to_string(),
             None,
             &cache,
@@ -810,6 +839,7 @@ mod tests {
     fn source_audit_command_reports_parse_errors_before_resolving() {
         assert_eq!(
             audit_package_source_locator(
+                SourceAdapter::Local,
                 "./fixtures/packages/file-journal",
                 Some("HEAD".to_owned()),
                 temp_root("unused-cache"),
@@ -832,6 +862,7 @@ mod tests {
         std::fs::write(root.join("main.omg"), "machine Main::main() {}\n").expect("write source");
 
         let record = resolve_source_cache_record_locator(
+            SourceAdapter::Local,
             root.display().to_string(),
             None,
             &cache,
@@ -857,6 +888,7 @@ mod tests {
         std::fs::write(root.join("main.omg"), "machine Main::main() {}\n").expect("write source");
 
         let record = write_source_cache_record_locator(
+            SourceAdapter::Local,
             root.display().to_string(),
             None,
             &cache,
@@ -878,6 +910,7 @@ mod tests {
     fn source_cache_policy_command_reports_parse_errors_before_resolving() {
         assert_eq!(
             resolve_source_cache_record_locator(
+                SourceAdapter::Local,
                 "./fixtures/packages/file-journal",
                 Some("HEAD".to_owned()),
                 temp_root("unused-cache-policy"),
