@@ -11,7 +11,9 @@
 mod audit;
 mod commands;
 mod declaration;
+mod dependency_projection;
 mod diff;
+mod graph;
 mod identity;
 mod install;
 mod json;
@@ -41,11 +43,18 @@ pub use commands::{
     write_source_cache_record_locator,
 };
 pub use declaration::{PackageDeclaration, PackageDeclarationError, extract_package_declaration};
+pub use dependency_projection::{
+    DependencyProjectionError, DependencySourceRequest, extract_dependency_projection,
+};
 pub use diff::{ManifestDelta, ManifestDiff, ManifestSeverity, diff_package_capability_manifests};
+pub use graph::{
+    PackageClosureValidationError, ResolvedDependency, ResolvedPackageClosure, ResolvedPackageNode,
+    ResolvedSourceIdentity,
+};
 pub use identity::{
-    CompilerEvidenceFingerprint, ExternalLocalLineage, ExternalSourceContext, GenericGitLineage,
-    GitCommitId, GitHubRepositoryLineage, GitObjectIdAlgorithm, GitTransport, GitTreeId,
-    IdentityError, ImmutableSourceResolution, PackageInstance, PackageKey, PackageName,
+    AliasName, CompilerEvidenceFingerprint, ExternalLocalLineage, ExternalSourceContext,
+    GenericGitLineage, GitCommitId, GitHubRepositoryLineage, GitObjectIdAlgorithm, GitTransport,
+    GitTreeId, IdentityError, ImmutableSourceResolution, PackageInstance, PackageKey, PackageName,
     SourceContentDigest, SourceLineage, ToolchainIdentity, WorkspaceLineageIdentity,
     WorkspaceMemberLineage, WorkspaceMemberPath,
 };
@@ -55,8 +64,8 @@ pub use lock::{
     PackageLockPersistenceError, PackageLockValidationError,
 };
 pub use manifest::{
-    AliasName, BuildMachineManifest, CapabilityFlowSummary, DependencyAlias,
-    InstallationBoundReach, PackageCapabilityManifest, PackageCapabilityManifestParseError,
+    BuildMachineManifest, CapabilityFlowSummary, DependencyAlias, InstallationBoundReach,
+    PackageCapabilityManifest, PackageCapabilityManifestParseError,
     PackageCapabilityManifestPersistenceError, ProviderRequirement, ProviderSelection,
     QualificationRoute, ReproducibilityEvidence, SourceIdentity, TrustReceipt,
 };
