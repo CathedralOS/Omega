@@ -163,7 +163,10 @@ toolchain filesystem service identity and records whether that host family was
 actually invoked. The current scoped real provider has no replay transcript, so
 filesystem use is `Volatile`; pure, console-only, and declared-but-unreachable
 filesystem rows remain `Hermetic`. Console-only execution is not supplied real
-filesystem authority. Compiler-issued package review carries this summary
+filesystem authority. Filesystem dispatch also requires an exact canonical
+toolchain requirement symbol in statement and value position; package-authored
+lookalikes cannot consume the provider merely because granted mode was selected.
+Compiler-issued package review carries this summary
 outside canonical capability/API comparison bytes. It is not a receipt and
 makes no replayability or source-rebuildability claim.
 Checked package compilation now also retains

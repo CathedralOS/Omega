@@ -651,14 +651,26 @@ impl<'program> Evaluator<'program> {
                     return Ok(value);
                 }
 
-                // Value-returning FilesystemHost ops (assignment-position calls
-                // like `self.fd = self.fs.create(path, mode)`).
-                let fs_args = self
-                    .program
-                    .expression_table
-                    .expression_handles(call.arguments)
-                    .to_vec();
-                if let Some(value) = self.try_filesystem_call(target, &fs_args, frame)? {
+                // Value-returning canonical FilesystemHost ops
+                // (assignment-position calls like
+                // `self.fd = self.fs.create(path, mode)`). Exact toolchain
+                // requirement identity selects authority before the readable
+                // leaf routes inside the provider.
+                if let Some(filesystem_operation) =
+                    self.exact_filesystem_host_operation(call.target_symbol)
+                {
+                    let fs_args = self
+                        .program
+                        .expression_table
+                        .expression_handles(call.arguments)
+                        .to_vec();
+                    let value = self
+                        .try_filesystem_call(&filesystem_operation, &fs_args, frame)?
+                        .ok_or_else(|| {
+                            Halt::Unsupported(format!(
+                                "canonical filesystem host call `{filesystem_operation}` not yet supported"
+                            ))
+                        })?;
                     self.host_boundary_touched = true;
                     self.filesystem_host_observed = true;
                     return Ok(value);

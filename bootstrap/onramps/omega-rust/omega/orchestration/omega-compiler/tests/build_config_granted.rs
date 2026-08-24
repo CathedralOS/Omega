@@ -63,6 +63,7 @@ reaches
     transition self.fd >= 0 {{ true -> put(b) _ -> done(b) }}
     state put(&mut self, b: &mut Build) {{
         self.n = self.fs.write(self.fd, "staged by build\n");
+        _ = self.fs.sync(self.fd);
         self.n = self.fs.close(self.fd);
         transition true {{ true -> done(b) _ -> done(b) }}
     }}

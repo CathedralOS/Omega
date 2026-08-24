@@ -30,6 +30,14 @@ const SOURCE: &str = r#"
         self.result = self.filesystem.create("artifact.bin", 438);
         value.freestanding = self.result >= 0;
     }
+
+    data StatementStager { filesystem: FilesystemHost; }
+    machine StatementStager::build(&mut self, value: &mut Build)
+    reaches FilesystemHost
+    {
+        _ = self.filesystem.create("artifact.bin", 438);
+        value.freestanding = true;
+    }
 "#;
 
 #[test]
@@ -49,7 +57,7 @@ fn admission_plan_owns_result_machine_lookup_gate_and_evaluation() {
 }
 
 #[test]
-fn argument_taking_build_machine_runs_through_explicit_pure_and_granted_modes() {
+fn granted_mode_does_not_authorize_a_package_authored_filesystem_lookalike() {
     let typed = typed(SOURCE);
     let prepared = PreparedBuildMachineProgram::prepare(&typed).expect("prepare build program");
     let argument = BuildTimeValue::Struct {
@@ -72,9 +80,12 @@ fn argument_taking_build_machine_runs_through_explicit_pure_and_granted_modes() 
         BuildMachineExecutionMode::Pure,
     )
     .expect_err("the pure mode must not silently grant a filesystem boundary");
-    assert!(pure_error.contains("host-boundary"), "{pure_error}");
+    assert!(
+        pure_error.contains("unknown value-call target `create`"),
+        "{pure_error}"
+    );
 
-    let granted = evaluate_build_machine_arguments_measured(
+    let granted_error = evaluate_build_machine_arguments_measured(
         &prepared,
         "Stager::build",
         vec![argument],
@@ -82,13 +93,27 @@ fn argument_taking_build_machine_runs_through_explicit_pure_and_granted_modes() 
             filesystem: BuildMachineFilesystemAccess::Virtual,
         },
     )
-    .expect("the explicitly granted build-machine service should evaluate");
+    .expect_err("a grant cannot turn a package-authored lookalike into a host operation");
 
-    assert_eq!(pure.value(), granted.value());
     assert!(pure.usage().fuel_units() > 0);
-    assert!(granted.usage().fuel_units() > pure.usage().fuel_units());
     assert!(!pure.observations().filesystem_host_observed());
-    assert!(granted.observations().filesystem_host_observed());
+    assert!(granted_error.contains("unknown value-call target `create`"));
+    let statement_error = evaluate_build_machine_arguments_measured(
+        &prepared,
+        "StatementStager::build",
+        vec![BuildTimeValue::Struct {
+            type_name: "Build".to_owned(),
+            fields: vec![("freestanding".to_owned(), BuildTimeValue::Bool(false))],
+        }],
+        BuildMachineExecutionMode::Granted {
+            filesystem: BuildMachineFilesystemAccess::Virtual,
+        },
+    )
+    .expect_err("statement dispatch must reject the same package-authored lookalike");
+    assert!(
+        statement_error.contains("host boundary call `create` not yet supported"),
+        "{statement_error}"
+    );
     assert_eq!(
         pure.value(),
         &[BuildTimeValue::Struct {

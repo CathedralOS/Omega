@@ -662,9 +662,13 @@ complete.
   identity, retains the versioned Hermetic/Volatile summary through checked and
   full reports and compiler-issued package review, and keeps it outside v30
   capability/API comparison bytes. Console-only execution no longer installs
-  real filesystem authority. Exact operation-symbol dispatch, lossless rooted
-  paths, canonical transcripts/content custody, fresh staging publication,
-  output-tree commitment, and replay remain.
+  real filesystem authority. Both statement- and value-position filesystem
+  dispatch now require an exact requirement symbol owned by the canonical
+  toolchain `filesystem_host.omg`; an explicit granted mode cannot activate a
+  package-authored trait or same-named method. A readable leaf is used only
+  after that authority selection to route within the provider. Stable canonical
+  operation encoding for receipts, lossless rooted paths, transcripts/content
+  custody, fresh staging publication, output-tree commitment, and replay remain.
 
 - **PROOF-AND-BOUNDARY-ADMISSION.** Fail closed on false or incomplete evidence.
 

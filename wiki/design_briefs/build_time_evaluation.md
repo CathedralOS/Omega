@@ -205,8 +205,11 @@ joins that fact to the exact statically reachable toolchain service. The
 current scoped real-filesystem provider has no replay transcript, so reachable
 or realized filesystem use is conservatively `Volatile`. A pure or console-only
 build is `Hermetic`, and console-only execution is not supplied real filesystem
-authority. This Boolean rung is not a receipt and makes no replayability or
-source-rebuildability claim.
+authority. Both statement- and value-position dispatch require an exact
+canonical toolchain filesystem requirement symbol before the provider is
+entered; a package-authored lookalike remains an ordinary unsupported call even
+under granted execution. This Boolean rung is not a receipt and makes no
+replayability or source-rebuildability claim.
 
 The usage record carries a schema identity independently from evaluator-step
 identity: adding telemetry does not change what one step means. It records

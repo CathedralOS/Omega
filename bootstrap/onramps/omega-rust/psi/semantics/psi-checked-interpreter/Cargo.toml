@@ -14,6 +14,7 @@ psi-symbols = { path = "../../foundation/psi-symbols" }
 psi-language-core = { path = "../../foundation/psi-language-core" }
 psi-language-semantics = { path = "../../foundation/psi-language-semantics" }
 psi-numerics = { path = "../../foundation/psi-numerics" }
+psi-source = { path = "../../foundation/psi-source" }
 psi-layout-plans = { path = "../../foundation/psi-layout-plans" }
 psi-typed-trees = { path = "../../representations/psi-typed-trees" }
 psi-checked-trees = { path = "../../representations/psi-checked-trees" }
