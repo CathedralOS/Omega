@@ -75,3 +75,9 @@ native, lower-rung meaning, and direct terminal-to-ELF composite gates require
 whole-bundle validation before publication and byte identity with the equivalent
 single-source O1 artifact. This is transport/provenance evidence, not a module,
 namespace, O2, or `Ωself` decision.
+
+The next private
+[`OMEGA_BOOTSTRAP_COMPILATION.md`](OMEGA_BOOTSTRAP_COMPILATION.md) envelope
+binds these exact entries to a canonical package/source/alias graph. It keeps
+labels as custody and deterministic-order metadata only. Neither format replaces
+the resolver/lock authority receipt or source-level module and import checking.
