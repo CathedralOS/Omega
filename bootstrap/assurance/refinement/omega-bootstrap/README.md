@@ -10,8 +10,8 @@ the bridge's Omega meaning or produced artifacts to lower-rung evidence:
 - `meaning_cert_diamond.py` and `meaning-cert-diamond.sh` replay those generated
   claims across the independent checker implementations.
 
-The CKIR1 artifact tranche will use one exact raw per-compilation envelope for
-its two direct Beta refinement checkers. Its little-endian wire is:
+The CKIR1 artifact tranche uses one exact raw per-compilation envelope for its
+direct Beta refinement checkers. Its little-endian wire is:
 
 ```text
 "OMGRFN1\\0" | u32 version=1 | u32 flags
@@ -41,6 +41,17 @@ comments, bounded identifiers, checked decimal integers, and exact EOF.
 and isolated bundle, label, lexical, and exhaustion negatives. Declaration and
 semantic-table reconstruction still follows; lexical custody alone is not a
 source→CKIR claim.
+
+The first artifact-side layer is `ckir-refinement-artifact.beta`. It decodes
+the exact CKIR bytes directly, validates the complete CKIR1 declaration,
+layout, ID/span/visibility, operation, terminator, root, and resource relations,
+and independently evaluates the selected closed scalar entry from a zeroed
+owner. `checked-ir-refinement-artifact.sh` runs that checker through persisted
+Beta on the real all-operation fixture, the product library, valid structural
+and self-aliasing-copy controls, a wrong-result claim, and the complete 142-row
+schema mutation inventory. This establishes CKIR custody and recomputes the
+claimed full result; it does not yet relate source tables to those CKIR rows or
+reconstruct and execute the envelope's ELF bytes.
 
 All encoders are untrusted. They gain no authority from this location; accepted
 claims still require the lower-rooted meaning and proof-kernel checks described

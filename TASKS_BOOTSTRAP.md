@@ -213,6 +213,10 @@ families to `Ωself`.
   Terminal-Psi vocabulary work remains product work in `TASKS.md`.
   - [ ] Land lower-rooted source→CKIR→limited-ELF refinement with perturbed
     source/result/operation/offset/branch/artifact negatives (§10.6).
+    Exact envelope custody, one-unit source lexing, and independent CKIR1
+    relation/result checking are established below Delta. The remaining claim
+    is source semantic-table reconstruction to canonical CKIR plus exact
+    limited-ELF reconstruction/execution and their composed negative teeth.
 - [ ] Continue against later provisional checkpoints until the bridge generally
   parses, resolves, checks, diagnoses, and conservatively lowers every program
   admitted by the candidate `Ωself` profile while rejecting everything else
