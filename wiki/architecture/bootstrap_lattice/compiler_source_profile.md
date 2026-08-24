@@ -30,7 +30,7 @@ Delta v1 and `Ωself` are the only remaining source-surface contracts in this
 bootstrap design. They are deliberately asymmetric: Delta v1 is a literal
 language specification, while `Ωself` is a restriction on source written in an
 already-specified language. Do not turn the compiler artifacts between them
-into extra languages:
+into extra languages.
 
 `Ωself` is retained as the short symbol for the product compiler's ordinary-
 Omega source profile. The required use of that profile is a cross-language
@@ -80,6 +80,19 @@ the bridge implementation.
 - **Full Omega** is the language implemented by the resulting production
   compiler. A compiler can implement a feature without using that feature in
   its own source.
+
+Keep these implications one-way:
+
+| Fact | What follows | What does not follow |
+| --- | --- | --- |
+| Delta omits an Omega feature | the Delta bridge source cannot use that feature | `omega-bootstrap` cannot implement that feature for accepted `Ωself` source |
+| `Ωself` omits an Omega feature | the production compiler source cannot use that feature to implement itself | that feature may be omitted from full-Omega acceptance |
+| `omega-bootstrap` lowers conservatively | the first production compiler executable may be slow or poorly optimized | the compiler source lacks the optimizer or advanced lowering, or the resulting compiler cannot run them on later inputs |
+
+The first two rows are possible because compiler implementation code can parse,
+check, and lower a feature using more primitive facilities than the feature
+itself. The third separates the quality of the generated compiler executable
+from the capabilities contained in that executable.
 
 Here, “implements full Omega” describes the compiler's accepted language and
 the meaning of the artifacts it produces. It does not require the bootstrap
@@ -247,6 +260,15 @@ establishes the implementation and assurance cost.
 | numeric/schema field tags such as `0:` | measure | compare with ordinary named fields; these are distinct from named record fields and may be omitted without making records positional |
 | complex transition payloads | measure | compare with transitions over simple values plus explicit compiler context |
 | mixed field-plus-case data | measure | compare with separate record and sum-data types; either shape remains ordinary Omega |
+
+The table intentionally does not aim for the smallest possible source profile.
+Named fields, basic generics, domains, payload sums, or richer transitions may
+remain when their general bridge implementation is cheaper and safer than the
+duplication or manual encodings needed to avoid them. Proof-program mathematics
+and linear/dependent typing are strong exclusion candidates because the compiler
+can implement those user-facing features without expressing its own algorithms
+in them. Every row still resolves by the same measured whole-bootstrap cost
+test; none is a ruling merely because it appears in this table.
 
 The first concrete frontend cost result for the record/array/attached-machine
 cluster is the bootstrap-owned

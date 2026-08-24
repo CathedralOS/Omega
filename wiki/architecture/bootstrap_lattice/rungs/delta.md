@@ -14,22 +14,24 @@ Delta is the terminal small/Greek language rung in the bootstrap spine:
 Alpha → Beta → Gamma → Delta
 ```
 
-Delta supplies only the systems machinery the bootstrap Psi/Omega bridge
-actually needs. The current experiments demonstrate mutable storage, state
-machines, arenas, effects, and boundary declarations, but none of those
-mechanisms is admitted to v1 merely because it exists today. Delta remains an
-independent, deterministic compiler-host language; it should resemble Omega
-where consistency is cheap, but it need not be an Omega subset and may be slow
-and conservatively lowered.
+Delta supplies a coherent systems/compiler-host surface sufficient to write the
+bootstrap Psi/Omega bridge robustly. The current experiments demonstrate
+mutable storage, state machines, arenas, effects, and boundary declarations,
+but none of those mechanisms is admitted to v1 merely because it exists today.
+Delta remains an independent, deterministic compiler-host language; it should
+resemble Omega where consistency is cheap, but it need not be an Omega subset
+and may be slow and conservatively lowered.
 
-Delta v1 is designed around the complete `omega-bootstrap` source closure. D0,
-the sample corpus, and the Rust producer may reveal useful facilities but cannot
+Delta v1 is designed around the complete `omega-bootstrap` source closure plus
+explicit coherence, safety, robustness, and maintainability arguments. D0, the
+sample corpus, and the Rust producer may reveal useful facilities but cannot
 admit them. Exact arithmetic, ordinary fixed backing, explicit tags, and a
 sealed byte-I/O host surface are simpler candidates to measure first. Broader
 arithmetic domains, allocation machinery, payload sums, or general boundary
 traits enter v1 only when they reduce total bridge-source and assurance cost or
 make the compiler-host language materially safer, more coherent, or less
-brittle; their omission is not a goal in itself.
+brittle; their omission is not a goal in itself. Delta is therefore neither a
+token census of the bridge nor a disguised subset of Omega.
 
 Its job is to implement `omega-bootstrap`, which accepts the exact Omega
 product-compiler source profile `Ωself` and rejects the rest. That bridge
