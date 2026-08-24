@@ -1,7 +1,8 @@
 # Omega product source
 
-This root is reserved for the eventual Omega-written target-lowering,
-optimization, and artifact-emission half of the production compiler. Its source
+This root owns the Omega-written target-lowering, optimization, and
+artifact-emission half of the production compiler; implementation remains open.
+Its source
 closure is constrained to `Ωself` and compiled by `omega-bootstrap`; those
 product passes are not duplicated in the bridge.
 

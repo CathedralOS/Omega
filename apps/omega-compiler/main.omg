@@ -1,0 +1,58 @@
+// Hosted product-compiler entrypoint. The first checkpoint exposes Psi's exact
+// source-to-token phase through a hosted acceptance/status adapter; later
+// checkpoints publish structural observations and compose the remaining
+// Psi/Omega facades behind this owner.
+
+use omega::language::std::console;
+use psi::lex::lexer;
+
+data Main {
+    console: Console;
+    lexer: Lexer;
+}
+
+machine Main::main(&mut self) {
+    self.lexer.initialize(1);
+    transition { _ -> read() }
+
+    state read(&mut self) {
+        let input: ByteRead = self.console.read_byte();
+        transition input {
+            ByteRead::Byte { value } -> retain(value)
+            _ -> tokenize()
+        }
+    }
+
+    state retain(&mut self, value: i32) {
+        self.lexer.append_source_byte(value as u8);
+        transition self.lexer.source.last_retained {
+            true -> read()
+            _ -> source_full()
+        }
+    }
+
+    state source_full(&mut self) {
+        self.lexer.reject(
+            LexDiagnosticCode::SourceCapacityExceeded,
+            self.lexer.source.length,
+            self.lexer.source.length
+        );
+        self.console.exit_process(252);
+    }
+
+    state tokenize(&mut self) {
+        self.lexer.tokenize();
+        transition self.lexer.output.accepted {
+            true -> accepted()
+            _ -> rejected()
+        }
+    }
+
+    state accepted(&mut self) {
+        self.console.exit_process(0);
+    }
+
+    state rejected(&mut self) {
+        self.console.exit_process(251);
+    }
+}

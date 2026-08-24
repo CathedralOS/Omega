@@ -1,0 +1,1514 @@
+use psi::generated::unicode_tables;
+use psi::source::source;
+use psi::tokens::tokens;
+
+// Complete source-to-token spelling phase for the first product-source
+// checkpoint. The implementation is deliberately bounded but the accepted
+// forms use ordinary Omega lexical semantics: Unicode 17 XID identifiers and
+// whitespace, nested comments, all numeric metadata, cooked/raw strings, and
+// longest-match punctuation.
+
+data Lexer {
+    unicode: UnicodeTables;
+    source: SourceUnit;
+    output: TokenStream;
+
+    cursor: u32 in Trapping;
+    token_start: u32 in Trapping;
+    token_end: u32 in Trapping;
+    scalar: u32 in Trapping;
+    scalar_width: u32 in Trapping;
+    decode_valid: bool;
+    byte0: u32 in Trapping;
+    byte1: u32 in Trapping;
+    byte2: u32 in Trapping;
+    byte3: u32 in Trapping;
+    index1: u32 in Trapping;
+    index2: u32 in Trapping;
+    index3: u32 in Trapping;
+
+    decoded_start: u32 in Trapping;
+    copy_cursor: u32 in Trapping;
+    copy_end: u32 in Trapping;
+    escape_start: u32 in Trapping;
+    unicode_value: u32 in Trapping;
+    unicode_accumulator: u32 in Trapping;
+    unicode_digits: u32 in Trapping;
+    raw_hash_count: u32 in Trapping;
+    raw_content_start: u32 in Trapping;
+    raw_content_end: u32 in Trapping;
+    raw_match_cursor: u32 in Trapping;
+    raw_match_count: u32 in Trapping;
+
+    numeric_base: NumericBase;
+    numeric_empty_digits: bool;
+    numeric_has_suffix: bool;
+    numeric_is_float: bool;
+    numeric_has_exponent: bool;
+    numeric_empty_exponent: bool;
+    numeric_saw_digit: bool;
+    predicate_result: bool;
+
+    span_cursor: u32 in Trapping;
+    candidate_cursor: u32 in Trapping;
+}
+
+machine Lexer::initialize(&mut self, source_id: u32 in Trapping) {
+    self.unicode.initialize();
+    self.source.clear(SourceId { value: source_id });
+    self.output.clear(SourceId { value: source_id });
+    self.cursor = 0;
+}
+
+machine Lexer::append_source_byte(&mut self, byte: u8) {
+    self.source.append(byte);
+}
+
+machine Lexer::reject(
+    &mut self,
+    code: LexDiagnosticCode,
+    start: u32 in Trapping,
+    end: u32 in Trapping
+) {
+    self.output.reject(self.source.id, code, start, end);
+}
+
+// Decode one Unicode scalar at an exact byte coordinate. The source buffer is
+// not assumed valid before this operation; overlong forms, surrogates, and
+// values beyond U+10FFFF all fail.
+machine Lexer::decode_at(&mut self, index: u32 in Trapping) {
+    self.decode_valid = false;
+    self.scalar = 0;
+    self.scalar_width = 0;
+    transition index < self.source.length {
+        true -> first()
+        _ -> done()
+    }
+
+    state first(&mut self) {
+        let source_byte: u8 = self.source.byte_or_nul(index);
+        self.byte0 = source_byte as u32 in Trapping;
+        transition self.byte0 < 128 {
+            true -> ascii()
+            _ -> two_lead()
+        }
+    }
+
+    state ascii(&mut self) {
+        self.scalar = self.byte0;
+        self.scalar_width = 1;
+        self.decode_valid = true;
+    }
+
+    state two_lead(&mut self) {
+        transition self.byte0 >= 194 && self.byte0 <= 223 {
+            true -> two_bound()
+            _ -> three_lead()
+        }
+    }
+
+    state two_bound(&mut self) {
+        self.index1 = index + 1;
+        transition self.index1 < self.source.length {
+            true -> two_tail()
+            _ -> done()
+        }
+    }
+
+    state two_tail(&mut self) {
+        let source_byte: u8 = self.source.byte_or_nul(self.index1);
+        self.byte1 = source_byte as u32 in Trapping;
+        transition self.byte1 >= 128 && self.byte1 <= 191 {
+            true -> two_value()
+            _ -> done()
+        }
+    }
+
+    state two_value(&mut self) {
+        self.scalar = (self.byte0 - 192) * 64 + (self.byte1 - 128);
+        self.scalar_width = 2;
+        self.decode_valid = true;
+    }
+
+    state three_lead(&mut self) {
+        transition self.byte0 >= 224 && self.byte0 <= 239 {
+            true -> three_bound()
+            _ -> four_lead()
+        }
+    }
+
+    state three_bound(&mut self) {
+        self.index1 = index + 1;
+        self.index2 = index + 2;
+        transition self.index2 < self.source.length {
+            true -> three_bytes()
+            _ -> done()
+        }
+    }
+
+    state three_bytes(&mut self) {
+        let first_tail: u8 = self.source.byte_or_nul(self.index1);
+        let second_tail: u8 = self.source.byte_or_nul(self.index2);
+        self.byte1 = first_tail as u32 in Trapping;
+        self.byte2 = second_tail as u32 in Trapping;
+        transition self.byte2 >= 128 && self.byte2 <= 191 {
+            true -> three_second()
+            _ -> done()
+        }
+    }
+
+    state three_second(&mut self) {
+        transition self.byte0 == 224 {
+            true -> three_e0()
+            _ -> three_ed_check()
+        }
+    }
+
+    state three_e0(&mut self) {
+        transition self.byte1 >= 160 && self.byte1 <= 191 {
+            true -> three_value()
+            _ -> done()
+        }
+    }
+
+    state three_ed_check(&mut self) {
+        transition self.byte0 == 237 {
+            true -> three_ed()
+            _ -> three_regular()
+        }
+    }
+
+    state three_ed(&mut self) {
+        transition self.byte1 >= 128 && self.byte1 <= 159 {
+            true -> three_value()
+            _ -> done()
+        }
+    }
+
+    state three_regular(&mut self) {
+        transition self.byte1 >= 128 && self.byte1 <= 191 {
+            true -> three_value()
+            _ -> done()
+        }
+    }
+
+    state three_value(&mut self) {
+        self.scalar = (self.byte0 - 224) * 4096
+            + (self.byte1 - 128) * 64
+            + (self.byte2 - 128);
+        self.scalar_width = 3;
+        self.decode_valid = true;
+    }
+
+    state four_lead(&mut self) {
+        transition self.byte0 >= 240 && self.byte0 <= 244 {
+            true -> four_bound()
+            _ -> done()
+        }
+    }
+
+    state four_bound(&mut self) {
+        self.index1 = index + 1;
+        self.index2 = index + 2;
+        self.index3 = index + 3;
+        transition self.index3 < self.source.length {
+            true -> four_bytes()
+            _ -> done()
+        }
+    }
+
+    state four_bytes(&mut self) {
+        let first_tail: u8 = self.source.byte_or_nul(self.index1);
+        let second_tail: u8 = self.source.byte_or_nul(self.index2);
+        let third_tail: u8 = self.source.byte_or_nul(self.index3);
+        self.byte1 = first_tail as u32 in Trapping;
+        self.byte2 = second_tail as u32 in Trapping;
+        self.byte3 = third_tail as u32 in Trapping;
+        transition self.byte2 >= 128 && self.byte2 <= 191
+            && self.byte3 >= 128 && self.byte3 <= 191 {
+            true -> four_second()
+            _ -> done()
+        }
+    }
+
+    state four_second(&mut self) {
+        transition self.byte0 == 240 {
+            true -> four_f0()
+            _ -> four_f4_check()
+        }
+    }
+
+    state four_f0(&mut self) {
+        transition self.byte1 >= 144 && self.byte1 <= 191 {
+            true -> four_value()
+            _ -> done()
+        }
+    }
+
+    state four_f4_check(&mut self) {
+        transition self.byte0 == 244 {
+            true -> four_f4()
+            _ -> four_regular()
+        }
+    }
+
+    state four_f4(&mut self) {
+        transition self.byte1 >= 128 && self.byte1 <= 143 {
+            true -> four_value()
+            _ -> done()
+        }
+    }
+
+    state four_regular(&mut self) {
+        transition self.byte1 >= 128 && self.byte1 <= 191 {
+            true -> four_value()
+            _ -> done()
+        }
+    }
+
+    state four_value(&mut self) {
+        self.scalar = (self.byte0 - 240) * 262144
+            + (self.byte1 - 128) * 4096
+            + (self.byte2 - 128) * 64
+            + (self.byte3 - 128);
+        self.scalar_width = 4;
+        self.decode_valid = true;
+    }
+
+    state done(&mut self) {}
+}
+
+machine Lexer::is_whitespace(&mut self, scalar: u32 in Trapping) {
+    self.predicate_result = false;
+    transition scalar {
+        9 -> yes()
+        10 -> yes()
+        11 -> yes()
+        12 -> yes()
+        13 -> yes()
+        32 -> yes()
+        133 -> yes()
+        160 -> yes()
+        5760 -> yes()
+        8232 -> yes()
+        8233 -> yes()
+        8239 -> yes()
+        8287 -> yes()
+        12288 -> yes()
+        _ -> range_check()
+    }
+
+    state range_check(&mut self) {
+        transition scalar >= 8192 && scalar <= 8202 {
+            true -> yes()
+            _ -> no()
+        }
+    }
+    state yes(&mut self) { self.predicate_result = true; }
+    state no(&mut self) { self.predicate_result = false; }
+}
+
+machine Lexer::is_identifier_start(&mut self, scalar: u32 in Trapping) {
+    self.predicate_result = false;
+    transition scalar == 95 {
+        true -> yes()
+        _ -> upper()
+    }
+    state upper(&mut self) { transition scalar >= 65 && scalar <= 90 { true -> yes() _ -> lower() } }
+    state lower(&mut self) { transition scalar >= 97 && scalar <= 122 { true -> yes() _ -> non_ascii() } }
+    state non_ascii(&mut self) { transition scalar >= 128 { true -> xid() _ -> no() } }
+    state xid(&mut self) {
+        self.unicode.is_xid_start(scalar);
+        self.predicate_result = self.unicode.last_result;
+    }
+    state yes(&mut self) { self.predicate_result = true; }
+    state no(&mut self) { self.predicate_result = false; }
+}
+
+machine Lexer::is_identifier_continue(&mut self, scalar: u32 in Trapping) {
+    self.predicate_result = false;
+    transition scalar == 95 {
+        true -> yes()
+        _ -> upper()
+    }
+    state upper(&mut self) { transition scalar >= 65 && scalar <= 90 { true -> yes() _ -> lower() } }
+    state lower(&mut self) { transition scalar >= 97 && scalar <= 122 { true -> yes() _ -> digit() } }
+    state digit(&mut self) { transition scalar >= 48 && scalar <= 57 { true -> yes() _ -> non_ascii() } }
+    state non_ascii(&mut self) { transition scalar >= 128 { true -> xid() _ -> no() } }
+    state xid(&mut self) {
+        self.unicode.is_xid_continue(scalar);
+        self.predicate_result = self.unicode.last_result;
+    }
+    state yes(&mut self) { self.predicate_result = true; }
+    state no(&mut self) { self.predicate_result = false; }
+}
+
+machine Lexer::validate_utf8(&mut self) {
+    self.cursor = 0;
+    transition { _ -> step() }
+
+    state step(&mut self) {
+        transition self.cursor < self.source.length {
+            true -> decode()
+            _ -> complete()
+        }
+    }
+
+    state decode(&mut self) {
+        self.decode_at(self.cursor);
+        transition self.decode_valid {
+            true -> advance()
+            _ -> invalid()
+        }
+    }
+
+    state advance(&mut self) {
+        self.cursor = self.cursor + self.scalar_width;
+        transition { _ -> step() }
+    }
+
+    state invalid(&mut self) {
+        self.reject(LexDiagnosticCode::InvalidUtf8, self.cursor, self.cursor + 1);
+    }
+
+    state complete(&mut self) {}
+}
+
+machine Lexer::push_token(&mut self, kind: TokenKind) {
+    self.output.push(
+        self.source.id,
+        kind,
+        self.token_start,
+        self.token_end,
+        self.decoded_start,
+        self.output.decoded_length - self.decoded_start
+    );
+    transition self.output.last_retained {
+        true -> done()
+        _ -> full()
+    }
+    state full(&mut self) {
+        self.reject(
+            LexDiagnosticCode::TokenCapacityExceeded,
+            self.token_start,
+            self.token_end
+        );
+    }
+    state done(&mut self) {}
+}
+
+machine Lexer::push_decoded(&mut self, byte: u8) {
+    self.output.push_decoded(byte);
+    transition self.output.last_retained {
+        true -> done()
+        _ -> full()
+    }
+    state full(&mut self) {
+        self.reject(
+            LexDiagnosticCode::DecodedCapacityExceeded,
+            self.token_start,
+            self.cursor
+        );
+    }
+    state done(&mut self) {}
+}
+
+machine Lexer::span_equals(
+    &mut self,
+    start: u32 in Trapping,
+    end: u32 in Trapping,
+    candidate: &[u8]
+) {
+    self.predicate_result = false;
+    transition end - start == candidate.len {
+        true -> scan(0)
+        _ -> no()
+    }
+
+    state scan(&mut self, index: u32 in Trapping) {
+        transition index < candidate.len {
+            true -> address(index)
+            _ -> yes()
+        }
+    }
+
+    state address(&mut self, index: u32 in Trapping) {
+        self.candidate_cursor = start + index;
+        transition { _ -> compare(index) }
+    }
+
+    state compare(&mut self, index: u32 in Trapping) {
+        let source_byte: u8 = self.source.byte_or_nul(self.candidate_cursor);
+        let candidate_byte: u8 = candidate[index];
+        transition source_byte == candidate_byte {
+            true -> scan(index + 1)
+            _ -> no()
+        }
+    }
+
+    state yes(&mut self) { self.predicate_result = true; }
+    state no(&mut self) { self.predicate_result = false; }
+}
+
+machine Lexer::classify_keyword(&mut self) {
+    self.span_equals(self.token_start, self.token_end, "as"); let matched: bool = self.predicate_result;
+    transition matched { true -> as_kw() _ -> calling_convention_kw() }
+    state calling_convention_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "calling_convention"); let matched: bool = self.predicate_result; transition matched { true -> calling_convention_yes() _ -> capability_kw() } }
+    state capability_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "capability"); let matched: bool = self.predicate_result; transition matched { true -> capability_yes() _ -> contains_kw() } }
+    state contains_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "contains"); let matched: bool = self.predicate_result; transition matched { true -> contains_yes() _ -> data_kw() } }
+    state data_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "data"); let matched: bool = self.predicate_result; transition matched { true -> data_yes() _ -> else_kw() } }
+    state else_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "else"); let matched: bool = self.predicate_result; transition matched { true -> else_yes() _ -> entry_kw() } }
+    state entry_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "entry"); let matched: bool = self.predicate_result; transition matched { true -> entry_yes() _ -> enum_kw() } }
+    state enum_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "enum"); let matched: bool = self.predicate_result; transition matched { true -> enum_yes() _ -> false_kw() } }
+    state false_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "false"); let matched: bool = self.predicate_result; transition matched { true -> false_yes() _ -> foreign_kw() } }
+    state foreign_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "foreign"); let matched: bool = self.predicate_result; transition matched { true -> foreign_yes() _ -> host_kw() } }
+    state host_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "host"); let matched: bool = self.predicate_result; transition matched { true -> host_yes() _ -> if_kw() } }
+    state if_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "if"); let matched: bool = self.predicate_result; transition matched { true -> if_yes() _ -> invariant_kw() } }
+    state invariant_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "invariant"); let matched: bool = self.predicate_result; transition matched { true -> invariant_yes() _ -> let_kw() } }
+    state let_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "let"); let matched: bool = self.predicate_result; transition matched { true -> let_yes() _ -> library_kw() } }
+    state library_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "library"); let matched: bool = self.predicate_result; transition matched { true -> library_yes() _ -> loop_kw() } }
+    state loop_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "loop"); let matched: bool = self.predicate_result; transition matched { true -> loop_yes() _ -> machine_kw() } }
+    state machine_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "machine"); let matched: bool = self.predicate_result; transition matched { true -> machine_yes() _ -> match_kw() } }
+    state match_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "match"); let matched: bool = self.predicate_result; transition matched { true -> match_yes() _ -> owns_kw() } }
+    state owns_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "owns"); let matched: bool = self.predicate_result; transition matched { true -> owns_yes() _ -> platform_kw() } }
+    state platform_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "platform"); let matched: bool = self.predicate_result; transition matched { true -> platform_yes() _ -> pub_kw() } }
+    state pub_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "pub"); let matched: bool = self.predicate_result; transition matched { true -> pub_yes() _ -> return_kw() } }
+    state return_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "return"); let matched: bool = self.predicate_result; transition matched { true -> return_yes() _ -> self_type_kw() } }
+    state self_type_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "Self"); let matched: bool = self.predicate_result; transition matched { true -> self_type_yes() _ -> self_value_kw() } }
+    state self_value_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "self"); let matched: bool = self.predicate_result; transition matched { true -> self_value_yes() _ -> state_kw() } }
+    state state_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "state"); let matched: bool = self.predicate_result; transition matched { true -> state_yes() _ -> struct_kw() } }
+    state struct_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "struct"); let matched: bool = self.predicate_result; transition matched { true -> struct_yes() _ -> target_kw() } }
+    state target_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "target"); let matched: bool = self.predicate_result; transition matched { true -> target_yes() _ -> transition_kw() } }
+    state transition_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "transition"); let matched: bool = self.predicate_result; transition matched { true -> transition_yes() _ -> true_kw() } }
+    state true_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "true"); let matched: bool = self.predicate_result; transition matched { true -> true_yes() _ -> use_kw() } }
+    state use_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "use"); let matched: bool = self.predicate_result; transition matched { true -> use_yes() _ -> when_kw() } }
+    state when_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "when"); let matched: bool = self.predicate_result; transition matched { true -> when_yes() _ -> while_kw() } }
+    state while_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "while"); let matched: bool = self.predicate_result; transition matched { true -> while_yes() _ -> identifier() } }
+
+    state as_kw(&mut self) { self.push_token(TokenKind::Keyword { kind: KeywordKind::As }); }
+    state calling_convention_yes(&mut self) { self.push_token(TokenKind::Keyword { kind: KeywordKind::CallingConvention }); }
+    state capability_yes(&mut self) { self.push_token(TokenKind::Keyword { kind: KeywordKind::Capability }); }
+    state contains_yes(&mut self) { self.push_token(TokenKind::Keyword { kind: KeywordKind::Contains }); }
+    state data_yes(&mut self) { self.push_token(TokenKind::Keyword { kind: KeywordKind::Data }); }
+    state else_yes(&mut self) { self.push_token(TokenKind::Keyword { kind: KeywordKind::Else }); }
+    state entry_yes(&mut self) { self.push_token(TokenKind::Keyword { kind: KeywordKind::Entry }); }
+    state enum_yes(&mut self) { self.push_token(TokenKind::Keyword { kind: KeywordKind::Enum }); }
+    state false_yes(&mut self) { self.push_token(TokenKind::Keyword { kind: KeywordKind::False }); }
+    state foreign_yes(&mut self) { self.push_token(TokenKind::Keyword { kind: KeywordKind::Foreign }); }
+    state host_yes(&mut self) { self.push_token(TokenKind::Keyword { kind: KeywordKind::Host }); }
+    state if_yes(&mut self) { self.push_token(TokenKind::Keyword { kind: KeywordKind::If }); }
+    state invariant_yes(&mut self) { self.push_token(TokenKind::Keyword { kind: KeywordKind::Invariant }); }
+    state let_yes(&mut self) { self.push_token(TokenKind::Keyword { kind: KeywordKind::Let }); }
+    state library_yes(&mut self) { self.push_token(TokenKind::Keyword { kind: KeywordKind::Library }); }
+    state loop_yes(&mut self) { self.push_token(TokenKind::Keyword { kind: KeywordKind::Loop }); }
+    state machine_yes(&mut self) { self.push_token(TokenKind::Keyword { kind: KeywordKind::Machine }); }
+    state match_yes(&mut self) { self.push_token(TokenKind::Keyword { kind: KeywordKind::Match }); }
+    state owns_yes(&mut self) { self.push_token(TokenKind::Keyword { kind: KeywordKind::Owns }); }
+    state platform_yes(&mut self) { self.push_token(TokenKind::Keyword { kind: KeywordKind::Platform }); }
+    state pub_yes(&mut self) { self.push_token(TokenKind::Keyword { kind: KeywordKind::Pub }); }
+    state return_yes(&mut self) { self.push_token(TokenKind::Keyword { kind: KeywordKind::Return }); }
+    state self_type_yes(&mut self) { self.push_token(TokenKind::Keyword { kind: KeywordKind::SelfType }); }
+    state self_value_yes(&mut self) { self.push_token(TokenKind::Keyword { kind: KeywordKind::SelfValue }); }
+    state state_yes(&mut self) { self.push_token(TokenKind::Keyword { kind: KeywordKind::State }); }
+    state struct_yes(&mut self) { self.push_token(TokenKind::Keyword { kind: KeywordKind::Struct }); }
+    state target_yes(&mut self) { self.push_token(TokenKind::Keyword { kind: KeywordKind::Target }); }
+    state transition_yes(&mut self) { self.push_token(TokenKind::Keyword { kind: KeywordKind::Transition }); }
+    state true_yes(&mut self) { self.push_token(TokenKind::Keyword { kind: KeywordKind::True }); }
+    state use_yes(&mut self) { self.push_token(TokenKind::Keyword { kind: KeywordKind::Use }); }
+    state when_yes(&mut self) { self.push_token(TokenKind::Keyword { kind: KeywordKind::When }); }
+    state while_yes(&mut self) { self.push_token(TokenKind::Keyword { kind: KeywordKind::While }); }
+    state identifier(&mut self) { self.push_token(TokenKind::Identifier); }
+}
+
+machine Lexer::lex_identifier(&mut self) {
+    self.token_start = self.cursor;
+    self.decoded_start = self.output.decoded_length;
+    self.decode_at(self.cursor);
+    self.cursor = self.cursor + self.scalar_width;
+    transition { _ -> continue_scan() }
+
+    state continue_scan(&mut self) {
+        transition self.cursor < self.source.length {
+            true -> decode_next()
+            _ -> finish()
+        }
+    }
+
+    state decode_next(&mut self) {
+        self.decode_at(self.cursor);
+        self.is_identifier_continue(self.scalar); let continues: bool = self.predicate_result;
+        transition continues {
+            true -> advance()
+            _ -> finish()
+        }
+    }
+
+    state advance(&mut self) {
+        self.cursor = self.cursor + self.scalar_width;
+        transition { _ -> continue_scan() }
+    }
+
+    state finish(&mut self) {
+        self.token_end = self.cursor;
+        self.classify_keyword();
+    }
+}
+
+machine Lexer::lex_whitespace(&mut self) {
+    self.token_start = self.cursor;
+    self.decoded_start = self.output.decoded_length;
+    transition { _ -> scan() }
+
+    state scan(&mut self) {
+        transition self.cursor < self.source.length {
+            true -> decode()
+            _ -> finish()
+        }
+    }
+
+    state decode(&mut self) {
+        self.decode_at(self.cursor);
+        self.is_whitespace(self.scalar); let whitespace: bool = self.predicate_result;
+        transition whitespace {
+            true -> advance()
+            _ -> finish()
+        }
+    }
+
+    state advance(&mut self) {
+        self.cursor = self.cursor + self.scalar_width;
+        transition { _ -> scan() }
+    }
+
+    state finish(&mut self) {
+        self.token_end = self.cursor;
+        self.push_token(TokenKind::Whitespace);
+    }
+}
+
+machine Lexer::lex_line_comment(&mut self) {
+    self.token_start = self.cursor;
+    self.decoded_start = self.output.decoded_length;
+    self.cursor = self.cursor + 2;
+    transition { _ -> scan() }
+
+    state scan(&mut self) {
+        transition self.cursor < self.source.length {
+            true -> byte()
+            _ -> finish()
+        }
+    }
+
+    state byte(&mut self) {
+        let source_byte: u8 = self.source.byte_or_nul(self.cursor);
+        transition source_byte == 10 {
+            true -> consume_newline()
+            _ -> advance()
+        }
+    }
+
+    state advance(&mut self) {
+        self.cursor = self.cursor + 1;
+        transition { _ -> scan() }
+    }
+
+    state consume_newline(&mut self) {
+        self.token_end = self.cursor;
+        self.cursor = self.cursor + 1;
+        self.push_token(TokenKind::LineComment);
+    }
+
+    state finish(&mut self) {
+        self.token_end = self.cursor;
+        self.push_token(TokenKind::LineComment);
+    }
+}
+
+machine Lexer::lex_block_comment(&mut self) {
+    self.token_start = self.cursor;
+    self.decoded_start = self.output.decoded_length;
+    self.cursor = self.cursor + 2;
+    self.unicode_digits = 1;
+    transition { _ -> scan() }
+
+    state scan(&mut self) {
+        transition self.cursor < self.source.length {
+            true -> pair_bound()
+            _ -> unterminated()
+        }
+    }
+
+    state pair_bound(&mut self) {
+        self.index1 = self.cursor + 1;
+        transition self.index1 < self.source.length {
+            true -> open_check()
+            _ -> advance()
+        }
+    }
+
+    state open_check(&mut self) {
+        let first_byte: u8 = self.source.byte_or_nul(self.cursor);
+        let second_byte: u8 = self.source.byte_or_nul(self.index1);
+        transition first_byte == 47 && second_byte == 42 {
+            true -> open()
+            _ -> close_check()
+        }
+    }
+
+    state open(&mut self) {
+        self.unicode_digits = self.unicode_digits + 1;
+        self.cursor = self.cursor + 2;
+        transition { _ -> scan() }
+    }
+
+    state close_check(&mut self) {
+        let first_byte: u8 = self.source.byte_or_nul(self.cursor);
+        let second_byte: u8 = self.source.byte_or_nul(self.index1);
+        transition first_byte == 42 && second_byte == 47 {
+            true -> close()
+            _ -> advance()
+        }
+    }
+
+    state close(&mut self) {
+        self.unicode_digits = self.unicode_digits - 1;
+        self.cursor = self.cursor + 2;
+        transition self.unicode_digits == 0 {
+            true -> finish()
+            _ -> scan()
+        }
+    }
+
+    state advance(&mut self) {
+        self.cursor = self.cursor + 1;
+        transition { _ -> scan() }
+    }
+
+    state finish(&mut self) {
+        self.token_end = self.cursor;
+        self.push_token(TokenKind::BlockComment);
+    }
+
+    state unterminated(&mut self) {
+        self.reject(
+            LexDiagnosticCode::UnterminatedBlockComment,
+            self.token_start,
+            self.source.length
+        );
+    }
+}
+
+machine Lexer::hex_digit_value(&mut self, byte: u32 in Trapping) {
+    self.unicode_value = 4294967295;
+    transition byte >= 48 && byte <= 57 {
+        true -> decimal()
+        _ -> lower()
+    }
+    state decimal(&mut self) { self.unicode_value = byte - 48; }
+    state lower(&mut self) { transition byte >= 97 && byte <= 102 { true -> lower_yes() _ -> upper() } }
+    state lower_yes(&mut self) { self.unicode_value = byte - 87; }
+    state upper(&mut self) { transition byte >= 65 && byte <= 70 { true -> upper_yes() _ -> done() } }
+    state upper_yes(&mut self) { self.unicode_value = byte - 55; }
+    state done(&mut self) {}
+}
+
+machine Lexer::append_scalar_utf8(&mut self, scalar: u32 in Trapping) {
+    transition scalar < 128 {
+        true -> one()
+        _ -> two_check()
+    }
+    state one(&mut self) { self.push_decoded(scalar as u8); }
+    state two_check(&mut self) { transition scalar < 2048 { true -> two() _ -> three_check() } }
+    state two(&mut self) {
+        self.push_decoded((192 + scalar / 64) as u8);
+        self.push_decoded((128 + scalar % 64) as u8);
+    }
+    state three_check(&mut self) { transition scalar < 65536 { true -> three() _ -> four() } }
+    state three(&mut self) {
+        self.push_decoded((224 + scalar / 4096) as u8);
+        self.push_decoded((128 + scalar / 64 % 64) as u8);
+        self.push_decoded((128 + scalar % 64) as u8);
+    }
+    state four(&mut self) {
+        self.push_decoded((240 + scalar / 262144) as u8);
+        self.push_decoded((128 + scalar / 4096 % 64) as u8);
+        self.push_decoded((128 + scalar / 64 % 64) as u8);
+        self.push_decoded((128 + scalar % 64) as u8);
+    }
+}
+
+machine Lexer::copy_source_to_decoded(&mut self) {
+    transition { _ -> scan() }
+
+    state scan(&mut self) {
+        transition self.copy_cursor < self.copy_end {
+        true -> copy()
+        _ -> done()
+        }
+    }
+    state copy(&mut self) {
+        let source_byte: u8 = self.source.byte_or_nul(self.copy_cursor);
+        self.push_decoded(source_byte);
+        self.copy_cursor = self.copy_cursor + 1;
+        transition self.output.accepted { true -> scan() _ -> done() }
+    }
+    state done(&mut self) {}
+}
+
+machine Lexer::lex_cooked_string(&mut self) {
+    self.token_start = self.cursor;
+    self.decoded_start = self.output.decoded_length;
+    self.cursor = self.cursor + 1;
+    transition { _ -> scan() }
+
+    state scan(&mut self) {
+        transition self.cursor < self.source.length {
+            true -> decode()
+            _ -> unterminated()
+        }
+    }
+
+    state decode(&mut self) {
+        self.decode_at(self.cursor);
+        transition self.scalar == 34 {
+            true -> finish()
+            _ -> slash()
+        }
+    }
+
+    state slash(&mut self) {
+        transition self.scalar == 92 {
+            true -> escape_begin()
+            _ -> copy_scalar()
+        }
+    }
+
+    state copy_scalar(&mut self) {
+        self.copy_cursor = self.cursor;
+        self.copy_end = self.cursor + self.scalar_width;
+        self.copy_source_to_decoded();
+        self.cursor = self.copy_end;
+        transition self.output.accepted { true -> scan() _ -> done() }
+    }
+
+    state escape_begin(&mut self) {
+        self.escape_start = self.cursor;
+        self.cursor = self.cursor + 1;
+        transition self.cursor < self.source.length {
+            true -> escape_byte()
+            _ -> unterminated_escape()
+        }
+    }
+
+    state escape_byte(&mut self) {
+        let source_byte: u8 = self.source.byte_or_nul(self.cursor);
+        self.byte0 = source_byte as u32 in Trapping;
+        transition self.byte0 {
+            34 -> escaped_quote()
+            39 -> escaped_apostrophe()
+            92 -> escaped_slash()
+            110 -> escaped_n()
+            114 -> escaped_r()
+            116 -> escaped_t()
+            48 -> escaped_zero()
+            120 -> hex_begin()
+            117 -> unicode_begin()
+            _ -> unsupported_escape()
+        }
+    }
+
+    state escaped_quote(&mut self) { self.push_decoded(34); self.cursor = self.cursor + 1; transition self.output.accepted { true -> scan() _ -> done() } }
+    state escaped_apostrophe(&mut self) { self.push_decoded(39); self.cursor = self.cursor + 1; transition self.output.accepted { true -> scan() _ -> done() } }
+    state escaped_slash(&mut self) { self.push_decoded(92); self.cursor = self.cursor + 1; transition self.output.accepted { true -> scan() _ -> done() } }
+    state escaped_n(&mut self) { self.push_decoded(10); self.cursor = self.cursor + 1; transition self.output.accepted { true -> scan() _ -> done() } }
+    state escaped_r(&mut self) { self.push_decoded(13); self.cursor = self.cursor + 1; transition self.output.accepted { true -> scan() _ -> done() } }
+    state escaped_t(&mut self) { self.push_decoded(9); self.cursor = self.cursor + 1; transition self.output.accepted { true -> scan() _ -> done() } }
+    state escaped_zero(&mut self) { self.push_decoded(0); self.cursor = self.cursor + 1; transition self.output.accepted { true -> scan() _ -> done() } }
+
+    state hex_begin(&mut self) {
+        self.index1 = self.cursor + 1;
+        self.index2 = self.cursor + 2;
+        transition self.index2 < self.source.length {
+            true -> hex_first()
+            _ -> hex_unterminated()
+        }
+    }
+
+    state hex_first(&mut self) {
+        let source_byte: u8 = self.source.byte_or_nul(self.index1);
+        self.hex_digit_value(source_byte as u32 in Trapping);
+        self.byte1 = self.unicode_value;
+        transition self.byte1 < 16 {
+            true -> hex_second()
+            _ -> hex_invalid_first()
+        }
+    }
+
+    state hex_second(&mut self) {
+        let source_byte: u8 = self.source.byte_or_nul(self.index2);
+        self.hex_digit_value(source_byte as u32 in Trapping);
+        self.byte2 = self.unicode_value;
+        transition self.byte2 < 16 {
+            true -> hex_emit()
+            _ -> hex_invalid_second()
+        }
+    }
+
+    state hex_emit(&mut self) {
+        self.push_decoded((self.byte1 * 16 + self.byte2) as u8);
+        self.cursor = self.cursor + 3;
+        transition self.output.accepted { true -> scan() _ -> done() }
+    }
+
+    state unicode_begin(&mut self) {
+        self.index1 = self.cursor + 1;
+        transition self.index1 < self.source.length {
+            true -> unicode_brace()
+            _ -> unicode_unterminated()
+        }
+    }
+
+    state unicode_brace(&mut self) {
+        let source_byte: u8 = self.source.byte_or_nul(self.index1);
+        transition source_byte == 123 {
+            true -> unicode_digits_begin()
+            _ -> unicode_expected_brace()
+        }
+    }
+
+    state unicode_digits_begin(&mut self) {
+        self.cursor = self.cursor + 2;
+        self.unicode_accumulator = 0;
+        self.unicode_digits = 0;
+        transition { _ -> unicode_digits_scan() }
+    }
+
+    state unicode_digits_scan(&mut self) {
+        transition self.cursor < self.source.length {
+            true -> unicode_digit_or_close()
+            _ -> unicode_unterminated()
+        }
+    }
+
+    state unicode_digit_or_close(&mut self) {
+        let source_byte: u8 = self.source.byte_or_nul(self.cursor);
+        transition source_byte == 125 {
+            true -> unicode_close()
+            _ -> unicode_digit()
+        }
+    }
+
+    state unicode_digit(&mut self) {
+        let source_byte: u8 = self.source.byte_or_nul(self.cursor);
+        self.hex_digit_value(source_byte as u32 in Trapping);
+        self.byte1 = self.unicode_value;
+        transition self.byte1 < 16 {
+            true -> unicode_accumulate()
+            _ -> unicode_invalid_digit()
+        }
+    }
+
+    state unicode_accumulate(&mut self) {
+        transition self.unicode_accumulator <= 1114111 / 16 {
+            true -> unicode_accumulate_safe()
+            _ -> unicode_invalid_value()
+        }
+    }
+
+    state unicode_accumulate_safe(&mut self) {
+        self.unicode_accumulator = self.unicode_accumulator * 16 + self.byte1;
+        self.unicode_digits = self.unicode_digits + 1;
+        self.cursor = self.cursor + 1;
+        transition { _ -> unicode_digits_scan() }
+    }
+
+    state unicode_close(&mut self) {
+        transition self.unicode_digits > 0 {
+            true -> unicode_range()
+            _ -> unicode_empty()
+        }
+    }
+
+    state unicode_range(&mut self) {
+        transition self.unicode_accumulator <= 1114111 {
+            true -> unicode_surrogate_low()
+            _ -> unicode_invalid_value()
+        }
+    }
+
+    state unicode_surrogate_low(&mut self) {
+        transition self.unicode_accumulator >= 55296 {
+            true -> unicode_surrogate_high()
+            _ -> unicode_emit()
+        }
+    }
+
+    state unicode_surrogate_high(&mut self) {
+        transition self.unicode_accumulator <= 57343 {
+            true -> unicode_invalid_scalar()
+            _ -> unicode_emit()
+        }
+    }
+
+    state unicode_emit(&mut self) {
+        self.append_scalar_utf8(self.unicode_accumulator);
+        self.cursor = self.cursor + 1;
+        transition self.output.accepted { true -> scan() _ -> done() }
+    }
+
+    state finish(&mut self) {
+        self.cursor = self.cursor + 1;
+        self.token_end = self.cursor;
+        self.push_token(TokenKind::StringLiteral);
+    }
+
+    state unterminated(&mut self) { self.reject(LexDiagnosticCode::UnterminatedStringLiteral, self.token_start, self.source.length); }
+    state unterminated_escape(&mut self) { self.reject(LexDiagnosticCode::UnterminatedStringEscape, self.token_start, self.source.length); }
+    state unsupported_escape(&mut self) { self.reject(LexDiagnosticCode::UnsupportedEscape, self.escape_start, self.cursor + 1); }
+    state hex_unterminated(&mut self) { self.reject(LexDiagnosticCode::UnterminatedHexEscape, self.escape_start, self.source.length); }
+    state hex_invalid_first(&mut self) { self.reject(LexDiagnosticCode::InvalidHexEscapeDigit, self.cursor + 1, self.cursor + 2); }
+    state hex_invalid_second(&mut self) { self.reject(LexDiagnosticCode::InvalidHexEscapeDigit, self.cursor + 2, self.cursor + 3); }
+    state unicode_unterminated(&mut self) { self.reject(LexDiagnosticCode::UnterminatedUnicodeEscape, self.escape_start, self.source.length); }
+    state unicode_expected_brace(&mut self) { self.reject(LexDiagnosticCode::ExpectedUnicodeEscapeBrace, self.cursor + 1, self.cursor + 2); }
+    state unicode_empty(&mut self) { self.reject(LexDiagnosticCode::EmptyUnicodeEscape, self.escape_start, self.cursor + 1); }
+    state unicode_invalid_digit(&mut self) { self.reject(LexDiagnosticCode::InvalidUnicodeEscapeDigit, self.cursor, self.cursor + 1); }
+    state unicode_invalid_value(&mut self) { self.reject(LexDiagnosticCode::InvalidUnicodeEscapeValue, self.escape_start, self.cursor + 1); }
+    state unicode_invalid_scalar(&mut self) { self.reject(LexDiagnosticCode::InvalidUnicodeScalar, self.escape_start, self.cursor + 1); }
+    state done(&mut self) {}
+}
+
+machine Lexer::lex_raw_string(&mut self) {
+    self.token_start = self.cursor;
+    self.decoded_start = self.output.decoded_length;
+    self.cursor = self.cursor + 1;
+    self.raw_hash_count = 0;
+    transition { _ -> hashes() }
+
+    state hashes(&mut self) {
+        transition self.cursor < self.source.length {
+            true -> hash_or_quote()
+            _ -> invalid_delimiter()
+        }
+    }
+
+    state hash_or_quote(&mut self) {
+        let source_byte: u8 = self.source.byte_or_nul(self.cursor);
+        transition source_byte == 35 {
+            true -> hash()
+            _ -> quote()
+        }
+    }
+
+    state hash(&mut self) {
+        self.raw_hash_count = self.raw_hash_count + 1;
+        self.cursor = self.cursor + 1;
+        transition { _ -> hashes() }
+    }
+
+    state quote(&mut self) {
+        let source_byte: u8 = self.source.byte_or_nul(self.cursor);
+        transition source_byte == 34 {
+            true -> body_begin()
+            _ -> invalid_delimiter()
+        }
+    }
+
+    state body_begin(&mut self) {
+        self.cursor = self.cursor + 1;
+        self.raw_content_start = self.cursor;
+        transition { _ -> body_scan() }
+    }
+
+    state body_scan(&mut self) {
+        transition self.cursor < self.source.length {
+            true -> body_byte()
+            _ -> unterminated()
+        }
+    }
+
+    state body_byte(&mut self) {
+        let source_byte: u8 = self.source.byte_or_nul(self.cursor);
+        transition source_byte == 34 {
+            true -> candidate_begin()
+            _ -> body_advance()
+        }
+    }
+
+    state body_advance(&mut self) {
+        self.cursor = self.cursor + 1;
+        transition { _ -> body_scan() }
+    }
+
+    state candidate_begin(&mut self) {
+        self.raw_match_cursor = self.cursor + 1;
+        self.raw_match_count = 0;
+        transition { _ -> candidate_hashes() }
+    }
+
+    state candidate_hashes(&mut self) {
+        transition self.raw_match_count < self.raw_hash_count {
+            true -> candidate_bound()
+            _ -> matched()
+        }
+    }
+
+    state candidate_bound(&mut self) {
+        transition self.raw_match_cursor < self.source.length {
+            true -> candidate_hash()
+            _ -> body_advance()
+        }
+    }
+
+    state candidate_hash(&mut self) {
+        let source_byte: u8 = self.source.byte_or_nul(self.raw_match_cursor);
+        transition source_byte == 35 {
+            true -> candidate_next()
+            _ -> body_advance()
+        }
+    }
+
+    state candidate_next(&mut self) {
+        self.raw_match_cursor = self.raw_match_cursor + 1;
+        self.raw_match_count = self.raw_match_count + 1;
+        transition { _ -> candidate_hashes() }
+    }
+
+    state matched(&mut self) {
+        self.raw_content_end = self.cursor;
+        self.copy_cursor = self.raw_content_start;
+        self.copy_end = self.raw_content_end;
+        self.copy_source_to_decoded();
+        self.cursor = self.raw_match_cursor;
+        self.token_end = self.cursor;
+        transition self.output.accepted { true -> emit() _ -> done() }
+    }
+
+    state emit(&mut self) { self.push_token(TokenKind::StringLiteral); }
+    state invalid_delimiter(&mut self) { self.reject(LexDiagnosticCode::InvalidRawStringDelimiter, self.token_start, self.cursor + 1); }
+    state unterminated(&mut self) { self.reject(LexDiagnosticCode::UnterminatedRawString, self.token_start, self.source.length); }
+    state done(&mut self) {}
+}
+
+machine Lexer::digit_in_base(&mut self, byte: u32 in Trapping, base: NumericBase) {
+    self.predicate_result = false;
+    transition base {
+        NumericBase::Binary -> binary()
+        NumericBase::Octal -> octal()
+        NumericBase::Decimal -> decimal()
+        NumericBase::Hexadecimal -> hex()
+    }
+    state binary(&mut self) { transition byte >= 48 && byte <= 49 { true -> yes() _ -> no() } }
+    state octal(&mut self) { transition byte >= 48 && byte <= 55 { true -> yes() _ -> no() } }
+    state decimal(&mut self) { transition byte >= 48 && byte <= 57 { true -> yes() _ -> no() } }
+    state hex(&mut self) {
+        transition byte >= 48 && byte <= 57 {
+            true -> yes()
+            _ -> hex_alpha()
+        }
+    }
+    state hex_alpha(&mut self) {
+        transition byte >= 65 && byte <= 70 {
+            true -> yes()
+            _ -> hex_lower()
+        }
+    }
+    state hex_lower(&mut self) { transition byte >= 97 && byte <= 102 { true -> yes() _ -> no() } }
+    state yes(&mut self) { self.predicate_result = true; }
+    state no(&mut self) { self.predicate_result = false; }
+}
+
+machine Lexer::consume_digits(&mut self) {
+    self.numeric_saw_digit = false;
+    transition { _ -> scan() }
+    state scan(&mut self) {
+        transition self.cursor < self.source.length {
+            true -> byte()
+            _ -> done()
+        }
+    }
+    state byte(&mut self) {
+        let source_byte: u8 = self.source.byte_or_nul(self.cursor);
+        self.byte0 = source_byte as u32 in Trapping;
+        transition self.byte0 == 95 {
+            true -> underscore()
+            _ -> digit()
+        }
+    }
+    state underscore(&mut self) { self.cursor = self.cursor + 1; transition { _ -> scan() } }
+    state digit(&mut self) {
+        self.digit_in_base(self.byte0, self.numeric_base); let digit: bool = self.predicate_result;
+        transition digit {
+            true -> consume()
+            _ -> done()
+        }
+    }
+    state consume(&mut self) { self.numeric_saw_digit = true; self.cursor = self.cursor + 1; transition { _ -> scan() } }
+    state done(&mut self) {}
+}
+
+machine Lexer::consume_suffix(&mut self) {
+    self.numeric_has_suffix = false;
+    transition self.cursor < self.source.length {
+        true -> decode_first()
+        _ -> done()
+    }
+    state decode_first(&mut self) {
+        self.decode_at(self.cursor);
+        self.is_identifier_start(self.scalar); let starts: bool = self.predicate_result;
+        transition starts {
+            true -> consume()
+            _ -> done()
+        }
+    }
+    state consume(&mut self) {
+        self.numeric_has_suffix = true;
+        self.cursor = self.cursor + self.scalar_width;
+        transition self.cursor < self.source.length { true -> decode_next() _ -> done() }
+    }
+    state decode_next(&mut self) {
+        self.decode_at(self.cursor);
+        self.is_identifier_continue(self.scalar); let continues: bool = self.predicate_result;
+        transition continues { true -> consume() _ -> done() }
+    }
+    state done(&mut self) {}
+}
+
+machine Lexer::dot_starts_float(&mut self) {
+    self.predicate_result = false;
+    transition self.cursor + 1 < self.source.length {
+        true -> decode_after()
+        _ -> yes()
+    }
+    state decode_after(&mut self) {
+        self.decode_at(self.cursor + 1);
+        transition self.scalar >= 48 && self.scalar <= 57 {
+            true -> yes()
+            _ -> dotdot()
+        }
+    }
+    state dotdot(&mut self) {
+        transition self.scalar == 46 {
+            true -> no()
+            _ -> identifier()
+        }
+    }
+    state identifier(&mut self) {
+        self.is_identifier_start(self.scalar);
+        transition self.predicate_result { true -> no() _ -> yes() }
+    }
+    state yes(&mut self) { self.predicate_result = true; }
+    state no(&mut self) { self.predicate_result = false; }
+}
+
+machine Lexer::lex_number(&mut self) {
+    self.token_start = self.cursor;
+    self.decoded_start = self.output.decoded_length;
+    self.numeric_base = NumericBase::Decimal;
+    self.numeric_empty_digits = false;
+    self.numeric_has_suffix = false;
+    self.numeric_is_float = false;
+    self.numeric_has_exponent = false;
+    self.numeric_empty_exponent = false;
+    let source_byte: u8 = self.source.byte_or_nul(self.cursor);
+    transition source_byte == 46 {
+        true -> leading_dot()
+        _ -> integer_begin()
+    }
+
+    state leading_dot(&mut self) {
+        self.numeric_is_float = true;
+        self.cursor = self.cursor + 1;
+        self.consume_digits();
+        transition { _ -> exponent_check() }
+    }
+
+    state integer_begin(&mut self) {
+        let source_byte: u8 = self.source.byte_or_nul(self.cursor);
+        self.byte0 = source_byte as u32 in Trapping;
+        self.cursor = self.cursor + 1;
+        transition self.byte0 == 48 {
+            true -> prefix_bound()
+            _ -> decimal_digits()
+        }
+    }
+
+    state prefix_bound(&mut self) {
+        transition self.cursor < self.source.length {
+            true -> prefix()
+            _ -> dot_check()
+        }
+    }
+
+    state prefix(&mut self) {
+        let source_byte: u8 = self.source.byte_or_nul(self.cursor);
+        self.byte1 = source_byte as u32 in Trapping;
+        transition self.byte1 == 98 || self.byte1 == 66 {
+            true -> binary_prefix()
+            _ -> octal_check()
+        }
+    }
+    state binary_prefix(&mut self) { self.numeric_base = NumericBase::Binary; self.cursor = self.cursor + 1; transition { _ -> based_digits() } }
+    state octal_check(&mut self) { transition self.byte1 == 111 || self.byte1 == 79 { true -> octal_prefix() _ -> hex_check() } }
+    state octal_prefix(&mut self) { self.numeric_base = NumericBase::Octal; self.cursor = self.cursor + 1; transition { _ -> based_digits() } }
+    state hex_check(&mut self) { transition self.byte1 == 120 || self.byte1 == 88 { true -> hex_prefix() _ -> decimal_digits() } }
+    state hex_prefix(&mut self) { self.numeric_base = NumericBase::Hexadecimal; self.cursor = self.cursor + 1; transition { _ -> based_digits() } }
+    state based_digits(&mut self) {
+        self.consume_digits();
+        self.numeric_empty_digits = !self.numeric_saw_digit;
+        transition { _ -> suffix() }
+    }
+    state decimal_digits(&mut self) { self.consume_digits(); transition { _ -> dot_check() } }
+
+    state dot_check(&mut self) {
+        transition self.cursor < self.source.length {
+            true -> dot_byte()
+            _ -> exponent_check()
+        }
+    }
+    state dot_byte(&mut self) {
+        let source_byte: u8 = self.source.byte_or_nul(self.cursor);
+        transition source_byte == 46 {
+            true -> dot_decision()
+            _ -> exponent_check()
+        }
+    }
+    state dot_decision(&mut self) {
+        self.dot_starts_float(); let starts: bool = self.predicate_result;
+        transition starts {
+            true -> dot_consume()
+            _ -> exponent_check()
+        }
+    }
+    state dot_consume(&mut self) {
+        self.numeric_is_float = true;
+        self.cursor = self.cursor + 1;
+        self.consume_digits();
+        transition { _ -> exponent_check() }
+    }
+
+    state exponent_check(&mut self) {
+        transition self.numeric_base == NumericBase::Decimal
+            && self.cursor < self.source.length {
+            true -> exponent_byte()
+            _ -> suffix()
+        }
+    }
+    state exponent_byte(&mut self) {
+        let source_byte: u8 = self.source.byte_or_nul(self.cursor);
+        self.byte0 = source_byte as u32 in Trapping;
+        transition self.byte0 == 101 || self.byte0 == 69 {
+            true -> exponent_begin()
+            _ -> suffix()
+        }
+    }
+    state exponent_begin(&mut self) {
+        self.numeric_is_float = true;
+        self.numeric_has_exponent = true;
+        self.cursor = self.cursor + 1;
+        transition self.cursor < self.source.length { true -> exponent_sign() _ -> exponent_digits() }
+    }
+    state exponent_sign(&mut self) {
+        let source_byte: u8 = self.source.byte_or_nul(self.cursor);
+        self.byte0 = source_byte as u32 in Trapping;
+        transition self.byte0 == 43 || self.byte0 == 45 { true -> exponent_sign_consume() _ -> exponent_digits() }
+    }
+    state exponent_sign_consume(&mut self) { self.cursor = self.cursor + 1; transition { _ -> exponent_digits() } }
+    state exponent_digits(&mut self) {
+        self.numeric_base = NumericBase::Decimal;
+        self.consume_digits();
+        self.numeric_empty_exponent = !self.numeric_saw_digit;
+        transition { _ -> suffix() }
+    }
+
+    state suffix(&mut self) {
+        self.consume_suffix();
+        transition { _ -> finish() }
+    }
+    state finish(&mut self) {
+        self.token_end = self.cursor;
+        transition self.numeric_is_float { true -> emit_float() _ -> emit_integer() }
+    }
+    state emit_float(&mut self) {
+        self.push_token(TokenKind::Float {
+            has_exponent: self.numeric_has_exponent,
+            empty_exponent: self.numeric_empty_exponent,
+            has_suffix: self.numeric_has_suffix
+        });
+    }
+    state emit_integer(&mut self) {
+        self.push_token(TokenKind::Integer {
+            base: self.numeric_base,
+            empty_digits: self.numeric_empty_digits,
+            has_suffix: self.numeric_has_suffix
+        });
+    }
+}
+
+machine Lexer::lex_punctuation(&mut self) {
+    self.token_start = self.cursor;
+    self.decoded_start = self.output.decoded_length;
+    let first_byte: u8 = self.source.byte_or_nul(self.cursor);
+    self.byte0 = first_byte as u32 in Trapping;
+    self.byte1 = 4294967295;
+    self.byte2 = 4294967295;
+    self.index1 = self.cursor + 1;
+    self.index2 = self.cursor + 2;
+    transition self.index1 < self.source.length { true -> second() _ -> classify() }
+    state second(&mut self) { let source_byte: u8 = self.source.byte_or_nul(self.index1); self.byte1 = source_byte as u32 in Trapping; transition self.index2 < self.source.length { true -> third() _ -> classify() } }
+    state third(&mut self) { let source_byte: u8 = self.source.byte_or_nul(self.index2); self.byte2 = source_byte as u32 in Trapping; transition { _ -> classify() } }
+
+    state classify(&mut self) {
+        transition self.byte0 {
+            38 -> ampersand()
+            39 -> single_apostrophe()
+            42 -> asterisk()
+            94 -> single_caret()
+            58 -> colon()
+            44 -> single_comma()
+            46 -> dot()
+            61 -> equal()
+            33 -> exclamation()
+            62 -> greater()
+            35 -> single_hash()
+            123 -> single_left_brace()
+            91 -> single_left_bracket()
+            40 -> single_left_paren()
+            60 -> less()
+            45 -> minus()
+            37 -> percent()
+            124 -> pipe()
+            43 -> plus()
+            125 -> single_right_brace()
+            93 -> single_right_bracket()
+            41 -> single_right_paren()
+            59 -> single_semicolon()
+            47 -> slash()
+            126 -> single_tilde()
+            _ -> unsupported()
+        }
+    }
+
+    state ampersand(&mut self) { transition self.byte1 == 38 { true -> and_and() _ -> single_ampersand() } }
+    state colon(&mut self) { transition self.byte1 == 58 { true -> colon_colon() _ -> single_colon() } }
+    state dot(&mut self) { transition self.byte1 == 46 { true -> dotdot() _ -> single_dot() } }
+    state dotdot(&mut self) { transition self.byte2 == 61 { true -> dotdot_equal() _ -> dotdot_plain() } }
+    state equal(&mut self) { transition self.byte1 == 61 { true -> equal_equal() _ -> single_equal() } }
+    state exclamation(&mut self) { transition self.byte1 == 61 { true -> exclamation_equal() _ -> single_exclamation() } }
+    state greater(&mut self) { transition self.byte1 == 62 { true -> greater_greater() _ -> greater_equal_check() } }
+    state greater_equal_check(&mut self) { transition self.byte1 == 61 { true -> greater_equal() _ -> single_greater() } }
+    state less(&mut self) { transition self.byte1 == 60 { true -> less_less() _ -> less_equal_check() } }
+    state less_equal_check(&mut self) { transition self.byte1 == 61 { true -> less_equal() _ -> single_less() } }
+    state minus(&mut self) { transition self.byte1 == 62 { true -> arrow() _ -> minus_equal_check() } }
+    state minus_equal_check(&mut self) { transition self.byte1 == 61 { true -> minus_equal() _ -> single_minus() } }
+    state percent(&mut self) { transition self.byte1 == 61 { true -> percent_equal() _ -> single_percent() } }
+    state pipe(&mut self) { transition self.byte1 == 124 { true -> pipe_pipe() _ -> single_pipe() } }
+    state plus(&mut self) { transition self.byte1 == 61 { true -> plus_equal() _ -> single_plus() } }
+    state asterisk(&mut self) { transition self.byte1 == 61 { true -> asterisk_equal() _ -> single_asterisk() } }
+    state slash(&mut self) { transition self.byte1 == 61 { true -> slash_equal() _ -> single_slash() } }
+
+    state single_ampersand(&mut self) { self.emit_punctuation(PunctuationKind::Ampersand, 1); }
+    state and_and(&mut self) { self.emit_punctuation(PunctuationKind::AndAnd, 2); }
+    state single_apostrophe(&mut self) { self.emit_punctuation(PunctuationKind::Apostrophe, 1); }
+    state arrow(&mut self) { self.emit_punctuation(PunctuationKind::Arrow, 2); }
+    state single_asterisk(&mut self) { self.emit_punctuation(PunctuationKind::Asterisk, 1); }
+    state single_caret(&mut self) { self.emit_punctuation(PunctuationKind::Caret, 1); }
+    state single_colon(&mut self) { self.emit_punctuation(PunctuationKind::Colon, 1); }
+    state colon_colon(&mut self) { self.emit_punctuation(PunctuationKind::ColonColon, 2); }
+    state single_comma(&mut self) { self.emit_punctuation(PunctuationKind::Comma, 1); }
+    state single_dot(&mut self) { self.emit_punctuation(PunctuationKind::Dot, 1); }
+    state dotdot_plain(&mut self) { self.emit_punctuation(PunctuationKind::DotDot, 2); }
+    state dotdot_equal(&mut self) { self.emit_punctuation(PunctuationKind::DotDotEqual, 3); }
+    state single_equal(&mut self) { self.emit_punctuation(PunctuationKind::Equal, 1); }
+    state equal_equal(&mut self) { self.emit_punctuation(PunctuationKind::EqualEqual, 2); }
+    state single_exclamation(&mut self) { self.emit_punctuation(PunctuationKind::Exclamation, 1); }
+    state exclamation_equal(&mut self) { self.emit_punctuation(PunctuationKind::ExclamationEqual, 2); }
+    state single_greater(&mut self) { self.emit_punctuation(PunctuationKind::Greater, 1); }
+    state greater_equal(&mut self) { self.emit_punctuation(PunctuationKind::GreaterEqual, 2); }
+    state greater_greater(&mut self) { self.emit_punctuation(PunctuationKind::GreaterGreater, 2); }
+    state single_hash(&mut self) { self.emit_punctuation(PunctuationKind::Hash, 1); }
+    state single_left_brace(&mut self) { self.emit_punctuation(PunctuationKind::LeftBrace, 1); }
+    state single_left_bracket(&mut self) { self.emit_punctuation(PunctuationKind::LeftBracket, 1); }
+    state single_left_paren(&mut self) { self.emit_punctuation(PunctuationKind::LeftParen, 1); }
+    state single_less(&mut self) { self.emit_punctuation(PunctuationKind::Less, 1); }
+    state less_equal(&mut self) { self.emit_punctuation(PunctuationKind::LessEqual, 2); }
+    state less_less(&mut self) { self.emit_punctuation(PunctuationKind::LessLess, 2); }
+    state single_minus(&mut self) { self.emit_punctuation(PunctuationKind::Minus, 1); }
+    state minus_equal(&mut self) { self.emit_punctuation(PunctuationKind::MinusEqual, 2); }
+    state single_percent(&mut self) { self.emit_punctuation(PunctuationKind::Percent, 1); }
+    state percent_equal(&mut self) { self.emit_punctuation(PunctuationKind::PercentEqual, 2); }
+    state single_pipe(&mut self) { self.emit_punctuation(PunctuationKind::Pipe, 1); }
+    state pipe_pipe(&mut self) { self.emit_punctuation(PunctuationKind::PipePipe, 2); }
+    state single_plus(&mut self) { self.emit_punctuation(PunctuationKind::Plus, 1); }
+    state plus_equal(&mut self) { self.emit_punctuation(PunctuationKind::PlusEqual, 2); }
+    state asterisk_equal(&mut self) { self.emit_punctuation(PunctuationKind::AsteriskEqual, 2); }
+    state slash_equal(&mut self) { self.emit_punctuation(PunctuationKind::SlashEqual, 2); }
+    state single_right_brace(&mut self) { self.emit_punctuation(PunctuationKind::RightBrace, 1); }
+    state single_right_bracket(&mut self) { self.emit_punctuation(PunctuationKind::RightBracket, 1); }
+    state single_right_paren(&mut self) { self.emit_punctuation(PunctuationKind::RightParen, 1); }
+    state single_semicolon(&mut self) { self.emit_punctuation(PunctuationKind::Semicolon, 1); }
+    state single_slash(&mut self) { self.emit_punctuation(PunctuationKind::Slash, 1); }
+    state single_tilde(&mut self) { self.emit_punctuation(PunctuationKind::Tilde, 1); }
+    state unsupported(&mut self) { self.reject(LexDiagnosticCode::UnsupportedPunctuation, self.token_start, self.token_start + self.scalar_width); }
+}
+
+machine Lexer::emit_punctuation(&mut self, kind: PunctuationKind, length: u32 in Trapping) {
+    self.cursor = self.cursor + length;
+    self.token_end = self.cursor;
+    self.push_token(TokenKind::Punctuation { kind: kind });
+}
+
+machine Lexer::lex_next(&mut self) {
+    self.decode_at(self.cursor);
+    self.is_whitespace(self.scalar); let whitespace: bool = self.predicate_result;
+    transition whitespace {
+        true -> whitespace()
+        _ -> line_comment_bound()
+    }
+    state whitespace(&mut self) { self.lex_whitespace(); }
+    state line_comment_bound(&mut self) { self.index1 = self.cursor + 1; transition self.scalar == 47 && self.index1 < self.source.length { true -> comment_second() _ -> raw_check() } }
+    state comment_second(&mut self) {
+        let source_byte: u8 = self.source.byte_or_nul(self.index1);
+        self.byte0 = source_byte as u32 in Trapping;
+        transition self.byte0 == 47 { true -> line_comment() _ -> block_comment_check() }
+    }
+    state line_comment(&mut self) { self.lex_line_comment(); }
+    state block_comment_check(&mut self) { transition self.byte0 == 42 { true -> block_comment() _ -> raw_check() } }
+    state block_comment(&mut self) { self.lex_block_comment(); }
+    state raw_check(&mut self) { self.index1 = self.cursor + 1; transition self.scalar == 114 && self.index1 < self.source.length { true -> raw_second() _ -> identifier_check() } }
+    state raw_second(&mut self) {
+        let source_byte: u8 = self.source.byte_or_nul(self.index1);
+        self.byte0 = source_byte as u32 in Trapping;
+        transition self.byte0 == 34 || self.byte0 == 35 { true -> raw() _ -> identifier_check() }
+    }
+    state raw(&mut self) { self.lex_raw_string(); }
+    state identifier_check(&mut self) { self.is_identifier_start(self.scalar); let starts: bool = self.predicate_result; transition starts { true -> identifier() _ -> number_check() } }
+    state identifier(&mut self) { self.lex_identifier(); }
+    state number_check(&mut self) { transition self.scalar >= 48 && self.scalar <= 57 { true -> number() _ -> leading_dot_check() } }
+    state leading_dot_check(&mut self) { self.index1 = self.cursor + 1; transition self.scalar == 46 && self.index1 < self.source.length { true -> leading_dot_second() _ -> string_check() } }
+    state leading_dot_second(&mut self) { let source_byte: u8 = self.source.byte_or_nul(self.index1); self.byte0 = source_byte as u32 in Trapping; transition self.byte0 >= 48 && self.byte0 <= 57 { true -> number() _ -> string_check() } }
+    state number(&mut self) { self.lex_number(); }
+    state string_check(&mut self) { transition self.scalar == 34 { true -> string() _ -> punctuation() } }
+    state string(&mut self) { self.lex_cooked_string(); }
+    state punctuation(&mut self) { self.lex_punctuation(); }
+}
+
+machine Lexer::tokenize(&mut self) {
+    self.output.clear(self.source.id);
+    self.validate_utf8();
+    transition self.output.accepted {
+        true -> begin()
+        _ -> done()
+    }
+    state begin(&mut self) { self.cursor = 0; transition { _ -> scan() } }
+    state scan(&mut self) {
+        transition self.cursor < self.source.length {
+            true -> token()
+            _ -> done()
+        }
+    }
+    state token(&mut self) {
+        self.lex_next();
+        transition self.output.accepted { true -> scan() _ -> done() }
+    }
+    state done(&mut self) {}
+}

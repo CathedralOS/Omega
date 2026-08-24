@@ -3,7 +3,7 @@
 This directory owns the Delta-written bridge, its bridge-specific Rust-free
 Omega/Psi meaning route, contracts, and gates. It may consume the product
 compiler's source bundle and canonical Psi/Omega formats, but it does not own
-production Psi/Omega implementation tasks or the eventual Omega-written product
+production Psi/Omega implementation tasks or the Omega-written product
 compiler. Historical `omega0` path and artifact names were transitional;
 compatibility aliases do not define an Omega0 language rung. Delta remains an
 independent final Greek compiler-host language:
@@ -29,7 +29,7 @@ under `bootstrap/assurance/refinement/omega-bootstrap/`; compatibility symlinks
 in `gates/` preserve historical entry points.
 The former top-level compatibility directory was retired so this bootstrap
 compiler cannot be confused with either the current Rust on-ramp or the
-reserved `compiler/{psi,omega}/` product roots.
+`compiler/{psi,omega}/` product roots.
 
 ## What exists here
 

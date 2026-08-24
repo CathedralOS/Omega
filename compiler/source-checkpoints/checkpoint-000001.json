@@ -1,0 +1,54 @@
+{
+  "schema": "omega.product-compiler-source-checkpoint.v1",
+  "checkpoint": 1,
+  "claim": "Psi source-to-token phase with hosted acceptance and diagnostic-status adapter",
+  "entry_source": "apps/omega-compiler/main.omg",
+  "build_source": "apps/omega-compiler/build.omg",
+  "source_file_count": 12,
+  "aggregate_sha256": "65e9ad5a9e965b148af9dbd505aefe264b2c2d0639d8bb9af8607400da57e233",
+  "compiled_sources": [
+    { "path": "apps/omega-compiler/build.omg", "sha256": "d720a611b7e83074071389d2c95f17ea265d82e8d1ab5ed373ca910c5ef73e9e" },
+    { "path": "apps/omega-compiler/main.omg", "sha256": "03990b97bcb74759a843bea1eb6c5aaf2d491de900ec813cc54942067a85bd42" },
+    { "path": "compiler/psi/generated/unicode_tables.omg", "sha256": "e279fd658ad5adaf72e7a79b9af1fd4c94c12d9e165d18ea3f90d5d502d7979d" },
+    { "path": "compiler/psi/lex/lexer.omg", "sha256": "a3aaedcfb92bbeef88d159a3ed3dc812003870470a31b676e02bbfbbf1b54d71" },
+    { "path": "compiler/psi/source/source.omg", "sha256": "0749cb8e04b40c097bdcdbf7e9a1303a216b30d2ade4d662b3db6d7e0c34f827" },
+    { "path": "compiler/psi/tokens/tokens.omg", "sha256": "ae04b0608d6791d71abd5db08b63a734578db68a4d78132e429c6e46ec6287ec" },
+    { "path": "omega/language/std/console.omg", "sha256": "dbbf6376520c2d0685e95cee3d17e78c13191698936797d8d7e4752e67efd4d6" },
+    { "path": "omega/language/std/targets/linux_arm64/console_impl.omg", "sha256": "5ffe7785a705bbf4e59a08c097ea95c75f8ede4fed99277d61a005d78f827720" },
+    { "path": "omega/language/std/targets/linux_x64/console_impl.omg", "sha256": "aa0210a405cc2075fa62331a5fe504a0d50d75a1985f50a2cdd8d39bf8889429" },
+    { "path": "omega/language/std/targets/macos_arm64/console_impl.omg", "sha256": "9ed36117d110d108217adcc56b0c45e8f0943a10b5ed151dd522140c4b1337ed" },
+    { "path": "omega/language/std/targets/windows_x64/console_impl.omg", "sha256": "ad0f21f993c21093dee249fcd937036012fa491c0a1dbcf06f869a00a343bbd3" }
+  ],
+  "virtual_sources": [
+    { "identity": "<build-prelude>", "path": "compiler/source-checkpoints/inputs/build-prelude.omg", "sha256": "04092caa4aa29da12891801a304e64a2554df025d2455f785a48a3ad4d25587a" }
+  ],
+  "generated_inputs": [
+    { "path": "Cargo.lock", "sha256": "da357d3dabef6bf261a5f99e20f2f8a17e8ffc407b057d02e8fbe16b19a222b5" },
+    { "path": "bootstrap/onramps/omega-rust/omega/orchestration/omega-compiler/src/pipeline/stages.rs", "sha256": "e24ab66f5d37199fc98274ef9c84e704558c843a7fc840c97122cf7d4a68ba3e" },
+    { "path": "bootstrap/onramps/omega-rust/psi/pipeline/psi-source-files-to-tokens/src/bin/generate_omega_unicode.rs", "sha256": "fb0be947ed41456051148e83cf7043ebd1c1ede4b07e12b8b3b197df2184d604" }
+  ],
+  "external_inputs": [
+    {
+      "name": "unicode-ident",
+      "version": "1.0.24",
+      "unicode_version": "17.0.0",
+      "registry_sha256": "e6e431e087ec9c873969b0f1780c6a48365dd6e501e59a096fd0c2eae4d3da75"
+    }
+  ],
+  "dependency_edges": [
+    { "from": "apps/omega-compiler/build.omg", "kind": "depend-as", "to": "compiler/psi/lex/lexer.omg" },
+    { "from": "apps/omega-compiler/build.omg", "kind": "virtual-source", "to": "compiler/source-checkpoints/inputs/build-prelude.omg" },
+    { "from": "apps/omega-compiler/main.omg", "kind": "use", "to": "compiler/psi/lex/lexer.omg" },
+    { "from": "apps/omega-compiler/main.omg", "kind": "use", "to": "omega/language/std/console.omg" },
+    { "from": "compiler/psi/generated/unicode_tables.omg", "kind": "generated-by", "to": "bootstrap/onramps/omega-rust/psi/pipeline/psi-source-files-to-tokens/src/bin/generate_omega_unicode.rs" },
+    { "from": "compiler/psi/lex/lexer.omg", "kind": "use", "to": "compiler/psi/generated/unicode_tables.omg" },
+    { "from": "compiler/psi/lex/lexer.omg", "kind": "use", "to": "compiler/psi/source/source.omg" },
+    { "from": "compiler/psi/lex/lexer.omg", "kind": "use", "to": "compiler/psi/tokens/tokens.omg" },
+    { "from": "compiler/psi/tokens/tokens.omg", "kind": "use", "to": "compiler/psi/source/source.omg" },
+    { "from": "compiler/source-checkpoints/inputs/build-prelude.omg", "kind": "generated-by", "to": "bootstrap/onramps/omega-rust/omega/orchestration/omega-compiler/src/pipeline/stages.rs" },
+    { "from": "omega/language/std/console.omg", "kind": "use", "to": "omega/language/std/targets/linux_arm64/console_impl.omg" },
+    { "from": "omega/language/std/console.omg", "kind": "use", "to": "omega/language/std/targets/linux_x64/console_impl.omg" },
+    { "from": "omega/language/std/console.omg", "kind": "use", "to": "omega/language/std/targets/macos_arm64/console_impl.omg" },
+    { "from": "omega/language/std/console.omg", "kind": "use", "to": "omega/language/std/targets/windows_x64/console_impl.omg" }
+  ]
+}

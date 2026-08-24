@@ -108,7 +108,7 @@ Omega, or whether a second hosted rebuild is required.
   reference compilers are optional bug-finding tools.
 - Do not move Rust product code into unsuffixed `compiler/{psi,omega}/`. The
   current Rust implementation remains the explicitly named on-ramp; those
-  product roots are reserved for the eventual Omega-written compiler source.
+  product roots own the Omega-written compiler source.
 
 Only the exact Delta-v1 inventory and the exact compositional `Ωself` inventory
 remain open at this architectural layer. Their feature choices are resolved by
@@ -140,7 +140,7 @@ been retired; bootstrap callers resolve canonical owners through
 | `bootstrap/omega-bootstrap/` | Rust-free meaning, current bridge-compiler slices/contracts, and gates | `bootstrap/omega-bootstrap/` |
 | `bootstrap/corpus/` | fixtures shared across lattice seams | `bootstrap/corpus/` |
 
-### Reference producers and future product implementations
+### Reference producers and product implementations
 
 | Source | Role | Canonical owner |
 | --- | --- | --- |
@@ -150,7 +150,9 @@ been retired; bootstrap callers resolve canonical owners through
 | `bootstrap/rungs/beta/reference/` | executable Beta reference meaning and semantic fuzzing | `bootstrap/rungs/beta/reference/` |
 | `bootstrap/assurance/refinement/beta/` | source/artifact reconstruction plus whole-artifact obligation checkers | `bootstrap/assurance/refinement/beta/` |
 | `bootstrap/onramps/omega-rust/` | current working Rust Psi/Omega compiler and CLI; maintained parallel comparator and differential producer, never bootstrap authority | `bootstrap/onramps/omega-rust/` |
-| `compiler/{psi,omega}/` | eventual Omega-written product compiler source | reserved product roots; implementation remains open |
+| `compiler/{psi,omega}/` | Omega-written product compiler source | first Psi lexical checkpoint landed; remaining product phases open |
+| `compiler/source-checkpoints/` | exact product source closures and provisional `Ωself` censuses | product checkpoint evidence |
+| `apps/omega-compiler/` | hosted product compiler entrypoint | product application owner |
 
 ### Completed compatibility retirement
 
@@ -254,7 +256,7 @@ Do not maintain a second Delta feature list in this task index.
 
 Product Psi/Omega implementation work belongs in `TASKS.md`. This file may name
 a required product interface as an input to a lattice gate, but it must not own
-or prescribe work inside the Rust on-ramp or the eventual product compiler.
+or prescribe work inside the Rust on-ramp or the product compiler.
 
 ### Two-contract discovery loop
 
@@ -272,9 +274,10 @@ derived; later snapshots update it. `Ωself` determines the accepted-source work
 of `omega-bootstrap`; implementing that bridge exposes its complete Delta source
 closure, from which Delta v1 is pruned and frozen. This is an iterative
 discovery loop with two eventual freezes, not a circular runtime or build
-dependency. Only the explicitly bounded profile-neutral substrate may continue
-before the first snapshot. Neither canary succession, current source, nor
-producer acceptance may silently define a language contract.
+dependency. The pre-snapshot exception for explicitly bounded profile-neutral
+substrate is now closed by checkpoint 000001; further accepted-source growth
+must trace a measured checkpoint need. Neither canary succession, current
+source, nor producer acceptance may silently define a language contract.
 
 ### Active work packages and acceptance gates
 
@@ -345,6 +348,13 @@ manifest. That does not pull in a standalone Terminal-Psi interpreter,
 verifier, viewer, or debugger, and it does not require `omega-bootstrap` to use
 Terminal Psi as its own internal compiler IR.
 
+The first external snapshot is now published at
+`compiler/source-checkpoints/checkpoint-000001.json`, with its distinct
+provisional census in `profile-000001.md`. It covers the product Psi
+source-to-token phase only. Bootstrap may consume its measured facilities now;
+it must not extrapolate parser, checker, terminal-Psi, optimizer, or emitter
+needs from this partial closure.
+
 - [x] **Complete bundle-wide source-unit ingestion in the canonical Delta
   frontend.** This is pre-profile bridge infrastructure, not O2, `Ωself`
   admission, or a package/namespace decision. Apply the already-ruled canonical
@@ -388,11 +398,16 @@ may advance before the product source manifest exists, while provisional
   checkpoint and its deterministic transitive manifest. The final product
   closure need not already be frozen; rerun this task as later versioned
   snapshots land. Standard-library samples and current Rust source cannot
-  substitute for Omega-written product source. Before the first snapshot, only
-  the bounded profile-neutral bridge substrate above may grow. This task
+  substitute for Omega-written product source. The first-snapshot dependency is
+  now satisfied by checkpoint 000001; accepted-source growth beyond the closed
+  profile-neutral substrate must trace that or a later snapshot. This task
   produces the general candidate contract used to implement the bridge. It does
   not freeze the profile: measured bridge and assurance costs still have to
   settle every retain-versus-refactor choice.
+  - [x] publish checkpoint 000001 as a deterministic 12-source closure with
+    separate generated/toolchain inputs and a compositional feature census;
+    this satisfies the first external-input dependency without pretending the
+    final compiler closure or profile is frozen;
   - [ ] measure every feature used by the complete source closure against its
     production-source benefit and the cost of implementing and assuring it in
     the Delta-written bridge;
@@ -424,11 +439,11 @@ may advance before the product source manifest exists, while provisional
   evidence still needed at the freeze join. The candidate profile is a true
   subset, not a dialect, a source-file whitelist, or another lattice rung.
 
-- [ ] **Advance profile-neutral bridge substrate in Delta.** **Actionable now,
-  with a bounded stop.** Reuse the closed
-  O0/O1 path as vertical-canary evidence only. This work may proceed before the
-  product manifest because each tranche is a general compiler capability with
-  an independent specification and stop condition. O0/O1 are not implementation
+- [x] **Advance profile-neutral bridge substrate in Delta.** **Bounded
+  pre-snapshot tranche complete.** Reuse the closed O0/O1 path as
+  vertical-canary evidence only. This work was permitted before the product
+  manifest because each tranche is a general compiler capability with an
+  independent specification and stop condition. O0/O1 are not implementation
   stages that must be extended in numerical order, and this lane must not grow
   an open-ended approximation of Omega from guessed product needs.
   - [x] establish profile-neutral, source-unit-bounded nested block-comment
@@ -466,7 +481,9 @@ may advance before the product source manifest exists, while provisional
   across native, lower-rung meaning, and direct artifact observations. After
   the scalar call/return tranche, further accepted-source growth waits for a
   concrete provisional `Ωself` requirement; maintenance and assurance work on
-  the landed substrate may continue.
+  the landed substrate may continue. Checkpoint 000001 now supplies that
+  concrete provisional requirement; subsequent accepted-source growth belongs
+  to the next task and must trace the checkpoint profile.
 
 - [ ] **Implement `omega-bootstrap` in Delta against provisional `Ωself`.**
   **Required input:** a versioned deterministic product-source manifest and its

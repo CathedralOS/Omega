@@ -40,8 +40,9 @@ packages.
 > external-language producer under `bootstrap/onramps/omega-rust/`. Its `psi/`
 > half implements parsing and target-neutral semantics through terminal Psi;
 > its `omega/` half implements provider, ABI, target, artifact, and execution
-> machinery. `compiler/{psi,omega}/` is reserved for the eventual Omega-written
-> product source. Bootstrap gates resolve cross-owner locations through the
+> machinery. `compiler/{psi,omega}/` owns Omega-written product source; the
+> first Psi lexical checkpoint has landed while later phases remain open.
+> Bootstrap gates resolve cross-owner locations through the
 > role manifest in `bootstrap/paths.sh`; new cross-owner sibling-relative paths
 > are rejected. The tree below documents the current Cargo/product structure;
 > the retained compatibility inventory is documented in the
@@ -180,8 +181,12 @@ Omega/
 |           `-- [CRATE] omega-visualizations/             # Visualization/dump views of pipeline artifacts.
 |
 |-- compiler/
-|   |-- psi/                                               # Reserved for Omega-written Psi source.
-|   `-- omega/                                             # Reserved for Omega-written backend/optimizer source.
+|   |-- psi/                                               # Omega-written Psi source; lexical checkpoint landed.
+|   |-- omega/                                             # Omega-written backend/optimizer owner; implementation open.
+|   `-- source-checkpoints/                                # Exact product closures and provisional Ωself censuses.
+|
+|-- apps/
+|   `-- omega-compiler/                                    # Hosted Omega-written product compiler entrypoint.
 |
 |-- omega/
 |   |-- language/
@@ -229,9 +234,10 @@ Omega/
 ### Front Door
 
 - Product `apps/` stay thin. They parse user intent and call compiler services.
-  The root is reserved today; the current Rust `omega-cli` lives with its
-  producer under `bootstrap/onramps/omega-rust/apps/`. The language-server and
-  docs-generator are not yet separate applications.
+  `apps/omega-compiler/` is the hosted product entrypoint; the current Rust
+  `omega-cli` stays with its producer under
+  `bootstrap/onramps/omega-rust/apps/`. The language-server and docs-generator
+  are not yet separate applications.
 - `orchestration/` sequences phases, owns artifacts and the top-level
   check/build API (`omega-compiler`, `omega-backend-pipeline`, `omega-artifacts`,
   `omega-visualizations`), and keeps source loading coherent. Session/options and
