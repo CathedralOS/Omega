@@ -398,8 +398,12 @@ tagged 50-operation set exhaustively handled by both providers; aliases and
 platform alternatives remain distinct transcript identities. Rooted evidence
 must account for potentially absolute `read_link` output and necessarily
 absolute `canonicalize`/`final_path_name_by_handle` output. These observations
-stay separate from capability/API comparison bytes and
-make no receipt,
+stay separate from capability/API comparison bytes. Observation schema v2
+retains each completed operation's exact provider, stable tag, scalar result,
+and post-error in successful-run call-start order. Denial-shaped returns remain
+visible but are not yet typed as grant-policy refusal versus host error. It
+omits failed evaluator attempts, arguments, rooted paths, mutable byte regions,
+logical handles, and content, so it remains an incomplete trace and makes no receipt,
 replayability, or source-rebuildability claim. Canonical operation transcripts,
 recorded inputs, staged-output commitments, and replay checking remain required
 before any `Receipted` verdict.

@@ -1,10 +1,55 @@
 use super::*;
 
 impl<'program> Evaluator<'program> {
-    /// Drive a value-returning `FilesystemHost` operation against the selected
-    /// filesystem provider. Arguments are already resolved from the statement
-    /// or expression table. The closed operation type makes dispatch exhaustive.
+    /// Record one exact canonical operation in call-start order around the
+    /// selected provider. The placeholder preserves nesting order if argument
+    /// evaluation itself invokes another filesystem operation. A provider
+    /// evaluation halt aborts the entire build, so incomplete placeholders can
+    /// never enter a successful measured result.
     pub(super) fn try_filesystem_call(
+        &mut self,
+        operation: FilesystemHostOperation,
+        arguments: &[ExpressionHandle],
+        frame: &Frame,
+    ) -> EvalResult<Value> {
+        let provider = match self.real_fs.as_ref() {
+            None => FilesystemObservationProvider::Virtual,
+            Some(filesystem) if filesystem.is_scoped() => FilesystemObservationProvider::RealScoped,
+            Some(_) => FilesystemObservationProvider::RealUnscoped,
+        };
+        let attempt_index = self.filesystem_operation_attempts.len();
+        self.filesystem_operation_attempts
+            .push(FilesystemOperationAttempt::pending(
+                operation.operation_tag(),
+                provider,
+            ));
+        let outcome = self.serve_filesystem_call(operation, arguments, frame);
+        if let Ok(value) = &outcome {
+            let result = value.as_int().ok_or_else(|| {
+                Halt::Trap(format!(
+                    "canonical filesystem operation `{operation}` returned a non-integer value"
+                ))
+            })?;
+            let post_error = self
+                .real_fs
+                .as_ref()
+                .map_or(self.virtual_errno, |filesystem| filesystem.errno);
+            self.filesystem_operation_attempts[attempt_index] = FilesystemOperationAttempt {
+                operation_tag: operation.operation_tag(),
+                provider,
+                result,
+                post_error,
+            };
+        }
+        outcome
+    }
+
+    /// Drive a value-returning `FilesystemHost` operation against the selected
+    /// filesystem provider. Argument expressions remain table handles and are
+    /// evaluated inside the selected provider arm; evidence capture must not
+    /// evaluate them a second time. The closed operation type makes dispatch
+    /// exhaustive.
+    fn serve_filesystem_call(
         &mut self,
         operation: FilesystemHostOperation,
         arguments: &[ExpressionHandle],

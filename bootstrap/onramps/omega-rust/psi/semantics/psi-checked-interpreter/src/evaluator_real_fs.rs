@@ -120,6 +120,10 @@ impl RealFs {
         }
     }
 
+    pub(super) fn is_scoped(&self) -> bool {
+        self.grants.is_some()
+    }
+
     fn insert(&mut self, file: std::fs::File, path: PathBuf) -> i64 {
         let fd = self.next_fd;
         self.next_fd += 1;

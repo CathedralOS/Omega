@@ -1,6 +1,7 @@
 use crate::{
-    EvaluationObservations, EvaluationUsage, FilesystemAccess, InterpretOptions, InterpretOutcome,
-    MeasuredBuildMachineEvaluation, MeasuredEvaluation,
+    EvaluationObservations, EvaluationUsage, FilesystemAccess, FilesystemObservationProvider,
+    FilesystemOperationAttempt, InterpretOptions, InterpretOutcome, MeasuredBuildMachineEvaluation,
+    MeasuredEvaluation,
 };
 
 mod filesystem_host_operation;
@@ -418,9 +419,9 @@ pub(crate) fn run_granted_build_machine_arguments(
                     let _ = std::io::stderr().flush();
                 }
                 let mut usage = evaluator.usage;
-                let observations = EvaluationObservations {
-                    filesystem_host_observed: evaluator.filesystem_host_observed,
-                };
+                let observations = EvaluationObservations::from_filesystem_operation_attempts(
+                    std::mem::take(&mut evaluator.filesystem_operation_attempts),
+                );
                 match result {
                     Ok(values) => {
                         let result_cells = values.iter().try_fold(0u64, |count, value| {
@@ -720,9 +721,10 @@ struct Evaluator<'program> {
     /// while still rejecting every OTHER host boundary (console, clock, gui)
     /// as its dynamic backstop.
     non_fs_host_boundary_touched: bool,
-    /// Whether this run actually invoked the filesystem host family. This is
-    /// build-observation evidence, not evaluator work accounting.
-    filesystem_host_observed: bool,
+    /// Ordered operation-attempt evidence for exact canonical filesystem host
+    /// calls. This remains deliberately incomplete until rooted arguments,
+    /// mutable outputs, logical handles, and retained content are recorded.
+    filesystem_operation_attempts: Vec<FilesystemOperationAttempt>,
     usage: EvaluationUsage,
     /// Total step allowance for this run. Full-program interpretation uses
     /// `STEP_BUDGET`; const evaluation uses the much smaller

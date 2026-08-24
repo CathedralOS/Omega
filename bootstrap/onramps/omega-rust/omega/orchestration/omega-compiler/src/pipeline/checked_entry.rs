@@ -110,8 +110,8 @@ impl CheckedCompilation {
     /// comparison bytes.
     pub const fn build_observation_summary(
         &self,
-    ) -> Option<super::build_config::BuildObservationSummary> {
-        self.build_observation_summary
+    ) -> Option<&super::build_config::BuildObservationSummary> {
+        self.build_observation_summary.as_ref()
     }
 
     /// Exact compiler-owned coordinates of checked implementation claims that

@@ -573,6 +573,12 @@ same enum exhaustively, while aliases and platform alternatives stay distinct.
 Future rooted evidence must reject or virtualize absolute path bytes returned
 unconditionally by `canonicalize`/`final_path_name_by_handle` or conditionally
 by `read_link`.
+Observation schema v2 retains an ordered successful-run call-start trace of
+exact provider, operation tag, scalar return, and post-operation error state.
+A denial-shaped return remains visible but does not yet distinguish grant-policy
+refusal from host error. It deliberately omits failed evaluator attempts,
+operands, rooted paths, mutable outputs, logical handles, and content; raw
+runtime descriptor returns therefore remain non-replayable.
 This summary is compiler-issued execution evidence kept outside canonical
 capability/API comparison bytes. It is not a receipt and does not claim either
 replay verdict. A `Receipted` row still requires a canonical operation

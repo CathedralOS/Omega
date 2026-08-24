@@ -212,8 +212,15 @@ under granted execution. The selected canonical signature then maps to a
 closed, explicitly tagged operation identity exhaustively handled by both
 filesystem providers. ABI aliases remain distinct. Future rooted transcripts
 must account for conditionally absolute `read_link` results and unconditionally
-absolute `canonicalize` and `final_path_name_by_handle` results. This Boolean
-rung is not a receipt and makes no replayability or source-rebuildability claim.
+absolute `canonicalize` and `final_path_name_by_handle` results. Observation
+schema v2 also retains, in call-start order, each completed operation's exact
+provider, stable tag, scalar return, and post-operation error state for a
+successful build evaluation. A denial-shaped return remains visible but is not
+yet distinguished as grant-policy refusal versus host error. Runtime descriptor
+values are not logical handles, and failed evaluator attempts, operands, rooted
+paths, mutable byte regions, and content are absent. It is an incomplete
+operation trace, not a transcript or receipt, and makes no replayability or
+source-rebuildability claim.
 
 The usage record carries a schema identity independently from evaluator-step
 identity: adding telemetry does not change what one step means. It records

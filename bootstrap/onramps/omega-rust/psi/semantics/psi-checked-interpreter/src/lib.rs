@@ -139,6 +139,67 @@ pub struct EvaluationUsage {
     result_cells: u64,
 }
 
+/// Schema for the current incomplete filesystem operation-attempt evidence.
+///
+/// This records successful-run call-start order, exact provider, scalar return,
+/// and post-operation error state. It is not the canonical replay transcript:
+/// failed evaluator attempts, arguments, rooted paths, mutable output regions,
+/// logical handles, and retained content are not present yet.
+pub const FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION: u32 = 1;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FilesystemObservationProvider {
+    /// Deterministic in-memory provider; no host filesystem was touched.
+    Virtual,
+    /// Real process filesystem without path grants. Build admission does not
+    /// select this provider.
+    RealUnscoped,
+    /// Real filesystem constrained by compiler-supplied path grants.
+    RealScoped,
+}
+
+/// One completed canonical filesystem operation attempted by a successful
+/// build-machine evaluation.
+///
+/// The operation tag is an append-only compiler-owned identity. No package
+/// string enters this row. Runtime descriptor numbers may still appear in
+/// `result`; they are not logical replay handles and keep this evidence below
+/// receipt strength.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FilesystemOperationAttempt {
+    operation_tag: u16,
+    provider: FilesystemObservationProvider,
+    result: i64,
+    post_error: i32,
+}
+
+impl FilesystemOperationAttempt {
+    const fn pending(operation_tag: u16, provider: FilesystemObservationProvider) -> Self {
+        Self {
+            operation_tag,
+            provider,
+            result: 0,
+            post_error: 0,
+        }
+    }
+
+    pub const fn operation_tag(self) -> u16 {
+        self.operation_tag
+    }
+
+    pub const fn provider(self) -> FilesystemObservationProvider {
+        self.provider
+    }
+
+    pub const fn result(self) -> i64 {
+        self.result
+    }
+
+    pub const fn post_error(self) -> i32 {
+        self.post_error
+    }
+}
+
 /// Host observations made while evaluating one machine.
 ///
 /// This is deliberately separate from [`EvaluationUsage`]: deterministic
@@ -146,14 +207,41 @@ pub struct EvaluationUsage {
 /// axes. Ordinary semantic evaluation must always return an empty row. The
 /// granted build-machine entry may report a filesystem observation, which the
 /// compiler classifies according to the exact provider it selected.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EvaluationObservations {
-    filesystem_host_observed: bool,
+    filesystem_operation_schema_version: u32,
+    filesystem_operation_attempts: Vec<FilesystemOperationAttempt>,
+}
+
+impl Default for EvaluationObservations {
+    fn default() -> Self {
+        Self {
+            filesystem_operation_schema_version: FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION,
+            filesystem_operation_attempts: Vec::new(),
+        }
+    }
 }
 
 impl EvaluationObservations {
-    pub const fn filesystem_host_observed(self) -> bool {
-        self.filesystem_host_observed
+    fn from_filesystem_operation_attempts(
+        filesystem_operation_attempts: Vec<FilesystemOperationAttempt>,
+    ) -> Self {
+        Self {
+            filesystem_operation_schema_version: FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION,
+            filesystem_operation_attempts,
+        }
+    }
+
+    pub fn filesystem_host_observed(&self) -> bool {
+        !self.filesystem_operation_attempts.is_empty()
+    }
+
+    pub const fn filesystem_operation_schema_version(&self) -> u32 {
+        self.filesystem_operation_schema_version
+    }
+
+    pub fn filesystem_operation_attempts(&self) -> &[FilesystemOperationAttempt] {
+        &self.filesystem_operation_attempts
     }
 }
 
@@ -258,8 +346,8 @@ impl<T> MeasuredBuildMachineEvaluation<T> {
         self.measured.usage()
     }
 
-    pub const fn observations(&self) -> EvaluationObservations {
-        self.observations
+    pub const fn observations(&self) -> &EvaluationObservations {
+        &self.observations
     }
 
     pub fn into_value(self) -> T {

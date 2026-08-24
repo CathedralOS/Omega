@@ -172,7 +172,6 @@ impl FilesystemHostOperation {
         })
     }
 
-    #[cfg(test)]
     pub(super) const fn operation_tag(self) -> u16 {
         self as u16
     }
