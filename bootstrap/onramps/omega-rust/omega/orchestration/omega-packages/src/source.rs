@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{self, RecvTimeoutError};
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime};
 
 const GIT_CACHE_POLICY: &[u8] = b"omega-git-cache-v5";
 const GIT_CACHE_METADATA: &str = "source.identity";
@@ -29,6 +29,7 @@ const GIT_ORIGIN_FETCH: &str = "+refs/heads/*:refs/remotes/origin/*";
 const GIT_COMMAND_TIMEOUT: Duration = Duration::from_secs(120);
 const GIT_STDOUT_LIMIT: usize = 16 * 1024 * 1024;
 const GIT_STDERR_LIMIT: usize = 1024 * 1024;
+const GIT_EXECUTABLE_BYTE_LIMIT: u64 = 256 * 1024 * 1024;
 const PROCESS_POLL_INTERVAL: Duration = Duration::from_millis(5);
 static STAGING_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
@@ -88,6 +89,51 @@ pub struct ResolvedGitSource {
     pub tree: String,
     pub snapshot_root: PathBuf,
     pub local: ResolvedLocalSource,
+    /// Absolute helper identity observed before and after every Git launch.
+    /// This is diagnostic custody, not certification of the executable.
+    pub git_executable: GitExecutableIdentity,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GitExecutableIdentity {
+    path: PathBuf,
+    content_identity: String,
+}
+
+impl GitExecutableIdentity {
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+
+    pub fn content_identity(&self) -> &str {
+        &self.content_identity
+    }
+
+    #[cfg(test)]
+    pub(crate) fn for_test(path: PathBuf, content_identity: String) -> Self {
+        Self {
+            path,
+            content_identity,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+struct GitExecutor {
+    identity: GitExecutableIdentity,
+    metadata_identity: GitExecutableMetadataIdentity,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct GitExecutableMetadataIdentity {
+    length: u64,
+    modified: SystemTime,
+    #[cfg(unix)]
+    device: u64,
+    #[cfg(unix)]
+    inode: u64,
+    #[cfg(unix)]
+    mode: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -137,6 +183,14 @@ pub enum SourceResolveError {
     GitTimedOut {
         operation: String,
         timeout_millis: u64,
+    },
+    GitExecutableUnavailable,
+    GitExecutableInvalid {
+        path: PathBuf,
+        message: String,
+    },
+    GitExecutableChanged {
+        path: PathBuf,
     },
     GitSubmodulesUnsupported {
         path: PathBuf,
@@ -241,6 +295,19 @@ impl fmt::Display for SourceResolveError {
             } => write!(
                 output,
                 "git {operation} exceeded its deadline of {timeout_millis} milliseconds"
+            ),
+            Self::GitExecutableUnavailable => output.write_str(
+                "no supported absolute Git executable is available; the resolver will not search PATH",
+            ),
+            Self::GitExecutableInvalid { path, message } => write!(
+                output,
+                "Git executable `{}` is invalid: {message}",
+                path.display()
+            ),
+            Self::GitExecutableChanged { path } => write!(
+                output,
+                "Git executable `{}` changed during source resolution",
+                path.display()
             ),
             Self::GitSubmodulesUnsupported { path } => write!(
                 output,
@@ -380,80 +447,108 @@ pub fn resolve_git_source(
     cache_dir: impl AsRef<Path>,
     limits: LocalSourceLimits,
 ) -> Result<ResolvedGitSource, SourceResolveError> {
-    let requested_rev = spec.rev.clone().unwrap_or_else(|| "HEAD".to_owned());
-    let cache_dir = cache_dir.as_ref();
-    std::fs::create_dir_all(cache_dir).map_err(|error| io_error(cache_dir, error))?;
-    let cache_identity = git_cache_identity(&spec.url, &requested_rev);
-    let entry_root = cache_dir.join(format!("git-{cache_identity}"));
-    let lock_path = cache_dir.join(format!("git-{cache_identity}.lock"));
-    let _entry_lock = CacheEntryLock::acquire(&lock_path)?;
+    let executor = GitExecutor::system()?;
+    let result = (|| {
+        let requested_rev = spec.rev.clone().unwrap_or_else(|| "HEAD".to_owned());
+        let cache_dir = cache_dir.as_ref();
+        std::fs::create_dir_all(cache_dir).map_err(|error| io_error(cache_dir, error))?;
+        let cache_dir = cache_dir
+            .canonicalize()
+            .map_err(|error| io_error(cache_dir, error))?;
+        let cache_identity = git_cache_identity(&spec.url, &requested_rev);
+        let entry_root = cache_dir.join(format!("git-{cache_identity}"));
+        let lock_path = cache_dir.join(format!("git-{cache_identity}.lock"));
+        let _entry_lock = CacheEntryLock::acquire(&lock_path)?;
 
-    if entry_root.exists() {
-        if let Err(error) = verify_git_cache_entry(&entry_root, &spec.url, &requested_rev) {
-            invalidate_git_cache_entry(&entry_root);
-            return Err(error);
+        if entry_root.exists() {
+            if let Err(error) =
+                verify_git_cache_entry(&executor, &entry_root, &spec.url, &requested_rev)
+            {
+                invalidate_git_cache_entry(&entry_root);
+                return Err(error);
+            }
+        } else {
+            create_git_cache_entry(
+                &executor,
+                &cache_dir,
+                &entry_root,
+                &cache_identity,
+                &spec.url,
+                &requested_rev,
+            )?;
         }
-    } else {
-        create_git_cache_entry(
-            cache_dir,
+
+        let result = resolve_verified_git_cache_entry(
+            &executor,
             &entry_root,
-            &cache_identity,
             &spec.url,
             &requested_rev,
-        )?;
+            limits,
+        );
+        if result.is_err() {
+            invalidate_git_cache_entry(&entry_root);
+        }
+        result
+    })();
+    let executable_result = executor.verify_content();
+    match (result, executable_result) {
+        (_, Err(error)) => Err(error),
+        (result, Ok(())) => result,
     }
-
-    let result = resolve_verified_git_cache_entry(&entry_root, &spec.url, &requested_rev, limits);
-    if result.is_err() {
-        invalidate_git_cache_entry(&entry_root);
-    }
-    result
 }
 
 fn resolve_verified_git_cache_entry(
+    executor: &GitExecutor,
     entry_root: &Path,
     url: &str,
     requested_rev: &str,
     limits: LocalSourceLimits,
 ) -> Result<ResolvedGitSource, SourceResolveError> {
-    verify_git_cache_entry(entry_root, url, requested_rev)?;
+    verify_git_cache_entry(executor, entry_root, url, requested_rev)?;
     let repository = entry_root.join(GIT_CACHE_REPOSITORY);
 
-    run_git([
-        OsStr::new("-C"),
-        repository.as_os_str(),
-        OsStr::new("fetch"),
-        OsStr::new("--quiet"),
-        OsStr::new("--depth=1"),
-        OsStr::new("--no-tags"),
-        OsStr::new("--no-recurse-submodules"),
-        OsStr::new("--"),
-        OsStr::new("origin"),
-        OsStr::new(requested_rev),
-    ])?;
-    verify_git_cache_entry(entry_root, url, requested_rev)?;
+    run_git(
+        executor,
+        &repository,
+        [
+            OsStr::new("fetch"),
+            OsStr::new("--quiet"),
+            OsStr::new("--depth=1"),
+            OsStr::new("--no-tags"),
+            OsStr::new("--no-recurse-submodules"),
+            OsStr::new("--"),
+            OsStr::new("origin"),
+            OsStr::new(requested_rev),
+        ],
+    )?;
+    verify_git_cache_entry(executor, entry_root, url, requested_rev)?;
 
-    let commit = run_git_stdout([
-        OsStr::new("-C"),
-        repository.as_os_str(),
-        OsStr::new("rev-parse"),
-        OsStr::new("--verify"),
-        OsStr::new("FETCH_HEAD^{commit}"),
-    ])?;
+    let commit = run_git_stdout(
+        executor,
+        &repository,
+        [
+            OsStr::new("rev-parse"),
+            OsStr::new("--verify"),
+            OsStr::new("FETCH_HEAD^{commit}"),
+        ],
+    )?;
     let commit = commit.trim().to_owned();
-    let tree = run_git_stdout([
-        OsStr::new("-C"),
-        repository.as_os_str(),
-        OsStr::new("rev-parse"),
-        OsStr::new("--verify"),
-        OsStr::new(&format!("{commit}^{{tree}}")),
-    ])?;
+    let tree = run_git_stdout(
+        executor,
+        &repository,
+        [
+            OsStr::new("rev-parse"),
+            OsStr::new("--verify"),
+            OsStr::new(&format!("{commit}^{{tree}}")),
+        ],
+    )?;
     let tree = tree.trim().to_owned();
-    verify_git_cache_entry(entry_root, url, requested_rev)?;
-    let entries = inspect_git_tree(&repository, &tree, limits)?;
+    verify_git_cache_entry(executor, entry_root, url, requested_rev)?;
+    let entries = inspect_git_tree(executor, &repository, &tree, limits)?;
     let (snapshot_root, local) =
-        resolve_git_snapshot(entry_root, &repository, &tree, entries, limits)?;
-    verify_git_cache_entry(entry_root, url, requested_rev)?;
+        resolve_git_snapshot(executor, entry_root, &repository, &tree, entries, limits)?;
+    verify_git_cache_entry(executor, entry_root, url, requested_rev)?;
+    executor.verify()?;
     Ok(ResolvedGitSource {
         url: url.to_owned(),
         requested_rev: requested_rev.to_owned(),
@@ -461,6 +556,7 @@ fn resolve_verified_git_cache_entry(
         tree,
         snapshot_root,
         local,
+        git_executable: executor.identity.clone(),
     })
 }
 
@@ -480,6 +576,7 @@ enum GitTreeEntryKind {
 }
 
 fn inspect_git_tree(
+    executor: &GitExecutor,
     repository: &Path,
     tree: &str,
     limits: LocalSourceLimits,
@@ -490,23 +587,25 @@ fn inspect_git_tree(
             "Git returned an invalid tree object ID",
         ));
     }
-    let listing = run_git_bytes_stdout([
-        OsStr::new("-C"),
-        repository.as_os_str(),
-        OsStr::new("ls-tree"),
-        OsStr::new("--full-tree"),
-        OsStr::new("-r"),
-        OsStr::new("-l"),
-        OsStr::new("-z"),
-        OsStr::new(tree),
-    ])?;
+    let listing = run_git_bytes_stdout(
+        executor,
+        repository,
+        [
+            OsStr::new("ls-tree"),
+            OsStr::new("--full-tree"),
+            OsStr::new("-r"),
+            OsStr::new("-l"),
+            OsStr::new("-z"),
+            OsStr::new(tree),
+        ],
+    )?;
     let mut entries = parse_git_tree_entries(&listing, repository, limits)?;
 
     // Read and validate every link before creating a snapshot directory. Blob size accounting was
     // already completed for the entire tree, so no object is allocated speculatively.
     for entry in &mut entries {
         if matches!(entry.kind, GitTreeEntryKind::Symlink { .. }) {
-            let target = read_git_blob_bounded(repository, &entry.oid, entry.size)?;
+            let target = read_git_blob_bounded(executor, repository, &entry.oid, entry.size)?;
             validate_git_symlink_target(&entry.relative_bytes, &target)?;
             entry.kind = GitTreeEntryKind::Symlink {
                 target_bytes: target,
@@ -738,6 +837,7 @@ fn validate_git_symlink_target(link: &[u8], target: &[u8]) -> Result<(), SourceR
 }
 
 fn resolve_git_snapshot(
+    executor: &GitExecutor,
     entry_root: &Path,
     repository: &Path,
     tree: &str,
@@ -780,7 +880,7 @@ fn resolve_git_snapshot(
         std::fs::create_dir_all(parent).map_err(|error| io_error(parent, error))?;
         match &entry.kind {
             GitTreeEntryKind::File { executable } => {
-                let bytes = read_git_blob_bounded(repository, &entry.oid, entry.size)?;
+                let bytes = read_git_blob_bounded(executor, repository, &entry.oid, entry.size)?;
                 expected_identity.add_file(&entry.relative_bytes, *executable, &bytes)?;
                 let mut file = OpenOptions::new()
                     .write(true)
@@ -1331,27 +1431,27 @@ fn git_tree_invalid(path: impl AsRef<[u8]>, message: impl Into<String>) -> Sourc
 }
 
 fn read_git_blob_bounded(
+    executor: &GitExecutor,
     repository: &Path,
     oid: &str,
     expected_size: u64,
 ) -> Result<Vec<u8>, SourceResolveError> {
     let stdout_limit = usize::try_from(expected_size)
         .map_err(|_| git_tree_invalid(oid.as_bytes(), "blob cannot fit in host memory"))?;
-    let mut command = sealed_git_command();
-    command.args([
-        OsStr::new("-C"),
-        repository.as_os_str(),
-        OsStr::new("cat-file"),
-        OsStr::new("blob"),
-        OsStr::new(oid),
-    ]);
-    let output = run_command_bounded(
+    let mut command = sealed_git_command(executor, repository)?;
+    command.args([OsStr::new("cat-file"), OsStr::new("blob"), OsStr::new(oid)]);
+    let result = run_command_bounded(
         &mut command,
         "cat-file",
         stdout_limit,
         GIT_STDERR_LIMIT,
         GIT_COMMAND_TIMEOUT,
-    )?;
+    );
+    let executable_result = executor.verify();
+    let output = match (result, executable_result) {
+        (_, Err(error)) => return Err(error),
+        (result, Ok(())) => result?,
+    };
     if !output.status.success() {
         return Err(SourceResolveError::Git {
             operation: "cat-file".to_owned(),
@@ -1545,6 +1645,7 @@ fn make_tree_owner_writable(root: &Path) {
 }
 
 fn create_git_cache_entry(
+    executor: &GitExecutor,
     cache_dir: &Path,
     entry_root: &Path,
     cache_identity: &str,
@@ -1555,30 +1656,38 @@ fn create_git_cache_entry(
     let repository = pending.root.join(GIT_CACHE_REPOSITORY);
     let empty_template = pending.root.join("empty-template");
     std::fs::create_dir(&empty_template).map_err(|error| io_error(&empty_template, error))?;
-    run_git([
-        OsStr::new("init"),
-        OsStr::new("--quiet"),
-        OsStr::new("--bare"),
-        OsStr::new("--template"),
-        empty_template.as_os_str(),
-        repository.as_os_str(),
-    ])?;
-    run_git([
-        OsStr::new("-C"),
-        repository.as_os_str(),
-        OsStr::new("config"),
-        OsStr::new("--local"),
-        OsStr::new("remote.origin.url"),
-        OsStr::new(url),
-    ])?;
-    run_git([
-        OsStr::new("-C"),
-        repository.as_os_str(),
-        OsStr::new("config"),
-        OsStr::new("--local"),
-        OsStr::new("remote.origin.fetch"),
-        OsStr::new(GIT_ORIGIN_FETCH),
-    ])?;
+    run_git(
+        executor,
+        &pending.root,
+        [
+            OsStr::new("init"),
+            OsStr::new("--quiet"),
+            OsStr::new("--bare"),
+            OsStr::new("--template"),
+            empty_template.as_os_str(),
+            repository.as_os_str(),
+        ],
+    )?;
+    run_git(
+        executor,
+        &repository,
+        [
+            OsStr::new("config"),
+            OsStr::new("--local"),
+            OsStr::new("remote.origin.url"),
+            OsStr::new(url),
+        ],
+    )?;
+    run_git(
+        executor,
+        &repository,
+        [
+            OsStr::new("config"),
+            OsStr::new("--local"),
+            OsStr::new("remote.origin.fetch"),
+            OsStr::new(GIT_ORIGIN_FETCH),
+        ],
+    )?;
     std::fs::remove_dir(&empty_template).map_err(|error| io_error(&empty_template, error))?;
 
     let metadata_path = pending.root.join(GIT_CACHE_METADATA);
@@ -1594,13 +1703,14 @@ fn create_git_cache_entry(
         .sync_all()
         .map_err(|error| io_error(&metadata_path, error))?;
 
-    verify_git_cache_entry(&pending.root, url, requested_rev)?;
+    verify_git_cache_entry(executor, &pending.root, url, requested_rev)?;
     std::fs::rename(&pending.root, entry_root).map_err(|error| io_error(entry_root, error))?;
     pending.published = true;
     Ok(())
 }
 
 fn verify_git_cache_entry(
+    executor: &GitExecutor,
     entry_root: &Path,
     url: &str,
     requested_rev: &str,
@@ -1661,27 +1771,31 @@ fn verify_git_cache_entry(
             "local Git configuration exceeds the resolver limit",
         ));
     }
-    let config = run_git_bytes_stdout([
-        OsStr::new("-C"),
-        repository.as_os_str(),
-        OsStr::new("config"),
-        OsStr::new("--local"),
-        OsStr::new("--no-includes"),
-        OsStr::new("--null"),
-        OsStr::new("--list"),
-    ])?;
+    let config = run_git_bytes_stdout(
+        executor,
+        &repository,
+        [
+            OsStr::new("config"),
+            OsStr::new("--local"),
+            OsStr::new("--no-includes"),
+            OsStr::new("--null"),
+            OsStr::new("--list"),
+        ],
+    )?;
     verify_local_git_config(entry_root, url, &config)?;
 
-    let origin = run_git_bytes_stdout([
-        OsStr::new("-C"),
-        repository.as_os_str(),
-        OsStr::new("config"),
-        OsStr::new("--local"),
-        OsStr::new("--no-includes"),
-        OsStr::new("--null"),
-        OsStr::new("--get"),
-        OsStr::new("remote.origin.url"),
-    ])?;
+    let origin = run_git_bytes_stdout(
+        executor,
+        &repository,
+        [
+            OsStr::new("config"),
+            OsStr::new("--local"),
+            OsStr::new("--no-includes"),
+            OsStr::new("--null"),
+            OsStr::new("--get"),
+            OsStr::new("remote.origin.url"),
+        ],
+    )?;
     let mut expected_origin = url.as_bytes().to_vec();
     expected_origin.push(0);
     if origin != expected_origin {
@@ -2524,12 +2638,198 @@ fn io_error(path: &Path, error: std::io::Error) -> SourceResolveError {
     }
 }
 
-fn run_git<I, S>(args: I) -> Result<(), SourceResolveError>
+impl GitExecutor {
+    fn system() -> Result<Self, SourceResolveError> {
+        for candidate in system_git_candidates() {
+            let path = Path::new(candidate);
+            if path.is_file() {
+                return Self::open(path);
+            }
+        }
+        Err(SourceResolveError::GitExecutableUnavailable)
+    }
+
+    fn open(path: &Path) -> Result<Self, SourceResolveError> {
+        if !path.is_absolute() {
+            return Err(SourceResolveError::GitExecutableInvalid {
+                path: path.to_path_buf(),
+                message: "path is not absolute".to_owned(),
+            });
+        }
+        let canonical =
+            path.canonicalize()
+                .map_err(|error| SourceResolveError::GitExecutableInvalid {
+                    path: path.to_path_buf(),
+                    message: error.to_string(),
+                })?;
+        let metadata_identity = observe_git_executable_metadata(&canonical)?;
+        let content_identity = hash_git_executable(&canonical)?;
+        if observe_git_executable_metadata(&canonical)? != metadata_identity {
+            return Err(SourceResolveError::GitExecutableChanged { path: canonical });
+        }
+        Ok(Self {
+            identity: GitExecutableIdentity {
+                path: canonical,
+                content_identity,
+            },
+            metadata_identity,
+        })
+    }
+
+    fn verify(&self) -> Result<(), SourceResolveError> {
+        if observe_git_executable_metadata(&self.identity.path)? == self.metadata_identity {
+            Ok(())
+        } else {
+            Err(SourceResolveError::GitExecutableChanged {
+                path: self.identity.path.clone(),
+            })
+        }
+    }
+
+    fn verify_content(&self) -> Result<(), SourceResolveError> {
+        self.verify()?;
+        if hash_git_executable(&self.identity.path)? != self.identity.content_identity {
+            return Err(SourceResolveError::GitExecutableChanged {
+                path: self.identity.path.clone(),
+            });
+        }
+        self.verify()
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn system_git_candidates() -> &'static [&'static str] {
+    &[
+        "/Library/Developer/CommandLineTools/usr/bin/git",
+        "/Applications/Xcode.app/Contents/Developer/usr/bin/git",
+        "/usr/local/bin/git",
+        "/opt/homebrew/bin/git",
+    ]
+}
+
+#[cfg(all(unix, not(target_os = "macos")))]
+fn system_git_candidates() -> &'static [&'static str] {
+    &["/usr/bin/git", "/usr/local/bin/git"]
+}
+
+#[cfg(windows)]
+fn system_git_candidates() -> &'static [&'static str] {
+    &[
+        r"C:\Program Files\Git\cmd\git.exe",
+        r"C:\Program Files\Git\bin\git.exe",
+        r"C:\Program Files (x86)\Git\cmd\git.exe",
+    ]
+}
+
+fn hash_git_executable(path: &Path) -> Result<String, SourceResolveError> {
+    let metadata =
+        std::fs::metadata(path).map_err(|error| SourceResolveError::GitExecutableInvalid {
+            path: path.to_path_buf(),
+            message: error.to_string(),
+        })?;
+    if !metadata.is_file() {
+        return Err(SourceResolveError::GitExecutableInvalid {
+            path: path.to_path_buf(),
+            message: "path is not a regular file".to_owned(),
+        });
+    }
+    if metadata.len() > GIT_EXECUTABLE_BYTE_LIMIT {
+        return Err(SourceResolveError::GitExecutableInvalid {
+            path: path.to_path_buf(),
+            message: format!(
+                "file exceeds the {GIT_EXECUTABLE_BYTE_LIMIT}-byte executable ceiling"
+            ),
+        });
+    }
+    let mut file = File::open(path).map_err(|error| SourceResolveError::GitExecutableInvalid {
+        path: path.to_path_buf(),
+        message: error.to_string(),
+    })?;
+    let mut hasher = Sha256::new();
+    let mut observed = 0_u64;
+    let mut buffer = [0_u8; 64 * 1024];
+    loop {
+        let count =
+            file.read(&mut buffer)
+                .map_err(|error| SourceResolveError::GitExecutableInvalid {
+                    path: path.to_path_buf(),
+                    message: error.to_string(),
+                })?;
+        if count == 0 {
+            break;
+        }
+        observed = observed.saturating_add(count as u64);
+        if observed > GIT_EXECUTABLE_BYTE_LIMIT {
+            return Err(SourceResolveError::GitExecutableInvalid {
+                path: path.to_path_buf(),
+                message: format!(
+                    "file exceeds the {GIT_EXECUTABLE_BYTE_LIMIT}-byte executable ceiling"
+                ),
+            });
+        }
+        hasher.update(&buffer[..count]);
+    }
+    if observed != metadata.len() {
+        return Err(SourceResolveError::GitExecutableInvalid {
+            path: path.to_path_buf(),
+            message: "file length changed while it was hashed".to_owned(),
+        });
+    }
+    Ok(format_sha256(&hasher.finalize()))
+}
+
+fn observe_git_executable_metadata(
+    path: &Path,
+) -> Result<GitExecutableMetadataIdentity, SourceResolveError> {
+    let metadata =
+        std::fs::metadata(path).map_err(|error| SourceResolveError::GitExecutableInvalid {
+            path: path.to_path_buf(),
+            message: error.to_string(),
+        })?;
+    if !metadata.is_file() {
+        return Err(SourceResolveError::GitExecutableInvalid {
+            path: path.to_path_buf(),
+            message: "path is not a regular file".to_owned(),
+        });
+    }
+    let modified =
+        metadata
+            .modified()
+            .map_err(|error| SourceResolveError::GitExecutableInvalid {
+                path: path.to_path_buf(),
+                message: error.to_string(),
+            })?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+
+        Ok(GitExecutableMetadataIdentity {
+            length: metadata.len(),
+            modified,
+            device: metadata.dev(),
+            inode: metadata.ino(),
+            mode: metadata.mode(),
+        })
+    }
+    #[cfg(windows)]
+    {
+        Ok(GitExecutableMetadataIdentity {
+            length: metadata.len(),
+            modified,
+        })
+    }
+}
+
+fn run_git<I, S>(
+    executor: &GitExecutor,
+    working_directory: &Path,
+    args: I,
+) -> Result<(), SourceResolveError>
 where
     I: IntoIterator<Item = S>,
     S: AsRef<OsStr>,
 {
-    let output = run_git_output(args)?;
+    let output = run_git_output(executor, working_directory, args)?;
     if output.status.success() {
         Ok(())
     } else {
@@ -2541,12 +2841,16 @@ where
     }
 }
 
-fn run_git_stdout<I, S>(args: I) -> Result<String, SourceResolveError>
+fn run_git_stdout<I, S>(
+    executor: &GitExecutor,
+    working_directory: &Path,
+    args: I,
+) -> Result<String, SourceResolveError>
 where
     I: IntoIterator<Item = S>,
     S: AsRef<OsStr>,
 {
-    let output = run_git_output(args)?;
+    let output = run_git_output(executor, working_directory, args)?;
     if output.status.success() {
         Ok(String::from_utf8_lossy(&output.stdout).into_owned())
     } else {
@@ -2558,12 +2862,16 @@ where
     }
 }
 
-fn run_git_bytes_stdout<I, S>(args: I) -> Result<Vec<u8>, SourceResolveError>
+fn run_git_bytes_stdout<I, S>(
+    executor: &GitExecutor,
+    working_directory: &Path,
+    args: I,
+) -> Result<Vec<u8>, SourceResolveError>
 where
     I: IntoIterator<Item = S>,
     S: AsRef<OsStr>,
 {
-    let output = run_git_output(args)?;
+    let output = run_git_output(executor, working_directory, args)?;
     if output.status.success() {
         Ok(output.stdout)
     } else {
@@ -2575,20 +2883,29 @@ where
     }
 }
 
-fn run_git_output<I, S>(args: I) -> Result<BoundedCommandOutput, SourceResolveError>
+fn run_git_output<I, S>(
+    executor: &GitExecutor,
+    working_directory: &Path,
+    args: I,
+) -> Result<BoundedCommandOutput, SourceResolveError>
 where
     I: IntoIterator<Item = S>,
     S: AsRef<OsStr>,
 {
-    let mut command = sealed_git_command();
+    let mut command = sealed_git_command(executor, working_directory)?;
     command.args(args);
-    run_command_bounded(
+    let result = run_command_bounded(
         &mut command,
         "command",
         GIT_STDOUT_LIMIT,
         GIT_STDERR_LIMIT,
         GIT_COMMAND_TIMEOUT,
-    )
+    );
+    let executable_result = executor.verify();
+    match (result, executable_result) {
+        (_, Err(error)) => Err(error),
+        (result, Ok(())) => result,
+    }
 }
 
 #[derive(Debug)]
@@ -2813,50 +3130,47 @@ fn duration_millis(duration: Duration) -> u64 {
     u64::try_from(duration.as_millis()).unwrap_or(u64::MAX)
 }
 
-fn sealed_git_command() -> Command {
-    let mut command = Command::new("git");
-    for (key, _) in std::env::vars_os() {
-        let key_text = key.to_string_lossy();
-        if key_text.starts_with("GIT_CONFIG_KEY_") || key_text.starts_with("GIT_CONFIG_VALUE_") {
-            command.env_remove(key);
-        }
+fn sealed_git_command(
+    executor: &GitExecutor,
+    working_directory: &Path,
+) -> Result<Command, SourceResolveError> {
+    executor.verify()?;
+    if !working_directory.is_absolute() {
+        return Err(SourceResolveError::Git {
+            operation: "command configuration".to_owned(),
+            status: None,
+            stderr: format!(
+                "working directory `{}` is not absolute",
+                working_directory.display()
+            ),
+        });
     }
-    for key in [
-        "GIT_ALTERNATE_OBJECT_DIRECTORIES",
-        "GIT_ASKPASS",
-        "GIT_CEILING_DIRECTORIES",
-        "GIT_COMMON_DIR",
-        "GIT_CONFIG",
-        "GIT_CONFIG_COUNT",
-        "GIT_CONFIG_PARAMETERS",
-        "GIT_DIFF_OPTS",
-        "GIT_DIR",
-        "GIT_EDITOR",
-        "GIT_EXEC_PATH",
-        "GIT_EXTERNAL_DIFF",
-        "GIT_GRAFT_FILE",
-        "GIT_INDEX_FILE",
-        "GIT_NAMESPACE",
-        "GIT_OBJECT_DIRECTORY",
-        "GIT_PAGER",
-        "GIT_PROXY_COMMAND",
-        "GIT_REPLACE_REF_BASE",
-        "GIT_SEQUENCE_EDITOR",
-        "GIT_SHALLOW_FILE",
-        "GIT_SSH",
-        "GIT_SSH_COMMAND",
-        "GIT_WORK_TREE",
-        "SSH_ASKPASS",
-    ] {
-        command.env_remove(key);
+    let metadata =
+        std::fs::metadata(working_directory).map_err(|error| io_error(working_directory, error))?;
+    if !metadata.is_dir() {
+        return Err(SourceResolveError::NotDirectory {
+            path: working_directory.to_path_buf(),
+        });
     }
+
+    let mut command = Command::new(&executor.identity.path);
     command
+        .env_clear()
+        .current_dir(working_directory)
+        .env("LANG", "C")
+        .env("LC_ALL", "C")
+        .env("PATH", git_helper_path(&executor.identity.path))
         .env("GIT_ALLOW_PROTOCOL", "file:https:http:ssh:git")
         .env("GIT_ATTR_NOSYSTEM", "1")
         .env("GIT_CONFIG_GLOBAL", null_device())
         .env("GIT_CONFIG_NOSYSTEM", "1")
         .env("GIT_LFS_SKIP_SMUDGE", "1")
         .env("GIT_PROTOCOL_FROM_USER", "0")
+        .env(
+            "GIT_SSH_COMMAND",
+            sealed_ssh_command(&executor.identity.path),
+        )
+        .env("GIT_SSH_VARIANT", "ssh")
         .env("GIT_TERMINAL_PROMPT", "0")
         .arg("--no-replace-objects")
         .arg("-c")
@@ -2897,7 +3211,45 @@ fn sealed_git_command() -> Command {
             "-c",
             "filter.lfs.required=false",
         ]);
-    command
+    Ok(command)
+}
+
+#[cfg(unix)]
+fn git_helper_path(_git_executable: &Path) -> OsString {
+    OsString::from("/usr/bin:/bin")
+}
+
+#[cfg(unix)]
+fn sealed_ssh_command(_git_executable: &Path) -> OsString {
+    OsString::from(
+        "/usr/bin/ssh -F /dev/null -oBatchMode=yes -oPasswordAuthentication=no -oKbdInteractiveAuthentication=no -oNumberOfPasswordPrompts=0 -oStrictHostKeyChecking=yes",
+    )
+}
+
+#[cfg(windows)]
+fn git_helper_path(git_executable: &Path) -> OsString {
+    let mut directories = Vec::new();
+    if let Some(parent) = git_executable.parent() {
+        directories.push(parent.to_path_buf());
+        if let Some(root) = parent.parent() {
+            directories.push(root.join("bin"));
+            directories.push(root.join("usr/bin"));
+        }
+    }
+    std::env::join_paths(directories).unwrap_or_default()
+}
+
+#[cfg(windows)]
+fn sealed_ssh_command(git_executable: &Path) -> OsString {
+    let ssh = git_executable
+        .parent()
+        .and_then(Path::parent)
+        .map(|root| root.join("usr/bin/ssh.exe"))
+        .unwrap_or_else(|| PathBuf::from(r"C:\Program Files\Git\usr\bin\ssh.exe"));
+    OsString::from(format!(
+        "\"{}\" -F NUL -oBatchMode=yes -oPasswordAuthentication=no -oKbdInteractiveAuthentication=no -oNumberOfPasswordPrompts=0 -oStrictHostKeyChecking=yes",
+        ssh.display()
+    ))
 }
 
 #[cfg(unix)]
@@ -3136,20 +3488,20 @@ mod tests {
     #[test]
     fn bounded_git_blob_read_enforces_validated_size() {
         let (repo, _) = create_git_source("bounded-blob");
-        let oid = run_git_stdout([
-            OsStr::new("-C"),
-            repo.as_os_str(),
-            OsStr::new("rev-parse"),
-            OsStr::new("HEAD:main.omg"),
-        ])
+        let executor = GitExecutor::system().expect("system Git executor");
+        let oid = run_git_stdout(
+            &executor,
+            &repo,
+            [OsStr::new("rev-parse"), OsStr::new("HEAD:main.omg")],
+        )
         .expect("resolve blob oid");
         let oid = oid.trim();
         let expected = std::fs::read(repo.join("main.omg")).expect("read expected blob");
 
-        let actual = read_git_blob_bounded(&repo, oid, expected.len() as u64)
+        let actual = read_git_blob_bounded(&executor, &repo, oid, expected.len() as u64)
             .expect("read exact bounded blob");
         assert_eq!(actual, expected);
-        let error = read_git_blob_bounded(&repo, oid, (expected.len() - 1) as u64)
+        let error = read_git_blob_bounded(&executor, &repo, oid, (expected.len() - 1) as u64)
             .expect_err("blob exceeding its advertised size must fail closed");
         assert!(matches!(
             error,
@@ -4068,7 +4420,9 @@ mod tests {
         let repository = entry_root.join(GIT_CACHE_REPOSITORY);
         let missing_oid = "0000000000000000000000000000000000000000";
         let fake_tree = "1111111111111111111111111111111111111111";
+        let executor = GitExecutor::system().expect("system Git executor");
         let error = resolve_git_snapshot(
+            &executor,
             &entry_root,
             &repository,
             fake_tree,
@@ -4255,7 +4609,12 @@ mod tests {
 
     #[test]
     fn git_commands_seal_ambient_config_protocol_and_execution_injection() {
-        let command = sealed_git_command();
+        let executor = GitExecutor::system().expect("system Git executor");
+        let working_directory = std::env::temp_dir()
+            .canonicalize()
+            .expect("canonical temporary directory");
+        let command =
+            sealed_git_command(&executor, &working_directory).expect("sealed absolute Git command");
         let environment = command
             .get_envs()
             .map(|(key, value)| (key.to_owned(), value.map(OsStr::to_owned)))
@@ -4265,23 +4624,53 @@ mod tests {
             .map(|argument| argument.to_string_lossy().into_owned())
             .collect::<Vec<_>>();
 
-        assert_eq!(
-            environment.get(OsStr::new("GIT_CONFIG_GLOBAL")),
-            Some(&Some(OsStr::new(null_device()).to_owned()))
-        );
-        assert_eq!(
-            environment.get(OsStr::new("GIT_CONFIG_NOSYSTEM")),
-            Some(&Some(OsStr::new("1").to_owned()))
-        );
-        for removed in [
-            "GIT_CONFIG_COUNT",
-            "GIT_CONFIG_PARAMETERS",
-            "GIT_EXEC_PATH",
-            "GIT_SSH_COMMAND",
-            "GIT_EXTERNAL_DIFF",
-        ] {
-            assert_eq!(environment.get(OsStr::new(removed)), Some(&None));
-        }
+        let expected_environment = std::collections::BTreeMap::from([
+            (
+                OsString::from("GIT_ALLOW_PROTOCOL"),
+                Some(OsString::from("file:https:http:ssh:git")),
+            ),
+            (
+                OsString::from("GIT_ATTR_NOSYSTEM"),
+                Some(OsString::from("1")),
+            ),
+            (
+                OsString::from("GIT_CONFIG_GLOBAL"),
+                Some(OsString::from(null_device())),
+            ),
+            (
+                OsString::from("GIT_CONFIG_NOSYSTEM"),
+                Some(OsString::from("1")),
+            ),
+            (
+                OsString::from("GIT_LFS_SKIP_SMUDGE"),
+                Some(OsString::from("1")),
+            ),
+            (
+                OsString::from("GIT_PROTOCOL_FROM_USER"),
+                Some(OsString::from("0")),
+            ),
+            (
+                OsString::from("GIT_SSH_COMMAND"),
+                Some(sealed_ssh_command(&executor.identity.path)),
+            ),
+            (
+                OsString::from("GIT_SSH_VARIANT"),
+                Some(OsString::from("ssh")),
+            ),
+            (
+                OsString::from("GIT_TERMINAL_PROMPT"),
+                Some(OsString::from("0")),
+            ),
+            (OsString::from("LANG"), Some(OsString::from("C"))),
+            (OsString::from("LC_ALL"), Some(OsString::from("C"))),
+            (
+                OsString::from("PATH"),
+                Some(git_helper_path(&executor.identity.path)),
+            ),
+        ]);
+        assert_eq!(environment, expected_environment);
+        assert_eq!(command.get_program(), executor.identity.path.as_os_str());
+        assert_eq!(command.get_current_dir(), Some(working_directory.as_path()));
         assert!(
             arguments
                 .iter()
@@ -4308,6 +4697,124 @@ mod tests {
                 .iter()
                 .any(|argument| argument == "maintenance.auto=false")
         );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn git_executor_uses_committed_absolute_program_cleared_environment_and_explicit_cwd() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let root = temp_root("sealed-git-executor");
+        let working_directory = root.join("working");
+        std::fs::create_dir_all(&working_directory).expect("create explicit working directory");
+        let working_directory = working_directory
+            .canonicalize()
+            .expect("canonical explicit working directory");
+        let fake_git = root.join("git");
+        std::fs::write(
+            &fake_git,
+            b"#!/bin/sh\nprintf 'cwd='\npwd\nprintf 'home=%s\\n' \"${HOME-unset}\"\nprintf 'path=%s\\n' \"$PATH\"\n",
+        )
+        .expect("write fake Git executable");
+        std::fs::set_permissions(&fake_git, std::fs::Permissions::from_mode(0o700))
+            .expect("make fake Git executable");
+        let executor = GitExecutor::open(&fake_git).expect("capture fake Git identity");
+
+        let output = run_git_output(
+            &executor,
+            &working_directory,
+            [OsStr::new("ignored-by-test-helper")],
+        )
+        .expect("run sealed fake Git");
+        assert!(output.status.success());
+        let stdout = String::from_utf8(output.stdout).expect("test helper emits UTF-8");
+        assert!(
+            stdout.contains(&format!("cwd={}\n", working_directory.display())),
+            "sealed helper reported {stdout:?}"
+        );
+        assert!(stdout.contains("home=unset\n"));
+        assert!(stdout.contains("path=/usr/bin:/bin\n"));
+
+        let command = sealed_git_command(&executor, &working_directory)
+            .expect("construct sealed fake Git command");
+        assert_eq!(command.get_program(), fake_git.canonicalize().unwrap());
+        assert_eq!(command.get_current_dir(), Some(working_directory.as_path()));
+
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn git_executor_rejects_relative_paths_and_executable_drift() {
+        use std::os::unix::fs::PermissionsExt;
+
+        assert!(matches!(
+            GitExecutor::open(Path::new("git")),
+            Err(SourceResolveError::GitExecutableInvalid { .. })
+        ));
+
+        let root = temp_root("git-executable-drift");
+        std::fs::create_dir_all(&root).expect("create executable drift root");
+        let fake_git = root.join("git");
+        std::fs::write(&fake_git, b"#!/bin/sh\nexit 0\n").expect("write fake Git executable");
+        std::fs::set_permissions(&fake_git, std::fs::Permissions::from_mode(0o700))
+            .expect("make fake Git executable");
+        let executor = GitExecutor::open(&fake_git).expect("capture fake Git identity");
+        let replacement = root.join("replacement");
+        std::fs::write(&replacement, b"#!/bin/sh\nexit 1\n")
+            .expect("write replacement Git executable");
+        std::fs::rename(&replacement, &fake_git).expect("replace fake Git executable");
+
+        assert!(matches!(
+            executor.verify(),
+            Err(SourceResolveError::GitExecutableChanged { .. })
+        ));
+        assert!(matches!(
+            sealed_git_command(&executor, &root),
+            Err(SourceResolveError::GitExecutableChanged { .. })
+        ));
+
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn system_git_executor_excludes_the_apple_dispatcher() {
+        let executor = GitExecutor::system().expect("concrete macOS Git executor");
+        assert_ne!(executor.identity.path, Path::new("/usr/bin/git"));
+        assert!(executor.identity.path.is_absolute());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn git_executor_post_check_overrides_success_and_nonzero_exit_after_drift() {
+        use std::os::unix::fs::PermissionsExt;
+
+        for exit_status in [0, 7] {
+            let root = temp_root(&format!("git-post-drift-{exit_status}"));
+            std::fs::create_dir_all(&root).expect("create post-drift root");
+            let fake_git = root.join("git");
+            let replacement = root.join("git.replacement");
+            std::fs::write(
+                &fake_git,
+                format!("#!/bin/sh\nmv \"$0.replacement\" \"$0\"\nexit {exit_status}\n"),
+            )
+            .expect("write self-replacing Git executable");
+            std::fs::write(&replacement, b"#!/bin/sh\nexit 0\n")
+                .expect("write replacement Git executable");
+            std::fs::set_permissions(&fake_git, std::fs::Permissions::from_mode(0o700))
+                .expect("make self-replacing Git executable");
+            std::fs::set_permissions(&replacement, std::fs::Permissions::from_mode(0o700))
+                .expect("make replacement Git executable");
+            let executor = GitExecutor::open(&fake_git).expect("capture original Git identity");
+
+            assert!(matches!(
+                run_git_output(&executor, &root, [OsStr::new("ignored")]),
+                Err(SourceResolveError::GitExecutableChanged { .. })
+            ));
+
+            let _ = std::fs::remove_dir_all(root);
+        }
     }
 
     #[test]

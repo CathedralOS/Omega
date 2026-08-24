@@ -137,12 +137,20 @@ complete.
   now read from validated tree/blob objects, materialized without checkout,
   filters, hooks, or submodules, re-hashed against the expected tree, made
   read-only, and atomically published as a resolver-owned snapshot. Published
-  snapshots are revalidated before reuse. Every Git subprocess now receives
-  null stdin, concurrently bounded stdout/stderr capture, and a deadline. It
-  also runs in a fresh Unix process group or Windows Job Object which is
-  terminated on every exit path, preventing ordinary helper/SSH descendants
-  from surviving or holding capture pipes open; overflow or timeout rejects
-  explicitly. This is a portable-executor floor, not strict hostile-process
+  snapshots are revalidated before reuse. The Git parent is now selected only
+  from a closed platform list of absolute concrete paths, never ambient `PATH`;
+  macOS excludes Apple's `/usr/bin/git` dispatcher. Its canonical regular-file
+  bytes are hashed under a 256 MiB ceiling, retained as a diagnostic source
+  observation, guarded by stable file identity around every launch, and
+  re-hashed when the complete resolution returns. Drift rejects. Every
+  launch clears the inherited environment, installs a fixed Git/protocol/
+  locale/helper-path environment, requires an explicit absolute working
+  directory, and receives null stdin, concurrently bounded stdout/stderr
+  capture, and a deadline. It
+  also runs in a fresh Unix process group or Windows Job Object. Every exit
+  path attempts termination, preventing ordinary helper/SSH descendants from
+  surviving or holding capture pipes open in tested cases; overflow or timeout
+  rejects once cleanup returns. This is a portable-executor floor, not strict hostile-process
   confinement. Fetch requests only the selected revision at depth one and
   disables Git automatic maintenance and garbage collection; unrelated
   reachable history is not traversed merely to resolve one package revision.
@@ -168,10 +176,17 @@ complete.
     same-user process racing both observations;
   - cache locking coordinates resolver processes but is not protection against
     an independently hostile process that can mutate the cache directory;
+  - the selected Git path/content observation does not certify path ownership,
+    the executable's provenance, its already loaded image, or executables that
+    Git may launch from the fixed helper path;
   - the Git subprocess has no OS sandbox or CPU/memory/process/transfer
     ceilings; process-container cleanup contains ordinary descendants but not a
-    hostile Unix process that deliberately changes session, and SSH transport
-    necessarily invokes an external client with its own configuration surface;
+    hostile Unix process that deliberately changes session; termination failure
+    and reaping are not bounded, and there is no whole-resolution deadline or
+    cumulative command-work budget;
+  - SSH uses an absolute client with user configuration disabled, batch mode,
+    zero password prompts, and strict host-key checking, but still consumes the
+    user's default known-host and key files without explicit credential custody;
   - resolver process/network/filesystem authority is not yet represented by a
     hardened execution boundary and receipt.
 
