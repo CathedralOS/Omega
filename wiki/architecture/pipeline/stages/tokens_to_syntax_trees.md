@@ -63,7 +63,12 @@ The Psi product role owns this stage; its eventual hosted source belongs under
   `blocks`, `crashes`, `requires`, and `ensures`
   clauses. A machine `requires` or `ensures` clause may retain one explicit
   evidence-term binding (`name: proposition`); a named clause contains exactly
-  one proposition. `parser/statement.rs` also recognizes the separated
+  one proposition. An `ensures` section also admits one
+  `ExactResultCase -> { guarantees }` group per declared result case. Group
+  entries are ordinary named or unnamed guarantee rows; the braces have no
+  expression, aggregate, package, or group-value node. `=>`, `when`, and an
+  unseparated case literal are not alternate guard spellings.
+  `parser/statement.rs` also recognizes the separated
   proof-output binding `let (value; public_output: local_term) = call()` and its
   evidence-only form. Erased call arguments, evidence assignment, producer
   selection, and proof-output validation belong to later stages. `via` is

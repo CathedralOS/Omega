@@ -201,6 +201,26 @@ telescope, for example `TogetherEvidence<Left, Right>`. Its type, `const`, and
 static-machine arguments are explicit; ordinary lifetime elision alone may
 omit a region, whose resolved identity remains checked and erased.
 
+One exact result case may organize named and unnamed postconditions without
+creating an output package:
+
+```omega
+ensures
+    Result::Success -> {
+        retained_evidence: P(result);
+        Q(result);
+    }
+```
+
+The arrow and braces attach ordinary guarantee rows to the exact nominal case;
+the group itself has no value or identity. Named rows require one exact term
+assignment on every ordinary exit producing that case. Unnamed rows require a
+proof on every such exit and retain no source-bindable term. Both facts become
+available only under the matching caller case refinement, whether or not the
+named row is selected. Their validity scopes retain every referenced occurrence
+and evidence-interface scope, so borrowing or revision invalidation composes
+unchanged with guarded availability.
+
 A transparent logical definition uses `=`:
 
 ```omega

@@ -448,6 +448,31 @@ witness term. Outcome-guarded selectors exist only in the matching outcome arm.
 Chapter 10 defines evidence projection, assignment, call passing, output-lane
 binding, and the separate proposition, evidence-term, and derivation identities.
 
+A result-case group makes postconditions conditional on one exact nominal case
+of the declared result sum:
+
+```omega
+machine Search::find(items: &[Item], target: Item) -> SearchResult
+ensures
+    SearchResult::Found -> {
+        in_bounds: result.index < items.len;
+        items[result.index] == target;
+    }
+{
+    ...
+}
+```
+
+`->` is the existing case-directed token. The braces organize contract rows;
+they construct no value, package, aggregate, or independently identified group.
+The case path resolves against the declared result sum and normalizes to its
+exact case symbol. A group may contain named evidence outputs and unnamed
+fact-only guarantees. It is not a domain declaration or arbitrary Boolean
+guard: the returned sum tag establishes the exclusive case fact, and that fact
+activates the rows. Use a qualified payload type such as `T in D` when domain
+membership belongs to the returned value itself; use a guarded guarantee for a
+relation specific to this invocation or outcome.
+
 ## Machine Graph Compatibility
 
 Internal states participate in the machine's graph, but they are not public

@@ -544,6 +544,18 @@ Current ownership is:
   argument pack; unknown and ambiguous members reject, and the erased
   projection cannot select an executable machine parameter. Boolean,
   membership, fact-only, or non-nominal bindings reject.
+- Result-case guarantee groups resolve their source path only against the
+  machine's declared result sum and retain one exact nominal case identity on
+  every checked row. A declaration layer admits at most one group per case;
+  public named selectors stay machine-wide unique. Producer coverage is
+  path-sensitive: named rows require exactly one evidence assignment on every
+  ordinary exit producing the case, while unnamed rows require one proved
+  proposition on every such path and retain no source-bindable term. Other
+  cases and crash exits discharge neither. Caller fact import and named capture
+  occur only after the matching case refinement. Each imported row derives its
+  validity from the result occurrence, normalized referenced occurrences, and
+  evidence-interface scopes, so intersecting writes invalidate borrowed or
+  revision-scoped guarantees rather than leaving stale sibling facts.
 - `psi-checked-trees/src/admissibility/` owns checked operation acceptance
   views. These views do not re-run proof, borrow, or effect checks; they gather
   the already-accepted evidence behind state, statement, call, and exit query

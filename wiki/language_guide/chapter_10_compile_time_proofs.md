@@ -211,6 +211,40 @@ the finite named-state graph. Assignment is ordered at its source statement and
 carried across named transitions; assigning twice rejects, while a crash-only
 outcome produces no outgoing proof lane and need not assign it.
 
+An outcome guard is declared as one group keyed by an exact case of the
+machine's declared result sum:
+
+```omega
+machine Search::find(items: &[Item], target: Item) -> SearchResult
+ensures
+    SearchResult::Found -> {
+        in_bounds: result.index < items.len;
+        items[result.index] == target;
+    }
+{
+    ...
+}
+```
+
+At most one authored group names a case in one declaration layer. Named
+selectors remain unique across the complete machine contract. The case path is
+resolved only in the declared result type and normalizes to the exact nominal
+case; it is not inferred from the proposition, visible facts, assignment sites,
+or body shape. A non-sum result, unknown case, duplicate case group, Boolean
+guard, or duplicate selector rejects. Moving a guarantee to another case and
+renaming a public selector are breaking proof-interface revisions; reordering
+groups or rows and renaming a caller-local term are not.
+
+Named and unnamed rows have the same path coverage and different producer
+discharge forms. On every ordinary exit producing the guarded case, a named row
+is assigned one exact evidence term, while an unnamed row is proved from that
+exit's path facts after substituting the concrete result payload. A proof at a
+shared join covers the row only when all qualifying incoming paths establish
+it. Other result cases neither assign nor prove the group, and a crash-only exit
+produces no result case. The braces are contract organization only: no source or
+artifact aggregate, package, group value, projection, multiplicity, or group
+identity exists.
+
 Name a `requires` clause only when its body projects or forwards the term.
 Changing `requires P` to `requires proof: P` adds an explicit erased input and
 is a breaking call-interface revision. Named `ensures` labels are public output
@@ -280,6 +314,26 @@ The proof slot does not exist on inapplicable paths. Definite assignment remains
 per outcome: the producer assigns each named `ensures` term exactly once on each
 exit where its guard applies. A caller may select any subset of applicable proof
 outputs, and adding another guarantee does not force existing patterns to grow.
+
+Every named or unnamed proposition in the guarded group enters the caller fact
+catalog only after flow establishes that exact result case. Omitting a named
+selector omits only the caller-local evidence term; it does not make the fact
+unconditional and does not leak it into sibling arms. An unnamed row likewise
+mints no caller-local term. The guarantee validity scope is the intersection of
+the result occurrence, every normalized value occurrence referenced by its
+proposition, and any scope retained by its evidence interface. A fact over
+borrowed content is borrow-scoped and invalidated by an intersecting write; a
+fact solely about an owned immutable result may remain timeless even when the
+implementation originally computed that result from borrowed input.
+
+Requirement guarantees are inherited by a satisfying machine. The satisfier's
+authored case group adds rows; omission never removes or weakens inherited rows,
+and an exact restatement rejects as redundant. The effective concrete contract
+merges the pinned requirement rows with the additions. Calls through the
+requirement see its published surface, while direct calls may use the stronger
+concrete surface. This rule applies to ordinary fact guarantees now; whether a
+trait requirement may itself publish named witness selectors remains a separate
+owner decision.
 
 The artifact keeps proposition identity, evidence-term identity, and
 derivation provenance separate. The first names the claim, the second preserves
