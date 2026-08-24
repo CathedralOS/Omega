@@ -47,12 +47,13 @@ Full Omega is the already-separate product language specification. It is what
 the production compiler must implement, not a third bootstrap source-profile
 choice. Likewise, "conservative" versus "optimized" describes how a compiler
 binary was generated, not what source language it accepts or what compiler it
-contains. The compiler artifacts have corresponding implementation obligations:
+contains.
 
 There is no separate `omega-bootstrap` language inventory: its implementation
 surface is Delta v1 and its accepted-source surface is `Ωself`. There is also no
 bootstrap vote on which user-facing Omega features the product compiler should
-implement; the full Omega specification already answers that question.
+implement; the full Omega specification already answers that question. The
+compiler artifacts instead have the following implementation obligations:
 
 | Compiler artifact | Written in | Accepts | Obligation |
 | --- | --- | --- | --- |
@@ -211,6 +212,17 @@ That gives the design loop exactly two feature inventories:
 
 Everything else in the hosted build is implementation, validation, or optional
 optimization work under those two inventories.
+
+| Question | Decision state |
+| --- | --- |
+| Is Delta an Omega subset? | settled: no requirement; Delta is an independent literal language |
+| What kind of language is Delta? | settled constraints: a robust, deterministic C-class compiler host, Omega-shaped where cheap; exact facilities remain open |
+| Is `Ωself` a new language or rung? | settled: no; it is a compositional restriction of ordinary Omega |
+| Must the product compiler implement full Omega? | settled: yes; this is not selected by bootstrap profiling |
+| Must the first product-compiler binary be optimized? | settled: no; conservative generation is sufficient |
+| Must an Omega→Omega rebuild occur? | settled: no; it is optional optimization and reproducibility work |
+| Which facilities belong to Delta v1? | open until the complete bridge closure and compiler-host arguments close |
+| Which ordinary Omega facilities belong to `Ωself`? | open until the complete product closure and measured bridge join close |
 
 This is also the answer to the apparent “Omega bootstrap language” question:
 there is no third literal specification to design. Delta is the literal

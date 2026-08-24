@@ -51,15 +51,16 @@ a bootstrap dependency, language generation, or second implementation. There
 is no omega0, omega1, or Epsilon rung. O0 and O1 are bounded regression canaries
 only.
 
-Exactly two source inventories remain to be discovered and frozen:
+Exactly two source-surface contracts remain to be discovered and frozen:
 
 | Contract | Meaning | Freeze evidence |
 | --- | --- | --- |
 | Delta v1 | the literal independent language used to write `omega-bootstrap` | the complete bridge source closure plus explicit coherence, safety, robustness, and maintainability arguments |
 | `Ωself` | a compositional profile of valid Omega used by the product compiler source | the complete product source closure plus measured bridge and assurance cost for every retain/refactor choice |
 
-The bridge artifacts do not create a third feature inventory. A compiler can
-implement a full-Omega feature without using that feature in its own source.
+The bridge artifacts do not create a third source contract. Full-Omega
+implementation coverage is already fixed by the product specification, and a
+compiler can implement a feature without using that feature in its own source.
 Generated-code quality is an artifact property, not a language-surface choice.
 
 These standing rulings are not tasks:
@@ -193,9 +194,11 @@ Grow the bridge from checkpoint needs through general capabilities. Do not
 recognize the current compiler files, declaration counts, or syntax-tree
 permutations.
 
-The first checkpoint-driven frontend probe, selected private `CKIR1` direct
-artifact route, and exact independent CKIR-to-ELF reconstruction are
-established. Their completed evidence and remaining artifact obligations live in
+The first checkpoint-driven frontend probe and selected private `CKIR1` direct
+artifact route are established. An independent reference checker already
+reconstructs the exact selected ELF bytes, while the equivalent lower-rooted
+CKIR-to-ELF claim remains open. Completed evidence and remaining artifact
+obligations live in
 [`SOURCE_CUSTODY_FRONTEND_PROBE.md`](bootstrap/omega-bootstrap/compiler/SOURCE_CUSTODY_FRONTEND_PROBE.md)
 and
 [`OMEGA_BOOTSTRAP_CHECKED_IR.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR.md).
@@ -211,12 +214,15 @@ families to `Ωself`.
   reordered case. This handoff choice settles only the tranche's implementation
   route, not the final `Ωself` disposition of any source feature. Any future
   Terminal-Psi vocabulary work remains product work in `TASKS.md`.
-  - [ ] Land lower-rooted source→CKIR→limited-ELF refinement with perturbed
-    source/result/operation/offset/branch/artifact negatives (§10.6).
-    Exact envelope custody, one-unit source lexing, and independent CKIR1
-    relation/result checking are established below Delta. The remaining claim
-    is source semantic-table reconstruction to canonical CKIR plus exact
-    limited-ELF reconstruction/execution and their composed negative teeth.
+  - [ ] Reconstruct accepted source semantic tables and their canonical CKIR1
+    relation below Delta. Compose this with the established envelope custody,
+    one-unit lexing, CKIR1 validation, and selected-result interpretation;
+    perturb source semantics, canonical operation selection, and the claimed
+    result (§10.6).
+  - [ ] Reconstruct the exact CKIR1→limited-ELF relation and selected execution
+    observation below Delta. Perturb layout offsets, instruction selection,
+    branch targets, artifact bytes, and the execution claim, then compose both
+    lower-rooted relations into the source→artifact tranche (§10.6).
 - [ ] Continue against later provisional checkpoints until the bridge generally
   parses, resolves, checks, diagnoses, and conservatively lowers every program
   admitted by the candidate `Ωself` profile while rejecting everything else
