@@ -579,7 +579,7 @@ complete.
   `Volatile`, including a denied attempt, while pure, console-only, and declared-
   but-unreachable filesystem rows remain `Hermetic`. Console-only granted
   execution no longer installs real filesystem authority. Compiler-issued
-  package review carries this summary outside v30 capability/API comparison
+  package review carries this summary outside v31 capability/API comparison
   bytes. It is explicitly not a receipt and makes no replayability or source-
   rebuildability claim.
   Exact rows for the unsupported forms and proof/admission dispositions still
@@ -610,7 +610,7 @@ complete.
   closing the implicit-entry-state ownership gap discovered by the crash
   projection. Review identity now retains the exact deployment target profile,
   so profiles such as Windows and UEFI cannot collapse merely because they
-  share a native ABI. A v30 length-framed binary comparison encoding now covers
+  share a native ABI. A v31 length-framed binary comparison encoding now covers
   every retained public-domain, public-data, public-trait, callable,
   representation-TCB, crash/proof predicate, proposition/witness, authority
   flow, dangerous-authority classification, mutation, and selected-provider
@@ -673,7 +673,7 @@ complete.
   realized filesystem-touch fact separate from deterministic evaluator usage.
   The compiler derives the static class from exact reachable toolchain service
   identity, retains the versioned Hermetic/Volatile summary through checked and
-  full reports and compiler-issued package review, and keeps it outside v30
+  full reports and compiler-issued package review, and keeps it outside v31
   capability/API comparison bytes. Console-only execution no longer installs
   real filesystem authority. Both statement- and value-position filesystem
   dispatch now require an exact requirement symbol owned by the canonical
@@ -849,9 +849,9 @@ complete.
   Optional reviewer/signature/reason fields are governance metadata and never
   proof that an audit occurred.
 
-  Design decision 2026-08-24: conflict rows are projected by the compiler from
-  the earliest Psi-owned checked representation that already contains each
-  exact fact. Rows need not share one source stage. The compiler may depend on
+  Ratified design decision 2026-08-24: conflict rows are projected by the
+  compiler from the earliest Psi-owned checked representation that already
+  contains each exact fact. Rows need not share one source stage. The compiler may depend on
   those private representations because the projection moves with the
   compiler; only the versioned, source-handle-free row encoding crosses into
   package orchestration. Do not create nominal Chi solely to make this internal
@@ -928,12 +928,16 @@ complete.
   `PortIo`, `InterruptMaskControl`, `InterruptEntry`, and
   `ExtentRootProvider` as machine-control, port-I/O, interrupt-control,
   interrupt-entry, and root-memory authority. Canonical and same-named
-  package-owned tests pin both sides of each join, and comparison encoding v30
-  retains the rows. `ProgramStorageEntry` is not mislabeled as executable-
+  package-owned tests pin both sides of each join. The exact toolchain-owned
+  `Console` is additionally classified as process authority because reach is
+  trait-granular and that canonical trait includes `exit_process`; a
+  package-owned `Console` lookalike cannot mint the class. Comparison encoding
+  v31 retains these rows. `ProgramStorageEntry` is not mislabeled as executable-
   installation authority merely because it receives already-installed roots;
-  that class must come from exact installation evidence. Network, process,
-  dynamic loading, signing, secrets, executable installation, DMA/IOMMU, and
-  sealed package evidence remain.
+  that class must come from exact installation evidence. Network, dynamic
+  loading, signing, secrets, executable installation, DMA/IOMMU, and sealed
+  package evidence remain; no canonical surface for those classes is currently
+  present, so the compiler must not infer them from suggestive package names.
 
 - **REPRESENTATION-TCB-REVIEW.** Retain claim-free opaque boundary data as a
   distinct compiler-owned review lane.
@@ -952,7 +956,7 @@ complete.
   `boundary data`, including private declarations and declarations with no
   reach or claim. The row is target-scoped by the containing projection and
   explicitly records both ABI commitment and external mechanism as `Unbound`;
-  it does not fabricate layout or realization. Comparison encoding v30 retains
+  it does not fabricate layout or realization. Comparison encoding v31 retains
   the lane. Exact mechanism/ABI selection, source/toolchain/compiler sealing,
   and admission-policy outcomes remain.
 
@@ -1034,7 +1038,7 @@ complete.
   Acceptance: fixture identity comes from source, not directory names or test
   constructors, and compiler admission emits every expected evidence row.
 
-  Progress 2026-08-24: all ten local package fixtures declare `PACKAGE` and
+  Progress 2026-08-24: all eleven local package fixtures declare `PACKAGE` and
   use the coherent `builder` parameter name. Their private CathedralOS mirrors
   carry byte-identical source at refreshed exact pins. The optional live-network
   test now compares package declarations, source content, and canonical
@@ -1073,8 +1077,12 @@ complete.
   real canonical filesystem boundary, while the latter's network boundary
   remains intentionally package-local until a canonical toolchain network
   surface exists. Compiler review classifies only the canonical filesystem
-  authority. `provider-switchboard` now covers exact
-  build-owned provider selection and its normalized compiler review row.
+  authority. `process-exit` adds exact canonical `Console` reach/invocation,
+  compiler-owned process-authority classification, initial-install and
+  unchanged-update audit recommendations, and a byte-identical private
+  CathedralOS mirror at an exact commit. A package-owned `Console` lookalike is
+  separately pinned as non-authoritative. `provider-switchboard` now covers
+  exact build-owned provider selection and its normalized compiler review row.
   `generated-table` now covers the canonical build machine's exact toolchain-
   owned filesystem reach/invocation ceiling from immutable source custody and a
   separate writable root inside a disposable review child session. Fixture-

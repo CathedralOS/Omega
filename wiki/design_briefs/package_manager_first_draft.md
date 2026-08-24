@@ -217,8 +217,8 @@ source closure, nor proves that the observed file is exactly the process image
 already loaded by the operating system. Complete compiler/toolchain source and
 rebuild provenance remain admission work.
 
-Implementation should consume the earliest coherent checked compiler state
-that already contains each required fact. Different evidence rows may therefore
+Ratified 2026-08-24: implementation should consume the earliest coherent
+checked compiler state that already contains each required fact. Different evidence rows may therefore
 come from different internal representations; totality belongs to the final
 projection, not to one frozen source stage. Because the projection ships with
 the compiler, depending on compiler-internal representations is ordinary
@@ -230,7 +230,9 @@ semantic path. The projection and its tests move with those representations.
 There is no nominal Chi stage merely to stabilize this report. A distinct IR is
 justified later only if multiple independent consumers need the same semantic
 stage or it acquires its own transformations, invariants, and verification
-rules.
+rules. Implementation discovery may also collapse rows into an existing
+coherent representation, including `Exact`, when that removes machinery
+without losing semantic distinctions.
 
 Conflict explanation follows the same ownership rule. The compiler attaches
 canonical package-relative UTF-8 paths and exact byte spans to its canonical
@@ -658,3 +660,6 @@ must stop fabricating package manifests from fixture intent. Remote fixtures
 must exercise transport-normalized lineage, immutable commit/tree identity,
 missing-old-source review, missing-lock fresh admission, retained dangerous
 authority triage, and same-name/different-lineage spoof rejection.
+The canonical `Console`/process case must additionally prove that classification
+comes from exact toolchain provenance and that a package-owned lookalike cannot
+mint the same risk class.

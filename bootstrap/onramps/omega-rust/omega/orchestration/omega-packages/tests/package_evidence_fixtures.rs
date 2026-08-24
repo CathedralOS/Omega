@@ -20,6 +20,7 @@ const PACKAGES: &[&str] = &[
     "arithmetic-kernels",
     "generated-table",
     "file-journal",
+    "process-exit",
     "network-overreach",
     "remote-journal",
     "axiom-ledger",
@@ -77,25 +78,29 @@ fn assert_fixture_evidence(package: &str, review: &CheckedPackageReviewProjectio
         .find(|callable| callable.role() == role)
         .unwrap_or_else(|| panic!("{package} intended review callable"));
 
-    let expected_dangerous_authority_count = match package {
-        "generated-table" | "file-journal" | "remote-journal" => 1,
-        _ => 0,
+    let expected_dangerous_authority = match package {
+        "generated-table" | "file-journal" | "remote-journal" => Some((
+            PackageReviewDangerousAuthorityClass::Filesystem,
+            "FilesystemHost",
+        )),
+        "process-exit" => Some((PackageReviewDangerousAuthorityClass::Process, "Console")),
+        _ => None,
     };
     assert_eq!(
         review.dangerous_authorities().len(),
-        expected_dangerous_authority_count,
+        usize::from(expected_dangerous_authority.is_some()),
         "{package} dangerous authorities"
     );
-    for authority in review.dangerous_authorities() {
-        assert_eq!(
-            authority.class(),
-            PackageReviewDangerousAuthorityClass::Filesystem
-        );
+    if let Some((expected_class, expected_service)) = expected_dangerous_authority {
+        let [authority] = review.dangerous_authorities() else {
+            panic!("{package} exact dangerous authority")
+        };
+        assert_eq!(authority.class(), expected_class);
         let PackageReviewNominalOwner::ToolchainSource(source) = authority.service().owner() else {
-            panic!("{package} filesystem authority must retain exact toolchain source")
+            panic!("{package} dangerous authority must retain exact toolchain source")
         };
         assert_ne!(source.digest(), [0; 32]);
-        assert_eq!(authority.service().path(), "FilesystemHost");
+        assert_eq!(authority.service().path(), expected_service);
     }
 
     match package {
@@ -138,6 +143,19 @@ fn assert_fixture_evidence(package: &str, review: &CheckedPackageReviewProjectio
                 invocation.service().expect("service invocation").path(),
                 "FilesystemHost"
             );
+        }
+        "process-exit" => {
+            let [service] = callable.declared_service_reach().expect("published reach") else {
+                panic!("process-exit exact Console reach")
+            };
+            assert_eq!(service.path(), "Console");
+            let [invocation] = callable
+                .declared_synchronous_invocations()
+                .expect("published invocation")
+            else {
+                panic!("process-exit exact Console invocation")
+            };
+            assert_eq!(invocation.parameter(), Some(0));
         }
         "network-overreach" => {
             let [service] = callable.declared_service_reach().expect("published reach") else {
@@ -383,7 +401,11 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
             .expect("initial triage retains root package");
         let initial_audit_expected = matches!(
             *package,
-            "generated-table" | "file-journal" | "remote-journal" | "opaque-carrier"
+            "generated-table"
+                | "file-journal"
+                | "process-exit"
+                | "remote-journal"
+                | "opaque-carrier"
         );
         assert_eq!(
             initial_root.disposition(),
@@ -425,7 +447,7 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
             .expect("unchanged triage retains root package");
         let retained_dangerous_authority = matches!(
             *package,
-            "generated-table" | "file-journal" | "remote-journal"
+            "generated-table" | "file-journal" | "process-exit" | "remote-journal"
         );
         assert_eq!(
             unchanged_root.disposition(),

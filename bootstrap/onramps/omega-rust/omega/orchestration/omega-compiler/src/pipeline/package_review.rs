@@ -934,6 +934,7 @@ pub enum PackageReviewDangerousAuthorityClass {
     InterruptControl,
     InterruptEntry,
     RootMemory,
+    Process,
 }
 
 /// One exact reached/invoked service whose compiler-owned metadata marks it as
@@ -2385,6 +2386,9 @@ fn dangerous_authority_class(
         }
         (path, "ExtentRootProvider") if path == std::path::Path::new("extent.omg") => {
             Some(PackageReviewDangerousAuthorityClass::RootMemory)
+        }
+        (path, "Console") if path == std::path::Path::new("console.omg") => {
+            Some(PackageReviewDangerousAuthorityClass::Process)
         }
         _ => None,
     }

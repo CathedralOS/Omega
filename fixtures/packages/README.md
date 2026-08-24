@@ -24,6 +24,8 @@ Packages:
 - `generated-table`: package-local build input and generated-output fixture.
 - `file-journal`: public API with exact toolchain filesystem reach and
   invocation.
+- `process-exit`: public API with exact toolchain `Console` reach and process
+  termination authority.
 - `network-overreach`: intentionally over-declared public network reach.
 - `remote-journal`: retained canonical-filesystem plus package-local network
   reach and invocation.

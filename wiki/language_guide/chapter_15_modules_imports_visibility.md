@@ -78,7 +78,8 @@ Those representations remain inside the Psi-owned semantic pipeline; "earlier"
 means earlier than Terminal Psi, not outside Psi. Terminal Psi evidence is
 additional and is required only for claims about final realization or by a
 hardened profile; absence of that evidence never implies a weaker Terminal
-guarantee.
+guarantee. A new named stage is warranted only by a reusable semantic boundary,
+not by package-report format stability.
 
 Compiler-issued package review also retains a separate commitment to the exact
 reconciled package/alias graph and source bytes consumed by the frontend.
