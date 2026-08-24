@@ -8,18 +8,20 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
 
-const GIT_CACHE_POLICY: &[u8] = b"omega-git-cache-v3";
+const GIT_CACHE_POLICY: &[u8] = b"omega-git-cache-v4";
 const GIT_CACHE_METADATA: &str = "source.identity";
 const GIT_CACHE_REPOSITORY: &str = "repository";
 const GIT_CACHE_SNAPSHOTS: &str = "snapshots";
 const GIT_SNAPSHOT_METADATA: &str = "snapshot.identity";
 const GIT_SNAPSHOT_SOURCE: &str = "source";
-const GIT_SNAPSHOT_POLICY: &[u8] = b"omega-git-snapshot-v1";
+const GIT_SNAPSHOT_POLICY: &[u8] = b"omega-git-snapshot-v2";
+const CANONICAL_DIRECTORY_MODE: u16 = 0o555;
 const GIT_ORIGIN_FETCH: &str = "+refs/heads/*:refs/remotes/origin/*";
 static STAGING_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LocalSourceLimits {
+    /// Legacy field name: this caps every non-root source identity entry, including directories.
     pub max_files: usize,
     pub max_bytes: u64,
     pub max_depth: usize,
@@ -38,6 +40,8 @@ impl Default for LocalSourceLimits {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolvedLocalSource {
     pub root: PathBuf,
+    /// Number of file and symlink leaves. Directories participate in identity and limits but are
+    /// not reported as files.
     pub file_count: usize,
     pub byte_count: u64,
     pub content_identity: String,
@@ -119,7 +123,10 @@ impl fmt::Display for SourceResolveError {
                 )
             }
             Self::TooManyFiles { limit } => {
-                write!(output, "source root exceeds file limit of {limit}")
+                write!(
+                    output,
+                    "source root exceeds identity entry limit of {limit}"
+                )
             }
             Self::TooManyBytes { limit } => {
                 write!(output, "source root exceeds byte limit of {limit}")
@@ -205,8 +212,20 @@ pub fn resolve_local_source(
     entries.sort_by(|left, right| left.relative_bytes.cmp(&right.relative_bytes));
 
     let mut identity = SourceIdentityHasher::new(entries.len());
+    let mut file_count = 0;
     for entry in &entries {
         match &entry.kind {
+            SourceEntryKind::Directory { path } => {
+                let metadata =
+                    std::fs::symlink_metadata(path).map_err(|error| io_error(path, error))?;
+                if metadata.file_type().is_symlink() || !metadata.is_dir() {
+                    return Err(SourceResolveError::UnsupportedFileType { path: path.clone() });
+                }
+                // Directory permissions belong to the live checkout, not package content. The
+                // future consumed snapshot canonicalizes all directories to 0555, as Git already
+                // must because trees carry no directory mode. Hash that canonical form for both.
+                identity.add_directory(&entry.relative_bytes, CANONICAL_DIRECTORY_MODE);
+            }
             SourceEntryKind::File { path } => {
                 let remaining = limits.max_bytes.checked_sub(identity.byte_count).ok_or(
                     SourceResolveError::TooManyBytes {
@@ -215,9 +234,11 @@ pub fn resolve_local_source(
                 )?;
                 let (bytes, executable) = read_file_bounded(path, remaining, limits.max_bytes)?;
                 identity.add_file(&entry.relative_bytes, executable, &bytes)?;
+                file_count += 1;
             }
             SourceEntryKind::Symlink { target_bytes } => {
                 identity.add_symlink(&entry.relative_bytes, target_bytes);
+                file_count += 1;
             }
         }
     }
@@ -225,7 +246,7 @@ pub fn resolve_local_source(
 
     Ok(ResolvedLocalSource {
         root,
-        file_count: entries.len(),
+        file_count,
         byte_count,
         content_identity,
     })
@@ -378,6 +399,7 @@ fn parse_git_tree_entries(
 ) -> Result<Vec<GitTreeEntry>, SourceResolveError> {
     let mut entries = Vec::new();
     let mut paths = BTreeSet::new();
+    let mut directories = BTreeSet::new();
     let mut blob_bytes = 0_u64;
 
     for record in listing.split(|byte| *byte == 0) {
@@ -427,13 +449,21 @@ fn parse_git_tree_entries(
                 path: relative_path,
             });
         }
-        if entries.len() >= limits.max_files {
+        if !paths.insert(path.to_vec()) {
+            return Err(git_tree_invalid(path, "duplicate path"));
+        }
+        insert_git_directory_paths(path, &mut directories);
+        let identity_entry_count = entries
+            .len()
+            .checked_add(1)
+            .and_then(|leaves| leaves.checked_add(directories.len()))
+            .ok_or(SourceResolveError::TooManyFiles {
+                limit: limits.max_files,
+            })?;
+        if identity_entry_count > limits.max_files {
             return Err(SourceResolveError::TooManyFiles {
                 limit: limits.max_files,
             });
-        }
-        if !paths.insert(path.to_vec()) {
-            return Err(git_tree_invalid(path, "duplicate path"));
         }
         blob_bytes = blob_bytes
             .checked_add(size)
@@ -474,6 +504,26 @@ fn parse_git_tree_entries(
         }
     }
     Ok(entries)
+}
+
+fn insert_git_directory_paths(path: &[u8], directories: &mut BTreeSet<Vec<u8>>) {
+    for separator in
+        path.iter().enumerate().filter_map(
+            |(index, byte)| {
+                if *byte == b'/' { Some(index) } else { None }
+            },
+        )
+    {
+        directories.insert(path[..separator].to_vec());
+    }
+}
+
+fn git_directory_paths(entries: &[GitTreeEntry]) -> BTreeSet<Vec<u8>> {
+    let mut directories = BTreeSet::new();
+    for entry in entries {
+        insert_git_directory_paths(&entry.relative_bytes, &mut directories);
+    }
+    directories
 }
 
 fn validate_git_path(
@@ -581,8 +631,24 @@ fn resolve_git_snapshot(
     let mut pending = PendingSnapshot::create(&snapshots, tree)?;
     let source = pending.root.join(GIT_SNAPSHOT_SOURCE);
     std::fs::create_dir(&source).map_err(|error| io_error(&source, error))?;
-    let mut expected_identity = SourceIdentityHasher::new(entries.len());
+    let directory_paths = git_directory_paths(&entries);
+    let identity_entry_count = entries.len().checked_add(directory_paths.len()).ok_or(
+        SourceResolveError::TooManyFiles {
+            limit: limits.max_files,
+        },
+    )?;
+    let mut expected_identity = SourceIdentityHasher::new(identity_entry_count);
+    let mut pending_directories = directory_paths.iter().peekable();
     for entry in &entries {
+        while pending_directories
+            .peek()
+            .is_some_and(|directory| directory.as_slice() < entry.relative_bytes.as_slice())
+        {
+            expected_identity.add_directory(
+                pending_directories.next().expect("peeked directory"),
+                CANONICAL_DIRECTORY_MODE,
+            );
+        }
         let destination = source.join(&entry.relative_path);
         let parent = destination
             .parent()
@@ -608,6 +674,16 @@ fn resolve_git_snapshot(
                 create_snapshot_symlink(target_bytes, &destination)?;
             }
         }
+    }
+    for directory in pending_directories {
+        expected_identity.add_directory(directory, CANONICAL_DIRECTORY_MODE);
+    }
+    // Git trees contain only implicit directories and therefore carry no directory modes. Omega
+    // canonicalizes every materialized non-root Git directory to 0555: readable/searchable and
+    // consistent with the immutable published snapshot, but never writable.
+    for directory in directory_paths.iter().rev() {
+        let path = source.join(git_path_from_bytes(directory)?);
+        set_snapshot_directory_read_only(&path)?;
     }
 
     let staged = resolve_local_source(&source, limits)?;
@@ -758,6 +834,7 @@ fn verify_snapshot_entry_kinds_and_modes(
                         "snapshot contains an undeclared directory",
                     ));
                 }
+                verify_snapshot_directory_mode(&path, &metadata)?;
                 directories.push(path);
             } else {
                 actual_leaves.insert(relative_bytes);
@@ -770,6 +847,30 @@ fn verify_snapshot_entry_kinds_and_modes(
             "snapshot paths do not exactly match the validated Git tree",
         ));
     }
+    Ok(())
+}
+
+#[cfg(unix)]
+fn verify_snapshot_directory_mode(
+    path: &Path,
+    metadata: &std::fs::Metadata,
+) -> Result<(), SourceResolveError> {
+    use std::os::unix::fs::PermissionsExt;
+
+    if metadata.permissions().mode() & 0o7777 != u32::from(CANONICAL_DIRECTORY_MODE) {
+        return Err(cache_invalid(
+            path,
+            "snapshot directory mode does not match canonical Git mode",
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn verify_snapshot_directory_mode(
+    _path: &Path,
+    _metadata: &std::fs::Metadata,
+) -> Result<(), SourceResolveError> {
     Ok(())
 }
 
@@ -1463,6 +1564,7 @@ struct SourceEntry {
 
 #[derive(Debug)]
 enum SourceEntryKind {
+    Directory { path: PathBuf },
     File { path: PathBuf },
     Symlink { target_bytes: Vec<u8> },
 }
@@ -1474,7 +1576,7 @@ fn visit_directory(
     root: &Path,
     limits: LocalSourceLimits,
     visited_dirs: &mut BTreeSet<PathBuf>,
-    files: &mut Vec<SourceEntry>,
+    entries: &mut Vec<SourceEntry>,
 ) -> Result<(), SourceResolveError> {
     if depth > limits.max_depth {
         return Err(SourceResolveError::TooDeep {
@@ -1495,13 +1597,13 @@ fn visit_directory(
         return Ok(());
     }
 
-    let mut entries = std::fs::read_dir(real_dir)
+    let mut directory_entries = std::fs::read_dir(real_dir)
         .map_err(|error| io_error(real_dir, error))?
         .collect::<Result<Vec<_>, _>>()
         .map_err(|error| io_error(real_dir, error))?;
-    entries.sort_by_key(|entry| entry.file_name());
+    directory_entries.sort_by_key(|entry| entry.file_name());
 
-    for entry in entries {
+    for entry in directory_entries {
         let name = entry.file_name();
         if name == ".git" {
             continue;
@@ -1513,7 +1615,7 @@ fn visit_directory(
         if metadata.file_type().is_symlink() {
             let raw_target = read_and_validate_symlink_target(root, &real_path)?;
             push_entry(
-                files,
+                entries,
                 logical_path,
                 SourceEntryKind::Symlink {
                     target_bytes: raw_os_bytes(raw_target.as_os_str()),
@@ -1521,6 +1623,14 @@ fn visit_directory(
                 limits,
             )?;
         } else if metadata.is_dir() {
+            push_entry(
+                entries,
+                logical_path.clone(),
+                SourceEntryKind::Directory {
+                    path: real_path.clone(),
+                },
+                limits,
+            )?;
             visit_directory(
                 &real_path,
                 logical_path,
@@ -1528,11 +1638,11 @@ fn visit_directory(
                 root,
                 limits,
                 visited_dirs,
-                files,
+                entries,
             )?;
         } else if metadata.is_file() {
             push_entry(
-                files,
+                entries,
                 logical_path,
                 SourceEntryKind::File { path: real_path },
                 limits,
@@ -1584,17 +1694,17 @@ fn read_and_validate_symlink_target(
 }
 
 fn push_entry(
-    files: &mut Vec<SourceEntry>,
+    entries: &mut Vec<SourceEntry>,
     relative: PathBuf,
     kind: SourceEntryKind,
     limits: LocalSourceLimits,
 ) -> Result<(), SourceResolveError> {
-    if files.len() >= limits.max_files {
+    if entries.len() >= limits.max_files {
         return Err(SourceResolveError::TooManyFiles {
             limit: limits.max_files,
         });
     }
-    files.push(SourceEntry {
+    entries.push(SourceEntry {
         relative_bytes: raw_os_bytes(relative.as_os_str()),
         kind,
     });
@@ -1667,12 +1777,18 @@ struct SourceIdentityHasher {
 impl SourceIdentityHasher {
     fn new(entry_count: usize) -> Self {
         let mut hasher = Sha256::new();
-        hasher.update(b"omega-local-source-v2\0");
+        hasher.update(b"omega-local-source-v3\0");
         hash_length(&mut hasher, entry_count as u64);
         Self {
             hasher,
             byte_count: 0,
         }
+    }
+
+    fn add_directory(&mut self, relative_bytes: &[u8], normalized_mode: u16) {
+        self.add_path(relative_bytes);
+        self.hasher.update(b"directory");
+        self.hasher.update(normalized_mode.to_le_bytes());
     }
 
     fn add_file(
@@ -2016,6 +2132,54 @@ mod tests {
         let _ = std::fs::remove_dir_all(&root);
     }
 
+    #[test]
+    fn local_source_identity_includes_empty_directory_paths() {
+        let root = temp_root("empty-directory-identity");
+        std::fs::create_dir_all(&root).expect("create source tree");
+        std::fs::write(root.join("main.omg"), "machine Main::main() {}\n").expect("write source");
+        let without_empty =
+            resolve_local_source(&root, LocalSourceLimits::default()).expect("resolve source");
+
+        std::fs::create_dir(root.join("generated")).expect("create empty directory");
+        let with_empty =
+            resolve_local_source(&root, LocalSourceLimits::default()).expect("resolve source");
+        assert_eq!(without_empty.file_count, with_empty.file_count);
+        assert_ne!(without_empty.content_identity, with_empty.content_identity);
+
+        std::fs::remove_dir(root.join("generated")).expect("remove empty directory");
+        let removed =
+            resolve_local_source(&root, LocalSourceLimits::default()).expect("resolve source");
+        assert_eq!(without_empty.content_identity, removed.content_identity);
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn local_source_identity_canonicalizes_live_directory_permissions() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let root = temp_root("directory-mode-identity");
+        let directory = root.join("generated");
+        std::fs::create_dir_all(&directory).expect("create source tree");
+        std::fs::set_permissions(&directory, std::fs::Permissions::from_mode(0o755))
+            .expect("set writable directory mode");
+        let writable =
+            resolve_local_source(&root, LocalSourceLimits::default()).expect("resolve source");
+
+        std::fs::set_permissions(&directory, std::fs::Permissions::from_mode(0o555))
+            .expect("set read-only directory mode");
+        let read_only =
+            resolve_local_source(&root, LocalSourceLimits::default()).expect("resolve source");
+
+        assert_eq!(writable.file_count, 0);
+        assert_eq!(writable.content_identity, read_only.content_identity);
+
+        std::fs::set_permissions(&directory, std::fs::Permissions::from_mode(0o755))
+            .expect("restore directory mode");
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
     #[cfg(unix)]
     #[test]
     fn local_source_path_encoding_preserves_non_utf8_bytes() {
@@ -2184,6 +2348,30 @@ mod tests {
     }
 
     #[test]
+    fn local_source_limits_count_directories_and_report_identity_entries() {
+        let root = temp_root("directory-entry-limit");
+        std::fs::create_dir_all(root.join("nested")).expect("create source tree");
+        std::fs::write(root.join("nested/main.omg"), "").expect("write source");
+
+        let error = resolve_local_source(
+            &root,
+            LocalSourceLimits {
+                max_files: 1,
+                ..LocalSourceLimits::default()
+            },
+        )
+        .expect_err("directory and file must consume separate identity entries");
+
+        assert_eq!(error, SourceResolveError::TooManyFiles { limit: 1 });
+        assert_eq!(
+            error.to_string(),
+            "source root exceeds identity entry limit of 1"
+        );
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
     fn local_source_limits_reject_file_before_reading_past_byte_limit() {
         let root = temp_root("bytes-limit");
         std::fs::create_dir_all(&root).expect("create source tree");
@@ -2297,6 +2485,26 @@ mod tests {
     }
 
     #[test]
+    fn git_tree_entry_limit_counts_implicit_directories() {
+        let repository = temp_root("git-tree-directory-limit");
+        let oid = "0123456789012345678901234567890123456789";
+        let listing = format!("100644 blob {oid} 0\tnested/main.omg\0");
+
+        let error = parse_git_tree_entries(
+            listing.as_bytes(),
+            &repository,
+            LocalSourceLimits {
+                max_files: 1,
+                ..LocalSourceLimits::default()
+            },
+        )
+        .expect_err("implicit directory and blob must consume separate identity entries");
+
+        assert_eq!(error, SourceResolveError::TooManyFiles { limit: 1 });
+        assert!(!repository.exists());
+    }
+
+    #[test]
     fn git_tree_rejects_gitlinks_before_materialization() {
         let repository = temp_root("gitlink-validation");
         let oid = "0123456789012345678901234567890123456789";
@@ -2363,6 +2571,17 @@ mod tests {
             b"generate"
         );
         assert_eq!(resolved.local.file_count, 3);
+        assert_eq!(
+            std::fs::metadata(resolved.snapshot_root.join("tools"))
+                .expect("nested directory metadata")
+                .permissions()
+                .mode()
+                & 0o7777,
+            u32::from(CANONICAL_DIRECTORY_MODE)
+        );
+        let verified = resolve_git_source(&spec, &cache, LocalSourceLimits::default())
+            .expect("verify nested snapshot reuse");
+        assert_eq!(resolved.local, verified.local);
 
         let _ = std::fs::remove_dir_all(&repo);
         make_tree_owner_writable(&cache);
