@@ -422,7 +422,14 @@ complete.
   an explicitly review-only, in-memory projection for the reconciled root
   package under an exact target. It includes package-owned boundary and ordinary
   public machines plus the selected build machine while excluding private
-  machines. It retains
+  machines. Each callable row retains its exact canonical entry signature:
+  lifetime arity, alpha-normalized type/const parameters, ordered parameter
+  names and modes, package-qualified lifetime-sensitive parameter types, and
+  result type. Lifetime and generic binder renames compare equal; changed type
+  or borrow relationships compare unequal. Reviewed callable conformance
+  bounds, static machine/proposition parameters, and trait realizations reject
+  until their complete public rows exist rather than disappearing from review.
+  It retains
   package-qualified authored nominals, distinct declared/effective/concrete
   service rows, unresolved installation rows, exact capability-flow
   coordinates, operational outcomes, crashes, mutation, and selected provider
@@ -448,7 +455,7 @@ complete.
   closing the implicit-entry-state ownership gap discovered by the crash
   projection. Review identity now retains the exact deployment target profile,
   so profiles such as Windows and UEFI cannot collapse merely because they
-  share a native ABI. A v11 length-framed binary comparison encoding now covers
+  share a native ABI. A v12 length-framed binary comparison encoding now covers
   every retained public-domain, public-data, public-trait, callable,
   crash/proof predicate, authority flow, mutation, and selected-provider row.
   It converts platform-width ordinals to portable `u64`, distinguishes exact

@@ -71,11 +71,11 @@ pub use package_compilation::{
 };
 pub use package_review::{
     CheckedPackageCallableReview, CheckedPackageProviderReview, CheckedPackageReviewProjection,
-    PACKAGE_REVIEW_ENCODING_VERSION, PackageReviewCallableRole, PackageReviewCapabilityFlow,
-    PackageReviewCrash, PackageReviewCrashCall, PackageReviewCrashInterface,
-    PackageReviewCrashPredicate, PackageReviewCrashRoute, PackageReviewCrashRouteGuard,
-    PackageReviewCrashSite, PackageReviewDataField, PackageReviewDataMember,
-    PackageReviewDataShape, PackageReviewDomainClassification,
+    PACKAGE_REVIEW_ENCODING_VERSION, PackageReviewCallableParameter, PackageReviewCallableRole,
+    PackageReviewCapabilityFlow, PackageReviewCrash, PackageReviewCrashCall,
+    PackageReviewCrashInterface, PackageReviewCrashPredicate, PackageReviewCrashRoute,
+    PackageReviewCrashRouteGuard, PackageReviewCrashSite, PackageReviewDataField,
+    PackageReviewDataMember, PackageReviewDataShape, PackageReviewDomainClassification,
     PackageReviewDomainEstablishmentKind, PackageReviewDomainEstablishmentRoute,
     PackageReviewDomainShape, PackageReviewEncodingError, PackageReviewInstallationReach,
     PackageReviewMutation, PackageReviewNominalIdentity, PackageReviewNominalOwner,

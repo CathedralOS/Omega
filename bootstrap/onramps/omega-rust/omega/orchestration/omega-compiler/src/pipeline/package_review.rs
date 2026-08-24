@@ -85,6 +85,37 @@ pub struct PackageReviewTraitRequirementParameter {
     is_self: bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PackageReviewCallableParameter {
+    name: String,
+    type_identity: PackageReviewTypeIdentity,
+    is_const: bool,
+    is_mutable: bool,
+    is_self: bool,
+}
+
+impl PackageReviewCallableParameter {
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub const fn type_identity(&self) -> &PackageReviewTypeIdentity {
+        &self.type_identity
+    }
+
+    pub const fn is_const(&self) -> bool {
+        self.is_const
+    }
+
+    pub const fn is_mutable(&self) -> bool {
+        self.is_mutable
+    }
+
+    pub const fn is_self(&self) -> bool {
+        self.is_self
+    }
+}
+
 impl PackageReviewTraitRequirementParameter {
     pub fn name(&self) -> &str {
         &self.name
@@ -769,6 +800,10 @@ pub struct CheckedPackageCallableReview {
     role: PackageReviewCallableRole,
     identity: PackageReviewNominalIdentity,
     supply: MachineSupplyMode,
+    lifetime_parameter_count: usize,
+    type_parameters: Vec<PackageReviewTypeParameter>,
+    parameters: Vec<PackageReviewCallableParameter>,
+    return_type: PackageReviewTypeIdentity,
     contract_fingerprint: u64,
     /// `Some` preserves a published ceiling, including an explicitly empty
     /// one. `None` is retained for the current ordinary build-machine form;
@@ -861,6 +896,22 @@ impl CheckedPackageCallableReview {
 
     pub const fn supply(&self) -> MachineSupplyMode {
         self.supply
+    }
+
+    pub const fn lifetime_parameter_count(&self) -> usize {
+        self.lifetime_parameter_count
+    }
+
+    pub fn type_parameters(&self) -> &[PackageReviewTypeParameter] {
+        &self.type_parameters
+    }
+
+    pub fn parameters(&self) -> &[PackageReviewCallableParameter] {
+        &self.parameters
+    }
+
+    pub const fn return_type(&self) -> &PackageReviewTypeIdentity {
+        &self.return_type
     }
 
     pub const fn contract_fingerprint(&self) -> u64 {
@@ -1899,6 +1950,51 @@ fn project_callable(
     identity: PackageReviewNominalIdentity,
 ) -> Result<CheckedPackageCallableReview, Vec<Diagnostic>> {
     let subject = identity.path.as_str();
+    if !machine.conformance_bounds.is_empty() {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed callable `{subject}` uses conformance bounds not yet represented by package review"
+        ))]);
+    }
+    if !compilation.machine_trait_conformances(machine).is_empty() {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed callable `{subject}` realizes trait requirements not yet represented by package review"
+        ))]);
+    }
+    let Some(entry) = compilation.machine_states(machine).first() else {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed callable `{subject}` has no canonical entry signature"
+        ))]);
+    };
+    let (binders, type_parameters) = project_type_parameters(
+        compilation,
+        compilation.machine_type_parameters(machine),
+        "callable",
+        subject,
+    )?;
+    let parameters = compilation
+        .state_parameters(entry)
+        .iter()
+        .map(|parameter| {
+            Ok(PackageReviewCallableParameter {
+                name: parameter.name.as_str().to_owned(),
+                type_identity: review_signature_type_identity_with_binders(
+                    compilation,
+                    parameter.type_reference,
+                    &binders,
+                    &machine.lifetime_parameters,
+                )?,
+                is_const: parameter.is_const,
+                is_mutable: parameter.is_mutable,
+                is_self: parameter.is_self,
+            })
+        })
+        .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
+    let return_type = review_signature_type_identity_with_binders(
+        compilation,
+        entry.return_type,
+        &binders,
+        &machine.lifetime_parameters,
+    )?;
     let service_reach = exactly_one(
         compilation
             .facts
@@ -2001,6 +2097,10 @@ fn project_callable(
         role,
         identity,
         supply: machine.supply_mode,
+        lifetime_parameter_count: machine.lifetime_parameters.len(),
+        type_parameters,
+        parameters,
+        return_type,
         contract_fingerprint: contract.fingerprint,
         declared_service_reach,
         realized_service_reach,

@@ -242,6 +242,17 @@ parameter roots, and package-qualified field projections. Trait or requirement
 conformance bounds, invariants, default realizations, and non-progress
 proof/boundary/crash contracts reject until complete canonical rows land.
 
+Package-owned boundary and ordinary public machines, plus the selected build
+machine, retain the exact canonical entry signature alongside their authority
+rows. This includes lifetime arity, alpha-normalized type/const parameters,
+ordered parameter names and `const`/mutable/`self` modes, package-qualified
+lifetime-sensitive parameter types, and result type. Renaming binders is
+stable; changing a parameter, result, generic bound, or borrow relationship is
+not. Callable conformance bounds, static machine/proposition parameters, and
+trait realizations reject review until their complete canonical forms are
+represented. The projection never substitutes an overload display name or a
+runtime-layout-only type identity for this contract surface.
+
 The eventual normalized package-admission evidence must include, with exact
 provenance:
 
