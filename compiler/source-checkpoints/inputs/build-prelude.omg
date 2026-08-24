@@ -1,0 +1,20 @@
+
+// Toolchain-provided build vocabulary (virtual source; build_and_package_model.md).
+data Subsystem {
+    case Console;
+    case Gui;
+    case EfiApplication;
+    case Unspecified(value: u16);
+}
+data Build {
+    subsystem: Subsystem;
+    freestanding: bool;
+}
+data Source {
+    case Path(location: &[u8]);
+    case Git(repository: &[u8], revision: &[u8]);
+}
+machine Build::depend(&mut self, source: Source) {
+}
+machine Build::depend_as(&mut self, alias: &[u8], source: Source) {
+}

@@ -1,0 +1,231 @@
+use psi::source::source;
+
+// Final product token vocabulary for the source-to-token phase. Token spelling
+// remains in the source unit; cooked/raw string tokens additionally retain
+// their exact decoded byte range in TokenStream::decoded.
+
+data NumericBase [copy] {
+    case Binary;
+    case Octal;
+    case Decimal;
+    case Hexadecimal;
+}
+
+data KeywordKind [copy] {
+    case As;
+    case CallingConvention;
+    case Capability;
+    case Contains;
+    case Data;
+    case Else;
+    case Entry;
+    case Enum;
+    case False;
+    case Foreign;
+    case Host;
+    case If;
+    case Invariant;
+    case Let;
+    case Library;
+    case Loop;
+    case Machine;
+    case Match;
+    case Owns;
+    case Platform;
+    case Pub;
+    case Return;
+    case SelfType;
+    case SelfValue;
+    case State;
+    case Struct;
+    case Target;
+    case Transition;
+    case True;
+    case Use;
+    case When;
+    case While;
+}
+
+data PunctuationKind [copy] {
+    case Ampersand;
+    case AndAnd;
+    case Apostrophe;
+    case Arrow;
+    case Asterisk;
+    case Caret;
+    case Colon;
+    case ColonColon;
+    case Comma;
+    case Dot;
+    case DotDot;
+    case DotDotEqual;
+    case Equal;
+    case EqualEqual;
+    case Exclamation;
+    case ExclamationEqual;
+    case Greater;
+    case GreaterEqual;
+    case GreaterGreater;
+    case Hash;
+    case LeftBrace;
+    case LeftBracket;
+    case LeftParen;
+    case Less;
+    case LessEqual;
+    case LessLess;
+    case Minus;
+    case Percent;
+    case Pipe;
+    case PipePipe;
+    case Plus;
+    case PlusEqual;
+    case MinusEqual;
+    case AsteriskEqual;
+    case SlashEqual;
+    case PercentEqual;
+    case RightBrace;
+    case RightBracket;
+    case RightParen;
+    case Semicolon;
+    case Slash;
+    case Tilde;
+}
+
+data TokenKind [copy] {
+    case Identifier;
+    case Integer(
+        base: NumericBase,
+        empty_digits: bool,
+        has_suffix: bool
+    );
+    case Float(
+        has_exponent: bool,
+        empty_exponent: bool,
+        has_suffix: bool
+    );
+    case StringLiteral;
+    case Keyword(kind: KeywordKind);
+    case Punctuation(kind: PunctuationKind);
+    case Whitespace;
+    case LineComment;
+    case BlockComment;
+}
+
+data Token [copy] {
+    kind: TokenKind;
+    source_span: SourceSpan;
+    decoded_start: u32 in Trapping;
+    decoded_length: u32 in Trapping;
+}
+
+data LexDiagnosticCode [copy] {
+    case None;
+    case InvalidUtf8;
+    case UnsupportedPunctuation;
+    case UnterminatedBlockComment;
+    case UnterminatedStringLiteral;
+    case UnterminatedStringEscape;
+    case UnsupportedEscape;
+    case UnterminatedHexEscape;
+    case InvalidHexEscapeDigit;
+    case UnterminatedUnicodeEscape;
+    case ExpectedUnicodeEscapeBrace;
+    case EmptyUnicodeEscape;
+    case InvalidUnicodeEscapeDigit;
+    case InvalidUnicodeEscapeValue;
+    case InvalidUnicodeScalar;
+    case InvalidRawStringDelimiter;
+    case UnterminatedRawString;
+    case SourceCapacityExceeded;
+    case TokenCapacityExceeded;
+    case DecodedCapacityExceeded;
+}
+
+data LexDiagnostic [copy] {
+    code: LexDiagnosticCode;
+    source_span: SourceSpan;
+}
+
+data TokenStream {
+    tokens: [Token; 16384] in Trapping;
+    token_count: u32 [0..=16384];
+    decoded: [u8; 65536] in Trapping;
+    decoded_length: u32 [0..=65536];
+    diagnostic: LexDiagnostic;
+    accepted: bool;
+    last_retained: bool;
+}
+
+machine TokenStream::clear(&mut self, source: SourceId) {
+    self.token_count = 0;
+    self.decoded_length = 0;
+    self.accepted = true;
+    self.last_retained = true;
+    self.diagnostic.code = LexDiagnosticCode::None;
+    self.diagnostic.source_span.source = source;
+    self.diagnostic.source_span.span.start = 0;
+    self.diagnostic.source_span.span.end = 0;
+}
+
+machine TokenStream::reject(
+    &mut self,
+    source: SourceId,
+    code: LexDiagnosticCode,
+    start: u32 in Trapping,
+    end: u32 in Trapping
+) {
+    self.accepted = false;
+    self.diagnostic.code = code;
+    self.diagnostic.source_span.source = source;
+    self.diagnostic.source_span.span.start = start;
+    self.diagnostic.source_span.span.end = end;
+}
+
+machine TokenStream::push(
+    &mut self,
+    source: SourceId,
+    kind: TokenKind,
+    start: u32 in Trapping,
+    end: u32 in Trapping,
+    decoded_start: u32 in Trapping,
+    decoded_length: u32 in Trapping
+) {
+    self.last_retained = false;
+    transition self.token_count < 16384 {
+        true -> retain()
+        _ -> full()
+    }
+
+    state retain(&mut self) {
+        self.tokens[self.token_count].kind = kind;
+        self.tokens[self.token_count].source_span.source = source;
+        self.tokens[self.token_count].source_span.span.start = start;
+        self.tokens[self.token_count].source_span.span.end = end;
+        self.tokens[self.token_count].decoded_start = decoded_start;
+        self.tokens[self.token_count].decoded_length = decoded_length;
+        self.token_count = self.token_count + 1;
+        self.last_retained = true;
+    }
+
+    state full(&mut self) {
+        self.last_retained = false;
+    }
+}
+
+machine TokenStream::push_decoded(&mut self, byte: u8) {
+    self.last_retained = false;
+    transition self.decoded_length < 65536 {
+        true -> retain()
+        _ -> full()
+    }
+
+    state retain(&mut self) {
+        self.decoded[self.decoded_length] = byte;
+        self.decoded_length = self.decoded_length + 1;
+        self.last_retained = true;
+    }
+
+    state full(&mut self) {
+        self.last_retained = false;
+    }
+}

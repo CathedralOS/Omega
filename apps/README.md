@@ -1,5 +1,9 @@
 # Product applications
 
-This root is reserved for eventual hosted product entrypoints. The current Rust
-development CLI lives with its compiler producer at
+[`omega-compiler/`](omega-compiler/) is the hosted product compiler entrypoint.
+Its first versioned checkpoint exposes the real Psi source-to-token phase; later
+checkpoints extend that same closure through terminal Psi and Omega artifact
+emission. Product implementation modules remain under `compiler/{psi,omega}`.
+
+The current Rust development CLI lives with its migration/reference producer at
 `bootstrap/onramps/omega-rust/apps/omega-cli/`.

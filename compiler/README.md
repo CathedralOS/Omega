@@ -100,8 +100,10 @@ The current Rust implementation remains a migration/reference producer under
 `bootstrap/onramps/omega-rust/{psi,omega}/` while that hosted path matures.
 `bootstrap/omega-bootstrap/` owns the Rust-free meaning, current Delta-written compiler
 slices/profiles, and validation gates. The roots here at
-`compiler/{psi,omega}/` are reserved for the eventual Omega-written product
-source and currently contain only placement documentation.
+`compiler/{psi,omega}/` own the Omega-written product source. The first coherent
+checkpoint now implements Psi source-to-token processing under `compiler/psi/`;
+`compiler/omega/` and later Psi phases remain open. Exact checkpoint closures
+and provisional `Ωself` censuses live in `compiler/source-checkpoints/`.
 
 ## Trust and verification
 

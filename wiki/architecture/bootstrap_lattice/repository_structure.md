@@ -7,7 +7,8 @@ The repository distinguishes architectural role from implementation language.
 The former flat `compiler/` inventory has been split: seed-built language rungs,
 external-language on-ramps, assurance, the bootstrap bridge, and the product compiler
 now have separate owners. The top-level compatibility symlinks and forwarding
-facade have been retired; `compiler/` is reserved for product compiler source.
+facade have been retired; `compiler/` owns product compiler source and its
+versioned source-checkpoint evidence.
 
 ## Canonical structure
 
@@ -85,9 +86,12 @@ product roots.
   untrusted migration/reference producer. It is removable from bootstrap and
   release builds once the hosted compiler closes, even if retained in the
   repository for differential bug finding.
-- `compiler/psi/` and `compiler/omega/` are reserved for the eventual
-  Omega-written product source. Their placeholder READMEs are not a compiler
-  implementation and do not freeze the bootstrap acceptance profile.
+- `compiler/psi/` and `compiler/omega/` own Omega-written product source.
+  `compiler/psi/` contains the first source-to-token checkpoint;
+  `compiler/omega/` remains an open product owner, not a Rust migration root.
+- `compiler/source-checkpoints/` owns exact deterministic product-source
+  closures and distinct provisional `Ωself` censuses.
+- `apps/omega-compiler/` owns the hosted product compiler entrypoint.
 - The Rust producer's `psi-proof-kernel` checks Psi judgments and admissions;
   it is distinct from the bootstrap derivation checker under
   `bootstrap/assurance/`.
@@ -144,7 +148,9 @@ is:
 | bridge meaning/artifact TV encoders and gates | `bootstrap/assurance/refinement/omega-bootstrap/` — complete |
 | historical `bootstrap/omega0/` references | `bootstrap/omega-bootstrap/{meaning,compiler,gates}/` — rename complete; no live `omega0` owner path, complete `Ωself` bridge open |
 | `bootstrap/corpus/` | shared lattice corpus — complete |
-| eventual Omega-written Psi/Omega compiler | `compiler/{psi,omega}/` — roots reserved; implementation open |
+| Omega-written Psi/Omega compiler | `compiler/{psi,omega}/` — first Psi lexical checkpoint landed; remaining phases open |
+| product compiler closure/profile checkpoints | `compiler/source-checkpoints/` |
+| hosted product compiler entrypoint | `apps/omega-compiler/` |
 
 `compiler/` means source intended to survive in the self-hosted product;
 `bootstrap/` contains both the seed-built construction and explicitly named

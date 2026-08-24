@@ -170,6 +170,14 @@ provisionally from versioned deterministic snapshots while that source is being
 written. The working policy is specific enough to guide the first snapshot;
 each later snapshot reruns the same feature census and retain/refactor analysis.
 
+The first measured snapshot now exists:
+[`checkpoint-000001.json`](../../../compiler/source-checkpoints/checkpoint-000001.json)
+closes the product Psi source-to-token phase, and
+[`profile-000001.md`](../../../compiler/source-checkpoints/profile-000001.md)
+records its provisional facility census. This is enough to begin evidence-led
+bridge work for those facilities only. It supplies no evidence for later
+parser, checker, terminal-Psi, optimizer, or emitter source needs.
+
 Delta v1 and `Ωself` remain separate contracts even though their discovery can
 co-evolve. Delta is derived from the cost of implementing and assuring the
 complete `omega-bootstrap` closure; `Ωself` is derived from the cost and
@@ -213,6 +221,7 @@ assurance cost.
 | --- | --- | --- |
 | mathematical proof/program surface | presumptively exclude | retain only if the compiler implementation itself has an unavoidable use; implementing proof checking for user programs is not such a use |
 | linear and dependent types | presumptively exclude | same source-need and total-cost test |
+| concrete literal scalar ranges | measure | checkpoint 000001 uses them for fixed-buffer lengths and indexing without dependent bounds; compare with narrow checked helpers |
 | ordinary named record fields | presumptively retain | removing names from ordinary compiler data is likely to make the source less clear and more brittle |
 | payload-bearing enums/sum data | presumptively retain | compare direct syntax/IR modeling with separate explicit-tag records; splitting is a cost option, not a prior ruling |
 | basic generics | presumptively retain | collection, result, arena-ID, and compiler-data reuse versus monomorphic duplication |
@@ -235,6 +244,13 @@ not imply that a standalone Terminal-Psi interpreter, artifact viewer, or debug
 tool belongs to the manifest, nor that `omega-bootstrap` must use Terminal Psi
 as its own internal IR. The bridge must compile those product modules as
 ordinary `Ωself` source; it need not duplicate or execute their product role.
+
+Checkpoint 000001 also establishes a useful negative source convention:
+branching computations publish explicit result fields before callers dispatch.
+The closure does not require implicit branching value-machine result
+materialization, dependent bounds, proof syntax, mixed field-plus-case data, or
+complex aggregate transition payloads. Those absences are provisional profile
+evidence, not full-Omega feature removals.
 
 These are `Ωself` source-profile choices, not proposals to remove the features
 from full Omega. Conversely, Delta does not acquire or reject any of them merely

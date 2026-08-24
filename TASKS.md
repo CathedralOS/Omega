@@ -95,6 +95,18 @@ Remaining:
   bridge compiles the complete product compiler and supplies the measured cost
   evidence for every retain/refactor decision.
 
+  Current checkpoint: `compiler/source-checkpoints/checkpoint-000001.json`
+  closes the first real Psi source-to-token slice under `compiler/psi/` plus
+  the hosted entrypoint under `apps/omega-compiler/`. It includes source/span,
+  token, and lexical-diagnostic representations; Unicode 17 XID tables; nested
+  comments; numeric metadata; cooked/raw strings; punctuation; deterministic
+  capacity failures; and a native acceptance/status adapter. Its provisional
+  feature census is
+  `compiler/source-checkpoints/profile-000001.md`. The adapter still needs a
+  canonical structural token/diagnostic observation and Rust-comparator
+  differential. Parsing and every later Psi/Omega phase remain open; this
+  checkpoint does not complete the product compiler task.
+
 - **OMEGA-RUST-COMPARATOR.** Maintain the current Rust Psi/Omega compiler under
   `bootstrap/onramps/omega-rust/` as a parallel differential implementation
   while its bug-finding value justifies its cost. It may compare diagnostics,

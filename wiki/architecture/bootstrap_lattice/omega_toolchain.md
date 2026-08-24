@@ -81,8 +81,11 @@ The distinction is architectural:
 - `bootstrap/onramps/omega-rust/{psi,omega}/` is the current working Rust
   compiler and executable reference producer;
   `bootstrap/onramps/omega-rust/apps/omega-cli/` is its user-facing executable.
-- `compiler/{psi,omega}/` is reserved for the eventual Omega-written product
-  source. Those roots are placeholders today, not a compiler source tree.
+- `compiler/{psi,omega}/` owns the Omega-written product source. Checkpoint
+  000001 implements the complete Psi source-to-token spelling phase under
+  `compiler/psi/`; later Psi phases and `compiler/omega/` remain open. Hosted
+  product entrypoints live under `apps/omega-compiler/`, and exact closure and
+  profile snapshots live under `compiler/source-checkpoints/`.
 - `bootstrap/omega-bootstrap/` is the owner for Rust-free meaning,
   Delta-written bridge-compiler slices/profiles, and bootstrap validation. Its
   architectural role is `omega-bootstrap`; the obsolete `omega0` label is not
