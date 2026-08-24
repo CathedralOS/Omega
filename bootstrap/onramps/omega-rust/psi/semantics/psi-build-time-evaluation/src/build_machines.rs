@@ -4,7 +4,7 @@
 //! applies. Psi owns the target-neutral interpreter entry and the distinction
 //! between a pure invocation and an explicitly granted one.
 
-use psi_checked_interpreter::{BuildTimeValue, MeasuredEvaluation};
+use psi_checked_interpreter::{BuildTimeValue, MeasuredBuildMachineEvaluation};
 use psi_typed_trees::TypedTrees;
 
 pub use psi_checked_interpreter::{
@@ -51,13 +51,13 @@ impl PreparedBuildMachineProgram {
 }
 
 /// Evaluate one augmenting build machine and return its final argument values
-/// together with deterministic evaluator usage.
+/// together with deterministic evaluator usage and distinct host observations.
 pub fn evaluate_build_machine_arguments_measured(
     program: &PreparedBuildMachineProgram,
     machine_name: &str,
     arguments: Vec<BuildTimeValue>,
     mode: BuildMachineExecutionMode,
-) -> Result<MeasuredEvaluation<Vec<BuildTimeValue>>, String> {
+) -> Result<MeasuredBuildMachineEvaluation<Vec<BuildTimeValue>>, String> {
     match mode {
         BuildMachineExecutionMode::Pure => {
             psi_checked_interpreter::evaluate_build_time_machine_arguments_measured(
@@ -65,6 +65,7 @@ pub fn evaluate_build_machine_arguments_measured(
                 machine_name,
                 arguments,
             )
+            .map(MeasuredBuildMachineEvaluation::hermetic)
         }
         BuildMachineExecutionMode::Granted { filesystem } => {
             psi_checked_interpreter::evaluate_build_machine_with_filesystem_measured(

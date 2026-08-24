@@ -612,6 +612,7 @@ impl Compiler {
             &build_machine_filesystem_scope,
         )?;
         let build_evaluation_usage = computed_build_config.evaluation_usage;
+        let build_observation_summary = computed_build_config.observation_summary;
         let build_config = computed_build_config.config;
         let selected_program_entry = crate::pipeline::build_config::selected_program_entry_machine(
             &build_config,
@@ -872,6 +873,7 @@ impl Compiler {
                 None,
                 None,
                 build_evaluation_usage,
+                build_observation_summary,
             )
             .map_err(|message| vec![Diagnostic::error(message)]);
         }
@@ -1105,6 +1107,7 @@ impl Compiler {
                 .map(|bridge| bridge.binding().clone()),
             program_storage_entry_bridge,
             build_evaluation_usage,
+            build_observation_summary,
         )
         .map_err(|message| vec![Diagnostic::error(message)])
     }

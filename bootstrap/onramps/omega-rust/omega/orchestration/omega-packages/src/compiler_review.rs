@@ -5,7 +5,7 @@ use crate::{
     package_compilation_inputs_for,
 };
 use omega_compiler::{
-    CheckedPackageReviewProjection, CompilerExecutableCommitment,
+    BuildObservationSummary, CheckedPackageReviewProjection, CompilerExecutableCommitment,
     CompilerExecutableCommitmentError, PackageCompilationInputError, PackageReviewEncodingError,
     PackageSourceConsumptionCommitment, compile_to_checked_with_packages_in_build_dir,
     project_checked_package_review,
@@ -26,6 +26,7 @@ pub struct CompilerIssuedPackageReview {
     resolution: ImmutableSourceResolution,
     compiler_executable_commitment: CompilerExecutableCommitment,
     source_consumption_commitment: PackageSourceConsumptionCommitment,
+    build_observation_summary: Option<BuildObservationSummary>,
     projection: CheckedPackageReviewProjection,
     canonical_review_bytes: Vec<u8>,
 }
@@ -45,6 +46,12 @@ impl CompilerIssuedPackageReview {
 
     pub const fn source_consumption_commitment(&self) -> PackageSourceConsumptionCommitment {
         self.source_consumption_commitment
+    }
+
+    /// Selected build-machine execution evidence. This is deliberately
+    /// separate from canonical capability/API comparison bytes.
+    pub const fn build_observation_summary(&self) -> Option<BuildObservationSummary> {
+        self.build_observation_summary
     }
 
     pub fn projection(&self) -> &CheckedPackageReviewProjection {
@@ -272,6 +279,7 @@ pub fn compile_resolved_package_reviews(
                     package: key.clone(),
                 }
             })?;
+        let build_observation_summary = checked.build_observation_summary();
         let projection = project_checked_package_review(&checked).map_err(|diagnostics| {
             CompileResolvedPackageReviewsError::Projection {
                 package: key.clone(),
@@ -292,6 +300,7 @@ pub fn compile_resolved_package_reviews(
             resolution: custody.resolution().clone(),
             compiler_executable_commitment,
             source_consumption_commitment,
+            build_observation_summary,
             projection,
             canonical_review_bytes,
         });

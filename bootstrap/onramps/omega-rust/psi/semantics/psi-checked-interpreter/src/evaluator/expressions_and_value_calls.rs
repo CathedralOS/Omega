@@ -660,6 +660,7 @@ impl<'program> Evaluator<'program> {
                     .to_vec();
                 if let Some(value) = self.try_filesystem_call(target, &fs_args, frame)? {
                     self.host_boundary_touched = true;
+                    self.filesystem_host_observed = true;
                     return Ok(value);
                 }
 

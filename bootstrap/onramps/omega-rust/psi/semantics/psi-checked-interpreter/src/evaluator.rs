@@ -1,5 +1,6 @@
 use crate::{
-    EvaluationUsage, FilesystemAccess, InterpretOptions, InterpretOutcome, MeasuredEvaluation,
+    EvaluationObservations, EvaluationUsage, FilesystemAccess, InterpretOptions, InterpretOutcome,
+    MeasuredBuildMachineEvaluation, MeasuredEvaluation,
 };
 
 /// The REAL-filesystem provider (opt-in `FilesystemAccess::RealUnscoped`; the
@@ -381,7 +382,7 @@ pub(crate) fn run_granted_build_machine_arguments(
     machine_name: &str,
     arguments: Vec<crate::build_time::BuildTimeValue>,
     options: InterpretOptions,
-) -> Result<MeasuredEvaluation<Vec<crate::build_time::BuildTimeValue>>, String> {
+) -> Result<MeasuredBuildMachineEvaluation<Vec<crate::build_time::BuildTimeValue>>, String> {
     std::thread::scope(|scope| {
         std::thread::Builder::new()
             .stack_size(256 * 1024 * 1024)
@@ -414,6 +415,9 @@ pub(crate) fn run_granted_build_machine_arguments(
                     let _ = std::io::stderr().flush();
                 }
                 let mut usage = evaluator.usage;
+                let observations = EvaluationObservations {
+                    filesystem_host_observed: evaluator.filesystem_host_observed,
+                };
                 match result {
                     Ok(values) => {
                         let result_cells = values.iter().try_fold(0u64, |count, value| {
@@ -422,7 +426,11 @@ pub(crate) fn run_granted_build_machine_arguments(
                             "build-time evaluator result-cell count overflowed".to_owned()
                         })?;
                         usage.record_result_cells(result_cells);
-                        Ok(MeasuredEvaluation::new(values, usage))
+                        Ok(MeasuredBuildMachineEvaluation::new(
+                            values,
+                            usage,
+                            observations,
+                        ))
                     }
                     Err(Halt::Exit(code)) => Err(format!(
                         "the machine attempted to exit the process (code {code}) instead of returning"
@@ -709,6 +717,9 @@ struct Evaluator<'program> {
     /// while still rejecting every OTHER host boundary (console, clock, gui)
     /// as its dynamic backstop.
     non_fs_host_boundary_touched: bool,
+    /// Whether this run actually invoked the filesystem host family. This is
+    /// build-observation evidence, not evaluator work accounting.
+    filesystem_host_observed: bool,
     usage: EvaluationUsage,
     /// Total step allowance for this run. Full-program interpretation uses
     /// `STEP_BUDGET`; const evaluation uses the much smaller

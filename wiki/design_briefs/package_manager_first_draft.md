@@ -384,6 +384,18 @@ provenance:
 - installation-bound rows; and
 - suspension, blocking, crash, failure, termination, and reproducibility facts.
 
+The first build-observation rung is intentionally narrower than that completed
+model. Checked compilation and compiler-issued package review retain the exact
+selected build machine's static observation ceiling and realized class. The
+current real scoped filesystem provider has no replay transcript and is
+therefore `Volatile`; pure and console-only runs are `Hermetic`, and console-
+only execution receives no real filesystem provider. Authored filesystem reach
+with no statically reachable operation remains a hermetic ceiling. These facts
+stay separate from capability/API comparison bytes and make no receipt,
+replayability, or source-rebuildability claim. Canonical operation transcripts,
+recorded inputs, staged-output commitments, and replay checking remain required
+before any `Receipted` verdict.
+
 Terminal evidence is a separate stronger lane. It is required only for rows
 that claim checked properties of final realization—Omega-emitted executable
 code, native or externally supplied code, lowering- or ABI-dependent

@@ -251,6 +251,10 @@ pub struct CompileReport {
     /// Deterministic accounting from the transitional typed-tree build
     /// evaluator. This is explicitly not terminal-Psi fuel.
     pub build_evaluation_usage: Option<super::build_config::BuildEvaluationUsage>,
+    /// Exact build-host observation ceiling and realized class for the
+    /// selected build-machine run. This does not claim replayability or source
+    /// rebuildability.
+    pub build_observation_summary: Option<super::build_config::BuildObservationSummary>,
 }
 
 impl CompileReport {
@@ -265,6 +269,7 @@ impl CompileReport {
         program_storage_entry: Option<super::ProgramStorageEntryPlanBinding>,
         program_storage_entry_bridge: Option<super::ProgramStorageEntryNativeBridgePlan>,
         build_evaluation_usage: Option<super::build_config::BuildEvaluationUsage>,
+        build_observation_summary: Option<super::build_config::BuildObservationSummary>,
     ) -> Result<Self, &'static str> {
         let report = Self {
             root_path,
@@ -276,6 +281,7 @@ impl CompileReport {
             program_storage_entry,
             program_storage_entry_bridge,
             build_evaluation_usage,
+            build_observation_summary,
         };
         if report.has_consistent_executable_publication_custody() {
             if report.has_consistent_program_storage_entry_custody() {
@@ -551,6 +557,7 @@ mod tests {
             program_storage_entry: None,
             program_storage_entry_bridge: None,
             build_evaluation_usage: None,
+            build_observation_summary: None,
         }
     }
 
@@ -744,6 +751,7 @@ mod tests {
                 false,
                 CompileOutputKind::CheckOnly,
                 Some(flat.clone()),
+                None,
                 None,
                 None,
                 None,

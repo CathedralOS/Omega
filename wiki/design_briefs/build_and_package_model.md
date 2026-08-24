@@ -556,6 +556,19 @@ The unified artifact publishes:
 - `RebuildableFromSource`; and
 - the first failing provenance edge for either verdict.
 
+The current compiler implements only the first conservative execution rung.
+It derives the selected build machine's static filesystem-observation ceiling
+from exact reachable canonical toolchain service identity and retains whether
+the evaluator actually invoked that host family. Because the scoped real
+filesystem provider does not yet emit a replay transcript, both reachable and
+realized filesystem use classify as `Volatile`; pure and console-only builds
+remain `Hermetic`. Declared but unreachable filesystem slack does not fabricate
+an observation. Console-only execution receives no real filesystem provider.
+This summary is compiler-issued execution evidence kept outside canonical
+capability/API comparison bytes. It is not a receipt and does not claim either
+replay verdict. A `Receipted` row still requires a canonical operation
+transcript, retained input bytes, staged-output commitment, and replay checker.
+
 Policy can consequently distinguish an ordinary development build, a release
 that requires record replay, and a supply-chain release that requires
 transitive source rebuildability. These are graph checks, not transitive

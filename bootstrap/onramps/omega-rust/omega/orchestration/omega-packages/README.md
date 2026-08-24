@@ -157,6 +157,15 @@ This identifies an observed producer artifact only: it does not certify the
 compiler, bind its complete source/toolchain closure, establish a reproducible
 build, or prove that the file equals the process image already loaded by the
 operating system.
+Selected build-machine execution also retains a separate versioned observation
+summary. The compiler derives its static ceiling from exact reachable canonical
+toolchain filesystem service identity and records whether that host family was
+actually invoked. The current scoped real provider has no replay transcript, so
+filesystem use is `Volatile`; pure, console-only, and declared-but-unreachable
+filesystem rows remain `Hermetic`. Console-only execution is not supplied real
+filesystem authority. Compiler-issued package review carries this summary
+outside canonical capability/API comparison bytes. It is not a receipt and
+makes no replayability or source-rebuildability claim.
 Checked package compilation now also retains
 the exact root package and selected build-machine symbol and can emit an
 in-memory authority review projection for one explicit target. That projection
