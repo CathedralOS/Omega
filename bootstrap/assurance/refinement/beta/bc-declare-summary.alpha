@@ -44,23 +44,23 @@ declare_require_imports:
         ; Prior selective transfer pins the exact NLOC snapshot interval.
         imm r20, 525272
         imm r21, 3
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 525280
         imm r21, 0
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 525288
         imm r21, 1024
-        call cursor_require_cell
+        call exact_require_cell
         ; The ranged source phase found exactly one store in each table family.
         imm r20, 525168
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 525176
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526792
         imm r21, 1396984146           ; RIDS identifier-slice relation
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 declare_introduce_entry:
@@ -149,72 +149,72 @@ declare_reset_case:
 declare_require_entry:
         imm r20, 527072
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527080
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527088
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527152
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 declare_require_full:
         call declare_require_entry
         imm r20, 527096
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527128
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527136
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527144
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527160
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 declare_require_room:
         call declare_require_entry
         imm r20, 527096
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527104
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527112
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527120
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527128
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527136
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527144
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527160
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 declare_publish_summary:
         imm r20, 527168
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527176
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 527064
         imm r2, 1397506884            ; DCLS
         store r1, r2

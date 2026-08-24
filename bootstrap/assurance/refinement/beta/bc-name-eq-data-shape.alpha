@@ -1,0 +1,378 @@
+; Exact local/raw-memory/expression ownership for procedure35 name_eq(i).
+
+name_eq_require_data_shape:
+        call name_eq_require_locals
+        call name_eq_require_memory
+        call name_eq_require_primitives
+        call name_eq_require_pushes
+        call name_eq_require_control_census
+        ret
+
+name_eq_require_locals:
+        imm r20, 76
+        imm r21, 174
+        imm r22, 1
+        imm r23, 0
+        imm r24, 24991                ; chk reads i
+        call transfer_require_local
+        imm r20, 77
+        imm r21, 175
+        imm r22, 2
+        imm r23, 1
+        imm r24, 25338                ; a = NAMEOFF[i]
+        call transfer_require_local
+        imm r20, 78
+        imm r21, 175
+        imm r22, 1
+        imm r23, 0
+        imm r24, 25246
+        call transfer_require_local
+        imm r20, 79
+        imm r21, 175
+        imm r22, 2
+        imm r23, 2
+        imm r24, 25370                ; b = IDOFF
+        call transfer_require_local
+        imm r20, 80
+        imm r21, 175
+        imm r22, 2
+        imm r23, 3
+        imm r24, 25402                ; len = IDLEN
+        call transfer_require_local
+        imm r20, 81
+        imm r21, 175
+        imm r22, 2
+        imm r23, 4
+        imm r24, 25431                ; k = 0
+        call transfer_require_local
+        imm r20, 82
+        imm r21, 176
+        imm r22, 1
+        imm r23, 4
+        imm r24, 25459
+        call transfer_require_local
+        imm r20, 83
+        imm r21, 176
+        imm r22, 1
+        imm r23, 3
+        imm r24, 25494
+        call transfer_require_local
+        imm r20, 84
+        imm r21, 177
+        imm r22, 1
+        imm r23, 1
+        imm r24, 25647
+        call transfer_require_local
+        imm r20, 85
+        imm r21, 177
+        imm r22, 1
+        imm r23, 4
+        imm r24, 25704
+        call transfer_require_local
+        imm r20, 86
+        imm r21, 177
+        imm r22, 1
+        imm r23, 2
+        imm r24, 25790
+        call transfer_require_local
+        imm r20, 87
+        imm r21, 177
+        imm r22, 1
+        imm r23, 4
+        imm r24, 25847
+        call transfer_require_local
+        imm r20, 88
+        imm r21, 177
+        imm r22, 2
+        imm r23, 4
+        imm r24, 26036                ; k = k + 1
+        call transfer_require_local
+        imm r20, 89
+        imm r21, 177
+        imm r22, 1
+        imm r23, 4
+        imm r24, 25969
+        call transfer_require_local
+        ret
+
+name_eq_require_memory:
+        imm r20, 44
+        imm r21, 174
+        imm r22, 1
+        imm r23, 8
+        imm r24, 25080                ; NAMELEN[i]
+        call transfer_require_memory
+        imm r20, 45
+        imm r21, 174
+        imm r22, 1
+        imm r23, 8
+        imm r24, 25109                ; IDLEN
+        call transfer_require_memory
+        imm r20, 46
+        imm r21, 175
+        imm r22, 1
+        imm r23, 8
+        imm r24, 25335                ; NAMEOFF[i]
+        call transfer_require_memory
+        imm r20, 47
+        imm r21, 175
+        imm r22, 1
+        imm r23, 8
+        imm r24, 25367                ; IDOFF
+        call transfer_require_memory
+        imm r20, 48
+        imm r21, 175
+        imm r22, 1
+        imm r23, 8
+        imm r24, 25399                ; IDLEN
+        call transfer_require_memory
+        imm r20, 49
+        imm r21, 177
+        imm r22, 1
+        imm r23, 1
+        imm r24, 25745                ; selected source byte from a plus k
+        call transfer_require_memory
+        imm r20, 50
+        imm r21, 177
+        imm r22, 1
+        imm r23, 1
+        imm r24, 25888                ; SRC[b+k]
+        call transfer_require_memory
+        ret
+
+; row/block/kind/value-or-opcode/PC
+name_eq_require_primitives:
+        imm r20, 451
+        imm r21, 174
+        imm r22, 1
+        imm r23, 3153920
+        imm r24, 24965
+        call transfer_require_primitive
+        imm r20, 452
+        imm r21, 174
+        imm r22, 2
+        imm r23, 3
+        imm r24, 25058
+        call transfer_require_primitive
+        imm r20, 453
+        imm r21, 174
+        imm r22, 2
+        imm r23, 5
+        imm r24, 25036
+        call transfer_require_primitive
+        imm r20, 454
+        imm r21, 174
+        imm r22, 1
+        imm r23, 8
+        imm r24, 25026
+        call transfer_require_primitive
+        imm r20, 455
+        imm r21, 174
+        imm r22, 3
+        imm r23, 10                  ; full-word equality
+        imm r24, 25112
+        call transfer_require_primitive
+        imm r20, 456
+        imm r21, 174
+        imm r22, 1
+        imm r23, 2097112
+        imm r24, 25099
+        call transfer_require_primitive
+        imm r20, 457
+        imm r21, 174
+        imm r22, 1
+        imm r23, 0
+        imm r24, 25190
+        call transfer_require_primitive
+
+        imm r20, 458
+        imm r21, 175
+        imm r22, 1
+        imm r23, 3145728
+        imm r24, 25220
+        call transfer_require_primitive
+        imm r20, 459
+        imm r21, 175
+        imm r22, 2
+        imm r23, 3
+        imm r24, 25313
+        call transfer_require_primitive
+        imm r20, 460
+        imm r21, 175
+        imm r22, 2
+        imm r23, 5
+        imm r24, 25291
+        call transfer_require_primitive
+        imm r20, 461
+        imm r21, 175
+        imm r22, 1
+        imm r23, 8
+        imm r24, 25281
+        call transfer_require_primitive
+        imm r20, 462
+        imm r21, 175
+        imm r22, 1
+        imm r23, 2097120
+        imm r24, 25357
+        call transfer_require_primitive
+        imm r20, 463
+        imm r21, 175
+        imm r22, 1
+        imm r23, 2097112
+        imm r24, 25389
+        call transfer_require_primitive
+        imm r20, 464
+        imm r21, 175
+        imm r22, 1
+        imm r23, 0
+        imm r24, 25421
+        call transfer_require_primitive
+
+        imm r20, 465
+        imm r21, 176
+        imm r22, 3
+        imm r23, 8                   ; signed k<len
+        imm r24, 25513
+        call transfer_require_primitive
+        imm r20, 466
+        imm r21, 176
+        imm r22, 1
+        imm r23, 1
+        imm r24, 25591
+        call transfer_require_primitive
+
+        imm r20, 467
+        imm r21, 177
+        imm r22, 1
+        imm r23, 2097152
+        imm r24, 25621
+        call transfer_require_primitive
+        imm r20, 468
+        imm r21, 177
+        imm r22, 2
+        imm r23, 3
+        imm r24, 25666
+        call transfer_require_primitive
+        imm r20, 469
+        imm r21, 177
+        imm r22, 2
+        imm r23, 3
+        imm r24, 25723
+        call transfer_require_primitive
+        imm r20, 470
+        imm r21, 177
+        imm r22, 3
+        imm r23, 11                  ; full-word inequality
+        imm r24, 25891
+        call transfer_require_primitive
+        imm r20, 471
+        imm r21, 177
+        imm r22, 1
+        imm r23, 2097152
+        imm r24, 25764
+        call transfer_require_primitive
+        imm r20, 472
+        imm r21, 177
+        imm r22, 2
+        imm r23, 3
+        imm r24, 25809
+        call transfer_require_primitive
+        imm r20, 473
+        imm r21, 177
+        imm r22, 2
+        imm r23, 3
+        imm r24, 25866
+        call transfer_require_primitive
+        imm r20, 474
+        imm r21, 177
+        imm r22, 2
+        imm r23, 3
+        imm r24, 26014
+        call transfer_require_primitive
+        imm r20, 475
+        imm r21, 177
+        imm r22, 1
+        imm r23, 1
+        imm r24, 26004
+        call transfer_require_primitive
+        imm r20, 476
+        imm r21, 178
+        imm r22, 1
+        imm r23, 0
+        imm r24, 26064
+        call transfer_require_primitive
+        ret
+
+name_eq_require_pushes:
+        imm r20, 118
+        imm r21, 174
+        imm r22, 1
+        imm r23, 24975
+        call transfer_require_push
+        imm r20, 119
+        imm r21, 174
+        imm r22, 1
+        imm r23, 25010
+        call transfer_require_push
+        imm r20, 120
+        imm r21, 174
+        imm r22, 1
+        imm r23, 25083
+        call transfer_require_push
+        imm r20, 121
+        imm r21, 175
+        imm r22, 1
+        imm r23, 25230
+        call transfer_require_push
+        imm r20, 122
+        imm r21, 175
+        imm r22, 1
+        imm r23, 25265
+        call transfer_require_push
+        imm r20, 123
+        imm r21, 176
+        imm r22, 1
+        imm r23, 25478
+        call transfer_require_push
+        imm r20, 124
+        imm r21, 177
+        imm r22, 1
+        imm r23, 25631
+        call transfer_require_push
+        imm r20, 125
+        imm r21, 177
+        imm r22, 1
+        imm r23, 25688
+        call transfer_require_push
+        imm r20, 126
+        imm r21, 177
+        imm r22, 1
+        imm r23, 25748
+        call transfer_require_push
+        imm r20, 127
+        imm r21, 177
+        imm r22, 1
+        imm r23, 25774
+        call transfer_require_push
+        imm r20, 128
+        imm r21, 177
+        imm r22, 1
+        imm r23, 25831
+        call transfer_require_push
+        imm r20, 129
+        imm r21, 177
+        imm r22, 1
+        imm r23, 25988
+        call transfer_require_push
+        imm r20, 173
+        imm r21, 178
+        imm r22, 451
+        imm r23, 477
+        imm r24, 118
+        imm r25, 130
+        imm r26, 313                 ; exact empty argument interval
+        imm r27, 313
+        imm r28, 387                 ; exact empty store-address interval
+        imm r29, 387
+        call summary_require_expr_census
+        ret

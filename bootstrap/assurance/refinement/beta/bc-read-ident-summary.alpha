@@ -48,22 +48,22 @@ read_ident_prove_summary:
 read_ident_require_imports:
         imm r20, 525960
         imm r21, 1128421445           ; CBLE
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 525968
         imm r21, 1094992965           ; ADVE
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526688
         imm r21, 1413631553           ; ANBT
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526696
         imm r21, 1                    ; classifier byte domain
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526784
         imm r21, 1                    ; classifier quiet/restored frame
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526320
         imm r21, 1                    ; SRC segment, 0<=CUR<=LEN<=CAP
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 ; Exact entry store binds IDOFF to the entry cursor before the loop.  The
@@ -96,7 +96,7 @@ read_ident_prove_stop:
         call read_ident_call_cbyte_alnum
         imm r20, 526864
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 526904
         imm r2, 1                    ; checked first non-alnum/end/NUL stop
         store r1, r2
@@ -121,10 +121,10 @@ read_ident_prove_step:
         call read_ident_call_cbyte_alnum
         imm r20, 526864
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 525968
         imm r21, 1094992965           ; checked adv import on true branch
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 526872
         imm r2, 2                    ; strict successor CUR<=LEN
         store r1, r2
@@ -197,49 +197,49 @@ read_ident_require_stop:
         call read_ident_require_invariant
         imm r20, 526848
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526856
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526864
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526904
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526896
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526912
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526928
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 read_ident_close_backedge:
         imm r20, 526872
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526832
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526840
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526880
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526816
         imm r21, 1                    ; IDOFF remains the entry cursor
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 526888
         imm r2, 2                    ; checked read_ident successor renaming
         store r1, r2
         imm r20, 526888
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 526824
         imm r2, 1                    ; renamed successor cursor is current
         store r1, r2
@@ -253,37 +253,37 @@ read_ident_close_backedge:
 read_ident_require_invariant:
         imm r20, 526808
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526816
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526824
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526832
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526840
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526920
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 read_ident_publish_summary:
         imm r20, 526936
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526944
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526952
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526888
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 526800
         imm r2, 1347176786            ; RILP
         store r1, r2

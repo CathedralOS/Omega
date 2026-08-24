@@ -24,20 +24,20 @@ read_ident_require_shape:
 read_ident_shape_blocks:
         imm r20, 43
         imm r21, 5217
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 44
         imm r21, 5294
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 45
         imm r21, 5457
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 46
         imm r21, 5475
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 43
         imm r21, 46
         imm r22, 12
-        call cursor_require_proc_blocks
+        call exact_require_proc_blocks
         call read_ident_require_transitions
         call read_ident_require_events
         call read_ident_require_memory
@@ -53,19 +53,19 @@ read_ident_require_transitions:
         imm r22, 1
         imm r23, 45
         imm r24, 5429               ; checked alnum-true guard
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 34
         imm r21, 44
         imm r22, 0
         imm r23, 46
         imm r24, 5448
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 35
         imm r21, 45
         imm r22, 0
         imm r23, 44
         imm r24, 5466
-        call slurp_summary_require_transition
+        call exact_require_transition
         ret
 
 read_ident_require_events:
@@ -100,13 +100,13 @@ read_ident_require_events:
         imm r21, 46
         imm r22, 5
         imm r23, 5613
-        call slurp_summary_require_event
+        call exact_require_event
         imm r20, 5594
         imm r21, 5613
-        call slurp_summary_require_epilogue
+        call exact_require_epilogue
         imm r20, 5614
         imm r21, 5633
-        call slurp_summary_require_epilogue
+        call exact_require_epilogue
         ret
 
 read_ident_require_memory:
@@ -242,7 +242,7 @@ read_ident_require_censuses:
         imm r27, 36
         imm r28, 33
         imm r29, 37                  ; checked exclusive read_ident event row
-        call cursor_require_effect_census
+        call exact_require_effect_census
 
         imm r20, 43
         imm r21, 46

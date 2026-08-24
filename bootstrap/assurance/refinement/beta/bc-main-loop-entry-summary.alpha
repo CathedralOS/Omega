@@ -41,10 +41,10 @@ main_loop_entry_summary_init:
 main_loop_require_shape:
         imm r20, 352
         imm r21, 51262
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 353
         imm r21, 51405
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 3145728
         imm r21, 352
         imm r22, 69
@@ -67,7 +67,7 @@ main_loop_require_shape:
         imm r22, 1
         imm r23, 353
         imm r24, 51356
-        call slurp_summary_require_transition
+        call exact_require_transition
 
         imm r20, 608
         imm r21, 352
@@ -81,7 +81,7 @@ main_loop_require_shape:
         imm r21, 352
         imm r22, 5
         imm r23, 51404
-        call slurp_summary_require_event
+        call exact_require_event
         imm r20, 69
         call call_bounds_frame_bytes
         imm r1, 16
@@ -146,7 +146,7 @@ main_loop_require_root_link:
 
         imm r20, 51385
         imm r21, 51404
-        call slurp_summary_require_epilogue
+        call exact_require_epilogue
         imm r20, 29
         imm r21, 0                   ; halt
         call require_tape_byte
@@ -171,7 +171,7 @@ main_loop_require_root_link:
         imm r27, 289
         imm r28, 608
         imm r29, 610                 ; checked exclusive loop event row
-        call cursor_require_effect_census
+        call exact_require_effect_census
         imm r20, 352
         imm r21, 352
         imm r22, 809
@@ -214,10 +214,10 @@ main_loop_prove_split:
 main_loop_publish_schema:
         imm r20, 525960
         imm r21, 1128421445           ; CBLE
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526320
         imm r21, 1                    ; 0<=CUR<=LEN<=CAP
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 526664
         imm r2, 1347636301            ; published conditional MLSP
         store r1, r2
@@ -228,7 +228,7 @@ main_loop_prove_zero_hit:
         call main_loop_reset_case
         imm r20, 526016
         imm r21, 1                    ; cbyte hit theorem
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 526544
         imm r2, 1                    ; hit NUL case
         store r1, r2
@@ -251,7 +251,7 @@ main_loop_prove_end:
         call main_loop_reset_case
         imm r20, 526024
         imm r21, 1                    ; cbyte miss theorem
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 526544
         imm r2, 2                    ; logical-end case
         store r1, r2
@@ -274,7 +274,7 @@ main_loop_prove_nonzero_hit:
         call main_loop_reset_case
         imm r20, 526016               ; checked nonzero uses hit clause
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 526544
         imm r2, 3                    ; hit nonzero case
         store r1, r2
@@ -315,7 +315,7 @@ main_loop_call_cbyte:
         call main_loop_require_pc
         imm r20, 525960
         imm r21, 1128421445           ; CBLE
-        call cursor_require_cell
+        call exact_require_cell
         call main_loop_require_carried
         imm r1, 526544
         load r2, r1
@@ -329,26 +329,26 @@ main_loop_call_cbyte:
 main_loop_call_zero_hit:
         imm r20, 526656
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526552
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         jmp main_loop_call_complete
 main_loop_call_end:
         imm r20, 526656
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526552
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         jmp main_loop_call_complete
 main_loop_call_nonzero:
         imm r20, 526656
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526552
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
 main_loop_call_complete:
         imm r1, 526536
         imm r2, 51271
@@ -363,7 +363,7 @@ main_loop_stage_compare:
         call main_loop_require_pc
         imm r20, 526568
         imm r21, 0
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 526552
         load r2, r1
         imm r1, 526560
@@ -388,10 +388,10 @@ main_loop_stage_compare:
         call main_loop_require_pc
         imm r20, 526568
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526576
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 526560
         load r2, r1
         imm r3, 2
@@ -422,7 +422,7 @@ main_loop_take_zero:
         call main_loop_require_pc
         imm r20, 526584
         imm r21, 0
-        call cursor_require_cell
+        call exact_require_cell
         call main_loop_require_carried
         imm r1, 526536
         imm r2, 51375
@@ -441,7 +441,7 @@ main_loop_take_zero:
         call main_loop_require_pc
         imm r20, 526648
         imm r21, 0
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 main_loop_take_body:
@@ -449,7 +449,7 @@ main_loop_take_body:
         call main_loop_require_pc
         imm r20, 526584
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         call main_loop_require_carried
         imm r1, 526536
         imm r2, 51405                 ; checked main.body cutpoint
@@ -461,13 +461,13 @@ main_loop_take_body:
 main_loop_require_instance_clauses:
         imm r20, 526624
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526632
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526640
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 ; Bind a concrete loop instance to the conditional schema.  Inputs are five
@@ -488,33 +488,33 @@ main_loop_bind_instance:
         mov r19, r29
         imm r20, 526664
         imm r21, 1347636301            ; required conditional MLSP
-        call cursor_require_cell
+        call exact_require_cell
 
         mov r20, r10
         mov r21, r11
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 51262
         jeq r11, r1, main_loop_bind_trace
         jmp reject
 main_loop_bind_trace:
         mov r20, r12
         mov r21, r13
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 0
         jeq r13, r1, reject
         mov r20, r14
         mov r21, r15
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 0
         jeq r15, r1, reject
         mov r20, r16
         mov r21, r17
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 0
         jeq r17, r1, reject
         mov r20, r18
         mov r21, r19
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 0
         jeq r19, r1, reject
 
@@ -549,25 +549,25 @@ main_loop_run_bound_instance:
 main_loop_instantiate_root:
         imm r20, 526496
         imm r21, 1297238352           ; MLRP
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526456
         imm r21, 51262
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526464
         imm r21, 187
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526472
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526480
         imm r21, 2                    ; normalized root cursor
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526488
         imm r21, 1                    ; active root main frame
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526504
         imm r21, 1                    ; root source/input relation
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526456
         imm r21, 51262                 ; checked root loop cutpoint
         imm r22, 526472
@@ -592,20 +592,20 @@ main_loop_instantiate_root:
 main_loop_require_carried:
         imm r20, 526592
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526600
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526608
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526616
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 main_loop_require_pc:
         imm r1, 526536
         load r2, r1
-        jeq r2, r20, cursor_require_ok
+        jeq r2, r20, exact_shape_ok
         jmp reject

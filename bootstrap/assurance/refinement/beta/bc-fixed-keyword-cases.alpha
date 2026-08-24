@@ -94,10 +94,10 @@ fixed_keyword_cases_next_byte:
 fixed_keyword_cases_finish_position:
 	imm r20, 531264
 	imm r21, 1                    ; singleton descriptor byte
-	call cursor_require_cell
+	call exact_require_cell
 	imm r20, 531272
 	imm r21, 255                  ; exact byte complement
-	call cursor_require_cell
+	call exact_require_cell
 	call fixed_keyword_cases_select_position_base
 	imm r1, 531224
 	load r2, r1
@@ -182,7 +182,7 @@ fixed_keyword_cases_base_ok:
 fixed_keyword_cases_publish:
 	imm r20, 531280
 	imm r21, 48                   ; every descriptor position
-	call cursor_require_cell
+	call exact_require_cell
 	imm r20, 531288
 fixed_keyword_cases_publish_loop:
 	imm r1, 531672
@@ -193,7 +193,7 @@ fixed_keyword_cases_publish_loop:
 	ret
 fixed_keyword_cases_publish_position:
 	imm r21, 1
-	call cursor_require_cell
+	call exact_require_cell
 	imm r1, 8
 	add r20, r1
 	jmp fixed_keyword_cases_publish_loop

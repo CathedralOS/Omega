@@ -23,23 +23,23 @@ declare_require_shape:
 declare_shape_blocks:
         imm r20, 170
         imm r21, 24145
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 171
         imm r21, 24209
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 172
         imm r21, 24417
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 170
         imm r21, 172
         imm r22, 34
-        call cursor_require_proc_blocks
+        call exact_require_proc_blocks
         imm r20, 128
         imm r21, 171
         imm r22, 1
         imm r23, 172
         imm r24, 24313               ; checked declare room guard
-        call slurp_summary_require_transition
+        call exact_require_transition
         call declare_require_events
         call declare_require_locals
         call declare_require_memory
@@ -53,21 +53,21 @@ declare_require_events:
         imm r21, 171
         imm r22, 5
         imm r23, 24416
-        call slurp_summary_require_event
+        call exact_require_event
         imm r20, 274
         imm r21, 172
         imm r22, 5
         imm r23, 24893
-        call slurp_summary_require_event
+        call exact_require_event
         imm r20, 24397
         imm r21, 24416
-        call slurp_summary_require_epilogue
+        call exact_require_epilogue
         imm r20, 24874
         imm r21, 24893
-        call slurp_summary_require_epilogue
+        call exact_require_epilogue
         imm r20, 24894
         imm r21, 24913
-        call slurp_summary_require_epilogue
+        call exact_require_epilogue
         ret
 
 declare_require_locals:
@@ -339,7 +339,7 @@ declare_require_censuses:
         imm r27, 129
         imm r28, 273
         imm r29, 275                 ; checked exclusive declare event row
-        call cursor_require_effect_census
+        call exact_require_effect_census
         imm r20, 170
         imm r21, 172
         imm r22, 432

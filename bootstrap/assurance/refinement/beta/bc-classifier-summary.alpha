@@ -90,16 +90,16 @@ classifier_byte_case:
 classifier_require_byte_premise:
         imm r20, 526696
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526760
         imm r21, 1                   ; checked slot-zero provenance
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 526704
         load r2, r1
         imm r3, 0
         jlt r2, r3, reject
         imm r3, 256
-        jlt r2, r3, cursor_require_ok
+        jlt r2, r3, exact_shape_ok
         jmp reject
 
 ; Source order: c<48 -> zero; c>57 -> zero; otherwise one.
@@ -193,14 +193,14 @@ classifier_alpha_spec_store:
 classifier_eval_alnum_source:
         imm r20, 526768
         imm r21, 1                   ; checked alpha argument/current c
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 526728
         load r2, r1
         imm r3, 1
         jeq r2, r3, classifier_alnum_source_one
         imm r20, 526776
         imm r21, 1                   ; checked digit argument/current c
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 526712
         load r2, r1                  ; inherited digit result
         jmp classifier_alnum_source_store
@@ -234,16 +234,16 @@ classifier_require_equal_cells:
         load r2, r1
         mov r1, r21
         load r3, r1
-        jeq r2, r3, cursor_require_ok
+        jeq r2, r3, exact_shape_ok
         jmp reject
 
 classifier_publish_theorems:
         imm r20, 526696
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526784
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 526672
         imm r2, 1413629764            ; DGBT
         store r1, r2

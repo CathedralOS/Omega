@@ -58,16 +58,16 @@ parse_char_reset_provenance:
 parse_char_require_imports:
         imm r20, 525960
         imm r21, 1128421445           ; CBLE exact cbyte
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 525968
         imm r21, 1094992965           ; ADVE in-range adv
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527320
         imm r21, 1094994008           ; ADVX bounded unconditional adv
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526320
         imm r21, 1                    ; successful SRC/cursor domain
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 529424
         imm r2, 1
         store r1, r2
@@ -95,25 +95,25 @@ parse_char_introduce_entry:
 parse_char_require_entry:
         imm r20, 529424
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529432
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529440
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529448
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529544
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529552
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529768
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 ; Fin never reads or validates a closing quote. For arbitrary fin CUR=j<=LEN,
@@ -128,13 +128,13 @@ parse_char_prove_terminal_partition:
         call parse_char_prove_terminal_case
         imm r20, 529736
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529744
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529752
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 529608
         imm r2, 1                    ; complete no-validation terminal partition
         store r1, r2
@@ -180,36 +180,36 @@ parse_char_terminal_case_selected:
 parse_char_require_terminal_case:
         imm r20, 527320
         imm r21, 1094994008           ; both fin calls use ADVX, never ADVE
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529520
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529528
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529696
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529760
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 1
         jeq r25, r1, parse_char_terminal_require_room
         imm r1, 2
         jeq r25, r1, parse_char_terminal_require_one
         imm r20, 529536
         imm r21, 3                    ; j=LEN -> final LEN+2
-        call cursor_require_cell
+        call exact_require_cell
         ret
 parse_char_terminal_require_room:
         imm r20, 529536
         imm r21, 1                    ; at least two bytes room -> final <=LEN
-        call cursor_require_cell
+        call exact_require_cell
         ret
 parse_char_terminal_require_one:
         imm r20, 529536
         imm r21, 2                    ; one byte room -> final LEN+1
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 parse_char_prove_ordinary:
@@ -217,7 +217,7 @@ parse_char_prove_ordinary:
         call parse_char_require_entry
         imm r20, 529560
         imm r21, 256
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 529456
         imm r2, 1                    ; exact first CBLE byte
         store r1, r2
@@ -232,19 +232,19 @@ parse_char_prove_ordinary:
         store r1, r2
         imm r20, 529496
         imm r21, 1                   ; exact ordinary byte is returned unchanged
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529456
         imm r21, 1                   ; consumed ordinary first-observation join
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529464
         imm r21, 1                   ; consumed ordinary non-backslash join
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529504
         imm r21, 1                   ; consumed ordinary fin-CUR join
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529704
         imm r21, 3
-        call cursor_require_cell
+        call exact_require_cell
         call parse_char_require_path_terminal
         imm r1, 529616
         imm r2, 1
@@ -258,7 +258,7 @@ parse_char_prove_escape_case:
         call parse_char_require_entry
         imm r20, 529584
         imm r21, 256
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 529456
         imm r2, 1                    ; first CBLE sees exact backslash
         store r1, r2
@@ -325,36 +325,36 @@ parse_char_escape_result_store:
 parse_char_require_escape_path:
         imm r20, 529456
         imm r21, 1                   ; consumed escape first-observation join
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529464
         imm r21, 2                   ; consumed escape backslash join
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529512
         imm r21, 92                  ; consumed exact backslash value join
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529504
         imm r21, 2                   ; consumed escape fin-CUR join
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529704
         imm r21, 4
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 525968
         imm r21, 1094992965           ; only proven-backslash adv uses ADVE
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529472
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529480
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529488
         mov r21, r25
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529592
         imm r21, 4
         imm r1, 5
         jeq r25, r1, parse_char_require_default_count
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 1
         jeq r25, r1, parse_char_require_result_n
         imm r1, 2
@@ -363,42 +363,42 @@ parse_char_require_escape_path:
         jeq r25, r1, parse_char_require_result_r
         imm r20, 529496
         imm r21, 0                   ; exact zero escape result
-        call cursor_require_cell
+        call exact_require_cell
         ret
 parse_char_require_result_n:
         imm r20, 529496
         imm r21, 10
-        call cursor_require_cell
+        call exact_require_cell
         ret
 parse_char_require_result_t:
         imm r20, 529496
         imm r21, 9
-        call cursor_require_cell
+        call exact_require_cell
         ret
 parse_char_require_result_r:
         imm r20, 529496
         imm r21, 13
-        call cursor_require_cell
+        call exact_require_cell
         ret
 parse_char_require_default_count:
         imm r20, 529600
         imm r21, 252
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529496
         imm r21, 256                 ; exact same-byte default relation
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 parse_char_require_path_terminal:
         imm r20, 529608
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529696
         imm r21, 1                   ; no closing-quote validation
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529760
         imm r21, 1                   ; tail calls preserve selected result
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529704
         load r21, r20                ; exact entry-to-final delta 3 or 4
         imm r1, 3
@@ -409,10 +409,10 @@ parse_char_require_path_terminal:
 parse_char_path_delta_ok:
         imm r20, 529544
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529552
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 ; Malformed-tail tokens publish only after exact observation/path/gap joins.
@@ -502,62 +502,62 @@ parse_char_malformed_require:
 parse_char_require_malformed_case:
         imm r20, 525960
         imm r21, 1128421445
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529456
         mov r21, r26                  ; consumed first hit/boundary join
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529464
         mov r21, r27                  ; consumed malformed branch join
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529504
         mov r21, r28                  ; consumed malformed fin-CUR join
-        call cursor_require_cell
+        call exact_require_cell
         mov r20, r29                 ; consumed malformed result-path cell
         imm r21, 1                    ; consumed malformed result-path join
-        call cursor_require_cell
+        call exact_require_cell
         mov r20, r30                 ; consumed malformed terminal-bound cell
         imm r21, 1                    ; consumed malformed terminal-bound join
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529496
         imm r21, 0                    ; consumed malformed zero-result join
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 2
         jeq r26, r1, parse_char_malformed_require_first_miss
         imm r20, 526016
         imm r21, 1                    ; consumed first-CBLE hit clause
-        call cursor_require_cell
+        call exact_require_cell
         jmp parse_char_malformed_require_first_value
 parse_char_malformed_require_first_miss:
         imm r20, 526024
         imm r21, 1                    ; consumed first-CBLE boundary clause
-        call cursor_require_cell
+        call exact_require_cell
 parse_char_malformed_require_first_value:
         imm r20, 529512
         mov r21, r24                  ; consumed malformed first-byte join
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 2
         jeq r27, r1, parse_char_malformed_require_second
         ret
 parse_char_malformed_require_second:
         imm r20, 529472
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529480
         mov r21, r23                  ; consumed second hit/boundary join
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529488
         imm r21, 0                    ; consumed escaped-NUL value join
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 2
         jeq r23, r1, parse_char_malformed_require_second_miss
         imm r20, 526016
         imm r21, 1                    ; consumed second-CBLE hit clause
-        call cursor_require_cell
+        call exact_require_cell
         ret
 parse_char_malformed_require_second_miss:
         imm r20, 526024
         imm r21, 1                    ; consumed second-CBLE boundary clause
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 parse_char_reset_path:
@@ -576,49 +576,49 @@ parse_char_reset_path_cell:
 parse_char_publish:
         imm r20, 529608
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529616
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529624
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529632
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529640
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529648
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529656
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529664
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529672
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529680
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529688
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529776
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529784
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529792
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529800
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 529416
         imm r2, 1380467536            ; PCHR
         store r1, r2

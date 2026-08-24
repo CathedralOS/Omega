@@ -23,41 +23,41 @@ parse_char_require_shape:
 parse_char_shape_blocks:
         imm r20, 256
         imm r21, 37528
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 257
         imm r21, 37597
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 258
         imm r21, 37729
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 259
         imm r21, 37898
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 260
         imm r21, 37936
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 261
         imm r21, 38068
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 262
         imm r21, 38106
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 263
         imm r21, 38238
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 264
         imm r21, 38276
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 265
         imm r21, 38408
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 266
         imm r21, 38446
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 256
         imm r21, 266
         imm r22, 56
-        call cursor_require_proc_blocks
+        call exact_require_proc_blocks
         call parse_char_require_transitions
         call parse_char_require_events
         call parse_char_require_locals
@@ -72,85 +72,85 @@ parse_char_require_transitions:
         imm r22, 1
         imm r23, 258
         imm r24, 37701              ; first byte is backslash
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 198
         imm r21, 257
         imm r22, 0
         imm r23, 266
         imm r24, 37720              ; ordinary/default byte
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 199
         imm r21, 258
         imm r22, 1
         imm r23, 259
         imm r24, 37870              ; escaped n
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 200
         imm r21, 258
         imm r22, 0
         imm r23, 260
         imm r24, 37889
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 201
         imm r21, 259
         imm r22, 0
         imm r23, 266
         imm r24, 37927
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 202
         imm r21, 260
         imm r22, 1
         imm r23, 261
         imm r24, 38040              ; escaped t
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 203
         imm r21, 260
         imm r22, 0
         imm r23, 262
         imm r24, 38059
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 204
         imm r21, 261
         imm r22, 0
         imm r23, 266
         imm r24, 38097
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 205
         imm r21, 262
         imm r22, 1
         imm r23, 263
         imm r24, 38210              ; escaped r
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 206
         imm r21, 262
         imm r22, 0
         imm r23, 264
         imm r24, 38229
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 207
         imm r21, 263
         imm r22, 0
         imm r23, 266
         imm r24, 38267
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 208
         imm r21, 264
         imm r22, 1
         imm r23, 265
         imm r24, 38380              ; escaped zero
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 209
         imm r21, 264
         imm r22, 0
         imm r23, 266
         imm r24, 38399              ; unrecognized escape
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 210
         imm r21, 265
         imm r22, 0
         imm r23, 266
         imm r24, 38437
-        call slurp_summary_require_transition
+        call exact_require_transition
         ret
 
 parse_char_require_events:
@@ -206,13 +206,13 @@ parse_char_require_events:
         imm r21, 266
         imm r22, 5
         imm r23, 38502              ; explicit return v
-        call slurp_summary_require_event
+        call exact_require_event
         imm r20, 38483
         imm r21, 38502
-        call slurp_summary_require_epilogue
+        call exact_require_epilogue
         imm r20, 38503
         imm r21, 38522
-        call slurp_summary_require_epilogue
+        call exact_require_epilogue
         ret
 
 parse_char_require_locals:
@@ -416,7 +416,7 @@ parse_char_require_censuses:
         imm r27, 211                 ; exclusive transition row
         imm r28, 414
         imm r29, 421                 ; exclusive event row
-        call cursor_require_effect_census
+        call exact_require_effect_census
         imm r20, 256
         imm r21, 266
         imm r22, 608
@@ -434,75 +434,4 @@ parse_char_require_censuses:
         imm r23, 2                   ; parse_char explicit and synthetic return
         imm r24, 12                  ; prologue/local/binary stores
         call exact_quiet_scan_region
-        ret
-
-; Exact decoded census for [r20,r21), rejecting direct I/O, halt, byte memory,
-; division, and remainder. r22/r23/r24 are call/ret/store totals.
-exact_quiet_scan_region:
-        mov r25, r20
-        mov r26, r21
-        mov r27, r22
-        mov r28, r23
-        mov r29, r24
-        imm r10, 0
-        imm r11, 0
-        imm r12, 0
-exact_quiet_scan_loop:
-        jlt r25, r26, exact_quiet_scan_pc
-        jeq r10, r27, exact_quiet_scan_rets
-        jmp reject
-exact_quiet_scan_rets:
-        jeq r11, r28, exact_quiet_scan_stores
-        jmp reject
-exact_quiet_scan_stores:
-        jeq r12, r29, exact_quiet_scan_done
-        jmp reject
-exact_quiet_scan_pc:
-        imm r1, 4194304
-        add r1, r25
-        loadb r2, r1
-        imm r3, 1
-        jeq r2, r3, exact_quiet_scan_start
-        jmp exact_quiet_scan_next
-exact_quiet_scan_start:
-        imm r1, 2097152
-        add r1, r25
-        loadb r2, r1
-        imm r3, 19
-        jeq r2, r3, exact_quiet_scan_call
-        imm r3, 20
-        jeq r2, r3, exact_quiet_scan_ret
-        imm r3, 11
-        jeq r2, r3, exact_quiet_scan_store
-        imm r3, 0
-        jeq r2, r3, reject
-        imm r3, 6
-        jeq r2, r3, reject
-        imm r3, 7
-        jeq r2, r3, reject
-        imm r3, 8
-        jeq r2, r3, reject
-        imm r3, 9
-        jeq r2, r3, reject
-        imm r3, 17
-        jeq r2, r3, reject
-        imm r3, 18
-        jeq r2, r3, reject
-        jmp exact_quiet_scan_next
-exact_quiet_scan_call:
-        imm r1, 1
-        add r10, r1
-        jmp exact_quiet_scan_next
-exact_quiet_scan_ret:
-        imm r1, 1
-        add r11, r1
-        jmp exact_quiet_scan_next
-exact_quiet_scan_store:
-        imm r1, 1
-        add r12, r1
-exact_quiet_scan_next:
-        imm r1, 1
-        add r25, r1
-        jmp exact_quiet_scan_loop
-exact_quiet_scan_done:
         ret

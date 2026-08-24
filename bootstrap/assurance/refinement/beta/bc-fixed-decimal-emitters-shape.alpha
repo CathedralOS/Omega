@@ -37,24 +37,24 @@ fixed_decimal_shape_param_proc:
 fixed_decimal_shape_blocks:
         imm r20, 209
         imm r21, 29903
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 210
         imm r21, 30152
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 211
         imm r21, 30305
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 209
         imm r21, 211
         imm r22, 42
-        call cursor_require_proc_blocks
+        call exact_require_proc_blocks
         imm r20, 212
         imm r21, 30596
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 212
         imm r21, 212
         imm r22, 43
-        call cursor_require_proc_blocks
+        call exact_require_proc_blocks
         call fixed_decimal_shape_transitions
         call fixed_decimal_shape_events
         call fixed_decimal_shape_locals
@@ -69,7 +69,7 @@ fixed_decimal_shape_transitions:
         imm r22, 1
         imm r23, 211
         imm r24, 30256              ; checked nslots>0 guard
-        call slurp_summary_require_transition
+        call exact_require_transition
         ret
 
 ; Kind-four helper event in row/block/pc r20..r22.
@@ -81,7 +81,7 @@ fixed_decimal_require_emit_site:
         mov r21, r31
         imm r22, 4
         mov r23, r32
-        call slurp_summary_require_event
+        call exact_require_event
         ret
 
 fixed_decimal_shape_events:
@@ -105,7 +105,7 @@ fixed_decimal_shape_events:
         imm r21, 210
         imm r22, 5
         imm r23, 30304
-        call slurp_summary_require_event
+        call exact_require_event
         imm r20, 321
         imm r21, 211
         imm r22, 30341
@@ -130,16 +130,16 @@ fixed_decimal_shape_events:
         imm r21, 211
         imm r22, 5
         imm r23, 30575
-        call slurp_summary_require_event
+        call exact_require_event
         imm r20, 30285
         imm r21, 30304
-        call slurp_summary_require_epilogue
+        call exact_require_epilogue
         imm r20, 30556
         imm r21, 30575
-        call slurp_summary_require_epilogue
+        call exact_require_epilogue
         imm r20, 30576
         imm r21, 30595
-        call slurp_summary_require_epilogue
+        call exact_require_epilogue
 
         imm r20, 326
         imm r21, 212
@@ -183,7 +183,7 @@ fixed_decimal_shape_events:
         call fixed_decimal_require_emit_site
         imm r20, 31131
         imm r21, 31150
-        call slurp_summary_require_epilogue
+        call exact_require_epilogue
         ret
 
 fixed_decimal_shape_locals:
@@ -326,7 +326,7 @@ fixed_decimal_shape_censuses:
         imm r27, 167
         imm r28, 316
         imm r29, 326                 ; exclusive prologue event row
-        call cursor_require_effect_census
+        call exact_require_effect_census
         imm r20, 209
         imm r21, 211
         imm r22, 532
@@ -349,7 +349,7 @@ fixed_decimal_shape_censuses:
         imm r27, 167                 ; no transitions
         imm r28, 326
         imm r29, 334
-        call cursor_require_effect_census
+        call exact_require_effect_census
         imm r20, 212
         imm r21, 212
         imm r22, 538

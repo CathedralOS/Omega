@@ -23,17 +23,17 @@ parse_number_require_shape:
 parse_number_shape_blocks:
         imm r20, 167
         imm r21, 23672
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 168
         imm r21, 23733
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 169
         imm r21, 23926
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 167
         imm r21, 169
         imm r22, 33
-        call cursor_require_proc_blocks
+        call exact_require_proc_blocks
         call parse_number_require_transitions
         call parse_number_require_events
         call parse_number_require_locals
@@ -48,13 +48,13 @@ parse_number_require_transitions:
         imm r22, 1
         imm r23, 169
         imm r24, 23868              ; checked digit-true guard
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 127
         imm r21, 169
         imm r22, 0
         imm r23, 168
         imm r24, 24116              ; checked body backedge
-        call slurp_summary_require_transition
+        call exact_require_transition
         ret
 
 parse_number_require_events:
@@ -79,7 +79,7 @@ parse_number_require_events:
         imm r21, 168
         imm r22, 5
         imm r23, 23925              ; explicit return v
-        call slurp_summary_require_event
+        call exact_require_event
         imm r20, 271
         imm r21, 169
         imm r22, 24009
@@ -98,10 +98,10 @@ parse_number_require_events:
         call summary_require_call_site
         imm r20, 23906
         imm r21, 23925
-        call slurp_summary_require_epilogue
+        call exact_require_epilogue
         imm r20, 24125
         imm r21, 24144
-        call slurp_summary_require_epilogue
+        call exact_require_epilogue
         ret
 
 parse_number_require_locals:
@@ -221,7 +221,7 @@ parse_number_require_censuses:
         imm r27, 128                 ; exclusive transition row
         imm r28, 268
         imm r29, 273                 ; exclusive event row
-        call cursor_require_effect_census
+        call exact_require_effect_census
         imm r20, 167
         imm r21, 169
         imm r22, 424

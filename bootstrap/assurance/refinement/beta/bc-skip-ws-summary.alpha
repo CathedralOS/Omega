@@ -54,130 +54,130 @@ skip_step_require_shape:
 
         imm r20, 35
         imm r21, 4459
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 36
         imm r21, 4519
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 37
         imm r21, 4692
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 38
         imm r21, 4731
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 39
         imm r21, 4884
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 40
         imm r21, 4893
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 41
         imm r21, 5137
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 42
         imm r21, 5167
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 43
         imm r21, 5217
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 35
         imm r21, 42
         imm r22, 11
-        call cursor_require_proc_blocks
+        call exact_require_proc_blocks
 
         imm r20, 26
         imm r21, 36
         imm r22, 1
         imm r23, 37
         imm r24, 4664
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 27
         imm r21, 36
         imm r22, 0
         imm r23, 38
         imm r24, 4683
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 28
         imm r21, 38
         imm r22, 1
         imm r23, 39
         imm r24, 4835
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 29
         imm r21, 39
         imm r22, 0
         imm r23, 40
         imm r24, 4884
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 30
         imm r21, 40
         imm r22, 1
         imm r23, 42
         imm r24, 4987
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 31
         imm r21, 40
         imm r22, 1
         imm r23, 41
         imm r24, 5100
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 32
         imm r21, 40
         imm r22, 0
         imm r23, 40
         imm r24, 5128
-        call slurp_summary_require_transition
+        call exact_require_transition
 
         ; Exact calls and returns.
         imm r20, 23
         imm r21, 35
         imm r22, 1
         imm r23, 4491
-        call slurp_summary_require_event
+        call exact_require_event
         imm r20, 24
         imm r21, 36
         imm r22, 1
         imm r23, 4570
-        call slurp_summary_require_event
+        call exact_require_event
         imm r20, 25
         imm r21, 37
         imm r22, 1
         imm r23, 4692
-        call slurp_summary_require_event
+        call exact_require_event
         imm r20, 26
         imm r21, 37
         imm r22, 5
         imm r23, 4730
-        call slurp_summary_require_event
+        call exact_require_event
         imm r20, 27
         imm r21, 38
         imm r22, 5
         imm r23, 4883
-        call slurp_summary_require_event
+        call exact_require_event
         imm r20, 28
         imm r21, 40
         imm r22, 1
         imm r23, 4893
-        call slurp_summary_require_event
+        call exact_require_event
         imm r20, 29
         imm r21, 40
         imm r22, 1
         imm r23, 5006
-        call slurp_summary_require_event
+        call exact_require_event
         imm r20, 30
         imm r21, 40
         imm r22, 1
         imm r23, 5119
-        call slurp_summary_require_event
+        call exact_require_event
         imm r20, 31
         imm r21, 41
         imm r22, 5
         imm r23, 5166
-        call slurp_summary_require_event
+        call exact_require_event
         imm r20, 32
         imm r21, 42
         imm r22, 5
         imm r23, 5196
-        call slurp_summary_require_event
+        call exact_require_event
 
         imm r20, 23
         imm r21, 0
@@ -344,19 +344,19 @@ skip_step_require_shape:
 
         imm r20, 4711
         imm r21, 4730
-        call slurp_summary_require_epilogue
+        call exact_require_epilogue
         imm r20, 4864
         imm r21, 4883
-        call slurp_summary_require_epilogue
+        call exact_require_epilogue
         imm r20, 5147
         imm r21, 5166
-        call slurp_summary_require_epilogue
+        call exact_require_epilogue
         imm r20, 5177
         imm r21, 5196
-        call slurp_summary_require_epilogue
+        call exact_require_epilogue
         imm r20, 5197
         imm r21, 5216
-        call slurp_summary_require_epilogue
+        call exact_require_epilogue
 
         imm r20, 4459
         imm r21, 5217
@@ -373,7 +373,7 @@ skip_step_require_shape:
         imm r27, 33
         imm r28, 23
         imm r29, 33                   ; checked exclusive step event row
-        call cursor_require_effect_census
+        call exact_require_effect_census
         ret
 
 ; ---- Exact skip_ws shape ----------------------------------------------
@@ -389,33 +389,33 @@ skip_require_shape:
         call transfer_require_cell
         imm r20, 33
         imm r21, 4277
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 34
         imm r21, 4296
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 35
         imm r21, 4459
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 33
         imm r21, 34
         imm r22, 10
-        call cursor_require_proc_blocks
+        call exact_require_proc_blocks
         imm r20, 25
         imm r21, 34
         imm r22, 1
         imm r23, 34
         imm r24, 4390
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 21
         imm r21, 34
         imm r22, 1
         imm r23, 4296
-        call slurp_summary_require_event
+        call exact_require_event
         imm r20, 22
         imm r21, 34
         imm r22, 5
         imm r23, 4438
-        call slurp_summary_require_event
+        call exact_require_event
         imm r20, 21
         imm r21, 0
         call skip_require_event_arity
@@ -448,10 +448,10 @@ skip_require_shape:
         call transfer_require_push
         imm r20, 4419
         imm r21, 4438
-        call slurp_summary_require_epilogue
+        call exact_require_epilogue
         imm r20, 4439
         imm r21, 4458
-        call slurp_summary_require_epilogue
+        call exact_require_epilogue
         imm r20, 4277
         imm r21, 4459
         imm r22, 1
@@ -467,7 +467,7 @@ skip_require_shape:
         imm r27, 26
         imm r28, 21
         imm r29, 23
-        call cursor_require_effect_census
+        call exact_require_effect_census
         ret
 
 ; ---- skip_ws_step relational composition ------------------------------
@@ -491,16 +491,16 @@ skip_step_prove_summary:
         call skip_step_prove_comment
         imm r20, 526176
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526184
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526192
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526200
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 526168
         imm r2, 1398231892            ; SWST
         store r1, r2
@@ -621,7 +621,7 @@ skip_comment_prove_induction:
         call skip_step_require_result
         imm r20, 526416
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 1
         imm r21, 2
         call skip_step_require_outcome
@@ -648,7 +648,7 @@ skip_comment_prove_induction:
         call skip_step_require_result
         imm r20, 526416
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 0
         imm r21, 2
         call skip_step_require_outcome
@@ -678,10 +678,10 @@ skip_comment_prove_induction:
 
         imm r20, 526192
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526200
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 526208
         imm r2, 1129270605            ; CMIN
         store r1, r2
@@ -693,10 +693,10 @@ skip_comment_require_invariant:
         call skip_require_domain
         imm r20, 526232
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526296
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 ; On the only recursive edge the selected byte proves old CUR<LEN.  adv has
@@ -706,19 +706,19 @@ skip_comment_rank_step:
         call skip_require_domain
         imm r20, 526328
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526232
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526296
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 526304
         imm r2, 1                    ; checked comment rank delta
         store r1, r2
         imm r20, 526304
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 526296
         imm r2, 2                    ; rank=LEN-successor(CUR)
         store r1, r2
@@ -731,19 +731,19 @@ skip_comment_close_backedge:
         call skip_require_domain
         imm r20, 526232
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526296
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526304
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 526312
         imm r2, 2                    ; checked comment successor renaming
         store r1, r2
         imm r20, 526312
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 526232
         imm r2, 1                    ; checked renamed comment cursor
         store r1, r2
@@ -807,7 +807,7 @@ skip_step_load_c:
         load r2, r1
         imm r1, 526240
         load r3, r1
-        jeq r2, r3, cursor_require_ok ; checked stored-c provenance
+        jeq r2, r3, exact_shape_ok ; checked stored-c provenance
         jmp reject
 
 ; Expected is_space result is r20.  The exact argument push/pop carries the
@@ -850,7 +850,7 @@ skip_step_store_result_word:
 skip_step_require_result:
         imm r1, 526256
         load r2, r1
-        jeq r2, r20, cursor_require_ok
+        jeq r2, r20, exact_shape_ok
         jmp reject
 
 skip_step_take_space_edge:
@@ -897,7 +897,7 @@ skip_step_call_adv:
         call skip_require_adv_theorem
         imm r20, 526328
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 526232
         imm r2, 2
         store r1, r2                  ; CUR successor, still <=LEN
@@ -929,15 +929,15 @@ skip_step_outcome_unchanged:
         imm r1, 526232
         load r2, r1
         imm r3, 1
-        jeq r2, r3, cursor_require_ok
+        jeq r2, r3, exact_shape_ok
         jmp reject
 skip_step_outcome_progress:
         imm r1, 526264
         load r2, r1
         imm r3, 1
-        jeq r2, r3, cursor_require_ok
+        jeq r2, r3, exact_shape_ok
         imm r3, 2
-        jeq r2, r3, cursor_require_ok
+        jeq r2, r3, exact_shape_ok
         jmp reject
 
 skip_comment_first_cbyte:
@@ -961,7 +961,7 @@ skip_comment_take_lf_edge:
         jmp reject
 skip_comment_expect_lf:
         imm r3, 4
-        jeq r2, r3, cursor_require_ok
+        jeq r2, r3, exact_shape_ok
         jmp reject
 skip_comment_expect_not_lf:
         imm r3, 4
@@ -983,7 +983,7 @@ skip_comment_second_cbyte:
         call skip_require_cbyte_theorem
         imm r20, 526288
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 526272
         load r2, r1
         jeq r2, r25, skip_comment_second_store
@@ -1000,7 +1000,7 @@ skip_comment_require_opening_c:
         load r2, r1
         imm r1, 526272
         load r3, r1
-        jeq r2, r3, cursor_require_ok
+        jeq r2, r3, exact_shape_ok
         jmp reject
 
 skip_comment_take_zero_edge:
@@ -1013,7 +1013,7 @@ skip_comment_take_zero_edge:
         jmp reject
 skip_comment_expect_zero:
         imm r3, 5
-        jeq r2, r3, cursor_require_ok
+        jeq r2, r3, exact_shape_ok
         jmp reject
 skip_comment_expect_nonzero:
         imm r3, 5
@@ -1069,10 +1069,10 @@ skip_outer_flags_loop:
         jlt r10, r1, skip_outer_flag
         imm r20, 526344
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526432
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 526368
         imm r2, 1398229326            ; SWIN
         store r1, r2
@@ -1103,10 +1103,10 @@ skip_outer_take_clause:
         call skip_outer_require_invariant
         imm r20, 526168
         imm r21, 1398231892
-        call cursor_require_cell
+        call exact_require_cell
         mov r20, r26
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 526352
         store r1, r25
         ret
@@ -1148,10 +1148,10 @@ skip_outer_require_invariant:
         call skip_require_domain
         imm r20, 526424
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526336
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 ; Both result-one step clauses carry strict CUR progress.  Require the
@@ -1161,19 +1161,19 @@ skip_outer_close_backedge:
         call skip_require_domain
         imm r20, 526424
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526336
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526344
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 526432
         imm r2, 2                    ; checked outer successor renaming
         store r1, r2
         imm r20, 526432
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 526424
         imm r2, 1                    ; checked renamed outer cursor
         store r1, r2
@@ -1206,22 +1206,22 @@ skip_require_leaf_theorems:
 skip_require_cbyte_theorem:
         imm r20, 525960
         imm r21, 1128421445
-        jmp cursor_require_cell
+        jmp exact_require_cell
 
 skip_require_adv_theorem:
         imm r20, 525968
         imm r21, 1094992965
-        jmp cursor_require_cell
+        jmp exact_require_cell
 
 skip_require_space_theorem:
         imm r20, 525976
         imm r21, 1397769539
-        jmp cursor_require_cell
+        jmp exact_require_cell
 
 skip_introduce_domain:
         imm r20, 525744
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 526320
         imm r2, 1                    ; SRC segment, 0<=CUR<=LEN<=CAP
         store r1, r2
@@ -1230,7 +1230,7 @@ skip_introduce_domain:
 skip_require_domain:
         imm r20, 526320
         imm r21, 1
-        jmp cursor_require_cell
+        jmp exact_require_cell
 
 skip_require_event_arity:
         mov r2, r20
@@ -1239,7 +1239,7 @@ skip_require_event_arity:
         imm r1, 7143424
         add r1, r2
         load r2, r1
-        jeq r2, r21, cursor_require_ok
+        jeq r2, r21, exact_shape_ok
         jmp reject
 
 ; Region [r20,r21) has exactly r22 ordinary calls and r23 returns, and no
@@ -1257,7 +1257,7 @@ skip_scan_call_loop:
         jeq r10, r27, skip_scan_return_count
         jmp reject
 skip_scan_return_count:
-        jeq r11, r28, cursor_require_ok
+        jeq r11, r28, exact_shape_ok
         jmp reject
 skip_scan_call_pc:
         imm r1, 4194304

@@ -76,13 +76,13 @@ main_slurp_require_shape:
         ; Exact main entry/storage/ready blocks and source ownership.
         imm r20, 349
         imm r21, 51013
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 350
         imm r21, 51073
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 351
         imm r21, 51226
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 3145728
         imm r21, 349
         imm r22, 69
@@ -113,12 +113,12 @@ main_slurp_require_shape:
         imm r21, 349
         imm r22, 1
         imm r23, 51045
-        call slurp_summary_require_event
+        call exact_require_event
         imm r20, 604
         imm r21, 350
         imm r22, 5
         imm r23, 51225
-        call slurp_summary_require_event
+        call exact_require_event
         imm r20, 7143424
         imm r21, 603
         imm r22, 0
@@ -174,7 +174,7 @@ main_slurp_require_shape:
         imm r22, 1
         imm r23, 351
         imm r24, 51177
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 51177
         imm r21, 13                    ; jz
         call require_tape_byte
@@ -194,7 +194,7 @@ main_slurp_require_shape:
         ; The selected failure epilogue ends at its exact source return.
         imm r20, 51206
         imm r21, 51225
-        call slurp_summary_require_epilogue
+        call exact_require_epilogue
         ret
 
 ; The exact root is two stack immediates, call main, then halt r0.  main's

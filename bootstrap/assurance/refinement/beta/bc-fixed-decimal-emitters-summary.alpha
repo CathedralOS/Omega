@@ -39,10 +39,10 @@ fixed_decimal_emitters_summary_init:
 fixed_decimal_require_imports:
         imm r20, 525816
         imm r21, 1465074514            ; WSTR
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528320
         imm r21, 1396917572            ; DECS
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 ; Exhaust the complete caller domain and independently establish
@@ -187,7 +187,7 @@ fixed_decimal_build_prologue_prefix:
         call fixed_decimal_append_fixed
         imm r20, 528656
         imm r21, 46                  ; checked common prologue bytes
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 fixed_decimal_prove_prologue_zero:
@@ -198,7 +198,7 @@ fixed_decimal_prove_prologue_zero:
         store r1, r2
         imm r20, 528576
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 528584
         store r1, r2                  ; compiler state quiet except output
         imm r1, 528592
@@ -207,7 +207,7 @@ fixed_decimal_prove_prologue_zero:
         store r1, r2                  ; returns zero
         imm r20, 528544
         imm r21, 4
-        call cursor_require_cell
+        call exact_require_cell
         call fixed_decimal_require_zero_terminal
         imm r1, 528600
         imm r2, 1
@@ -222,7 +222,7 @@ fixed_decimal_prove_prologue_positive:
         store r1, r2
         imm r20, 528576
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 321
         imm r21, 7
         imm r22, 4
@@ -231,16 +231,16 @@ fixed_decimal_prove_prologue_positive:
 
         imm r20, 528528
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 528568
         imm r2, 1                    ; row535/push316 pass exact 8*nslots
         store r1, r2
         imm r20, 528568
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528320
         imm r21, 1396917572
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 528544
         imm r2, 6                    ; exact trace || dec(8*nslots)
         store r1, r2
@@ -262,7 +262,7 @@ fixed_decimal_prove_prologue_positive:
         call fixed_decimal_append_fixed
         imm r20, 528656
         imm r21, 65                  ; fixed bytes, excluding decimal digits
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 528584
         imm r2, 1
         store r1, r2
@@ -272,10 +272,10 @@ fixed_decimal_prove_prologue_positive:
         store r1, r2                  ; returns zero
         imm r20, 528544
         imm r21, 8
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528624
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         call fixed_decimal_require_zero_terminal
         imm r1, 528608
         imm r2, 1
@@ -286,7 +286,7 @@ fixed_decimal_prove_parameter_store:
         call fixed_decimal_reset_case
         imm r20, 528536
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 326
         imm r21, 11
         imm r22, 0
@@ -303,10 +303,10 @@ fixed_decimal_prove_parameter_store:
         store r1, r2
         imm r20, 528568
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528320
         imm r21, 1396917572
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 528544
         imm r2, 3                    ; exact trace || dec(8+8*k)
         store r1, r2
@@ -337,10 +337,10 @@ fixed_decimal_prove_parameter_store:
         store r1, r2
         imm r20, 528568
         imm r21, 3
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528320
         imm r21, 1396917572
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 528544
         imm r2, 7                    ; exact trace || dec(k)
         store r1, r2
@@ -357,7 +357,7 @@ fixed_decimal_prove_parameter_store:
         call fixed_decimal_append_fixed
         imm r20, 528656
         imm r21, 40                  ; fixed bytes, excluding decimal digits
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 528584
         imm r2, 1
         store r1, r2
@@ -365,10 +365,10 @@ fixed_decimal_prove_parameter_store:
         store r1, r2                  ; synthetic epilogue restores caller
         imm r20, 528544
         imm r21, 8
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528624
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         call fixed_decimal_require_restored
         imm r1, 528616
         imm r2, 1
@@ -378,44 +378,44 @@ fixed_decimal_prove_parameter_store:
 fixed_decimal_require_restored:
         imm r20, 528552
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528584
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528592
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 fixed_decimal_require_zero_terminal:
         call fixed_decimal_require_restored
         imm r20, 528648
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 fixed_decimal_publish:
         imm r20, 528528
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528632
         imm r21, 1025
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528536
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528640
         imm r21, 4
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528600
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528608
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528616
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 528512
         imm r2, 1330794565            ; EPRO
         store r1, r2

@@ -24,20 +24,20 @@ emit_dec_require_shape:
 emit_dec_shape_blocks:
         imm r20, 204
         imm r21, 29152
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 205
         imm r21, 29203
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 206
         imm r21, 29335
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 207
         imm r21, 29452
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 204
         imm r21, 207
         imm r22, 40
-        call cursor_require_proc_blocks
+        call exact_require_proc_blocks
         call emit_dec_require_transitions
         call emit_dec_require_events
         call emit_dec_require_locals
@@ -52,19 +52,19 @@ emit_dec_require_transitions:
         imm r22, 1
         imm r23, 206
         imm r24, 29307              ; checked n>=10 recursive guard
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 164
         imm r21, 205
         imm r22, 0
         imm r23, 207
         imm r24, 29326              ; checked direct digit edge
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 165
         imm r21, 206
         imm r22, 0
         imm r23, 207
         imm r24, 29443              ; checked post-recursion digit edge
-        call slurp_summary_require_transition
+        call exact_require_transition
         ret
 
 emit_dec_require_events:
@@ -80,18 +80,18 @@ emit_dec_require_events:
         imm r21, 207
         imm r22, 3
         imm r23, 29567              ; checked direct digit write
-        call slurp_summary_require_event
+        call exact_require_event
         imm r20, 310
         imm r21, 207
         imm r22, 5
         imm r23, 29598              ; checked source return zero
-        call slurp_summary_require_event
+        call exact_require_event
         imm r20, 29579
         imm r21, 29598
-        call slurp_summary_require_epilogue
+        call exact_require_epilogue
         imm r20, 29599
         imm r21, 29618
-        call slurp_summary_require_epilogue
+        call exact_require_epilogue
         ret
 
 emit_dec_require_locals:
@@ -211,7 +211,7 @@ emit_dec_require_censuses:
         imm r27, 166                 ; exclusive transition row
         imm r28, 308
         imm r29, 311                 ; exclusive event row
-        call cursor_require_effect_census
+        call exact_require_effect_census
 
         imm r20, 204
         imm r21, 207

@@ -23,17 +23,17 @@ emit_ident_require_shape:
 emit_ident_shape_blocks:
         imm r20, 214
         imm r21, 31465
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 215
         imm r21, 31564
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 216
         imm r21, 31726
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 214
         imm r21, 216
         imm r22, 45
-        call cursor_require_proc_blocks
+        call exact_require_proc_blocks
         call emit_ident_require_transitions
         call emit_ident_require_events
         call emit_ident_require_locals
@@ -49,13 +49,13 @@ emit_ident_require_transitions:
         imm r22, 1
         imm r23, 216
         imm r24, 31677              ; checked k<len guard
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 168
         imm r21, 216
         imm r22, 0
         imm r23, 215
         imm r24, 31941              ; checked strict-successor backedge
-        call slurp_summary_require_transition
+        call exact_require_transition
         ret
 
 emit_ident_require_events:
@@ -63,18 +63,18 @@ emit_ident_require_events:
         imm r21, 215
         imm r22, 5
         imm r23, 31725              ; checked explicit return zero
-        call slurp_summary_require_event
+        call exact_require_event
         imm r20, 340
         imm r21, 216
         imm r22, 3
         imm r23, 31853              ; checked direct write_byte lowering
-        call slurp_summary_require_event
+        call exact_require_event
         imm r20, 31706
         imm r21, 31725
-        call slurp_summary_require_epilogue
+        call exact_require_epilogue
         imm r20, 31950
         imm r21, 31969
-        call slurp_summary_require_epilogue
+        call exact_require_epilogue
         ret
 
 emit_ident_require_locals:
@@ -217,7 +217,7 @@ emit_ident_require_censuses:
         imm r27, 169                 ; exclusive transition row
         imm r28, 339
         imm r29, 341                 ; exclusive event row
-        call cursor_require_effect_census
+        call exact_require_effect_census
 
         imm r20, 214
         imm r21, 216

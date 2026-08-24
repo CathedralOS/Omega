@@ -34,16 +34,16 @@ gen_stmts_boundary_summary_init:
 gen_stmts_boundary_require_imports:
         imm r20, 525960
         imm r21, 1128421445            ; CBLE exact cbyte
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 525968
         imm r21, 1094992965            ; ADVE exact adv
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526216
         imm r21, 1398231888            ; SWSQ terminating skip_ws
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526320
         imm r21, 1                     ; successful SRC/cursor domain
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 528864
         imm r2, 1
         store r1, r2
@@ -176,7 +176,7 @@ gen_stmts_boundary_context_hidden:
         add r1, r16
         load r2, r1
         imm r3, 0
-        jlt r3, r2, cursor_require_ok
+        jlt r3, r2, exact_shape_ok
         jmp reject
 
 gen_stmts_boundary_reset_case:
@@ -247,19 +247,19 @@ gen_stmts_boundary_introduce_admitted:
 gen_stmts_boundary_restore_admitted:
         imm r20, 528904
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528960
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529024
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528952
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528984
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 gen_stmts_boundary_prove_resource_return:
@@ -384,152 +384,152 @@ gen_stmts_boundary_require_admitted:
         call gen_stmts_boundary_restore_admitted
         imm r20, 528944
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529056
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 gen_stmts_boundary_require_return:
         imm r20, 528992
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529000
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528944
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529056
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 gen_stmts_boundary_require_depth_exhaustion:
         imm r20, 528896
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528976
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528968
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529016
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529040
         imm r21, 44337
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 gen_stmts_boundary_require_resource_return:
         imm r20, 528912
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528976
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528968
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529016
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529040
         imm r21, 45254
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 gen_stmts_boundary_require_close_return:
         imm r20, 529008
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529016
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528976
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528968
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529040
         imm r21, 44842
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 gen_stmts_boundary_require_eof_return:
         imm r20, 529008
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528976
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528968
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529016
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529040
         imm r21, 45118
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 gen_stmts_boundary_require_cutpoint:
         call gen_stmts_boundary_restore_admitted
         imm r20, 529008
         imm r21, 3
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528976
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529016
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529032
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529048
         imm r21, 44956
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528936
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528944
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 gen_stmts_boundary_publish:
         imm r20, 528872
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528880
         imm r21, 65
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528888
         imm r21, 64
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529088
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529096
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529104
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529112
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529120
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529080
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 529064
         imm r2, 1                    ; four returns plus child cutpoint complete
         store r1, r2

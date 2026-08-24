@@ -42,16 +42,16 @@ expect_prove_summary:
 expect_require_imports:
         imm r20, 526216
         imm r21, 1398231888           ; SWSQ
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 525960
         imm r21, 1128421445           ; CBLE
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 525968
         imm r21, 1094992965           ; ADVE
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526320
         imm r21, 1                    ; SRC segment, 0<=CUR<=LEN<=CAP
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 expect_introduce_premise:
@@ -68,7 +68,7 @@ expect_call_skip_ws:
         call expect_require_premise
         imm r20, 526216
         imm r21, 1398231888           ; imported terminating skip_ws
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 526984
         imm r2, 1                    ; checked whitespace-normalized cursor
         store r1, r2
@@ -80,7 +80,7 @@ expect_prove_mismatch:
         call expect_call_cbyte_compare
         imm r20, 527008
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 527024
         imm r2, 1                    ; checked mismatch preserves normalized CUR
         store r1, r2
@@ -98,7 +98,7 @@ expect_prove_match:
         call expect_call_cbyte_compare
         imm r20, 527008
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         ; Since ch is nonzero, equality excludes cbyte's logical-end/NUL zero
         ; and proves the selected source byte is in range before adv.
         imm r1, 527016
@@ -106,10 +106,10 @@ expect_prove_match:
         store r1, r2
         imm r20, 525968
         imm r21, 1094992965           ; imported adv on matched byte
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527016
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 527024
         imm r2, 2                    ; checked match consumes exactly one byte
         store r1, r2
@@ -126,7 +126,7 @@ expect_reset_case:
         call expect_require_premise
         imm r20, 526984
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 526992
         imm r2, 0
         store r1, r2
@@ -165,61 +165,61 @@ expect_comparison_selected:
 expect_require_premise:
         imm r20, 526968
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526976
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527032
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 expect_require_mismatch:
         imm r20, 526992
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527000
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527008
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527024
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527040
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 expect_require_match:
         imm r20, 526992
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527000
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527008
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527016
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527024
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527040
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 expect_publish_summary:
         imm r20, 527048
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527056
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 526960
         imm r2, 1397774405            ; EXPS
         store r1, r2

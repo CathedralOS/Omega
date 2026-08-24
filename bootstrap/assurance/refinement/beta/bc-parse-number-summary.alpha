@@ -53,22 +53,22 @@ parse_number_reset_completion:
 parse_number_require_imports:
         imm r20, 525960
         imm r21, 1128421445           ; CBLE exact cbyte
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 525968
         imm r21, 1094992965           ; ADVE exact adv
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526672
         imm r21, 1413629764           ; DGBT exact ASCII digit classifier
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526696
         imm r21, 1                    ; classifier byte domain
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526784
         imm r21, 1                    ; classifier quiet/restored frame
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526320
         imm r21, 1                    ; successful SRC/cursor domain
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 529152
         imm r2, 1
         store r1, r2
@@ -213,10 +213,10 @@ parse_number_prove_step:
         call parse_number_select_first_observation
         imm r20, 529232
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529376
         imm r21, 1                   ; checked true-digit in-range premise
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 529240
         imm r2, 1                    ; no cursor write between observations
         store r1, r2
@@ -290,129 +290,129 @@ parse_number_reset_iteration:
 parse_number_require_invariant:
         imm r20, 529152
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529160
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529168
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529176
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529184
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529192
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529200
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529208
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529312
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529368
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 parse_number_require_stop:
         call parse_number_require_invariant
         imm r20, 529216
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529224
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529232
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529296
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529304
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529320
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 parse_number_require_step:
         call parse_number_require_invariant
         imm r20, 529216
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529224
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529232
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529376
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529240
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529248
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529256
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529264
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529360
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529408
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529392
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529400
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529272
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529280
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 525968
         imm r21, 1094992965           ; ADVE on proven in-range digit
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529352
         imm r21, 10
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529384
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 parse_number_close_backedge:
         imm r20, 529272
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529280
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529408
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529392
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529400
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 529288
         imm r2, 2                    ; checked successor-to-current rename
         store r1, r2
@@ -433,22 +433,22 @@ parse_number_close_backedge:
 parse_number_publish:
         imm r20, 529328
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529336
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529344
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529352
         imm r21, 10
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529384
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 529288
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 529144
         imm r2, 1297436240            ; PNUM
         store r1, r2

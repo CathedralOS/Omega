@@ -830,9 +830,34 @@ summary consumes every prior equal-byte join, so later bytes are not read after
 a mismatch. Each predicate emits nothing, preserves source/input/CUR/compiler
 state, and restores its frame. Forty-two phase-isolated canaries live in a
 10,985-byte harness; core/data shape, cases, and summary are 11,327, 3,835,
-4,677, and 13,566 bytes. `BC_BLOCK_FOCUS=fixed-keyword` passes with a
-261,998-byte checker. This does not close `name_eq`, `lookup`, or the expression
-SCC.
+4,677, and 13,566 bytes. The mechanically split Checker A uses an explicit
+post-stack continuation token; `BC_BLOCK_FOCUS=fixed-keyword` passes its 42
+theorem canaries plus the continuation canary with a 262,057-byte checker.
+This does not close `lookup` or the expression SCC.
+
+`bc-name-table-domain.alpha`, `bc-name-eq-control-shape.alpha`,
+`bc-name-eq-data-shape.alpha`, and `bc-name-eq-summary.alpha` form independent
+Checker B. It re-executes the lower-rooted structural/frame/stack premises and
+uses a distinct checked post-stack continuation, so it imports no process-local
+cells from Checker A. The conditional `NPFX/QNAME` domain admits `0<=n<=1024`,
+valid possibly-empty source slices for all selected table entries and the
+current identifier, duplicate names, and `0<=i<n`; an exhaustive 1,024-row
+address sweep keeps NAMEOFF/NAMELEN word extents aligned and disjoint. Exact
+procedure-35 shape binds blocks 173..178, transitions 129..133, events
+275..277, locals 76..89, memory rows 44..50, primitives 451..476, pushes
+118..129, its 48-byte frame, four epilogues, and the decoded
+zero-call/four-return/19-store/two-loadb read-only footprint at PCs
+24914..26113. Under the carried domain, unequal lengths return zero before
+NAMEOFF or source-byte access; equal lengths compare left-to-right, return zero
+at the first unequal byte, and return one exactly when the full slices match.
+The `len-k` rank and a non-aliasing successor-prefix cell close the backedge;
+source/input/output/CUR/compiler state is preserved and the caller frame is
+restored. Shared exact-shape helpers are 11,801 bytes; domain/control/data/
+meaning modules are 6,430/6,254/9,426/10,190 bytes. Thirty-two isolated
+continuation, helper, shape, domain, footprint, and semantic canaries pass in
+`BC_BLOCK_FOCUS=name-eq` with a 100,856-byte Checker B. This is conditional
+`name_eq`, not establishment of the dynamic prefix and not `lookup`; the
+source's deliberate no-match alias to slot zero remains open.
 
 The eventual `parse_proc` theorem must be maximal, not universally terminating.
 For malformed input, an unrecognized body byte such as `@` can survive both

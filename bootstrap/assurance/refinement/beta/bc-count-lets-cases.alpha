@@ -36,13 +36,13 @@ count_lets_prove_skip_ws_outside:
         ; effects. CBYE supplies zero for every nonnegative CUR>=LEN.
         imm r20, 526216
         imm r21, 1398231888           ; SWSQ
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 525960
         imm r21, 1128421445           ; CBYE
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 525976
         imm r21, 1397769539           ; SPCE
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 527544
         imm r2, 1                    ; checked LEN<CUR<=LEN+2 premise
         store r1, r2
@@ -61,16 +61,16 @@ count_lets_prove_skip_ws_outside:
 count_lets_require_skip_ws_outside:
         imm r20, 527544
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527552
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527560
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527568
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 ; ---- Exhaustive body clauses -----------------------------------------
@@ -114,7 +114,7 @@ count_lets_case_reset:
         call count_lets_require_case_imports
         imm r20, 527584
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 1
         jeq r25, r1, count_lets_case_mode_ok
         imm r1, 2
@@ -199,16 +199,16 @@ count_lets_require_zero_case:
         mov r25, r20
         imm r20, 527592
         mov r21, r25
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527608
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527616
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527624
         imm r21, 4                    ; exact zero-depth update
-        call cursor_require_cell
+        call exact_require_cell
         call count_lets_require_unchanged_count_state
         ret
 
@@ -221,7 +221,7 @@ count_lets_case_char:
         store r1, r2
         imm r20, 527352
         imm r21, 1128808786           ; CHSK
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 527616
         imm r2, 2                    ; strict progress, exit<=LEN+2
         store r1, r2
@@ -242,7 +242,7 @@ count_lets_case_string:
         store r1, r2
         imm r20, 527360
         imm r21, 1398035027           ; STRS
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 527616
         imm r2, 2                    ; strict progress, exit<=LEN+1
         store r1, r2
@@ -340,13 +340,13 @@ count_lets_compose_identifier_case:
         store r1, r25                 ; exact alpha category
         imm r20, 526680
         imm r21, 1413631041           ; ALBT
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526792
         imm r21, 1396984146           ; RIDS, maximal nonempty prefix here
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527192
         imm r21, 1413827657           ; ILET
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 527616
         imm r2, 2                    ; read_ident strictly advances
         store r1, r2
@@ -365,7 +365,7 @@ count_lets_compose_identifier_case:
         call count_lets_require_progress_case
         imm r20, 527632
         mov r21, r26
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 count_lets_case_other:
@@ -405,13 +405,13 @@ count_lets_require_progress_case:
         mov r25, r20
         imm r20, 527592
         imm r21, 1                    ; every progressing case is in range
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527608
         mov r21, r25
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527616
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 527608
         load r2, r1
         imm r1, 4
@@ -420,42 +420,42 @@ count_lets_require_progress_case:
         jeq r2, r1, count_lets_require_close_depth
         imm r20, 527624
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         jmp count_lets_require_progress_quiet
 count_lets_require_open_depth:
         imm r20, 527624
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         jmp count_lets_require_progress_quiet
 count_lets_require_close_depth:
         imm r20, 527624
         imm r21, 3
-        call cursor_require_cell
+        call exact_require_cell
 count_lets_require_progress_quiet:
         imm r20, 527648
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 count_lets_require_unchanged_count_state:
         imm r20, 527632
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527640
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527648
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 count_lets_require_in_range_byte:
         imm r20, 527592
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527600
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 count_lets_publish_cases:
@@ -487,16 +487,16 @@ count_lets_publish_case_next:
 count_lets_require_case_imports:
         imm r20, 526216
         imm r21, 1398231888           ; SWSQ
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527536
         imm r21, 1398231896           ; SWSX
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 525960
         imm r21, 1128421445           ; CBYE
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 525968
         imm r21, 1094992965           ; ADVE
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 count_lets_call_skip_ws:
@@ -510,26 +510,26 @@ count_lets_call_skip_ws:
 count_lets_call_skip_ws_inside:
         imm r20, 526216
         imm r21, 1398231888
-        call cursor_require_cell
+        call exact_require_cell
         ret
 count_lets_call_skip_ws_outside:
         imm r20, 527536
         imm r21, 1398231896
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 count_lets_call_cbyte:
         imm r20, 525960
         imm r21, 1128421445
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527600
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 count_lets_call_adv:
         imm r20, 525968
         imm r21, 1094992965
-        call cursor_require_cell
+        call exact_require_cell
         call count_lets_require_in_range_byte
         ret

@@ -18,44 +18,44 @@ cmp_op_require_shape:
 cmp_op_shape_blocks:
         imm r20, 273
         imm r21, 39297
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 274
         imm r21, 39357
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 275
         imm r21, 39489
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 276
         imm r21, 39641
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 277
         imm r21, 39680
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 278
         imm r21, 39812
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 279
         imm r21, 39964
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 280
         imm r21, 40003
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 281
         imm r21, 40135
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 282
         imm r21, 40183
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 283
         imm r21, 40384
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 284
         imm r21, 40680
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 273
         imm r21, 284
         imm r22, 59
-        call cursor_require_proc_blocks
+        call exact_require_proc_blocks
         call cmp_op_require_transitions
         call cmp_op_require_events
         call cmp_op_require_locals_memory
@@ -70,61 +70,61 @@ cmp_op_require_transitions:
         imm r22, 1
         imm r23, 275
         imm r24, 39461                ; first byte '<'
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 216
         imm r21, 274
         imm r22, 0
         imm r23, 277
         imm r24, 39480
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 217
         imm r21, 275
         imm r22, 1
         imm r23, 276
         imm r24, 39592                ; '<' lookahead '='
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 218
         imm r21, 277
         imm r22, 1
         imm r23, 278
         imm r24, 39784                ; first byte '>'
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 219
         imm r21, 277
         imm r22, 0
         imm r23, 280
         imm r24, 39803
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 220
         imm r21, 278
         imm r22, 1
         imm r23, 279
         imm r24, 39915                ; '>' lookahead '='
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 221
         imm r21, 280
         imm r22, 1
         imm r23, 281
         imm r24, 40107                ; first byte '!'
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 222
         imm r21, 280
         imm r22, 0
         imm r23, 282
         imm r24, 40126
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 223
         imm r21, 282
         imm r22, 1
         imm r23, 283
         imm r24, 40287                ; first byte '='
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 224
         imm r21, 283
         imm r22, 1
         imm r23, 284
         imm r24, 40519                ; '=' lookahead '='
-        call slurp_summary_require_transition
+        call exact_require_transition
         ret
 
 cmp_op_require_events:
@@ -156,7 +156,7 @@ cmp_op_require_events:
         imm r21, 275
         imm r22, 5
         imm r23, 39640
-        call slurp_summary_require_event
+        call exact_require_event
         imm r20, 447
         imm r21, 276
         imm r22, 39641
@@ -169,7 +169,7 @@ cmp_op_require_events:
         imm r21, 276
         imm r22, 5
         imm r23, 39679
-        call slurp_summary_require_event
+        call exact_require_event
         imm r20, 449
         imm r21, 278
         imm r22, 39812
@@ -190,7 +190,7 @@ cmp_op_require_events:
         imm r21, 278
         imm r22, 5
         imm r23, 39963
-        call slurp_summary_require_event
+        call exact_require_event
         imm r20, 452
         imm r21, 279
         imm r22, 39964
@@ -203,7 +203,7 @@ cmp_op_require_events:
         imm r21, 279
         imm r22, 5
         imm r23, 40002
-        call slurp_summary_require_event
+        call exact_require_event
         imm r20, 454
         imm r21, 281
         imm r22, 40135
@@ -224,12 +224,12 @@ cmp_op_require_events:
         imm r21, 281
         imm r22, 5
         imm r23, 40182
-        call slurp_summary_require_event
+        call exact_require_event
         imm r20, 457
         imm r21, 282
         imm r22, 5
         imm r23, 40383
-        call slurp_summary_require_event
+        call exact_require_event
         imm r20, 458
         imm r21, 283
         imm r22, 40416
@@ -250,7 +250,7 @@ cmp_op_require_events:
         imm r21, 283
         imm r22, 5
         imm r23, 40679
-        call slurp_summary_require_event
+        call exact_require_event
         imm r20, 461
         imm r21, 284
         imm r22, 40680
@@ -263,38 +263,38 @@ cmp_op_require_events:
         imm r21, 284
         imm r22, 5
         imm r23, 40718
-        call slurp_summary_require_event
+        call exact_require_event
         call cmp_op_require_epilogues
         ret
 
 cmp_op_require_epilogues:
         imm r20, 39621
         imm r21, 39640
-        call slurp_summary_require_epilogue
+        call exact_require_epilogue
         imm r20, 39660
         imm r21, 39679
-        call slurp_summary_require_epilogue
+        call exact_require_epilogue
         imm r20, 39944
         imm r21, 39963
-        call slurp_summary_require_epilogue
+        call exact_require_epilogue
         imm r20, 39983
         imm r21, 40002
-        call slurp_summary_require_epilogue
+        call exact_require_epilogue
         imm r20, 40163
         imm r21, 40182
-        call slurp_summary_require_epilogue
+        call exact_require_epilogue
         imm r20, 40364
         imm r21, 40383
-        call slurp_summary_require_epilogue
+        call exact_require_epilogue
         imm r20, 40660
         imm r21, 40679
-        call slurp_summary_require_epilogue
+        call exact_require_epilogue
         imm r20, 40699
         imm r21, 40718
-        call slurp_summary_require_epilogue
+        call exact_require_epilogue
         imm r20, 40719
         imm r21, 40738
-        call slurp_summary_require_epilogue
+        call exact_require_epilogue
         ret
 
 cmp_op_require_locals_memory:
@@ -589,7 +589,7 @@ cmp_op_require_censuses:
         imm r27, 225                 ; exclusive transition row
         imm r28, 443
         imm r29, 463                 ; exclusive event row
-        call cursor_require_effect_census
+        call exact_require_effect_census
         imm r20, 273
         imm r21, 284
         imm r22, 628

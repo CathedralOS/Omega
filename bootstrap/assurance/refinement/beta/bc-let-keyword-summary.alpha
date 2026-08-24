@@ -26,7 +26,7 @@ let_keyword_summary_init:
 let_keyword_require_slice_schema:
         imm r20, 526792
         imm r21, 1396984146           ; RIDS
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 let_keyword_prove_id_char:
@@ -54,19 +54,19 @@ let_keyword_prove_id_char:
 let_keyword_require_id_char_relation:
         imm r20, 527200
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527208
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527216
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527224
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527312
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 let_keyword_prove_is_let:
@@ -94,13 +94,13 @@ let_keyword_prove_is_let:
 let_keyword_reset_case:
         imm r20, 527184
         imm r21, 1212367945            ; IDCH
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527200
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527224
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 527232
         imm r2, 0
         store r1, r2
@@ -123,7 +123,7 @@ let_keyword_prove_length_mismatch:
         store r1, r2                  ; return zero
         imm r20, 527232
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         call let_keyword_require_zero_result
         imm r1, 527272
         imm r2, 1
@@ -144,10 +144,10 @@ let_keyword_prove_l_mismatch:
         store r1, r2                  ; return zero
         imm r20, 527232
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527240
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         call let_keyword_require_zero_result
         imm r1, 527280
         imm r2, 1
@@ -173,13 +173,13 @@ let_keyword_prove_e_mismatch:
         store r1, r2                  ; return zero
         imm r20, 527232
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527240
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527248
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         call let_keyword_require_zero_result
         imm r1, 527288
         imm r2, 1
@@ -210,16 +210,16 @@ let_keyword_prove_t_mismatch:
         store r1, r2                  ; return zero
         imm r20, 527232
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527240
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527248
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527256
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         call let_keyword_require_zero_result
         imm r1, 527296
         imm r2, 1
@@ -260,7 +260,7 @@ let_keyword_call_id_char:
         mov r25, r20
         imm r20, 527232
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 0
         jlt r25, r1, reject
         imm r1, 3
@@ -269,7 +269,7 @@ let_keyword_call_id_char:
 let_keyword_id_char_index_ok:
         imm r20, 527184
         imm r21, 1212367945            ; IDCH
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 527208
         imm r2, 1                    ; checked call-specific k bound
         store r1, r2
@@ -281,52 +281,52 @@ let_keyword_id_char_index_ok:
 let_keyword_require_zero_result:
         imm r20, 527264
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527224
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527312
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 let_keyword_require_one_result:
         imm r20, 527232
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527240
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527248
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527256
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527264
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527312
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 let_keyword_publish_is_let:
         imm r20, 527272
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527280
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527288
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527296
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527304
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 527192
         imm r2, 1413827657            ; ILET
         store r1, r2

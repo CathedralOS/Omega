@@ -41,7 +41,7 @@ emit_ident_prove_summary:
 emit_ident_introduce_entry:
         imm r20, 526320
         imm r21, 1                    ; checked successful source segment
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 528200
         imm r2, 1                    ; checked 0<=off<=off+len<=LEN
         store r1, r2
@@ -62,7 +62,7 @@ emit_ident_introduce_entry:
 emit_ident_reset_iteration:
         imm r20, 528200
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 528208
         imm r2, 1
         store r1, r2
@@ -124,10 +124,10 @@ emit_ident_prove_step:
 emit_ident_close_backedge:
         imm r20, 528248
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528256
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         ; Capture-avoiding successor-to-current renaming.
         imm r1, 528216
         imm r2, 1                    ; checked successor k renamed
@@ -168,10 +168,10 @@ emit_ident_prove_stop:
 emit_ident_publish_summary:
         imm r20, 528288
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528296
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 528192
         imm r2, 1396984133            ; EIDS
         store r1, r2
@@ -180,59 +180,59 @@ emit_ident_publish_summary:
 emit_ident_require_invariant:
         imm r20, 528200
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528208
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528216
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528224
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528232
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528304
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 emit_ident_require_step:
         imm r20, 528312
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528240
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528232
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528216
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528224
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528304
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 emit_ident_require_stop:
         imm r20, 528312
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528272
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528232
         imm r21, 3
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528280
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528304
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         ret

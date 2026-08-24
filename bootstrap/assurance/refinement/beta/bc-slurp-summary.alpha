@@ -35,6 +35,9 @@
 ; Rank tags 30=CAP-N, 31=CAP-(N+1).
 
 slurp_summary_init:
+        imm r20, 531840
+        imm r21, 1481003091           ; SPFX fixed/historical continuation
+        call exact_require_cell
         call slurp_summary_require_shape
         call slurp_summary_scan_effects
         call slurp_summary_prove_induction
@@ -56,22 +59,22 @@ slurp_summary_require_shape:
         ; Exact cutpoints [entry,loop,body,full,done].
         imm r20, 0
         imm r21, 83
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 1
         imm r21, 165
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 2
         imm r21, 297
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 3
         imm r21, 657
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 4
         imm r21, 687
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 5
         imm r21, 1131
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
 
         ; Exact source transitions and their Alpha control roots/targets.
         imm r20, 0
@@ -79,25 +82,25 @@ slurp_summary_require_shape:
         imm r22, 1
         imm r23, 2
         imm r24, 269
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 1
         imm r21, 1
         imm r22, 0
         imm r23, 4
         imm r24, 288
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 2
         imm r21, 2
         imm r22, 1
         imm r23, 3
         imm r24, 401
-        call slurp_summary_require_transition
+        call exact_require_transition
         imm r20, 3
         imm r21, 2
         imm r22, 0
         imm r23, 1
         imm r24, 648
-        call slurp_summary_require_transition
+        call exact_require_transition
 
         ; All ten source local actions in the selected procedure.
         imm r20, 0
@@ -216,22 +219,22 @@ slurp_summary_require_shape:
         imm r21, 0
         imm r22, 2
         imm r23, 144
-        call slurp_summary_require_event
+        call exact_require_event
         imm r20, 1
         imm r21, 2
         imm r22, 2
         imm r23, 627
-        call slurp_summary_require_event
+        call exact_require_event
         imm r20, 2
         imm r21, 3
         imm r22, 5
         imm r23, 686
-        call slurp_summary_require_event
+        call exact_require_event
         imm r20, 3
         imm r21, 4
         imm r22, 5
         imm r23, 1110
-        call slurp_summary_require_event
+        call exact_require_event
 
         ; Semantic roots: n/c guards, endpoint address/payload, increment,
         ; success footprint, and both result values. Earlier phases already
@@ -444,69 +447,6 @@ slurp_summary_require_shape:
         call transfer_require_push
         ret
 
-slurp_summary_require_block_pc:
-        imm r1, 8
-        mul r20, r1
-        imm r1, 3235840
-        add r1, r20
-        load r2, r1
-        jeq r2, r21, slurp_summary_require_ok
-        jmp reject
-
-; Transition row/source-block/guarded/target/control-pc in r20..r24.
-slurp_summary_require_transition:
-        mov r25, r20
-        imm r1, 8
-        mul r25, r1
-        imm r1, 3215360
-        add r1, r25
-        load r2, r1
-        jeq r2, r21, slurp_summary_transition_guard
-        jmp reject
-slurp_summary_transition_guard:
-        imm r1, 3227648
-        add r1, r25
-        load r2, r1
-        jeq r2, r22, slurp_summary_transition_target
-        jmp reject
-slurp_summary_transition_target:
-        imm r1, 3231744
-        add r1, r25
-        load r2, r1
-        jeq r2, r23, slurp_summary_transition_pc
-        jmp reject
-slurp_summary_transition_pc:
-        imm r1, 3239936
-        add r1, r25
-        load r2, r1
-        jeq r2, r24, slurp_summary_require_ok
-        jmp reject
-
-; Event row/block/kind/pc in r20..r23.
-slurp_summary_require_event:
-        mov r25, r20
-        imm r1, 8
-        mul r25, r1
-        imm r1, 7077888
-        add r1, r25
-        load r2, r1
-        jeq r2, r21, slurp_summary_event_kind
-        jmp reject
-slurp_summary_event_kind:
-        imm r1, 7086080
-        add r1, r25
-        load r2, r1
-        jeq r2, r22, slurp_summary_event_pc
-        jmp reject
-slurp_summary_event_pc:
-        imm r1, 7135232
-        add r1, r25
-        load r2, r1
-        jeq r2, r23, slurp_summary_require_ok
-        jmp reject
-slurp_summary_require_ok:
-        ret
-
 ; The selected region is intrinsic-read-only.  Exhaustively scanning decoded
 ; starts rules out output, ordinary calls, halt, and hidden extra effects.
 slurp_summary_scan_effects:
@@ -561,90 +501,13 @@ slurp_summary_effect_return_count:
 slurp_summary_require_epilogues:
         imm r20, 667
         imm r21, 686
-        call slurp_summary_require_epilogue
+        call exact_require_epilogue
         imm r20, 1091
         imm r21, 1110
-        call slurp_summary_require_epilogue
+        call exact_require_epilogue
         imm r20, 1111
         imm r21, 1130
-        call slurp_summary_require_epilogue
-        ret
-
-; Exact 19-byte caller-pair restoration at r20, ret at r21. The all-procedure
-; frame phase already proves the corresponding saved-fp token dynamically.
-slurp_summary_require_epilogue:
-        mov r25, r20
-        mov r26, r21
-        mov r2, r25
-        imm r1, 19
-        add r2, r1
-        jeq r2, r26, slurp_summary_epilogue_ret_linked
-        jmp reject
-slurp_summary_epilogue_ret_linked:
-        mov r20, r25
-        imm r21, 2                    ; mov
-        call require_tape_byte
-        mov r20, r25
-        imm r1, 1
-        add r20, r1
-        imm r21, 15
-        call require_tape_byte
-        mov r20, r25
-        imm r1, 2
-        add r20, r1
-        imm r21, 14
-        call require_tape_byte
-        mov r20, r25
-        imm r1, 3
-        add r20, r1
-        imm r21, 10
-        call require_tape_byte
-        mov r20, r25
-        imm r1, 4
-        add r20, r1
-        imm r21, 14
-        call require_tape_byte
-        mov r20, r25
-        imm r1, 5
-        add r20, r1
-        imm r21, 15
-        call require_tape_byte
-        mov r20, r25
-        imm r1, 6
-        add r20, r1
-        imm r21, 1
-        call require_tape_byte
-        mov r20, r25
-        imm r1, 7
-        add r20, r1
-        imm r21, 2
-        call require_tape_byte
-        mov r20, r25
-        imm r1, 8
-        add r20, r1
-        imm r21, 8
-        call require_tape_word
-        mov r20, r25
-        imm r1, 16
-        add r20, r1
-        imm r21, 3
-        call require_tape_byte
-        mov r20, r25
-        imm r1, 17
-        add r20, r1
-        imm r21, 15
-        call require_tape_byte
-        mov r20, r25
-        imm r1, 18
-        add r20, r1
-        imm r21, 2
-        call require_tape_byte
-        ; Recompute ret pc as start+19 and require exact ret.
-        mov r20, r25
-        imm r1, 19
-        add r20, r1
-        imm r21, 20
-        call require_tape_byte
+        call exact_require_epilogue
         ret
 
 ; ---- Executable relational induction -----------------------------------
@@ -834,11 +697,11 @@ slurp_summary_require_successor:
         jmp reject
 slurp_summary_successor_n:
         imm r1, 2
-        jeq r21, r1, slurp_summary_require_ok
+        jeq r21, r1, exact_shape_ok
         jmp reject
 slurp_summary_successor_n1:
         imm r1, 3
-        jeq r21, r1, slurp_summary_require_ok
+        jeq r21, r1, exact_shape_ok
         jmp reject
 
 ; Byte(Input(index)) is exactly the nonnegative read case, so the >=0 macro
@@ -929,14 +792,14 @@ slurp_summary_require_n_bounds:
         load r3, r1
         jlt r3, r2, reject
         imm r1, 1048577
-        jlt r3, r1, slurp_summary_require_ok
+        jlt r3, r1, exact_shape_ok
         jmp reject
 
 slurp_summary_require_empty_output:
         imm r1, 525536
         load r2, r1
         imm r3, 0
-        jeq r2, r3, slurp_summary_require_ok
+        jeq r2, r3, exact_shape_ok
         jmp reject
 
 ; ---- Selected Alpha value transfer -------------------------------------
@@ -1334,7 +1197,7 @@ slurp_summary_rank_low:
         load r4, r1
         imm r5, 1048576
         sub r5, r4
-        jeq r2, r5, slurp_summary_require_ok
+        jeq r2, r5, exact_shape_ok
         jmp reject
 
 slurp_summary_prove_full_exit:
@@ -1555,7 +1418,7 @@ slurp_summary_publish_success:
 ; Require one internal symbolic-state cell at address r20 to equal r21.
 slurp_summary_require_state_cell:
         load r2, r20
-        jeq r2, r21, slurp_summary_require_ok
+        jeq r2, r21, exact_shape_ok
         jmp reject
 
 ; Reaching the caller-facing bridge requires both independently keyed clauses.
@@ -1577,7 +1440,7 @@ slurp_sv_require_current:
 slurp_sv_require_current_payload:
         imm r1, 525592
         load r2, r1
-        jeq r2, r21, slurp_summary_require_ok
+        jeq r2, r21, exact_shape_ok
         jmp reject
 
 ; Store expected fixed address/current kind/payload r20/r21/r22. The address

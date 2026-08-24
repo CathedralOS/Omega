@@ -276,10 +276,10 @@ count_lets_carry_close_effects:
 count_lets_close_backedge:
         imm r20, 527760
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527800
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 527768
         load r2, r1
         imm r1, 4
@@ -296,7 +296,7 @@ count_lets_close_backedge:
 count_lets_close_require_increment:
         imm r21, 2
 count_lets_close_require_count:
-        call cursor_require_cell
+        call exact_require_cell
         ; Rename the strict cursor, smaller rank, positive depth, exact count,
         ; and current identifier state to the quantified loop-head variables.
         imm r1, 527760
@@ -320,22 +320,22 @@ count_lets_close_require_count:
 count_lets_require_exit_state:
         mov r21, r20
         imm r20, 527800
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527768
         imm r21, 4
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527808
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527832
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527776
         imm r21, 1                    ; terminal count state retained
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527784
         imm r21, 1                    ; terminal identifier state retained
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 count_lets_summary_finish:
@@ -354,13 +354,13 @@ count_lets_finish_flag_loop:
         store r1, r2                  ; quiet other state / restored frame
         imm r20, 527816
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527824
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527832
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 527920
         imm r2, 1
         store r1, r2
@@ -388,34 +388,34 @@ count_lets_finish_flag_next:
 count_lets_require_summary_imports:
         imm r20, 527576
         imm r21, 1129071443           ; CLCS
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527584
         imm r21, 1                    ; case schema body domain
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 count_lets_require_loop_invariant:
         imm r20, 527736
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527744
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527752
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527760
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527768
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527776
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527784
         imm r21, 1                    ; checked current identifier state
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 ; Every clause is a separate quantified use of the same loop-head invariant.
@@ -424,10 +424,10 @@ count_lets_require_loop_invariant:
 count_lets_reset_loop_state:
         imm r20, 527736
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527584
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 527744
         imm r2, 1
         store r1, r2

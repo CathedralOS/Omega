@@ -30,10 +30,10 @@ main_ready_require_shape:
         ; ready and loop are adjacent blocks of main, procedure 69.
         imm r20, 351
         imm r21, 51226
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 352
         imm r21, 51262
-        call slurp_summary_require_block_pc
+        call exact_require_block_pc
         imm r20, 3145728
         imm r21, 351
         imm r22, 69
@@ -48,23 +48,23 @@ main_ready_require_shape:
         imm r22, 0
         imm r23, 352
         imm r24, 51253
-        call slurp_summary_require_transition
+        call exact_require_transition
 
         imm r20, 605
         imm r21, 351
         imm r22, 1
         imm r23, 51226
-        call slurp_summary_require_event
+        call exact_require_event
         imm r20, 606
         imm r21, 351
         imm r22, 1
         imm r23, 51235
-        call slurp_summary_require_event
+        call exact_require_event
         imm r20, 607
         imm r21, 351
         imm r22, 1
         imm r23, 51244
-        call slurp_summary_require_event
+        call exact_require_event
 
         imm r20, 605
         imm r21, 0
@@ -115,7 +115,7 @@ main_ready_require_shape:
         imm r27, 288
         imm r28, 605
         imm r29, 608                 ; checked exclusive ready event row
-        call cursor_require_effect_census
+        call exact_require_effect_census
         ret
 
 main_ready_prove_composition:
@@ -140,7 +140,7 @@ main_ready_prove_composition:
 main_ready_import_cutpoint:
         imm r20, 526440               ; checked imported ready clause
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 526456
         imm r2, 51226
         store r1, r2
@@ -163,7 +163,7 @@ main_ready_call_prelude:
         call main_ready_require_pc
         imm r20, 525944
         imm r21, 1279607365            ; EMIP
-        call cursor_require_cell
+        call exact_require_cell
         call main_ready_require_relations
         imm r1, 526464
         imm r2, 55                    ; checked first output length
@@ -182,11 +182,11 @@ main_ready_call_write_str:
         call main_ready_require_pc
         imm r20, 525952               ; checked second theorem import
         imm r21, 1465008983            ; WSTW
-        call cursor_require_cell
+        call exact_require_cell
         call main_ready_require_relations
         imm r20, 526472
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 526464
         load r2, r1
         imm r3, 132
@@ -210,14 +210,14 @@ main_ready_call_skip_ws:
         call main_ready_require_pc
         imm r20, 526216
         imm r21, 1398231888            ; SWSQ
-        call cursor_require_cell
+        call exact_require_cell
         call main_ready_require_relations
         imm r20, 526464
         imm r21, 187
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526472
         imm r21, 2                     ; checked skip emits epsilon
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 526480
         imm r2, 2                     ; whitespace-normalized CUR
         store r1, r2
@@ -232,7 +232,7 @@ main_ready_take_loop_jump:
         call main_ready_require_pc
         imm r20, 526512
         imm r21, 3
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 526456
         imm r2, 51262                 ; checked ready->loop target
         store r1, r2
@@ -241,32 +241,32 @@ main_ready_take_loop_jump:
 main_ready_require_final:
         imm r20, 526456
         imm r21, 51262
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526464
         imm r21, 187
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526472
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526480
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         call main_ready_require_relations
         ret
 
 main_ready_require_relations:
         imm r20, 526488
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526504
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 main_ready_require_pc:
         imm r1, 526456
         load r2, r1
-        jeq r2, r20, cursor_require_ok
+        jeq r2, r20, exact_shape_ok
         jmp reject
 
 main_ready_increment_calls:
@@ -284,5 +284,5 @@ main_ready_require_ambient_height:
         imm r1, 10035200
         add r1, r2
         load r2, r1
-        jeq r2, r21, cursor_require_ok
+        jeq r2, r21, exact_shape_ok
         jmp reject

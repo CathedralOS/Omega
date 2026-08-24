@@ -78,7 +78,7 @@ parse_parameter_introduce_entry:
 parse_parameter_reset_loop:
         imm r20, 527936
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 527944
         imm r2, 1
         store r1, r2
@@ -113,22 +113,22 @@ parse_parameter_case_close:
         store r1, r2
         imm r20, 527952
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527968
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527976
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527984
         imm r21, 2                    ; close cursor/result preserved
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527992
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528000
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 528008
         imm r2, 1
         store r1, r2
@@ -153,25 +153,25 @@ parse_parameter_case_full:
         store r1, r2
         imm r20, 527952
         imm r21, 4
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527976
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527968
         imm r21, 1                    ; full path retains parameter prefix
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527984
         imm r21, 3                    ; full path retains non-close cursor
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527992
         imm r21, 1                    ; full path retains identifier state
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528056
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528000
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 528016
         imm r2, 1
         store r1, r2
@@ -204,10 +204,10 @@ parse_parameter_case_room:
         ; that slice at table[NLOC], increments NLOC, and preserves status zero.
         imm r20, 526792
         imm r21, 1396984146           ; RIDS
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527064
         imm r21, 1397506884           ; DCLS room theorem
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 528040
         imm r2, 1                    ; checked declare room, failure guard false
         store r1, r2
@@ -259,7 +259,7 @@ parse_parameter_separator_comma:
         store r1, r2
         imm r20, 528064
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         ret
 parse_parameter_separator_none:
         imm r1, 528064
@@ -270,34 +270,34 @@ parse_parameter_separator_none:
         store r1, r2
         imm r20, 528064
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 parse_parameter_close_backedge:
         imm r20, 528040
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527952
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527960
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527968
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527976
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527984
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527992
         imm r21, 2
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528000
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         ; Rename successor NLOC, smaller rank, extended parameter-table prefix,
         ; normalized cursor, and current identifier state to loop-head variables.
         imm r1, 527952
@@ -319,25 +319,25 @@ parse_parameter_close_backedge:
 parse_parameter_publish_summary:
         imm r20, 528008
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528016
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528024
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528032
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528040
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528048
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528056
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 527928
         imm r2, 1347178320            ; PLOP
         store r1, r2
@@ -346,76 +346,76 @@ parse_parameter_publish_summary:
 parse_parameter_require_invariant:
         imm r20, 527936
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527944
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527952
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527960
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527968
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527976
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527984
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527992
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 528000
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 parse_parameter_require_imports:
         imm r20, 526320
         imm r21, 1                    ; checked successful slurp source segment
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 525960
         imm r21, 1128421445           ; CBYE
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 525968
         imm r21, 1094992965           ; ADVE
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526216
         imm r21, 1398231888           ; SWSQ
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 526792
         imm r21, 1396984146           ; RIDS
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527064
         imm r21, 1397506884           ; DCLS summary import
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 parse_parameter_call_cbyte:
         imm r20, 525960
         imm r21, 1128421445
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527984
         imm r21, 1
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 parse_parameter_call_adv:
         imm r20, 525968
         imm r21, 1094992965
-        call cursor_require_cell
+        call exact_require_cell
         imm r20, 527984
         imm r21, 5                    ; checked in-range comma premise
-        call cursor_require_cell
+        call exact_require_cell
         ret
 
 parse_parameter_call_skip_ws:
         imm r20, 526216
         imm r21, 1398231888
-        call cursor_require_cell
+        call exact_require_cell
         imm r1, 527984
         imm r2, 1                    ; normalized cursor in 0..LEN
         store r1, r2
