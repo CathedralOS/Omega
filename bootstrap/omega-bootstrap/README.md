@@ -49,7 +49,7 @@ reserved `compiler/{psi,omega}/` product roots.
   exhausted inputs.
 - [`gates/delta-o1-selfhost-composite.sh`](gates/delta-o1-selfhost-composite.sh)
   recompiles both frozen O1 compiler programs through Delta's `lowermachine`,
-  composes bundle → vocabulary-26 terminal Psi → ELF, and requires exact
+  composes bundle → vocabulary-27 terminal Psi → ELF, and requires exact
   terminal and image bytes plus fail-closed semantic and exhaustion observations.
 - [`../assurance/refinement/omega-bootstrap/`](../assurance/refinement/omega-bootstrap/)
   owns the meaning-TV, input-TV, translation-validation, and

@@ -2,10 +2,10 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use psi_core::{
     BlockId, BoundaryMachineId, CanonicalStructuralPathSegment, ClaimId, ContentAlgebra,
-    ContentConservation, ContentProjectionIdentity, ContentStructuralPlace, ContentTerm,
-    ContractId, EdgeId, EvidenceTermId, IntegerSign, IntegerType, IntegerValue, MachineId,
-    ObligationId, OperationId, PlaceId, ProgramLocalCapacityExpression, ProgramLocalCapacityScalar,
-    Proposition, PropositionContext, PropositionId, ScalarTerm, ScalarType, ServiceId,
+    ContentConservation, ContentDomainId, ContentProjectionExpression, ContentProjectionIdentity,
+    ContentProjectionScalar, ContentStructuralPlace, ContentTerm, ContractId, EdgeId,
+    EvidenceTermId, IntegerSign, IntegerType, IntegerValue, MachineId, ObligationId, OperationId,
+    PlaceId, Proposition, PropositionContext, PropositionId, ScalarTerm, ScalarType, ServiceId,
     StructuralDomainId, StructuralFieldId, StructuralPlaceKind, StructuralTypeId, ValueId,
     content_conservation_fingerprint,
 };
@@ -128,6 +128,24 @@ fn validate_module_with_policy(
     float_meaning::validate_float_meaning_projections(module)?;
 
     let mut registry = IdRegistry::default();
+    for projection in module
+        .structural_domains
+        .iter()
+        .filter_map(|domain| domain.content_projection.as_ref())
+    {
+        if registry
+            .owner_content_projections
+            .insert(
+                projection.identity.domain,
+                (projection.identity, projection.algebra.clone()),
+            )
+            .is_some()
+        {
+            return Err(ModuleError::ContentProjectionOwnerMismatch(
+                projection.identity,
+            ));
+        }
+    }
     for machine in &module.machines {
         insert_unique(
             &mut registry.machines,
@@ -168,6 +186,8 @@ struct IdRegistry {
     obligations: BTreeSet<ObligationId>,
     values: BTreeSet<ValueId>,
     places: BTreeSet<PlaceId>,
+    owner_content_projections:
+        BTreeMap<ContentDomainId, (ContentProjectionIdentity, ContentAlgebra)>,
     content_projection_algebras: BTreeMap<ContentProjectionIdentity, ContentAlgebra>,
 }
 

@@ -1472,8 +1472,9 @@ const EXCLUDED_RUN_CANARIES: &[(&str, &str)] = &[
 fn run_canary_list_matches_canary_suite() {
     use std::collections::{BTreeMap, BTreeSet};
 
-    let suite_path =
-        repo_root().join("bootstrap/onramps/omega-rust/omega/orchestration/omega-compiler/tests/canary_suite.rs");
+    let suite_path = repo_root().join(
+        "bootstrap/onramps/omega-rust/omega/orchestration/omega-compiler/tests/canary_suite.rs",
+    );
     let mut source = fs::read_to_string(&suite_path).unwrap_or_else(|error| {
         panic!(
             "failed to read canary suite source at {}: {error}",

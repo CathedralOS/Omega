@@ -610,10 +610,10 @@ machine Main::emit_machine_places(&mut self) {
 }
 
 machine Main::emit_terminal_module(&mut self) {
-    // Semantic envelope: PSITERM\\0, codec format 23, vocabulary 26, entry #1.
+    // Semantic envelope: PSITERM\\0, codec format 24, vocabulary 27, entry #1.
     write_byte(80); write_byte(83); write_byte(73); write_byte(84);
     write_byte(69); write_byte(82); write_byte(77); write_byte(0);
-    self.emit_u16(23); self.emit_u16(26); self.emit_id(1);
+    self.emit_u16(24); self.emit_u16(27); self.emit_id(1);
 
     // Structural types: attached Main record, then borrowed byte sequence.
     self.emit_structural_type_count();

@@ -224,8 +224,9 @@ fn reversed_combined_order_rejects_during_parsing() {
 
 #[test]
 fn task_start_acknowledges_only_the_start_operation_not_the_target_machine() {
-    let canary = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../../../../canaries/pass/tasks/task_runtime_machine_selection_compile/main.omg");
+    let canary = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(
+        "../../../../../../canaries/pass/tasks/task_runtime_machine_selection_compile/main.omg",
+    );
     let checked = compile_to_checked(&canary, None)
         .expect("task-start canary should compile with unmarked immediate start calls");
     let start_symbols = checked

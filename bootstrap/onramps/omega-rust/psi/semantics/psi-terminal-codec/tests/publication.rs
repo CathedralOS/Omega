@@ -13,7 +13,7 @@ static TEST_NONCE: AtomicU64 = AtomicU64::new(0);
 
 fn canonical_bytes() -> Vec<u8> {
     let hex = include_str!(
-        "../../../../../../../bootstrap/omega-bootstrap/gates/fixtures/omega-bootstrap-terminal-v26.hex"
+        "../../../../../../../bootstrap/omega-bootstrap/gates/fixtures/omega-bootstrap-terminal-v27.hex"
     );
     let compact: String = hex
         .chars()

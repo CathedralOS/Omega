@@ -1,9 +1,10 @@
 use psi_core::{
     BlockId, BoundaryMachineId, CanonicalStructuralPathSegment, ClaimId, ContentAlgebra,
     ContentAlgebraKind, ContentDomainId, ContentPlaceSegment, ContentPlaceVersion,
-    ContentProjectionIdentity, ContentStructuralPlace, ContentTerm, ContractId, EdgeId,
-    EvidenceIdentity, MachineId, ObligationId, OperationId, PlaceId, Proposition, ScalarTerm,
-    ScalarType, ServiceId, StructuralDomainId, StructuralPlaceKind, StructuralTypeId, ValueId,
+    ContentProjectionExpression, ContentProjectionIdentity, ContentProjectionScalar,
+    ContentStructuralPlace, ContentTerm, ContractId, EdgeId, EvidenceIdentity, MachineId,
+    ObligationId, OperationId, PlaceId, Proposition, ScalarTerm, ScalarType, ServiceId,
+    StructuralDomainId, StructuralPlaceKind, StructuralTypeId, ValueId,
 };
 use psi_proof_kernel::{
     AdmissionProfile, CertificateEnvelope, EvidenceRoute, ProofNode, ProofRule, ProofSystemMarker,
@@ -13,11 +14,12 @@ use psi_terminal::{
     ContentEntryClaim, ContractClause, CrashCause, CrashPredicateTerm, CrashRouteBucket,
     CrashRouteGuard, EntryClaim, MachineContract, NominalAffineCleanup, Operation, OperationKind,
     OperationResult, ServiceDeclaration, StructuralAffineDiscard, StructuralArgument,
-    StructuralDomainDeclaration, StructuralDomainRequirement, StructuralFieldDeclaration,
-    StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
-    StructuralPathSegment, StructuralPlaceDeclaration, StructuralTypeDeclaration,
-    StructuralTypeShape, SuccessorEdge, TerminalAffineCleanupAction, TerminalMachine,
-    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
+    StructuralContentProjection, StructuralDomainDeclaration, StructuralDomainRequirement,
+    StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
+    StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge, TerminalAffineCleanupAction,
+    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
+    VocabularyMarker,
 };
 use psi_terminal_verifier::{
     ModuleError, ObligationEvidence, ProofBundle, ServiceCeilingOwner,
@@ -1560,6 +1562,7 @@ fn projected_unit_calls_accept_only_the_exact_unqualified_whole_claim_slice() {
             semantic_domain: psi_core::DomainSemanticId::new(2).unwrap(),
             identity: "ArrayPending".into(),
             carrier: structural_type_id(3),
+            content_projection: None,
         });
     qualified_caller.machines[0].structural_parameters[0]
         .qualifications
@@ -2475,10 +2478,7 @@ fn unit_call_contract_content_must_name_a_structural_argument() {
     module.machines[1].structural_parameters.clear();
     module.machines[1].entry_claims.clear();
     let subject = ContentTerm::Projection {
-        projection: ContentProjectionIdentity {
-            domain: ContentDomainId::new(1).expect("content domain"),
-            projection_fingerprint: 0xfeed,
-        },
+        projection: content_owner_projection().identity,
         subject: ContentStructuralPlace {
             version: ContentPlaceVersion::Entry,
             root: place_id(2),
@@ -2661,6 +2661,7 @@ fn structural_semantic_sets_have_one_canonical_order() {
         semantic_domain: psi_core::DomainSemanticId::new(2).unwrap(),
         identity: "Ready".into(),
         carrier: structural_type_id(1),
+        content_projection: None,
     };
 
     let mut qualifications = hard_root_module();
@@ -3273,6 +3274,7 @@ fn hard_root_module() -> TerminalModule {
         semantic_domain: psi_core::DomainSemanticId::new(1).unwrap(),
         identity: "Pending".into(),
         carrier: resource.id,
+        content_projection: Some(content_owner_projection()),
     };
     let port_io = ServiceDeclaration {
         id: service_id(1),
@@ -4291,15 +4293,34 @@ fn content_entry_claim(root: PlaceId) -> ContentEntryClaim {
             segments: Vec::new(),
         },
         projections: vec![ClaimContentProjection {
-            projection: ContentProjectionIdentity {
-                domain: ContentDomainId::new(1).expect("content domain"),
-                projection_fingerprint: 0xfeed,
-            },
+            projection: content_owner_projection().identity,
             algebra: ContentAlgebra {
                 kind: ContentAlgebraKind::CountedQuantity,
                 parameter: "Acknowledgement".to_owned(),
             },
         }],
+    }
+}
+
+fn content_owner_projection() -> StructuralContentProjection {
+    let algebra = ContentAlgebra {
+        kind: ContentAlgebraKind::CountedQuantity,
+        parameter: "Acknowledgement".to_owned(),
+    };
+    let expression = ContentProjectionExpression::CountedQuantity(
+        ContentProjectionScalar::Natural("1".to_owned()),
+    );
+    StructuralContentProjection {
+        identity: ContentProjectionIdentity {
+            domain: ContentDomainId::new(1).expect("content domain"),
+            projection_fingerprint:
+                psi_language_semantics::content::terminal_projection_fingerprint(
+                    &algebra,
+                    &expression,
+                ),
+        },
+        algebra,
+        expression,
     }
 }
 

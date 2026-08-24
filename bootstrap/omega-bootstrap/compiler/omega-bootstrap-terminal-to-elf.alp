@@ -1,6 +1,6 @@
 // Delta-written O1 terminal-Psi -> Linux x86-64 ELF backend.
 //
-// Input is the vocabulary-26 O1 terminal-module shape emitted by
+// Input is the vocabulary-27 O1 terminal-module shape emitted by
 // omega-bootstrap-frontend.alp: zero to sixteen literal write_line calls followed by one
 // nonnegative i32 exit_process call. The decoder mirrors that canonical schema,
 // retains at most 1,024 aggregate literal bytes and every literal span, and
@@ -175,7 +175,7 @@ machine Main::read_exit_code(&mut self) {
 machine Main::decode_terminal_module(&mut self) {
     self.expect_byte(80); self.expect_byte(83); self.expect_byte(73); self.expect_byte(84);
     self.expect_byte(69); self.expect_byte(82); self.expect_byte(77); self.expect_byte(0);
-    self.expect_u16(23); self.expect_u16(26); self.expect_id(1);
+    self.expect_u16(24); self.expect_u16(27); self.expect_id(1);
 
     // A zero-write closure has no byte-sequence type or write_line boundary.
     // One-or-more writes share the O0 structural envelope.

@@ -238,10 +238,10 @@ fn omega_preserves_exact_singleton_structural_return_custody() {
         }],
         structural_domains: vec![StructuralDomainDeclaration {
             id: structural_domain,
-            semantic_domain: psi_core::DomainSemanticId::new(1)
-                .expect("semantic domain identity"),
+            semantic_domain: psi_core::DomainSemanticId::new(1).expect("semantic domain identity"),
             identity: "test::Owned".into(),
             carrier: structural_type,
+            content_projection: None,
         }],
         services: Vec::new(),
         root_service_reach: Default::default(),

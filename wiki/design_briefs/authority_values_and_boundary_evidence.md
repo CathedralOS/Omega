@@ -408,7 +408,11 @@ must independently close; an operation-wide label cannot stand in for them.
 The route contract publishes one exact finite per-occurrence content expression,
 or an owner-constrained family whose selected instance reduces to one. The
 portable verifier reconstructs that introduction schema from the requirement,
-qualification, and content projection. Installation verification joins it to
+qualification, and content projection. Terminal Psi retains the owner-unique
+projection independently on the domain declaration; route schemas and content
+claims must replay that exact identity, algebra, and normalized expression.
+Changing a producer expression together with its locally recomputed fingerprint
+cannot redefine the owner's content denominator. Installation verification joins it to
 the exact finite slot cardinality and derives the aggregate for one installed
 artifact instance and lifecycle epoch. A producer-authored manifest total has
 no authority. Cathedral composes those verified aggregates across concurrently
@@ -892,7 +896,9 @@ The implementation requires:
 3. Qualified claim metadata must retain the owner-unique `Content<A>`
    conformance, its canonical content-projection expression, and its
    interval-set or counted-quantity identity; admitted receipts must carry
-   backing in the same algebra.
+   backing in the same algebra. Terminal vocabulary 27 retains and independently
+   validates this owner definition; remaining consumers must preserve it rather
+   than reconstructing authority from a route-local schema.
 4. The prover and resource checker must connect subject arithmetic and access
    footprints to compiler-owned containment and separated composition without
    teaching either system names such as `Extent`, `base`, `split`, or `merge`.

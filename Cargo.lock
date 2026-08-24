@@ -1739,6 +1739,7 @@ name = "psi-terminal-codec"
 version = "0.1.0"
 dependencies = [
  "psi-core",
+ "psi-language-semantics",
  "psi-proof-kernel",
  "psi-terminal",
  "psi-terminal-semantics",

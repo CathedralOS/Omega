@@ -1,5 +1,5 @@
 use psi_core::{
-    ContentAlgebra, ContentAlgebraKind, ProgramLocalCapacityExpression, ProgramLocalCapacityScalar,
+    ContentAlgebra, ContentAlgebraKind, ContentProjectionExpression, ContentProjectionScalar,
 };
 use psi_proof_kernel::AdmissionProfile;
 use psi_source_files_to_tokens::Lexer;
@@ -128,6 +128,13 @@ fn source_route_lowers_exact_source_free_program_local_schema() {
     );
     assert_eq!(domain.carrier, schema.carrier);
     assert_eq!(schema.projection.domain.get(), domain.semantic_domain.get());
+    let owner_projection = domain
+        .content_projection
+        .as_ref()
+        .expect("content-bearing domain retains its owner projection");
+    assert_eq!(owner_projection.identity, schema.projection);
+    assert_eq!(owner_projection.algebra, schema.algebra);
+    assert_eq!(owner_projection.expression, schema.capacity);
     assert_eq!(
         schema.algebra,
         ContentAlgebra {
@@ -137,11 +144,11 @@ fn source_route_lowers_exact_source_free_program_local_schema() {
     );
     assert_eq!(
         schema.capacity,
-        ProgramLocalCapacityExpression::CountedQuantity(ProgramLocalCapacityScalar::Add(
-            Box::new(ProgramLocalCapacityScalar::SubjectField(vec![
+        ContentProjectionExpression::CountedQuantity(ContentProjectionScalar::Add(
+            Box::new(ContentProjectionScalar::SubjectField(vec![
                 "length".to_owned()
             ])),
-            Box::new(ProgramLocalCapacityScalar::Natural("1".to_owned())),
+            Box::new(ContentProjectionScalar::Natural("1".to_owned())),
         ))
     );
     assert_eq!(
@@ -232,11 +239,72 @@ fn verifier_rejects_tampering_of_every_schema_identity_input() {
     mutate(|schema| schema.algebra.kind = ContentAlgebraKind::IntervalSet);
     mutate(|schema| schema.algebra.parameter.push_str("Drift"));
     mutate(|schema| {
-        schema.capacity = ProgramLocalCapacityExpression::CountedQuantity(
-            ProgramLocalCapacityScalar::Natural("2".to_owned()),
+        schema.capacity = ContentProjectionExpression::CountedQuantity(
+            ContentProjectionScalar::Natural("2".to_owned()),
         );
     });
     mutate(|schema| schema.identity ^= 1);
+}
+
+#[test]
+fn coherently_understated_route_schema_cannot_rewrite_its_owner_projection() {
+    let lowered = lowered();
+    let mut understated = lowered.semantic_module;
+    let boundary = &mut understated.boundary_machines[0];
+    let schema = &mut boundary.program_local_root_introductions[0];
+    schema.capacity = ContentProjectionExpression::CountedQuantity(
+        ContentProjectionScalar::Natural("1".to_owned()),
+    );
+    schema.projection.projection_fingerprint =
+        psi_language_semantics::content::terminal_projection_fingerprint(
+            &schema.algebra,
+            &schema.capacity,
+        );
+    let domain = understated
+        .structural_domains
+        .iter()
+        .find(|domain| domain.id == schema.qualification)
+        .expect("qualified domain");
+    let carrier = understated
+        .structural_types
+        .iter()
+        .find(|carrier| carrier.id == schema.carrier)
+        .expect("carrier");
+    schema.identity = program_local_root_introduction_identity(
+        &boundary.identity,
+        &domain.identity,
+        &carrier.identity,
+        schema,
+    );
+
+    assert!(matches!(
+        psi_terminal_verifier::validate_module_representation(&understated),
+        Err(psi_terminal_verifier::ModuleError::InvalidProgramLocalRootIntroduction { .. })
+    ));
+}
+
+#[test]
+fn owner_projection_is_mandatory_and_independently_replayed() {
+    let lowered = lowered();
+    let mut missing = lowered.semantic_module.clone();
+    missing.structural_domains[0].content_projection = None;
+    assert!(matches!(
+        psi_terminal_verifier::validate_module_representation(&missing),
+        Err(psi_terminal_verifier::ModuleError::InvalidProgramLocalRootIntroduction { .. })
+    ));
+
+    let mut drifted = lowered.semantic_module;
+    let owner = drifted.structural_domains[0]
+        .content_projection
+        .as_mut()
+        .expect("owner content projection");
+    owner.expression = ContentProjectionExpression::CountedQuantity(
+        ContentProjectionScalar::Natural("1".to_owned()),
+    );
+    assert!(matches!(
+        psi_terminal_verifier::validate_module_representation(&drifted),
+        Err(psi_terminal_verifier::ModuleError::InvalidStructuralDomainContentProjection(_))
+    ));
 }
 
 #[test]
@@ -286,6 +354,22 @@ fn closed_indexed_domain_applications_remain_exact_program_local_root_families()
     assert!(second_domain.identity.contains("integer:u64:8"));
     assert_ne!(first_domain.identity, second_domain.identity);
     assert_ne!(first_schema.identity, second_schema.identity);
+    assert_eq!(
+        first_domain
+            .content_projection
+            .as_ref()
+            .expect("first owner projection")
+            .identity,
+        first_schema.projection
+    );
+    assert_eq!(
+        second_domain
+            .content_projection
+            .as_ref()
+            .expect("second owner projection")
+            .identity,
+        second_schema.projection
+    );
 
     psi_terminal_verifier::verify_module(
         &first.semantic_module,

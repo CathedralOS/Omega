@@ -269,6 +269,7 @@ fn call_composition_ledger_fixture() -> TerminalModule {
             semantic_domain: psi_core::DomainSemanticId::new(1).unwrap(),
             identity: "Spike::Resource::Pending".into(),
             carrier: resource,
+            content_projection: None,
         }],
         services: Vec::new(),
         root_service_reach: Default::default(),

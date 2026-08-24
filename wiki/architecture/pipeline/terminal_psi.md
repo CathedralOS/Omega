@@ -42,7 +42,7 @@ representation.
 ### Boundary-argument realization fence
 
 Ordinary in-module and bodyless boundary calls both carry positional scalar
-arguments. In current terminal-Psi vocabulary 26,
+arguments. In current terminal-Psi vocabulary 27,
 `BoundaryMachineDeclaration` declares ordered scalar parameter types and
 `BoundaryCall` carries the matching ordered `ValueId` arguments alongside its
 structural lane. Canonical encoding binds
@@ -51,7 +51,7 @@ interpretation evaluates the scalar values before invoking the effect handler;
 and Omega abstract lowering preserves them without reinterpretation. The
 optional primitive scalar remains the independent result lane.
 
-Vocabulary 26 also admits a first-class immutable borrowed byte-sequence shape,
+Vocabulary 27 also admits a first-class immutable borrowed byte-sequence shape,
 an exact raw-octet literal establishment, and that local literal as a structural
 argument to a bodyless boundary. The codec, verifier, and interpreter preserve
 all bytes, including non-UTF-8 payloads. Psi syntax, resolved, typed, and checked
@@ -59,7 +59,7 @@ trees own that exact payload, and checked-to-terminal lowering establishes its
 borrowed place before passing the same place to the bodyless call. In-module and
 nonliteral forwarding remain fenced.
 
-Vocabulary 26 also closes the O0 provider-backed attachment specialization. The
+Vocabulary 27 also closes the O0 provider-backed attachment specialization. The
 machine retains `attachment: Some(Main)`, its relevant `console` field retains
 the exact erased provider identity, and sorted `ProviderAttachment` roots bind
 that field to precisely the bodyless boundaries called through it. Validation
@@ -364,6 +364,12 @@ projection carries that content catalog into terminal Psi on both Unit and
 primitive-result bodyless exits. Lowering reuses the structural claim identity
 and records the entry-version subject plus the owner-unique projection and
 algebra; it does not infer content from carrier bytes or from the domain name.
+Vocabulary 27 retains that normalized projection on the owning structural
+domain independently from any route, claim, or producer schema. Validation
+replays its algebra, expression, carrier paths, and fingerprint before checking
+that every use cites the exact owner definition. A producer therefore cannot
+coherently understate capacity by rewriting both its schema expression and its
+derived schema identity.
 The verifier independently requires the content subject to bind the same exact
 entry parameter and claim. Provider rejection therefore preserves the complete
 structural/content frontier, while successful completion commits the receipt and
@@ -1615,6 +1621,9 @@ capacity or constrained-family instance, and artifact/lifecycle scope. The
 portable verifier reconstructs those fields from the semantic module and
 rejects a result route, ordinary call, missing parent lineage, unbounded
 capacity, or non-enumerable installation shape masquerading as introduction.
+The schema does not define its own denominator: its projection, algebra, and
+capacity expression must equal the independent normalized definition retained
+on the qualification owner.
 
 The concrete installation record supplies the selected satisfier, exact slot
 occurrences, lineages, finite cardinality, and epoch. Installation verification

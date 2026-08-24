@@ -7,7 +7,7 @@ use omega_effects::{
 };
 use omega_executable_installation::{ArtifactId, InstalledCodeId};
 use psi_core::{
-    ContentAlgebra, ContentAlgebraKind, ProgramLocalCapacityExpression, ProgramLocalCapacityScalar,
+    ContentAlgebra, ContentAlgebraKind, ContentProjectionExpression, ContentProjectionScalar,
 };
 use psi_language_semantics::content::{CanonicalIntervalSet, NaturalInterval};
 use psi_numerics::bignum::BigInt;
@@ -73,7 +73,7 @@ pub struct ProgramLocalRootInstalledPrebinding {
     carrier_identity: String,
     projection: psi_core::ContentProjectionIdentity,
     algebra: ContentAlgebra,
-    per_occurrence_capacity: ProgramLocalCapacityExpression,
+    per_occurrence_capacity: ContentProjectionExpression,
 }
 
 impl ProgramLocalRootInstalledPrebinding {
@@ -129,7 +129,7 @@ impl ProgramLocalRootInstalledPrebinding {
         &self.algebra
     }
 
-    pub const fn per_occurrence_capacity(&self) -> &ProgramLocalCapacityExpression {
+    pub const fn per_occurrence_capacity(&self) -> &ContentProjectionExpression {
         &self.per_occurrence_capacity
     }
 
@@ -161,7 +161,7 @@ pub struct ProgramLocalRootInstalledPrebindingCount {
     pub carrier_identity: String,
     pub schema_identity: u64,
     pub algebra: ContentAlgebra,
-    pub per_occurrence_capacity: ProgramLocalCapacityExpression,
+    pub per_occurrence_capacity: ContentProjectionExpression,
     pub installed_slot_count: NonZeroU64,
     pub prebinding_identities: Vec<ProgramLocalRootPrebindingId>,
 }
@@ -1159,24 +1159,24 @@ impl ProgramLocalRootInstallationLedger {
 }
 
 fn capacity_scalar_keys(
-    expression: &ProgramLocalCapacityExpression,
+    expression: &ContentProjectionExpression,
 ) -> BTreeSet<ProgramLocalRootScalarKey> {
-    fn visit(scalar: &ProgramLocalCapacityScalar, keys: &mut BTreeSet<ProgramLocalRootScalarKey>) {
+    fn visit(scalar: &ContentProjectionScalar, keys: &mut BTreeSet<ProgramLocalRootScalarKey>) {
         match scalar {
-            ProgramLocalCapacityScalar::SubjectField(path) => {
+            ContentProjectionScalar::SubjectField(path) => {
                 keys.insert((ProgramLocalRootScalarSource::SubjectField, path.clone()));
             }
-            ProgramLocalCapacityScalar::RuntimeScalarEmbedding(path) => {
+            ContentProjectionScalar::RuntimeScalarEmbedding(path) => {
                 keys.insert((
                     ProgramLocalRootScalarSource::RuntimeScalarEmbedding,
                     path.clone(),
                 ));
             }
-            ProgramLocalCapacityScalar::Natural(_) => {}
-            ProgramLocalCapacityScalar::Successor(inner) => visit(inner, keys),
-            ProgramLocalCapacityScalar::Add(left, right)
-            | ProgramLocalCapacityScalar::Subtract(left, right)
-            | ProgramLocalCapacityScalar::Multiply(left, right) => {
+            ContentProjectionScalar::Natural(_) => {}
+            ContentProjectionScalar::Successor(inner) => visit(inner, keys),
+            ContentProjectionScalar::Add(left, right)
+            | ContentProjectionScalar::Subtract(left, right)
+            | ContentProjectionScalar::Multiply(left, right) => {
                 visit(left, keys);
                 visit(right, keys);
             }
@@ -1185,13 +1185,13 @@ fn capacity_scalar_keys(
 
     let mut keys = BTreeSet::new();
     match expression {
-        ProgramLocalCapacityExpression::IntervalSet(members) => {
+        ContentProjectionExpression::IntervalSet(members) => {
             for (start, end) in members {
                 visit(start, &mut keys);
                 visit(end, &mut keys);
             }
         }
-        ProgramLocalCapacityExpression::CountedQuantity(magnitude) => {
+        ContentProjectionExpression::CountedQuantity(magnitude) => {
             visit(magnitude, &mut keys);
         }
     }
@@ -1199,11 +1199,11 @@ fn capacity_scalar_keys(
 }
 
 fn evaluate_capacity_scalar(
-    scalar: &ProgramLocalCapacityScalar,
+    scalar: &ContentProjectionScalar,
     bindings: &BTreeMap<ProgramLocalRootScalarKey, BigInt>,
 ) -> Result<BigInt, ExternalRootDiagnostic> {
     let value = match scalar {
-        ProgramLocalCapacityScalar::SubjectField(path) => bindings
+        ContentProjectionScalar::SubjectField(path) => bindings
             .get(&(ProgramLocalRootScalarSource::SubjectField, path.clone()))
             .cloned()
             .ok_or_else(|| {
@@ -1211,7 +1211,7 @@ fn evaluate_capacity_scalar(
                     "program-local subject is missing a verified field observation".into(),
                 )
             })?,
-        ProgramLocalCapacityScalar::RuntimeScalarEmbedding(path) => bindings
+        ContentProjectionScalar::RuntimeScalarEmbedding(path) => bindings
             .get(&(
                 ProgramLocalRootScalarSource::RuntimeScalarEmbedding,
                 path.clone(),
@@ -1222,19 +1222,19 @@ fn evaluate_capacity_scalar(
                     "program-local subject is missing a verified runtime scalar embedding".into(),
                 )
             })?,
-        ProgramLocalCapacityScalar::Natural(value) => BigInt::from_decimal_str(value)
+        ContentProjectionScalar::Natural(value) => BigInt::from_decimal_str(value)
             .filter(|value| !value.is_negative())
             .ok_or_else(|| {
                 ExternalRootDiagnostic(
                     "program-local capacity schema contains a non-natural literal".into(),
                 )
             })?,
-        ProgramLocalCapacityScalar::Successor(inner) => {
+        ContentProjectionScalar::Successor(inner) => {
             evaluate_capacity_scalar(inner, bindings)?.add(&BigInt::from_u64(1))
         }
-        ProgramLocalCapacityScalar::Add(left, right) => evaluate_capacity_scalar(left, bindings)?
+        ContentProjectionScalar::Add(left, right) => evaluate_capacity_scalar(left, bindings)?
             .add(&evaluate_capacity_scalar(right, bindings)?),
-        ProgramLocalCapacityScalar::Subtract(left, right) => {
+        ContentProjectionScalar::Subtract(left, right) => {
             let left = evaluate_capacity_scalar(left, bindings)?;
             let right = evaluate_capacity_scalar(right, bindings)?;
             if right > left {
@@ -1244,10 +1244,8 @@ fn evaluate_capacity_scalar(
             }
             left.sub(&right)
         }
-        ProgramLocalCapacityScalar::Multiply(left, right) => {
-            evaluate_capacity_scalar(left, bindings)?
-                .mul(&evaluate_capacity_scalar(right, bindings)?)
-        }
+        ContentProjectionScalar::Multiply(left, right) => evaluate_capacity_scalar(left, bindings)?
+            .mul(&evaluate_capacity_scalar(right, bindings)?),
     };
     if value.is_negative() {
         return Err(ExternalRootDiagnostic(
@@ -1258,11 +1256,11 @@ fn evaluate_capacity_scalar(
 }
 
 fn evaluate_capacity(
-    expression: &ProgramLocalCapacityExpression,
+    expression: &ContentProjectionExpression,
     bindings: &BTreeMap<ProgramLocalRootScalarKey, BigInt>,
 ) -> Result<EstablishedProgramLocalRootCapacity, ExternalRootDiagnostic> {
     match expression {
-        ProgramLocalCapacityExpression::IntervalSet(members) => {
+        ContentProjectionExpression::IntervalSet(members) => {
             let mut evaluated = Vec::with_capacity(members.len());
             for (start, end) in members {
                 let start = evaluate_capacity_scalar(start, bindings)?;
@@ -1281,7 +1279,7 @@ fn evaluate_capacity(
                 })?,
             ))
         }
-        ProgramLocalCapacityExpression::CountedQuantity(magnitude) => {
+        ContentProjectionExpression::CountedQuantity(magnitude) => {
             Ok(EstablishedProgramLocalRootCapacity::CountedQuantity(
                 evaluate_capacity_scalar(magnitude, bindings)?,
             ))
@@ -1410,7 +1408,7 @@ pub struct ProgramLocalRootEpochAggregate {
     carrier_identity: String,
     schema_identity: u64,
     algebra: ContentAlgebra,
-    per_occurrence_capacity: ProgramLocalCapacityExpression,
+    per_occurrence_capacity: ContentProjectionExpression,
     occurrence_identities: Vec<InstalledProgramLocalRootOccurrenceId>,
 }
 
@@ -1451,7 +1449,7 @@ impl ProgramLocalRootEpochAggregate {
         &self.algebra
     }
 
-    pub const fn per_occurrence_capacity(&self) -> &ProgramLocalCapacityExpression {
+    pub const fn per_occurrence_capacity(&self) -> &ContentProjectionExpression {
         &self.per_occurrence_capacity
     }
 
@@ -1914,15 +1912,13 @@ mod capacity_evaluation_tests {
 
     #[test]
     fn interval_capacity_evaluates_each_runtime_path_without_scalar_multiplication() {
-        let expression = ProgramLocalCapacityExpression::IntervalSet(vec![(
-            ProgramLocalCapacityScalar::RuntimeScalarEmbedding(vec!["base".into()]),
-            ProgramLocalCapacityScalar::Add(
-                Box::new(ProgramLocalCapacityScalar::RuntimeScalarEmbedding(vec![
+        let expression = ContentProjectionExpression::IntervalSet(vec![(
+            ContentProjectionScalar::RuntimeScalarEmbedding(vec!["base".into()]),
+            ContentProjectionScalar::Add(
+                Box::new(ContentProjectionScalar::RuntimeScalarEmbedding(vec![
                     "base".into(),
                 ])),
-                Box::new(ProgramLocalCapacityScalar::SubjectField(vec![
-                    "length".into(),
-                ])),
+                Box::new(ContentProjectionScalar::SubjectField(vec!["length".into()])),
             ),
         )]);
         let bindings = BTreeMap::from([
@@ -1957,9 +1953,9 @@ mod capacity_evaluation_tests {
     #[test]
     fn exact_natural_subtraction_rejects_underflow() {
         let expression =
-            ProgramLocalCapacityExpression::CountedQuantity(ProgramLocalCapacityScalar::Subtract(
-                Box::new(ProgramLocalCapacityScalar::Natural("2".into())),
-                Box::new(ProgramLocalCapacityScalar::Natural("3".into())),
+            ContentProjectionExpression::CountedQuantity(ContentProjectionScalar::Subtract(
+                Box::new(ContentProjectionScalar::Natural("2".into())),
+                Box::new(ContentProjectionScalar::Natural("3".into())),
             ));
         assert!(
             evaluate_capacity(&expression, &BTreeMap::new())

@@ -10,107 +10,6 @@ pub(super) fn lower_program_local_root_introductions(
     parameters: &[StructuralParameterDeclaration],
     domain_ids: &[(SemanticDomainId, StructuralDomainId)],
 ) -> Result<Vec<ProgramLocalRootIntroductionSchema>, LoweringError> {
-    fn field_identity(checked: &CheckedTrees, symbol: psi_symbols::SymbolHandle) -> Option<String> {
-        checked.data_definitions().iter().find_map(|definition| {
-            checked.data_members(definition).iter().find_map(|member| {
-                let psi_checked_trees::data::DataMember::Field(field) = member else {
-                    return None;
-                };
-                (field.symbol == symbol).then(|| {
-                    field
-                        .identity
-                        .map(|identity| format!("#{identity}"))
-                        .unwrap_or_else(|| field.name.as_str().to_owned())
-                })
-            })
-        })
-    }
-    fn scalar(
-        checked: &CheckedTrees,
-        value: &CheckedContentScalarExpression,
-        depth: usize,
-    ) -> Result<ProgramLocalCapacityScalar, LoweringError> {
-        if depth > 256 {
-            return unsupported("program-local capacity expression is too deeply nested");
-        }
-        let path = |segments: &[psi_language_semantics::content::ContentFieldSegment]| {
-            segments
-                .iter()
-                .map(|segment| {
-                    let identity = field_identity(checked, segment.symbol).ok_or(
-                        LoweringError::Unsupported(
-                            "program-local capacity references an unknown structural field",
-                        ),
-                    )?;
-                    if identity != segment.name {
-                        return unsupported(
-                            "program-local capacity field identity drifted from its projection",
-                        );
-                    }
-                    Ok(identity)
-                })
-                .collect::<Result<Vec<_>, LoweringError>>()
-        };
-        Ok(match value {
-            CheckedContentScalarExpression::SubjectField(segments) => {
-                ProgramLocalCapacityScalar::SubjectField(path(segments)?)
-            }
-            CheckedContentScalarExpression::RuntimeScalarEmbedding(segments) => {
-                ProgramLocalCapacityScalar::RuntimeScalarEmbedding(path(segments)?)
-            }
-            CheckedContentScalarExpression::Natural(value) => {
-                if value.is_empty() {
-                    return unsupported("program-local capacity contains an empty natural");
-                }
-                ProgramLocalCapacityScalar::Natural(value.clone())
-            }
-            CheckedContentScalarExpression::Successor(inner) => {
-                ProgramLocalCapacityScalar::Successor(Box::new(scalar(checked, inner, depth + 1)?))
-            }
-            CheckedContentScalarExpression::Arithmetic {
-                operator,
-                left,
-                right,
-            } => {
-                let left = Box::new(scalar(checked, left, depth + 1)?);
-                let right = Box::new(scalar(checked, right, depth + 1)?);
-                match operator {
-                    ContentArithmeticOperator::Add => ProgramLocalCapacityScalar::Add(left, right),
-                    ContentArithmeticOperator::Subtract => {
-                        ProgramLocalCapacityScalar::Subtract(left, right)
-                    }
-                    ContentArithmeticOperator::Multiply => {
-                        ProgramLocalCapacityScalar::Multiply(left, right)
-                    }
-                }
-            }
-        })
-    }
-
-    fn capacity(
-        checked: &CheckedTrees,
-        expression: &CheckedContentProjectionExpression,
-    ) -> Result<ProgramLocalCapacityExpression, LoweringError> {
-        Ok(match expression {
-            CheckedContentProjectionExpression::IntervalSet { members } => {
-                ProgramLocalCapacityExpression::IntervalSet(
-                    members
-                        .iter()
-                        .map(|member| {
-                            Ok((
-                                scalar(checked, member.start(), 0)?,
-                                scalar(checked, member.end(), 0)?,
-                            ))
-                        })
-                        .collect::<Result<Vec<_>, LoweringError>>()?,
-                )
-            }
-            CheckedContentProjectionExpression::CountedQuantity { magnitude } => {
-                ProgramLocalCapacityExpression::CountedQuantity(scalar(checked, magnitude, 0)?)
-            }
-        })
-    }
-
     let mut output = Vec::new();
     for requirement in &plan.domain_requirements {
         let Some(parameter) = plan
@@ -171,28 +70,22 @@ pub(super) fn lower_program_local_root_introductions(
                 "program-local root terminal parameter is out of range",
             ))?
             .structural_type;
-        let algebra = match &projection.algebra {
-            CheckedContentAlgebraIdentity::IntervalSet { coordinate_space } => ContentAlgebra {
-                kind: ContentAlgebraKind::IntervalSet,
-                parameter: coordinate_space.clone(),
-            },
-            CheckedContentAlgebraIdentity::CountedQuantity { unit } => ContentAlgebra {
-                kind: ContentAlgebraKind::CountedQuantity,
-                parameter: unit.clone(),
-            },
-        };
+        let owner_projection = content_conservation::lower_structural_content_projection(
+            checked,
+            requirement.domain,
+            &parameter.type_identity,
+        )?
+        .ok_or(LoweringError::Unsupported(
+            "program-local root route has no owner content projection",
+        ))?;
         let mut schema = ProgramLocalRootIntroductionSchema {
             argument_index: requirement.argument_index,
             source_parameter_position: parameter.position,
             qualification,
             carrier,
-            projection: ContentProjectionIdentity {
-                domain: ContentDomainId::new(u64::from(requirement.domain.0))
-                    .ok_or(LoweringError::InvalidContentDomainIdentity)?,
-                projection_fingerprint: projection.fingerprint,
-            },
-            algebra,
-            capacity: capacity(checked, &projection.expression)?,
+            projection: owner_projection.identity,
+            algebra: owner_projection.algebra,
+            capacity: owner_projection.expression,
             identity: 0,
         };
         schema.identity = program_local_root_introduction_identity(
@@ -533,12 +426,18 @@ pub(super) fn lower_unit_structural_domains(
     let declarations = selected_plans
         .into_iter()
         .map(|plan| {
+            let content_projection = content_conservation::lower_structural_content_projection(
+                checked,
+                plan.domain,
+                &plan.carrier_type_identity,
+            )?;
             Ok(StructuralDomainDeclaration {
                 id: lookup_domain_id(&domain_ids, plan.domain)?,
                 semantic_domain: DomainSemanticId::new(u64::from(plan.domain.0))
                     .ok_or(LoweringError::InvalidContentDomainIdentity)?,
                 identity: plan.identity.clone(),
                 carrier: lookup_type_id(type_ids, &plan.carrier_type_identity)?,
+                content_projection,
             })
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;

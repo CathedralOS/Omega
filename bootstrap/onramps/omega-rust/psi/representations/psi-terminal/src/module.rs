@@ -1,8 +1,8 @@
 use psi_core::{
     BlockId, BoundaryMachineId, ClaimId, ContentAlgebra, ContentConservation,
-    ContentProjectionIdentity, ContentStructuralPlace, ContentTerm, ContractId, DomainSemanticId,
-    EdgeId, EvidenceTermId, IeeeFloatFormat, IntegerValue, MachineId, ObligationId, OperationId,
-    PlaceId, ProgramLocalCapacityExpression, ProgramLocalCapacityScalar, Proposition,
+    ContentProjectionExpression, ContentProjectionIdentity, ContentProjectionScalar,
+    ContentStructuralPlace, ContentTerm, ContractId, DomainSemanticId, EdgeId, EvidenceTermId,
+    IeeeFloatFormat, IntegerValue, MachineId, ObligationId, OperationId, PlaceId, Proposition,
     PropositionId, ScalarType, ServiceId, StructuralCaseId, StructuralDomainId, StructuralFieldId,
     StructuralPlaceKind, StructuralTypeId, ValueId,
 };
@@ -27,7 +27,7 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        26
+        27
     }
 }
 
@@ -296,6 +296,18 @@ pub struct StructuralDomainDeclaration {
     /// Exact carrier accepted by this domain. Qualification never changes the
     /// runtime carrier and never authorizes its own establishment.
     pub carrier: StructuralTypeId,
+    /// Owner-unique normalized `Content<A>` definition, when this
+    /// qualification is content-bearing. This row is independent of any
+    /// boundary route that may introduce a program-local occurrence; those
+    /// routes must replay this exact definition rather than restating one.
+    pub content_projection: Option<StructuralContentProjection>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct StructuralContentProjection {
+    pub identity: ContentProjectionIdentity,
+    pub algebra: ContentAlgebra,
+    pub expression: ContentProjectionExpression,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -376,7 +388,7 @@ pub struct ProgramLocalRootIntroductionSchema {
     pub carrier: StructuralTypeId,
     pub projection: ContentProjectionIdentity,
     pub algebra: ContentAlgebra,
-    pub capacity: ProgramLocalCapacityExpression,
+    pub capacity: ContentProjectionExpression,
     /// Canonical identity of all fields above plus the enclosing requirement.
     pub identity: u64,
 }
@@ -397,14 +409,14 @@ pub fn program_local_root_introduction_identity(
         bytes(hash, &(value.len() as u64).to_le_bytes());
         bytes(hash, value.as_bytes());
     }
-    fn scalar(hash: &mut u64, value: &ProgramLocalCapacityScalar) {
+    fn scalar(hash: &mut u64, value: &ContentProjectionScalar) {
         match value {
-            ProgramLocalCapacityScalar::SubjectField(path)
-            | ProgramLocalCapacityScalar::RuntimeScalarEmbedding(path) => {
+            ContentProjectionScalar::SubjectField(path)
+            | ContentProjectionScalar::RuntimeScalarEmbedding(path) => {
                 bytes(
                     hash,
                     &[
-                        if matches!(value, ProgramLocalCapacityScalar::SubjectField(_)) {
+                        if matches!(value, ContentProjectionScalar::SubjectField(_)) {
                             1
                         } else {
                             2
@@ -416,23 +428,23 @@ pub fn program_local_root_introduction_identity(
                     string(hash, segment);
                 }
             }
-            ProgramLocalCapacityScalar::Natural(value) => {
+            ContentProjectionScalar::Natural(value) => {
                 bytes(hash, &[3]);
                 string(hash, value);
             }
-            ProgramLocalCapacityScalar::Successor(inner) => {
+            ContentProjectionScalar::Successor(inner) => {
                 bytes(hash, &[4]);
                 scalar(hash, inner);
             }
-            ProgramLocalCapacityScalar::Add(left, right)
-            | ProgramLocalCapacityScalar::Subtract(left, right)
-            | ProgramLocalCapacityScalar::Multiply(left, right) => {
+            ContentProjectionScalar::Add(left, right)
+            | ContentProjectionScalar::Subtract(left, right)
+            | ContentProjectionScalar::Multiply(left, right) => {
                 bytes(
                     hash,
                     &[match value {
-                        ProgramLocalCapacityScalar::Add(_, _) => 5,
-                        ProgramLocalCapacityScalar::Subtract(_, _) => 6,
-                        ProgramLocalCapacityScalar::Multiply(_, _) => 7,
+                        ContentProjectionScalar::Add(_, _) => 5,
+                        ContentProjectionScalar::Subtract(_, _) => 6,
+                        ContentProjectionScalar::Multiply(_, _) => 7,
                         _ => unreachable!(),
                     }],
                 );
@@ -461,7 +473,7 @@ pub fn program_local_root_introduction_identity(
     );
     string(&mut hash, &schema.algebra.parameter);
     match &schema.capacity {
-        ProgramLocalCapacityExpression::IntervalSet(members) => {
+        ContentProjectionExpression::IntervalSet(members) => {
             bytes(&mut hash, &[1]);
             bytes(&mut hash, &(members.len() as u64).to_le_bytes());
             for (start, end) in members {
@@ -469,7 +481,7 @@ pub fn program_local_root_introduction_identity(
                 scalar(&mut hash, end);
             }
         }
-        ProgramLocalCapacityExpression::CountedQuantity(magnitude) => {
+        ContentProjectionExpression::CountedQuantity(magnitude) => {
             bytes(&mut hash, &[2]);
             scalar(&mut hash, magnitude);
         }

@@ -45,10 +45,10 @@ use psi_layout_plans::{
 use psi_proof_kernel::AdmissionProfile;
 use psi_terminal::{
     BoundaryMachineDeclaration, InstallationReachDependency, ServiceDeclaration,
-    StructuralDomainDeclaration, StructuralDomainRequirement, StructuralFieldDeclaration,
-    StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
-    StructuralTypeDeclaration, StructuralTypeShape, TerminalModule, TerminalRootServiceReach,
-    VocabularyMarker, program_local_root_introduction_identity,
+    StructuralContentProjection, StructuralDomainDeclaration, StructuralDomainRequirement,
+    StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralTypeDeclaration, StructuralTypeShape, TerminalModule,
+    TerminalRootServiceReach, VocabularyMarker, program_local_root_introduction_identity,
 };
 
 fn root_id<T>(identity: u64, constructor: fn(u64) -> Result<T, ExternalRootDiagnostic>) -> T {
@@ -1433,12 +1433,12 @@ fn program_local_root_module() -> TerminalModule {
         kind: psi_core::ContentAlgebraKind::CountedQuantity,
         parameter: "ByteUnit".into(),
     };
-    let capacity = psi_core::ProgramLocalCapacityExpression::CountedQuantity(
-        psi_core::ProgramLocalCapacityScalar::Add(
-            Box::new(psi_core::ProgramLocalCapacityScalar::SubjectField(vec![
+    let capacity = psi_core::ContentProjectionExpression::CountedQuantity(
+        psi_core::ContentProjectionScalar::Add(
+            Box::new(psi_core::ContentProjectionScalar::SubjectField(vec![
                 "length".into(),
             ])),
-            Box::new(psi_core::ProgramLocalCapacityScalar::Natural("1".into())),
+            Box::new(psi_core::ContentProjectionScalar::Natural("1".into())),
         ),
     );
     let mut schema = psi_terminal::ProgramLocalRootIntroductionSchema {
@@ -1486,6 +1486,11 @@ fn program_local_root_module() -> TerminalModule {
             semantic_domain: psi_core::DomainSemanticId::new(1).expect("semantic domain identity"),
             identity: "Region::Owned".into(),
             carrier,
+            content_projection: Some(StructuralContentProjection {
+                identity: schema.projection,
+                algebra: schema.algebra.clone(),
+                expression: schema.capacity.clone(),
+            }),
         }],
         services: Vec::new(),
         root_service_reach: TerminalRootServiceReach::default(),
@@ -1557,13 +1562,13 @@ fn program_local_extent_module() -> TerminalModule {
         kind: psi_core::ContentAlgebraKind::IntervalSet,
         parameter: "Nat".into(),
     };
-    let capacity = psi_core::ProgramLocalCapacityExpression::IntervalSet(vec![(
-        psi_core::ProgramLocalCapacityScalar::SubjectField(vec!["base".into()]),
-        psi_core::ProgramLocalCapacityScalar::Add(
-            Box::new(psi_core::ProgramLocalCapacityScalar::SubjectField(vec![
+    let capacity = psi_core::ContentProjectionExpression::IntervalSet(vec![(
+        psi_core::ContentProjectionScalar::SubjectField(vec!["base".into()]),
+        psi_core::ContentProjectionScalar::Add(
+            Box::new(psi_core::ContentProjectionScalar::SubjectField(vec![
                 "base".into(),
             ])),
-            Box::new(psi_core::ProgramLocalCapacityScalar::SubjectField(vec![
+            Box::new(psi_core::ContentProjectionScalar::SubjectField(vec![
                 "length".into(),
             ])),
         ),
@@ -1582,6 +1587,11 @@ fn program_local_extent_module() -> TerminalModule {
         "Region",
         schema,
     );
+    module.structural_domains[0].content_projection = Some(StructuralContentProjection {
+        identity: schema.projection,
+        algebra: schema.algebra.clone(),
+        expression: schema.capacity.clone(),
+    });
     let psi_terminal::StructuralTypeShape::Record { fields } =
         &mut module.structural_types[0].shape
     else {

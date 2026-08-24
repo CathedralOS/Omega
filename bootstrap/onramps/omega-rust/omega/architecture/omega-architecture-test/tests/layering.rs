@@ -108,13 +108,21 @@ fn layer_of(manifest_path: &str) -> Option<&'static str> {
     // the generic Omega on-ramp `backend/` catch-all.
     if m("/apps/") {
         Some("app")
-    } else if m("/bootstrap/onramps/omega-rust/omega/foundation/") || m("/bootstrap/onramps/omega-rust/psi/foundation/") {
+    } else if m("/bootstrap/onramps/omega-rust/omega/foundation/")
+        || m("/bootstrap/onramps/omega-rust/psi/foundation/")
+    {
         Some("foundation")
-    } else if m("/bootstrap/onramps/omega-rust/omega/representations/") || m("/bootstrap/onramps/omega-rust/psi/representations/") {
+    } else if m("/bootstrap/onramps/omega-rust/omega/representations/")
+        || m("/bootstrap/onramps/omega-rust/psi/representations/")
+    {
         Some("representations")
-    } else if m("/bootstrap/onramps/omega-rust/omega/semantics/") || m("/bootstrap/onramps/omega-rust/psi/semantics/") {
+    } else if m("/bootstrap/onramps/omega-rust/omega/semantics/")
+        || m("/bootstrap/onramps/omega-rust/psi/semantics/")
+    {
         Some("semantics")
-    } else if m("/bootstrap/onramps/omega-rust/omega/pipeline/") || m("/bootstrap/onramps/omega-rust/psi/pipeline/") {
+    } else if m("/bootstrap/onramps/omega-rust/omega/pipeline/")
+        || m("/bootstrap/onramps/omega-rust/psi/pipeline/")
+    {
         Some("pipeline")
     } else if m("/bootstrap/onramps/omega-rust/omega/orchestration/") {
         Some("orchestration")
@@ -402,8 +410,9 @@ fn retired_omega_frontend_adapters_do_not_return() {
 #[test]
 fn provider_approval_stays_in_omega_after_psi_checking() {
     let root = workspace_root();
-    let psi_checks =
-        root.join("bootstrap/onramps/omega-rust/psi/pipeline/psi-typed-trees-to-checked-trees/src/checks.rs");
+    let psi_checks = root.join(
+        "bootstrap/onramps/omega-rust/psi/pipeline/psi-typed-trees-to-checked-trees/src/checks.rs",
+    );
     let psi_source = std::fs::read_to_string(&psi_checks)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", psi_checks.display()));
     assert!(
@@ -425,7 +434,8 @@ fn provider_approval_stays_in_omega_after_psi_checking() {
 #[test]
 fn target_neutral_effect_inference_is_psi_owned() {
     let root = workspace_root();
-    let legacy = root.join("bootstrap/onramps/omega-rust/omega/representations/omega-effects/src/lib.rs");
+    let legacy =
+        root.join("bootstrap/onramps/omega-rust/omega/representations/omega-effects/src/lib.rs");
     let source = std::fs::read_to_string(&legacy)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", legacy.display()));
     assert!(
@@ -593,7 +603,8 @@ fn omega_visualizations_consume_psi_semantics_directly() {
 #[test]
 fn checked_semantics_are_psi_owned_without_provider_realization() {
     let root = workspace_root();
-    let manifest = root.join("bootstrap/onramps/omega-rust/psi/representations/psi-checked-trees/Cargo.toml");
+    let manifest =
+        root.join("bootstrap/onramps/omega-rust/psi/representations/psi-checked-trees/Cargo.toml");
     let manifest_source = std::fs::read_to_string(&manifest)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", manifest.display()));
     assert!(
@@ -605,7 +616,8 @@ fn checked_semantics_are_psi_owned_without_provider_realization() {
         "checked semantics must not depend on target/provider task activation realization"
     );
 
-    let checked_root = root.join("bootstrap/onramps/omega-rust/psi/representations/psi-checked-trees/src");
+    let checked_root =
+        root.join("bootstrap/onramps/omega-rust/psi/representations/psi-checked-trees/src");
     for relative in ["lib.rs", "trees.rs"] {
         let path = checked_root.join(relative);
         let source = std::fs::read_to_string(&path)
@@ -630,7 +642,8 @@ fn checked_semantics_are_psi_owned_without_provider_realization() {
         omega_provider_carrier.exists(),
         "selected concrete provider plans must remain in the Omega provider subsystem"
     );
-    let omega_task_carrier = root.join("bootstrap/onramps/omega-rust/omega/foundation/omega-task-plans/src/lib.rs");
+    let omega_task_carrier =
+        root.join("bootstrap/onramps/omega-rust/omega/foundation/omega-task-plans/src/lib.rs");
     let task_source = std::fs::read_to_string(&omega_task_carrier)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", omega_task_carrier.display()));
     assert!(
@@ -642,14 +655,15 @@ fn checked_semantics_are_psi_owned_without_provider_realization() {
 #[test]
 fn first_terminal_psi_source_slice_stays_fail_closed() {
     let root = workspace_root();
-    let path = root.join("bootstrap/onramps/omega-rust/psi/pipeline/psi-checked-trees-to-terminal/src/lib.rs");
+    let path = root
+        .join("bootstrap/onramps/omega-rust/psi/pipeline/psi-checked-trees-to-terminal/src/lib.rs");
     let source = std::fs::read_to_string(&path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()));
     let production_source = source
         .split_once("#[cfg(test)]")
         .map_or(source.as_str(), |(production, _)| production);
-    let manifest_path =
-        root.join("bootstrap/onramps/omega-rust/psi/pipeline/psi-checked-trees-to-terminal/Cargo.toml");
+    let manifest_path = root
+        .join("bootstrap/onramps/omega-rust/psi/pipeline/psi-checked-trees-to-terminal/Cargo.toml");
     let manifest = std::fs::read_to_string(&manifest_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", manifest_path.display()));
     let production_manifest = manifest
@@ -744,7 +758,8 @@ fn program_storage_entry_activation_cannot_detach_before_executor_dispatch() {
 #[test]
 fn typed_frontend_does_not_retain_concrete_calling_conventions() {
     let root = workspace_root();
-    let manifest = root.join("bootstrap/onramps/omega-rust/psi/representations/psi-typed-trees/Cargo.toml");
+    let manifest =
+        root.join("bootstrap/onramps/omega-rust/psi/representations/psi-typed-trees/Cargo.toml");
     let manifest_source = std::fs::read_to_string(&manifest)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", manifest.display()));
     assert!(
@@ -752,8 +767,9 @@ fn typed_frontend_does_not_retain_concrete_calling_conventions() {
         "typed frontend representation must not depend on concrete ABI/calling-convention plans"
     );
 
-    let representation =
-        root.join("bootstrap/onramps/omega-rust/psi/representations/psi-typed-trees/src/typed_trees.rs");
+    let representation = root.join(
+        "bootstrap/onramps/omega-rust/psi/representations/psi-typed-trees/src/typed_trees.rs",
+    );
     let representation_source = std::fs::read_to_string(&representation)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", representation.display()));
     assert!(

@@ -1,5 +1,5 @@
 #!/usr/bin/env sh
-# Frozen O1 dependency closure: lowermachine-built frontend -> vocabulary-26
+# Frozen O1 dependency closure: lowermachine-built frontend -> vocabulary-27
 # terminal Psi -> lowermachine-built direct backend -> exact Linux x86-64 ELF.
 set -eu
 
@@ -199,4 +199,4 @@ run_backend_rejection truncated "$T/truncated.terminal" 251
 run_backend_rejection tampered "$T/tampered.terminal" 251
 run_backend_rejection trailing "$T/trailing.terminal" 251
 
-echo "Delta O1 self-host composite: lowermachine-built frontend/backend, exact 0/1/2/16 vocabulary-26 terminal and ELF bytes, and fail-closed controls passed"
+echo "Delta O1 self-host composite: lowermachine-built frontend/backend, exact 0/1/2/16 vocabulary-27 terminal and ELF bytes, and fail-closed controls passed"
