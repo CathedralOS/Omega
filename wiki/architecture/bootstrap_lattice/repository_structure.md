@@ -6,9 +6,8 @@
 The repository distinguishes architectural role from implementation language.
 The former flat `compiler/` inventory has been split: seed-built language rungs,
 external-language on-ramps, assurance, the bootstrap bridge, and the product compiler
-now have separate owners. Remaining compatibility symlinks and forwarding
-facades are transitional migration debt; they preserve old entry points without
-restoring old ownership and should disappear after their consumers move.
+now have separate owners. The top-level compatibility symlinks and forwarding
+facade have been retired; `compiler/` is reserved for product compiler source.
 
 ## Canonical structure
 
@@ -103,7 +102,8 @@ does not grant authority. Compiler outputs become acceptable through
 lower-rooted source-to-artifact refinement, not agreement between producers.
 See [D5](decisions.md#d5--direct-checked-refinement-closes-compiler-provenance).
 
-The useful contents formerly grouped under `compiler/beta-lang-py/` now have
+The useful contents formerly grouped under the retired
+`compiler/beta-lang-py/` facade now have
 role-based owners:
 
 | Former content / retained responsibility | Actual role | Canonical owner |
@@ -115,35 +115,34 @@ role-based owners:
 The former byte-comparison gate and `bc2.py` backend have been removed after
 showing they provided no unique semantic or refinement coverage. The `bc`
 cold-start edge closes only through lower-rooted source-to-artifact checking.
-`compiler/beta-lang-py/` now contains compatibility forwarding entry points,
-not a canonical implementation owner.
+No forwarding entry points remain under `compiler/`.
 
 Python is an implementation detail of these tools, not their common owner.
 
-## Canonical map and compatibility paths
+## Canonical ownership map
 
 Gate scripts now resolve cross-owner dependencies through
 [`bootstrap/paths.sh`](../../../bootstrap/paths.sh), and
 [`bootstrap/check-path-hygiene.sh`](../../../bootstrap/check-path-hygiene.sh)
 rejects new named sibling-relative references. Broad moves can therefore update
 one role manifest instead of rewriting every gate. The completed ownership map
-and its remaining compatibility paths are:
+is:
 
-| Canonical or transitional source | Target role |
+| Source | Target role |
 | --- | --- |
-| `bootstrap/rungs/alpha/` (compatibility: `compiler/alpha`, historical `compiler/beta`) | `bootstrap/rungs/alpha/` — complete |
-| `bootstrap/rungs/beta/` (compatibility: `compiler/beta-lang`) | `bootstrap/rungs/beta/` — complete |
-| `bootstrap/rungs/gamma/` (compatibility: `compiler/gamma`) | `bootstrap/rungs/gamma/` — complete |
-| `bootstrap/rungs/delta/` (compatibility: `compiler/delta`, Delta samples through `compiler/delta-rs`) | `bootstrap/rungs/delta/` — complete |
-| `bootstrap/onramps/delta-rust/` (compatibility: `compiler/delta-rs`) | `bootstrap/onramps/delta-rust/` — complete |
-| `bootstrap/onramps/alpha-assembler-rust/` (compatibility: `compiler/beta-rs`) | `bootstrap/onramps/alpha-assembler-rust/` — complete |
-| `bootstrap/onramps/beta-rust/` (compatibility: `compiler/beta-lang-rs`) | `bootstrap/onramps/beta-rust/` — complete |
+| `bootstrap/rungs/alpha/` | Alpha rung and assembler — complete |
+| `bootstrap/rungs/beta/` | Beta rung — complete |
+| `bootstrap/rungs/gamma/` | Gamma rung — complete |
+| `bootstrap/rungs/delta/` | Delta rung — complete |
+| `bootstrap/onramps/delta-rust/` | Delta Rust on-ramp — complete |
+| `bootstrap/onramps/alpha-assembler-rust/` | Alpha assembler Rust on-ramp — complete |
+| `bootstrap/onramps/beta-rust/` | Beta Rust on-ramp — complete |
 | current Rust Psi/Omega compiler and CLI | `bootstrap/onramps/omega-rust/` — complete |
-| `bootstrap/assurance/proof-kernel/` (compatibility: `compiler/proof-kernel`) | `bootstrap/assurance/proof-kernel/{implementations,tools,corpus,gates}/` — complete |
+| `bootstrap/assurance/proof-kernel/` | `bootstrap/assurance/proof-kernel/{implementations,tools,corpus,gates}/` — complete |
 | Beta-source/Alpha-artifact refinement tools (compatibility entries under Alpha) | `bootstrap/assurance/refinement/beta/` — complete |
 | bridge meaning/artifact TV encoders and gates | `bootstrap/assurance/refinement/omega-bootstrap/` — complete |
 | historical `bootstrap/omega0/` references | `bootstrap/omega-bootstrap/{meaning,compiler,gates}/` — rename complete; no live `omega0` owner path, complete `Ωself` bridge open |
-| `bootstrap/corpus/` (compatibility: `compiler/lattice-corpus`) | `bootstrap/corpus/` — complete |
+| `bootstrap/corpus/` | shared lattice corpus — complete |
 | eventual Omega-written Psi/Omega compiler | `compiler/{psi,omega}/` — roots reserved; implementation open |
 
 `compiler/` means source intended to survive in the self-hosted product;

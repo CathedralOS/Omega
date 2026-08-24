@@ -32,7 +32,7 @@ T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 # 1. build the proof kernel (trust anchor), exactly as the lattice does
 . "${OMEGA_PATH_BETA}"/artifact_env.sh
 SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
-ASM="${OMEGA_PATH_BETA_ASSEMBLER}"/$BETA_SEED
+ASM="${OMEGA_PATH_ALPHA_ASSEMBLER}"/$BETA_SEED
 stamp_beta_compiler "$T/bc.exe" >/dev/null \
   || { echo "contracts FAIL — Beta compiler artifact"; exit 1; }
 if "$T/bc.exe" < "${OMEGA_PATH_PROOF_KERNEL}"/implementations/beta/check.beta > "$T/c.asm" 2>/dev/null \

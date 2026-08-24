@@ -61,10 +61,8 @@ class BetaRefinementOwnershipTests(unittest.TestCase):
             for node in ast.walk(tree)
         ))
 
-    def test_legacy_facade_contains_no_second_compiler(self):
-        facade = ROOT / 'compiler/beta-lang-py'
-        self.assertFalse((facade / 'bc2.py').exists())
-        self.assertFalse((facade / 'independent-floor.sh').exists())
+    def test_retired_compiler_facade_is_absent(self):
+        self.assertFalse((ROOT / 'compiler/beta-lang-py').exists())
 
     def test_alpha_compatibility_entries_resolve_to_assurance(self):
         alpha = ROOT / 'bootstrap/rungs/alpha'

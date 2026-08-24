@@ -1,5 +1,5 @@
 #!/usr/bin/env sh
-# aarch64/macOS backend gate — the FIRST executable test of delta-rs on this
+# aarch64/macOS backend gate — the FIRST executable test of delta-rust on this
 # platform. The x64 PE backend's output cannot run here; this backend emits ARM64
 # assembly, clang assembles+links a Mach-O, codesign ad-hoc signs it, and we run
 # the result and check its exit status. That closes the loop: delta is now a

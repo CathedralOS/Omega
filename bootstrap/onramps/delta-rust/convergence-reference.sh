@@ -2,7 +2,7 @@
 # REFERENCE-ROUTE CONVERGENCE -- proof-carrying computation on the MEANING route.
 #
 # convergence.sh / convergence-selfhost.sh run a certifier as NATIVE code (the fast route: the
-# delta-rs backend, or the self-hosted lowermachine) and have the trust anchor check the emitted
+# delta-rust backend, or the self-hosted lowermachine) and have the trust anchor check the emitted
 # certificate. This runs the same certifier down the SLOW, MEANING-DEFINING route instead: the delta
 # program is translated to gamma (DELTA_EMIT=gamma) and EXECUTED by the Rust-free reference interpreter
 # `interp.beta` -- the rung's "meaning" -- which emits the certificate, and the trust anchor `check.beta`
@@ -39,7 +39,7 @@ for t in cargo clang codesign; do command -v "$t" >/dev/null 2>&1 || { echo "con
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 . "${OMEGA_PATH_BETA}"/artifact_env.sh
 SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
-ASM="${OMEGA_PATH_BETA_ASSEMBLER}"/$BETA_SEED
+ASM="${OMEGA_PATH_ALPHA_ASSEMBLER}"/$BETA_SEED
 stamp_beta_compiler "$T/bc.exe" >/dev/null || { echo "convergence-reference FAIL -- Beta compiler artifact"; exit 1; }
 b() { "$T/bc.exe" < "$1" > "$T/x.asm" 2>/dev/null && "$ASM" < "$T/x.asm" > "$T/x.tape" 2>/dev/null && stamp_seed "$T/x.tape" "$SEED" "$2" >/dev/null 2>&1; }
 b "${OMEGA_PATH_PROOF_KERNEL}"/implementations/beta/check.beta "$T/check.exe"   || { echo "convergence-reference FAIL -- build check.beta"; exit 1; }

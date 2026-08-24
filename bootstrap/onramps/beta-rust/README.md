@@ -14,9 +14,9 @@ Alpha-rooted `bc` artifact is built. Successful production and a fixed point
 prove neither source-to-artifact correctness nor semantic authority.
 
 > Naming: `bootstrap/onramps/beta-rust` is the canonical Beta-language producer.
-> `compiler/beta-lang-rs` is its compatibility path. The historical
-> `compiler/beta-rs` path is separately retained for the canonical
-> `bootstrap/onramps/alpha-assembler-rust` producer.
+> The former `compiler/beta-lang-rs` and `compiler/beta-rs` compatibility
+> entries have been retired; the Alpha assembler producer is canonically
+> `bootstrap/onramps/alpha-assembler-rust`.
 
 ## Build / run
 

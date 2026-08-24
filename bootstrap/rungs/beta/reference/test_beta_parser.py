@@ -71,34 +71,9 @@ class BetaParserTests(unittest.TestCase):
             }
             self.assertTrue(forbidden.isdisjoint(imported), (name, imported))
 
-    def test_retired_second_compiler_is_absent(self):
+    def test_retired_compiler_facade_is_absent(self):
         root = Path(__file__).resolve().parents[4]
-        facade = root / 'compiler/beta-lang-py'
-        self.assertFalse((facade / 'bc2.py').exists())
-        self.assertFalse((facade / 'independent-floor.sh').exists())
-
-    def test_legacy_facade_contains_forwarders_only(self):
-        root = Path(__file__).resolve().parents[4]
-        facade = root / 'compiler/beta-lang-py'
-        expected = {
-            'README.md',
-            'beta-correctness-fuzz.sh',
-            'beta-fuzz-gen.py',
-            'beta-io-exhaust.sh',
-            'beta_interp.py',
-            'beta_parser.py',
-            'beta_symbolic.py',
-            'io-fuzz-gen.py',
-            'io-verify.py',
-            'symbolic-loops.sh',
-            'symbolic_loop_check.py',
-            'test_beta_parser.py',
-        }
-        files = {path.name for path in facade.iterdir() if path.is_file()}
-        self.assertEqual(files, expected)
-        for path in facade.iterdir():
-            if path.is_file() and path.name != 'README.md':
-                self.assertIn('Compatibility', path.read_text())
+        self.assertFalse((root / 'compiler/beta-lang-py').exists())
 
 
 if __name__ == '__main__':

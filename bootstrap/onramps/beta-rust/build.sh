@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 # ./build.sh PROG.beta  ->  build/PROG.exe   (a standalone seed exe)
 #
-# The chain: beta-lang compiles .beta -> Alpha assembly; the assembler (${OMEGA_PATH_BETA_ASSEMBLER})
+# The chain: beta-lang compiles .beta -> Alpha assembly; the assembler (${OMEGA_PATH_ALPHA_ASSEMBLER})
 # lowers assembly -> a tape; the tape is stamped into the alpha seed. beta-lang
 # is the throwaway Rust on-ramp for the Beta compiler. Per-platform seed +
 # stamping live in ${OMEGA_PATH_ALPHA}/seed_env.sh.
@@ -24,7 +24,7 @@ cd "$OMEGA_GATE_DIR"
 . "${OMEGA_PATH_ALPHA}"/seed_env.sh
 mkdir -p build
 SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
-ASM="${OMEGA_PATH_BETA_ASSEMBLER}"/$BETA_SEED
+ASM="${OMEGA_PATH_ALPHA_ASSEMBLER}"/$BETA_SEED
 
 SRC=${1:-examples/answer.beta}
 NAME=$(basename "$SRC" .beta)

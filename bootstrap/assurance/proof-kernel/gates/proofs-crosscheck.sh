@@ -34,7 +34,7 @@ cd "$OMEGA_PATH_PROOF_KERNEL"
 command -v python3 >/dev/null 2>&1 || { echo "proofs-crosscheck: skipped (python3 absent)"; exit 0; }
 . "${OMEGA_PATH_ALPHA}"/seed_env.sh
 SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
-ASM="${OMEGA_PATH_BETA_ASSEMBLER}"/$BETA_SEED
+ASM="${OMEGA_PATH_ALPHA_ASSEMBLER}"/$BETA_SEED
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 stamp_beta_compiler "$T/bc.exe" >/dev/null
 bcc() { "$T/bc.exe" < "$1" > "$T/a.asm" 2>/dev/null && "$ASM" < "$T/a.asm" > "$T/a.tape" 2>/dev/null && stamp_seed "$T/a.tape" "$SEED" "$2" >/dev/null 2>&1; }

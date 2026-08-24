@@ -22,8 +22,8 @@ Rust and no numeric-opcode step in normal use.
   encoding rather than ported from `assembler.alpha`. `asm-diamond.sh` compares
   outputs over a corpus and is useful for catching encoder bugs. Agreement is
   diagnostic evidence, not source-to-artifact authority.
-- `../../../onramps/alpha-assembler-rust/` (compatibility:
-  `../../../../compiler/beta-rs/`) — a throwaway Rust on-ramp, used **only for a cold start**: minting the
+- `../../../onramps/alpha-assembler-rust/` — a throwaway Rust on-ramp, used
+  **only for a cold start**: minting the
   very first `beta_x64_windows.exe` when no assembler exists yet. Normal use never
   touches it; the Alpha assembler rebuilds itself (see `selfhost.sh`).
 

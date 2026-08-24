@@ -3,6 +3,8 @@
 /dist/
 /build/
 /.lattice-cache/
+# Retired verifier location; local caches may persist.
+/compiler/.lattice-cache/
 /samples/*/build/
 /samples/*/build_win/
 /canaries/*/*/build/

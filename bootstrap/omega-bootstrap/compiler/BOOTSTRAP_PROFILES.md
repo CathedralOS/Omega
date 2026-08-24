@@ -201,10 +201,9 @@ strings, and a missing entry are negative gates.
 
 [`omega-bootstrap-frontend.alp`](omega-bootstrap-frontend.alp) now implements
 that front end in D0. `bootstrap/rungs/delta/samples/omega-bootstrap-frontend.alp`
-is a rung-local symlink for the shared compiler slice; the historical
-`bootstrap/rungs/delta/samples/omega0-frontend.alp` and
-`compiler/delta-rs/samples/omega0-frontend.alp` entries remain compatibility
-paths.
+is a rung-local symlink for the shared compiler slice. The historical
+`bootstrap/rungs/delta/samples/omega0-frontend.alp` entry remains a role-local
+compatibility path; the former top-level `compiler/delta-rs` facade is retired.
 It accepts exactly one canonical bundled source, retains at most 2,048 source
 bytes with checked exhaustion, validates the complete source as UTF-8, and uses
 a streaming lexer rather than a token arena. Fixed O0 names use ASCII

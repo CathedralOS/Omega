@@ -121,46 +121,45 @@ the source-and-assurance measurements below, not by creating another rung.
 
 The former flat `compiler/` inventory has been split by actual ownership.
 Canonical homes are under `bootstrap/` for the seed-built lattice and under
-`compiler/` for the product implementation; selected old paths remain only as
-compatibility symlinks.
+`compiler/` for the product implementation. The flat compatibility facade has
+been retired; bootstrap callers resolve canonical owners through
+`bootstrap/paths.sh`.
 
 ### Language spine
 
-| Canonical or compatibility source | Role | Canonical owner |
+| Source | Role | Canonical owner |
 | --- | --- | --- |
-| `bootstrap/rungs/alpha/` (compatibility: `compiler/alpha`, `compiler/beta`) | 21-opcode native seed VM, written semantics, and Alpha-written Alpha assembler | `bootstrap/rungs/alpha/` |
-| `bootstrap/rungs/beta/` (compatibility: `compiler/beta-lang`) | Beta language and self-hosting compiler | `bootstrap/rungs/beta/` |
-| `bootstrap/rungs/gamma/` (compatibility: `compiler/gamma`) | Gamma language, interpreter, and type checker | `bootstrap/rungs/gamma/` |
-| `bootstrap/rungs/delta/` (compatibility: `compiler/delta`, Delta samples through `compiler/delta-rs`) | Delta language corpus, Delta-written compiler, and lattice-built artifacts | `bootstrap/rungs/delta/` |
+| `bootstrap/rungs/alpha/` | 21-opcode native seed VM, written semantics, and Alpha-written Alpha assembler | `bootstrap/rungs/alpha/` |
+| `bootstrap/rungs/beta/` | Beta language and self-hosting compiler | `bootstrap/rungs/beta/` |
+| `bootstrap/rungs/gamma/` | Gamma language, interpreter, and type checker | `bootstrap/rungs/gamma/` |
+| `bootstrap/rungs/delta/` | Delta language corpus, Delta-written compiler, and lattice-built artifacts | `bootstrap/rungs/delta/` |
 
 ### Assurance and the bootstrap bridge
 
-| Canonical or transitional source | Role | Canonical owner |
+| Source | Role | Canonical owner |
 | --- | --- | --- |
-| `bootstrap/assurance/proof-kernel/{implementations,tools,corpus,gates}/` (compatibility: `compiler/proof-kernel`) | cross-cutting derivation checking, tools, corpora, and gates | `bootstrap/assurance/proof-kernel/` |
+| `bootstrap/assurance/proof-kernel/{implementations,tools,corpus,gates}/` | cross-cutting derivation checking, tools, corpora, and gates | `bootstrap/assurance/proof-kernel/` |
 | `bootstrap/assurance/refinement/{beta,omega-bootstrap}/` (compatibility entries remain under Alpha and bridge gates) | cross-rung source/meaning-to-artifact obligation reconstruction and checking | `bootstrap/assurance/refinement/` |
 | `bootstrap/omega-bootstrap/` | Rust-free meaning, current bridge-compiler slices/contracts, and gates | `bootstrap/omega-bootstrap/` |
-| `bootstrap/corpus/` (compatibility: `compiler/lattice-corpus`) | fixtures shared across lattice seams | `bootstrap/corpus/` |
+| `bootstrap/corpus/` | fixtures shared across lattice seams | `bootstrap/corpus/` |
 
 ### Reference producers and future product implementations
 
-| Canonical or transitional source | Role | Canonical owner |
+| Source | Role | Canonical owner |
 | --- | --- | --- |
-| `bootstrap/onramps/delta-rust/` (compatibility: `compiler/delta-rs`) | Delta disposable/reference Rust producer | `bootstrap/onramps/delta-rust/` |
-| `bootstrap/onramps/alpha-assembler-rust/` (compatibility: `compiler/beta-rs`) | disposable/reference Rust producer of Alpha VM tapes from Alpha assembly | `bootstrap/onramps/alpha-assembler-rust/` |
-| `bootstrap/onramps/beta-rust/` (compatibility: `compiler/beta-lang-rs`) | Beta-language disposable/reference Rust producer | `bootstrap/onramps/beta-rust/` |
-| `bootstrap/rungs/beta/reference/` | executable Beta reference meaning and semantic fuzzing | `bootstrap/rungs/beta/reference/`; `compiler/beta-lang-py` forwards compatibility entry points |
-| `bootstrap/assurance/refinement/beta/` | fragmentary symbolic reconstruction plus whole-artifact obligation checkers | `bootstrap/assurance/refinement/beta/` |
+| `bootstrap/onramps/delta-rust/` | Delta disposable/reference Rust producer | `bootstrap/onramps/delta-rust/` |
+| `bootstrap/onramps/alpha-assembler-rust/` | disposable/reference Rust producer of Alpha VM tapes from Alpha assembly | `bootstrap/onramps/alpha-assembler-rust/` |
+| `bootstrap/onramps/beta-rust/` | Beta-language disposable/reference Rust producer | `bootstrap/onramps/beta-rust/` |
+| `bootstrap/rungs/beta/reference/` | executable Beta reference meaning and semantic fuzzing | `bootstrap/rungs/beta/reference/` |
+| `bootstrap/assurance/refinement/beta/` | source/artifact reconstruction plus whole-artifact obligation checkers | `bootstrap/assurance/refinement/beta/` |
 | `bootstrap/onramps/omega-rust/` | current working Rust Psi/Omega compiler and CLI; maintained parallel comparator and differential producer, never bootstrap authority | `bootstrap/onramps/omega-rust/` |
 | `compiler/{psi,omega}/` | eventual Omega-written product compiler source | reserved product roots; implementation remains open |
 
-### Compatibility retirement
+### Completed compatibility retirement
 
-- [ ] **Make `compiler/` product-only.** Migrate remaining bootstrap consumers
-  to canonical `bootstrap/` owners, then remove the flat rung/on-ramp/assurance
-  compatibility entries, including the `compiler/beta-lang-py/` forwarding
-  facade and `compiler/proof-kernel` symlink. Remove their compatibility roles
-  from `bootstrap/paths.sh` and invert the path-hygiene tests so they reject
+- [x] **Make `compiler/` product-only.** Bootstrap consumers now use canonical
+  `bootstrap/` owners. The flat rung/on-ramp/assurance entries, forwarding
+  facade, and compatibility roles are retired; path-hygiene tests reject their
   reintroduction.
 
   Acceptance: `compiler/` contains only product-source ownership and its
@@ -357,6 +356,29 @@ used by the compiler belong to the manifest. That does not pull in a standalone
 Terminal-Psi interpreter, verifier, viewer, or debugger, and it does not require
 `omega-bootstrap` to use Terminal Psi as its own internal compiler IR.
 
+- [ ] **Complete bundle-wide source-unit ingestion in the canonical Delta
+  frontend.** This is pre-profile bridge infrastructure, not O2, `Ωself`
+  admission, or a package/namespace decision. Apply the already-ruled canonical
+  bundle contract to the real frontend rather than only the decoder canary:
+  - [ ] decode every unit before publication, preserve each source ID, label,
+    exact byte span, and label-local offset, and validate UTF-8 per unit without
+    concatenation, injected separators, or cross-unit token fusion;
+  - [ ] retain the present bounded storage model with checked descriptor, label,
+    and content exhaustion and deterministic status 252;
+  - [ ] as the bounded end-to-end canary, accept exactly one O1 program-bearing
+    unit plus empty/trivia-only ordinary Omega units, while two nontrivial units
+    remain explicit unsupported status 251; and
+  - [ ] carry identical accepted/rejected observations through the native
+    frontend, Rust-free meaning route, and direct terminal-to-ELF composite,
+    including invalid auxiliary UTF-8 and every resource boundary. Publish no
+    terminal bytes before the whole bundle validates.
+
+  Acceptance: an auxiliary-trivia bundle produces byte-identical terminal and
+  ELF output to its single-source equivalent; multiple program units,
+  cross-file token fragments, malformed UTF-8, and exhausted backing fail with
+  their exact status and no artifact publication. No new Omega grammar, module
+  semantics, Delta feature, or `Ωself` row is selected by this task.
+
 #### Stage 2 — derive the source profile and implement the bridge
 
 - [ ] **Derive and enforce provisional `Ωself` from the product source.**
@@ -541,7 +563,7 @@ Terminal-Psi interpreter, verifier, viewer, or debugger, and it does not require
     two table-indexed loads to exact guards and nonwrapping extents; and
   - every claimed source/artifact join remains lower-rooted and mutation-toothed.
 
-  Remaining proof plan:
+  Established proof decomposition:
   - [x] establish the bounded conditional name-table/query-slice domain and
     exact terminating `name_eq` relation, including length short circuit,
     first mismatch, and full byte equality;
@@ -565,15 +587,15 @@ Terminal-Psi interpreter, verifier, viewer, or debugger, and it does not require
     for `gen_stmts`/`gen_block`/`gen_state`/`gen_stmt`, preserving finite
     or infinite stdout prefixes without assuming output productivity:
     - [x] bind exact p26/p46/p62..p67 source/artifact shape in an independent
-      82,588-byte checker, with every module below 20 KB, an assembler diamond,
-      and twelve phase-isolated teeth;
+      checker split into bounded modules, with an assembler diamond and
+      phase-isolated mutation teeth;
     - [x] establish the finite helper/dispatch relation, including every
       post-resource suffix and name-table provenance branch; and
     - [x] close the block-depth-stratified guarded greatest fixed point, using a
       completed child/backedge machine step—not cursor or stdout progress—as
-      the coinductive guard. The independent 80,138-byte conditional semantic
-      checker is conjoined with its six prerequisite owners over the identical
-      canonical bundle and has twenty-two phase-isolated teeth;
+      the coinductive guard. The independent conditional semantic checker is
+      conjoined with its prerequisite owners over the identical canonical
+      bundle and has phase-isolated mutation teeth;
   - [x] compose the `parse_proc`/PFXS body cutpoint through the unconditional
     epilogue and return, including finite child returns after numeric resource
     status 252:
@@ -586,8 +608,8 @@ Terminal-Psi interpreter, verifier, viewer, or debugger, and it does not require
     - [x] preserve exact `P || child || 49-byte-epilogue` finite order and
       `P || maximal-child` divergence, including status/provenance, restored or
       live frames/depth, and no cursor/output productivity premise. The
-      independent 63,560-byte checker has an assembler diamond, four modules
-      below 20 KB, and twenty-five phase-isolated teeth;
+      independent checker has an assembler diamond, bounded modules, and
+      phase-isolated mutation teeth;
   - [x] classify each checked resource outcome from its exact proved guard,
     resource profile, and requested amount. Status 252/253 is only a process
     projection and is never used to recover `ResourceKind`:
@@ -597,9 +619,9 @@ Terminal-Psi interpreter, verifier, viewer, or debugger, and it does not require
       `nslots=nparams+count_lets()` request with its proved nonwrapping
       `[1025,1048580]` range, rather than clamping it to the lower bound; and
     - [x] conjoin Checker A and expression-family ownership over one immutable
-      bundle in an independent 65,069-byte checker, with five modules below
-      20 KB, an assembler diamond, a scanned origin/kind/projection census, and
-      thirty-six phase-isolated teeth; and
+      bundle in an independent bounded-module checker, with an assembler
+      diamond, a scanned origin/kind/projection census, and phase-isolated
+      mutation teeth; and
   - [x] close the root loop and prove equality of maximal stdout plus
     `Halt`/`Trap`/`Exhaust`/`Diverge` for every finite source stream and
     supported resource profile in `BOOTSTRAP_OBSERVABLE.md`:

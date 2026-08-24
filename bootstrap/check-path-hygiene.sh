@@ -8,8 +8,8 @@ SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 OMEGA_REPO_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd -P)
 . "$SCRIPT_DIR/paths.sh"
 
-# Keep the role manifest and temporary compatibility entry points pinned while
-# this static scan prevents new topology-dependent cross-owner paths.
+# Pin canonical role ownership and the absence of the retired compiler facade,
+# then prevent new topology-dependent cross-owner paths.
 sh "$SCRIPT_DIR/test-paths.sh"
 
 pattern='\.\./(alpha|beta|beta-rs|beta-lang|beta-lang-rs|beta-lang-py|gamma|delta-rs|proof-kernel|omega|lattice-corpus|psi)(/|[^A-Za-z0-9_-]|$)'

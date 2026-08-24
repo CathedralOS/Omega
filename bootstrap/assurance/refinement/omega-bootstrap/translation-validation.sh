@@ -43,7 +43,7 @@ for t in cargo clang codesign python3; do command -v "$t" >/dev/null 2>&1 || { e
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 . "${OMEGA_PATH_BETA}"/artifact_env.sh
 SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
-ASM="${OMEGA_PATH_BETA_ASSEMBLER}"/$BETA_SEED
+ASM="${OMEGA_PATH_ALPHA_ASSEMBLER}"/$BETA_SEED
 BC="$T/bc.exe"
 stamp_beta_compiler "$BC" >/dev/null 2>&1 || { echo "translation-validation FAIL — lattice bc artifact"; exit 1; }
 b() { "$BC" < "$1" > "$T/x.asm" 2>/dev/null && "$ASM" < "$T/x.asm" > "$T/x.tape" 2>/dev/null && stamp_seed "$T/x.tape" "$SEED" "$2" >/dev/null 2>&1; }

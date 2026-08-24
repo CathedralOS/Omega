@@ -6,9 +6,9 @@ Rust-free route to run it; this artifact decides whether supplied proof evidence
 is valid.
 
 This tree is assurance infrastructure rather than a compiler or language rung.
-`compiler/proof-kernel` remains a compatibility path; canonical callers
-resolve the `proof-kernel` role through `bootstrap/paths.sh`. Internal ownership is
-split by responsibility; the host language of a file does not determine its owner.
+Canonical callers resolve the `proof-kernel` role through `bootstrap/paths.sh`.
+Internal ownership is split by responsibility; the host language of a file does
+not determine its owner.
 See the
 [repository structure](../../../wiki/architecture/bootstrap_lattice/repository_structure.md).
 

@@ -26,7 +26,7 @@ SRC=${1:-examples/answer.gamma}
 NAME=$(basename "$SRC" .gamma)
 
 ./gamma_x64_windows.exe        < "$SRC"            > "build/$NAME.asm"    # .gamma -> assembly
-"${OMEGA_PATH_BETA_ASSEMBLER}"/beta_x64_windows.exe   < "build/$NAME.asm" > "build/$NAME.tape"   # assembly -> tape
+"${OMEGA_PATH_ALPHA_ASSEMBLER}"/beta_x64_windows.exe   < "build/$NAME.asm" > "build/$NAME.tape"   # assembly -> tape
 L=$(wc -c < "build/$NAME.tape")
 [ $((L + 4)) -le 32768 ] || { echo "FAIL: $NAME tape is $L B, exceeds the seed's 32 KB hole" >&2; exit 1; }
 
