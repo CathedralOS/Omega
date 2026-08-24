@@ -1694,6 +1694,7 @@ name = "psi-symbols"
 version = "0.1.0"
 dependencies = [
  "psi-arena",
+ "psi-core",
  "psi-source",
 ]
 

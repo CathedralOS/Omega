@@ -261,12 +261,46 @@ complete.
   installation rows, operational contracts, executable TCB, observations, and
   reproducibility.
 
+  Progress 2026-08-23: checked trees already own the useful semantic core. A
+  `RealizedMachineContractEnvelope` retains contract identity, effective and
+  concrete reach, unresolved installation rows, synchronous invocation,
+  suspension, blocking, termination, crashes, mutation, and exact capability
+  flows. Source-authored symbols can be joined back to their opaque
+  `PackageKeyIdentity` through the retained source map, and underdeclared reach
+  already fails checking. This is enough for a compiler-owned, target-scoped
+  review projection, but not an admission certificate. General `pub`/`export`
+  visibility, generated-symbol ownership, package-qualified provider/nominal
+  identities, source/toolchain/compiler commitments, trust rows, build
+  observations, and reproducibility receipts still need one sealed projection.
+  Until those joins exist, only an authored `boundary machine` is a dependable
+  exported-callable classification and no projection may be persisted as
+  accepted evidence. The compiler now exposes
+  an explicitly review-only, in-memory projection for the reconciled root
+  package under an exact target. It retains the selected build-machine symbol,
+  package-qualified authored nominals, distinct declared/effective/concrete
+  service rows, unresolved installation rows, exact capability-flow
+  coordinates, operational outcomes, crashes, and mutation. Toolchain identity
+  and generated-symbol ownership remain visibly unbound rather than guessed;
+  standalone and target-free compilations reject projection.
+
 - **PROOF-AND-BOUNDARY-ADMISSION.** Fail closed on false or incomplete evidence.
 
   Acceptance: open/deferred proofs reject, checked proofs are kernel-rechecked,
   accepted axioms/opaque claims remain trust-bearing, exact package-qualified
   boundary identities are enforced, underdeclared reach rejects, and dangerous
   overdeclared slack is reported.
+
+  Progress 2026-08-23: concrete proof, contract, bounds, and termination
+  obligations normally reject before checked trees are constructed; accepted
+  axioms and admitted boundary qualifications remain identifiable. There is no
+  implemented open/deferred-proof status yet. More importantly, contract
+  entailment deliberately stands down for some out-of-engine-language claims,
+  and no checked artifact currently records `stand-down -> later discharge`.
+  The admission profile must therefore reject every unresolved stand-down or
+  retain an exact later-discharge ledger; ordinary successful compilation is
+  not itself a complete proof verdict. The standalone `psi-proof` boundary
+  obligation ledger is not wired into production and must not be cited as
+  enforcement.
 
 - **SEALED-EVIDENCE-HANDOFF.** Replace public construction/parsing of
   `PackageCapabilityManifest` as an admission input.

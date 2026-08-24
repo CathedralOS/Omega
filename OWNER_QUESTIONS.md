@@ -131,3 +131,34 @@ native slot declaration and exact callback-requirement path. The compiler
 resolves those names into opaque identities during layout evaluation. Do not
 put raw IDs or field offsets in source, infer the demand from the callback row,
 or expose a callback-address-shaped semantic field.
+
+## Q5 — Does claim-free opaque boundary data require admission?
+
+Package admission clearly treats accepted `ensures`, external/provider
+guarantees, and admitted boundary qualifications as trust-bearing claims. An
+opaque boundary data declaration may instead expose only an unchecked external
+representation or handle shape while making no mathematical or authority
+claim. It still enlarges the executable and representation TCB, but admitting
+it as though it asserted a theorem may collapse code/ABI review into proof
+trust and produce noisy conflicts.
+
+Choose whether claim-free opaque boundary data is itself blocking admission or
+only mandatory reported/audit evidence. The rule must:
+
+- distinguish a representation/executable TCB introduction from an accepted
+  proposition or provider guarantee;
+- remain based on compiler-owned nominal metadata, never package-controlled
+  names;
+- make later addition of a guarantee, qualification establishment, or provider
+  authority a blocking evidence change;
+- keep initial install and retained-dangerous-authority review conservative;
+  and
+- compose with exact package/source/toolchain identity so another package's
+  same-spelled boundary cannot inherit a decision.
+
+Recommended direction: always report claim-free opaque boundary data and make
+it a strong code/ABI audit recommendation, but reserve mandatory trust
+admission for an accepted claim, authority establishment, provider guarantee,
+or deployment policy that explicitly classifies the representation mechanism
+as dangerous. Do not silently omit it, and do not label mere opacity as a
+proved or accepted fact.

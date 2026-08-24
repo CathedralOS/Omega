@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use psi_arena::{Arena, HandleSpan, HierarchyArena, HierarchyArenaBuilder, HierarchyChildHandles};
+use psi_core::PackageKeyIdentity;
 use psi_source::{SourceFile, SourceMap, SourceOrigin, SourceSpan};
 
 use super::builtin::BUILTIN_TYPE_COUNT;
@@ -213,6 +214,17 @@ impl SymbolTable {
         let sources = self.sources.as_deref()?;
         let source_span = self.names.get(self.get(symbol).name).source_span()?;
         sources.file_at(source_span).map(|file| file.origin)
+    }
+
+    /// Reconciled package identity for one user-authored declaration.
+    /// Generated, source-free, toolchain, and unmanaged symbols return `None`.
+    pub fn symbol_package_identity(&self, symbol: SymbolHandle) -> Option<PackageKeyIdentity> {
+        let source_span = self.symbol_source_span(symbol)?;
+        let source_file = self.source_file(source_span)?;
+
+        (source_file.origin == SourceOrigin::User)
+            .then_some(source_file.package_identity)
+            .flatten()
     }
 
     pub fn has_source_metadata(&self) -> bool {

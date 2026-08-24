@@ -10,4 +10,5 @@ path = "src/lib.rs"
 
 [dependencies]
 psi-arena = { path = "../psi-arena" }
+psi-core = { path = "../psi-core" }
 psi-source = { path = "../psi-source" }
