@@ -207,9 +207,7 @@ pub(super) fn build_call_operation(
             }
             let byte_sequence = byte_sequence_carrier(program, parameter.type_reference, &[]);
             let target_identity = if byte_sequence.is_some() {
-                program
-                    .normalized_type_identity_with_binders(parameter.type_reference, &[])
-                    .into_string()
+                byte_sequence_type_identity(program, parameter.type_reference, &[], &[])?
             } else {
                 base_type_identity(program, parameter.type_reference, &[])?
             };
@@ -221,6 +219,10 @@ pub(super) fn build_call_operation(
                     source_parameter_index: u32::MAX,
                     path: Vec::new(),
                     type_identity: target_identity,
+                    access: structural_access_for_type_reference(
+                        program,
+                        parameter.type_reference,
+                    )?,
                     byte_sequence_literal: Some(bytes.to_vec()),
                 });
                 continue;
@@ -254,6 +256,14 @@ pub(super) fn build_call_operation(
                 source_parameter_index: u32::try_from(source_parameter_index).ok()?,
                 path: Vec::new(),
                 type_identity: target_identity,
+                access: exact_structural_argument_access(
+                    facts,
+                    machine.symbol,
+                    state.symbol,
+                    call,
+                    &place,
+                    structural_access_for_type_reference(program, parameter.type_reference)?,
+                )?,
                 byte_sequence_literal: None,
             });
         }
@@ -353,6 +363,8 @@ pub(super) fn build_call_operation(
     }
     let structural_arguments = structural_call_arguments(
         program,
+        facts,
+        call,
         machine,
         state,
         caller_parameters,
@@ -817,6 +829,8 @@ pub(super) fn crash_expression_mentions_parameter_outside_member_path(
 
 pub(super) fn structural_call_arguments(
     program: &TypedTrees,
+    facts: &CheckFacts,
+    call: &psi_checked_trees::FlowCallFact,
     caller_machine: &psi_typed_trees::machine::Machine,
     caller_state: &psi_typed_trees::state::State,
     caller_parameters: &[CheckedUnitStructuralParameterPlan],
@@ -904,6 +918,8 @@ pub(super) fn structural_call_arguments(
         let source_identity = caller_parameters.get(source_index)?.type_identity.clone();
         let target_identity = if target.is_self {
             attached_data_identity(program, target_machine)?
+        } else if byte_sequence_carrier(program, target.type_reference, &[]).is_some() {
+            byte_sequence_type_identity(program, target.type_reference, &[], &[])?
         } else {
             base_type_identity(program, target.type_reference, &[])?
         };
@@ -981,6 +997,14 @@ pub(super) fn structural_call_arguments(
             source_parameter_index: u32::try_from(source_index).ok()?,
             path,
             type_identity: target_identity,
+            access: exact_structural_argument_access(
+                facts,
+                caller_machine.symbol,
+                caller_state.symbol,
+                call,
+                &place,
+                structural_access_for_type_reference(program, target.type_reference)?,
+            )?,
             byte_sequence_literal: None,
         });
     }
@@ -988,6 +1012,62 @@ pub(super) fn structural_call_arguments(
         return None;
     }
     Some(output)
+}
+
+fn exact_structural_argument_access(
+    facts: &CheckFacts,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    call: &psi_checked_trees::FlowCallFact,
+    place: &crate::flow::CanonicalPlace,
+    target_access: CheckedStructuralAccess,
+) -> Option<CheckedStructuralAccess> {
+    if target_access == CheckedStructuralAccess::Owned {
+        return Some(CheckedStructuralAccess::Owned);
+    }
+    let psi_facts::PlaceRoot::Symbol(root_symbol) = place.root else {
+        return None;
+    };
+    let borrow_state = facts
+        .borrow
+        .states
+        .iter()
+        .map(|(_, state)| state)
+        .find(|candidate| candidate.machine_symbol == machine && candidate.state_symbol == state)?;
+    let matching_calls = facts
+        .borrow
+        .calls
+        .span_or_empty(borrow_state.calls)
+        .iter()
+        .filter(|candidate| {
+            candidate.statement_index == call.statement_index
+                && candidate.call_ordinal == call.call_ordinal
+                && candidate.target_symbol == call.target_symbol
+        })
+        .collect::<Vec<_>>();
+    let [borrow_call] = matching_calls.as_slice() else {
+        return None;
+    };
+    let kinds = facts
+        .borrow
+        .argument_accesses
+        .span_or_empty(borrow_call.accesses)
+        .iter()
+        .filter(|access| {
+            access.root_symbol == root_symbol
+                && facts.borrow.access_segments(access) == place.segments.as_slice()
+        })
+        .map(|access| &access.kind)
+        .collect::<Vec<_>>();
+    let first = kinds.first()?;
+    if kinds.iter().any(|candidate| *candidate != *first) {
+        return None;
+    }
+    Some(match first {
+        psi_checked_trees::BorrowAccessKind::Read => CheckedStructuralAccess::SharedBorrow,
+        psi_checked_trees::BorrowAccessKind::Mutable => CheckedStructuralAccess::MutableBorrow,
+        psi_checked_trees::BorrowAccessKind::WriteOnly => CheckedStructuralAccess::WriteOnlyBorrow,
+    })
 }
 
 pub(super) fn call_claim_transfers(
@@ -1123,9 +1203,6 @@ pub(super) fn structural_signature(
         if parameter.is_self && is_reference(program, parameter.type_reference) {
             continue;
         }
-        if is_reference(program, parameter.type_reference) {
-            return None;
-        }
         // Typed attached `self` intentionally carries the machine/Self symbol,
         // not the data-definition symbol. Its carrier is the independently
         // resolved attachment above.
@@ -1145,6 +1222,7 @@ pub(super) fn structural_signature(
             } else {
                 crate::checks::type_multiplicity(program, parameter.type_reference)
             },
+            access: structural_access_for_type_reference(program, parameter.type_reference)?,
             qualifications,
         });
     }
@@ -1190,9 +1268,6 @@ pub(super) fn structural_scalar_signature(
         if parameter.is_self && is_reference(program, parameter.type_reference) {
             continue;
         }
-        if is_reference(program, parameter.type_reference) {
-            return None;
-        }
         let type_identity = if parameter.is_self {
             attachment_type_identity.clone()
         } else {
@@ -1209,6 +1284,7 @@ pub(super) fn structural_scalar_signature(
             } else {
                 crate::checks::type_multiplicity(program, parameter.type_reference)
             },
+            access: structural_access_for_type_reference(program, parameter.type_reference)?,
             qualifications,
         });
     }

@@ -383,12 +383,15 @@ mod tests {
         ProviderPlan {
             name: name.into(),
             provider_type: format!("{name}Provider"),
+            provider_type_package_identity: None,
             target: "x86_64-unknown-none".into(),
             schema: ServiceSchema {
                 trait_name: format!("{name}Service"),
+                trait_package_identity: None,
                 methods: vec![ServiceMethod {
                     name: method.into(),
                     requirement_owner: format!("{name}Service"),
+                    requirement_owner_package_identity: None,
                     requirement_identity: format!("{name}Service::{method}"),
                     parameter_count: 0,
                     parameter_type_identities: Vec::new(),

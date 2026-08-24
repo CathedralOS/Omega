@@ -210,6 +210,7 @@ mod tests {
 
     fn argument(place: u64) -> StructuralArgument {
         StructuralArgument {
+            access: psi_terminal::StructuralAccess::Owned,
             place: psi_core::PlaceId::new(place).expect("place"),
             path: Vec::new(),
         }
@@ -264,6 +265,7 @@ mod tests {
         ));
 
         let projected = StructuralArgument {
+            access: psi_terminal::StructuralAccess::Owned,
             place: psi_core::PlaceId::new(1).expect("place"),
             path: vec![StructuralPathSegment::FixedIndex(2)],
         };

@@ -521,7 +521,15 @@ Remaining:
   lineage, installed occurrence, and route; a generic established-claim identity
   is insufficient. Checked source already derives exact identity-reshuffle and
   authored-partition composition rows, and terminal Psi independently validates
-  their canonical replay. The exact root-only source passthrough now produces a
+  their canonical replay. Terminal vocabulary 28 now additionally binds every
+  partition row to its exact emitted call operation, retains canonical authored
+  boundary guarantees, checks internal or boundary target correspondence and
+  exact structural arguments, and schedules the derived theorem only after
+  that call succeeds. Missing/non-call producers, guarantee drift, argument
+  drift, pre-call use, and fingerprint-only replay reject. Structural-result-
+  rooted call correspondence remains a later slice because the current call
+  vocabulary has no explicit structural-result carrier. The exact root-only
+  source passthrough now produces a
   structural result/return carrier with claim transfer, exit-time content
   replay, interpretation, and fuel. Omega preserves that carrier through the
   exact one-fragment native ABI path and all artifact/install layers, with claim
@@ -4919,6 +4927,17 @@ Owners:
   parser, semantic pass/fail, exact-place/frame, checked-loan, and
   checked-to-state-to-control remap tests pin the live slices.
 
+  The first forwarding-only Terminal rung is also live. Checked and Terminal
+  structural parameter and call-argument rows carry a closed
+  owned/shared/mutable/write-only access value independently of structural type
+  identity. Real source proves shared forwarding and explicit mutable-to-write
+  attenuation across lowering, canonical format 26 encoding/decoding, and
+  independent verification. The Terminal verifier rejects argument/target
+  access disagreement, access not supplied by the source place, overlapping
+  exclusive arguments, and structural Boolean observation through write-only
+  access. This does not yet admit a Terminal write event or native/provider
+  realization.
+
   Remaining work is the broader executable access discipline: add
   broader content-independent aggregate and symbolic byte-range projection,
   finer symbolic dynamic-index footprints,
@@ -4926,8 +4945,8 @@ Owners:
   non-discardable displacement, and invariant restoration that depends on
   reading the referent, and retain exact per-outcome write footprints so
   untouched ranges and their facts survive. Carry the admitted operation set
-  through provider selection, canonical plans, Terminal Psi, both execution
-  engines, and native ABI lowering. Opaque providers still need a specified,
+  through provider selection, executable Terminal write operations, both
+  execution engines, and native ABI lowering. Opaque providers still need a specified,
   implementation-pinned
   non-observation judgment; do not infer one from ABI shape. Migrate byte-output
   boundary surfaces only after that gate exists, and never reinterpret
@@ -6907,7 +6926,8 @@ compiler concept is introduced.
   boundary route, and one grant invocation, and closes the component manifest
   transactionally. Receipt facts may serve several matching call sites but
   cannot be rebound by compact identity, profile, route, occurrence, or
-  invocation. Terminal installation format 34 commits the manifest and opaque
+  invocation. Terminal installation format 35 commits the manifest, structural
+  access modes, and opaque
   acceptance identities into the canonical installation bytes, which the
   terminal artifact manifest already fingerprints. Runnable component-era
   publication now binds the complete terminal object and image, canonical

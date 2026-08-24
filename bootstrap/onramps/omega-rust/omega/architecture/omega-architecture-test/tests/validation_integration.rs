@@ -5520,7 +5520,7 @@ fn rejects_unprovable_in_language_ensures() {
 fn stands_down_on_out_of_language_contracts() {
     // `min(a, b)` is an unknown call shape: the engine cannot read it, so an
     // unprovable ensures must be ACCEPTED unchecked rather than rejected.
-    validate_contract_source(
+    let typed = typed_program_from_source(
         r#"
     machine uses_unknown_call(a: u64, b: u64)
     requires
@@ -5530,14 +5530,84 @@ fn stands_down_on_out_of_language_contracts() {
     {
     }
 
-    data Main {
-    }
+    "#,
+    );
+    validate_program(&typed).expect("contracts outside the engine's language stand down");
+    let stand_downs = psi_validation::collect_contract_entailment_stand_downs(&typed);
+    let [stand_down] = stand_downs.as_slice() else {
+        panic!("one exact stand-down row")
+    };
+    let machine = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == stand_down.machine_symbol)
+        .expect("stand-down machine");
+    assert_eq!(machine.name.as_str(), "uses_unknown_call");
+    assert_eq!(stand_down.contract_index, 1);
+    assert_eq!(stand_down.fact_index, 0);
+    assert_eq!(
+        stand_down.reason,
+        psi_validation::ContractEntailmentStandDownReason::OutsideEntailmentLanguage
+    );
+}
 
-    machine Main::main(&mut self) {
+#[test]
+fn accepted_boundary_claim_is_trust_not_a_proof_stand_down() {
+    let typed = typed_program_from_source(
+        r#"
+    boundary machine accepted_unknown(a: u64, b: u64)
+    ensures
+        min(a, b) >= 1;
+    "#,
+    );
+    validate_program(&typed).expect("accepted claim remains in the trust lane");
+    assert!(psi_validation::collect_contract_entailment_stand_downs(&typed).is_empty());
+}
+
+#[test]
+fn unrecognized_bodied_contract_is_an_admission_stand_down() {
+    let typed = typed_program_from_source(
+        r#"
+    machine unchecked_body(a: u64)
+    ensures
+        a >= 0
+    {
+        let copy: u64 = a;
     }
     "#,
-    )
-    .expect("contracts outside the engine's language stand down");
+    );
+    validate_program(&typed).expect("ordinary validation preserves its historical stand-down");
+    let stand_downs = psi_validation::collect_contract_entailment_stand_downs(&typed);
+    let [stand_down] = stand_downs.as_slice() else {
+        panic!("one exact body-shape stand-down row")
+    };
+    assert_eq!(
+        stand_down.reason,
+        psi_validation::ContractEntailmentStandDownReason::UnrecognizedInductiveBody
+    );
+}
+
+#[test]
+fn bodyful_boundary_contract_is_checked_not_accepted_supply() {
+    let typed = typed_program_from_source(
+        r#"
+    boundary machine checked_boundary(a: u64)
+    ensures
+        a >= 0
+    {
+        let copy: u64 = a;
+    }
+    "#,
+    );
+    validate_program(&typed).expect("ordinary boundary validation should succeed");
+    let stand_downs = psi_validation::collect_contract_entailment_stand_downs(&typed);
+    let [stand_down] = stand_downs.as_slice() else {
+        panic!("one exact bodyful-boundary stand-down row")
+    };
+    assert_eq!(
+        stand_down.reason,
+        psi_validation::ContractEntailmentStandDownReason::UnrecognizedInductiveBody
+    );
 }
 
 #[test]
@@ -7317,6 +7387,7 @@ mod provider_plan {
         // fingerprint; changing a binding changes it.
         let schema = ServiceSchema {
             trait_name: "Console".to_owned(),
+            trait_package_identity: None,
             methods: Vec::new(),
         };
         let row = |method: &str, number: i64| ProviderPlanRow {
@@ -7327,6 +7398,7 @@ mod provider_plan {
         let plan = |rows: Vec<ProviderPlanRow>| ProviderPlan {
             name: "p".to_owned(),
             provider_type: "P".to_owned(),
+            provider_type_package_identity: None,
             target: "t".to_owned(),
             schema: schema.clone(),
             rows,

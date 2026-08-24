@@ -114,31 +114,80 @@ pub(crate) fn validate_machine_contract_entailment(
     machine: &Machine,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    validate_machine_contract_entailment_with_stand_downs(
+        program,
+        machine,
+        diagnostics,
+        &mut Vec::new(),
+    );
+}
+
+pub(crate) fn validate_machine_contract_entailment_with_stand_downs(
+    program: &TypedTrees,
+    machine: &Machine,
+    diagnostics: &mut Vec<Diagnostic>,
+    stand_downs: &mut Vec<crate::ContractEntailmentStandDown>,
+) {
     let mut requires = Vec::new();
     let mut requires_propositions = Vec::new();
     let mut ensures = Vec::new();
+    let mut ensures_coordinates = Vec::new();
+    let account_stand_downs = matches!(
+        machine.supply_mode,
+        psi_language_semantics::MachineSupplyMode::CheckedBody
+            | psi_language_semantics::MachineSupplyMode::Boundary
+    );
     // Membership facts (`value in Domain`) are outside the engine's language.
     // The empty-body path drops them silently (a dropped hypothesis only
     // weakens proving power); the inductive path additionally refuses to
     // REJECT when any are present, since the unread fact could entail the
     // goal.
     let mut all_facts_are_expressions = true;
-    for contract in program.machine_contracts(machine) {
+    for (contract_index, contract) in program.machine_contracts(machine).iter().enumerate() {
         let bucket = match &contract.kind {
             SignatureContractKind::Requires => &mut requires,
             SignatureContractKind::Ensures => &mut ensures,
             SignatureContractKind::Boundary | SignatureContractKind::Crashes { .. } => continue,
         };
-        for fact in program.proof_facts.span_or_empty(contract.facts) {
+        for (fact_index, fact) in program
+            .proof_facts
+            .span_or_empty(contract.facts)
+            .iter()
+            .enumerate()
+        {
             match fact {
-                ProofFact::Expression(expression) => bucket.push(*expression),
+                ProofFact::Expression(expression) => {
+                    bucket.push(*expression);
+                    if matches!(contract.kind, SignatureContractKind::Ensures) {
+                        ensures_coordinates.push((*expression, contract_index, fact_index));
+                    }
+                }
                 ProofFact::Proposition(application) => {
                     if matches!(contract.kind, SignatureContractKind::Requires) {
                         requires_propositions.push(application);
+                    } else if account_stand_downs {
+                        stand_downs.push(crate::ContractEntailmentStandDown {
+                            machine_symbol: machine.symbol,
+                            contract_index,
+                            fact_index,
+                            reason:
+                                crate::ContractEntailmentStandDownReason::UnsupportedEnsuresFact,
+                        });
                     }
                     all_facts_are_expressions = false;
                 }
                 ProofFact::Membership(_) => {
+                    if matches!(contract.kind, SignatureContractKind::Ensures)
+                        && account_stand_downs
+                    {
+                        stand_downs.push(crate::ContractEntailmentStandDown {
+                            machine_symbol: machine.symbol,
+                            contract_index,
+                            fact_index,
+                            reason:
+                                crate::ContractEntailmentStandDownReason::UnsupportedEnsuresFact,
+                        });
+                    }
                     all_facts_are_expressions = false;
                 }
             }
@@ -548,6 +597,9 @@ pub(crate) fn validate_machine_contract_entailment(
             &ensures,
             all_facts_are_expressions,
             diagnostics,
+            account_stand_downs,
+            &ensures_coordinates,
+            stand_downs,
         );
         return;
     }
@@ -593,12 +645,52 @@ pub(crate) fn validate_machine_contract_entailment(
                         machine.name,
                         program.expression_table.display_name(*fact)
                     )));
+                } else if account_stand_downs {
+                    record_expression_stand_down(
+                        machine,
+                        *fact,
+                        crate::ContractEntailmentStandDownReason::OutsideEntailmentLanguage,
+                        &ensures_coordinates,
+                        stand_downs,
+                    );
                 }
                 // Otherwise the contract leans on facts outside the engine's
                 // language (domain membership, unknown calls, non-parameter
                 // places): stand down rather than reject what we cannot read.
             }
         }
+    }
+}
+
+fn record_expression_stand_down(
+    machine: &Machine,
+    expression: ExpressionHandle,
+    reason: crate::ContractEntailmentStandDownReason,
+    coordinates: &[(ExpressionHandle, usize, usize)],
+    stand_downs: &mut Vec<crate::ContractEntailmentStandDown>,
+) {
+    for (_, contract_index, fact_index) in coordinates
+        .iter()
+        .filter(|(candidate, _, _)| *candidate == expression)
+    {
+        stand_downs.push(crate::ContractEntailmentStandDown {
+            machine_symbol: machine.symbol,
+            contract_index: *contract_index,
+            fact_index: *fact_index,
+            reason,
+        });
+    }
+}
+
+fn record_all_expression_stand_downs(
+    machine: &Machine,
+    expressions: &[ExpressionHandle],
+    reason: crate::ContractEntailmentStandDownReason,
+    coordinates: &[(ExpressionHandle, usize, usize)],
+    stand_downs: &mut Vec<crate::ContractEntailmentStandDown>,
+) {
+    for expression in expressions {
+        record_expression_stand_down(machine, *expression, reason, coordinates, stand_downs);
     }
 }
 

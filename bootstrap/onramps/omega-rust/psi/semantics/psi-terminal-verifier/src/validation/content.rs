@@ -1,5 +1,74 @@
 use super::*;
 
+pub(super) fn validate_boundary_content_guarantees(
+    module: &TerminalModule,
+    registry: &mut IdRegistry,
+) -> Result<(), ModuleError> {
+    for boundary in &module.boundary_machines {
+        if boundary
+            .content_guarantees
+            .windows(2)
+            .any(|pair| pair[0] >= pair[1])
+        {
+            return Err(ModuleError::NonCanonicalBoundaryContentGuarantees(
+                boundary.id,
+            ));
+        }
+        for guarantee in &boundary.content_guarantees {
+            let kinds =
+                validate_guarantee_places(&guarantee.structural_places, |kind| match kind {
+                    StructuralPlaceKind::Parameter { position, is_self } => {
+                        boundary.structural_parameters.iter().any(|parameter| {
+                            parameter.position == position && parameter.is_self == is_self
+                        })
+                    }
+                    StructuralPlaceKind::Result
+                    | StructuralPlaceKind::ByteSequenceLiteral { .. }
+                    | StructuralPlaceKind::ProviderAttachment { .. }
+                    | StructuralPlaceKind::TrivialAffineLocal { .. } => false,
+                })
+                .ok_or(ModuleError::InvalidBoundaryContentGuarantee(boundary.id))?;
+            let context = PropositionContext::from_value_types_and_places(
+                [],
+                guarantee
+                    .structural_places
+                    .iter()
+                    .map(|place| (place.id, place.kind)),
+            )
+            .map_err(ModuleError::MalformedProposition)?;
+            context
+                .validate(&Proposition::ContentConservation(
+                    guarantee.conservation.clone(),
+                ))
+                .map_err(ModuleError::MalformedProposition)?;
+            if content_conservation_fingerprint(&guarantee.conservation, &kinds)
+                != Some(guarantee.fingerprint)
+            {
+                return Err(ModuleError::InvalidBoundaryContentGuarantee(boundary.id));
+            }
+            register_partition_projections(registry, &guarantee.conservation)?;
+        }
+    }
+    Ok(())
+}
+
+fn validate_guarantee_places(
+    places: &[StructuralPlaceDeclaration],
+    accepts: impl Fn(StructuralPlaceKind) -> bool,
+) -> Option<BTreeMap<PlaceId, StructuralPlaceKind>> {
+    let mut ids = BTreeMap::new();
+    let mut kinds = BTreeSet::new();
+    for place in places {
+        if !accepts(place.kind)
+            || ids.insert(place.id, place.kind).is_some()
+            || !kinds.insert(place.kind)
+        {
+            return None;
+        }
+    }
+    (!ids.is_empty()).then_some(ids)
+}
+
 fn register_content_projection(
     registry: &mut IdRegistry,
     projection: ContentProjectionIdentity,
@@ -244,7 +313,9 @@ pub(super) fn validate_content_identity_reshuffles(
 }
 
 pub(super) fn validate_content_partition_compositions(
+    module: &TerminalModule,
     machine: &TerminalMachine,
+    machines: &BTreeMap<MachineId, &TerminalMachine>,
     registry: &mut IdRegistry,
     structural_place_kinds: &BTreeMap<PlaceId, StructuralPlaceKind>,
     context: &PropositionContext,
@@ -381,8 +452,261 @@ pub(super) fn validate_content_partition_compositions(
         if used_claims != listed_claims {
             return Err(ModuleError::ContentPartitionInputClaimUnused);
         }
+        validate_partition_producer(module, machine, machines, composition)?;
     }
     Ok(())
+}
+
+fn validate_partition_producer(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    machines: &BTreeMap<MachineId, &TerminalMachine>,
+    composition: &ContentPartitionComposition,
+) -> Result<(), ModuleError> {
+    let operation = machine
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find(|operation| operation.id == composition.producer_operation)
+        .ok_or(ModuleError::ContentPartitionProducerOperationMissing(
+            composition.producer_operation,
+        ))?;
+    match &operation.kind {
+        OperationKind::Call { callee, .. } => {
+            let callee = machines
+                .get(callee)
+                .copied()
+                .expect("validated call target exists");
+            validate_partition_internal_guarantee(operation.id, composition, callee, &[])
+        }
+        OperationKind::CallUnit {
+            callee,
+            structural_arguments,
+            ..
+        }
+        | OperationKind::CallStructuralScalar {
+            callee,
+            structural_arguments,
+            ..
+        } => {
+            let callee = machines
+                .get(callee)
+                .copied()
+                .expect("validated structural call target exists");
+            validate_partition_internal_guarantee(
+                operation.id,
+                composition,
+                callee,
+                structural_arguments,
+            )
+        }
+        OperationKind::BoundaryCall {
+            boundary,
+            structural_arguments,
+            ..
+        } => {
+            let boundary = module
+                .boundary_machines
+                .iter()
+                .find(|candidate| candidate.id == *boundary)
+                .expect("validated boundary call target exists");
+            let guarantees = boundary
+                .content_guarantees
+                .iter()
+                .map(|guarantee| {
+                    (
+                        guarantee.structural_places.as_slice(),
+                        &guarantee.conservation,
+                    )
+                })
+                .collect::<Vec<_>>();
+            validate_partition_guarantee_set(
+                operation.id,
+                composition,
+                &boundary.structural_parameters,
+                structural_arguments,
+                &guarantees,
+            )
+        }
+        _ => Err(ModuleError::ContentPartitionProducerNotCall(operation.id)),
+    }
+}
+
+fn validate_partition_internal_guarantee(
+    operation: OperationId,
+    composition: &ContentPartitionComposition,
+    callee: &TerminalMachine,
+    structural_arguments: &[StructuralArgument],
+) -> Result<(), ModuleError> {
+    let guarantees = callee
+        .contract
+        .ensures
+        .iter()
+        .filter_map(|clause| match &clause.proposition {
+            Proposition::ContentConservation(conservation) => {
+                Some((callee.structural_places.as_slice(), conservation))
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    validate_partition_guarantee_set(
+        operation,
+        composition,
+        &callee.structural_parameters,
+        structural_arguments,
+        &guarantees,
+    )
+}
+
+fn validate_partition_guarantee_set(
+    operation: OperationId,
+    composition: &ContentPartitionComposition,
+    parameters: &[StructuralParameterDeclaration],
+    structural_arguments: &[StructuralArgument],
+    guarantees: &[(&[StructuralPlaceDeclaration], &ContentConservation)],
+) -> Result<(), ModuleError> {
+    if !guarantees.iter().any(|(places, conservation)| {
+        content_guarantees_alpha_equal(
+            &composition.source_structural_places,
+            &composition.source,
+            places,
+            conservation,
+        )
+    }) {
+        return Err(ModuleError::ContentPartitionProducerGuaranteeMissing(
+            operation,
+        ));
+    }
+    if !partition_substitutions_match_arguments(composition, parameters, structural_arguments) {
+        return Err(ModuleError::ContentPartitionProducerArgumentMismatch(
+            operation,
+        ));
+    }
+    Ok(())
+}
+
+fn content_guarantees_alpha_equal(
+    source_places: &[StructuralPlaceDeclaration],
+    source: &ContentConservation,
+    target_places: &[StructuralPlaceDeclaration],
+    target: &ContentConservation,
+) -> bool {
+    if source.algebra() != target.algebra() {
+        return false;
+    }
+
+    let source_roots = content_conservation_subjects(source)
+        .into_iter()
+        .map(|subject| subject.root)
+        .collect::<BTreeSet<_>>();
+    let target_roots = content_conservation_subjects(target)
+        .into_iter()
+        .map(|subject| subject.root)
+        .collect::<BTreeSet<_>>();
+    if source_roots.len() != target_roots.len() {
+        return false;
+    }
+
+    let mut roots = BTreeMap::new();
+    for target_root in target_roots {
+        let Some(target_place) = target_places
+            .iter()
+            .find(|target_place| target_place.id == target_root)
+        else {
+            return false;
+        };
+        let Some(source_place) = source_places.iter().find(|source_place| {
+            source_roots.contains(&source_place.id) && source_place.kind == target_place.kind
+        }) else {
+            return false;
+        };
+        if roots.insert(target_place.id, source_place.id).is_some() {
+            return false;
+        }
+    }
+    if roots.values().copied().collect::<BTreeSet<_>>() != source_roots {
+        return false;
+    }
+    remap_content_conservation_roots(target, &roots) == *source
+}
+
+fn remap_content_conservation_roots(
+    conservation: &ContentConservation,
+    roots: &BTreeMap<PlaceId, PlaceId>,
+) -> ContentConservation {
+    ContentConservation::new(
+        conservation.algebra().clone(),
+        remap_content_term_roots(conservation.left(), roots),
+        remap_content_term_roots(conservation.right(), roots),
+    )
+}
+
+fn remap_content_term_roots(term: &ContentTerm, roots: &BTreeMap<PlaceId, PlaceId>) -> ContentTerm {
+    match term {
+        ContentTerm::Projection {
+            projection,
+            subject,
+        } => ContentTerm::Projection {
+            projection: *projection,
+            subject: ContentStructuralPlace {
+                version: subject.version,
+                root: roots.get(&subject.root).copied().unwrap_or(subject.root),
+                segments: subject.segments.clone(),
+            },
+        },
+        ContentTerm::Separate(terms) => ContentTerm::Separate(
+            terms
+                .iter()
+                .map(|term| remap_content_term_roots(term, roots))
+                .collect(),
+        ),
+    }
+}
+
+fn partition_substitutions_match_arguments(
+    composition: &ContentPartitionComposition,
+    parameters: &[StructuralParameterDeclaration],
+    structural_arguments: &[StructuralArgument],
+) -> bool {
+    composition.substitutions.iter().all(|substitution| {
+        let Some(source_place) = composition
+            .source_structural_places
+            .iter()
+            .find(|place| place.id == substitution.source.root)
+        else {
+            return false;
+        };
+        let StructuralPlaceKind::Parameter { position, is_self } = source_place.kind else {
+            // Current call operations have no structural-result carrier. A
+            // result-rooted partition must wait for that explicit vocabulary.
+            return false;
+        };
+        let Some(argument_index) = parameters
+            .iter()
+            .position(|parameter| parameter.position == position && parameter.is_self == is_self)
+        else {
+            return false;
+        };
+        let Some(argument) = structural_arguments.get(argument_index) else {
+            return false;
+        };
+        let mut expected_segments = argument
+            .path
+            .iter()
+            .map(|segment| match segment {
+                StructuralPathSegment::Field(identity) => {
+                    psi_core::ContentPlaceSegment::Field(identity.clone())
+                }
+                StructuralPathSegment::FixedIndex(index) => {
+                    psi_core::ContentPlaceSegment::FixedIndex(*index)
+                }
+            })
+            .collect::<Vec<_>>();
+        expected_segments.extend(substitution.source.segments.iter().cloned());
+        substitution.target.version == substitution.source.version
+            && substitution.target.root == argument.place
+            && substitution.target.segments == expected_segments
+    })
 }
 
 fn validate_partition_source_places(
@@ -444,6 +768,12 @@ fn validate_partition_substitution_shape(
             Some(StructuralPlaceKind::Result),
             psi_core::ContentPlaceVersion::Current,
             Some(StructuralPlaceKind::Result),
+        )
+        | (
+            psi_core::ContentPlaceVersion::Current,
+            Some(StructuralPlaceKind::Parameter { .. }),
+            psi_core::ContentPlaceVersion::Current,
+            Some(StructuralPlaceKind::Parameter { .. }),
         ) => Ok(()),
         _ => Err(ModuleError::InvalidContentPartitionSubstitutionShape),
     }
@@ -542,4 +872,65 @@ fn content_places_overlap(left: &ContentStructuralPlace, right: &ContentStructur
     }
     let shared = left.segments.len().min(right.segments.len());
     left.segments[..shared] == right.segments[..shared]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn conservation(root: PlaceId) -> ContentConservation {
+        let term = ContentTerm::Projection {
+            projection: ContentProjectionIdentity {
+                domain: psi_core::ContentDomainId::new(7).expect("content domain identity"),
+                projection_fingerprint: 0xfeed,
+            },
+            subject: ContentStructuralPlace {
+                version: psi_core::ContentPlaceVersion::Current,
+                root,
+                segments: Vec::new(),
+            },
+        };
+        ContentConservation::new(
+            ContentAlgebra {
+                kind: psi_core::ContentAlgebraKind::IntervalSet,
+                parameter: "Address".to_owned(),
+            },
+            term.clone(),
+            term,
+        )
+    }
+
+    #[test]
+    fn guarantee_alpha_equality_ignores_unreferenced_callee_places() {
+        let source_root = PlaceId::new(1).expect("source place");
+        let target_root = PlaceId::new(2).expect("target place");
+        let parameter = StructuralPlaceKind::Parameter {
+            position: 0,
+            is_self: false,
+        };
+        let source_places = [StructuralPlaceDeclaration {
+            id: source_root,
+            kind: parameter,
+        }];
+        let target_places = [
+            StructuralPlaceDeclaration {
+                id: target_root,
+                kind: parameter,
+            },
+            StructuralPlaceDeclaration {
+                id: PlaceId::new(3).expect("unrelated place"),
+                kind: StructuralPlaceKind::Parameter {
+                    position: 1,
+                    is_self: false,
+                },
+            },
+        ];
+
+        assert!(content_guarantees_alpha_equal(
+            &source_places,
+            &conservation(source_root),
+            &target_places,
+            &conservation(target_root),
+        ));
+    }
 }

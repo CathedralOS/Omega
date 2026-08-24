@@ -68,6 +68,7 @@ impl SymbolTableBuilder {
                 children: HandleSpan::empty(),
                 kind,
                 name: names.insert(SymbolName::from_ref(name)),
+                generated_from: SymbolHandle::invalid(),
             }),
         )
     }
@@ -107,6 +108,7 @@ impl SymbolTableBuilder {
             children: HandleSpan::empty(),
             kind,
             name: self.names.insert(SymbolName::from_ref(name)),
+            generated_from: SymbolHandle::invalid(),
         }
     }
 }
@@ -124,7 +126,17 @@ impl SymbolTable {
     /// The generated name is owned by the table and authored symbol handles
     /// remain unchanged. Children must be installed once, as one batch, via
     /// [`Self::insert_generated_children`].
-    pub fn insert_generated_root(&mut self, kind: SymbolKind, name: &str) -> SymbolHandle {
+    pub fn insert_generated_root_from(
+        &mut self,
+        generated_from: SymbolHandle,
+        kind: SymbolKind,
+        name: &str,
+    ) -> SymbolHandle {
+        assert!(
+            generated_from.is_valid()
+                && self.symbols.get(generated_from).kind != SymbolKind::Unknown,
+            "compiler-generated symbols require one existing derivation origin"
+        );
         let name = self
             .names
             .insert(SymbolName::from_ref(SymbolNameRef::Borrowed(name)));
@@ -133,6 +145,7 @@ impl SymbolTable {
             children: HandleSpan::empty(),
             kind,
             name,
+            generated_from,
         })
     }
 
@@ -152,6 +165,7 @@ impl SymbolTable {
                 children: HandleSpan::empty(),
                 kind,
                 name: names.insert(SymbolName::from_ref(SymbolNameRef::Borrowed(name))),
+                generated_from: parent,
             }),
         )
     }
@@ -189,37 +203,38 @@ impl SymbolTable {
             .is_none_or(|sources| sources.same_package(left, right))
     }
 
-    /// Compare the declaration packages of two authored symbols. Generated
-    /// symbols carry no source span and therefore cannot accidentally inherit
-    /// the first source file's package through `SourceSpan::default()`.
+    /// Compare declaration provenance for authored or compiler-generated
+    /// symbols. Generated symbols follow their mandatory earlier derivation
+    /// origin; they never inherit a package through `SourceSpan::default()`.
     /// Source-free focused trees continue to model one package.
     pub fn same_symbol_source_package(&self, left: SymbolHandle, right: SymbolHandle) -> bool {
         let Some(sources) = self.sources.as_deref() else {
             return true;
         };
-        let Some(left) = self.names.get(self.get(left).name).source_span() else {
+        let Some(left) = self.provenance_source_span(left) else {
             return false;
         };
-        let Some(right) = self.names.get(self.get(right).name).source_span() else {
+        let Some(right) = self.provenance_source_span(right) else {
             return false;
         };
         sources.same_package(left, right)
     }
 
-    /// Authored declaration provenance for one symbol. Generated symbols and
-    /// focused source-free trees return `None`; semantic consumers that admit
-    /// source-free fixtures must make that fallback explicit rather than
-    /// mistaking a spelling for toolchain ownership.
+    /// Authored declaration provenance for one symbol. Compiler-generated
+    /// symbols follow their mandatory derivation origin. Focused source-free
+    /// trees return `None`; semantic consumers that admit them must make that
+    /// fallback explicit rather than mistaking a spelling for ownership.
     pub fn symbol_source_origin(&self, symbol: SymbolHandle) -> Option<SourceOrigin> {
         let sources = self.sources.as_deref()?;
-        let source_span = self.names.get(self.get(symbol).name).source_span()?;
+        let source_span = self.provenance_source_span(symbol)?;
         sources.file_at(source_span).map(|file| file.origin)
     }
 
     /// Reconciled package identity for one user-authored declaration.
-    /// Generated, source-free, toolchain, and unmanaged symbols return `None`.
+    /// Generated symbols inherit their exact authored derivation origin.
+    /// Source-free, toolchain, and unmanaged symbols return `None`.
     pub fn symbol_package_identity(&self, symbol: SymbolHandle) -> Option<PackageKeyIdentity> {
-        let source_span = self.symbol_source_span(symbol)?;
+        let source_span = self.provenance_source_span(symbol)?;
         let source_file = self.source_file(source_span)?;
 
         (source_file.origin == SourceOrigin::User)
@@ -229,6 +244,21 @@ impl SymbolTable {
 
     pub fn has_source_metadata(&self) -> bool {
         self.sources.is_some()
+    }
+
+    fn provenance_source_span(&self, mut symbol: SymbolHandle) -> Option<SourceSpan> {
+        while symbol.is_valid() {
+            let data = self.get(symbol);
+            if let Some(source_span) = self.names.get(data.name).source_span() {
+                return Some(source_span);
+            }
+            let generated_from = data.generated_from;
+            if !generated_from.is_valid() || generated_from.arena_index() >= symbol.arena_index() {
+                return None;
+            }
+            symbol = generated_from;
+        }
+        None
     }
 
     pub fn root(&self) -> SymbolHandle {

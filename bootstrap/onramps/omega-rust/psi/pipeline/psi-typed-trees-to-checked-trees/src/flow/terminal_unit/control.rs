@@ -619,6 +619,12 @@ pub(super) fn build_static_boundary_requirements(
                     supported = false;
                     break;
                 }
+                let Some(access) =
+                    structural_access_for_type_reference(program, parameter.type_reference)
+                else {
+                    supported = false;
+                    break;
+                };
                 structural_parameters.push(CheckedUnitStructuralParameterPlan {
                     position: source_position,
                     is_self: false,
@@ -627,6 +633,7 @@ pub(super) fn build_static_boundary_requirements(
                         program,
                         parameter.type_reference,
                     ),
+                    access,
                     qualifications,
                 });
             }

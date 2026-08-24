@@ -9,13 +9,13 @@ use psi_proof_kernel::{
 use psi_terminal::{
     BindingRelevance, Block, BoundaryMachineDeclaration, ByteSequenceCarrier, ClaimTransfer,
     CompletionReceipt, EntryClaim, MachineContract, NominalAffineCleanup, Operation, OperationKind,
-    OperationResult, ServiceDeclaration, StructuralAffineDiscard, StructuralArgument,
-    StructuralDomainDeclaration, StructuralDomainRequirement, StructuralFieldDeclaration,
-    StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
-    StructuralPathSegment, StructuralPlaceDeclaration, StructuralResultDeclaration,
-    StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge, TerminalAffineCleanupAction,
-    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
-    VocabularyMarker,
+    OperationResult, ServiceDeclaration, StructuralAccess, StructuralAffineDiscard,
+    StructuralArgument, StructuralDomainDeclaration, StructuralDomainRequirement,
+    StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
+    StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge,
+    TerminalAffineCleanupAction, TerminalMachine, TerminalMachineResult, TerminalModule,
+    Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_codec::{decode_module, encode_module, encode_proof_bundle};
 use psi_terminal_fuel::{FuelChargeSite, FuelExhaustion, TerminalFuelMeter, TerminalFuelSchedule};
@@ -123,6 +123,7 @@ fn structural_return_transfers_value_and_claim_atomically_after_edge_charge() {
                 is_self: false,
                 structural_type,
                 multiplicity: StructuralMultiplicity::Linear,
+                access: StructuralAccess::Owned,
                 qualifications: vec![domain],
             }],
             result: TerminalMachineResult::Structural(StructuralResultDeclaration {
@@ -230,6 +231,7 @@ fn unit_return_performs_affine_discard_only_after_edge_charge() {
     *trivial_affine_discards = vec![place_id(2)];
     module.entry = machine.id;
     module.machines = vec![machine];
+    module.root_service_reach = Default::default();
     let semantic = encode_module(&module).expect("affine cleanup module encodes");
     let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
     let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
@@ -941,6 +943,7 @@ fn scalar_return_performs_affine_discard_only_after_edge_charge() {
     };
     module.entry = machine.id;
     module.machines = vec![machine];
+    module.root_service_reach = Default::default();
     let semantic = encode_module(&module).expect("scalar affine cleanup module encodes");
     let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
     let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
@@ -1008,6 +1011,7 @@ fn jump_performs_affine_discard_only_after_edge_charge() {
     ];
     module.entry = machine.id;
     module.machines = vec![machine];
+    module.root_service_reach = Default::default();
     let semantic = encode_module(&module).expect("jump affine cleanup module encodes");
     let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
     let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
@@ -1102,6 +1106,7 @@ fn conditional_commits_only_the_selected_affine_cleanup_after_edge_charge() {
     ];
     module.entry = machine.id;
     module.machines = vec![machine];
+    module.root_service_reach = Default::default();
     let semantic = encode_module(&module).expect("conditional affine cleanup module encodes");
     let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
 
@@ -1638,11 +1643,13 @@ fn byte_sequence_literal_module(bytes: Vec<u8>) -> TerminalModule {
                 is_self: false,
                 structural_type,
                 multiplicity: StructuralMultiplicity::Unrestricted,
+                access: StructuralAccess::SharedBorrow,
                 qualifications: Vec::new(),
             }],
             result: None,
             requires: Vec::new(),
             program_local_root_introductions: Vec::new(),
+            content_guarantees: Vec::new(),
             published_service_ceiling: Vec::new(),
         }],
         provider_candidates: Vec::new(),
@@ -1693,6 +1700,7 @@ fn byte_sequence_literal_module(bytes: Vec<u8>) -> TerminalModule {
                             arguments: Vec::new(),
                             structural_arguments: vec![StructuralArgument {
                                 place: literal,
+                                access: StructuralAccess::SharedBorrow,
                                 path: Vec::new(),
                             }],
                             completion_receipts: Vec::new(),
@@ -1734,6 +1742,7 @@ fn scalar_boundary_effect_module() -> TerminalModule {
             result: None,
             requires: Vec::new(),
             program_local_root_introductions: Vec::new(),
+            content_guarantees: Vec::new(),
             published_service_ceiling: Vec::new(),
         }],
         provider_candidates: Vec::new(),
@@ -1824,7 +1833,10 @@ fn effect_module() -> TerminalModule {
             identity: "test::PortIo".into(),
             parents: Vec::new(),
         }],
-        root_service_reach: Default::default(),
+        root_service_reach: psi_terminal::TerminalRootServiceReach {
+            concrete: vec![service],
+            installation_dependencies: Vec::new(),
+        },
         boundary_machines: vec![BoundaryMachineDeclaration {
             id: boundary_id(1),
             identity: "test::acknowledge".into(),
@@ -1837,6 +1849,7 @@ fn effect_module() -> TerminalModule {
                 domain,
             }],
             program_local_root_introductions: Vec::new(),
+            content_guarantees: Vec::new(),
             published_service_ceiling: Vec::new(),
         }],
         provider_candidates: Vec::new(),
@@ -1881,6 +1894,7 @@ fn effect_module() -> TerminalModule {
                                 callee: machine_id(2),
                                 structural_arguments: vec![StructuralArgument {
                                     place: place_id(1),
+                                    access: StructuralAccess::Owned,
                                     path: Vec::new(),
                                 }],
                                 claim_transfers: vec![ClaimTransfer {
@@ -1940,6 +1954,7 @@ fn effect_module() -> TerminalModule {
                             arguments: Vec::new(),
                             structural_arguments: vec![StructuralArgument {
                                 place: place_id(2),
+                                access: StructuralAccess::Owned,
                                 path: Vec::new(),
                             }],
                             completion_receipts: vec![CompletionReceipt {
@@ -1971,6 +1986,7 @@ fn structural_parameter(
         is_self: true,
         structural_type,
         multiplicity: StructuralMultiplicity::Linear,
+        access: StructuralAccess::Owned,
         qualifications: vec![domain],
     }
 }
@@ -2094,6 +2110,7 @@ fn nominal_affine_module() -> TerminalModule {
                     is_self: false,
                     structural_type: token.id,
                     multiplicity: StructuralMultiplicity::Affine,
+                    access: StructuralAccess::Owned,
                     qualifications: Vec::new(),
                 }],
                 result: TerminalMachineResult::Unit,
@@ -2532,6 +2549,7 @@ fn ordered_empty_nominal_affine_module(same_target: bool) -> TerminalModule {
             is_self: false,
             structural_type: second_type,
             multiplicity: StructuralMultiplicity::Affine,
+            access: StructuralAccess::Owned,
             qualifications: Vec::new(),
         });
     caller.structural_places.push(StructuralPlaceDeclaration {
@@ -2643,6 +2661,7 @@ fn three_ordered_empty_nominal_affine_module(same_target: bool) -> TerminalModul
             is_self: false,
             structural_type: third_type,
             multiplicity: StructuralMultiplicity::Affine,
+            access: StructuralAccess::Owned,
             qualifications: Vec::new(),
         });
     caller.structural_places.push(StructuralPlaceDeclaration {
@@ -2746,6 +2765,7 @@ fn three_ordered_shared_executable_nominal_affine_module() -> TerminalModule {
             is_self: false,
             structural_type: structural_type_id(1),
             multiplicity: StructuralMultiplicity::Affine,
+            access: StructuralAccess::Owned,
             qualifications: Vec::new(),
         });
     caller.structural_places.push(StructuralPlaceDeclaration {
@@ -2933,6 +2953,7 @@ fn partial_affine_field_module() -> TerminalModule {
             is_self: false,
             structural_type: pair.id,
             multiplicity: StructuralMultiplicity::Affine,
+            access: StructuralAccess::Owned,
             qualifications: Vec::new(),
         }],
         result: TerminalMachineResult::Unit,
@@ -2959,6 +2980,7 @@ fn partial_affine_field_module() -> TerminalModule {
                     callee: machine_id(2),
                     structural_arguments: vec![StructuralArgument {
                         place: place_id(1),
+                        access: StructuralAccess::Owned,
                         path: vec![StructuralPathSegment::Field("right".into())],
                     }],
                     claim_transfers: Vec::new(),
@@ -2988,6 +3010,7 @@ fn partial_affine_field_module() -> TerminalModule {
             is_self: false,
             structural_type: token.id,
             multiplicity: StructuralMultiplicity::Affine,
+            access: StructuralAccess::Owned,
             qualifications: Vec::new(),
         }],
         result: TerminalMachineResult::Unit,

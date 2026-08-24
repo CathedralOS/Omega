@@ -1302,6 +1302,7 @@ mod tests {
             name: PLAN_NAME.to_owned(),
             schema: ServiceSchema {
                 trait_name: SCHEMA_NAME.to_owned(),
+                trait_package_identity: None,
                 methods: vec![method],
             },
             ..Default::default()

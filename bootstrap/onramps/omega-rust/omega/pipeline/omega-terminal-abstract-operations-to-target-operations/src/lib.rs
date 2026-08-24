@@ -386,6 +386,7 @@ fn lower_function(
                 place: parameter.place,
                 structural_type: parameter.structural_type,
                 multiplicity: parameter.multiplicity,
+                access: parameter.access,
                 shape,
                 placement: placement.clone(),
             },
@@ -2242,6 +2243,7 @@ fn lower_unit_function(
                 place: parameter.place,
                 structural_type: parameter.structural_type,
                 multiplicity: parameter.multiplicity,
+                access: parameter.access,
                 shape,
                 placement: placement.clone(),
             },
@@ -2464,6 +2466,7 @@ fn lower_unit_function(
                         }
                         Ok(TerminalTargetStructuralArgument {
                             place: argument.place,
+                            access: argument.access,
                             path: argument.path.clone(),
                             root_structural_type: source.structural_type,
                             structural_type: projected_type,

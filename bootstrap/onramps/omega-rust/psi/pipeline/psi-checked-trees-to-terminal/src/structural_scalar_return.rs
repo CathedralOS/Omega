@@ -205,6 +205,7 @@ pub(super) fn lower_trait_operator_scalar_return_machine(
                 ))?;
             if source.structural_type != target.structural_type
                 || source.multiplicity != target.multiplicity
+                || source.access != target.access
                 || source.qualifications != target.qualifications
             {
                 return Err(LoweringError::Unsupported(
@@ -214,6 +215,7 @@ pub(super) fn lower_trait_operator_scalar_return_machine(
             Ok(StructuralArgument {
                 place: source.place,
                 path: Vec::new(),
+                access: target.access,
             })
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;

@@ -9,10 +9,13 @@ use psi_core::{
     ContentProjectionScalar, ServiceId,
 };
 use psi_terminal::{
-    BoundaryMachineDeclaration, ProgramLocalRootIntroductionSchema, StructuralDomainRequirement,
-    StructuralMultiplicity, StructuralParameterDeclaration,
+    BoundaryMachineDeclaration, ProgramLocalRootIntroductionSchema, StructuralAccess,
+    StructuralDomainRequirement, StructuralMultiplicity, StructuralParameterDeclaration,
 };
 
+use super::content_wire::{
+    decode_content_conservation_guarantee, encode_content_conservation_guarantee,
+};
 use super::scalar_wire::{decode_scalar_type, encode_scalar_type};
 use super::wire::{Reader, Writer};
 use super::{CodecError, decode_counted, decode_ids, decode_optional_id, encode_optional_id};
@@ -65,6 +68,13 @@ pub(super) fn encode_boundary_machine(
         )?;
         encode_content_projection_expression(writer, &schema.capacity)?;
         writer.u64(schema.identity);
+    }
+    writer.len(
+        "boundary content guarantees",
+        declaration.content_guarantees.len(),
+    )?;
+    for guarantee in &declaration.content_guarantees {
+        encode_content_conservation_guarantee(writer, guarantee)?;
     }
     encode_service_ceiling(writer, &declaration.published_service_ceiling)
 }
@@ -145,6 +155,7 @@ pub(super) fn encode_structural_parameters(
             StructuralMultiplicity::Affine => 2,
             StructuralMultiplicity::Linear => 3,
         });
+        encode_structural_access(writer, parameter.access);
         writer.len(
             "structural parameter qualifications",
             parameter.qualifications.len(),
@@ -218,6 +229,7 @@ pub(super) fn decode_boundary_machine(
                 identity,
             })
         })?,
+        content_guarantees: decode_counted(reader, decode_content_conservation_guarantee)?,
         published_service_ceiling: decode_ids(reader, "ServiceId")?,
     })
 }
@@ -299,13 +311,36 @@ pub(super) fn decode_structural_parameters(
             3 => StructuralMultiplicity::Linear,
             tag => return Err(CodecError::InvalidTag("StructuralMultiplicity", tag)),
         };
+        let access = decode_structural_access(reader)?;
         Ok(StructuralParameterDeclaration {
             place,
             position,
             is_self,
             structural_type,
             multiplicity,
+            access,
             qualifications: decode_ids(reader, "StructuralDomainId")?,
         })
     })
+}
+
+pub(super) fn encode_structural_access(writer: &mut Writer, access: StructuralAccess) {
+    writer.u8(match access {
+        StructuralAccess::Owned => 1,
+        StructuralAccess::SharedBorrow => 2,
+        StructuralAccess::MutableBorrow => 3,
+        StructuralAccess::WriteOnlyBorrow => 4,
+    });
+}
+
+pub(super) fn decode_structural_access(
+    reader: &mut Reader<'_>,
+) -> Result<StructuralAccess, CodecError> {
+    match reader.u8()? {
+        1 => Ok(StructuralAccess::Owned),
+        2 => Ok(StructuralAccess::SharedBorrow),
+        3 => Ok(StructuralAccess::MutableBorrow),
+        4 => Ok(StructuralAccess::WriteOnlyBorrow),
+        tag => Err(CodecError::InvalidTag("StructuralAccess", tag)),
+    }
 }

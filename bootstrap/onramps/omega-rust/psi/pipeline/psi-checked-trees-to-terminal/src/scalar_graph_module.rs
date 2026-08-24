@@ -955,6 +955,33 @@ pub(super) fn build_scalar_graph_module(
         id: value_id(next_value_identity),
         scalar_type: result_type,
     };
+    let mut resolved_partition_compositions = partition_compositions
+        .compositions
+        .into_iter()
+        .map(|composition| {
+            let Some((_, producer_operation, target)) = all_operations
+                .source_calls
+                .iter()
+                .find(|(coordinate, _, _)| *coordinate == composition.producer_coordinate)
+                .copied()
+            else {
+                return Err(LoweringError::ContentPartitionProducerOperationMissing);
+            };
+            if target != composition.source_callable {
+                return Err(LoweringError::ContentPartitionProducerTargetMismatch);
+            }
+            Ok(ContentPartitionComposition {
+                producer_operation,
+                source_fingerprint: composition.source_fingerprint,
+                source_structural_places: composition.source_structural_places,
+                source: composition.source,
+                input_claims: composition.input_claims,
+                substitutions: composition.substitutions,
+                derived: composition.derived,
+            })
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    resolved_partition_compositions.sort();
     let (requires, ensures, evidence) = match (result_type, contract_value) {
         (ScalarType::Boolean, Some(KnownDirectScalar::Boolean(value))) => {
             let literal = ScalarTerm::boolean(value);
@@ -1041,7 +1068,7 @@ pub(super) fn build_scalar_graph_module(
                     .collect(),
                 content_entry_claims: identity_reshuffles.entry_claims,
                 content_identity_reshuffles: identity_reshuffles.reshuffles,
-                content_partition_compositions: partition_compositions.compositions,
+                content_partition_compositions: resolved_partition_compositions,
                 entry: block_id(
                     identity_base
                         .checked_add(1)

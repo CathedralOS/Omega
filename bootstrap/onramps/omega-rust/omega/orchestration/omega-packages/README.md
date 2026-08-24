@@ -65,8 +65,8 @@ algorithms may be reusable only after focused review against the corrected
 model.
 
 The crate now contains reviewed building blocks for immutable Git/local
-snapshots, hermetic package-name extraction, and typed package/source/instance
-identity. Git and external-local resolution now bind those pieces into a
+snapshots, hermetic package-name extraction, and typed package/source identity.
+Git and external-local resolution now bind those pieces into a
 `ResolvedPackageSource`: declaration and identity come from the immutable
 snapshot and canonical source lineage, and canonical literal dependency rows
 are projected without executing build code. Toolchain/compiler evidence is
@@ -79,14 +79,18 @@ consulting downloaded dependency rows; legacy standalone compilation still
 retains its transitional scanner. Checked package compilation now also retains
 the exact root package and selected build-machine symbol and can emit an
 in-memory authority review projection for one explicit target. That projection
-is intentionally not source/toolchain-bound admission evidence: toolchain and
-generated-symbol ownership gaps remain explicit. It includes selected provider
-mechanisms, and provider plans/trust rows retain exact realizing-package
-identity, but provider schema/requirement/binding nominals and the remaining
-trust/proof/reproducibility joins are incomplete. These pieces do not become an
-admission path until the legacy name-keyed lock APIs are replaced and sealed
-compiler-issued evidence plus the hardened resolver receipt are wired through
-end to end.
+is intentionally not source/toolchain-bound admission evidence: exact toolchain
+ownership gaps remain explicit. Compiler-generated symbols now inherit the
+package/toolchain provenance of a mandatory authored derivation origin, while
+truly source-free symbols remain unresolved. The projection includes selected provider
+mechanisms, and provider plans/trust rows retain exact package owners for the
+realizing machine, provider type, service schema, and requirement owner. Binding
+and selection nominals plus the remaining trust/proof/reproducibility joins are
+incomplete. These pieces do not become an admission path until the legacy
+name-keyed lock APIs are replaced and sealed compiler-issued evidence plus the
+hardened resolver receipt are wired through end to end. The earlier public
+`PackageInstance` constructor was removed: the real type must not exist as a
+caller-constructible tuple of arbitrary toolchain and evidence fingerprints.
 
 ## Target command surface
 
@@ -102,9 +106,10 @@ Conflict resolution is row-specific and bound to the exact candidate; there is
 no blanket approval switch.
 
 The former commands accepting `manifest.json`, `receipt.json`, `--package`, or
-mandatory `--alias` are quarantined from the production CLI. Their internal
-library scaffolding remains only for isolated tests while the typed replacements
-are built; invoking the old command names fails before parsing or writing any
+mandatory `--alias` are quarantined from the production CLI. Their manifest,
+lock, review, install, update, and audit modules compile only for isolated crate
+tests while the typed replacements are built; they are absent from the release
+library API. Invoking the old command names fails before parsing or writing any
 artifact.
 
 ## Responsibilities
@@ -145,6 +150,7 @@ omega-packages/
 |   |-- declaration.rs     # Hermetic PACKAGE extraction.
 |   |-- dependency_projection.rs # Hermetic literal source requests.
 |   |-- graph.rs           # Typed pre-admission source reconciliation.
+|   |-- source_commands.rs # Unhardened source diagnostic command surface.
 |   |-- evidence.rs        # Compiler-issued package admission evidence.
 |   |-- lock.rs            # Accepted closure and evidence baseline.
 |   |-- conflict.rs        # Row-specific admission conflicts/resolutions.
@@ -163,6 +169,13 @@ omega-packages/
 Machine persistence format is an internal encoding choice. Human review and
 conflict surfaces use concise canonical text and do not expose package-authored
 prose to the triage model.
+
+The checked package-review path also fails closed on contract-entailment
+stand-downs. It audits the pristine typed graph (including generic templates),
+retains compiler-owned machine/contract/fact coordinates and a closed reason,
+and refuses review when any checked-implementation claim was left unjudged. Accepted or
+opaque supply remains trust-bearing. These rows are currently in-memory review
+state, not sealed lock evidence.
 
 ## Fixtures
 

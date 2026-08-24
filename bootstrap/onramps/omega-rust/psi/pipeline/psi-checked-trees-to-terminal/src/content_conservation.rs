@@ -322,6 +322,33 @@ pub fn lower_content_conservation_plan(
     })
 }
 
+pub fn lower_boundary_content_guarantees(
+    plans: &[ContentConservationPlan],
+    callable: psi_symbols::SymbolHandle,
+) -> Result<Vec<ContentConservationGuarantee>, LoweringError> {
+    let mut guarantees = plans
+        .iter()
+        .filter(|plan| {
+            plan.owner_kind == ContentConservationOwnerKind::TraitRequirement
+                && plan.callable == callable
+        })
+        .map(|plan| {
+            let lowered = lower_content_conservation_plan(plan)?;
+            let conservation = lowered_conservation(lowered.proposition)?;
+            Ok(ContentConservationGuarantee {
+                fingerprint: lowered.source_fingerprint,
+                structural_places: lowered.structural_places,
+                conservation,
+            })
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    guarantees.sort();
+    if guarantees.windows(2).any(|pair| pair[0] == pair[1]) {
+        return Err(LoweringError::DuplicateContentPartitionComposition);
+    }
+    Ok(guarantees)
+}
+
 /// Revalidate and lower all identity facts for one checked callable.
 ///
 /// Multiple exact projections of the same checked claim are grouped into one
@@ -578,7 +605,13 @@ pub fn lower_content_partition_compositions(
         }
         let mut source_structural_places = source.structural_places.into_iter().collect::<Vec<_>>();
         source_structural_places.sort();
-        compositions.push(ContentPartitionComposition {
+        compositions.push(LoweredContentPartitionComposition {
+            producer_coordinate: SourceCallCoordinate {
+                state: fact.state_symbol,
+                statement_index: fact.statement_index,
+                call_ordinal: fact.call_ordinal,
+            },
+            source_callable: fact.source_callable,
             source_fingerprint: fact.source_fingerprint,
             source_structural_places,
             source: source_conservation,
@@ -588,8 +621,11 @@ pub fn lower_content_partition_compositions(
         });
     }
 
-    compositions.sort();
-    if compositions.windows(2).any(|pair| pair[0] == pair[1]) {
+    if compositions.iter().enumerate().any(|(index, composition)| {
+        compositions[index + 1..]
+            .iter()
+            .any(|later| later == composition)
+    }) {
         return Err(LoweringError::DuplicateContentPartitionComposition);
     }
     *identity_reshuffles = rebuilt_identity_reshuffles;

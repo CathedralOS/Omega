@@ -246,6 +246,7 @@ fn assign_function(
                             .iter()
                             .map(|argument| TerminalAssignedAggregateCopy {
                                 place: argument.place,
+                                access: argument.access,
                                 path: argument.path.clone(),
                                 root_structural_type: argument.root_structural_type,
                                 structural_type: argument.structural_type,
@@ -2730,6 +2731,7 @@ mod tests {
                             arguments: vec![
                                 omega_terminal_target_operations::TerminalTargetStructuralArgument {
                                     place,
+                                    access: psi_terminal::StructuralAccess::Owned,
                                     path: path.clone(),
                                     root_structural_type: structural_type,
                                     structural_type,
@@ -2868,6 +2870,7 @@ mod tests {
                         place,
                         structural_type: StructuralTypeId::new(1).unwrap(),
                         multiplicity: StructuralMultiplicity::Affine,
+                        access: psi_terminal::StructuralAccess::Owned,
                         shape: structural_shape,
                         placement: call_plan.parameters[1].clone(),
                     }],

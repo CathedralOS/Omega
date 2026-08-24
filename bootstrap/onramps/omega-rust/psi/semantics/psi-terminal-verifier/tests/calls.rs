@@ -366,6 +366,7 @@ fn boundary_call_module() -> TerminalModule {
             result: None,
             requires: Vec::new(),
             program_local_root_introductions: Vec::new(),
+            content_guarantees: Vec::new(),
             published_service_ceiling: Vec::new(),
         }],
         provider_candidates: Vec::new(),

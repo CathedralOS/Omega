@@ -60,7 +60,7 @@ pub(crate) fn validate_checked_write_only_slice(
             for root in &roots {
                 if !is_supported_checked_referee(program, root.referee) {
                     diagnostics.push(Diagnostic::error(format!(
-                        "machine `{}` state `{}` parameter `{}` uses `&write` with `{}`; the current checked slice supports unrestricted primitive scalars, fixed byte arrays, and non-generic invariant-free checked records",
+                        "machine `{}` state `{}` parameter `{}` uses `&write` with `{}`; the current checked slice supports unrestricted primitive scalars, fixed byte arrays, forwarding-only byte slices, and non-generic invariant-free checked records",
                         machine.name,
                         state.name,
                         root.name,
@@ -112,7 +112,16 @@ fn fixed_byte_array_shape(
 fn is_supported_checked_referee(program: &TypedTrees, type_reference: TypeReferenceHandle) -> bool {
     is_unrestricted_scalar(program, type_reference)
         || fixed_byte_array_length(program, type_reference).is_some()
+        || is_byte_slice(program, type_reference)
         || write_only_record(program, type_reference).is_some()
+}
+
+fn is_byte_slice(program: &TypedTrees, type_reference: TypeReferenceHandle) -> bool {
+    matches!(
+        program.type_reference_table.type_reference(type_reference),
+        TypeReferenceNode::Slice { element_type }
+            if program.primitive_type_reference(*element_type) == Some(PrimitiveType::U8)
+    )
 }
 
 /// The first aggregate rung is deliberately nominal and closed. It admits an

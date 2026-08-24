@@ -559,6 +559,7 @@ fn build_trait_operator_scalar_return_machine(
                 is_self: parameter.is_self,
                 type_identity,
                 multiplicity,
+                access: CheckedStructuralAccess::Owned,
                 qualifications,
             })
         })

@@ -43,6 +43,18 @@ pub(crate) fn lower_unit_parameters(
                     Multiplicity::Affine => StructuralMultiplicity::Affine,
                     Multiplicity::Linear => StructuralMultiplicity::Linear,
                 },
+                access: match parameter.access {
+                    psi_checked_trees::CheckedStructuralAccess::Owned => StructuralAccess::Owned,
+                    psi_checked_trees::CheckedStructuralAccess::SharedBorrow => {
+                        StructuralAccess::SharedBorrow
+                    }
+                    psi_checked_trees::CheckedStructuralAccess::MutableBorrow => {
+                        StructuralAccess::MutableBorrow
+                    }
+                    psi_checked_trees::CheckedStructuralAccess::WriteOnlyBorrow => {
+                        StructuralAccess::WriteOnlyBorrow
+                    }
+                },
                 qualifications,
             })
         })
@@ -143,6 +155,7 @@ pub(crate) fn validate_transfer_shape(
             if argument.source_parameter_index != u32::MAX
                 || !argument.path.is_empty()
                 || argument.type_identity != target.type_identity
+                || argument.access != target.access
                 || target.multiplicity != Multiplicity::Unrestricted
                 || !target.qualifications.is_empty()
             {
@@ -175,6 +188,23 @@ pub(crate) fn validate_transfer_shape(
         {
             return unsupported("Unit structural argument type identity is inconsistent");
         }
+        let source_access = match source.access {
+            StructuralAccess::Owned => psi_checked_trees::CheckedStructuralAccess::Owned,
+            StructuralAccess::SharedBorrow => {
+                psi_checked_trees::CheckedStructuralAccess::SharedBorrow
+            }
+            StructuralAccess::MutableBorrow => {
+                psi_checked_trees::CheckedStructuralAccess::MutableBorrow
+            }
+            StructuralAccess::WriteOnlyBorrow => {
+                psi_checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
+            }
+        };
+        if argument.access != target.access
+            || !checked_access_can_supply(source_access, argument.access)
+        {
+            return unsupported("Unit structural argument access is inconsistent");
+        }
     }
     let actual = transfers
         .iter()
@@ -190,6 +220,26 @@ pub(crate) fn validate_transfer_shape(
         return unsupported("Unit claim transfer does not exactly match target entry custody");
     }
     Ok(())
+}
+
+fn checked_access_can_supply(
+    source: psi_checked_trees::CheckedStructuralAccess,
+    presented: psi_checked_trees::CheckedStructuralAccess,
+) -> bool {
+    use psi_checked_trees::CheckedStructuralAccess;
+    match source {
+        CheckedStructuralAccess::Owned => true,
+        CheckedStructuralAccess::SharedBorrow => presented == CheckedStructuralAccess::SharedBorrow,
+        CheckedStructuralAccess::MutableBorrow => matches!(
+            presented,
+            CheckedStructuralAccess::SharedBorrow
+                | CheckedStructuralAccess::MutableBorrow
+                | CheckedStructuralAccess::WriteOnlyBorrow
+        ),
+        CheckedStructuralAccess::WriteOnlyBorrow => {
+            presented == CheckedStructuralAccess::WriteOnlyBorrow
+        }
+    }
 }
 
 pub(crate) fn lower_structural_arguments(
@@ -211,6 +261,20 @@ pub(crate) fn lower_structural_arguments(
                 return Ok(StructuralArgument {
                     place,
                     path: Vec::new(),
+                    access: match argument.access {
+                        psi_checked_trees::CheckedStructuralAccess::Owned => {
+                            StructuralAccess::Owned
+                        }
+                        psi_checked_trees::CheckedStructuralAccess::SharedBorrow => {
+                            StructuralAccess::SharedBorrow
+                        }
+                        psi_checked_trees::CheckedStructuralAccess::MutableBorrow => {
+                            StructuralAccess::MutableBorrow
+                        }
+                        psi_checked_trees::CheckedStructuralAccess::WriteOnlyBorrow => {
+                            StructuralAccess::WriteOnlyBorrow
+                        }
+                    },
                 });
             }
             let parameter = parameters
@@ -225,6 +289,18 @@ pub(crate) fn lower_structural_arguments(
             Ok(StructuralArgument {
                 place: parameter.place,
                 path: lower_structural_path(&argument.path),
+                access: match argument.access {
+                    psi_checked_trees::CheckedStructuralAccess::Owned => StructuralAccess::Owned,
+                    psi_checked_trees::CheckedStructuralAccess::SharedBorrow => {
+                        StructuralAccess::SharedBorrow
+                    }
+                    psi_checked_trees::CheckedStructuralAccess::MutableBorrow => {
+                        StructuralAccess::MutableBorrow
+                    }
+                    psi_checked_trees::CheckedStructuralAccess::WriteOnlyBorrow => {
+                        StructuralAccess::WriteOnlyBorrow
+                    }
+                },
             })
         })
         .collect::<Result<Vec<_>, _>>()

@@ -224,6 +224,7 @@ pub(super) fn emit_unit_body(
                             )| {
                                 TerminalInternalUnitCallArgumentRecord {
                                     place: copy.place,
+                                    access: copy.access,
                                     path: copy.path.clone(),
                                     root_structural_type: copy.root_structural_type,
                                     structural_type: copy.structural_type,
