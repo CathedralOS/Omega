@@ -598,6 +598,9 @@ includes provider-unused ABI operands, and the canonical source test pins all
 unbounded.
 Scoped hard links require write authority on both names, so source custody
 cannot be bypassed by aliasing a read-only source inode into writable staging.
+Namespace-mutating calls authorize the canonical parent plus the leaf they
+actually mutate instead of following an existing leaf symlink. Open/truncate
+and other target-following calls retain full canonical target authorization.
 Package review now owns one session-wide object/namespace account across the
 closure and shares it with every package build. Package output roots count as
 entries; namespace entries are otherwise counted by name, regular-file bytes
@@ -616,6 +619,17 @@ Policy can consequently distinguish an ordinary development build, a release
 that requires record replay, and a supply-chain release that requires
 transitive source rebuildability. These are graph checks, not transitive
 mutation of one package's local class.
+
+Source/provenance triage is independently review-only. The package orchestrator
+now compares compiler-issued closure rows directly: capability/API byte drift
+and source-lineage replacement are blocking, while unavailable old source,
+retained dangerous authority, changed build observation, and introduced or
+changed representation-TCB evidence recommend audit. Initial admission uses an
+empty baseline and applies the same dangerous-authority and representation-TCB
+recommendations. The bounded advisory projection contains canonical package-key
+commitments and closed compiler vocabulary only; it rejects rather than
+silently truncating. A source-patch projection and model runner remain future
+work. Model output is policy advice, never package evidence or proof of review.
 
 ## Package admission projection
 

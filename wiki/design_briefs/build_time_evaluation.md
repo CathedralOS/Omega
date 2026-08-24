@@ -324,7 +324,12 @@ operands, and its exact operand/result schema is checked against the canonical
 carrier at that gate. This does not replace process memory, CPU, or transport
 quotas.
 Scoped hard links require write authority on both names, preventing a package
-from aliasing a read-only source inode into writable staging. Package review
+from aliasing a read-only source inode into writable staging. Namespace
+mutations canonicalize the parent but preserve the final directory entry, so an
+outside symlink pointing into a write root cannot lend its target's authority
+to removal, replacement, rename, linking, or `unlink_at` of the outside name.
+Operations that semantically follow the leaf, such as open/truncate, continue
+to authorize the resolved target. Package review
 uses one compiler-owned staging sponsor across the complete closure. Its
 initial ceiling is 4,096 namespace entries, 256 MiB total logical bytes, and
 256 MiB for any one object extent. Entries count names, regular-file extents

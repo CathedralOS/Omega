@@ -495,8 +495,9 @@ An install compares the new dependency closure against an empty admission
 baseline. A completely checked package with neither blocking evidence nor
 review findings may pass as `admitted`; claim-free opacity alone may complete
 as `admitted-with-audit-recommended`. Suspect authority, trust, executable
-introduction, dangerous contract slack, or build-host reach creates a blocking
-conflict.
+introduction, dangerous contract slack, or build-host reach recommends audit;
+the exact capability, claim, compatibility, or root-policy row determines
+whether admission also blocks.
 
 An update derives candidate evidence and compares it with the normalized
 accepted baseline in `omega.lock`:
@@ -542,6 +543,15 @@ LLM triage receives only Omega-rendered, bounded, escaped identifiers and
 evidence rows. Package prose, comments, commit messages, and README text do not
 enter the triage prompt. A later code audit necessarily reads attacker-
 controlled source and is treated as a separate hostile-input activity.
+
+The current review-only implementation provides the deterministic envelope for
+that flow. It compares compiler-issued closure rows, blocks capability/API and
+source-lineage changes, recommends audit for unavailable old source, changed
+representation-TCB evidence, changed build observations, and retained dangerous
+authority, and renders only fixed reason/disposition tokens plus canonical
+package-key commitments under a caller-supplied byte ceiling. It does not yet
+render the bounded source patch or invoke an advisory model. Its output cannot
+construct accepted lock evidence or attest that review happened.
 
 Useful result states include:
 

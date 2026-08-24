@@ -727,7 +727,11 @@ complete.
   1024-byte `PATH_MAX` carrier before provider or grant access.
   Scoped hard links now require write authority on both names; a read-only
   source object cannot be aliased into writable staging and then mutated through
-  the shared inode. Package review now owns one session-wide staging sponsor
+  the shared inode. Namespace mutations authorize the canonical parent plus the
+  actual leaf without following an existing leaf symlink; remove, directory
+  create/remove, rename, hard-link, symlink, and `unlink_at` therefore cannot
+  borrow write authority from a target inside staging while mutating a name
+  outside it. Package review now owns one session-wide staging sponsor
   shared by every package compilation in the reviewed closure. Package build
   roots consume that account; namespace entries count by name, regular-file
   extents count once per unique object, symlink payload spellings count as
@@ -898,6 +902,19 @@ complete.
   source escalates to standalone candidate audit; source-lineage/provenance
   changes block as replacement; triage input contains only bounded,
   Omega-rendered evidence and no package prose. LLM output remains advisory.
+
+  Progress 2026-08-24: review-only orchestration now derives deterministic
+  per-package triage from compiler-issued closure rows rather than legacy
+  manifests or reviewer prose. Initial admission recommends audit for
+  dangerous authority and introduced representation-TCB rows. Updates block
+  changed capability/API bytes and source-lineage replacement, retain a
+  standalone-audit recommendation when old source is unavailable, and continue
+  to recommend audit for unchanged dangerous authority. A fixed-vocabulary
+  renderer exposes only canonical package-key commitments and closed reason/
+  disposition tokens; it rejects above a caller ceiling instead of truncating.
+  Real source-patch rendering, advisory model invocation, row-specific
+  capability conflicts, sealed accepted-baseline loading, and policy
+  application of the advisory result remain.
 
 - **AUDIT-RESULT-STATES.** Represent at least `admitted`,
   `admitted-with-audit-recommended`,
