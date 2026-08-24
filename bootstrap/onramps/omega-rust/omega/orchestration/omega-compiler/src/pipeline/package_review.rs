@@ -111,6 +111,7 @@ pub struct PackageReviewTraitRequirement {
     return_type: PackageReviewTypeIdentity,
     service_reach: Vec<PackageReviewNominalIdentity>,
     service_reach_is_installation_bound: bool,
+    synchronous_invocations: Vec<PackageReviewSynchronousInvocation>,
     suspends: bool,
     blocks: bool,
 }
@@ -142,6 +143,10 @@ impl PackageReviewTraitRequirement {
 
     pub const fn service_reach_is_installation_bound(&self) -> bool {
         self.service_reach_is_installation_bound
+    }
+
+    pub fn synchronous_invocations(&self) -> &[PackageReviewSynchronousInvocation] {
+        &self.synchronous_invocations
     }
 
     pub const fn suspends(&self) -> bool {
@@ -1149,12 +1154,6 @@ fn project_trait_requirement(
             identity.path
         ))]);
     }
-    if !compilation.state_signature_invokes(requirement).is_empty() {
-        return Err(vec![Diagnostic::error(format!(
-            "public trait requirement `{}` uses synchronous invocation contracts not yet represented by public-trait review",
-            identity.path
-        ))]);
-    }
     if !compilation
         .state_signature_contracts(requirement)
         .is_empty()
@@ -1208,6 +1207,10 @@ fn project_trait_requirement(
         ),
         service_reach: project_service_row(compilation, requirement.service_reach_row)?,
         service_reach_is_installation_bound: requirement.service_reach_is_installation_bound,
+        synchronous_invocations: project_synchronous_invocations(
+            compilation,
+            &psi_effects::declared_signature_invocations(compilation, requirement),
+        )?,
         suspends: requirement.suspends,
         blocks: requirement.blocks,
     })
