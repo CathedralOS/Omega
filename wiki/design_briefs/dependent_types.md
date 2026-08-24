@@ -151,8 +151,9 @@ obligation for every later proposition application that no longer coincides.
 
 This fragment is a hard predecessor of evidence-bearing quotients. The
 relation-property hierarchy (`Reflexive`, `Symmetric`, `Transitive`,
-`Equivalence`, and `Respects`) and `%` cannot be implemented independently
-from it. The complete formation and lifting rules live in
+and `Equivalence`), `%`, and the proposition applications used by selected
+ordinary lifting theorems cannot be implemented independently from it. The
+complete formation and lifting rules live in
 [Law-Bearing Relations, Evidence, And Quotients](law_bearing_relations_and_quotients.md).
 
 ## 3. (A) The limited systems fragment
@@ -604,8 +605,9 @@ The staged path (no rewrite at any stage):
    Before quotient formation, add the `proposition`-family/index-telescope
    fragment and carrierless selected-conformance evidence specified in the
    law-bearing-relation brief. Relation properties are explicit composable
-   conformances; quotient lifting requires `Respects`, including
-   representative-invariant preconditions for partial machines. Exactly two
+   conformances; quotient lifting explicitly selects an ordinary checked
+   result-congruence theorem, while the quotient-facing author publishes `Q`
+   and proves legality for both representative calls. Exactly two
    universe levels remain the starting ceiling until category theory forces
    more. This opens algebra, combinatorics, number theory, and construction of
    the reals. QTT/Idris 2 is the proof that one calculus hosts erased
@@ -651,7 +653,8 @@ freely and never borrowed).
 symbolic atoms and couplings support bounded products and boundary witnesses;
 exact inferred frames preserve those facts across calls; typed proposition and
 index telescopes then enable carrierless evidence, structural relation lifts,
-and `Respects`. R6 remains a hard predecessor of quotient migration. Landed
+and explicitly selected ordinary quotient theorems. R6 remains a hard
+predecessor of quotient migration. Landed
 coverage and individual inference cases belong in tests and Git history rather
 than an accumulating status diary here.
 

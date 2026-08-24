@@ -139,7 +139,9 @@ ensures
 // THE QUOTIENT (cross-sum equivalence): a ~ a2 iff a.pos + a2.neg ==
 // a2.pos + a.neg. add_int RESPECTS it -- if a ~ a2 then a + b ~ a2 + b,
 // spelled in unfolded Nat component form (the fact grammar has no member-
-// of-call, so the ensures states the components add_int computes). The
+// of-call, so the ensures states the components add_int computes). This is a
+// legacy implementation-coupled statement; FACT-CALL-PROJECTION replaces it
+// with a named relation applied to the two `add_int` results. The
 // requires hypothesis exchanges inside the goal's addend multiset under
 // the add ring license (hypothesis-exchange tier).
 machine add_int_respects_eq(a: IntPair, a2: IntPair, b: IntPair) -> IntPair

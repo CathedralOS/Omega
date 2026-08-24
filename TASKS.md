@@ -7213,23 +7213,27 @@ Remaining N6/N8 work:
   every nonmatching arm; omitted copyable outputs add no runtime work, cleanup,
   or fuel. The complete contract is in
   [`law_bearing_relations_and_quotients.md`](wiki/design_briefs/law_bearing_relations_and_quotients.md).
-- **QUOTIENT-RESPECT — admit explicit lifted operations.** The settled source
+- **QUOTIENT-THEOREM-LIFT — admit explicit lifted operations.** The settled source
   form is an ordinary quotient-owner body containing
-  `Quotient::lift<F, Respect>(...)` or `Quotient::define<F, Respect>(...)`.
-  Both select one exact representative machine application and one exact named
-  conformance. `lift` proves public-precondition implication; `define` proves
+  `Quotient::lift<F, Theorem>(...)` or `Quotient::define<F, Theorem>(...)`.
+  Both select one exact representative machine application and one exact named,
+  resultless checked theorem machine. `lift` proves authored public-precondition
+  implication for both representative applications; `define` proves
   equivalence, position-preserving runtime argument correspondence, and
   unchanged result flow. There is no `lifts` clause, operation map, visibility
-  discovery, structural witness search, or call-site selection.
+  discovery, structural witness search, variadic `Respects` interface,
+  `ArgumentMode`/`Fixed<T>` surface, or call-site selection.
 
   The fail-closed planning spine is implemented. Quotient formation requires
   one explicit closed `Equivalence<C, R>` conformance and checks its sealed
   Reflexive/Symmetric/Transitive rows plus transitive anti-axiom provenance.
   Typed lift/define requests retain their exact operation kind, representative
-  entry, and conformance application. Checked planning derives `RA` over every
-  normalized runtime position (attached `self` is position zero; proof-static
-  binders are excluded), derives result relation `RR`, closes type/`const`/
-  static-machine substitution, and retains the exact representative telescope.
+  entry, and theorem application. Checked planning derives the exact relation
+  at every quotient-bearing runtime position, one shared occurrence at every
+  ordinary pass-through position, and the exact result relation; attached
+  `self` is position zero and proof-static binders are excluded. It closes
+  type/`const`/static-machine substitution and retains the representative
+  telescope.
   Direct `define` additionally checks one-to-one parameter correspondence,
   mode/multiplicity and carrier agreement, exact alpha-renamed `Q`/`P`
   precondition equivalence, and unchanged result flow through a straight-line
@@ -7238,22 +7242,56 @@ Remaining N6/N8 work:
   terminating. Unsupported, adapted, open, ambiguous, cyclic, conditional, or
   representation-observing shapes reject.
 
-  Every request intentionally remains non-executable. Admission is blocked on
-  the owner question **What source authority expresses variadic `Respects`
-  evidence?** After that decision:
+  Every request intentionally remains non-executable. Complete admission in
+  bounded stages:
 
-  1. form the selected `Respects<F, RA, RR>` application from the checked plan
-     and verify its complete named conformance without arity-indexed traits;
-  2. finish general `Q => P` checking for `lift` while keeping `define` at
-     `Q <=> P`, and retain the exact proof/correspondence certificate; and
-  3. lower the admitted operation and its representative application,
-     `RA`/`RR`, conformance, operation kind, contract correspondence, and result
-     flow into canonical Terminal identity with independent verifier replay.
+  1. derive the selected resultless theorem's exact ordinary parameter,
+     `requires`, and `ensures` schema. Quotient-bearing positions become
+     left/right representative binders, ordinary positions become one shared
+     binder, partial calls require legality on both sides, and the conclusion
+     applies the exact result relation to the two exact representative calls;
+  2. verify that exact explicitly selected theorem after substitution. Reject
+     extra premises, finer relations, operation redirection, duplicated or
+     omitted representatives, rebound pass-through arguments, admitted proof
+     dependencies, or any runtime-result/dictionary interpretation;
+  3. finish general authored `Q => P` checking for `lift` on both representative
+     applications while keeping `define` at `Q <=> P`, and retain the exact
+     theorem/correspondence certificate; and
+  4. lower the admitted operation, representative application, theorem
+     selection, positional relations, operation kind, contract correspondence,
+     and result flow into canonical Terminal identity with independent verifier
+     replay.
 
   Acceptance: changing any representative argument, positional relation,
-  selected conformance, precondition correspondence, or result-flow edge
+  selected theorem, precondition correspondence, or result-flow edge
   rejects independently; no quotient operation observes representative
   structure or acquires effects/custody beyond the initial integration fence.
+- **FACT-CALL-PROJECTION — admit projections from eligible fact-position call
+  terms.** A total pure call in `requires`, `ensures`, domain, or proof-stratum
+  position denotes a value without constructing a runtime temporary. Permit
+  ordinary member projection such as `add_int(a, b).pos`, retain the exact call
+  and projection in fact identity, and propagate the intersection of every
+  referenced occurrence's validity/revision scope through the term. An
+  intersecting write or revision transition invalidates the fact. The rule
+  creates no runtime move or loan and transfers no custody into `Prop`.
+  Acceptance: rewrite the implementation-coupled expanded equations in
+  `omega/language/core/int.omg` as named relation applications over operation
+  results; changing `add_int`'s implementation no longer requires restating its
+  public congruence theorem.
+- **RESULTLESS-LAWS — remove dummy runtime results from theorem-only slots.**
+  A theorem-only machine publishes parameters, `requires`, and `ensures` but no
+  `Type` result. Migrate the law requirements in `CommutativeSemiring` and their
+  satisfiers, plus theorem-only helpers such as `add_int_respects_eq`, away from
+  dummy result types; retain return types only for machines that genuinely
+  compute an observed value in addition to proving a contract.
+  Resultless recursive proofs cite their smaller theorem application as a
+  statement and consume its checked `ensures`.
+- **INDUCTIVE-CITATION-EDGES — check every consumed recursive theorem citation.**
+  Include resultless statements, explicitly discarded calls, and calls nested
+  in value expressions in the direct/mutual recursion graph. Import a recursive
+  callee's `ensures` only after that exact edge proves a strict decrease under
+  the component's ranking. Reject unchanged self-citation and every other
+  unmeasured proof cycle before its conclusion can enter the fact context.
 - Suppress every synthesized representation observer on quotient formation.
   Resolved-to-typed lowering now rejects runtime `==`/`!=`, a direct
   `Equatable` conformance, and synthesized container equality through a quotient
@@ -7269,8 +7307,9 @@ Remaining N6/N8 work:
   bypass it. Logical proof-position equality remains raw for the exact
   quotient-congruence judge; it never lowers to representative bytes. Add
   quotient-owned executable equality through an ordinary lifted operation with
-  `DecidesEquivalence`; derive its `Respects` proof, and bind its optional `==`
-  token only through the settled fixed-operator declaration head.
+  `DecidesEquivalence`; derive its ordinary result-congruence theorem, and bind
+  its optional `==` token only through the settled fixed-operator declaration
+  head.
   Keep ordering, canonicalization, hashing, and later observer roles on
   explicit role-correctness contracts until each earns a named interface.
 - Enforce the initial quotient integration fences: lifted representative
@@ -7350,7 +7389,8 @@ Remaining N6/N8 work:
   remains proof-only and core-level.
 
 Acceptance: an admitted axiom cannot license quotient formation; selected
-Reflexive/Symmetric/Transitive evidence and every `Respects` proof are explicit;
+Reflexive/Symmetric/Transitive evidence and every operation-congruence theorem
+are explicit;
 different witnesses establish one stable proposition identity and eliminate
 through its declared interface; quotient operations select their exact proof
 in the quotient owner's body; canonical definitions cannot hide wrappers; and

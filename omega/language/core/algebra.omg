@@ -17,6 +17,12 @@
 // bridge those nullary applications to their constructor constants by ordinary
 // compute-mode unfolding and explicit lemma citation; the checker has no
 // compiler-known zero/one form.
+//
+// Migration note: the `-> Self` results on LAW requirements below are legacy
+// onramp ceremony. The settled surface makes theorem-only law slots resultless;
+// RESULTLESS-LAWS migrates this declaration and its satisfiers together once
+// erased recursive statement citations carry the same ranked-cycle checking as
+// value-position calls.
 trait CommutativeSemiring {
     machine zero() -> Self;
     machine one() -> Self;

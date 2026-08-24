@@ -71,7 +71,8 @@ carrier parameter. One proposition may bind independent `I` and `J` packs,
 while another over the same carrier may use one shared pack and therefore
 require identical indices. Declaring the proposition only forms that formula;
 checked evidence establishes its applications, selected relation-law
-conformances license quotient formation, and `Respects` licenses operations.
+conformances license quotient formation, and explicitly selected checked
+theorem machines license operations.
 Carrier declarations consequently have no `index` or `phantom` relation
 properties.
 
@@ -417,79 +418,78 @@ custody occurrence; proof irrelevance and ordinary result congruence are not
 that interface.
 
 An admitted boundary axiom may state an environmental assumption elsewhere,
-but it cannot establish the equivalence or respect conformances of a checked
-quotient. Quotient substitution is an internal logical construction whose
-false equality would propagate without a containment boundary. A relation
+but it cannot establish the equivalence conformance or selected operation
+theorem of a checked quotient. Quotient substitution is an internal logical
+construction whose false equality would propagate without a containment
+boundary. A relation
 resting on environmental equality produces an explicitly axiomatized type
 instead.
 
-## Lifting operations: `Respects`
+## Lifting operations through selected theorems
 
 Equivalence licenses the quotient type; it does not license operations on it.
-Every lifted operation needs a selected `Respects` conformance.
+Every lifted operation explicitly selects one representative machine and one
+ordinary checked theorem machine. There is no `Respects<F, RA, RR>` interface,
+variadic relation binder, arity-indexed trait family, ambient theorem search,
+or runtime proof dictionary.
 
-Normalize any machine's parameters, including an attached receiver, into one
-ordered argument telescope:
+The theorem's ordinary parameters state the universal variables. A
+quotient-bearing position appears twice, once for each possible representative.
+A pass-through position appears once and the same binder is used in both
+representative calls. `requires` states the selected quotient relations and
+the legality of both calls; `ensures` states congruence in the exact requested
+result relation:
 
-```text
-F : (argument_0, ..., argument_n) -> Result
-requires P(argument_0, ..., argument_n)
+```omega
+machine fraction_divide_respects(
+    left_numerator: Fraction,
+    right_numerator: Fraction,
+    left_denominator: Fraction,
+    right_denominator: Fraction
+)
+requires
+    FractionEquivalent(left_numerator, right_numerator);
+    FractionEquivalent(left_denominator, right_denominator);
+    left_denominator in Fraction::NonZero;
+    right_denominator in Fraction::NonZero
+ensures
+    FractionEquivalent(
+        Fraction::divide(left_numerator, left_denominator),
+        Fraction::divide(right_numerator, right_denominator)
+    )
+{
+    // proof
+}
 ```
 
-The selected `Respects` requirement exposes two parallel copies of this
-telescope. Positions are semantic identity; source parameter names are local
-debug aliases and do not enter the fingerprint. Attached and free machines
-therefore share one form without a generated global record name or an
-author-declared adapter.
+Both legality premises belong to the theorem. Its contract is checked
+independently of any later consumer, and both calls in its `ensures` must denote
+under its own `requires`. A quotient operation's public precondition does not
+make a selected theorem well formed after the fact.
 
-`RA` is the pointwise lift of the quotient relations selected for the
-representative-bearing positions. It is never an arbitrary author-supplied
-relation: a relation that is too fine could make both respect obligations
-vacuous. `RR` comes from the requested lifted codomain relation, not merely
-from the result type, because one result carrier may support several
-quotients. `Respects<F, RA, RR>` proves two clauses.
+The compiler derives the expected theorem schema from the exact representative
+machine application, quotient-bearing argument correspondence, selected input
+relations, and requested result quotient. It then checks the explicitly named
+theorem against that schema. Extra premises, a finer relation, a redirected
+operation, duplicated or omitted representative, or separately rebound
+pass-through argument reject. This is structural validation after explicit
+selection, never structural discovery of authority.
 
-### Domain invariance
+### Public and representative preconditions
 
-```text
-RA(x, y) -> (P(x) <-> P(y))
-```
+The quotient owner authors its public precondition `Q`. It is public signature
+content and is never derived from the selected representative implementation's
+precondition `P`; doing so would let an implementation change rewrite a public
+contract.
 
-Equivalent representatives must agree on whether the operation is callable.
-For a total machine `P` is true and this clause discharges structurally.
-Only semantic preconditions depending on the representative participate.
-Fixed ambient facts, authority, and resource requirements do not vary by
-representative and remain ordinary machine-contract obligations.
-
-The compiler finds the representative-dependent portion by semantic
-dependency, not textual mention. A conjunct depending directly or indirectly
-on at least one quotiented position enters `P`; a conjunct depending only on
-ambient authority, capacity, or other fixed subjects does not. A conjunct
-mixing representative and ambient subjects is conservatively
-representative-dependent.
-
-### Result congruence
-
-```text
-RA(x, y) && P(x) -> RR(F(x), F(y))
-```
-
-Domain invariance supplies `P(y)`. A failure represented as an explicit result
-sum participates in `RR`; it does not need a second lifting mechanism.
-
-For binary Real addition, `Arguments` contains both operands, `RA` is the
-fieldwise product of `ConvergesTogether` for both places, and `RR` is
-`ConvergesTogether`. Division additionally proves that equivalent
-denominators agree about being zero. Comparison uses equality as its result
-relation. The parallel-telescope normalization avoids an open-ended
-`Respects1`/`Respects2`/`Respects3` hierarchy.
-
-### Selecting a lift
-
-The quotient owner selects the representative operation and one exact named
-`Respects` conformance in an ordinary machine body. Two sealed core operations
-make the distinction between a safe wrapper and a faithful definition
-explicit:
+`Quotient::lift` proves `Q -> P` for every representative application admitted
+by the selected theorem. A wrapper may therefore publish a stricter domain and
+adapt, duplicate, omit, reorder, or supplement arguments explicitly.
+`Quotient::define` is the faithful-definition form: it proves `Q <-> P`, exact
+position-preserving argument correspondence, and unchanged result flow. For a
+partial representative machine, the universally checked `Q -> P` direction
+supplies legality for both equivalent representatives; no separately published
+`P(left) <-> P(right)` law or source biconditional syntax is required.
 
 ```omega
 machine Rational::divide(
@@ -497,60 +497,52 @@ machine Rational::divide(
     denominator: Rational
 ) -> Rational
 requires
-    denominator != Rational::zero
+    denominator in Rational::NonZero
 {
     Quotient::define<
         Fraction::divide,
-        FractionDivideRespects
+        fraction_divide_respects
     >(numerator, denominator)
 }
 ```
 
-`Quotient::lift<F, Respect>(arguments)` is the ordinary compositional form. If the
-enclosing path has public representative-dependent precondition `Q` and `F`
-has representative precondition `P`, it proves `Q -> P`; the wrapper may
-therefore advertise a strictly narrower domain. Constants, duplicated or
-omitted arguments, reordered application, and computation around the lifted
-result belong in this form.
+The distinction is authored, not recognized from source body spelling.
+`define` is checked over normalized IR: every quotient parameter maps to the
+representative at the same position, every ordinary parameter passes through
+unchanged, modes and multiplicities agree, and the intrinsic result reaches
+every normal return unchanged. Constants, permutation, duplication, omission,
+or computation around the result reject with a suggestion to use `lift`.
 
-`Quotient::define<F, Respect>(arguments)` requests a canonical quotient-facing
-definition. It proves `Q <-> P`, and its normalized runtime argument telescope
-must correspond position-for-position with `F`: every quotient parameter maps
-to the representative at the same position, every non-quotient parameter
-passes through unchanged, every representative position has exactly one public
-parameter, and borrow mode and multiplicity agree. Type, `const`, static-machine,
-and conformance arguments belong to the fully instantiated static application,
-not this runtime correspondence. Constants, permutation, duplication, and
-partial application reject with a suggestion to use `Quotient::lift`.
+### Theorem eligibility and identity
 
-This is checked over normalized IR rather than source body shape. A
-`QuotientDefine` result must reach every normal return unchanged, with no other
-executable operation changing the result or adding an effect. Harmless aliases,
-`let` bindings, and state forwarding do not alter that fact. The author chooses
-`define`; adding a source-level alias cannot silently turn it into a wrapper.
+A selected theorem is proof-static authority, not a runtime call. It must be a
+checked, pure, crash-free, suspension-free, blocking-free, terminating theorem;
+admitted or boundary facts cannot license quotient substitution. The theorem
+has no runtime dictionary, representative pair, fuel charge, or emitted call.
+Theorem-only machines are resultless. A machine returns a `Type` result only
+when that result is genuinely computed and observed in addition to its checked
+contract.
 
-Both operations derive `RA` from the quotient-bearing argument positions and
-`RR` from the exact requested quotient codomain. Those relations are
-compiler-owned typing operands and are never inferable authored arguments. The
-selected conformance application is ordinary nested static syntax: all of its
-type, `const`, and static-machine arguments are explicit, and only ordinary
-lifetime elision applies. Visibility, priority, expected shape, and structural
-proof-machine discovery never select it.
+An erased theorem citation is nevertheless a call-graph edge. If it enters a
+direct or mutual recursion cycle, the cited contract may be imported as an
+induction hypothesis only after that exact edge proves a strict decrease under
+the component's well-founded ranking. Statement position, discarded result,
+and value position use the same rule; an unmeasured self-citation cannot prove
+itself.
 
 Checked and terminal identity retain the public quotient operation, normalized
-representative-machine application, positional correspondence, `RA`, `RR`,
-selected `Respects` conformance application, wrapper-versus-definition kind,
-and the discharged contract-correspondence proof. Proof irrelevance permits
-several public quotient operations to use different valid witnesses; it does
-not permit the selected witness or provenance to vary by call site.
+representative-machine application, positional correspondence, exact input and
+result relations, selected theorem-machine application, lift/define kind, and
+the discharged contract and result-flow certificates. Proof irrelevance permits
+different quotient operations to select different valid theorems; it does not
+permit selection or provenance to vary by call site.
 
-The initial `Quotient::lift` and `Quotient::define` operations accept only pure,
-terminating representative machines whose observable contract consists of the
-semantic precondition and normal result. Result congruence alone cannot show
-that equivalent representatives perform the same I/O, take the same crash
-route, suspend alike, or have the same progress behavior. Effectful lifting
-requires a future relation over the complete observable behavior and does not
-arrive by weakening this fence.
+The initial operations accept only pure, terminating representative machines
+whose observable contract consists of the semantic precondition and normal
+result. Congruence cannot show that equivalent representatives perform the same
+I/O, take the same crash route, suspend alike, or have the same progress
+behavior. Effectful lifting requires a future relation over complete observable
+behavior and does not arrive by weakening this fence.
 
 ### Logical equality and executable observers
 
@@ -563,16 +555,17 @@ unavailable until its named proof establishes `DecidesEquivalence`:
 equals(x, y) == true <-> R(x, y)
 ```
 
-This soundness-and-completeness law is stronger than `Respects`: a
-constant-false operation respects every equivalence but decides none.
-Conversely, `DecidesEquivalence` plus the quotient's `Equivalence` proof derives
-the ordinary `Respects` obligation, so the author never proves both. The
-logical and executable uses consequently have one meaning; executable code
-merely supplies a proved realization of it.
+This soundness-and-completeness law is stronger than ordinary result
+congruence: a constant-false operation is representative-independent but
+decides no equivalence. `DecidesEquivalence` plus the quotient's
+`Equivalence` proof entails the result-congruence theorem required at the lift,
+so the author never proves both. The logical and executable uses consequently
+have one meaning; executable code merely supplies a proved realization of it.
 
-At the equality definition, the exact named `DecidesEquivalence` conformance
-occupies the intrinsic's proof-selection position and the compiler records the
-derived `Respects` bridge. There is no second witness-selection mechanism.
+At the equality definition, the exact checked law machine from the named
+`DecidesEquivalence` conformance may occupy the intrinsic's theorem-selection
+position, and the compiler records the derived congruence certificate. There
+is no second witness-selection mechanism.
 
 Quotient formation never binds this operation to the fixed `==` token. The
 operation is an ordinary named declaration, and the token association uses the
@@ -581,7 +574,7 @@ surface](../language_guide/chapter_5_expressions_evaluation.md#operators):
 `operator == Rational::equals(...)`. Callers may always use the named operation.
 
 Other observer roles follow the same two-layer rule without sharing one false
-generic law: `Respects` proves representative independence, while a
+generic law: the selected theorem proves representative independence, while a
 role-specific contract proves what the result means. Until a named role
 interface exists, that semantic law is an ordinary checked contract on the
 quotient operation. An ordering must justify its ordering claims, a canonical
@@ -594,10 +587,10 @@ legal.
 Diagnostics expose the failed semantic edge rather than reporting an opaque
 quotient error:
 
-- a missing lift proof prints the derived positional `RA`, requested `RR`, and
-  exact expected named conformance application;
-- failed wrapper admission distinguishes `Q -> P` from representative-domain
-  invariance inside `Respects`;
+- a missing lift proof prints the expected theorem parameters, premises,
+  conclusion, and exact selected theorem application;
+- failed wrapper admission distinguishes public `Q -> P` correspondence from
+  result congruence inside the selected theorem;
 - failed faithful definition reports the `P -> Q` direction separately, or the
   first omitted, duplicated, permuted, constant, polarity-mismatched, or
   multiplicity-mismatched argument position, and suggests `Quotient::lift`;
@@ -632,7 +625,8 @@ For a transparent non-dependent product, the compiler derives the structural
 lift recursively from the supplied field relations. An owner-provided coarser
 lift is accepted only with a checked bridge showing that the structural lift
 implies the chosen lift. An opaque constructor must publish the same bridge as
-checked evidence; admitted relation or `Respects` evidence cannot license `%`.
+checked evidence; admitted relation or operation-congruence evidence cannot
+license `%`.
 
 Dependent records lift in dependency order rather than as independent fields.
 For example:
@@ -745,18 +739,19 @@ Boolean-relation or structural proof-machine fallback.
 
 The sealed-operation representation boundary remains narrower and
 fail-closed. Typed calls retain the exact representative operation, exact named
-conformance application, and `lift`/`define` kind only for the sealed
+theorem-machine application, and `lift`/`define` kind only for the sealed
 `Quotient` spelling. The carrier is non-authoritative: no checked or terminal
 operation is emitted until compiler-derived relations, correspondence, and
 contracts are independently validated. The retired bare call pilot cannot
 recover authority through structural proof-machine discovery.
 
-Executable admission is currently blocked on the concrete `Respects` evidence
-carrier. The source/core vocabulary has no sealed declaration capable of the
-compiler-derived variadic positional telescope described above; authored empty
-lookalikes are not authority, and an arity-indexed public trait ladder is a
-rejected design. The checked/terminal evidence shape for that intrinsic
-interface must be settled before the retained request can cross the boundary.
+Executable admission is currently blocked on validating and retaining the
+explicitly selected theorem machine. The implementation must derive its exact
+expected ordinary parameter, `requires`, and `ensures` schema from the closed
+representative application and relation plan, reject extra premises or altered
+argument correspondence, and retain the proof-static selection without adding
+a runtime dictionary. It must not recover authority from the structurally
+similar theorem already accepted by the implicit-lift rejection canaries.
 
 The representation-observer fence is explicit at resolved-to-typed lowering.
 A quotient cannot declare `Equatable`, participate as a field in synthesized
@@ -775,16 +770,17 @@ separate `DecidesEquivalence` law.
 
 For a request that is the direct terminal expression of a state, validation
 now derives a non-authoritative relation plan when every selected quotient
-relation is monomorphic: `RA` records the exact quotient type and relation at
-each quotient-bearing argument position and exact typed equality at every
-ordinary position; `RR` records the exact quotient result type and relation.
+relation is monomorphic. It records the exact quotient type and relation at
+each quotient-bearing argument position, one shared binder occurrence at
+every ordinary pass-through position, and the exact quotient result type and
+relation.
 Exact quotient type identity is retained so two quotients over the same carrier
 cannot collapse. Indexed relation applications wait for the fully instantiated
 representative-operation telescope rather than guessing independently
 quantified binders from the quotient type. Untyped or adapted arguments and
 nested result flow likewise remain unresolved and fail closed;
 even a complete direct-terminal relation plan is rejected until operation
-correspondence, the selected `Respects` contract, and normalized result flow
+correspondence, the selected theorem contract, and normalized result flow
 are independently checked and retained in checked/terminal identity.
 
 The same non-authoritative plan resolves the selected representative entry by
@@ -795,8 +791,8 @@ fail closed. A closed application retains its exact type, literal-`const`, and
 static-machine bindings; an immutable structural substitution judgment applies
 those bindings to representative runtime parameter and result types without
 rewriting the checked type arena. This does not substitute contract facts or
-validate `Respects`; runtime positional correspondence is derived only for the
-direct `define` shape below.
+validate the selected theorem; runtime positional correspondence is derived
+only for the direct `define` shape below.
 
 For the same direct `define` shape with a monomorphic quotient-facing owner,
 validation now also derives a
@@ -810,7 +806,7 @@ participate by position and need not force the public parameter to be spelled
 duplication, locals/constants, arity drift, borrowed quotient shells, and
 carrier/result drift fail closed. Owner static/`const` correspondence,
 contract-fact substitution, conditional/crash result flow, and the selected
-`Respects` contract remain later obligations, so this direct correspondence
+theorem contract remain later obligations, so this direct correspondence
 still grants no execution authority.
 
 Representative static applications now have a separate non-authoritative
@@ -832,14 +828,15 @@ plan now also partitions both sides of the faithful-definition contract. The
 quotient-facing machine and entry state contribute `Q`; the representative
 machine and selected entry contribute `P`. A fact enters its dependent surface
 when any expression position depends on a quotient-bearing public or
-representative parameter at the corresponding runtime position. Facts depending
-only on ordinary equal-by-`RA` positions or ambient values stay in that side's
-fixed contract surface. Expression, proposition-argument, membership, receiver,
+representative parameter at the corresponding runtime position. Facts
+depending only on ordinary shared pass-through positions or ambient values stay
+in that side's fixed contract surface. Expression, proposition-argument,
+membership, receiver,
 aggregate, indexing, and nested-call positions are traversed without
 short-circuiting validation, and an unresolved value identity rejects the plan
 rather than being classified as ambient. Exact side/owner/contract/fact
 coordinates are retained. General proposition/static substitution, semantic
-`Q <-> P` entailment, and the selected `Respects` clauses remain later
+`Q <-> P` entailment, and the selected theorem clauses remain later
 obligations.
 
 The first exact `define` equivalence rung now consumes those partitions. It
@@ -859,7 +856,7 @@ separate runtime-correspondence module rather than the coordinator. Exact entry
 lookup, runtime telescope identity, and the shared-summary purity and
 unconditional-termination certificates live in a third representative module;
 it performs no local effect inference. General
-logical implication/equivalence and the selected `Respects` clauses remain
+logical implication/equivalence and the selected theorem clauses remain
 unresolved, so this evidence still cannot admit execution.
 
 The direct planning boundary recognizes a result root when the sealed request
@@ -896,7 +893,7 @@ This is the shared whole-call-graph inference, not a second expression-local
 effect analysis. Unconditional checked termination is retained independently;
 progress-profile premises do not satisfy that fence. Neither result-flow,
 purity, nor termination certificates prove contract correspondence, the
-selected `Respects` clauses, custody preservation, checked/terminal retention,
+selected theorem clauses, custody preservation, checked/terminal retention,
 or executable admission.
 
 Acceptance requires:
@@ -920,9 +917,10 @@ Acceptance requires:
    rejects;
 8. quotient formation requires explicit reflexive, symmetric, and transitive
    conformances through `Equivalence`;
-9. a total respecting operation lifts;
-10. a partial operation rejects unless equivalent representatives agree on its
-   precondition;
+9. a total operation lifts only through one explicitly selected resultless
+   checked theorem whose exact ordinary contract proves result congruence;
+10. a partial theorem states legality for both representative calls, while the
+    quotient-facing author publishes `Q` and the lift proves `Q -> P` for each;
 11. an operation whose result depends on representative choice rejects;
 12. `Quotient::lift` accepts a checked wrapper after proving public preconditions
     imply representative preconditions, while `Quotient::define` additionally

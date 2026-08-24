@@ -40,6 +40,13 @@ The same checked machine contract may serve runtime, compile-time evaluation,
 or proof citation when its types and reach permit it. A fact-only invocation
 emits no runtime work.
 
+A theorem-only machine has no `Type` result. Its parameters quantify the
+theorem, its `requires` are hypotheses, and its `ensures` are conclusions. A
+return type is reserved for a machine that genuinely computes an observed
+value as well as proving a contract. Algebraic law slots and
+quotient-congruence theorems are theorem-only; dummy `-> Self` results are
+retired rather than treated as proof evidence.
+
 ## Quantification and proof data
 
 - Universal claims use machine parameters checked symbolically.
@@ -105,7 +112,11 @@ added to flow facts. The call erases when it is fact-only.
 Omega does not activate global rewrite rules from imports. Diagnostics may
 shape-match a failed obligation and suggest a useful lemma, but the source must
 contain the citation. Citation cycles are ordinary machine-call cycles and
-therefore obey ranked termination.
+therefore obey ranked termination. Every recursive citation whose `ensures` is
+consumed is an induction edge, even when the call is resultless, explicitly
+discarded, or nested in another expression. Its contract enters the proof
+context only after that exact edge proves a strict decrease under the direct or
+mutual component's ranking.
 
 ## Algebraic canonicalization
 
@@ -114,10 +125,11 @@ normalization through explicit conformance to an algebraic trait whose operation
 and law requirements are proved.
 
 `CommutativeSemiring` supplies operation slots (`zero`, `one`, `add`, `mul`) and
-law slots. One closed conformance block binds every inherited slot to a checked
-member, an explicit existing-machine reference, or that conformance's default
-instantiation. Law members must have checked `ensures` strong enough to
-establish the required law. Named conformances disambiguate multiple algebras
+resultless law slots. One closed conformance block binds every inherited slot
+to a checked member, an explicit existing-machine reference, or that
+conformance's default instantiation. Law members must have checked `ensures`
+strong enough to establish the required law. Named conformances disambiguate
+multiple algebras
 over one carrier. A bare exact-requirement satisfier may serve as an ordinary
 lemma or provider realization, but does not assemble a selectable algebra.
 
@@ -210,7 +222,7 @@ The useful staging is:
 4. proof-side `proposition` families, typed index telescopes, and carrierless
    evidence;
 5. sequence/Cauchy relation evidence, explicit `Equivalence`, quotient
-   formation, and `Respects` lifting for `Real`; and
+   formation, and explicitly selected ordinary lifting theorems for `Real`; and
 6. approximation theorems connecting `Real` specifications to `f32`/`f64`
    implementations.
 

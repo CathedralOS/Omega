@@ -398,6 +398,11 @@ never lower. Their ordinary termination proof is mandatory; deterministic work
 metering supports progress, warnings, and optional root policy without creating
 a second notion of termination. No runtime frame ever materializes.
 
+An erased theorem citation remains a call edge for this judgment. Importing a
+recursive callee's `ensures` as an induction hypothesis requires a strict
+decrease certificate on that exact edge, whether the citation is resultless,
+discarded, or nested in a value expression.
+
 The ranking witness is implementation evidence, not public contract identity.
 Changing a valid witness revalidates the implementation without changing what
 callers or external requirement bindings see. See

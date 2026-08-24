@@ -480,6 +480,13 @@ ensures
 The checker reduces both sides to the same `Nat` value, then closes the equality
 by reflexivity. The body does not need to simulate computation.
 
+A theorem-only machine has no `Type` result. Its parameters state universal
+variables, `requires` states hypotheses, and `ensures` states conclusions. A
+machine returns a value only when it genuinely computes that value in addition
+to proving its contract. Algebraic law slots and quotient-congruence theorems
+are theorem-only; a dummy `-> Self` result is not induction evidence and must
+not be required merely to carry a proof.
+
 ## Typed Facts
 
 Proof facts must be typed.
@@ -499,6 +506,19 @@ overflow behavior.
 
 The same operator spelling can exist in both worlds. The operand types decide
 which proof rules apply.
+
+Calls and projections in fact position are denotational terms. For example,
+`add_int(a, b).pos` denotes the `pos` field of the pure call result; it creates
+no runtime temporary, move, or loan. Such a call must be total and pure. A
+fact's validity is the intersection of the validity and revision scopes of
+every occurrence it references, transitively through those calls. An
+intersecting write or revision transition invalidates the affected fact.
+
+This does not transfer custody into `Prop`. A proposition may mention a linear
+value or result, and copies of that proposition remain erased and copyable;
+the actual `Type` occurrence retains its independent multiplicity and custody.
+"No loan" here means no new runtime loan: a fact depending on an existing loan
+still expires with that loan.
 
 ## Total Specification Arithmetic
 
@@ -755,33 +775,49 @@ where
 Here `as CauchyEquivalence` references an existing named conformance; it does
 not declare one and does not enter quotient identity.
 
-Equivalence licenses the quotient type, not operations on it. A machine lifts
-only through a selected `Respects` conformance. Parameters, including an
-attached receiver, normalize into one ordered telescope, and the proof surface
-receives parallel left and right copies. Parameter positions are semantic;
-source labels are debug aliases. Given the compiler-derived pointwise argument
-relation `RA`, the requested lifted codomain relation `RR`, and the
-representative-dependent semantic precondition `P`, `Respects` proves both:
+Equivalence licenses the quotient type, not operations on it. A lifted
+operation explicitly selects the representative machine and one ordinary
+checked theorem machine. The theorem's parameters state its universal
+variables: quotient-bearing positions appear as left/right representative
+pairs, while each ordinary pass-through position is one binder reused in both
+calls. Its `requires` names the exact selected relations and makes both
+representative calls legal; its `ensures` states congruence in the requested
+result relation.
 
-```text
-RA(x, y) -> (P(x) <-> P(y))
-RA(x, y) && P(x) -> RR(f(x), f(y))
+For example, a partial representative operation proves its theorem under both
+call preconditions:
+
+```omega
+machine fraction_divide_respects(
+    left_numerator: Fraction,
+    right_numerator: Fraction,
+    left_denominator: Fraction,
+    right_denominator: Fraction
+)
+requires
+    FractionEquivalent(left_numerator, right_numerator);
+    FractionEquivalent(left_denominator, right_denominator);
+    left_denominator in Fraction::NonZero;
+    right_denominator in Fraction::NonZero
+ensures
+    FractionEquivalent(
+        Fraction::divide(left_numerator, left_denominator),
+        Fraction::divide(right_numerator, right_denominator)
+    )
+{
+    // proof
+}
 ```
 
-The first clause makes partiality representative-independent; it is trivial
-for a total machine. Semantic dependency, including indirect dependency,
-decides which precondition conjuncts enter `P`. Fixed ambient facts, authority,
-and resource requirements remain ordinary contract obligations; a conjunct
-mixing representative and ambient subjects enters `P` conservatively. Binary
-addition uses a pointwise relation over both operands. Division must
-additionally prove that equivalent denominators agree about being zero.
-Comparison uses equality as its result relation. The normalized telescope
-avoids separate respect traits for every arity and creates no public synthetic
-record type.
+The compiler derives that expected contract from the representative operation,
+public-to-representative argument correspondence, selected quotient relations,
+and requested result quotient. It validates the exact named theorem after
+selection. It never discovers a theorem by visibility or shape, and no
+`Respects` interface, variadic proof binder, arity-indexed trait family, or
+runtime dictionary exists.
 
-The quotient owner selects both the representative machine and the exact named
-`Respects` conformance in an ordinary body through one of two sealed core
-operations:
+The quotient owner selects both machines in an ordinary body through one of
+two sealed core operations:
 
 ```omega
 machine Rational::divide(
@@ -789,31 +825,39 @@ machine Rational::divide(
     denominator: Rational
 ) -> Rational
 requires
-    denominator != Rational::zero
+    denominator in Rational::NonZero
 {
     Quotient::define<
         Fraction::divide,
-        FractionDivideRespects
+        fraction_divide_respects
     >(numerator, denominator)
 }
 ```
 
-`Quotient::lift<F, Respect>` is the wrapper form: the public precondition must
-imply the representative precondition, but may be stronger, and arguments may
-be adapted explicitly. `Quotient::define<F, Respect>` is the
-faithful-definition form: the two preconditions must be equivalent, runtime
-arguments correspond position-for-position with no constants, permutation,
+The quotient owner authors public precondition `Q`; it is never derived from
+the implementation-scoped representative precondition `P`.
+`Quotient::lift<F, Theorem>` is the wrapper form: `Q` must imply `P` for both
+representative applications, but may be stronger, and arguments may be adapted
+explicitly. `Quotient::define<F, Theorem>` is the faithful-definition form:
+`Q` and `P` must be equivalent, runtime arguments correspond
+position-for-position with no constants, permutation,
 duplication, or omission, and the intrinsic result reaches every normal return
 unchanged. The compiler checks these facts over normalized IR, so aliases and
 state forwarding do not change the classification. A rejected `define` points
 to `lift` when the body is an honest wrapper.
 
-`RA` and `RR` are derived compiler typing operands, not authored generic
-arguments. Every type, `const`, and static-machine argument owned by the named
-`Respects` conformance remains explicit; only ordinary lifetime elision applies.
-The chosen operation, correspondence, relations, conformance application,
-lift/define kind, and contract proof survive checked and terminal identity.
-There is no ambient proof search and no per-call proof selection.
+For a partial operation, universally proving `Q -> P` supplies legality for
+both equivalent representatives. No separate domain-invariance law or source
+biconditional is required. Both legality premises remain in the selected
+theorem itself because its calls must denote under its own contract,
+independently of any later lift.
+
+The selected theorem is resultless proof-static authority. It must be checked,
+pure, crash-free, suspension-free, blocking-free, and terminating. Selecting it
+emits no theorem call, proof object, representative pair, or dictionary.
+Checked and terminal identity retain the operation, correspondence, exact
+relations, theorem application, lift/define kind, and contract/result-flow
+certificates.
 
 Implementation status: `%` formation now requires the exact proposition
 relation and explicitly named, sealed `Equivalence` conformance shown above.
@@ -824,11 +868,11 @@ relation, structural law-discovery, authored `Equivalence` lookalike, ambient
 selection, or admitted/boundary proof fallback.
 
 The checked operation boundary recognizes only the sealed wrapper spelling and
-retains the exact resolved `F`, exact named `Respect`, and lift/define kind. It
-does not yet admit or execute the request: compiler-derived `RA`/`RR`, contract
-correspondence, and normalized result flow remain required. Bare calls on
-representatives or quotient values cannot discover a structurally similar
-proof machine.
+retains the exact resolved `F`, exact named theorem, and lift/define kind. It
+does not yet admit or execute the request: exact theorem-contract validation,
+contract correspondence, and normalized result flow remain required. Bare
+calls on representatives or quotient values cannot discover a structurally
+similar proof machine.
 
 A quotient may retain an arbitrary representative unchanged at runtime and may
 therefore share its ABI without performing normalization. The representative
@@ -839,8 +883,8 @@ forge a quotient value; casting an exact carrier instance with `as Quotient` is
 the sole construction path. Logical quotient equality is the declared
 relation. Executable equality is an ordinary lifted quotient operation and must
 prove `equals(x, y) == true <-> R(x, y)` through
-`DecidesEquivalence`; that conformance also derives the required `Respects`
-bridge. The named operation may bind fixed `==` through the ordinary
+`DecidesEquivalence`; that law also entails the required result-congruence
+theorem. The named operation may bind fixed `==` through the ordinary
 [`operator` declaration head](chapter_5_expressions_evaluation.md#operators).
 Other observer roles state their role-specific correctness as ordinary
 contracts until a named interface exists.
@@ -886,18 +930,19 @@ quotient operations through the same sealed lifting gate; the representative
 still never becomes source-visible.
 
 A boundary axiom may be cited as an environmental assumption elsewhere, but
-cannot admit either an equivalence or respect conformance for a checked
-quotient. Both require checked proof machines. A false quotient equality
-propagates by substitution without the containment boundary available to an
-admitted resource claim.
+cannot admit either an equivalence conformance or a selected operation theorem
+for a checked quotient. Both require checked proof machines. A false quotient
+equality propagates by substitution without the containment boundary available
+to an admitted resource claim.
 
 A literally bodyless free machine is not a theorem. Checked theorem machines
 have bodies, including an empty `{ }` body when their conclusions follow from
 entry facts. An accepted axiom is an explicit bodyless `boundary machine` and
 retains admitted provenance. A proof machine that ensures a witness-bearing
 proposition must supply its declared evidence; the formula cannot be retained
-without the witness that its eliminators require. An `Equivalence` or `Respects`
-conformance depending on admitted evidence never licenses `%`.
+without the witness that its eliminators require. An `Equivalence` conformance
+or selected operation theorem depending on admitted evidence never licenses a
+quotient formation or lift.
 
 ## Proof Views
 
@@ -1048,6 +1093,14 @@ facts plus state `requires`, chapter 11) is the hypothesis itself, proven at
 every in-edge. Nothing was added to the language to express induction; the
 state machine was already its shape.
 
+Every recursive edge whose contract is consumed is an induction edge. This
+includes a resultless statement citation, an explicitly discarded call, and a
+call nested in a value expression. The callee's `ensures` may enter the proof
+context only after that exact direct or mutual-cycle edge proves a strict
+decrease under the component's ranking. Consequently an unmeasured theorem
+cannot cite itself at unchanged arguments and use its own conclusion to close
+its goal.
+
 Induction may also be indexed by a finite unsigned count while its theorem is
 about proof-only data. On an arm guarded by `n > 0` (or `n >= 1`), a recursive
 argument `n - 1` is the checked predecessor. The structural checker treats that
@@ -1122,6 +1175,11 @@ codegen:
 mask_is_mod(self.head, self.cap);            // erased; its ensures now in scope
 self.slots[self.head & (self.cap - 1)] = x;  // proves against those facts
 ```
+
+Erasure does not remove the citation edge from recursion checking. A citation
+inside the same recursive component imports an induction hypothesis only with
+the strict-decrease certificate described above; syntax position and result
+use do not weaken that rule.
 
 This explicit form is the default: the proof structure
 stays visible in the text. When an obligation fails for want of a known
