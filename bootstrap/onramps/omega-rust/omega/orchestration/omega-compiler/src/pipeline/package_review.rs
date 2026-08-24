@@ -88,6 +88,7 @@ pub struct PackageReviewDomainShape {
     type_parameters: Vec<PackageReviewTypeParameter>,
     target_type: PackageReviewTypeIdentity,
     index_arguments: Vec<PackageReviewTypeIdentity>,
+    alias_expansion: Option<Vec<PackageReviewNominalIdentity>>,
     classification: Option<PackageReviewDomainClassification>,
     establishment_routes: Vec<PackageReviewDomainEstablishmentRoute>,
 }
@@ -107,6 +108,10 @@ impl PackageReviewDomainShape {
 
     pub fn index_arguments(&self) -> &[PackageReviewTypeIdentity] {
         &self.index_arguments
+    }
+
+    pub fn alias_expansion(&self) -> Option<&[PackageReviewNominalIdentity]> {
+        self.alias_expansion.as_deref()
     }
 
     pub const fn classification(&self) -> Option<PackageReviewDomainClassification> {
@@ -904,12 +909,6 @@ fn project_public_domains(
         if !reviewed_package_owns(&identity, package)? {
             continue;
         }
-        if definition.alias.is_some() {
-            return Err(vec![Diagnostic::error(format!(
-                "public domain `{}` uses transparent alias semantics not yet represented by package review",
-                identity.path
-            ))]);
-        }
         if definition.predicate_body.is_present() || !compilation.proof_facts(definition).is_empty()
         {
             return Err(vec![Diagnostic::error(format!(
@@ -933,6 +932,11 @@ fn project_public_domains(
         let parameters = compilation.domain_type_parameters(definition);
         let (binders, type_parameters) =
             project_type_parameters(compilation, parameters, "domain", &identity.path)?;
+        let alias_expansion = definition
+            .alias
+            .as_ref()
+            .map(|_| project_domain_alias_expansion(compilation, definition.symbol))
+            .transpose()?;
         let classification = definition
             .classification
             .map(|classification| match classification {
@@ -960,12 +964,92 @@ fn project_public_domains(
                 .iter()
                 .map(|argument| review_type_identity_with_binders(compilation, *argument, &binders))
                 .collect(),
+            alias_expansion,
             classification,
             establishment_routes,
         });
     }
     rows.sort_by(|left, right| left.identity.cmp(&right.identity));
     Ok(rows)
+}
+
+fn project_domain_alias_expansion(
+    compilation: &CheckedCompilation,
+    domain_symbol: SymbolHandle,
+) -> Result<Vec<PackageReviewNominalIdentity>, Vec<Diagnostic>> {
+    fn expand(
+        compilation: &CheckedCompilation,
+        domain_symbol: SymbolHandle,
+        stack: &mut Vec<SymbolHandle>,
+        atoms: &mut Vec<PackageReviewNominalIdentity>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        if stack.contains(&domain_symbol) {
+            return Err(vec![Diagnostic::error(
+                "package review encountered a cycle in checked domain alias expansion",
+            )]);
+        }
+        let definitions = compilation
+            .domain_definitions()
+            .iter()
+            .filter(|candidate| candidate.symbol == domain_symbol)
+            .collect::<Vec<_>>();
+        let [definition] = definitions.as_slice() else {
+            return Err(vec![Diagnostic::error(format!(
+                "package review domain alias resolves to {} declarations; expected exactly one",
+                definitions.len()
+            ))]);
+        };
+        let Some(alias) = definition.alias.as_ref() else {
+            atoms.push(nominal_identity(compilation, definition.symbol)?);
+            return Ok(());
+        };
+        stack.push(domain_symbol);
+        for constituent in &alias.constituents {
+            let label = compilation
+                .domain_path_members(constituent.domain)
+                .iter()
+                .map(|member| member.as_str())
+                .collect::<Vec<_>>()
+                .join("::");
+            if label == "Carry::Portable" {
+                atoms.extend(
+                    psi_language_semantics::CarryPermission::ALL.map(|permission| {
+                        PackageReviewNominalIdentity {
+                            owner: PackageReviewNominalOwner::ToolchainUnbound,
+                            path: permission.name().to_owned(),
+                        }
+                    }),
+                );
+            } else if let Some(permission) =
+                psi_language_semantics::CarryPermission::from_name(&label)
+            {
+                atoms.push(PackageReviewNominalIdentity {
+                    owner: PackageReviewNominalOwner::ToolchainUnbound,
+                    path: permission.name().to_owned(),
+                });
+            } else {
+                if !constituent.domain_symbol.is_valid() {
+                    return Err(vec![Diagnostic::error(format!(
+                        "package review domain alias has unresolved constituent `{label}`"
+                    ))]);
+                }
+                expand(compilation, constituent.domain_symbol, stack, atoms)?;
+            }
+        }
+        stack.pop();
+        Ok(())
+    }
+
+    let mut atoms = Vec::new();
+    expand(compilation, domain_symbol, &mut Vec::new(), &mut atoms)?;
+    atoms.sort();
+    atoms.dedup();
+    if atoms.is_empty() {
+        return Err(vec![Diagnostic::error(
+            "package review domain alias has an empty canonical expansion",
+        )]);
+    }
+    Ok(atoms)
 }
 
 fn project_domain_establishment_route(

@@ -122,7 +122,7 @@ crashes Abort
         target,
         "review identity must retain the deployment profile, not only its native ABI",
     );
-    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 5);
+    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 6);
     let [ready] = review.public_domains() else {
         panic!("one package-owned public domain row")
     };
@@ -423,7 +423,7 @@ invokes waiting;
 }
 
 #[test]
-fn exact_synchronous_invocations_change_v5_comparison_encoding() {
+fn exact_synchronous_invocations_change_v6_comparison_encoding() {
     let quiet = TempPackage::new();
     let invoking = TempPackage::new();
     quiet.write(
@@ -616,7 +616,7 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
-fn public_data_and_numbered_wire_shape_changes_change_v5_comparison_encoding() {
+fn public_data_and_numbered_wire_shape_changes_change_v6_comparison_encoding() {
     let first = TempPackage::new();
     let second = TempPackage::new();
     first.write(
@@ -650,7 +650,7 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
-fn public_domain_shape_changes_change_v5_comparison_encoding() {
+fn public_domain_shape_changes_change_v6_comparison_encoding() {
     let first = TempPackage::new();
     let second = TempPackage::new();
     first.write(
@@ -838,6 +838,90 @@ machine build(builder: &mut Build) { }
     };
 
     assert_eq!(encode(&first), encode(&second));
+}
+
+#[test]
+fn public_domain_aliases_flatten_to_canonical_package_qualified_atoms() {
+    let first = TempPackage::new();
+    let second = TempPackage::new();
+    first.write(
+        "main.omg",
+        r#"pub data Socket { descriptor: u64; }
+pub domain Socket::Connected;
+pub domain Socket::Authenticated;
+pub domain Socket::Trusted = Socket::Authenticated;
+pub domain Socket::Usable = Socket::Connected & Socket::Trusted;
+pub domain u64::Portable = Carry::Portable;
+"#,
+    );
+    second.write(
+        "main.omg",
+        r#"pub data Socket { descriptor: u64; }
+pub domain Socket::Connected;
+pub domain Socket::Authenticated;
+pub domain Socket::Trusted = Socket::Authenticated;
+pub domain Socket::Usable = Socket::Trusted & Socket::Connected;
+pub domain u64::Portable = Carry::Portable;
+"#,
+    );
+    let build = r#"target windows_x64 { }
+machine build(builder: &mut Build) { }
+"#;
+    first.write("build.omg", build);
+    second.write("build.omg", build);
+
+    let compile = |package: &TempPackage| {
+        let checked = compile_to_checked_with_packages(
+            &package.0.join("main.omg"),
+            Some("windows_x64"),
+            package_inputs(&package.0),
+        )
+        .expect("public-domain alias fixture should check");
+        project_checked_package_review(&checked).expect("public-domain alias review should close")
+    };
+    let first_review = compile(&first);
+    let usable = first_review
+        .public_domains()
+        .iter()
+        .find(|domain| domain.identity().path() == "Socket::Usable")
+        .expect("usable alias row");
+    let usable_atoms = usable.alias_expansion().expect("usable alias expansion");
+    assert_eq!(
+        usable_atoms
+            .iter()
+            .map(|atom| atom.path())
+            .collect::<Vec<_>>(),
+        ["Socket::Authenticated", "Socket::Connected"]
+    );
+    assert!(usable_atoms.iter().all(|atom| {
+        matches!(
+            atom.owner(),
+            PackageReviewNominalOwner::Package(identity) if identity == package_identity()
+        )
+    }));
+
+    let portable = first_review
+        .public_domains()
+        .iter()
+        .find(|domain| domain.identity().path() == "u64::Portable")
+        .expect("portable alias row");
+    let portable_atoms = portable
+        .alias_expansion()
+        .expect("portable alias expansion");
+    assert_eq!(portable_atoms.len(), 4);
+    assert!(portable_atoms.iter().all(|atom| {
+        matches!(atom.owner(), PackageReviewNominalOwner::ToolchainUnbound)
+            && atom.path().starts_with("Carry::")
+    }));
+
+    assert_eq!(
+        first_review
+            .canonical_review_bytes()
+            .expect("first alias encoding"),
+        compile(&second)
+            .canonical_review_bytes()
+            .expect("reordered alias encoding")
+    );
 }
 
 #[test]

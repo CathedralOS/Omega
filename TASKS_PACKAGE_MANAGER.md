@@ -383,12 +383,15 @@ complete.
   provenance independently. Closed compiler-owned classifications and
   authorized establishment routes now retain exact route kind plus
   package-qualified trait and requirement identities; alternative routes sort
-  and deduplicate canonically. Alias, predicate, semantic-role, and operator
-  semantics reject until their canonical rows exist.
+  and deduplicate canonically. Transparent aliases recursively flatten to
+  sorted, deduplicated package-qualified atoms; compiler carry aliases expand
+  to explicit toolchain-unbound carry atoms until exact toolchain commitment
+  lands. Predicate, semantic-role, and operator semantics reject until their
+  canonical rows exist.
   Declaration kinds without retained visibility reject
   `pub` instead of silently compiling a private API. Settled export semantics,
-  normalized shape for public traits and the remaining domain alias,
-  predicate, semantic-role, and operator lanes,
+  normalized shape for public traits and the remaining domain predicate,
+  semantic-role, and operator lanes,
   generated/toolchain symbol ownership, package-qualified provider
   binding/selection identities, source/toolchain/compiler commitments,
   non-provider trust ownership, build observations, and reproducibility
@@ -426,7 +429,7 @@ complete.
   closing the implicit-entry-state ownership gap discovered by the crash
   projection. Review identity now retains the exact deployment target profile,
   so profiles such as Windows and UEFI cannot collapse merely because they
-  share a native ABI. A v5 length-framed binary comparison encoding now covers
+  share a native ABI. A v6 length-framed binary comparison encoding now covers
   every retained public-domain, public-data, callable,
   crash/proof predicate, authority flow, mutation, and selected-provider row.
   It converts platform-width ordinals to portable `u64`, distinguishes exact
