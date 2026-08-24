@@ -10,20 +10,23 @@ map kebab-case to snake_case.
 
 The first package-manager tests use these directories through local path
 resolution; remote mirrors under `CathedralOS` are pinned in `REMOTE_PINS.md`.
-Until compiler-issued package evidence replaces fabricated manifests, these
-fixtures establish source resolution and declaration behavior but not complete
-package admission. Tests that fabricate capability manifests from fixture
-intent are not package-admission tests.
+The integration canary resolves each local closure into immutable source
+custody, hands that custody to the package-aware compiler, and asserts the
+compiler's canonical package-review projection. This is real review evidence,
+not yet sealed lock/admission evidence: no test fabricates a capability
+manifest from fixture intent, but the final admission pipeline remains to be
+wired.
 
 Packages:
 
-- `arithmetic-kernels`: pure helper/proof baseline with no declared host reach.
+- `arithmetic-kernels`: pure public helper baseline with no declared host reach.
 - `generated-table`: package-local build input and generated-output fixture.
-- `file-journal`: public API intended to reach filesystem authority.
+- `file-journal`: public API with exact filesystem reach and invocation.
 - `network-overreach`: intentionally over-declared public network reach.
-- `axiom-ledger`: accepted-claim/deferral admission fixture.
-- `provider-switchboard`: provider-selection identity fixture.
-- `capability-vault`: capability flow fixture for store/return/acquire/derive.
+- `axiom-ledger`: bodyless accepted boundary-claim fixture.
+- `provider-switchboard`: public clock-service reach/invocation fixture and
+  future provider-selection fixture.
+- `capability-vault`: capability acquisition/return flow fixture.
 - `graph-workbench`: root graph fixture depending on pure and capability-bearing
   packages.
 

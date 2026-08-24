@@ -1,6 +1,6 @@
 # Remote Package Fixture Pins
 
-Initial private GitHub mirrors under the `CathedralOS` organization.
+Private GitHub mirrors under the `CathedralOS` organization.
 
 Use these exact commits for remote resolver/package-manager tests; do not use
 branch names in acceptance tests.
@@ -11,13 +11,13 @@ Optional network validation, requiring private `CathedralOS` repository access:
 cargo test -p omega-packages --test remote_fixtures -- --ignored --test-threads=1
 ```
 
-| Package | Repository | Initial commit |
+| Package | Repository | Exact commit |
 | --- | --- | --- |
-| `arithmetic-kernels` | `https://github.com/CathedralOS/arithmetic-kernels` | `2ddfebda4d0436a09b41ef986ed8faa8fd88f890` |
-| `generated-table` | `https://github.com/CathedralOS/generated-table` | `eafbcc49a270298a5cc1e965ab58f719be1aabaf` |
-| `file-journal` | `https://github.com/CathedralOS/file-journal` | `433d155612edb0f43f5a82cfcf7e69dfaab71cf3` |
-| `network-overreach` | `https://github.com/CathedralOS/network-overreach` | `643262287a7b313fee47bb984c6ee77bb6984868` |
-| `axiom-ledger` | `https://github.com/CathedralOS/axiom-ledger` | `49eef21c21b6e83ee37376c9ea47aaca7aff619b` |
-| `provider-switchboard` | `https://github.com/CathedralOS/provider-switchboard` | `8b2fd2d280089a7c9320b63854df7bd57f69c0ed` |
-| `capability-vault` | `https://github.com/CathedralOS/capability-vault` | `1f9a63402e10527eddaae0fd8b5b8f4b023bf0d7` |
-| `graph-workbench` | `https://github.com/CathedralOS/graph-workbench` | `4e241bd7f0212c1b817d38c8c13366b9a746aef9` |
+| `arithmetic-kernels` | `https://github.com/CathedralOS/arithmetic-kernels` | `dd02c8eabe81b4bbd20cc124b64183992a46fa6e` |
+| `generated-table` | `https://github.com/CathedralOS/generated-table` | `30bc421c91af2286639908e719351df563f3fd99` |
+| `file-journal` | `https://github.com/CathedralOS/file-journal` | `1d30b1e3d94a5bd112a214d81741a762292a5e88` |
+| `network-overreach` | `https://github.com/CathedralOS/network-overreach` | `19406048e972378afc70e295f1fbfa8b0733c1a1` |
+| `axiom-ledger` | `https://github.com/CathedralOS/axiom-ledger` | `f1578caf17248a3a1ef11ea0e248447a5469e557` |
+| `provider-switchboard` | `https://github.com/CathedralOS/provider-switchboard` | `717bb55d747b5d96d1708852b1ba6edd0e40cd3e` |
+| `capability-vault` | `https://github.com/CathedralOS/capability-vault` | `1c2e0a3a480adc5ace7249267d3a246a435a0801` |
+| `graph-workbench` | `https://github.com/CathedralOS/graph-workbench` | `b11b1164cb2a919506fc0c625831fe7cb5f359b7` |

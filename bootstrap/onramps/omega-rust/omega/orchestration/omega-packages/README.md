@@ -270,7 +270,9 @@ state, not sealed lock evidence.
 ## Fixtures
 
 The local fixture corpus is under `fixtures/packages/`; exact remote Git pins
-are recorded in `fixtures/packages/REMOTE_PINS.md`. Before these are admission
-fixtures rather than source-resolution fixtures, each must declare `PACKAGE`
-and have its evidence emitted by the compiler. Tests that fabricate manifests
-from fixture intent have been removed from integration coverage.
+are recorded in `fixtures/packages/REMOTE_PINS.md`. Every fixture declares
+`PACKAGE`. The package-evidence integration canary resolves real immutable
+source custody, performs the package-aware compile, and checks the compiler's
+canonical review projection. It deliberately stops before sealed admission and
+lock mutation; tests that fabricate manifests from fixture intent have been
+removed from integration coverage.
