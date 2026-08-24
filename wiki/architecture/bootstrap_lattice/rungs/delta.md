@@ -22,13 +22,14 @@ independent, deterministic compiler-host language; it should resemble Omega
 where consistency is cheap, but it need not be an Omega subset and may be slow
 and conservatively lowered.
 
-Delta v1 is pruned from the complete `omega-bootstrap` source closure. D0, the
-sample corpus, and the Rust producer may reveal useful facilities but cannot
+Delta v1 is designed around the complete `omega-bootstrap` source closure. D0,
+the sample corpus, and the Rust producer may reveal useful facilities but cannot
 admit them. Exact arithmetic, ordinary fixed backing, explicit tags, and a
 sealed byte-I/O host surface are simpler candidates to measure first. Broader
 arithmetic domains, allocation machinery, payload sums, or general boundary
-traits enter v1 only when they reduce total bridge-source and assurance cost;
-their omission is not a goal in itself.
+traits enter v1 only when they reduce total bridge-source and assurance cost or
+make the compiler-host language materially safer, more coherent, or less
+brittle; their omission is not a goal in itself.
 
 Its job is to implement `omega-bootstrap`, which accepts the exact Omega
 product-compiler source profile `Ωself` and rejects the rest. That bridge
@@ -115,10 +116,10 @@ be specified and added to the trust ledger explicitly.
 
 - Complete the Rust-free Delta implementation and keep its self-host fixed point.
 - Maintain Delta's provisional feature ledger while implementing the bridge,
-  then remove unused producer/corpus features and freeze the smallest robust
-  literal specification containing the complete `omega-bootstrap` source
-  closure. Preserve Omega spelling and ordinary meaning for retained shared
-  constructs without forcing subset compatibility.
+  then remove accidental producer/corpus behavior and freeze a coherent,
+  robust literal specification containing the complete `omega-bootstrap`
+  source closure. Preserve Omega spelling and ordinary meaning for retained
+  shared constructs without forcing subset compatibility.
 - Build `omega-bootstrap` with exact `Ωself` acceptance and enough conservative
   lowering to compile the source that implements the production optimizer and
   advanced lowering; do not duplicate those product passes in Delta.

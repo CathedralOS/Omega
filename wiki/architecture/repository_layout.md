@@ -94,7 +94,7 @@ Omega/
 |   |       |-- [CRATE] psi-types/                      # Unresolved source type-surface analysis.
 |   |       |-- [CRATE] psi-validation/                 # Cross-semantic source validation and diagnostics.
 |   |       |-- [CRATE] psi-proof/                      # Source proof obligations, planning, and checking.
-|   |       |-- [CRATE] psi-proof-kernel/               # Total judgments, proof certificates, and admission checks.
+|   |       |-- [CRATE] psi-proof-kernel/               # Product-local Psi judgments/admission; not the bootstrap proof kernel.
 |   |       |-- [CRATE] psi-checked-interpreter/        # Checked-tree build-time and transitional reference execution.
 |   |       |-- [CRATE] psi-build-time-evaluation/      # Const/domain evaluation and programmable plan normalization.
 |   |       |-- [CRATE] psi-terminal-semantics/         # Closed scalar, structural/effect, and call-composition policy rows.

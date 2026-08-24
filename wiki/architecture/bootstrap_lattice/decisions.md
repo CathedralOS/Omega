@@ -203,19 +203,23 @@ The fixed design constraints are deterministic specified behavior, no undefined
 behavior or ambient host authority, specified failure, lower-rung meaning for
 every admitted construct, and Omega spelling and ordinary meaning whenever
 Delta retains the same construct. The exact scalar, arithmetic, aggregate,
-control, allocation, and boundary inventory remains provisional until compiler-
-source evidence shows it is needed. A facility's presence in D0 or acceptance
-by the Rust producer does not admit it to v1.
+control, allocation, and boundary inventory remains provisional until the
+bridge source and explicit compiler-host design arguments justify it. A
+facility's presence in D0 or acceptance by the Rust producer does not admit it
+to v1.
 
-The selection rule is whole-bootstrap cost: retain a facility only when it
-makes the bridge materially smaller, safer, or easier to assure than its
-replacement. Thus Delta may use only Exact integer arithmetic if that suffices,
-or one narrow modular operation if artifact encoding alone requires it; it need
-not retain general arithmetic domains. Likewise, a one-purpose compiler-host
-interface should remain a sealed byte-input, artifact-output, diagnostic-output,
-and process-termination surface unless the bridge demonstrates a further need.
-General boundary traits, filesystem access, and other host extensibility are not
-presumed Delta facilities.
+The selection rule is whole-bootstrap cost, not literal feature count. A
+facility may be retained because it makes the bridge materially smaller, safer,
+more regular, more maintainable, or easier to assure than its replacement.
+Thus Delta may use only Exact integer arithmetic if that suffices, or one narrow
+modular operation if artifact encoding alone requires it; it need not retain
+general arithmetic domains. Conversely, a small companion operation may remain
+even if the current bridge could contort around it, when omission would make the
+literal language brittle or irregular. A one-purpose compiler-host interface
+should remain a sealed byte-input, artifact-output, diagnostic-output, and
+process-termination surface unless a concrete compiler-host argument requires
+more. General boundary traits, filesystem access, and other host extensibility
+are not presumed Delta facilities.
 The provisional evidence ledger is
 [`bootstrap/rungs/delta/FEATURE_LEDGER.md`](../../../bootstrap/rungs/delta/FEATURE_LEDGER.md).
 
@@ -339,12 +343,12 @@ close it.
 3. **Grow the proof kernel and its seams in lockstep** — no capability without its paired seam. *(D4)*
 4. **Translation-validation backend** — per-compile refinement certs. *(D3 north star, later.)*
 5. **Establish the production Omega source tree and `Ωself`** — publish its
-   deterministic dependency closure, derive the smallest robust source profile,
-   and mechanically reject excluded features. *(D6.)*
+   deterministic dependency closure, derive the lowest-total-cost compositional
+   source profile, and mechanically reject excluded features. *(D6.)*
 6. **Complete `omega-bootstrap` and freeze Delta v1 around its source closure** —
    implement the exact `Ωself` frontend/semantic path and correct conservative
-   lowering needed for the one hosted production build, prune unused Delta
-   experiments, then freeze the retained language. Compile, rather than
+   lowering needed for the one hosted production build, prune accidental Delta
+   experiments, then freeze the coherent retained language. Compile, rather than
    duplicate, the product optimizer and advanced lowering source. Do not require
    unrelated full-Omega source or tool surfaces. *(D2/D6, later.)*
 7. **Build production Omega once** — compile the `Ωself`-constrained Omega

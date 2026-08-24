@@ -53,13 +53,21 @@ need their exact inventories frozen:
 
 | Contract | Evidence that selects it | Working owner | Freeze point |
 | --- | --- | --- | --- |
-| **Delta v1** — the literal independent language used to write `omega-bootstrap` | the bridge's complete deterministic Delta source closure | [`bootstrap/rungs/delta/FEATURE_LEDGER.md`](bootstrap/rungs/delta/FEATURE_LEDGER.md) | after the complete bridge source exists and unused producer/corpus behavior is pruned |
+| **Delta v1** — the literal independent language used to write `omega-bootstrap` | the bridge's complete deterministic Delta source closure, plus explicit language-coherence and robustness arguments | [`bootstrap/rungs/delta/FEATURE_LEDGER.md`](bootstrap/rungs/delta/FEATURE_LEDGER.md) | after the complete bridge source exists and accidental producer/corpus behavior is pruned |
 | **`Ωself`** — the incidental ordinary-Omega product-compiler source profile | the product compiler's complete deterministic Omega source closure | [`compiler_source_profile.md`](wiki/architecture/bootstrap_lattice/compiler_source_profile.md) and the bootstrap profile gate | after `OMEGA-PRODUCT-COMPILER-SOURCE` publishes that closure and each disputed feature is measured |
 
 Delta's source manifest decides what its independent language must support;
 Omega's product-source manifest decides what ordinary Omega the bridge must
 accept. Neither manifest is itself a grammar, and neither contract may be
 inferred from the other.
+
+“Selected from the source closure” does not mean Delta is a whitelist of the
+constructs textually exercised by one compiler revision. The closure supplies
+the primary implementation pressure. Delta may retain a modest companion
+facility when doing so makes the literal language safer, more regular, easier
+to specify, or materially easier to use for compiler work. That justification
+must be recorded explicitly; acceptance by a disposable producer or presence
+in an old sample is not one.
 
 There is no `omega0`, `omega1`, or Epsilon language generation between them.
 O0 and O1 below are bounded vertical-canary labels for the current bridge work,
@@ -212,10 +220,11 @@ That evidence is necessary but is not yet `omega-bootstrap`:
 ### Permitted Delta bootstrap candidates
 
 Delta is an independent bootstrap implementation language, not the product
-language. It may therefore use deliberately plain facilities when the complete
-`omega-bootstrap` source demonstrates that they reduce total implementation and
-assurance cost. It need not reproduce Omega's final allocation and container
-model. Candidate concessions include:
+language. It should be a robust C-like compiler-host language, not the smallest
+grammar capable of recognizing one pinned source tree. It may therefore use
+deliberately plain facilities when they reduce total implementation and
+assurance cost, and it need not reproduce Omega's final allocation and
+container model. Candidate concessions include:
 
 - Permit runtime-sized allocations from an explicit, fixed backing extent
   supplied at compiler startup. A deterministic bump allocator or paged arena
@@ -236,9 +245,13 @@ model. Candidate concessions include:
 
 These are available design moves, not a minimum feature list or holes in
 meaning. If simpler bridge source needs fewer facilities—for example only Exact
-integer arithmetic or ordinary fixed arrays—Delta v1 should omit the unused
-ones. Allocation, exhaustion, input assembly, and every retained host operation
-must still have explicit semantics and appear in the trust/validation story.
+integer arithmetic or ordinary fixed arrays—Delta v1 need not inherit the
+broader producer surface. Conversely, direct textual use is not the only valid
+reason to retain a small companion feature: regularity, safe composition,
+debuggability, and avoiding brittle source contortions count in the total-cost
+decision. Allocation, exhaustion, input assembly, and every retained host
+operation must still have explicit semantics and appear in the
+trust/validation story.
 
 Product Psi/Omega implementation work belongs in `TASKS.md`. This file may name
 a required product interface as an input to a lattice gate, but it must not own
@@ -371,8 +384,10 @@ outside that manifest unless the compiler executable imports them.
 - [ ] **Freeze Delta v1 from the complete `omega-bootstrap` source closure.**
   This follows implementation of the complete bridge source, although normative
   documents and conformance gates should be maintained while it grows.
-  - [ ] trace every retained construct to the deterministic bridge manifest and
-    remove every unused or accidental D0, corpus, or Rust-producer feature;
+  - [ ] classify every retained construct as required by the deterministic
+    bridge manifest or justified by an explicit language-coherence,
+    robustness, safety, or maintainability argument; remove accidental D0,
+    corpus, and Rust-producer behavior;
   - [ ] publish versioned normative grammar, static/dynamic semantics,
     representation/ABI, source-bundle, and retained resource/host-interface
     documents under `bootstrap/rungs/delta/`;
@@ -387,9 +402,10 @@ outside that manifest unless the compiler executable imports them.
     under the frozen contract.
 
   Acceptance: the literal Delta v1 contract is self-consistent, mechanically
-  enforced, and sufficient for the complete bridge closure. It contains no
-  feature justified only by the current producer or corpus. Later widening is
-  an explicit versioned language change, never silent bridge pressure.
+  enforced, robust enough for compiler implementation, and sufficient for the
+  complete bridge closure. It is not source-file-shaped and contains no feature
+  justified only by the current producer or corpus. Later widening is an
+  explicit versioned language change, never silent bridge pressure.
 
 - [ ] **Validate Delta → `omega-bootstrap`.**
   Build the exact bridge artifact from its published Delta source closure using
@@ -542,7 +558,8 @@ outside that manifest unless the compiler executable imports them.
    admitted compiler construct lands with native/meaning differential coverage.
 3. Maintain Delta's provisional feature ledger while growing the bridge; once
    `OMEGA-PRODUCT-COMPILER-SOURCE` is complete in `TASKS.md`, derive and gate
-   `Ωself`, complete the bridge source closure, then prune and freeze Delta v1.
+   `Ωself`, complete the bridge source closure, then remove accidental surface
+   and freeze a coherent, robust Delta v1.
 4. Grow proof-kernel capability and its operational seams only in lockstep with
    real obligation classes.
 5. Build translation-validation evidence for native compiler outputs.
