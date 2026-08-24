@@ -523,8 +523,15 @@ Remaining:
   structural result/return carrier with claim transfer, exit-time content
   replay, interpretation, and fuel. Omega preserves that carrier through the
   exact one-fragment native ABI path and all artifact/install layers, with claim
-  identity retained as zero-runtime metadata. Bodyless boundary completion
-  sources now also retain one canonical combined whole-claim/content row: exact
+  identity retained as zero-runtime metadata. Exact whole-parameter content
+  custody now also lowers from a real qualified source declaration through both
+  Unit and primitive-result bodyless exits. The source-derived terminal entry
+  row retains the checked claim, entry-version subject, owner-unique projection,
+  and content algebra; verification rejects structural/content rebinding,
+  provider rejection leaves custody live, and successful completion consumes
+  it. This slice remains deliberately whole-root: projected bodyless exits still
+  require authored partition/residual geometry. Bodyless boundary completion
+  sources also retain one canonical combined whole-claim/content row: exact
   claim, optional structural entry path, full entry-version content subject,
   and owner-unique projection/algebra identity. Omega preserves and replays the
   catalog beside exact provider execution through native evidence and canonical

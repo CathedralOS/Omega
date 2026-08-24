@@ -22,11 +22,12 @@ use psi_checked_trees::{
     CheckedStructuralScalarReturnMachinePlan, CheckedStructuralUnitControlMachinePlan,
     CheckedStructuralUnitControlTerminatorPlan, CheckedTerminalMachineDebugPlan,
     CheckedTerminalMachineSelection, CheckedTerminalSignatureEligibility, CheckedTrees,
-    CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
+    CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, CheckedUnitEntryClaimPlan,
     CheckedUnitPartialAffineDiscardPlan, CheckedUnitStructuralFieldType,
-    CheckedUnitStructuralPathSegment, CheckedUnitStructuralTypePlan,
-    CheckedUnitStructuralTypeShape, ClosedScalarContractValue, ClosedScalarValueContractPlan,
-    ContentIdentityReshuffleFact, ContentPartitionCompositionFact, types::PrimitiveType,
+    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
+    CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape, ClosedScalarContractValue,
+    ClosedScalarValueContractPlan, ContentIdentityReshuffleFact, ContentPartitionCompositionFact,
+    types::PrimitiveType,
 };
 use psi_core::{
     BlockId, BoundaryMachineId, ByteSequenceStructuralField, CanonicalStructuralPathSegment,

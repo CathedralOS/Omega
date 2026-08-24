@@ -362,6 +362,13 @@ pub(super) fn lower_attached_unit_closure_including(
             .iter()
             .find(|(symbol, _, _)| *symbol == plan.machine)
             .expect("every closure machine has lowered entry claims");
+        let content_entry_claims = content_conservation::lower_whole_content_entry_claims(
+            checked,
+            &plan.structural_parameters,
+            parameters,
+            &plan.entry_claims,
+            claim_bindings,
+        )?;
         let attachment = lookup_type_id(&type_ids, &plan.attachment_type_identity)?;
         let checked_attachment = plans
             .structural_types
@@ -950,7 +957,7 @@ pub(super) fn lower_attached_unit_closure_including(
                     &service_ids,
                 )?
             },
-            content_entry_claims: Vec::new(),
+            content_entry_claims,
             content_identity_reshuffles: Vec::new(),
             content_partition_compositions: Vec::new(),
             entry: block,

@@ -357,7 +357,19 @@ abstract plan. An admitted x86-64 `u8` port-read provider lowers to a sealed
 instruction interval and returns the byte through the scalar ABI; its provider
 identity, whole-root arguments, receipts, and exact bytes survive object,
 image, and installation validation. Other result shapes and targets, plus
-projected and content-bearing result calls, fail closed.
+projected exits and content-bearing returned results, fail closed.
+
+A qualified whole structural parameter whose domain owns a checked `Content<A>`
+projection carries that content catalog into terminal Psi on both Unit and
+primitive-result bodyless exits. Lowering reuses the structural claim identity
+and records the entry-version subject plus the owner-unique projection and
+algebra; it does not infer content from carrier bytes or from the domain name.
+The verifier independently requires the content subject to bind the same exact
+entry parameter and claim. Provider rejection therefore preserves the complete
+structural/content frontier, while successful completion commits the receipt and
+consumes it. This source slice admits only whole parameters. A projected exit
+continues to fail closed until an authored partition/residual equation supplies
+its geometry.
 
 A stable record claim path may cross nested relevant record fields. Each
 segment is resolved against the structural type reached by the preceding
