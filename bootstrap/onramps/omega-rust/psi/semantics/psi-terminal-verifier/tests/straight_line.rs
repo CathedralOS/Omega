@@ -12,13 +12,14 @@ use psi_proof_kernel::{
     ProofSystemMarker,
 };
 use psi_terminal::{
-    Block, BoundaryMachineDeclaration, ClaimContentProjection, CompletionReceipt,
+    Block, BoundaryMachineDeclaration, ClaimContentProjection, ClaimTransfer, CompletionReceipt,
     ContentConservationGuarantee, ContentEntryClaim, ContentIdentityReshuffle,
     ContentPartitionComposition, ContentPlaceSubstitution, ContractClause, CrashCause, EntryClaim,
     MachineContract, Operation, OperationKind, OperationResult, StructuralAccess,
     StructuralArgument, StructuralCaseDeclaration, StructuralContentProjection,
     StructuralDomainDeclaration, StructuralFieldDeclaration, StructuralFieldType,
-    StructuralMultiplicity, StructuralParameterDeclaration, StructuralPlaceDeclaration,
+    StructuralMultiplicity, StructuralOperationResult, StructuralParameterDeclaration,
+    StructuralPlaceDeclaration, StructuralResultClaimBinding, StructuralResultClaimTransfer,
     StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine,
     TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
 };
@@ -2538,6 +2539,55 @@ fn structural_return_rejects_inexact_custody_and_scalar_content_carriers() {
 }
 
 #[test]
+fn structural_call_rebinds_one_exact_whole_root_claim_and_rejects_tampering() {
+    let module = structural_call_module();
+    validate_module(&module).expect("one exact whole-root structural call");
+
+    let mut wrong_source_claim = module.clone();
+    let OperationKind::CallStructural {
+        returned_claim_transfers,
+        ..
+    } = &mut wrong_source_claim.machines[0].blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    returned_claim_transfers[0].callee_claim = ClaimId::new(2).unwrap();
+    assert_eq!(
+        validate_module(&wrong_source_claim).unwrap_err(),
+        ModuleError::StructuralCallClaimInterfaceMismatch(OperationId::new(1).unwrap())
+    );
+
+    let mut wrong_producer = module.clone();
+    let StructuralPlaceKind::OperationResult { producer, .. } =
+        &mut wrong_producer.machines[0].structural_places[2].kind
+    else {
+        unreachable!()
+    };
+    *producer = OperationId::new(2).unwrap();
+    assert_eq!(
+        validate_module(&wrong_producer).unwrap_err(),
+        ModuleError::StructuralCallResultPlaceMismatch(OperationId::new(2).unwrap())
+    );
+
+    let mut duplicated_claim = module.clone();
+    let result = duplicated_claim.machines[0].blocks[0].operations[0]
+        .result
+        .structural()
+        .unwrap()
+        .clone();
+    let OperationResult::Structural(result_mut) =
+        &mut duplicated_claim.machines[0].blocks[0].operations[0].result
+    else {
+        unreachable!()
+    };
+    result_mut.claims.push(result.claims[0].clone());
+    assert_eq!(
+        validate_module(&duplicated_claim).unwrap_err(),
+        ModuleError::NonCanonicalStructuralOperationResult(OperationId::new(1).unwrap())
+    );
+}
+
+#[test]
 fn structural_return_requires_exact_trivial_affine_local_establishment_and_cleanup() {
     let (mut module, _, _) = identity_reshuffle_module();
     let machine = &mut module.machines[0];
@@ -3385,6 +3435,194 @@ fn identity_reshuffle_module() -> (TerminalModule, Proposition, ObligationId) {
         goal,
         obligation,
     )
+}
+
+fn structural_call_module() -> TerminalModule {
+    let structural_type = StructuralTypeId::new(1).unwrap();
+    let caller = MachineId::new(1).unwrap();
+    let callee = MachineId::new(2).unwrap();
+    let caller_input = PlaceId::new(1).unwrap();
+    let caller_result = PlaceId::new(2).unwrap();
+    let callee_input = PlaceId::new(3).unwrap();
+    let callee_result = PlaceId::new(4).unwrap();
+    let call_result = PlaceId::new(5).unwrap();
+    let claim = ClaimId::new(1).unwrap();
+    let call = OperationId::new(1).unwrap();
+    let caller_result_declaration = StructuralResultDeclaration {
+        place: caller_result,
+        structural_type,
+        multiplicity: StructuralMultiplicity::Linear,
+        qualifications: Vec::new(),
+    };
+    let callee_result_declaration = StructuralResultDeclaration {
+        place: callee_result,
+        structural_type,
+        multiplicity: StructuralMultiplicity::Linear,
+        qualifications: Vec::new(),
+    };
+    let parameter = |place, position| StructuralParameterDeclaration {
+        place,
+        position,
+        is_self: false,
+        structural_type,
+        multiplicity: StructuralMultiplicity::Linear,
+        access: StructuralAccess::Owned,
+        qualifications: Vec::new(),
+    };
+    let caller_machine = TerminalMachine {
+        id: caller,
+        attachment: None,
+        parameters: Vec::new(),
+        structural_parameters: vec![parameter(caller_input, 0)],
+        result: TerminalMachineResult::Structural(caller_result_declaration),
+        structural_places: vec![
+            StructuralPlaceDeclaration {
+                id: caller_input,
+                kind: StructuralPlaceKind::Parameter {
+                    position: 0,
+                    is_self: false,
+                },
+            },
+            StructuralPlaceDeclaration {
+                id: caller_result,
+                kind: StructuralPlaceKind::Result,
+            },
+            StructuralPlaceDeclaration {
+                id: call_result,
+                kind: StructuralPlaceKind::OperationResult {
+                    producer: call,
+                    structural_type,
+                },
+            },
+        ],
+        entry_claims: vec![EntryClaim {
+            claim,
+            input: caller_input,
+            path: Vec::new(),
+        }],
+        published_service_ceiling: Vec::new(),
+        content_entry_claims: Vec::new(),
+        content_identity_reshuffles: Vec::new(),
+        content_partition_compositions: Vec::new(),
+        entry: BlockId::new(1).unwrap(),
+        blocks: vec![Block {
+            id: BlockId::new(1).unwrap(),
+            parameters: Vec::new(),
+            operations: vec![Operation {
+                id: call,
+                result: OperationResult::Structural(StructuralOperationResult {
+                    place: call_result,
+                    structural_type,
+                    multiplicity: StructuralMultiplicity::Linear,
+                    qualifications: Vec::new(),
+                    claims: vec![StructuralResultClaimBinding {
+                        claim,
+                        path: Vec::new(),
+                    }],
+                }),
+                kind: OperationKind::CallStructural {
+                    callee,
+                    structural_arguments: vec![StructuralArgument {
+                        place: caller_input,
+                        path: Vec::new(),
+                        access: StructuralAccess::Owned,
+                    }],
+                    claim_transfers: vec![ClaimTransfer {
+                        claim,
+                        argument_index: 0,
+                    }],
+                    returned_claim_transfers: vec![StructuralResultClaimTransfer {
+                        callee_claim: claim,
+                        caller_claim: claim,
+                    }],
+                    requirement_obligations: Vec::new(),
+                    crash_continuations: Vec::new(),
+                },
+            }],
+            terminator: Terminator::ReturnStructural {
+                edge: EdgeId::new(1).unwrap(),
+                source: call_result,
+                returned_claims: vec![claim],
+                trivial_affine_discards: Vec::new(),
+            },
+        }],
+        contract: MachineContract {
+            id: ContractId::new(1).unwrap(),
+            crash_routes: Vec::new(),
+            requires: Vec::new(),
+            ensures: Vec::new(),
+        },
+    };
+    let callee_machine = TerminalMachine {
+        id: callee,
+        attachment: None,
+        parameters: Vec::new(),
+        structural_parameters: vec![parameter(callee_input, 0)],
+        result: TerminalMachineResult::Structural(callee_result_declaration),
+        structural_places: vec![
+            StructuralPlaceDeclaration {
+                id: callee_input,
+                kind: StructuralPlaceKind::Parameter {
+                    position: 0,
+                    is_self: false,
+                },
+            },
+            StructuralPlaceDeclaration {
+                id: callee_result,
+                kind: StructuralPlaceKind::Result,
+            },
+        ],
+        entry_claims: vec![EntryClaim {
+            claim,
+            input: callee_input,
+            path: Vec::new(),
+        }],
+        published_service_ceiling: Vec::new(),
+        content_entry_claims: Vec::new(),
+        content_identity_reshuffles: Vec::new(),
+        content_partition_compositions: Vec::new(),
+        entry: BlockId::new(2).unwrap(),
+        blocks: vec![Block {
+            id: BlockId::new(2).unwrap(),
+            parameters: Vec::new(),
+            operations: Vec::new(),
+            terminator: Terminator::ReturnStructural {
+                edge: EdgeId::new(2).unwrap(),
+                source: callee_input,
+                returned_claims: vec![claim],
+                trivial_affine_discards: Vec::new(),
+            },
+        }],
+        contract: MachineContract {
+            id: ContractId::new(2).unwrap(),
+            crash_routes: Vec::new(),
+            requires: Vec::new(),
+            ensures: Vec::new(),
+        },
+    };
+    TerminalModule {
+        vocabulary_marker: VocabularyMarker::CURRENT,
+        entry: caller,
+        structural_types: vec![StructuralTypeDeclaration {
+            id: structural_type,
+            identity: "Receipt".to_owned(),
+            shape: StructuralTypeShape::Record { fields: Vec::new() },
+        }],
+        structural_domains: Vec::new(),
+        services: Vec::new(),
+        root_service_reach: Default::default(),
+        boundary_machines: Vec::new(),
+        provider_candidates: Vec::new(),
+        float_meaning_projections: Vec::new(),
+        float_meaning_equalities: Vec::new(),
+        proposition_declarations: Vec::new(),
+        proposition_applications: Vec::new(),
+        evidence_terms: Vec::new(),
+        evidence_contract_lanes: Vec::new(),
+        proof_output_calls: Vec::new(),
+        closed_conformance_applications: Vec::new(),
+        machines: vec![caller_machine, callee_machine],
+    }
 }
 
 fn partition_composition_module() -> (TerminalModule, Proposition, ObligationId) {

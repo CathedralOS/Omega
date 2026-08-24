@@ -343,6 +343,14 @@ pub enum ModuleError {
         expected: Option<ScalarType>,
         actual: Option<ScalarType>,
     },
+    StructuralCallTargetMismatch {
+        operation: OperationId,
+        callee: MachineId,
+    },
+    StructuralCallResultMismatch(OperationId),
+    StructuralCallResultPlaceMismatch(OperationId),
+    StructuralCallClaimInterfaceMismatch(OperationId),
+    NonCanonicalStructuralOperationResult(OperationId),
     ProjectedUnitCallOutsideBoundedSlice {
         operation: OperationId,
     },

@@ -10,7 +10,8 @@ pub(super) fn validate_call_graph(module: &TerminalModule) -> Result<(), ModuleE
                 match &operation.kind {
                     OperationKind::Call { callee, .. }
                     | OperationKind::CallUnit { callee, .. }
-                    | OperationKind::CallStructuralScalar { callee, .. } => {
+                    | OperationKind::CallStructuralScalar { callee, .. }
+                    | OperationKind::CallStructural { callee, .. } => {
                         callees.insert(*callee);
                     }
                     OperationKind::BoundaryCall { boundary, .. } => {

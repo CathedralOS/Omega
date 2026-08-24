@@ -152,7 +152,7 @@ storage containing no live `T` is a separate feature.
 > General symbolic or open-ended range projection, sum projection,
 > opaque providers, executable Terminal writes, runtime realization, and native
 > ABI lowering remain gated. Forwarding-only structural parameters and calls do
-> preserve owned/shared/mutable/write-only access through Terminal format 26;
+> preserve owned/shared/mutable/write-only access through Terminal format 27;
 > the independent verifier checks exact target access, legal attenuation, and
 > exclusive-argument overlap. `&write` is never temporarily lowered as `&mut`.
 

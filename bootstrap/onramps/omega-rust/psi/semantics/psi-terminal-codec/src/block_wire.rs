@@ -6,7 +6,8 @@
 
 use psi_terminal::{
     Block, ClaimTransfer, CompletionReceipt, CrashCause, NominalAffineCleanup, Operation,
-    OperationKind, OperationResult, StructuralAffineDiscard, Terminator,
+    OperationKind, OperationResult, StructuralAffineDiscard, StructuralOperationResult,
+    StructuralResultClaimBinding, StructuralResultClaimTransfer, Terminator,
 };
 
 use super::contract_wire::{
@@ -30,11 +31,37 @@ pub(super) fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), Cod
     writer.len("operations", block.operations.len())?;
     for operation in &block.operations {
         writer.id(operation.id);
-        match operation.result {
+        match &operation.result {
             OperationResult::Unit => writer.u8(0),
             OperationResult::Scalar(result) => {
                 writer.u8(1);
-                encode_declaration(writer, result);
+                encode_declaration(writer, *result);
+            }
+            OperationResult::Structural(result) => {
+                writer.u8(2);
+                writer.id(result.place);
+                writer.id(result.structural_type);
+                writer.u8(match result.multiplicity {
+                    psi_terminal::StructuralMultiplicity::Unrestricted => 1,
+                    psi_terminal::StructuralMultiplicity::Affine => 2,
+                    psi_terminal::StructuralMultiplicity::Linear => 3,
+                });
+                writer.len(
+                    "structural operation result qualifications",
+                    result.qualifications.len(),
+                )?;
+                for qualification in &result.qualifications {
+                    writer.id(*qualification);
+                }
+                writer.len("structural operation result claims", result.claims.len())?;
+                for claim in &result.claims {
+                    writer.id(claim.claim);
+                    encode_structural_path(
+                        writer,
+                        "structural operation result claim path",
+                        &claim.path,
+                    )?;
+                }
             }
         }
         match operation.kind.clone() {
@@ -104,6 +131,33 @@ pub(super) fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), Cod
                 for transfer in claim_transfers {
                     writer.id(transfer.claim);
                     writer.u32(transfer.argument_index);
+                }
+                encode_obligation_ids(writer, &requirement_obligations)?;
+                encode_crash_routes(writer, &crash_continuations)?;
+            }
+            OperationKind::CallStructural {
+                callee,
+                structural_arguments,
+                claim_transfers,
+                returned_claim_transfers,
+                requirement_obligations,
+                crash_continuations,
+            } => {
+                writer.u8(41);
+                writer.id(callee);
+                encode_structural_arguments(writer, &structural_arguments)?;
+                writer.len("structural-call claim transfers", claim_transfers.len())?;
+                for transfer in claim_transfers {
+                    writer.id(transfer.claim);
+                    writer.u32(transfer.argument_index);
+                }
+                writer.len(
+                    "structural-call returned claim transfers",
+                    returned_claim_transfers.len(),
+                )?;
+                for transfer in returned_claim_transfers {
+                    writer.id(transfer.callee_claim);
+                    writer.id(transfer.caller_claim);
                 }
                 encode_obligation_ids(writer, &requirement_obligations)?;
                 encode_crash_routes(writer, &crash_continuations)?;
@@ -510,6 +564,25 @@ pub(super) fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError>
         let result = match reader.u8()? {
             0 => OperationResult::Unit,
             1 => OperationResult::Scalar(decode_declaration(reader)?),
+            2 => OperationResult::Structural(StructuralOperationResult {
+                place: reader.id("PlaceId")?,
+                structural_type: reader.id("StructuralTypeId")?,
+                multiplicity: match reader.u8()? {
+                    1 => psi_terminal::StructuralMultiplicity::Unrestricted,
+                    2 => psi_terminal::StructuralMultiplicity::Affine,
+                    3 => psi_terminal::StructuralMultiplicity::Linear,
+                    tag => {
+                        return Err(CodecError::InvalidTag("StructuralMultiplicity", tag));
+                    }
+                },
+                qualifications: decode_ids(reader, "StructuralDomainId")?,
+                claims: decode_counted(reader, |reader| {
+                    Ok(StructuralResultClaimBinding {
+                        claim: reader.id("ClaimId")?,
+                        path: decode_structural_path(reader)?,
+                    })
+                })?,
+            }),
             tag => return Err(CodecError::InvalidTag("OperationResult", tag)),
         };
         let kind = match reader.u8()? {
@@ -727,6 +800,24 @@ pub(super) fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError>
                 requirement_obligations: decode_ids(reader, "ObligationId")?,
                 crash_continuations: decode_crash_routes(reader)?,
             },
+            41 => OperationKind::CallStructural {
+                callee: reader.id("MachineId")?,
+                structural_arguments: decode_structural_arguments(reader)?,
+                claim_transfers: decode_counted(reader, |reader| {
+                    Ok(ClaimTransfer {
+                        claim: reader.id("ClaimId")?,
+                        argument_index: reader.u32()?,
+                    })
+                })?,
+                returned_claim_transfers: decode_counted(reader, |reader| {
+                    Ok(StructuralResultClaimTransfer {
+                        callee_claim: reader.id("ClaimId")?,
+                        caller_claim: reader.id("ClaimId")?,
+                    })
+                })?,
+                requirement_obligations: decode_ids(reader, "ObligationId")?,
+                crash_continuations: decode_crash_routes(reader)?,
+            },
             tag => return Err(CodecError::InvalidTag("OperationKind", tag)),
         };
         operations.push(Operation {
@@ -826,4 +917,91 @@ pub(super) fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError>
         operations,
         terminator,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use psi_core::{BlockId, ClaimId, EdgeId, MachineId, OperationId, PlaceId, StructuralTypeId};
+    use psi_terminal::{
+        Block, Operation, OperationKind, OperationResult, StructuralMultiplicity,
+        StructuralOperationResult, StructuralResultClaimBinding, StructuralResultClaimTransfer,
+        Terminator,
+    };
+
+    use super::{decode_block, encode_block};
+    use crate::{
+        CodecError,
+        wire::{Reader, Writer},
+    };
+
+    fn id<T: psi_core::PsiSemanticId>(raw: u64) -> T {
+        T::new(raw).expect("test ids are nonzero")
+    }
+
+    fn structural_call_block() -> Block {
+        Block {
+            id: id::<BlockId>(1),
+            parameters: Vec::new(),
+            operations: vec![Operation {
+                id: id::<OperationId>(1),
+                result: OperationResult::Structural(StructuralOperationResult {
+                    place: id::<PlaceId>(2),
+                    structural_type: id::<StructuralTypeId>(3),
+                    multiplicity: StructuralMultiplicity::Linear,
+                    qualifications: Vec::new(),
+                    claims: vec![StructuralResultClaimBinding {
+                        claim: id::<ClaimId>(4),
+                        path: Vec::new(),
+                    }],
+                }),
+                kind: OperationKind::CallStructural {
+                    callee: id::<MachineId>(5),
+                    structural_arguments: Vec::new(),
+                    claim_transfers: Vec::new(),
+                    returned_claim_transfers: vec![StructuralResultClaimTransfer {
+                        callee_claim: id::<ClaimId>(6),
+                        caller_claim: id::<ClaimId>(4),
+                    }],
+                    requirement_obligations: Vec::new(),
+                    crash_continuations: Vec::new(),
+                },
+            }],
+            terminator: Terminator::ReturnUnit {
+                edge: id::<EdgeId>(7),
+                trivial_affine_discards: Vec::new(),
+            },
+        }
+    }
+
+    #[test]
+    fn structural_operation_result_and_call_use_stable_wire_tags() {
+        let block = structural_call_block();
+        let mut writer = Writer::default();
+        encode_block(&mut writer, &block).expect("structural call block encodes");
+        let bytes = writer.finish();
+
+        // Block id + parameter count + operation count + operation id.
+        assert_eq!(bytes[24], 2, "structural OperationResult wire tag");
+        // The fixture has no qualifications and one whole-root claim, so the
+        // operation-kind tag follows its fixed-width result metadata here.
+        assert_eq!(bytes[62], 41, "CallStructural wire tag");
+
+        let mut reader = Reader::new(&bytes);
+        assert_eq!(decode_block(&mut reader), Ok(block));
+        assert_eq!(reader.remaining(), 0);
+
+        let mut invalid_result = bytes.clone();
+        invalid_result[24] = 3;
+        assert_eq!(
+            decode_block(&mut Reader::new(&invalid_result)),
+            Err(CodecError::InvalidTag("OperationResult", 3))
+        );
+
+        let mut invalid_call = bytes;
+        invalid_call[62] = 42;
+        assert_eq!(
+            decode_block(&mut Reader::new(&invalid_call)),
+            Err(CodecError::InvalidTag("OperationKind", 42))
+        );
+    }
 }

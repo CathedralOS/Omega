@@ -330,6 +330,9 @@ fn lower_machine(
                         claim_transfers,
                     });
                 }
+                OperationKind::CallStructural { .. } => {
+                    return Err(LoweringError::UnsupportedStructuralResult(machine.id));
+                }
                 OperationKind::BoundaryCall {
                     boundary,
                     arguments,

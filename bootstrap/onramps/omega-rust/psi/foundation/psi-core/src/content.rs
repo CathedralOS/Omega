@@ -68,6 +68,13 @@ pub enum StructuralPlaceKind {
         is_self: bool,
     },
     Result,
+    /// One structural operation result, established only after the exact
+    /// producer succeeds. The producer identity prevents a result place from
+    /// being treated as live before or independently of that operation.
+    OperationResult {
+        producer: crate::OperationId,
+        structural_type: StructuralTypeId,
+    },
     /// One immutable borrowed byte-sequence literal established by an exact
     /// terminal operation. The declaration ordinal makes source-order
     /// identity explicit without retaining a source-tree handle.
@@ -248,6 +255,14 @@ fn encode_fingerprint_term(
                     output.extend_from_slice(&position.to_le_bytes());
                 }
                 StructuralPlaceKind::Result => output.push(3),
+                StructuralPlaceKind::OperationResult {
+                    producer,
+                    structural_type,
+                } => {
+                    output.push(4);
+                    output.extend_from_slice(&producer.get().to_le_bytes());
+                    output.extend_from_slice(&structural_type.get().to_le_bytes());
+                }
                 // Literal and trivial affine locals carry no claims or content
                 // qualifications in the accepted slice, so they cannot become
                 // content-proposition roots by merely being declared.

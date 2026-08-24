@@ -159,6 +159,9 @@ pub struct FlowFacts {
     pub terminal_boundary_scalar_returns: super::CheckedBoundaryScalarReturnPlans,
     /// Exact one-parameter whole-root structural result transfers.
     pub terminal_structural_returns: super::CheckedStructuralReturnPlans,
+    /// Final direct internal calls whose exact whole-root structural result is
+    /// returned immediately by the caller.
+    pub terminal_structural_call_returns: super::CheckedStructuralCallReturnPlans,
 }
 
 impl FlowFacts {
@@ -192,6 +195,7 @@ impl FlowFacts {
             ),
             terminal_boundary_scalar_returns: super::CheckedBoundaryScalarReturnPlans::default(),
             terminal_structural_returns: super::CheckedStructuralReturnPlans::default(),
+            terminal_structural_call_returns: super::CheckedStructuralCallReturnPlans::default(),
         }
     }
 }

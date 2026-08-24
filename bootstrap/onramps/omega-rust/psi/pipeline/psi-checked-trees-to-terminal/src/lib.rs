@@ -17,17 +17,17 @@ use psi_checked_trees::{
     CheckedPropositionBinderArgumentKind, CheckedPropositionBinderKind, CheckedPropositionEvidence,
     CheckedScalarBindingValue, CheckedScalarExpression, CheckedScalarExpressionRole,
     CheckedScalarMachineGraph, CheckedScalarStateTerminator, CheckedScalarSuccessor,
-    CheckedStructuralReturnMachinePlan, CheckedStructuralScalarIntegerBoundKind,
-    CheckedStructuralScalarIntegerBoundPlan, CheckedStructuralScalarReturnCleanupAction,
-    CheckedStructuralScalarReturnMachinePlan, CheckedStructuralUnitControlMachinePlan,
-    CheckedStructuralUnitControlTerminatorPlan, CheckedTerminalMachineDebugPlan,
-    CheckedTerminalMachineSelection, CheckedTerminalSignatureEligibility, CheckedTrees,
-    CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, CheckedUnitEntryClaimPlan,
-    CheckedUnitPartialAffineDiscardPlan, CheckedUnitStructuralFieldType,
-    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
-    CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape, ClosedScalarContractValue,
-    ClosedScalarValueContractPlan, ContentIdentityReshuffleFact, ContentPartitionCompositionFact,
-    types::PrimitiveType,
+    CheckedStructuralCallReturnMachinePlan, CheckedStructuralReturnMachinePlan,
+    CheckedStructuralScalarIntegerBoundKind, CheckedStructuralScalarIntegerBoundPlan,
+    CheckedStructuralScalarReturnCleanupAction, CheckedStructuralScalarReturnMachinePlan,
+    CheckedStructuralUnitControlMachinePlan, CheckedStructuralUnitControlTerminatorPlan,
+    CheckedTerminalMachineDebugPlan, CheckedTerminalMachineSelection,
+    CheckedTerminalSignatureEligibility, CheckedTrees, CheckedUnitEffectMachinePlan,
+    CheckedUnitEffectOperationPlan, CheckedUnitEntryClaimPlan, CheckedUnitPartialAffineDiscardPlan,
+    CheckedUnitStructuralFieldType, CheckedUnitStructuralParameterPlan,
+    CheckedUnitStructuralPathSegment, CheckedUnitStructuralTypePlan,
+    CheckedUnitStructuralTypeShape, ClosedScalarContractValue, ClosedScalarValueContractPlan,
+    ContentIdentityReshuffleFact, ContentPartitionCompositionFact, types::PrimitiveType,
 };
 use psi_core::{
     BlockId, BoundaryMachineId, ByteSequenceStructuralField, CanonicalStructuralPathSegment,
@@ -106,6 +106,7 @@ mod scalar_call_closure;
 mod scalar_graph_lowering;
 mod scalar_graph_module;
 mod shared_runtime_parameters;
+mod structural_call_return;
 mod structural_return;
 mod structural_scalar_return;
 mod structural_types;
@@ -166,6 +167,7 @@ use shared_runtime_parameters::{
     normalize_shared_boolean_comparison_leaves, resolve_shared_boolean_member_fields,
     shared_boolean_runtime_parameters, valid_shared_boolean_runtime_inputs,
 };
+use structural_call_return::lower_structural_call_return_machine;
 use structural_return::lower_structural_return_machine;
 use structural_scalar_return::{
     lower_structural_scalar_return_machine, lower_trait_operator_scalar_return_machine,
@@ -921,6 +923,17 @@ fn lower_selected_machine(
             return unsupported("result-bearing boundary custody requires an attached signature");
         }
         return lower_boundary_scalar_return_machine(checked, plan);
+    }
+    if let Some(plan) = checked
+        .facts
+        .flow
+        .terminal_structural_call_returns
+        .for_machine(selection.machine)
+    {
+        if selection.signature != CheckedTerminalSignatureEligibility::Attached {
+            return unsupported("structural call result transfer requires an attached signature");
+        }
+        return lower_structural_call_return_machine(checked, plan);
     }
     if let Some(plan) = checked
         .facts

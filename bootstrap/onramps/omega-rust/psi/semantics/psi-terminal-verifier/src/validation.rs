@@ -196,6 +196,7 @@ struct IdRegistry {
 enum StructuralRootKey {
     Parameter(u32),
     Result,
+    OperationResult(OperationId),
     ByteSequenceLiteral(u32),
     ProviderAttachment(StructuralTypeId, StructuralFieldId, BoundaryMachineId),
     TrivialAffineLocal(u32),

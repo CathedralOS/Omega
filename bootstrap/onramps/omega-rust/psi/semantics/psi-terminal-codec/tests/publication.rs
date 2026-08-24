@@ -19,14 +19,19 @@ fn canonical_bytes() -> Vec<u8> {
         .chars()
         .filter(|character| !character.is_whitespace())
         .collect();
-    compact
+    let mut bytes: Vec<u8> = compact
         .as_bytes()
         .chunks_exact(2)
         .map(|pair| {
             u8::from_str_radix(std::str::from_utf8(pair).expect("ASCII fixture"), 16)
                 .expect("hex fixture")
         })
-        .collect()
+        .collect();
+    // This publication canary deliberately retains the bootstrap program body.
+    // Its canonical envelope follows the current terminal format and vocabulary.
+    bytes[8..10].copy_from_slice(&27_u16.to_le_bytes());
+    bytes[10..12].copy_from_slice(&29_u16.to_le_bytes());
+    bytes
 }
 
 fn test_directory(label: &str) -> TestDirectory {

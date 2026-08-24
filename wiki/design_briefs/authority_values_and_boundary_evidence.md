@@ -915,7 +915,7 @@ The implementation requires:
 3. Qualified claim metadata must retain the owner-unique `Content<A>`
    conformance, its canonical content-projection expression, and its
    interval-set or counted-quantity identity; admitted receipts must carry
-   backing in the same algebra. Terminal vocabulary 28 retains and independently
+   backing in the same algebra. Terminal vocabulary 29 retains and independently
    validates this owner definition; remaining consumers must preserve it rather
    than reconstructing authority from a route-local schema.
 4. The prover and resource checker must connect subject arithmetic and access

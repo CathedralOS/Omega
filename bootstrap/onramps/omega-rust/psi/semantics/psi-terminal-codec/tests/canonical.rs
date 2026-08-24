@@ -20,7 +20,8 @@ use psi_terminal::{
     StructuralAccess, StructuralAffineDiscard, StructuralArgument, StructuralCaseDeclaration,
     StructuralContentProjection, StructuralDomainDeclaration, StructuralDomainRequirement,
     StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
-    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
+    StructuralOperationResult, StructuralParameterDeclaration, StructuralPathSegment,
+    StructuralPlaceDeclaration, StructuralResultClaimBinding, StructuralResultClaimTransfer,
     StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge,
     TerminalAffineCleanupAction, TerminalMachine, TerminalMachineResult, TerminalModule,
     Terminator, ValueDeclaration, VocabularyMarker,
@@ -35,7 +36,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     let bytes = encode_module(&module).expect("fixture should encode");
 
     assert_eq!(&bytes[..8], b"PSITERM\0");
-    assert_eq!(&bytes[8..10], 26_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 27_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 
@@ -43,7 +44,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.vocabulary_marker, VocabularyMarker::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "82662b99e86f136dbdb1c80031bc3128e08ec44a8847cc5caf3b485a503f2077"
+        "c9090db105e2015ef25f3bb69bd7ebea41132bfbe8d27f92d7ccdbdedd29403c"
     );
     assert_eq!(
         identity.program_fingerprint,
@@ -310,8 +311,8 @@ fn payload_sum_shape_round_trips_exact_fields_and_requires_canonical_order() {
 fn partial_affine_unit_return_round_trips_exact_path_and_leaf_type() {
     let module = partial_affine_fixture();
     let bytes = encode_module(&module).expect("partial affine return should encode");
-    assert_eq!(&bytes[8..10], 26_u16.to_le_bytes());
-    assert_eq!(&bytes[10..12], 28_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 27_u16.to_le_bytes());
+    assert_eq!(&bytes[10..12], 29_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 }
@@ -320,8 +321,8 @@ fn partial_affine_unit_return_round_trips_exact_path_and_leaf_type() {
 fn nominal_affine_unit_return_round_trips_exact_root_type_and_cleanup_machine() {
     let module = nominal_affine_fixture();
     let bytes = encode_module(&module).expect("nominal affine return should encode");
-    assert_eq!(&bytes[8..10], 26_u16.to_le_bytes());
-    assert_eq!(&bytes[10..12], 28_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 27_u16.to_le_bytes());
+    assert_eq!(&bytes[10..12], 29_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 }
@@ -352,7 +353,7 @@ fn scalar_return_round_trips_nominal_affine_cleanup_action() {
     };
 
     let bytes = encode_module(&module).expect("scalar nominal cleanup should encode");
-    assert_eq!(&bytes[8..10], 26_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 27_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 }
@@ -938,7 +939,7 @@ fn structural_effect_foundation_round_trips_and_has_stable_identity() {
     let module = structural_effect_fixture();
     let bytes = encode_module(&module).expect("structural/effect foundation should encode");
 
-    assert_eq!(&bytes[10..12], 28_u16.to_le_bytes());
+    assert_eq!(&bytes[10..12], 29_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 
@@ -1273,11 +1274,11 @@ fn structural_foundation_rejects_opaque_relevant_and_nonopaque_erased_fields() {
 #[test]
 fn decoder_rejects_the_previous_vocabulary_marker() {
     let mut bytes = encode_module(&structural_effect_fixture()).unwrap();
-    bytes[10..12].copy_from_slice(&29_u16.to_le_bytes());
+    bytes[10..12].copy_from_slice(&28_u16.to_le_bytes());
 
     assert_eq!(
         decode_module(&bytes),
-        Err(CodecError::UnsupportedVocabularyMarker(29))
+        Err(CodecError::UnsupportedVocabularyMarker(28))
     );
 }
 
@@ -1794,17 +1795,17 @@ fn decoder_rejects_noncanonical_or_ambiguous_bytes() {
     assert_eq!(decode_module(&trailing), Err(CodecError::TrailingBytes(1)));
 
     let mut future_format = bytes.clone();
-    future_format[8..10].copy_from_slice(&27_u16.to_le_bytes());
+    future_format[8..10].copy_from_slice(&28_u16.to_le_bytes());
     assert_eq!(
         decode_module(&future_format),
-        Err(CodecError::UnsupportedFormatMarker(27))
+        Err(CodecError::UnsupportedFormatMarker(28))
     );
 
     let mut stale_format = bytes.clone();
-    stale_format[8..10].copy_from_slice(&1_u16.to_le_bytes());
+    stale_format[8..10].copy_from_slice(&26_u16.to_le_bytes());
     assert_eq!(
         decode_module(&stale_format),
-        Err(CodecError::UnsupportedFormatMarker(1))
+        Err(CodecError::UnsupportedFormatMarker(26))
     );
 
     assert_eq!(
@@ -2514,6 +2515,205 @@ fn structural_effect_fixture() -> TerminalModule {
             },
         ],
     }
+}
+
+#[test]
+fn structural_call_result_round_trips_with_current_format_and_vocabulary() {
+    let module = structural_call_fixture();
+    let bytes = encode_module(&module).expect("structural call should encode");
+
+    assert_eq!(&bytes[8..10], 27_u16.to_le_bytes());
+    assert_eq!(&bytes[10..12], 29_u16.to_le_bytes());
+    assert_eq!(decode_module(&bytes), Ok(module.clone()));
+    assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
+}
+
+#[test]
+fn structural_call_rows_require_canonical_claim_and_qualification_order() {
+    let baseline = structural_call_fixture();
+
+    let mut duplicate_result_claim = baseline.clone();
+    let OperationResult::Structural(result) =
+        &mut duplicate_result_claim.machines[0].blocks[0].operations[0].result
+    else {
+        unreachable!()
+    };
+    result.claims.push(result.claims[0].clone());
+    assert_eq!(
+        encode_module(&duplicate_result_claim),
+        Err(CodecError::NonCanonicalOrder(
+            "structural operation result claims by ClaimId"
+        ))
+    );
+
+    let mut duplicate_argument_transfer = baseline.clone();
+    let OperationKind::CallStructural {
+        claim_transfers, ..
+    } = &mut duplicate_argument_transfer.machines[0].blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    claim_transfers.push(claim_transfers[0]);
+    assert_eq!(
+        encode_module(&duplicate_argument_transfer),
+        Err(CodecError::NonCanonicalOrder(
+            "call claim transfers by claim and argument index"
+        ))
+    );
+
+    let mut duplicate_returned_transfer = baseline.clone();
+    let OperationKind::CallStructural {
+        returned_claim_transfers,
+        ..
+    } = &mut duplicate_returned_transfer.machines[0].blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    returned_claim_transfers.push(returned_claim_transfers[0]);
+    assert_eq!(
+        encode_module(&duplicate_returned_transfer),
+        Err(CodecError::NonCanonicalOrder(
+            "structural-call returned claim transfers"
+        ))
+    );
+
+    let mut unordered_qualifications = baseline;
+    unordered_qualifications
+        .structural_domains
+        .push(StructuralDomainDeclaration {
+            id: structural_domain_id(2),
+            semantic_domain: psi_core::DomainSemanticId::new(2).unwrap(),
+            identity: "example::Occurrence::Retained".to_owned(),
+            carrier: structural_type_id(1),
+            content_projection: None,
+        });
+    let OperationResult::Structural(result) =
+        &mut unordered_qualifications.machines[0].blocks[0].operations[0].result
+    else {
+        unreachable!()
+    };
+    result.qualifications = vec![structural_domain_id(2), structural_domain_id(1)];
+    assert_eq!(
+        encode_module(&unordered_qualifications),
+        Err(CodecError::NonCanonicalOrder(
+            "structural operation result qualifications by StructuralDomainId"
+        ))
+    );
+}
+
+#[test]
+fn structural_call_result_place_must_name_its_exact_producer_and_type() {
+    let baseline = structural_call_fixture();
+
+    let mut wrong_producer = baseline.clone();
+    let StructuralPlaceKind::OperationResult { producer, .. } =
+        &mut wrong_producer.machines[0].structural_places[1].kind
+    else {
+        unreachable!()
+    };
+    *producer = operation_id(2);
+    assert!(matches!(
+        encode_module(&wrong_producer),
+        Err(CodecError::MalformedStructuralFoundation(_))
+    ));
+
+    let mut wrong_type = baseline;
+    let StructuralPlaceKind::OperationResult {
+        structural_type, ..
+    } = &mut wrong_type.machines[0].structural_places[1].kind
+    else {
+        unreachable!()
+    };
+    *structural_type = structural_type_id(2);
+    assert_eq!(
+        encode_module(&wrong_type),
+        Err(CodecError::MalformedStructuralFoundation(
+            "structural call result place disagrees with its producer"
+        ))
+    );
+}
+
+fn structural_call_fixture() -> TerminalModule {
+    let mut module = structural_effect_fixture();
+    let result_type = structural_type_id(1);
+    let result_domain = structural_domain_id(1);
+
+    let caller = &mut module.machines[0];
+    caller.result = TerminalMachineResult::Structural(StructuralResultDeclaration {
+        place: place_id(12),
+        structural_type: result_type,
+        multiplicity: StructuralMultiplicity::Linear,
+        qualifications: vec![result_domain],
+    });
+    caller.structural_places.extend([
+        StructuralPlaceDeclaration {
+            id: place_id(11),
+            kind: StructuralPlaceKind::OperationResult {
+                producer: operation_id(1),
+                structural_type: result_type,
+            },
+        },
+        StructuralPlaceDeclaration {
+            id: place_id(12),
+            kind: StructuralPlaceKind::Result,
+        },
+    ]);
+    caller.blocks[0].operations[0].result =
+        OperationResult::Structural(StructuralOperationResult {
+            place: place_id(11),
+            structural_type: result_type,
+            multiplicity: StructuralMultiplicity::Linear,
+            qualifications: vec![result_domain],
+            claims: vec![StructuralResultClaimBinding {
+                claim: claim_id(1),
+                path: Vec::new(),
+            }],
+        });
+    caller.blocks[0].operations[0].kind = OperationKind::CallStructural {
+        callee: machine_id(101),
+        structural_arguments: vec![StructuralArgument {
+            place: place_id(10),
+            access: StructuralAccess::Owned,
+            path: Vec::new(),
+        }],
+        claim_transfers: vec![ClaimTransfer {
+            claim: claim_id(1),
+            argument_index: 0,
+        }],
+        returned_claim_transfers: vec![StructuralResultClaimTransfer {
+            callee_claim: claim_id(1),
+            caller_claim: claim_id(1),
+        }],
+        requirement_obligations: Vec::new(),
+        crash_continuations: Vec::new(),
+    };
+    caller.blocks[0].terminator = Terminator::ReturnStructural {
+        edge: edge_id(100),
+        source: place_id(11),
+        returned_claims: vec![claim_id(1)],
+        trivial_affine_discards: Vec::new(),
+    };
+
+    let callee = &mut module.machines[1];
+    callee.result = TerminalMachineResult::Structural(StructuralResultDeclaration {
+        place: place_id(21),
+        structural_type: result_type,
+        multiplicity: StructuralMultiplicity::Linear,
+        qualifications: vec![result_domain],
+    });
+    callee.structural_places.push(StructuralPlaceDeclaration {
+        id: place_id(21),
+        kind: StructuralPlaceKind::Result,
+    });
+    callee.blocks[0].operations.truncate(1);
+    callee.blocks[0].terminator = Terminator::ReturnStructural {
+        edge: edge_id(101),
+        source: place_id(20),
+        returned_claims: vec![claim_id(1)],
+        trivial_affine_discards: Vec::new(),
+    };
+
+    module
 }
 
 #[test]

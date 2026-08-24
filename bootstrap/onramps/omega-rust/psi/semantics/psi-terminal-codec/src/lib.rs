@@ -81,7 +81,7 @@ use std::collections::BTreeSet;
 use wire::{Reader, Writer};
 
 const MAGIC: &[u8; 8] = b"PSITERM\0";
-const FORMAT_MARKER: u16 = 26;
+const FORMAT_MARKER: u16 = 27;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
@@ -410,6 +410,34 @@ fn validate_structural_foundation(module: &TerminalModule) -> Result<(), CodecEr
         }
         for operation in machine.blocks.iter().flat_map(|block| &block.operations) {
             validate_operation_foundation(module, machine, operation)?;
+        }
+        for place in &machine.structural_places {
+            let StructuralPlaceKind::OperationResult {
+                producer,
+                structural_type,
+            } = place.kind
+            else {
+                continue;
+            };
+            let mut producers = machine
+                .blocks
+                .iter()
+                .flat_map(|block| &block.operations)
+                .filter(|operation| operation.id == producer);
+            let Some(operation) = producers.next() else {
+                return malformed("structural operation-result place has no producer");
+            };
+            if producers.next().is_some() {
+                return malformed("structural operation-result place has duplicate producers");
+            }
+            let Some(result) = operation.result.structural() else {
+                return malformed(
+                    "structural operation-result place producer has no structural result",
+                );
+            };
+            if result.place != place.id || result.structural_type != structural_type {
+                return malformed("structural operation-result place disagrees with its producer");
+            }
         }
         for block in &machine.blocks {
             if let Terminator::ReturnUnitNominalAffine { cleanups, .. } = &block.terminator {
@@ -786,6 +814,121 @@ fn validate_operation_foundation(
                     .map(|transfer| (transfer.claim, transfer.argument_index)),
             )?;
         }
+        OperationKind::CallStructural {
+            callee,
+            structural_arguments,
+            claim_transfers,
+            returned_claim_transfers,
+            ..
+        } => {
+            let Some(callee) = module
+                .machines
+                .iter()
+                .find(|candidate| candidate.id == *callee)
+            else {
+                return malformed("structural call references an unknown callee");
+            };
+            let Some(expected_result) = callee.result.structural() else {
+                return malformed("structural call references a non-structural-result callee");
+            };
+            let Some(actual_result) = operation.result.structural() else {
+                return malformed("structural call has no structural operation result");
+            };
+            if !callee.parameters.is_empty()
+                || structural_arguments.len() != callee.structural_parameters.len()
+                || actual_result.structural_type != expected_result.structural_type
+                || actual_result.multiplicity != expected_result.multiplicity
+                || actual_result.qualifications != expected_result.qualifications
+            {
+                return malformed(
+                    "structural call has the wrong callee signature or structural arity",
+                );
+            }
+            let Some(StructuralPlaceDeclaration {
+                kind:
+                    StructuralPlaceKind::OperationResult {
+                        producer,
+                        structural_type,
+                    },
+                ..
+            }) = machine
+                .structural_places
+                .iter()
+                .find(|place| place.id == actual_result.place)
+            else {
+                return malformed(
+                    "structural call result has no operation-result place declaration",
+                );
+            };
+            if *producer != operation.id || *structural_type != actual_result.structural_type {
+                return malformed("structural call result place disagrees with its producer");
+            }
+            if !has_structural_type(module, actual_result.structural_type) {
+                return malformed("structural call result has an unknown structural type");
+            }
+            for qualification in &actual_result.qualifications {
+                if !module
+                    .structural_domains
+                    .iter()
+                    .any(|domain| domain.id == *qualification)
+                {
+                    return malformed("structural call result has an unknown structural domain");
+                }
+            }
+            let mut result_paths = Vec::with_capacity(actual_result.claims.len());
+            for binding in &actual_result.claims {
+                validate_structural_path(module, actual_result.structural_type, &binding.path)?;
+                if result_paths
+                    .iter()
+                    .any(|previous: &Vec<StructuralPathSegment>| {
+                        previous.starts_with(&binding.path) || binding.path.starts_with(previous)
+                    })
+                {
+                    return malformed("structural call result has overlapping claim paths");
+                }
+                result_paths.push(binding.path.clone());
+            }
+            let caller_result_claims = actual_result
+                .claims
+                .iter()
+                .map(|binding| binding.claim)
+                .collect::<BTreeSet<_>>();
+            let returned_caller_claims = returned_claim_transfers
+                .iter()
+                .map(|transfer| transfer.caller_claim)
+                .collect::<BTreeSet<_>>();
+            if caller_result_claims.len() != actual_result.claims.len()
+                || returned_caller_claims.len() != returned_claim_transfers.len()
+                || caller_result_claims != returned_caller_claims
+            {
+                return malformed(
+                    "structural call returned claims disagree with its result bindings",
+                );
+            }
+            if returned_claim_transfers.iter().any(|transfer| {
+                !callee
+                    .entry_claims
+                    .iter()
+                    .any(|claim| claim.claim == transfer.callee_claim)
+            }) {
+                return malformed(
+                    "structural call returned claim references an unknown callee claim",
+                );
+            }
+            validate_structural_arguments(
+                module,
+                machine,
+                structural_arguments,
+                &callee.structural_parameters,
+            )?;
+            validate_claim_indices(
+                machine,
+                structural_arguments,
+                claim_transfers
+                    .iter()
+                    .map(|transfer| (transfer.claim, transfer.argument_index)),
+            )?;
+        }
         OperationKind::BoundaryCall {
             boundary,
             arguments,
@@ -912,6 +1055,9 @@ fn structural_place_type(
                         structural_type, ..
                     }
                     | StructuralPlaceKind::TrivialAffineLocal {
+                        structural_type, ..
+                    }
+                    | StructuralPlaceKind::OperationResult {
                         structural_type, ..
                     } => Some(structural_type),
                     StructuralPlaceKind::Parameter { .. }
@@ -1182,6 +1328,14 @@ fn encode_structural_place_kind(writer: &mut Writer, kind: StructuralPlaceKind) 
             writer.u8(u8::from(is_self));
         }
         StructuralPlaceKind::Result => writer.u8(2),
+        StructuralPlaceKind::OperationResult {
+            producer,
+            structural_type,
+        } => {
+            writer.u8(6);
+            writer.id(producer);
+            writer.id(structural_type);
+        }
         StructuralPlaceKind::ByteSequenceLiteral {
             declaration_ordinal,
             structural_type,
@@ -1305,6 +1459,10 @@ fn decode_structural_place_kind(
             is_self: reader.boolean()?,
         },
         2 => StructuralPlaceKind::Result,
+        6 => StructuralPlaceKind::OperationResult {
+            producer: reader.id("OperationId")?,
+            structural_type: reader.id("StructuralTypeId")?,
+        },
         4 => StructuralPlaceKind::ByteSequenceLiteral {
             declaration_ordinal: reader.u32()?,
             structural_type: reader.id("StructuralTypeId")?,
@@ -1320,6 +1478,41 @@ fn decode_structural_place_kind(
         },
         tag => return Err(CodecError::InvalidTag("StructuralPlaceKind", tag)),
     })
+}
+
+#[cfg(test)]
+mod structural_place_wire_tests {
+    use psi_core::{OperationId, PsiSemanticId, StructuralPlaceKind, StructuralTypeId};
+
+    use super::{CodecError, decode_structural_place_kind, encode_structural_place_kind};
+    use crate::wire::{Reader, Writer};
+
+    fn id<T: PsiSemanticId>(raw: u64) -> T {
+        T::new(raw).expect("test ids are nonzero")
+    }
+
+    #[test]
+    fn operation_result_place_uses_stable_wire_tag_six() {
+        let kind = StructuralPlaceKind::OperationResult {
+            producer: id::<OperationId>(1),
+            structural_type: id::<StructuralTypeId>(2),
+        };
+        let mut writer = Writer::default();
+        encode_structural_place_kind(&mut writer, kind);
+        let bytes = writer.finish();
+        assert_eq!(bytes[0], 6);
+
+        let mut reader = Reader::new(&bytes);
+        assert_eq!(decode_structural_place_kind(&mut reader), Ok(kind));
+        assert_eq!(reader.remaining(), 0);
+
+        let mut invalid = bytes;
+        invalid[0] = 7;
+        assert_eq!(
+            decode_structural_place_kind(&mut Reader::new(&invalid)),
+            Err(CodecError::InvalidTag("StructuralPlaceKind", 7))
+        );
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

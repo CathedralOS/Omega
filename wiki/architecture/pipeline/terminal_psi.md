@@ -42,7 +42,7 @@ representation.
 ### Boundary-argument realization fence
 
 Ordinary in-module and bodyless boundary calls both carry positional scalar
-arguments. In current terminal-Psi vocabulary 28,
+arguments. In current terminal-Psi vocabulary 29,
 `BoundaryMachineDeclaration` declares ordered scalar parameter types and
 `BoundaryCall` carries the matching ordered `ValueId` arguments alongside its
 structural lane. Canonical encoding binds
@@ -208,7 +208,7 @@ through exact finite common-field paths of plain invariant-free records. Nested
 record writes retain every field identity; dynamic indexes remain conservatively
 collection-wide in caller-visible mutation summaries. A forwarding-only
 Terminal rung now carries closed owned/shared/mutable/write-only access on
-structural parameters and call arguments, with canonical format 26 identity.
+structural parameters and call arguments, with canonical format 27 identity.
 The verifier rejects widening, target disagreement, overlapping exclusive
 arguments, and Boolean structural observation through write-only access.
 Executable Terminal stores, runtime/provider realization, and native lowering
@@ -1552,6 +1552,22 @@ cleans them in reverse declaration order before the optional affine parameter.
 Declaration ordinals must be dense and establishment order exact. Nominal
 cleanup, nonempty/partial locals, authored contracts, projections, and wider
 cleanup/control shapes fail closed.
+
+The first internal structural-call slice composes two such checked machines. A
+`CallStructural` operation owns a structural operation-result place with its
+exact type, multiplicity, qualifications, and caller claim bindings. The call
+separately records the structural argument transfer and an exact map from each
+returned callee claim to its continuing caller claim; the returned claim is a
+continuation of custody, not a new establishment event. Verification requires
+one whole linear argument, one whole callee entry/result claim, an immediate
+structural return, and exact signature and content-identity correspondence.
+The operation result and its claims enter the caller frontier only after the
+callee returns successfully. Sponsor exhaustion is resumable without replay;
+a callee crash creates no result. Canonical format 27/vocabulary 29 and the
+fixed-fuel call closure retain the same relation. This slice deliberately does
+not admit projections, several claims, local staging, bodyless structural
+results, or native aggregate ABI lowering.
+
 Omega realizes that exact slice through its target calling policy when the value
 has one direct eight-byte integer fragment. The source and result placements,
 typed local establishment, Psi edge, claim set, exact affine cleanup, and fuel
@@ -1603,9 +1619,10 @@ after that exact call completes successfully; it is unavailable to earlier
 operations and absent from rejection or crash paths. Boundary guarantees are
 canonical semantic rows, not provider admissions. Fingerprints identify
 canonical content for reporting and caches; neither a producer-carried row nor
-a matching fingerprint authorizes a theorem by itself. Structural-result-
-rooted call correspondence remains fenced until Terminal Psi gains an explicit
-structural-result call carrier. At a bodyless partial
+a matching fingerprint authorizes a theorem by itself. Structural-result-rooted
+correspondence is admitted only through the explicit root-only internal
+`CallStructural` carrier described above. Wider or bodyless structural results
+remain fenced. At a bodyless partial
 boundary, Psi derives the kept content and residual and permits the provider to
 admit only acceptance of custody for that exact residual—not the partition
 arithmetic. External root correspondence and fresh issuance remain scoped
