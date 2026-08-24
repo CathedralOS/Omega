@@ -58,8 +58,10 @@ symbols remain unresolved. Checked provider-adapter rows now retain a canonical
 machine-overload identity and its exact package owner, and every compiler
 consumer resolves both without falling back to a short spelling. Provider
 selection and compiler-intrinsic toolchain identities are not yet fully sealed.
-`PackageInstance` additionally binds exact source content,
-toolchain identity, and compiler-derived package evidence. Spoof rejection for
+`PackageInstance` additionally binds exact source content, evidence-schema
+identity, compiler/toolchain provenance, and compiler-derived package evidence.
+These identities support comparison and reproducibility; they do not certify
+the compiler or prove a review occurred. Spoof rejection for
 same-named packages from different source lineages remains an admission
 requirement until those joins are sealed.
 
@@ -575,7 +577,7 @@ The unified lock artifact records the resolved closure:
 - package names, source-qualified `PackageKey` values, and exact
   `PackageInstance` values;
 - source selectors plus resolved commit/tree/content identities;
-- toolchain identity;
+- evidence-schema identity and compiler/toolchain provenance;
 - the normalized accepted package capability/API baseline, not only its
   fingerprint;
 - build observation ceilings, realized classes, and replay receipts;
@@ -705,17 +707,19 @@ compiler-generated capability conflict when
 the candidate introduces blocking or suspicious authority, stops before
 mutating `build.omg` or `omega.lock`, and resumes only after an exact resolution
 artifact accepts or rejects every blocking delta. Initial install therefore
-requires review when a new dependency brings filesystem, network, process,
-dynamic-loader, signing, secret, executable-installation, root-memory,
+requires root-policy resolution and recommends audit when a new dependency
+brings filesystem, network, process, dynamic-loader, signing, secret,
+executable-installation, root-memory,
 DMA/IOMMU, interrupt-publication, or equivalent suspect authority. The conflict
 fingerprints the old and new source identities, old and new package manifests
 or empty baseline, delta identities, dependency path, and canonical rendered
-evidence. The resolution binds the exact conflict fingerprint, reviewer
-identity, reason, and accepted delta fingerprints. Missing, stale, mismatched,
-duplicated, self-signed by the dependency, or overbroad resolutions reject
+evidence. The resolution binds the exact conflict fingerprint and the decision
+for every blocking row. Root policy may additionally require reviewer
+identities, signatures, quorum, tickets, or reasons. Missing, stale,
+mismatched, duplicated, dependency-supplied, or overbroad resolutions reject
 before lock mutation. `omega.lock` records the admitted result and references
-the resolution evidence; it remains generated/checked state, not an authored
-policy file.
+the resolution; it remains generated/checked state, not an authored policy
+file.
 
 Every source update also receives provenance and source-diff triage because an
 implementation can misuse already-admitted power without changing capability
@@ -728,13 +732,25 @@ if it is unavailable, lock-based capability comparison still works and source
 review escalates to a standalone candidate audit. If the accepted lock baseline
 is unavailable, the complete closure undergoes fresh admission.
 
-LLM review is advisory evidence, not authority to mutate the lock. Review tools
+LLM review is advisory output, not authority to mutate the lock. Review tools
 consume canonical diffs rendered by Omega, with bounded and escaped
 package-origin identifiers treated as quoted inert data. Package prose,
 comments, README text, and commit messages do not enter capability triage. A
 following source-code audit may still read attacker-controlled code; that risk
 is handled by the reviewer workflow, not by granting package prose authority
 over admission.
+
+No package artifact proves that this workflow was performed seriously. Local
+compiler output prevents dependency-authored manifests from impersonating
+derived evidence, but the selected compiler is itself a trust root. Compiler,
+toolchain, verifier, schema, source, and target identities are provenance for
+replay and comparison, not proof of producer honesty. Likewise, signatures and
+recorded review fields establish custody over a decision, not its quality; PCC
+establishes only the exact proposition checked by its kernel. The accepted
+project commit and the organization controlling it authorize the update.
+Organizations that need stronger assurance impose their own branch, quorum,
+isolated-build, bootstrap, reproducibility, and independent-review policy around
+Omega's deterministic conflicts and recommendations.
 
 Boundary statements imported from a dependency are inert requests. The root
 accepts one package claim set rather than repeating an approval for every

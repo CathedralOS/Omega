@@ -753,6 +753,16 @@ never inherits those providers. Imported boundary claims are inert until the
 root build accepts the dependency's fingerprinted complete claim set; any claim
 change invalidates that acceptance and appears in the lock/trust diff.
 
+That acceptance records a root policy decision, not proof that an audit
+occurred. Omega can derive bounded capability, authority-flow, provider,
+representation-TCB, proof-status, and provenance rows and can recommend or
+require review according to policy. It cannot establish that a human or LLM
+understood the source or made a sound security judgment. Even a signature says
+only who controlled a key, and a proof certificate establishes only its exact
+mechanically checked proposition. Projects requiring stronger assurance enforce
+their own reviewers, quorum, isolated builds, bootstrapped toolchain, and merge
+controls around these deterministic facts.
+
 Generated Omega source carries no build authority into the resulting program.
 It is checked under the consuming artifact's ordinary runtime reach, crash,
 work, conservation, and trust ceilings. Standard release-capable build

@@ -1085,8 +1085,8 @@ distinct compiler behavior, never a label:
   configuration; debt never crosses a package boundary). Hash-pinned to the
   code under it: edits kill the deferral and it must be re-taken.
 - **Accepted**: a `boundary machine` — a contract with no body, the proof
-  system's face of the boundary culture (chapter 19): trusted, audited,
-  reported.
+  system's face of the boundary culture (chapter 19): explicitly trusted and
+  reported, but not thereby proven or audited.
 
 ```omega
 boundary machine collatz_cert_checked()
@@ -1117,6 +1117,12 @@ Working rules:
   A provider-slot grant binds only the provider plan selected for that slot;
   unselected and partial candidates remain dev-active and cannot acquire the
   selected plan's receipt merely because they implement the same boundary.
+- **Acceptance is not proof of review.** A lock resolution, reviewer string,
+  signature, LLM verdict, or proof certificate cannot establish that the
+  package as a whole was competently audited. Certificates establish only the
+  exact propositions independently reconstructed and checked by their kernel.
+  The accepted project state and its surrounding organizational controls are
+  the authority for package admission.
 - **The engine can veto.** A boundary statement the engine can refute — one
   contradicting declared ranges, domains, or another accepted statement —
   is a compile error, grants notwithstanding.
