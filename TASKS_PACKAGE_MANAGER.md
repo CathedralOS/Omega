@@ -600,8 +600,14 @@ complete.
   evidence; blanket Terminal coverage does not.
   Compiler-generated symbols now inherit the exact authored provenance of a
   mandatory derivation origin. Authored toolchain symbols retain exact source
-  commitments; truly source-free symbols and whole-compiler identity remain
-  visibly unbound rather than guessed.
+  commitments; truly source-free symbols remain visibly unbound rather than
+  guessed. Review orchestration now separately commits to the exact producer
+  executable file bytes observed before and after closure review, rejects a
+  changed observation, and retains the same commitment on every review row.
+  This is provenance outside canonical capability/API comparison bytes, not
+  certification, complete compiler source identity, a reproducible-build
+  receipt, or proof of the process image already loaded by the operating
+  system. Complete compiler/toolchain source binding remains unsettled.
   Standalone and target-free compilations reject projection.
   Package orchestration now invokes this path for every package in the resolved
   closure rather than projecting only the requested root. It re-roots compiler
@@ -656,10 +662,15 @@ complete.
   binds the reconciled compiler graph and exact loaded source bytes without
   absolute cache locations. Package orchestration also re-hashes every
   transitive snapshot and rechecks the compiler-retained bytes after
-  compilation. It remains explicitly review-only: a hostile same-user process
-  can still race filesystem observations, whole compiler/toolchain binding is
-  incomplete, and remaining completeness joins must land before a replacement
-  admission type is issued or persisted.
+  compilation. The orchestration additionally derives a compiler-owned digest
+  of the current producer executable file before and after reviewing the whole
+  closure, rejects drift, and retains the verified digest on every row without
+  adding it to canonical capability/API bytes. It remains explicitly
+  review-only: the digest is not compiler certification, complete source or
+  toolchain provenance, a reproducible-build receipt, or proof of the already
+  loaded process image; a hostile same-user process can still race filesystem
+  observations, and remaining completeness joins must land before a
+  replacement admission type is issued or persisted.
 
 - **FINAL-REALIZATION-EVIDENCE.** Keep Terminal evidence distinct from ordinary
   package admission.

@@ -579,6 +579,15 @@ The resolver retains exact immutable source resolutions and rechecks whole
 snapshots plus compiler-retained bytes around compilation; an OS isolation
 boundary is still required against a deliberately hostile same-user racer.
 
+The envelope separately identifies the producer executable file bytes observed
+before and after closure review, rejecting if those observations differ and
+retaining one verified commitment on every emitted row. That commitment stays
+outside capability/API comparison bytes. It is useful provenance for exact
+comparison and replay policy, but is not compiler certification, compiler-source
+identity, a reproducible-build receipt, or proof of the executable image already
+loaded by the operating system. Those stronger source/toolchain joins remain
+part of sealing `PackageInstance`.
+
 The implementation should read each row from the earliest coherent checked
 compiler state that contains it. Different rows may come from different
 internal representations; the final projection must be total, but no single

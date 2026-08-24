@@ -8,6 +8,7 @@ pub mod compile_options;
 mod compile_policy;
 pub mod compile_report;
 pub mod compiler;
+mod compiler_executable_commitment;
 mod component_progress;
 mod float_intrinsic_dispatch;
 pub mod frontend;
@@ -70,6 +71,9 @@ pub use compiler::{
     compile_with_test_entry_and_artifact_policy, compile_with_test_entry_and_worker_count,
     compile_with_test_entry_worker_count_and_artifact_policy,
     compile_with_worker_count_and_artifact_policy,
+};
+pub use compiler_executable_commitment::{
+    CompilerExecutableCommitment, CompilerExecutableCommitmentError,
 };
 pub use package_compilation::{
     PackageCompilationInputError, PackageCompilationInputs, PackageDependencyBinding,

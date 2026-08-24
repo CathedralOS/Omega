@@ -207,6 +207,16 @@ the normalized public contract changed. Resolver custody retains immutable
 source resolutions independently and verifies both whole snapshots and the
 compiler-retained bytes around compilation.
 
+The envelope also retains a separate compiler-executable commitment. Package
+orchestration derives it from the bytes readable at the current producer's
+executable path before reviewing the closure, derives it again after review,
+and rejects a changed observation. Every review row from that operation carries
+the same verified commitment. It is provenance, not capability/API comparison
+material, and it neither certifies the compiler, identifies the compiler's
+source closure, nor proves that the observed file is exactly the process image
+already loaded by the operating system. Complete compiler/toolchain source and
+rebuild provenance remain admission work.
+
 Implementation should consume the earliest coherent checked compiler state
 that already contains each required fact. Different evidence rows may therefore
 come from different internal representations; totality belongs to the final

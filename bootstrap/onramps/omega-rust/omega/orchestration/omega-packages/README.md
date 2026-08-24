@@ -149,6 +149,14 @@ compiler re-reads those physical paths before returning, and orchestration does
 so again after its whole-snapshot post-check. This remains review-only custody
 association: hostile same-user racing, whole-compiler/toolchain commitment,
 and sealed completeness still gate any accepted instance or lock payload.
+Review orchestration also commits to the exact bytes readable at the current
+producer executable path before reviewing a closure and checks the observation
+again afterward. Every row in that review set retains the same verified
+compiler-executable commitment, separately from canonical capability/API bytes.
+This identifies an observed producer artifact only: it does not certify the
+compiler, bind its complete source/toolchain closure, establish a reproducible
+build, or prove that the file equals the process image already loaded by the
+operating system.
 Checked package compilation now also retains
 the exact root package and selected build-machine symbol and can emit an
 in-memory authority review projection for one explicit target. That projection
