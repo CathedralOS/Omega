@@ -135,10 +135,13 @@ production `omega` self-rebuild remains product optimization/reproducibility
 work after the required build closes.
 
 Items 1 and 2 therefore co-evolve; they are not sequential phases. The first
-checkpoint's bounded artifact tranche is closed; the current concrete bootstrap
-edge is the next coherent product checkpoint and its measured general bridge
-capabilities. Sections 3 through 6 are downstream joins, not parallel
-language-design projects.
+selected artifact tranche within checkpoint 000001 is closed, but that
+checkpoint's complete 12-unit compiler closure is not. The current concrete
+bootstrap edge is its remaining general multi-unit, name-resolution, generated-
+data, control-flow, call, sum, boundary, and artifact capabilities; later
+checkpoints join only after their product owner publishes coherent evidence.
+Sections 3 through 6 are downstream joins, not parallel language-design
+projects.
 
 ### Rolling invariant — maintain the provisional Delta ledger
 
@@ -182,6 +185,12 @@ At every bridge milestone:
   suites so an omission from compiler source is never confused with an
   omission from the compiler it implements.
 
+Checkpoint 000001's exact manifest, every-target normalized census, provisional
+profile digest, resource boundaries, valid-Omega admission canaries, and
+mutation teeth are already gated. Its general typed, lowering, capacity, and
+artifact implementation remains section-2 work; the rolling items above stay
+open for that evidence and for later checkpoints.
+
 Acceptance for each checkpoint: the product-owned exact manifest and the
 separately versioned candidate-profile evidence are reproducible artifacts;
 every admitted program is ordinary Omega with exact Omega meaning; unsupported
@@ -201,18 +210,28 @@ reconstructs the exact selected bytes and observation. Independent source
 checkers reconstruct declarations, signatures, copyability, layout, bodies,
 transition facts, canonical operations and terminators, and the full selected
 result. Valid source/artifact and CKIR/ELF cross-pairs close the first finite,
-acyclic, returning source→artifact tranche. Completed evidence and later-profile
-boundaries live in
+acyclic, returning source→artifact tranche. This is one cluster within
+checkpoint 000001, not closure of that checkpoint. Completed evidence and
+remaining boundaries live in
 [`SOURCE_CUSTODY_FRONTEND_PROBE.md`](bootstrap/omega-bootstrap/compiler/SOURCE_CUSTODY_FRONTEND_PROBE.md)
 and
 [`OMEGA_BOOTSTRAP_CHECKED_IR.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR.md).
 That evidence measures the route; it does not by itself admit the source
 families to `Ωself`. The private handoff remains bridge-local, and future
 Terminal-Psi vocabulary work remains product work in `TASKS.md`.
-- [ ] Continue against later provisional checkpoints until the bridge generally
-  parses, resolves, checks, diagnoses, and conservatively lowers every program
-  admitted by the candidate `Ωself` profile while rejecting everything else
-  before publication.
+- [ ] Continue through the remaining general capabilities used by checkpoint
+  000001, then later provisional checkpoints, until the bridge generally parses,
+  resolves, checks, diagnoses, and conservatively lowers every program admitted
+  by the candidate `Ωself` profile while rejecting everything else before
+  publication. The next tranche establishes the resolver-supplied multi-unit
+  [compilation envelope](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION.md)
+  and general import/name resolution, ending in a real cross-unit artifact
+  rather than a frontend-only claim. Structural envelope validity is not
+  resolver authority: join an independently accepted lock/closure commitment,
+  direct requester-local reach, authored module identity, visibility, root
+  selection, and deterministic semantic order. The first two-unit CKIR1
+  fixture may import nominal data; a cross-unit machine call waits for a
+  versioned CKIR call operation rather than being implied by transport work.
 - [ ] Carry each admitted capability's compositional rules, negative boundary,
   resource teeth, Rust-free meaning, and direct artifact path in the same
   milestone. A bounded frontend-only cost probe is evidence, not bridge

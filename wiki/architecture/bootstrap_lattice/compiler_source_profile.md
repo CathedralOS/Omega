@@ -194,7 +194,10 @@ census, canaries, and ceilings; and
 explains the evidence and unresolved decisions. This is enough to begin
 evidence-led bridge work for those facilities only. It supplies no evidence for
 later parser, checker, terminal-Psi, optimizer, or emitter source needs, and it
-does not yet settle typed semantics, ABI/layout, lowering, or bridge cost.
+does not settle typed semantics, ABI/layout, lowering, or bridge cost for the
+general profile. A first record/array/attached-machine cluster now has private
+checked-IR and lower-rooted artifact evidence; that bounded cluster does not
+promote the rest of the checkpoint.
 
 Delta v1 and `Ωself` remain separate contracts even though their discovery can
 co-evolve. Delta is derived from the cost of implementing and assuring the
@@ -297,8 +300,22 @@ It closes a general checker-only implementation and its native, self-built, and
 lower-rung meaning evidence. The corresponding artifact route has selected the
 versioned private checked-IR handoff and a direct conservative backend rather
 than widening Terminal Psi for bridge-only operations. That selection does not
-resolve the rows above: the exact artifact contract and evidence, full-width
-integer pressure, and cost of competing product-source refactors remain open.
+resolve the rows above. The exact finite, acyclic, returning source→CKIR1→ELF
+contract and evidence are closed for this selected cluster; full-width integer
+pressure, the remaining checkpoint facilities, competing product-source
+refactor costs, and final retain/exclude disposition remain open.
+
+The next checkpoint-000001 tranche begins with the private
+[`OMEGA_BOOTSTRAP_COMPILATION.md`](../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION.md)
+transport. It canonically maps the exact source bundle onto opaque package
+commitments, requester-local aliases, authored module-path claims, and one exact
+root. The format deliberately does not turn labels into identity, interpret
+`build.omg`, or grant resolver authority: compilation must join it to an
+independently accepted lock/closure commitment and independently reconstruct
+module declarations, direct reach, visibility, name resolution, semantic order,
+checked IR, and the artifact. This is general multi-unit custody needed by the
+current product checkpoint, not a new Delta feature inventory or an `Ωself`
+decision.
 
 Source-unit membership is a separate question from language features.
 Standalone terminal-Psi tools, interpreters, REPLs, proof explorers, viewers,
@@ -430,8 +447,9 @@ Checkpoint 000001 now binds its manifest to a separately hashed provisional
 normalized-syntax/resource profile, every-target compiler census, valid-Omega
 positive and negative admission canaries, rounded ceilings, and mutation teeth.
 That artifact explicitly leaves typed semantic distinctions, ABI/layout,
-lowering coverage, Delta capacity behavior, and measured bridge costs
-unresolved rather than presenting syntax census as broader evidence.
+lowering coverage, Delta capacity behavior, and measured bridge costs for the
+general checkpoint unresolved rather than presenting syntax census—or the
+first bounded artifact cluster—as broader evidence.
 The manifest includes compiler modules, compile-time code, build/module
 behavior, and runtime/library dependencies; hiding a feature in a library does
 not remove it from the bootstrap surface.

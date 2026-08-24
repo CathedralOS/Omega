@@ -100,6 +100,16 @@ compiler cannot be confused with either the current Rust on-ramp or the
   `compiler/omega_bootstrap_bundle.py` and
   `gates/omega-bootstrap-bundle-test.sh` are untrusted packing and conformance
   tools for that format.
+- [`compiler/OMEGA_BOOTSTRAP_COMPILATION.md`](compiler/OMEGA_BOOTSTRAP_COMPILATION.md)
+  specifies the next private package/source/alias envelope. It canonically
+  binds bundle entries to opaque package commitments and authored module-path
+  claims without treating labels as identity. Structural validation remains
+  untrusted transport evidence; compilation acceptance also requires the
+  independently accepted resolver/lock commitment and source-level resolution,
+  visibility, root, checked-IR, and artifact joins.
+  `compiler/omega_bootstrap_compilation.py` and
+  `gates/omega-bootstrap-compilation-test.sh` provide the untrusted canonical
+  pack/inspect path and structural mutation/resource gate.
 
 These are seed pieces for `omega-bootstrap`, not that compiler itself. The first
 checkpoint-driven compositional frontend/typechecker cost probe over
