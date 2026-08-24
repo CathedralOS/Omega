@@ -477,7 +477,10 @@ complete.
   conformances retain exact package-qualified conformance, carrier, and
   underlying public-trait identities plus carrier/trait applications. Their
   declarations retain exact carrier and trait symbols instead of reselecting
-  either by text. Public trait requirements now project unnamed `requires` and
+  either by text. Callable rows retain the exact checked-body, boundary, or
+  accepted supply tier: a bodyless boundary guarantee remains an explicit
+  trust-bearing accepted claim, while a claim-free boundary symbol does not
+  become one. Public trait requirements now project unnamed `requires` and
   `ensures` through the same closed structural fact/expression lane as public
   callables, joined to exactly one checked `StateSignature` owner. Generic
   selected-conformance telescopes, invariants, named evidence contracts,
@@ -487,8 +490,8 @@ complete.
   fabricating realized body sites or calls; no public trait is silently omitted.
   Declaration kinds without retained visibility reject
   `pub` instead of silently compiling a private API. Settled export semantics,
-  the remaining named/boundary public-trait contract lanes, domain predicate/semantic-role/
-  operator lanes,
+  the remaining named/boundary public-trait contract lanes, call-bearing domain
+  predicates, semantic-role/operator lanes,
   generated/toolchain symbol ownership, package-qualified provider
   binding/selection identities, source/toolchain/compiler commitments,
   non-provider trust ownership, build observations, and reproducibility

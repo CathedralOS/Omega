@@ -730,6 +730,11 @@ machine build(builder: &mut Build) { }
         .iter()
         .find(|callable| callable.role() == PackageReviewCallableRole::Boundary)
         .expect("boundary callable row");
+    assert_eq!(
+        boundary.supply(),
+        psi_language_semantics::MachineSupplyMode::Accepted,
+        "a bodyless boundary guarantee must remain an explicit trust-bearing accepted claim",
+    );
     let [contract] = boundary.contracts() else {
         panic!("one exact accepted contract row")
     };
@@ -756,6 +761,42 @@ machine build(builder: &mut Build) { }
         one.canonical_review_bytes().expect("one claim encoding"),
         "changing an accepted guarantee must change exact review evidence",
     );
+}
+
+#[test]
+fn claim_free_boundary_supply_does_not_collapse_into_an_accepted_claim() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let package = TempPackage::new();
+    package.write("main.omg", "boundary machine host_ping();\n");
+    package.write(
+        "build.omg",
+        r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { }
+"#,
+    );
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some(target),
+        package_inputs(&package.0),
+    )
+    .expect("claim-free boundary fixture should check");
+    let review =
+        project_checked_package_review(&checked).expect("claim-free boundary review should close");
+    let boundary = review
+        .callables()
+        .iter()
+        .find(|callable| callable.identity().path() == "host_ping")
+        .expect("claim-free boundary row");
+    assert_eq!(
+        boundary.supply(),
+        psi_language_semantics::MachineSupplyMode::Boundary
+    );
+    assert!(boundary.contracts().is_empty());
 }
 
 #[test]

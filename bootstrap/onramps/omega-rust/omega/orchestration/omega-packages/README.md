@@ -234,7 +234,10 @@ checked owner rows, and fact-keyed dependency places. Callable/proposition
 applications, semantic roles, and operators fail closed until their authority
 and canonical rows land. Reviewed boundary/public
 machines and the selected build machine retain exact canonical entry
-signatures: lifetime arity, alpha-normalized type/const parameters, ordered
+signatures and checked-body/boundary/accepted supply tiers. Bodyless boundary
+guarantees remain explicit trust-bearing accepted claims; claim-free boundary
+symbols do not become claims. Signatures retain lifetime arity,
+alpha-normalized type/const parameters, ordered
 parameter names/modes, package-qualified lifetime-sensitive parameter types,
 and result type. Checked realizations of public, ordinary, lifetime-free traits
 retain exact package-qualified trait/requirement identities, alpha-normalized
