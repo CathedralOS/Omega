@@ -9,4 +9,7 @@ name = "omega_packages"
 path = "src/lib.rs"
 
 [dependencies]
+psi-source-files-to-tokens = { path = "../../../psi/pipeline/psi-source-files-to-tokens" }
+psi-syntax-trees = { path = "../../../psi/representations/psi-syntax-trees" }
+psi-tokens-to-syntax-trees = { path = "../../../psi/pipeline/psi-tokens-to-syntax-trees" }
 sha2 = "0.10.9"

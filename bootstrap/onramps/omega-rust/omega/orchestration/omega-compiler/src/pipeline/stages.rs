@@ -172,8 +172,11 @@ fn load_pending_imports(
 /// `machine Owner::build(&mut self, build: &mut Build) { ... }` -- the `Build` /
 /// `Subsystem` types are CORE-DEFINED, never authored per file. When a
 /// build.omg root declares either build-machine shape and no `Build` data of
-/// its own, the prelude is injected as a virtual source (a program-declared
-/// `Build` wins, which keeps migration and deliberate overrides possible).
+/// its own, the build-machine fragment is injected as a virtual source (a
+/// program-declared `Build` wins, which keeps migration and deliberate
+/// overrides possible). The toolchain-owned `Package` fragment follows an
+/// authored `PACKAGE` constant independently; package extraction rejects an
+/// authored `data Package` before compilation.
 const BUILD_PRELUDE: &str = r#"
 // Toolchain-provided build vocabulary (virtual source; build_and_package_model.md).
 data Subsystem {
@@ -193,12 +196,20 @@ machine path(location: &[u8]) -> &[u8] {
 }
 "#;
 
+const PACKAGE_PRELUDE: &str = r#"
+// Toolchain-provided package declaration vocabulary.
+data Package {
+    name: &[u8];
+}
+"#;
+
 fn inject_build_prelude(
     source_storage: &mut SourceStorage,
     timings: &mut CompileTimings,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut has_build_machine = false;
     let mut has_build_data = false;
+    let mut has_package_declaration = false;
     for (_, file) in source_storage.files.iter() {
         let is_build_file =
             file.path.file_name().and_then(|name| name.to_str()) == Some("build.omg");
@@ -214,19 +225,34 @@ fn inject_build_prelude(
                 psi_syntax_trees::item::Item::Data(data) if data.name.as_str() == "Build" => {
                     has_build_data = true;
                 }
+                psi_syntax_trees::item::Item::Const(declaration)
+                    if is_build_file
+                        && declaration.scope.as_str().is_empty()
+                        && declaration.name.as_str() == "PACKAGE" =>
+                {
+                    has_package_declaration = true;
+                }
                 _ => {}
             }
         }
     }
-    if !has_build_machine || has_build_data {
+    let inject_build_vocabulary = has_build_machine && !has_build_data;
+    if !inject_build_vocabulary && !has_package_declaration {
         return Ok(());
     }
+
+    let prelude = match (inject_build_vocabulary, has_package_declaration) {
+        (true, true) => format!("{BUILD_PRELUDE}\n{PACKAGE_PRELUDE}"),
+        (true, false) => BUILD_PRELUDE.to_owned(),
+        (false, true) => PACKAGE_PRELUDE.to_owned(),
+        (false, false) => unreachable!("empty prelude was handled above"),
+    };
 
     let first_source_id = source_storage.next_source_id();
     let lexed = timings.record(SOURCE_FILES_TO_TOKENS, || {
         let sources = crate::pipeline::frontend::load_injected_source(
             "<build-prelude>",
-            BUILD_PRELUDE,
+            &prelude,
             first_source_id,
         );
         lex_sources(sources)
@@ -864,6 +890,45 @@ mod tests {
     use omega_control_flow::StateKey;
     use psi_symbols::SymbolHandle;
     use std::sync::Arc;
+
+    #[test]
+    fn build_prelude_owns_package_declaration_vocabulary() {
+        let tokens = psi_source_files_to_tokens::Lexer::new(PACKAGE_PRELUDE)
+            .tokenize()
+            .expect("toolchain build prelude must lex");
+        let syntax_trees = psi_tokens_to_syntax_trees::parse_syntax_trees(&tokens)
+            .expect("toolchain build prelude must parse as ordinary Omega");
+        let package = syntax_trees
+            .root_items()
+            .find_map(|item| match item {
+                psi_syntax_trees::item::Item::Data(data) if data.name.as_str() == "Package" => {
+                    Some(data)
+                }
+                _ => None,
+            })
+            .expect("build prelude must define Package");
+        let [psi_syntax_trees::item::DataMember::Field(name)] =
+            syntax_trees.items.data_members(package.members)
+        else {
+            panic!("Package must contain exactly one data field");
+        };
+        assert_eq!(name.name.as_str(), "name");
+        let psi_syntax_trees::types::TypeReferenceNode::Reference { referee, .. } = syntax_trees
+            .type_references
+            .type_reference(name.type_reference)
+        else {
+            panic!("Package.name must be borrowed bytes");
+        };
+        let psi_syntax_trees::types::TypeReferenceNode::Slice { element_type } =
+            syntax_trees.type_references.type_reference(*referee)
+        else {
+            panic!("Package.name must be a borrowed byte slice");
+        };
+        assert!(matches!(
+            syntax_trees.type_references.type_reference(*element_type),
+            psi_syntax_trees::types::TypeReferenceNode::Named(name) if name.as_str() == "u8"
+        ));
+    }
 
     fn empty_emission(target: NativeTarget) -> omega_artifacts::EmissionPlan {
         omega_artifacts::EmissionPlan {
