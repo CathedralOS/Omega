@@ -204,7 +204,9 @@ come from different internal representations; totality belongs to the final
 projection, not to one frozen source stage. Because the projection ships with
 the compiler, depending on compiler-internal representations is ordinary
 internal coupling, not a promise that those representations are stable public
-APIs. The projection and its tests move with those representations.
+APIs. These representations remain part of the Psi-owned semantic pipeline:
+"earlier" means earlier than Terminal Psi, not a new owner or a pre-Psi
+semantic path. The projection and its tests move with those representations.
 
 There is no nominal Chi stage merely to stabilize this report. A distinct IR is
 justified later only if multiple independent consumers need the same semantic

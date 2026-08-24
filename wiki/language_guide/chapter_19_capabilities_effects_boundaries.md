@@ -773,7 +773,9 @@ a checked property of final executable realization, lowering, ABI realization,
 or fixed native resources, and when a hardened profile explicitly requests that
 evidence. Opaque executable supply may remain an explicit trust/TCB row making
 no Terminal claim. Terminal evidence is not a blanket prerequisite for checked
-reach and authority admission.
+reach and authority admission. The earlier checked representations used for
+ordinary rows remain Psi-owned semantic state; this choice does not establish a
+pre-Psi path or another semantic owner.
 
 Generated Omega source carries no build authority into the resulting program.
 It is checked under the consuming artifact's ordinary runtime reach, crash,

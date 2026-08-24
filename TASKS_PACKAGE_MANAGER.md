@@ -39,7 +39,9 @@ complete.
   raw IR and compiler-private identities never become lock format.
 - Each evidence row comes from its earliest coherent checked representation.
   The final projection is total, but no one internal stage must contain every
-  row; do not introduce nominal Chi merely to freeze compiler internals.
+  row. These representations remain Psi-owned compiler internals; "earlier"
+  means earlier than Terminal Psi, not outside the Psi semantic pipeline. Do
+  not introduce nominal Chi merely to freeze compiler internals.
 - Proposition and named-evidence rows join the typed structural application to
   its checked acceptance, witness interface, and admission disposition. Never
   use checked diagnostic renderings as identity. If an exact binder, argument,
@@ -400,7 +402,8 @@ complete.
   Implementation reads each fact from the earliest coherent checked compiler
   state that contains it. Rows may use different internal representations;
   this internal coupling moves with the compiler and does not create a stable
-  public IR stage.
+  public IR stage. Those representations remain inside the Psi-owned semantic
+  pipeline; the comparison is with Terminal Psi, not with Psi ownership.
 
   Progress 2026-08-24: checked trees already own the useful semantic core. A
   `RealizedMachineContractEnvelope` retains contract identity, effective and
