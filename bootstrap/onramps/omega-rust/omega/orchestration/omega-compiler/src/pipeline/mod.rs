@@ -38,6 +38,7 @@ mod stage;
 mod stages;
 mod target_machines;
 mod task_plans;
+mod terminal_component_candidate;
 mod timing;
 mod trust_lockfile;
 mod trust_report;
@@ -169,6 +170,10 @@ pub use provider_plans::{
     WrittenBoundExternalRootWriterRecoveryError, bind_external_root_post_handoff_writer_invocation,
     compiler_intrinsic_diagnostic_label, selected_external_root_entry_fact_bindings,
     selected_external_root_provider_plan, selected_external_root_provider_plan_id,
+};
+pub use terminal_component_candidate::{
+    TerminalComponentCandidate, TerminalComponentProviderExecution,
+    TerminalComponentProviderSettlement, stage_terminal_component,
 };
 pub use psi_access_plans::{ValidatedAccessPlan, ValidatedPlacementPlan};
 pub use psi_build_time_evaluation::{

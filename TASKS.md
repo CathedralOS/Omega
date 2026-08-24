@@ -4864,13 +4864,14 @@ Owners:
   statically normalized half-open range by a same-width array literal. The
   mutation and invalidation facts retain an exact `FixedRange`; half-open
   overlap preserves untouched siblings, while range loans and Terminal/native
-  lowering remain gated. A non-generic checked record with no authored default
-  domain now admits replacement through a finite common-field path when every
-  intermediate receiver is likewise a non-generic checked record with no
-  authored default domain, every selected field is relevant and unconstrained,
-  and the displaced leaf is an unrestricted primitive. The ordinary mutation
-  summary retains the complete exact field-symbol path. Whole-record replacement
-  still requires an unrestricted/discardable root. Observation, readable
+  lowering remain gated. Replacement through a finite common-field path is now
+  admitted for a non-generic checked record with no authored default domain,
+  provided every intermediate receiver is likewise a non-generic checked
+  record with no authored default domain, every selected field is relevant and
+  unconstrained, and the displaced leaf is an unrestricted primitive. The
+  ordinary mutation summary retains the complete exact field-symbol path.
+  Whole-record replacement still requires an unrestricted/discardable root.
+  Observation, readable
   widening, implicit `&mut` attenuation, symbolic/open-ended ranges, sum
   projection, qualified fields, invariant-bearing records, and
   bodyless/provider declarations reject with directed diagnostics. Focused
@@ -6882,15 +6883,25 @@ compiler concept is introduced.
   exact `self.field` premise remains in the installation manifest, the
   boundary receiver selects the provider occurrence without becoming an ABI
   argument, and publication rejects when the committed opaque acceptance is
-  omitted before retaining it with the installed code.
+  omitted before retaining it with the installed code. The production compiler
+  now stages an exact selected entry into a non-visible terminal component
+  candidate containing canonical semantic/proof bytes, object and image,
+  selected provider-plan closure, owned provider-execution identity
+  projections, and any nonempty progress manifest. Staging rejects target
+  substitution, missing or duplicate boundary settlements, and executions
+  outside the selected plan closure. The candidate carries no output path,
+  visibility receipt, provider occurrence, progress receipt, or installed-code
+  authority; compilation cannot mint deployment custody.
 
-  Remaining TPR6-B engineering: route the production composition/install lane
-  through that staged carrier; then retire the legacy
-  compiler's temporary final-output rejection. The current `write_output` lane
-  still publishes a native executable directly and carries neither the
-  manifest nor an installation acceptance, so removing the fence there would
-  erase the obligation; selected plans and authorized routes remain
-  insufficient.
+  Remaining TPR6-B engineering: the deployment/composition owner above the
+  compiler must consume that candidate, bind real provider occurrences and
+  progress receipts through the live installation registry and era ledger,
+  acquire `InstalledCode`, and only then create a runnable/public carrier.
+  After that lane exists, retire the legacy compiler's temporary final-output
+  rejection. The current `write_output` lane still publishes a native
+  executable directly and carries neither the manifest nor an installation
+  acceptance, so removing the fence there would erase the obligation;
+  selected plans and authorized routes remain insufficient.
   Independently add authored
   qualification-preserving correspondence beyond direct parameter/field
   identity. `QualificationEvidence` retains evidence kind and source

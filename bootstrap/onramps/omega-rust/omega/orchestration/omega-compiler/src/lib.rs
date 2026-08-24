@@ -61,6 +61,8 @@ pub use pipeline::{
     SelectedExternalRootPostHandoffWriterPreparation, SelectedExternalRootProviderPlan,
     SelectedExternalRootWriterPreparationError, SelectedProgramEntrySourceSignature,
     SelectedProgramStorageEntryPlan, SymbolicFieldValue, SymbolicMaterializationPlan,
+    TerminalComponentCandidate, TerminalComponentProviderExecution,
+    TerminalComponentProviderSettlement,
     ValidatedAccessPlan, ValidatedPlacementPlan,
     ValidatedWrittenBoundExternalRootPostHandoffWriterDestination,
     WrittenBoundExternalRootConsumerValidationError,
@@ -92,4 +94,5 @@ pub use pipeline::{
     reserve_program_local_storage_entry_outgoing_stack_frame,
     reserve_program_storage_entry_outgoing_stack_frame, selected_external_root_entry_fact_bindings,
     selected_external_root_provider_plan, selected_external_root_provider_plan_id,
+    stage_terminal_component,
 };
