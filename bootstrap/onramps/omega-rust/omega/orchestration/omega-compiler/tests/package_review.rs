@@ -1,6 +1,7 @@
 use omega_compiler::{
     PACKAGE_REVIEW_ENCODING_VERSION, PackageCompilationInputs, PackageReviewCallableRole,
     PackageReviewCrashInterface, PackageReviewCrashRouteGuard, PackageReviewDataMember,
+    PackageReviewDomainClassification, PackageReviewDomainEstablishmentKind,
     PackageReviewNominalOwner, PackageReviewSynchronousInvocation, PackageSourceBinding,
     compile_to_checked_with_packages, project_checked_package_review,
 };
@@ -121,7 +122,7 @@ crashes Abort
         target,
         "review identity must retain the deployment profile, not only its native ABI",
     );
-    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 4);
+    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 5);
     let [ready] = review.public_domains() else {
         panic!("one package-owned public domain row")
     };
@@ -422,7 +423,7 @@ invokes waiting;
 }
 
 #[test]
-fn exact_synchronous_invocations_change_v4_comparison_encoding() {
+fn exact_synchronous_invocations_change_v5_comparison_encoding() {
     let quiet = TempPackage::new();
     let invoking = TempPackage::new();
     quiet.write(
@@ -615,7 +616,7 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
-fn public_data_and_numbered_wire_shape_changes_change_v4_comparison_encoding() {
+fn public_data_and_numbered_wire_shape_changes_change_v5_comparison_encoding() {
     let first = TempPackage::new();
     let second = TempPackage::new();
     first.write(
@@ -649,7 +650,7 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
-fn public_domain_shape_changes_change_v4_comparison_encoding() {
+fn public_domain_shape_changes_change_v5_comparison_encoding() {
     let first = TempPackage::new();
     let second = TempPackage::new();
     first.write(
@@ -715,6 +716,125 @@ machine build(builder: &mut Build) { }
             .expect("generic public-domain review should close")
             .canonical_review_bytes()
             .expect("generic public-domain encoding")
+    };
+
+    assert_eq!(encode(&first), encode(&second));
+}
+
+#[test]
+fn public_domain_classification_and_establishment_routes_are_exact_review_rows() {
+    let classified = TempPackage::new();
+    let routed = TempPackage::new();
+    classified.write(
+        "main.omg",
+        r#"pub data SchedulerHandle { id: u64; }
+pub domain SchedulerHandle::WeakFair
+satisfies ProgressProfile
+established by SchedulerAdmission::grant;
+pub boundary trait SchedulerAdmission {
+    machine grant(scheduler: SchedulerHandle) -> SchedulerHandle in WeakFair;
+}
+"#,
+    );
+    routed.write(
+        "main.omg",
+        r#"pub data SchedulerHandle { id: u64; }
+pub domain SchedulerHandle::WeakFair
+established by SchedulerAdmission::grant;
+pub boundary trait SchedulerAdmission {
+    machine grant(scheduler: SchedulerHandle) -> SchedulerHandle in WeakFair;
+}
+"#,
+    );
+    let build = r#"target windows_x64 { }
+machine build(builder: &mut Build) { }
+"#;
+    classified.write("build.omg", build);
+    routed.write("build.omg", build);
+
+    let compile = |package: &TempPackage| {
+        let checked = compile_to_checked_with_packages(
+            &package.0.join("main.omg"),
+            Some("windows_x64"),
+            package_inputs(&package.0),
+        )
+        .expect("routed public-domain fixture should check");
+        project_checked_package_review(&checked).expect("routed public-domain review should close")
+    };
+    let classified_review = compile(&classified);
+    let [domain] = classified_review.public_domains() else {
+        panic!("one classified public domain row")
+    };
+    assert_eq!(
+        domain.classification(),
+        Some(PackageReviewDomainClassification::ProgressProfile)
+    );
+    let [route] = domain.establishment_routes() else {
+        panic!("one exact establishment route")
+    };
+    assert_eq!(
+        route.kind(),
+        PackageReviewDomainEstablishmentKind::BoundaryRequirement
+    );
+    assert_eq!(route.trait_identity().path(), "SchedulerAdmission");
+    assert_eq!(
+        route.requirement_identity().path(),
+        "SchedulerAdmission::grant"
+    );
+
+    assert_ne!(
+        classified_review
+            .canonical_review_bytes()
+            .expect("classified public-domain encoding"),
+        compile(&routed)
+            .canonical_review_bytes()
+            .expect("unclassified routed public-domain encoding")
+    );
+}
+
+#[test]
+fn public_domain_establishment_route_order_is_canonical() {
+    let first = TempPackage::new();
+    let second = TempPackage::new();
+    let source = |routes: &str| {
+        format!(
+            r#"pub data SchedulerHandle {{ id: u64; }}
+pub domain SchedulerHandle::Scheduled
+established by {routes};
+pub boundary trait PrimaryAdmission {{
+    machine grant(scheduler: SchedulerHandle) -> SchedulerHandle in Scheduled;
+}}
+pub boundary trait BackupAdmission {{
+    machine grant(scheduler: SchedulerHandle) -> SchedulerHandle in Scheduled;
+}}
+"#
+        )
+    };
+    first.write(
+        "main.omg",
+        &source("PrimaryAdmission::grant, BackupAdmission::grant"),
+    );
+    second.write(
+        "main.omg",
+        &source("BackupAdmission::grant, PrimaryAdmission::grant"),
+    );
+    let build = r#"target windows_x64 { }
+machine build(builder: &mut Build) { }
+"#;
+    first.write("build.omg", build);
+    second.write("build.omg", build);
+
+    let encode = |package: &TempPackage| {
+        let checked = compile_to_checked_with_packages(
+            &package.0.join("main.omg"),
+            Some("windows_x64"),
+            package_inputs(&package.0),
+        )
+        .expect("multi-route public-domain fixture should check");
+        project_checked_package_review(&checked)
+            .expect("multi-route public-domain review should close")
+            .canonical_review_bytes()
+            .expect("multi-route public-domain encoding")
     };
 
     assert_eq!(encode(&first), encode(&second));

@@ -50,12 +50,46 @@ impl PackageReviewTypeParameter {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PackageReviewDomainClassification {
+    ProgressProfile,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum PackageReviewDomainEstablishmentKind {
+    CheckedRequirement,
+    BoundaryRequirement,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct PackageReviewDomainEstablishmentRoute {
+    kind: PackageReviewDomainEstablishmentKind,
+    trait_identity: PackageReviewNominalIdentity,
+    requirement_identity: PackageReviewNominalIdentity,
+}
+
+impl PackageReviewDomainEstablishmentRoute {
+    pub const fn kind(&self) -> PackageReviewDomainEstablishmentKind {
+        self.kind
+    }
+
+    pub const fn trait_identity(&self) -> &PackageReviewNominalIdentity {
+        &self.trait_identity
+    }
+
+    pub const fn requirement_identity(&self) -> &PackageReviewNominalIdentity {
+        &self.requirement_identity
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageReviewDomainShape {
     identity: PackageReviewNominalIdentity,
     type_parameters: Vec<PackageReviewTypeParameter>,
     target_type: PackageReviewTypeIdentity,
     index_arguments: Vec<PackageReviewTypeIdentity>,
+    classification: Option<PackageReviewDomainClassification>,
+    establishment_routes: Vec<PackageReviewDomainEstablishmentRoute>,
 }
 
 impl PackageReviewDomainShape {
@@ -73,6 +107,14 @@ impl PackageReviewDomainShape {
 
     pub fn index_arguments(&self) -> &[PackageReviewTypeIdentity] {
         &self.index_arguments
+    }
+
+    pub const fn classification(&self) -> Option<PackageReviewDomainClassification> {
+        self.classification
+    }
+
+    pub fn establishment_routes(&self) -> &[PackageReviewDomainEstablishmentRoute] {
+        &self.establishment_routes
     }
 }
 
@@ -875,21 +917,9 @@ fn project_public_domains(
                 identity.path
             ))]);
         }
-        if definition.classification.is_some() {
-            return Err(vec![Diagnostic::error(format!(
-                "public domain `{}` uses a compiler-owned classification not yet represented by package review",
-                identity.path
-            ))]);
-        }
         if !definition.semantic_roles.is_empty() {
             return Err(vec![Diagnostic::error(format!(
                 "public domain `{}` uses semantic roles not yet represented by package review",
-                identity.path
-            ))]);
-        }
-        if !definition.establishment_routes.is_empty() {
-            return Err(vec![Diagnostic::error(format!(
-                "public domain `{}` uses establishment routes not yet represented by package review",
                 identity.path
             ))]);
         }
@@ -903,6 +933,20 @@ fn project_public_domains(
         let parameters = compilation.domain_type_parameters(definition);
         let (binders, type_parameters) =
             project_type_parameters(compilation, parameters, "domain", &identity.path)?;
+        let classification = definition
+            .classification
+            .map(|classification| match classification {
+                psi_language_semantics::DomainClassification::ProgressProfile => {
+                    PackageReviewDomainClassification::ProgressProfile
+                }
+            });
+        let mut establishment_routes = definition
+            .establishment_routes
+            .iter()
+            .map(|route| project_domain_establishment_route(compilation, *route))
+            .collect::<Result<Vec<_>, _>>()?;
+        establishment_routes.sort();
+        establishment_routes.dedup();
         rows.push(PackageReviewDomainShape {
             identity,
             type_parameters,
@@ -916,10 +960,70 @@ fn project_public_domains(
                 .iter()
                 .map(|argument| review_type_identity_with_binders(compilation, *argument, &binders))
                 .collect(),
+            classification,
+            establishment_routes,
         });
     }
     rows.sort_by(|left, right| left.identity.cmp(&right.identity));
     Ok(rows)
+}
+
+fn project_domain_establishment_route(
+    compilation: &CheckedCompilation,
+    route: psi_language_semantics::DomainEstablishmentRoute,
+) -> Result<PackageReviewDomainEstablishmentRoute, Vec<Diagnostic>> {
+    let (kind, trait_symbol, requirement_symbol, expects_boundary) = match route {
+        psi_language_semantics::DomainEstablishmentRoute::CheckedRequirement {
+            trait_definition,
+            requirement,
+        } => (
+            PackageReviewDomainEstablishmentKind::CheckedRequirement,
+            trait_definition,
+            requirement,
+            false,
+        ),
+        psi_language_semantics::DomainEstablishmentRoute::BoundaryRequirement {
+            boundary_trait,
+            requirement,
+        } => (
+            PackageReviewDomainEstablishmentKind::BoundaryRequirement,
+            boundary_trait,
+            requirement,
+            true,
+        ),
+    };
+    let owners = compilation
+        .traits()
+        .iter()
+        .filter(|candidate| candidate.symbol == trait_symbol)
+        .collect::<Vec<_>>();
+    let [owner] = owners.as_slice() else {
+        return Err(vec![Diagnostic::error(format!(
+            "package review domain establishment route resolves to {} trait declarations; expected exactly one",
+            owners.len()
+        ))]);
+    };
+    if owner.is_boundary != expects_boundary {
+        return Err(vec![Diagnostic::error(
+            "package review domain establishment route kind disagrees with its exact trait declaration",
+        )]);
+    }
+    let requirements = compilation
+        .trait_machine_signatures(owner)
+        .iter()
+        .filter(|candidate| candidate.symbol == requirement_symbol)
+        .collect::<Vec<_>>();
+    let [requirement] = requirements.as_slice() else {
+        return Err(vec![Diagnostic::error(format!(
+            "package review domain establishment route resolves to {} requirements under its exact trait; expected exactly one",
+            requirements.len()
+        ))]);
+    };
+    Ok(PackageReviewDomainEstablishmentRoute {
+        kind,
+        trait_identity: nominal_identity(compilation, owner.symbol)?,
+        requirement_identity: nominal_identity(compilation, requirement.symbol)?,
+    })
 }
 
 fn project_public_data(
