@@ -225,6 +225,9 @@ pub struct PackageReviewTraitRequirement {
     parameters: Vec<PackageReviewTraitRequirementParameter>,
     return_type: PackageReviewTypeIdentity,
     contracts: Vec<PackageReviewCallableContract>,
+    /// Abstract published crash ceiling for this requirement. Trait
+    /// requirements have no checked body sites or calls of their own.
+    published_crash: Vec<PackageReviewCrashRoute>,
     service_reach: Vec<PackageReviewNominalIdentity>,
     service_reach_is_installation_bound: bool,
     synchronous_invocations: Vec<PackageReviewSynchronousInvocation>,
@@ -264,6 +267,10 @@ impl PackageReviewTraitRequirement {
 
     pub fn contracts(&self) -> &[PackageReviewCallableContract] {
         &self.contracts
+    }
+
+    pub fn published_crash(&self) -> &[PackageReviewCrashRoute] {
+        &self.published_crash
     }
 
     pub fn service_reach(&self) -> &[PackageReviewNominalIdentity] {
@@ -1921,6 +1928,27 @@ fn project_trait_requirement(
     };
     let contracts =
         project_trait_requirement_contracts(compilation, requirement, &contract_context, &binders)?;
+    let mut crash_capsules = compilation
+        .facts
+        .contract_plans
+        .crash_capsules
+        .iter()
+        .filter(|capsule| {
+            capsule.target_machine() == trait_symbol && capsule.target_state() == requirement.symbol
+        });
+    let crash_capsule = crash_capsules.next().ok_or_else(|| {
+        vec![Diagnostic::error(format!(
+            "public trait requirement `{}` has no exact checked crash capsule",
+            identity.path
+        ))]
+    })?;
+    if crash_capsules.next().is_some() {
+        return Err(vec![Diagnostic::error(format!(
+            "public trait requirement `{}` has duplicate checked crash capsules",
+            identity.path
+        ))]);
+    }
+    let published_crash = project_crash_routes(crash_capsule.published_buckets());
     Ok(PackageReviewTraitRequirement {
         identity,
         spelling: requirement.spelling,
@@ -1952,6 +1980,7 @@ fn project_trait_requirement(
             &lifetime_binders,
         )?,
         contracts,
+        published_crash,
         service_reach: project_service_row(compilation, requirement.service_reach_row)?,
         service_reach_is_installation_bound: requirement.service_reach_is_installation_bound,
         synchronous_invocations: project_synchronous_invocations(
@@ -2979,14 +3008,6 @@ fn project_contracts(
                 ))]);
             }
             SignatureContractKind::Boundary => PackageReviewContractKind::Boundary,
-            SignatureContractKind::Crashes { .. }
-                if policy == ContractProjectionPolicy::PublicTraitRequirement =>
-            {
-                return Err(vec![Diagnostic::error(format!(
-                    "reviewed {} `{}` uses a crash contract not yet represented by public-trait review",
-                    context.subject_kind, context.subject_name
-                ))]);
-            }
             SignatureContractKind::Crashes { .. } => continue,
         };
         if contract.facts.is_empty() {

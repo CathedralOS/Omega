@@ -292,14 +292,17 @@ underlying public-trait identities plus its carrier and trait applications; the
 semantic declaration owns exact carrier/trait symbols rather than report code
 reselecting names. Public trait requirements retain unnamed `requires` and
 `ensures` through the same closed structural fact/expression vocabulary as
-public callables, joined to their exact checked state-signature owner. Generic
-selected-conformance telescopes, public-trait invariants, named evidence
-contracts, boundary/crash contracts, and unsupported expression forms reject
-until complete canonical rows land. Requirements also retain whether their
-checked declaration supplies a default realization; the implementation body
-remains source subject to universal update triage, while its checked operational
-behavior must fit the requirement envelope and any instantiated use contributes
-ordinary compiler-derived evidence.
+public callables, joined to their exact checked state-signature owner. Their
+abstract published crash ceilings are projected from exactly one checked
+trait/requirement capsule into canonical cause-and-guard routes; no realized
+body sites or calls are fabricated. Generic selected-conformance telescopes,
+public-trait invariants, named evidence contracts, boundary clauses, and
+unsupported expression forms reject until complete canonical rows land.
+Requirements also retain whether their checked declaration supplies a default
+realization; the implementation body remains source subject to universal update
+triage, while its checked operational behavior must fit the requirement
+envelope and any instantiated use contributes ordinary compiler-derived
+evidence.
 
 Package-owned boundary and ordinary public machines, plus the selected build
 machine, retain the exact canonical entry signature alongside their authority

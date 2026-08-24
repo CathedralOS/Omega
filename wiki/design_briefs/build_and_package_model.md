@@ -659,13 +659,15 @@ package-qualified conformance, carrier, and underlying public-trait identities
 plus carrier/trait applications; the semantic declaration owns exact carrier
 and trait symbols. Public trait requirements retain unnamed `requires` and
 `ensures` through the same closed structural fact/expression vocabulary as
-public callables, joined to their exact checked state-signature owner. Generic
-selected-conformance telescopes, public-trait invariants, named evidence
-contracts, boundary/crash contracts, and unsupported expression forms reject
-until complete canonical rows exist. Requirements also retain whether their
-checked declaration supplies a default realization; implementation bodies
-remain checked source subject to universal update triage rather than entering
-the evidence format as compiler-private IR.
+public callables, joined to their exact checked state-signature owner. Their
+abstract published crash ceilings come from exactly one checked capsule keyed
+by the trait and requirement symbols and retain canonical causes and guards;
+they do not fabricate realized body sites or calls. Generic selected-conformance
+telescopes, public-trait invariants, named evidence contracts, boundary clauses,
+and unsupported expression forms reject until complete canonical rows exist.
+Requirements also retain whether their checked declaration supplies a default
+realization; implementation bodies remain checked source subject to universal
+update triage rather than entering the evidence format as compiler-private IR.
 
 Terminal Psi evidence remains a separate evidence class for checked
 final-realization claims: Omega-emitted executable code, asserted properties of
