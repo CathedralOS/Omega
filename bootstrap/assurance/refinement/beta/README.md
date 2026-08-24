@@ -995,6 +995,19 @@ reference assemblers agree on both tapes, and
 phase-isolated shape, writer-domain, context, provenance, root, and publication
 mutations.
 
+The next independent shape tranche now binds `gen_store` plus the complete
+statement family at procedures 62..67 before assigning any recursive meaning.
+It fixes p26/p62..p67's 39 blocks, 22 transitions, 79 events, frames,
+epilogues, locals, raw-memory rows, primitives, pushes, exclusive table
+censuses, and decoded quiet regions over the same canonical bundle. Procedure
+67 is split into control/event and data/census modules solely to keep every
+source module below the 20 KB cap. The lattice assembler and `asm_ref.py` agree
+on the 81,803-byte tape, and `BC_BLOCK_FOCUS=statement-family` passes canonical
+execution plus eleven phase-isolated family/cardinality, call/cutpoint,
+dispatch, census, and publication mutations. This establishes exact artifact
+shape only: it imports neither Checker F's process-local `XPUB` cell nor Checker
+A's process-local `GSBD` cell and makes no Return-or-Diverge claim.
+
 The eventual `parse_proc` theorem must be maximal, not universally terminating.
 For malformed input, an unrecognized body byte such as `@` can survive both
 `gen_stmt` and the number fallback without cursor progress while `gen_stmts`

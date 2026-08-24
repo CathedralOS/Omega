@@ -1,0 +1,292 @@
+; Exact source/artifact shape for gen_store (procedure26).
+; Callable only: this module publishes no token and has no init edge.
+
+statement_gen_store_require_shape:
+        call statement_gen_store_require_proc
+        call statement_gen_store_require_blocks
+        call statement_gen_store_require_transitions
+        call statement_gen_store_require_events
+        call statement_gen_store_require_data
+        call statement_gen_store_require_censuses
+        call statement_gen_store_require_decoded
+        ret
+
+statement_gen_store_require_proc:
+        imm r20, 7151616
+        imm r21, 26
+        imm r22, 1
+        call transfer_require_cell
+        imm r20, 7159808
+        imm r21, 26
+        imm r22, 1
+        call transfer_require_cell
+        imm r20, 26
+        call call_bounds_frame_bytes
+        imm r1, 16
+        jeq r0, r1, exact_shape_ok
+        jmp reject
+
+statement_gen_store_require_blocks:
+        imm r20, 136
+        imm r21, 18185
+        call exact_require_block_pc
+        imm r20, 137
+        imm r21, 18467
+        call exact_require_block_pc
+        imm r20, 138
+        imm r21, 18599
+        call exact_require_block_pc
+        imm r20, 139
+        imm r21, 18680
+        call exact_require_block_pc
+        imm r20, 136
+        imm r21, 139
+        imm r22, 26
+        call exact_require_proc_blocks
+        ret
+
+statement_gen_store_require_transitions:
+        imm r20, 100
+        imm r21, 137
+        imm r22, 1
+        imm r23, 138
+        imm r24, 18571
+        call exact_require_transition
+        imm r20, 101
+        imm r21, 137
+        imm r22, 0
+        imm r23, 139
+        imm r24, 18590
+        call exact_require_transition
+        ret
+
+; r20=row,r21=block,r22=pc,r23=arity,r24=target,r25=continuation.
+statement_gen_store_require_call:
+        mov r26, r25
+        mov r25, r24
+        imm r24, 0
+        call summary_require_call_site
+        ret
+
+; Pin both an emit row and its exact __write_str handoff.
+statement_gen_store_require_emit:
+        mov r30, r20
+        mov r31, r21
+        mov r32, r22
+        mov r20, r30
+        mov r21, r31
+        imm r22, 4
+        mov r23, r32
+        call exact_require_event
+        mov r20, r32
+        imm r21, 31
+        mov r22, r32
+        imm r1, 9
+        add r22, r1
+        call exact_require_call
+        ret
+
+statement_gen_store_require_return:
+        mov r23, r22
+        imm r22, 5
+        call exact_require_event
+        ret
+
+statement_gen_store_require_events:
+        imm r20, 172
+        imm r21, 136
+        imm r22, 18278
+        imm r23, 1
+        imm r24, 17441
+        imm r25, 18287
+        call statement_gen_store_require_call
+        imm r20, 173
+        imm r21, 136
+        imm r22, 18287
+        imm r23, 0
+        imm r24, 43134
+        imm r25, 18296
+        call statement_gen_store_require_call
+        imm r20, 174
+        imm r21, 136
+        imm r22, 18338
+        imm r23, 1
+        imm r24, 17441
+        imm r25, 18347
+        call statement_gen_store_require_call
+        imm r20, 175
+        imm r21, 136
+        imm r22, 18347
+        imm r23, 0
+        imm r24, 32248
+        imm r25, 18356
+        call statement_gen_store_require_call
+        imm r20, 176
+        imm r21, 136
+        imm r22, 18398
+        imm r23, 1
+        imm r24, 17441
+        imm r25, 18407
+        call statement_gen_store_require_call
+        imm r20, 177
+        imm r21, 136
+        imm r22, 18407
+        imm r23, 0
+        imm r24, 43134
+        imm r25, 18416
+        call statement_gen_store_require_call
+        imm r20, 178
+        imm r21, 136
+        imm r22, 18458
+        imm r23, 1
+        imm r24, 31151
+        imm r25, 18467
+        call statement_gen_store_require_call
+        imm r20, 179
+        imm r21, 138
+        imm r22, 18641
+        call statement_gen_store_require_emit
+        imm r20, 180
+        imm r21, 138
+        imm r22, 18679
+        call statement_gen_store_require_return
+        imm r20, 181
+        imm r21, 139
+        imm r22, 18721
+        call statement_gen_store_require_emit
+        imm r20, 182
+        imm r21, 139
+        imm r22, 18759
+        call statement_gen_store_require_return
+        call statement_gen_store_require_epilogues
+        ret
+
+statement_gen_store_require_epilogues:
+        imm r20, 18660
+        imm r21, 18679
+        call exact_require_epilogue
+        imm r20, 18740
+        imm r21, 18759
+        call exact_require_epilogue
+        imm r20, 18760
+        imm r21, 18779
+        call exact_require_epilogue
+        ret
+
+statement_gen_store_require_data:
+        imm r20, 36
+        imm r21, 137
+        imm r22, 1
+        imm r23, 0
+        imm r24, 18467
+        call transfer_require_local
+        ; Exact literal/comparison rows.
+        imm r20, 362
+        imm r21, 136
+        imm r22, 1
+        imm r23, 91
+        imm r24, 18236
+        call transfer_require_primitive
+        imm r20, 363
+        imm r21, 136
+        imm r22, 1
+        imm r23, 93
+        imm r24, 18296
+        call transfer_require_primitive
+        imm r20, 364
+        imm r21, 136
+        imm r22, 1
+        imm r23, 61
+        imm r24, 18356
+        call transfer_require_primitive
+        imm r20, 365
+        imm r21, 136
+        imm r22, 1
+        imm r23, 1
+        imm r24, 18416
+        call transfer_require_primitive
+        imm r20, 366
+        imm r21, 137
+        imm r22, 3
+        imm r23, 10
+        imm r24, 18512
+        call transfer_require_primitive
+        imm r20, 367
+        imm r21, 137
+        imm r22, 1
+        imm r23, 1
+        imm r24, 18502
+        call transfer_require_primitive
+        imm r20, 368
+        imm r21, 138
+        imm r22, 1
+        imm r23, 0
+        imm r24, 18650
+        call transfer_require_primitive
+        imm r20, 369
+        imm r21, 139
+        imm r22, 1
+        imm r23, 0
+        imm r24, 18730
+        call transfer_require_primitive
+        ; Binary-left and call-argument pushes.
+        imm r20, 92
+        imm r21, 137
+        imm r22, 1
+        imm r23, 18486
+        call transfer_require_push
+        imm r20, 293
+        imm r21, 136
+        imm r22, 2
+        imm r23, 18246
+        call transfer_require_push
+        imm r20, 294
+        imm r21, 136
+        imm r22, 2
+        imm r23, 18306
+        call transfer_require_push
+        imm r20, 295
+        imm r21, 136
+        imm r22, 2
+        imm r23, 18366
+        call transfer_require_push
+        imm r20, 296
+        imm r21, 136
+        imm r22, 2
+        imm r23, 18426
+        call transfer_require_push
+        ret
+
+statement_gen_store_require_censuses:
+        imm r20, 136
+        imm r21, 139
+        imm r22, 36
+        imm r23, 37
+        imm r24, 33
+        imm r25, 33
+        imm r26, 100
+        imm r27, 102
+        imm r28, 172
+        imm r29, 183
+        call exact_require_effect_census
+        imm r20, 136
+        imm r21, 139
+        imm r22, 362
+        imm r23, 370
+        imm r24, 92
+        imm r25, 93
+        imm r26, 293
+        imm r27, 297
+        imm r28, 381
+        imm r29, 381
+        call summary_require_expr_census
+        ret
+
+statement_gen_store_require_decoded:
+        imm r20, 18185
+        imm r21, 18780
+        imm r22, 9
+        imm r23, 3
+        imm r24, 7
+        call exact_quiet_scan_region
+        ret
