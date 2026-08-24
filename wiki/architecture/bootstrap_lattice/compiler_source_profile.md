@@ -33,6 +33,11 @@ Full Omega is the already-separate product language specification. It is what
 the production compiler must implement, not a third bootstrap source-profile
 choice. The compiler artifacts have corresponding implementation obligations:
 
+There is no separate `omega-bootstrap` language inventory: its implementation
+surface is Delta v1 and its accepted-source surface is `Ωself`. There is also no
+bootstrap vote on which user-facing Omega features the product compiler should
+implement; the full Omega specification already answers that question.
+
 | Compiler artifact | Written in | Accepts | Obligation |
 | --- | --- | --- | --- |
 | `omega-bootstrap` | Delta | `Ωself` | compile every admitted program with exact Omega meaning; unsupported Omega rejects |
@@ -255,7 +260,8 @@ manifest. This is a staged discovery loop, not a circular build dependency: the
 product source can be authored under the working policy while the Delta bridge
 and ledger evolve against provisional closures. `Ωself` can be derived and
 enforced provisionally once the product closure is visible, but its cost claims
-cannot be final until the general bridge implementation exists:
+cannot be final until the general bridge implementation exists. Keep
+provisional derivation and the freeze join as distinct milestones:
 
 1. Write the product compiler under the conservative working policy and publish
    its complete source closure.
@@ -265,8 +271,8 @@ cannot be final until the general bridge implementation exists:
    compositional `Ωself` contract.
 4. Implement and assure those general profile rules in `omega-bootstrap`, feeding
    measured cost back into the retain/refactor decision.
-5. Freeze the source manifest and `Ωself` together at that bridge join, then
-   enforce both mechanically.
+5. Freeze the source manifest and `Ωself` together at that bridge join; the
+   already-running mechanical enforcement becomes the frozen acceptance gate.
 
 This process classifies facilities, not individual occurrences. A retained
 facility is implemented compositionally for every source admitted by its

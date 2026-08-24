@@ -126,9 +126,18 @@ from it must nevertheless implement the full Omega specification. Every
 accepted construct keeps its ordinary Omega semantics, ABI, layout, and
 artifact contract, and unsupported constructs reject explicitly.
 
-The profile cannot be frozen until `OMEGA-PRODUCT-COMPILER-SOURCE` publishes the
-exact transitive compiler source and build manifest. The working language-
-feature defaults for the compiler's own implementation source are:
+It is one of only two open feature inventories. Delta v1 governs the source
+used to implement `omega-bootstrap`; `Ωself` governs the Omega source that
+compiler accepts. There is no third bridge-language profile, and the
+full-Omega features implemented by the resulting product compiler are not
+re-selected here. Executable optimization quality is likewise outside this
+source-profile inventory.
+
+The profile cannot be derived until `OMEGA-PRODUCT-COMPILER-SOURCE` publishes
+the exact transitive compiler source and build manifest, and cannot be frozen
+until the general bridge supplies measured implementation and assurance cost.
+The working language-feature defaults for the compiler's own implementation
+source are:
 
 - omit the math/proof surface and linear/dependent types from compiler source;
 - retain ordinary named fields, payload-bearing enums/sum data, and basic
