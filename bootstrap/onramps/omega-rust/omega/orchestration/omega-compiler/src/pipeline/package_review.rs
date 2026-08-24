@@ -877,7 +877,7 @@ impl PackageReviewSynchronousInvocation {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PackageReviewToolchainSourceIdentity {
     digest: [u8; 32],
 }
@@ -1475,7 +1475,7 @@ impl CheckedPackageCallableReview {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct CheckedPackageReviewProjection {
     package: PackageKeyIdentity,
     target: omega_target::TargetProfile,
@@ -1486,6 +1486,34 @@ pub struct CheckedPackageReviewProjection {
     callables: Vec<CheckedPackageCallableReview>,
     dangerous_authorities: Vec<PackageReviewDangerousAuthority>,
     selected_providers: Vec<CheckedPackageProviderReview>,
+    row_sources: PackageReviewCanonicalRowSources,
+}
+
+impl PartialEq for CheckedPackageReviewProjection {
+    fn eq(&self, other: &Self) -> bool {
+        self.package == other.package
+            && self.target == other.target
+            && self.public_traits == other.public_traits
+            && self.public_domains == other.public_domains
+            && self.public_data == other.public_data
+            && self.representation_tcb == other.representation_tcb
+            && self.callables == other.callables
+            && self.dangerous_authorities == other.dangerous_authorities
+            && self.selected_providers == other.selected_providers
+    }
+}
+
+impl Eq for CheckedPackageReviewProjection {}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct PackageReviewCanonicalRowSources {
+    public_traits: Vec<PackageReviewCanonicalRowSource>,
+    public_domains: Vec<PackageReviewCanonicalRowSource>,
+    public_data: Vec<PackageReviewCanonicalRowSource>,
+    representation_tcb: Vec<PackageReviewCanonicalRowSource>,
+    callables: Vec<PackageReviewCanonicalRowSource>,
+    dangerous_authorities: Vec<PackageReviewCanonicalRowSource>,
+    selected_provider_set: PackageReviewCanonicalRowSource,
 }
 
 /// Compiler-owned granularity for review-only capability/API comparison.
@@ -1512,18 +1540,98 @@ pub enum PackageReviewCanonicalRowRisk {
     OpaqueBlocking,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum PackageReviewSourceLocationRole {
+    Declaration,
+    DerivationOrigin,
+    AuthorityDeclaration,
+    AuthorityExposure,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum PackageReviewSyntheticSourceKind {
+    ProjectionHeader,
+    SelectedProviderProvenancePending,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum PackageReviewSourceLocationOwner {
+    Package(PackageKeyIdentity),
+    Toolchain(PackageReviewToolchainSourceIdentity),
+}
+
+/// Compiler-validated package-relative source coordinate used only to explain
+/// a canonical review row. Absolute resolver/cache paths never enter it.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct PackageReviewSourceLocation {
+    owner: PackageReviewSourceLocationOwner,
+    relative_path: String,
+    start_byte: u64,
+    end_byte: u64,
+    role: PackageReviewSourceLocationRole,
+}
+
+impl PackageReviewSourceLocation {
+    pub const fn owner(&self) -> PackageReviewSourceLocationOwner {
+        self.owner
+    }
+
+    pub fn relative_path(&self) -> &str {
+        &self.relative_path
+    }
+
+    pub const fn start_byte(&self) -> u64 {
+        self.start_byte
+    }
+
+    pub const fn end_byte(&self) -> u64 {
+        self.end_byte
+    }
+
+    pub const fn role(&self) -> PackageReviewSourceLocationRole {
+        self.role
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PackageReviewCanonicalRowSource {
+    Authored(Vec<PackageReviewSourceLocation>),
+    CompilerDerived(PackageReviewSyntheticSourceKind),
+}
+
+impl PackageReviewCanonicalRowSource {
+    pub fn authored_locations(&self) -> Option<&[PackageReviewSourceLocation]> {
+        match self {
+            Self::Authored(locations) => Some(locations),
+            Self::CompilerDerived(_) => None,
+        }
+    }
+}
+
 /// One independently framed canonical row issued by the compiler.
 ///
 /// The key is used only to match one row family across two projections. The
 /// complete bytes bind schema, package, target, kind, key, and value. Neither
 /// byte sequence is a package certificate or accepted lock artifact.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct PackageReviewCanonicalRow {
     kind: PackageReviewCanonicalRowKind,
     risk: PackageReviewCanonicalRowRisk,
     key_bytes: Vec<u8>,
     canonical_bytes: Vec<u8>,
+    source: PackageReviewCanonicalRowSource,
 }
+
+impl PartialEq for PackageReviewCanonicalRow {
+    fn eq(&self, other: &Self) -> bool {
+        self.kind == other.kind
+            && self.risk == other.risk
+            && self.key_bytes == other.key_bytes
+            && self.canonical_bytes == other.canonical_bytes
+    }
+}
+
+impl Eq for PackageReviewCanonicalRow {}
 
 impl PackageReviewCanonicalRow {
     pub const fn kind(&self) -> PackageReviewCanonicalRowKind {
@@ -1540,6 +1648,10 @@ impl PackageReviewCanonicalRow {
 
     pub fn canonical_bytes(&self) -> &[u8] {
         &self.canonical_bytes
+    }
+
+    pub const fn source(&self) -> &PackageReviewCanonicalRowSource {
+        &self.source
     }
 }
 
@@ -1696,7 +1808,7 @@ pub fn project_checked_package_review(
             .then(left.contracts.cmp(&right.contracts))
     });
     let dangerous_authorities = project_dangerous_authorities(compilation, &callables)?;
-    let selected_providers = compilation
+    let selected_providers: Vec<_> = compilation
         .selected_provider_plans()
         .plans()
         .iter()
@@ -1711,6 +1823,16 @@ pub fn project_checked_package_review(
             rows: plan.rows.clone(),
         })
         .collect();
+    let row_sources = project_canonical_row_sources(
+        compilation,
+        &public_traits,
+        &public_domains,
+        &public_data,
+        &representation_tcb,
+        &callables,
+        &dangerous_authorities,
+        &selected_providers,
+    )?;
 
     Ok(CheckedPackageReviewProjection {
         package,
@@ -1722,6 +1844,7 @@ pub fn project_checked_package_review(
         callables,
         dangerous_authorities,
         selected_providers,
+        row_sources,
     })
 }
 
@@ -1793,6 +1916,367 @@ fn project_dangerous_authorities(
     rows.sort();
     rows.dedup();
     Ok(rows)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn project_canonical_row_sources(
+    compilation: &CheckedCompilation,
+    public_traits: &[PackageReviewTraitShape],
+    public_domains: &[PackageReviewDomainShape],
+    public_data: &[PackageReviewDataShape],
+    representation_tcb: &[PackageReviewRepresentationTcb],
+    callables: &[CheckedPackageCallableReview],
+    dangerous_authorities: &[PackageReviewDangerousAuthority],
+    _selected_providers: &[CheckedPackageProviderReview],
+) -> Result<PackageReviewCanonicalRowSources, Vec<Diagnostic>> {
+    let public_traits = public_traits
+        .iter()
+        .map(|row| {
+            declaration_row_source(
+                compilation,
+                &row.identity,
+                compilation
+                    .traits()
+                    .iter()
+                    .map(|definition| definition.symbol),
+                PackageReviewSourceLocationRole::Declaration,
+                "public trait",
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let public_domains = public_domains
+        .iter()
+        .map(|row| {
+            declaration_row_source(
+                compilation,
+                &row.identity,
+                compilation
+                    .domain_definitions()
+                    .iter()
+                    .map(|definition| definition.symbol),
+                PackageReviewSourceLocationRole::Declaration,
+                "public domain",
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let public_data = public_data
+        .iter()
+        .map(|row| {
+            declaration_row_source(
+                compilation,
+                &row.identity,
+                compilation
+                    .data_definitions()
+                    .iter()
+                    .map(|definition| definition.symbol),
+                PackageReviewSourceLocationRole::Declaration,
+                "public data",
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let representation_tcb = representation_tcb
+        .iter()
+        .map(|row| {
+            declaration_row_source(
+                compilation,
+                &row.declaration,
+                compilation
+                    .data_definitions()
+                    .iter()
+                    .map(|definition| definition.symbol),
+                PackageReviewSourceLocationRole::Declaration,
+                "representation TCB",
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let callable_sources = callables
+        .iter()
+        .map(|row| {
+            declaration_row_source(
+                compilation,
+                &row.identity,
+                compilation.machines().iter().map(|machine| machine.symbol),
+                PackageReviewSourceLocationRole::Declaration,
+                "reviewed callable",
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let dangerous_authority_sources = dangerous_authorities
+        .iter()
+        .map(|authority| {
+            let mut locations = declaration_locations(
+                compilation,
+                &authority.service,
+                compilation
+                    .facts
+                    .service_reaches
+                    .services
+                    .definitions()
+                    .iter()
+                    .map(|definition| definition.symbol),
+                PackageReviewSourceLocationRole::AuthorityDeclaration,
+                "dangerous authority",
+            )?;
+            for callable in callables
+                .iter()
+                .filter(|callable| callable_exposes_service(callable, &authority.service))
+            {
+                locations.extend(declaration_locations(
+                    compilation,
+                    &callable.identity,
+                    compilation.machines().iter().map(|machine| machine.symbol),
+                    PackageReviewSourceLocationRole::AuthorityExposure,
+                    "dangerous-authority exposure",
+                )?);
+            }
+            locations.sort();
+            locations.dedup();
+            Ok(PackageReviewCanonicalRowSource::Authored(locations))
+        })
+        .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
+
+    let sources = PackageReviewCanonicalRowSources {
+        public_traits,
+        public_domains,
+        public_data,
+        representation_tcb,
+        callables: callable_sources,
+        dangerous_authorities: dangerous_authority_sources,
+        // Provider selection is compiler-produced reconciliation over several
+        // plans. Until that set has sealed per-provider coordinates, state the
+        // absence instead of inventing one authored location.
+        selected_provider_set: PackageReviewCanonicalRowSource::CompilerDerived(
+            PackageReviewSyntheticSourceKind::SelectedProviderProvenancePending,
+        ),
+    };
+    validate_canonical_row_source_limits(&sources)?;
+    Ok(sources)
+}
+
+const MAX_PACKAGE_REVIEW_SOURCE_LOCATIONS: usize = 262_144;
+const MAX_PACKAGE_REVIEW_SOURCE_LOCATION_PATH_BYTES: usize = 16 * 1024 * 1024;
+
+fn validate_canonical_row_source_limits(
+    sources: &PackageReviewCanonicalRowSources,
+) -> Result<(), Vec<Diagnostic>> {
+    let all = sources
+        .public_traits
+        .iter()
+        .chain(&sources.public_domains)
+        .chain(&sources.public_data)
+        .chain(&sources.representation_tcb)
+        .chain(&sources.callables)
+        .chain(&sources.dangerous_authorities)
+        .chain(std::iter::once(&sources.selected_provider_set));
+    let mut count = 0usize;
+    let mut path_bytes = 0usize;
+    for source in all {
+        let PackageReviewCanonicalRowSource::Authored(locations) = source else {
+            continue;
+        };
+        if locations.is_empty() {
+            return Err(vec![Diagnostic::error(
+                "authored package review row has no source locations",
+            )]);
+        }
+        if locations.windows(2).any(|pair| pair[0] >= pair[1]) {
+            return Err(vec![Diagnostic::error(
+                "authored package review source locations are not strictly canonical",
+            )]);
+        }
+        count = count.checked_add(locations.len()).ok_or_else(|| {
+            vec![Diagnostic::error(
+                "package review source-location count overflow",
+            )]
+        })?;
+        for location in locations {
+            path_bytes = path_bytes
+                .checked_add(location.relative_path.len())
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "package review source-location path-byte count overflow",
+                    )]
+                })?;
+        }
+    }
+    if count > MAX_PACKAGE_REVIEW_SOURCE_LOCATIONS {
+        return Err(vec![Diagnostic::error(
+            "package review exceeds the source-location count ceiling",
+        )]);
+    }
+    if path_bytes > MAX_PACKAGE_REVIEW_SOURCE_LOCATION_PATH_BYTES {
+        return Err(vec![Diagnostic::error(
+            "package review exceeds the source-location path-byte ceiling",
+        )]);
+    }
+    Ok(())
+}
+
+fn declaration_row_source(
+    compilation: &CheckedCompilation,
+    identity: &PackageReviewNominalIdentity,
+    symbols: impl Iterator<Item = SymbolHandle>,
+    role: PackageReviewSourceLocationRole,
+    subject: &str,
+) -> Result<PackageReviewCanonicalRowSource, Vec<Diagnostic>> {
+    declaration_locations(compilation, identity, symbols, role, subject)
+        .map(PackageReviewCanonicalRowSource::Authored)
+}
+
+fn declaration_locations(
+    compilation: &CheckedCompilation,
+    identity: &PackageReviewNominalIdentity,
+    symbols: impl Iterator<Item = SymbolHandle>,
+    role: PackageReviewSourceLocationRole,
+    subject: &str,
+) -> Result<Vec<PackageReviewSourceLocation>, Vec<Diagnostic>> {
+    let mut matching = Vec::new();
+    for symbol in symbols {
+        if nominal_identity(compilation, symbol)? == *identity {
+            matching.push(symbol);
+        }
+    }
+    let [symbol] = matching.as_slice() else {
+        return Err(vec![Diagnostic::error(format!(
+            "{subject} `{}` resolves to {} authored source declarations; expected one",
+            identity.path,
+            matching.len()
+        ))]);
+    };
+    Ok(vec![canonical_source_location(compilation, *symbol, role)?])
+}
+
+fn canonical_source_location(
+    compilation: &CheckedCompilation,
+    symbol: SymbolHandle,
+    mut role: PackageReviewSourceLocationRole,
+) -> Result<PackageReviewSourceLocation, Vec<Diagnostic>> {
+    if compilation
+        .typed
+        .symbols
+        .symbol_source_span(symbol)
+        .is_none()
+    {
+        role = PackageReviewSourceLocationRole::DerivationOrigin;
+    }
+    let span = compilation
+        .typed
+        .symbols
+        .symbol_provenance_source_span(symbol)
+        .ok_or_else(|| {
+            vec![Diagnostic::error(format!(
+                "reviewed declaration `{}` has no authored source span",
+                compilation.typed.symbols.display_path(symbol, "::")
+            ))]
+        })?;
+    let source_file = compilation.typed.symbols.source_file(span).ok_or_else(|| {
+        vec![Diagnostic::error(
+            "reviewed declaration source span has no retained source file",
+        )]
+    })?;
+    if span.span.start >= span.span.end
+        || span.span.end > source_file.source.len()
+        || !source_file.source.is_char_boundary(span.span.start)
+        || !source_file.source.is_char_boundary(span.span.end)
+    {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed declaration source span is outside `{}`",
+            source_file.path.display()
+        ))]);
+    }
+    let owner = match source_file.origin {
+        psi_source::SourceOrigin::User => PackageReviewSourceLocationOwner::Package(
+            source_file.package_identity.ok_or_else(|| {
+                vec![Diagnostic::error(format!(
+                    "reviewed package source `{}` has no reconciled package identity",
+                    source_file.path.display()
+                ))]
+            })?,
+        ),
+        psi_source::SourceOrigin::Toolchain => {
+            PackageReviewSourceLocationOwner::Toolchain(toolchain_source_identity(source_file)?)
+        }
+    };
+    let relative_path = canonical_review_relative_path(source_file)?;
+    Ok(PackageReviewSourceLocation {
+        owner,
+        relative_path,
+        start_byte: u64::try_from(span.span.start).expect("retained source byte offset fits u64"),
+        end_byte: u64::try_from(span.span.end).expect("retained source byte offset fits u64"),
+        role,
+    })
+}
+
+fn canonical_review_relative_path(
+    source_file: &psi_source::SourceFile,
+) -> Result<String, Vec<Diagnostic>> {
+    let relative = match source_file.path.strip_prefix(&source_file.package_root) {
+        Ok(relative) => relative,
+        Err(_)
+            if source_file.origin == psi_source::SourceOrigin::Toolchain
+                && is_canonical_virtual_toolchain_path(&source_file.path) =>
+        {
+            source_file.path.as_path()
+        }
+        Err(_) => {
+            return Err(vec![Diagnostic::error(format!(
+                "reviewed source `{}` is outside its retained package root `{}`",
+                source_file.path.display(),
+                source_file.package_root.display()
+            ))]);
+        }
+    };
+    let mut path = String::new();
+    for component in relative.components() {
+        let std::path::Component::Normal(component) = component else {
+            return Err(vec![Diagnostic::error(format!(
+                "reviewed source `{}` has a non-canonical relative path",
+                source_file.path.display()
+            ))]);
+        };
+        let component = component.to_str().ok_or_else(|| {
+            vec![Diagnostic::error(format!(
+                "reviewed source `{}` has a non-UTF-8 relative path component",
+                source_file.path.display()
+            ))]
+        })?;
+        if !path.is_empty() {
+            path.push('/');
+        }
+        path.push_str(component);
+    }
+    if path.is_empty() {
+        return Err(vec![Diagnostic::error(
+            "reviewed source location requires a non-empty relative path",
+        )]);
+    }
+    Ok(path)
+}
+
+fn callable_exposes_service(
+    callable: &CheckedPackageCallableReview,
+    service: &PackageReviewNominalIdentity,
+) -> bool {
+    callable
+        .declared_service_reach()
+        .is_some_and(|services| services.contains(service))
+        || callable.realized_service_reach().contains(service)
+        || callable.concrete_service_reach().contains(service)
+        || callable
+            .unresolved_installation_reaches()
+            .iter()
+            .any(|reach| reach.upper_bound().contains(service))
+        || callable
+            .declared_synchronous_invocations()
+            .is_some_and(|invocations| {
+                invocations
+                    .iter()
+                    .any(|invocation| invocation.service() == Some(service))
+            })
+        || callable
+            .realized_synchronous_invocations()
+            .iter()
+            .any(|invocation| invocation.service() == Some(service))
 }
 
 /// Compiler-owned intrinsic metadata for the standard authority catalog.
@@ -5226,62 +5710,15 @@ fn nominal_owner(
 fn toolchain_source_identity(
     source_file: &psi_source::SourceFile,
 ) -> Result<PackageReviewToolchainSourceIdentity, Vec<Diagnostic>> {
-    let relative = match source_file.path.strip_prefix(&source_file.package_root) {
-        Ok(relative) => relative,
-        Err(_) if is_canonical_virtual_toolchain_path(&source_file.path) => {
-            source_file.path.as_path()
-        }
-        Err(_) => {
-            return Err(vec![Diagnostic::error(format!(
-                "toolchain source `{}` is outside its canonical package root `{}`",
-                source_file.path.display(),
-                source_file.package_root.display()
-            ))]);
-        }
-    };
-    let mut components = Vec::new();
-    for component in relative.components() {
-        let std::path::Component::Normal(component) = component else {
-            return Err(vec![Diagnostic::error(format!(
-                "toolchain source `{}` has a non-canonical relative path",
-                source_file.path.display()
-            ))]);
-        };
-        let component = component.to_str().ok_or_else(|| {
-            vec![Diagnostic::error(format!(
-                "toolchain source `{}` has a non-UTF-8 canonical path component",
-                source_file.path.display()
-            ))]
-        })?;
-        components.push(component.as_bytes());
-    }
-    if components.is_empty() {
-        return Err(vec![Diagnostic::error(
-            "toolchain source identity requires a non-empty canonical relative path",
-        )]);
-    }
-
+    let custody_entry = super::package_source_consumption::canonical_source_entry(source_file)?;
     let mut digest = Sha256::new();
     digest.update(b"OMEGA-PACKAGE-REVIEW-TOOLCHAIN-SOURCE\0");
     digest.update(
-        u64::try_from(components.len())
-            .expect("path component count fits u64")
+        u64::try_from(custody_entry.len())
+            .expect("canonical source custody entry length fits u64")
             .to_le_bytes(),
     );
-    for component in components {
-        digest.update(
-            u64::try_from(component.len())
-                .expect("path component length fits u64")
-                .to_le_bytes(),
-        );
-        digest.update(component);
-    }
-    digest.update(
-        u64::try_from(source_file.source.len())
-            .expect("toolchain source length fits u64")
-            .to_le_bytes(),
-    );
-    digest.update(source_file.source.as_bytes());
+    digest.update(custody_entry);
     Ok(PackageReviewToolchainSourceIdentity {
         digest: digest.finalize().into(),
     })
@@ -5326,7 +5763,15 @@ mod tests {
     use std::sync::Arc;
 
     fn toolchain_source(relative_path: &str, source: &str) -> SourceFile {
-        let package_root = PathBuf::from("toolchain/std");
+        namespaced_toolchain_source("std", relative_path, source)
+    }
+
+    fn namespaced_toolchain_source(
+        namespace: &str,
+        relative_path: &str,
+        source: &str,
+    ) -> SourceFile {
+        let package_root = PathBuf::from("toolchain").join(namespace);
         SourceFile {
             source_id: SourceId(0),
             path: package_root.join(relative_path),
@@ -5364,6 +5809,15 @@ mod tests {
         assert_eq!(first, repeated);
         assert_ne!(first, changed_path);
         assert_ne!(first, changed_source);
+        assert_ne!(
+            first,
+            toolchain_source_identity(&namespaced_toolchain_source(
+                "core",
+                "service.omg",
+                "trait Host {}",
+            ))
+            .expect("changed-namespace toolchain source identity")
+        );
         assert_ne!(first.digest(), [0; 32]);
     }
 
@@ -5379,10 +5833,6 @@ mod tests {
             "data Build",
         ))
         .expect_err("nested virtual path outside the toolchain root must reject");
-        assert!(
-            error[0]
-                .message
-                .contains("outside its canonical package root")
-        );
+        assert!(error[0].message.contains("outside its canonical root"));
     }
 }

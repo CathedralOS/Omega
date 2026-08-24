@@ -134,11 +134,14 @@ fn encode_rows_with_limits(
             limits,
             PackageReviewCanonicalRowKind::ProjectionHeader,
             PackageReviewCanonicalRowRisk::Blocking,
+            PackageReviewCanonicalRowSource::CompilerDerived(
+                PackageReviewSyntheticSourceKind::ProjectionHeader,
+            ),
             |_| Ok(()),
             |_| Ok(()),
         )?,
     )?;
-    for shape in &review.public_traits {
+    for (index, shape) in review.public_traits.iter().enumerate() {
         push_row(
             &mut rows,
             &mut total_row_bytes,
@@ -148,12 +151,13 @@ fn encode_rows_with_limits(
                 limits,
                 PackageReviewCanonicalRowKind::PublicTrait,
                 PackageReviewCanonicalRowRisk::Blocking,
+                row_source(&review.row_sources.public_traits, index)?,
                 |encoder| encode_nominal(encoder, &shape.identity),
                 |encoder| encode_trait_shape(encoder, shape),
             )?,
         )?;
     }
-    for shape in &review.public_domains {
+    for (index, shape) in review.public_domains.iter().enumerate() {
         push_row(
             &mut rows,
             &mut total_row_bytes,
@@ -163,12 +167,13 @@ fn encode_rows_with_limits(
                 limits,
                 PackageReviewCanonicalRowKind::PublicDomain,
                 PackageReviewCanonicalRowRisk::Blocking,
+                row_source(&review.row_sources.public_domains, index)?,
                 |encoder| encode_nominal(encoder, &shape.identity),
                 |encoder| encode_domain_shape(encoder, shape),
             )?,
         )?;
     }
-    for shape in &review.public_data {
+    for (index, shape) in review.public_data.iter().enumerate() {
         push_row(
             &mut rows,
             &mut total_row_bytes,
@@ -178,12 +183,13 @@ fn encode_rows_with_limits(
                 limits,
                 PackageReviewCanonicalRowKind::PublicData,
                 PackageReviewCanonicalRowRisk::Blocking,
+                row_source(&review.row_sources.public_data, index)?,
                 |encoder| encode_nominal(encoder, &shape.identity),
                 |encoder| encode_data_shape(encoder, shape),
             )?,
         )?;
     }
-    for row in &review.representation_tcb {
+    for (index, row) in review.representation_tcb.iter().enumerate() {
         push_row(
             &mut rows,
             &mut total_row_bytes,
@@ -193,12 +199,13 @@ fn encode_rows_with_limits(
                 limits,
                 PackageReviewCanonicalRowKind::RepresentationTcb,
                 PackageReviewCanonicalRowRisk::AuditRecommended,
+                row_source(&review.row_sources.representation_tcb, index)?,
                 |encoder| encode_nominal(encoder, &row.declaration),
                 |encoder| encode_representation_tcb(encoder, row),
             )?,
         )?;
     }
-    for callable in &review.callables {
+    for (index, callable) in review.callables.iter().enumerate() {
         push_row(
             &mut rows,
             &mut total_row_bytes,
@@ -208,12 +215,13 @@ fn encode_rows_with_limits(
                 limits,
                 PackageReviewCanonicalRowKind::Callable,
                 PackageReviewCanonicalRowRisk::Blocking,
+                row_source(&review.row_sources.callables, index)?,
                 |encoder| encode_nominal(encoder, &callable.identity),
                 |encoder| encode_callable(encoder, callable),
             )?,
         )?;
     }
-    for authority in &review.dangerous_authorities {
+    for (index, authority) in review.dangerous_authorities.iter().enumerate() {
         push_row(
             &mut rows,
             &mut total_row_bytes,
@@ -223,6 +231,7 @@ fn encode_rows_with_limits(
                 limits,
                 PackageReviewCanonicalRowKind::DangerousAuthority,
                 PackageReviewCanonicalRowRisk::Blocking,
+                row_source(&review.row_sources.dangerous_authorities, index)?,
                 |encoder| encode_nominal(encoder, &authority.service),
                 |encoder| encode_dangerous_authority(encoder, authority),
             )?,
@@ -237,6 +246,7 @@ fn encode_rows_with_limits(
             limits,
             PackageReviewCanonicalRowKind::SelectedProviderSet,
             PackageReviewCanonicalRowRisk::OpaqueBlocking,
+            review.row_sources.selected_provider_set.clone(),
             |_| Ok(()),
             |encoder| encoder.sequence(&review.selected_providers, encode_provider),
         )?,
@@ -285,6 +295,7 @@ fn encode_row(
     limits: PackageReviewEncodingLimits,
     kind: PackageReviewCanonicalRowKind,
     risk: PackageReviewCanonicalRowRisk,
+    source: PackageReviewCanonicalRowSource,
     encode_key: impl FnOnce(&mut Encoder) -> Result<(), PackageReviewEncodingError>,
     encode_value: impl FnOnce(&mut Encoder) -> Result<(), PackageReviewEncodingError>,
 ) -> Result<PackageReviewCanonicalRow, PackageReviewEncodingError> {
@@ -309,6 +320,18 @@ fn encode_row(
         risk,
         key_bytes,
         canonical_bytes: canonical.finish()?,
+        source,
+    })
+}
+
+fn row_source(
+    sources: &[PackageReviewCanonicalRowSource],
+    index: usize,
+) -> Result<PackageReviewCanonicalRowSource, PackageReviewEncodingError> {
+    sources.get(index).cloned().ok_or_else(|| {
+        PackageReviewEncodingError::new(
+            "package review canonical row has no compiler-issued source disposition",
+        )
     })
 }
 
@@ -1713,6 +1736,17 @@ mod tests {
             callables: Vec::new(),
             dangerous_authorities: Vec::new(),
             selected_providers: Vec::new(),
+            row_sources: PackageReviewCanonicalRowSources {
+                public_traits: Vec::new(),
+                public_domains: Vec::new(),
+                public_data: Vec::new(),
+                representation_tcb: Vec::new(),
+                callables: Vec::new(),
+                dangerous_authorities: Vec::new(),
+                selected_provider_set: PackageReviewCanonicalRowSource::CompilerDerived(
+                    PackageReviewSyntheticSourceKind::SelectedProviderProvenancePending,
+                ),
+            },
         }
     }
 

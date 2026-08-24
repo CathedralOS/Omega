@@ -1,14 +1,15 @@
 use omega_compiler::{
     BuildObservationClass, PACKAGE_REVIEW_ENCODING_VERSION, PACKAGE_REVIEW_ROW_ENCODING_VERSION,
     PackageCompilationInputs, PackageDependencyBinding, PackageReviewArithmeticDomain,
-    PackageReviewCallableRole, PackageReviewCanonicalRowKind, PackageReviewCastForm,
-    PackageReviewContractBinaryOperator, PackageReviewContractExpression,
+    PackageReviewCallableRole, PackageReviewCanonicalRowKind, PackageReviewCanonicalRowSource,
+    PackageReviewCastForm, PackageReviewContractBinaryOperator, PackageReviewContractExpression,
     PackageReviewContractFact, PackageReviewContractKind, PackageReviewCrashInterface,
     PackageReviewCrashRouteGuard, PackageReviewDangerousAuthorityClass, PackageReviewDataMember,
     PackageReviewDomainClassification, PackageReviewDomainEstablishmentKind,
     PackageReviewNominalOwner, PackageReviewPropositionBinderKind,
     PackageReviewPropositionBinderValue, PackageReviewPropositionEvidence,
     PackageReviewRepresentationAbiCommitment, PackageReviewRepresentationMechanism,
+    PackageReviewSourceLocationOwner, PackageReviewSourceLocationRole,
     PackageReviewSynchronousInvocation, PackageSourceBinding, compile_to_checked_with_packages,
     project_checked_package_review,
 };
@@ -134,12 +135,37 @@ target macos_arm64 { }
             .expect("changed package review bytes"),
         "source consumption and normalized capability/API comparison remain separate identities"
     );
+    let first_rows = first_review.canonical_rows().expect("first canonical rows");
+    let changed_rows = changed_review
+        .canonical_rows()
+        .expect("changed-source canonical rows");
     assert_eq!(
-        first_review.canonical_rows().expect("first canonical rows"),
-        changed_review
-            .canonical_rows()
-            .expect("changed-source canonical rows"),
+        first_rows, changed_rows,
         "source-only changes remain outside every normalized capability/API row"
+    );
+    let first_data = first_rows
+        .iter()
+        .find(|row| row.kind() == PackageReviewCanonicalRowKind::PublicData)
+        .expect("public data row");
+    let changed_data = changed_rows
+        .iter()
+        .find(|row| row.kind() == PackageReviewCanonicalRowKind::PublicData)
+        .expect("changed-source public data row");
+    let PackageReviewCanonicalRowSource::Authored(first_locations) = first_data.source() else {
+        panic!("public data receives an authored source coordinate")
+    };
+    let PackageReviewCanonicalRowSource::Authored(changed_locations) = changed_data.source() else {
+        panic!("changed public data receives an authored source coordinate")
+    };
+    assert_eq!(first_locations.len(), 1);
+    assert_eq!(changed_locations.len(), 1);
+    assert_eq!(first_locations[0].relative_path(), "main.omg");
+    assert_eq!(changed_locations[0].relative_path(), "main.omg");
+    assert!(changed_locations[0].start_byte() > first_locations[0].start_byte());
+    assert!(
+        !first_locations[0]
+            .relative_path()
+            .contains(&first.0.display().to_string())
     );
 
     first.write("main.omg", changed_source);
@@ -240,6 +266,36 @@ target macos_arm64 { }
     };
     assert_ne!(source.digest(), [0; 32]);
     assert_eq!(authority.service().path(), "FilesystemHost");
+    let rows = canonical_review
+        .canonical_rows()
+        .expect("filesystem review rows");
+    let authority_row = rows
+        .iter()
+        .find(|row| row.kind() == PackageReviewCanonicalRowKind::DangerousAuthority)
+        .expect("dangerous authority canonical row");
+    let PackageReviewCanonicalRowSource::Authored(locations) = authority_row.source() else {
+        panic!("dangerous authority row must retain authored provenance")
+    };
+    assert!(locations.iter().any(|location| {
+        location.role() == PackageReviewSourceLocationRole::AuthorityDeclaration
+            && matches!(
+                location.owner(),
+                PackageReviewSourceLocationOwner::Toolchain(_)
+            )
+    }));
+    assert!(locations.iter().any(|location| {
+        location.role() == PackageReviewSourceLocationRole::AuthorityExposure
+            && matches!(
+                location.owner(),
+                PackageReviewSourceLocationOwner::Package(_)
+            )
+            && location.relative_path() == "main.omg"
+    }));
+    assert!(locations.iter().all(|location| {
+        !location
+            .relative_path()
+            .contains(canonical.0.to_string_lossy().as_ref())
+    }));
 
     let lookalike = TempPackage::new();
     lookalike.write(

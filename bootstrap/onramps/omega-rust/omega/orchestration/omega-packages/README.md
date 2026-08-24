@@ -406,8 +406,16 @@ dependency path, and a canonical commitment to the entire candidate closure.
 The ordinary model-facing view remains compact and fixed-vocabulary: it shows
 row coordinates, lengths, and commitments while the separately framed source
 patch provides readable code. Representation-TCB-only changes recommend audit;
-blocking and opaque-blocking changes still reject. Exact compiler-issued source
-locations and durable root-policy resolutions remain unfinished.
+blocking and opaque-blocking changes still reject. Compiler-issued rows now
+carry explanatory package-relative UTF-8 paths and exact byte spans separately
+from semantic bytes. Ordinary declaration rows point to their declaration;
+dangerous-authority rows point to both the canonical toolchain declaration and
+the package callables exposing it. Generated symbols follow authored derivation
+provenance. Changed-row fingerprints bind the exact old/new coordinates shown
+by the escaped fixed-vocabulary renderer, but source movement alone is not a
+capability change. Selected-provider provenance, exact nested clause/use-site
+anchors, and durable root-policy resolutions remain unfinished engineering
+work; none independently motivates nominal Chi.
 
 The former commands accepting `manifest.json`, `receipt.json`, `--package`, or
 mandatory `--alias` are quarantined from the production CLI. Their manifest,

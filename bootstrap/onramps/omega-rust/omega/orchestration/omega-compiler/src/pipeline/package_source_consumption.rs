@@ -102,7 +102,7 @@ pub(super) fn verify_current_files(program: &CheckedTrees) -> Result<(), Vec<Dia
     }
 }
 
-fn canonical_source_entry(source: &SourceFile) -> Result<Vec<u8>, Vec<Diagnostic>> {
+pub(super) fn canonical_source_entry(source: &SourceFile) -> Result<Vec<u8>, Vec<Diagnostic>> {
     let mut entry = Vec::new();
     match source.origin {
         SourceOrigin::User => {

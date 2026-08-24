@@ -188,6 +188,12 @@ impl SymbolTable {
         self.names.get(self.get(symbol).name).source_span()
     }
 
+    /// Exact authored provenance span for an authored or compiler-generated
+    /// symbol. Generated symbols follow their mandatory derivation origin.
+    pub fn symbol_provenance_source_span(&self, symbol: SymbolHandle) -> Option<SourceSpan> {
+        self.provenance_source_span(symbol)
+    }
+
     /// File metadata for one retained authored span. Generated/source-free
     /// trees return `None` instead of inventing a presentation path.
     pub fn source_file(&self, source_span: SourceSpan) -> Option<&SourceFile> {
