@@ -7,6 +7,11 @@ The package manager is Cargo-like in workflow, not in registry model. It
 resolves Git, URL, and local sources supplied by the project; it does not host
 packages or trust repository names.
 
+The security and custody rules are durable; the exact build-library vocabulary
+is intentionally discovery-driven. Prefer existing Omega data, machines,
+arithmetic, and provider mechanisms, and add a new public boundary only when a
+real package fixture demonstrates an irreducible external contract.
+
 ## Governing model
 
 - Every fetched package declares its own human name through the hermetically
@@ -35,6 +40,8 @@ The complete design is in:
 - `wiki/design_briefs/build_and_package_model.md`
 - `wiki/language_guide/chapter_15_modules_imports_visibility.md`
 - `wiki/language_guide/chapter_19_capabilities_effects_boundaries.md`
+- `SOURCE_RESOLVER_SECURITY.md` for the resolver helper, snapshot, sandbox, and
+  receipt boundary.
 
 ## Trust status
 

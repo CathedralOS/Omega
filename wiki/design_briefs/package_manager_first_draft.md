@@ -15,6 +15,18 @@ result before changing project or lock state.
 The package manager does not accept package-authored capability manifests or
 caller-authored package identities as evidence.
 
+The security invariants in this brief are firmer than its implementation
+vocabulary. The implementation should reuse the smallest coherent Omega
+mechanism that proves the required property and collapse provisional
+distinctions when experience shows that one existing mechanism is sufficient.
+For example, package/build arithmetic should use ordinary Omega arithmetic and
+may use `Exact` throughout when its actual obligations are provable. Likewise,
+explicit build-host authority and checked reach are required, but this brief
+does not require every one-purpose tool service to become a new public boundary
+trait. Concrete fixtures should decide whether an ordinary machine/provider,
+an existing boundary, or a narrower toolchain-owned operation is the simplest
+honest surface.
+
 ## Package declaration and identity
 
 Every package declares its own human name in its `build.omg` through one
@@ -25,7 +37,7 @@ const PACKAGE: Package = Package {
     name: "arithmetic-kernels"
 };
 
-machine build(build: &mut Build) {
+machine build(builder: &mut Build) {
 }
 ```
 
@@ -69,8 +81,8 @@ admitted boundary owned by another source lineage.
 target ordinary-library shape is:
 
 ```omega
-machine build(build: &mut Build) {
-    build.depend(Source::Git {
+machine build(builder: &mut Build) {
+    builder.depend(Source::Git {
         repository: "https://github.com/CathedralOS/arithmetic-kernels.git",
         revision: "main"
     });
@@ -80,7 +92,7 @@ machine build(build: &mut Build) {
 The resolver fetches the source and obtains its name from that package's own
 `PACKAGE`. The default in-code alias is the mechanical kebab-to-snake mapping,
 `arithmetic-kernels` to `arithmetic_kernels`. Only a genuine local collision
-or deliberate rename uses the exceptional `build.depend_as(alias, source)`
+or deliberate rename uses the exceptional `builder.depend_as(alias, source)`
 form. The alias is local name resolution only and never contributes security
 identity.
 
