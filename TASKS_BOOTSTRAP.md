@@ -13,12 +13,9 @@ this overview.
 
 ```text
 Alpha → Beta → Gamma → Delta
-                           ↓
-              omega-bootstrap (accepts Ωself)
-                           ↓
-              omega (full optimizing compiler; own binary may be conservative)
-                           │
-                           └── optional self-rebuild ──▶ omega (same compiler; optimized binary)
+Delta bridge source ──[lattice-built Delta compiler]──▶ omega-bootstrap
+Ωself product source ──[omega-bootstrap]──────────────▶ omega (full Ω; conservative binary)
+Ωself product source ──[optional omega rebuild]───────▶ omega (same compiler; optimized binary)
 ```
 
 The languages become increasingly capable. Delta is an independent, robust
@@ -379,15 +376,29 @@ Terminal-Psi interpreter, verifier, viewer, or debugger, and it does not require
   their exact status and no artifact publication. No new Omega grammar, module
   semantics, Delta feature, or `Ωself` row is selected by this task.
 
-#### Stage 2 — derive the source profile and implement the bridge
+#### Stage 2 — converge the product-source profile and the bridge
+
+The profile-derivation and profile-neutral-substrate work packages in this
+stage are deliberately not one serial queue. Profile-neutral compiler substrate
+may advance before the product source manifest exists, while provisional
+`Ωself` derivation cannot. The boundary is strict:
+
+- before the manifest, implement only reusable, independently specified
+  compiler capabilities with their own positive, negative, resource, meaning,
+  and artifact gates;
+- after the manifest, select accepted Omega capabilities from the actual
+  product-source closure and measured bridge cost; and
+- do not turn canary succession, producer coverage, or speculative usefulness
+  into an `Ωself` feature decision.
 
 - [ ] **Derive and enforce provisional `Ωself` from the product source.**
-  Dependency: the exact production-compiler source manifest above must exist
-  before the profile can be derived. Standard library samples and current Rust
-  source cannot substitute for it; provisional bridge work may continue before
-  that manifest exists. This task produces the general candidate contract used
-  to implement the bridge. It does not freeze the profile: measured bridge and
-  assurance costs still have to settle every retain-versus-refactor choice.
+  **Blocked input:** the exact production-compiler source manifest above must
+  exist before the profile can be derived. Standard library samples and current
+  Rust source cannot substitute for it; provisional bridge work may continue
+  before that manifest exists. This task produces the general candidate
+  contract used to implement the bridge. It does not freeze the profile:
+  measured bridge and assurance costs still have to settle every
+  retain-versus-refactor choice.
   - [ ] measure every feature used by the complete source closure against its
     production-source benefit and the cost of implementing and assuring it in
     the Delta-written bridge;
@@ -420,11 +431,13 @@ Terminal-Psi interpreter, verifier, viewer, or debugger, and it does not require
   join. The candidate profile is a true subset, not a dialect, a source-file
   whitelist, or another lattice rung.
 
-- [ ] **Implement `omega-bootstrap` in Delta.**
-  Reuse the closed O0/O1 test path as vertical-canary evidence only. O0/O1 are
-  not implementation stages that must be extended in numerical order. Grow the
-  bridge by general capabilities required by the product source rather than by
-  hard-coded source permutations.
+- [ ] **Advance profile-neutral bridge substrate in Delta.** **Actionable now,
+  with a bounded stop.** Reuse the closed
+  O0/O1 path as vertical-canary evidence only. This work may proceed before the
+  product manifest because each tranche is a general compiler capability with
+  an independent specification and stop condition. O0/O1 are not implementation
+  stages that must be extended in numerical order, and this lane must not grow
+  an open-ended approximation of Omega from guessed product needs.
   - [x] establish profile-neutral, source-unit-bounded nested block-comment
     scanning in the real frontend. Program and auxiliary comments use the same
     reusable scanner; nesting is exact, delimiters cannot cross units, and an
@@ -450,6 +463,18 @@ Terminal-Psi interpreter, verifier, viewer, or debugger, and it does not require
     Recursion, modules, records, generics, domains, proofs, and general control
     flow remain outside this conformance slice; the slice does not admit a row
     to `Ωself`;
+
+  Acceptance: each named tranche is table-driven rather than fixture-shaped,
+  rejects every unsupported or exhausted form before publication, and agrees
+  across native, lower-rung meaning, and direct artifact observations. After
+  the scalar call/return tranche, further accepted-source growth waits for a
+  concrete provisional `Ωself` requirement; maintenance and assurance work on
+  the landed substrate may continue.
+
+- [ ] **Implement `omega-bootstrap` in Delta against provisional `Ωself`.**
+  **Blocked input:** the deterministic product-source manifest and mechanically
+  enforced provisional profile above. Grow the bridge by general capabilities
+  required by that source rather than by hard-coded source permutations.
   - [ ] publish the complete deterministic Delta source manifest and prove each
     transitive unit valid under the provisional profile; final validity under
     frozen Delta v1 belongs to the subsequent freeze task, and one entry source
@@ -464,15 +489,16 @@ Terminal-Psi interpreter, verifier, viewer, or debugger, and it does not require
   - [ ] compile, rather than duplicate, the production optimizer and advanced
     lowering source.
 
-  This task grows against the working `Ωself` policy and feeds measured cost
-  back into the profile decision. A capability is complete only when its
+  This task feeds measured implementation and assurance cost back into the
+  provisional profile decision. A capability is complete only when its
   general profile rule, unsupported-form rejection, Rust-free meaning, and
   artifact path land together; recognizing just the current product source
   shape does not count.
 
   Acceptance: the bridge compiles every admitted `Ωself` program with exact
-  Omega semantics. It need not accept full Omega, optimize its own output, use
-  the production allocator architecture, or host unrelated product tools.
+  Omega semantics and compiles the complete product-source manifest. It need
+  not accept full Omega, optimize its own output, use the production allocator
+  architecture, or host unrelated product tools.
 
 #### Stage 3 — freeze both inventories and close the hosted edge
 
@@ -704,13 +730,15 @@ Terminal-Psi interpreter, verifier, viewer, or debugger, and it does not require
 ## Execution order
 
 1. In parallel, keep Delta's Rust-free meaning route and provisional feature
-   ledger live while `OMEGA-PRODUCT-COMPILER-SOURCE` establishes the Omega-written
-   product source and deterministic closure in `TASKS.md`.
+   ledger live, finish only the explicitly bounded profile-neutral bridge
+   substrate listed above, and let `OMEGA-PRODUCT-COMPILER-SOURCE` establish the
+   Omega-written product source and deterministic closure in `TASKS.md`.
 2. Derive and mechanically enforce a provisional `Ωself` from that product
-   closure, then implement `omega-bootstrap` directly against its compositional
-   rules. Use O0/O1 only as regression canaries; do not manufacture an O2/O3
-   ladder. Feed measured bridge and assurance cost back into each
-   retained/excluded profile decision.
+   closure, then implement the remaining `omega-bootstrap` capabilities directly
+   against its compositional rules. Use O0/O1 only as regression canaries; do
+   not manufacture an O2/O3 ladder or continue speculative accepted-source
+   growth after the bounded substrate stop. Feed measured bridge and assurance
+   cost back into each retained/excluded profile decision.
 3. At the completed bridge join, freeze `Ωself` from the exact Omega product
    closure and general accepted-source implementation. Separately freeze a
    coherent Delta v1 from the bridge's complete Delta source closure after

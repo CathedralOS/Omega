@@ -9,10 +9,9 @@ language:
 
 ```text
 Alpha → Beta → Gamma → Delta
-                           ↓
-              omega-bootstrap (accepts Ωself)
-                           ↓
-              omega (full optimizing compiler; own binary may be conservative)
+Delta bridge source ──[lattice-built Delta compiler]──▶ omega-bootstrap
+Ωself product source ──[omega-bootstrap]──────────────▶ omega (full Ω; conservative binary)
+Ωself product source ──[optional omega rebuild]───────▶ omega (same compiler; optimized binary)
 ```
 
 `omega-bootstrap` may itself be conservatively built and may conservatively

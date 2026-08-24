@@ -93,8 +93,9 @@ compiler conservatively. It must compile the `Ωself` source that implements the
 product optimizer and advanced lowering; it need not duplicate those passes:
 
 ```text
-Delta → omega-bootstrap (accepts Ωself)
-      → omega (implements full Ω)
+Delta bridge source ──[lattice-built Delta compiler]──▶ omega-bootstrap
+Ωself product source ──[omega-bootstrap]──────────────▶ omega (implements full Ω)
+Ωself product source ──[optional omega rebuild]───────▶ omega (same compiler; optimized binary)
 ```
 
 See [`../compiler_source_profile.md`](../compiler_source_profile.md) for the separate

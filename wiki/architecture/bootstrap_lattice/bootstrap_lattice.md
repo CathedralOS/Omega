@@ -233,10 +233,9 @@ The build continues through a bridge compiler and the production compiler:
 
 ```text
 Alpha → Beta → Gamma → Delta
-                           ↓
-              omega-bootstrap (Delta-built, accepts Ωself)
-                           ↓
-              omega (full optimizing compiler; own binary may be conservative)
+Delta bridge source ──[lattice-built Delta compiler]──▶ omega-bootstrap
+Ωself product source ──[omega-bootstrap]──────────────▶ omega (full Ω; conservative binary)
+Ωself product source ──[optional omega rebuild]───────▶ omega (same compiler; optimized binary)
 ```
 
 Delta is independent rather than an Omega subset. `Ωself` is not another

@@ -5,12 +5,9 @@ languages, then through one deliberately profile-limited hosted edge:
 
 ```text
 Alpha → Beta → Gamma → Delta
-                           ↓
-              omega-bootstrap (Delta-built, accepts Ωself)
-                           ↓
-              omega (full optimizing compiler; own binary may be conservative)
-                           │
-                           └── optional self-rebuild ──▶ omega (same compiler; optimized binary)
+Delta bridge source ──[lattice-built Delta compiler]──▶ omega-bootstrap
+Ωself product source ──[omega-bootstrap]──────────────▶ omega (full Ω; conservative binary)
+Ωself product source ──[optional omega rebuild]───────▶ omega (same compiler; optimized binary)
 ```
 
 Delta is an independent compiler-host language, not necessarily an Omega
