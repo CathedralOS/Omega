@@ -5,12 +5,16 @@ use std::fmt;
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
 
-const GIT_CACHE_POLICY: &[u8] = b"omega-git-cache-v2";
+const GIT_CACHE_POLICY: &[u8] = b"omega-git-cache-v3";
 const GIT_CACHE_METADATA: &str = "source.identity";
 const GIT_CACHE_REPOSITORY: &str = "repository";
+const GIT_CACHE_SNAPSHOTS: &str = "snapshots";
+const GIT_SNAPSHOT_METADATA: &str = "snapshot.identity";
+const GIT_SNAPSHOT_SOURCE: &str = "source";
+const GIT_SNAPSHOT_POLICY: &[u8] = b"omega-git-snapshot-v1";
 const GIT_ORIGIN_FETCH: &str = "+refs/heads/*:refs/remotes/origin/*";
 static STAGING_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
@@ -93,6 +97,10 @@ pub enum SourceResolveError {
     GitSubmodulesUnsupported {
         path: PathBuf,
     },
+    GitTreeInvalid {
+        path: Vec<u8>,
+        message: String,
+    },
     GitCacheInvalid {
         path: PathBuf,
         message: String,
@@ -155,6 +163,11 @@ impl fmt::Display for SourceResolveError {
                 "git source `{}` declares submodules; submodules must become explicit package edges before they are supported",
                 path.display()
             ),
+            Self::GitTreeInvalid { path, message } => write!(
+                output,
+                "git tree path `{}` is invalid: {message}",
+                String::from_utf8_lossy(path)
+            ),
             Self::GitCacheInvalid { path, message } => write!(
                 output,
                 "git cache entry `{}` is invalid: {message}",
@@ -191,42 +204,30 @@ pub fn resolve_local_source(
     )?;
     entries.sort_by(|left, right| left.relative_bytes.cmp(&right.relative_bytes));
 
-    let mut hasher = Sha256::new();
-    hasher.update(b"omega-local-source-v2\0");
-    hash_length(&mut hasher, entries.len() as u64);
-    let mut byte_count = 0_u64;
+    let mut identity = SourceIdentityHasher::new(entries.len());
     for entry in &entries {
-        hasher.update(b"entry");
-        hash_bytes(&mut hasher, &entry.relative_bytes);
         match &entry.kind {
             SourceEntryKind::File { path } => {
-                let remaining = limits.max_bytes.checked_sub(byte_count).ok_or(
+                let remaining = limits.max_bytes.checked_sub(identity.byte_count).ok_or(
                     SourceResolveError::TooManyBytes {
                         limit: limits.max_bytes,
                     },
                 )?;
                 let (bytes, executable) = read_file_bounded(path, remaining, limits.max_bytes)?;
-                byte_count = byte_count.checked_add(bytes.len() as u64).ok_or(
-                    SourceResolveError::TooManyBytes {
-                        limit: limits.max_bytes,
-                    },
-                )?;
-                hasher.update(b"file");
-                hasher.update([u8::from(executable)]);
-                hash_bytes(&mut hasher, &bytes);
+                identity.add_file(&entry.relative_bytes, executable, &bytes)?;
             }
             SourceEntryKind::Symlink { target_bytes } => {
-                hasher.update(b"symlink");
-                hash_bytes(&mut hasher, target_bytes);
+                identity.add_symlink(&entry.relative_bytes, target_bytes);
             }
         }
     }
+    let (byte_count, content_identity) = identity.finish();
 
     Ok(ResolvedLocalSource {
         root,
         file_count: entries.len(),
         byte_count,
-        content_identity: format_sha256(&hasher.finalize()),
+        content_identity,
     })
 }
 
@@ -272,11 +273,11 @@ fn resolve_verified_git_cache_entry(
     limits: LocalSourceLimits,
 ) -> Result<ResolvedGitSource, SourceResolveError> {
     verify_git_cache_entry(entry_root, url, requested_rev)?;
-    let checkout_root = entry_root.join(GIT_CACHE_REPOSITORY);
+    let repository = entry_root.join(GIT_CACHE_REPOSITORY);
 
     run_git([
         OsStr::new("-C"),
-        checkout_root.as_os_str(),
+        repository.as_os_str(),
         OsStr::new("fetch"),
         OsStr::new("--quiet"),
         OsStr::new("--no-tags"),
@@ -289,7 +290,7 @@ fn resolve_verified_git_cache_entry(
 
     let commit = run_git_stdout([
         OsStr::new("-C"),
-        checkout_root.as_os_str(),
+        repository.as_os_str(),
         OsStr::new("rev-parse"),
         OsStr::new("--verify"),
         OsStr::new("FETCH_HEAD^{commit}"),
@@ -297,64 +298,17 @@ fn resolve_verified_git_cache_entry(
     let commit = commit.trim().to_owned();
     let tree = run_git_stdout([
         OsStr::new("-C"),
-        checkout_root.as_os_str(),
+        repository.as_os_str(),
         OsStr::new("rev-parse"),
         OsStr::new("--verify"),
         OsStr::new(&format!("{commit}^{{tree}}")),
     ])?;
     let tree = tree.trim().to_owned();
-
-    let gitmodules = run_git_bytes_stdout([
-        OsStr::new("-C"),
-        checkout_root.as_os_str(),
-        OsStr::new("ls-tree"),
-        OsStr::new("-z"),
-        OsStr::new("--name-only"),
-        OsStr::new(&commit),
-        OsStr::new("--"),
-        OsStr::new(".gitmodules"),
-    ])?;
-    if !gitmodules.is_empty() {
-        return Err(SourceResolveError::GitSubmodulesUnsupported {
-            path: checkout_root.join(".gitmodules"),
-        });
-    }
-    let tree_entries = run_git_bytes_stdout([
-        OsStr::new("-C"),
-        checkout_root.as_os_str(),
-        OsStr::new("ls-tree"),
-        OsStr::new("-r"),
-        OsStr::new("-z"),
-        OsStr::new(&commit),
-    ])?;
-    if tree_entries
-        .split(|byte| *byte == 0)
-        .any(|entry| entry.starts_with(b"160000 "))
-    {
-        return Err(SourceResolveError::GitSubmodulesUnsupported {
-            path: checkout_root.to_path_buf(),
-        });
-    }
-
     verify_git_cache_entry(entry_root, url, requested_rev)?;
-    run_git([
-        OsStr::new("-C"),
-        checkout_root.as_os_str(),
-        OsStr::new("checkout"),
-        OsStr::new("--quiet"),
-        OsStr::new("--force"),
-        OsStr::new("--detach"),
-        OsStr::new(&commit),
-    ])?;
-    run_git([
-        OsStr::new("-C"),
-        checkout_root.as_os_str(),
-        OsStr::new("clean"),
-        OsStr::new("--quiet"),
-        OsStr::new("-ffdx"),
-    ])?;
+    let entries = inspect_git_tree(&repository, &tree, limits)?;
+    let (checkout_root, local) =
+        resolve_git_snapshot(entry_root, &repository, &tree, entries, limits)?;
     verify_git_cache_entry(entry_root, url, requested_rev)?;
-    let local = resolve_local_source(&checkout_root, limits)?;
     Ok(ResolvedGitSource {
         url: url.to_owned(),
         requested_rev: requested_rev.to_owned(),
@@ -363,6 +317,815 @@ fn resolve_verified_git_cache_entry(
         checkout_root,
         local,
     })
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct GitTreeEntry {
+    relative_bytes: Vec<u8>,
+    relative_path: PathBuf,
+    oid: String,
+    size: u64,
+    kind: GitTreeEntryKind,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum GitTreeEntryKind {
+    File { executable: bool },
+    Symlink { target_bytes: Vec<u8> },
+}
+
+fn inspect_git_tree(
+    repository: &Path,
+    tree: &str,
+    limits: LocalSourceLimits,
+) -> Result<Vec<GitTreeEntry>, SourceResolveError> {
+    if !is_object_id(tree) {
+        return Err(cache_invalid(
+            repository,
+            "Git returned an invalid tree object ID",
+        ));
+    }
+    let listing = run_git_bytes_stdout([
+        OsStr::new("-C"),
+        repository.as_os_str(),
+        OsStr::new("ls-tree"),
+        OsStr::new("--full-tree"),
+        OsStr::new("-r"),
+        OsStr::new("-l"),
+        OsStr::new("-z"),
+        OsStr::new(tree),
+    ])?;
+    let mut entries = parse_git_tree_entries(&listing, repository, limits)?;
+
+    // Read and validate every link before creating a snapshot directory. Blob size accounting was
+    // already completed for the entire tree, so no object is allocated speculatively.
+    for entry in &mut entries {
+        if matches!(entry.kind, GitTreeEntryKind::Symlink { .. }) {
+            let target = read_git_blob_bounded(repository, &entry.oid, entry.size)?;
+            validate_git_symlink_target(&entry.relative_bytes, &target)?;
+            entry.kind = GitTreeEntryKind::Symlink {
+                target_bytes: target,
+            };
+        }
+    }
+    Ok(entries)
+}
+
+fn parse_git_tree_entries(
+    listing: &[u8],
+    repository: &Path,
+    limits: LocalSourceLimits,
+) -> Result<Vec<GitTreeEntry>, SourceResolveError> {
+    let mut entries = Vec::new();
+    let mut paths = BTreeSet::new();
+    let mut blob_bytes = 0_u64;
+
+    for record in listing.split(|byte| *byte == 0) {
+        if record.is_empty() {
+            continue;
+        }
+        let Some(tab) = record.iter().position(|byte| *byte == b'\t') else {
+            return Err(git_tree_invalid(Vec::new(), "malformed ls-tree record"));
+        };
+        let header = &record[..tab];
+        let path = &record[tab + 1..];
+        let fields = header
+            .split(|byte| byte.is_ascii_whitespace())
+            .filter(|field| !field.is_empty())
+            .collect::<Vec<_>>();
+        if fields.len() != 4 {
+            return Err(git_tree_invalid(path, "malformed ls-tree header"));
+        }
+        let mode = fields[0];
+        let object_type = fields[1];
+        let oid = std::str::from_utf8(fields[2])
+            .map_err(|_| git_tree_invalid(path, "object ID is not ASCII"))?;
+        if !is_object_id(oid) {
+            return Err(git_tree_invalid(path, "object ID has an invalid spelling"));
+        }
+        if mode == b"160000" || object_type == b"commit" {
+            return Err(SourceResolveError::GitSubmodulesUnsupported {
+                path: git_path_from_bytes(path).unwrap_or_else(|_| repository.to_path_buf()),
+            });
+        }
+        if object_type != b"blob" {
+            return Err(git_tree_invalid(
+                path,
+                "only validated blob objects may be materialized",
+            ));
+        }
+        let size = std::str::from_utf8(fields[3])
+            .ok()
+            .and_then(|size| size.parse::<u64>().ok())
+            .ok_or_else(|| git_tree_invalid(path, "blob size is missing or invalid"))?;
+        let relative_path = validate_git_path(path, limits)?;
+        if path
+            .split(|byte| *byte == b'/')
+            .any(|component| component.eq_ignore_ascii_case(b".gitmodules"))
+        {
+            return Err(SourceResolveError::GitSubmodulesUnsupported {
+                path: relative_path,
+            });
+        }
+        if entries.len() >= limits.max_files {
+            return Err(SourceResolveError::TooManyFiles {
+                limit: limits.max_files,
+            });
+        }
+        if !paths.insert(path.to_vec()) {
+            return Err(git_tree_invalid(path, "duplicate path"));
+        }
+        blob_bytes = blob_bytes
+            .checked_add(size)
+            .ok_or(SourceResolveError::TooManyBytes {
+                limit: limits.max_bytes,
+            })?;
+        if blob_bytes > limits.max_bytes {
+            return Err(SourceResolveError::TooManyBytes {
+                limit: limits.max_bytes,
+            });
+        }
+        let kind = match mode {
+            b"100644" => GitTreeEntryKind::File { executable: false },
+            b"100755" => GitTreeEntryKind::File { executable: true },
+            b"120000" => GitTreeEntryKind::Symlink {
+                target_bytes: Vec::new(),
+            },
+            _ => return Err(git_tree_invalid(path, "unsupported Git entry mode")),
+        };
+        entries.push(GitTreeEntry {
+            relative_bytes: path.to_vec(),
+            relative_path,
+            oid: oid.to_owned(),
+            size,
+            kind,
+        });
+    }
+
+    entries.sort_by(|left, right| left.relative_bytes.cmp(&right.relative_bytes));
+    for pair in entries.windows(2) {
+        let mut prefix = pair[0].relative_bytes.clone();
+        prefix.push(b'/');
+        if pair[1].relative_bytes.starts_with(&prefix) {
+            return Err(git_tree_invalid(
+                &pair[1].relative_bytes,
+                "a blob path cannot contain another blob path",
+            ));
+        }
+    }
+    Ok(entries)
+}
+
+fn validate_git_path(
+    path: &[u8],
+    limits: LocalSourceLimits,
+) -> Result<PathBuf, SourceResolveError> {
+    if path.is_empty() || path.starts_with(b"/") || path.ends_with(b"/") {
+        return Err(git_tree_invalid(
+            path,
+            "path must be a non-empty relative path",
+        ));
+    }
+    if path.contains(&b'\\') {
+        return Err(git_tree_invalid(
+            path,
+            "backslashes are forbidden in portable package paths",
+        ));
+    }
+    let components = path.split(|byte| *byte == b'/').collect::<Vec<_>>();
+    for component in &components {
+        if component.is_empty() || *component == b"." || *component == b".." {
+            return Err(git_tree_invalid(
+                path,
+                "path contains a traversal component",
+            ));
+        }
+        if component.eq_ignore_ascii_case(b".git") {
+            return Err(git_tree_invalid(path, "path enters excluded Git metadata"));
+        }
+    }
+    let depth = components.len().saturating_sub(1);
+    if depth > limits.max_depth {
+        return Err(SourceResolveError::TooDeep {
+            path: git_path_from_bytes(path)?,
+            limit: limits.max_depth,
+        });
+    }
+    git_path_from_bytes(path)
+}
+
+#[cfg(unix)]
+fn git_path_from_bytes(path: &[u8]) -> Result<PathBuf, SourceResolveError> {
+    use std::ffi::OsString;
+    use std::os::unix::ffi::OsStringExt;
+
+    Ok(PathBuf::from(OsString::from_vec(path.to_vec())))
+}
+
+#[cfg(not(unix))]
+fn git_path_from_bytes(path: &[u8]) -> Result<PathBuf, SourceResolveError> {
+    let text = std::str::from_utf8(path)
+        .map_err(|_| git_tree_invalid(path, "path cannot be represented on this host"))?;
+    Ok(PathBuf::from(text))
+}
+
+fn validate_git_symlink_target(link: &[u8], target: &[u8]) -> Result<(), SourceResolveError> {
+    if target.is_empty() || target.starts_with(b"/") || target.contains(&0) {
+        return Err(git_tree_invalid(
+            link,
+            "symlink target must be a non-empty relative path",
+        ));
+    }
+    if target.contains(&b'\\') {
+        return Err(git_tree_invalid(
+            link,
+            "symlink target contains a non-portable path separator",
+        ));
+    }
+    let mut depth = link.split(|byte| *byte == b'/').count().saturating_sub(1);
+    for component in target.split(|byte| *byte == b'/') {
+        match component {
+            b"" | b"." => {}
+            b".." => {
+                depth = depth
+                    .checked_sub(1)
+                    .ok_or_else(|| git_tree_invalid(link, "symlink target escapes the snapshot"))?;
+            }
+            component if component.eq_ignore_ascii_case(b".git") => {
+                return Err(git_tree_invalid(
+                    link,
+                    "symlink target enters excluded Git metadata",
+                ));
+            }
+            _ => depth += 1,
+        }
+    }
+    Ok(())
+}
+
+fn resolve_git_snapshot(
+    entry_root: &Path,
+    repository: &Path,
+    tree: &str,
+    entries: Vec<GitTreeEntry>,
+    limits: LocalSourceLimits,
+) -> Result<(PathBuf, ResolvedLocalSource), SourceResolveError> {
+    let snapshots = entry_root.join(GIT_CACHE_SNAPSHOTS);
+    std::fs::create_dir_all(&snapshots).map_err(|error| io_error(&snapshots, error))?;
+    require_real_directory(&snapshots, "snapshot cache is not a real directory")?;
+    let publication = snapshots.join(format!("tree-{tree}"));
+    if publication.exists() {
+        return verify_git_snapshot(&publication, tree, &entries, limits);
+    }
+
+    let mut pending = PendingSnapshot::create(&snapshots, tree)?;
+    let source = pending.root.join(GIT_SNAPSHOT_SOURCE);
+    std::fs::create_dir(&source).map_err(|error| io_error(&source, error))?;
+    let mut expected_identity = SourceIdentityHasher::new(entries.len());
+    for entry in &entries {
+        let destination = source.join(&entry.relative_path);
+        let parent = destination
+            .parent()
+            .expect("validated Git paths always have a snapshot parent");
+        std::fs::create_dir_all(parent).map_err(|error| io_error(parent, error))?;
+        match &entry.kind {
+            GitTreeEntryKind::File { executable } => {
+                let bytes = read_git_blob_bounded(repository, &entry.oid, entry.size)?;
+                expected_identity.add_file(&entry.relative_bytes, *executable, &bytes)?;
+                let mut file = OpenOptions::new()
+                    .write(true)
+                    .create_new(true)
+                    .open(&destination)
+                    .map_err(|error| io_error(&destination, error))?;
+                file.write_all(&bytes)
+                    .map_err(|error| io_error(&destination, error))?;
+                file.sync_all()
+                    .map_err(|error| io_error(&destination, error))?;
+                set_snapshot_file_mode(&destination, *executable)?;
+            }
+            GitTreeEntryKind::Symlink { target_bytes } => {
+                expected_identity.add_symlink(&entry.relative_bytes, target_bytes);
+                create_snapshot_symlink(target_bytes, &destination)?;
+            }
+        }
+    }
+
+    let staged = resolve_local_source(&source, limits)?;
+    let (expected_byte_count, expected_content_identity) = expected_identity.finish();
+    if staged.file_count != entries.len()
+        || staged.byte_count != expected_byte_count
+        || staged.content_identity != expected_content_identity
+    {
+        return Err(cache_invalid(
+            &source,
+            "materialized snapshot did not preserve the validated Git tree exactly",
+        ));
+    }
+    let metadata_path = pending.root.join(GIT_SNAPSHOT_METADATA);
+    let mut metadata = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&metadata_path)
+        .map_err(|error| io_error(&metadata_path, error))?;
+    metadata
+        .write_all(&git_snapshot_metadata(tree, &staged))
+        .map_err(|error| io_error(&metadata_path, error))?;
+    metadata
+        .sync_all()
+        .map_err(|error| io_error(&metadata_path, error))?;
+    make_snapshot_read_only(&pending.root)?;
+    std::fs::rename(&pending.root, &publication).map_err(|error| io_error(&publication, error))?;
+    pending.published = true;
+
+    // The returned identity is always calculated from the atomically published tree, never from
+    // the staging directory or Git's mutable object-cache state.
+    verify_git_snapshot(&publication, tree, &entries, limits)
+}
+
+fn verify_git_snapshot(
+    publication: &Path,
+    tree: &str,
+    entries: &[GitTreeEntry],
+    limits: LocalSourceLimits,
+) -> Result<(PathBuf, ResolvedLocalSource), SourceResolveError> {
+    require_real_directory(publication, "snapshot publication is not a real directory")?;
+    let source = publication.join(GIT_SNAPSHOT_SOURCE);
+    require_real_directory(&source, "snapshot source is not a real directory")?;
+    let metadata_path = publication.join(GIT_SNAPSHOT_METADATA);
+    require_regular_file(&metadata_path, "snapshot metadata is not a regular file")?;
+    let metadata_length = std::fs::symlink_metadata(&metadata_path)
+        .map_err(|error| io_error(&metadata_path, error))?
+        .len();
+    if metadata_length > 1024 {
+        return Err(cache_invalid(
+            &metadata_path,
+            "snapshot metadata exceeds its limit",
+        ));
+    }
+    let metadata =
+        std::fs::read(&metadata_path).map_err(|error| io_error(&metadata_path, error))?;
+    let expected = parse_git_snapshot_metadata(&metadata, &metadata_path)?;
+    if expected.tree != tree {
+        return Err(cache_invalid(
+            &metadata_path,
+            "snapshot tree identity does not match",
+        ));
+    }
+    verify_snapshot_entry_kinds_and_modes(&source, entries)?;
+    verify_snapshot_read_only(publication)?;
+    let local = resolve_local_source(&source, limits)?;
+    if local.file_count != expected.file_count
+        || local.byte_count != expected.byte_count
+        || local.content_identity != expected.content_identity
+    {
+        return Err(cache_invalid(
+            publication,
+            "published snapshot does not match resolver metadata",
+        ));
+    }
+    Ok((source, local))
+}
+
+fn verify_snapshot_entry_kinds_and_modes(
+    source: &Path,
+    entries: &[GitTreeEntry],
+) -> Result<(), SourceResolveError> {
+    let expected_leaves = entries
+        .iter()
+        .map(|entry| entry.relative_bytes.clone())
+        .collect::<BTreeSet<_>>();
+    let mut expected_directories = BTreeSet::new();
+    for entry in entries {
+        let mut prefix = Vec::new();
+        let components = entry
+            .relative_bytes
+            .split(|byte| *byte == b'/')
+            .collect::<Vec<_>>();
+        for component in components.iter().take(components.len().saturating_sub(1)) {
+            if !prefix.is_empty() {
+                prefix.push(b'/');
+            }
+            prefix.extend_from_slice(component);
+            expected_directories.insert(prefix.clone());
+        }
+
+        let path = source.join(&entry.relative_path);
+        let metadata = std::fs::symlink_metadata(&path).map_err(|error| io_error(&path, error))?;
+        match &entry.kind {
+            GitTreeEntryKind::File { executable } => {
+                if metadata.file_type().is_symlink() || !metadata.is_file() {
+                    return Err(cache_invalid(
+                        &path,
+                        "snapshot file kind does not match Git",
+                    ));
+                }
+                verify_snapshot_file_mode(&path, &metadata, *executable)?;
+            }
+            GitTreeEntryKind::Symlink { target_bytes } => {
+                if !metadata.file_type().is_symlink() {
+                    return Err(cache_invalid(
+                        &path,
+                        "snapshot symlink kind does not match Git",
+                    ));
+                }
+                let target = std::fs::read_link(&path).map_err(|error| io_error(&path, error))?;
+                if raw_os_bytes(target.as_os_str()) != *target_bytes {
+                    return Err(cache_invalid(
+                        &path,
+                        "snapshot symlink target does not match Git",
+                    ));
+                }
+            }
+        }
+    }
+
+    let mut actual_leaves = BTreeSet::new();
+    let mut directories = vec![source.to_path_buf()];
+    while let Some(directory) = directories.pop() {
+        for entry in std::fs::read_dir(&directory).map_err(|error| io_error(&directory, error))? {
+            let entry = entry.map_err(|error| io_error(&directory, error))?;
+            let path = entry.path();
+            let relative = path
+                .strip_prefix(source)
+                .expect("snapshot traversal starts at the source root");
+            let relative_bytes = raw_os_bytes(relative.as_os_str());
+            let metadata =
+                std::fs::symlink_metadata(&path).map_err(|error| io_error(&path, error))?;
+            if metadata.is_dir() {
+                if !expected_directories.contains(&relative_bytes) {
+                    return Err(cache_invalid(
+                        &path,
+                        "snapshot contains an undeclared directory",
+                    ));
+                }
+                directories.push(path);
+            } else {
+                actual_leaves.insert(relative_bytes);
+            }
+        }
+    }
+    if actual_leaves != expected_leaves {
+        return Err(cache_invalid(
+            source,
+            "snapshot paths do not exactly match the validated Git tree",
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(unix)]
+fn verify_snapshot_file_mode(
+    path: &Path,
+    metadata: &std::fs::Metadata,
+    executable: bool,
+) -> Result<(), SourceResolveError> {
+    use std::os::unix::fs::PermissionsExt;
+
+    let expected = if executable { 0o555 } else { 0o444 };
+    if metadata.permissions().mode() & 0o7777 != expected {
+        return Err(cache_invalid(path, "snapshot file mode does not match Git"));
+    }
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn verify_snapshot_file_mode(
+    path: &Path,
+    metadata: &std::fs::Metadata,
+    executable: bool,
+) -> Result<(), SourceResolveError> {
+    if executable != is_executable(metadata) || !metadata.permissions().readonly() {
+        return Err(cache_invalid(path, "snapshot file mode does not match Git"));
+    }
+    Ok(())
+}
+
+fn verify_snapshot_read_only(root: &Path) -> Result<(), SourceResolveError> {
+    let mut paths = vec![root.to_path_buf()];
+    while let Some(path) = paths.pop() {
+        let metadata = std::fs::symlink_metadata(&path).map_err(|error| io_error(&path, error))?;
+        if !metadata.file_type().is_symlink() {
+            verify_path_read_only(&path, &metadata)?;
+        }
+        if metadata.is_dir() {
+            for entry in std::fs::read_dir(&path).map_err(|error| io_error(&path, error))? {
+                paths.push(entry.map_err(|error| io_error(&path, error))?.path());
+            }
+        }
+    }
+    Ok(())
+}
+
+#[cfg(unix)]
+fn verify_path_read_only(
+    path: &Path,
+    metadata: &std::fs::Metadata,
+) -> Result<(), SourceResolveError> {
+    use std::os::unix::fs::PermissionsExt;
+
+    if metadata.permissions().mode() & 0o222 != 0 {
+        return Err(cache_invalid(path, "published snapshot is writable"));
+    }
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn verify_path_read_only(
+    path: &Path,
+    metadata: &std::fs::Metadata,
+) -> Result<(), SourceResolveError> {
+    if metadata.is_file() && !metadata.permissions().readonly() {
+        return Err(cache_invalid(path, "published snapshot is writable"));
+    }
+    Ok(())
+}
+
+#[derive(Debug, PartialEq, Eq)]
+struct GitSnapshotMetadata {
+    tree: String,
+    file_count: usize,
+    byte_count: u64,
+    content_identity: String,
+}
+
+fn git_snapshot_metadata(tree: &str, local: &ResolvedLocalSource) -> Vec<u8> {
+    let mut metadata = GIT_SNAPSHOT_POLICY.to_vec();
+    append_framed_bytes(&mut metadata, tree.as_bytes());
+    metadata.extend_from_slice(&(local.file_count as u64).to_le_bytes());
+    metadata.extend_from_slice(&local.byte_count.to_le_bytes());
+    append_framed_bytes(&mut metadata, local.content_identity.as_bytes());
+    metadata
+}
+
+fn parse_git_snapshot_metadata(
+    bytes: &[u8],
+    path: &Path,
+) -> Result<GitSnapshotMetadata, SourceResolveError> {
+    let Some(mut remaining) = bytes.strip_prefix(GIT_SNAPSHOT_POLICY) else {
+        return Err(cache_invalid(
+            path,
+            "snapshot metadata policy does not match",
+        ));
+    };
+    let tree = take_framed_bytes(&mut remaining)
+        .and_then(|bytes| std::str::from_utf8(bytes).ok())
+        .filter(|tree| is_object_id(tree))
+        .ok_or_else(|| cache_invalid(path, "snapshot metadata tree is invalid"))?
+        .to_owned();
+    let file_count = take_u64(&mut remaining)
+        .and_then(|count| usize::try_from(count).ok())
+        .ok_or_else(|| cache_invalid(path, "snapshot file count is invalid"))?;
+    let byte_count = take_u64(&mut remaining)
+        .ok_or_else(|| cache_invalid(path, "snapshot byte count is invalid"))?;
+    let content_identity = take_framed_bytes(&mut remaining)
+        .and_then(|bytes| std::str::from_utf8(bytes).ok())
+        .filter(|identity| {
+            identity.len() == 64 && identity.bytes().all(|byte| byte.is_ascii_hexdigit())
+        })
+        .ok_or_else(|| cache_invalid(path, "snapshot content identity is invalid"))?
+        .to_owned();
+    if !remaining.is_empty() {
+        return Err(cache_invalid(path, "snapshot metadata has trailing bytes"));
+    }
+    Ok(GitSnapshotMetadata {
+        tree,
+        file_count,
+        byte_count,
+        content_identity,
+    })
+}
+
+fn take_u64(bytes: &mut &[u8]) -> Option<u64> {
+    let value = u64::from_le_bytes(bytes.get(..8)?.try_into().ok()?);
+    *bytes = &bytes[8..];
+    Some(value)
+}
+
+fn take_framed_bytes<'a>(bytes: &mut &'a [u8]) -> Option<&'a [u8]> {
+    let length = usize::try_from(take_u64(bytes)?).ok()?;
+    let value = bytes.get(..length)?;
+    *bytes = &bytes[length..];
+    Some(value)
+}
+
+fn is_object_id(value: &str) -> bool {
+    matches!(value.len(), 40 | 64) && value.bytes().all(|byte| byte.is_ascii_hexdigit())
+}
+
+fn git_tree_invalid(path: impl AsRef<[u8]>, message: impl Into<String>) -> SourceResolveError {
+    SourceResolveError::GitTreeInvalid {
+        path: path.as_ref().to_vec(),
+        message: message.into(),
+    }
+}
+
+fn read_git_blob_bounded(
+    repository: &Path,
+    oid: &str,
+    expected_size: u64,
+) -> Result<Vec<u8>, SourceResolveError> {
+    let capacity = usize::try_from(expected_size)
+        .map_err(|_| git_tree_invalid(oid.as_bytes(), "blob cannot fit in host memory"))?;
+    let mut child = sealed_git_command()
+        .args([
+            OsStr::new("-C"),
+            repository.as_os_str(),
+            OsStr::new("cat-file"),
+            OsStr::new("blob"),
+            OsStr::new(oid),
+        ])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|error| SourceResolveError::Git {
+            operation: "cat-file spawn".to_owned(),
+            status: None,
+            stderr: error.to_string(),
+        })?;
+    let mut stdout = child.stdout.take().expect("Git stdout was piped");
+    let mut bytes = Vec::new();
+    bytes
+        .try_reserve_exact(capacity)
+        .map_err(|_| git_tree_invalid(oid.as_bytes(), "blob allocation failed"))?;
+    let mut chunk = [0_u8; 64 * 1024];
+    loop {
+        let count = stdout
+            .read(&mut chunk)
+            .map_err(|error| SourceResolveError::Git {
+                operation: "cat-file read".to_owned(),
+                status: None,
+                stderr: error.to_string(),
+            })?;
+        if count == 0 {
+            break;
+        }
+        if bytes.len().saturating_add(count) > capacity {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err(git_tree_invalid(
+                oid.as_bytes(),
+                "blob exceeded its validated object size",
+            ));
+        }
+        bytes.extend_from_slice(&chunk[..count]);
+    }
+    let output = child
+        .wait_with_output()
+        .map_err(|error| SourceResolveError::Git {
+            operation: "cat-file wait".to_owned(),
+            status: None,
+            stderr: error.to_string(),
+        })?;
+    if !output.status.success() {
+        return Err(SourceResolveError::Git {
+            operation: "cat-file".to_owned(),
+            status: output.status.code(),
+            stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
+        });
+    }
+    if bytes.len() != capacity {
+        return Err(git_tree_invalid(
+            oid.as_bytes(),
+            "blob length did not match its validated object size",
+        ));
+    }
+    Ok(bytes)
+}
+
+#[cfg(unix)]
+fn create_snapshot_symlink(target: &[u8], destination: &Path) -> Result<(), SourceResolveError> {
+    use std::ffi::OsString;
+    use std::os::unix::ffi::OsStringExt;
+
+    std::os::unix::fs::symlink(OsString::from_vec(target.to_vec()), destination)
+        .map_err(|error| io_error(destination, error))
+}
+
+#[cfg(not(unix))]
+fn create_snapshot_symlink(target: &[u8], destination: &Path) -> Result<(), SourceResolveError> {
+    let target = std::str::from_utf8(target).map_err(|_| {
+        git_tree_invalid(target, "symlink target cannot be represented on this host")
+    })?;
+    std::os::windows::fs::symlink_file(target, destination)
+        .map_err(|error| io_error(destination, error))
+}
+
+#[cfg(unix)]
+fn set_snapshot_file_mode(path: &Path, executable: bool) -> Result<(), SourceResolveError> {
+    use std::os::unix::fs::PermissionsExt;
+
+    let mode = if executable { 0o555 } else { 0o444 };
+    std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode))
+        .map_err(|error| io_error(path, error))
+}
+
+#[cfg(not(unix))]
+fn set_snapshot_file_mode(path: &Path, _executable: bool) -> Result<(), SourceResolveError> {
+    let mut permissions = std::fs::metadata(path)
+        .map_err(|error| io_error(path, error))?
+        .permissions();
+    permissions.set_readonly(true);
+    std::fs::set_permissions(path, permissions).map_err(|error| io_error(path, error))
+}
+
+fn make_snapshot_read_only(root: &Path) -> Result<(), SourceResolveError> {
+    let mut directories = vec![root.to_path_buf()];
+    let mut cursor = 0;
+    while cursor < directories.len() {
+        let directory = directories[cursor].clone();
+        cursor += 1;
+        for entry in std::fs::read_dir(&directory).map_err(|error| io_error(&directory, error))? {
+            let entry = entry.map_err(|error| io_error(&directory, error))?;
+            let path = entry.path();
+            let metadata =
+                std::fs::symlink_metadata(&path).map_err(|error| io_error(&path, error))?;
+            if metadata.is_dir() {
+                directories.push(path);
+            } else if metadata.is_file() {
+                set_snapshot_file_mode(&path, is_executable(&metadata))?;
+            }
+        }
+    }
+    for directory in directories.into_iter().rev() {
+        set_snapshot_directory_read_only(&directory)?;
+    }
+    Ok(())
+}
+
+#[cfg(unix)]
+fn set_snapshot_directory_read_only(path: &Path) -> Result<(), SourceResolveError> {
+    use std::os::unix::fs::PermissionsExt;
+
+    std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o555))
+        .map_err(|error| io_error(path, error))
+}
+
+#[cfg(not(unix))]
+fn set_snapshot_directory_read_only(_path: &Path) -> Result<(), SourceResolveError> {
+    Ok(())
+}
+
+struct PendingSnapshot {
+    root: PathBuf,
+    published: bool,
+}
+
+impl PendingSnapshot {
+    fn create(snapshots: &Path, tree: &str) -> Result<Self, SourceResolveError> {
+        for _ in 0..128 {
+            let sequence = STAGING_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+            let root = snapshots.join(format!(
+                ".tree-{tree}.stage-{}-{sequence}",
+                std::process::id()
+            ));
+            match std::fs::create_dir(&root) {
+                Ok(()) => {
+                    return Ok(Self {
+                        root,
+                        published: false,
+                    });
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+                Err(error) => return Err(io_error(&root, error)),
+            }
+        }
+        Err(cache_invalid(
+            snapshots,
+            "could not allocate a unique snapshot staging directory",
+        ))
+    }
+}
+
+impl Drop for PendingSnapshot {
+    fn drop(&mut self) {
+        if !self.published {
+            make_tree_owner_writable(&self.root);
+            let _ = std::fs::remove_dir_all(&self.root);
+        }
+    }
+}
+
+fn make_tree_owner_writable(root: &Path) {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+
+        if let Ok(metadata) = std::fs::symlink_metadata(root)
+            && metadata.is_dir()
+        {
+            let _ = std::fs::set_permissions(root, std::fs::Permissions::from_mode(0o700));
+            if let Ok(entries) = std::fs::read_dir(root) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if let Ok(metadata) = std::fs::symlink_metadata(&path)
+                        && metadata.is_dir()
+                    {
+                        make_tree_owner_writable(&path);
+                    }
+                }
+            }
+        }
+    }
 }
 
 fn create_git_cache_entry(
@@ -379,6 +1142,7 @@ fn create_git_cache_entry(
     run_git([
         OsStr::new("init"),
         OsStr::new("--quiet"),
+        OsStr::new("--bare"),
         OsStr::new("--template"),
         empty_template.as_os_str(),
         repository.as_os_str(),
@@ -450,13 +1214,13 @@ fn verify_git_cache_entry(
     let repository = entry_root.join(GIT_CACHE_REPOSITORY);
     require_real_directory(&repository, "repository is not a real directory")?;
     require_real_directory(
-        &repository.join(".git"),
-        "Git directory is not a real directory",
+        &repository.join("objects"),
+        "Git object directory is not a real directory",
     )?;
     for forbidden in [
-        repository.join(".git/objects/info/alternates"),
-        repository.join(".git/objects/info/http-alternates"),
-        repository.join(".git/commondir"),
+        repository.join("objects/info/alternates"),
+        repository.join("objects/info/http-alternates"),
+        repository.join("commondir"),
     ] {
         if std::fs::symlink_metadata(&forbidden).is_ok() {
             return Err(cache_invalid(
@@ -466,7 +1230,7 @@ fn verify_git_cache_entry(
         }
     }
 
-    let config_path = repository.join(".git/config");
+    let config_path = repository.join("config");
     require_regular_file(
         &config_path,
         "local Git configuration is not a regular file",
@@ -542,8 +1306,7 @@ fn verify_local_git_config(
             b"core.filemode" | b"core.ignorecase" | b"core.precomposeunicode" => {
                 value == b"true" || value == b"false"
             }
-            b"core.bare" => value == b"false",
-            b"core.logallrefupdates" => value == b"true",
+            b"core.bare" => value == b"true",
             b"remote.origin.url" => value == url.as_bytes(),
             b"remote.origin.fetch" => value == GIT_ORIGIN_FETCH.as_bytes(),
             _ => false,
@@ -559,7 +1322,6 @@ fn verify_local_git_config(
         b"core.repositoryformatversion".as_slice(),
         b"core.filemode".as_slice(),
         b"core.bare".as_slice(),
-        b"core.logallrefupdates".as_slice(),
         b"remote.origin.url".as_slice(),
         b"remote.origin.fetch".as_slice(),
     ] {
@@ -895,6 +1657,55 @@ fn is_executable(_metadata: &std::fs::Metadata) -> bool {
 
 fn raw_os_bytes(value: &OsStr) -> Vec<u8> {
     value.as_encoded_bytes().to_vec()
+}
+
+struct SourceIdentityHasher {
+    hasher: Sha256,
+    byte_count: u64,
+}
+
+impl SourceIdentityHasher {
+    fn new(entry_count: usize) -> Self {
+        let mut hasher = Sha256::new();
+        hasher.update(b"omega-local-source-v2\0");
+        hash_length(&mut hasher, entry_count as u64);
+        Self {
+            hasher,
+            byte_count: 0,
+        }
+    }
+
+    fn add_file(
+        &mut self,
+        relative_bytes: &[u8],
+        executable: bool,
+        bytes: &[u8],
+    ) -> Result<(), SourceResolveError> {
+        self.add_path(relative_bytes);
+        self.hasher.update(b"file");
+        self.hasher.update([u8::from(executable)]);
+        hash_bytes(&mut self.hasher, bytes);
+        self.byte_count = self
+            .byte_count
+            .checked_add(bytes.len() as u64)
+            .ok_or(SourceResolveError::TooManyBytes { limit: u64::MAX })?;
+        Ok(())
+    }
+
+    fn add_symlink(&mut self, relative_bytes: &[u8], target_bytes: &[u8]) {
+        self.add_path(relative_bytes);
+        self.hasher.update(b"symlink");
+        hash_bytes(&mut self.hasher, target_bytes);
+    }
+
+    fn add_path(&mut self, relative_bytes: &[u8]) {
+        self.hasher.update(b"entry");
+        hash_bytes(&mut self.hasher, relative_bytes);
+    }
+
+    fn finish(self) -> (u64, String) {
+        (self.byte_count, format_sha256(&self.hasher.finalize()))
+    }
 }
 
 fn hash_bytes(hasher: &mut Sha256, bytes: &[u8]) {
@@ -1439,24 +2250,252 @@ mod tests {
     }
 
     #[test]
-    fn git_cache_does_not_admit_untracked_checkout_injection() {
-        let (repo, _) = create_git_source("git-untracked-source");
-        let cache = temp_root("git-untracked-cache");
+    fn git_tree_rejects_traversal_metadata_and_nonportable_paths_before_materialization() {
+        let repository = temp_root("git-tree-path-validation");
+        let oid = "0123456789012345678901234567890123456789";
+        for path in [
+            b"../escape.omg".as_slice(),
+            b"nested/../../escape.omg".as_slice(),
+            b"/absolute.omg".as_slice(),
+            b"nested\\ambiguous.omg".as_slice(),
+            b"nested/.git/config".as_slice(),
+        ] {
+            let mut listing = format!("100644 blob {oid} 1\t").into_bytes();
+            listing.extend_from_slice(path);
+            listing.push(0);
+            let error = parse_git_tree_entries(&listing, &repository, LocalSourceLimits::default())
+                .expect_err("unsafe Git path must reject");
+            assert!(matches!(error, SourceResolveError::GitTreeInvalid { .. }));
+        }
+        assert!(
+            !repository.exists(),
+            "validation must not create a staging path"
+        );
+    }
+
+    #[test]
+    fn git_tree_enforces_declared_limits_before_reading_blobs() {
+        let repository = temp_root("git-tree-limit-validation");
+        let oid = "0123456789012345678901234567890123456789";
+        let listing = format!("100644 blob {oid} 4\tmain.omg\0");
+
+        let error = parse_git_tree_entries(
+            listing.as_bytes(),
+            &repository,
+            LocalSourceLimits {
+                max_bytes: 3,
+                ..LocalSourceLimits::default()
+            },
+        )
+        .expect_err("oversized tree must reject from metadata");
+
+        assert_eq!(error, SourceResolveError::TooManyBytes { limit: 3 });
+        assert!(
+            !repository.exists(),
+            "limit rejection must not inspect an object"
+        );
+    }
+
+    #[test]
+    fn git_tree_rejects_gitlinks_before_materialization() {
+        let repository = temp_root("gitlink-validation");
+        let oid = "0123456789012345678901234567890123456789";
+        let listing = format!("160000 commit {oid} -\tdependency\0");
+
+        let error = parse_git_tree_entries(
+            listing.as_bytes(),
+            &repository,
+            LocalSourceLimits::default(),
+        )
+        .expect_err("gitlink must reject");
+
+        assert!(matches!(
+            error,
+            SourceResolveError::GitSubmodulesUnsupported { .. }
+        ));
+        assert!(!repository.exists());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn git_snapshot_preserves_paths_executable_modes_and_symlink_spelling() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let (repo, _) = create_git_source("git-snapshot-kinds");
+        let script = repo.join("tools/generate");
+        std::fs::create_dir_all(script.parent().expect("script parent")).expect("create tools");
+        std::fs::write(&script, "#!/bin/sh\n").expect("write script");
+        std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755))
+            .expect("mark script executable");
+        std::os::unix::fs::symlink("generate", repo.join("tools/current"))
+            .expect("create source symlink");
+        run_test_git(&repo, ["add", "tools/generate", "tools/current"]);
+        run_test_git(&repo, ["commit", "--quiet", "-m", "add exact entry kinds"]);
+        let cache = temp_root("git-snapshot-kinds-cache");
         let spec = GitSourceSpec {
             url: repo.display().to_string(),
             rev: Some("HEAD".to_owned()),
         };
+
+        let resolved =
+            resolve_git_source(&spec, &cache, LocalSourceLimits::default()).expect("resolve kinds");
+        let published_script = resolved.checkout_root.join("tools/generate");
+        let published_link = resolved.checkout_root.join("tools/current");
+
+        assert_eq!(
+            std::fs::read(&published_script).expect("read script"),
+            b"#!/bin/sh\n"
+        );
+        assert_ne!(
+            std::fs::metadata(&published_script)
+                .expect("script metadata")
+                .permissions()
+                .mode()
+                & 0o111,
+            0
+        );
+        assert_eq!(
+            raw_os_bytes(
+                std::fs::read_link(&published_link)
+                    .expect("read published symlink")
+                    .as_os_str()
+            ),
+            b"generate"
+        );
+        assert_eq!(resolved.local.file_count, 3);
+
+        let _ = std::fs::remove_dir_all(&repo);
+        make_tree_owner_writable(&cache);
+        let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[test]
+    fn git_snapshot_uses_blob_bytes_not_checkout_attribute_conversions() {
+        let (repo, _) = create_git_source("git-snapshot-attributes");
+        std::fs::write(repo.join(".gitattributes"), "*.omg eol=crlf\n")
+            .expect("write checkout conversion attribute");
+        run_test_git(&repo, ["add", ".gitattributes"]);
+        run_test_git(
+            &repo,
+            ["commit", "--quiet", "-m", "add checkout conversion"],
+        );
+        let cache = temp_root("git-snapshot-attributes-cache");
+        let spec = GitSourceSpec {
+            url: repo.display().to_string(),
+            rev: Some("HEAD".to_owned()),
+        };
+
+        let resolved = resolve_git_source(&spec, &cache, LocalSourceLimits::default())
+            .expect("materialize object bytes");
+
+        assert_eq!(
+            std::fs::read(resolved.checkout_root.join("main.omg")).expect("read snapshot blob"),
+            b"machine Main::main() {}\n"
+        );
+        let _ = std::fs::remove_dir_all(&repo);
+        make_tree_owner_writable(&cache);
+        let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn git_snapshot_reuse_rehashes_and_rejects_published_tampering() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let (repo, _) = create_git_source("git-snapshot-reuse");
+        let cache = temp_root("git-snapshot-reuse-cache");
+        let url = repo.display().to_string();
+        let spec = GitSourceSpec {
+            url: url.clone(),
+            rev: Some("HEAD".to_owned()),
+        };
         let first =
-            resolve_git_source(&spec, &cache, LocalSourceLimits::default()).expect("prime cache");
-        let injected = first.checkout_root.join("injected.omg");
-        std::fs::write(&injected, "machine Injected::main() {}\n")
-            .expect("inject untracked source");
-
+            resolve_git_source(&spec, &cache, LocalSourceLimits::default()).expect("first resolve");
         let second = resolve_git_source(&spec, &cache, LocalSourceLimits::default())
-            .expect("resolve clean checkout");
+            .expect("reuse snapshot");
+        assert_eq!(first.checkout_root, second.checkout_root);
+        assert_eq!(first.local, second.local);
 
-        assert!(!injected.exists());
-        assert_eq!(second.local.file_count, 1);
+        std::fs::set_permissions(&first.checkout_root, std::fs::Permissions::from_mode(0o755))
+            .expect("make source root writable for tamper simulation");
+        let source = first.checkout_root.join("main.omg");
+        std::fs::set_permissions(&source, std::fs::Permissions::from_mode(0o644))
+            .expect("make source writable for tamper simulation");
+        std::fs::write(&source, "machine Tampered::main() {}\n").expect("tamper snapshot");
+
+        let error = resolve_git_source(&spec, &cache, LocalSourceLimits::default())
+            .expect_err("tampered published snapshot must reject");
+        assert!(matches!(error, SourceResolveError::GitCacheInvalid { .. }));
+        let entry = git_cache_entry_root(&cache, &url, "HEAD");
+        assert!(!entry.join(GIT_CACHE_METADATA).exists());
+
+        let _ = std::fs::remove_dir_all(&repo);
+        make_tree_owner_writable(&cache);
+        let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[test]
+    fn git_snapshot_failure_removes_staging_publication() {
+        let (repo, _) = create_git_source("git-snapshot-cleanup");
+        let cache = temp_root("git-snapshot-cleanup-cache");
+        let url = repo.display().to_string();
+        let spec = GitSourceSpec {
+            url: url.clone(),
+            rev: Some("HEAD".to_owned()),
+        };
+        resolve_git_source(&spec, &cache, LocalSourceLimits::default()).expect("prime cache");
+        let entry_root = git_cache_entry_root(&cache, &url, "HEAD");
+        let repository = entry_root.join(GIT_CACHE_REPOSITORY);
+        let missing_oid = "0000000000000000000000000000000000000000";
+        let fake_tree = "1111111111111111111111111111111111111111";
+        let error = resolve_git_snapshot(
+            &entry_root,
+            &repository,
+            fake_tree,
+            vec![GitTreeEntry {
+                relative_bytes: b"missing.omg".to_vec(),
+                relative_path: PathBuf::from("missing.omg"),
+                oid: missing_oid.to_owned(),
+                size: 1,
+                kind: GitTreeEntryKind::File { executable: false },
+            }],
+            LocalSourceLimits::default(),
+        )
+        .expect_err("missing object must fail staged materialization");
+        assert!(matches!(error, SourceResolveError::Git { .. }));
+        let snapshots = entry_root.join(GIT_CACHE_SNAPSHOTS);
+        assert!(
+            std::fs::read_dir(&snapshots)
+                .expect("read snapshots")
+                .all(|entry| !entry
+                    .expect("snapshot entry")
+                    .file_name()
+                    .to_string_lossy()
+                    .contains(".stage-")),
+            "failed materialization must leave no staging directory"
+        );
+        assert!(!snapshots.join(format!("tree-{fake_tree}")).exists());
+
+        let _ = std::fs::remove_dir_all(&repo);
+        make_tree_owner_writable(&cache);
+        let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[test]
+    fn git_snapshot_excludes_untracked_source_worktree_state() {
+        let (repo, _) = create_git_source("git-untracked-source");
+        let cache = temp_root("git-untracked-cache");
+        std::fs::write(repo.join("injected.omg"), "machine Injected::main() {}\n")
+            .expect("write untracked source state");
+        let spec = GitSourceSpec {
+            url: repo.display().to_string(),
+            rev: Some("HEAD".to_owned()),
+        };
+        let resolved =
+            resolve_git_source(&spec, &cache, LocalSourceLimits::default()).expect("prime cache");
+
+        assert!(!resolved.checkout_root.join("injected.omg").exists());
+        assert_eq!(resolved.local.file_count, 1);
         let _ = std::fs::remove_dir_all(&repo);
         let _ = std::fs::remove_dir_all(&cache);
     }
@@ -1541,10 +2580,10 @@ mod tests {
             url: url.clone(),
             rev: Some("HEAD".to_owned()),
         };
-        let resolved =
-            resolve_git_source(&spec, &cache, LocalSourceLimits::default()).expect("prime cache");
+        resolve_git_source(&spec, &cache, LocalSourceLimits::default()).expect("prime cache");
+        let repository = git_cache_entry_root(&cache, &url, "HEAD").join(GIT_CACHE_REPOSITORY);
         run_test_git(
-            &resolved.checkout_root,
+            &repository,
             ["remote", "set-url", "origin", substitute_url.as_str()],
         );
         let entry = git_cache_entry_root(&cache, &url, "HEAD");
@@ -1560,7 +2599,7 @@ mod tests {
     }
 
     #[test]
-    fn git_cache_rejects_local_filter_configuration_before_checkout() {
+    fn git_cache_rejects_local_filter_configuration_without_running_it() {
         let (repo, _) = create_git_source("git-filter-source");
         std::fs::write(repo.join(".gitattributes"), "*.omg filter=omega-test\n")
             .expect("write attributes");
@@ -1573,10 +2612,10 @@ mod tests {
             url,
             rev: Some("HEAD".to_owned()),
         };
-        let resolved =
-            resolve_git_source(&spec, &cache, LocalSourceLimits::default()).expect("prime cache");
+        resolve_git_source(&spec, &cache, LocalSourceLimits::default()).expect("prime cache");
+        let repository = git_cache_entry_root(&cache, &spec.url, "HEAD").join(GIT_CACHE_REPOSITORY);
         run_test_git(
-            &resolved.checkout_root,
+            &repository,
             [
                 "config",
                 "--local",
