@@ -1516,6 +1516,23 @@ struct PackageReviewCanonicalRowSources {
     selected_provider_set: PackageReviewCanonicalRowSource,
 }
 
+/// Compiler-internal pairing between one semantic review row and the exact
+/// declaration that produced it. Canonical sorting must move both together;
+/// source projection may never rediscover the declaration from reduced row
+/// identity.
+#[derive(Debug, Clone)]
+struct ProjectedReviewRow<Row> {
+    row: Row,
+    declaration: SymbolHandle,
+}
+
+#[derive(Debug, Clone)]
+struct ProjectedDangerousAuthorityRow {
+    row: PackageReviewDangerousAuthority,
+    declaration: SymbolHandle,
+    exposures: Vec<SymbolHandle>,
+}
+
 /// Compiler-owned granularity for review-only capability/API comparison.
 ///
 /// Callable rows currently retain the complete callable envelope. Nested
@@ -1816,13 +1833,10 @@ pub fn project_checked_package_review(
             }
         }
 
-        callables.push(project_callable(
-            compilation,
-            &synchronous_invocations,
-            machine,
-            role,
-            owner,
-        )?);
+        callables.push(ProjectedReviewRow {
+            row: project_callable(compilation, &synchronous_invocations, machine, role, owner)?,
+            declaration: machine.symbol,
+        });
         projected_build_machine |= role == PackageReviewCallableRole::Build;
     }
 
@@ -1833,10 +1847,11 @@ pub fn project_checked_package_review(
     }
 
     callables.sort_by(|left, right| {
-        left.identity
-            .cmp(&right.identity)
-            .then(left.role.cmp(&right.role))
-            .then(left.contracts.cmp(&right.contracts))
+        left.row
+            .identity
+            .cmp(&right.row.identity)
+            .then(left.row.role.cmp(&right.row.role))
+            .then(left.row.contracts.cmp(&right.row.contracts))
     });
     let dangerous_authorities = project_dangerous_authorities(compilation, &callables)?;
     let selected_providers: Vec<_> = compilation
@@ -1854,16 +1869,43 @@ pub fn project_checked_package_review(
             rows: plan.rows.clone(),
         })
         .collect();
-    let row_sources = project_canonical_row_sources(
+    let (public_traits, public_trait_sources) = finalize_projected_rows(
         compilation,
-        &public_traits,
-        &public_domains,
-        &public_data,
-        &representation_tcb,
-        &callables,
-        &dangerous_authorities,
-        &selected_providers,
+        public_traits,
+        PackageReviewSourceLocationRole::Declaration,
     )?;
+    let (public_domains, public_domain_sources) = finalize_projected_rows(
+        compilation,
+        public_domains,
+        PackageReviewSourceLocationRole::Declaration,
+    )?;
+    let (public_data, public_data_sources) = finalize_projected_rows(
+        compilation,
+        public_data,
+        PackageReviewSourceLocationRole::Declaration,
+    )?;
+    let (representation_tcb, representation_tcb_sources) = finalize_projected_rows(
+        compilation,
+        representation_tcb,
+        PackageReviewSourceLocationRole::Declaration,
+    )?;
+    let (callables, callable_sources) = finalize_projected_rows(
+        compilation,
+        callables,
+        PackageReviewSourceLocationRole::Declaration,
+    )?;
+    let (dangerous_authorities, dangerous_authority_sources) =
+        finalize_dangerous_authority_rows(compilation, dangerous_authorities)?;
+    let row_sources = PackageReviewCanonicalRowSources {
+        public_traits: public_trait_sources,
+        public_domains: public_domain_sources,
+        public_data: public_data_sources,
+        representation_tcb: representation_tcb_sources,
+        callables: callable_sources,
+        dangerous_authorities: dangerous_authority_sources,
+        selected_provider_set: selected_provider_row_source(compilation, &selected_providers)?,
+    };
+    validate_canonical_row_source_limits(&row_sources)?;
 
     Ok(CheckedPackageReviewProjection {
         package,
@@ -1882,7 +1924,7 @@ pub fn project_checked_package_review(
 fn project_representation_tcb(
     compilation: &CheckedCompilation,
     package: PackageKeyIdentity,
-) -> Result<Vec<PackageReviewRepresentationTcb>, Vec<Diagnostic>> {
+) -> Result<Vec<ProjectedReviewRow<PackageReviewRepresentationTcb>>, Vec<Diagnostic>> {
     let mut rows = Vec::new();
     for definition in compilation.data_definitions().iter().filter(|definition| {
         definition.supply_mode == psi_language_semantics::DataSupplyMode::BoundaryOpaque
@@ -1891,23 +1933,26 @@ fn project_representation_tcb(
         if !reviewed_package_owns(&declaration, package)? {
             continue;
         }
-        rows.push(PackageReviewRepresentationTcb {
-            declaration,
-            abi: PackageReviewRepresentationAbiCommitment::Unbound,
-            mechanism: PackageReviewRepresentationMechanism::Unbound,
+        rows.push(ProjectedReviewRow {
+            row: PackageReviewRepresentationTcb {
+                declaration,
+                abi: PackageReviewRepresentationAbiCommitment::Unbound,
+                mechanism: PackageReviewRepresentationMechanism::Unbound,
+            },
+            declaration: definition.symbol,
         });
     }
-    rows.sort();
-    rows.dedup();
+    rows.sort_by(|left, right| left.row.cmp(&right.row));
+    rows.dedup_by(|left, right| left.row == right.row && left.declaration == right.declaration);
     Ok(rows)
 }
 
 fn project_dangerous_authorities(
     compilation: &CheckedCompilation,
-    callables: &[CheckedPackageCallableReview],
-) -> Result<Vec<PackageReviewDangerousAuthority>, Vec<Diagnostic>> {
+    callables: &[ProjectedReviewRow<CheckedPackageCallableReview>],
+) -> Result<Vec<ProjectedDangerousAuthorityRow>, Vec<Diagnostic>> {
     let mut exposed_services = BTreeSet::new();
-    for callable in callables {
+    for callable in callables.iter().map(|projected| &projected.row) {
         if let Some(services) = callable.declared_service_reach() {
             exposed_services.extend(services.iter().cloned());
         }
@@ -1942,142 +1987,73 @@ fn project_dangerous_authorities(
         let Some(class) = dangerous_authority_class(compilation, definition) else {
             continue;
         };
-        rows.push(PackageReviewDangerousAuthority { class, service });
+        let exposures = callables
+            .iter()
+            .filter(|callable| callable_exposes_service(&callable.row, &service))
+            .map(|callable| callable.declaration)
+            .collect();
+        rows.push(ProjectedDangerousAuthorityRow {
+            row: PackageReviewDangerousAuthority { class, service },
+            declaration: definition.symbol,
+            exposures,
+        });
     }
-    rows.sort();
-    rows.dedup();
+    rows.sort_by(|left, right| left.row.cmp(&right.row));
+    rows.dedup_by(|left, right| {
+        left.row == right.row
+            && left.declaration == right.declaration
+            && left.exposures == right.exposures
+    });
     Ok(rows)
 }
 
-#[allow(clippy::too_many_arguments)]
-fn project_canonical_row_sources(
+fn finalize_projected_rows<Row>(
     compilation: &CheckedCompilation,
-    public_traits: &[PackageReviewTraitShape],
-    public_domains: &[PackageReviewDomainShape],
-    public_data: &[PackageReviewDataShape],
-    representation_tcb: &[PackageReviewRepresentationTcb],
-    callables: &[CheckedPackageCallableReview],
-    dangerous_authorities: &[PackageReviewDangerousAuthority],
-    selected_providers: &[CheckedPackageProviderReview],
-) -> Result<PackageReviewCanonicalRowSources, Vec<Diagnostic>> {
-    let public_traits = public_traits
-        .iter()
-        .map(|row| {
-            declaration_row_source(
-                compilation,
-                &row.identity,
-                compilation
-                    .traits()
-                    .iter()
-                    .map(|definition| definition.symbol),
-                PackageReviewSourceLocationRole::Declaration,
-                "public trait",
-            )
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    let public_domains = public_domains
-        .iter()
-        .map(|row| {
-            declaration_row_source(
-                compilation,
-                &row.identity,
-                compilation
-                    .domain_definitions()
-                    .iter()
-                    .map(|definition| definition.symbol),
-                PackageReviewSourceLocationRole::Declaration,
-                "public domain",
-            )
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    let public_data = public_data
-        .iter()
-        .map(|row| {
-            declaration_row_source(
-                compilation,
-                &row.identity,
-                compilation
-                    .data_definitions()
-                    .iter()
-                    .map(|definition| definition.symbol),
-                PackageReviewSourceLocationRole::Declaration,
-                "public data",
-            )
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    let representation_tcb = representation_tcb
-        .iter()
-        .map(|row| {
-            declaration_row_source(
-                compilation,
-                &row.declaration,
-                compilation
-                    .data_definitions()
-                    .iter()
-                    .map(|definition| definition.symbol),
-                PackageReviewSourceLocationRole::Declaration,
-                "representation TCB",
-            )
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    let callable_sources = callables
-        .iter()
-        .map(|row| {
-            declaration_row_source(
-                compilation,
-                &row.identity,
-                compilation.machines().iter().map(|machine| machine.symbol),
-                PackageReviewSourceLocationRole::Declaration,
-                "reviewed callable",
-            )
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    let dangerous_authority_sources = dangerous_authorities
-        .iter()
-        .map(|authority| {
-            let mut locations = declaration_locations(
-                compilation,
-                &authority.service,
-                compilation
-                    .facts
-                    .service_reaches
-                    .services
-                    .definitions()
-                    .iter()
-                    .map(|definition| definition.symbol),
-                PackageReviewSourceLocationRole::AuthorityDeclaration,
-                "dangerous authority",
-            )?;
-            for callable in callables
-                .iter()
-                .filter(|callable| callable_exposes_service(callable, &authority.service))
-            {
-                locations.extend(declaration_locations(
-                    compilation,
-                    &callable.identity,
-                    compilation.machines().iter().map(|machine| machine.symbol),
-                    PackageReviewSourceLocationRole::AuthorityExposure,
-                    "dangerous-authority exposure",
-                )?);
-            }
-            locations.sort();
-            locations.dedup();
-            Ok(PackageReviewCanonicalRowSource::authored(locations))
-        })
-        .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
+    projected: Vec<ProjectedReviewRow<Row>>,
+    role: PackageReviewSourceLocationRole,
+) -> Result<(Vec<Row>, Vec<PackageReviewCanonicalRowSource>), Vec<Diagnostic>> {
+    let mut rows = Vec::with_capacity(projected.len());
+    let mut sources = Vec::with_capacity(projected.len());
+    for projected in projected {
+        sources.push(PackageReviewCanonicalRowSource::authored(vec![
+            canonical_source_location(compilation, projected.declaration, role)?,
+        ]));
+        rows.push(projected.row);
+    }
+    Ok((rows, sources))
+}
 
-    let selected_provider_set = selected_provider_row_source(compilation, selected_providers)?;
-    let sources = PackageReviewCanonicalRowSources {
-        public_traits,
-        public_domains,
-        public_data,
-        representation_tcb,
-        callables: callable_sources,
-        dangerous_authorities: dangerous_authority_sources,
-        selected_provider_set,
-    };
-    validate_canonical_row_source_limits(&sources)?;
-    Ok(sources)
+fn finalize_dangerous_authority_rows(
+    compilation: &CheckedCompilation,
+    projected: Vec<ProjectedDangerousAuthorityRow>,
+) -> Result<
+    (
+        Vec<PackageReviewDangerousAuthority>,
+        Vec<PackageReviewCanonicalRowSource>,
+    ),
+    Vec<Diagnostic>,
+> {
+    let mut rows = Vec::with_capacity(projected.len());
+    let mut sources = Vec::with_capacity(projected.len());
+    for projected in projected {
+        let mut locations = vec![canonical_source_location(
+            compilation,
+            projected.declaration,
+            PackageReviewSourceLocationRole::AuthorityDeclaration,
+        )?];
+        for exposure in projected.exposures {
+            locations.push(canonical_source_location(
+                compilation,
+                exposure,
+                PackageReviewSourceLocationRole::AuthorityExposure,
+            )?);
+        }
+        locations.sort();
+        locations.dedup();
+        sources.push(PackageReviewCanonicalRowSource::authored(locations));
+        rows.push(projected.row);
+    }
+    Ok((rows, sources))
 }
 
 fn selected_provider_row_source(
@@ -2221,40 +2197,6 @@ fn validate_canonical_row_source_limits(
         )]);
     }
     Ok(())
-}
-
-fn declaration_row_source(
-    compilation: &CheckedCompilation,
-    identity: &PackageReviewNominalIdentity,
-    symbols: impl Iterator<Item = SymbolHandle>,
-    role: PackageReviewSourceLocationRole,
-    subject: &str,
-) -> Result<PackageReviewCanonicalRowSource, Vec<Diagnostic>> {
-    declaration_locations(compilation, identity, symbols, role, subject)
-        .map(PackageReviewCanonicalRowSource::authored)
-}
-
-fn declaration_locations(
-    compilation: &CheckedCompilation,
-    identity: &PackageReviewNominalIdentity,
-    symbols: impl Iterator<Item = SymbolHandle>,
-    role: PackageReviewSourceLocationRole,
-    subject: &str,
-) -> Result<Vec<PackageReviewSourceLocation>, Vec<Diagnostic>> {
-    let mut matching = Vec::new();
-    for symbol in symbols {
-        if nominal_identity(compilation, symbol)? == *identity {
-            matching.push(symbol);
-        }
-    }
-    let [symbol] = matching.as_slice() else {
-        return Err(vec![Diagnostic::error(format!(
-            "{subject} `{}` resolves to {} authored source declarations; expected one",
-            identity.path,
-            matching.len()
-        ))]);
-    };
-    Ok(vec![canonical_source_location(compilation, *symbol, role)?])
 }
 
 fn canonical_source_location(
@@ -2451,7 +2393,7 @@ fn dangerous_authority_class(
 fn project_public_traits(
     compilation: &CheckedCompilation,
     package: PackageKeyIdentity,
-) -> Result<Vec<PackageReviewTraitShape>, Vec<Diagnostic>> {
+) -> Result<Vec<ProjectedReviewRow<PackageReviewTraitShape>>, Vec<Diagnostic>> {
     let mut rows = Vec::new();
     for definition in compilation.traits().iter().filter(|row| row.is_public) {
         let identity = nominal_identity(compilation, definition.symbol)?;
@@ -2504,17 +2446,20 @@ fn project_public_traits(
                 )
             })
             .collect::<Result<Vec<_>, _>>()?;
-        rows.push(PackageReviewTraitShape {
-            identity,
-            is_boundary: definition.is_boundary,
-            lifetime_parameter_count: definition.lifetime_parameters.len(),
-            type_parameters,
-            conformance_bounds,
-            parents,
-            requirements,
+        rows.push(ProjectedReviewRow {
+            row: PackageReviewTraitShape {
+                identity,
+                is_boundary: definition.is_boundary,
+                lifetime_parameter_count: definition.lifetime_parameters.len(),
+                type_parameters,
+                conformance_bounds,
+                parents,
+                requirements,
+            },
+            declaration: definition.symbol,
         });
     }
-    rows.sort_by(|left, right| left.identity.cmp(&right.identity));
+    rows.sort_by(|left, right| left.row.identity.cmp(&right.row.identity));
     Ok(rows)
 }
 
@@ -2679,7 +2624,7 @@ fn project_trait_requirement(
 fn project_public_domains(
     compilation: &CheckedCompilation,
     package: PackageKeyIdentity,
-) -> Result<Vec<PackageReviewDomainShape>, Vec<Diagnostic>> {
+) -> Result<Vec<ProjectedReviewRow<PackageReviewDomainShape>>, Vec<Diagnostic>> {
     let mut rows = Vec::new();
     for definition in compilation
         .domain_definitions()
@@ -2727,27 +2672,32 @@ fn project_public_domains(
             .collect::<Result<Vec<_>, _>>()?;
         establishment_routes.sort();
         establishment_routes.dedup();
-        rows.push(PackageReviewDomainShape {
-            identity,
-            type_parameters,
-            target_type: review_type_identity_with_binders(
-                compilation,
-                definition.target_type,
-                &binders,
-            ),
-            index_arguments: definition
-                .index_arguments
-                .iter()
-                .map(|argument| review_type_identity_with_binders(compilation, *argument, &binders))
-                .collect(),
-            predicate_body: definition.predicate_body,
-            predicate_facts,
-            alias_expansion,
-            classification,
-            establishment_routes,
+        rows.push(ProjectedReviewRow {
+            row: PackageReviewDomainShape {
+                identity,
+                type_parameters,
+                target_type: review_type_identity_with_binders(
+                    compilation,
+                    definition.target_type,
+                    &binders,
+                ),
+                index_arguments: definition
+                    .index_arguments
+                    .iter()
+                    .map(|argument| {
+                        review_type_identity_with_binders(compilation, *argument, &binders)
+                    })
+                    .collect(),
+                predicate_body: definition.predicate_body,
+                predicate_facts,
+                alias_expansion,
+                classification,
+                establishment_routes,
+            },
+            declaration: definition.symbol,
         });
     }
-    rows.sort_by(|left, right| left.identity.cmp(&right.identity));
+    rows.sort_by(|left, right| left.row.identity.cmp(&right.row.identity));
     Ok(rows)
 }
 
@@ -3070,7 +3020,7 @@ fn project_domain_establishment_route(
 fn project_public_data(
     compilation: &CheckedCompilation,
     package: PackageKeyIdentity,
-) -> Result<Vec<PackageReviewDataShape>, Vec<Diagnostic>> {
+) -> Result<Vec<ProjectedReviewRow<PackageReviewDataShape>>, Vec<Diagnostic>> {
     let mut rows = Vec::new();
     for definition in compilation
         .data_definitions()
@@ -3142,18 +3092,21 @@ fn project_public_data(
         let mut retired_identities = definition.retired_identities.clone();
         retired_identities.sort_unstable();
         retired_identities.dedup();
-        rows.push(PackageReviewDataShape {
-            identity,
-            supply: definition.supply_mode,
-            lifetime_parameter_count: definition.lifetime_parameters.len(),
-            type_parameters,
-            properties: definition.properties,
-            zero_gated: definition.zero_gated,
-            retired_identities,
-            members,
+        rows.push(ProjectedReviewRow {
+            row: PackageReviewDataShape {
+                identity,
+                supply: definition.supply_mode,
+                lifetime_parameter_count: definition.lifetime_parameters.len(),
+                type_parameters,
+                properties: definition.properties,
+                zero_gated: definition.zero_gated,
+                retired_identities,
+                members,
+            },
+            declaration: definition.symbol,
         });
     }
-    rows.sort_by(|left, right| left.identity.cmp(&right.identity));
+    rows.sort_by(|left, right| left.row.identity.cmp(&right.row.identity));
     Ok(rows)
 }
 

@@ -240,7 +240,11 @@ coordinates are included in the conflict fingerprint and escaped bounded
 rendering. Dangerous-authority rows identify both the canonical toolchain
 declaration and each reviewed package callable exposing it. Generated symbols
 follow their authored derivation origin; genuinely compiler-derived rows carry
-a closed reason. Provider candidate derivation captures a compiler-internal
+a closed reason. Ordinary rows retain exact declaration symbols through
+canonical sorting, and dangerous-authority derivation retains both the exact
+service declaration and exact exposing callable symbols; no later source join
+reconstructs them from reduced nominal identity. Provider candidate derivation
+captures a compiler-internal
 sidecar beside each semantic plan: exact schema and optional nominal-provider
 symbols, plus the exact realizing machine for every external or checked-adapter
 row. Selection and sorting preserve the pair and add exact authored build/target-
