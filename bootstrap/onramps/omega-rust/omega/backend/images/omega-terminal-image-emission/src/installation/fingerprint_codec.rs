@@ -1,11 +1,14 @@
-//! Domain-separated fingerprints for format-35 installation evidence.
+//! Domain-separated fingerprints for format-36 installation evidence.
 
 use sha2::{Digest, Sha256};
 
-use super::{TerminalImageFingerprint, TerminalInstallationFingerprint};
+use super::{
+    TerminalImageFingerprint, TerminalInstallationFingerprint, TerminalNativeFuelSourceFingerprint,
+};
 
 const IMAGE_DOMAIN: &[u8] = b"omega-terminal-installed-image\0";
 const RECORD_DOMAIN: &[u8] = b"omega-terminal-installation-record\0";
+const NATIVE_FUEL_SOURCE_DOMAIN: &[u8] = b"omega-terminal-native-fuel-source\0";
 
 pub(super) fn fingerprint_image(bytes: &[u8]) -> TerminalImageFingerprint {
     TerminalImageFingerprint(hash(IMAGE_DOMAIN, bytes))
@@ -13,6 +16,10 @@ pub(super) fn fingerprint_image(bytes: &[u8]) -> TerminalImageFingerprint {
 
 pub(super) fn fingerprint_record(bytes: &[u8]) -> TerminalInstallationFingerprint {
     TerminalInstallationFingerprint(hash(RECORD_DOMAIN, bytes))
+}
+
+pub(super) fn fingerprint_native_fuel_source(bytes: &[u8]) -> TerminalNativeFuelSourceFingerprint {
+    TerminalNativeFuelSourceFingerprint(hash(NATIVE_FUEL_SOURCE_DOMAIN, bytes))
 }
 
 fn hash(domain: &[u8], bytes: &[u8]) -> [u8; 32] {

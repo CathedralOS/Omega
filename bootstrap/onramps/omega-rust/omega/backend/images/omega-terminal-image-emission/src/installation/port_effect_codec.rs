@@ -1,4 +1,4 @@
-//! Canonical format-35 codec for privileged port-effect rows.
+//! Canonical format-36 codec for privileged port-effect rows.
 //!
 //! The installation parent retains upfront count conversion, row ordering,
 //! effect validation, and settlement association. This child owns exact bytes.

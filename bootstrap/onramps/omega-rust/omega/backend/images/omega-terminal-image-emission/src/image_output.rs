@@ -196,6 +196,37 @@ impl TerminalNativeFuelExecutableImage {
         self.artifact.functions()
     }
 
+    /// Immutable semantic/source evidence retained beside the metered
+    /// realization. Installation records keep its coordinates distinct from
+    /// the executable metered coordinates.
+    pub const fn semantic_artifact(&self) -> &TerminalObjectArtifact {
+        self.artifact.semantic_artifact()
+    }
+
+    pub fn metered_text_bytes(&self) -> &[u8] {
+        self.artifact.text_bytes()
+    }
+
+    pub fn charges(
+        &self,
+    ) -> Vec<omega_terminal_installation_evidence::TerminalNativeFuelChargeEvidence> {
+        omega_terminal_installation_evidence::TerminalNativeFuelImageEvidence::charges(self)
+    }
+
+    pub(crate) fn semantic_installation_view(&self) -> TerminalExecutableImage {
+        let semantic = self.artifact.semantic_artifact();
+        TerminalExecutableImage {
+            terminal_psi: semantic.terminal_psi(),
+            target: semantic.target(),
+            subsystem: self.subsystem,
+            functions: semantic.functions().to_vec(),
+            fuel_attribution: semantic.fuel_attribution().to_vec(),
+            port_effects: semantic.port_effects().to_vec(),
+            boundary_settlements: semantic.boundary_settlements().to_vec(),
+            output: self.output.clone(),
+        }
+    }
+
     pub const fn output(&self) -> &EmittedImageOutput {
         &self.output
     }

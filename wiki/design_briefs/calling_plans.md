@@ -1246,10 +1246,14 @@ no-plan paths exist only as differential oracles.
 
 Remaining work is to derive inbound and outbound machinery from the same plan,
 add state-ceiling-aware selection/allocation, and validate composed footprints
-at the final artifact. `NativeFuelPlan`, context-register allocation, inserted
-charge/transfer lowering, and installed `FuelSuspensionFree` composition are
-settled but not yet implemented; current native artifacts provide their exact
-site-attribution and fixed-provision precursors only.
+at the final artifact. Native fuel target policy, reserved context-register
+transport, independently replayed hot charges/cold dispatchers, installed
+`FuelSuspensionFree` composition, and canonical format-36 installation evidence
+are live. The installation record keeps semantic/source rows unchanged and
+adds an optional target recipe, source fingerprint, source-to-metered function
+map, and exact hot/semantic/cold charge catalog; plain-image records require the
+section to be absent. The target-runtime opaque-state save, sponsor-stack
+switch, and exhaustion transfer entry remain unimplemented.
 
 ## Still open
 

@@ -4796,18 +4796,23 @@ Remaining:
   installed byte mismatch reject. The admitted context transfer entry remains
   responsible for the separately validated opaque-state save, sponsor-stack
   switch, and fixed/`FuelSuspensionFree` policy path; those target/runtime bytes
-  and installed-record codecs remain necessary for a complete deployed path.
+  remain necessary for a complete deployed path.
   Root admission now retains the selected native realization against the exact
   logical-fuel demand, provision, grant, installed-code context, and artifact.
   Existing fixed roots automatically produce the exact fixed realization;
   dynamic admission cannot proceed before final metered-artifact evidence, and
   fixed/interpreted paths reject stray dynamic evidence. Runtime root custody
   retains the exact sealed value, while the address-free installed root manifest
-  publishes its kind and replay-bound fingerprint. The remaining native slice
-  is to retain/validate the target-runtime transfer entry's physical state/stack
-  implementation and encode the metered charge catalog in canonical installed
-  records; semantic metadata either needs centralized final-offset translation
-  or an explicit dual source/metered installation carrier.
+  publishes its kind and replay-bound fingerprint. Terminal installation format
+  36 now takes the explicit dual-coordinate route: ordinary function, effect,
+  settlement, and fuel rows retain immutable semantic/source coordinates, while
+  an optional native-fuel section commits the exact target recipe and source
+  fingerprint, one source-to-metered function-span map, and the ordered hot/
+  semantic/cold charge catalog. Plain images require that section to be absent.
+  Native builders, codecs, and image rejoin validation reject target-policy,
+  source, function-map, charge-row, or physical-coordinate drift independently.
+  The remaining native slice is to retain/validate the target-runtime transfer
+  entry's physical state/stack implementation.
 - **PROOF-RELEVANCE-MIGRATION.** Finish binding-level `[erased]`, checked
   noninterference, erased-stripped layout, and obligation preservation across
   the remaining consumers. Explicit relevance remains in semantic/proof
@@ -6815,9 +6820,14 @@ state through a raw address.
     the same closure: nominal static-machine calls retain their exact bounded
     requirement, primitive results no longer require an unrelated custody
     transfer, and codec/verifier canaries reject deletion, drift, or padding.
+    Top-level installation-bound `boundary machine` requirements now lower the
+    same exact dependency through their normalized machine-overload identity;
+    trait requirements retain their normalized trait-requirement identity.
+    Missing, ambiguous, wrong-kind, duplicate, changed-bound, and unused rows
+    fail closed through lowering, codec replay, or independent verification.
     Boundary-operator provider slots remain independently validated against
-    their exact typed operator schemas and never enter this trait-only
-    installation-reach resolver.
+    their exact typed operator schemas and never enter this installation-reach
+    resolver.
     Installation-bound internal machines publish the conservative bound only
     inside their Terminal closure; ordinary private effectful machines still
     reject without an authored ceiling. Neither lowering nor verification
@@ -6829,6 +6839,12 @@ state through a raw address.
     producers contain no service-bearing boundary operation, so there is no
     additional producer row to populate today; verifier reconstruction remains
     the fail-closed fence if one gains such an operation.
+    **Design-blocked:** settle how a realization supplies one exact top-level
+    bodyless boundary requirement. The existing `satisfies Trait::requirement`
+    surface selects trait/operator requirements; no approved source form yet
+    binds a provider to a top-level requirement path. Until that is settled,
+    provider selection cannot close the new top-level dependency, and
+    `InterruptAcknowledgement::complete` must retain its fixed `PortIo` row.
   - **Constraints:** `+` is union. Do not infer one shared row from equal sets or
     add negation, subtraction, lower bounds, exclusive-or, named row variables,
     or cross-requirement correlation.
@@ -6939,7 +6955,7 @@ compiler concept is introduced.
   boundary route, and one grant invocation, and closes the component manifest
   transactionally. Receipt facts may serve several matching call sites but
   cannot be rebound by compact identity, profile, route, occurrence, or
-  invocation. Terminal installation format 35 commits the manifest, structural
+  invocation. Terminal installation format 36 commits the manifest, structural
   access modes, and opaque
   acceptance identities into the canonical installation bytes, which the
   terminal artifact manifest already fingerprints. Runnable component-era

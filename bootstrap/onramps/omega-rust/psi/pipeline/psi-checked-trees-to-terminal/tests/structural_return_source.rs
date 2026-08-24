@@ -762,6 +762,36 @@ fn result_bearing_boundary_retains_exact_bounded_installation_reach() {
         psi_terminal_verifier::validate_module_representation(&padded),
         Err(psi_terminal_verifier::ModuleError::DuplicatePublishedService { .. })
     ));
+
+    let mut duplicate_dependency = module.clone();
+    duplicate_dependency
+        .root_service_reach
+        .installation_dependencies
+        .push(
+            duplicate_dependency
+                .root_service_reach
+                .installation_dependencies[0]
+                .clone(),
+        );
+    assert_eq!(
+        psi_terminal_verifier::validate_module_representation(&duplicate_dependency),
+        Err(psi_terminal_verifier::ModuleError::InvalidInstallationReachDependency(1))
+    );
+
+    let mut unused_dependency = module.clone();
+    let mut unused = unused_dependency
+        .root_service_reach
+        .installation_dependencies[0]
+        .clone();
+    unused.requirement_identity = "zzzz::unused_completion".into();
+    unused_dependency
+        .root_service_reach
+        .installation_dependencies
+        .push(unused);
+    assert_eq!(
+        psi_terminal_verifier::validate_module_representation(&unused_dependency),
+        Err(psi_terminal_verifier::ModuleError::RootInstallationReachDependenciesMismatch)
+    );
 }
 
 #[test]
