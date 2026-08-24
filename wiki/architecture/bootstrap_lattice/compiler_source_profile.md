@@ -51,7 +51,7 @@ the bridge implementation.
 
 - **Delta** is an independent, robust compiler-host language. It may resemble
   Omega in spelling and shape, but it is not required to be an Omega subset.
-- **`Ωself`** is the Omega self-hosting source profile: a compositional subset
+- **`Ωself`** is the Omega product-compiler source profile: a compositional subset
   of ordinary Omega accepted by `omega-bootstrap`. It introduces no syntax or
   semantics of its own. It is a feature-and-resource contract, not a whitelist
   of the current compiler files or a collection of recognized AST shapes.
@@ -131,12 +131,13 @@ bridge source demonstrates an unavoidable requirement. Fixed backing can be
 ordinary zero-initialized program storage rather than a host service.
 
 Discovery does not make the contract corpus-shaped. During construction, each
-new facility must record the concrete bridge requirement, the simpler rejected
-alternative, and its lower-rung meaning and negative gates. Before freezing v1,
-publish the complete source manifest and feature inventory, remove unused or
-accidental producer behavior, then specify the retained grammar and edge cases
-independently of those particular files. The working inventory lives in the
-Delta rung's
+new facility must record either its concrete bridge requirement or its explicit
+language-coherence, robustness, safety, or maintainability argument, along with
+the simpler rejected alternative and its lower-rung meaning and negative gates.
+Before freezing v1, publish the complete source manifest and feature inventory,
+remove accidental producer behavior, then specify the retained grammar and edge
+cases independently of those particular files. The working inventory lives in
+the Delta rung's
 [`FEATURE_LEDGER.md`](../../../bootstrap/rungs/delta/FEATURE_LEDGER.md).
 
 ## Working `Ωself` policy
@@ -254,8 +255,8 @@ not remove it from the bootstrap surface.
 
 Delta's freeze is adjacent but separate. Its provisional ledger evolves while
 `omega-bootstrap` is written. Once the complete Delta source closure exists,
-prune unused producer/corpus behavior, publish the general Delta v1 grammar and
-semantics, and prove that exact closure valid under the frozen language. The
+prune accidental producer/corpus behavior, publish the general Delta v1 grammar
+and semantics, and prove that exact closure valid under the frozen language. The
 Omega product-source manifest decides `Ωself`; the Delta bridge-source manifest
 decides Delta v1. Neither manifest substitutes for the corresponding general
 profile or language contract.

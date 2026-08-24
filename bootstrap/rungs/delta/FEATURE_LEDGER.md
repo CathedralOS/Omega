@@ -4,11 +4,13 @@ This ledger guides discovery while the complete `omega-bootstrap` source is
 being written. It is not a Delta specification or an admission list. D0, the
 sample corpus, and the Rust producer establish implementation evidence only.
 
-A construct may enter Delta v1 only when a concrete bridge requirement shows
-that retaining it lowers whole-bootstrap implementation and assurance cost. Its
-entry must then identify exact semantics, lower-rung meaning, positive coverage,
-and a negative gate for the nearest excluded form. Unused constructs are removed
-before the v1 freeze.
+A construct may enter Delta v1 when a concrete bridge requirement or an explicit
+language-coherence, robustness, safety, or maintainability argument shows that
+retaining it lowers whole-bootstrap cost. Its entry must identify that reason,
+exact semantics, lower-rung meaning, positive coverage, and a negative gate for
+the nearest excluded form. Accidental producer/corpus behavior is removed before
+the v1 freeze; Delta is not reduced to a whitelist of tokens used by one source
+revision.
 
 This ledger is not the `Ωself` profile. `Ωself` records which ordinary Omega
 features the production compiler source uses and `omega-bootstrap` must accept;
@@ -45,9 +47,10 @@ or admitted to, the other.
 Before Delta v1 is named complete:
 
 1. Publish the complete deterministic `omega-bootstrap` source manifest.
-2. Trace every retained feature to concrete uses in that closure and record why
-   the simpler alternative was rejected.
-3. Remove unused parser/backend behavior and experimental corpus features.
+2. Classify every retained feature as required by that closure or justified by
+   an explicit coherence, robustness, safety, or maintainability argument, and
+   record why the simpler alternative was rejected.
+3. Remove accidental parser/backend behavior and experimental corpus features.
 4. Publish normative grammar and semantic edge tables independent of the source
    files that motivated them.
 5. Prove the complete closure valid and run native, self-hosted, and lower-rung

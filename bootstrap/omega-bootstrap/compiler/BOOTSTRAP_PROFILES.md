@@ -31,10 +31,10 @@ current Rust product implementation.
 
 Likewise, D0 is discovery evidence rather than a normative ancestor of Delta
 v1. Every listed D0 facility—including arithmetic domains, payload sums,
-recursion, fixed-backing conventions, and `boundary trait` syntax—may be removed
-if the complete bridge source can be made smaller or easier to assure without
-it. Delta v1 is frozen only after that complete source closure is available and
-unused producer behavior has been pruned.
+recursion, fixed-backing conventions, and `boundary trait` syntax—must be
+re-justified by the complete bridge source or an explicit compiler-host
+coherence/robustness argument. Delta v1 is frozen only after that complete
+source closure is available and accidental producer behavior has been pruned.
 
 O1 generalizes the O0 body to a bounded sequence of zero or more literal
 `write_line` statements followed by exactly one literal `exit_process`. One
@@ -66,8 +66,8 @@ These bullets describe what current D0 canaries may use. They do not prescribe
 the eventual Delta spelling or require a general boundary-trait facility. The
 provisional bridge host authority is narrower: byte input, artifact output,
 diagnostic output, and process termination, supplied through a sealed interface
-unless bridge evidence requires more. Even that interface is retained in Delta
-v1 only in the narrowest robust shape the complete bridge source demonstrates.
+unless a concrete compiler-host argument requires more. Delta v1 chooses the
+lowest-total-cost robust shape, not automatically the narrowest syntactic one.
 
 The calling-profile limits are at most four value parameters for a free machine
 and at most three value parameters for a self method. A D0 compiler slice must
