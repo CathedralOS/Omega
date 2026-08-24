@@ -584,12 +584,18 @@ unavailable. Omega emits fixed non-admission counts and no review row. Concrete
 operands, rooted paths, mutable outputs, logical handles, and content remain
 absent; raw
 runtime descriptor returns therefore remain non-replayable.
-Byte-valued inputs are evaluated once in the selected provider arm, and both
-providers reject them above the evaluator's current 16 MiB sponsor ceiling
-before cloning/allocation. Raw transfer counts use one checked conversion and
+Byte-valued inputs are evaluated once by the shared preparer and reject above
+the evaluator's current 16 MiB sponsor ceiling before provider cloning/
+allocation. Raw transfer counts use one checked conversion and
 reject negative, wrapped, or above-ceiling values before allocation. This is
-not a language limit and does not provide canonical typed operand preparation
-or yet bound file extent, total staging-tree growth, process memory, or CPU.
+not a language limit. A shared closed preparer checks exact arity, consumes all
+authored operands once in left-to-right order, rejects wrong kinds, and retains
+validated mutable cells/capacities, including fixed ABI inputs such as Win32
+`OVERLAPPED`, before either provider or grant access. It
+includes provider-unused ABI operands, and the canonical source test pins all
+50 operand schemas and result widths. Canonicalize enforces its declared
+1024-byte `PATH_MAX` carrier at that gate. File extent, total staging-tree
+growth, process memory, and CPU remain unbounded.
 This summary is compiler-issued execution evidence kept outside canonical
 capability/API comparison bytes. It is not a receipt and does not claim either
 replay verdict. A `Receipted` row still requires a canonical operation

@@ -18,8 +18,10 @@
 
 use omega_compiler::{CheckedCompilation, compile_to_checked};
 use psi_checked_interpreter::{
-    BuildTimeValue, FilesystemAccess, FsGrants, InterpretOptions, InterpretOutcome,
-    evaluate_build_machine_with_filesystem, interpret_entry, interpret_entry_with_options,
+    BuildMachineEvaluationFailureKind, BuildTimeValue, FilesystemAccess,
+    FilesystemEvaluationHaltKind, FilesystemOperationAttemptOutcome, FsGrants, InterpretOptions,
+    InterpretOutcome, evaluate_build_machine_with_filesystem,
+    evaluate_build_machine_with_filesystem_measured, interpret_entry, interpret_entry_with_options,
 };
 use std::path::Path;
 
@@ -478,6 +480,177 @@ fn build_field(build: &BuildTimeValue, name: &str) -> i64 {
         Some((_, BuildTimeValue::Int(value))) => *value,
         other => panic!("Build field {name} missing or non-int: {other:?}"),
     }
+}
+
+#[test]
+fn filesystem_operands_prepare_before_real_authority() {
+    let base = std::env::temp_dir().join(format!(
+        "omega_filesystem_preparation_{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&base);
+    let out = base.join("out");
+    std::fs::create_dir_all(&out).expect("create preparation output root");
+    let prepared_file = out.join("prepared.txt");
+    let outside = base.join("outside-link");
+    let main_path = base.join("main.omg");
+    std::fs::write(
+        &main_path,
+        format!(
+            r#"use omega::language::std::filesystem_host;
+
+data Build {{ target_index: i64; staged: i64; }}
+
+data IgnoredOperandProbe {{
+    fs: FilesystemHost;
+    dividend: i32 in Trapping;
+    divisor: i32 in Trapping;
+    fd: i32;
+}}
+
+machine IgnoredOperandProbe::run(&mut self, build: &mut Build) {{
+    self.dividend = 1;
+    self.divisor = 0;
+    self.fd = self.fs.create(
+        "{prepared_file}",
+        (self.dividend / self.divisor) as i32
+    );
+    build.target_index = 7;
+}}
+
+data InvalidOutputProbe {{
+    fs: FilesystemHost;
+    buffer: [u8; 1];
+    n: i64;
+}}
+
+machine InvalidOutputProbe::run(&mut self, build: &mut Build) {{
+    self.n = self.fs.read_link("{outside}", &mut self.buffer, 2);
+    build.target_index = 9;
+}}
+
+data CanonicalizeOutputProbe {{
+    fs: FilesystemHost;
+    buffer: [u8; 1023];
+    result: i64;
+}}
+
+machine CanonicalizeOutputProbe::run(&mut self, build: &mut Build) {{
+    self.result = self.fs.canonicalize("{outside}", &mut self.buffer);
+    build.target_index = 11;
+}}
+"#,
+            prepared_file = omg_path(&prepared_file),
+            outside = omg_path(&outside),
+        ),
+    )
+    .expect("write preparation probe");
+    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+        panic!(
+            "filesystem preparation probe compile failed:\n{}",
+            diagnostics
+                .iter()
+                .map(|diagnostic| diagnostic.to_string())
+                .collect::<Vec<_>>()
+                .join("\n")
+        )
+    });
+    let options = || InterpretOptions {
+        filesystem: FilesystemAccess::RealScoped(FsGrants {
+            read_roots: vec![],
+            write_roots: vec![out.clone()],
+        }),
+    };
+
+    let ignored_operand_failure = evaluate_build_machine_with_filesystem_measured(
+        &checked.typed,
+        "IgnoredOperandProbe::run",
+        vec![zero_build()],
+        options(),
+    )
+    .expect_err("the formerly ignored create mode must be evaluated");
+    assert_eq!(
+        ignored_operand_failure.kind(),
+        BuildMachineEvaluationFailureKind::Trap
+    );
+    let [ignored_operand_attempt] = ignored_operand_failure
+        .observations()
+        .expect("ordinary preparation failure retains observations")
+        .filesystem_operation_attempts()
+    else {
+        panic!("ignored-operand failure must retain exactly one outer operation attempt")
+    };
+    assert_eq!(ignored_operand_attempt.operation_tag(), 1);
+    assert_eq!(
+        ignored_operand_attempt.outcome(),
+        Some(FilesystemOperationAttemptOutcome::EvaluationHalted(
+            FilesystemEvaluationHaltKind::Trap
+        ))
+    );
+    assert!(ignored_operand_attempt.grant_refusals().is_empty());
+    assert!(
+        !prepared_file.exists(),
+        "ignored ABI operands must finish preparation before create can touch disk"
+    );
+
+    let failure = evaluate_build_machine_with_filesystem_measured(
+        &checked.typed,
+        "InvalidOutputProbe::run",
+        vec![zero_build()],
+        options(),
+    )
+    .expect_err("an undersized mutable output must reject during preparation");
+    assert_eq!(failure.kind(), BuildMachineEvaluationFailureKind::Trap);
+    let [attempt] = failure
+        .observations()
+        .expect("ordinary preparation failure retains observations")
+        .filesystem_operation_attempts()
+    else {
+        panic!("preparation failure must retain exactly one outer operation attempt")
+    };
+    assert_eq!(attempt.operation_tag(), 21);
+    assert_eq!(
+        attempt.outcome(),
+        Some(FilesystemOperationAttemptOutcome::EvaluationHalted(
+            FilesystemEvaluationHaltKind::Trap
+        ))
+    );
+    assert!(
+        attempt.grant_refusals().is_empty(),
+        "mutable-output preparation must fail before path grants are consulted"
+    );
+
+    let canonicalize_failure = evaluate_build_machine_with_filesystem_measured(
+        &checked.typed,
+        "CanonicalizeOutputProbe::run",
+        vec![zero_build()],
+        options(),
+    )
+    .expect_err("canonicalize must enforce its declared PATH_MAX carrier");
+    assert_eq!(
+        canonicalize_failure.kind(),
+        BuildMachineEvaluationFailureKind::Trap
+    );
+    let [canonicalize_attempt] = canonicalize_failure
+        .observations()
+        .expect("ordinary preparation failure retains observations")
+        .filesystem_operation_attempts()
+    else {
+        panic!("canonicalize preparation failure must retain exactly one operation attempt")
+    };
+    assert_eq!(canonicalize_attempt.operation_tag(), 22);
+    assert_eq!(
+        canonicalize_attempt.outcome(),
+        Some(FilesystemOperationAttemptOutcome::EvaluationHalted(
+            FilesystemEvaluationHaltKind::Trap
+        ))
+    );
+    assert!(
+        canonicalize_attempt.grant_refusals().is_empty(),
+        "canonicalize capacity preparation must fail before path grants are consulted"
+    );
+
+    let _ = std::fs::remove_dir_all(&base);
 }
 
 #[test]

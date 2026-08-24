@@ -25,8 +25,8 @@
 //! real mode on the same host family.
 
 use super::{
-    EvalResult, ExpressionHandle, FilesystemGrantAccess, FilesystemGrantRefusal,
-    FilesystemGrantRefusalReason, FilesystemHostOperation, Frame, Value, host_open_flags,
+    EvalResult, FilesystemGrantAccess, FilesystemGrantRefusal, FilesystemGrantRefusalReason,
+    PreparedByteOutput, PreparedFilesystemCall, Value, host_open_flags, synthetic_handle_fd,
 };
 use std::collections::BTreeMap;
 use std::io::{Read, Seek, SeekFrom, Write};
@@ -240,16 +240,11 @@ impl<'program> super::Evaluator<'program> {
     /// provider, so neither provider can silently omit a canonical operation.
     pub(super) fn try_real_filesystem_call(
         &mut self,
-        operation: FilesystemHostOperation,
-        arguments: &[ExpressionHandle],
-        frame: &Frame,
+        call: PreparedFilesystemCall,
     ) -> EvalResult<Value> {
-        // Two-phase per op: resolve arguments via the evaluator FIRST (that
-        // borrow of self ends), then touch self.real_fs.
-        let result: i64 = match operation {
-            FilesystemHostOperation::Create => {
+        let result: i64 = match call {
+            PreparedFilesystemCall::Create { path, mode: _ } => {
                 // O_WRONLY|O_CREAT|O_TRUNC: create/truncate, writable.
-                let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
                 match self.authorized_path(&path, true, 0) {
                     Some(path) => {
                         let opened = std::fs::OpenOptions::new()
@@ -262,13 +257,10 @@ impl<'program> super::Evaluator<'program> {
                     None => -1,
                 }
             }
-            FilesystemHostOperation::Open | FilesystemHostOperation::OpenCreate => {
-                let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
-                let flags = self.eval_fs_scalar(arguments.get(1).copied(), frame)? as i32;
-                // `open_create`'s trailing creation mode; `open` has no third
-                // argument, so this reads ZII 0 there and is never applied
-                // (O_CREAT is what makes a mode meaningful).
-                let mode = self.eval_fs_scalar(arguments.get(2).copied(), frame)? as u32;
+            PreparedFilesystemCall::Open { path, flags } => {
+                self.real_open_prepared(path, flags, 0, false)
+            }
+            PreparedFilesystemCall::OpenCreate { path, flags, mode } => {
                 // Flag bits decode via the same host-flag mirror the virtual
                 // fs uses (host_open_flags -- the program was compiled for
                 // `host()`, so the numerology matches).
@@ -280,22 +272,25 @@ impl<'program> super::Evaluator<'program> {
                     || host_open_flags::o_append(flags);
                 match self.authorized_path(&path, wants_write, 0) {
                     Some(path) => {
-                        let options = open_options_for(
-                            flags,
-                            mode,
-                            operation == FilesystemHostOperation::OpenCreate,
-                        );
+                        let options = open_options_for(flags, mode as u32, true);
                         self.real_result_fd(open_real(&options, &path, wants_write), path)
                     }
                     None => -1,
                 }
             }
-            FilesystemHostOperation::OpenPathHandle => {
+            PreparedFilesystemCall::OpenPathHandle {
+                path,
+                desired_access: _,
+                share_mode: _,
+                security_attributes: _,
+                creation_disposition: _,
+                flags_and_attributes: _,
+                template_file: _,
+            } => {
                 // Real-mode model of CreateFileA's metadata/query use. The
                 // shared helper adds FILE_FLAG_BACKUP_SEMANTICS for a directory
                 // on Windows, so the same synthetic handle table serves files
                 // and directories.
-                let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
                 match self.authorized_path(&path, false, 0) {
                     Some(path) => {
                         let mut options = std::fs::OpenOptions::new();
@@ -315,18 +310,16 @@ impl<'program> super::Evaluator<'program> {
                     }
                 }
             }
-            FilesystemHostOperation::Read => {
-                let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
-                let count = self.eval_fs_transfer_count(arguments.get(2).copied(), frame)?;
+            PreparedFilesystemCall::Read { fd, buffer, count } => {
                 let outcome = {
                     let real = self.real_fs_mut();
                     match real.files.get_mut(&fd) {
                         Some(entry) => {
-                            let mut buffer = vec![0u8; count];
-                            match entry.file.read(&mut buffer) {
+                            let mut bytes = vec![0u8; count.host];
+                            match entry.file.read(&mut bytes) {
                                 Ok(n) => {
-                                    buffer.truncate(n);
-                                    Ok(buffer)
+                                    bytes.truncate(n);
+                                    Ok(bytes)
                                 }
                                 Err(error) => Err(io_errno(&error)),
                             }
@@ -337,7 +330,7 @@ impl<'program> super::Evaluator<'program> {
                 match outcome {
                     Ok(bytes) => {
                         let n = bytes.len() as i64;
-                        self.write_fs_buffer(arguments.get(1).copied(), frame, &bytes);
+                        buffer.write(&bytes)?;
                         n
                     }
                     Err(errno) => {
@@ -346,9 +339,7 @@ impl<'program> super::Evaluator<'program> {
                     }
                 }
             }
-            FilesystemHostOperation::Write => {
-                let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
-                let bytes = self.eval_fs_bytes(arguments.get(1).copied(), frame)?;
+            PreparedFilesystemCall::Write { fd, bytes } => {
                 let real = self.real_fs_mut();
                 match real.files.get_mut(&fd) {
                     Some(entry) => match entry.file.write(&bytes) {
@@ -364,10 +355,7 @@ impl<'program> super::Evaluator<'program> {
                     }
                 }
             }
-            FilesystemHostOperation::Seek => {
-                let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
-                let offset = self.eval_fs_scalar(arguments.get(1).copied(), frame)?;
-                let whence = self.eval_fs_scalar(arguments.get(2).copied(), frame)?;
+            PreparedFilesystemCall::Seek { fd, offset, whence } => {
                 let position = match whence {
                     1 => SeekFrom::Current(offset),
                     2 => SeekFrom::End(offset),
@@ -388,8 +376,7 @@ impl<'program> super::Evaluator<'program> {
                     }
                 }
             }
-            FilesystemHostOperation::Close => {
-                let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
+            PreparedFilesystemCall::Close { fd } => {
                 let real = self.real_fs_mut();
                 if real.files.remove(&fd).is_some() {
                     0 // the File drop closes the real descriptor
@@ -398,18 +385,19 @@ impl<'program> super::Evaluator<'program> {
                     -1
                 }
             }
-            FilesystemHostOperation::CloseHandle => {
-                let handle = self.eval_fs_fd(arguments.first().copied(), frame)?;
+            PreparedFilesystemCall::CloseHandle { handle } => {
                 let real = self.real_fs_mut();
-                if real.files.remove(&handle).is_some() {
-                    1 // Win32 BOOL success; dropping File closes the handle.
-                } else {
-                    real.errno = 6; // ERROR_INVALID_HANDLE
-                    0
+                match synthetic_handle_fd(handle) {
+                    Some(handle) if real.files.remove(&handle).is_some() => {
+                        1 // Win32 BOOL success; dropping File closes the handle.
+                    }
+                    _ => {
+                        real.errno = 6; // ERROR_INVALID_HANDLE
+                        0
+                    }
                 }
             }
-            FilesystemHostOperation::Duplicate => {
-                let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
+            PreparedFilesystemCall::Duplicate { fd } => {
                 let real = self.real_fs_mut();
                 let cloned = match real.files.get(&fd) {
                     Some(entry) => entry
@@ -427,9 +415,7 @@ impl<'program> super::Evaluator<'program> {
                     }
                 }
             }
-            FilesystemHostOperation::SetLen => {
-                let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
-                let length = self.eval_fs_scalar(arguments.get(1).copied(), frame)?;
+            PreparedFilesystemCall::SetLen { fd, length } => {
                 let real = self.real_fs_mut();
                 match real.files.get_mut(&fd) {
                     Some(entry) => match entry.file.set_len(length.max(0) as u64) {
@@ -445,8 +431,7 @@ impl<'program> super::Evaluator<'program> {
                     }
                 }
             }
-            FilesystemHostOperation::Sync | FilesystemHostOperation::SyncData => {
-                let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
+            PreparedFilesystemCall::Sync { fd } | PreparedFilesystemCall::SyncData { fd } => {
                 let real = self.real_fs_mut();
                 match real.files.get_mut(&fd) {
                     Some(entry) => match entry.file.sync_all() {
@@ -464,30 +449,29 @@ impl<'program> super::Evaluator<'program> {
             }
             // `remove_name` is the TRUSTED plain-path twin (D-at trust class):
             // the arg bytes ARE the path, so both spellings share one arm.
-            FilesystemHostOperation::Remove | FilesystemHostOperation::RemoveName => {
-                let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
+            PreparedFilesystemCall::Remove { path }
+            | PreparedFilesystemCall::RemoveName { path } => {
                 match self.authorized_path(&path, true, 0) {
                     Some(path) => self.real_result_unit(std::fs::remove_file(path)),
                     None => -1,
                 }
             }
-            FilesystemHostOperation::CreateDir | FilesystemHostOperation::CreateDirName => {
-                let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
-                match self.authorized_path(&path, true, 0) {
-                    Some(path) => self.real_result_unit(std::fs::create_dir(path)),
-                    None => -1,
-                }
-            }
-            FilesystemHostOperation::RemoveDir | FilesystemHostOperation::RemoveDirName => {
-                let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
+            PreparedFilesystemCall::CreateDir { path, mode: _ }
+            | PreparedFilesystemCall::CreateDirName {
+                name: path,
+                mode: _,
+            } => match self.authorized_path(&path, true, 0) {
+                Some(path) => self.real_result_unit(std::fs::create_dir(path)),
+                None => -1,
+            },
+            PreparedFilesystemCall::RemoveDir { path }
+            | PreparedFilesystemCall::RemoveDirName { path } => {
                 match self.authorized_path(&path, true, 0) {
                     Some(path) => self.real_result_unit(std::fs::remove_dir(path)),
                     None => -1,
                 }
             }
-            FilesystemHostOperation::Rename => {
-                let from = self.eval_fs_bytes(arguments.first().copied(), frame)?;
-                let to = self.eval_fs_bytes(arguments.get(1).copied(), frame)?;
+            PreparedFilesystemCall::Rename { from, to } => {
                 // BOTH ends need write authority: a rename removes `from` and
                 // creates `to`.
                 match (
@@ -498,17 +482,19 @@ impl<'program> super::Evaluator<'program> {
                     _ => -1,
                 }
             }
-            FilesystemHostOperation::ReadAt => {
+            PreparedFilesystemCall::ReadAt {
+                fd,
+                buffer,
+                count,
+                offset,
+            } => {
                 // `pread(fd, buf, count, offset)`: read at an absolute offset
                 // WITHOUT moving the cursor. Emulated portably (std has no
                 // cross-platform pread): seek, read, restore.
-                let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
-                let count = self.eval_fs_transfer_count(arguments.get(2).copied(), frame)?;
-                let offset = self.eval_fs_scalar(arguments.get(3).copied(), frame)?;
                 let outcome = {
                     let real = self.real_fs_mut();
                     match real.files.get_mut(&fd) {
-                        Some(entry) => positioned_read(&mut entry.file, offset, count)
+                        Some(entry) => positioned_read(&mut entry.file, offset, count.host)
                             .map_err(|error| io_errno(&error)),
                         None => Err(EBADF),
                     }
@@ -516,7 +502,7 @@ impl<'program> super::Evaluator<'program> {
                 match outcome {
                     Ok(bytes) => {
                         let n = bytes.len() as i64;
-                        self.write_fs_buffer(arguments.get(1).copied(), frame, &bytes);
+                        buffer.write(&bytes)?;
                         n
                     }
                     Err(errno) => {
@@ -525,12 +511,9 @@ impl<'program> super::Evaluator<'program> {
                     }
                 }
             }
-            FilesystemHostOperation::WriteAt => {
+            PreparedFilesystemCall::WriteAt { fd, bytes, offset } => {
                 // `pwrite(fd, buf, offset)`: write at an absolute offset
                 // WITHOUT moving the cursor (same emulation).
-                let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
-                let bytes = self.eval_fs_bytes(arguments.get(1).copied(), frame)?;
-                let offset = self.eval_fs_scalar(arguments.get(2).copied(), frame)?;
                 let real = self.real_fs_mut();
                 match real.files.get_mut(&fd) {
                     Some(entry) => match positioned_write(&mut entry.file, offset, &bytes) {
@@ -546,7 +529,12 @@ impl<'program> super::Evaluator<'program> {
                     }
                 }
             }
-            FilesystemHostOperation::ReadDir => {
+            PreparedFilesystemCall::ReadDir {
+                fd,
+                buffer,
+                count,
+                position,
+            } => {
                 // `read_dir(fd, buf, count, &position)` -- the virtual
                 // dispatcher's contract, mirrored. Pack `.`/`..` plus immediate
                 // children as Darwin dirent records and return the next window
@@ -554,9 +542,6 @@ impl<'program> super::Evaluator<'program> {
                 // calls drain directories larger than one caller buffer. Names
                 // come from `std::fs::read_dir` and are sorted for determinism;
                 // native getdirentries order remains filesystem-defined.
-                let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
-                let count = self.eval_fs_transfer_count(arguments.get(2).copied(), frame)?;
-                let position = self.read_fs_position(arguments.get(3).copied(), frame);
                 let listed = {
                     let real = self.real_fs_mut();
                     match real.files.get(&fd) {
@@ -567,19 +552,15 @@ impl<'program> super::Evaluator<'program> {
                 match listed {
                     Ok(entries) => {
                         let records = super::pack_dirent_records(&entries);
-                        let start = position.max(0) as usize;
+                        let start = position.initial.max(0) as usize;
                         let (chunk, next_position) =
-                            super::dirent_record_chunk(&records, start, count);
+                            super::dirent_record_chunk(&records, start, count.host);
                         if chunk.is_empty() {
                             0
                         } else {
                             let n = chunk.len();
-                            self.write_fs_buffer(arguments.get(1).copied(), frame, chunk);
-                            self.write_fs_position(
-                                arguments.get(3).copied(),
-                                frame,
-                                next_position as i64,
-                            );
+                            buffer.write(chunk)?;
+                            position.write(next_position as i64)?;
                             n as i64
                         }
                     }
@@ -589,14 +570,13 @@ impl<'program> super::Evaluator<'program> {
                     }
                 }
             }
-            FilesystemHostOperation::FindFirst => {
+            PreparedFilesystemCall::FindFirst { pattern, data } => {
                 // `find_first(pattern, &data)` -- the windows dir-walk seam
                 // (fs rung 3a) served against the real filesystem: strip the
                 // `/*` tail (the impl joins with `/`, which Win32 accepts),
                 // list the directory (the same dot-prefixed sorted set
                 // read_dir packs), snapshot the tail into a cursor keyed by a
                 // fresh handle, and fill the FIRST entry's find-data record.
-                let pattern = self.eval_fs_bytes(arguments.first().copied(), frame)?;
                 let listed = match pattern.strip_suffix(b"/*") {
                     Some(dir_path) => match self.authorized_path(dir_path, false, 0) {
                         Some(path) => real_dirent_entries(&path),
@@ -614,7 +594,7 @@ impl<'program> super::Evaluator<'program> {
                             .collect();
                         let (name, is_dir) =
                             queue.pop_front().expect("dot entries are always present");
-                        self.write_find_data(arguments.get(1).copied(), frame, &name, is_dir);
+                        self.write_find_data(&data, &name, is_dir)?;
                         let handle = self.virtual_next_find;
                         self.virtual_next_find += 1;
                         self.virtual_finds.insert(handle, queue);
@@ -626,70 +606,42 @@ impl<'program> super::Evaluator<'program> {
                     }
                 }
             }
-            FilesystemHostOperation::FindNext => {
+            PreparedFilesystemCall::FindNext { handle, data } => {
                 // Cursor-only (the snapshot was taken at find_first) -- the
                 // same arm shape as the hermetic dispatcher.
-                let handle = self.eval_fs_scalar(arguments.first().copied(), frame)?;
                 match self
                     .virtual_finds
                     .get_mut(&handle)
                     .and_then(std::collections::VecDeque::pop_front)
                 {
                     Some((name, is_dir)) => {
-                        self.write_find_data(arguments.get(1).copied(), frame, &name, is_dir);
+                        self.write_find_data(&data, &name, is_dir)?;
                         1
                     }
                     None => 0,
                 }
             }
-            FilesystemHostOperation::FindClose => {
-                let handle = self.eval_fs_scalar(arguments.first().copied(), frame)?;
+            PreparedFilesystemCall::FindClose { handle } => {
                 if self.virtual_finds.remove(&handle).is_some() {
                     1
                 } else {
                     0
                 }
             }
-            FilesystemHostOperation::ReadMetadata
-            | FilesystemHostOperation::ReadSymlinkMetadata => {
-                let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
-                let authorized = if operation == FilesystemHostOperation::ReadSymlinkMetadata {
-                    self.authorized_path_no_follow(&path, false, 0)
-                } else {
-                    self.authorized_path(&path, false, 0)
-                };
-                let looked_up = match authorized {
-                    Some(path) => {
-                        if operation == FilesystemHostOperation::ReadMetadata {
-                            std::fs::metadata(path)
-                        } else {
-                            std::fs::symlink_metadata(path)
-                        }
-                    }
-                    None => {
-                        return Ok(Value::Int(-1));
-                    }
-                };
-                match looked_up {
-                    Ok(metadata) => {
-                        self.write_real_fs_stat(arguments.get(1).copied(), frame, &metadata);
-                        0
-                    }
-                    Err(error) => {
-                        self.real_fs_mut().errno = io_errno(&error);
-                        -1
-                    }
-                }
+            PreparedFilesystemCall::ReadMetadata { path, buffer } => {
+                self.real_read_metadata(path, &buffer, false)?
             }
-            FilesystemHostOperation::ReadFileMetadata => {
-                let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
+            PreparedFilesystemCall::ReadSymlinkMetadata { path, buffer } => {
+                self.real_read_metadata(path, &buffer, true)?
+            }
+            PreparedFilesystemCall::ReadFileMetadata { fd, buffer } => {
                 let looked_up = match self.real_fs_mut().files.get(&fd) {
                     Some(entry) => entry.file.metadata().map_err(|error| io_errno(&error)),
                     None => Err(EBADF),
                 };
                 match looked_up {
                     Ok(metadata) => {
-                        self.write_real_fs_stat(arguments.get(1).copied(), frame, &metadata);
+                        self.write_real_fs_stat(&buffer, &metadata)?;
                         0
                     }
                     Err(errno) => {
@@ -698,18 +650,17 @@ impl<'program> super::Evaluator<'program> {
                     }
                 }
             }
-            FilesystemHostOperation::Errno => i64::from(self.real_fs_mut().errno),
-            FilesystemHostOperation::Canonicalize => {
+            PreparedFilesystemCall::Errno => i64::from(self.real_fs_mut().errno),
+            PreparedFilesystemCall::Canonicalize { path, buffer } => {
                 // `realpath(path, buf)`: NUL-terminated resolved path into the
                 // buffer; non-zero success flag, 0 (NULL) + errno on failure --
                 // the virtual contract's shape.
-                let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
                 match self.authorized_path(&path, false, 0) {
                     Some(path) => match std::fs::canonicalize(&path) {
                         Ok(resolved) => {
                             let mut bytes = resolved.to_string_lossy().into_owned().into_bytes();
                             bytes.push(0);
-                            self.write_fs_buffer(arguments.get(1).copied(), frame, &bytes);
+                            buffer.write(&bytes)?;
                             1
                         }
                         Err(error) => {
@@ -720,12 +671,10 @@ impl<'program> super::Evaluator<'program> {
                     None => 0,
                 }
             }
-            FilesystemHostOperation::HardLink => {
+            PreparedFilesystemCall::HardLink { original, link } => {
                 // `link(original, link)`: real inodes, unlike the virtual
                 // byte-copy approximation. Read authority on the original,
                 // write authority on the new name.
-                let original = self.eval_fs_bytes(arguments.first().copied(), frame)?;
-                let link = self.eval_fs_bytes(arguments.get(1).copied(), frame)?;
                 match (
                     self.authorized_path(&original, false, 0),
                     self.authorized_path(&link, true, 1),
@@ -736,14 +685,16 @@ impl<'program> super::Evaluator<'program> {
                     _ => -1,
                 }
             }
-            FilesystemHostOperation::CreateHardLink => {
+            PreparedFilesystemCall::CreateHardLink {
+                link,
+                existing,
+                security_attributes: _,
+            } => {
                 // `CreateHardLinkA(link, existing, security)` -- the windows
                 // primitive's arg order (NEW link first) and BOOL result
                 // (1 success / 0 failure). Served portably via std like
                 // `hard_link` above; errno doubles as this provider's modeled
                 // GetLastError slot and therefore stores Win32 codes here.
-                let link = self.eval_fs_bytes(arguments.first().copied(), frame)?;
-                let existing = self.eval_fs_bytes(arguments.get(1).copied(), frame)?;
                 match (
                     self.authorized_path(&existing, false, 1),
                     self.authorized_path(&link, true, 0),
@@ -758,20 +709,24 @@ impl<'program> super::Evaluator<'program> {
                     _ => 0,
                 }
             }
-            FilesystemHostOperation::GetOsfHandle => {
+            PreparedFilesystemCall::GetOsfHandle { fd } => {
                 // The fd -> HANDLE bridge (session slice 4a). The real
                 // provider's files ride std::fs behind SYNTHETIC fds by
                 // design (no raw handles), so its handles are the fds
                 // themselves -- identity, like the hermetic model; -2 for an
                 // unknown fd (msvcrt's bad-fd spelling).
-                let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
                 if self.real_fs_mut().files.contains_key(&fd) {
                     i64::from(fd)
                 } else {
                     -2
                 }
             }
-            FilesystemHostOperation::FinalPathNameByHandle => {
+            PreparedFilesystemCall::FinalPathNameByHandle {
+                handle,
+                buffer,
+                capacity,
+                flags: _,
+            } => {
                 // Resolve an open handle (= synthetic fd) to its final path:
                 // std::fs::canonicalize of the entry's stored path (on a
                 // windows host that IS the \\?\-prefixed final path, matching
@@ -779,21 +734,20 @@ impl<'program> super::Evaluator<'program> {
                 // length without the NUL when it fits, required size with the
                 // NUL when too small, 0 on failure; errno is this provider's
                 // modeled GetLastError slot.
-                let handle = self.eval_fs_scalar(arguments.first().copied(), frame)?;
-                let capacity = self.eval_fs_transfer_count(arguments.get(2).copied(), frame)?;
-                let path = self
-                    .real_fs_mut()
-                    .files
-                    .get(&(handle as i32))
-                    .map(|entry| entry.path.clone());
+                let path = synthetic_handle_fd(handle).and_then(|handle| {
+                    self.real_fs_mut()
+                        .files
+                        .get(&handle)
+                        .map(|entry| entry.path.clone())
+                });
                 match path {
                     Some(path) => match std::fs::canonicalize(path) {
                         Ok(path) => {
                             let path = path.display().to_string().into_bytes();
-                            if path.len() + 1 <= capacity {
+                            if path.len() < capacity.host {
                                 let mut bytes = path.clone();
                                 bytes.push(0);
-                                self.write_fs_buffer(arguments.get(1).copied(), frame, &bytes);
+                                buffer.write(&bytes)?;
                                 path.len() as i64
                             } else {
                                 (path.len() + 1) as i64
@@ -810,22 +764,29 @@ impl<'program> super::Evaluator<'program> {
                     }
                 }
             }
-            FilesystemHostOperation::SetFileTime => {
+            PreparedFilesystemCall::SetFileTime {
+                handle,
+                creation: _,
+                last_access: _,
+                last_write: write_ft,
+            } => {
                 // `SetFileTime(handle, creation, access_ft, write_ft)` (session
                 // slice 4b): apply the WRITE time from its FILETIME buffer via
                 // std's set_modified, like `set_file_times` above. BOOL result;
                 // 0 for a bad handle or a failed stamp; errno models
                 // GetLastError for the wrapper's immediate capture.
-                let handle = self.eval_fs_scalar(arguments.first().copied(), frame)?;
-                let write_ft = self.eval_fs_bytes(arguments.get(3).copied(), frame)?;
                 let filetime = write_ft
                     .get(0..8)
                     .and_then(|s| <[u8; 8]>::try_from(s).ok())
                     .map(i64::from_le_bytes)
                     .unwrap_or(0);
                 let secs = filetime / 10_000_000 - 11_644_473_600;
+                let Some(handle) = synthetic_handle_fd(handle) else {
+                    self.real_fs_mut().errno = 6; // ERROR_INVALID_HANDLE
+                    return Ok(Value::Int(0));
+                };
                 let real = self.real_fs_mut();
-                match real.files.get_mut(&(handle as i32)) {
+                match real.files.get_mut(&handle) {
                     Some(entry) => {
                         let stamp = if secs >= 0 {
                             std::time::UNIX_EPOCH + std::time::Duration::from_secs(secs as u64)
@@ -846,12 +807,10 @@ impl<'program> super::Evaluator<'program> {
                     }
                 }
             }
-            FilesystemHostOperation::Symlink => {
+            PreparedFilesystemCall::Symlink { target, link } => {
                 // `symlink(target, linkpath)`: the TARGET is stored verbatim
                 // (never dereferenced here), so only the link path needs write
                 // authority. Unix-only in std; elsewhere ENOTSUP.
-                let target = self.eval_fs_bytes(arguments.first().copied(), frame)?;
-                let link = self.eval_fs_bytes(arguments.get(1).copied(), frame)?;
                 match self.authorized_path(&link, true, 1) {
                     Some(link) => {
                         #[cfg(unix)]
@@ -871,17 +830,19 @@ impl<'program> super::Evaluator<'program> {
                     None => -1,
                 }
             }
-            FilesystemHostOperation::ReadLink => {
+            PreparedFilesystemCall::ReadLink {
+                path,
+                buffer,
+                count,
+            } => {
                 // `readlink(path, buf, count)`: target bytes into the buffer,
                 // returns the count written.
-                let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
-                let count = self.eval_fs_transfer_count(arguments.get(2).copied(), frame)?;
                 match self.authorized_path_no_follow(&path, false, 0) {
                     Some(path) => match std::fs::read_link(&path) {
                         Ok(target) => {
                             let bytes = target.to_string_lossy().into_owned().into_bytes();
-                            let n = bytes.len().min(count);
-                            self.write_fs_buffer(arguments.get(1).copied(), frame, &bytes[..n]);
+                            let n = bytes.len().min(count.host);
+                            buffer.write(&bytes[..n])?;
                             n as i64
                         }
                         Err(error) => {
@@ -892,10 +853,8 @@ impl<'program> super::Evaluator<'program> {
                     None => -1,
                 }
             }
-            FilesystemHostOperation::SetPermissions => {
+            PreparedFilesystemCall::SetPermissions { path, mode } => {
                 // `chmod(path, mode)`: metadata mutation = write authority.
-                let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
-                let mode = self.eval_fs_scalar(arguments.get(1).copied(), frame)? as u32;
                 match self.authorized_path(&path, true, 0) {
                     Some(path) => {
                         #[cfg(unix)]
@@ -916,11 +875,9 @@ impl<'program> super::Evaluator<'program> {
                     None => -1,
                 }
             }
-            FilesystemHostOperation::SetFilePermissions => {
+            PreparedFilesystemCall::SetFilePermissions { fd, mode } => {
                 // `fchmod(fd, mode)`: by descriptor; no re-authorization (the
                 // fd entered through an authorized open).
-                let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
-                let mode = self.eval_fs_scalar(arguments.get(1).copied(), frame)? as u32;
                 let real = self.real_fs_mut();
                 match real.files.get_mut(&fd) {
                     Some(entry) => {
@@ -951,13 +908,12 @@ impl<'program> super::Evaluator<'program> {
                     }
                 }
             }
-            FilesystemHostOperation::SetFileTimes => {
+            PreparedFilesystemCall::SetFileTimes { fd, times } => {
                 // `futimens(fd, times)`: two packed timespecs (atime, mtime);
                 // the model (virtual and real alike) applies the MODIFIED time
                 // -- times[1].tv_sec at byte offset 16.
-                let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
-                let times = self.eval_fs_bytes(arguments.get(1).copied(), frame)?;
                 let mtime_secs = times
+                    .bytes
                     .get(16..24)
                     .map(|bytes| i64::from_le_bytes(bytes.try_into().unwrap()))
                     .unwrap_or(0);
@@ -984,11 +940,9 @@ impl<'program> super::Evaluator<'program> {
                     }
                 }
             }
-            FilesystemHostOperation::LockFile => {
+            PreparedFilesystemCall::LockFile { fd, operation } => {
                 // `flock(fd, op)`: LOCK_SH=1 LOCK_EX=2 LOCK_NB=4 LOCK_UN=8,
                 // served by std's advisory file locks on the real handle.
-                let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
-                let operation = self.eval_fs_scalar(arguments.get(1).copied(), frame)? as i32;
                 let real = self.real_fs_mut();
                 match real.files.get(&fd) {
                     Some(entry) => real_lock(&entry.file, operation, &mut real.errno),
@@ -998,12 +952,22 @@ impl<'program> super::Evaluator<'program> {
                     }
                 }
             }
-            FilesystemHostOperation::LockFileEx => {
+            PreparedFilesystemCall::LockFileEx {
+                handle,
+                flags,
+                reserved: _,
+                length_low: _,
+                length_high: _,
+                overlapped: _,
+            } => {
                 // Win32 LockFileEx semantics over the provider's synthetic
                 // handle. The exact byte range is intentionally ignored here:
                 // the std wrapper always supplies offset zero + u64::MAX.
-                let fd = self.eval_fs_scalar(arguments.first().copied(), frame)? as i32;
-                let flags = self.eval_fs_scalar(arguments.get(1).copied(), frame)? as i32;
+                let Some(fd) = synthetic_handle_fd(handle) else {
+                    self.real_fs_mut().errno = 6; // ERROR_INVALID_HANDLE
+                    return Ok(Value::Int(0));
+                };
+                let flags = flags as i32;
                 let real = self.real_fs_mut();
                 match real.files.get(&fd) {
                     Some(entry) => real_lock_win32(&entry.file, flags, &mut real.errno),
@@ -1013,8 +977,17 @@ impl<'program> super::Evaluator<'program> {
                     }
                 }
             }
-            FilesystemHostOperation::UnlockFile => {
-                let fd = self.eval_fs_scalar(arguments.first().copied(), frame)? as i32;
+            PreparedFilesystemCall::UnlockFile {
+                handle,
+                offset_low: _,
+                offset_high: _,
+                length_low: _,
+                length_high: _,
+            } => {
+                let Some(fd) = synthetic_handle_fd(handle) else {
+                    self.real_fs_mut().errno = 6; // ERROR_INVALID_HANDLE
+                    return Ok(Value::Int(0));
+                };
                 let real = self.real_fs_mut();
                 match real.files.get(&fd) {
                     Some(entry) => match entry.file.unlock() {
@@ -1030,30 +1003,18 @@ impl<'program> super::Evaluator<'program> {
                     }
                 }
             }
-            FilesystemHostOperation::GetLastError => i64::from(self.real_fs_mut().errno),
-            FilesystemHostOperation::ChangeOwner | FilesystemHostOperation::ChangeOwnerNoFollow => {
+            PreparedFilesystemCall::GetLastError => i64::from(self.real_fs_mut().errno),
+            PreparedFilesystemCall::ChangeOwner { path, uid, gid } => {
                 // `chown`/`lchown(path, uid, gid)`: -1 leaves the component
                 // alone (None). Metadata mutation = write authority.
-                let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
-                let uid = self.eval_fs_scalar(arguments.get(1).copied(), frame)? as i32;
-                let gid = self.eval_fs_scalar(arguments.get(2).copied(), frame)? as i32;
-                let authorized = if operation == FilesystemHostOperation::ChangeOwnerNoFollow {
-                    self.authorized_path_no_follow(&path, true, 0)
-                } else {
-                    self.authorized_path(&path, true, 0)
-                };
+                let authorized = self.authorized_path(&path, true, 0);
                 match authorized {
                     Some(path) => {
                         #[cfg(unix)]
                         {
                             let owner = (uid >= 0).then_some(uid as u32);
                             let group = (gid >= 0).then_some(gid as u32);
-                            let outcome =
-                                if operation == FilesystemHostOperation::ChangeOwnerNoFollow {
-                                    std::os::unix::fs::lchown(path, owner, group)
-                                } else {
-                                    std::os::unix::fs::chown(path, owner, group)
-                                };
+                            let outcome = std::os::unix::fs::chown(path, owner, group);
                             self.real_result_unit(outcome)
                         }
                         #[cfg(not(unix))]
@@ -1066,11 +1027,11 @@ impl<'program> super::Evaluator<'program> {
                     None => -1,
                 }
             }
-            FilesystemHostOperation::ChangeFileOwner => {
+            PreparedFilesystemCall::ChangeOwnerNoFollow { path, uid, gid } => {
+                self.real_change_owner_no_follow(path, uid, gid)
+            }
+            PreparedFilesystemCall::ChangeFileOwner { fd, uid, gid } => {
                 // `fchown(fd, uid, gid)`: by descriptor.
-                let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
-                let uid = self.eval_fs_scalar(arguments.get(1).copied(), frame)? as i32;
-                let gid = self.eval_fs_scalar(arguments.get(2).copied(), frame)? as i32;
                 let real = self.real_fs_mut();
                 match real.files.get(&fd) {
                     Some(entry) => {
@@ -1099,13 +1060,10 @@ impl<'program> super::Evaluator<'program> {
                     }
                 }
             }
-            FilesystemHostOperation::UnlinkAt => {
+            PreparedFilesystemCall::UnlinkAt { dirfd, name, flags } => {
                 // `unlinkat(dirfd, name, flags)`: resolve against the dirfd's
                 // OPENED path (the same trick read_dir rides -- std has no fd
                 // relative ops); flags & AT_REMOVEDIR(0x80) removes a dir.
-                let dirfd = self.eval_fs_fd(arguments.first().copied(), frame)?;
-                let name = self.eval_fs_bytes(arguments.get(1).copied(), frame)?;
-                let flags = self.eval_fs_scalar(arguments.get(2).copied(), frame)? as i32;
                 let joined = match self.real_fs_mut().files.get(&dirfd) {
                     Some(entry) => entry.path.join(real_path(&name)),
                     None => {
@@ -1125,12 +1083,9 @@ impl<'program> super::Evaluator<'program> {
                     None => -1,
                 }
             }
-            FilesystemHostOperation::OpenAt => {
+            PreparedFilesystemCall::OpenAt { dirfd, name, flags } => {
                 // `openat(dirfd, name, flags)`: join against the dirfd's opened
                 // path, then the ordinary open (same flag decode + grants).
-                let dirfd = self.eval_fs_fd(arguments.first().copied(), frame)?;
-                let name = self.eval_fs_bytes(arguments.get(1).copied(), frame)?;
-                let flags = self.eval_fs_scalar(arguments.get(2).copied(), frame)? as i32;
                 let joined = match self.real_fs_mut().files.get(&dirfd) {
                     Some(entry) => entry.path.join(real_path(&name)),
                     None => {
@@ -1155,6 +1110,77 @@ impl<'program> super::Evaluator<'program> {
             }
         };
         Ok(Value::Int(result))
+    }
+
+    fn real_open_prepared(
+        &mut self,
+        path: Vec<u8>,
+        flags: i32,
+        mode: u32,
+        create_variant: bool,
+    ) -> i64 {
+        let access = flags & 0x3;
+        let wants_write = access == 1
+            || access == 2
+            || host_open_flags::o_creat(flags)
+            || host_open_flags::o_trunc(flags)
+            || host_open_flags::o_append(flags);
+        match self.authorized_path(&path, wants_write, 0) {
+            Some(path) => {
+                let options = open_options_for(flags, mode, create_variant);
+                self.real_result_fd(open_real(&options, &path, wants_write), path)
+            }
+            None => -1,
+        }
+    }
+
+    fn real_read_metadata(
+        &mut self,
+        path: Vec<u8>,
+        buffer: &PreparedByteOutput,
+        no_follow: bool,
+    ) -> EvalResult<i64> {
+        let authorized = if no_follow {
+            self.authorized_path_no_follow(&path, false, 0)
+        } else {
+            self.authorized_path(&path, false, 0)
+        };
+        let Some(path) = authorized else {
+            return Ok(-1);
+        };
+        let looked_up = if no_follow {
+            std::fs::symlink_metadata(path)
+        } else {
+            std::fs::metadata(path)
+        };
+        match looked_up {
+            Ok(metadata) => {
+                self.write_real_fs_stat(buffer, &metadata)?;
+                Ok(0)
+            }
+            Err(error) => {
+                self.real_fs_mut().errno = io_errno(&error);
+                Ok(-1)
+            }
+        }
+    }
+
+    fn real_change_owner_no_follow(&mut self, path: Vec<u8>, uid: i32, gid: i32) -> i64 {
+        let Some(path) = self.authorized_path_no_follow(&path, true, 0) else {
+            return -1;
+        };
+        #[cfg(unix)]
+        {
+            let owner = (uid >= 0).then_some(uid as u32);
+            let group = (gid >= 0).then_some(gid as u32);
+            self.real_result_unit(std::os::unix::fs::lchown(path, owner, group))
+        }
+        #[cfg(not(unix))]
+        {
+            let _ = (path, uid, gid);
+            self.real_fs_mut().errno = ENOTSUP;
+            -1
+        }
     }
 
     fn real_fs_mut(&mut self) -> &mut RealFs {
@@ -1283,11 +1309,10 @@ impl<'program> super::Evaluator<'program> {
     /// same three fields at the same offsets (the wrapper's `decode_metadata`
     /// reads only those in rung 1's consumers).
     fn write_real_fs_stat(
-        &mut self,
-        argument: Option<ExpressionHandle>,
-        frame: &Frame,
+        &self,
+        output: &PreparedByteOutput,
         metadata: &std::fs::Metadata,
-    ) {
+    ) -> EvalResult<()> {
         #[cfg(unix)]
         let mode = {
             use std::os::unix::fs::PermissionsExt;
@@ -1313,7 +1338,7 @@ impl<'program> super::Evaluator<'program> {
             .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
             .map(|duration| duration.as_secs() as i64)
             .unwrap_or(0);
-        self.write_fs_stat(argument, frame, mode, size, mtime_secs);
+        self.write_fs_stat(output, mode, size, mtime_secs)
     }
 }
 

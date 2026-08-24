@@ -310,13 +310,19 @@ rooted paths, mutable byte regions, and content are absent. It is an incomplete
 operation trace, not a transcript or receipt, and makes no replayability or
 source-rebuildability claim.
 
-Raw filesystem byte-valued inputs are evaluated once in the selected provider
-arm and reject above 16 MiB before provider cloning/allocation. Read/count
-capacities use one checked evaluator conversion and reject negative,
+Raw filesystem byte-valued inputs are evaluated once by the shared preparer and
+reject above 16 MiB before provider cloning/allocation. Read/count capacities
+use one checked evaluator conversion and reject negative,
 host-unrepresentable, or above-ceiling values. The ceiling is current compiler
-sponsorship policy, not an Omega API limit. It does not replace canonical typed
-operand preparation or total output-tree, file-extent, memory, process, or
-transport quotas.
+sponsorship policy, not an Omega API limit. One shared closed preparer checks
+exact arity before evaluation, consumes all authored operands once from left to
+right, rejects wrong scalar/byte kinds, and retains validated mutable cells and
+capacities, including fixed ABI inputs such as Win32 `OVERLAPPED`, before either
+provider or grant gate. It covers otherwise-unused ABI
+operands, and its exact operand/result schema is checked against the canonical
+50-operation trait. Canonicalize enforces its declared 1024-byte `PATH_MAX`
+carrier at that gate. This does not replace total output-tree, file-extent,
+memory, process, or transport quotas.
 
 The usage record carries a schema identity independently from evaluator-step
 identity: adding telemetry does not change what one step means. It records

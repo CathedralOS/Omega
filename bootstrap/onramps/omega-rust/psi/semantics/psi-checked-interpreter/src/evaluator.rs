@@ -7,7 +7,11 @@ use crate::{
 };
 
 mod filesystem_host_operation;
-use filesystem_host_operation::FilesystemHostOperation;
+use filesystem_host_operation::{FilesystemHostOperation, FilesystemHostResultKind};
+
+#[path = "evaluator/filesystem_preparation.rs"]
+mod filesystem_preparation;
+use filesystem_preparation::{PreparedByteOutput, PreparedFilesystemCall, synthetic_handle_fd};
 
 /// The REAL-filesystem provider (opt-in `FilesystemAccess::RealUnscoped`; the
 /// build.omg rung). A CHILD module so it can serve ops against the private

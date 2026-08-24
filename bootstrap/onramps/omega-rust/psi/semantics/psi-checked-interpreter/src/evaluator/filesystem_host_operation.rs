@@ -59,6 +59,27 @@ pub(super) enum FilesystemHostOperation {
     Errno = 50,
 }
 
+/// Canonical authored operand kind and order for one `FilesystemHost`
+/// requirement. This is evaluator ABI schema, not provider behavior: even an
+/// operand a modeled provider does not use must be prepared exactly once.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum FilesystemHostOperandKind {
+    PathBytes,
+    Bytes,
+    I32,
+    U32,
+    I64,
+    U64,
+    MutableBytes,
+    MutableI64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum FilesystemHostResultKind {
+    I32,
+    I64,
+}
+
 impl FilesystemHostOperation {
     #[cfg(test)]
     pub(super) const ALL: [Self; 50] = [
@@ -176,6 +197,118 @@ impl FilesystemHostOperation {
         self as u16
     }
 
+    pub(super) const fn operand_kinds(self) -> &'static [FilesystemHostOperandKind] {
+        use FilesystemHostOperandKind as K;
+        match self {
+            Self::Create => &[K::PathBytes, K::I32],
+            Self::Open => &[K::PathBytes, K::I32],
+            Self::OpenCreate => &[K::PathBytes, K::I32, K::I32],
+            Self::Read => &[K::I32, K::MutableBytes, K::U64],
+            Self::Write => &[K::I32, K::Bytes],
+            Self::ReadAt => &[K::I32, K::MutableBytes, K::U64, K::I64],
+            Self::WriteAt => &[K::I32, K::Bytes, K::I64],
+            Self::Close => &[K::I32],
+            Self::Remove => &[K::PathBytes],
+            Self::Seek => &[K::I32, K::I64, K::I32],
+            Self::CreateDir => &[K::PathBytes, K::I32],
+            Self::RemoveDir => &[K::PathBytes],
+            Self::CreateDirName => &[K::Bytes, K::I32],
+            Self::OpenAt => &[K::I32, K::Bytes, K::I32],
+            Self::UnlinkAt => &[K::I32, K::Bytes, K::I32],
+            Self::SetPermissions => &[K::PathBytes, K::U32],
+            Self::SetFilePermissions => &[K::I32, K::U32],
+            Self::Rename => &[K::PathBytes, K::PathBytes],
+            Self::HardLink => &[K::PathBytes, K::PathBytes],
+            Self::Symlink => &[K::PathBytes, K::PathBytes],
+            Self::ReadLink => &[K::PathBytes, K::MutableBytes, K::U64],
+            Self::Canonicalize => &[K::PathBytes, K::MutableBytes],
+            Self::ReadDir => &[K::I32, K::MutableBytes, K::U64, K::MutableI64],
+            Self::FindFirst => &[K::Bytes, K::MutableBytes],
+            Self::FindNext => &[K::I64, K::MutableBytes],
+            Self::FindClose => &[K::I64],
+            Self::CreateHardLink => &[K::PathBytes, K::PathBytes, K::I64],
+            Self::OpenPathHandle => &[K::PathBytes, K::U32, K::U32, K::I64, K::U32, K::U32, K::I64],
+            Self::CloseHandle => &[K::I64],
+            Self::GetOsfHandle => &[K::I32],
+            Self::FinalPathNameByHandle => &[K::I64, K::MutableBytes, K::U64, K::U32],
+            Self::SetFileTime => &[K::I64, K::I64, K::Bytes, K::Bytes],
+            Self::LockFileEx => &[K::I64, K::U32, K::U32, K::U32, K::U32, K::MutableBytes],
+            Self::UnlockFile => &[K::I64, K::U32, K::U32, K::U32, K::U32],
+            Self::GetLastError => &[],
+            Self::RemoveName => &[K::Bytes],
+            Self::RemoveDirName => &[K::Bytes],
+            Self::ReadMetadata => &[K::PathBytes, K::MutableBytes],
+            Self::ReadFileMetadata => &[K::I32, K::MutableBytes],
+            Self::ReadSymlinkMetadata => &[K::PathBytes, K::MutableBytes],
+            Self::SetLen => &[K::I32, K::I64],
+            Self::SetFileTimes => &[K::I32, K::MutableBytes],
+            Self::Sync => &[K::I32],
+            Self::SyncData => &[K::I32],
+            Self::Duplicate => &[K::I32],
+            Self::LockFile => &[K::I32, K::I32],
+            Self::ChangeOwner => &[K::PathBytes, K::I32, K::I32],
+            Self::ChangeOwnerNoFollow => &[K::PathBytes, K::I32, K::I32],
+            Self::ChangeFileOwner => &[K::I32, K::I32, K::I32],
+            Self::Errno => &[],
+        }
+    }
+
+    pub(super) const fn result_kind(self) -> FilesystemHostResultKind {
+        use FilesystemHostResultKind as R;
+        match self {
+            Self::Read
+            | Self::Write
+            | Self::ReadAt
+            | Self::WriteAt
+            | Self::Seek
+            | Self::ReadLink
+            | Self::Canonicalize
+            | Self::ReadDir
+            | Self::FindFirst
+            | Self::OpenPathHandle
+            | Self::GetOsfHandle
+            | Self::FinalPathNameByHandle => R::I64,
+            Self::Create
+            | Self::Open
+            | Self::OpenCreate
+            | Self::Close
+            | Self::Remove
+            | Self::CreateDir
+            | Self::RemoveDir
+            | Self::CreateDirName
+            | Self::OpenAt
+            | Self::UnlinkAt
+            | Self::SetPermissions
+            | Self::SetFilePermissions
+            | Self::Rename
+            | Self::HardLink
+            | Self::Symlink
+            | Self::FindNext
+            | Self::FindClose
+            | Self::CreateHardLink
+            | Self::CloseHandle
+            | Self::SetFileTime
+            | Self::LockFileEx
+            | Self::UnlockFile
+            | Self::GetLastError
+            | Self::RemoveName
+            | Self::RemoveDirName
+            | Self::ReadMetadata
+            | Self::ReadFileMetadata
+            | Self::ReadSymlinkMetadata
+            | Self::SetLen
+            | Self::SetFileTimes
+            | Self::Sync
+            | Self::SyncData
+            | Self::Duplicate
+            | Self::LockFile
+            | Self::ChangeOwner
+            | Self::ChangeOwnerNoFollow
+            | Self::ChangeFileOwner
+            | Self::Errno => R::I32,
+        }
+    }
+
     pub(super) const fn canonical_name(self) -> &'static str {
         match self {
             Self::Create => "create",
@@ -259,7 +392,10 @@ impl std::fmt::Display for FilesystemHostOperation {
 
 #[cfg(test)]
 mod tests {
-    use super::{FilesystemHostOperation, PathResultExposure};
+    use super::{
+        FilesystemHostOperandKind, FilesystemHostOperation, FilesystemHostResultKind,
+        PathResultExposure,
+    };
     use std::collections::BTreeSet;
 
     #[test]
@@ -292,6 +428,67 @@ mod tests {
             .map(FilesystemHostOperation::canonical_name)
             .collect();
         assert_eq!(declared, encoded);
+    }
+
+    #[test]
+    fn canonical_trait_signatures_match_exact_operand_order_and_kind() {
+        use FilesystemHostOperandKind as K;
+
+        let source_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../../../../omega/language/std/filesystem_host.omg");
+        let source = std::fs::read_to_string(&source_path)
+            .unwrap_or_else(|error| panic!("failed to read {}: {error}", source_path.display()));
+        let signatures: std::collections::BTreeMap<_, _> = source
+            .lines()
+            .filter_map(|line| line.trim_start().strip_prefix("machine "))
+            .map(|signature| {
+                let (name, tail) = signature.split_once('(').expect("machine argument list");
+                let (arguments, result) = tail.split_once(')').expect("closed argument list");
+                let kinds = if arguments.trim().is_empty() {
+                    Vec::new()
+                } else {
+                    arguments
+                        .split(',')
+                        .map(|argument| {
+                            let (_, authored_type) =
+                                argument.split_once(':').expect("named authored operand");
+                            match authored_type.trim() {
+                                "&[u8] in Path" => K::PathBytes,
+                                "&[u8]" => K::Bytes,
+                                "&mut [u8]" => K::MutableBytes,
+                                "&mut i64" => K::MutableI64,
+                                "i32" => K::I32,
+                                "u32" => K::U32,
+                                "i64" => K::I64,
+                                "u64" => K::U64,
+                                other => panic!("unrecognized filesystem operand type `{other}`"),
+                            }
+                        })
+                        .collect()
+                };
+                let result = match result
+                    .trim()
+                    .strip_prefix("-> ")
+                    .and_then(|result| result.split_whitespace().next())
+                    .expect("filesystem result type")
+                {
+                    "i32" => FilesystemHostResultKind::I32,
+                    "i64" => FilesystemHostResultKind::I64,
+                    other => panic!("unrecognized filesystem result type `{other}`"),
+                };
+                (name, (kinds, result))
+            })
+            .collect();
+        assert_eq!(signatures.len(), 50);
+        for operation in FilesystemHostOperation::ALL {
+            assert_eq!(
+                signatures
+                    .get(operation.canonical_name())
+                    .map(|(operands, result)| (operands.as_slice(), *result)),
+                Some((operation.operand_kinds(), operation.result_kind())),
+                "operand schema drift for `{operation}`"
+            );
+        }
     }
 
     #[test]
