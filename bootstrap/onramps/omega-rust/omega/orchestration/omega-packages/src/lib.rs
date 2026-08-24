@@ -35,7 +35,9 @@ mod package_source;
 mod resolver;
 #[cfg(test)]
 mod review;
+mod review_baseline;
 mod review_closure;
+mod review_evidence;
 mod source;
 mod source_adapter;
 mod source_commands;
@@ -93,6 +95,15 @@ pub use resolver::{
     SourceCachePolicyRecord, SourceCachePolicyRecordParseError,
     SourceCachePolicyRecordPersistenceError, SourceCacheRequest, SourceCacheVerdict,
     resolve_source_cache_record,
+};
+pub use review_baseline::{
+    ReviewOnlyBaselineCapsule, ReviewOnlyBaselineError, ReviewOnlyBaselineLimits,
+    ReviewOnlyBaselinePackage, assemble_update_source_review_from_baseline,
+    compare_review_only_capabilities_from_baseline, triage_review_update_from_baseline,
+};
+pub use review_evidence::{
+    ReviewOnlyCanonicalRow, ReviewOnlyCompilerExecutableCommitment,
+    ReviewOnlySourceConsumptionCommitment,
 };
 pub use source::{
     GitExecutableIdentity, GitSourceSpec, LocalSourceLimits, ResolvedGitSource,

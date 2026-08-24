@@ -409,6 +409,38 @@ impl ExternalLocalLineage {
         })
     }
 
+    /// Reconstructs already-canonical external-local lineage from a bounded
+    /// review baseline without consulting the current filesystem.
+    ///
+    /// This does not establish that the path still exists or recover source
+    /// custody. It only validates the lexical invariant previously established
+    /// by the source adapter.
+    pub(crate) fn from_recovered_canonical_path(
+        canonical_path: String,
+        source_context: ExternalSourceContext,
+    ) -> Result<Self, IdentityError> {
+        let path = Path::new(&canonical_path);
+        let normalized = path.components().collect::<PathBuf>();
+        if canonical_path.is_empty()
+            || !path.is_absolute()
+            || path
+                .components()
+                .any(|component| matches!(component, Component::CurDir | Component::ParentDir))
+            || path.to_str() != Some(canonical_path.as_str())
+            || normalized.as_os_str() != path.as_os_str()
+        {
+            return Err(IdentityError::CanonicalPath {
+                path: path.to_path_buf(),
+                error: "recovered external source path was not absolute normalized UTF-8"
+                    .to_owned(),
+            });
+        }
+        Ok(Self {
+            canonical_path,
+            source_context,
+        })
+    }
+
     pub fn canonical_absolute_path(&self) -> &Path {
         Path::new(&self.canonical_path)
     }
@@ -1219,6 +1251,35 @@ mod tests {
         };
         assert!(lineage.canonical_absolute_path().is_absolute());
         assert!(!lineage.is_portable());
+    }
+
+    #[test]
+    fn recovered_external_local_lineage_rejects_noncanonical_separators() {
+        let context = ExternalSourceContext::derive(b"review-baseline");
+        let canonical = std::env::temp_dir().join("omega-recovered-source");
+        let canonical = canonical.to_str().unwrap().to_owned();
+        assert!(
+            ExternalLocalLineage::from_recovered_canonical_path(canonical.clone(), context.clone())
+                .is_ok()
+        );
+        assert!(
+            ExternalLocalLineage::from_recovered_canonical_path(
+                format!("{canonical}{}", std::path::MAIN_SEPARATOR),
+                context.clone(),
+            )
+            .is_err()
+        );
+        assert!(
+            ExternalLocalLineage::from_recovered_canonical_path(
+                canonical.replacen(
+                    std::path::MAIN_SEPARATOR,
+                    &std::path::MAIN_SEPARATOR.to_string().repeat(2),
+                    1,
+                ),
+                context,
+            )
+            .is_err()
+        );
     }
 
     #[test]

@@ -1,12 +1,14 @@
 use crate::review_closure::{
     ReviewOnlyClosureValidationError, ReviewOnlySetValidationError, validate_review_only_closure,
-    validate_review_only_set,
+    validate_review_only_records,
 };
+use crate::review_evidence::PackageReviewEvidence;
+use crate::source_triage::triage_review_update_records;
 use crate::{
     CompilerIssuedPackageReviewSet, CompilerReviewTriage, PackageKey, PackageSourceCustody,
     PackageSourcePatch, PackageSourcePatchError, PackageSourcePatchLimits, PackageTriageDecision,
     PackageTriageDisposition, PackageTriageReason, ResolvedPackageSourceClosure, TriageRenderError,
-    render_package_source_patch, triage_initial_install, triage_review_update,
+    render_package_source_patch, triage_initial_install,
 };
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
@@ -285,10 +287,26 @@ pub fn assemble_update_source_review(
     candidate_sources: &ResolvedPackageSourceClosure,
     limits: PackageSourceReviewLimits,
 ) -> Result<PackageSourceReviewInput, PackageSourceReviewError> {
+    assemble_update_source_review_records(
+        baseline_reviews.reviews(),
+        candidate_reviews,
+        recovered_baseline_sources,
+        candidate_sources,
+        limits,
+    )
+}
+
+pub(crate) fn assemble_update_source_review_records<B: PackageReviewEvidence>(
+    baseline_reviews: &[B],
+    candidate_reviews: &CompilerIssuedPackageReviewSet,
+    recovered_baseline_sources: &[PackageSourceCustody],
+    candidate_sources: &ResolvedPackageSourceClosure,
+    limits: PackageSourceReviewLimits,
+) -> Result<PackageSourceReviewInput, PackageSourceReviewError> {
     validate_review_only_closure(candidate_sources, candidate_reviews).map_err(|error| {
         map_closure_validation_error(PackageSourceReviewCustodyRole::Candidate, error)
     })?;
-    validate_review_only_set(baseline_reviews).map_err(|error| {
+    validate_review_only_records(baseline_reviews).map_err(|error| {
         map_set_validation_error(PackageSourceReviewCustodyRole::Baseline, error)
     })?;
     let baseline_sources = validate_partial_custody(
@@ -297,12 +315,11 @@ pub fn assemble_update_source_review(
         PackageSourceReviewCustodyRole::Baseline,
     )?;
     let unavailable = baseline_reviews
-        .reviews()
         .iter()
         .filter(|review| !baseline_sources.contains_key(review.key()))
         .map(|review| review.key().clone())
         .collect::<BTreeSet<_>>();
-    let triage = triage_review_update(baseline_reviews, candidate_reviews, &unavailable);
+    let triage = triage_review_update_records(baseline_reviews, candidate_reviews, &unavailable);
     assemble_source_patches(triage, &baseline_sources, candidate_sources, limits, false)
 }
 
@@ -358,19 +375,20 @@ fn map_set_validation_error(
     }
 }
 
-fn validate_partial_custody<'source>(
-    reviews: &CompilerIssuedPackageReviewSet,
+fn validate_partial_custody<'source, R: PackageReviewEvidence>(
+    reviews: &[R],
     sources: &'source [PackageSourceCustody],
     role: PackageSourceReviewCustodyRole,
 ) -> Result<BTreeMap<PackageKey, &'source PackageSourceCustody>, PackageSourceReviewError> {
     let mut validated = BTreeMap::new();
     for custody in sources {
-        let review = reviews.review(custody.key()).ok_or_else(|| {
-            PackageSourceReviewError::UnexpectedCustody {
+        let review = reviews
+            .iter()
+            .find(|review| review.key() == custody.key())
+            .ok_or_else(|| PackageSourceReviewError::UnexpectedCustody {
                 role,
                 package: custody.key().clone(),
-            }
-        })?;
+            })?;
         if custody.resolution() != review.resolution() {
             return Err(PackageSourceReviewError::ResolutionMismatch {
                 role,

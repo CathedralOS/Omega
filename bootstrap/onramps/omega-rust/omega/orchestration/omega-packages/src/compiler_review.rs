@@ -1,4 +1,5 @@
 use crate::compiler_handoff::reachable_package_keys;
+use crate::review_evidence::ReviewOnlyCanonicalRow;
 use crate::source::{SourceResolveError, verify_package_source_snapshot};
 use crate::{
     ImmutableSourceResolution, PackageKey, ResolvedPackageSourceClosure,
@@ -36,6 +37,7 @@ pub struct CompilerIssuedPackageReview {
     projection: CheckedPackageReviewProjection,
     canonical_review_bytes: Vec<u8>,
     canonical_rows: Vec<PackageReviewCanonicalRow>,
+    comparison_rows: Vec<ReviewOnlyCanonicalRow>,
 }
 
 impl CompilerIssuedPackageReview {
@@ -71,6 +73,10 @@ impl CompilerIssuedPackageReview {
 
     pub fn canonical_rows(&self) -> &[PackageReviewCanonicalRow] {
         &self.canonical_rows
+    }
+
+    pub(crate) fn comparison_rows(&self) -> &[ReviewOnlyCanonicalRow] {
+        &self.comparison_rows
     }
 }
 
@@ -364,6 +370,10 @@ fn compile_resolved_package_reviews_in_session(
                 error,
             }
         })?;
+        let comparison_rows = canonical_rows
+            .iter()
+            .map(ReviewOnlyCanonicalRow::from_compiler_issued)
+            .collect();
         reviews.push(CompilerIssuedPackageReview {
             key,
             resolution: custody.resolution().clone(),
@@ -373,6 +383,7 @@ fn compile_resolved_package_reviews_in_session(
             projection,
             canonical_review_bytes,
             canonical_rows,
+            comparison_rows,
         });
     }
     let compiler_executable_commitment_after = CompilerExecutableCommitment::derive_current()

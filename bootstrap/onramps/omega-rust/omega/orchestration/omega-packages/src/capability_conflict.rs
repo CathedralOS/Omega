@@ -1,23 +1,26 @@
 use crate::review_closure::{
     ReviewOnlyClosureValidationError, ReviewOnlySetValidationError, validate_review_only_closure,
-    validate_review_only_set,
+    validate_review_only_records,
+};
+use crate::review_evidence::{
+    PackageReviewEvidence, ReviewOnlyCanonicalRow, ReviewOnlyCompilerExecutableCommitment,
+    ReviewOnlySourceConsumptionCommitment,
 };
 use crate::{
-    CompilerIssuedPackageReview, CompilerIssuedPackageReviewSet, DependencyRequestPath,
-    ImmutableSourceResolution, PackageKey, ResolvedPackageSourceClosure,
+    CompilerIssuedPackageReviewSet, DependencyRequestPath, ImmutableSourceResolution, PackageKey,
+    ResolvedPackageSourceClosure,
 };
 use omega_compiler::{
-    CompilerExecutableCommitment, PackageReviewCanonicalRow, PackageReviewCanonicalRowKind,
-    PackageReviewCanonicalRowRisk, PackageReviewCanonicalRowSource,
+    PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk, PackageReviewCanonicalRowSource,
     PackageReviewSourceLocationOwner, PackageReviewSourceLocationRole,
-    PackageReviewSyntheticSourceKind, PackageSourceConsumptionCommitment,
+    PackageReviewSyntheticSourceKind,
 };
 use sha2::{Digest, Sha256};
 use std::cmp::Ordering;
 use std::fmt;
 
 const CONFLICT_FINGERPRINT_DOMAIN: &[u8] = b"OMEGA-PACKAGE-CAPABILITY-CONFLICT\0";
-const CONFLICT_FINGERPRINT_VERSION: u16 = 3;
+const CONFLICT_FINGERPRINT_VERSION: u16 = 4;
 const CANDIDATE_CLOSURE_DOMAIN: &[u8] = b"OMEGA-PACKAGE-CANDIDATE-CLOSURE\0";
 const CANDIDATE_CLOSURE_VERSION: u16 = 1;
 const CONFLICT_RENDER_SCHEMA: &str = "OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V3\n";
@@ -228,10 +231,10 @@ pub struct ReviewOnlyPackageCapabilityConflicts {
     baseline_resolution: ImmutableSourceResolution,
     candidate_resolution: ImmutableSourceResolution,
     dependency_path: DependencyRequestPath,
-    baseline_compiler: CompilerExecutableCommitment,
-    candidate_compiler: CompilerExecutableCommitment,
-    baseline_source_consumption: PackageSourceConsumptionCommitment,
-    candidate_source_consumption: PackageSourceConsumptionCommitment,
+    baseline_compiler: ReviewOnlyCompilerExecutableCommitment,
+    candidate_compiler: ReviewOnlyCompilerExecutableCommitment,
+    baseline_source_consumption: ReviewOnlySourceConsumptionCommitment,
+    candidate_source_consumption: ReviewOnlySourceConsumptionCommitment,
     candidate_closure: ReviewOnlyCandidateClosureCommitment,
     conflicts: Vec<ReviewOnlyCapabilityConflict>,
 }
@@ -253,19 +256,19 @@ impl ReviewOnlyPackageCapabilityConflicts {
         &self.dependency_path
     }
 
-    pub const fn baseline_compiler(&self) -> CompilerExecutableCommitment {
+    pub const fn baseline_compiler(&self) -> ReviewOnlyCompilerExecutableCommitment {
         self.baseline_compiler
     }
 
-    pub const fn candidate_compiler(&self) -> CompilerExecutableCommitment {
+    pub const fn candidate_compiler(&self) -> ReviewOnlyCompilerExecutableCommitment {
         self.candidate_compiler
     }
 
-    pub const fn baseline_source_consumption(&self) -> PackageSourceConsumptionCommitment {
+    pub const fn baseline_source_consumption(&self) -> ReviewOnlySourceConsumptionCommitment {
         self.baseline_source_consumption
     }
 
-    pub const fn candidate_source_consumption(&self) -> PackageSourceConsumptionCommitment {
+    pub const fn candidate_source_consumption(&self) -> ReviewOnlySourceConsumptionCommitment {
         self.candidate_source_consumption
     }
 
@@ -580,12 +583,21 @@ pub fn compare_review_only_capabilities(
     candidate_sources: &ResolvedPackageSourceClosure,
     limits: ReviewOnlyCapabilityConflictLimits,
 ) -> Result<ReviewOnlyCapabilityConflictSet, ReviewOnlyCapabilityConflictError> {
+    compare_review_only_capability_records(baseline.reviews(), candidate, candidate_sources, limits)
+}
+
+pub(crate) fn compare_review_only_capability_records<B: PackageReviewEvidence>(
+    baseline: &[B],
+    candidate: &CompilerIssuedPackageReviewSet,
+    candidate_sources: &ResolvedPackageSourceClosure,
+    limits: ReviewOnlyCapabilityConflictLimits,
+) -> Result<ReviewOnlyCapabilityConflictSet, ReviewOnlyCapabilityConflictError> {
     let mut input_budget = ComparisonInputBudget::default();
     account_review_resources(baseline, limits, &mut input_budget)?;
-    let baseline_by_key = validate_review_only_set(baseline)
+    let baseline_by_key = validate_review_only_records(baseline)
         .map_err(|error| map_set_validation_error(ReviewSetRole::Baseline, error))?
         .into_reviews_by_key();
-    account_review_resources(candidate, limits, &mut input_budget)?;
+    account_review_resources(candidate.reviews(), limits, &mut input_budget)?;
     let candidate_by_key = validate_review_only_closure(candidate_sources, candidate)
         .map_err(map_candidate_closure_validation_error)?
         .into_reviews_by_key();
@@ -603,7 +615,7 @@ pub fn compare_review_only_capabilities(
             continue;
         };
         let candidate_review = candidate_by_key[candidate_index];
-        if baseline_review.projection().target() != candidate_review.projection().target() {
+        if baseline_review.target_name() != candidate_review.target_name() {
             return Err(ReviewOnlyCapabilityConflictError::TargetMismatch {
                 package: Box::new(key.clone()),
             });
@@ -629,7 +641,7 @@ pub fn compare_review_only_capabilities(
             &mut owned_budget,
         )?;
         let whole_review_changed =
-            baseline_review.canonical_review_bytes() != candidate_review.canonical_review_bytes();
+            baseline_review.whole_review_commitment() != candidate_review.whole_review_commitment();
         if whole_review_changed == row_conflicts.is_empty() {
             return Err(ReviewOnlyCapabilityConflictError::IncompleteRowProjection {
                 package: Box::new(key.clone()),
@@ -649,10 +661,18 @@ pub fn compare_review_only_capabilities(
             baseline_resolution: baseline_review.resolution().clone(),
             candidate_resolution: candidate_review.resolution().clone(),
             dependency_path,
-            baseline_compiler: baseline_review.compiler_executable_commitment(),
-            candidate_compiler: candidate_review.compiler_executable_commitment(),
-            baseline_source_consumption: baseline_review.source_consumption_commitment(),
-            candidate_source_consumption: candidate_review.source_consumption_commitment(),
+            baseline_compiler: PackageReviewEvidence::compiler_executable_commitment(
+                baseline_review,
+            ),
+            candidate_compiler: PackageReviewEvidence::compiler_executable_commitment(
+                candidate_review,
+            ),
+            baseline_source_consumption: PackageReviewEvidence::source_consumption_commitment(
+                baseline_review,
+            ),
+            candidate_source_consumption: PackageReviewEvidence::source_consumption_commitment(
+                candidate_review,
+            ),
             candidate_closure,
             conflicts: row_conflicts,
         });
@@ -671,17 +691,17 @@ struct ComparisonInputBudget {
 }
 
 fn account_review_resources(
-    reviews: &CompilerIssuedPackageReviewSet,
+    reviews: &[impl PackageReviewEvidence],
     limits: ReviewOnlyCapabilityConflictLimits,
     budget: &mut ComparisonInputBudget,
 ) -> Result<(), ReviewOnlyCapabilityConflictError> {
-    budget.packages = budget.packages.saturating_add(reviews.reviews().len());
+    budget.packages = budget.packages.saturating_add(reviews.len());
     if budget.packages > limits.maximum_packages {
         return Err(ReviewOnlyCapabilityConflictError::TooManyPackages {
             maximum: limits.maximum_packages,
         });
     }
-    for review in reviews.reviews() {
+    for review in reviews {
         budget.rows = budget.rows.saturating_add(review.canonical_rows().len());
         budget.row_key_bytes = review
             .canonical_rows()
@@ -804,10 +824,10 @@ struct OwnedConflictBudget {
     source_location_bytes: usize,
 }
 
-fn compare_rows(
+fn compare_rows<B: PackageReviewEvidence, C: PackageReviewEvidence>(
     key: &PackageKey,
-    baseline_review: &CompilerIssuedPackageReview,
-    candidate_review: &CompilerIssuedPackageReview,
+    baseline_review: &B,
+    candidate_review: &C,
     dependency_path: &DependencyRequestPath,
     candidate_closure: ReviewOnlyCandidateClosureCommitment,
     limits: ReviewOnlyCapabilityConflictLimits,
@@ -861,8 +881,8 @@ fn compare_rows(
             (None, None) => unreachable!("row-key union contains at least one row"),
         };
         let risk = merge_risk(
-            baseline_row.map(PackageReviewCanonicalRow::risk),
-            candidate_row.map(PackageReviewCanonicalRow::risk),
+            baseline_row.map(ReviewOnlyCanonicalRow::risk),
+            candidate_row.map(ReviewOnlyCanonicalRow::risk),
         );
         let required_bytes = row_key
             .len()
@@ -941,7 +961,7 @@ fn clone_bytes(bytes: &[u8]) -> Result<Vec<u8>, ReviewOnlyCapabilityConflictErro
     Ok(owned)
 }
 
-fn row_coordinate(row: &PackageReviewCanonicalRow) -> (PackageReviewCanonicalRowKind, &[u8]) {
+fn row_coordinate(row: &ReviewOnlyCanonicalRow) -> (PackageReviewCanonicalRowKind, &[u8]) {
     (row.kind(), row.key_bytes())
 }
 
@@ -966,8 +986,8 @@ fn merge_risk(
 /// not represented by rows fails closed as opaque blocking here; the explicit
 /// comparator reports the stronger structural error.
 pub(crate) fn changed_review_risk(
-    baseline: &CompilerIssuedPackageReview,
-    candidate: &CompilerIssuedPackageReview,
+    baseline: &impl PackageReviewEvidence,
+    candidate: &impl PackageReviewEvidence,
 ) -> Option<PackageReviewCanonicalRowRisk> {
     let baseline_rows = baseline.canonical_rows();
     let candidate_rows = candidate.canonical_rows();
@@ -1003,12 +1023,13 @@ pub(crate) fn changed_review_risk(
             continue;
         }
         let row_risk = merge_risk(
-            baseline_row.map(PackageReviewCanonicalRow::risk),
-            candidate_row.map(PackageReviewCanonicalRow::risk),
+            baseline_row.map(ReviewOnlyCanonicalRow::risk),
+            candidate_row.map(ReviewOnlyCanonicalRow::risk),
         );
         changed = Some(merge_risk(changed, Some(row_risk)));
     }
-    if changed.is_none() && baseline.canonical_review_bytes() != candidate.canonical_review_bytes()
+    if changed.is_none()
+        && baseline.whole_review_commitment() != candidate.whole_review_commitment()
     {
         Some(PackageReviewCanonicalRowRisk::OpaqueBlocking)
     } else {
@@ -1017,10 +1038,10 @@ pub(crate) fn changed_review_risk(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn derive_conflict_fingerprint(
+fn derive_conflict_fingerprint<B: PackageReviewEvidence, C: PackageReviewEvidence>(
     key: &PackageKey,
-    baseline_review: &CompilerIssuedPackageReview,
-    candidate_review: &CompilerIssuedPackageReview,
+    baseline_review: &B,
+    candidate_review: &C,
     dependency_path: &DependencyRequestPath,
     candidate_closure: ReviewOnlyCandidateClosureCommitment,
     kind: PackageReviewCanonicalRowKind,
@@ -1040,22 +1061,22 @@ fn derive_conflict_fingerprint(
     hash_resolution(&mut digest, candidate_review.resolution());
     hash_field(
         &mut digest,
-        &baseline_review.compiler_executable_commitment().digest(),
+        &PackageReviewEvidence::compiler_executable_commitment(baseline_review).digest(),
     );
     hash_field(
         &mut digest,
-        &candidate_review.compiler_executable_commitment().digest(),
+        &PackageReviewEvidence::compiler_executable_commitment(candidate_review).digest(),
     );
     hash_field(
         &mut digest,
-        &baseline_review.source_consumption_commitment().digest(),
+        &PackageReviewEvidence::source_consumption_commitment(baseline_review).digest(),
     );
     hash_field(
         &mut digest,
-        &candidate_review.source_consumption_commitment().digest(),
+        &PackageReviewEvidence::source_consumption_commitment(candidate_review).digest(),
     );
-    hash_field(&mut digest, baseline_review.canonical_review_bytes());
-    hash_field(&mut digest, candidate_review.canonical_review_bytes());
+    hash_field(&mut digest, &baseline_review.whole_review_commitment());
+    hash_field(&mut digest, &candidate_review.whole_review_commitment());
     hash_field(&mut digest, &candidate_closure.digest());
     hash_dependency_path(&mut digest, dependency_path);
     digest.update([row_kind_tag(kind), row_risk_tag(risk), change_tag(change)]);

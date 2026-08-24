@@ -1,0 +1,1271 @@
+use crate::capability_conflict::compare_review_only_capability_records;
+use crate::review_closure::{validate_review_only_closure, validate_review_only_records};
+use crate::review_evidence::{
+    PackageReviewEvidence, ReviewOnlyCanonicalRow, ReviewOnlyCompilerExecutableCommitment,
+    ReviewOnlySourceConsumptionCommitment, build_observation_commitment, whole_review_commitment,
+};
+use crate::source_review::assemble_update_source_review_records;
+use crate::source_triage::triage_review_update_records;
+use crate::{
+    AliasName, CompilerIssuedPackageReviewSet, CompilerReviewTriage, ExternalLocalLineage,
+    ExternalSourceContext, GitCommitId, GitTransport, GitTreeId, ImmutableSourceResolution,
+    PackageKey, PackageName, PackageSourceCustody, PackageSourceReviewError,
+    PackageSourceReviewInput, PackageSourceReviewLimits, ResolvedDependency,
+    ResolvedPackageClosure, ResolvedPackageNode, ResolvedPackageSourceClosure,
+    ResolvedSourceIdentity, ReviewOnlyCapabilityConflictError, ReviewOnlyCapabilityConflictLimits,
+    ReviewOnlyCapabilityConflictSet, SourceContentDigest, SourceLineage, WorkspaceLineageIdentity,
+    WorkspaceMemberLineage, WorkspaceMemberPath,
+};
+use omega_compiler::{
+    PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRecoveryLimits,
+    decode_package_review_canonical_row_with_limits,
+    encode_package_review_canonical_row_with_limits,
+};
+use sha2::{Digest, Sha256};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use std::fmt;
+
+const MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW-BASELINE\0";
+const CHECKSUM_DOMAIN: &[u8] = b"OMEGA-PACKAGE-REVIEW-BASELINE-CAPSULE\0";
+const VERSION: u16 = 1;
+const REVIEW_ONLY_ARTIFACT_CLASS: u8 = 0;
+const CHECKSUM_BYTES: usize = 32;
+
+/// Resource ceilings for a restart-stable review baseline.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ReviewOnlyBaselineLimits {
+    maximum_capsule_bytes: usize,
+    maximum_packages: usize,
+    maximum_dependencies: usize,
+    maximum_graph_depth: usize,
+    maximum_identity_bytes: usize,
+    maximum_target_bytes: usize,
+    maximum_rows: usize,
+    maximum_row_recovery_bytes: usize,
+}
+
+impl ReviewOnlyBaselineLimits {
+    #[allow(clippy::too_many_arguments)]
+    pub const fn new(
+        maximum_capsule_bytes: usize,
+        maximum_packages: usize,
+        maximum_dependencies: usize,
+        maximum_graph_depth: usize,
+        maximum_identity_bytes: usize,
+        maximum_target_bytes: usize,
+        maximum_rows: usize,
+        maximum_row_recovery_bytes: usize,
+    ) -> Self {
+        Self {
+            maximum_capsule_bytes,
+            maximum_packages,
+            maximum_dependencies,
+            maximum_graph_depth,
+            maximum_identity_bytes,
+            maximum_target_bytes,
+            maximum_rows,
+            maximum_row_recovery_bytes,
+        }
+    }
+
+    pub const fn maximum_capsule_bytes(self) -> usize {
+        self.maximum_capsule_bytes
+    }
+
+    pub const fn maximum_packages(self) -> usize {
+        self.maximum_packages
+    }
+
+    pub const fn maximum_rows(self) -> usize {
+        self.maximum_rows
+    }
+}
+
+impl Default for ReviewOnlyBaselineLimits {
+    fn default() -> Self {
+        Self::new(
+            64 * 1024 * 1024,
+            1_024,
+            16_384,
+            128,
+            4 * 1024,
+            256,
+            65_536,
+            32 * 1024 * 1024,
+        )
+    }
+}
+
+/// A bounded baseline-codec failure.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReviewOnlyBaselineError {
+    message: &'static str,
+}
+
+impl ReviewOnlyBaselineError {
+    const fn new(message: &'static str) -> Self {
+        Self { message }
+    }
+
+    pub const fn message(&self) -> &'static str {
+        self.message
+    }
+}
+
+impl fmt::Display for ReviewOnlyBaselineError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(self.message)
+    }
+}
+
+impl std::error::Error for ReviewOnlyBaselineError {}
+
+/// One package's exact comparison evidence recovered from a review-only
+/// baseline capsule.
+#[derive(Debug, Clone)]
+pub struct ReviewOnlyBaselinePackage {
+    key: PackageKey,
+    resolution: ImmutableSourceResolution,
+    target: String,
+    compiler_executable_commitment: ReviewOnlyCompilerExecutableCommitment,
+    source_consumption_commitment: ReviewOnlySourceConsumptionCommitment,
+    build_observation_commitment: Option<[u8; 32]>,
+    whole_review_commitment: [u8; 32],
+    canonical_rows: Vec<ReviewOnlyCanonicalRow>,
+}
+
+impl ReviewOnlyBaselinePackage {
+    pub fn key(&self) -> &PackageKey {
+        &self.key
+    }
+
+    pub fn resolution(&self) -> &ImmutableSourceResolution {
+        &self.resolution
+    }
+
+    pub fn target(&self) -> &str {
+        &self.target
+    }
+
+    pub const fn compiler_executable_commitment(&self) -> ReviewOnlyCompilerExecutableCommitment {
+        self.compiler_executable_commitment
+    }
+
+    pub const fn source_consumption_commitment(&self) -> ReviewOnlySourceConsumptionCommitment {
+        self.source_consumption_commitment
+    }
+
+    pub const fn build_observation_commitment(&self) -> Option<[u8; 32]> {
+        self.build_observation_commitment
+    }
+
+    pub const fn whole_review_commitment(&self) -> [u8; 32] {
+        self.whole_review_commitment
+    }
+
+    pub fn canonical_rows(&self) -> &[ReviewOnlyCanonicalRow] {
+        &self.canonical_rows
+    }
+}
+
+impl PackageReviewEvidence for ReviewOnlyBaselinePackage {
+    fn key(&self) -> &PackageKey {
+        &self.key
+    }
+
+    fn resolution(&self) -> &ImmutableSourceResolution {
+        &self.resolution
+    }
+
+    fn projection_identity_matches(&self) -> bool {
+        true
+    }
+
+    fn target_name(&self) -> &str {
+        &self.target
+    }
+
+    fn compiler_executable_commitment(&self) -> ReviewOnlyCompilerExecutableCommitment {
+        self.compiler_executable_commitment
+    }
+
+    fn source_consumption_commitment(&self) -> ReviewOnlySourceConsumptionCommitment {
+        self.source_consumption_commitment
+    }
+
+    fn build_observation_commitment(&self) -> Option<[u8; 32]> {
+        self.build_observation_commitment
+    }
+
+    fn whole_review_commitment(&self) -> [u8; 32] {
+        self.whole_review_commitment
+    }
+
+    fn canonical_rows(&self) -> &[ReviewOnlyCanonicalRow] {
+        &self.canonical_rows
+    }
+}
+
+/// A restart-stable source graph and normalized review baseline.
+///
+/// This is intentionally review-only. It cannot construct `PackageInstance`,
+/// authorize a conflict, mutate a project, or stand in for `omega.lock`.
+#[derive(Debug, Clone)]
+pub struct ReviewOnlyBaselineCapsule {
+    graph: ResolvedPackageClosure,
+    packages: Vec<ReviewOnlyBaselinePackage>,
+}
+
+impl ReviewOnlyBaselineCapsule {
+    pub fn capture(
+        sources: &ResolvedPackageSourceClosure,
+        reviews: &CompilerIssuedPackageReviewSet,
+        limits: ReviewOnlyBaselineLimits,
+    ) -> Result<Self, ReviewOnlyBaselineError> {
+        let validated = validate_review_only_closure(sources, reviews).map_err(|_| {
+            ReviewOnlyBaselineError::new("cannot capture an invalid review-only source closure")
+        })?;
+        let mut packages = Vec::new();
+        packages
+            .try_reserve_exact(reviews.reviews().len())
+            .map_err(|_| ReviewOnlyBaselineError::new("baseline package allocation failed"))?;
+        let row_limits = row_limits(limits);
+        for review in validated.into_reviews_by_key() {
+            let mut rows = Vec::new();
+            rows.try_reserve_exact(review.canonical_rows().len())
+                .map_err(|_| ReviewOnlyBaselineError::new("baseline row allocation failed"))?;
+            for row in review.canonical_rows() {
+                let encoded = encode_package_review_canonical_row_with_limits(row, row_limits)
+                    .map_err(|_| {
+                        ReviewOnlyBaselineError::new("compiler row cannot enter review baseline")
+                    })?;
+                let decoded = decode_package_review_canonical_row_with_limits(&encoded, row_limits)
+                    .map_err(|_| {
+                        ReviewOnlyBaselineError::new("compiler row recovery self-check failed")
+                    })?;
+                if decoded.package() != review.key().identity()
+                    || decoded.target().target_name() != review.projection().target().target_name()
+                {
+                    return Err(ReviewOnlyBaselineError::new(
+                        "compiler row package or target disagrees with its review",
+                    ));
+                }
+                rows.push(ReviewOnlyCanonicalRow::from_recovered(&decoded, encoded));
+            }
+            packages.push(ReviewOnlyBaselinePackage {
+                key: review.key().clone(),
+                resolution: review.resolution().clone(),
+                target: review.projection().target().target_name().to_owned(),
+                compiler_executable_commitment: review.compiler_executable_commitment().into(),
+                source_consumption_commitment: review.source_consumption_commitment().into(),
+                build_observation_commitment: review
+                    .build_observation_summary()
+                    .map(build_observation_commitment),
+                whole_review_commitment: whole_review_commitment(review.canonical_review_bytes()),
+                canonical_rows: rows,
+            });
+        }
+        let graph = canonical_graph(sources.graph())?;
+        let capsule = Self { graph, packages };
+        capsule.validate(limits)?;
+        let _ = capsule.encode(limits)?;
+        Ok(capsule)
+    }
+
+    pub fn decode(
+        bytes: &[u8],
+        limits: ReviewOnlyBaselineLimits,
+    ) -> Result<Self, ReviewOnlyBaselineError> {
+        if bytes.len() > limits.maximum_capsule_bytes || bytes.len() < CHECKSUM_BYTES {
+            return Err(ReviewOnlyBaselineError::new(
+                "review baseline capsule violates its byte bounds",
+            ));
+        }
+        let prefix_length = bytes.len() - CHECKSUM_BYTES;
+        let (prefix, checksum) = bytes.split_at(prefix_length);
+        if capsule_checksum(prefix) != checksum {
+            return Err(ReviewOnlyBaselineError::new(
+                "review baseline capsule checksum mismatch",
+            ));
+        }
+
+        let mut decoder = Decoder::new(prefix);
+        decoder.fixed(MAGIC)?;
+        if decoder.u16()? != VERSION
+            || decoder.byte()? != REVIEW_ONLY_ARTIFACT_CLASS
+            || decoder.byte()? != 0
+        {
+            return Err(ReviewOnlyBaselineError::new(
+                "unsupported review baseline capsule header",
+            ));
+        }
+        let target = decoder.string(limits.maximum_target_bytes)?.to_owned();
+        if target.is_empty() {
+            return Err(ReviewOnlyBaselineError::new(
+                "review baseline target must not be empty",
+            ));
+        }
+        let compiler =
+            ReviewOnlyCompilerExecutableCommitment::from_recovered_digest(decoder.array_32()?);
+        let package_count = decoder.usize()?;
+        if package_count == 0 || package_count > limits.maximum_packages {
+            return Err(ReviewOnlyBaselineError::new(
+                "review baseline package count violates its bounds",
+            ));
+        }
+        let root_index = decoder.u32()? as usize;
+        if root_index >= package_count {
+            return Err(ReviewOnlyBaselineError::new(
+                "review baseline root index is out of range",
+            ));
+        }
+
+        let mut pending = Vec::new();
+        pending
+            .try_reserve_exact(package_count)
+            .map_err(|_| ReviewOnlyBaselineError::new("baseline package allocation failed"))?;
+        let mut total_dependencies = 0usize;
+        let mut total_rows = 0usize;
+        let mut total_row_bytes = 0usize;
+        for _ in 0..package_count {
+            let record = decoder.bytes(limits.maximum_capsule_bytes)?;
+            let mut record = Decoder::new(record);
+            let key = decode_package_key(&mut record, limits.maximum_identity_bytes)?;
+            let resolution = decode_resolution(&mut record)?;
+            ResolvedSourceIdentity::new(key.clone(), resolution.clone()).map_err(|_| {
+                ReviewOnlyBaselineError::new("baseline resolution does not match source lineage")
+            })?;
+            let source_consumption_commitment =
+                ReviewOnlySourceConsumptionCommitment::from_recovered_digest(record.array_32()?);
+            let whole_review_commitment = record.array_32()?;
+            let build_observation_commitment = match record.byte()? {
+                0 => None,
+                1 => Some(record.array_32()?),
+                _ => {
+                    return Err(ReviewOnlyBaselineError::new(
+                        "invalid build-observation option tag",
+                    ));
+                }
+            };
+            let dependency_count = record.usize()?;
+            total_dependencies = total_dependencies.saturating_add(dependency_count);
+            if total_dependencies > limits.maximum_dependencies {
+                return Err(ReviewOnlyBaselineError::new(
+                    "review baseline dependency count exceeds its ceiling",
+                ));
+            }
+            let mut dependencies = Vec::new();
+            dependencies
+                .try_reserve_exact(dependency_count)
+                .map_err(|_| {
+                    ReviewOnlyBaselineError::new("baseline dependency allocation failed")
+                })?;
+            for _ in 0..dependency_count {
+                dependencies.push((
+                    AliasName::parse(record.string(limits.maximum_identity_bytes)?.to_owned())
+                        .map_err(|_| ReviewOnlyBaselineError::new("invalid dependency alias"))?,
+                    record.u32()? as usize,
+                ));
+            }
+            let row_count = record.usize()?;
+            total_rows = total_rows.saturating_add(row_count);
+            if total_rows > limits.maximum_rows {
+                return Err(ReviewOnlyBaselineError::new(
+                    "review baseline row count exceeds its ceiling",
+                ));
+            }
+            let mut rows = Vec::new();
+            rows.try_reserve_exact(row_count)
+                .map_err(|_| ReviewOnlyBaselineError::new("baseline row allocation failed"))?;
+            for _ in 0..row_count {
+                let row_bytes = record.bytes(limits.maximum_row_recovery_bytes)?;
+                total_row_bytes = total_row_bytes.saturating_add(row_bytes.len());
+                if total_row_bytes > limits.maximum_row_recovery_bytes {
+                    return Err(ReviewOnlyBaselineError::new(
+                        "review baseline row bytes exceed their aggregate ceiling",
+                    ));
+                }
+                let recovery_bytes = clone_baseline_bytes(
+                    row_bytes,
+                    "review baseline row recovery allocation failed",
+                )?;
+                let decoded = decode_package_review_canonical_row_with_limits(
+                    &recovery_bytes,
+                    row_limits(limits),
+                )
+                .map_err(|_| ReviewOnlyBaselineError::new("invalid compiler review row"))?;
+                if decoded.package() != key.identity() || decoded.target().target_name() != target {
+                    return Err(ReviewOnlyBaselineError::new(
+                        "review baseline row package or target mismatch",
+                    ));
+                }
+                rows.push(ReviewOnlyCanonicalRow::from_recovered(
+                    &decoded,
+                    recovery_bytes,
+                ));
+            }
+            record.finish()?;
+            validate_rows(&rows)?;
+            let review_key = key.clone();
+            let review_resolution = resolution.clone();
+            pending.push(PendingPackage {
+                key,
+                resolution,
+                dependencies,
+                review: ReviewOnlyBaselinePackage {
+                    key: review_key,
+                    resolution: review_resolution,
+                    target: target.clone(),
+                    compiler_executable_commitment: compiler,
+                    source_consumption_commitment,
+                    build_observation_commitment,
+                    whole_review_commitment,
+                    canonical_rows: rows,
+                },
+            });
+        }
+        decoder.finish()?;
+
+        for pair in pending.windows(2) {
+            if pair[0].key >= pair[1].key {
+                return Err(ReviewOnlyBaselineError::new(
+                    "review baseline packages are not in canonical order",
+                ));
+            }
+        }
+        let keys = pending
+            .iter()
+            .map(|package| package.key.clone())
+            .collect::<Vec<_>>();
+        let mut nodes = Vec::new();
+        let mut packages = Vec::new();
+        nodes
+            .try_reserve_exact(package_count)
+            .map_err(|_| ReviewOnlyBaselineError::new("baseline graph allocation failed"))?;
+        packages
+            .try_reserve_exact(package_count)
+            .map_err(|_| ReviewOnlyBaselineError::new("baseline package allocation failed"))?;
+        for package in pending {
+            let mut dependencies = Vec::new();
+            dependencies
+                .try_reserve_exact(package.dependencies.len())
+                .map_err(|_| ReviewOnlyBaselineError::new("baseline graph allocation failed"))?;
+            for (alias, target_index) in package.dependencies {
+                let target_key = keys.get(target_index).ok_or_else(|| {
+                    ReviewOnlyBaselineError::new("baseline dependency index is out of range")
+                })?;
+                dependencies.push(ResolvedDependency::new(alias, target_key.clone()));
+            }
+            let source =
+                ResolvedSourceIdentity::new(package.key.clone(), package.resolution.clone())
+                    .map_err(|_| {
+                        ReviewOnlyBaselineError::new("invalid baseline source identity")
+                    })?;
+            nodes.push(ResolvedPackageNode::new(source, dependencies));
+            packages.push(package.review);
+        }
+        let graph = ResolvedPackageClosure::new(keys[root_index].clone(), nodes)
+            .map_err(|_| ReviewOnlyBaselineError::new("invalid review baseline source graph"))?;
+        let capsule = Self { graph, packages };
+        capsule.validate(limits)?;
+        if capsule.encode(limits)?.as_slice() != bytes {
+            return Err(ReviewOnlyBaselineError::new(
+                "review baseline capsule is not canonically encoded",
+            ));
+        }
+        Ok(capsule)
+    }
+
+    pub fn encode(
+        &self,
+        limits: ReviewOnlyBaselineLimits,
+    ) -> Result<Vec<u8>, ReviewOnlyBaselineError> {
+        self.validate(limits)?;
+        let mut encoder = Encoder::bounded(
+            limits
+                .maximum_capsule_bytes
+                .checked_sub(CHECKSUM_BYTES)
+                .ok_or_else(|| ReviewOnlyBaselineError::new("capsule ceiling is too small"))?,
+        );
+        encoder.fixed(MAGIC);
+        encoder.u16(VERSION);
+        encoder.byte(REVIEW_ONLY_ARTIFACT_CLASS);
+        encoder.byte(0);
+        let first = self
+            .packages
+            .first()
+            .ok_or_else(|| ReviewOnlyBaselineError::new("review baseline is empty"))?;
+        ensure_bounded_string(
+            &first.target,
+            limits.maximum_target_bytes,
+            "review baseline target violates its byte bounds",
+        )?;
+        encoder.string(&first.target)?;
+        encoder.fixed(&first.compiler_executable_commitment.digest());
+        encoder.usize(self.packages.len())?;
+        let indices = self
+            .packages
+            .iter()
+            .enumerate()
+            .map(|(index, package)| (package.key.clone(), index))
+            .collect::<BTreeMap<_, _>>();
+        encoder.u32(
+            u32::try_from(*indices.get(self.graph.root()).ok_or_else(|| {
+                ReviewOnlyBaselineError::new("review baseline root has no package record")
+            })?)
+            .map_err(|_| ReviewOnlyBaselineError::new("baseline root index exceeds u32"))?,
+        );
+        for package in &self.packages {
+            let node = self.graph.package(&package.key).ok_or_else(|| {
+                ReviewOnlyBaselineError::new("review baseline package has no graph node")
+            })?;
+            let mut record = Encoder::bounded(limits.maximum_capsule_bytes);
+            encode_package_key(&mut record, &package.key, limits.maximum_identity_bytes)?;
+            encode_resolution(&mut record, &package.resolution)?;
+            record.fixed(&package.source_consumption_commitment.digest());
+            record.fixed(&package.whole_review_commitment);
+            match package.build_observation_commitment {
+                None => record.byte(0),
+                Some(commitment) => {
+                    record.byte(1);
+                    record.fixed(&commitment);
+                }
+            }
+            record.usize(node.dependencies().len())?;
+            for dependency in node.dependencies() {
+                ensure_bounded_string(
+                    dependency.alias().as_str(),
+                    limits.maximum_identity_bytes,
+                    "review baseline dependency alias violates its byte bounds",
+                )?;
+                record.string(dependency.alias().as_str())?;
+                record.u32(
+                    u32::try_from(*indices.get(dependency.target()).ok_or_else(|| {
+                        ReviewOnlyBaselineError::new(
+                            "review baseline dependency has no package record",
+                        )
+                    })?)
+                    .map_err(|_| {
+                        ReviewOnlyBaselineError::new("baseline dependency index exceeds u32")
+                    })?,
+                );
+            }
+            record.usize(package.canonical_rows.len())?;
+            for row in &package.canonical_rows {
+                let recovery_bytes =
+                    validate_recovery_row(row, &package.key, &package.target, row_limits(limits))?;
+                record.bytes(recovery_bytes)?;
+            }
+            encoder.bytes(&record.finish()?)?;
+        }
+        let mut bytes = encoder.finish()?;
+        let checksum = capsule_checksum(&bytes);
+        bytes
+            .try_reserve_exact(CHECKSUM_BYTES)
+            .map_err(|_| ReviewOnlyBaselineError::new("capsule checksum allocation failed"))?;
+        bytes.extend_from_slice(&checksum);
+        Ok(bytes)
+    }
+
+    pub fn graph(&self) -> &ResolvedPackageClosure {
+        &self.graph
+    }
+
+    pub fn packages(&self) -> &[ReviewOnlyBaselinePackage] {
+        &self.packages
+    }
+
+    fn validate(&self, limits: ReviewOnlyBaselineLimits) -> Result<(), ReviewOnlyBaselineError> {
+        if self.packages.is_empty() || self.packages.len() > limits.maximum_packages {
+            return Err(ReviewOnlyBaselineError::new(
+                "review baseline package count violates its bounds",
+            ));
+        }
+        validate_review_only_records(&self.packages)
+            .map_err(|_| ReviewOnlyBaselineError::new("invalid review baseline record set"))?;
+        let mut dependencies = 0usize;
+        let mut rows = 0usize;
+        let mut row_recovery_bytes = 0usize;
+        for package in &self.packages {
+            let node = self.graph.package(&package.key).ok_or_else(|| {
+                ReviewOnlyBaselineError::new("review baseline graph/review mismatch")
+            })?;
+            if node.source().resolution() != &package.resolution {
+                return Err(ReviewOnlyBaselineError::new(
+                    "review baseline graph/review resolution mismatch",
+                ));
+            }
+            ensure_bounded_string(
+                &package.target,
+                limits.maximum_target_bytes,
+                "review baseline target violates its byte bounds",
+            )?;
+            validate_package_key_bounds(&package.key, limits.maximum_identity_bytes)?;
+            dependencies = dependencies.saturating_add(node.dependencies().len());
+            rows = rows.saturating_add(package.canonical_rows.len());
+            for dependency in node.dependencies() {
+                ensure_bounded_string(
+                    dependency.alias().as_str(),
+                    limits.maximum_identity_bytes,
+                    "review baseline dependency alias violates its byte bounds",
+                )?;
+            }
+            for row in &package.canonical_rows {
+                let recovery_bytes = row.recovery_bytes().ok_or_else(|| {
+                    ReviewOnlyBaselineError::new(
+                        "review baseline contains a non-recoverable comparison row",
+                    )
+                })?;
+                row_recovery_bytes = row_recovery_bytes
+                    .checked_add(recovery_bytes.len())
+                    .ok_or_else(|| {
+                        ReviewOnlyBaselineError::new(
+                            "review baseline row recovery byte count overflowed",
+                        )
+                    })?;
+            }
+            validate_rows(&package.canonical_rows)?;
+        }
+        if self.graph.packages().len() != self.packages.len()
+            || dependencies > limits.maximum_dependencies
+            || rows > limits.maximum_rows
+            || row_recovery_bytes > limits.maximum_row_recovery_bytes
+            || graph_depth(&self.graph) > limits.maximum_graph_depth
+        {
+            return Err(ReviewOnlyBaselineError::new(
+                "review baseline closure violates its resource bounds",
+            ));
+        }
+        Ok(())
+    }
+}
+
+/// Compare a reopened baseline with a live, resolver-bound candidate.
+pub fn compare_review_only_capabilities_from_baseline(
+    baseline: &ReviewOnlyBaselineCapsule,
+    candidate: &CompilerIssuedPackageReviewSet,
+    candidate_sources: &ResolvedPackageSourceClosure,
+    limits: ReviewOnlyCapabilityConflictLimits,
+) -> Result<ReviewOnlyCapabilityConflictSet, ReviewOnlyCapabilityConflictError> {
+    compare_review_only_capability_records(
+        baseline.packages(),
+        candidate,
+        candidate_sources,
+        limits,
+    )
+}
+
+pub fn triage_review_update_from_baseline(
+    baseline: &ReviewOnlyBaselineCapsule,
+    candidate: &CompilerIssuedPackageReviewSet,
+    unavailable_baseline_sources: &BTreeSet<PackageKey>,
+) -> CompilerReviewTriage {
+    triage_review_update_records(baseline.packages(), candidate, unavailable_baseline_sources)
+}
+
+pub fn assemble_update_source_review_from_baseline(
+    baseline: &ReviewOnlyBaselineCapsule,
+    candidate: &CompilerIssuedPackageReviewSet,
+    recovered_baseline_sources: &[PackageSourceCustody],
+    candidate_sources: &ResolvedPackageSourceClosure,
+    limits: PackageSourceReviewLimits,
+) -> Result<PackageSourceReviewInput, PackageSourceReviewError> {
+    assemble_update_source_review_records(
+        baseline.packages(),
+        candidate,
+        recovered_baseline_sources,
+        candidate_sources,
+        limits,
+    )
+}
+
+struct PendingPackage {
+    key: PackageKey,
+    resolution: ImmutableSourceResolution,
+    dependencies: Vec<(AliasName, usize)>,
+    review: ReviewOnlyBaselinePackage,
+}
+
+fn canonical_graph(
+    graph: &ResolvedPackageClosure,
+) -> Result<ResolvedPackageClosure, ReviewOnlyBaselineError> {
+    let mut packages = graph.packages().to_vec();
+    packages.sort_by(|left, right| left.source().key().cmp(right.source().key()));
+    ResolvedPackageClosure::new(graph.root().clone(), packages)
+        .map_err(|_| ReviewOnlyBaselineError::new("source closure cannot be canonicalized"))
+}
+
+fn validate_rows(rows: &[ReviewOnlyCanonicalRow]) -> Result<(), ReviewOnlyBaselineError> {
+    if rows.is_empty() {
+        return Err(ReviewOnlyBaselineError::new(
+            "review baseline package has no canonical rows",
+        ));
+    }
+    for pair in rows.windows(2) {
+        if (pair[0].kind(), pair[0].key_bytes()) >= (pair[1].kind(), pair[1].key_bytes()) {
+            return Err(ReviewOnlyBaselineError::new(
+                "review baseline rows are not in strict canonical order",
+            ));
+        }
+    }
+    if rows
+        .iter()
+        .filter(|row| row.kind() == PackageReviewCanonicalRowKind::ProjectionHeader)
+        .count()
+        != 1
+        || rows
+            .iter()
+            .filter(|row| row.kind() == PackageReviewCanonicalRowKind::SelectedProviderSet)
+            .count()
+            != 1
+    {
+        return Err(ReviewOnlyBaselineError::new(
+            "review baseline is missing a singleton compiler row",
+        ));
+    }
+    Ok(())
+}
+
+fn graph_depth(graph: &ResolvedPackageClosure) -> usize {
+    let mut incoming = graph
+        .packages()
+        .iter()
+        .map(|package| (package.source().key().clone(), 0usize))
+        .collect::<BTreeMap<_, _>>();
+    for package in graph.packages() {
+        for dependency in package.dependencies() {
+            if let Some(count) = incoming.get_mut(dependency.target()) {
+                *count = count.saturating_add(1);
+            }
+        }
+    }
+    let mut pending = incoming
+        .iter()
+        .filter(|(_, count)| **count == 0)
+        .map(|(key, _)| key.clone())
+        .collect::<VecDeque<_>>();
+    let mut depths = BTreeMap::from([(graph.root().clone(), 1usize)]);
+    let mut maximum = 1usize;
+    while let Some(key) = pending.pop_front() {
+        let depth = depths.get(&key).copied().unwrap_or(1);
+        let Some(node) = graph.package(&key) else {
+            continue;
+        };
+        for dependency in node.dependencies() {
+            let dependency_depth = depth.saturating_add(1);
+            depths
+                .entry(dependency.target().clone())
+                .and_modify(|known| *known = (*known).max(dependency_depth))
+                .or_insert(dependency_depth);
+            maximum = maximum.max(dependency_depth);
+            if let Some(count) = incoming.get_mut(dependency.target()) {
+                *count = count.saturating_sub(1);
+                if *count == 0 {
+                    pending.push_back(dependency.target().clone());
+                }
+            }
+        }
+    }
+    maximum
+}
+
+fn row_limits(limits: ReviewOnlyBaselineLimits) -> PackageReviewCanonicalRowRecoveryLimits {
+    PackageReviewCanonicalRowRecoveryLimits::new(
+        limits.maximum_row_recovery_bytes,
+        4 * 1024 * 1024,
+        limits.maximum_target_bytes,
+        1024 * 1024,
+        4 * 1024 * 1024,
+        131_072,
+        1024 * 1024,
+        8 * 1024 * 1024,
+        16,
+    )
+}
+
+fn capsule_checksum(prefix: &[u8]) -> [u8; 32] {
+    let mut digest = Sha256::new();
+    digest.update(CHECKSUM_DOMAIN);
+    digest.update(
+        u64::try_from(prefix.len())
+            .expect("bounded capsule length fits u64")
+            .to_le_bytes(),
+    );
+    digest.update(prefix);
+    digest.finalize().into()
+}
+
+fn clone_baseline_bytes(
+    bytes: &[u8],
+    allocation_error: &'static str,
+) -> Result<Vec<u8>, ReviewOnlyBaselineError> {
+    let mut owned = Vec::new();
+    owned
+        .try_reserve_exact(bytes.len())
+        .map_err(|_| ReviewOnlyBaselineError::new(allocation_error))?;
+    owned.extend_from_slice(bytes);
+    Ok(owned)
+}
+
+fn ensure_bounded_string(
+    value: &str,
+    maximum_bytes: usize,
+    error: &'static str,
+) -> Result<(), ReviewOnlyBaselineError> {
+    if value.is_empty() || value.len() > maximum_bytes {
+        Err(ReviewOnlyBaselineError::new(error))
+    } else {
+        Ok(())
+    }
+}
+
+fn validate_package_key_bounds(
+    key: &PackageKey,
+    maximum_identity_bytes: usize,
+) -> Result<(), ReviewOnlyBaselineError> {
+    let check = |value: &str| {
+        ensure_bounded_string(
+            value,
+            maximum_identity_bytes,
+            "review baseline package identity violates its byte bounds",
+        )
+    };
+    check(key.name().as_str())?;
+    match key.source_lineage() {
+        SourceLineage::GitHub(lineage) => {
+            check(lineage.owner())?;
+            check(lineage.repository())?;
+        }
+        SourceLineage::GitLab(lineage) => check(lineage.repository_path())?,
+        SourceLineage::Git(lineage) => {
+            if let Some(user) = lineage.user() {
+                check(user)?;
+            }
+            check(lineage.host())?;
+            check(lineage.repository_path())?;
+        }
+        SourceLineage::Workspace(lineage) => check(lineage.member_path().as_str())?,
+        SourceLineage::ExternalLocal(lineage) => {
+            check(lineage.canonical_absolute_path().to_str().ok_or_else(|| {
+                ReviewOnlyBaselineError::new("external source path is not UTF-8")
+            })?)?
+        }
+    }
+    Ok(())
+}
+
+fn validate_recovery_row<'a>(
+    row: &'a ReviewOnlyCanonicalRow,
+    key: &PackageKey,
+    target: &str,
+    limits: PackageReviewCanonicalRowRecoveryLimits,
+) -> Result<&'a [u8], ReviewOnlyBaselineError> {
+    let recovery_bytes = row.recovery_bytes().ok_or_else(|| {
+        ReviewOnlyBaselineError::new("review baseline contains a non-recoverable comparison row")
+    })?;
+    let decoded = decode_package_review_canonical_row_with_limits(recovery_bytes, limits)
+        .map_err(|_| ReviewOnlyBaselineError::new("invalid recovered compiler review row"))?;
+    if decoded.package() != key.identity()
+        || decoded.target().target_name() != target
+        || decoded.kind() != row.kind()
+        || decoded.risk() != row.risk()
+        || decoded.key_bytes() != row.key_bytes()
+        || decoded.canonical_bytes() != row.canonical_bytes()
+        || decoded.source() != row.source()
+    {
+        return Err(ReviewOnlyBaselineError::new(
+            "recovered compiler review row disagrees with review-only comparison metadata",
+        ));
+    }
+    Ok(recovery_bytes)
+}
+
+fn encode_package_key(
+    encoder: &mut Encoder,
+    key: &PackageKey,
+    maximum_identity_bytes: usize,
+) -> Result<(), ReviewOnlyBaselineError> {
+    validate_package_key_bounds(key, maximum_identity_bytes)?;
+    encoder.string(key.name().as_str())?;
+    match key.source_lineage() {
+        SourceLineage::GitHub(lineage) => {
+            encoder.byte(0);
+            encoder.string(lineage.owner())?;
+            encoder.string(lineage.repository())?;
+        }
+        SourceLineage::GitLab(lineage) => {
+            encoder.byte(1);
+            encoder.string(lineage.repository_path())?;
+        }
+        SourceLineage::Git(lineage) => {
+            encoder.byte(2);
+            encoder.byte(match lineage.transport() {
+                GitTransport::Https => 0,
+                GitTransport::SshUrl => 1,
+                GitTransport::ScpLike => 2,
+            });
+            match lineage.user() {
+                None => encoder.byte(0),
+                Some(user) => {
+                    encoder.byte(1);
+                    encoder.string(user)?;
+                }
+            }
+            encoder.string(lineage.host())?;
+            match lineage.port() {
+                None => encoder.byte(0),
+                Some(port) => {
+                    encoder.byte(1);
+                    encoder.u16(port);
+                }
+            }
+            encoder.string(lineage.repository_path())?;
+        }
+        SourceLineage::Workspace(lineage) => {
+            encoder.byte(3);
+            encoder.fixed(&decode_hex_32(&lineage.workspace_identity().to_hex())?);
+            encoder.string(lineage.member_path().as_str())?;
+        }
+        SourceLineage::ExternalLocal(lineage) => {
+            encoder.byte(4);
+            encoder.fixed(&decode_hex_32(&lineage.source_context().to_hex())?);
+            encoder.string(lineage.canonical_absolute_path().to_str().ok_or_else(|| {
+                ReviewOnlyBaselineError::new("external source path is not UTF-8")
+            })?)?;
+        }
+    }
+    Ok(())
+}
+
+fn decode_package_key(
+    decoder: &mut Decoder<'_>,
+    maximum_identity_bytes: usize,
+) -> Result<PackageKey, ReviewOnlyBaselineError> {
+    let name = PackageName::parse(decoder.string(maximum_identity_bytes)?.to_owned())
+        .map_err(|_| ReviewOnlyBaselineError::new("invalid package name in review baseline"))?;
+    let lineage = match decoder.byte()? {
+        0 => SourceLineage::git(&format!(
+            "https://github.com/{}/{}.git",
+            decoder.string(maximum_identity_bytes)?,
+            decoder.string(maximum_identity_bytes)?
+        )),
+        1 => SourceLineage::git(&format!(
+            "https://gitlab.com/{}.git",
+            decoder.string(maximum_identity_bytes)?
+        )),
+        2 => {
+            let transport = match decoder.byte()? {
+                0 => GitTransport::Https,
+                1 => GitTransport::SshUrl,
+                2 => GitTransport::ScpLike,
+                _ => return Err(ReviewOnlyBaselineError::new("invalid Git transport tag")),
+            };
+            let user = match decoder.byte()? {
+                0 => None,
+                1 => Some(decoder.string(maximum_identity_bytes)?.to_owned()),
+                _ => return Err(ReviewOnlyBaselineError::new("invalid Git user option tag")),
+            };
+            let host = decoder.string(maximum_identity_bytes)?.to_owned();
+            let port = match decoder.byte()? {
+                0 => None,
+                1 => Some(decoder.u16()?),
+                _ => return Err(ReviewOnlyBaselineError::new("invalid Git port option tag")),
+            };
+            let path = decoder.string(maximum_identity_bytes)?.to_owned();
+            let locator = generic_git_locator(transport, user.as_deref(), &host, port, &path);
+            SourceLineage::git(&locator)
+        }
+        3 => {
+            let workspace = WorkspaceLineageIdentity::parse_hex(&encode_hex(&decoder.array_32()?))
+                .map_err(|_| ReviewOnlyBaselineError::new("invalid workspace identity"));
+            let member = WorkspaceMemberPath::parse(decoder.string(maximum_identity_bytes)?)
+                .map_err(|_| ReviewOnlyBaselineError::new("invalid workspace member path"));
+            return Ok(PackageKey::new(
+                name,
+                SourceLineage::Workspace(WorkspaceMemberLineage::new(workspace?, member?)),
+            ));
+        }
+        4 => {
+            let context = ExternalSourceContext::parse_hex(&encode_hex(&decoder.array_32()?));
+            let path = decoder.string(maximum_identity_bytes)?.to_owned();
+            context
+                .and_then(|context| {
+                    ExternalLocalLineage::from_recovered_canonical_path(path, context)
+                })
+                .map(SourceLineage::ExternalLocal)
+        }
+        _ => return Err(ReviewOnlyBaselineError::new("invalid source-lineage tag")),
+    }
+    .map_err(|_| ReviewOnlyBaselineError::new("invalid source lineage in review baseline"))?;
+    Ok(PackageKey::new(name, lineage))
+}
+
+fn generic_git_locator(
+    transport: GitTransport,
+    user: Option<&str>,
+    host: &str,
+    port: Option<u16>,
+    path: &str,
+) -> String {
+    let user = user.map(|user| format!("{user}@")).unwrap_or_default();
+    match transport {
+        GitTransport::Https => format!(
+            "https://{user}{host}{}/{path}",
+            port.map(|port| format!(":{port}")).unwrap_or_default()
+        ),
+        GitTransport::SshUrl => format!(
+            "ssh://{user}{host}{}/{path}",
+            port.map(|port| format!(":{port}")).unwrap_or_default()
+        ),
+        GitTransport::ScpLike => format!("{user}{host}:{path}"),
+    }
+}
+
+fn encode_resolution(
+    encoder: &mut Encoder,
+    resolution: &ImmutableSourceResolution,
+) -> Result<(), ReviewOnlyBaselineError> {
+    match resolution {
+        ImmutableSourceResolution::Git {
+            commit,
+            tree,
+            content,
+        } => {
+            encoder.byte(0);
+            encoder.string(&commit.to_hex())?;
+            encoder.string(&tree.to_hex())?;
+            encoder.fixed(&decode_hex_32(&content.to_hex())?);
+        }
+        ImmutableSourceResolution::Workspace { content } => {
+            encoder.byte(1);
+            encoder.fixed(&decode_hex_32(&content.to_hex())?);
+        }
+        ImmutableSourceResolution::ExternalLocal { content } => {
+            encoder.byte(2);
+            encoder.fixed(&decode_hex_32(&content.to_hex())?);
+        }
+    }
+    Ok(())
+}
+
+fn decode_resolution(
+    decoder: &mut Decoder<'_>,
+) -> Result<ImmutableSourceResolution, ReviewOnlyBaselineError> {
+    let content = |decoder: &mut Decoder<'_>| {
+        SourceContentDigest::parse_hex(&encode_hex(&decoder.array_32()?))
+            .map_err(|_| ReviewOnlyBaselineError::new("invalid source content digest"))
+    };
+    match decoder.byte()? {
+        0 => ImmutableSourceResolution::git(
+            GitCommitId::parse_hex(decoder.string(64)?)
+                .map_err(|_| ReviewOnlyBaselineError::new("invalid Git commit ID"))?,
+            GitTreeId::parse_hex(decoder.string(64)?)
+                .map_err(|_| ReviewOnlyBaselineError::new("invalid Git tree ID"))?,
+            content(decoder)?,
+        )
+        .map_err(|_| ReviewOnlyBaselineError::new("invalid Git source resolution")),
+        1 => Ok(ImmutableSourceResolution::workspace(content(decoder)?)),
+        2 => Ok(ImmutableSourceResolution::external_local(content(decoder)?)),
+        _ => Err(ReviewOnlyBaselineError::new(
+            "invalid immutable-resolution tag",
+        )),
+    }
+}
+
+fn decode_hex_32(value: &str) -> Result<[u8; 32], ReviewOnlyBaselineError> {
+    let bytes = decode_hex(value)
+        .ok_or_else(|| ReviewOnlyBaselineError::new("invalid 32-byte hexadecimal value"))?;
+    bytes
+        .try_into()
+        .map_err(|_| ReviewOnlyBaselineError::new("invalid 32-byte hexadecimal value"))
+}
+
+fn decode_hex(value: &str) -> Option<Vec<u8>> {
+    if !value.len().is_multiple_of(2) {
+        return None;
+    }
+    value
+        .as_bytes()
+        .chunks_exact(2)
+        .map(|pair| {
+            let high = char::from(pair[0]).to_digit(16)?;
+            let low = char::from(pair[1]).to_digit(16)?;
+            Some(((high << 4) | low) as u8)
+        })
+        .collect()
+}
+
+fn encode_hex(bytes: &[u8]) -> String {
+    const DIGITS: &[u8; 16] = b"0123456789abcdef";
+    let mut encoded = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        encoded.push(char::from(DIGITS[usize::from(byte >> 4)]));
+        encoded.push(char::from(DIGITS[usize::from(byte & 0x0f)]));
+    }
+    encoded
+}
+
+struct Encoder {
+    bytes: Vec<u8>,
+    maximum_bytes: usize,
+    exceeded: bool,
+}
+
+impl Encoder {
+    fn bounded(maximum_bytes: usize) -> Self {
+        Self {
+            bytes: Vec::new(),
+            maximum_bytes,
+            exceeded: false,
+        }
+    }
+
+    fn append(&mut self, bytes: &[u8]) {
+        if self.exceeded
+            || self
+                .bytes
+                .len()
+                .checked_add(bytes.len())
+                .is_none_or(|length| length > self.maximum_bytes)
+        {
+            self.exceeded = true;
+            return;
+        }
+        if self.bytes.try_reserve(bytes.len()).is_err() {
+            self.exceeded = true;
+            return;
+        }
+        self.bytes.extend_from_slice(bytes);
+    }
+
+    fn fixed(&mut self, bytes: &[u8]) {
+        self.append(bytes);
+    }
+
+    fn byte(&mut self, value: u8) {
+        self.append(&[value]);
+    }
+
+    fn u16(&mut self, value: u16) {
+        self.append(&value.to_le_bytes());
+    }
+
+    fn u32(&mut self, value: u32) {
+        self.append(&value.to_le_bytes());
+    }
+
+    fn usize(&mut self, value: usize) -> Result<(), ReviewOnlyBaselineError> {
+        self.append(
+            &u64::try_from(value)
+                .map_err(|_| ReviewOnlyBaselineError::new("baseline length exceeds u64"))?
+                .to_le_bytes(),
+        );
+        Ok(())
+    }
+
+    fn bytes(&mut self, bytes: &[u8]) -> Result<(), ReviewOnlyBaselineError> {
+        self.usize(bytes.len())?;
+        self.append(bytes);
+        Ok(())
+    }
+
+    fn string(&mut self, value: &str) -> Result<(), ReviewOnlyBaselineError> {
+        self.bytes(value.as_bytes())
+    }
+
+    fn finish(self) -> Result<Vec<u8>, ReviewOnlyBaselineError> {
+        if self.exceeded {
+            Err(ReviewOnlyBaselineError::new(
+                "review baseline encoding exceeds its byte ceiling",
+            ))
+        } else {
+            Ok(self.bytes)
+        }
+    }
+}
+
+struct Decoder<'a> {
+    bytes: &'a [u8],
+    offset: usize,
+}
+
+impl<'a> Decoder<'a> {
+    const fn new(bytes: &'a [u8]) -> Self {
+        Self { bytes, offset: 0 }
+    }
+
+    fn take(&mut self, length: usize) -> Result<&'a [u8], ReviewOnlyBaselineError> {
+        let end = self
+            .offset
+            .checked_add(length)
+            .ok_or_else(|| ReviewOnlyBaselineError::new("baseline length overflow"))?;
+        let value = self
+            .bytes
+            .get(self.offset..end)
+            .ok_or_else(|| ReviewOnlyBaselineError::new("truncated review baseline capsule"))?;
+        self.offset = end;
+        Ok(value)
+    }
+
+    fn fixed(&mut self, expected: &[u8]) -> Result<(), ReviewOnlyBaselineError> {
+        if self.take(expected.len())? == expected {
+            Ok(())
+        } else {
+            Err(ReviewOnlyBaselineError::new(
+                "invalid review baseline capsule magic",
+            ))
+        }
+    }
+
+    fn byte(&mut self) -> Result<u8, ReviewOnlyBaselineError> {
+        Ok(self.take(1)?[0])
+    }
+
+    fn u16(&mut self) -> Result<u16, ReviewOnlyBaselineError> {
+        Ok(u16::from_le_bytes(
+            self.take(2)?.try_into().expect("exact u16 width"),
+        ))
+    }
+
+    fn u32(&mut self) -> Result<u32, ReviewOnlyBaselineError> {
+        Ok(u32::from_le_bytes(
+            self.take(4)?.try_into().expect("exact u32 width"),
+        ))
+    }
+
+    fn usize(&mut self) -> Result<usize, ReviewOnlyBaselineError> {
+        usize::try_from(u64::from_le_bytes(
+            self.take(8)?.try_into().expect("exact u64 width"),
+        ))
+        .map_err(|_| ReviewOnlyBaselineError::new("baseline length exceeds usize"))
+    }
+
+    fn bytes(&mut self, maximum: usize) -> Result<&'a [u8], ReviewOnlyBaselineError> {
+        let length = self.usize()?;
+        if length > maximum {
+            return Err(ReviewOnlyBaselineError::new(
+                "review baseline field exceeds its byte ceiling",
+            ));
+        }
+        self.take(length)
+    }
+
+    fn string(&mut self, maximum: usize) -> Result<&'a str, ReviewOnlyBaselineError> {
+        std::str::from_utf8(self.bytes(maximum)?)
+            .map_err(|_| ReviewOnlyBaselineError::new("review baseline string is not UTF-8"))
+    }
+
+    fn array_32(&mut self) -> Result<[u8; 32], ReviewOnlyBaselineError> {
+        Ok(self.take(32)?.try_into().expect("exact digest width"))
+    }
+
+    fn finish(self) -> Result<(), ReviewOnlyBaselineError> {
+        if self.offset == self.bytes.len() {
+            Ok(())
+        } else {
+            Err(ReviewOnlyBaselineError::new(
+                "review baseline capsule has trailing bytes",
+            ))
+        }
+    }
+}

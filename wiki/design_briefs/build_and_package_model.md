@@ -1030,6 +1030,20 @@ if it is unavailable, lock-based capability comparison still works and source
 review escalates to a standalone candidate audit. If the accepted lock baseline
 is unavailable, the complete closure undergoes fresh admission.
 
+The normalized comparison baseline is restart-stable independently of source
+custody. The current implementation captures a bounded review-only binary
+capsule containing the complete exact-key graph, immutable source selections,
+comparison commitments, and canonical comparison rows with explanatory source
+sidecars. A fresh process can decode that capsule and obtain identical
+row conflicts, fingerprints, triage, and source-review behavior; absent old
+source still selects standalone candidate review. Row framing and sidecars are
+decoded by the compiler, while package orchestration does not interpret row
+payloads. Recovered rows use a distinct review-only type and cannot impersonate
+newly compiler-issued evidence. The capsule checksum is corruption detection,
+not authenticity or evidence of serious review, and the type has no route to
+accepted lock state or `PackageInstance`. Promotion
+remains gated on the separately unsettled complete toolchain provenance.
+
 LLM review is advisory output, not authority to mutate the lock. Review tools
 consume canonical diffs rendered by Omega, with bounded and escaped
 package-origin identifiers treated as quoted inert data. Package prose,

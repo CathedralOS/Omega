@@ -84,6 +84,20 @@ package/projection identity mismatch, mixed deployment targets, and mixed
 compiler-executable commitments before capability comparison or source-packet
 assembly. These checks establish review custody only; they do not issue an
 accepted lock or settle complete toolchain provenance.
+Review baselines can now cross a process restart without old source custody. A
+bounded binary capsule retains the complete typed source graph, immutable
+resolutions, target and comparison commitments, and every canonical comparison
+row with its exact source sidecar. Compiler-owned decode derives row kind, risk,
+key, package, and target from the canonical row frame and rejects malformed or
+noncanonical source coordinates; package code leaves row payloads opaque.
+Recovered rows remain a distinct review-only type and cannot become newly
+compiler-issued evidence. The outer decoder checks its corruption checksum
+(not authenticity or proof of review), canonical re-encoding, strict
+package/row order, singleton header/provider rows, graph closure and depth, and
+independent resource ceilings. Recovered baselines produce the same conflicts,
+triage, and source packets as live baselines, including standalone candidate
+packets when old source is unavailable. This capsule is not `omega.lock`: it
+cannot issue a package instance, resolve a conflict, or mutate a project.
 Its aggregate bounded renderer frames compiler-only triage separately from
 hostile source lanes. It does not yet invoke a model, and no advisory answer
 can mint admission or prove an audit occurred.
@@ -516,6 +530,8 @@ omega-packages/
 |   |-- compiler_handoff.rs # Revalidated package-aware compiler inputs.
 |   |-- source_commands.rs # Unhardened source diagnostic command surface.
 |   |-- source_patch.rs    # Bounded hostile-data source review packet.
+|   |-- review_evidence.rs # Private live/recovered comparison evidence seam.
+|   |-- review_baseline.rs # Bounded restart-stable non-admitting capsule.
 |   |-- review_closure.rs # Shared exact-key compiler-review/custody checks.
 |   |-- source_review.rs   # Custody/evidence join and aggregate review input.
 |   |-- source_triage.rs   # Compiler-row source/provenance triage.

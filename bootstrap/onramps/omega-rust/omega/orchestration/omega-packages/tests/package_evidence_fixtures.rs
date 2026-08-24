@@ -8,10 +8,11 @@ use omega_compiler::{
 };
 use omega_packages::{
     CompileResolvedPackageReviewsError, LocalSourceLimits, PackageSourceClosureLimits,
-    PackageSourceVerificationPhase, PackageTriageDisposition, SourceLineage, SourceResolveError,
-    WorkspaceMemberPath, assemble_initial_source_review, assemble_update_source_review,
-    compile_resolved_package_reviews, resolve_workspace_package_closure, triage_initial_install,
-    triage_review_update,
+    PackageSourceVerificationPhase, PackageTriageDisposition, ReviewOnlyBaselineCapsule,
+    ReviewOnlyBaselineLimits, SourceLineage, SourceResolveError, WorkspaceMemberPath,
+    assemble_initial_source_review, assemble_update_source_review,
+    assemble_update_source_review_from_baseline, compile_resolved_package_reviews,
+    resolve_workspace_package_closure, triage_initial_install, triage_review_update,
 };
 use std::collections::BTreeSet;
 use std::path::PathBuf;
@@ -536,6 +537,39 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
             .find(|patch| patch.candidate_key() == closure.graph().root())
             .expect("missing old root source receives a standalone source packet");
         assert!(unavailable_patch.baseline_key().is_none());
+        if matches!(*package, "arithmetic-kernels" | "graph-workbench") {
+            let baseline = ReviewOnlyBaselineCapsule::capture(
+                &closure,
+                &reviews,
+                ReviewOnlyBaselineLimits::default(),
+            )
+            .expect("capture fixture review baseline");
+            let baseline = ReviewOnlyBaselineCapsule::decode(
+                &baseline
+                    .encode(ReviewOnlyBaselineLimits::default())
+                    .expect("encode fixture review baseline"),
+                ReviewOnlyBaselineLimits::default(),
+            )
+            .expect("recover fixture review baseline");
+            let recovered_unchanged = assemble_update_source_review_from_baseline(
+                &baseline,
+                &reviews,
+                closure.custodies(),
+                &closure,
+                omega_packages::PackageSourceReviewLimits::default(),
+            )
+            .expect("recovered baseline joins available old custody");
+            assert_eq!(recovered_unchanged, unchanged_review);
+            let recovered_unavailable = assemble_update_source_review_from_baseline(
+                &baseline,
+                &reviews,
+                &[],
+                &closure,
+                omega_packages::PackageSourceReviewLimits::default(),
+            )
+            .expect("recovered baseline survives unavailable old source");
+            assert_eq!(recovered_unavailable, unavailable_review);
+        }
         let _ = std::fs::remove_dir_all(cache);
     }
 }

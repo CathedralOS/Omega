@@ -1,6 +1,6 @@
 use crate::{
     CompilerIssuedPackageReview, CompilerIssuedPackageReviewSet, PackageKey,
-    capability_conflict::changed_review_risk,
+    capability_conflict::changed_review_risk, review_evidence::PackageReviewEvidence,
 };
 use omega_compiler::{
     PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk,
@@ -190,8 +190,16 @@ pub fn triage_review_update(
     candidate: &CompilerIssuedPackageReviewSet,
     unavailable_baseline_sources: &BTreeSet<PackageKey>,
 ) -> CompilerReviewTriage {
+    triage_review_update_records(baseline.reviews(), candidate, unavailable_baseline_sources)
+}
+
+pub(crate) fn triage_review_update_records<B: PackageReviewEvidence>(
+    baseline: &[B],
+    candidate: &CompilerIssuedPackageReviewSet,
+    unavailable_baseline_sources: &BTreeSet<PackageKey>,
+) -> CompilerReviewTriage {
     let baseline_by_name = reviews_by_name(baseline);
-    let candidate_by_name = reviews_by_name(candidate);
+    let candidate_by_name = reviews_by_name(candidate.reviews());
     let names = baseline_by_name
         .keys()
         .chain(candidate_by_name.keys())
@@ -213,11 +221,9 @@ pub fn triage_review_update(
     CompilerReviewTriage { decisions }
 }
 
-fn reviews_by_name(
-    reviews: &CompilerIssuedPackageReviewSet,
-) -> BTreeMap<&str, Vec<&CompilerIssuedPackageReview>> {
+fn reviews_by_name<R: PackageReviewEvidence>(reviews: &[R]) -> BTreeMap<&str, Vec<&R>> {
     let mut by_name = BTreeMap::<_, Vec<_>>::new();
-    for review in reviews.reviews() {
+    for review in reviews {
         by_name
             .entry(review.key().name().as_str())
             .or_default()
@@ -229,9 +235,9 @@ fn reviews_by_name(
     by_name
 }
 
-fn append_name_decisions(
+fn append_name_decisions<B: PackageReviewEvidence>(
     package_name: &str,
-    baseline: &[&CompilerIssuedPackageReview],
+    baseline: &[&B],
     candidate: &[&CompilerIssuedPackageReview],
     unavailable_baseline_sources: &BTreeSet<PackageKey>,
     decisions: &mut Vec<PackageTriageDecision>,
@@ -246,7 +252,7 @@ fn append_name_decisions(
             let candidate_review = unmatched_candidate.remove(index);
             decisions.push(decide_update(
                 package_name,
-                Some(baseline_review),
+                Some(*baseline_review),
                 Some(candidate_review),
                 unavailable_baseline_sources,
             ));
@@ -267,7 +273,7 @@ fn append_name_decisions(
         ));
     }
     decisions.extend(unmatched_baseline.into_iter().map(|baseline_review| {
-        decide_update(
+        decide_update::<B>(
             package_name,
             Some(baseline_review),
             None,
@@ -275,7 +281,7 @@ fn append_name_decisions(
         )
     }));
     decisions.extend(unmatched_candidate.into_iter().map(|candidate_review| {
-        decide_update(
+        decide_update::<B>(
             package_name,
             None,
             Some(candidate_review),
@@ -284,9 +290,9 @@ fn append_name_decisions(
     }));
 }
 
-fn decide_update(
+fn decide_update<B: PackageReviewEvidence>(
     package_name: &str,
-    baseline: Option<&CompilerIssuedPackageReview>,
+    baseline: Option<&B>,
     candidate: Option<&CompilerIssuedPackageReview>,
     unavailable_baseline_sources: &BTreeSet<PackageKey>,
 ) -> PackageTriageDecision {
@@ -303,7 +309,9 @@ fn decide_update(
         }
         (Some(baseline), Some(candidate)) => {
             let mut disposition = PackageTriageDisposition::Admitted;
-            if baseline.canonical_review_bytes() != candidate.canonical_review_bytes() {
+            if baseline.whole_review_commitment()
+                != PackageReviewEvidence::whole_review_commitment(candidate)
+            {
                 reasons.push(PackageTriageReason::CapabilityOrApiChanged);
                 disposition = match changed_review_risk(baseline, candidate) {
                     Some(PackageReviewCanonicalRowRisk::AuditRecommended) => {
@@ -318,16 +326,18 @@ fn decide_update(
             }
             if baseline.resolution() != candidate.resolution()
                 || baseline.source_consumption_commitment()
-                    != candidate.source_consumption_commitment()
+                    != PackageReviewEvidence::source_consumption_commitment(candidate)
             {
                 reasons.push(PackageTriageReason::SourceChanged);
             }
             if baseline.compiler_executable_commitment()
-                != candidate.compiler_executable_commitment()
+                != PackageReviewEvidence::compiler_executable_commitment(candidate)
             {
                 reasons.push(PackageTriageReason::CompilerArtifactChanged);
             }
-            if baseline.build_observation_summary() != candidate.build_observation_summary() {
+            if baseline.build_observation_commitment()
+                != PackageReviewEvidence::build_observation_commitment(candidate)
+            {
                 reasons.push(PackageTriageReason::BuildObservationChanged);
                 disposition =
                     disposition.max(PackageTriageDisposition::AdmittedWithAuditRecommended);
@@ -337,8 +347,11 @@ fn decide_update(
                 disposition =
                     disposition.max(PackageTriageDisposition::AdmittedWithAuditRecommended);
             }
-            let representation_changed = baseline.projection().representation_tcb()
-                != candidate.projection().representation_tcb();
+            let representation_changed = row_family_changed(
+                baseline,
+                candidate,
+                PackageReviewCanonicalRowKind::RepresentationTcb,
+            );
             if append_candidate_audit_reasons(candidate, representation_changed, &mut reasons) {
                 disposition =
                     disposition.max(PackageTriageDisposition::AdmittedWithAuditRecommended);
@@ -369,6 +382,28 @@ fn decide_update(
         candidate_key: candidate.map(|review| review.key().clone()),
         disposition,
         reasons,
+    }
+}
+
+fn row_family_changed(
+    baseline: &impl PackageReviewEvidence,
+    candidate: &impl PackageReviewEvidence,
+    kind: PackageReviewCanonicalRowKind,
+) -> bool {
+    let mut baseline_rows = baseline
+        .canonical_rows()
+        .iter()
+        .filter(|row| row.kind() == kind);
+    let mut candidate_rows = candidate
+        .canonical_rows()
+        .iter()
+        .filter(|row| row.kind() == kind);
+    loop {
+        match (baseline_rows.next(), candidate_rows.next()) {
+            (Some(left), Some(right)) if left.canonical_bytes() == right.canonical_bytes() => {}
+            (None, None) => return false,
+            _ => return true,
+        }
     }
 }
 

@@ -875,6 +875,24 @@ complete.
   triggers fresh admission of the complete graph; missing normalized evidence
   behind a fingerprint is treated as missing admission evidence.
 
+  Progress 2026-08-24: a bounded binary `ReviewOnlyBaselineCapsule` now
+  checkpoints the exact `PackageKey` source graph, immutable resolutions,
+  target and observed compiler commitment, source/build-observation and whole-
+  review commitments, and every complete canonical comparison row with its
+  retained explanatory source sidecar. The compiler strictly recovers row
+  framing, risk, identity, target, and canonical source-coordinate shape;
+  package code never decodes row semantics. Recovered rows have a distinct
+  review-only type and cannot masquerade as newly compiler-issued evidence.
+  Decode revalidates graph closure, graph/review bijection,
+  singleton rows, ordering, checksums, canonical re-encoding, and independent
+  resource ceilings. Its checksum detects corruption, not authenticity or
+  serious review; project authority can replace it. A recovered capsule
+  produces the same conflicts, triage,
+  and source-review packets as live baseline state, including when all old
+  source is unavailable. This closes the review-restart mechanism, not accepted
+  lock persistence: the capsule has no `PackageInstance`, resolution, project-
+  mutation, or lock-promotion path, and Q7 still blocks that promotion.
+
 - **LOCK-CLOSURE-VALIDATION.** Port useful closure/reachability validation to
   `PackageKey` and instance identities.
 
@@ -893,6 +911,12 @@ complete.
   accepted-lock validator: conflicting package instances, stale sealed
   evidence, open/unreachable lock rows, and complete toolchain provenance
   remain.
+
+  Review-only baseline decode additionally reconstructs the complete typed
+  source graph through `ResolvedPackageClosure`, rejecting duplicate,
+  conflicting, open, unreachable, cyclic, over-depth, and resolution/lineage-
+  mismatched rows before comparison. Accepted-instance and stale sealed-
+  provenance validation remain part of the blocked accepted-lock schema.
 
 ## P5 — Admission, audit, and review
 
