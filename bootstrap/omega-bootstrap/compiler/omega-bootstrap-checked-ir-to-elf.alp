@@ -913,12 +913,12 @@ machine Main::emit_text(&mut self) {
     state shim_call() { self.code_byte(232); transition self.pass == 0 { true -> shim_dummy_call() _ -> shim_root_call() } }
     state shim_dummy_call() { self.code_u32(0); transition 0 { _ -> shim_tail() } }
     state shim_root_call() { self.code_rel32(self.root_offset); transition 0 { _ -> shim_tail() } }
-    state shim_tail() { self.code_byte(15); self.code_byte(182); self.code_byte(248); self.code_byte(184); self.code_u32(231); self.code_byte(15); self.code_byte(5); self.code_byte(15); self.code_byte(11); self.trap_offset = self.code_cursor; self.code_byte(15); self.code_byte(11); self.current_block = self.metadata_arena[106496 + 25856 + self.entry_id]; self.end = self.current_block + self.metadata_arena[106496 + 25984 + self.entry_id]; transition 0 { _ -> blocks() } }
-    state blocks() { transition self.current_block < self.end { true -> block() _ -> done() } }
+    state shim_tail() { self.code_byte(15); self.code_byte(182); self.code_byte(248); self.code_byte(184); self.code_u32(231); self.code_byte(15); self.code_byte(5); self.code_byte(15); self.code_byte(11); self.trap_offset = self.code_cursor; self.code_byte(15); self.code_byte(11); self.current_block = self.metadata_arena[106496 + 25856 + self.entry_id]; transition 0 { _ -> blocks() } }
+    state blocks() { transition self.current_block < self.metadata_arena[106496 + 25856 + self.entry_id] + self.metadata_arena[106496 + 25984 + self.entry_id] { true -> block() _ -> done() } }
     state block() { transition self.pass == 0 { true -> remember() _ -> emit() } }
     state remember() { self.metadata_arena[106496 + 52864 + self.current_block] = self.code_cursor; transition self.current_block == self.metadata_arena[106496 + 26112 + self.entry_id] { true -> remember_root() _ -> emit() } }
     state remember_root() { self.root_offset = self.code_cursor; transition 0 { _ -> emit() } }
-    state emit() { self.i = self.current_block; self.emit_block(self.current_block); self.current_block = self.i + 1; transition self.status == 0 { true -> blocks() _ -> done() } }
+    state emit() { self.emit_block(self.current_block); self.current_block = self.current_block + 1; transition self.status == 0 { true -> blocks() _ -> done() } }
     state done() { }
 }
 

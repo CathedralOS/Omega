@@ -481,6 +481,86 @@ size. Machine blocks are emitted in block-ID order after the shim and shared tra
 stub; all sizes and rel32 displacements are precomputed and rechecked while
 emitting.
 
+### 7.1 Canonical x86-64 templates
+
+CKIR1 selects exact private instruction bytes; semantically equivalent x86-64
+sequences are not canonical CKIR1 output. This makes artifact reconstruction a
+check of the selected lowering rather than a comparison with another producer.
+The notation below uses little-endian four-byte words:
+
+- `V(v)` and `P(p)` are the positive, post-allocation frame offsets of value
+  `v` and place `p`; their instruction displacement is `-V(v)` or `-P(p)`;
+- `S(i) = scratch_base + 8 * (i + 1)` is edge scratch ordinal `i`;
+- `LOW(t)`, `HIGH(t)`, `LEN(t)`, `STRIDE(t)`, and `FIELD(f)` are the
+  independently reconstructed range endpoints, array length, element stride,
+  and field offset;
+- `REL(target)` is `target - offset_after_rel32`, encoded as signed `i32`;
+- `LV(v) = 8B 85 -V(v)`, `SV(v) = 89 85 -V(v)`,
+  `LP(p) = 48 8B 85 -P(p)`, and `SP(p) = 48 89 85 -P(p)`; and
+- `CHECK(t) = 3D LOW(t); 0F 82 REL(trap); 3D HIGH(t); 0F 87 REL(trap)`.
+
+The fixed register roles are `rdi` for the incoming receiver, `rax/eax` for
+the current address/scalar, `r10` for a scalar-store or copy destination, and
+`r11` for a copy source. The text begins at file offset `0x1000` with:
+
+```text
+48 8D 3D REL(BSS)       lea rdi,[rip+BSS]
+E8 REL(entry block)     call selected entry block
+0F B6 F8                movzx edi,al
+B8 E7 00 00 00          mov eax,231
+0F 05                   syscall
+0F 0B                   unreachable fallthrough trap
+0F 0B                   shared range/index/add trap
+```
+
+The shared trap target is the first byte of the second `0F 0B`. The entry
+block alone begins with
+`55 48 89 E5 48 81 EC frame_size 48 89 BD F8 FF FF FF`; this establishes
+`rbp`, reserves the complete aligned frame, and stores the receiver at
+`[rbp-8]`. Operations then use these exact templates:
+
+| Operation | Canonical bytes, in order |
+| --- | --- |
+| `Const` | `B8 imm0; SV(result)` |
+| `SelfPlace` | `48 8B 85 F8 FF FF FF; SP(result)` |
+| `FieldPlace` | `LP(base); 48 05 FIELD(field); SP(result)` |
+| `IndexPlace` | `LP(base); 49 89 C2; LV(index); 89 C1; 81 F9 LEN(array); 0F 83 REL(trap); 48 69 C9 STRIDE(element); 49 01 CA; 4C 89 D0; SP(result)` |
+| `Load` | `LP(place); 8B 00` for `u32` or `LP(place); 0F B6 00` for `u8`/`bool`; then `SV(result)` |
+| `Store` | `LP(destination); 49 89 C2; LV(source); CHECK(destination type); 41 89 02` for `u32` or `41 88 02` for `u8`/`bool` |
+| `Add` | `LV(left); 03 85 -V(right); 0F 82 REL(trap); CHECK(result type); SV(result)` |
+| `Less` | `LV(left); 3B 85 -V(right); 0F 92 C0; 0F B6 C0; SV(result)` |
+
+`Copy` begins `LP(destination); 49 89 C2`, loads `r11` with
+`4C 8B 9D -V(source)` for a structural value or
+`4C 8B 9D -P(source)` for a place, then walks semantic scalar leaves in the
+order defined above. A `u32` leaf at offset `o` emits
+`41 8B 83 o; 41 89 82 o`; a `u8` or `bool` leaf emits
+`41 0F B6 83 o; 41 88 82 o`. Padding has no leaf and emits no instruction.
+
+An edge first stages every argument. Scalar argument `v` at ordinal `i` emits
+`LV(v); 89 85 -S(i)`; a structural argument emits
+`48 8B 85 -V(v); 48 89 85 -S(i)`. It then commits every target parameter in
+ordinal order. A scalar parameter `p` emits
+`8B 85 -S(i); CHECK(type(p)); SV(p)`; a structural parameter emits
+`48 8B 85 -S(i); 48 89 85 -V(p)`. Every edge ends with
+`E9 REL(target block)`.
+
+`Jump` emits one edge. `Branch` emits
+`LV(condition); 85 C0; 0F 84 REL(start of target-1 edge)`, followed by the
+target-0 edge and then the target-1 edge. `ReturnUnit` emits `C9 C3`.
+`ReturnValue` emits `LV(value); CHECK(machine result type); C9 C3`.
+Blocks and operations retain their canonical ID order. The first sizing pass
+records every block offset; the second pass fills every shim, trap, branch, and
+edge displacement and must have identical length. The output then contains
+zeros from byte 176 to `0x1000`, exact text, and only the zeros needed to reach
+the independently page-rounded RX size; EOF occurs immediately there.
+
+Both program headers use `p_paddr == p_vaddr`. The RX header has
+`p_offset = 0`, `p_filesz = p_memsz = rx_size`, flags 5, and alignment 4096.
+The RW header has `p_offset = rx_size`,
+`p_vaddr = p_paddr = 0x400000 + rx_size`, `p_filesz = 0`, the page-rounded
+zero-fill size as `p_memsz`, flags 6, and alignment 4096.
+
 ## 8. Resource, status, and publication contract
 
 CKIR1 publishes these artifact ceilings in addition to the source-profile
@@ -591,12 +671,14 @@ the contract:
    CKIR operation, field offset, branch target, or artifact byte must be
    unprovable.
 
-Current evidence closes items 1–3. The focused artifact gate also closes
-representative exact/adjacent resources and mutations from item 4 and
-independently reconstructs the ELF segment, entry, and selected-owner BSS
-envelope from item 5. It does not claim exhaustive table/relation teeth, exact
-instruction/displacement reconstruction, or item 6. Those three remaining
-obligations stay separately visible in `TASKS_BOOTSTRAP.md`; passing the current
+Current evidence closes items 1–3 and 5. The focused artifact gate also closes
+representative exact/adjacent resources and mutations from item 4. Its separate
+artifact checker reconstructs the complete ELF headers and segments, selected
+layout and frame, field/array offsets, shim, all selected instruction templates,
+block and trap displacements, padding, and EOF. The all-template fixture rejects
+one mutation at every artifact byte, and a valid-but-mismatched CKIR/ELF pair
+rejects. Exhaustive table/relation teeth in item 4 and lower-rooted refinement in
+item 6 remain separately visible in `TASKS_BOOTSTRAP.md`; passing the current
 fixture cannot silently promote this tranche to complete.
 
 Only after these obligations and their negative controls pass may CKIR1 support
