@@ -191,6 +191,28 @@ Delta is the systems/compiler-host rung and an independent language. It should
 be robust, C-like in systems power, and Omega-shaped where consistency is cheap;
 it is not required to be a syntactic or semantic Omega subset.
 
+Delta v1 is discovered from the complete `omega-bootstrap` source closure, not
+frozen in advance from the current Rust producer or D0 corpus. The fixed design
+constraints are deterministic specified behavior, no undefined behavior or
+ambient host authority, specified failure, lower-rung meaning for every admitted
+construct, and Omega spelling and ordinary meaning whenever Delta retains the
+same construct. The exact scalar, arithmetic, aggregate, control, allocation,
+and boundary inventory remains provisional until compiler-source evidence shows
+it is needed. A facility's presence in D0 or acceptance by the Rust producer
+does not admit it to v1.
+
+The selection rule is whole-bootstrap cost: retain a facility only when it
+makes the bridge materially smaller, safer, or easier to assure than its
+replacement. Thus Delta may use only Exact integer arithmetic if that suffices,
+or one narrow modular operation if artifact encoding alone requires it; it need
+not retain general arithmetic domains. Likewise, a one-purpose compiler-host
+interface should remain a sealed byte-input, artifact-output, diagnostic-output,
+and process-termination surface unless the bridge demonstrates a further need.
+General boundary traits, filesystem access, and other host extensibility are not
+presumed Delta facilities.
+The provisional evidence ledger is
+[`bootstrap/rungs/delta/FEATURE_LEDGER.md`](../../../bootstrap/rungs/delta/FEATURE_LEDGER.md).
+
 Delta source builds `omega-bootstrap`. That compiler is intentionally
 spec-incomplete: it accepts only the Omega self-hosting profile `Ωself`, rejects
 everything else, and gives accepted programs their exact normal Omega meaning.
@@ -307,11 +329,12 @@ close it.
 5. **Establish the production Omega source tree and `Ωself`** — publish its
    deterministic dependency closure, derive the smallest robust source profile,
    and mechanically reject excluded features. *(D6.)*
-6. **Finish Delta and build `omega-bootstrap`** — implement the exact `Ωself`
-   frontend/semantic path and correct conservative lowering needed for the one
-   hosted production build. Compile, rather than duplicate, the product
-   optimizer and advanced lowering source. Do not require unrelated full-Omega
-   source or tool surfaces. *(D2/D6, later.)*
+6. **Complete `omega-bootstrap` and freeze Delta v1 around its source closure** —
+   implement the exact `Ωself` frontend/semantic path and correct conservative
+   lowering needed for the one hosted production build, prune unused Delta
+   experiments, then freeze the retained language. Compile, rather than
+   duplicate, the product optimizer and advanced lowering source. Do not require
+   unrelated full-Omega source or tool surfaces. *(D2/D6, later.)*
 7. **Build production Omega once** — compile the `Ωself`-constrained Omega
    source into the full optimizing compiler, then apply the normal meaning and
    translation-validation gates. Its own binary may be conservative; a further

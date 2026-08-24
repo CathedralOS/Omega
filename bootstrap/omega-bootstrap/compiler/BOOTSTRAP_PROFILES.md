@@ -25,6 +25,13 @@ The eventual profile may reuse their implementation, but it is derived from the
 production source closure rather than declared to be the next numbered canary.
 Sufficiency cannot be established from the current Rust product implementation.
 
+Likewise, D0 is discovery evidence rather than a normative ancestor of Delta
+v1. Every listed D0 facility—including arithmetic domains, payload sums,
+recursion, fixed-backing conventions, and `boundary trait` syntax—may be removed
+if the complete bridge source can be made smaller or easier to assure without
+it. Delta v1 is frozen only after that complete source closure is available and
+unused producer behavior has been pruned.
+
 O1 generalizes the O0 body to a bounded sequence of zero or more literal
 `write_line` statements followed by exactly one literal `exit_process`. One
 table-driven frontend, terminal emitter, and direct backend handle every
@@ -50,6 +57,12 @@ implemented, self-hosted Delta surface:
 - `read_byte`, `write_byte`, `write_line`, and `exit_process` as the explicit
   compiler boundary;
 - the fixed-backing allocation convention below.
+
+These bullets describe what current D0 canaries may use. They do not prescribe
+the eventual Delta spelling or require a general boundary-trait facility. The
+working v1 host authority is narrower: byte input, artifact output, diagnostic
+output, and process termination, supplied through a sealed interface unless
+bridge evidence requires more.
 
 The calling-profile limits are at most four value parameters for a free machine
 and at most three value parameters for a self method. A D0 compiler slice must

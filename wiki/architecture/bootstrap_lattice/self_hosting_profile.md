@@ -63,11 +63,14 @@ count, or syntax-tree permutation is not an implementation of `Ωself`.
 ## Delta design budget
 
 Delta should have C-like systems power without inheriting C's undefined and
-ambient behavior. Its literal specification should favor:
+ambient behavior. Its v1 inventory is derived from the complete
+`omega-bootstrap` source closure rather than from D0, the sample corpus, or the
+Rust producer. The following are candidate tools, not facilities already voted
+into the language:
 
 - fixed-width scalars, bytes, predictable aggregates, arrays, slices, and
   explicit representation;
-- procedures, modules or deterministic source bundling, loops, recursion,
+- procedures, deterministic source bundling, loops, recursion,
   state-machine control, and payload-bearing sum data;
 - explicit references or integer arena handles, checked indexing, and stable
   calling/layout conventions;
@@ -76,10 +79,43 @@ ambient behavior. Its literal specification should favor:
   reclamation, with specified exhaustion;
 - conservative lowering and auditable code generation.
 
+The non-negotiable properties are deterministic specified behavior, no
+undefined behavior or ambient host authority, specified failure, and lower-rung
+meaning for every admitted construct. Failure may be a checked result, static
+rejection, or defined trap according to the retained operation; it may not be
+silent truncation or undefined behavior. Within those constraints, minimize
+whole-bootstrap cost rather than feature count in isolation. If Exact arithmetic
+is sufficient, Delta need not acquire Wrapping or Saturating merely because the
+current producer accepts them. If artifact encoding needs one modular operation,
+prefer that narrow operation over a pervasive arithmetic-policy system unless
+the source demonstrates the broader system pays for itself. Apply the same test
+to sums, references, arenas, contracts, refinements, and every other corpus
+feature.
+
 Omega-like lexical and structural conventions reduce cognitive and tooling
-distance, but similarity is not a semantic subset promise. Delta-only bootstrap
-facilities are acceptable when they reduce the lower-rung implementation and
-assurance burden and remain explicit in Delta's specification.
+distance. When both languages retain the same construct, Delta should use
+Omega's spelling, grammar, precedence, and ordinary meaning unless doing so
+materially increases the bootstrap or assurance burden. Unsupported Omega
+constructs reject; shared syntax does not make Delta an Omega subset or couple
+its versioning to Omega. Delta-only bootstrap facilities are acceptable when
+they reduce total cost and remain explicit in Delta's specification.
+
+Delta has one intended program class, so host extensibility is not presumed.
+The working boundary is sealed byte input, artifact output, diagnostic output,
+and process termination. Target configuration belongs in the deterministic
+input. Filesystem traversal, environment access, clocks, networking, process
+spawning, and general boundary-trait realization remain outside v1 unless the
+bridge source demonstrates an unavoidable requirement. Fixed backing can be
+ordinary zero-initialized program storage rather than a host service.
+
+Discovery does not make the contract corpus-shaped. During construction, each
+new facility must record the concrete bridge requirement, the simpler rejected
+alternative, and its lower-rung meaning and negative gates. Before freezing v1,
+publish the complete source manifest and feature inventory, remove unused or
+accidental producer behavior, then specify the retained grammar and edge cases
+independently of those particular files. The working inventory lives in the
+Delta rung's
+[`FEATURE_LEDGER.md`](../../../bootstrap/rungs/delta/FEATURE_LEDGER.md).
 
 ## Working `Ωself` policy
 
@@ -87,11 +123,12 @@ The exact profile cannot be frozen before the production compiler source and
 deterministic dependency manifest exist. The working policy is nevertheless
 specific enough to guide that source.
 
-Delta v1 and `Ωself` must be chosen independently. Delta is judged by the cost
-of implementing and assuring `omega-bootstrap`; `Ωself` is judged by the cost
-and robustness of the production compiler source. Neither contract should be
-made artificially resemble the other, and neither source manifest is allowed
-to stand in for a language/profile definition.
+Delta v1 and `Ωself` remain separate contracts even though their discovery can
+co-evolve. Delta is derived from the cost of implementing and assuring the
+complete `omega-bootstrap` closure; `Ωself` is derived from the cost and
+robustness of the production compiler source. Neither contract should be made
+artificially resemble the other, and neither source manifest is allowed to
+stand in for a language/profile definition.
 
 Presumptively excluded from compiler source:
 
