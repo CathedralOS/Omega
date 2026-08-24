@@ -208,8 +208,12 @@ build is `Hermetic`, and console-only execution is not supplied real filesystem
 authority. Both statement- and value-position dispatch require an exact
 canonical toolchain filesystem requirement symbol before the provider is
 entered; a package-authored lookalike remains an ordinary unsupported call even
-under granted execution. This Boolean rung is not a receipt and makes no
-replayability or source-rebuildability claim.
+under granted execution. The selected canonical signature then maps to a
+closed, explicitly tagged operation identity exhaustively handled by both
+filesystem providers. ABI aliases remain distinct. Future rooted transcripts
+must account for conditionally absolute `read_link` results and unconditionally
+absolute `canonicalize` and `final_path_name_by_handle` results. This Boolean
+rung is not a receipt and makes no replayability or source-rebuildability claim.
 
 The usage record carries a schema identity independently from evaluator-step
 identity: adding telemetry does not change what one step means. It records

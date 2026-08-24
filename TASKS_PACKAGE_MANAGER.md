@@ -665,10 +665,17 @@ complete.
   real filesystem authority. Both statement- and value-position filesystem
   dispatch now require an exact requirement symbol owned by the canonical
   toolchain `filesystem_host.omg`; an explicit granted mode cannot activate a
-  package-authored trait or same-named method. A readable leaf is used only
-  after that authority selection to route within the provider. Stable canonical
-  operation encoding for receipts, lossless rooted paths, transcripts/content
-  custody, fresh staging publication, output-tree commitment, and replay remain.
+  package-authored trait or same-named method. After that authority selection,
+  the readable leaf maps into a closed 50-operation compiler enum with explicit
+  append-only tags; virtual and real providers exhaustively match that enum, and
+  a source-surface test rejects drift from the canonical Omega trait. Alias and
+  platform operations retain distinct identities. An exact canonical signature
+  lacking an encoded identity rejects rather than falling through to another
+  boundary dispatcher. `read_link` is recognized as
+  conditionally absolute-path-producing; `canonicalize` and
+  `final_path_name_by_handle` are unconditionally so. Transcript schema and
+  serialization, lossless rooted paths, transcripts/content custody, fresh
+  staging publication, output-tree commitment, and replay remain.
 
 - **PROOF-AND-BOUNDARY-ADMISSION.** Fail closed on false or incomplete evidence.
 

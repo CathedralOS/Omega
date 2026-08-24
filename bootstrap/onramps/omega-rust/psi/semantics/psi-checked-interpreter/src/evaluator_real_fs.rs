@@ -17,14 +17,14 @@
 //!
 //! Portable by construction: real files ride `std::fs::File` behind the same
 //! synthetic-fd table shape the virtual fs uses (no libc, no raw handles), so
-//! the provider works wherever the compiler runs. The op-name set mirrors the
-//! virtual dispatcher one-for-one. FULL OP PARITY as of 2026-07-10m: every
+//! the provider works wherever the compiler runs. Both providers exhaustively
+//! match the same closed operation set. FULL OP PARITY as of 2026-07-10m: every
 //! op the virtual fs serves, the real provider serves too (unix-gated where
 //! std requires it: symlink/permissions/chown; ENOTSUP on other hosts) --
 //! so a build program tested hermetically cannot hit a refusal surprise in
 //! real mode on the same host family.
 
-use super::{EvalResult, ExpressionHandle, Frame, Value, host_open_flags};
+use super::{EvalResult, ExpressionHandle, FilesystemHostOperation, Frame, Value, host_open_flags};
 use std::collections::BTreeMap;
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
@@ -228,21 +228,19 @@ fn resolve_for_check(path: &Path) -> Option<PathBuf> {
 }
 
 impl<'program> super::Evaluator<'program> {
-    /// Mirror of `try_filesystem_call` against the REAL filesystem. Same
-    /// contract: `Ok(None)` when `method` is not a filesystem op. The match
-    /// arms cover the virtual dispatcher's op names ONE-FOR-ONE so a
-    /// filesystem op can never fall through to a non-fs resolution path in
-    /// real mode.
+    /// Mirror of `try_filesystem_call` against the REAL filesystem. The match
+    /// exhaustively covers the same closed operation type as the virtual
+    /// provider, so neither provider can silently omit a canonical operation.
     pub(super) fn try_real_filesystem_call(
         &mut self,
-        method: &str,
+        operation: FilesystemHostOperation,
         arguments: &[ExpressionHandle],
         frame: &Frame,
-    ) -> EvalResult<Option<Value>> {
+    ) -> EvalResult<Value> {
         // Two-phase per op: resolve arguments via the evaluator FIRST (that
         // borrow of self ends), then touch self.real_fs.
-        let result: i64 = match method {
-            "create" => {
+        let result: i64 = match operation {
+            FilesystemHostOperation::Create => {
                 // O_WRONLY|O_CREAT|O_TRUNC: create/truncate, writable.
                 let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
                 match self.authorized_path(&path, true) {
@@ -257,7 +255,7 @@ impl<'program> super::Evaluator<'program> {
                     None => -1,
                 }
             }
-            "open" | "open_create" => {
+            FilesystemHostOperation::Open | FilesystemHostOperation::OpenCreate => {
                 let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
                 let flags = self.eval_fs_scalar(arguments.get(1).copied(), frame)? as i32;
                 // `open_create`'s trailing creation mode; `open` has no third
@@ -275,13 +273,17 @@ impl<'program> super::Evaluator<'program> {
                     || host_open_flags::o_append(flags);
                 match self.authorized_path(&path, wants_write) {
                     Some(path) => {
-                        let options = open_options_for(flags, mode, method == "open_create");
+                        let options = open_options_for(
+                            flags,
+                            mode,
+                            operation == FilesystemHostOperation::OpenCreate,
+                        );
                         self.real_result_fd(open_real(&options, &path, wants_write), path)
                     }
                     None => -1,
                 }
             }
-            "open_path_handle" => {
+            FilesystemHostOperation::OpenPathHandle => {
                 // Real-mode model of CreateFileA's metadata/query use. The
                 // shared helper adds FILE_FLAG_BACKUP_SEMANTICS for a directory
                 // on Windows, so the same synthetic handle table serves files
@@ -306,7 +308,7 @@ impl<'program> super::Evaluator<'program> {
                     }
                 }
             }
-            "read" => {
+            FilesystemHostOperation::Read => {
                 let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
                 let count = self.eval_fs_scalar(arguments.get(2).copied(), frame)? as usize;
                 let outcome = {
@@ -337,7 +339,7 @@ impl<'program> super::Evaluator<'program> {
                     }
                 }
             }
-            "write" => {
+            FilesystemHostOperation::Write => {
                 let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
                 let bytes = self.eval_fs_bytes(arguments.get(1).copied(), frame)?;
                 let real = self.real_fs_mut();
@@ -355,7 +357,7 @@ impl<'program> super::Evaluator<'program> {
                     }
                 }
             }
-            "seek" => {
+            FilesystemHostOperation::Seek => {
                 let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
                 let offset = self.eval_fs_scalar(arguments.get(1).copied(), frame)?;
                 let whence = self.eval_fs_scalar(arguments.get(2).copied(), frame)?;
@@ -379,7 +381,7 @@ impl<'program> super::Evaluator<'program> {
                     }
                 }
             }
-            "close" => {
+            FilesystemHostOperation::Close => {
                 let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
                 let real = self.real_fs_mut();
                 if real.files.remove(&fd).is_some() {
@@ -389,7 +391,7 @@ impl<'program> super::Evaluator<'program> {
                     -1
                 }
             }
-            "close_handle" => {
+            FilesystemHostOperation::CloseHandle => {
                 let handle = self.eval_fs_fd(arguments.first().copied(), frame)?;
                 let real = self.real_fs_mut();
                 if real.files.remove(&handle).is_some() {
@@ -399,7 +401,7 @@ impl<'program> super::Evaluator<'program> {
                     0
                 }
             }
-            "duplicate" => {
+            FilesystemHostOperation::Duplicate => {
                 let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
                 let real = self.real_fs_mut();
                 let cloned = match real.files.get(&fd) {
@@ -418,7 +420,7 @@ impl<'program> super::Evaluator<'program> {
                     }
                 }
             }
-            "set_len" => {
+            FilesystemHostOperation::SetLen => {
                 let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
                 let length = self.eval_fs_scalar(arguments.get(1).copied(), frame)?;
                 let real = self.real_fs_mut();
@@ -436,7 +438,7 @@ impl<'program> super::Evaluator<'program> {
                     }
                 }
             }
-            "sync" | "sync_data" => {
+            FilesystemHostOperation::Sync | FilesystemHostOperation::SyncData => {
                 let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
                 let real = self.real_fs_mut();
                 match real.files.get_mut(&fd) {
@@ -455,28 +457,28 @@ impl<'program> super::Evaluator<'program> {
             }
             // `remove_name` is the TRUSTED plain-path twin (D-at trust class):
             // the arg bytes ARE the path, so both spellings share one arm.
-            "remove" | "remove_name" => {
+            FilesystemHostOperation::Remove | FilesystemHostOperation::RemoveName => {
                 let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
                 match self.authorized_path(&path, true) {
                     Some(path) => self.real_result_unit(std::fs::remove_file(path)),
                     None => -1,
                 }
             }
-            "create_dir" | "create_dir_name" => {
+            FilesystemHostOperation::CreateDir | FilesystemHostOperation::CreateDirName => {
                 let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
                 match self.authorized_path(&path, true) {
                     Some(path) => self.real_result_unit(std::fs::create_dir(path)),
                     None => -1,
                 }
             }
-            "remove_dir" | "remove_dir_name" => {
+            FilesystemHostOperation::RemoveDir | FilesystemHostOperation::RemoveDirName => {
                 let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
                 match self.authorized_path(&path, true) {
                     Some(path) => self.real_result_unit(std::fs::remove_dir(path)),
                     None => -1,
                 }
             }
-            "rename" => {
+            FilesystemHostOperation::Rename => {
                 let from = self.eval_fs_bytes(arguments.first().copied(), frame)?;
                 let to = self.eval_fs_bytes(arguments.get(1).copied(), frame)?;
                 // BOTH ends need write authority: a rename removes `from` and
@@ -489,7 +491,7 @@ impl<'program> super::Evaluator<'program> {
                     _ => -1,
                 }
             }
-            "read_at" => {
+            FilesystemHostOperation::ReadAt => {
                 // `pread(fd, buf, count, offset)`: read at an absolute offset
                 // WITHOUT moving the cursor. Emulated portably (std has no
                 // cross-platform pread): seek, read, restore.
@@ -516,7 +518,7 @@ impl<'program> super::Evaluator<'program> {
                     }
                 }
             }
-            "write_at" => {
+            FilesystemHostOperation::WriteAt => {
                 // `pwrite(fd, buf, offset)`: write at an absolute offset
                 // WITHOUT moving the cursor (same emulation).
                 let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
@@ -537,7 +539,7 @@ impl<'program> super::Evaluator<'program> {
                     }
                 }
             }
-            "read_dir" => {
+            FilesystemHostOperation::ReadDir => {
                 // `read_dir(fd, buf, count, &position)` -- the virtual
                 // dispatcher's contract, mirrored. Pack `.`/`..` plus immediate
                 // children as Darwin dirent records and return the next window
@@ -580,7 +582,7 @@ impl<'program> super::Evaluator<'program> {
                     }
                 }
             }
-            "find_first" => {
+            FilesystemHostOperation::FindFirst => {
                 // `find_first(pattern, &data)` -- the windows dir-walk seam
                 // (fs rung 3a) served against the real filesystem: strip the
                 // `/*` tail (the impl joins with `/`, which Win32 accepts),
@@ -592,7 +594,7 @@ impl<'program> super::Evaluator<'program> {
                     Some(dir_path) => match self.authorized_path(dir_path, false) {
                         Some(path) => real_dirent_entries(&path),
                         None => {
-                            return Ok(Some(Value::Int(-1)));
+                            return Ok(Value::Int(-1));
                         }
                     },
                     None => Err(ENOENT),
@@ -617,7 +619,7 @@ impl<'program> super::Evaluator<'program> {
                     }
                 }
             }
-            "find_next" => {
+            FilesystemHostOperation::FindNext => {
                 // Cursor-only (the snapshot was taken at find_first) -- the
                 // same arm shape as the hermetic dispatcher.
                 let handle = self.eval_fs_scalar(arguments.first().copied(), frame)?;
@@ -633,7 +635,7 @@ impl<'program> super::Evaluator<'program> {
                     None => 0,
                 }
             }
-            "find_close" => {
+            FilesystemHostOperation::FindClose => {
                 let handle = self.eval_fs_scalar(arguments.first().copied(), frame)?;
                 if self.virtual_finds.remove(&handle).is_some() {
                     1
@@ -641,23 +643,24 @@ impl<'program> super::Evaluator<'program> {
                     0
                 }
             }
-            "read_metadata" | "read_symlink_metadata" => {
+            FilesystemHostOperation::ReadMetadata
+            | FilesystemHostOperation::ReadSymlinkMetadata => {
                 let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
-                let authorized = if method == "read_symlink_metadata" {
+                let authorized = if operation == FilesystemHostOperation::ReadSymlinkMetadata {
                     self.authorized_path_no_follow(&path, false)
                 } else {
                     self.authorized_path(&path, false)
                 };
                 let looked_up = match authorized {
                     Some(path) => {
-                        if method == "read_metadata" {
+                        if operation == FilesystemHostOperation::ReadMetadata {
                             std::fs::metadata(path)
                         } else {
                             std::fs::symlink_metadata(path)
                         }
                     }
                     None => {
-                        return Ok(Some(Value::Int(-1)));
+                        return Ok(Value::Int(-1));
                     }
                 };
                 match looked_up {
@@ -671,7 +674,7 @@ impl<'program> super::Evaluator<'program> {
                     }
                 }
             }
-            "read_file_metadata" => {
+            FilesystemHostOperation::ReadFileMetadata => {
                 let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
                 let looked_up = match self.real_fs_mut().files.get(&fd) {
                     Some(entry) => entry.file.metadata().map_err(|error| io_errno(&error)),
@@ -688,8 +691,8 @@ impl<'program> super::Evaluator<'program> {
                     }
                 }
             }
-            "errno" => i64::from(self.real_fs_mut().errno),
-            "canonicalize" => {
+            FilesystemHostOperation::Errno => i64::from(self.real_fs_mut().errno),
+            FilesystemHostOperation::Canonicalize => {
                 // `realpath(path, buf)`: NUL-terminated resolved path into the
                 // buffer; non-zero success flag, 0 (NULL) + errno on failure --
                 // the virtual contract's shape.
@@ -710,7 +713,7 @@ impl<'program> super::Evaluator<'program> {
                     None => 0,
                 }
             }
-            "hard_link" => {
+            FilesystemHostOperation::HardLink => {
                 // `link(original, link)`: real inodes, unlike the virtual
                 // byte-copy approximation. Read authority on the original,
                 // write authority on the new name.
@@ -726,7 +729,7 @@ impl<'program> super::Evaluator<'program> {
                     _ => -1,
                 }
             }
-            "create_hard_link" => {
+            FilesystemHostOperation::CreateHardLink => {
                 // `CreateHardLinkA(link, existing, security)` -- the windows
                 // primitive's arg order (NEW link first) and BOOL result
                 // (1 success / 0 failure). Served portably via std like
@@ -748,7 +751,7 @@ impl<'program> super::Evaluator<'program> {
                     _ => 0,
                 }
             }
-            "get_osfhandle" => {
+            FilesystemHostOperation::GetOsfHandle => {
                 // The fd -> HANDLE bridge (session slice 4a). The real
                 // provider's files ride std::fs behind SYNTHETIC fds by
                 // design (no raw handles), so its handles are the fds
@@ -761,7 +764,7 @@ impl<'program> super::Evaluator<'program> {
                     -2
                 }
             }
-            "final_path_name_by_handle" => {
+            FilesystemHostOperation::FinalPathNameByHandle => {
                 // Resolve an open handle (= synthetic fd) to its final path:
                 // std::fs::canonicalize of the entry's stored path (on a
                 // windows host that IS the \\?\-prefixed final path, matching
@@ -800,7 +803,7 @@ impl<'program> super::Evaluator<'program> {
                     }
                 }
             }
-            "set_file_time" => {
+            FilesystemHostOperation::SetFileTime => {
                 // `SetFileTime(handle, creation, access_ft, write_ft)` (session
                 // slice 4b): apply the WRITE time from its FILETIME buffer via
                 // std's set_modified, like `set_file_times` above. BOOL result;
@@ -836,7 +839,7 @@ impl<'program> super::Evaluator<'program> {
                     }
                 }
             }
-            "symlink" => {
+            FilesystemHostOperation::Symlink => {
                 // `symlink(target, linkpath)`: the TARGET is stored verbatim
                 // (never dereferenced here), so only the link path needs write
                 // authority. Unix-only in std; elsewhere ENOTSUP.
@@ -861,7 +864,7 @@ impl<'program> super::Evaluator<'program> {
                     None => -1,
                 }
             }
-            "read_link" => {
+            FilesystemHostOperation::ReadLink => {
                 // `readlink(path, buf, count)`: target bytes into the buffer,
                 // returns the count written.
                 let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
@@ -882,7 +885,7 @@ impl<'program> super::Evaluator<'program> {
                     None => -1,
                 }
             }
-            "set_permissions" => {
+            FilesystemHostOperation::SetPermissions => {
                 // `chmod(path, mode)`: metadata mutation = write authority.
                 let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
                 let mode = self.eval_fs_scalar(arguments.get(1).copied(), frame)? as u32;
@@ -906,7 +909,7 @@ impl<'program> super::Evaluator<'program> {
                     None => -1,
                 }
             }
-            "set_file_permissions" => {
+            FilesystemHostOperation::SetFilePermissions => {
                 // `fchmod(fd, mode)`: by descriptor; no re-authorization (the
                 // fd entered through an authorized open).
                 let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
@@ -941,7 +944,7 @@ impl<'program> super::Evaluator<'program> {
                     }
                 }
             }
-            "set_file_times" => {
+            FilesystemHostOperation::SetFileTimes => {
                 // `futimens(fd, times)`: two packed timespecs (atime, mtime);
                 // the model (virtual and real alike) applies the MODIFIED time
                 // -- times[1].tv_sec at byte offset 16.
@@ -974,7 +977,7 @@ impl<'program> super::Evaluator<'program> {
                     }
                 }
             }
-            "lock_file" => {
+            FilesystemHostOperation::LockFile => {
                 // `flock(fd, op)`: LOCK_SH=1 LOCK_EX=2 LOCK_NB=4 LOCK_UN=8,
                 // served by std's advisory file locks on the real handle.
                 let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
@@ -988,7 +991,7 @@ impl<'program> super::Evaluator<'program> {
                     }
                 }
             }
-            "lock_file_ex" => {
+            FilesystemHostOperation::LockFileEx => {
                 // Win32 LockFileEx semantics over the provider's synthetic
                 // handle. The exact byte range is intentionally ignored here:
                 // the std wrapper always supplies offset zero + u64::MAX.
@@ -1003,7 +1006,7 @@ impl<'program> super::Evaluator<'program> {
                     }
                 }
             }
-            "unlock_file" => {
+            FilesystemHostOperation::UnlockFile => {
                 let fd = self.eval_fs_scalar(arguments.first().copied(), frame)? as i32;
                 let real = self.real_fs_mut();
                 match real.files.get(&fd) {
@@ -1020,14 +1023,14 @@ impl<'program> super::Evaluator<'program> {
                     }
                 }
             }
-            "get_last_error" => i64::from(self.real_fs_mut().errno),
-            "change_owner" | "change_owner_no_follow" => {
+            FilesystemHostOperation::GetLastError => i64::from(self.real_fs_mut().errno),
+            FilesystemHostOperation::ChangeOwner | FilesystemHostOperation::ChangeOwnerNoFollow => {
                 // `chown`/`lchown(path, uid, gid)`: -1 leaves the component
                 // alone (None). Metadata mutation = write authority.
                 let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
                 let uid = self.eval_fs_scalar(arguments.get(1).copied(), frame)? as i32;
                 let gid = self.eval_fs_scalar(arguments.get(2).copied(), frame)? as i32;
-                let authorized = if method == "change_owner_no_follow" {
+                let authorized = if operation == FilesystemHostOperation::ChangeOwnerNoFollow {
                     self.authorized_path_no_follow(&path, true)
                 } else {
                     self.authorized_path(&path, true)
@@ -1038,11 +1041,12 @@ impl<'program> super::Evaluator<'program> {
                         {
                             let owner = (uid >= 0).then_some(uid as u32);
                             let group = (gid >= 0).then_some(gid as u32);
-                            let outcome = if method == "change_owner_no_follow" {
-                                std::os::unix::fs::lchown(path, owner, group)
-                            } else {
-                                std::os::unix::fs::chown(path, owner, group)
-                            };
+                            let outcome =
+                                if operation == FilesystemHostOperation::ChangeOwnerNoFollow {
+                                    std::os::unix::fs::lchown(path, owner, group)
+                                } else {
+                                    std::os::unix::fs::chown(path, owner, group)
+                                };
                             self.real_result_unit(outcome)
                         }
                         #[cfg(not(unix))]
@@ -1055,7 +1059,7 @@ impl<'program> super::Evaluator<'program> {
                     None => -1,
                 }
             }
-            "change_file_owner" => {
+            FilesystemHostOperation::ChangeFileOwner => {
                 // `fchown(fd, uid, gid)`: by descriptor.
                 let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
                 let uid = self.eval_fs_scalar(arguments.get(1).copied(), frame)? as i32;
@@ -1088,7 +1092,7 @@ impl<'program> super::Evaluator<'program> {
                     }
                 }
             }
-            "unlink_at" => {
+            FilesystemHostOperation::UnlinkAt => {
                 // `unlinkat(dirfd, name, flags)`: resolve against the dirfd's
                 // OPENED path (the same trick read_dir rides -- std has no fd
                 // relative ops); flags & AT_REMOVEDIR(0x80) removes a dir.
@@ -1099,7 +1103,7 @@ impl<'program> super::Evaluator<'program> {
                     Some(entry) => entry.path.join(real_path(&name)),
                     None => {
                         self.real_fs_mut().errno = EBADF;
-                        return Ok(Some(Value::Int(-1)));
+                        return Ok(Value::Int(-1));
                     }
                 };
                 let joined_bytes = joined.to_string_lossy().into_owned().into_bytes();
@@ -1114,7 +1118,7 @@ impl<'program> super::Evaluator<'program> {
                     None => -1,
                 }
             }
-            "open_at" => {
+            FilesystemHostOperation::OpenAt => {
                 // `openat(dirfd, name, flags)`: join against the dirfd's opened
                 // path, then the ordinary open (same flag decode + grants).
                 let dirfd = self.eval_fs_fd(arguments.first().copied(), frame)?;
@@ -1124,7 +1128,7 @@ impl<'program> super::Evaluator<'program> {
                     Some(entry) => entry.path.join(real_path(&name)),
                     None => {
                         self.real_fs_mut().errno = EBADF;
-                        return Ok(Some(Value::Int(-1)));
+                        return Ok(Value::Int(-1));
                     }
                 };
                 let joined_bytes = joined.to_string_lossy().into_owned().into_bytes();
@@ -1142,9 +1146,8 @@ impl<'program> super::Evaluator<'program> {
                     None => -1,
                 }
             }
-            _ => return Ok(None),
         };
-        Ok(Some(Value::Int(result)))
+        Ok(Value::Int(result))
     }
 
     fn real_fs_mut(&mut self) -> &mut RealFs {
