@@ -10,7 +10,7 @@ use psi_checked_trees::{
 };
 
 const MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW\0";
-pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 18;
+pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 19;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageReviewEncodingError {
@@ -585,6 +585,31 @@ fn encode_contract_expression(
             encode_contract_expression(encoder, receiver)?;
             encode_nominal(encoder, member)?;
             encoder.option(case_variant.as_ref(), encode_nominal)?;
+        }
+        PackageReviewContractExpression::Cast {
+            value,
+            target,
+            arithmetic_domain,
+            semantic_domain,
+            semantic_domain_arguments,
+            form,
+        } => {
+            encoder.byte(9);
+            encode_contract_expression(encoder, value)?;
+            encode_type_identity(encoder, target)?;
+            encoder.byte(match arithmetic_domain {
+                PackageReviewArithmeticDomain::Exact => 0,
+                PackageReviewArithmeticDomain::Wrapping => 1,
+                PackageReviewArithmeticDomain::Saturating => 2,
+                PackageReviewArithmeticDomain::Trapping => 3,
+            });
+            encoder.option(semantic_domain.as_ref(), encode_nominal)?;
+            encoder.sequence(semantic_domain_arguments, encode_type_identity)?;
+            encoder.byte(match form {
+                PackageReviewCastForm::Value => 0,
+                PackageReviewCastForm::RecastShared => 1,
+                PackageReviewCastForm::RecastMutable => 2,
+            });
         }
         PackageReviewContractExpression::Binary {
             operator,

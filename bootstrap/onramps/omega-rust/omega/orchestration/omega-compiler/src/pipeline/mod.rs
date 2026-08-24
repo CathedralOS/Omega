@@ -51,7 +51,10 @@ pub use artifacts::{
 };
 pub use build_config::BuildEvaluationUsage;
 pub use calling_policy_plans::evaluate_calling_policy_plan;
-pub use checked_entry::{CheckedCompilation, compile_to_checked, compile_to_checked_with_packages};
+pub use checked_entry::{
+    CheckedCompilation, compile_to_checked, compile_to_checked_with_packages,
+    compile_to_checked_with_packages_in_build_dir,
+};
 pub use compile_options::{ArtifactEmissionPolicy, CompileOptions};
 pub use compile_policy::ExecutableTcbBuildPolicy;
 pub use compile_report::{
@@ -71,14 +74,15 @@ pub use package_compilation::{
 };
 pub use package_review::{
     CheckedPackageCallableReview, CheckedPackageProviderReview, CheckedPackageReviewProjection,
-    PACKAGE_REVIEW_ENCODING_VERSION, PackageReviewCallableConformance,
-    PackageReviewCallableContract, PackageReviewCallableParameter, PackageReviewCallableRole,
-    PackageReviewCapabilityFlow, PackageReviewContractBinaryOperator,
-    PackageReviewContractExpression, PackageReviewContractFact, PackageReviewContractKind,
-    PackageReviewContractUnaryOperator, PackageReviewCrash, PackageReviewCrashCall,
-    PackageReviewCrashInterface, PackageReviewCrashPredicate, PackageReviewCrashRoute,
-    PackageReviewCrashRouteGuard, PackageReviewCrashSite, PackageReviewDataField,
-    PackageReviewDataMember, PackageReviewDataShape, PackageReviewDomainClassification,
+    PACKAGE_REVIEW_ENCODING_VERSION, PackageReviewArithmeticDomain,
+    PackageReviewCallableConformance, PackageReviewCallableContract,
+    PackageReviewCallableParameter, PackageReviewCallableRole, PackageReviewCapabilityFlow,
+    PackageReviewCastForm, PackageReviewContractBinaryOperator, PackageReviewContractExpression,
+    PackageReviewContractFact, PackageReviewContractKind, PackageReviewContractUnaryOperator,
+    PackageReviewCrash, PackageReviewCrashCall, PackageReviewCrashInterface,
+    PackageReviewCrashPredicate, PackageReviewCrashRoute, PackageReviewCrashRouteGuard,
+    PackageReviewCrashSite, PackageReviewDataField, PackageReviewDataMember,
+    PackageReviewDataShape, PackageReviewDomainClassification,
     PackageReviewDomainEstablishmentKind, PackageReviewDomainEstablishmentRoute,
     PackageReviewDomainShape, PackageReviewEncodingError, PackageReviewEvidenceInterface,
     PackageReviewEvidenceRequirement, PackageReviewInstallationReach, PackageReviewMutation,

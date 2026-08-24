@@ -1,8 +1,8 @@
 # provider-switchboard
 
-Boundary-provider fixture. Its current source supplies exact clock-service
-reach/invocation evidence. A later revision will model two possible providers
-for that requirement, with `build.omg` selecting the provider.
+Boundary-provider fixture. Its source supplies exact clock-service
+reach/invocation evidence and an ordinary `MonotonicClock` provider realization.
+The canonical build machine selects that exact provider type for `ClockHost`.
 
 Expected package evidence:
 
