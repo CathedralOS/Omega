@@ -186,8 +186,12 @@ fn derive_machine_summary(
                 ) {
                     continue;
                 }
-                if let Some((provider_service_identity, requirement_identity)) =
-                    &build_bound_requirement
+                if let Some((
+                    provider_service_package_identity,
+                    provider_service_identity,
+                    requirement_owner_package_identity,
+                    requirement_identity,
+                )) = &build_bound_requirement
                 {
                     // A requirement receiver remains build-bound even when a
                     // checked wrapper happens to hold it in one of its own
@@ -195,7 +199,9 @@ fn derive_machine_summary(
                     // would lose the exact selected-provider subject class.
                     let demand = BuildBoundProgressDemand {
                         provider_service_identity: provider_service_identity.clone(),
+                        provider_service_package_identity: *provider_service_package_identity,
                         requirement_identity: requirement_identity.clone(),
+                        requirement_owner_package_identity: *requirement_owner_package_identity,
                         profile_identity: profile_label(program, callee_premise.profile),
                         subject_projections: callee_premise
                             .subject
@@ -310,7 +316,12 @@ fn provider_receiver_requirement(
     receiver_symbol: SymbolHandle,
     target_symbol: SymbolHandle,
     premise: &ProgressPremise,
-) -> Option<(String, String)> {
+) -> Option<(
+    Option<psi_core::PackageKeyIdentity>,
+    String,
+    Option<psi_core::PackageKeyIdentity>,
+    String,
+)> {
     program.traits().iter().find_map(|owner| {
         program
             .trait_machine_signatures(owner)
@@ -332,7 +343,11 @@ fn provider_receiver_requirement(
                                 })
                                 .unwrap_or(owner);
                         (
+                            program
+                                .symbols
+                                .symbol_package_identity(provider_service.symbol),
                             provider_service.name.as_str().to_owned(),
+                            program.symbols.symbol_package_identity(requirement.symbol),
                             program
                                 .normalized_trait_requirement_overload_identity(owner, requirement)
                                 .identity(),

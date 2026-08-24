@@ -1414,6 +1414,7 @@ dependencies = [
  "omega-task-plans",
  "psi-arena",
  "psi-checked-trees",
+ "psi-core",
  "psi-effects",
  "psi-facts",
  "psi-language-semantics",
@@ -1501,6 +1502,7 @@ name = "psi-checked-trees"
 version = "0.1.0"
 dependencies = [
  "psi-arena",
+ "psi-core",
  "psi-effects",
  "psi-facts",
  "psi-language-core",
@@ -1846,6 +1848,7 @@ version = "0.1.0"
 dependencies = [
  "psi-arena",
  "psi-checked-trees",
+ "psi-core",
  "psi-diagnostics",
  "psi-effects",
  "psi-facts",
