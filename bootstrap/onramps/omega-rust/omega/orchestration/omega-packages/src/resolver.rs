@@ -431,7 +431,7 @@ pub fn resolve_source_cache_record(
                     resolved_commit: Some(resolved.commit),
                     resolved_tree: Some(resolved.tree),
                     content_identity: Some(resolved.local.content_identity),
-                    cache_path: Some(resolved.checkout_root.display().to_string()),
+                    cache_path: Some(resolved.snapshot_root.display().to_string()),
                     file_count: Some(resolved.local.file_count),
                     byte_count: Some(resolved.local.byte_count),
                     max_files: limits.max_files,
@@ -440,7 +440,7 @@ pub fn resolve_source_cache_record(
                     submodule_policy: "gitmodules-rejected-until-submodules-are-explicit-package-edges"
                         .to_owned(),
                     path_policy:
-                        "detached-commit-checkout; canonical-root-contained; symlink-escapes-rejected; dot-git-excluded"
+                        "validated-object-snapshot; canonical-root-contained; symlink-escapes-rejected; dot-git-excluded"
                             .to_owned(),
                     rejection: None,
                 },
@@ -744,7 +744,7 @@ mod tests {
             submodule_policy: "gitmodules-rejected-until-submodules-are-explicit-package-edges"
                 .to_owned(),
             path_policy:
-                "detached-commit-checkout; canonical-root-contained; symlink-escapes-rejected; dot-git-excluded"
+                "validated-object-snapshot; canonical-root-contained; symlink-escapes-rejected; dot-git-excluded"
                     .to_owned(),
             rejection: None,
         };
