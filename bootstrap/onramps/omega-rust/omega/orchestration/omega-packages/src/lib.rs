@@ -41,7 +41,13 @@ pub use commands::{
 };
 pub use declaration::{PackageDeclaration, PackageDeclarationError, extract_package_declaration};
 pub use diff::{ManifestDelta, ManifestDiff, ManifestSeverity, diff_package_capability_manifests};
-pub use identity::PackageName;
+pub use identity::{
+    CompilerEvidenceFingerprint, ExternalLocalLineage, ExternalSourceContext, GenericGitLineage,
+    GitCommitId, GitHubRepositoryLineage, GitObjectIdAlgorithm, GitTransport, GitTreeId,
+    IdentityError, ImmutableSourceResolution, PackageInstance, PackageKey, PackageName,
+    SourceContentDigest, SourceLineage, ToolchainIdentity, WorkspaceLineageIdentity,
+    WorkspaceMemberLineage, WorkspaceMemberPath,
+};
 pub use install::{PackageInstallPlan, PackageInstallPlanError, plan_package_install};
 pub use lock::{
     LockedDependency, LockedPackage, PackageLock, PackageLockAssemblyError, PackageLockParseError,
@@ -64,8 +70,9 @@ pub use review::{
     CapabilityReviewError,
 };
 pub use source::{
-    GitSourceSpec, LocalSourceLimits, ResolvedGitSource, ResolvedLocalSource, SourceResolveError,
-    resolve_git_source, resolve_local_source,
+    GitSourceSpec, LocalSourceLimits, ResolvedGitSource, ResolvedLocalSnapshot,
+    ResolvedLocalSource, SourceResolveError, resolve_git_source, resolve_local_source,
+    resolve_local_source_snapshot,
 };
 pub use update::{
     PackageLockUpdatePlan, PackageLockUpdatePlanError, PackageUpdateAdmissionError,

@@ -45,6 +45,9 @@ evaluates this well-known constant before resolving the package's dependencies
 or executing its build machine. Missing, duplicate, effectful,
 dependency-dependent, generated, or non-canonical declarations reject.
 Directory and repository names are advisory only.
+The canonical name begins with an ASCII lowercase letter and otherwise contains
+only lowercase ASCII letters, digits, and single hyphen separators, ensuring
+that its default kebab-to-snake alias is a valid Omega identifier.
 
 The declared `PackageName` is not security identity. `PackageKey` joins it to
 canonical source lineage and qualifies package symbols across updates.
