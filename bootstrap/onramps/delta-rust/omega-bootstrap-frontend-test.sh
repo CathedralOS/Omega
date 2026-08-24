@@ -106,12 +106,15 @@ reference_case 16 86
 run_source "canonical cli_mvp" "$OMEGA_PATH_CORPUS/cli_mvp/main.omg" 107
 
 # The complete bundle is decoded before selecting exactly one program unit.
-# Its label may sort after auxiliary units; empty and line-comment-only units
-# remain independent and cannot fuse tokens with the program.
+# Its label may sort after auxiliary units; empty, line-comment-only, and nested
+# block-comment-only units remain independent and cannot fuse tokens with the
+# program.
 : > "$T/empty.omg"
-printf '// auxiliary source without final newline' > "$T/comment.omg"
+printf '// auxiliary /* remains line text without final newline' > "$T/comment.omg"
+printf '/* outer auxiliary // remains block text /* nested */ tail */' > "$T/block-comment.omg"
 python3 "$OMEGA_PATH_OMEGA_BOOTSTRAP/compiler/omega_bootstrap_bundle.py" pack \
-  a/empty.omg="$T/empty.omg" m/comment.omg="$T/comment.omg" \
+  a/empty.omg="$T/empty.omg" b/block.omg="$T/block-comment.omg" \
+  m/comment.omg="$T/comment.omg" \
   z/program.omg="$OMEGA_PATH_CORPUS/cli_mvp/main.omg" > "$T/auxiliary.bundle"
 bundle_one "$OMEGA_PATH_CORPUS/cli_mvp/main.omg" "$T/canonical.bundle"
 set +e
@@ -165,6 +168,18 @@ run_source "O1 sixteen writes and exact aggregate text ceiling" "$T/sixteen-writ
 printf 'use omega::language::std::console; // import\ndata Main{console:Console;}machine Main::main(&mut self){self.console.write_line("A\\n");self.console.exit_process(2);}' > "$T/variant.omg"
 run_source "trivia, cooked escape, no final newline" "$T/variant.omg" 77
 
+printf '/* before */use/* outer /* nested */ tail */omega::language::std::console;data Main{/* field */console:Console;}machine Main::main(&mut self){self.console.write_line("A/* literal */");/* body */self.console.exit_process(2);}' > "$T/block-program.omg"
+bundle_one "$T/block-program.omg" "$T/block-program.bundle"
+set +e
+"$T/frontend" < "$T/block-program.bundle" > "$T/block-program.terminal"
+block_program_status=$?
+set -e
+if [ "$block_program_status" = 54 ]; then
+  PASS=$((PASS+1))
+else
+  FAIL=$((FAIL+1)); echo "  FAIL nested block comments in program: status=$block_program_status"
+fi
+
 printf 'use omega::language::std::console; data Main{console:Console;} machine Main::main(&mut self){self.console.write_line("\303\251");self.console.exit_process(3);}' > "$T/utf8.omg"
 run_source "UTF-8 string payload" "$T/utf8.omg" 116
 
@@ -172,6 +187,12 @@ reject_source() {
   label=$1 body=$2
   printf '%s' "$body" > "$T/reject.omg"
   run_source "$label" "$T/reject.omg" 251
+}
+reject_source_empty() {
+  label=$1 body=$2
+  printf '%s' "$body" > "$T/reject-empty.omg"
+  bundle_one "$T/reject-empty.omg" "$T/reject-empty.bundle"
+  run_bundle_empty "$label" "$T/reject-empty.bundle" 251
 }
 
 reject_source "unknown import" 'use omega::language::std::other; data Main{console:Console;} machine Main::main(&mut self){self.console.write_line("x");self.console.exit_process(0);}'
@@ -192,6 +213,7 @@ reject_source "trailing construct" 'use omega::language::std::console; data Main
 reject_source "unterminated string" 'use omega::language::std::console; data Main{console:Console;} machine Main::main(&mut self){self.console.write_line("x);self.console.exit_process(0);}'
 reject_source "invalid escape" 'use omega::language::std::console; data Main{console:Console;} machine Main::main(&mut self){self.console.write_line("\q");self.console.exit_process(0);}'
 reject_source "i32 literal overflow" 'use omega::language::std::console; data Main{console:Console;} machine Main::main(&mut self){self.console.write_line("x");self.console.exit_process(2147483648);}'
+reject_source_empty "unterminated nested block comment in program" 'use omega::language::std::console; data Main{console:Console;} /* outer /* nested */ machine Main::main(&mut self){self.console.exit_process(0);}'
 
 printf 'use omega::language::std::console; data Main{console:Console;} machine Main::main(&mut self){self.console.write_line("' > "$T/invalid-utf8.omg"
 printf '\377' >> "$T/invalid-utf8.omg"
@@ -222,6 +244,19 @@ python3 "$OMEGA_PATH_OMEGA_BOOTSTRAP/compiler/omega_bootstrap_bundle.py" pack \
   a/program.omg="$OMEGA_PATH_CORPUS/cli_mvp/main.omg" z/invalid.omg="$T/invalid-auxiliary.omg" \
   > "$T/invalid-auxiliary-after.bundle"
 run_bundle_empty "invalid UTF-8 after program source" "$T/invalid-auxiliary-after.bundle" 251
+
+printf '/* unterminated auxiliary' > "$T/unterminated-comment.omg"
+python3 "$OMEGA_PATH_OMEGA_BOOTSTRAP/compiler/omega_bootstrap_bundle.py" pack \
+  a/comment.omg="$T/unterminated-comment.omg" z/program.omg="$OMEGA_PATH_CORPUS/cli_mvp/main.omg" \
+  > "$T/unterminated-comment.bundle"
+run_bundle_empty "unterminated auxiliary block comment" "$T/unterminated-comment.bundle" 251
+
+printf '/*' > "$T/comment-open.omg"
+printf '*/' > "$T/comment-close.omg"
+python3 "$OMEGA_PATH_OMEGA_BOOTSTRAP/compiler/omega_bootstrap_bundle.py" pack \
+  a/open.omg="$T/comment-open.omg" b/close.omg="$T/comment-close.omg" \
+  z/program.omg="$OMEGA_PATH_CORPUS/cli_mvp/main.omg" > "$T/cross-unit-comment.bundle"
+run_bundle_empty "block comment cannot close across source units" "$T/cross-unit-comment.bundle" 251
 
 python3 "$OMEGA_PATH_OMEGA_BOOTSTRAP/compiler/omega_bootstrap_bundle.py" pack \
   a/empty.omg="$T/empty.omg" b/comment.omg="$T/comment.omg" > "$T/all-trivia.bundle"

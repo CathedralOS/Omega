@@ -100,9 +100,11 @@ run_gamma "canonical cli_mvp retained-operand digest" "$T/canonical.gamma" 107 p
 cp "$T/result" "$T/canonical.result"
 
 : > "$T/empty.omg"
-printf '// meaning auxiliary' > "$T/comment.omg"
+printf '// meaning auxiliary /* remains line text' > "$T/comment.omg"
+printf '/* meaning outer // remains block text /* nested */ tail */' > "$T/block-comment.omg"
 python3 "$OMEGA_PATH_OMEGA_BOOTSTRAP/compiler/omega_bootstrap_bundle.py" pack \
-  a/empty.omg="$T/empty.omg" m/program.omg="$OMEGA_PATH_CORPUS/cli_mvp/main.omg" \
+  a/empty.omg="$T/empty.omg" b/block.omg="$T/block-comment.omg" \
+  m/program.omg="$OMEGA_PATH_CORPUS/cli_mvp/main.omg" \
   z/comment.omg="$T/comment.omg" > "$T/auxiliary.bundle"
 bundle_input "$T/auxiliary.bundle" "$T/auxiliary.gamma"
 run_gamma "multi-source auxiliary trivia" "$T/auxiliary.gamma" 107 pair-nonempty
@@ -138,6 +140,14 @@ python3 "$OMEGA_PATH_OMEGA_BOOTSTRAP/compiler/omega_bootstrap_bundle.py" pack \
   > "$T/invalid-auxiliary.bundle"
 bundle_input "$T/invalid-auxiliary.bundle" "$T/invalid-auxiliary.gamma"
 run_gamma "invalid auxiliary UTF-8 rejects" "$T/invalid-auxiliary.gamma" 251 pair-empty
+
+printf '/*' > "$T/comment-open.omg"
+printf '*/' > "$T/comment-close.omg"
+python3 "$OMEGA_PATH_OMEGA_BOOTSTRAP/compiler/omega_bootstrap_bundle.py" pack \
+  a/open.omg="$T/comment-open.omg" b/close.omg="$T/comment-close.omg" \
+  z/program.omg="$OMEGA_PATH_CORPUS/cli_mvp/main.omg" > "$T/cross-unit-comment.bundle"
+bundle_input "$T/cross-unit-comment.bundle" "$T/cross-unit-comment.gamma"
+run_gamma "block comment cannot close across source units" "$T/cross-unit-comment.gamma" 251 pair-empty
 
 python3 - "$T/descriptor-exhaust.bundle" "$T/content-exhaust.bundle" <<'PY'
 import pathlib

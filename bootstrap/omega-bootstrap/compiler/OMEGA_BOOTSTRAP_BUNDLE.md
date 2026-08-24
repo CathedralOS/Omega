@@ -66,7 +66,9 @@ The canonical Delta frontend now consumes this format directly. Its bounded
 transport canary retains at most 16 descriptors, 64 bytes per label, 1,024
 aggregate label bytes, and 2,048 aggregate content bytes. It validates UTF-8
 within each exact source span, never concatenates units, and accepts one O1
-program-bearing unit plus empty/line-comment-only auxiliary units. Zero or
+program-bearing unit plus empty, line-comment-only, or nested-block-comment-only
+auxiliary units. The block-comment scanner is span-bounded: nesting is retained,
+an unterminated comment rejects, and delimiters cannot pair across units. Zero or
 multiple program-bearing units reject as unsupported; malformed framing and
 source reject as 251, while checked local backing exhaustion reports 252. The
 native, lower-rung meaning, and direct terminal-to-ELF composite gates require
