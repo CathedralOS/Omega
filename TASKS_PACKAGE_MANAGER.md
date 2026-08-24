@@ -37,11 +37,11 @@ complete.
 - Ordinary admission uses a total internal `PackageAdmissionProjection` from
   checked semantic state. The lock stores only versioned canonical evidence;
   raw IR and compiler-private identities never become lock format.
-- Each evidence row comes from its earliest coherent checked representation.
-  The final projection is total, but no one internal stage must contain every
-  row. These representations remain Psi-owned compiler internals; "earlier"
-  means earlier than Terminal Psi, not outside the Psi semantic pipeline. Do
-  not introduce nominal Chi merely to freeze compiler internals.
+- The compiler admission projection may read each evidence row from the
+  earliest coherent Psi-owned checked representation that contains it. The
+  final projection is total, but no one internal stage must contain every row.
+  "Earlier" means earlier than Terminal Psi, not outside Psi; do not introduce
+  nominal Chi merely to stabilize compiler internals across versions.
 - Proposition and named-evidence rows join the typed structural application to
   its checked acceptance, witness interface, and admission disposition. Never
   use checked diagnostic renderings as identity. If an exact binder, argument,
@@ -72,6 +72,10 @@ complete.
   infrastructure controlling it are the authority. Stronger reviewer, quorum,
   signature, isolation, bootstrap, and reproducibility requirements remain
   deployment policy rather than a portable Omega “proof of audit.”
+- Package review takes a caller-supplied workspace. Orchestration creates a
+  fresh disposable child session beneath it, keeps resolver snapshots
+  immutable, and publishes results only after the child is cleaned up
+  successfully. Ordinary standalone compiler build roots remain caller-owned.
 - Claim-free opaque boundary data always emits package-qualified
   representation-TCB evidence. Introduction or material change recommends
   code/ABI audit but is not, by opacity alone, a blocking trust claim; exact
@@ -366,8 +370,12 @@ complete.
   orchestrator now compiles every closure package in deterministic
   dependency-first order. Each package is temporarily re-rooted over only its
   transitive dependencies, so unrelated siblings cannot enter its compiler
-  graph, and receives a package-and-source-specific writable build root outside
-  resolver snapshots. The returned rows have no public constructor and retain
+  graph. The caller supplies a workspace; orchestration creates one fresh
+  disposable child session beneath it and assigns package-and-source-specific
+  writable roots inside that session. Resolver snapshots remain immutable.
+  Orchestration withholds every returned row until the child session has been
+  cleaned up successfully; cleanup failure rejects the review. The returned
+  rows have no public constructor and retain
   exact `PackageKey`, selected immutable resolution, compiler projection, and
   canonical comparison bytes. Package-aware checked compilation now also
   issues one domain-separated source-consumption commitment over the exact
@@ -405,11 +413,11 @@ complete.
   contracts, executable TCB, observations, and reproducibility. Required
   unresolved or unprojectable facts reject. The canonical output contains no
   arena handles, display strings as identity, or other compiler-private IDs.
-  Implementation reads each fact from the earliest coherent checked compiler
-  state that contains it. Rows may use different internal representations;
-  this internal coupling moves with the compiler and does not create a stable
-  public IR stage. Those representations remain inside the Psi-owned semantic
-  pipeline; the comparison is with Terminal Psi, not with Psi ownership.
+  Implementation may read each fact from the earliest coherent Psi-owned
+  checked representation that contains it. Rows may use different internal
+  representations; this coupling moves with the compiler and does not create a
+  stable public IR stage or justify nominal Chi merely for stability. The
+  comparison is with Terminal Psi, not with Psi ownership.
 
   Progress 2026-08-24: checked trees already own the useful semantic core. A
   `RealizedMachineContractEnvelope` retains contract identity, effective and
@@ -559,9 +567,11 @@ complete.
   The legacy 64-bit
   machine-contract fingerprint has left package-review bytes, so private
   state-machine shape no longer contaminates public package contract identity.
-  Package-aware checked compilation now also accepts an explicit caller-owned
-  writable build root, so admitted build staging never requires mutation
-  beneath a resolver-owned immutable source snapshot.
+  Ordinary standalone checked compilation continues to accept a caller-owned
+  writable build root. Package review instead receives a package-specific root
+  inside the orchestration-owned disposable child session, so it never mutates
+  a resolver-owned immutable source snapshot or publishes results before
+  successful session cleanup.
   Selected build-machine execution now separately retains a versioned static
   observation ceiling and realized class. Exact statically reachable canonical
   toolchain filesystem use has a `Volatile` ceiling because the current scoped
@@ -649,8 +659,11 @@ complete.
   handle identity, and post-operation error state, including failures and grant
   refusals. A successful run additionally commits to the complete staged output
   tree. Canonical evidence contains no cache/build absolute path or lossy path
-  conversion. The staging root is fresh and empty, or its exact initial tree is
-  a recorded input. Absolute-path-returning operations remain `Volatile` unless
+  conversion. For package review, each staging root is fresh and empty inside
+  the orchestration-owned disposable child session. Orchestration retains the
+  review result privately, cleans up the complete child session, and only then
+  returns it; cleanup failure rejects. Absolute-path-returning operations remain
+  `Volatile` unless
   served through a stable virtual root. `Receipted` requires retained content
   plus a replay executor that rejects the first missing, extra, reordered, or
   changed event and reproduces the staged tree; a transcript alone is not a
@@ -688,12 +701,13 @@ complete.
   evaluator-halted rather than represented by placeholder zeroes. Worker
   creation/panic marks evidence unavailable. Omega emits fixed non-admission
   attempt/halt/refusal counts in the failure diagnostic and issues no package
-  review row. A failure can follow an earlier staging side effect, so disposable
-  fresh staging and publish-on-success remain required. This evidence is not
+  review row. A failure can follow an earlier staging side effect, so the fresh
+  disposable child session is always cleaned up and no result is published
+  unless cleanup succeeds. This evidence is not
   called a transcript or receipt. Bounded exactly-once argument preparation,
   complete transcript schema and
   serialization, lossless rooted
-  paths, transcripts/content custody, fresh staging publication, output-tree
+  paths, transcripts/content custody, cleanup-gated publication, output-tree
   commitment, and replay remain. Raw transfer counts now pass one checked
   conversion shared by both providers: negative/wrapped values and requests
   above a compiler-owned 16 MiB per-operation allocation ceiling reject before
@@ -939,8 +953,9 @@ complete.
   build-owned provider selection and its normalized compiler review row.
   `generated-table` now covers the canonical build machine's exact toolchain-
   owned filesystem reach/invocation ceiling from immutable source custody and a
-  separate writable compiler staging root. Fixture-executed build-provider
-  operations, canonical observation transcripts/receipts, sealed representation
+  separate writable root inside a disposable review child session. Fixture-
+  executed build-provider operations, canonical observation transcripts/
+  receipts, sealed representation
   mechanism/ABI evidence, general
   dangerous-authority escalation, missing baselines, graph-level spoofing, and
   reconciliation conflicts remain.
