@@ -126,6 +126,13 @@ language, generation, or architectural role; new documentation and work use
   `OMGCOMP + OMGRSW1` through `OMGLOW1` before publishing CKIR. The same
   resolution bytes become an untrusted lower-rooted witness, while the existing
   one-unit source-custody producer remains a regression/reference path.
+  [`gates/delta-resolution-handoff.sh`](gates/delta-resolution-handoff.sh)
+  exhausts the standalone resolver's semantic/resource boundaries and requires
+  exact native/Delta-self-built output; the separate
+  [meaning gate](gates/delta-resolution-handoff-meaning.sh) pins canonical
+  `0`, semantic `251`, and resource `252` observations through Gamma under a
+  1 MiB elaboration ceiling. These gates close normalized resolution, not
+  resolver/lock authority, digest custody, body lowering, CKIR, or ELF.
 
 These are seed pieces for `omega-bootstrap`, not that compiler itself. The first
 checkpoint-driven compositional frontend/typechecker cost probe over

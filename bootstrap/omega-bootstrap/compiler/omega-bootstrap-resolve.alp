@@ -1,0 +1,1292 @@
+// Standalone multi-unit Omega source resolver.  Exact OMGCOMP input produces
+// one canonical OMGRSW1 normalized frontend handoff.  No output is published
+// until framing, independent source lexing, module/use/pub resolution, static
+// bindings, signatures, body spans, canonical types, and the exact root pass.
+// Status 251 is malformed/unsupported; 252 is declared carrier exhaustion.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+    machine read_byte() -> i32;
+    machine write_byte(byte: i32);
+}
+
+data Main {
+    console: Console;
+    status: i32; c: i32; n: i32; decoded: i32;
+    i: i32; j: i32; k: i32; x: i32; y: i32; scan_index: i32;
+    pos: i32; limit: i32; current_source: i32;
+    tok: i32; tok_start: i32; tok_len: i32; int_value: i32;
+    match_ok: i32; depth: i32; saved_start: i32; saved_len: i32;
+    saved_type: i32; result_id: i32; found_count: i32;
+    current_visibility: i32; current_record: i32; current_machine: i32;
+    current_block: i32; current_parameter_start: i32;
+    current_parameter_count: i32; current_receiver_access: i32;
+    seen_state: i32;
+    search_package: i32; search_module: i32; string_scan: i32;
+
+    total_length: i32; bundle_length: i32; string_table_length: i32;
+    string_count: i32; package_count: i32; source_count: i32; alias_count: i32;
+    root_package: i32; root_source: i32; root_owner_string: i32;
+    root_machine_string: i32; package_table: i32; source_table: i32;
+    alias_table: i32; string_table: i32; bundle_start: i32;
+    input: [u8; 267281];
+    // Private packed i32 table layout. Packing matters: omega2gamma threads
+    // every distinct array through every state, while one backing keeps the
+    // same bounded row capacities with a single Gamma parameter.
+    // 0 package_source_starts; 16 package_source_counts; 32 source_owners;
+    // 48 source_bundle_ids; 64 source_modules; 80/112/144 alias requester/string/target;
+    // 176/240 string start/length; 304/320 bundle content start/length;
+    // 336/352 source start/length; 368/376 path start/length;
+    // 384/400 unit module start/length; 416/432 unit import start/count;
+    // 448/464 unit declaration start/count; 480/544 import source/ordinal;
+    // 608/672 import path start/length; 736 component count;
+    // 800/1312 import component start/length; 1824 origin; 1888 target kind;
+    // 1952 alias ID; 2016 target package; 2080 target module; 2144 declaration;
+    // 2208/2272 import local start/length; 2336..31007 seven binding columns;
+    // 31008..32799 seven declaration columns; 32800..33311 four record columns;
+    // 33312..57887 six field columns; 57888..59295 eleven machine columns;
+    // 59296..71583 six machine-parameter columns; 71584..90015 nine block columns;
+    // 90016..114591 six block-parameter columns; 114592..180127 eight raw-type columns;
+    // 180128..192415 six canonical-type columns.
+    tables: [i32; 192416];
+
+
+    words: [u8; 58];
+    path_count: i32;
+
+    // Unit and import rows.
+    import_count: i32;
+
+    // Semantic declarations and source bindings.
+    binding_count: i32;
+    declaration_count: i32;
+
+    record_count: i32; field_count: i32;
+
+    machine_count: i32; machine_parameter_count: i32;
+
+    block_count: i32; block_parameter_count: i32;
+
+    // Parsed source types before resolution/canonical interning.
+    raw_type_count: i32; raw_type_result: i32;
+
+    type_count: i32;
+    candidate_kind: i32; candidate_flags: i32; candidate_payload0: i32;
+    candidate_payload1: i32; candidate_lo: i32; candidate_hi: i32;
+    array_pending: i32; array_progress: i32;
+    selected_machine: i32; witness_length: i32;
+}
+
+machine Main::reject(&mut self) {
+    transition self.status == 0 { true -> set() _ -> done() }
+    state set() { self.status = 251; transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::exhaust(&mut self) {
+    transition self.status == 0 { true -> set() _ -> done() }
+    state set() { self.status = 252; transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::init_words(&mut self) {
+    // moduleusepubdatacopymachinemutselfstateu8u32boolinTrapping
+    self.words[0]=109; self.words[1]=111; self.words[2]=100; self.words[3]=117; self.words[4]=108; self.words[5]=101;
+    self.words[6]=117; self.words[7]=115; self.words[8]=101;
+    self.words[9]=112; self.words[10]=117; self.words[11]=98;
+    self.words[12]=100; self.words[13]=97; self.words[14]=116; self.words[15]=97;
+    self.words[16]=99; self.words[17]=111; self.words[18]=112; self.words[19]=121;
+    self.words[20]=109; self.words[21]=97; self.words[22]=99; self.words[23]=104; self.words[24]=105; self.words[25]=110; self.words[26]=101;
+    self.words[27]=109; self.words[28]=117; self.words[29]=116;
+    self.words[30]=115; self.words[31]=101; self.words[32]=108; self.words[33]=102;
+    self.words[34]=115; self.words[35]=116; self.words[36]=97; self.words[37]=116; self.words[38]=101;
+    self.words[39]=117; self.words[40]=56;
+    self.words[41]=117; self.words[42]=51; self.words[43]=50;
+    self.words[44]=98; self.words[45]=111; self.words[46]=111; self.words[47]=108;
+    self.words[48]=105; self.words[49]=110;
+    self.words[50]=84; self.words[51]=114; self.words[52]=97; self.words[53]=112;
+    self.words[54]=112; self.words[55]=105; self.words[56]=110; self.words[57]=103;
+}
+
+machine Main::slurp(&mut self) {
+    self.n = 0;
+    transition 0 { _ -> read() }
+    state read() { self.c = read_byte(); transition self.c < 0 { true -> done() _ -> room() } }
+    state room() { transition self.n < 267281 { true -> store() _ -> over() } }
+    state store() { self.input[self.n] = self.c; self.n = self.n + 1; transition self.n <= 267280 { true -> read() _ -> over() } }
+    state over() { self.exhaust(); transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::read_u32(&mut self, at: i32) {
+    self.decoded = 0 - 1;
+    transition at >= 0 { true -> room() _ -> bad() }
+    state room() { transition at <= self.n - 4 { true -> signed() _ -> bad() } }
+    state signed() { transition self.input[at + 3] < 128 { true -> value() _ -> bad() } }
+    state value() { self.decoded = self.input[at] + self.input[at+1]*256 + self.input[at+2]*65536 + self.input[at+3]*16777216; transition 0 { _ -> done() } }
+    state bad() { self.reject(); transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::spans_equal(&mut self, left: i32, right: i32, count: i32) {
+    self.match_ok = 1; self.k = 0;
+    transition 0 { _ -> loop() }
+    state loop() { transition self.k < count { true -> byte() _ -> done() } }
+    state byte() { transition self.input[left+self.k] == self.input[right+self.k] { true -> next() _ -> no() } }
+    state next() { self.k = self.k + 1; transition 0 { _ -> loop() } }
+    state no() { self.match_ok = 0; transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::decode_envelope(&mut self) {
+    transition self.n >= 64 { true -> magic() _ -> bad() }
+    state magic() {
+        transition self.input[0]==79 { true -> magic1() _ -> bad() }
+    }
+    state magic1() { transition self.input[1]==77 { true -> magic2() _ -> bad() } }
+    state magic2() { transition self.input[2]==71 { true -> magic3() _ -> bad() } }
+    state magic3() { transition self.input[3]==67 { true -> magic4() _ -> bad() } }
+    state magic4() { transition self.input[4]==79 { true -> magic5() _ -> bad() } }
+    state magic5() { transition self.input[5]==77 { true -> magic6() _ -> bad() } }
+    state magic6() { transition self.input[6]==80 { true -> magic7() _ -> bad() } }
+    state magic7() { transition self.input[7]==0 { true -> fixed() _ -> bad() } }
+    state fixed() { transition self.input[8]==1 { true -> fixed1() _ -> bad() } }
+    state fixed1() { transition self.input[9]==0 { true -> fixed2() _ -> bad() } }
+    state fixed2() { transition self.input[10]==0 { true -> fixed3() _ -> bad() } }
+    state fixed3() { transition self.input[11]==0 { true -> fixed4() _ -> bad() } }
+    state fixed4() { transition self.input[12]==1 { true -> fixed5() _ -> bad() } }
+    state fixed5() { transition self.input[13]==0 { true -> fixed6() _ -> bad() } }
+    state fixed6() { transition self.input[14]==0 { true -> fixed7() _ -> bad() } }
+    state fixed7() { transition self.input[15]==0 { true -> header() _ -> bad() } }
+    state header() {
+        self.read_u32(16); self.total_length=self.decoded;
+        self.read_u32(20); self.bundle_length=self.decoded;
+        self.read_u32(24); self.string_table_length=self.decoded;
+        self.read_u32(28); self.string_count=self.decoded;
+        self.read_u32(32); self.package_count=self.decoded;
+        self.read_u32(36); self.source_count=self.decoded;
+        self.read_u32(40); self.alias_count=self.decoded;
+        self.read_u32(44); self.root_package=self.decoded;
+        self.read_u32(48); self.root_source=self.decoded;
+        self.read_u32(52); self.root_owner_string=self.decoded;
+        self.read_u32(56); self.root_machine_string=self.decoded;
+        transition self.status==0 { true -> reserved() _ -> done() }
+    }
+    state reserved() { self.read_u32(60); transition self.status==0 { true -> limits() _ -> done() } }
+    state limits() { transition self.decoded==0 { true -> count0() _ -> bad() } }
+    state count0() { transition self.package_count>=1 { true -> count1() _ -> bad() } }
+    state count1() { transition self.package_count<=16 { true -> count2() _ -> over() } }
+    state count2() { transition self.source_count>=1 { true -> count3() _ -> bad() } }
+    state count3() { transition self.source_count<=16 { true -> count4() _ -> over() } }
+    state count4() { transition self.alias_count<=32 { true -> count5() _ -> over() } }
+    state count5() { transition self.string_count<=64 { true -> lengths() _ -> over() } }
+    state lengths() { transition self.total_length==self.n { true -> length_limits() _ -> bad() } }
+    state length_limits() { transition self.total_length<=267280 { true -> offsets() _ -> over() } }
+    state offsets() {
+        self.package_table=64; self.source_table=64+self.package_count*48;
+        self.alias_table=self.source_table+self.source_count*20;
+        self.string_table=self.alias_table+self.alias_count*16;
+        transition self.string_table_length<=self.total_length-self.string_table { true -> bundle_at() _ -> bad() }
+    }
+    state bundle_at() { self.bundle_start=self.string_table+self.string_table_length; transition self.bundle_length==self.total_length-self.bundle_start { true -> root_ranges() _ -> bad() } }
+    state root_ranges() { transition self.root_package<self.package_count { true -> root_source_range() _ -> bad() } }
+    state root_source_range() { transition self.root_source<self.source_count { true -> root_owner_range() _ -> bad() } }
+    state root_owner_range() { transition self.root_owner_string<self.string_count { true -> root_machine_range() _ -> bad() } }
+    state root_machine_range() { transition self.root_machine_string<self.string_count { true -> packages() _ -> bad() } }
+    state packages() { self.i=0; self.x=0; transition 0 { _ -> package_loop() } }
+    state package_loop() { transition self.i<self.package_count { true -> package_row() _ -> package_partition() } }
+    state package_row() {
+        self.pos=self.package_table+self.i*48; self.read_u32(self.pos);
+        transition self.status==0 { true -> package_dense() _ -> done() }
+    }
+    state package_dense() { transition self.decoded==self.i { true -> package_span() _ -> bad() } }
+    state package_span() {
+        self.read_u32(self.pos+36); self.tables[0+self.i]=self.decoded;
+        self.read_u32(self.pos+40); self.tables[16+self.i]=self.decoded;
+        self.read_u32(self.pos+44); transition self.status==0 { true -> package_span_valid() _ -> done() }
+    }
+    state package_span_valid() { transition self.decoded==0 { true -> package_start() _ -> bad() } }
+    state package_start() { transition self.tables[0+self.i]==self.x { true -> package_nonempty() _ -> bad() } }
+    state package_nonempty() { transition self.tables[16+self.i]>=1 { true -> package_room() _ -> bad() } }
+    state package_room() { transition self.tables[16+self.i]<=self.source_count-self.x { true -> package_next() _ -> bad() } }
+    state package_next() { self.x=self.x+self.tables[16+self.i]; self.i=self.i+1; transition 0 { _ -> package_loop() } }
+    state package_partition() { transition self.x==self.source_count { true -> sources() _ -> bad() } }
+    state sources() { self.i=0; self.x=0; transition 0 { _ -> source_loop() } }
+    state source_loop() { transition self.i<self.source_count { true -> source_owner_seek() _ -> aliases() } }
+    state source_owner_seek() { transition self.i<self.tables[0+self.x]+self.tables[16+self.x] { true -> source_row() _ -> source_owner_next() } }
+    state source_owner_next() { self.x=self.x+1; transition self.x<self.package_count { true -> source_owner_seek() _ -> bad() } }
+    state source_row() { self.pos=self.source_table+self.i*20; self.read_u32(self.pos); transition self.status==0 { true -> source_dense() _ -> done() } }
+    state source_dense() { transition self.decoded==self.i { true -> source_fields() _ -> bad() } }
+    state source_fields() {
+        self.read_u32(self.pos+4); self.tables[32+self.i]=self.decoded;
+        self.read_u32(self.pos+8); self.tables[48+self.i]=self.decoded;
+        self.read_u32(self.pos+12); self.tables[64+self.i]=self.decoded;
+        self.read_u32(self.pos+16); transition self.status==0 { true -> source_valid() _ -> done() }
+    }
+    state source_valid() { transition self.tables[32+self.i]==self.x { true -> source_bundle_range() _ -> bad() } }
+    state source_bundle_range() { transition self.tables[48+self.i]<self.source_count { true -> source_module_range() _ -> bad() } }
+    state source_module_range() { transition self.tables[64+self.i]<self.string_count { true -> source_flags() _ -> bad() } }
+    state source_flags() { transition self.decoded==0 { true -> source_next() _ -> bad() } }
+    state source_next() { self.i=self.i+1; transition 0 { _ -> source_loop() } }
+    state aliases() { self.i=0; transition 0 { _ -> alias_loop() } }
+    state alias_loop() { transition self.i<self.alias_count { true -> alias_row() _ -> strings() } }
+    state alias_row() {
+        self.pos=self.alias_table+self.i*16;
+        self.read_u32(self.pos); self.tables[80+self.i]=self.decoded;
+        self.read_u32(self.pos+4); self.tables[112+self.i]=self.decoded;
+        self.read_u32(self.pos+8); self.tables[144+self.i]=self.decoded;
+        self.read_u32(self.pos+12); transition self.status==0 { true -> alias_valid() _ -> done() }
+    }
+    state alias_valid() { transition self.decoded==0 { true -> alias_ranges() _ -> bad() } }
+    state alias_ranges() { transition self.tables[80+self.i]<self.package_count { true -> alias_string_range() _ -> bad() } }
+    state alias_string_range() { transition self.tables[112+self.i]<self.string_count { true -> alias_target_range() _ -> bad() } }
+    state alias_target_range() { transition self.tables[144+self.i]<self.package_count { true -> alias_next() _ -> bad() } }
+    state alias_next() { self.i=self.i+1; transition 0 { _ -> alias_loop() } }
+    state strings() { self.i=0; self.pos=self.string_table; transition 0 { _ -> string_loop() } }
+    state string_loop() { transition self.i<self.string_count { true -> string_len() _ -> string_end() } }
+    state string_len() { self.read_u32(self.pos); transition self.status==0 { true -> string_room() _ -> done() } }
+    state string_room() { transition self.decoded<=self.bundle_start-self.pos-4 { true -> string_save() _ -> bad() } }
+    state string_save() { self.tables[176+self.i]=self.pos+4; self.tables[240+self.i]=self.decoded; self.pos=self.pos+4+self.decoded; self.i=self.i+1; transition 0 { _ -> string_loop() } }
+    state string_end() { transition self.pos==self.bundle_start { true -> bundle_header() _ -> bad() } }
+    state bundle_header() { transition self.bundle_length>=16 { true -> bundle_magic() _ -> bad() } }
+    state bundle_magic() { transition self.input[self.bundle_start]==79 { true -> bm1() _ -> bad() } }
+    state bm1() { transition self.input[self.bundle_start+1]==77 { true -> bm2() _ -> bad() } }
+    state bm2() { transition self.input[self.bundle_start+2]==71 { true -> bm3() _ -> bad() } }
+    state bm3() { transition self.input[self.bundle_start+3]==48 { true -> bm4() _ -> bad() } }
+    state bm4() { transition self.input[self.bundle_start+4]==66 { true -> bm5() _ -> bad() } }
+    state bm5() { transition self.input[self.bundle_start+5]==78 { true -> bm6() _ -> bad() } }
+    state bm6() { transition self.input[self.bundle_start+6]==68 { true -> bm7() _ -> bad() } }
+    state bm7() { transition self.input[self.bundle_start+7]==76 { true -> bv0() _ -> bad() } }
+    state bv0() { transition self.input[self.bundle_start+8]==1 { true -> bv1() _ -> bad() } }
+    state bv1() { transition self.input[self.bundle_start+9]==0 { true -> bv2() _ -> bad() } }
+    state bv2() { transition self.input[self.bundle_start+10]==0 { true -> bv3() _ -> bad() } }
+    state bv3() { transition self.input[self.bundle_start+11]==0 { true -> bundle_count_read() _ -> bad() } }
+    state bundle_count_read() { self.read_u32(self.bundle_start+12); transition self.status==0 { true -> bundle_count_valid() _ -> done() } }
+    state bundle_count_valid() { transition self.decoded==self.source_count { true -> bundle_entries() _ -> bad() } }
+    state bundle_entries() { self.i=0; self.pos=self.bundle_start+16; transition 0 { _ -> bundle_loop() } }
+    state bundle_loop() { transition self.i<self.source_count { true -> bundle_lengths() _ -> bundle_end() } }
+    state bundle_lengths() {
+        self.read_u32(self.pos); self.x=self.decoded; self.read_u32(self.pos+4); self.y=self.decoded;
+        transition self.status==0 { true -> bundle_room0() _ -> done() }
+    }
+    state bundle_room0() { transition self.x<=self.total_length-self.pos-8 { true -> bundle_room1() _ -> bad() } }
+    state bundle_room1() { transition self.y<=self.total_length-self.pos-8-self.x { true -> bundle_save() _ -> bad() } }
+    state bundle_save() { self.tables[304+self.i]=self.pos+8+self.x; self.tables[320+self.i]=self.y; self.pos=self.pos+8+self.x+self.y; self.i=self.i+1; transition 0 { _ -> bundle_loop() } }
+    state bundle_end() { transition self.pos==self.total_length { true -> map_sources() _ -> bad() } }
+    state map_sources() { self.i=0; transition 0 { _ -> map_loop() } }
+    state map_loop() { transition self.i<self.source_count { true -> map_one() _ -> root_owner() } }
+    state map_one() { self.x=self.tables[48+self.i]; self.tables[336+self.i]=self.tables[304+self.x]; self.tables[352+self.i]=self.tables[320+self.x]; self.i=self.i+1; transition 0 { _ -> map_loop() } }
+    state root_owner() { transition self.tables[32+self.root_source]==self.root_package { true -> done() _ -> bad() } }
+    state over() { self.exhaust(); transition 0 { _ -> done() } }
+    state bad() { self.reject(); transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::is_ident_start(&mut self) {
+    self.match_ok=0;
+    transition self.c==95 { true -> yes() _ -> upper0() }
+    state upper0() { transition self.c>=65 { true -> upper1() _ -> lower0() } }
+    state upper1() { transition self.c<91 { true -> yes() _ -> lower0() } }
+    state lower0() { transition self.c>=97 { true -> lower1() _ -> done() } }
+    state lower1() { transition self.c<123 { true -> yes() _ -> done() } }
+    state yes() { self.match_ok=1; transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::is_ident_continue(&mut self) {
+    self.is_ident_start(); transition self.match_ok==1 { true -> done() _ -> digit0() }
+    state digit0() { transition self.c>=48 { true -> digit1() _ -> done() } }
+    state digit1() { transition self.c<58 { true -> yes() _ -> done() } }
+    state yes() { self.match_ok=1; transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::skip_block_comment(&mut self) {
+    self.depth=1; self.pos=self.pos+2;
+    transition 0 { _ -> loop() }
+    state loop() { transition self.pos<self.limit { true -> pair_room() _ -> bad() } }
+    state pair_room() { transition self.pos+1<self.limit { true -> open0() _ -> advance() } }
+    state open0() { transition self.input[self.pos]==47 { true -> open1() _ -> close0() } }
+    state open1() { transition self.input[self.pos+1]==42 { true -> open() _ -> close0() } }
+    state open() { self.depth=self.depth+1; self.pos=self.pos+2; transition 0 { _ -> loop() } }
+    state close0() { transition self.input[self.pos]==42 { true -> close1() _ -> advance() } }
+    state close1() { transition self.input[self.pos+1]==47 { true -> close() _ -> advance() } }
+    state close() { self.depth=self.depth-1; self.pos=self.pos+2; transition self.depth==0 { true -> done() _ -> loop() } }
+    state advance() { self.pos=self.pos+1; transition 0 { _ -> loop() } }
+    state bad() { self.reject(); transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::next_token(&mut self) {
+    self.tok=0; self.tok_start=self.pos; self.tok_len=0; self.int_value=0;
+    transition self.status==0 { true -> skip() _ -> done() }
+    state skip() { transition self.pos<self.limit { true -> whitespace() _ -> eof() } }
+    state whitespace() { self.c=self.input[self.pos]; transition self.c==32 { true -> skip_one() _ -> tab() } }
+    state tab() { transition self.c==9 { true -> skip_one() _ -> lf() } }
+    state lf() { transition self.c==10 { true -> skip_one() _ -> cr() } }
+    state cr() { transition self.c==13 { true -> skip_one() _ -> slash() } }
+    state skip_one() { self.pos=self.pos+1; transition 0 { _ -> skip() } }
+    state slash() { transition self.c==47 { true -> slash_room() _ -> classify() } }
+    state slash_room() { transition self.pos+1<self.limit { true -> slash_kind() _ -> classify() } }
+    state slash_kind() { transition self.input[self.pos+1]==47 { true -> line_begin() _ -> block_check() } }
+    state line_begin() { self.pos=self.pos+2; transition 0 { _ -> line() } }
+    state line() { transition self.pos<self.limit { true -> line_byte() _ -> eof() } }
+    state line_byte() { transition self.input[self.pos]==10 { true -> skip_one() _ -> line_advance() } }
+    state line_advance() { self.pos=self.pos+1; transition 0 { _ -> line() } }
+    state block_check() { transition self.input[self.pos+1]==42 { true -> block() _ -> classify() } }
+    state block() { self.skip_block_comment(); transition self.status==0 { true -> skip() _ -> done() } }
+    state classify() { self.tok_start=self.pos; self.c=self.input[self.pos]; transition self.c==34 { true -> bad() _ -> single_quote() } }
+    // String and character literals are outside this tranche. Reject them
+    // before a brace in their contents could be mistaken for body structure.
+    state single_quote() { transition self.c==39 { true -> bad() _ -> classify_ident() } }
+    state classify_ident() { self.is_ident_start(); transition self.match_ok==1 { true -> ident_begin() _ -> digit0() } }
+    state ident_begin() { self.pos=self.pos+1; transition 0 { _ -> ident() } }
+    state ident() { transition self.pos<self.limit { true -> ident_byte() _ -> ident_done() } }
+    state ident_byte() { self.c=self.input[self.pos]; self.is_ident_continue(); transition self.match_ok==1 { true -> ident_advance() _ -> ident_done() } }
+    state ident_advance() { self.pos=self.pos+1; transition self.pos-self.tok_start<=64 { true -> ident() _ -> over() } }
+    state ident_done() { self.tok=256; self.tok_len=self.pos-self.tok_start; transition 0 { _ -> done() } }
+    state digit0() { transition self.c>=48 { true -> digit1() _ -> punctuation() } }
+    state digit1() { transition self.c<58 { true -> integer_begin() _ -> punctuation() } }
+    state integer_begin() { self.int_value=0; transition 0 { _ -> integer() } }
+    state integer() { transition self.pos<self.limit { true -> integer_byte() _ -> integer_done() } }
+    state integer_byte() { self.c=self.input[self.pos]; transition self.c>=48 { true -> integer_digit_hi() _ -> integer_done() } }
+    state integer_digit_hi() { transition self.c<58 { true -> integer_room() _ -> integer_done() } }
+    state integer_room() { transition self.int_value<=214748364 { true -> integer_last_check() _ -> bad() } }
+    state integer_last_check() { transition self.int_value<214748364 { true -> integer_add() _ -> integer_last() } }
+    state integer_last() { transition self.c-48<=7 { true -> integer_add() _ -> bad() } }
+    state integer_add() { self.int_value=self.int_value*10+self.c-48; self.pos=self.pos+1; transition 0 { _ -> integer() } }
+    state integer_done() { self.tok=257; self.tok_len=self.pos-self.tok_start; transition 0 { _ -> done() } }
+    state punctuation() { transition self.c<128 { true -> punctuation_save() _ -> bad() } }
+    state punctuation_save() { self.tok=self.c; self.tok_len=1; self.pos=self.pos+1; transition 0 { _ -> done() } }
+    state eof() { self.tok=0; self.tok_start=self.limit; self.tok_len=0; transition 0 { _ -> done() } }
+    state over() { self.exhaust(); transition 0 { _ -> done() } }
+    state bad() { self.reject(); transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::token_word(&mut self, base: i32, count: i32) {
+    self.match_ok=0; transition self.tok==256 { true -> length() _ -> done() }
+    state length() { transition self.tok_len==count { true -> bytes() _ -> done() } }
+    state bytes() { self.j=0; transition 0 { _ -> loop() } }
+    state loop() { transition self.j<count { true -> byte() _ -> yes() } }
+    state byte() { transition self.input[self.tok_start+self.j]==self.words[base+self.j] { true -> next() _ -> done() } }
+    state next() { self.j=self.j+1; transition 0 { _ -> loop() } }
+    state yes() { self.match_ok=1; transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::expect_token(&mut self, expected: i32) {
+    transition self.tok==expected { true -> advance() _ -> bad() }
+    state advance() { self.next_token(); transition 0 { _ -> done() } }
+    state bad() { self.reject(); transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::expect_word(&mut self, base: i32, count: i32) {
+    self.token_word(base,count); transition self.match_ok==1 { true -> advance() _ -> bad() }
+    state advance() { self.next_token(); transition 0 { _ -> done() } }
+    state bad() { self.reject(); transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::parse_path(&mut self) {
+    self.path_count=0; self.saved_start=0; self.saved_len=0;
+    transition self.tok==256 { true -> component() _ -> bad() }
+    state component() { transition self.path_count<8 { true -> save() _ -> over() } }
+    state save() {
+        self.tables[368+self.path_count]=self.tok_start;
+        self.tables[376+self.path_count]=self.tok_len;
+        transition self.path_count==0 { true -> first() _ -> saved() }
+    }
+    state first() { self.saved_start=self.tok_start; transition 0 { _ -> saved() } }
+    state saved() { self.saved_len=self.tok_start+self.tok_len-self.saved_start; self.path_count=self.path_count+1; self.next_token(); transition self.tok==58 { true -> colon1() _ -> done() } }
+    state colon1() { self.next_token(); transition self.tok==58 { true -> next_ident() _ -> bad() } }
+    state next_ident() { self.next_token(); transition self.tok==256 { true -> component() _ -> bad() } }
+    state over() { self.exhaust(); transition 0 { _ -> done() } }
+    state bad() { self.reject(); transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::path_range_matches_string(&mut self, first: i32, count: i32, string_id: i32) {
+    self.match_ok=0; self.i=first; self.j=first+count; self.y=0;
+    transition count>0 { true -> component() _ -> empty() }
+    state empty() { transition self.tables[240+string_id]==0 { true -> yes() _ -> done() } }
+    state component() { transition self.i<self.j { true -> component_room() _ -> exact_end() } }
+    state component_room() { transition self.tables[376+self.i]<=self.tables[240+string_id]-self.y { true -> bytes_begin() _ -> done() } }
+    state bytes_begin() { self.c=0; transition 0 { _ -> bytes() } }
+    state bytes() { transition self.c<self.tables[376+self.i] { true -> byte() _ -> component_end() } }
+    state byte() { transition self.input[self.tables[368+self.i]+self.c]==self.input[self.tables[176+string_id]+self.y+self.c] { true -> byte_next() _ -> done() } }
+    state byte_next() { self.c=self.c+1; transition 0 { _ -> bytes() } }
+    state component_end() { self.y=self.y+self.tables[376+self.i]; self.i=self.i+1; transition self.i<self.j { true -> separator_room() _ -> exact_end() } }
+    state separator_room() { transition self.y<=self.tables[240+string_id]-2 { true -> separator0() _ -> done() } }
+    state separator0() { transition self.input[self.tables[176+string_id]+self.y]==58 { true -> separator1() _ -> done() } }
+    state separator1() { transition self.input[self.tables[176+string_id]+self.y+1]==58 { true -> separator_advance() _ -> done() } }
+    state separator_advance() { self.y=self.y+2; transition 0 { _ -> component() } }
+    state exact_end() { transition self.y==self.tables[240+string_id] { true -> yes() _ -> done() } }
+    state yes() { self.match_ok=1; transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::find_string_path(&mut self, first: i32, count: i32) {
+    self.result_id=0-1; self.string_scan=0;
+    transition 0 { _ -> loop() }
+    state loop() { transition self.string_scan<self.string_count { true -> compare() _ -> done() } }
+    state compare() { self.path_range_matches_string(first,count,self.string_scan); transition self.match_ok==1 { true -> found() _ -> next() } }
+    state found() { self.result_id=self.string_scan; transition 0 { _ -> done() } }
+    state next() { self.string_scan=self.string_scan+1; transition 0 { _ -> loop() } }
+    state done() { }
+}
+
+machine Main::find_string_span(&mut self, start: i32, count: i32) {
+    self.result_id=0-1; self.i=0;
+    transition 0 { _ -> loop() }
+    state loop() { transition self.i<self.string_count { true -> length() _ -> done() } }
+    state length() { transition self.tables[240+self.i]==count { true -> bytes() _ -> next() } }
+    state bytes() { self.spans_equal(start,self.tables[176+self.i],count); transition self.match_ok==1 { true -> found() _ -> next() } }
+    state found() { self.result_id=self.i; transition 0 { _ -> done() } }
+    state next() { self.i=self.i+1; transition 0 { _ -> loop() } }
+    state done() { }
+}
+
+machine Main::add_binding(&mut self, role: i32, start: i32, count: i32) {
+    self.result_id=0-1;
+    transition self.binding_count<4096 { true -> store() _ -> over() }
+    state store() {
+        self.result_id=self.binding_count;
+        self.tables[2336+self.result_id]=self.current_source;
+        self.tables[6432+self.result_id]=role;
+        self.tables[10528+self.result_id]=1;
+        self.tables[14624+self.result_id]=start-self.tables[336+self.current_source];
+        self.tables[18720+self.result_id]=count;
+        self.tables[22816+self.result_id]=0-1;
+        self.tables[26912+self.result_id]=0-1;
+        self.binding_count=self.binding_count+1;
+        transition 0 { _ -> done() }
+    }
+    state over() { self.exhaust(); transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::allocate_raw_type(&mut self) {
+    self.raw_type_result=0-1;
+    transition self.raw_type_count<8192 { true -> store() _ -> over() }
+    state store() {
+        self.raw_type_result=self.raw_type_count; self.raw_type_count=self.raw_type_count+1;
+        self.tables[114592+self.raw_type_result]=0; self.tables[122784+self.raw_type_result]=0;
+        self.tables[130976+self.raw_type_result]=0-1; self.tables[139168+self.raw_type_result]=0;
+        self.tables[147360+self.raw_type_result]=0; self.tables[155552+self.raw_type_result]=0;
+        self.tables[163744+self.raw_type_result]=0-1; self.tables[171936+self.raw_type_result]=0-1;
+        transition 0 { _ -> done() }
+    }
+    state over() { self.exhaust(); transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::parse_type_constraints(&mut self, raw: i32) {
+    transition self.status==0 { true -> trapping_check() _ -> done() }
+    state trapping_check() { self.token_word(48,2); transition self.match_ok==1 { true -> trapping_in() _ -> range_check() } }
+    state trapping_in() { self.next_token(); self.token_word(50,8); transition self.match_ok==1 { true -> trapping_kind() _ -> bad() } }
+    state trapping_kind() { transition self.tables[114592+raw]==3 { true -> bad() _ -> trapping_nominal() } }
+    state trapping_nominal() { transition self.tables[114592+raw]==4 { true -> bad() _ -> trapping_save() } }
+    state trapping_save() { self.tables[122784+raw]=1; self.next_token(); transition 0 { _ -> range_check() } }
+    state range_check() { transition self.tok==91 { true -> range_kind() _ -> done() } }
+    state range_kind() { transition self.tables[114592+raw]==2 { true -> range_open() _ -> bad() } }
+    state range_open() { self.next_token(); transition self.tok==257 { true -> range_low() _ -> bad() } }
+    state range_low() { self.tables[147360+raw]=self.int_value; self.next_token(); self.expect_token(46); transition self.status==0 { true -> dot2() _ -> done() } }
+    state dot2() { self.expect_token(46); transition self.status==0 { true -> equal() _ -> done() } }
+    state equal() { self.expect_token(61); transition self.status==0 { true -> high_token() _ -> done() } }
+    state high_token() { transition self.tok==257 { true -> range_high() _ -> bad() } }
+    state range_high() { self.tables[155552+raw]=self.int_value; self.next_token(); self.expect_token(93); transition self.status==0 { true -> order() _ -> done() } }
+    state order() { transition self.tables[147360+raw]<=self.tables[155552+raw] { true -> done() _ -> bad() } }
+    state bad() { self.reject(); transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::parse_type(&mut self) {
+    self.raw_type_result=0-1;
+    transition self.tok==91 { true -> array_open() _ -> scalar_token() }
+    state scalar_token() { transition self.tok==256 { true -> scalar_allocate() _ -> bad() } }
+    state scalar_allocate() { self.allocate_raw_type(); transition self.status==0 { true -> scalar_classify() _ -> done() } }
+    state scalar_classify() { self.token_word(39,2); transition self.match_ok==1 { true -> u8_type() _ -> u32_check() } }
+    state u8_type() { self.tables[114592+self.raw_type_result]=1; self.tables[155552+self.raw_type_result]=255; self.next_token(); transition 0 { _ -> scalar_constraints() } }
+    state u32_check() { self.token_word(41,3); transition self.match_ok==1 { true -> u32_type() _ -> bool_check() } }
+    state u32_type() { self.tables[114592+self.raw_type_result]=2; self.tables[155552+self.raw_type_result]=2147483647; self.next_token(); transition 0 { _ -> scalar_constraints() } }
+    state bool_check() { self.token_word(44,4); transition self.match_ok==1 { true -> bool_type() _ -> nominal() } }
+    state bool_type() { self.tables[114592+self.raw_type_result]=3; self.tables[155552+self.raw_type_result]=1; self.next_token(); transition 0 { _ -> scalar_constraints() } }
+    state nominal() { self.tables[114592+self.raw_type_result]=4; self.x=self.raw_type_result; self.parse_path(); transition self.status==0 { true -> nominal_binding() _ -> done() } }
+    state nominal_binding() { self.raw_type_result=self.x; self.add_binding(1,self.saved_start,self.saved_len); self.tables[163744+self.raw_type_result]=self.result_id; transition 0 { _ -> scalar_constraints() } }
+    state scalar_constraints() { self.x=self.raw_type_result; self.parse_type_constraints(self.x); self.raw_type_result=self.x; transition 0 { _ -> done() } }
+    state array_open() { self.next_token(); self.parse_type(); transition self.status==0 { true -> array_element() _ -> done() } }
+    state array_element() { self.saved_type=self.raw_type_result; self.expect_token(59); transition self.status==0 { true -> array_length_token() _ -> done() } }
+    state array_length_token() { transition self.tok==257 { true -> array_length_bound() _ -> bad() } }
+    state array_length_bound() { transition self.int_value<=65536 { true -> array_length_save() _ -> over() } }
+    state array_length_save() { self.y=self.int_value; self.next_token(); self.expect_token(93); transition self.status==0 { true -> array_allocate() _ -> done() } }
+    state array_allocate() { self.allocate_raw_type(); transition self.status==0 { true -> array_save() _ -> done() } }
+    state array_save() { self.tables[114592+self.raw_type_result]=5; self.tables[130976+self.raw_type_result]=self.saved_type; self.tables[139168+self.raw_type_result]=self.y; transition 0 { _ -> array_constraints() } }
+    state array_constraints() { self.x=self.raw_type_result; self.parse_type_constraints(self.x); self.raw_type_result=self.x; transition 0 { _ -> done() } }
+    state over() { self.exhaust(); transition 0 { _ -> done() } }
+    state bad() { self.reject(); transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::parse_path_item(&mut self) {
+    self.parse_path(); transition self.status==0 { true -> semicolon() _ -> done() }
+    state semicolon() { self.expect_token(59); transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::parse_module(&mut self) {
+    self.next_token(); self.parse_path(); transition self.status==0 { true -> unique() _ -> done() }
+    state unique() { transition self.tables[384+self.current_source]<0 { true -> compare() _ -> bad() } }
+    state compare() { self.x=self.tables[64+self.current_source]; self.path_range_matches_string(0,self.path_count,self.x); transition self.match_ok==1 { true -> save() _ -> bad() } }
+    state save() { self.tables[384+self.current_source]=self.saved_start-self.tables[336+self.current_source]; self.tables[400+self.current_source]=self.saved_len; self.expect_token(59); transition 0 { _ -> done() } }
+    state bad() { self.reject(); transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::parse_use(&mut self) {
+    self.next_token(); self.parse_path(); transition self.status==0 { true -> components() _ -> done() }
+    state components() { transition self.path_count>=2 { true -> capacity() _ -> bad() } }
+    state capacity() { transition self.import_count<64 { true -> save() _ -> over() } }
+    state save() {
+        self.x=self.import_count;
+        self.tables[480+self.x]=self.current_source;
+        self.tables[544+self.x]=self.tables[432+self.current_source];
+        self.tables[608+self.x]=self.saved_start-self.tables[336+self.current_source];
+        self.tables[672+self.x]=self.saved_len;
+        self.tables[736+self.x]=self.path_count;
+        self.tables[1824+self.x]=0-1; self.tables[1888+self.x]=0;
+        self.tables[1952+self.x]=0-1; self.tables[2016+self.x]=0-1;
+        self.tables[2080+self.x]=0-1; self.tables[2144+self.x]=0-1;
+        self.tables[2208+self.x]=self.tables[368+self.path_count-1]-self.tables[336+self.current_source];
+        self.tables[2272+self.x]=self.tables[376+self.path_count-1];
+        self.j=0; transition 0 { _ -> components_save() }
+    }
+    state components_save() { transition self.j<self.path_count { true -> component_save() _ -> finish() } }
+    state component_save() { self.tables[800+self.x*8+self.j]=self.tables[368+self.j]-self.tables[336+self.current_source]; self.tables[1312+self.x*8+self.j]=self.tables[376+self.j]; self.j=self.j+1; transition 0 { _ -> components_save() } }
+    state finish() { self.import_count=self.import_count+1; self.tables[432+self.current_source]=self.tables[432+self.current_source]+1; self.expect_token(59); transition 0 { _ -> done() } }
+    state over() { self.exhaust(); transition 0 { _ -> done() } }
+    state bad() { self.reject(); transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::find_data_identity(&mut self, source: i32, start: i32, count: i32) {
+    self.result_id=0-1; self.found_count=0; self.i=0;
+    transition 0 { _ -> loop() }
+    state loop() { transition self.i<self.declaration_count { true -> kind() _ -> done() } }
+    state kind() { transition self.tables[31008+self.i]==1 { true -> package() _ -> next() } }
+    state package() { self.x=self.tables[31520+self.i]; transition self.tables[32+self.x]==self.tables[32+source] { true -> module() _ -> next() } }
+    state module() { transition self.tables[64+self.x]==self.tables[64+source] { true -> length() _ -> next() } }
+    state length() { transition self.tables[32288+self.i]==count { true -> bytes() _ -> next() } }
+    state bytes() { self.spans_equal(self.tables[336+self.x]+self.tables[32032+self.i],start,count); transition self.match_ok==1 { true -> found() _ -> next() } }
+    state found() { self.result_id=self.i; self.found_count=self.found_count+1; transition 0 { _ -> next() } }
+    state next() { self.i=self.i+1; transition 0 { _ -> loop() } }
+    state done() { }
+}
+
+machine Main::field_name_exists(&mut self, record: i32, start: i32, count: i32) {
+    self.match_ok=0; self.i=self.tables[32928+record]; self.j=self.i+self.tables[33056+record];
+    transition 0 { _ -> loop() }
+    state loop() { transition self.i<self.j { true -> length() _ -> done() } }
+    state length() { transition self.tables[53792+self.i]==count { true -> bytes() _ -> next() } }
+    state bytes() { self.x=self.tables[31520+self.tables[32800+record]]; self.spans_equal(self.tables[336+self.x]+self.tables[49696+self.i],start,count); transition self.match_ok==1 { true -> done() _ -> next() } }
+    state next() { self.i=self.i+1; transition 0 { _ -> loop() } }
+    state done() { }
+}
+
+machine Main::parse_data(&mut self) {
+    self.next_token(); transition self.tok==256 { true -> unique() _ -> bad() }
+    state unique() { self.saved_start=self.tok_start; self.saved_len=self.tok_len; self.find_data_identity(self.current_source,self.saved_start,self.saved_len); transition self.found_count==0 { true -> capacity() _ -> bad() } }
+    state capacity() { transition self.declaration_count<256 { true -> record_capacity() _ -> over() } }
+    state record_capacity() { transition self.record_count<128 { true -> save() _ -> over() } }
+    state save() {
+        self.current_record=self.record_count;
+        self.x=self.declaration_count;
+        self.tables[31008+self.x]=1; self.tables[31264+self.x]=self.current_visibility;
+        self.tables[31520+self.x]=self.current_source;
+        self.tables[31776+self.x]=self.tables[464+self.current_source];
+        self.tables[32032+self.x]=self.saved_start-self.tables[336+self.current_source];
+        self.tables[32288+self.x]=self.saved_len; self.tables[32544+self.x]=self.current_record;
+        self.tables[32800+self.current_record]=self.x;
+        self.tables[32928+self.current_record]=self.field_count;
+        self.tables[33056+self.current_record]=0; self.tables[33184+self.current_record]=0;
+        self.declaration_count=self.declaration_count+1; self.record_count=self.record_count+1;
+        self.tables[464+self.current_source]=self.tables[464+self.current_source]+1;
+        self.next_token(); transition self.tok==91 { true -> copy_open() _ -> body_open() }
+    }
+    state copy_open() { self.next_token(); self.expect_word(16,4); transition self.status==0 { true -> copy_close() _ -> done() } }
+    state copy_close() { self.expect_token(93); self.tables[33184+self.current_record]=1; transition self.status==0 { true -> body_open() _ -> done() } }
+    state body_open() { self.expect_token(123); transition self.status==0 { true -> fields() _ -> done() } }
+    state fields() { transition self.tok==125 { true -> complete() _ -> field_limit() } }
+    state field_limit() { transition self.tables[33056+self.current_record]<64 { true -> field_capacity() _ -> over() } }
+    state field_capacity() { transition self.field_count<4096 { true -> field_name() _ -> over() } }
+    state field_name() { transition self.tok==256 { true -> field_unique() _ -> bad() } }
+    state field_unique() { self.saved_start=self.tok_start; self.saved_len=self.tok_len; self.field_name_exists(self.current_record,self.saved_start,self.saved_len); transition self.match_ok==0 { true -> field_save() _ -> bad() } }
+    state field_save() {
+        self.x=self.field_count;
+        self.tables[33312+self.x]=self.current_record;
+        self.tables[37408+self.x]=self.tables[33056+self.current_record];
+        self.tables[49696+self.x]=self.saved_start-self.tables[336+self.current_source];
+        self.tables[53792+self.x]=self.saved_len;
+        self.next_token(); self.expect_token(58); transition self.status==0 { true -> field_type() _ -> done() }
+    }
+    state field_type() { self.parse_type(); transition self.status==0 { true -> field_type_save() _ -> done() } }
+    state field_type_save() { self.tables[41504+self.field_count]=self.raw_type_result; self.field_count=self.field_count+1; self.tables[33056+self.current_record]=self.tables[33056+self.current_record]+1; self.expect_token(59); transition self.status==0 { true -> fields() _ -> done() } }
+    state complete() { self.next_token(); transition 0 { _ -> done() } }
+    state over() { self.exhaust(); transition 0 { _ -> done() } }
+    state bad() { self.reject(); transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::parameter_name_exists(&mut self, kind: i32, start: i32, count: i32) {
+    self.match_ok=0; self.i=self.current_parameter_start; self.j=self.i+self.current_parameter_count;
+    transition kind==1 { true -> machine_loop() _ -> block_loop() }
+    state machine_loop() { transition self.i<self.j { true -> machine_length() _ -> done() } }
+    state machine_length() { transition self.tables[69536+self.i]==count { true -> machine_bytes() _ -> machine_next() } }
+    state machine_bytes() { self.spans_equal(self.tables[336+self.current_source]+self.tables[67488+self.i],start,count); transition self.match_ok==1 { true -> done() _ -> machine_next() } }
+    state machine_next() { self.i=self.i+1; transition 0 { _ -> machine_loop() } }
+    state block_loop() { transition self.i<self.j { true -> block_length() _ -> done() } }
+    state block_length() { transition self.tables[110496+self.i]==count { true -> block_bytes() _ -> block_next() } }
+    state block_bytes() { self.spans_equal(self.tables[336+self.current_source]+self.tables[106400+self.i],start,count); transition self.match_ok==1 { true -> done() _ -> block_next() } }
+    state block_next() { self.i=self.i+1; transition 0 { _ -> block_loop() } }
+    state done() { }
+}
+
+machine Main::parse_parameter_list(&mut self, kind: i32, owner: i32) {
+    self.current_parameter_count=0;
+    transition kind==1 { true -> machine_start() _ -> block_start() }
+    state machine_start() { self.current_parameter_start=self.machine_parameter_count; transition 0 { _ -> receiver() } }
+    state block_start() { self.current_parameter_start=self.block_parameter_count; transition 0 { _ -> receiver() } }
+    state receiver() { transition self.tok==38 { true -> amp() _ -> bad() } }
+    state amp() { self.next_token(); self.token_word(27,3); transition self.match_ok==1 { true -> mutable() _ -> shared() } }
+    state mutable() { self.current_receiver_access=2; self.next_token(); transition 0 { _ -> self_word() } }
+    state shared() { self.current_receiver_access=1; transition 0 { _ -> self_word() } }
+    state self_word() { self.expect_word(30,4); transition self.status==0 { true -> tail() _ -> done() } }
+    state tail() { transition self.tok==44 { true -> comma() _ -> close() } }
+    state comma() { self.next_token(); transition self.current_parameter_count<7 { true -> name() _ -> over() } }
+    state name() { transition self.tok==256 { true -> unique() _ -> bad() } }
+    state unique() { self.saved_start=self.tok_start; self.saved_len=self.tok_len; self.parameter_name_exists(kind,self.saved_start,self.saved_len); transition self.match_ok==0 { true -> capacity_kind() _ -> bad() } }
+    state capacity_kind() { transition kind==1 { true -> machine_capacity() _ -> block_capacity() } }
+    state machine_capacity() { transition self.machine_parameter_count<2048 { true -> syntax() _ -> over() } }
+    state block_capacity() { transition self.block_parameter_count<4096 { true -> syntax() _ -> over() } }
+    state syntax() { self.next_token(); self.expect_token(58); transition self.status==0 { true -> type() _ -> done() } }
+    state type() { self.parse_type(); transition self.status==0 { true -> store_kind() _ -> done() } }
+    state store_kind() { transition kind==1 { true -> store_machine() _ -> store_block() } }
+    state store_machine() {
+        self.x=self.machine_parameter_count;
+        self.tables[59296+self.x]=owner; self.tables[61344+self.x]=self.current_parameter_count;
+        self.tables[63392+self.x]=self.raw_type_result;
+        self.tables[67488+self.x]=self.saved_start-self.tables[336+self.current_source];
+        self.tables[69536+self.x]=self.saved_len;
+        self.machine_parameter_count=self.machine_parameter_count+1; transition 0 { _ -> stored() }
+    }
+    state store_block() {
+        self.x=self.block_parameter_count;
+        self.tables[90016+self.x]=owner; self.tables[94112+self.x]=self.current_parameter_count;
+        self.tables[98208+self.x]=self.raw_type_result;
+        self.tables[106400+self.x]=self.saved_start-self.tables[336+self.current_source];
+        self.tables[110496+self.x]=self.saved_len;
+        self.block_parameter_count=self.block_parameter_count+1; transition 0 { _ -> stored() }
+    }
+    state stored() { self.current_parameter_count=self.current_parameter_count+1; transition 0 { _ -> tail() } }
+    state close() { self.expect_token(41); transition 0 { _ -> done() } }
+    state over() { self.exhaust(); transition 0 { _ -> done() } }
+    state bad() { self.reject(); transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::skip_balanced_body(&mut self) {
+    self.depth=1; self.saved_start=0-1;
+    transition 0 { _ -> loop() }
+    state loop() { transition self.tok==0 { true -> bad() _ -> open() } }
+    state open() { transition self.tok==123 { true -> open_add() _ -> close() } }
+    state open_add() { self.depth=self.depth+1; self.next_token(); transition 0 { _ -> loop() } }
+    state close() { transition self.tok==125 { true -> close_sub() _ -> advance() } }
+    state close_sub() { self.depth=self.depth-1; transition self.depth==0 { true -> complete() _ -> close_advance() } }
+    state close_advance() { self.next_token(); transition 0 { _ -> loop() } }
+    state advance() { self.next_token(); transition self.status==0 { true -> loop() _ -> done() } }
+    state complete() { self.saved_start=self.tok_start; self.next_token(); transition 0 { _ -> done() } }
+    state bad() { self.reject(); transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::state_name_exists(&mut self, owner_machine: i32, start: i32, count: i32) {
+    self.match_ok=0; self.i=self.tables[58912+owner_machine]+1; self.j=self.tables[58912+owner_machine]+self.tables[59040+owner_machine];
+    transition 0 { _ -> loop() }
+    state loop() { transition self.i<self.j { true -> length() _ -> done() } }
+    state length() { transition self.tables[83872+self.i]==count { true -> bytes() _ -> next() } }
+    state bytes() { self.spans_equal(self.tables[336+self.current_source]+self.tables[81824+self.i],start,count); transition self.match_ok==1 { true -> done() _ -> next() } }
+    state next() { self.i=self.i+1; transition 0 { _ -> loop() } }
+    state done() { }
+}
+
+machine Main::parse_state(&mut self) {
+    transition self.tables[59040+self.current_machine]<128 { true -> capacity() _ -> over() }
+    state capacity() { transition self.block_count<2048 { true -> name_begin() _ -> over() } }
+    state name_begin() { self.next_token(); transition self.tok==256 { true -> unique() _ -> bad() } }
+    state unique() { self.saved_start=self.tok_start; self.saved_len=self.tok_len; self.state_name_exists(self.current_machine,self.saved_start,self.saved_len); transition self.match_ok==0 { true -> allocate() _ -> bad() } }
+    state allocate() {
+        self.current_block=self.block_count;
+        self.tables[71584+self.current_block]=self.current_machine;
+        self.tables[73632+self.current_block]=self.tables[59040+self.current_machine];
+        self.tables[81824+self.current_block]=self.saved_start-self.tables[336+self.current_source];
+        self.tables[83872+self.current_block]=self.saved_len;
+        self.tables[85920+self.current_block]=self.block_parameter_count;
+        self.tables[87968+self.current_block]=0;
+        self.block_count=self.block_count+1; self.tables[59040+self.current_machine]=self.tables[59040+self.current_machine]+1;
+        self.next_token(); self.expect_token(40); transition self.status==0 { true -> params() _ -> done() }
+    }
+    state params() { self.parse_parameter_list(2,self.current_block); transition self.status==0 { true -> params_save() _ -> done() } }
+    state params_save() { self.tables[75680+self.current_block]=self.current_receiver_access; self.tables[87968+self.current_block]=self.current_parameter_count; transition self.current_receiver_access<=self.tables[58272+self.current_machine] { true -> body_open() _ -> bad() } }
+    state body_open() { self.expect_token(123); transition self.status==0 { true -> body_start() _ -> done() } }
+    state body_start() { self.tables[77728+self.current_block]=self.tok_start-self.tables[336+self.current_source]; self.skip_balanced_body(); transition self.status==0 { true -> body_end() _ -> done() } }
+    state body_end() { self.tables[79776+self.current_block]=self.saved_start-self.tables[336+self.current_source]; transition 0 { _ -> done() } }
+    state over() { self.exhaust(); transition 0 { _ -> done() } }
+    state bad() { self.reject(); transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::scan_machine_body(&mut self) {
+    self.depth=0; self.seen_state=0;
+    transition 0 { _ -> loop() }
+    state loop() { transition self.tok==0 { true -> bad() _ -> top() } }
+    state top() { transition self.depth==0 { true -> state_check() _ -> brace() } }
+    state state_check() { self.token_word(34,5); transition self.match_ok==1 { true -> state_begin() _ -> machine_close() } }
+    state state_begin() { transition self.seen_state==0 { true -> first_state() _ -> state_parse() } }
+    state first_state() { self.x=self.tables[59168+self.current_machine]; self.tables[79776+self.x]=self.tok_start-self.tables[336+self.current_source]; self.seen_state=1; transition 0 { _ -> state_parse() } }
+    state state_parse() { self.parse_state(); transition self.status==0 { true -> loop() _ -> done() } }
+    state machine_close() { transition self.tok==125 { true -> complete() _ -> entry_only() } }
+    state entry_only() { transition self.seen_state==0 { true -> brace() _ -> bad() } }
+    state brace() { transition self.tok==123 { true -> open() _ -> close() } }
+    state open() { self.depth=self.depth+1; self.next_token(); transition 0 { _ -> loop() } }
+    state close() { transition self.tok==125 { true -> close_depth() _ -> advance() } }
+    state close_depth() { transition self.depth>0 { true -> close_sub() _ -> bad() } }
+    state close_sub() { self.depth=self.depth-1; self.next_token(); transition 0 { _ -> loop() } }
+    state advance() { self.next_token(); transition self.status==0 { true -> loop() _ -> done() } }
+    state complete() { self.x=self.tables[59168+self.current_machine]; transition self.seen_state==0 { true -> entry_end() _ -> consume() } }
+    state entry_end() { self.tables[79776+self.x]=self.tok_start-self.tables[336+self.current_source]; transition 0 { _ -> consume() } }
+    state consume() { self.next_token(); transition 0 { _ -> done() } }
+    state bad() { self.reject(); transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::parse_machine(&mut self) {
+    self.next_token(); transition self.tok==256 { true -> owner() _ -> bad() }
+    state owner() { self.add_binding(2,self.tok_start,self.tok_len); self.saved_type=self.result_id; self.next_token(); self.expect_token(58); transition self.status==0 { true -> colon2() _ -> done() } }
+    state colon2() { self.expect_token(58); transition self.status==0 { true -> name() _ -> done() } }
+    state name() { transition self.tok==256 { true -> capacity() _ -> bad() } }
+    state capacity() { transition self.declaration_count<256 { true -> machine_capacity() _ -> over() } }
+    state machine_capacity() { transition self.machine_count<128 { true -> block_capacity() _ -> over() } }
+    state block_capacity() { transition self.block_count<2048 { true -> save() _ -> over() } }
+    state save() {
+        self.current_machine=self.machine_count; self.x=self.declaration_count;
+        self.tables[31008+self.x]=2; self.tables[31264+self.x]=self.current_visibility;
+        self.tables[31520+self.x]=self.current_source;
+        self.tables[31776+self.x]=self.tables[464+self.current_source];
+        self.tables[32032+self.x]=self.tok_start-self.tables[336+self.current_source];
+        self.tables[32288+self.x]=self.tok_len; self.tables[32544+self.x]=self.current_machine;
+        self.tables[57888+self.current_machine]=self.x;
+        self.tables[58016+self.current_machine]=self.saved_type; self.tables[58144+self.current_machine]=0-1;
+        self.tables[58400+self.current_machine]=0-1; self.tables[58528+self.current_machine]=0-1;
+        self.tables[58656+self.current_machine]=self.machine_parameter_count;
+        self.tables[58784+self.current_machine]=0;
+        self.tables[58912+self.current_machine]=self.block_count;
+        self.tables[59040+self.current_machine]=1;
+        self.tables[59168+self.current_machine]=self.block_count;
+        self.current_block=self.block_count;
+        self.tables[71584+self.current_block]=self.current_machine; self.tables[73632+self.current_block]=0;
+        self.tables[81824+self.current_block]=0-1; self.tables[83872+self.current_block]=0;
+        self.tables[85920+self.current_block]=self.block_parameter_count; self.tables[87968+self.current_block]=0;
+        self.block_count=self.block_count+1; self.machine_count=self.machine_count+1; self.declaration_count=self.declaration_count+1;
+        self.tables[464+self.current_source]=self.tables[464+self.current_source]+1;
+        self.next_token(); self.expect_token(40); transition self.status==0 { true -> params() _ -> done() }
+    }
+    state params() { self.parse_parameter_list(1,self.current_machine); transition self.status==0 { true -> params_save() _ -> done() } }
+    state params_save() {
+        self.tables[58272+self.current_machine]=self.current_receiver_access;
+        self.tables[58784+self.current_machine]=self.current_parameter_count;
+        self.tables[75680+self.current_block]=self.current_receiver_access;
+        transition self.tok==45 { true -> arrow0() _ -> body_open() }
+    }
+    state arrow0() { self.next_token(); self.expect_token(62); transition self.status==0 { true -> result_type() _ -> done() } }
+    state result_type() { self.parse_type(); transition self.status==0 { true -> result_save() _ -> done() } }
+    state result_save() { self.tables[58400+self.current_machine]=self.raw_type_result; transition 0 { _ -> body_open() } }
+    state body_open() { self.expect_token(123); transition self.status==0 { true -> body_start() _ -> done() } }
+    state body_start() { self.x=self.tables[59168+self.current_machine]; self.tables[77728+self.x]=self.tok_start-self.tables[336+self.current_source]; self.scan_machine_body(); transition 0 { _ -> done() } }
+    state over() { self.exhaust(); transition 0 { _ -> done() } }
+    state bad() { self.reject(); transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::parse_source(&mut self) {
+    self.tables[384+self.current_source]=0-1; self.tables[400+self.current_source]=0;
+    self.tables[416+self.current_source]=self.import_count; self.tables[432+self.current_source]=0;
+    self.tables[448+self.current_source]=self.declaration_count; self.tables[464+self.current_source]=0;
+    self.pos=self.tables[336+self.current_source]; self.limit=self.pos+self.tables[352+self.current_source];
+    self.next_token(); transition self.status==0 { true -> loop() _ -> done() }
+    state loop() { transition self.tok==0 { true -> done() _ -> module_check() } }
+    state module_check() { self.token_word(0,6); transition self.match_ok==1 { true -> module() _ -> use_check() } }
+    state module() { self.parse_module(); transition self.status==0 { true -> loop() _ -> done() } }
+    state use_check() { self.token_word(6,3); transition self.match_ok==1 { true -> use() _ -> visibility() } }
+    state use() { self.parse_use(); transition self.status==0 { true -> loop() _ -> done() } }
+    state visibility() { self.current_visibility=0; self.token_word(9,3); transition self.match_ok==1 { true -> public() _ -> data_check() } }
+    state public() { self.current_visibility=1; self.next_token(); transition 0 { _ -> data_check() } }
+    state data_check() { self.token_word(12,4); transition self.match_ok==1 { true -> data() _ -> machine_check() } }
+    state data() { self.parse_data(); transition self.status==0 { true -> loop() _ -> done() } }
+    state machine_check() { self.token_word(20,7); transition self.match_ok==1 { true -> machine() _ -> bad() } }
+    state machine() { self.parse_machine(); transition self.status==0 { true -> loop() _ -> done() } }
+    state bad() { self.reject(); transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::parse_sources(&mut self) {
+    self.current_source=0;
+    transition 0 { _ -> loop() }
+    state loop() { transition self.current_source<self.source_count { true -> one() _ -> done() } }
+    state one() { self.parse_source(); transition self.status==0 { true -> next() _ -> done() } }
+    state next() { self.current_source=self.current_source+1; transition 0 { _ -> loop() } }
+    state done() { }
+}
+
+machine Main::find_alias_span(&mut self, requester: i32, start: i32, count: i32) {
+    self.result_id=0-1; self.found_count=0; self.i=0;
+    transition 0 { _ -> loop() }
+    state loop() { transition self.i<self.alias_count { true -> requester_match() _ -> done() } }
+    state requester_match() { transition self.tables[80+self.i]==requester { true -> length() _ -> next() } }
+    state length() { self.x=self.tables[112+self.i]; transition self.tables[240+self.x]==count { true -> bytes() _ -> next() } }
+    state bytes() { self.spans_equal(self.tables[176+self.x],start,count); transition self.match_ok==1 { true -> found() _ -> next() } }
+    state found() { self.result_id=self.i; self.found_count=self.found_count+1; transition 0 { _ -> next() } }
+    state next() { self.i=self.i+1; transition 0 { _ -> loop() } }
+    state done() { }
+}
+
+machine Main::find_same_top_module(&mut self, package: i32, start: i32, count: i32) {
+    self.found_count=0; self.i=0;
+    transition 0 { _ -> loop() }
+    state loop() { transition self.i<self.source_count { true -> package_match() _ -> done() } }
+    state package_match() { transition self.tables[32+self.i]==package { true -> prefix() _ -> next() } }
+    state prefix() { self.x=self.tables[64+self.i]; self.j=0; transition 0 { _ -> prefix_loop() } }
+    state prefix_loop() { transition self.j<self.tables[240+self.x] { true -> colon() _ -> prefix_compare() } }
+    state colon() { transition self.input[self.tables[176+self.x]+self.j]==58 { true -> prefix_compare() _ -> prefix_next() } }
+    state prefix_next() { self.j=self.j+1; transition 0 { _ -> prefix_loop() } }
+    state prefix_compare() { transition self.j==count { true -> bytes() _ -> next() } }
+    state bytes() { self.spans_equal(self.tables[176+self.x],start,count); transition self.match_ok==1 { true -> found() _ -> next() } }
+    state found() { self.found_count=1; transition 0 { _ -> done() } }
+    state next() { self.i=self.i+1; transition 0 { _ -> loop() } }
+    state done() { }
+}
+
+machine Main::find_exact_data(&mut self, start: i32, count: i32) {
+    self.result_id=0-1; self.found_count=0; self.i=0;
+    transition 0 { _ -> loop() }
+    state loop() { transition self.i<self.declaration_count { true -> kind() _ -> done() } }
+    state kind() { transition self.tables[31008+self.i]==1 { true -> package_match() _ -> next() } }
+    state package_match() { self.x=self.tables[31520+self.i]; transition self.tables[32+self.x]==self.search_package { true -> module_match() _ -> next() } }
+    state module_match() { transition self.tables[64+self.x]==self.search_module { true -> length() _ -> next() } }
+    state length() { transition self.tables[32288+self.i]==count { true -> bytes() _ -> next() } }
+    state bytes() { self.spans_equal(self.tables[336+self.x]+self.tables[32032+self.i],start,count); transition self.match_ok==1 { true -> found() _ -> next() } }
+    state found() { self.result_id=self.i; self.found_count=self.found_count+1; transition 0 { _ -> next() } }
+    state next() { self.i=self.i+1; transition 0 { _ -> loop() } }
+    state done() { }
+}
+
+machine Main::resolve_one_import(&mut self, id: i32) {
+    self.current_source=self.tables[480+id]; self.search_package=self.tables[32+self.current_source];
+    self.saved_start=self.tables[336+self.current_source]+self.tables[800+id*8];
+    self.saved_len=self.tables[1312+id*8];
+    self.find_alias_span(self.search_package,self.saved_start,self.saved_len); self.y=self.result_id;
+    self.find_same_top_module(self.search_package,self.saved_start,self.saved_len); transition self.y>=0 { true -> alias_present() _ -> no_alias() }
+    state alias_present() { transition self.found_count==0 { true -> alias_origin() _ -> bad() } }
+    state no_alias() { transition self.found_count==1 { true -> same_origin() _ -> bad() } }
+    state alias_origin() {
+        self.tables[1824+id]=1; self.tables[1952+id]=self.y; self.tables[2016+id]=self.tables[144+self.y];
+        self.j=1; transition 0 { _ -> module_span() }
+    }
+    state same_origin() { self.tables[1824+id]=0; self.tables[1952+id]=0-1; self.tables[2016+id]=self.search_package; self.j=0; transition 0 { _ -> module_span() } }
+    state module_span() { self.k=self.tables[736+id]-1; transition self.j<self.k { true -> module_nonempty() _ -> module_empty() } }
+    state module_nonempty() {
+        self.i=0; transition 0 { _ -> module_components_copy() }
+    }
+    state module_components_copy() { transition self.i<self.k-self.j { true -> module_component_copy() _ -> module_find() } }
+    state module_component_copy() {
+        self.tables[368+self.i]=self.tables[336+self.current_source]+self.tables[800+id*8+self.j+self.i];
+        self.tables[376+self.i]=self.tables[1312+id*8+self.j+self.i];
+        self.i=self.i+1; transition 0 { _ -> module_components_copy() }
+    }
+    state module_find() { self.find_string_path(0,self.k-self.j); transition self.result_id>=0 { true -> module_save() _ -> bad() } }
+    state module_empty() { self.find_string_span(0,0); transition self.result_id>=0 { true -> module_save() _ -> bad() } }
+    state module_save() { self.tables[2080+id]=self.result_id; self.saved_start=self.tables[336+self.current_source]+self.tables[2208+id]; self.saved_len=self.tables[2272+id]; self.search_package=self.tables[2016+id]; self.search_module=self.tables[2080+id]; self.find_exact_data(self.saved_start,self.saved_len); transition self.found_count==1 { true -> declaration_save() _ -> bad() } }
+    state declaration_save() { self.tables[2144+id]=self.result_id; self.tables[1888+id]=1; transition self.tables[2016+id]==self.tables[32+self.current_source] { true -> same_visibility() _ -> public_visibility() } }
+    state public_visibility() { transition self.tables[31264+self.result_id]==1 { true -> duplicate_imports() _ -> bad() } }
+    state same_visibility() { transition self.tables[2080+id]==self.tables[64+self.current_source] { true -> duplicate_imports() _ -> same_public() } }
+    state same_public() { transition self.tables[31264+self.result_id]==1 { true -> duplicate_imports() _ -> bad() } }
+    state duplicate_imports() { self.i=0; transition 0 { _ -> duplicate_loop() } }
+    state duplicate_loop() { transition self.i<id { true -> duplicate_source() _ -> local_collision() } }
+    state duplicate_source() { transition self.tables[480+self.i]==self.current_source { true -> duplicate_length() _ -> duplicate_next() } }
+    state duplicate_length() { transition self.tables[2272+self.i]==self.tables[2272+id] { true -> duplicate_bytes() _ -> duplicate_next() } }
+    state duplicate_bytes() { self.spans_equal(self.tables[336+self.current_source]+self.tables[2208+self.i],self.tables[336+self.current_source]+self.tables[2208+id],self.tables[2272+id]); transition self.match_ok==1 { true -> bad() _ -> duplicate_next() } }
+    state duplicate_next() { self.i=self.i+1; transition 0 { _ -> duplicate_loop() } }
+    state local_collision() { self.search_package=self.tables[32+self.current_source]; self.search_module=self.tables[64+self.current_source]; self.find_exact_data(self.tables[336+self.current_source]+self.tables[2208+id],self.tables[2272+id]); transition self.found_count==0 { true -> done() _ -> bad() } }
+    state bad() { self.reject(); transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::resolve_imports(&mut self) {
+    self.scan_index=0;
+    transition 0 { _ -> loop() }
+    state loop() { transition self.scan_index<self.import_count { true -> one() _ -> done() } }
+    state one() { self.resolve_one_import(self.scan_index); transition self.status==0 { true -> next() _ -> done() } }
+    state next() { self.scan_index=self.scan_index+1; transition 0 { _ -> loop() } }
+    state done() { }
+}
+
+machine Main::resolve_qualified_binding(&mut self, id: i32) {
+    self.current_source=self.tables[2336+id];
+    self.saved_start=self.tables[336+self.current_source]+self.tables[14624+id]; self.saved_len=self.tables[18720+id];
+    self.pos=self.saved_start; self.limit=self.saved_start+self.saved_len; self.next_token();
+    transition self.status==0 { true -> path() _ -> done() }
+    state path() { self.parse_path(); transition self.status==0 { true -> exact_end() _ -> done() } }
+    state exact_end() { transition self.tok==0 { true -> components() _ -> bad() } }
+    state components() { transition self.path_count>=2 { true -> alias_check() _ -> bad() } }
+    state alias_check() { self.find_alias_span(self.tables[32+self.current_source],self.tables[368+0],self.tables[376+0]); transition self.result_id<0 { true -> module_string() _ -> bad() } }
+    state module_string() { self.find_string_path(0,self.path_count-1); transition self.result_id>=0 { true -> declaration() _ -> bad() } }
+    state declaration() { self.search_package=self.tables[32+self.current_source]; self.search_module=self.result_id; self.i=self.path_count-1; self.find_exact_data(self.tables[368+self.i],self.tables[376+self.i]); transition self.found_count==1 { true -> visibility() _ -> bad() } }
+    state visibility() { self.x=self.result_id; transition self.search_module==self.tables[64+self.current_source] { true -> save() _ -> public_check() } }
+    state public_check() { transition self.tables[31264+self.x]==1 { true -> save() _ -> bad() } }
+    state save() { self.tables[22816+id]=self.x; self.tables[26912+id]=0-1; transition 0 { _ -> done() } }
+    state bad() { self.reject(); transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::resolve_one_binding(&mut self, id: i32) {
+    self.current_source=self.tables[2336+id]; self.i=0; transition 0 { _ -> qualification_scan() }
+    state qualification_scan() { transition self.i<self.tables[18720+id] { true -> qualification_byte() _ -> short_begin() } }
+    state qualification_byte() { transition self.input[self.tables[336+self.current_source]+self.tables[14624+id]+self.i]==58 { true -> qualified() _ -> qualification_next() } }
+    state qualification_next() { self.i=self.i+1; transition 0 { _ -> qualification_scan() } }
+    state qualified() { self.resolve_qualified_binding(id); transition 0 { _ -> done() } }
+    state short_begin() { self.x=self.tables[32+self.current_source]; self.y=self.tables[64+self.current_source]; transition 0 { _ -> short_resolve() } }
+    state short_resolve() {
+    self.saved_start=self.tables[336+self.current_source]+self.tables[14624+id]; self.saved_len=self.tables[18720+id];
+    self.search_package=self.x; self.search_module=self.y; self.find_exact_data(self.saved_start,self.saved_len); self.k=self.result_id; self.j=self.found_count;
+    self.i=0; self.result_id=0-1; self.found_count=0; transition 0 { _ -> imports() }
+    }
+    state imports() { transition self.i<self.import_count { true -> import_source() _ -> decide() } }
+    state import_source() { transition self.tables[480+self.i]==self.current_source { true -> import_length() _ -> import_next() } }
+    state import_length() { transition self.tables[2272+self.i]==self.saved_len { true -> import_bytes() _ -> import_next() } }
+    state import_bytes() { self.spans_equal(self.tables[336+self.current_source]+self.tables[2208+self.i],self.saved_start,self.saved_len); transition self.match_ok==1 { true -> import_found() _ -> import_next() } }
+    state import_found() { self.result_id=self.tables[2144+self.i]; self.tables[26912+id]=self.i; self.found_count=self.found_count+1; transition 0 { _ -> import_next() } }
+    state import_next() { self.i=self.i+1; transition 0 { _ -> imports() } }
+    state decide() { transition self.j>0 { true -> local_present() _ -> imported_only() } }
+    state local_present() { transition self.found_count==0 { true -> local_save() _ -> bad() } }
+    state local_save() { self.tables[22816+id]=self.k; self.tables[26912+id]=0-1; transition 0 { _ -> done() } }
+    state imported_only() { transition self.found_count==1 { true -> imported_save() _ -> bad() } }
+    state imported_save() { self.tables[22816+id]=self.result_id; transition 0 { _ -> done() } }
+    state bad() { self.reject(); transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::resolve_bindings(&mut self) {
+    self.scan_index=0;
+    transition 0 { _ -> loop() }
+    state loop() { transition self.scan_index<self.binding_count { true -> one() _ -> owners() } }
+    state one() { self.resolve_one_binding(self.scan_index); transition self.status==0 { true -> next() _ -> done() } }
+    state next() { self.scan_index=self.scan_index+1; transition 0 { _ -> loop() } }
+    state owners() { self.scan_index=0; transition 0 { _ -> owner_loop() } }
+    state owner_loop() { transition self.scan_index<self.machine_count { true -> owner_one() _ -> duplicates() } }
+    state owner_one() { self.x=self.tables[22816+self.tables[58016+self.scan_index]]; transition self.tables[31008+self.x]==1 { true -> owner_local_pkg() _ -> bad() } }
+    state owner_local_pkg() { self.y=self.tables[31520+self.x]; self.k=self.tables[31520+self.tables[57888+self.scan_index]]; transition self.tables[32+self.y]==self.tables[32+self.k] { true -> owner_local_module() _ -> bad() } }
+    state owner_local_module() { transition self.tables[64+self.y]==self.tables[64+self.k] { true -> owner_save() _ -> bad() } }
+    state owner_save() { self.tables[58144+self.scan_index]=self.tables[32544+self.x]; self.scan_index=self.scan_index+1; transition 0 { _ -> owner_loop() } }
+    state duplicates() { self.scan_index=0; transition 0 { _ -> duplicate_outer() } }
+    state duplicate_outer() { transition self.scan_index<self.machine_count { true -> duplicate_begin() _ -> done() } }
+    state duplicate_begin() { self.i=0; transition 0 { _ -> duplicate_inner() } }
+    state duplicate_inner() { transition self.i<self.scan_index { true -> duplicate_package() _ -> duplicate_next_outer() } }
+    state duplicate_package() { self.x=self.tables[31520+self.tables[57888+self.i]]; self.y=self.tables[31520+self.tables[57888+self.scan_index]]; transition self.tables[32+self.x]==self.tables[32+self.y] { true -> duplicate_module() _ -> duplicate_next_inner() } }
+    state duplicate_module() { transition self.tables[64+self.x]==self.tables[64+self.y] { true -> duplicate_owner() _ -> duplicate_next_inner() } }
+    state duplicate_owner() { transition self.tables[58144+self.i]==self.tables[58144+self.scan_index] { true -> duplicate_name_length() _ -> duplicate_next_inner() } }
+    state duplicate_name_length() { self.x=self.tables[57888+self.i]; self.y=self.tables[57888+self.scan_index]; transition self.tables[32288+self.x]==self.tables[32288+self.y] { true -> duplicate_name_bytes() _ -> duplicate_next_inner() } }
+    state duplicate_name_bytes() { self.spans_equal(self.tables[336+self.tables[31520+self.x]]+self.tables[32032+self.x],self.tables[336+self.tables[31520+self.y]]+self.tables[32032+self.y],self.tables[32288+self.x]); transition self.match_ok==1 { true -> bad() _ -> duplicate_next_inner() } }
+    state duplicate_next_inner() { self.i=self.i+1; transition 0 { _ -> duplicate_inner() } }
+    state duplicate_next_outer() { self.scan_index=self.scan_index+1; transition 0 { _ -> duplicate_outer() } }
+    state bad() { self.reject(); transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::intern_candidate(&mut self) {
+    self.result_id=0-1; self.i=0;
+    transition 0 { _ -> loop() }
+    state loop() { transition self.i<self.type_count { true -> kind() _ -> capacity() } }
+    state kind() { transition self.tables[180128+self.i]==self.candidate_kind { true -> flags() _ -> next() } }
+    state flags() { transition self.tables[182176+self.i]==self.candidate_flags { true -> payload0() _ -> next() } }
+    state payload0() { transition self.tables[184224+self.i]==self.candidate_payload0 { true -> payload1() _ -> next() } }
+    state payload1() { transition self.tables[186272+self.i]==self.candidate_payload1 { true -> low() _ -> next() } }
+    state low() { transition self.tables[188320+self.i]==self.candidate_lo { true -> high() _ -> next() } }
+    state high() { transition self.tables[190368+self.i]==self.candidate_hi { true -> found() _ -> next() } }
+    state found() { self.result_id=self.i; transition 0 { _ -> done() } }
+    state next() { self.i=self.i+1; transition 0 { _ -> loop() } }
+    state capacity() { transition self.type_count<2048 { true -> store() _ -> over() } }
+    state store() {
+        self.result_id=self.type_count;
+        self.tables[180128+self.result_id]=self.candidate_kind; self.tables[182176+self.result_id]=self.candidate_flags;
+        self.tables[184224+self.result_id]=self.candidate_payload0; self.tables[186272+self.result_id]=self.candidate_payload1;
+        self.tables[188320+self.result_id]=self.candidate_lo; self.tables[190368+self.result_id]=self.candidate_hi;
+        self.type_count=self.type_count+1; transition 0 { _ -> done() }
+    }
+    state over() { self.exhaust(); transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::canonicalize_raw(&mut self, raw: i32) {
+    self.result_id=self.tables[171936+raw];
+    transition self.result_id>=0 { true -> done() _ -> kind() }
+    state kind() { transition self.tables[114592+raw]==4 { true -> nominal() _ -> array_check() } }
+    state nominal() { self.x=self.tables[22816+self.tables[163744+raw]]; transition self.tables[31008+self.x]==1 { true -> nominal_save() _ -> bad() } }
+    state nominal_save() { self.result_id=self.tables[32544+self.x]; self.tables[171936+raw]=self.result_id; transition 0 { _ -> done() } }
+    state array_check() { transition self.tables[114592+raw]==5 { true -> array_element() _ -> scalar() } }
+    state array_element() { self.canonicalize_raw(self.tables[130976+raw]); self.saved_type=self.result_id; transition self.status==0 { true -> array_candidate() _ -> done() } }
+    state array_candidate() {
+        self.candidate_kind=5; self.candidate_flags=self.tables[122784+raw];
+        self.candidate_payload0=self.saved_type; self.candidate_payload1=self.tables[139168+raw];
+        self.candidate_lo=0; self.candidate_hi=0; transition 0 { _ -> intern() }
+    }
+    state scalar() {
+        self.candidate_kind=self.tables[114592+raw]; self.candidate_flags=self.tables[122784+raw];
+        self.candidate_payload0=0; self.candidate_payload1=0;
+        self.candidate_lo=self.tables[147360+raw]; self.candidate_hi=self.tables[155552+raw];
+        transition 0 { _ -> intern() }
+    }
+    state intern() { self.intern_candidate(); transition self.status==0 { true -> save() _ -> done() } }
+    state save() { self.tables[171936+raw]=self.result_id; transition 0 { _ -> done() } }
+    state bad() { self.reject(); transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::canonicalize_one_array(&mut self, raw: i32) {
+    transition self.tables[114592+raw]==5 { true -> unresolved() _ -> done() }
+    state unresolved() { transition self.tables[171936+raw]<0 { true -> pending() _ -> done() } }
+    state pending() { self.array_pending=self.array_pending+1; self.x=self.tables[130976+raw]; transition 0 { _ -> element_ready() } }
+    state element_ready() { transition self.tables[171936+self.x]>=0 { true -> candidate() _ -> bad() } }
+    state candidate() {
+        self.candidate_kind=5; self.candidate_flags=self.tables[122784+raw];
+        self.candidate_payload0=self.tables[171936+self.x]; self.candidate_payload1=self.tables[139168+raw];
+        self.candidate_lo=0; self.candidate_hi=0; self.intern_candidate(); transition self.status==0 { true -> save() _ -> done() }
+    }
+    state save() { self.tables[171936+raw]=self.result_id; self.array_progress=1; transition 0 { _ -> done() } }
+    state bad() { transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::build_canonical_types(&mut self) {
+    self.type_count=0; self.i=0;
+    transition self.record_count<=2046 { true -> nominals() _ -> over() }
+    state nominals() { transition self.i<self.record_count { true -> nominal() _ -> bool_type() } }
+    state nominal() {
+        self.tables[180128+self.i]=4; self.tables[182176+self.i]=0; self.tables[184224+self.i]=self.i;
+        self.tables[186272+self.i]=0; self.tables[188320+self.i]=0; self.tables[190368+self.i]=0;
+        self.i=self.i+1; self.type_count=self.type_count+1; transition 0 { _ -> nominals() }
+    }
+    state bool_type() {
+        self.tables[180128+self.type_count]=3; self.tables[182176+self.type_count]=0; self.tables[184224+self.type_count]=0;
+        self.tables[186272+self.type_count]=0; self.tables[188320+self.type_count]=0; self.tables[190368+self.type_count]=1;
+        self.type_count=self.type_count+1; transition 0 { _ -> u32_type() }
+    }
+    state u32_type() {
+        self.tables[180128+self.type_count]=2; self.tables[182176+self.type_count]=0; self.tables[184224+self.type_count]=0;
+        self.tables[186272+self.type_count]=0; self.tables[188320+self.type_count]=0; self.tables[190368+self.type_count]=2147483647;
+        self.type_count=self.type_count+1; self.scan_index=0; transition 0 { _ -> nonarray_raw() }
+    }
+    // Match the frozen producer's prepare_ck_types algorithm exactly: scan
+    // raw authored descriptors once for non-arrays, then repeat whole-table
+    // array scans and intern only rows whose element is already canonical.
+    state nonarray_raw() { transition self.scan_index<self.raw_type_count { true -> nonarray_kind() _ -> arrays_begin() } }
+    state nonarray_kind() { transition self.tables[114592+self.scan_index]==5 { true -> nonarray_next() _ -> nonarray_one() } }
+    state nonarray_one() { self.canonicalize_raw(self.scan_index); transition self.status==0 { true -> nonarray_next() _ -> done() } }
+    state nonarray_next() { self.scan_index=self.scan_index+1; transition 0 { _ -> nonarray_raw() } }
+    state arrays_begin() { self.array_pending=0; self.array_progress=0; self.scan_index=0; transition 0 { _ -> arrays() } }
+    state arrays() { transition self.scan_index<self.raw_type_count { true -> array_one() _ -> arrays_pass_done() } }
+    state array_one() { self.canonicalize_one_array(self.scan_index); transition self.status==0 { true -> array_next() _ -> done() } }
+    state array_next() { self.scan_index=self.scan_index+1; transition 0 { _ -> arrays() } }
+    state arrays_pass_done() { transition self.array_pending==0 { true -> finalize_fields_begin() _ -> arrays_progress() } }
+    state arrays_progress() { transition self.array_progress==1 { true -> arrays_begin() _ -> bad() } }
+    state finalize_fields_begin() { self.scan_index=0; transition 0 { _ -> finalize_fields() } }
+    state finalize_fields() { transition self.scan_index<self.field_count { true -> finalize_field() _ -> finalize_mparams_begin() } }
+    state finalize_field() { self.tables[45600+self.scan_index]=self.tables[171936+self.tables[41504+self.scan_index]]; self.scan_index=self.scan_index+1; transition 0 { _ -> finalize_fields() } }
+    state finalize_mparams_begin() { self.scan_index=0; transition 0 { _ -> finalize_mparams() } }
+    state finalize_mparams() { transition self.scan_index<self.machine_parameter_count { true -> finalize_mparam() _ -> finalize_results_begin() } }
+    state finalize_mparam() { self.tables[65440+self.scan_index]=self.tables[171936+self.tables[63392+self.scan_index]]; self.scan_index=self.scan_index+1; transition 0 { _ -> finalize_mparams() } }
+    state finalize_results_begin() { self.scan_index=0; transition 0 { _ -> finalize_results() } }
+    state finalize_results() { transition self.scan_index<self.machine_count { true -> finalize_result_check() _ -> finalize_bparams_begin() } }
+    state finalize_result_check() { transition self.tables[58400+self.scan_index]>=0 { true -> finalize_result() _ -> finalize_result_none() } }
+    state finalize_result() { self.tables[58528+self.scan_index]=self.tables[171936+self.tables[58400+self.scan_index]]; transition 0 { _ -> finalize_result_next() } }
+    state finalize_result_none() { self.tables[58528+self.scan_index]=0-1; transition 0 { _ -> finalize_result_next() } }
+    state finalize_result_next() { self.scan_index=self.scan_index+1; transition 0 { _ -> finalize_results() } }
+    state finalize_bparams_begin() { self.scan_index=0; transition 0 { _ -> finalize_bparams() } }
+    state finalize_bparams() { transition self.scan_index<self.block_parameter_count { true -> finalize_bparam() _ -> done() } }
+    state finalize_bparam() { self.tables[102304+self.scan_index]=self.tables[171936+self.tables[98208+self.scan_index]]; self.scan_index=self.scan_index+1; transition 0 { _ -> finalize_bparams() } }
+    state over() { self.exhaust(); transition 0 { _ -> done() } }
+    state bad() { self.reject(); transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::select_root(&mut self) {
+    self.selected_machine=0-1; self.found_count=0; self.scan_index=0;
+    transition 0 { _ -> loop() }
+    state loop() { transition self.scan_index<self.machine_count { true -> source() _ -> unique() } }
+    state source() { self.x=self.tables[57888+self.scan_index]; transition self.tables[31520+self.x]==self.root_source { true -> owner() _ -> next() } }
+    state owner() { self.y=self.tables[32800+self.tables[58144+self.scan_index]]; transition self.tables[32288+self.y]==self.tables[240+self.root_owner_string] { true -> owner_bytes() _ -> next() } }
+    state owner_bytes() { self.spans_equal(self.tables[336+self.tables[31520+self.y]]+self.tables[32032+self.y],self.tables[176+self.root_owner_string],self.tables[32288+self.y]); transition self.match_ok==1 { true -> name_length() _ -> next() } }
+    state name_length() { transition self.tables[32288+self.x]==self.tables[240+self.root_machine_string] { true -> name_bytes() _ -> next() } }
+    state name_bytes() { self.spans_equal(self.tables[336+self.tables[31520+self.x]]+self.tables[32032+self.x],self.tables[176+self.root_machine_string],self.tables[32288+self.x]); transition self.match_ok==1 { true -> found() _ -> next() } }
+    state found() { self.selected_machine=self.scan_index; self.found_count=self.found_count+1; transition 0 { _ -> next() } }
+    state next() { self.scan_index=self.scan_index+1; transition 0 { _ -> loop() } }
+    state unique() { transition self.found_count==1 { true -> parameters() _ -> bad() } }
+    state parameters() { transition self.tables[58784+self.selected_machine]==0 { true -> result() _ -> bad() } }
+    state result() { self.x=self.tables[58528+self.selected_machine]; transition self.x>=0 { true -> scalar() _ -> bad() } }
+    state scalar() { transition self.tables[180128+self.x]<=3 { true -> entry_params() _ -> bad() } }
+    state entry_params() { self.x=self.tables[59168+self.selected_machine]; transition self.tables[87968+self.x]==0 { true -> done() _ -> bad() } }
+    state bad() { self.reject(); transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::preflight_witness(&mut self) {
+    self.witness_length=72
+        + self.source_count*36 + self.import_count*48 + self.binding_count*28
+        + self.declaration_count*28 + self.type_count*24 + self.record_count*24
+        + self.field_count*24 + self.machine_count*40 + self.machine_parameter_count*24
+        + self.block_count*40 + self.block_parameter_count*24;
+    transition self.witness_length<=524288 { true -> done() _ -> over() }
+    state over() { self.exhaust(); transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::emit_u32(&mut self, value: i32) {
+    transition value<0 { true -> no_id() _ -> ordinary() }
+    state no_id() { write_byte(255); write_byte(255); write_byte(255); write_byte(255); transition 0 { _ -> done() } }
+    state ordinary() { write_byte(value&255); write_byte((value>>8)&255); write_byte((value>>16)&255); write_byte((value>>24)&255); transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::publish_witness(&mut self) {
+    // OMGRSW1\0, exact schema/header, then canonical tables.
+    write_byte(79); write_byte(77); write_byte(71); write_byte(82);
+    write_byte(83); write_byte(87); write_byte(49); write_byte(0);
+    write_byte(1); write_byte(0); write_byte(0); write_byte(0);
+    write_byte(0); write_byte(0); write_byte(72); write_byte(0);
+    self.emit_u32(self.witness_length); self.emit_u32(self.source_count);
+    self.emit_u32(self.import_count); self.emit_u32(self.binding_count);
+    self.emit_u32(self.declaration_count); self.emit_u32(self.type_count);
+    self.emit_u32(self.record_count); self.emit_u32(self.field_count);
+    self.emit_u32(self.machine_count); self.emit_u32(self.machine_parameter_count);
+    self.emit_u32(self.block_count); self.emit_u32(self.block_parameter_count);
+    self.emit_u32(self.selected_machine); self.emit_u32(0);
+    self.i=0; transition 0 { _ -> units() }
+    state units() { transition self.i<self.source_count { true -> unit() _ -> imports_begin() } }
+    state unit() {
+        self.emit_u32(self.i); self.emit_u32(self.tables[32+self.i]); self.emit_u32(self.tables[64+self.i]);
+        self.emit_u32(self.tables[384+self.i]); self.emit_u32(self.tables[400+self.i]);
+        self.emit_u32(self.tables[416+self.i]); self.emit_u32(self.tables[432+self.i]);
+        self.emit_u32(self.tables[448+self.i]); self.emit_u32(self.tables[464+self.i]);
+        self.i=self.i+1; transition 0 { _ -> units() }
+    }
+    state imports_begin() { self.i=0; transition 0 { _ -> imports() } }
+    state imports() { transition self.i<self.import_count { true -> import() _ -> bindings_begin() } }
+    state import() {
+        self.emit_u32(self.i); self.emit_u32(self.tables[480+self.i]); self.emit_u32(self.tables[544+self.i]);
+        self.emit_u32(self.tables[608+self.i]); self.emit_u32(self.tables[672+self.i]);
+        write_byte(self.tables[1824+self.i]); write_byte(self.tables[1888+self.i]); write_byte(0); write_byte(0);
+        self.emit_u32(self.tables[1952+self.i]); self.emit_u32(self.tables[2016+self.i]);
+        self.emit_u32(self.tables[2080+self.i]); self.emit_u32(self.tables[2144+self.i]);
+        self.emit_u32(self.tables[2208+self.i]); self.emit_u32(self.tables[2272+self.i]);
+        self.i=self.i+1; transition 0 { _ -> imports() }
+    }
+    state bindings_begin() { self.i=0; transition 0 { _ -> bindings() } }
+    state bindings() { transition self.i<self.binding_count { true -> binding() _ -> declarations_begin() } }
+    state binding() {
+        self.emit_u32(self.i); self.emit_u32(self.tables[2336+self.i]);
+        write_byte(self.tables[6432+self.i]); write_byte(self.tables[10528+self.i]); write_byte(0); write_byte(0);
+        self.emit_u32(self.tables[14624+self.i]); self.emit_u32(self.tables[18720+self.i]);
+        self.emit_u32(self.tables[22816+self.i]); self.emit_u32(self.tables[26912+self.i]);
+        self.i=self.i+1; transition 0 { _ -> bindings() }
+    }
+    state declarations_begin() { self.i=0; transition 0 { _ -> declarations() } }
+    state declarations() { transition self.i<self.declaration_count { true -> declaration() _ -> types_begin() } }
+    state declaration() {
+        self.emit_u32(self.i); write_byte(self.tables[31008+self.i]); write_byte(self.tables[31264+self.i]); write_byte(0); write_byte(0);
+        self.emit_u32(self.tables[31520+self.i]); self.emit_u32(self.tables[31776+self.i]);
+        self.emit_u32(self.tables[32032+self.i]); self.emit_u32(self.tables[32288+self.i]);
+        self.emit_u32(self.tables[32544+self.i]); self.i=self.i+1; transition 0 { _ -> declarations() }
+    }
+    state types_begin() { self.i=0; transition 0 { _ -> types() } }
+    state types() { transition self.i<self.type_count { true -> type() _ -> records_begin() } }
+    state type() {
+        self.emit_u32(self.i); write_byte(self.tables[180128+self.i]); write_byte(self.tables[182176+self.i]); write_byte(0); write_byte(0);
+        self.emit_u32(self.tables[184224+self.i]); self.emit_u32(self.tables[186272+self.i]);
+        self.emit_u32(self.tables[188320+self.i]); self.emit_u32(self.tables[190368+self.i]);
+        self.i=self.i+1; transition 0 { _ -> types() }
+    }
+    state records_begin() { self.i=0; transition 0 { _ -> records() } }
+    state records() { transition self.i<self.record_count { true -> record() _ -> fields_begin() } }
+    state record() {
+        self.emit_u32(self.i); self.emit_u32(self.tables[32800+self.i]); self.emit_u32(self.i);
+        self.emit_u32(self.tables[32928+self.i]); self.emit_u32(self.tables[33056+self.i]);
+        write_byte(self.tables[33184+self.i]); write_byte(0); write_byte(0); write_byte(0);
+        self.i=self.i+1; transition 0 { _ -> records() }
+    }
+    state fields_begin() { self.i=0; transition 0 { _ -> fields() } }
+    state fields() { transition self.i<self.field_count { true -> field() _ -> machines_begin() } }
+    state field() {
+        self.emit_u32(self.i); self.emit_u32(self.tables[33312+self.i]); self.emit_u32(self.tables[37408+self.i]);
+        self.emit_u32(self.tables[45600+self.i]); self.emit_u32(self.tables[49696+self.i]); self.emit_u32(self.tables[53792+self.i]);
+        self.i=self.i+1; transition 0 { _ -> fields() }
+    }
+    state machines_begin() { self.i=0; transition 0 { _ -> machines() } }
+    state machines() { transition self.i<self.machine_count { true -> machine_row() _ -> machine_params_begin() } }
+    state machine_row() {
+        self.emit_u32(self.i); self.emit_u32(self.tables[57888+self.i]); self.emit_u32(self.tables[58144+self.i]);
+        write_byte(self.tables[58272+self.i]); write_byte(0); write_byte(0); write_byte(0);
+        self.emit_u32(self.tables[58528+self.i]); self.emit_u32(self.tables[58656+self.i]);
+        self.emit_u32(self.tables[58784+self.i]); self.emit_u32(self.tables[58912+self.i]);
+        self.emit_u32(self.tables[59040+self.i]); self.emit_u32(self.tables[59168+self.i]);
+        self.i=self.i+1; transition 0 { _ -> machines() }
+    }
+    state machine_params_begin() { self.i=0; transition 0 { _ -> machine_params() } }
+    state machine_params() { transition self.i<self.machine_parameter_count { true -> machine_param() _ -> blocks_begin() } }
+    state machine_param() {
+        self.emit_u32(self.i); self.emit_u32(self.tables[59296+self.i]); self.emit_u32(self.tables[61344+self.i]);
+        self.emit_u32(self.tables[65440+self.i]); self.emit_u32(self.tables[67488+self.i]); self.emit_u32(self.tables[69536+self.i]);
+        self.i=self.i+1; transition 0 { _ -> machine_params() }
+    }
+    state blocks_begin() { self.i=0; transition 0 { _ -> blocks() } }
+    state blocks() { transition self.i<self.block_count { true -> block() _ -> block_params_begin() } }
+    state block() {
+        self.emit_u32(self.i); self.emit_u32(self.tables[71584+self.i]); self.emit_u32(self.tables[73632+self.i]);
+        write_byte(self.tables[75680+self.i]); write_byte(0); write_byte(0); write_byte(0);
+        self.emit_u32(self.tables[77728+self.i]); self.emit_u32(self.tables[79776+self.i]);
+        self.emit_u32(self.tables[81824+self.i]); self.emit_u32(self.tables[83872+self.i]);
+        self.emit_u32(self.tables[85920+self.i]); self.emit_u32(self.tables[87968+self.i]);
+        self.i=self.i+1; transition 0 { _ -> blocks() }
+    }
+    state block_params_begin() { self.i=0; transition 0 { _ -> block_params() } }
+    state block_params() { transition self.i<self.block_parameter_count { true -> block_param() _ -> done() } }
+    state block_param() {
+        self.emit_u32(self.i); self.emit_u32(self.tables[90016+self.i]); self.emit_u32(self.tables[94112+self.i]);
+        self.emit_u32(self.tables[102304+self.i]); self.emit_u32(self.tables[106400+self.i]); self.emit_u32(self.tables[110496+self.i]);
+        self.i=self.i+1; transition 0 { _ -> block_params() }
+    }
+    state done() { }
+}
+
+machine Main::main(&mut self) {
+    self.status=0; self.import_count=0; self.binding_count=0; self.declaration_count=0;
+    self.record_count=0; self.field_count=0; self.machine_count=0; self.machine_parameter_count=0;
+    self.block_count=0; self.block_parameter_count=0; self.raw_type_count=0;
+    self.init_words(); self.slurp(); transition self.status==0 { true -> envelope() _ -> finish() }
+    state envelope() { self.decode_envelope(); transition self.status==0 { true -> sources() _ -> finish() } }
+    state sources() { self.parse_sources(); transition self.status==0 { true -> imports() _ -> finish() } }
+    state imports() { self.resolve_imports(); transition self.status==0 { true -> bindings() _ -> finish() } }
+    state bindings() { self.resolve_bindings(); transition self.status==0 { true -> types() _ -> finish() } }
+    state types() { self.build_canonical_types(); transition self.status==0 { true -> root() _ -> finish() } }
+    state root() { self.select_root(); transition self.status==0 { true -> preflight() _ -> finish() } }
+    state preflight() { self.preflight_witness(); transition self.status==0 { true -> publish() _ -> finish() } }
+    state publish() { self.publish_witness(); transition 0 { _ -> finish() } }
+    state finish() { self.console.exit_process(self.status); }
+}

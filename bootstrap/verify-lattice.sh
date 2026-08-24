@@ -140,9 +140,14 @@ step "omega-bootstrap source bundle — canonical deterministic multi-file input
 step "omega-bootstrap compilation envelope — canonical package/source/alias transport and malformed/resource teeth" omega-bootstrap-gates omega-bootstrap-compilation-test.sh omega-bootstrap
 step "omega-bootstrap Delta compilation-envelope checker — structural native/self-built relations and resource boundaries" omega-bootstrap-gates delta-compilation-envelope.sh delta-rust omega-bootstrap
 step "omega-bootstrap Delta compilation-envelope meaning (RUST-FREE) — structural 0/251/252 through Gamma" omega-bootstrap-gates delta-compilation-envelope-meaning.sh omega-bootstrap-meaning gamma
+step "omega-bootstrap two-package fixture — pinned deterministic OMGCOMP and semantic negatives" omega-bootstrap-gates two-unit-compilation-fixture.sh omega-bootstrap-compiler
+step "omega-bootstrap Delta resolution handoff — exact OMGCOMP to canonical OMGRSW1, native/self/resource agreement" omega-bootstrap-gates delta-resolution-handoff.sh omega-bootstrap-compiler delta-rust
+step "omega-bootstrap resolution meaning (RUST-FREE) — canonical 0/251/252 through Gamma" omega-bootstrap-gates delta-resolution-handoff-meaning.sh omega-bootstrap-compiler omega-bootstrap-meaning delta-rust gamma
 step "product compiler checkpoint — exact resolver closure plus provisional Ωself admission" source-checkpoints verify.sh omega-rust psi
 step "omega-bootstrap source-custody frontend probe — exhaustive native plus representative Delta-self-built checking" omega-bootstrap-gates delta-source-custody-frontend.sh delta-rust psi source-checkpoints
 step "omega-bootstrap source-custody meaning (RUST-FREE) — exact product unit plus semantic rejection and exhaustion through Gamma" omega-bootstrap-gates delta-source-custody-meaning.sh omega-bootstrap-meaning gamma psi source-checkpoints
+step "omega-bootstrap CKIR1 artifact — exhaustive native/self producer and backend relations" omega-bootstrap-gates delta-source-custody-artifact.sh delta-rust omega-bootstrap-compiler psi omega-rust psi-rust
+step "omega-bootstrap CKIR1 artifact meaning (RUST-FREE) — producer/backend 0/251/252 and exact bytes through Gamma" omega-bootstrap-gates delta-source-custody-artifact-meaning.sh delta-rust omega-bootstrap-compiler omega-bootstrap-meaning gamma
 step "omega-bootstrap refinement envelope — exact source/CKIR/ELF custody and untrusted claims below Delta" omega-bootstrap-refinement checked-ir-refinement-envelope.sh alpha alpha-assembler beta
 step "omega-bootstrap refinement source input — exact one-unit bundle and lexical custody below Delta" omega-bootstrap-refinement checked-ir-refinement-source-input.sh alpha alpha-assembler beta omega-bootstrap
 step "omega-bootstrap refinement CKIR — exact relations and selected result across all schema negatives below Delta" omega-bootstrap-refinement checked-ir-refinement-artifact.sh alpha alpha-assembler beta delta-rust omega-bootstrap omega-bootstrap-gates psi
