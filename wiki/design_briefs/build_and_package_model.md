@@ -631,10 +631,11 @@ premises retain package-qualified public profile identity, receiver/non-`self`
 parameter roots, and package-qualified field projections. Parent applications
 retain exact alpha-normalized lifetime-binder arguments;
 renaming a binder is stable while changing a borrow relationship changes
-evidence. Explicit generic conformance evidence binders retain alpha-normalized
-binder and subject ordinals, exact package-qualified public trait identity, and
-structural type arguments. Non-evidence requirements, specifically selected
-conformances, invariants, default realizations, and non-progress
+evidence. Generic conformance requirements retain an optional alpha-normalized
+evidence-binder ordinal, exact subject ordinal, package-qualified public trait
+identity, and structural type arguments. Binder-free `where T satisfies Trait`
+does not fabricate evidence. Specifically selected conformances, invariants,
+default realizations, and non-progress
 proof/boundary/crash contracts reject until complete canonical rows exist.
 
 Terminal Psi evidence remains a separate evidence class for checked
@@ -747,9 +748,9 @@ changed generic bound, parameter/result type, mode, or borrow relationship
 changes evidence. Until exact canonical rows exist, reviewed callable
 conformance bounds, static machine/proposition parameters, and non-public,
 external, operator, or lifetime-parameterized trait realizations fail closed
-rather than being omitted; explicit generic evidence binders are represented
-by the same canonical row as public-trait binders. Checked realizations of public, ordinary,
-lifetime-free traits retain exact package-qualified trait and requirement
+rather than being omitted; binder-free generic requirements and explicit
+evidence binders use the same canonical row as public traits. Checked
+realizations of public, ordinary, lifetime-free traits retain exact package-qualified trait and requirement
 identities, alpha-normalized arguments, and any explicit conformance alias.
 Public callable `requires`, `ensures`, and boundary clauses retain exact
 structural rows for the closed boolean/integer expression subset over parameter

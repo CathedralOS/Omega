@@ -290,7 +290,7 @@ crashes Abort
         target,
         "review identity must retain the deployment profile, not only its native ABI",
     );
-    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 23);
+    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 24);
     let [ready] = review.public_domains() else {
         panic!("one package-owned public domain row")
     };
@@ -1578,7 +1578,7 @@ pub machine identity<Element, Other, Evidence: Element satisfies Ranked<u64>>(va
     let [trait_bound] = ordering.conformance_bounds() else {
         panic!("one exact trait conformance binder")
     };
-    assert_eq!(trait_bound.binder_ordinal(), 0);
+    assert_eq!(trait_bound.binder_ordinal(), Some(0));
     assert_eq!(trait_bound.subject_parameter(), 0);
     assert_eq!(trait_bound.trait_identity().path(), "Ranked");
     assert_eq!(trait_bound.arguments().len(), 1);
@@ -1591,7 +1591,7 @@ pub machine identity<Element, Other, Evidence: Element satisfies Ranked<u64>>(va
     let [callable_bound] = identity.conformance_bounds() else {
         panic!("one exact callable conformance binder")
     };
-    assert_eq!(callable_bound.binder_ordinal(), 0);
+    assert_eq!(callable_bound.binder_ordinal(), Some(0));
     assert_eq!(callable_bound.subject_parameter(), 0);
     assert_eq!(callable_bound.trait_identity().path(), "Ranked");
 
@@ -1618,7 +1618,7 @@ pub machine identity<Element, Other, Evidence: Element satisfies Ranked<u64>>(va
 }
 
 #[test]
-fn review_rejects_conformance_requirements_without_an_explicit_evidence_binder() {
+fn review_projects_binder_free_conformance_requirements_without_fabricating_evidence() {
     let Some(target) = host_target_name() else {
         return;
     };
@@ -1626,6 +1626,9 @@ fn review_rejects_conformance_requirements_without_an_explicit_evidence_binder()
     package.write(
         "main.omg",
         r#"pub trait Ranked { }
+pub trait Constraint<Element>
+where Element satisfies Ranked
+{ }
 pub machine identity<Element>(value: Element) -> Element
 where Element satisfies Ranked
 {
@@ -1648,13 +1651,31 @@ machine build(builder: &mut Build) { }
         package_inputs(&package.0),
     )
     .expect("unbound conformance-requirement fixture should check before review");
-    let diagnostics = project_checked_package_review(&checked)
-        .expect_err("review must not silently omit an unbound conformance requirement");
-    assert!(diagnostics.iter().any(|diagnostic| {
-        diagnostic
-            .message
-            .contains("non-evidence-binder conformance requirement")
-    }));
+    let review = project_checked_package_review(&checked)
+        .expect("binder-free conformance requirement must project exactly");
+    let identity = review
+        .callables()
+        .iter()
+        .find(|callable| callable.identity().path().contains("identity"))
+        .expect("public identity row");
+    let [bound] = identity.conformance_bounds() else {
+        panic!("one exact binder-free conformance requirement")
+    };
+    assert_eq!(bound.binder_ordinal(), None);
+    assert_eq!(bound.subject_parameter(), 0);
+    assert_eq!(bound.trait_identity().path(), "Ranked");
+    let constraint = review
+        .public_traits()
+        .iter()
+        .find(|shape| shape.identity().path() == "Constraint")
+        .expect("public Constraint row");
+    let [trait_bound] = constraint.conformance_bounds() else {
+        panic!("one exact trait binder-free conformance requirement")
+    };
+    assert_eq!(trait_bound.binder_ordinal(), None);
+    assert_eq!(trait_bound.subject_parameter(), 0);
+    assert_eq!(trait_bound.trait_identity().path(), "Ranked");
+    assert!(!review.canonical_review_bytes().unwrap().is_empty());
 }
 
 #[test]
@@ -1784,7 +1805,7 @@ invokes waiting;
 }
 
 #[test]
-fn exact_synchronous_invocations_change_v23_comparison_encoding() {
+fn exact_synchronous_invocations_change_v24_comparison_encoding() {
     let quiet = TempPackage::new();
     let invoking = TempPackage::new();
     quiet.write(
@@ -1974,7 +1995,7 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
-fn public_data_and_numbered_wire_shape_changes_change_v23_comparison_encoding() {
+fn public_data_and_numbered_wire_shape_changes_change_v24_comparison_encoding() {
     let first = TempPackage::new();
     let second = TempPackage::new();
     first.write(
@@ -2008,7 +2029,7 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
-fn public_domain_shape_changes_change_v23_comparison_encoding() {
+fn public_domain_shape_changes_change_v24_comparison_encoding() {
     let first = TempPackage::new();
     let second = TempPackage::new();
     first.write(
