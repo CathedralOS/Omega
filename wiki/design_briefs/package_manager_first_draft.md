@@ -190,10 +190,12 @@ Compiler internals may change freely provided the projection remains equivalent
 or the evidence schema changes explicitly.
 
 Implementation should consume the earliest coherent checked compiler state
-that already contains each required fact. Because the projection ships with the
-compiler, depending on compiler-internal representations is ordinary internal
-coupling, not a promise that those representations are stable public APIs. The
-projection and its tests move with those representations.
+that already contains each required fact. Different evidence rows may therefore
+come from different internal representations; totality belongs to the final
+projection, not to one frozen source stage. Because the projection ships with
+the compiler, depending on compiler-internal representations is ordinary
+internal coupling, not a promise that those representations are stable public
+APIs. The projection and its tests move with those representations.
 
 There is no nominal Chi stage merely to stabilize this report. A distinct IR is
 justified later only if multiple independent consumers need the same semantic

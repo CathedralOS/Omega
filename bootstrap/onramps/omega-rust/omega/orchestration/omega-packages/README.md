@@ -28,9 +28,9 @@ real package fixture demonstrates an irreducible external contract.
   evidence from checked source and build results.
 - Ordinary admission uses a total internal projection from checked semantic
   state into versioned canonical evidence. Raw compiler IR is never a lock
-  format. The checker may consume the earliest coherent compiler-private
-  checked representation for each fact and move with it; this does not require
-  a nominal Chi stage.
+  format. Each row may consume its earliest coherent compiler-private checked
+  representation and move with it; totality belongs to the final projection,
+  not one frozen source stage. This does not require a nominal Chi stage.
 - Terminal evidence is separate and required only for final-realization claims
   or hardened profiles, not as a blanket package-admission gate.
 - `omega.lock` records the exact reconciled closure and normalized accepted
@@ -134,13 +134,15 @@ survives checked compilation; public omission enforces empty reach, invocation,
 suspension, blocking, and crash ceilings. The review includes public and
 boundary callables plus the selected build machine, excludes private machines,
 and projects invocation targets as exact parameter ordinals or package-qualified
-service identities. Public-data visibility also survives frontend lowering,
-snapshots, copies, and generic specialization, although normalized public data
-shape is not yet part of the review projection. The compiler now provides a
-version-2 length-framed binary comparison encoding over this review projection; it is
-explicitly not a package certificate or accepted-lock payload. Raw Rust/debug
-serialization is not an alternative. These pieces do not become an
-admission path until the legacy name-keyed lock APIs are replaced and sealed,
+service identities. Public data (including numbered data's schema and derived
+plain-data root) and public trait visibility also survive frontend lowering,
+snapshots, copies, and checked-tree construction, although their normalized
+public shapes are not yet part of the review projection. The compiler now
+provides a version-2 length-framed binary comparison encoding over this review
+projection; it is explicitly not a package certificate or accepted-lock
+payload. Raw Rust/debug serialization is not an alternative. These pieces do
+not become an admission path until the legacy name-keyed lock APIs are replaced
+and sealed,
 locally regenerated compiler evidence plus the hardened resolver receipt are
 wired through end to end. The earlier public
 `PackageInstance` constructor was removed: the real type must not exist as a

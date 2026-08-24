@@ -570,10 +570,12 @@ exactly. The lock persists only the versioned canonical evidence, with source,
 target, evidence-schema, and compiler/toolchain provenance.
 
 The implementation should read each row from the earliest coherent checked
-compiler state that contains it. This may couple the checker to compiler-private
-representations: the checker is part of the compiler and moves with them. That
-coupling does not make the internal representation a package format or public
-compatibility surface.
+compiler state that contains it. Different rows may come from different
+internal representations; the final projection must be total, but no single
+intermediate representation must contain every row. This may couple the checker
+to compiler-private representations: the checker is part of the compiler and
+moves with them. That coupling does not make an internal representation a
+package format or public compatibility surface.
 
 This projection is not another public IR stage and does not warrant a nominal
 Chi stage merely for format stability. It has no execution semantics or

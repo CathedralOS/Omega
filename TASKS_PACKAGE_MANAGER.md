@@ -37,6 +37,9 @@ complete.
 - Ordinary admission uses a total internal `PackageAdmissionProjection` from
   checked semantic state. The lock stores only versioned canonical evidence;
   raw IR and compiler-private identities never become lock format.
+- Each evidence row comes from its earliest coherent checked representation.
+  The final projection is total, but no one internal stage must contain every
+  row; do not introduce nominal Chi merely to freeze compiler internals.
 - Complete Terminal coverage is not an ordinary admission prerequisite.
   Terminal evidence is a separate class required for final-realization claims
   and hardened profiles. No partial/completeness bit may imply a Terminal claim.
@@ -146,7 +149,7 @@ complete.
 
 ## P1 — Package declaration and identity
 
-- **PACKAGE-DECLARATION-VOCABULARY.** Add the toolchain-owned `Package` build
+- [x] **PACKAGE-DECLARATION-VOCABULARY.** Add the toolchain-owned `Package` build
   data and require exactly one `const PACKAGE: Package` in each package
   `build.omg`.
 
@@ -154,14 +157,16 @@ complete.
   build execution and rejects missing, duplicate, effectful, generated,
   dependency-dependent, or invalidly spelled declarations.
 
-  Progress 2026-08-23: the compiler prelude owns `Package { name: &[u8] }`, and
+  Completed 2026-08-24: the compiler prelude owns `Package { name: &[u8] }`, and
   `omega-packages` now extracts the exact literal declaration through the
   ordinary Psi lexer/parser without loading imports or executing code. It
   rejects package-authored `Package`, malformed/scoped/duplicate declarations,
   nonliteral initializers, invalid bytes, and names that cannot map to a default
   Omega alias. Git, workspace-member, and external-local source custody now
   extract this declaration from the resolver-owned immutable snapshot and join
-  it to typed lineage; complete closure resolution remains.
+  it to typed lineage before recursive resolution. Extraction parses only the
+  immutable root `build.omg`; it cannot execute generated, imported, effectful,
+  dependency-dependent, or build-host code.
 
 - **PACKAGE-KEY-AND-INSTANCE.** Replace name-keyed graph and lock APIs with
   `PackageKey` and `PackageInstance`.
@@ -254,14 +259,14 @@ complete.
   identifier. Conservative editing, broader target vocabulary, and
   orchestration of the reconciled compiler bindings remain.
 
-- **HERMETIC-DEPENDENCY-PROJECTION.** Derive dependency source requests without
+- [x] **HERMETIC-DEPENDENCY-PROJECTION.** Derive dependency source requests without
   executing build-host effects or imported code.
 
   Acceptance: dependency rows cannot depend on filesystem/network observations,
   generated files, clocks, or build outputs. Malformed or unsupported
   projection rejects explicitly; nothing is silently skipped.
 
-  Progress 2026-08-24: `omega-packages` parses only the immutable root
+  Completed 2026-08-24: `omega-packages` parses only the immutable root
   `build.omg`, accepts direct literal Path/Git rows through `depend` and
   `depend_as` in authored order, and rejects authored toolchain vocabulary,
   malformed/scoped builds, invalid aliases, nonliteral or nested/helper-mediated
@@ -272,18 +277,19 @@ complete.
   alias-to-`PackageKeyIdentity` graph and canonical source roots; this mode never
   invokes or combines syntactic discovery. Legacy standalone compilation keeps
   only an explicit `depend_as(..., Source::Path { ... })` compatibility canary.
-  A transport-neutral package-side resolver now recursively closes those
-  projected requests through an adapter callback before returning any graph.
-  Orchestration wiring and eventual removal of that standalone scanner remain.
+  A transport-neutral package-side resolver recursively closes those projected
+  requests through an adapter callback before returning any graph. The narrow
+  standalone compatibility scanner remains tracked as compiler cleanup but is
+  not consulted by package-aware compilation or package source projection.
 
-- **CLOSURE-RECONCILIATION.** Resolve the complete source closure before any
+- [x] **CLOSURE-RECONCILIATION.** Resolve the complete source closure before any
   dependency build receives providers.
 
   Acceptance: one `PackageKey` resolves to one immutable instance in v1;
   conflicts report every requesting dependency path. Resolver authority never
   enters package build execution.
 
-  Progress 2026-08-24: a typed pre-admission source graph now validates exact
+  Completed 2026-08-24: a typed pre-admission source graph validates exact
   roots and edges, one immutable resolution per `PackageKey`, requester-local
   alias uniqueness, closed reachability, and same-name/different-lineage
   separation. Package dependency cycles conservatively reject in v1. A sealed,
@@ -324,8 +330,9 @@ complete.
   unresolved or unprojectable facts reject. The canonical output contains no
   arena handles, display strings as identity, or other compiler-private IDs.
   Implementation reads each fact from the earliest coherent checked compiler
-  state that contains it; this internal coupling moves with the compiler and
-  does not create a stable public IR stage.
+  state that contains it. Rows may use different internal representations;
+  this internal coupling moves with the compiler and does not create a stable
+  public IR stage.
 
   Progress 2026-08-24: checked trees already own the useful semantic core. A
   `RealizedMachineContractEnvelope` retains contract identity, effective and
@@ -342,12 +349,14 @@ complete.
   resolved, typed, checked, snapshot, copy, and specialization paths. Public
   omission is a strict empty ceiling for service reach, synchronous invocation,
   suspension, blocking, and crash; checked underdeclaration rejects. Ordinary
-  `pub data` visibility likewise survives parsing, copies, snapshots, lowering,
-  and generic specialization, but its normalized public shape is not yet in the
-  review projection. Declaration kinds without retained visibility now reject
+  `pub data` visibility, including numbered data's wire schema and wire-derived
+  plain-data root, likewise survives parsing, copies, snapshots, lowering, and
+  generic specialization. Public trait visibility survives the same frontend
+  and checked-tree path. Their normalized public shapes are not yet in the
+  review projection. Declaration kinds without retained visibility reject
   `pub` instead of silently compiling a private API. Settled export semantics,
-  visibility retention and normalized shape for the remaining public non-machine
-  API, generated/toolchain symbol ownership, package-qualified provider
+  normalized shape for public data, traits, domains, and wire schemas,
+  generated/toolchain symbol ownership, package-qualified provider
   binding/selection identities, source/toolchain/compiler commitments,
   non-provider trust ownership, build observations, and reproducibility
   receipts still need one sealed projection. Exact provenance for the realizing

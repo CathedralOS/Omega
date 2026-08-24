@@ -763,9 +763,11 @@ mechanically checked proposition. Projects requiring stronger assurance enforce
 their own reviewers, quorum, isolated builds, bootstrapped toolchain, and merge
 controls around these deterministic facts.
 
-The ordinary rows are derived from checked semantic state by a total internal
-package-admission projection. Unresolved or unprojectable required facts reject;
-the compiler does not serialize raw internal IR or fill gaps with a
+The ordinary rows are derived from the earliest coherent checked state for each
+row by a total internal package-admission projection. Rows may use different
+compiler-private representations; totality is required of the final projection,
+not of one nominal intermediate stage. Unresolved or unprojectable required
+facts reject; the compiler does not serialize raw internal IR or fill gaps with a
 “complete enough” marker. Terminal Psi is required separately when a row claims
 a checked property of final executable realization, lowering, ABI realization,
 or fixed native resources, and when a hardened profile explicitly requests that
