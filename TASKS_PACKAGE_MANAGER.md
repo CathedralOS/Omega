@@ -568,7 +568,7 @@ complete.
   closing the implicit-entry-state ownership gap discovered by the crash
   projection. Review identity now retains the exact deployment target profile,
   so profiles such as Windows and UEFI cannot collapse merely because they
-  share a native ABI. A v26 length-framed binary comparison encoding now covers
+  share a native ABI. A v27 length-framed binary comparison encoding now covers
   every retained public-domain, public-data, public-trait, callable,
   representation-TCB, crash/proof predicate, proposition/witness, authority
   flow, dangerous-authority classification, mutation, and selected-provider
@@ -711,9 +711,16 @@ complete.
   compiler review projection now emits the first intrinsic risk row for an
   exposed canonical toolchain `FilesystemHost`, selected by exact declaration
   and toolchain-source coordinates rather than package-controlled spelling.
-  Canonical and same-named package-owned tests pin both sides of that join, and
-  comparison encoding v26 retains the row. Broader risk classes and sealed
-  package evidence remain.
+  The same exact provenance join now classifies canonical `MachineControl`,
+  `PortIo`, `InterruptMaskControl`, `InterruptEntry`, and
+  `ExtentRootProvider` as machine-control, port-I/O, interrupt-control,
+  interrupt-entry, and root-memory authority. Canonical and same-named
+  package-owned tests pin both sides of each join, and comparison encoding v27
+  retains the rows. `ProgramStorageEntry` is not mislabeled as executable-
+  installation authority merely because it receives already-installed roots;
+  that class must come from exact installation evidence. Network, process,
+  dynamic loading, signing, secrets, executable installation, DMA/IOMMU, and
+  sealed package evidence remain.
 
 - **REPRESENTATION-TCB-REVIEW.** Retain claim-free opaque boundary data as a
   distinct compiler-owned review lane.
@@ -732,7 +739,7 @@ complete.
   `boundary data`, including private declarations and declarations with no
   reach or claim. The row is target-scoped by the containing projection and
   explicitly records both ABI commitment and external mechanism as `Unbound`;
-  it does not fabricate layout or realization. Comparison encoding v26 retains
+  it does not fabricate layout or realization. Comparison encoding v27 retains
   the lane. Exact mechanism/ABI selection, source/toolchain/compiler sealing,
   and admission-policy outcomes remain.
 
