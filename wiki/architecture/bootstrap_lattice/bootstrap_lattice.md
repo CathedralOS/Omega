@@ -332,7 +332,7 @@ The places this architecture glides over real cost. Build with eyes open.
    "What the interpreter does" tells you what programs *do* (perfect for checking
    a compiler preserves behavior). It does not give a theory to *prove things
    about* programs. Connecting the proof kernel's logic to what programs actually
-   do per the reference interpreter" is a **soundness theorem**
+   do per the reference interpreter is a **soundness theorem**
    (`kernel-accepted ⟹ true-about-execution`) at the proof/meaning seam. That
    bridge is the hard core of the proof ambition; the reference interpreter is
    only half of "meaning."

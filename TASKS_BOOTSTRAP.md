@@ -67,7 +67,8 @@ These standing rulings are not tasks:
 - The proof kernel is cross-cutting assurance, with Beta and Gamma
   implementations; Gamma is not the proof-checker rung.
 - Direct lower-rooted source-to-artifact refinement grants compiler authority.
-  DDC, compiler multiplicity, and byte agreement are not trust requirements.
+  Compiler multiplicity, cross-build agreement, and byte agreement are not
+  trust requirements.
 - The current Rust Psi/Omega compiler stays under the explicitly suffixed
   `bootstrap/onramps/omega-rust/` owner as an optional differential producer.
   `compiler/{psi,omega}/` owns Omega-written product source.
@@ -131,6 +132,11 @@ Profile derivation, bridge implementation and measurement, both freezes, and
 hosted validation in steps 2 through 5 are bootstrap work here. The optional
 production `omega` self-rebuild remains product optimization/reproducibility
 work after the required build closes.
+
+Items 1 and 2 therefore co-evolve; they are not sequential phases. The current
+concrete bootstrap edge is the remaining lower-rooted refinement item under
+section 2. Sections 3 through 6 are downstream joins, not parallel language-
+design projects.
 
 ### Rolling invariant — maintain the provisional Delta ledger
 
@@ -256,7 +262,7 @@ compiler implements.
 - [ ] Publish a classified conformance corpus and feature manifest with positive
   observations, phase-isolated negatives, exhaustion teeth, cross-target
   layout/arithmetic edges, and native/self-host/lower-rung differentials.
-  Differential agreement is bug-finding evidence, not DDC authority.
+  Differential agreement is bug-finding evidence, not artifact authority.
 - [ ] Prove the complete deterministic `omega-bootstrap` source closure valid
   under the frozen contract.
 

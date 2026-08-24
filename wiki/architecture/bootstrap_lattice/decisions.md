@@ -353,36 +353,30 @@ cold-start refinement now closes that edge; its fixed point remains dependency-
 closure and reproducibility evidence rather than the reason the artifact is
 authoritative.
 
-## Execution order (binds the /loop)
+## Dependency order
 
-1. **Keep the closed `bc` correspondence edge closed** — its Alpha-rooted
-   construction and lower-rooted whole-artifact refinement are complete. Reopen
-   it only for a concrete defect, a widened claim, or a changed artifact; Python
-   comparison and byte-identical self-build remain regression evidence.
-   *(D3/D5.)*
-2. **Keep Delta's used profile Rust-free** — retain the existing
-   `omega2gamma.beta` → `interp.beta` coverage for D0/O1, and require each newly
-   admitted compiler construct to land with lower-rung meaning or fail closed.
-   `gamma_emit.rs` remains a differential reference producer. *(D1.)*
-3. **Grow the proof kernel and its seams in lockstep** — no capability without its paired seam. *(D4)*
-4. **Translation-validation backend** — per-compile refinement certs. *(D3 north star, later.)*
-5. **Grow the production Omega source tree and enforce provisional `Ωself`** —
-   checkpoint 000001 supplies the first deterministic closure and mechanically
-   enforced normalized-syntax/resource candidate. Extend later closures with
-   typed-semantic, ABI/layout, lowering, and bridge-cost evidence as compiler
-   phases land, and keep absent future-phase features provisional until the
-   final source closure settles them. *(D6.)*
-6. **Complete `omega-bootstrap`, then freeze `Ωself` and Delta v1 at their
-   joins** — implement the general profile frontend/semantic path and correct
-   conservative lowering needed for the one hosted production build. Feed real
-   implementation and assurance cost back into `Ωself`, freeze it when that
-   bridge closes, then prune accidental Delta experiments and freeze the
-   coherent retained language around the complete bridge source closure.
-   Compile, rather than duplicate, the product optimizer and advanced lowering
-   source. Do not require unrelated full-Omega source or tool surfaces.
-   *(D2/D6, later.)*
-7. **Build production Omega once** — compile the `Ωself`-constrained Omega
-   source into the full-spec compiler containing the optimizer and advanced
-   lowering, then apply the normal meaning and
-   translation-validation gates. Its own binary may be conservative; a further
-   self-rebuild that optimizes it is optional. *(D3/D6, later.)*
+This page fixes architectural dependencies; it is not a second work queue.
+[`TASKS_BOOTSTRAP.md`](../../../TASKS_BOOTSTRAP.md) is the sole live bootstrap
+execution order.
+
+1. Product work publishes deterministic checkpoints of the Omega-written
+   compiler source while bootstrap work derives and enforces provisional
+   `Ωself` rules from them.
+2. The Delta-written `omega-bootstrap` grows against those checkpoints. Every
+   admitted capability lands with lower-rung meaning, direct artifact
+   refinement, resource behavior, and a negative boundary; reference-producer
+   agreement remains diagnostic evidence.
+3. The complete product source and complete general bridge freeze `Ωself`.
+   The complete bridge's Delta source closure plus explicit language-coherence,
+   robustness, safety, and maintainability arguments separately freeze Delta
+   v1.
+4. The lattice-built Delta compiler builds the exact validated
+   `omega-bootstrap` artifact.
+5. That bridge performs the one required hosted build of the full-spec
+   production compiler, including its optimizer and advanced lowering. An
+   Omega-to-Omega rebuild of the same source is optional.
+
+The proof kernel, meaning routes, semantic seams, and translation-validation
+machinery are cross-cutting obligations on the relevant edges, not additional
+language stages inserted into this sequence. Closed lower edges reopen only for
+a concrete defect, a changed artifact, or a widened claim.

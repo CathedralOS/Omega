@@ -657,7 +657,7 @@ Omega `u32` literal/range support. Its record layout is internal and cannot be
 used for FFI, public ABI, wire identity, stable hashing, or product layout
 decisions. The conformance entry and process-status observation are test adapters
 only. A product compiler producing the same exit status or image bytes is useful
-differential evidence, not bootstrap authority and not DDC.
+differential evidence, not bootstrap authority.
 
 ## 10. Required evidence before use as an artifact tranche
 
