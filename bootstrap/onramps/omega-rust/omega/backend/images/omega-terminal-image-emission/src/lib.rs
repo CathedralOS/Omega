@@ -19,6 +19,7 @@ mod completion_receipts;
 mod final_image_validation;
 mod image_output;
 mod installation;
+mod installed_artifact;
 mod instruction_loads;
 mod native_fuel;
 mod partial_cleanup_partition;
@@ -47,6 +48,10 @@ pub use image_output::{
     emit_terminal_object_container,
 };
 pub use installation::*;
+pub use installed_artifact::{
+    InstalledTerminalArtifact, InstalledTerminalArtifactBindingError,
+    bind_installed_terminal_artifact,
+};
 pub use native_fuel::{
     TerminalNativeFuelValidationError, ValidatedTerminalNativeFuelArtifact,
     ValidatedTerminalNativeFuelFunction, validate_terminal_native_fuel_plan,

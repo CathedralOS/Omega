@@ -1,0 +1,28 @@
+[package]
+name = "omega-component-publication"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_component_publication"
+path = "src/lib.rs"
+
+[dependencies]
+omega-effects = { path = "../../representations/omega-effects" }
+omega-executable-installation = { path = "../../foundation/omega-executable-installation" }
+omega-external-roots = { path = "../omega-external-roots" }
+omega-terminal-image-emission = { path = "../../backend/images/omega-terminal-image-emission" }
+
+[dev-dependencies]
+omega-calling-conventions = { path = "../../foundation/omega-calling-conventions" }
+omega-target = { path = "../../foundation/omega-target" }
+omega-terminal-installation-evidence = { path = "../../representations/omega-terminal-installation-evidence" }
+omega-terminal-isa-x86_64 = { path = "../../backend/instruction_set_architectures/omega-terminal-isa-x86_64" }
+omega-terminal-machine-code = { path = "../../representations/omega-terminal-machine-code" }
+omega-terminal-target-operations = { path = "../../representations/omega-terminal-target-operations" }
+psi-core = { path = "../../../psi/foundation/psi-core" }
+psi-extents = { path = "../../../psi/foundation/psi-extents" }
+psi-layout-plans = { path = "../../../psi/foundation/psi-layout-plans" }
+psi-terminal = { path = "../../../psi/representations/psi-terminal" }
+psi-terminal-fuel = { path = "../../../psi/semantics/psi-terminal-fuel" }

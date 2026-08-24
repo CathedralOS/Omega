@@ -259,6 +259,10 @@ impl ComponentEraRetirementReceipt {
             lifetime_cohort_released,
         }
     }
+
+    pub const fn era_identity(&self) -> u64 {
+        self.era_identity
+    }
 }
 
 /// Authoritative lifecycle state for one exact component binding.

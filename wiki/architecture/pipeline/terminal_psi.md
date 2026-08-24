@@ -1631,8 +1631,12 @@ exact subject occurrence. Issuer and subject need not be the same occurrence.
 Component closure checks every canonical pending row before committing and
 retains the original manifest plus exact evidence. Terminal installation
 format 34 records the manifest and acceptance report identities in the hashed
-installation bytes; runnable publication must still consume the opaque
-acceptance, since those compact identities grant no authority.
+installation bytes. Runnable publication additionally joins the complete
+terminal object and image, canonical installation record, exact installed-code
+occurrence, and opaque acceptance, then retains that non-forgeable carrier for
+the live component era. Failed publication or retirement returns it unchanged;
+successful retirement is the only operation that releases it. Compact record
+identities remain report keys and grant no authority.
 
 ### Placed-occurrence and resident-custody slice
 

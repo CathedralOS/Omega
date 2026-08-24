@@ -6867,12 +6867,17 @@ compiler concept is introduced.
   cannot be rebound by compact identity, profile, route, occurrence, or
   invocation. Terminal installation format 34 commits the manifest and opaque
   acceptance identities into the canonical installation bytes, which the
-  terminal artifact manifest already fingerprints.
+  terminal artifact manifest already fingerprints. Runnable component-era
+  publication now binds the complete terminal object and image, canonical
+  installation record, exact installed-code occurrence, and opaque progress
+  closure into one non-clone carrier. Publication retains it until successful
+  retirement; every rejected publication or retirement returns the exact
+  candidate, receipt, and evidence without partial commitment.
 
-  Remaining TPR6-B engineering: make runnable component-era publication
-  consume and retain that opaque acceptance, then retire the legacy compiler's
-  temporary final-output rejection. The current `write_output` lane publishes
-  a native executable directly and carries neither the manifest nor an
+  Remaining TPR6-B engineering: route the production composition/install lane
+  through that staged carrier, then retire the legacy compiler's temporary
+  final-output rejection. The current `write_output` lane still publishes a
+  native executable directly and carries neither the manifest nor an
   installation acceptance, so removing the fence there would erase the
   obligation; selected plans and authorized routes remain insufficient.
   Independently add authored
