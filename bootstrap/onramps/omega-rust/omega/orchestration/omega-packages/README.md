@@ -68,10 +68,13 @@ The crate now contains reviewed building blocks for immutable Git/local
 snapshots, hermetic package-name extraction, and typed package/source/instance
 identity. Git and external-local resolution now bind those pieces into a
 `ResolvedPackageSource`: declaration and identity come from the immutable
-snapshot and canonical source lineage, while toolchain/compiler evidence is
-intentionally absent. These pieces do not become an admission path until the
-legacy name-keyed graph and lock APIs are replaced and compiler-issued evidence
-plus the hardened resolver receipt are wired through end to end.
+snapshot and canonical source lineage, and canonical literal dependency rows
+are projected without executing build code. Toolchain/compiler evidence is
+intentionally absent. A separate `ResolvedPackageClosure` validates exact typed
+source topology but has no persistence or admission API. These pieces do not
+become an admission path until the legacy name-keyed lock APIs are replaced and
+compiler-issued evidence plus the hardened resolver receipt are wired through
+end to end.
 
 ## Target command surface
 
@@ -128,7 +131,8 @@ omega-packages/
 |   |-- package_source.rs  # Snapshot-to-declared-PackageKey custody.
 |   |-- resolver.rs        # Fetch/cache boundary and transport receipts.
 |   |-- declaration.rs     # Hermetic PACKAGE extraction.
-|   |-- graph.rs           # Dependency projection and reconciliation.
+|   |-- dependency_projection.rs # Hermetic literal source requests.
+|   |-- graph.rs           # Typed pre-admission source reconciliation.
 |   |-- evidence.rs        # Compiler-issued package admission evidence.
 |   |-- lock.rs            # Accepted closure and evidence baseline.
 |   |-- conflict.rs        # Row-specific admission conflicts/resolutions.
@@ -154,4 +158,4 @@ The local fixture corpus is under `fixtures/packages/`; exact remote Git pins
 are recorded in `fixtures/packages/REMOTE_PINS.md`. Before these are admission
 fixtures rather than source-resolution fixtures, each must declare `PACKAGE`
 and have its evidence emitted by the compiler. Tests that fabricate manifests
-from fixture intent do not establish package security behavior.
+from fixture intent have been removed from integration coverage.
