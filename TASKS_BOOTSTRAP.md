@@ -191,6 +191,14 @@ mutation teeth are already gated. Its general typed, lowering, capacity, and
 artifact implementation remains section-2 work; the rolling items above stay
 open for that evidence and for later checkpoints.
 
+Its current resolver replay maps `use` components onto repository files and the
+product sources generally omit explicit `module` items. That is exact evidence
+about the provisional closure, not authority for legacy filename-derived name
+resolution. Before the hosted join, the product owner must publish canonical
+logical source placements and source valid under the normative visibility and
+import rules. The bridge consumes those placements, requires any authored
+module declaration to agree, and must not reproduce the compatibility scanner.
+
 Acceptance for each checkpoint: the product-owned exact manifest and the
 separately versioned candidate-profile evidence are reproducible artifacts;
 every admitted program is ordinary Omega with exact Omega meaning; unsupported
@@ -223,13 +231,17 @@ Terminal-Psi vocabulary work remains product work in `TASKS.md`.
   000001, then later provisional checkpoints, until the bridge generally parses,
   resolves, checks, diagnoses, and conservatively lowers every program admitted
   by the candidate `Ωself` profile while rejecting everything else before
-  publication. The next tranche establishes the resolver-supplied multi-unit
+  publication. The Delta structural checker for the resolver-supplied multi-unit
   [compilation envelope](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION.md)
-  and general import/name resolution, ending in a real cross-unit artifact
-  rather than a frontend-only claim. Structural envelope validity is not
-  resolver authority: join an independently accepted lock/closure commitment,
-  direct requester-local reach, authored module identity, visibility, root
-  selection, and deterministic semantic order. The first two-unit CKIR1
+  now reproduces bounded canonical transport through native, self-built, and
+  Rust-free `0`/`251`/`252` gates. This does not complete the tranche or grant
+  compilation authority. Next, join an independently accepted lock/closure
+  commitment and exact envelope SHA-256, implement general import/name
+  resolution, and end in a real cross-unit artifact rather than a frontend-only
+  claim. Structural envelope validity is not resolver authority: also enforce
+  direct requester-local reach, resolver-owned logical module placement plus
+  any agreeing authored declaration, visibility, root selection, and
+  deterministic semantic order. The first two-unit CKIR1
   fixture may import nominal data; a cross-unit machine call waits for a
   versioned CKIR call operation rather than being implied by transport work.
 - [ ] Carry each admitted capability's compositional rules, negative boundary,

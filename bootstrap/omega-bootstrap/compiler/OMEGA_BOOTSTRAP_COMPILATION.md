@@ -43,6 +43,28 @@ relation makes 64 distinct strings unrealizable with only 16 source, 32 alias,
 and two root references; this conservative preflight bound does not waive that
 later canonicality check.
 
+The relation-dependent effective maximum uses at most 50 string length headers:
+`64 + 16*48 + 16*20 + 32*16 + (50*4 + 2048) + 263312 =
+267224`. Thus 267,280 remains the simple framing/storage preflight ceiling, not
+a claim that a canonical envelope can attain that exact length.
+
+## Current structural implementation
+
+`omega-bootstrap-compilation-check.alp` independently implements this
+document's bounded wire, table, graph, string, nested-bundle, resource, and
+exact-EOF rules in Delta. Its native/self-built and canonical-Gamma gates
+require empty output and exact `0`, `251`, and `252` observations. Exact-bound
+fixtures cover the independently realizable ceilings. The 64-string and
+267,280-byte exact encodings are relation-dependent impossibilities, while an
+aggregate label extent of 1,025 cannot precede the 16-by-64 per-label ceiling;
+their preflight/adjacent exhaustion behavior is tested without manufacturing a
+false canonical positive.
+
+This checker is structural transport evidence only. It does not consume or
+validate the independently supplied SHA-256 commitment, accept a resolver/lock
+receipt, resolve source names, inspect source semantics, compare CKIR, or
+authorize an emitted artifact. Those joins remain mandatory below.
+
 Exceeding a declared ceiling is checked exhaustion (`252`). Malformed,
 noncanonical, inconsistent, or unsupported input is rejection (`251`). No
 normalized source or artifact may be published on either failure. Arithmetic
@@ -121,14 +143,20 @@ retained byte belongs to one and only one source row. A source label is used
 only as a canonical row-order key and diagnostic custody label; it is never
 interpreted as package or module identity.
 
-The module-path field is a checked redundant claim, not authority. It is empty
-when the source has no authored `module` item and therefore contributes to the
-package-root module; otherwise it must exactly equal the one authored module
-path reconstructed from that source. More than one module item or any mismatch
-rejects. Multiple files may contribute to one module. Their semantic order is
-source-ID order followed by authored declaration order. Duplicate semantic
-declaration identities reject, and resolution may not depend on traversal or
-load order. The selected root source must belong to the selected root package.
+The module-path field is resolver-owned logical placement under the accepted
+package source root; it is not inferred from the custody label or cache path.
+The empty path denotes the package-root module. When a source contains an
+authored `module` item, that declaration must exactly agree with the row; more
+than one module item or any mismatch rejects. A source without such an item
+uses the resolver-owned row rather than silently becoming a root module. This
+supports exact deterministic placement while the product closure migrates away
+from legacy filename-derived loading, without granting the label semantic
+authority.
+
+Multiple files may contribute to one module. Their semantic order is source-ID
+order followed by authored declaration order. Duplicate semantic declaration
+identities reject, and resolution may not depend on traversal or load order.
+The selected root source must belong to the selected root package.
 
 ## Alias row — 16 bytes
 

@@ -28,7 +28,7 @@ data Main {
     array_omode_stack: [i32; 16]; array_oopnd_stack: [i32; 16];
     array_aoff_stack: [i32; 16]; array_acnt_stack: [i32; 16]; array_aeb_stack: [i32; 16];
     array_saoff_stack: [i32; 16]; array_astore_stack: [i32; 16];
-    osp: i32; naop: i32; ncc: i32; nprec: i32; opret: i32; usesio: i32; lstri: i32; wrap: i32; sacnt: i32; saeb: i32; saoff: i32; callmode: i32; ocmode: i32; ocopnd: i32; stoff: i32; stcnt: i32; steb: i32;
+    osp: i32; naop: i32; ncc: i32; nprec: i32; opret: i32; usesio: i32; lstri: i32; wrap: i32; sacnt: i32; saeb: i32; saoff: i32; callmode: i32; ocmode: i32; ocopnd: i32; stoff: i32; stcnt: i32; steb: i32; bterm: i32;
     coff: i32; dsize: i32;
     lc: i32; frame: i32; sd: i32; nl: i32; lpend: i32; ldisp: i32; lstgt: i32;
     nv: i32; vcc: i32; skl: i32; eskl: i32;
@@ -48,7 +48,7 @@ data Main {
     pns_base: i32; pne_base: i32; pmi_base: i32; ppidx_base: i32;
     fns_base: i32; fne_base: i32;
     sns_base: i32; sne_base: i32; smi_base: i32; ssi_base: i32; dig_base: i32;
-    typed_backing: [i32; 17880];
+    typed_backing: [i32; 18200];
     byte_backing: [u8; 262144];
 }
 
@@ -56,8 +56,8 @@ machine Main::reserve_typed(&mut self, count: i32, align: i32) {
     self.alloc_ok = 0;
     transition count < 0 { true -> fail() false -> align_check() }
     state align_check() { transition align <= 0 { true -> fail() false -> pad() } }
-    state pad() { self.alloc_pad = (align - (self.typed_cursor % align)) % align; transition self.alloc_pad <= 17880 - self.typed_cursor { true -> count_check() false -> fail() } }
-    state count_check() { transition count <= 17880 - (self.typed_cursor + self.alloc_pad) { true -> commit() false -> fail() } }
+    state pad() { self.alloc_pad = (align - (self.typed_cursor % align)) % align; transition self.alloc_pad <= 18200 - self.typed_cursor { true -> count_check() false -> fail() } }
+    state count_check() { transition count <= 18200 - (self.typed_cursor + self.alloc_pad) { true -> commit() false -> fail() } }
     state commit() { self.alloc_base = self.typed_cursor + self.alloc_pad; self.typed_cursor = self.alloc_base + count; self.alloc_ok = 1; }
     state fail() { self.storage_ok = 0; }
 }
@@ -74,7 +74,7 @@ machine Main::reserve_byte(&mut self, count: i32, align: i32) {
 
 machine Main::init_storage(&mut self) {
     self.byte_cursor = 0; self.typed_cursor = 0; self.storage_ok = 1; self.source_base = 0;
-    self.reserve_typed(17880,1); self.storage_ok = self.alloc_ok;
+    self.reserve_typed(18200,1); self.storage_ok = self.alloc_ok;
     self.opaop_base=self.alloc_base;
     self.opcc_base=self.opaop_base+16;
     self.opprec_base=self.opcc_base+16;
@@ -87,7 +87,7 @@ machine Main::init_storage(&mut self) {
     self.lmi_base=self.lne_base+32;
     self.plidx_base=self.lmi_base+32;
     self.lcs_base=self.plidx_base+32;
-    self.vns_base=self.lcs_base+64;
+    self.vns_base=self.lcs_base+128;
     self.vne_base=self.vns_base+32;
     self.vtag_base=self.vne_base+32;
     self.spls_base=self.vtag_base+32;
@@ -98,10 +98,10 @@ machine Main::init_storage(&mut self) {
     self.bne_base=self.bns_base+8;
     self.bndoff_base=self.bne_base+8;
     self.pcs_base=self.bndoff_base+8;
-    self.hsf_base=self.pcs_base+64;
-    self.mns_base=self.hsf_base+64;
-    self.mne_base=self.mns_base+64;
-    self.pns_base=self.mne_base+64;
+    self.hsf_base=self.pcs_base+128;
+    self.mns_base=self.hsf_base+128;
+    self.mne_base=self.mns_base+128;
+    self.pns_base=self.mne_base+128;
     self.pne_base=self.pns_base+64;
     self.pmi_base=self.pne_base+64;
     self.ppidx_base=self.pmi_base+64;
@@ -718,7 +718,7 @@ machine Main::p_lm(&mut self) {          // "Lm"  (label def, column 0)
     state b0(){ write_byte(109); }
 }
 machine Main::main(&mut self) {
-    self.n = 0; self.phase = 0; self.depth = 0; self.mi = 0 - 1; self.si = 0; self.pend = 0; self.nf = 0; self.dp = 0; self.ind = 0; self.expf = 0; self.nl = 0; self.lpend = 0; self.ns = 0; self.mn = 0; self.mdecl = 0; self.insig = 0; self.np = 0; self.emi = 0; self.nstr = 0; self.osp = 0; self.array_depth = 0; self.usesio = 0; self.skl = 0; self.ne = 0;
+    self.n = 0; self.phase = 0; self.depth = 0; self.mi = 0 - 1; self.si = 0; self.pend = 0; self.nf = 0; self.dp = 0; self.ind = 0; self.expf = 0; self.nl = 0; self.lpend = 0; self.ns = 0; self.mn = 0; self.mdecl = 0; self.insig = 0; self.np = 0; self.emi = 0; self.nstr = 0; self.osp = 0; self.array_depth = 0; self.usesio = 0; self.skl = 0; self.ne = 0; self.bterm = 0;
     self.init_storage();
     transition self.storage_ok == 1 { true -> rd() false -> storage_exhausted() }
     state rd()    { self.c = read_byte(); transition self.c < 0 { true -> scan()  false -> store() } }
@@ -877,8 +877,11 @@ machine Main::main(&mut self) {
     state ck1m()  { self.w = self.is_machine(self.start, self.pos); transition self.w == 1 { true -> newM1()  false -> ck1l() } }
     state ck1l()  { self.w = self.is_let(self.start, self.pos); transition self.w == 1 { true -> setL1()  false -> ck1s() } }
     state setL1() { self.lpend = 1; transition 0 { _ -> sk() } }
-    state newM1() { transition self.depth == 0 { true -> nm1()  false -> sk() } }
+    // Five machine-scoped tables have 128 rows. Reject in phase 1, before p2 publishes assembly.
+    state newM1() { transition self.depth == 0 { true -> nmcap()  false -> sk() } }
+    state nmcap() { transition self.mi < 127 { true -> nm1()  false -> machine_exhausted() } }
     state nm1()   { self.mi = self.mi + 1; self.si = 0; self.mdecl = 1; self.typed_backing[self.hsf_base + self.mi] = 0; transition 0 { _ -> sk() } }
+    state machine_exhausted() { self.console.exit_process(3) }
     state ck1s()  { transition self.depth == 1 { true -> ck1s2()  false -> ck1wb() } }
     state ck1s2() { self.w = self.is_state(self.start, self.pos); transition self.w == 1 { true -> setP1()  false -> ck1wb() } }
     state setP1() { self.pend = 1; transition 0 { _ -> sk() } }
@@ -911,10 +914,10 @@ machine Main::main(&mut self) {
     state bskip3(){ self.pos = self.pos + 1; transition 0 { _ -> sk() } }
     state nm2()   { transition self.mi < 0 { true -> nm2b()  false -> nm2a() } }   // emit previous machine's epilogue first (unless this is the first)
     state nm2a()  { self.emit_epilogue(); transition 0 { _ -> nm2b() } }
-    state nm2b()  { self.mi = self.mi + 1; self.lsi = 0; self.cp = self.typed_backing[self.pcs_base + self.mi]; self.sd = 16 + 8 * (self.typed_backing[self.pcs_base + self.mi] + self.typed_backing[self.lcs_base + self.mi]); self.frame = (31 + 8 * self.typed_backing[self.hsf_base + self.mi] + 8 * (self.typed_backing[self.pcs_base + self.mi] + self.typed_backing[self.lcs_base + self.mi])) / 16 * 16; transition 0 { _ -> nm2c() } }
+    state nm2b()  { self.mi = self.mi + 1; self.lsi = 0; self.bterm = 0; self.cp = self.typed_backing[self.pcs_base + self.mi]; self.sd = 16 + 8 * (self.typed_backing[self.pcs_base + self.mi] + self.typed_backing[self.lcs_base + self.mi]); self.frame = (31 + 8 * self.typed_backing[self.hsf_base + self.mi] + 8 * (self.typed_backing[self.pcs_base + self.mi] + self.typed_backing[self.lcs_base + self.mi])) / 16 * 16; transition 0 { _ -> nm2c() } }
     state nm2c()  { self.emit_prologue(); transition 0 { _ -> sk() } }
     state ck2t()  { self.w = self.is_trans(self.start, self.pos); transition self.w == 1 { true -> subjinit()  false -> ck2s() } }
-    state subjinit(){ self.mode = 0; self.opnd = 0; transition 0 { _ -> subj0() } }
+    state subjinit(){ self.bterm = 1; self.mode = 0; self.opnd = 0; transition 0 { _ -> subj0() } }
     state ck2s()  { self.w = self.is_state(self.start, self.pos); transition self.w == 1 { true -> emitL()  false -> ck2self() } }
     state ck2self(){ self.w = self.is_self(self.start, self.pos); transition self.w == 1 { true -> asgn0()  false -> ck2let() } }
     state ck2let() { self.w = self.is_let(self.start, self.pos); transition self.w == 1 { true -> let0()  false -> ck2ret() } }
@@ -944,7 +947,7 @@ machine Main::main(&mut self) {
     state wbsk3()  { transition self.byte_backing[self.source_base + self.pos] == 125 { true -> sk()  false -> wbadv2() } }    // '}' -> stop (block end)
     state wbadv2() { self.pos = self.pos + 1; transition 0 { _ -> wbsk() } }
     state wbsk2()  { self.pos = self.pos + 1; transition 0 { _ -> sk() } }
-    state ret0()  { self.mode = 4; self.opnd = 0; transition 0 { _ -> subj0() } }
+    state ret0()  { self.bterm = 1; self.mode = 4; self.opnd = 0; transition 0 { _ -> subj0() } }
     state retemit(){ self.console.write_line("    ldr x0, [sp], #16"); transition self.mi == self.emi { true -> retentry()  false -> retfinish() } }
     state retentry(){ transition self.usesio > 0 { true -> retflush()  false -> retfinish() } }
     state retflush(){ self.console.write_line("    str x0, [sp, #-16]!"); self.console.write_line("    bl Lflush_output"); self.console.write_line("    ldr x0, [sp], #16"); transition 0 { _ -> retfinish() } }
@@ -998,7 +1001,7 @@ machine Main::main(&mut self) {
     state wlsk3() { self.pos = self.pos + 1; transition 0 { _ -> sk() } }   // past ')', resume the walker (it handles ; / next stmt / })
     state exitp0(){ transition self.byte_backing[self.source_base + self.pos] == 40 { true -> exitp1()  false -> exitpadv() } }   // skip to '('
     state exitpadv(){ self.pos = self.pos + 1; transition 0 { _ -> exitp0() } }
-    state exitp1(){ self.pos = self.pos + 1; self.mode = 4; self.opnd = 0; transition 0 { _ -> subj0() } }   // past '(', lower the exit code as a return value (mode 4 -> retemit)
+    state exitp1(){ self.pos = self.pos + 1; self.bterm = 1; self.mode = 4; self.opnd = 0; transition 0 { _ -> subj0() } }   // past '(', lower the exit code as a return value (mode 4 -> retemit)
     state astore0(){ self.qa = self.fs; self.qb = self.fe; self.cj = 0; self.aoff = 0; self.acnt = 0; self.aeb = 0; self.astore = 1; transition 0 { _ -> aslk() } }
     state aslk()  { transition self.cj < self.nf { true -> aslkc()  false -> asidx() } }
     state aslkc() { self.qc = self.typed_backing[self.fns_base + self.cj]; self.qd = self.typed_backing[self.fne_base + self.cj]; self.w = self.streq(); transition self.w == 1 { true -> aslkh()  false -> aslkn() } }
@@ -1085,7 +1088,9 @@ machine Main::main(&mut self) {
     state stsk()  { transition self.byte_backing[self.source_base + self.pos] == 59 { true -> stsk2()  false -> stadv() } }               // skip past ';'
     state stadv() { self.pos = self.pos + 1; transition 0 { _ -> stsk() } }
     state stsk2() { self.pos = self.pos + 1; transition 0 { _ -> sk() } }
-    state emitL() { self.p_lm(); self.v = self.mi; self.emit_int(); write_byte(115); self.v = self.lsi; self.emit_int(); write_byte(58); write_byte(10); self.lsi = self.lsi + 1; transition 0 { _ -> sk() } }
+    state emitL() { transition self.bterm == 0 { true -> emitLret() false -> emitLlabel() } }
+    state emitLret() { self.emit_epilogue(); transition 0 { _ -> emitLlabel() } }
+    state emitLlabel() { self.p_lm(); self.v = self.mi; self.emit_int(); write_byte(115); self.v = self.lsi; self.emit_int(); write_byte(58); write_byte(10); self.lsi = self.lsi + 1; self.bterm = 0; transition 0 { _ -> sk() } }
     // lower the SUBJECT: skip ws, then a literal (digits) or a self.field
     state subj0() { transition self.pos < self.n { true -> subjws() false -> source_malformed() } }
     state subjws() { transition self.byte_backing[self.source_base + self.pos] <= 32 { true -> subadv()  false -> subc() } }

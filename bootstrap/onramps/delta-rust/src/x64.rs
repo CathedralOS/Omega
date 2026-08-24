@@ -550,16 +550,22 @@ fn lower_machine(
     for statement in &machine.entry {
         lower_statement(statement, &context, code, relocations, &mut state_fixups, call_fixups);
     }
+    if !machine.states.is_empty() && block_falls_through(&machine.entry) {
+        emit_implicit_return(code);
+    }
     let mut labels = vec![0u32; machine.states.len()];
     for (state_index, state_statements) in machine.states.iter().enumerate() {
         labels[state_index] = code.len() as u32;
         for statement in state_statements {
             lower_statement(statement, &context, code, relocations, &mut state_fixups, call_fixups);
         }
+        if state_index + 1 < machine.states.len() && block_falls_through(state_statements) {
+            emit_implicit_return(code);
+        }
     }
-    // trailing default: return 0 (reached only by fall-through off the end)
-    code.extend_from_slice(&[0x31, 0xC0]); // xor eax, eax
-    emit_epilogue(code);
+    // Preserve the existing trailing default for the final state (or entry when
+    // there are no states). Explicit control flow makes it unreachable.
+    emit_implicit_return(code);
 
     // patch intra-machine jumps to state labels
     for (patch_offset, target) in &state_fixups {
@@ -567,6 +573,19 @@ fn lower_machine(
         let offset = *patch_offset as usize;
         code[offset..offset + 4].copy_from_slice(&(relative as i32).to_le_bytes());
     }
+}
+
+fn block_falls_through(statements: &[Statement]) -> bool {
+    match statements.last() {
+        Some(Statement::Transition(_, _) | Statement::Return(_) | Statement::Exit(_)) => false,
+        Some(Statement::Block(inner)) => block_falls_through(inner),
+        _ => true,
+    }
+}
+
+fn emit_implicit_return(code: &mut Vec<u8>) {
+    code.extend_from_slice(&[0x31, 0xC0]); // xor eax, eax
+    emit_epilogue(code);
 }
 
 pub fn lower_program(program: &Program) -> LoweredProgram {

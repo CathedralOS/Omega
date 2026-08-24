@@ -102,14 +102,20 @@ compiler cannot be confused with either the current Rust on-ramp or the
   tools for that format.
 - [`compiler/OMEGA_BOOTSTRAP_COMPILATION.md`](compiler/OMEGA_BOOTSTRAP_COMPILATION.md)
   specifies the next private package/source/alias envelope. It canonically
-  binds bundle entries to opaque package commitments and authored module-path
-  claims without treating labels as identity. Structural validation remains
+  binds bundle entries to opaque package commitments and resolver-owned logical
+  module placement, with optional authored declarations required to agree,
+  without treating labels as identity. Structural validation remains
   untrusted transport evidence; compilation acceptance also requires the
   independently accepted resolver/lock commitment and source-level resolution,
   visibility, root, checked-IR, and artifact joins.
   `compiler/omega_bootstrap_compilation.py` and
   `gates/omega-bootstrap-compilation-test.sh` provide the untrusted canonical
-  pack/inspect path and structural mutation/resource gate.
+  pack/inspect path and structural mutation/resource gate. The independent
+  Delta checker `compiler/omega-bootstrap-compilation-check.alp` repeats the
+  bounded wire canonicality claim through native, self-built, and Rust-free
+  `0`/`251`/`252` gates with empty output. It neither checks the independently
+  supplied envelope SHA-256 nor grants resolver/lock authority, resolves source
+  names, validates source semantics, compares CKIR, or accepts an artifact.
 
 These are seed pieces for `omega-bootstrap`, not that compiler itself. The first
 checkpoint-driven compositional frontend/typechecker cost probe over
