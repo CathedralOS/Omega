@@ -122,7 +122,7 @@ crashes Abort
         target,
         "review identity must retain the deployment profile, not only its native ABI",
     );
-    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 8);
+    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 9);
     let [ready] = review.public_domains() else {
         panic!("one package-owned public domain row")
     };
@@ -423,7 +423,7 @@ invokes waiting;
 }
 
 #[test]
-fn exact_synchronous_invocations_change_v8_comparison_encoding() {
+fn exact_synchronous_invocations_change_v9_comparison_encoding() {
     let quiet = TempPackage::new();
     let invoking = TempPackage::new();
     quiet.write(
@@ -616,7 +616,7 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
-fn public_data_and_numbered_wire_shape_changes_change_v8_comparison_encoding() {
+fn public_data_and_numbered_wire_shape_changes_change_v9_comparison_encoding() {
     let first = TempPackage::new();
     let second = TempPackage::new();
     first.write(
@@ -650,7 +650,7 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
-fn public_domain_shape_changes_change_v8_comparison_encoding() {
+fn public_domain_shape_changes_change_v9_comparison_encoding() {
     let first = TempPackage::new();
     let second = TempPackage::new();
     first.write(
@@ -1097,7 +1097,12 @@ fn public_trait_operational_envelope_is_exact_review_shape() {
         "main.omg",
         r#"pub boundary trait Console { }
 pub boundary trait Worker {
-    machine wait() reaches <= Console suspends; blocks;
+    machine wait(handler: &mut Console)
+    reaches <= Console
+    invokes handler;
+    invokes Console;
+    suspends;
+    blocks;
 }
 "#,
     );
@@ -1133,6 +1138,15 @@ machine build(builder: &mut Build) { }
         PackageReviewNominalOwner::Package(package_identity())
     );
     assert!(wait.service_reach_is_installation_bound());
+    assert_eq!(wait.synchronous_invocations().len(), 2);
+    assert_eq!(wait.synchronous_invocations()[0].parameter(), Some(0));
+    assert_eq!(
+        wait.synchronous_invocations()[1]
+            .service()
+            .expect("service invocation")
+            .path(),
+        "Console"
+    );
     assert!(wait.suspends());
     assert!(wait.blocks());
 }

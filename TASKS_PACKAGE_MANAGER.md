@@ -392,11 +392,12 @@ complete.
   alpha-normalized type/const binders, ordered package-qualified parent edges,
   and ordered machine/operator requirement signatures including parameter
   names/modes, package-qualified types, fixed operator spelling, exact declared
-  service reach, installation-bound status, suspension, and blocking.
+  service reach, installation-bound status, synchronous invocations as exact
+  non-`self` parameter ordinals or package-qualified services, suspension, and
+  blocking.
   Trait/requirement lifetimes, conformance bounds, invariants, default
-  realizations, and synchronous-invocation/proof/crash/termination contracts
-  fail closed until their complete rows are joined; no public trait is silently
-  omitted.
+  realizations, and proof/crash/termination contracts fail closed until their
+  complete rows are joined; no public trait is silently omitted.
   Declaration kinds without retained visibility reject
   `pub` instead of silently compiling a private API. Settled export semantics,
   the remaining public-trait contract lanes, domain predicate/semantic-role/
@@ -438,7 +439,7 @@ complete.
   closing the implicit-entry-state ownership gap discovered by the crash
   projection. Review identity now retains the exact deployment target profile,
   so profiles such as Windows and UEFI cannot collapse merely because they
-  share a native ABI. A v8 length-framed binary comparison encoding now covers
+  share a native ABI. A v9 length-framed binary comparison encoding now covers
   every retained public-domain, public-data, callable,
   crash/proof predicate, authority flow, mutation, and selected-provider row.
   It converts platform-width ordinals to portable `u64`, distinguishes exact
