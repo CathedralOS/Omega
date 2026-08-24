@@ -6869,17 +6869,25 @@ compiler concept is introduced.
   acceptance identities into the canonical installation bytes, which the
   terminal artifact manifest already fingerprints. Runnable component-era
   publication now binds the complete terminal object and image, canonical
-  installation record, exact installed-code occurrence, and opaque progress
-  closure into one non-clone carrier. Publication retains it until successful
-  retirement; every rejected publication or retirement returns the exact
-  candidate, receipt, and evidence without partial commitment.
+  installation record, the linear `InstalledCode` claim itself, and opaque
+  progress closure into one non-clone carrier. The claim can no longer be
+  retired independently while the runnable carrier is live. Publication
+  retains it until successful retirement; every rejected binding,
+  publication, or retirement returns the exact installed-code custody,
+  candidate, receipt, and evidence without partial commitment. A
+  source-derived progress-free Terminal-Psi canary now crosses lowering,
+  verification, object/image emission, installation, runnable binding, and
+  component-era publication while retaining that exact custody. The
+  progress-bearing carrier path remains covered by focused fixtures.
 
-  Remaining TPR6-B engineering: route the production composition/install lane
-  through that staged carrier, then retire the legacy compiler's temporary
-  final-output rejection. The current `write_output` lane still publishes a
-  native executable directly and carries neither the manifest nor an
-  installation acceptance, so removing the fence there would erase the
-  obligation; selected plans and authorized routes remain insufficient.
+  Remaining TPR6-B engineering: make a selected-entry, source-derived progress
+  canary reach the same publication path; route the production
+  composition/install lane through that staged carrier; then retire the legacy
+  compiler's temporary final-output rejection. The current `write_output` lane
+  still publishes a native executable directly and carries neither the
+  manifest nor an installation acceptance, so removing the fence there would
+  erase the obligation; selected plans and authorized routes remain
+  insufficient.
   Independently add authored
   qualification-preserving correspondence beyond direct parameter/field
   identity. `QualificationEvidence` retains evidence kind and source

@@ -38,7 +38,7 @@ impl InstalledRunnableComponent {
         self.artifact.installed_code()
     }
 
-    pub const fn artifact(&self) -> ArtifactId {
+    pub fn artifact(&self) -> ArtifactId {
         self.artifact.artifact()
     }
 
@@ -48,6 +48,19 @@ impl InstalledRunnableComponent {
 
     pub const fn terminal_artifact(&self) -> &InstalledTerminalArtifact {
         &self.artifact
+    }
+
+    pub const fn installed(&self) -> &InstalledCode {
+        self.artifact.installed()
+    }
+
+    pub fn into_parts(
+        self,
+    ) -> (
+        InstalledTerminalArtifact,
+        Option<InstalledComponentProgressClosure>,
+    ) {
+        (self.artifact, self.progress)
     }
 }
 
@@ -84,7 +97,6 @@ impl std::error::Error for InstalledRunnableComponentBindingError {}
 /// Join an exact installed terminal artifact to the opaque progress
 /// acceptance committed in its canonical installation record.
 pub fn bind_installed_runnable_component(
-    installed: &InstalledCode,
     artifact: InstalledTerminalArtifact,
     progress: Option<InstalledComponentProgressClosure>,
 ) -> Result<InstalledRunnableComponent, Box<InstalledRunnableComponentBindingError>> {
@@ -96,13 +108,6 @@ pub fn bind_installed_runnable_component(
         }))
     };
 
-    if !artifact.binds_installed_code(installed) {
-        return reject(
-            artifact,
-            progress,
-            "terminal artifact binding names a different installed-code occurrence".into(),
-        );
-    }
     let committed = artifact.installation().component_progress();
     let mismatch = match (committed, progress.as_ref()) {
         (None, None) => None,
@@ -114,7 +119,7 @@ pub fn bind_installed_runnable_component(
             "terminal installation record commits component progress but the opaque acceptance was not supplied"
                 .into(),
         ),
-        (Some(_), Some(progress)) if !progress.binds_installed_code(installed) => Some(
+        (Some(_), Some(progress)) if !progress.binds_installed_code(artifact.installed()) => Some(
             "component-progress acceptance names a different installed-code occurrence".into(),
         ),
         (Some(committed), Some(progress))
