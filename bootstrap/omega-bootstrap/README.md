@@ -50,8 +50,9 @@ reserved `compiler/{psi,omega}/` product roots.
   exhausted inputs.
 - [`gates/delta-o1-selfhost-composite.sh`](gates/delta-o1-selfhost-composite.sh)
   recompiles both frozen O1 compiler programs through Delta's `lowermachine`,
-  composes bundle → vocabulary-27 terminal Psi → ELF, and requires exact
-  terminal and image bytes plus fail-closed semantic and exhaustion observations.
+  composes bundle → vocabulary-28 terminal Psi → ELF, and requires exact
+  terminal and image bytes for both single-source and auxiliary-trivia bundles,
+  plus fail-closed semantic and exhaustion observations.
 - [`../assurance/refinement/omega-bootstrap/`](../assurance/refinement/omega-bootstrap/)
   owns the meaning-TV, input-TV, translation-validation, and
   generated-certificate replay gates and their untrusted encoders.
@@ -72,9 +73,12 @@ reserved `compiler/{psi,omega}/` product roots.
 These are seed pieces for `omega-bootstrap`, not that compiler itself.
 [`compiler/omega-bootstrap-frontend.alp`](compiler/omega-bootstrap-frontend.alp)
 is the canonical Delta-written frontend source. It decodes the canonical bundle,
-lexes, parses,
+retains bounded labels and exact source spans, validates every unit independently,
+selects exactly one O1 program-bearing unit without concatenation, lexes, parses,
 resolves, and type/count-checks O0 plus O1's variable straight-line console
-body, then emits canonical terminal-Psi bytes. The old Delta-sample path is a
+body, then emits canonical terminal-Psi bytes. Empty and line-comment-only
+auxiliary units are a pre-profile transport canary, not module semantics or an
+O1 language widening. The old Delta-sample path is a
 compatibility symlink.
 [`compiler/omega-bootstrap-terminal-to-elf.alp`](compiler/omega-bootstrap-terminal-to-elf.alp)
 accepts the same 0–16-write profile and emits a deterministic Linux x86-64 ELF

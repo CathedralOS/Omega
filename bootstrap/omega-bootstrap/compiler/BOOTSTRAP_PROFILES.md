@@ -204,9 +204,11 @@ that front end in D0. `bootstrap/rungs/delta/samples/omega-bootstrap-frontend.al
 is a rung-local symlink for the shared compiler slice. The historical
 `bootstrap/rungs/delta/samples/omega0-frontend.alp` entry remains a role-local
 compatibility path; the former top-level `compiler/delta-rs` facade is retired.
-It accepts exactly one canonical bundled source, retains at most 2,048 source
-bytes with checked exhaustion, validates the complete source as UTF-8, and uses
-a streaming lexer rather than a token arena. Fixed O0 names use ASCII
+The frozen O0/O1 program remains one source unit. The frontend now decodes the
+complete bounded canonical bundle first, retains every label and exact source
+span, validates UTF-8 per unit, and selects exactly one nontrivial O1 unit while
+allowing empty or line-comment-only auxiliary units. It never concatenates
+units or injects separators. Fixed O0 names use ASCII
 identifiers; integers are unsuffixed nonnegative decimal `i32` literals; cooked
 strings admit direct UTF-8 bytes plus `\n`, `\r`, `\t`, `\0`, `\"`, `\\`, and
 `\xNN` byte escapes. The parser consumes the complete frozen declaration/call
@@ -222,7 +224,7 @@ deterministic runnable artifact. The artifact must print the literal plus one
 newline, then exit with the requested low-byte status; those observations must
 agree with canonical meaning.
 
-Terminal-Psi vocabulary 27 represents both boundary operands needed by O0.
+Terminal-Psi vocabulary 28 represents both boundary operands needed by O0.
 `BoundaryMachineDeclaration` carries ordered scalar parameter types and
 `OperationKind::BoundaryCall` carries ordered scalar `ValueId` arguments. The
 checked producer retains exact scalar expressions, the codec and verifier bind
@@ -253,7 +255,7 @@ The relevant provider field is erased from runtime layout only alongside exact,
 sorted provider roots for `write_line` and `exit_process`; verification requires
 those roots to equal the boundary calls and rejects missing or substituted
 attachments. The Delta frontend streams this canonical module directly through
-ordinary `write_byte`, byte-identical to the shared-codec vocabulary-27 fixture.
+ordinary `write_byte`, byte-identical to the shared-codec vocabulary-28 fixture.
 It uses no private terminal representation or artifact buffer; incomplete output
 is never accepted because every truncated prefix fails canonical decoding.
 
@@ -306,8 +308,13 @@ The Delta frontend and direct ELF backend use checked statement storage, dense
 IDs, variable canonical counts, ordered operation emission, and complete
 preflight of source/table/text/image exhaustion before artifact publication.
 
-The frozen O1 ceilings are one source of at most 2,048 bytes, at most 16
-`write_line` statements, and at most 1,024 aggregate decoded literal bytes.
+The frozen O1 language ceiling remains one program-bearing source, at most 16
+`write_line` statements, and at most 1,024 aggregate decoded literal bytes. The
+separate pre-profile transport canary admits a bundle of at most 16 source units,
+64 bytes per label, 1,024 aggregate label bytes, and 2,048 aggregate exact source
+bytes. Exactly one unit may contain the O1 program; all others must be empty or
+contain only O1 whitespace and line comments. These transport bounds do not add
+modules, namespaces, cross-source lexing, O2, or a feature to `Ωself`.
 Exceeding a declared storage/image ceiling reports checked exhaustion; malformed
 or out-of-profile source reports semantic rejection. Neither case may publish a
 partial terminal module or native image.
@@ -319,16 +326,16 @@ rejection of bad ordering, a non-final or duplicate exit, trailing operations,
 and every declared resource ceiling. The frontend's native and Delta-self-host
 gates and the backend's exact-product-image gate close those source/artifact
 claims. The composite gate also compiles both compiler programs through the
-Delta-written `lowermachine`, then requires bundle → vocabulary-27 terminal Psi
+Delta-written `lowermachine`, then requires bundle → vocabulary-28 terminal Psi
 → ELF to reproduce the independent product terminal and image bytes for 0, 1,
 2, and 16 writes, with frontend and backend refusal before partial publication.
 The gate's initial `lowermachine` executable is still produced by the
 disposable Rust on-ramp, and its Darwin assembly/signing uses `clang` and
 `codesign`; this is frozen-O1 dependency/behavior closure, not a Rust-free
 compiler lineage or the `Ωself` profile. The lower-rung
-`omega2gamma.beta` route also executes the 40-machine
-frontend through Gamma and pins the O1 zero/two-write dual-channel results and
-semantic rejection. Its previously unbounded expansion was metadata-table
+`omega2gamma.beta` route also executes the complete frontend through Gamma and
+pins single- versus multi-source output identity, O1 zero/two-write observations,
+semantic rejection, and resource exhaustion. Its previously unbounded expansion was metadata-table
 aliasing at machine 25, not an inherent cost of the route. O1 remains a small
 vertical compiler slice, not the `Ωself` profile.
 

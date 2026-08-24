@@ -42,17 +42,22 @@ frontend_gamma_bytes=$(wc -c < "$T/frontend.gamma" | tr -d ' ')
 [ "$frontend_gamma_bytes" -le 1048576 ] \
   || { echo "omega-bootstrap frontend meaning FAIL — frontend Gamma expanded to $frontend_gamma_bytes bytes"; exit 1; }
 
-bundle_program() {
-  source=$1
+bundle_input() {
+  input_bundle=$1
   destination=$2
-  python3 "$OMEGA_PATH_OMEGA_BOOTSTRAP/compiler/omega_bootstrap_bundle.py" pack \
-    main.omg="$source" > "$T/input.bundle"
-  bytes=$(od -An -tu1 < "$T/input.bundle" | tr ' ' '\n' | grep -vE '^$' | tr '\n' ' ')
+  bytes=$(od -An -tu1 < "$input_bundle" | tr ' ' '\n' | grep -vE '^$' | tr '\n' ' ')
   reverse=""
   for byte in $bytes; do reverse="$byte $reverse"; done
   list=Nil
   for byte in $reverse; do list="(Cons $byte $list)"; done
   sed "s/STDIN/$list/" "$T/frontend.gamma" > "$destination"
+}
+bundle_program() {
+  source=$1
+  destination=$2
+  python3 "$OMEGA_PATH_OMEGA_BOOTSTRAP/compiler/omega_bootstrap_bundle.py" pack \
+    main.omg="$source" > "$T/input.bundle"
+  bundle_input "$T/input.bundle" "$destination"
 }
 
 PASS=0
@@ -92,6 +97,21 @@ run_gamma() {
 
 bundle_program "$OMEGA_PATH_CORPUS/cli_mvp/main.omg" "$T/canonical.gamma"
 run_gamma "canonical cli_mvp retained-operand digest" "$T/canonical.gamma" 107 pair-nonempty
+cp "$T/result" "$T/canonical.result"
+
+: > "$T/empty.omg"
+printf '// meaning auxiliary' > "$T/comment.omg"
+python3 "$OMEGA_PATH_OMEGA_BOOTSTRAP/compiler/omega_bootstrap_bundle.py" pack \
+  a/empty.omg="$T/empty.omg" m/program.omg="$OMEGA_PATH_CORPUS/cli_mvp/main.omg" \
+  z/comment.omg="$T/comment.omg" > "$T/auxiliary.bundle"
+bundle_input "$T/auxiliary.bundle" "$T/auxiliary.gamma"
+run_gamma "multi-source auxiliary trivia" "$T/auxiliary.gamma" 107 pair-nonempty
+if cmp -s "$T/canonical.result" "$T/result"; then
+  PASS=$((PASS + 1))
+else
+  FAIL=$((FAIL + 1))
+  echo "  FAIL multi-source auxiliary trivia: result differs from single-source"
+fi
 
 printf 'use omega::language::std::console; data Main{console:Console;} machine Main::main(&mut self){self.console.exit_process(7);}' > "$T/zero-write.omg"
 bundle_program "$T/zero-write.omg" "$T/zero-write.gamma"
@@ -106,6 +126,43 @@ run_gamma "O1 two ordered writes" "$T/two-write.gamma" 201 pair-nonempty
 sed 's/std::console/std::other/' "$OMEGA_PATH_CORPUS/cli_mvp/main.omg" > "$T/reject.omg"
 bundle_program "$T/reject.omg" "$T/reject.gamma"
 run_gamma "unknown import semantic rejection" "$T/reject.gamma" 251 pair-empty
+
+python3 "$OMEGA_PATH_OMEGA_BOOTSTRAP/compiler/omega_bootstrap_bundle.py" pack \
+  a.omg="$OMEGA_PATH_CORPUS/cli_mvp/main.omg" b.omg="$T/zero-write.omg" > "$T/two-program.bundle"
+bundle_input "$T/two-program.bundle" "$T/two-program.gamma"
+run_gamma "two program-bearing sources reject" "$T/two-program.gamma" 251 pair-empty
+
+printf '\377' > "$T/invalid-auxiliary.omg"
+python3 "$OMEGA_PATH_OMEGA_BOOTSTRAP/compiler/omega_bootstrap_bundle.py" pack \
+  a/program.omg="$OMEGA_PATH_CORPUS/cli_mvp/main.omg" z/invalid.omg="$T/invalid-auxiliary.omg" \
+  > "$T/invalid-auxiliary.bundle"
+bundle_input "$T/invalid-auxiliary.bundle" "$T/invalid-auxiliary.gamma"
+run_gamma "invalid auxiliary UTF-8 rejects" "$T/invalid-auxiliary.gamma" 251 pair-empty
+
+python3 - "$T/descriptor-exhaust.bundle" "$T/content-exhaust.bundle" <<'PY'
+import pathlib
+import struct
+import sys
+magic = b"OMG0BNDL"
+pathlib.Path(sys.argv[1]).write_bytes(struct.pack("<8sII", magic, 1, 17))
+# Entry 1 retains one byte; entry 2's declared 2,048 bytes exceed the 2,047
+# cells remaining. The frontend reports 252 before reading entry 2's payload.
+pathlib.Path(sys.argv[2]).write_bytes(
+    struct.pack("<8sII", magic, 1, 2)
+    + struct.pack("<II", 1, 1) + b"a "
+    + struct.pack("<II", 1, 2048)
+)
+PY
+bundle_input "$T/descriptor-exhaust.bundle" "$T/descriptor-exhaust.gamma"
+run_gamma "descriptor exhaustion" "$T/descriptor-exhaust.gamma" 252 pair-empty
+
+bundle_input "$T/content-exhaust.bundle" "$T/content-exhaust.gamma"
+run_gamma "aggregate source exhaustion" "$T/content-exhaust.gamma" 252 pair-empty
+
+cp "$OMEGA_PATH_CORPUS/cli_mvp/main.omg" "$T/nul-tail.omg"
+printf '\000ignored' >> "$T/nul-tail.omg"
+bundle_program "$T/nul-tail.omg" "$T/nul-tail.gamma"
+run_gamma "raw NUL source rejection" "$T/nul-tail.gamma" 251 pair-empty
 
 # Pin both branches of the private method-state ABI used by the frontend:
 # a void call and a value-returning call must preserve all threaded self slots.

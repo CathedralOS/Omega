@@ -45,16 +45,16 @@ DELTA_ARCH=aarch64 cargo run -- ../../rungs/delta/samples/shape.alp out  # macOS
   first Delta-written bridge compiler slice
   (`samples/omega-bootstrap-frontend.alp` is the canonical sample link and
   `samples/omega0-frontend.alp` is a compatibility alias):
-  canonical one-source bundle decoding, checked source storage, complete UTF-8
-  validation, streaming lexing, and exact O0/O1 parsing/name/type/count checks,
+  canonical bounded bundle decoding, retained source-unit provenance, per-unit
+  UTF-8 validation, streaming lexing without cross-unit fusion, and exact O0/O1
+  parsing/name/type/count checks,
   retaining 0–16 ordered `write_line` literals plus one final `exit_process`
   `i32`. Its focused gate covers the acceptance/rejection matrix and recompiles
   the frontend through Delta-written `lowermachine`; every operand affects the
-  observed success digest. The complete 40-machine O1 frontend also elaborates
+  observed success digest. The complete frontend also elaborates
   through the Beta-written `omega2gamma.beta` and Gamma's canonical interpreter,
-  pinning canonical, zero-write, two-write, rejection, and multi-slot method-
-  state observations. An exact native-versus-Gamma comparison of every terminal
-  byte and exhaustion result remains follow-up work. Direct canonical terminal-
+  pinning canonical, auxiliary-bundle, zero-write, two-write, rejection,
+  exhaustion, and multi-slot method-state observations. Direct canonical terminal-
   Psi emission is complete and checked by the shared decoder/verifier. Its output is published
   only through same-directory staging, persistence, canonical decode, expected
   identity binding, and atomic rename. Resulting O1 fixtures are checked from
