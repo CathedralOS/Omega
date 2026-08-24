@@ -256,8 +256,16 @@ complete.
   `Build::depend_as(alias, source)`; the old free `path()` helper and mandatory
   alias overload are gone. The package-side projector consumes canonical direct
   forms and validates an exceptional explicit alias as an Omega snake-case
-  identifier. Conservative editing, broader target vocabulary, and
-  orchestration of the reconciled compiler bindings remain.
+  identifier. A non-mutating editor now plans additions and exact-row
+  replacements against the current `build.omg` SHA-256. It automatically edits
+  only the canonical `machine build(builder: &mut Build)` entry, maps replacement
+  rows from the validated projection back to direct token spans, preserves
+  unrelated source, and re-projects the generated candidate before returning
+  it. Missing build entries receive the ordinary canonical machine. Ambiguous,
+  commented, or noncanonical rows produce only compiler-generated old/new
+  statements and a manual-placement reason; source-controlled strings remain
+  escaped Omega literals. Atomic application after admission, broader target
+  vocabulary, and orchestration of reconciled compiler bindings remain.
 
 - [x] **HERMETIC-DEPENDENCY-PROJECTION.** Derive dependency source requests without
   executing build-host effects or imported code.
