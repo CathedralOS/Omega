@@ -295,8 +295,9 @@ complete.
   constructors, and compiler admission emits every expected evidence row.
 
   Progress 2026-08-23: all eight local package fixtures declare `PACKAGE` and
-  use the coherent `builder` parameter name. Compiler-issued admission evidence
-  and refreshed remote pins remain.
+  use the coherent `builder` parameter name. Their private CathedralOS mirrors
+  carry the same declarations at refreshed exact pins. Compiler-issued
+  admission evidence remains.
 
 - **SECURITY-FIXTURE-MATRIX.** Add local and remote cases for pure code,
   generated files, filesystem, network overreach, retained filesystem+network
