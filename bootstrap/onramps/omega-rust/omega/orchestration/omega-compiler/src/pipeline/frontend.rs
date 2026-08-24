@@ -192,9 +192,9 @@ pub fn parse_sources(
     })
 }
 
-/// depend-mapping (M2 blocker 3): collect
-/// `build.depend("alias", path("dir"))` rows from every
-/// `machine build(build: &mut Build)` in this batch, resolving
+/// Legacy standalone depend mapping: collect canonical explicit
+/// `builder.depend_as("alias", Source::Path { location: "dir" })` rows from
+/// every `machine build(builder: &mut Build)` in this batch, resolving
 /// the directory against the DECLARING FILE's parent (each package's
 /// build.omg maps its own reach). Purely syntactic -- the vocabulary types
 /// exist for validation; the toolchain reads the calls as data
@@ -258,7 +258,7 @@ pub fn collect_depend_aliases(
                     else {
                         continue;
                     };
-                    if call.target.as_str() != "depend" {
+                    if call.target.as_str() != "depend_as" {
                         continue;
                     }
                     let receiver_is_build_param = syntax_trees
@@ -270,32 +270,32 @@ pub fn collect_depend_aliases(
                         continue;
                     }
                     let arguments = syntax_trees.statements.expression_handles(call.arguments);
-                    let [alias, location] = arguments else {
+                    let [alias, source] = arguments else {
                         continue;
                     };
                     let ExpressionNode::String(alias) = syntax_trees.expressions.expression(*alias)
                     else {
                         continue;
                     };
-                    // The location is `path("dir")` (the committed spelling)
-                    // or a bare string.
-                    let location = match syntax_trees.expressions.expression(*location) {
-                        ExpressionNode::String(location) => Some(location.clone()),
-                        ExpressionNode::Call(path_call) if path_call.target.as_str() == "path" => {
-                            syntax_trees
-                                .expressions
-                                .expression_handles(path_call.arguments)
-                                .first()
-                                .and_then(|argument| {
-                                    match syntax_trees.expressions.expression(*argument) {
-                                        ExpressionNode::String(location) => Some(location.clone()),
-                                        _ => None,
-                                    }
-                                })
-                        }
-                        _ => None,
+                    let ExpressionNode::StructLiteral(source) =
+                        syntax_trees.expressions.expression(*source)
+                    else {
+                        continue;
                     };
-                    let Some(location) = location else {
+                    if source.type_name.as_str() != "Source"
+                        || source.case_name.as_ref().map(|name| name.as_str()) != Some("Path")
+                    {
+                        continue;
+                    }
+                    let [location] = syntax_trees.expressions.struct_fields(source.fields) else {
+                        continue;
+                    };
+                    if location.name.as_str() != "location" {
+                        continue;
+                    }
+                    let ExpressionNode::String(location) =
+                        syntax_trees.expressions.expression(location.value)
+                    else {
                         continue;
                     };
                     // Dependency aliases and filesystem paths are textual build
@@ -306,6 +306,9 @@ pub fn collect_depend_aliases(
                     else {
                         continue;
                     };
+                    if !is_dependency_alias(alias) {
+                        continue;
+                    }
                     let directory = base_dir.join(location);
                     let alias = alias.to_owned();
                     if !depend_aliases
@@ -318,6 +321,15 @@ pub fn collect_depend_aliases(
             }
         }
     }
+}
+
+fn is_dependency_alias(value: &str) -> bool {
+    value.as_bytes().first().is_some_and(u8::is_ascii_lowercase)
+        && !value.ends_with('_')
+        && !value.contains("__")
+        && value.chars().all(|character| {
+            character.is_ascii_lowercase() || character.is_ascii_digit() || character == '_'
+        })
 }
 
 pub fn discover_imports(

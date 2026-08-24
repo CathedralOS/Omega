@@ -39,8 +39,8 @@ fn write_cross_package_program(name: &str, consumer: &str) -> PathBuf {
     fs::write(
         directory.join("build.omg"),
         r#"
-machine build(b: &mut Build) {
-    b.depend("policy", path("policy"));
+machine build(builder: &mut Build) {
+    builder.depend_as("policy", Source::Path { location: "policy" });
 }
 "#,
     )

@@ -241,12 +241,13 @@ complete.
   implemented with ordinary Omega vocabulary and may be simplified when
   compiler work proves a smaller existing mechanism sufficient.
 
-  Progress 2026-08-23: the ordinary `Source::Path` and `Source::Git` literal
-  shapes require no parser syntax. A strict package-side extractor now consumes
-  their canonical one-argument `builder.depend(source)` form. The compiler
-  prelude and import path still expose the transitional alias/path API;
-  `depend_as`, conservative editing, target vocabulary, and orchestration of
-  the reconciled compiler bindings remain.
+  Progress 2026-08-24: the compiler-provided ordinary Omega vocabulary now
+  defines `Source::Path`, `Source::Git`, `Build::depend(source)`, and
+  `Build::depend_as(alias, source)`; the old free `path()` helper and mandatory
+  alias overload are gone. The package-side projector consumes canonical direct
+  forms and validates an exceptional explicit alias as an Omega snake-case
+  identifier. Conservative editing, broader target vocabulary, and
+  orchestration of the reconciled compiler bindings remain.
 
 - **HERMETIC-DEPENDENCY-PROJECTION.** Derive dependency source requests without
   executing build-host effects or imported code.
@@ -255,17 +256,19 @@ complete.
   generated files, clocks, or build outputs. Malformed or unsupported
   projection rejects explicitly; nothing is silently skipped.
 
-  Progress 2026-08-23: `omega-packages` now parses only the immutable root
-  `build.omg`, accepts direct literal Path/Git rows in authored order, and
-  rejects authored toolchain vocabulary, malformed/scoped builds, nonliteral or
-  nested/helper-mediated requests, unsupported cases, and `depend_as`. An
-  absent build machine projects no dependencies. Resolved package-source
-  custody performs this projection before returning. The compiler now has
-  separate native and checked package-aware entrypoints that accept only a
-  validated, closed, requester-local alias-to-`PackageKeyIdentity` graph and
-  canonical source roots; this mode never invokes or combines the transitional
-  scanner. Recursive package-manager traversal, orchestration wiring, and
-  removal of the scanner from legacy standalone compilation remain.
+  Progress 2026-08-24: `omega-packages` parses only the immutable root
+  `build.omg`, accepts direct literal Path/Git rows through `depend` and
+  `depend_as` in authored order, and rejects authored toolchain vocabulary,
+  malformed/scoped builds, invalid aliases, nonliteral or nested/helper-mediated
+  requests, and unsupported cases. An absent build machine projects no
+  dependencies. Resolved package-source custody performs this projection before
+  returning. The compiler has separate native and checked package-aware
+  entrypoints that accept only a validated, closed, requester-local
+  alias-to-`PackageKeyIdentity` graph and canonical source roots; this mode never
+  invokes or combines syntactic discovery. Legacy standalone compilation keeps
+  only an explicit `depend_as(..., Source::Path { ... })` compatibility canary.
+  Recursive package-manager traversal, orchestration wiring, and eventual
+  removal of that standalone scanner remain.
 
 - **CLOSURE-RECONCILIATION.** Resolve the complete source closure before any
   dependency build receives providers.
@@ -298,6 +301,9 @@ complete.
   contracts, executable TCB, observations, and reproducibility. Required
   unresolved or unprojectable facts reject. The canonical output contains no
   arena handles, display strings as identity, or other compiler-private IDs.
+  Implementation reads each fact from the earliest coherent checked compiler
+  state that contains it; this internal coupling moves with the compiler and
+  does not create a stable public IR stage.
 
   Progress 2026-08-23: checked trees already own the useful semantic core. A
   `RealizedMachineContractEnvelope` retains contract identity, effective and
