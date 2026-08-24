@@ -84,9 +84,17 @@
 
 mod build_time;
 mod evaluator;
+mod filesystem_sponsor;
 mod value;
 
 pub use build_time::BuildTimeValue;
+pub use filesystem_sponsor::{
+    COMPILER_DEFAULT_STAGING_ENTRY_LIMIT, COMPILER_DEFAULT_STAGING_MAX_OBJECT_EXTENT,
+    COMPILER_DEFAULT_STAGING_TOTAL_LOGICAL_BYTES, FilesystemOpenDescriptor, FilesystemSponsor,
+    FilesystemSponsorEntry, FilesystemSponsorError, FilesystemSponsorLimits, FilesystemSponsorPath,
+    FilesystemSponsorSnapshot, PreparedFilesystemMutation, PreparedFilesystemOpen,
+    PreparedFilesystemWrite,
+};
 pub use value::{Cell, Value};
 
 use psi_checked_trees::CheckedTrees;
