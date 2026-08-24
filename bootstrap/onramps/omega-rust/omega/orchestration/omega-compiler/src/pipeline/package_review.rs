@@ -504,7 +504,7 @@ impl CheckedPackageCallableReview {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedPackageReviewProjection {
     package: PackageKeyIdentity,
-    target: omega_target::NativeTarget,
+    target: omega_target::TargetProfile,
     callables: Vec<CheckedPackageCallableReview>,
     selected_providers: Vec<CheckedPackageProviderReview>,
 }
@@ -514,7 +514,7 @@ impl CheckedPackageReviewProjection {
         self.package
     }
 
-    pub const fn target(&self) -> omega_target::NativeTarget {
+    pub const fn target(&self) -> omega_target::TargetProfile {
         self.target
     }
 
@@ -543,7 +543,7 @@ pub fn project_checked_package_review(
             "package review requires package-aware checked compilation",
         )]
     })?;
-    let target = compilation.selected_native_target().ok_or_else(|| {
+    let target = compilation.selected_target_profile().ok_or_else(|| {
         vec![Diagnostic::error(
             "package review requires one explicit target selection",
         )]

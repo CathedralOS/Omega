@@ -94,6 +94,11 @@ crashes Abort
     let review = project_checked_package_review(&checked).expect("review projection should close");
 
     assert_eq!(review.package(), package_identity());
+    assert_eq!(
+        review.target().target_name(),
+        target,
+        "review identity must retain the deployment profile, not only its native ABI",
+    );
     assert_eq!(review.callables().len(), 2);
     let boundary = review
         .callables()
@@ -248,6 +253,42 @@ fn review_rejects_target_free_and_standalone_checked_programs() {
             .message
             .contains("requires package-aware checked compilation")
     }));
+}
+
+#[test]
+fn review_distinguishes_profiles_that_share_a_native_target() {
+    let package = TempPackage::new();
+    package.write("main.omg", "machine local() { }\n");
+    package.write(
+        "build.omg",
+        r#"target windows_x64 { }
+target uefi_x64 { }
+machine build(builder: &mut Build) { }
+"#,
+    );
+
+    let windows = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some("windows_x64"),
+        package_inputs(&package.0),
+    )
+    .expect("Windows review fixture should check");
+    let uefi = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some("uefi_x64"),
+        package_inputs(&package.0),
+    )
+    .expect("UEFI review fixture should check");
+
+    assert_eq!(
+        windows.selected_native_target(),
+        uefi.selected_native_target()
+    );
+    let windows = project_checked_package_review(&windows).expect("Windows review projection");
+    let uefi = project_checked_package_review(&uefi).expect("UEFI review projection");
+    assert_eq!(windows.target(), omega_target::TargetProfile::WindowsX64);
+    assert_eq!(uefi.target(), omega_target::TargetProfile::UefiX64);
+    assert_ne!(windows.target(), uefi.target());
 }
 
 #[test]

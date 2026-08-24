@@ -315,7 +315,9 @@ complete.
   predicates retain only their existing source-independent canonical identity.
   Source-free structural children now inherit authored hierarchy provenance,
   closing the implicit-entry-state ownership gap discovered by the crash
-  projection. The review projection is ready for a deliberately versioned
+  projection. Review identity now retains the exact deployment target profile,
+  so profiles such as Windows and UEFI cannot collapse merely because they
+  share a native ABI. The review projection is ready for a deliberately versioned
   canonical encoder; raw Rust/debug serialization remains forbidden.
   Compiler-generated symbols now inherit the exact authored provenance of a
   mandatory derivation origin; truly source-free symbols and exact toolchain
