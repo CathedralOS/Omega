@@ -1,4 +1,4 @@
-use crate::identity::AliasName;
+use crate::identity::{AliasName, PackageName};
 use psi_source_files_to_tokens::Lexer;
 use psi_syntax_trees::SyntaxTrees;
 use psi_syntax_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -39,6 +39,18 @@ impl DependencySourceRequest {
                 explicit_alias.as_ref()
             }
         }
+    }
+
+    /// Resolve the requester-local import name after source custody has read
+    /// the dependency's own package declaration.
+    ///
+    /// The package-authored name supplies the ordinary alias. An explicit
+    /// `depend_as` alias is only a local name-resolution override and never
+    /// participates in package or source identity.
+    pub fn resolved_alias(&self, package_name: &PackageName) -> AliasName {
+        self.explicit_alias()
+            .cloned()
+            .unwrap_or_else(|| package_name.default_alias())
     }
 }
 
@@ -617,6 +629,27 @@ mod tests {
                 },
             ]
         );
+    }
+
+    #[test]
+    fn resolves_default_alias_from_the_dependency_declaration() {
+        let declared_name = PackageName::parse("arithmetic-kernels").unwrap();
+        let ordinary = DependencySourceRequest::Git {
+            explicit_alias: None,
+            repository: "https://github.com/CathedralOS/arithmetic-kernels.git".to_owned(),
+            revision: "main".to_owned(),
+        };
+        let renamed = DependencySourceRequest::Git {
+            explicit_alias: Some(AliasName::parse("kernels").unwrap()),
+            repository: "https://github.com/CathedralOS/arithmetic-kernels.git".to_owned(),
+            revision: "main".to_owned(),
+        };
+
+        assert_eq!(
+            ordinary.resolved_alias(&declared_name).as_str(),
+            "arithmetic_kernels"
+        );
+        assert_eq!(renamed.resolved_alias(&declared_name).as_str(), "kernels");
     }
 
     #[test]

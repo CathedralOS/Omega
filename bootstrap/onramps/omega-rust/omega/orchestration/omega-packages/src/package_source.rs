@@ -6,6 +6,7 @@ use crate::graph::ResolvedSourceIdentity;
 use crate::identity::{
     ExternalLocalLineage, ExternalSourceContext, GitCommitId, GitTreeId, IdentityError,
     ImmutableSourceResolution, PackageKey, SourceContentDigest, SourceLineage,
+    WorkspaceLineageIdentity, WorkspaceMemberLineage, WorkspaceMemberPath,
 };
 use crate::source::{
     GitSourceSpec, LocalSourceLimits, ResolvedGitSource, ResolvedLocalSnapshot, SourceResolveError,
@@ -65,6 +66,17 @@ pub enum ResolvePackageSourceError {
     Declaration(PackageDeclarationError),
     DependencyProjection(DependencyProjectionError),
     Identity(IdentityError),
+    WorkspacePath {
+        path: PathBuf,
+        message: String,
+    },
+    WorkspaceMemberEscapesRoot {
+        workspace_root: PathBuf,
+        member_root: PathBuf,
+    },
+    WorkspaceMemberIsRoot {
+        workspace_root: PathBuf,
+    },
 }
 
 impl fmt::Display for ResolvePackageSourceError {
@@ -80,6 +92,25 @@ impl fmt::Display for ResolvePackageSourceError {
             Self::Identity(error) => {
                 write!(formatter, "cannot establish package identity: {error}")
             }
+            Self::WorkspacePath { path, message } => write!(
+                formatter,
+                "cannot establish canonical workspace path `{}`: {message}",
+                path.display()
+            ),
+            Self::WorkspaceMemberEscapesRoot {
+                workspace_root,
+                member_root,
+            } => write!(
+                formatter,
+                "workspace member `{}` resolves outside workspace root `{}`",
+                member_root.display(),
+                workspace_root.display()
+            ),
+            Self::WorkspaceMemberIsRoot { workspace_root } => write!(
+                formatter,
+                "workspace member resolves to the whole workspace root `{}`",
+                workspace_root.display()
+            ),
         }
     }
 }
@@ -151,6 +182,63 @@ pub fn resolve_external_local_package_source(
         snapshot_root: source.snapshot_root.clone(),
         dependency_requests,
         source,
+    })
+}
+
+/// Snapshot one workspace member and bind it to the workspace root's source
+/// lineage plus its normalized member-relative path.
+///
+/// The live member is derived only as `live_workspace_root/member_path`; the
+/// caller does not supply a second spelling to reconcile. It must remain a
+/// strict descendant of the canonical workspace root. Only that member is
+/// passed to local snapshot custody.
+pub fn resolve_workspace_member_package_source(
+    workspace_root_source: &SourceLineage,
+    member_path: WorkspaceMemberPath,
+    live_workspace_root: impl AsRef<Path>,
+    cache_dir: impl AsRef<Path>,
+    limits: LocalSourceLimits,
+) -> Result<ResolvedPackageSource<ResolvedLocalSnapshot>, ResolvePackageSourceError> {
+    let workspace_identity = WorkspaceLineageIdentity::from_root_source(workspace_root_source)?;
+    let requested_workspace_root = live_workspace_root.as_ref();
+    let declared_member_root = requested_workspace_root.join(member_path.as_str());
+
+    let canonical_workspace_root = canonical_workspace_path(requested_workspace_root)?;
+    let canonical_declared_member_root = canonical_workspace_path(&declared_member_root)?;
+
+    if canonical_declared_member_root == canonical_workspace_root {
+        return Err(ResolvePackageSourceError::WorkspaceMemberIsRoot {
+            workspace_root: canonical_workspace_root,
+        });
+    }
+    if !canonical_declared_member_root.starts_with(&canonical_workspace_root) {
+        return Err(ResolvePackageSourceError::WorkspaceMemberEscapesRoot {
+            workspace_root: canonical_workspace_root,
+            member_root: canonical_declared_member_root,
+        });
+    }
+    let source = resolve_local_source_snapshot(&canonical_declared_member_root, cache_dir, limits)?;
+    let lineage =
+        SourceLineage::Workspace(WorkspaceMemberLineage::new(workspace_identity, member_path));
+    let declaration = extract_package_declaration(&source.snapshot_root)?;
+    let dependency_requests = extract_dependency_projection(&source.snapshot_root)?;
+    let resolution = ImmutableSourceResolution::workspace(SourceContentDigest::derive(
+        source.normalized.content_identity.as_bytes(),
+    ));
+
+    Ok(ResolvedPackageSource {
+        key: PackageKey::new(declaration.name, lineage),
+        resolution,
+        snapshot_root: source.snapshot_root.clone(),
+        dependency_requests,
+        source,
+    })
+}
+
+fn canonical_workspace_path(path: &Path) -> Result<PathBuf, ResolvePackageSourceError> {
+    std::fs::canonicalize(path).map_err(|error| ResolvePackageSourceError::WorkspacePath {
+        path: path.to_path_buf(),
+        message: error.to_string(),
     })
 }
 
@@ -270,6 +358,172 @@ mod tests {
         let _ = std::fs::remove_dir_all(&root);
         make_tree_owner_writable(&cache);
         let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[test]
+    fn workspace_member_resolution_binds_root_lineage_path_and_member_snapshot() {
+        let workspace = temp_root("workspace");
+        let member = workspace.join("packages/arithmetic-kernels");
+        let cache = temp_root("workspace-cache");
+        write_package(&member, "arithmetic-kernels");
+        std::fs::write(workspace.join("workspace-only.txt"), "not package source")
+            .expect("write workspace-only file");
+        std::fs::write(
+            member.join("build.omg"),
+            r#"
+            const PACKAGE: Package = Package { name: "arithmetic-kernels" };
+            machine build(builder: &mut Build) {
+                builder.depend(Source::Git {
+                    repository: "https://github.com/CathedralOS/exact-math.git",
+                    revision: "main"
+                });
+            }
+            "#,
+        )
+        .expect("write workspace package declaration and dependency");
+
+        let workspace_root_source =
+            SourceLineage::git("https://github.com/CathedralOS/omega-workspace.git")
+                .expect("workspace root lineage");
+        let member_path = WorkspaceMemberPath::parse("packages/arithmetic-kernels")
+            .expect("normalized member path");
+        let expected_workspace_identity =
+            WorkspaceLineageIdentity::from_root_source(&workspace_root_source)
+                .expect("workspace identity");
+        let resolved = resolve_workspace_member_package_source(
+            &workspace_root_source,
+            member_path.clone(),
+            &workspace,
+            &cache,
+            LocalSourceLimits::default(),
+        )
+        .expect("resolve workspace member");
+
+        assert_eq!(resolved.key().name().as_str(), "arithmetic-kernels");
+        let SourceLineage::Workspace(lineage) = resolved.key().source_lineage() else {
+            panic!("workspace member must retain workspace lineage");
+        };
+        assert_eq!(lineage.workspace_identity(), &expected_workspace_identity);
+        assert_eq!(lineage.member_path(), &member_path);
+        assert!(matches!(
+            resolved.resolution(),
+            ImmutableSourceResolution::Workspace { .. }
+        ));
+        assert_eq!(
+            resolved.dependency_requests(),
+            [DependencySourceRequest::Git {
+                explicit_alias: None,
+                repository: "https://github.com/CathedralOS/exact-math.git".to_owned(),
+                revision: "main".to_owned(),
+            }]
+        );
+        assert_eq!(
+            resolved.source().canonical_live_root,
+            member.canonicalize().expect("canonical member")
+        );
+        assert!(resolved.snapshot_root().join("main.omg").is_file());
+        assert!(!resolved.snapshot_root().join("workspace-only.txt").exists());
+
+        let _ = std::fs::remove_dir_all(&workspace);
+        make_tree_owner_writable(&cache);
+        let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn workspace_member_resolution_rejects_member_path_symlink_escape() {
+        use std::os::unix::fs::symlink;
+
+        let workspace = temp_root("workspace-member-escape");
+        let outside = temp_root("workspace-member-outside");
+        let cache = temp_root("workspace-member-escape-cache");
+        std::fs::create_dir_all(workspace.join("packages")).expect("create workspace packages");
+        write_package(&outside, "outside-package");
+        let member = workspace.join("packages/escaped");
+        symlink(&outside, &member).expect("create escaping member symlink");
+
+        let error = resolve_workspace_member_package_source(
+            &SourceLineage::git("https://github.com/CathedralOS/workspace.git")
+                .expect("workspace lineage"),
+            WorkspaceMemberPath::parse("packages/escaped").expect("member path"),
+            &workspace,
+            &cache,
+            LocalSourceLimits::default(),
+        )
+        .expect_err("member symlink escape must reject");
+
+        assert!(matches!(
+            error,
+            ResolvePackageSourceError::WorkspaceMemberEscapesRoot { .. }
+        ));
+        assert!(
+            !cache.exists(),
+            "rejection must occur before snapshot custody"
+        );
+
+        let _ = std::fs::remove_dir_all(&workspace);
+        let _ = std::fs::remove_dir_all(&outside);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn workspace_member_resolution_retains_member_tree_symlink_containment() {
+        use std::os::unix::fs::symlink;
+
+        let workspace = temp_root("workspace-tree-escape");
+        let member = workspace.join("packages/member");
+        let outside = temp_root("workspace-tree-outside");
+        let cache = temp_root("workspace-tree-escape-cache");
+        write_package(&member, "member-package");
+        std::fs::create_dir_all(&outside).expect("create outside directory");
+        std::fs::write(outside.join("secret.omg"), "machine Secret::read() {}\n")
+            .expect("write outside source");
+        symlink(outside.join("secret.omg"), member.join("escaped.omg"))
+            .expect("create escaping source symlink");
+
+        let error = resolve_workspace_member_package_source(
+            &SourceLineage::git("https://github.com/CathedralOS/workspace.git")
+                .expect("workspace lineage"),
+            WorkspaceMemberPath::parse("packages/member").expect("member path"),
+            &workspace,
+            &cache,
+            LocalSourceLimits::default(),
+        )
+        .expect_err("member source symlink escape must reject");
+
+        assert!(matches!(
+            error,
+            ResolvePackageSourceError::Source(SourceResolveError::SymlinkEscapesRoot { .. })
+        ));
+
+        let _ = std::fs::remove_dir_all(&workspace);
+        let _ = std::fs::remove_dir_all(&outside);
+        make_tree_owner_writable(&cache);
+        let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[test]
+    fn workspace_member_resolution_rejects_recursive_workspace_lineage() {
+        let root_source = SourceLineage::git("https://github.com/CathedralOS/workspace.git")
+            .expect("root source lineage");
+        let recursive_source = SourceLineage::Workspace(WorkspaceMemberLineage::new(
+            WorkspaceLineageIdentity::from_root_source(&root_source).expect("workspace identity"),
+            WorkspaceMemberPath::parse("packages/parent").expect("parent member path"),
+        ));
+
+        let error = resolve_workspace_member_package_source(
+            &recursive_source,
+            WorkspaceMemberPath::parse("packages/child").expect("child member path"),
+            temp_root("recursive-workspace"),
+            temp_root("recursive-cache"),
+            LocalSourceLimits::default(),
+        )
+        .expect_err("workspace member cannot become a workspace root lineage");
+
+        assert!(matches!(
+            error,
+            ResolvePackageSourceError::Identity(IdentityError::RecursiveWorkspaceLineage)
+        ));
     }
 
     #[test]

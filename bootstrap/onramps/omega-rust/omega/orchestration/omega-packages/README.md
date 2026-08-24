@@ -79,12 +79,16 @@ model.
 
 The crate now contains reviewed building blocks for immutable Git/local
 snapshots, hermetic package-name extraction, and typed package/source identity.
-Git and external-local resolution now bind those pieces into a
-`ResolvedPackageSource`: declaration and identity come from the immutable
+Git, workspace-member, and external-local resolution now bind those pieces into
+a `ResolvedPackageSource`: declaration and identity come from the immutable
 snapshot and canonical source lineage, and canonical literal dependency rows
-are projected without executing build code. Toolchain/compiler evidence is
-intentionally absent. A separate `ResolvedPackageClosure` validates exact typed
-source topology but has no persistence or admission API. `PackageKey` also
+are projected without executing build code. Workspace-member resolution binds
+the workspace root lineage to a normalized member-relative path, verifies the
+live member is the matching strict canonical descendant, and snapshots only
+that member. It does not recursively traverse workspace dependencies.
+Toolchain/compiler evidence is intentionally absent. A separate
+`ResolvedPackageClosure` validates exact typed source topology but has no
+persistence or admission API. `PackageKey` also
 derives the opaque stable identity carrier used by package-aware compiler
 inputs. The compiler's separate native and checked package entrypoints consume
 a closed requester-local alias graph and canonical source roots without
