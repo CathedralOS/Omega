@@ -1,6 +1,7 @@
 use omega_compiler::{
     CheckedPackageReviewProjection, PackageReviewCallableRole, PackageReviewContractExpression,
-    PackageReviewContractFact, PackageReviewContractKind, PackageReviewPropositionEvidence,
+    PackageReviewContractFact, PackageReviewContractKind, PackageReviewDangerousAuthorityClass,
+    PackageReviewNominalOwner, PackageReviewPropositionEvidence,
     compile_to_checked_with_packages_in_build_dir, project_checked_package_review,
 };
 use omega_packages::{
@@ -56,8 +57,9 @@ fn root_snapshot<'closure>(
 
 fn assert_fixture_evidence(package: &str, review: &CheckedPackageReviewProjection) {
     let (trait_count, data_count, callable_count, role) = match package {
-        "file-journal" | "provider-switchboard" => (1, 1, 2, PackageReviewCallableRole::Public),
-        "remote-journal" => (2, 1, 2, PackageReviewCallableRole::Public),
+        "file-journal" => (0, 1, 2, PackageReviewCallableRole::Public),
+        "provider-switchboard" => (1, 1, 2, PackageReviewCallableRole::Public),
+        "remote-journal" => (1, 1, 2, PackageReviewCallableRole::Public),
         "capability-vault" => (2, 1, 2, PackageReviewCallableRole::Public),
         "network-overreach" => (1, 0, 2, PackageReviewCallableRole::Public),
         "axiom-ledger" => (0, 0, 2, PackageReviewCallableRole::Boundary),
@@ -81,6 +83,27 @@ fn assert_fixture_evidence(package: &str, review: &CheckedPackageReviewProjectio
         .iter()
         .find(|callable| callable.role() == role)
         .unwrap_or_else(|| panic!("{package} intended review callable"));
+
+    let expected_dangerous_authority_count = match package {
+        "generated-table" | "file-journal" | "remote-journal" => 1,
+        _ => 0,
+    };
+    assert_eq!(
+        review.dangerous_authorities().len(),
+        expected_dangerous_authority_count,
+        "{package} dangerous authorities"
+    );
+    for authority in review.dangerous_authorities() {
+        assert_eq!(
+            authority.class(),
+            PackageReviewDangerousAuthorityClass::Filesystem
+        );
+        assert_eq!(
+            authority.service().owner(),
+            PackageReviewNominalOwner::ToolchainUnbound
+        );
+        assert_eq!(authority.service().path(), "FilesystemHost");
+    }
 
     match package {
         "generated-table" => {

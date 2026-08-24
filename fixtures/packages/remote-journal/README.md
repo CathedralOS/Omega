@@ -1,7 +1,8 @@
 # remote-journal
 
-Retained-dangerous-authority fixture. Its public API intentionally combines
-filesystem and network service reach through ordinary boundary paths.
+Retained-authority fixture. Its public API combines the exact toolchain-owned
+filesystem boundary with a package-local network boundary. A canonical network-
+danger fixture still depends on a toolchain-owned network surface.
 
 Expected package evidence:
 

@@ -22,9 +22,11 @@ Packages:
 
 - `arithmetic-kernels`: pure public helper baseline with no declared host reach.
 - `generated-table`: package-local build input and generated-output fixture.
-- `file-journal`: public API with exact filesystem reach and invocation.
+- `file-journal`: public API with exact toolchain filesystem reach and
+  invocation.
 - `network-overreach`: intentionally over-declared public network reach.
-- `remote-journal`: retained filesystem-plus-network reach and invocation.
+- `remote-journal`: retained canonical-filesystem plus package-local network
+  reach and invocation.
 - `axiom-ledger`: bodyless accepted boundary-claim fixture.
 - `opaque-carrier`: claim-free public boundary representation fixture.
 - `provider-switchboard`: public clock-service reach/invocation plus exact
