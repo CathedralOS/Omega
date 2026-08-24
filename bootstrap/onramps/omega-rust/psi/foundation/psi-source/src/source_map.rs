@@ -71,6 +71,13 @@ impl SourceMap {
         self.files.is_empty()
     }
 
+    /// Every exact source file retained by the frontend, in source-id order.
+    /// Consumers that derive order-independent identity must sort their own
+    /// canonical rows rather than treating load order as semantics.
+    pub fn files(&self) -> impl Iterator<Item = &SourceFile> {
+        self.files.iter()
+    }
+
     pub fn text_at(&self, source_span: SourceSpan) -> &str {
         self.get(source_span.source_id)
             .map(|file| file.text_at(source_span.span))

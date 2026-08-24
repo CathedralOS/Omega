@@ -246,6 +246,14 @@ impl SymbolTable {
         self.sources.is_some()
     }
 
+    /// Exact frontend source custody retained beside authored symbol spans.
+    /// This exposes source-map facts, not symbol identity or a stable package
+    /// format; compiler-internal consumers remain responsible for canonical
+    /// framing.
+    pub fn source_files(&self) -> impl Iterator<Item = &SourceFile> {
+        self.sources.iter().flat_map(|sources| sources.files())
+    }
+
     fn provenance_source_span(&self, mut symbol: SymbolHandle) -> Option<SourceSpan> {
         while symbol.is_valid() {
             let data = self.get(symbol);

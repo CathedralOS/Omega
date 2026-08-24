@@ -210,6 +210,16 @@ impl PackageCompilationInputs {
             .map(|(identity, root)| (*identity, root.as_path()))
     }
 
+    pub fn dependencies(
+        &self,
+    ) -> impl Iterator<Item = (PackageKeyIdentity, &str, PackageKeyIdentity)> {
+        self.dependencies.iter().flat_map(|(requester, aliases)| {
+            aliases
+                .iter()
+                .map(|(alias, target)| (*requester, alias.as_str(), *target))
+        })
+    }
+
     pub(crate) fn dependency_target(
         &self,
         requester: PackageKeyIdentity,

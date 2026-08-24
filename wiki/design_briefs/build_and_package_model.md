@@ -570,6 +570,15 @@ unbound identities, compiler-private handles, and any fact it cannot represent
 exactly. The lock persists only the versioned canonical evidence, with source,
 target, evidence-schema, and compiler/toolchain provenance.
 
+The compiler-issued envelope also carries a separate canonical commitment to
+the reconciled package/alias input graph and every exact package or toolchain
+source path and byte sequence consumed by the frontend. Absolute cache paths
+and load order are excluded. Source-only changes therefore change consumption
+identity without contaminating the normalized capability/API comparison bytes.
+The resolver retains exact immutable source resolutions and rechecks whole
+snapshots plus compiler-retained bytes around compilation; an OS isolation
+boundary is still required against a deliberately hostile same-user racer.
+
 The implementation should read each row from the earliest coherent checked
 compiler state that contains it. Different rows may come from different
 internal representations; the final projection must be total, but no single

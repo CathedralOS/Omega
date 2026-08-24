@@ -294,6 +294,12 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
                 .review(node.source().key())
                 .expect("every resolved graph package receives compiler review material");
             assert_eq!(issued.resolution(), custody.resolution());
+            assert_ne!(
+                issued.source_consumption_commitment().digest(),
+                [0; 32],
+                "{} compiler-consumption commitment must be nonzero",
+                node.source().key().name().as_str()
+            );
             assert_eq!(
                 issued.projection().package(),
                 node.source().key().identity()

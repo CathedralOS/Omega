@@ -198,6 +198,15 @@ raw checked-tree nodes, arena handles, display strings, or compiler-private IDs.
 Compiler internals may change freely provided the projection remains equivalent
 or the evidence schema changes explicitly.
 
+The compiler-issued review envelope separately commits to its canonical
+reconciled package/alias graph and every exact package or toolchain source path
+and byte sequence retained by the frontend. Absolute custody locations and load
+order do not enter that commitment. This source-consumption identity is not a
+capability/API comparison row: source-only changes alter it without pretending
+the normalized public contract changed. Resolver custody retains immutable
+source resolutions independently and verifies both whole snapshots and the
+compiler-retained bytes around compilation.
+
 Implementation should consume the earliest coherent checked compiler state
 that already contains each required fact. Different evidence rows may therefore
 come from different internal representations; totality belongs to the final

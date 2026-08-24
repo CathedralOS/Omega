@@ -15,6 +15,7 @@ mod operator_adapter_dispatch;
 mod output;
 mod package_compilation;
 mod package_review;
+mod package_source_consumption;
 mod program_entry_physical;
 mod program_entry_source_signature;
 mod program_local_storage_custody;
@@ -100,6 +101,7 @@ pub use package_review::{
     PackageReviewTraitRequirementParameter, PackageReviewTraitShape, PackageReviewTypeIdentity,
     PackageReviewTypeParameter, PackageReviewTypeParameterKind, project_checked_package_review,
 };
+pub use package_source_consumption::PackageSourceConsumptionCommitment;
 pub use program_entry_physical::ProgramEntryPhysicalContractPlan;
 pub use program_entry_source_signature::{
     ProgramEntrySourceExtentFieldLayout, ProgramEntrySourceExtentFieldRole,
