@@ -53,6 +53,10 @@ bootstrap/
 compiler/
   psi/                      eventual Omega-written target-neutral Psi source
   omega/                    eventual Omega-written optimizer/backend source
+  source-checkpoints/       exact product closures + provisional Ωself evidence
+
+apps/
+  omega-compiler/           hosted product compiler entrypoint
 ```
 
 Product-root names describe responsibility rather than host language. On-ramp
