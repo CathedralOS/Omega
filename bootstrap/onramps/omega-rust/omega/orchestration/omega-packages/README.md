@@ -165,6 +165,13 @@ Machine persistence format is an internal encoding choice. Human review and
 conflict surfaces use concise canonical text and do not expose package-authored
 prose to the triage model.
 
+The checked package-review path also fails closed on contract-entailment
+stand-downs. It audits the pristine typed graph (including generic templates),
+retains compiler-owned machine/contract/fact coordinates and a closed reason,
+and refuses review when any checked-implementation claim was left unjudged. Accepted or
+opaque supply remains trust-bearing. These rows are currently in-memory review
+state, not sealed lock evidence.
+
 ## Fixtures
 
 The local fixture corpus is under `fixtures/packages/`; exact remote Git pins

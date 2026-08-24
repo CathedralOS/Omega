@@ -306,14 +306,18 @@ complete.
   Progress 2026-08-23: concrete proof, contract, bounds, and termination
   obligations normally reject before checked trees are constructed; accepted
   axioms and admitted boundary qualifications remain identifiable. There is no
-  implemented open/deferred-proof status yet. More importantly, contract
-  entailment deliberately stands down for some out-of-engine-language claims,
-  and no checked artifact currently records `stand-down -> later discharge`.
-  The admission profile must therefore reject every unresolved stand-down or
-  retain an exact later-discharge ledger; ordinary successful compilation is
-  not itself a complete proof verdict. The standalone `psi-proof` boundary
-  obligation ledger is not wired into production and must not be cited as
-  enforcement.
+  implemented open/deferred-proof status yet. Contract entailment deliberately
+  stands down for some out-of-engine-language claims. Package-aware checked
+  compilation now audits the pristine typed graph, including generic
+  templates, and retains exact machine/contract/fact coordinates plus a closed
+  reason for every checked-implementation stand-down. The review projection
+  rejects any such row; accepted/opaque supply remains in the trust lane rather
+  than being mislabeled as an unresolved proof. This is fail-closed review
+  behavior, not sealed evidence: terminal propagation, kernel recheck receipts,
+  and a possible exact later-discharge ledger remain. Ordinary successful
+  compilation is not itself a complete proof verdict. The standalone
+  `psi-proof` boundary obligation ledger is not wired into production and must
+  not be cited as enforcement.
 
 - **SEALED-EVIDENCE-HANDOFF.** Replace public construction/parsing of
   `PackageCapabilityManifest` as an admission input.

@@ -47,6 +47,7 @@ psi-checked-trees = { path = "../../../psi/representations/psi-checked-trees" }
 omega-checked-trees-to-state-graph = { path = "../../pipeline/omega-checked-trees-to-state-graph" }
 psi-checked-interpreter = { path = "../../../psi/semantics/psi-checked-interpreter" }
 psi-build-time-evaluation = { path = "../../../psi/semantics/psi-build-time-evaluation" }
+psi-validation = { path = "../../../psi/semantics/psi-validation" }
 omega-effects = { path = "../../representations/omega-effects" }
 psi-effects = { path = "../../../psi/representations/psi-effects" }
 psi-symbol-resolved-trees = { path = "../../../psi/representations/psi-symbol-resolved-trees" }
@@ -84,6 +85,5 @@ omega-terminal-image-emission = { path = "../../backend/images/omega-terminal-im
 
 [dev-dependencies]
 psi-facts = { path = "../../../psi/representations/psi-facts" }
-psi-validation = { path = "../../../psi/semantics/psi-validation" }
 psi-terminal = { path = "../../../psi/representations/psi-terminal" }
 psi-terminal-verifier = { path = "../../../psi/semantics/psi-terminal-verifier" }

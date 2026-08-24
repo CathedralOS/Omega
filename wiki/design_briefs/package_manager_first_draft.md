@@ -200,8 +200,13 @@ Open or deferred proofs reject package admission. The current compiler has no
 explicit deferred-proof status, however, and its contract-entailment engine may
 stand down on facts outside that engine's language. The admission profile must
 reject an unresolved stand-down or retain the exact later checked obligation
-that discharged it; a successful ordinary compilation is not by itself a
-complete proof verdict. Checked proofs are rechecked by the proof kernel.
+that discharged it. The package-aware checked path now retains exact
+machine/contract/fact coordinates with a closed stand-down reason from the
+pristine typed graph, and review rejects every checked-implementation row.
+Accepted and opaque supply remains in the trust lane. Sealed/terminal
+propagation and any later-discharge ledger are still unfinished; a successful
+ordinary compilation is not by itself a complete proof verdict. Checked proofs
+are rechecked by the proof kernel.
 Accepted axioms and opaque boundary claims must remain explicit trust-bearing
 evidence and require admission; authored postconditions are obligations, never
 proof. Boundary realization must use exact package-qualified nominal identities
