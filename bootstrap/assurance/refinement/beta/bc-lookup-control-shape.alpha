@@ -1,0 +1,156 @@
+; Exact control/frame/call/effect shape for procedure36 lookup().
+
+lookup_require_shape:
+        imm r20, 7151616
+        imm r21, 36
+        imm r22, 0                    ; no parameters
+        call transfer_require_cell
+        imm r20, 7159808
+        imm r21, 36
+        imm r22, 2                    ; n,i
+        call transfer_require_cell
+        imm r20, 36
+        call call_bounds_frame_bytes
+        imm r1, 24                   ; exact proc36 frame bytes
+        jeq r0, r1, lookup_shape_blocks
+        jmp reject
+
+lookup_shape_blocks:
+        imm r20, 179
+        imm r21, 26114                ; exact proc36 entry block
+        call exact_require_block_pc
+        imm r20, 180
+        imm r21, 26207
+        call exact_require_block_pc
+        imm r20, 181
+        imm r21, 26369
+        call exact_require_block_pc
+        imm r20, 182
+        imm r21, 26628
+        call exact_require_block_pc
+        imm r20, 179
+        imm r21, 182
+        imm r22, 36
+        call exact_require_proc_blocks
+        call lookup_require_transitions
+        call lookup_require_events
+        ret
+
+lookup_require_transitions:
+        imm r20, 134
+        imm r21, 180
+        imm r22, 1
+        imm r23, 181
+        imm r24, 26320                ; i<n branch root
+        call exact_require_transition
+        imm r20, 135
+        imm r21, 181
+        imm r22, 1
+        imm r23, 182
+        imm r24, 26514                ; name_eq result-one branch root
+        call exact_require_transition
+        imm r20, 136
+        imm r21, 181
+        imm r22, 0
+        imm r23, 180
+        imm r24, 26619                ; exact no-match backedge
+        call exact_require_transition
+        ret
+
+lookup_require_events:
+        imm r20, 278
+        imm r21, 180
+        imm r22, 5
+        imm r23, 26368                ; exhausted return zero
+        call exact_require_event
+        imm r20, 279
+        imm r21, 181
+        imm r22, 1
+        imm r23, 26420                ; name_eq call
+        call exact_require_event
+        imm r20, 280
+        imm r21, 182
+        imm r22, 5
+        imm r23, 26666                ; hit return i
+        call exact_require_event
+        imm r20, 279
+        imm r21, 1                    ; one argument
+        call lookup_require_event_arity
+        imm r20, 279
+        imm r21, 0                    ; zero ambient expression words
+        call lookup_require_ambient_height
+        imm r20, 26420
+        imm r21, 24914                ; exact name_eq target
+        imm r22, 26429                ; exact call continuation
+        call lookup_require_call
+        imm r20, 26349
+        imm r21, 26368
+        call exact_require_epilogue
+        imm r20, 26647
+        imm r21, 26666
+        call exact_require_epilogue
+        imm r20, 26667
+        imm r21, 26686
+        call exact_require_epilogue
+        ret
+
+lookup_require_event_arity:
+        mov r2, r20
+        imm r1, 8
+        mul r2, r1
+        imm r1, 7143424
+        add r1, r2
+        load r2, r1
+        jeq r2, r21, exact_shape_ok
+        jmp reject
+
+lookup_require_ambient_height:
+        mov r2, r20
+        imm r1, 8
+        mul r2, r1
+        imm r1, 10035200
+        add r1, r2
+        load r2, r1
+        jeq r2, r21, exact_shape_ok
+        jmp reject
+
+; Require call at r20 to target r21 and have exact continuation r22.
+lookup_require_call:
+        mov r25, r20
+        mov r26, r21
+        mov r27, r22
+        mov r2, r25
+        imm r1, 9
+        add r2, r1
+        jeq r2, r27, lookup_call_opcode
+        jmp reject
+lookup_call_opcode:
+        mov r20, r25
+        imm r21, 19
+        call require_tape_byte
+        mov r20, r25
+        imm r1, 1
+        add r20, r1
+        mov r21, r26
+        call require_tape_word
+        ret
+
+lookup_require_control_census:
+        imm r20, 179
+        imm r21, 182
+        imm r22, 90
+        imm r23, 98                   ; exclusive local row
+        imm r24, 51
+        imm r25, 52                   ; exclusive memory row
+        imm r26, 134
+        imm r27, 137                  ; exclusive transition row
+        imm r28, 278
+        imm r29, 281                  ; exclusive event row
+        call exact_require_effect_census
+        imm r20, 26114
+        imm r21, 26687
+        imm r22, 1                    ; name_eq call
+        imm r23, 3                    ; two source plus synthetic return
+        imm r24, 8                    ; prologue/local/temporary stores
+        call exact_quiet_scan_region
+        ret

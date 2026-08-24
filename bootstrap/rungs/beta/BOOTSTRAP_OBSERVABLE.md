@@ -403,9 +403,19 @@ are valuable teeth, but they do not yet establish the quantified observation:
   access; equal-length slices compare left-to-right, return zero at the first
   differing byte, and return one exactly after a full equal prefix. The
   natural `len-k` rank closes the byte loop, output and compiler state remain
-  unchanged, and the caller frame is restored. This conditional clause does
-  not establish the runtime name-table prefix, does not close `lookup`, and
-  gives no expression-SCC meaning;
+  unchanged, and the caller frame is restored;
+- its conditional `lookup` extension binds procedure 36's exact control,
+  current-index argument/call continuation, local/memory/expression rows,
+  24-byte frame, epilogues, and decoded quiet footprint. It snapshots
+  `n0=NLOC` once, ties the same value to the admitted NPFX prefix, and carries
+  `0<=i<=n0<=1024`, natural rank `n0-i`, and exact nonmatch of every prior
+  index. NEQS match returns the least index, so duplicates select their first
+  entry; nonmatch advances once and extends the false prefix; `i=n0` returns
+  zero without another call. Hit at slot zero and exhausted no-match retain
+  distinct proof provenance despite their common numeric-zero result. The
+  theorem never rereads live NLOC, emits nothing, preserves compiler state,
+  and restores its caller. NTDM/NEQS establishment by a dynamic producer and
+  the expression SCC remain open;
 - no total `parse_proc` claim is currently made. Malformed procedure bodies can
   make `gen_stmts` diverge while emitting—for example when an unrecognized byte
   is never consumed—so closure requires maximal Return-or-Diverge and finite/
