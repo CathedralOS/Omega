@@ -180,6 +180,35 @@ facility before its artifact representation is chosen. The facility is finally
 retained only when its compositional rule, negative boundary, Rust-free meaning,
 and selected artifact path are all enforced.
 
+### Checkpoint 000001 source-custody frontend measurement
+
+The first such measurement is now closed under
+[`SOURCE_CUSTODY_FRONTEND_PROBE.md`](SOURCE_CUSTODY_FRONTEND_PROBE.md).
+The Delta-written raw-unit checker generally parses, resolves, and type-checks
+the record/field, fixed-array/index, attached-machine, receiver-mutation,
+Trapping/range, scalar-result, and guarded-transition families isolated by
+`compiler/psi/source/source.omg`. It accepts the exact unit and a renamed/
+reordered equivalent, rejects phase-isolated semantic mutations, and carries
+the applicable public resource ceilings. It deliberately does not claim the
+checkpoint's qualified-name `path.components` resource merely from postfix
+member nodes.
+
+The checker is 78,450 bytes of Delta source with 5,395,760 bytes of fixed
+zero-initialized table backing. Native and lowermachine-built observations are
+millisecond-scale. Rust-free elaboration produces 626,059 bytes of Gamma under
+the 1 MiB ceiling; canonical interpretation of the exact unit takes about two
+minutes, so the meaning gate repeats the exact positive plus one semantic
+rejection and one exhaustion observation rather than another equivalent large
+positive. Its current signed-`i32` interval carrier admits only authored `u32`
+literal/range endpoints through 2,147,483,647; larger endpoints remain explicit
+unsupported input.
+
+This is cost and feasibility evidence only. The corresponding artifact tranche,
+ABI/layout/lowering rules, and final retain-versus-refactor disposition remain
+open. The raw-unit interface also avoids silently widening the frozen O0/O1
+bundle transport ceiling; eventual bridge admission must compose the measured
+rules with the canonical bundle frontend.
+
 These exclusions describe syntax used by the compiler implementation, not
 features implemented for compiler users. For example, the product source may
 avoid proof syntax and dependent types while ordinary records, sums, tables,

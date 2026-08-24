@@ -1,0 +1,1313 @@
+// Delta-written, checker-only cost probe for the first Omega product-source
+// checkpoint. See SOURCE_CUSTODY_FRONTEND_PROBE.md. This program consumes one
+// raw source unit and never publishes artifact bytes: status 0 is accepted,
+// 251 is malformed/unsupported/ill-typed, and 252 is declared exhaustion.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+    machine read_byte() -> i32;
+}
+
+data Main {
+    console: Console;
+    status: i32; c: i32; n: i32; limit: i32; pos: i32;
+    tok: i32; tok_start: i32; tok_len: i32; int_value: i32;
+    char_ok: i32; comment_depth: i32; match_ok: i32;
+    i: i32; j: i32; k: i32; scan_index: i32; scan_end: i32;
+    depth: i32; path_depth: i32;
+    saved_pos: i32; saved_tok: i32; saved_tok_start: i32;
+    saved_tok_len: i32; saved_int_value: i32;
+
+    root_count: i32; data_count: i32; field_count: i32;
+    machine_count: i32; state_count: i32; param_count: i32;
+    type_count: i32; current_data: i32; current_machine: i32;
+    current_state: i32; current_param_start: i32;
+    current_param_count: i32; current_result_type: i32;
+    current_receiver_mut: i32; statement_count: i32;
+    seen_state: i32; body_terminated: i32; body_value: i32;
+    body_state_index: i32; body_state_end: i32;
+    source_state: i32; target_state: i32;
+    arm_true: i32; arm_false: i32; arm_wild: i32; arm_fact: i32;
+    arg_index: i32; transition_fact_valid: i32;
+    transition_fact_kind: i32; transition_fact_id: i32; transition_fact_hi: i32;
+
+    // Expression result scratch.
+    expr_type: i32; expr_lo: i32; expr_hi: i32;
+    expr_lvalue: i32; expr_mutable: i32; expr_subject_kind: i32;
+    expr_subject_id: i32; expr_is_array: i32; expr_array_len: i32;
+    left_type: i32; left_lo: i32; left_hi: i32;
+    left_lvalue: i32; left_mutable: i32; left_subject_kind: i32;
+    left_subject_id: i32; left_is_array: i32; left_array_len: i32;
+    guard_fact_valid: i32; guard_fact_kind: i32;
+    guard_fact_id: i32; guard_fact_hi: i32;
+
+    expr_tree_depth: i32; expr_path_depth: i32; expr_stack_used: i32;
+    stack_types: [i32; 8]; stack_los: [i32; 8]; stack_his: [i32; 8];
+    stack_lvalues: [i32; 8]; stack_mutables: [i32; 8];
+    stack_subject_kinds: [i32; 8]; stack_subject_ids: [i32; 8];
+    stack_tree_depths: [i32; 8]; stack_path_depths: [i32; 8];
+    target_type: i32; target_lvalue: i32; target_mutable: i32;
+    target_subject_kind: i32; target_subject_id: i32;
+    assignment_type_id: i32;
+
+    source: [u8; 131072];
+    words: [u8; 65];
+
+    data_name_starts: [i32; 128]; data_name_lengths: [i32; 128];
+    data_copy: [i32; 128]; data_field_starts: [i32; 128];
+    data_field_counts: [i32; 128];
+
+    field_owners: [i32; 8192]; field_name_starts: [i32; 8192];
+    field_name_lengths: [i32; 8192]; field_types: [i32; 8192];
+
+    machine_owner_starts: [i32; 128]; machine_owner_lengths: [i32; 128];
+    machine_owners: [i32; 128]; machine_name_starts: [i32; 128];
+    machine_name_lengths: [i32; 128]; machine_param_starts: [i32; 128];
+    machine_param_counts: [i32; 128]; machine_result_types: [i32; 128];
+    machine_receiver_mut: [i32; 128]; machine_self_types: [i32; 128];
+    machine_body_starts: [i32; 128];
+    machine_body_ends: [i32; 128]; machine_entry_ends: [i32; 128];
+    machine_state_starts: [i32; 128];
+    machine_state_counts: [i32; 128];
+
+    state_owners: [i32; 16384]; state_name_starts: [i32; 16384];
+    state_name_lengths: [i32; 16384]; state_param_starts: [i32; 16384];
+    state_param_counts: [i32; 16384]; state_receiver_mut: [i32; 16384];
+    state_body_starts: [i32; 16384]; state_body_ends: [i32; 16384];
+    state_fact_mode: [i32; 16384]; state_fact_kind: [i32; 16384];
+    state_fact_id: [i32; 16384]; state_fact_hi: [i32; 16384];
+
+    param_owners: [i32; 32768]; param_name_starts: [i32; 32768];
+    param_name_lengths: [i32; 32768]; param_types: [i32; 32768];
+
+    // Type rows: kind 1=u8, 2=u32, 3=bool, 4=nominal, 5=fixed array.
+    // Nominal rows resolve after all roots are known.
+    type_kinds: [i32; 32768]; type_name_starts: [i32; 32768];
+    type_name_lengths: [i32; 32768]; type_nominals: [i32; 32768];
+    type_elements: [i32; 32768]; type_array_lengths: [i32; 32768];
+    type_trapping: [i32; 32768];
+    type_range_los: [i32; 32768]; type_range_his: [i32; 32768];
+}
+
+machine Main::init_words(&mut self) {
+    // datacopymachinemutselfstatetransitiontruefalseu8u32boolinTrapping
+    self.words[0]=100; self.words[1]=97; self.words[2]=116; self.words[3]=97;
+    self.words[4]=99; self.words[5]=111; self.words[6]=112; self.words[7]=121;
+    self.words[8]=109; self.words[9]=97; self.words[10]=99; self.words[11]=104;
+    self.words[12]=105; self.words[13]=110; self.words[14]=101;
+    self.words[15]=109; self.words[16]=117; self.words[17]=116;
+    self.words[18]=115; self.words[19]=101; self.words[20]=108; self.words[21]=102;
+    self.words[22]=115; self.words[23]=116; self.words[24]=97; self.words[25]=116; self.words[26]=101;
+    self.words[27]=116; self.words[28]=114; self.words[29]=97; self.words[30]=110; self.words[31]=115;
+    self.words[32]=105; self.words[33]=116; self.words[34]=105; self.words[35]=111; self.words[36]=110;
+    self.words[37]=116; self.words[38]=114; self.words[39]=117; self.words[40]=101;
+    self.words[41]=102; self.words[42]=97; self.words[43]=108; self.words[44]=115; self.words[45]=101;
+    self.words[46]=117; self.words[47]=56;
+    self.words[48]=117; self.words[49]=51; self.words[50]=50;
+    self.words[51]=98; self.words[52]=111; self.words[53]=111; self.words[54]=108;
+    self.words[55]=105; self.words[56]=110;
+    self.words[57]=84; self.words[58]=114; self.words[59]=97; self.words[60]=112;
+    self.words[61]=112; self.words[62]=105; self.words[63]=110; self.words[64]=103;
+}
+
+machine Main::read_source(&mut self) {
+    self.n = 0;
+    transition 0 { _ -> loop() }
+    state loop() {
+        self.c = read_byte();
+        transition self.c < 0 { true -> done() _ -> capacity() }
+    }
+    state capacity() { transition self.n < 131072 { true -> store() _ -> exhausted() } }
+    state store() {
+        self.source[self.n] = self.c; self.n = self.n + 1;
+        transition 0 { _ -> loop() }
+    }
+    state exhausted() { self.status = 252; }
+    state done() { }
+}
+
+machine Main::is_ident_start(&mut self) {
+    self.char_ok = 0;
+    transition self.c == 95 { true -> yes() _ -> upper0() }
+    state upper0() { transition self.c >= 65 { true -> upper1() _ -> lower0() } }
+    state upper1() { transition self.c < 91 { true -> yes() _ -> lower0() } }
+    state lower0() { transition self.c >= 97 { true -> lower1() _ -> done() } }
+    state lower1() { transition self.c < 123 { true -> yes() _ -> done() } }
+    state yes() { self.char_ok = 1; }
+    state done() { }
+}
+
+machine Main::is_ident_continue(&mut self) {
+    self.is_ident_start();
+    transition self.char_ok == 1 { true -> done() _ -> digit0() }
+    state digit0() { transition self.c >= 48 { true -> digit1() _ -> done() } }
+    state digit1() { transition self.c < 58 { true -> yes() _ -> done() } }
+    state yes() { self.char_ok = 1; }
+    state done() { }
+}
+
+machine Main::skip_block_comment(&mut self) {
+    self.pos = self.pos + 2; self.comment_depth = 1;
+    transition 0 { _ -> loop() }
+    state loop() { transition self.pos < self.limit { true -> byte() _ -> bad() } }
+    state byte() { self.c = self.source[self.pos]; transition self.c == 47 { true -> open_bound() _ -> close_first() } }
+    state open_bound() { transition self.pos + 1 < self.limit { true -> open_second() _ -> advance() } }
+    state open_second() { transition self.source[self.pos + 1] == 42 { true -> open() _ -> advance() } }
+    state open() { self.comment_depth = self.comment_depth + 1; self.pos = self.pos + 2; transition 0 { _ -> loop() } }
+    state close_first() { transition self.c == 42 { true -> close_bound() _ -> advance() } }
+    state close_bound() { transition self.pos + 1 < self.limit { true -> close_second() _ -> advance() } }
+    state close_second() { transition self.source[self.pos + 1] == 47 { true -> close() _ -> advance() } }
+    state close() {
+        self.comment_depth = self.comment_depth - 1; self.pos = self.pos + 2;
+        transition self.comment_depth == 0 { true -> done() _ -> loop() }
+    }
+    state advance() { self.pos = self.pos + 1; transition 0 { _ -> loop() } }
+    state bad() { self.reject(); }
+    state done() { }
+}
+
+// Token kinds: 0 EOF, 256 identifier, 257 nonnegative integer. Punctuation is
+// represented by its ASCII byte. Multi-byte operators are checked as sequences.
+machine Main::next_token(&mut self) {
+    self.tok = 0; self.tok_len = 0;
+    transition self.status == 0 { true -> skip() _ -> done() }
+    state skip() { transition self.pos < self.limit { true -> skip_byte() _ -> eof() } }
+    state skip_byte() { self.c = self.source[self.pos]; transition self.c == 32 { true -> skip_advance() _ -> lf() } }
+    state lf() { transition self.c == 10 { true -> skip_advance() _ -> cr() } }
+    state cr() { transition self.c == 13 { true -> skip_advance() _ -> tab() } }
+    state tab() { transition self.c == 9 { true -> skip_advance() _ -> slash() } }
+    state skip_advance() { self.pos = self.pos + 1; transition 0 { _ -> skip() } }
+    state slash() { transition self.c == 47 { true -> slash_bound() _ -> classify() } }
+    state slash_bound() { transition self.pos + 1 < self.limit { true -> slash_second() _ -> classify() } }
+    state slash_second() { transition self.source[self.pos + 1] == 47 { true -> line_begin() _ -> block_second() } }
+    state block_second() { transition self.source[self.pos + 1] == 42 { true -> block() _ -> classify() } }
+    state block() { self.skip_block_comment(); transition self.status == 0 { true -> skip() _ -> done() } }
+    state line_begin() { self.pos = self.pos + 2; transition 0 { _ -> line() } }
+    state line() { transition self.pos < self.limit { true -> line_byte() _ -> eof() } }
+    state line_byte() { transition self.source[self.pos] == 10 { true -> skip_advance() _ -> line_next() } }
+    state line_next() { self.pos = self.pos + 1; transition 0 { _ -> line() } }
+    state classify() {
+        self.tok_start = self.pos; self.is_ident_start();
+        transition self.char_ok == 1 { true -> ident_begin() _ -> digit0() }
+    }
+    state ident_begin() { self.pos = self.pos + 1; transition 0 { _ -> ident_loop() } }
+    state ident_loop() { transition self.pos < self.limit { true -> ident_byte() _ -> ident_done() } }
+    state ident_byte() {
+        self.c = self.source[self.pos]; self.is_ident_continue();
+        transition self.char_ok == 1 { true -> ident_capacity() _ -> ident_done() }
+    }
+    state ident_capacity() { transition self.pos - self.tok_start < 64 { true -> ident_next() _ -> exhausted() } }
+    state ident_next() { self.pos = self.pos + 1; transition 0 { _ -> ident_loop() } }
+    state ident_done() { self.tok = 256; self.tok_len = self.pos - self.tok_start; transition 0 { _ -> done() } }
+    state digit0() { transition self.c >= 48 { true -> digit1() _ -> ascii() } }
+    state digit1() { transition self.c < 58 { true -> integer_begin() _ -> ascii() } }
+    state integer_begin() { self.int_value = 0; transition 0 { _ -> integer_loop() } }
+    state integer_loop() { transition self.pos < self.limit { true -> integer_byte() _ -> integer_done() } }
+    state integer_byte() { self.c = self.source[self.pos]; transition self.c >= 48 { true -> integer_high() _ -> integer_done() } }
+    state integer_high() { transition self.c < 58 { true -> integer_bound() _ -> integer_done() } }
+    state integer_bound() { transition self.int_value < 214748364 { true -> integer_add() _ -> integer_last() } }
+    state integer_last() { transition self.int_value == 214748364 { true -> integer_last_digit() _ -> bad() } }
+    state integer_last_digit() { transition self.c < 56 { true -> integer_add() _ -> bad() } }
+    state integer_add() {
+        self.int_value = self.int_value * 10 + self.c - 48; self.pos = self.pos + 1;
+        transition 0 { _ -> integer_loop() }
+    }
+    state integer_done() { self.tok = 257; self.tok_len = self.pos - self.tok_start; transition 0 { _ -> done() } }
+    state ascii() { transition self.c < 128 { true -> punctuation() _ -> bad() } }
+    state punctuation() { self.tok = self.c; self.tok_len = 1; self.pos = self.pos + 1; transition 0 { _ -> done() } }
+    state exhausted() { self.status = 252; }
+    state bad() { self.reject(); }
+    state eof() { self.tok = 0; self.tok_start = self.pos; }
+    state done() { }
+}
+
+machine Main::token_word(&mut self, base: i32, count: i32) {
+    self.match_ok = 0; self.i = 0;
+    transition self.tok == 256 { true -> length() _ -> done() }
+    state length() { transition self.tok_len == count { true -> loop() _ -> done() } }
+    state loop() { transition self.i < count { true -> byte() _ -> yes() } }
+    state byte() { transition self.source[self.tok_start + self.i] == self.words[base + self.i] { true -> next() _ -> done() } }
+    state next() { self.i = self.i + 1; transition 0 { _ -> loop() } }
+    state yes() { self.match_ok = 1; }
+    state done() { }
+}
+
+machine Main::spans_equal(&mut self, left: i32, right: i32, count: i32) {
+    self.match_ok = 0; self.i = 0;
+    transition 0 { _ -> loop() }
+    state loop() { transition self.i < count { true -> byte() _ -> yes() } }
+    state byte() { transition self.source[left + self.i] == self.source[right + self.i] { true -> next() _ -> done() } }
+    state next() { self.i = self.i + 1; transition 0 { _ -> loop() } }
+    state yes() { self.match_ok = 1; }
+    state done() { }
+}
+
+machine Main::expect_token(&mut self, expected: i32) {
+    transition self.tok == expected { true -> advance() _ -> bad() }
+    state advance() { self.next_token(); transition 0 { _ -> done() } }
+    state bad() { self.reject(); }
+    state done() { }
+}
+
+machine Main::expect_word(&mut self, base: i32, count: i32) {
+    self.token_word(base, count);
+    transition self.match_ok == 1 { true -> advance() _ -> bad() }
+    state advance() { self.next_token(); transition 0 { _ -> done() } }
+    state bad() { self.reject(); }
+    state done() { }
+}
+
+// Failure status is monotonic. A caller may discover that a nested lexer or
+// table operation exhausted declared backing and then take its ordinary local
+// failure edge; that edge must not downgrade 252 to unsupported status 251.
+machine Main::reject(&mut self) {
+    transition self.status == 0 { true -> set() _ -> done() }
+    state set() { self.status = 251; }
+    state done() { }
+}
+
+machine Main::find_data_span(&mut self, start: i32, count: i32) {
+    self.current_data = 0 - 1; self.j = 0;
+    transition 0 { _ -> loop() }
+    state loop() { transition self.j < self.data_count { true -> compare() _ -> done() } }
+    state compare() { transition count == self.data_name_lengths[self.j] { true -> compare_bytes() _ -> next() } }
+    state compare_bytes() {
+        self.spans_equal(start, self.data_name_starts[self.j], count);
+        transition self.match_ok == 1 { true -> found() _ -> next() }
+    }
+    state found() { self.current_data = self.j; transition 0 { _ -> done() } }
+    state next() { self.j = self.j + 1; transition 0 { _ -> loop() } }
+    state done() { }
+}
+
+machine Main::field_name_exists(&mut self, owner: i32, start: i32, count: i32) {
+    self.match_ok = 0; self.j = self.data_field_starts[owner];
+    self.k = self.j + self.data_field_counts[owner];
+    transition 0 { _ -> loop() }
+    state loop() { transition self.j < self.k { true -> compare() _ -> done() } }
+    state compare() { transition count == self.field_name_lengths[self.j] { true -> compare_bytes() _ -> next() } }
+    state compare_bytes() {
+        self.spans_equal(start, self.field_name_starts[self.j], count);
+        transition self.match_ok == 1 { true -> done() _ -> next() }
+    }
+    state next() { self.j = self.j + 1; transition 0 { _ -> loop() } }
+    state done() { }
+}
+
+machine Main::param_name_exists(&mut self, start: i32, count: i32) {
+    self.match_ok = 0; self.j = self.current_param_start;
+    self.k = self.current_param_start + self.current_param_count;
+    transition 0 { _ -> loop() }
+    state loop() { transition self.j < self.k { true -> compare() _ -> done() } }
+    state compare() { transition count == self.param_name_lengths[self.j] { true -> compare_bytes() _ -> next() } }
+    state compare_bytes() {
+        self.spans_equal(start, self.param_name_starts[self.j], count);
+        transition self.match_ok == 1 { true -> done() _ -> next() }
+    }
+    state next() { self.j = self.j + 1; transition 0 { _ -> loop() } }
+    state done() { }
+}
+
+machine Main::parse_base_type(&mut self) {
+    self.expr_type = 0 - 1;
+    transition self.type_count < 32768 { true -> token() _ -> exhausted() }
+    state token() { transition self.tok == 256 { true -> allocate() _ -> bad() } }
+    state allocate() {
+        self.expr_type = self.type_count; self.type_count = self.type_count + 1;
+        self.type_kinds[self.expr_type] = 0;
+        self.type_name_starts[self.expr_type] = 0;
+        self.type_name_lengths[self.expr_type] = 0;
+        self.type_nominals[self.expr_type] = 0 - 1;
+        self.type_elements[self.expr_type] = 0 - 1;
+        self.type_array_lengths[self.expr_type] = 0;
+        self.type_trapping[self.expr_type] = 0;
+        self.type_range_los[self.expr_type] = 0;
+        self.type_range_his[self.expr_type] = 0;
+        self.token_word(46, 2);
+        transition self.match_ok == 1 { true -> u8_type() _ -> u32_check() }
+    }
+    state u8_type() {
+        self.type_kinds[self.expr_type] = 1; self.type_range_his[self.expr_type] = 255;
+        self.next_token(); transition 0 { _ -> done() }
+    }
+    state u32_check() { self.token_word(48, 3); transition self.match_ok == 1 { true -> u32_type() _ -> bool_check() } }
+    state u32_type() {
+        self.type_kinds[self.expr_type] = 2; self.type_range_his[self.expr_type] = 2147483647;
+        self.next_token(); transition 0 { _ -> done() }
+    }
+    state bool_check() { self.token_word(51, 4); transition self.match_ok == 1 { true -> bool_type() _ -> nominal() } }
+    state bool_type() {
+        self.type_kinds[self.expr_type] = 3; self.type_range_his[self.expr_type] = 1;
+        self.next_token(); transition 0 { _ -> done() }
+    }
+    state nominal() {
+        self.type_kinds[self.expr_type] = 4;
+        self.type_name_starts[self.expr_type] = self.tok_start;
+        self.type_name_lengths[self.expr_type] = self.tok_len;
+        self.next_token(); transition 0 { _ -> done() }
+    }
+    state exhausted() { self.status = 252; transition 0 { _ -> done() } }
+    state bad() { self.reject(); }
+    state done() { }
+}
+
+machine Main::parse_type_constraints(&mut self) {
+    transition self.status == 0 { true -> in_check() _ -> done() }
+    state in_check() {
+        self.token_word(55, 2);
+        transition self.match_ok == 1 { true -> in_consume() _ -> range_check() }
+    }
+    state in_consume() {
+        self.next_token(); self.expect_word(57, 8);
+        transition self.status == 0 { true -> range_check() _ -> done() }
+    }
+    state range_check() { transition self.tok == 91 { true -> range_open() _ -> done() } }
+    state range_open() { transition self.type_kinds[self.expr_type] == 5 { true -> done() _ -> range_base() } }
+    state range_base() { transition self.type_kinds[self.expr_type] == 2 { true -> range_begin() _ -> bad() } }
+    state range_begin() { self.next_token(); transition self.tok == 257 { true -> range_low() _ -> bad() } }
+    state range_low() { self.type_range_los[self.expr_type] = self.int_value; self.next_token(); self.expect_token(46); transition self.status == 0 { true -> range_dot() _ -> done() } }
+    state range_dot() { self.expect_token(46); transition self.status == 0 { true -> range_equal() _ -> done() } }
+    state range_equal() { self.expect_token(61); transition self.status == 0 { true -> range_high_token() _ -> done() } }
+    state range_high_token() { transition self.tok == 257 { true -> range_high() _ -> bad() } }
+    state range_high() {
+        self.type_range_his[self.expr_type] = self.int_value; self.next_token(); self.expect_token(93);
+        transition self.status == 0 { true -> range_order() _ -> done() }
+    }
+    state range_order() {
+        transition self.type_range_los[self.expr_type] <= self.type_range_his[self.expr_type] { true -> done() _ -> bad() }
+    }
+    state bad() { self.reject(); }
+    state done() { }
+}
+
+machine Main::parse_type(&mut self) {
+    transition self.tok == 91 { true -> array_open() _ -> scalar() }
+    state scalar() { self.parse_base_type(); transition self.status == 0 { true -> scalar_constraints() _ -> done() } }
+    state scalar_constraints() { self.parse_type_constraints(); transition 0 { _ -> done() } }
+    state array_open() { self.next_token(); self.parse_base_type(); transition self.status == 0 { true -> array_element_save() _ -> done() } }
+    state array_element_save() { self.saved_int_value = self.expr_type; transition self.type_count < 32768 { true -> array_allocate() _ -> exhausted() } }
+    state array_allocate() {
+        self.expr_type = self.type_count; self.type_count = self.type_count + 1;
+        self.type_kinds[self.expr_type] = 5;
+        self.type_name_starts[self.expr_type] = 0; self.type_name_lengths[self.expr_type] = 0;
+        self.type_nominals[self.expr_type] = 0 - 1; self.type_elements[self.expr_type] = self.saved_int_value;
+        self.type_array_lengths[self.expr_type] = 0; self.type_trapping[self.expr_type] = 0;
+        self.type_range_los[self.expr_type] = 0; self.type_range_his[self.expr_type] = 0;
+        transition 0 { _ -> array_separator() }
+    }
+    state array_separator() { self.expect_token(59); transition self.status == 0 { true -> array_length_token() _ -> done() } }
+    state array_length_token() { transition self.tok == 257 { true -> array_length_bound() _ -> bad() } }
+    state array_length_bound() { transition self.int_value <= 65536 { true -> array_length_save() _ -> exhausted() } }
+    state array_length_save() {
+        self.type_array_lengths[self.expr_type] = self.int_value;
+        self.next_token(); self.expect_token(93);
+        transition self.status == 0 { true -> array_constraints() _ -> done() }
+    }
+    state array_constraints() { self.parse_type_constraints(); transition 0 { _ -> done() } }
+    state exhausted() { self.status = 252; transition 0 { _ -> done() } }
+    state bad() { self.reject(); }
+    state done() { }
+}
+
+machine Main::parse_parameter_list(&mut self, owner: i32) {
+    self.current_param_start = self.param_count; self.current_param_count = 0;
+    self.current_receiver_mut = 0;
+    transition self.tok == 38 { true -> receiver_amp() _ -> bad() }
+    state receiver_amp() { self.next_token(); self.token_word(15, 3); transition self.match_ok == 1 { true -> receiver_mut() _ -> receiver_self() } }
+    state receiver_mut() { self.current_receiver_mut = 1; self.next_token(); transition 0 { _ -> receiver_self() } }
+    state receiver_self() { self.expect_word(18, 4); transition self.status == 0 { true -> tail() _ -> done() } }
+    state tail() { transition self.tok == 44 { true -> comma() _ -> close() } }
+    state comma() { self.next_token(); transition self.current_param_count < 7 { true -> name_token() _ -> exhausted() } }
+    state name_token() { transition self.tok == 256 { true -> name_unique() _ -> bad() } }
+    state name_unique() {
+        self.saved_tok_start = self.tok_start; self.saved_tok_len = self.tok_len;
+        self.param_name_exists(self.saved_tok_start, self.saved_tok_len);
+        transition self.match_ok == 0 { true -> name_capacity() _ -> bad() }
+    }
+    state name_capacity() { transition self.param_count < 32768 { true -> name_save() _ -> exhausted() } }
+    state name_save() {
+        self.param_owners[self.param_count] = owner;
+        self.param_name_starts[self.param_count] = self.saved_tok_start;
+        self.param_name_lengths[self.param_count] = self.saved_tok_len;
+        self.next_token(); self.expect_token(58);
+        transition self.status == 0 { true -> type() _ -> done() }
+    }
+    state type() { self.parse_type(); transition self.status == 0 { true -> type_save() _ -> done() } }
+    state type_save() {
+        self.param_types[self.param_count] = self.expr_type;
+        self.param_count = self.param_count + 1;
+        self.current_param_count = self.current_param_count + 1;
+        transition 0 { _ -> tail() }
+    }
+    state close() { self.expect_token(41); transition 0 { _ -> done() } }
+    state exhausted() { self.status = 252; transition 0 { _ -> done() } }
+    state bad() { self.reject(); }
+    state done() { }
+}
+
+machine Main::skip_balanced_body(&mut self) {
+    self.depth = 1; self.saved_pos = 0 - 1;
+    transition 0 { _ -> loop() }
+    state loop() { transition self.tok == 0 { true -> bad() _ -> open() } }
+    state open() { transition self.tok == 123 { true -> open_add() _ -> close() } }
+    state open_add() { self.depth = self.depth + 1; self.next_token(); transition 0 { _ -> loop() } }
+    state close() { transition self.tok == 125 { true -> close_sub() _ -> advance() } }
+    state close_sub() {
+        self.depth = self.depth - 1;
+        transition self.depth == 0 { true -> complete() _ -> close_advance() }
+    }
+    state close_advance() { self.next_token(); transition 0 { _ -> loop() } }
+    state advance() { self.next_token(); transition self.status == 0 { true -> loop() _ -> done() } }
+    state complete() { self.saved_pos = self.tok_start; self.next_token(); transition 0 { _ -> done() } }
+    state bad() { self.reject(); }
+    state done() { }
+}
+
+machine Main::collect_data(&mut self) {
+    self.next_token();
+    transition self.tok == 256 { true -> name_unique() _ -> bad() }
+    state name_unique() {
+        self.saved_tok_start = self.tok_start; self.saved_tok_len = self.tok_len;
+        self.find_data_span(self.saved_tok_start, self.saved_tok_len);
+        transition self.current_data < 0 { true -> capacity() _ -> bad() }
+    }
+    state capacity() { transition self.data_count < 128 { true -> save() _ -> exhausted() } }
+    state save() {
+        self.current_data = self.data_count;
+        self.data_name_starts[self.current_data] = self.saved_tok_start;
+        self.data_name_lengths[self.current_data] = self.saved_tok_len;
+        self.data_copy[self.current_data] = 0;
+        self.data_field_starts[self.current_data] = self.field_count;
+        self.data_field_counts[self.current_data] = 0;
+        self.data_count = self.data_count + 1;
+        self.next_token(); transition self.tok == 91 { true -> copy_open() _ -> body_open() }
+    }
+    state copy_open() { self.next_token(); self.expect_word(4, 4); transition self.status == 0 { true -> copy_close() _ -> done() } }
+    state copy_close() { self.expect_token(93); self.data_copy[self.current_data] = 1; transition self.status == 0 { true -> body_open() _ -> done() } }
+    state body_open() { self.expect_token(123); transition self.status == 0 { true -> fields() _ -> done() } }
+    state fields() { transition self.tok == 125 { true -> complete() _ -> field_limit() } }
+    state field_limit() { transition self.data_field_counts[self.current_data] < 64 { true -> field_capacity() _ -> exhausted() } }
+    state field_capacity() { transition self.field_count < 8192 { true -> field_name() _ -> exhausted() } }
+    state field_name() { transition self.tok == 256 { true -> field_unique() _ -> bad() } }
+    state field_unique() {
+        self.saved_tok_start = self.tok_start; self.saved_tok_len = self.tok_len;
+        self.field_name_exists(self.current_data, self.saved_tok_start, self.saved_tok_len);
+        transition self.match_ok == 0 { true -> field_save() _ -> bad() }
+    }
+    state field_save() {
+        self.field_owners[self.field_count] = self.current_data;
+        self.field_name_starts[self.field_count] = self.saved_tok_start;
+        self.field_name_lengths[self.field_count] = self.saved_tok_len;
+        self.next_token(); self.expect_token(58);
+        transition self.status == 0 { true -> field_type() _ -> done() }
+    }
+    state field_type() { self.parse_type(); transition self.status == 0 { true -> field_type_save() _ -> done() } }
+    state field_type_save() {
+        self.field_types[self.field_count] = self.expr_type;
+        self.field_count = self.field_count + 1;
+        self.data_field_counts[self.current_data] = self.data_field_counts[self.current_data] + 1;
+        self.expect_token(59); transition self.status == 0 { true -> fields() _ -> done() }
+    }
+    state complete() { self.next_token(); transition 0 { _ -> done() } }
+    state exhausted() { self.status = 252; transition 0 { _ -> done() } }
+    state bad() { self.reject(); }
+    state done() { }
+}
+
+machine Main::machine_name_exists(&mut self, owner_start: i32, name_start: i32, name_len: i32) {
+    self.match_ok = 0; self.j = 0;
+    transition 0 { _ -> loop() }
+    state loop() { transition self.j < self.machine_count { true -> candidate() _ -> done() } }
+    state candidate() { self.match_ok = 0; transition self.saved_tok_len == self.machine_owner_lengths[self.j] { true -> owner_bytes() _ -> next() } }
+    state owner_bytes() {
+        self.spans_equal(owner_start, self.machine_owner_starts[self.j], self.saved_tok_len);
+        transition self.match_ok == 1 { true -> name() _ -> next() }
+    }
+    state name() { transition name_len == self.machine_name_lengths[self.j] { true -> name_bytes() _ -> no_match() } }
+    state name_bytes() {
+        self.spans_equal(name_start, self.machine_name_starts[self.j], name_len);
+        transition self.match_ok == 1 { true -> done() _ -> next() }
+    }
+    state no_match() { self.match_ok = 0; transition 0 { _ -> next() } }
+    state next() { self.j = self.j + 1; transition 0 { _ -> loop() } }
+    state done() { }
+}
+
+machine Main::collect_machine(&mut self) {
+    self.next_token();
+    transition self.tok == 256 { true -> owner_save() _ -> bad() }
+    state owner_save() {
+        self.saved_tok_start = self.tok_start; self.saved_tok_len = self.tok_len;
+        self.next_token(); self.expect_token(58); transition self.status == 0 { true -> owner_colon2() _ -> done() }
+    }
+    state owner_colon2() { self.expect_token(58); transition self.status == 0 { true -> name_token() _ -> done() } }
+    state name_token() { transition self.tok == 256 { true -> unique() _ -> bad() } }
+    state unique() {
+        self.machine_name_exists(self.saved_tok_start, self.tok_start, self.tok_len);
+        transition self.match_ok == 0 { true -> capacity() _ -> bad() }
+    }
+    state capacity() { transition self.machine_count < 128 { true -> type_capacity() _ -> exhausted() } }
+    state type_capacity() { transition self.type_count < 32768 { true -> save() _ -> exhausted() } }
+    state save() {
+        self.current_machine = self.machine_count;
+        self.machine_owner_starts[self.current_machine] = self.saved_tok_start;
+        self.machine_owner_lengths[self.current_machine] = self.saved_tok_len;
+        self.machine_owners[self.current_machine] = 0 - 1;
+        self.machine_name_starts[self.current_machine] = self.tok_start;
+        self.machine_name_lengths[self.current_machine] = self.tok_len;
+        self.machine_result_types[self.current_machine] = 0 - 1;
+        self.machine_self_types[self.current_machine] = self.type_count;
+        self.type_kinds[self.type_count] = 4;
+        self.type_name_starts[self.type_count] = self.saved_tok_start;
+        self.type_name_lengths[self.type_count] = self.saved_tok_len;
+        self.type_nominals[self.type_count] = 0 - 1;
+        self.type_elements[self.type_count] = 0 - 1;
+        self.type_array_lengths[self.type_count] = 0;
+        self.type_trapping[self.type_count] = 0;
+        self.type_range_los[self.type_count] = 0;
+        self.type_range_his[self.type_count] = 0;
+        self.type_count = self.type_count + 1;
+        self.machine_state_starts[self.current_machine] = self.state_count;
+        self.machine_state_counts[self.current_machine] = 0;
+        self.machine_count = self.machine_count + 1;
+        self.next_token(); self.expect_token(40);
+        transition self.status == 0 { true -> params() _ -> done() }
+    }
+    state params() { self.parse_parameter_list(self.current_machine); transition self.status == 0 { true -> params_save() _ -> done() } }
+    state params_save() {
+        self.machine_param_starts[self.current_machine] = self.current_param_start;
+        self.machine_param_counts[self.current_machine] = self.current_param_count;
+        self.machine_receiver_mut[self.current_machine] = self.current_receiver_mut;
+        transition self.tok == 45 { true -> result_arrow() _ -> body_open() }
+    }
+    state result_arrow() { self.next_token(); self.expect_token(62); transition self.status == 0 { true -> result_type() _ -> done() } }
+    state result_type() { self.parse_type(); transition self.status == 0 { true -> result_save() _ -> done() } }
+    state result_save() { self.machine_result_types[self.current_machine] = self.expr_type; transition 0 { _ -> body_open() } }
+    state body_open() { self.expect_token(123); transition self.status == 0 { true -> body_save() _ -> done() } }
+    state body_save() {
+        self.machine_body_starts[self.current_machine] = self.tok_start;
+        self.skip_balanced_body();
+        transition self.status == 0 { true -> body_end() _ -> done() }
+    }
+    state body_end() { self.machine_body_ends[self.current_machine] = self.saved_pos; transition 0 { _ -> done() } }
+    state exhausted() { self.status = 252; transition 0 { _ -> done() } }
+    state bad() { self.reject(); }
+    state done() { }
+}
+
+machine Main::collect_roots(&mut self) {
+    self.root_count = 0; self.data_count = 0; self.field_count = 0;
+    self.machine_count = 0; self.state_count = 0; self.param_count = 0; self.type_count = 0;
+    transition 0 { _ -> loop() }
+    state loop() { transition self.tok == 0 { true -> done() _ -> root_limit() } }
+    state root_limit() { transition self.root_count < 128 { true -> classify() _ -> exhausted() } }
+    state classify() {
+        self.token_word(0, 4);
+        transition self.match_ok == 1 { true -> data_root() _ -> machine_check() }
+    }
+    state data_root() {
+        self.root_count = self.root_count + 1; self.collect_data();
+        transition self.status == 0 { true -> loop() _ -> done() }
+    }
+    state machine_check() { self.token_word(8, 7); transition self.match_ok == 1 { true -> machine_root() _ -> bad() } }
+    state machine_root() {
+        self.root_count = self.root_count + 1; self.collect_machine();
+        transition self.status == 0 { true -> loop() _ -> done() }
+    }
+    state exhausted() { self.status = 252; transition 0 { _ -> done() } }
+    state bad() { self.reject(); }
+    state done() { }
+}
+
+machine Main::type_is_copy(&mut self, type_id: i32) {
+    self.match_ok = 1;
+    transition self.type_kinds[type_id] == 4 { true -> nominal() _ -> array() }
+    state nominal() { transition self.data_copy[self.type_nominals[type_id]] == 1 { true -> done() _ -> no() } }
+    state array() { transition self.type_kinds[type_id] == 5 { true -> array_element() _ -> done() } }
+    state array_element() { self.type_is_copy(self.type_elements[type_id]); transition self.match_ok == 1 { true -> done() _ -> no() } }
+    state no() { self.match_ok = 0; }
+    state done() { }
+}
+
+machine Main::resolve_types(&mut self) {
+    self.scan_index = 0;
+    transition 0 { _ -> types() }
+    state types() { transition self.scan_index < self.type_count { true -> type() _ -> copy_begin() } }
+    state type() { transition self.type_kinds[self.scan_index] == 4 { true -> nominal() _ -> type_next() } }
+    state nominal() {
+        self.find_data_span(self.type_name_starts[self.scan_index], self.type_name_lengths[self.scan_index]);
+        transition self.current_data >= 0 { true -> nominal_save() _ -> bad() }
+    }
+    state nominal_save() { self.type_nominals[self.scan_index] = self.current_data; transition 0 { _ -> type_next() } }
+    state type_next() { self.scan_index = self.scan_index + 1; transition 0 { _ -> types() } }
+    state copy_begin() { self.scan_index = 0; transition 0 { _ -> copies() } }
+    state copies() { transition self.scan_index < self.data_count { true -> copy_data() _ -> machines_begin() } }
+    state copy_data() { transition self.data_copy[self.scan_index] == 1 { true -> copy_fields_begin() _ -> copy_next() } }
+    state copy_fields_begin() {
+        self.scan_end = self.data_field_starts[self.scan_index] + self.data_field_counts[self.scan_index];
+        self.k = self.data_field_starts[self.scan_index]; transition 0 { _ -> copy_fields() }
+    }
+    state copy_fields() { transition self.k < self.scan_end { true -> copy_field() _ -> copy_next() } }
+    state copy_field() { self.type_is_copy(self.field_types[self.k]); transition self.match_ok == 1 { true -> copy_field_next() _ -> bad() } }
+    state copy_field_next() { self.k = self.k + 1; transition 0 { _ -> copy_fields() } }
+    state copy_next() { self.scan_index = self.scan_index + 1; transition 0 { _ -> copies() } }
+    state machines_begin() { self.scan_index = 0; transition 0 { _ -> machines() } }
+    state machines() { transition self.scan_index < self.machine_count { true -> owner() _ -> done() } }
+    state owner() {
+        self.find_data_span(self.machine_owner_starts[self.scan_index], self.machine_owner_lengths[self.scan_index]);
+        transition self.current_data >= 0 { true -> owner_save() _ -> bad() }
+    }
+    state owner_save() {
+        self.machine_owners[self.scan_index] = self.current_data;
+        self.scan_index = self.scan_index + 1; transition 0 { _ -> machines() }
+    }
+    state bad() { self.reject(); }
+    state done() { }
+}
+
+machine Main::state_name_exists(&mut self, owner: i32, start: i32, count: i32) {
+    self.match_ok = 0; self.j = self.machine_state_starts[owner];
+    self.k = self.j + self.machine_state_counts[owner];
+    transition 0 { _ -> loop() }
+    state loop() { transition self.j < self.k { true -> length() _ -> done() } }
+    state length() { transition count == self.state_name_lengths[self.j] { true -> compare() _ -> next() } }
+    state compare() {
+        self.spans_equal(start, self.state_name_starts[self.j], count);
+        transition self.match_ok == 1 { true -> done() _ -> next() }
+    }
+    state next() { self.j = self.j + 1; transition 0 { _ -> loop() } }
+    state done() { }
+}
+
+machine Main::find_state_span(&mut self, owner: i32, start: i32, count: i32) {
+    self.current_state = 0 - 1; self.j = self.machine_state_starts[owner];
+    self.k = self.j + self.machine_state_counts[owner];
+    transition 0 { _ -> loop() }
+    state loop() { transition self.j < self.k { true -> length() _ -> done() } }
+    state length() { transition count == self.state_name_lengths[self.j] { true -> compare() _ -> next() } }
+    state compare() {
+        self.spans_equal(start, self.state_name_starts[self.j], count);
+        transition self.match_ok == 1 { true -> found() _ -> next() }
+    }
+    state found() { self.current_state = self.j; transition 0 { _ -> done() } }
+    state next() { self.j = self.j + 1; transition 0 { _ -> loop() } }
+    state done() { }
+}
+
+machine Main::collect_one_state(&mut self) {
+    self.next_token();
+    transition self.tok == 256 { true -> unique() _ -> bad() }
+    state unique() {
+        self.saved_tok_start = self.tok_start; self.saved_tok_len = self.tok_len;
+        self.state_name_exists(self.current_machine, self.saved_tok_start, self.saved_tok_len);
+        transition self.match_ok == 0 { true -> per_machine_capacity() _ -> bad() }
+    }
+    // The implicit entry plus at most 127 explicit states equals the public 128.
+    state per_machine_capacity() { transition self.machine_state_counts[self.current_machine] < 127 { true -> total_capacity() _ -> exhausted() } }
+    state total_capacity() { transition self.state_count < 16384 { true -> save() _ -> exhausted() } }
+    state save() {
+        self.current_state = self.state_count;
+        self.state_owners[self.current_state] = self.current_machine;
+        self.state_name_starts[self.current_state] = self.saved_tok_start;
+        self.state_name_lengths[self.current_state] = self.saved_tok_len;
+        self.state_fact_mode[self.current_state] = 0 - 1;
+        self.state_count = self.state_count + 1;
+        self.machine_state_counts[self.current_machine] = self.machine_state_counts[self.current_machine] + 1;
+        self.next_token(); self.expect_token(40);
+        transition self.status == 0 { true -> params() _ -> done() }
+    }
+    state params() { self.parse_parameter_list(1000 + self.current_state); transition self.status == 0 { true -> params_save() _ -> done() } }
+    state params_save() {
+        self.state_param_starts[self.current_state] = self.current_param_start;
+        self.state_param_counts[self.current_state] = self.current_param_count;
+        self.state_receiver_mut[self.current_state] = self.current_receiver_mut;
+        transition self.current_receiver_mut <= self.machine_receiver_mut[self.current_machine] { true -> body_open() _ -> bad() }
+    }
+    state body_open() { self.expect_token(123); transition self.status == 0 { true -> body_save() _ -> done() } }
+    state body_save() {
+        self.state_body_starts[self.current_state] = self.tok_start;
+        self.skip_balanced_body();
+        transition self.status == 0 { true -> body_end() _ -> done() }
+    }
+    state body_end() { self.state_body_ends[self.current_state] = self.saved_pos; transition 0 { _ -> done() } }
+    state exhausted() { self.status = 252; transition 0 { _ -> done() } }
+    state bad() { self.reject(); }
+    state done() { }
+}
+
+machine Main::collect_machine_states(&mut self) {
+    self.limit = self.machine_body_ends[self.current_machine];
+    self.pos = self.machine_body_starts[self.current_machine];
+    self.depth = 0; self.seen_state = 0; self.next_token();
+    transition self.status == 0 { true -> loop() _ -> done() }
+    state loop() { transition self.tok == 0 { true -> finish() _ -> top() } }
+    state top() { transition self.depth == 0 { true -> state_check() _ -> brace() } }
+    state state_check() {
+        self.token_word(22, 5);
+        transition self.match_ok == 1 { true -> state_begin() _ -> entry_token() }
+    }
+    state state_begin() { transition self.seen_state == 0 { true -> first_state() _ -> state_collect() } }
+    state first_state() {
+        self.machine_entry_ends[self.current_machine] = self.tok_start;
+        self.seen_state = 1; transition 0 { _ -> state_collect() }
+    }
+    state state_collect() {
+        self.collect_one_state();
+        transition self.status == 0 { true -> loop() _ -> done() }
+    }
+    state entry_token() { transition self.seen_state == 0 { true -> brace() _ -> bad() } }
+    state brace() { transition self.tok == 123 { true -> open() _ -> close() } }
+    state open() { self.depth = self.depth + 1; self.next_token(); transition 0 { _ -> loop() } }
+    state close() { transition self.tok == 125 { true -> close_sub() _ -> advance() } }
+    state close_sub() { transition self.depth > 0 { true -> close_ok() _ -> bad() } }
+    state close_ok() { self.depth = self.depth - 1; self.next_token(); transition 0 { _ -> loop() } }
+    state advance() { self.next_token(); transition self.status == 0 { true -> loop() _ -> done() } }
+    state finish() { transition self.depth == 0 { true -> finish_entry() _ -> bad() } }
+    state finish_entry() { transition self.seen_state == 0 { true -> no_states() _ -> done() } }
+    state no_states() { self.machine_entry_ends[self.current_machine] = self.machine_body_ends[self.current_machine]; transition 0 { _ -> done() } }
+    state bad() { self.reject(); }
+    state done() { }
+}
+
+machine Main::collect_all_states(&mut self) {
+    self.scan_index = 0;
+    transition 0 { _ -> loop() }
+    state loop() { transition self.scan_index < self.machine_count { true -> one() _ -> resolve_new_types() } }
+    state one() {
+        self.current_machine = self.scan_index;
+        self.machine_state_starts[self.current_machine] = self.state_count;
+        self.collect_machine_states();
+        transition self.status == 0 { true -> next() _ -> done() }
+    }
+    state next() { self.scan_index = self.scan_index + 1; transition 0 { _ -> loop() } }
+    state resolve_new_types() {
+        self.limit = self.n; self.resolve_types(); transition 0 { _ -> done() }
+    }
+    state done() { }
+}
+
+machine Main::find_field_span(&mut self, owner: i32, start: i32, count: i32) {
+    self.expr_subject_id = 0 - 1; self.j = self.data_field_starts[owner];
+    self.k = self.j + self.data_field_counts[owner];
+    transition 0 { _ -> loop() }
+    state loop() { transition self.j < self.k { true -> length() _ -> done() } }
+    state length() { transition count == self.field_name_lengths[self.j] { true -> compare() _ -> next() } }
+    state compare() {
+        self.spans_equal(start, self.field_name_starts[self.j], count);
+        transition self.match_ok == 1 { true -> found() _ -> next() }
+    }
+    state found() { self.expr_subject_id = self.j; transition 0 { _ -> done() } }
+    state next() { self.j = self.j + 1; transition 0 { _ -> loop() } }
+    state done() { }
+}
+
+machine Main::find_param_span(&mut self, start: i32, count: i32) {
+    self.expr_subject_id = 0 - 1;
+    transition self.current_state >= 0 { true -> state_begin() _ -> entry_begin() }
+    state state_begin() {
+        self.j = self.state_param_starts[self.current_state];
+        self.k = self.j + self.state_param_counts[self.current_state];
+        transition 0 { _ -> state_loop() }
+    }
+    state state_loop() { transition self.j < self.k { true -> state_length() _ -> entry_begin() } }
+    state state_length() { transition count == self.param_name_lengths[self.j] { true -> state_compare() _ -> state_next() } }
+    state state_compare() {
+        self.spans_equal(start, self.param_name_starts[self.j], count);
+        transition self.match_ok == 1 { true -> found() _ -> state_next() }
+    }
+    state state_next() { self.j = self.j + 1; transition 0 { _ -> state_loop() } }
+    state entry_begin() {
+        self.j = self.machine_param_starts[self.current_machine];
+        self.k = self.j + self.machine_param_counts[self.current_machine];
+        transition 0 { _ -> entry_loop() }
+    }
+    state entry_loop() { transition self.j < self.k { true -> entry_length() _ -> done() } }
+    state entry_length() { transition count == self.param_name_lengths[self.j] { true -> entry_compare() _ -> entry_next() } }
+    state entry_compare() {
+        self.spans_equal(start, self.param_name_starts[self.j], count);
+        transition self.match_ok == 1 { true -> found() _ -> entry_next() }
+    }
+    state entry_next() { self.j = self.j + 1; transition 0 { _ -> entry_loop() } }
+    state found() { self.expr_subject_id = self.j; transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::refine_expression_fact(&mut self) {
+    transition self.current_state >= 0 { true -> mode() _ -> done() }
+    state mode() { transition self.state_fact_mode[self.current_state] == 1 { true -> subject_kind() _ -> done() } }
+    state subject_kind() { transition self.expr_subject_kind == self.state_fact_kind[self.current_state] { true -> subject_id() _ -> done() } }
+    state subject_id() { transition self.expr_subject_id == self.state_fact_id[self.current_state] { true -> refine() _ -> done() } }
+    state refine() { transition self.expr_hi > self.state_fact_hi[self.current_state] { true -> set() _ -> done() } }
+    state set() { self.expr_hi = self.state_fact_hi[self.current_state]; }
+    state done() { }
+}
+
+machine Main::push_expression(&mut self) {
+    transition self.expr_stack_used < 8 { true -> save() _ -> exhausted() }
+    state save() {
+        self.stack_types[self.expr_stack_used] = self.expr_type;
+        self.stack_los[self.expr_stack_used] = self.expr_lo;
+        self.stack_his[self.expr_stack_used] = self.expr_hi;
+        self.stack_lvalues[self.expr_stack_used] = self.expr_lvalue;
+        self.stack_mutables[self.expr_stack_used] = self.expr_mutable;
+        self.stack_subject_kinds[self.expr_stack_used] = self.expr_subject_kind;
+        self.stack_subject_ids[self.expr_stack_used] = self.expr_subject_id;
+        self.stack_tree_depths[self.expr_stack_used] = self.expr_tree_depth;
+        self.stack_path_depths[self.expr_stack_used] = self.expr_path_depth;
+        self.expr_stack_used = self.expr_stack_used + 1;
+        transition 0 { _ -> done() }
+    }
+    state exhausted() { self.status = 252; }
+    state done() { }
+}
+
+machine Main::pop_left_expression(&mut self) {
+    transition self.expr_stack_used > 0 { true -> load() _ -> bad() }
+    state load() {
+        self.expr_stack_used = self.expr_stack_used - 1;
+        self.left_type = self.stack_types[self.expr_stack_used];
+        self.left_lo = self.stack_los[self.expr_stack_used];
+        self.left_hi = self.stack_his[self.expr_stack_used];
+        self.left_lvalue = self.stack_lvalues[self.expr_stack_used];
+        self.left_mutable = self.stack_mutables[self.expr_stack_used];
+        self.left_subject_kind = self.stack_subject_kinds[self.expr_stack_used];
+        self.left_subject_id = self.stack_subject_ids[self.expr_stack_used];
+        self.depth = self.stack_tree_depths[self.expr_stack_used];
+        self.path_depth = self.stack_path_depths[self.expr_stack_used];
+        transition 0 { _ -> done() }
+    }
+    state bad() { self.reject(); }
+    state done() { }
+}
+
+machine Main::types_same(&mut self, left: i32, right: i32) {
+    self.match_ok = 0;
+    transition left == right { true -> yes() _ -> special() }
+    state special() { transition left < 0 { true -> done() _ -> right_valid() } }
+    state right_valid() { transition right < 0 { true -> done() _ -> kind() } }
+    state kind() { transition self.type_kinds[left] == self.type_kinds[right] { true -> kind_value() _ -> done() } }
+    state kind_value() { transition self.type_kinds[left] == 4 { true -> nominal() _ -> array() } }
+    state nominal() { transition self.type_nominals[left] == self.type_nominals[right] { true -> yes() _ -> done() } }
+    state array() { transition self.type_kinds[left] == 5 { true -> array_length() _ -> yes() } }
+    state array_length() { transition self.type_array_lengths[left] == self.type_array_lengths[right] { true -> array_element() _ -> done() } }
+    state array_element() { self.types_same(self.type_elements[left], self.type_elements[right]); transition 0 { _ -> done() } }
+    state yes() { self.match_ok = 1; }
+    state done() { }
+}
+
+machine Main::expression_assignable(&mut self, expected: i32, actual: i32) {
+    self.match_ok = 0;
+    transition actual == 0 - 2 { true -> integer_literal() _ -> bool_literal() }
+    state integer_literal() { transition self.type_kinds[expected] == 1 { true -> numeric_range() _ -> integer_u32() } }
+    state integer_u32() { transition self.type_kinds[expected] == 2 { true -> numeric_range() _ -> done() } }
+    state bool_literal() { transition actual == 0 - 3 { true -> bool_expected() _ -> typed() } }
+    state bool_expected() { transition self.type_kinds[expected] == 3 { true -> yes() _ -> done() } }
+    state typed() {
+        self.types_same(expected, actual);
+        transition self.match_ok == 1 { true -> typed_range() _ -> done() }
+    }
+    state typed_range() { transition self.type_kinds[expected] == 1 { true -> numeric_range() _ -> typed_u32() } }
+    state typed_u32() { transition self.type_kinds[expected] == 2 { true -> numeric_range() _ -> yes() } }
+    state numeric_range() { transition self.expr_lo >= self.type_range_los[expected] { true -> numeric_high() _ -> done() } }
+    state numeric_high() { transition self.expr_hi <= self.type_range_his[expected] { true -> yes() _ -> done() } }
+    state yes() { self.match_ok = 1; }
+    state done() { }
+}
+
+machine Main::parse_primary(&mut self) {
+    self.expr_type = 0 - 1; self.expr_lo = 0; self.expr_hi = 0;
+    self.expr_lvalue = 0; self.expr_mutable = 0;
+    self.expr_subject_kind = 0; self.expr_subject_id = 0 - 1;
+    self.expr_tree_depth = 1; self.expr_path_depth = 0;
+    transition self.tok == 257 { true -> integer() _ -> identifier() }
+    state integer() {
+        self.expr_type = 0 - 2; self.expr_lo = self.int_value; self.expr_hi = self.int_value;
+        self.next_token(); transition 0 { _ -> done() }
+    }
+    state identifier() { transition self.tok == 256 { true -> true_check() _ -> paren() } }
+    state true_check() { self.token_word(37, 4); transition self.match_ok == 1 { true -> true_value() _ -> false_check() } }
+    state true_value() { self.expr_type = 0 - 3; self.expr_lo = 1; self.expr_hi = 1; self.next_token(); transition 0 { _ -> done() } }
+    state false_check() { self.token_word(41, 5); transition self.match_ok == 1 { true -> false_value() _ -> self_check() } }
+    state false_value() { self.expr_type = 0 - 3; self.expr_lo = 0; self.expr_hi = 0; self.next_token(); transition 0 { _ -> done() } }
+    state self_check() { self.token_word(18, 4); transition self.match_ok == 1 { true -> self_value() _ -> parameter() } }
+    state self_value() {
+        self.expr_type = self.machine_self_types[self.current_machine];
+        self.expr_lvalue = 1; self.expr_mutable = self.current_receiver_mut;
+        self.expr_subject_kind = 3; self.expr_subject_id = self.machine_owners[self.current_machine];
+        self.next_token(); transition 0 { _ -> done() }
+    }
+    state parameter() {
+        self.find_param_span(self.tok_start, self.tok_len);
+        transition self.expr_subject_id >= 0 { true -> parameter_value() _ -> bad() }
+    }
+    state parameter_value() {
+        self.expr_type = self.param_types[self.expr_subject_id];
+        self.expr_lo = self.type_range_los[self.expr_type]; self.expr_hi = self.type_range_his[self.expr_type];
+        self.expr_lvalue = 1; self.expr_mutable = 0; self.expr_subject_kind = 2;
+        self.refine_expression_fact(); self.next_token(); transition 0 { _ -> done() }
+    }
+    state paren() { transition self.tok == 40 { true -> paren_open() _ -> bad() } }
+    state paren_open() { self.next_token(); self.parse_expression(); transition self.status == 0 { true -> paren_close() _ -> done() } }
+    state paren_close() { self.expect_token(41); transition 0 { _ -> done() } }
+    state bad() { self.reject(); }
+    state done() { }
+}
+
+machine Main::parse_postfix(&mut self) {
+    self.parse_primary();
+    transition self.status == 0 { true -> loop() _ -> done() }
+    state loop() { transition self.tok == 46 { true -> member() _ -> index_check() } }
+    state member() { transition self.expr_path_depth < 8 { true -> member_save() _ -> exhausted() } }
+    state member_save() {
+        self.left_type = self.expr_type; self.left_mutable = self.expr_mutable;
+        self.left_subject_kind = self.expr_subject_kind;
+        self.next_token(); transition self.tok == 256 { true -> member_base() _ -> bad() }
+    }
+    state member_base() { transition self.left_type >= 0 { true -> member_nominal() _ -> bad() } }
+    state member_nominal() { transition self.type_kinds[self.left_type] == 4 { true -> member_find() _ -> bad() } }
+    state member_find() {
+        self.find_field_span(self.type_nominals[self.left_type], self.tok_start, self.tok_len);
+        transition self.expr_subject_id >= 0 { true -> member_value() _ -> bad() }
+    }
+    state member_value() {
+        self.expr_type = self.field_types[self.expr_subject_id];
+        self.expr_lo = self.type_range_los[self.expr_type]; self.expr_hi = self.type_range_his[self.expr_type];
+        self.expr_lvalue = 1; self.expr_mutable = self.left_mutable;
+        self.expr_subject_kind = 1;
+        self.expr_tree_depth = self.expr_tree_depth + 1;
+        self.expr_path_depth = self.expr_path_depth + 1;
+        transition self.expr_tree_depth <= 8 { true -> member_refine() _ -> exhausted() }
+    }
+    state member_refine() { self.refine_expression_fact(); self.next_token(); transition 0 { _ -> loop() } }
+    state index_check() { transition self.tok == 91 { true -> index() _ -> done() } }
+    state index() { transition self.expr_path_depth < 8 { true -> index_base() _ -> exhausted() } }
+    state index_base() { transition self.expr_type >= 0 { true -> index_array() _ -> bad() } }
+    state index_array() { transition self.type_kinds[self.expr_type] == 5 { true -> index_push() _ -> bad() } }
+    state index_push() { self.push_expression(); transition self.status == 0 { true -> index_open() _ -> done() } }
+    state index_open() { self.next_token(); self.parse_expression(); transition self.status == 0 { true -> index_close() _ -> done() } }
+    state index_close() { self.expect_token(93); transition self.status == 0 { true -> index_numeric() _ -> done() } }
+    state index_numeric() { transition self.expr_type == 0 - 2 { true -> index_lower() _ -> index_typed() } }
+    state index_typed() { transition self.expr_type >= 0 { true -> index_typed_kind() _ -> bad() } }
+    state index_typed_kind() { transition self.type_kinds[self.expr_type] == 1 { true -> index_lower() _ -> index_u32() } }
+    state index_u32() { transition self.type_kinds[self.expr_type] == 2 { true -> index_lower() _ -> bad() } }
+    state index_lower() { transition self.expr_lo >= 0 { true -> index_pop() _ -> bad() } }
+    state index_pop() { self.saved_int_value = self.expr_hi; self.saved_pos = self.expr_tree_depth; self.pop_left_expression(); transition self.status == 0 { true -> index_upper() _ -> done() } }
+    state index_upper() { transition self.saved_int_value < self.type_array_lengths[self.left_type] { true -> index_value() _ -> bad() } }
+    state index_value() {
+        self.expr_type = self.type_elements[self.left_type];
+        self.expr_lo = self.type_range_los[self.expr_type]; self.expr_hi = self.type_range_his[self.expr_type];
+        self.expr_lvalue = self.left_lvalue; self.expr_mutable = self.left_mutable;
+        self.expr_subject_kind = 0; self.expr_subject_id = 0 - 1;
+        self.expr_tree_depth = self.depth; transition self.saved_pos > self.expr_tree_depth { true -> index_right_depth() _ -> index_depth_add() }
+    }
+    state index_right_depth() { self.expr_tree_depth = self.saved_pos; transition 0 { _ -> index_depth_add() } }
+    state index_depth_add() {
+        self.expr_tree_depth = self.expr_tree_depth + 1;
+        self.expr_path_depth = self.path_depth + 1;
+        transition self.expr_tree_depth <= 8 { true -> loop() _ -> exhausted() }
+    }
+    state exhausted() { self.status = 252; transition 0 { _ -> done() } }
+    state bad() { self.reject(); }
+    state done() { }
+}
+
+machine Main::combine_add(&mut self) {
+    transition self.left_type == 0 - 2 { true -> left_literal() _ -> left_typed() }
+    state left_literal() { transition self.expr_type == 0 - 2 { true -> choose_literal() _ -> right_numeric() } }
+    state choose_literal() { self.target_type = 0 - 2; transition 0 { _ -> bounds() } }
+    state right_numeric() { transition self.expr_type >= 0 { true -> right_kind() _ -> bad() } }
+    state right_kind() { transition self.type_kinds[self.expr_type] == 1 { true -> choose_right() _ -> right_u32() } }
+    state right_u32() { transition self.type_kinds[self.expr_type] == 2 { true -> choose_right() _ -> bad() } }
+    state choose_right() { self.target_type = self.expr_type; transition 0 { _ -> bounds() } }
+    state left_typed() { transition self.left_type >= 0 { true -> left_kind() _ -> bad() } }
+    state left_kind() { transition self.type_kinds[self.left_type] == 1 { true -> right_check() _ -> left_u32() } }
+    state left_u32() { transition self.type_kinds[self.left_type] == 2 { true -> right_check() _ -> bad() } }
+    state right_check() { transition self.expr_type == 0 - 2 { true -> choose_left() _ -> typed_same() } }
+    state typed_same() { self.types_same(self.left_type, self.expr_type); transition self.match_ok == 1 { true -> choose_left() _ -> bad() } }
+    state choose_left() { self.target_type = self.left_type; transition 0 { _ -> bounds() } }
+    // Validate both intervals before using either endpoint in trapping i32
+    // arithmetic. In particular, never subtract a partially initialized
+    // negative right endpoint from INT_MAX: lowermachine correctly traps that
+    // arithmetic before the comparison can reject the malformed interval.
+    state bounds() { transition self.left_lo >= 0 { true -> left_order() _ -> bad() } }
+    state left_order() { transition self.left_lo <= self.left_hi { true -> right_low() _ -> bad() } }
+    state right_low() { transition self.expr_lo >= 0 { true -> right_order() _ -> bad() } }
+    state right_order() { transition self.expr_lo <= self.expr_hi { true -> sum_bound() _ -> bad() } }
+    state sum_bound() { transition self.expr_hi <= 2147483647 - self.left_hi { true -> sum() _ -> bad() } }
+    state sum() {
+        self.expr_lo = self.left_lo + self.expr_lo; self.expr_hi = self.left_hi + self.expr_hi;
+        self.expr_type = self.target_type; self.expr_lvalue = 0; self.expr_mutable = 0;
+        self.expr_subject_kind = 0; self.expr_subject_id = 0 - 1;
+        self.expr_tree_depth = self.depth; transition self.saved_pos > self.expr_tree_depth { true -> right_depth() _ -> depth_add() }
+    }
+    state right_depth() { self.expr_tree_depth = self.saved_pos; transition 0 { _ -> depth_add() } }
+    state depth_add() { self.expr_tree_depth = self.expr_tree_depth + 1; transition self.expr_tree_depth <= 8 { true -> done() _ -> exhausted() } }
+    state exhausted() { self.status = 252; transition 0 { _ -> done() } }
+    state bad() { self.reject(); }
+    state done() { }
+}
+
+machine Main::parse_add(&mut self) {
+    self.parse_postfix();
+    transition self.status == 0 { true -> loop() _ -> done() }
+    state loop() { transition self.tok == 43 { true -> plus() _ -> done() } }
+    state plus() { self.push_expression(); transition self.status == 0 { true -> right() _ -> done() } }
+    state right() { self.next_token(); self.parse_postfix(); transition self.status == 0 { true -> restore() _ -> done() } }
+    state restore() { self.saved_pos = self.expr_tree_depth; self.pop_left_expression(); self.combine_add(); transition self.status == 0 { true -> loop() _ -> done() } }
+    state done() { }
+}
+
+machine Main::parse_expression(&mut self) {
+    self.guard_fact_valid = 0; self.parse_add();
+    transition self.status == 0 { true -> compare() _ -> done() }
+    state compare() { transition self.tok == 60 { true -> less() _ -> done() } }
+    state less() { self.push_expression(); transition self.status == 0 { true -> right() _ -> done() } }
+    state right() { self.next_token(); self.parse_add(); transition self.status == 0 { true -> restore() _ -> done() } }
+    state restore() { self.saved_pos = self.expr_tree_depth; self.pop_left_expression(); transition self.status == 0 { true -> numeric() _ -> done() } }
+    state numeric() { transition self.left_type == 0 - 2 { true -> right_numeric() _ -> left_typed() } }
+    state left_typed() { transition self.left_type >= 0 { true -> left_kind() _ -> bad() } }
+    state left_kind() { transition self.type_kinds[self.left_type] == 1 { true -> right_numeric() _ -> left_u32() } }
+    state left_u32() { transition self.type_kinds[self.left_type] == 2 { true -> right_numeric() _ -> bad() } }
+    state right_numeric() { transition self.expr_type == 0 - 2 { true -> fact() _ -> right_typed() } }
+    state right_typed() { transition self.expr_type >= 0 { true -> right_kind() _ -> bad() } }
+    state right_kind() { transition self.type_kinds[self.expr_type] == 1 { true -> fact() _ -> right_u32() } }
+    state right_u32() { transition self.type_kinds[self.expr_type] == 2 { true -> fact() _ -> bad() } }
+    state fact() {
+        self.guard_fact_valid = 0;
+        transition self.left_subject_kind > 0 { true -> fact_bound() _ -> boolean() }
+    }
+    state fact_bound() { transition self.expr_hi > 0 { true -> fact_save() _ -> boolean() } }
+    state fact_save() {
+        self.guard_fact_valid = 1; self.guard_fact_kind = self.left_subject_kind;
+        self.guard_fact_id = self.left_subject_id; self.guard_fact_hi = self.expr_hi - 1;
+        transition 0 { _ -> boolean() }
+    }
+    state boolean() {
+        self.expr_type = 0 - 3; self.expr_lo = 0; self.expr_hi = 1;
+        self.expr_lvalue = 0; self.expr_mutable = 0;
+        self.expr_subject_kind = 0; self.expr_subject_id = 0 - 1;
+        self.expr_tree_depth = self.depth; transition self.saved_pos > self.expr_tree_depth { true -> right_depth() _ -> depth_add() }
+    }
+    state right_depth() { self.expr_tree_depth = self.saved_pos; transition 0 { _ -> depth_add() } }
+    state depth_add() { self.expr_tree_depth = self.expr_tree_depth + 1; transition self.expr_tree_depth <= 8 { true -> done() _ -> exhausted() } }
+    state exhausted() { self.status = 252; transition 0 { _ -> done() } }
+    state bad() { self.reject(); }
+    state done() { }
+}
+
+machine Main::merge_state_fact(&mut self, target: i32, has_fact: i32) {
+    transition self.state_fact_mode[target] < 0 { true -> first() _ -> existing() }
+    state first() { transition has_fact == 1 { true -> first_fact() _ -> clear() } }
+    state first_fact() {
+        self.state_fact_mode[target] = 1;
+        self.state_fact_kind[target] = self.transition_fact_kind;
+        self.state_fact_id[target] = self.transition_fact_id;
+        self.state_fact_hi[target] = self.transition_fact_hi;
+        transition 0 { _ -> done() }
+    }
+    state existing() { transition self.state_fact_mode[target] == 1 { true -> existing_fact() _ -> done() } }
+    state existing_fact() { transition has_fact == 1 { true -> same_kind() _ -> clear() } }
+    state same_kind() { transition self.state_fact_kind[target] == self.transition_fact_kind { true -> same_id() _ -> clear() } }
+    state same_id() { transition self.state_fact_id[target] == self.transition_fact_id { true -> weaker() _ -> clear() } }
+    state weaker() { transition self.transition_fact_hi > self.state_fact_hi[target] { true -> set_weaker() _ -> done() } }
+    state set_weaker() { self.state_fact_hi[target] = self.transition_fact_hi; transition 0 { _ -> done() } }
+    state clear() { self.state_fact_mode[target] = 0; }
+    state done() { }
+}
+
+machine Main::parse_transition_arguments(&mut self, target: i32) {
+    self.arg_index = 0;
+    transition 0 { _ -> loop() }
+    state loop() { transition self.tok == 41 { true -> close() _ -> expected() } }
+    state expected() { transition self.arg_index < self.state_param_counts[target] { true -> expression() _ -> bad() } }
+    state expression() {
+        self.parse_expression();
+        transition self.status == 0 { true -> type() _ -> done() }
+    }
+    state type() {
+        self.expression_assignable(self.param_types[self.state_param_starts[target] + self.arg_index], self.expr_type);
+        transition self.match_ok == 1 { true -> argument_done() _ -> bad() }
+    }
+    state argument_done() {
+        self.arg_index = self.arg_index + 1;
+        transition self.tok == 44 { true -> comma() _ -> close_check() }
+    }
+    state comma() { self.next_token(); transition 0 { _ -> loop() } }
+    state close_check() { transition self.tok == 41 { true -> close() _ -> bad() } }
+    state close() { transition self.arg_index == self.state_param_counts[target] { true -> close_advance() _ -> bad() } }
+    state close_advance() { self.next_token(); transition 0 { _ -> done() } }
+    state bad() { self.reject(); }
+    state done() { }
+}
+
+machine Main::parse_transition(&mut self) {
+    self.next_token(); self.parse_expression();
+    transition self.status == 0 { true -> guard_type() _ -> done() }
+    state guard_type() { transition self.expr_type == 0 - 3 { true -> guard_save() _ -> guard_typed() } }
+    state guard_typed() { transition self.expr_type >= 0 { true -> guard_kind() _ -> bad() } }
+    state guard_kind() { transition self.type_kinds[self.expr_type] == 3 { true -> guard_save() _ -> bad() } }
+    state guard_save() {
+        self.transition_fact_valid = self.guard_fact_valid;
+        self.transition_fact_kind = self.guard_fact_kind;
+        self.transition_fact_id = self.guard_fact_id;
+        self.transition_fact_hi = self.guard_fact_hi;
+        self.expect_token(123);
+        self.arm_true = 0; self.arm_false = 0; self.arm_wild = 0;
+        transition self.status == 0 { true -> arms() _ -> done() }
+    }
+    state arms() { transition self.tok == 125 { true -> close() _ -> arm_label() } }
+    state arm_label() { transition self.tok == 256 { true -> arm_true_check() _ -> bad() } }
+    state arm_true_check() { self.token_word(37, 4); transition self.match_ok == 1 { true -> true_arm() _ -> arm_false_check() } }
+    state true_arm() { transition self.arm_true == 0 { true -> true_save() _ -> bad() } }
+    state true_save() { self.arm_true = 1; self.arm_fact = self.transition_fact_valid; self.next_token(); transition 0 { _ -> arrow() } }
+    state arm_false_check() { self.token_word(41, 5); transition self.match_ok == 1 { true -> false_arm() _ -> wild_check() } }
+    state false_arm() { transition self.arm_false == 0 { true -> false_save() _ -> bad() } }
+    state false_save() { self.arm_false = 1; self.arm_fact = 0; self.next_token(); transition 0 { _ -> arrow() } }
+    state wild_check() { transition self.tok_len == 1 { true -> wild_byte() _ -> bad() } }
+    state wild_byte() { transition self.source[self.tok_start] == 95 { true -> wild_arm() _ -> bad() } }
+    state wild_arm() { transition self.arm_wild == 0 { true -> wild_save() _ -> bad() } }
+    state wild_save() { self.arm_wild = 1; self.arm_fact = 0; self.next_token(); transition 0 { _ -> arrow() } }
+    state arrow() { self.expect_token(45); transition self.status == 0 { true -> arrow_head() _ -> done() } }
+    state arrow_head() { self.expect_token(62); transition self.status == 0 { true -> target_name() _ -> done() } }
+    state target_name() { transition self.tok == 256 { true -> target_find() _ -> bad() } }
+    state target_find() {
+        self.source_state = self.current_state;
+        self.find_state_span(self.current_machine, self.tok_start, self.tok_len);
+        self.target_state = self.current_state; self.current_state = self.source_state;
+        transition self.target_state >= 0 { true -> target_open() _ -> bad() }
+    }
+    state target_open() { self.next_token(); self.expect_token(40); transition self.status == 0 { true -> arguments() _ -> done() } }
+    state arguments() {
+        self.parse_transition_arguments(self.target_state);
+        transition self.status == 0 { true -> fact() _ -> done() }
+    }
+    state fact() { self.merge_state_fact(self.target_state, self.arm_fact); transition 0 { _ -> arms() } }
+    state close() { self.next_token(); transition self.arm_wild == 1 { true -> done() _ -> closed_pair() } }
+    state closed_pair() { transition self.arm_true == 1 { true -> closed_false() _ -> bad() } }
+    state closed_false() { transition self.arm_false == 1 { true -> done() _ -> bad() } }
+    state bad() { self.reject(); }
+    state done() { }
+}
+
+machine Main::invalidate_assigned_fact(&mut self) {
+    transition self.current_state >= 0 { true -> fact_mode() _ -> done() }
+    state fact_mode() { transition self.state_fact_mode[self.current_state] == 1 { true -> kind() _ -> done() } }
+    state kind() { transition self.target_subject_kind == self.state_fact_kind[self.current_state] { true -> id() _ -> done() } }
+    state id() { transition self.target_subject_id == self.state_fact_id[self.current_state] { true -> clear() _ -> done() } }
+    state clear() { self.state_fact_mode[self.current_state] = 0; }
+    state done() { }
+}
+
+machine Main::check_body(&mut self, start: i32, end: i32) {
+    self.limit = end; self.pos = start; self.statement_count = 0;
+    self.body_terminated = 0; self.body_value = 0; self.expr_stack_used = 0;
+    self.next_token();
+    transition self.status == 0 { true -> loop() _ -> done() }
+    state loop() { transition self.tok == 0 { true -> finish() _ -> statement_limit() } }
+    state statement_limit() { transition self.statement_count < 32 { true -> classify() _ -> exhausted() } }
+    state classify() {
+        self.token_word(27, 10);
+        transition self.match_ok == 1 { true -> transition_statement() _ -> expression() }
+    }
+    state transition_statement() {
+        self.statement_count = self.statement_count + 1; self.parse_transition();
+        transition self.status == 0 { true -> transition_end() _ -> transition_fail() }
+    }
+    state transition_fail() { transition 0 { _ -> done() } }
+    state transition_end() { transition self.tok == 0 { true -> transition_done() _ -> transition_tail() } }
+    state transition_tail() { self.reject(); transition 0 { _ -> done() } }
+    state transition_done() { self.body_terminated = 1; transition 0 { _ -> finish() } }
+    state expression() {
+        self.parse_expression();
+        transition self.status == 0 { true -> assignment_check() _ -> done() }
+    }
+    state assignment_check() { transition self.tok == 61 { true -> assignment() _ -> value_result() } }
+    state assignment() {
+        self.assignment_type_id = self.expr_type; self.target_lvalue = self.expr_lvalue;
+        self.target_mutable = self.expr_mutable;
+        self.target_subject_kind = self.expr_subject_kind;
+        self.target_subject_id = self.expr_subject_id;
+        transition self.target_lvalue == 1 { true -> assignment_mutable() _ -> bad() }
+    }
+    state assignment_mutable() { transition self.target_mutable == 1 { true -> assignment_rhs() _ -> bad() } }
+    state assignment_rhs() {
+        self.next_token(); self.parse_expression();
+        transition self.status == 0 { true -> assignment_type() _ -> done() }
+    }
+    state assignment_type() {
+        self.expression_assignable(self.assignment_type_id, self.expr_type);
+        transition self.match_ok == 1 { true -> assignment_copy() _ -> bad() }
+    }
+    state assignment_copy() { transition self.type_kinds[self.assignment_type_id] == 4 { true -> assignment_nominal_copy() _ -> assignment_array_copy() } }
+    state assignment_nominal_copy() {
+        self.type_is_copy(self.assignment_type_id);
+        transition self.match_ok == 1 { true -> assignment_end() _ -> bad() }
+    }
+    state assignment_array_copy() { transition self.type_kinds[self.assignment_type_id] == 5 { true -> assignment_array_check() _ -> assignment_end() } }
+    state assignment_array_check() {
+        self.type_is_copy(self.assignment_type_id);
+        transition self.match_ok == 1 { true -> assignment_end() _ -> bad() }
+    }
+    state assignment_end() {
+        self.expect_token(59); self.statement_count = self.statement_count + 1;
+        self.invalidate_assigned_fact();
+        transition self.status == 0 { true -> loop() _ -> done() }
+    }
+    state value_result() { transition self.current_result_type >= 0 { true -> result_type() _ -> bad() } }
+    state result_type() {
+        self.expression_assignable(self.current_result_type, self.expr_type);
+        transition self.match_ok == 1 { true -> result_end() _ -> bad() }
+    }
+    state result_end() {
+        self.statement_count = self.statement_count + 1; self.body_value = 1;
+        transition self.tok == 0 { true -> finish() _ -> bad() }
+    }
+    state finish() { transition self.current_result_type < 0 { true -> done() _ -> result_complete() } }
+    state result_complete() { transition self.body_value == 1 { true -> done() _ -> transition_complete() } }
+    state transition_complete() { transition self.body_terminated == 1 { true -> done() _ -> bad() } }
+    state exhausted() { self.status = 252; transition 0 { _ -> done() } }
+    state bad() { self.reject(); }
+    state done() { }
+}
+
+machine Main::check_all_bodies(&mut self) {
+    self.scan_index = 0;
+    transition 0 { _ -> machines() }
+    state machines() { transition self.scan_index < self.machine_count { true -> entry() _ -> complete() } }
+    state entry() {
+        self.current_machine = self.scan_index; self.current_state = 0 - 1;
+        self.current_receiver_mut = self.machine_receiver_mut[self.current_machine];
+        self.current_result_type = self.machine_result_types[self.current_machine];
+        self.check_body(self.machine_body_starts[self.current_machine], self.machine_entry_ends[self.current_machine]);
+        transition self.status == 0 { true -> states_begin() _ -> entry_fail() }
+    }
+    state entry_fail() { transition 0 { _ -> done() } }
+    state states_begin() {
+        self.body_state_index = self.machine_state_starts[self.current_machine];
+        self.body_state_end = self.body_state_index + self.machine_state_counts[self.current_machine];
+        transition 0 { _ -> states() }
+    }
+    state states() { transition self.body_state_index < self.body_state_end { true -> body_row() _ -> next_owner() } }
+    state body_row() {
+        self.current_state = self.body_state_index;
+        self.current_receiver_mut = self.state_receiver_mut[self.current_state];
+        self.current_result_type = self.machine_result_types[self.current_machine];
+        self.check_body(self.state_body_starts[self.current_state], self.state_body_ends[self.current_state]);
+        transition self.status == 0 { true -> next_body_row() _ -> body_fail() }
+    }
+    state body_fail() { transition 0 { _ -> done() } }
+    state next_body_row() { self.body_state_index = self.body_state_index + 1; transition 0 { _ -> states() } }
+    state next_owner() { self.scan_index = self.scan_index + 1; transition 0 { _ -> machines() } }
+    state complete() { self.limit = self.n; transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::main(&mut self) {
+    self.status = 0; self.init_words(); self.read_source();
+    transition self.status == 0 { true -> lex() _ -> finish() }
+    state lex() { self.limit = self.n; self.pos = 0; self.next_token(); transition self.status == 0 { true -> roots() _ -> finish() } }
+    state roots() { self.collect_roots(); transition self.status == 0 { true -> resolve() _ -> finish() } }
+    state resolve() { self.resolve_types(); transition self.status == 0 { true -> states() _ -> finish() } }
+    state states() { self.collect_all_states(); transition self.status == 0 { true -> bodies() _ -> finish() } }
+    state bodies() { self.check_all_bodies(); transition 0 { _ -> finish() } }
+    state finish() { self.console.exit_process(self.status); }
+}

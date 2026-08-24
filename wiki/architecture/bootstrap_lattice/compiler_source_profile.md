@@ -235,8 +235,9 @@ establishes the implementation and assurance cost.
 | propositions, proof facts/contracts, quotients, and proof-program mathematics | presumptively exclude | retain only if the compiler implementation itself has an unavoidable use; implementing proof checking for user programs is not such a use |
 | executable termination/ranking clauses | measure | do not conflate ranking evidence used by compiler control flow with the excluded proof surface; checkpoint 000001 already uses one ranking clause |
 | linear and dependent types | presumptively exclude | same source-need and total-cost test |
-| concrete literal scalar ranges | measure | checkpoint 000001 uses them for fixed-buffer lengths and indexing without dependent bounds; compare with narrow checked helpers |
-| ordinary named record fields | presumptively retain | removing names from ordinary compiler data is likely to make the source less clear and more brittle |
+| concrete literal scalar ranges | measure | checkpoint 000001 uses them for fixed-buffer lengths and indexing without dependent bounds; the first Delta checker probe closes endpoints through 65,536 but its signed-`i32` carrier explicitly leaves larger `u32` endpoints unsupported; compare full-width representation with narrow checked helpers |
+| ordinary named record fields | presumptively retain | the first general Delta checker probe establishes frontend feasibility but at substantial fixed-backing/reference-meaning cost; compare that measured cost with the clarity and regularity loss from positional compiler data before the artifact tranche |
+| fixed arrays and checked indexing | measure | the same probe closes general frontend rules and guarded-index obligations through length 65,536; settle layout/lowering and compare with arena/library encodings in the artifact tranche |
 | payload-bearing enums/sum data | presumptively retain | compare direct syntax/IR modeling with separate explicit-tag records; splitting is a cost option, not a prior ruling |
 | basic generics | presumptively retain | collection, result, arena-ID, and compiler-data reuse versus monomorphic duplication |
 | concrete domains and domain arithmetic | measure | compare with explicit compiler contexts and narrow operations |
@@ -246,6 +247,14 @@ establishes the implementation and assurance cost.
 | numeric/schema field tags such as `0:` | measure | compare with ordinary named fields; these are distinct from named record fields and may be omitted without making records positional |
 | complex transition payloads | measure | compare with transitions over simple values plus explicit compiler context |
 | mixed field-plus-case data | measure | compare with separate record and sum-data types; either shape remains ordinary Omega |
+
+The first concrete cost result for the record/array/attached-machine cluster is
+the bootstrap-owned
+[`SOURCE_CUSTODY_FRONTEND_PROBE.md`](../../../bootstrap/omega-bootstrap/compiler/SOURCE_CUSTODY_FRONTEND_PROBE.md).
+It closes a general checker-only implementation and its native, self-built, and
+lower-rung meaning evidence. It does not yet resolve the rows above because
+layout/lowering, artifact assurance, full-width integer pressure, and the cost
+of the competing product-source refactor remain open.
 
 Source-unit membership is a separate question from language features.
 Standalone terminal-Psi tools, interpreters, REPLs, proof explorers, viewers,

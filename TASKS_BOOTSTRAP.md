@@ -152,7 +152,7 @@ Grow the bridge from checkpoint needs through general capabilities. Do not
 recognize the current compiler files, declaration counts, or syntax-tree
 permutations.
 
-- [ ] Complete the first checkpoint-driven frontend cost probe over
+- [x] Complete the first checkpoint-driven frontend cost probe over
   `compiler/psi/source/source.omg`. Implement compositional parsing, resolution,
   type checking, mutation/lvalue checking, and guarded range/index obligations
   for the source families it isolates: ordinary records and fields, attached
@@ -160,12 +160,20 @@ permutations.
   mutable/shared `self`, assignment, scalar result, and named guarded
   transitions. Enforce published general ceilings; unsupported syntax must
   return 251 with no output and declared exhaustion must return 252 with no
-  output. Carry the actual unit, a renamed/reordered positive, semantic
-  negatives, and exact-limit/adjacent-limit teeth through native,
-  lowermachine-built, and Rust-free-meaning observations. Record parser,
-  resolution, type, range, capacity, and assurance costs. This checker-only
-  measurement does not admit the families to `Ωself` or claim an artifact
-  path.
+  output. The fast native checker carries the exhaustive actual, renamed/
+  reordered, semantic-negative, and exact/adjacent resource matrix; a
+  representative matrix repeats through a lowermachine-built checker. The
+  Rust-free route executes the exact product unit plus distinct 251 and 252
+  paths through canonical Gamma, avoiding another equivalent two-minute
+  positive. The resulting checker is 78,450 Delta-source bytes with 5,395,760
+  bytes of fixed backing and elaborates to 626,059 Gamma bytes. Its present
+  signed-`i32` interval carrier explicitly rejects authored `u32` endpoints
+  above 2,147,483,647. Contract, costs, ceilings, and the correction separating
+  qualified-name `path.components` from postfix expression depth are recorded
+  in
+  [`SOURCE_CUSTODY_FRONTEND_PROBE.md`](bootstrap/omega-bootstrap/compiler/SOURCE_CUSTODY_FRONTEND_PROBE.md).
+  This checker-only measurement does not admit the families to `Ωself` or claim
+  an artifact path.
 - [ ] Close the corresponding first artifact tranche after selecting and
   documenting its conservative checked-IR handoff. Compile and run a
   self-contained conformance program exercising the same general typed
