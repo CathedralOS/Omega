@@ -1,3 +1,4 @@
+use crate::pipeline::PackageCompilationInputs;
 use crate::pipeline::stages::{
     source_files_to_syntax_trees_for_engine, symbol_resolved_trees_to_typed_trees,
     syntax_trees_to_symbol_resolved_trees, typed_trees_to_checked_trees,
@@ -96,20 +97,41 @@ pub fn compile_to_checked(
     let root_path = root_path.to_owned();
     let target_name = target_name.map(str::to_owned);
     super::compiler::run_on_compile_thread(move || {
-        compile_to_checked_inner(&root_path, target_name.as_deref())
+        compile_to_checked_inner(&root_path, target_name.as_deref(), None)
+    })
+}
+
+/// Checked-only compilation using a complete reconciled package graph. This
+/// is the evidence-producing frontend seam for package admission and never
+/// consults dependency rows in downloaded `build.omg` files.
+pub fn compile_to_checked_with_packages(
+    root_path: &Path,
+    target_name: Option<&str>,
+    package_inputs: PackageCompilationInputs,
+) -> Result<CheckedCompilation, Vec<Diagnostic>> {
+    let root_path = root_path.to_owned();
+    let target_name = target_name.map(str::to_owned);
+    super::compiler::run_on_compile_thread(move || {
+        compile_to_checked_inner(&root_path, target_name.as_deref(), Some(&package_inputs))
     })
 }
 
 fn compile_to_checked_inner(
     root_path: &Path,
     target_name: Option<&str>,
+    package_inputs: Option<&PackageCompilationInputs>,
 ) -> Result<CheckedCompilation, Vec<Diagnostic>> {
     let mut timings = CompileTimings::default();
 
     // The interpreter keeps the abstract `boundary trait Gui` for its headless
     // provider; only the native-image pipeline substitutes target providers.
-    let (_source_file_count, mut syntax) =
-        source_files_to_syntax_trees_for_engine(root_path, target_name, false, &mut timings)?;
+    let (_source_file_count, mut syntax) = source_files_to_syntax_trees_for_engine(
+        root_path,
+        target_name,
+        false,
+        package_inputs,
+        &mut timings,
+    )?;
     let evaluated = psi_build_time_evaluation::evaluate_pre_resolution(syntax.syntax_trees)?;
     syntax.syntax_trees = evaluated.syntax_trees;
     let placed_view_records = evaluated.placed_view_records;

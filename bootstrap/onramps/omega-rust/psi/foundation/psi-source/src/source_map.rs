@@ -2,6 +2,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use crate::{SourceFile, SourceId, SourceOrigin, SourceSpan};
+use psi_core::PackageKeyIdentity;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SourceMap {
@@ -18,7 +19,7 @@ impl SourceMap {
             .parent()
             .map(PathBuf::from)
             .unwrap_or_else(|| PathBuf::from("."));
-        self.add_with_metadata(path, source, package_root, SourceOrigin::User)
+        self.add_with_metadata(path, source, package_root, None, SourceOrigin::User)
     }
 
     pub fn add_with_metadata(
@@ -26,12 +27,14 @@ impl SourceMap {
         path: PathBuf,
         source: String,
         package_root: PathBuf,
+        package_identity: Option<PackageKeyIdentity>,
         origin: SourceOrigin,
     ) -> &SourceFile {
         self.files.push(SourceFile {
             source_id: SourceId(self.files.len()),
             path,
             package_root,
+            package_identity,
             origin,
             source: Arc::from(source),
         });
@@ -51,7 +54,11 @@ impl SourceMap {
 
     pub fn same_package(&self, left: SourceSpan, right: SourceSpan) -> bool {
         match (self.file_at(left), self.file_at(right)) {
-            (Some(left), Some(right)) => left.package_root == right.package_root,
+            (Some(left), Some(right)) => match (left.package_identity, right.package_identity) {
+                (Some(left), Some(right)) => left == right,
+                (None, None) => left.package_root == right.package_root,
+                _ => false,
+            },
             _ => false,
         }
     }
@@ -76,6 +83,7 @@ mod tests {
     use std::path::PathBuf;
 
     use crate::{SourceId, SourceMap, SourceSpan, Span};
+    use psi_core::PackageKeyIdentity;
 
     #[test]
     fn resolves_source_span_text() {
@@ -95,5 +103,43 @@ mod tests {
         let source_span = SourceSpan::new(SourceId(99), Span::new(0, 4));
 
         assert_eq!(sources.text_at(source_span), "");
+    }
+
+    #[test]
+    fn reconciled_package_identity_supersedes_source_root_spelling() {
+        let first_identity = PackageKeyIdentity::from_digest([1; 32]).expect("nonzero identity");
+        let second_identity = PackageKeyIdentity::from_digest([2; 32]).expect("nonzero identity");
+        let mut sources = SourceMap::default();
+        let first = sources
+            .add_with_metadata(
+                PathBuf::from("cache/a.omg"),
+                String::new(),
+                PathBuf::from("cache"),
+                Some(first_identity),
+                crate::SourceOrigin::User,
+            )
+            .source_id;
+        let second = sources
+            .add_with_metadata(
+                PathBuf::from("cache/b.omg"),
+                String::new(),
+                PathBuf::from("cache"),
+                Some(second_identity),
+                crate::SourceOrigin::User,
+            )
+            .source_id;
+        let relocated = sources
+            .add_with_metadata(
+                PathBuf::from("other/c.omg"),
+                String::new(),
+                PathBuf::from("other"),
+                Some(first_identity),
+                crate::SourceOrigin::User,
+            )
+            .source_id;
+
+        let span = |source_id| SourceSpan::new(source_id, Span::new(0, 0));
+        assert!(!sources.same_package(span(first), span(second)));
+        assert!(sources.same_package(span(first), span(relocated)));
     }
 }

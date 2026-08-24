@@ -7,3 +7,6 @@ version.workspace = true
 [lib]
 name = "psi_source"
 path = "src/lib.rs"
+
+[dependencies]
+psi-core = { path = "../psi-core" }

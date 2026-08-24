@@ -1,11 +1,12 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use crate::pipeline::PackageCompilationInputs;
 use crate::pipeline::source::SourceStorage;
 use crate::{lexer, parser};
 use psi_arena::{Arena, HandleSpan};
 use psi_diagnostics::Diagnostic;
-use psi_source::{SourceId, SourcePosition};
+use psi_source::{SourceId, SourceOrigin, SourcePosition};
 use psi_syntax_trees::SyntaxTrees;
 use psi_syntax_trees::identifier::Identifier;
 use psi_syntax_trees::item::{Item, ItemHandle};
@@ -16,6 +17,7 @@ pub struct LoadedSource {
     pub source_id: SourceId,
     pub path: PathBuf,
     pub source: Arc<str>,
+    pub origin: Option<SourceOrigin>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -29,6 +31,7 @@ pub struct LexedSource {
     pub source_id: SourceId,
     pub path: PathBuf,
     pub source: Arc<str>,
+    pub origin: Option<SourceOrigin>,
     pub tokens: TokenStream<'static>,
 }
 
@@ -43,6 +46,7 @@ pub struct ParsedSource {
     pub source_id: SourceId,
     pub path: PathBuf,
     pub source: Arc<str>,
+    pub origin: Option<SourceOrigin>,
     pub root_items: Vec<ItemHandle>,
 }
 
@@ -52,6 +56,7 @@ impl Default for ParsedSource {
             source_id: SourceId::default(),
             path: PathBuf::default(),
             source: Arc::from(""),
+            origin: None,
             root_items: Vec::new(),
         }
     }
@@ -83,6 +88,7 @@ pub fn load_sources(
             source_id: SourceId(first_source_id + index),
             path,
             source: Arc::from(source),
+            origin: None,
         });
     }
 
@@ -100,6 +106,7 @@ pub fn load_injected_source(name: &str, text: &str, first_source_id: usize) -> L
         source_id: SourceId(first_source_id),
         path: PathBuf::from(name),
         source: Arc::from(text),
+        origin: Some(SourceOrigin::Toolchain),
     }]);
     LoadedSources { sources, batch }
 }
@@ -128,6 +135,7 @@ pub fn lex_sources(sources: LoadedSources) -> Result<LexedSources, Vec<Diagnosti
             source_id: loaded_source.source_id,
             path: loaded_source.path.clone(),
             source: loaded_source.source.clone(),
+            origin: loaded_source.origin,
             tokens: own_token_stream(&tokens, &loaded_source.source),
         });
     }
@@ -171,6 +179,7 @@ pub fn parse_sources(
             source_id: lexed_source.source_id,
             path: lexed_source.path.clone(),
             source: lexed_source.source.clone(),
+            origin: lexed_source.origin,
             root_items,
         });
     }
@@ -401,6 +410,126 @@ pub fn discover_imports(
     Ok(imports)
 }
 
+/// Resolve imports exclusively through a reconciled, requester-local package
+/// graph. This path never reads or combines dependency rows from `build.omg`.
+pub fn discover_imports_with_packages(
+    parsed: &ParsedSources,
+    syntax_trees: &SyntaxTrees,
+    selected_target_name: Option<&str>,
+    packages: &PackageCompilationInputs,
+) -> Result<Vec<PathBuf>, Vec<Diagnostic>> {
+    let parsed_sources = parsed.sources.span_or_empty(parsed.batch);
+    let mut imports = Vec::with_capacity(parsed_sources.len());
+
+    for parsed_source in parsed_sources {
+        let canonical_source = parsed_source.path.canonicalize().ok();
+        let requester = canonical_source
+            .as_deref()
+            .and_then(|source| packages.package_for_source(source));
+
+        for root_item in &parsed_source.root_items {
+            let item = syntax_trees.root_item(*root_item);
+            match item {
+                Item::Use(use_item) => {
+                    let members = syntax_trees.items.identifier_path_members(use_item.path);
+                    let Some(first) = members.first() else {
+                        return Err(vec![Diagnostic::error(format!(
+                            "{} contains an empty import path",
+                            parsed_source.path.display()
+                        ))]);
+                    };
+
+                    if is_bundled_omega_path(members) {
+                        imports.push(resolve_reconciled_import(
+                            bundled_omega_root(),
+                            &members[1..],
+                            "toolchain",
+                        )?);
+                        continue;
+                    }
+
+                    let Some(requester) = requester else {
+                        return Err(vec![Diagnostic::error(format!(
+                            "cannot establish the reconciled package identity for import in {}",
+                            parsed_source.path.display()
+                        ))]);
+                    };
+
+                    let (target, source_root, path_members) =
+                        match packages.dependency_target(requester, first.as_str()) {
+                            Some(target) => (
+                                target,
+                                packages
+                                    .package_root(target)
+                                    .expect("validated dependency target retains a source root"),
+                                &members[1..],
+                            ),
+                            None => (
+                                requester,
+                                packages
+                                    .package_root(requester)
+                                    .expect("validated requester retains a source root"),
+                                members,
+                            ),
+                        };
+                    let imported = resolve_reconciled_import(
+                        source_root.to_path_buf(),
+                        path_members,
+                        "package",
+                    )?;
+                    if target != requester
+                        && imported.file_name().and_then(|name| name.to_str()) == Some("build.omg")
+                    {
+                        return Err(vec![Diagnostic::error(format!(
+                            "package import in {} may not load dependency build file {}",
+                            parsed_source.path.display(),
+                            imported.display()
+                        ))]);
+                    }
+                    imports.push(imported);
+                }
+                Item::Target(target) => {
+                    let target_is_selected = selected_target_name
+                        .is_none_or(|target_name| target.name.as_str() == target_name);
+                    if !target_is_selected {
+                        continue;
+                    }
+
+                    if let Some(host) = &target.host {
+                        let provider = syntax_trees.items.identifier_path_members(host.provider);
+                        if is_bundled_omega_path(provider) {
+                            imports.push(resolve_reconciled_import(
+                                bundled_omega_root(),
+                                &provider[1..],
+                                "toolchain",
+                            )?);
+                        }
+                    }
+
+                    for boundary_policy in syntax_trees
+                        .items
+                        .boundary_policies(target.boundary_policies)
+                    {
+                        let policy = syntax_trees
+                            .items
+                            .identifier_path_members(boundary_policy.path);
+                        if is_bundled_omega_path(policy) {
+                            imports.push(resolve_reconciled_import(
+                                bundled_omega_root(),
+                                &policy[1..],
+                                "toolchain",
+                            )?);
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    Ok(imports)
+}
+
 pub fn extend_source_storage(
     source_storage: &mut SourceStorage,
     parsed: ParsedSources,
@@ -455,6 +584,36 @@ fn resolve_source_path(root_dir: &Path, source_path: &[Identifier]) -> PathBuf {
         .unwrap_or(path)
 }
 
+fn resolve_reconciled_import(
+    expected_root: PathBuf,
+    source_path: &[Identifier],
+    source_kind: &str,
+) -> Result<PathBuf, Vec<Diagnostic>> {
+    let mut path = expected_root.clone();
+    for segment in source_path {
+        path.push(segment.as_str());
+    }
+
+    let candidate = source_path_candidates(&path)
+        .into_iter()
+        .find(|candidate| candidate.exists())
+        .unwrap_or_else(|| {
+            source_path_candidates(&path)
+                .into_iter()
+                .next()
+                .unwrap_or(path)
+        });
+    let canonical = normalize_path(&candidate)?;
+    if !canonical.starts_with(&expected_root) {
+        return Err(vec![Diagnostic::error(format!(
+            "resolved {source_kind} import {} escapes expected source root {}",
+            canonical.display(),
+            expected_root.display()
+        ))]);
+    }
+    Ok(canonical)
+}
+
 fn is_bundled_omega_path(path: &[Identifier]) -> bool {
     path.first()
         .is_some_and(|segment| segment.as_str() == "omega")
@@ -464,7 +623,9 @@ pub(crate) fn bundled_omega_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../../../../../omega")
         .canonicalize()
-        .unwrap_or_else(|_| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../../../../omega"))
+        .unwrap_or_else(|_| {
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../../../../omega")
+        })
 }
 
 /// Read a bundled std module's source text (`omega/language/std/<module>.omg`).

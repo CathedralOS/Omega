@@ -1,3 +1,4 @@
+use crate::pipeline::PackageCompilationInputs;
 use crate::pipeline::artifacts::{
     remove_stale_phase_diagrams, write_backend_report, write_checked_snapshot,
     write_control_flow_snapshot, write_emission_plan, write_pipeline_index, write_pipeline_shell,
@@ -29,6 +30,16 @@ const COMPILE_STACK_SIZE: usize = 256 * 1024 * 1024;
 
 pub fn compile(options: CompileOptions) -> Result<CompileReport, Vec<Diagnostic>> {
     compile_with_policy(options, ExecutableTcbBuildPolicy::default())
+}
+
+/// Compile using a complete reconciled package graph. Dependency imports are
+/// resolved only through `package_inputs`; authored `build.omg` dependency
+/// rows are not scanned or combined with this trusted handoff.
+pub fn compile_with_packages(
+    options: CompileOptions,
+    package_inputs: PackageCompilationInputs,
+) -> Result<CompileReport, Vec<Diagnostic>> {
+    compile_with_policy_and_packages(options, ExecutableTcbBuildPolicy::default(), package_inputs)
 }
 
 /// Compile with an explicit auxiliary-artifact policy. Executable/object
@@ -149,6 +160,19 @@ pub fn compile_with_policy(
     // behavior.
     run_on_compile_thread(move || {
         Compiler::with_executable_tcb_policy(options, executable_tcb_policy).compile()
+    })
+}
+
+/// Package-aware compilation with an explicit executable-TCB policy.
+pub fn compile_with_policy_and_packages(
+    options: CompileOptions,
+    executable_tcb_policy: ExecutableTcbBuildPolicy,
+    package_inputs: PackageCompilationInputs,
+) -> Result<CompileReport, Vec<Diagnostic>> {
+    run_on_compile_thread(move || {
+        Compiler::with_executable_tcb_policy(options, executable_tcb_policy)
+            .with_package_inputs(package_inputs)
+            .compile()
     })
 }
 
@@ -488,6 +512,7 @@ pub struct Compiler {
     test_entry_machine_name: Option<String>,
     worker_count: Option<usize>,
     artifact_policy: ArtifactEmissionPolicy,
+    package_inputs: Option<PackageCompilationInputs>,
 }
 
 impl Compiler {
@@ -501,6 +526,7 @@ impl Compiler {
             test_entry_machine_name: None,
             worker_count: None,
             artifact_policy: ArtifactEmissionPolicy::Full,
+            package_inputs: None,
         }
     }
 
@@ -519,6 +545,11 @@ impl Compiler {
         self
     }
 
+    fn with_package_inputs(mut self, package_inputs: PackageCompilationInputs) -> Self {
+        self.package_inputs = Some(package_inputs);
+        self
+    }
+
     pub fn compile(self) -> Result<CompileReport, Vec<Diagnostic>> {
         let mut timings = CompileTimings::default();
         let emit_auxiliary_artifacts = self.artifact_policy.emits_auxiliary_artifacts();
@@ -526,6 +557,7 @@ impl Compiler {
         let (source_file_count, mut syntax) = source_files_to_syntax_trees(
             &self.options.root_path,
             self.options.target_name.as_deref(),
+            self.package_inputs.as_ref(),
             &mut timings,
         )?;
         let evaluated = psi_build_time_evaluation::evaluate_pre_resolution(syntax.syntax_trees)?;

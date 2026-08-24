@@ -10,6 +10,7 @@ path = "src/lib.rs"
 
 [dependencies]
 omega-core = { path = "../../foundation/omega-core" }
+psi-core = { path = "../../../psi/foundation/psi-core" }
 psi-arena = { path = "../../../psi/foundation/psi-arena" }
 psi-symbols = { path = "../../../psi/foundation/psi-symbols" }
 psi-syntax-trees = { path = "../../../psi/representations/psi-syntax-trees" }
@@ -84,6 +85,5 @@ omega-terminal-image-emission = { path = "../../backend/images/omega-terminal-im
 [dev-dependencies]
 psi-facts = { path = "../../../psi/representations/psi-facts" }
 psi-validation = { path = "../../../psi/semantics/psi-validation" }
-psi-core = { path = "../../../psi/foundation/psi-core" }
 psi-terminal = { path = "../../../psi/representations/psi-terminal" }
 psi-terminal-verifier = { path = "../../../psi/semantics/psi-terminal-verifier" }

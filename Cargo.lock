@@ -916,6 +916,7 @@ dependencies = [
 name = "omega-packages"
 version = "0.1.0"
 dependencies = [
+ "psi-core",
  "psi-source-files-to-tokens",
  "psi-syntax-trees",
  "psi-tokens-to-syntax-trees",
@@ -1635,6 +1636,9 @@ dependencies = [
 [[package]]
 name = "psi-source"
 version = "0.1.0"
+dependencies = [
+ "psi-core",
+]
 
 [[package]]
 name = "psi-source-files-to-tokens"

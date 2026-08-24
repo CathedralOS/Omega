@@ -1,6 +1,7 @@
+use crate::pipeline::PackageCompilationInputs;
 use crate::pipeline::frontend::{
-    discover_imports, extend_source_storage, lex_sources, load_injected_source, load_sources,
-    parse_sources, read_bundled_std_source,
+    discover_imports, discover_imports_with_packages, extend_source_storage, lex_sources,
+    load_injected_source, load_sources, parse_sources, read_bundled_std_source,
 };
 use crate::pipeline::project::{project_roots, validate_selected_target};
 use crate::pipeline::source::{ImportQueue, SourceStorage};
@@ -65,17 +66,19 @@ pub(super) struct EmittedProgram {
 pub(super) fn source_files_to_syntax_trees(
     root_path: &Path,
     target_name: Option<&str>,
+    package_inputs: Option<&PackageCompilationInputs>,
     timings: &mut CompileTimings,
 ) -> Result<(usize, AssembledSyntax), Vec<Diagnostic>> {
     // The native-image path substitutes target-specific providers. The interpreter
     // keeps abstract boundary traits for its headless stubs.
-    source_files_to_syntax_trees_for_engine(root_path, target_name, true, timings)
+    source_files_to_syntax_trees_for_engine(root_path, target_name, true, package_inputs, timings)
 }
 
 pub(super) fn source_files_to_syntax_trees_for_engine(
     root_path: &Path,
     target_name: Option<&str>,
     native: bool,
+    package_inputs: Option<&PackageCompilationInputs>,
     timings: &mut CompileTimings,
 ) -> Result<(usize, AssembledSyntax), Vec<Diagnostic>> {
     let mut imports = ImportQueue::default();
@@ -83,14 +86,32 @@ pub(super) fn source_files_to_syntax_trees_for_engine(
         imports.seed(root);
     }
 
-    let root_package = root_path
-        .parent()
-        .map(Path::to_path_buf)
-        .unwrap_or_else(|| PathBuf::from("."));
-    let mut source_storage = SourceStorage::for_compilation(
-        root_package,
-        crate::pipeline::frontend::bundled_omega_root(),
-    );
+    let toolchain_root = crate::pipeline::frontend::bundled_omega_root();
+    let mut source_storage = match package_inputs {
+        Some(package_inputs) => {
+            package_inputs.validate_for_compilation(root_path, &toolchain_root)?;
+            let root_package = package_inputs
+                .package_root(package_inputs.root())
+                .expect("validated package inputs retain their root")
+                .to_path_buf();
+            let mut storage = SourceStorage::for_package_compilation(
+                root_package,
+                package_inputs.root(),
+                toolchain_root,
+            );
+            for (identity, source_root) in package_inputs.packages() {
+                storage.register_reconciled_package_root(source_root.to_path_buf(), identity);
+            }
+            storage
+        }
+        None => {
+            let root_package = root_path
+                .parent()
+                .map(Path::to_path_buf)
+                .unwrap_or_else(|| PathBuf::from("."));
+            SourceStorage::for_compilation(root_package, toolchain_root)
+        }
+    };
     // depend-mapping (M2 blocker 3): `build.depend("alias", path("dir"))` rows
     // collected from every loaded build machine, alias -> directory. Each
     // frontier collects BEFORE resolving its uses, so a build.omg companion
@@ -102,6 +123,7 @@ pub(super) fn source_files_to_syntax_trees_for_engine(
         &mut imports,
         root_path,
         target_name,
+        package_inputs,
         &mut depend_aliases,
         timings,
     )?;
@@ -114,6 +136,7 @@ pub(super) fn source_files_to_syntax_trees_for_engine(
             root_path,
             target_name,
             &mut imports,
+            package_inputs,
             &mut depend_aliases,
             timings,
         )?;
@@ -131,11 +154,16 @@ fn load_pending_imports(
     imports: &mut ImportQueue,
     root_path: &Path,
     target_name: Option<&str>,
+    package_inputs: Option<&PackageCompilationInputs>,
     depend_aliases: &mut Vec<(String, PathBuf)>,
     timings: &mut CompileTimings,
 ) -> Result<(), Vec<Diagnostic>> {
     while imports.has_pending() {
         let frontier = imports.take_frontier();
+        let frontier = match package_inputs {
+            Some(package_inputs) => validate_package_source_frontier(frontier, package_inputs)?,
+            None => frontier,
+        };
         let first_source_id = source_storage.next_source_id();
         let lexed = timings.record(SOURCE_FILES_TO_TOKENS, || {
             let sources = load_sources(frontier, first_source_id)?;
@@ -144,27 +172,87 @@ fn load_pending_imports(
         let parsed = timings.record(TOKENS_TO_SYNTAX_TREES, || {
             parse_sources(lexed, &mut source_storage.syntax_trees)
         })?;
-        crate::pipeline::frontend::collect_depend_aliases(
-            &parsed,
-            &source_storage.syntax_trees,
-            depend_aliases,
-        );
-        for (_, directory) in depend_aliases.iter() {
-            source_storage.register_package_root(directory.clone());
-        }
-        let discovered_imports = discover_imports(
-            &parsed,
-            &source_storage.syntax_trees,
-            root_path,
-            target_name,
-            depend_aliases,
-        )?;
+        let discovered_imports = match package_inputs {
+            Some(package_inputs) => discover_imports_with_packages(
+                &parsed,
+                &source_storage.syntax_trees,
+                target_name,
+                package_inputs,
+            )?,
+            None => {
+                crate::pipeline::frontend::collect_depend_aliases(
+                    &parsed,
+                    &source_storage.syntax_trees,
+                    depend_aliases,
+                );
+                for (_, directory) in depend_aliases.iter() {
+                    source_storage.register_package_root(directory.clone());
+                }
+                discover_imports(
+                    &parsed,
+                    &source_storage.syntax_trees,
+                    root_path,
+                    target_name,
+                    depend_aliases,
+                )?
+            }
+        };
 
         imports.enqueue(discovered_imports)?;
         extend_source_storage(source_storage, parsed)?;
     }
 
     Ok(())
+}
+
+fn validate_package_source_frontier(
+    frontier: Vec<PathBuf>,
+    package_inputs: &PackageCompilationInputs,
+) -> Result<Vec<PathBuf>, Vec<Diagnostic>> {
+    let toolchain_root = crate::pipeline::frontend::bundled_omega_root();
+    let mut validated = Vec::with_capacity(frontier.len());
+    let mut diagnostics = Vec::new();
+
+    for source in frontier {
+        let canonical = match source.canonicalize() {
+            Ok(canonical) => canonical,
+            Err(error) => {
+                diagnostics.push(Diagnostic::error(format!(
+                    "failed to canonicalize package source {} before loading: {error}",
+                    source.display()
+                )));
+                continue;
+            }
+        };
+        if canonical.starts_with(&toolchain_root) {
+            validated.push(canonical);
+            continue;
+        }
+
+        let Some(owner) = package_inputs.package_for_source(&canonical) else {
+            diagnostics.push(Diagnostic::error(format!(
+                "package source {} escapes every reconciled source root",
+                canonical.display()
+            )));
+            continue;
+        };
+        if owner != package_inputs.root()
+            && canonical.file_name().and_then(|name| name.to_str()) == Some("build.omg")
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "dependency build file {} may not join the compiled program",
+                canonical.display()
+            )));
+            continue;
+        }
+        validated.push(canonical);
+    }
+
+    if diagnostics.is_empty() {
+        Ok(validated)
+    } else {
+        Err(diagnostics)
+    }
 }
 
 /// The TOOLCHAIN-PROVIDED build vocabulary (build_and_package_model.md): a
@@ -282,6 +370,7 @@ fn substitute_native_gui_provider(
     root_path: &Path,
     target_name: Option<&str>,
     imports: &mut ImportQueue,
+    package_inputs: Option<&PackageCompilationInputs>,
     depend_aliases: &mut Vec<(String, PathBuf)>,
     timings: &mut CompileTimings,
 ) -> Result<(), Vec<Diagnostic>> {
@@ -338,21 +427,31 @@ fn substitute_native_gui_provider(
         let parsed = timings.record(TOKENS_TO_SYNTAX_TREES, || {
             parse_sources(lexed, &mut source_storage.syntax_trees)
         })?;
-        crate::pipeline::frontend::collect_depend_aliases(
-            &parsed,
-            &source_storage.syntax_trees,
-            depend_aliases,
-        );
-        for (_, directory) in depend_aliases.iter() {
-            source_storage.register_package_root(directory.clone());
-        }
-        let discovered_imports = discover_imports(
-            &parsed,
-            &source_storage.syntax_trees,
-            root_path,
-            target_name,
-            depend_aliases,
-        )?;
+        let discovered_imports = match package_inputs {
+            Some(package_inputs) => discover_imports_with_packages(
+                &parsed,
+                &source_storage.syntax_trees,
+                target_name,
+                package_inputs,
+            )?,
+            None => {
+                crate::pipeline::frontend::collect_depend_aliases(
+                    &parsed,
+                    &source_storage.syntax_trees,
+                    depend_aliases,
+                );
+                for (_, directory) in depend_aliases.iter() {
+                    source_storage.register_package_root(directory.clone());
+                }
+                discover_imports(
+                    &parsed,
+                    &source_storage.syntax_trees,
+                    root_path,
+                    target_name,
+                    depend_aliases,
+                )?
+            }
+        };
         imports.enqueue(discovered_imports)?;
         extend_source_storage(source_storage, parsed)?;
         load_pending_imports(
@@ -360,6 +459,7 @@ fn substitute_native_gui_provider(
             imports,
             root_path,
             target_name,
+            package_inputs,
             depend_aliases,
             timings,
         )?;
