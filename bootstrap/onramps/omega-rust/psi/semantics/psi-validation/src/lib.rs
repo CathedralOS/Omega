@@ -267,7 +267,7 @@ fn validate_program_internal(
     content_projections::validate_content_projection_conformances(program, &mut diagnostics);
     content_conservation::validate_content_conservation_contracts(program, &mut diagnostics);
     qualification_evidence::validate_qualification_authorization(program, &mut diagnostics);
-    validate_conformances(program, &symbols, &mut diagnostics);
+    validate_conformances(program, &mut diagnostics);
     if let Err(mut dynamic_diagnostics) = collect_dynamic_conformance_selections(program) {
         diagnostics.append(&mut dynamic_diagnostics);
     }

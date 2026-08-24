@@ -161,7 +161,9 @@ pub(crate) fn lower_item(
                         psi_symbol_resolved_trees::trait_definition::ConformanceSubject::Subjectless
                     }
                 },
+                carrier_symbol: psi_symbols::SymbolHandle::invalid(),
                 trait_name: crate::name::lower_name(&conformance.trait_name),
+                trait_symbol: psi_symbols::SymbolHandle::invalid(),
                 arguments,
                 alias: conformance.alias.as_ref().map(crate::name::lower_name),
                 implementation,

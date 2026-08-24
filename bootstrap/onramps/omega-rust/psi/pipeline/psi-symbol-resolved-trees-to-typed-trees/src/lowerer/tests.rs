@@ -191,6 +191,13 @@ fn retains_typed_name_owned_conformance_telescope() {
             .iter()
             .all(|parameter| parameter.symbol.is_valid())
     );
+    assert_eq!(conformance.carrier_symbol, parameters[0].symbol);
+    let converter = typed
+        .traits()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Converter")
+        .expect("Converter trait");
+    assert_eq!(conformance.trait_symbol, converter.symbol);
     let arguments = typed
         .type_reference_table
         .type_reference_handles(conformance.arguments);

@@ -167,6 +167,13 @@ fn resolves_name_owned_conformance_telescope_in_its_own_scope() {
             .iter()
             .all(|parameter| program.symbols.get(parameter.symbol).parent == conformance.symbol)
     );
+    assert_eq!(conformance.carrier_symbol, parameters[0].symbol);
+    let converter = program
+        .traits
+        .iter()
+        .find(|definition| definition.name.as_str() == "Converter")
+        .expect("Converter trait");
+    assert_eq!(conformance.trait_symbol, converter.symbol);
 
     let source_argument = program
         .tables

@@ -227,6 +227,29 @@ pub(in crate::symbols) fn assign_type_reference_symbols(
         let local_type_parameters = data_type_parameters
             .span_or_empty(conformance.type_parameters)
             .to_vec();
+        conformance.carrier_symbol = match &conformance.subject {
+            psi_symbol_resolved_trees::trait_definition::ConformanceSubject::Carrier(name) => {
+                local_type_parameters
+                    .iter()
+                    .find(|parameter| parameter.name == *name)
+                    .map(|parameter| parameter.symbol)
+                    .unwrap_or_else(|| {
+                        crate::symbols::lookup::top_level_symbol(
+                            symbols,
+                            SymbolKind::Data,
+                            name.as_str(),
+                        )
+                    })
+            }
+            psi_symbol_resolved_trees::trait_definition::ConformanceSubject::Subjectless => {
+                SymbolHandle::invalid()
+            }
+        };
+        conformance.trait_symbol = crate::symbols::lookup::top_level_symbol(
+            symbols,
+            SymbolKind::Trait,
+            conformance.trait_name.as_str(),
+        );
         assign_type_parameter_constraint_symbols(
             symbols,
             child_type_references,

@@ -290,7 +290,7 @@ crashes Abort
         target,
         "review identity must retain the deployment profile, not only its native ABI",
     );
-    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 24);
+    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 25);
     let [ready] = review.public_domains() else {
         panic!("one package-owned public domain row")
     };
@@ -1679,6 +1679,68 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
+fn review_projects_exact_selected_conformance_carrier_trait_and_arguments() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub trait Marker<Tag> { }
+pub data Tag { }
+pub data Good { }
+Primary: Good satisfies Marker<Tag>;
+pub machine accept<Element>(value: &Element)
+where Element satisfies Good::Primary
+{ }
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { }
+"#,
+    );
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some(target),
+        package_inputs(&package.0),
+    )
+    .expect("selected-conformance fixture should check before review");
+    let review = project_checked_package_review(&checked)
+        .expect("exact non-generic selected conformance should project");
+    let accept = review
+        .callables()
+        .iter()
+        .find(|callable| callable.identity().path().contains("accept"))
+        .expect("public accept row");
+    let [bound] = accept.conformance_bounds() else {
+        panic!("one exact selected conformance requirement")
+    };
+    assert_eq!(bound.binder_ordinal(), None);
+    assert_eq!(bound.subject_parameter(), 0);
+    assert_eq!(
+        bound
+            .selected_conformance()
+            .expect("selected conformance")
+            .path(),
+        "Primary"
+    );
+    assert_eq!(
+        bound.selected_carrier().expect("selected carrier").path(),
+        "Good"
+    );
+    assert!(bound.selected_carrier_arguments().is_empty());
+    assert_eq!(bound.trait_identity().path(), "Marker");
+    assert_eq!(bound.arguments().len(), 1);
+    assert!(bound.arguments()[0].canonical().contains("Tag"));
+    assert!(!review.canonical_review_bytes().unwrap().is_empty());
+}
+
+#[test]
 fn public_machine_visibility_survives_checked_compilation_and_strict_empty_contracts() {
     let package = TempPackage::new();
     package.write("main.omg", "pub machine Package::entry() { }\n");
@@ -1805,7 +1867,7 @@ invokes waiting;
 }
 
 #[test]
-fn exact_synchronous_invocations_change_v24_comparison_encoding() {
+fn exact_synchronous_invocations_change_v25_comparison_encoding() {
     let quiet = TempPackage::new();
     let invoking = TempPackage::new();
     quiet.write(
@@ -1995,7 +2057,7 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
-fn public_data_and_numbered_wire_shape_changes_change_v24_comparison_encoding() {
+fn public_data_and_numbered_wire_shape_changes_change_v25_comparison_encoding() {
     let first = TempPackage::new();
     let second = TempPackage::new();
     first.write(
@@ -2029,7 +2091,7 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
-fn public_domain_shape_changes_change_v24_comparison_encoding() {
+fn public_domain_shape_changes_change_v25_comparison_encoding() {
     let first = TempPackage::new();
     let second = TempPackage::new();
     first.write(

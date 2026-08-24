@@ -54,7 +54,12 @@ pub struct Conformance {
     pub lifetime_parameters: Vec<Identifier>,
     pub type_parameters: HandleSpan<crate::data::TypeParameter>,
     pub subject: ConformanceSubject,
+    /// Exact carrier declaration for a carrier-owned conformance. Subjectless
+    /// proof evidence retains the invalid symbol.
+    pub carrier_symbol: SymbolHandle,
     pub trait_name: Identifier,
+    /// Exact trait declaration selected by `trait_name`.
+    pub trait_symbol: SymbolHandle,
     pub arguments: HandleSpan<crate::types::TypeReferenceHandle>,
     pub alias: Option<Identifier>,
     pub implementation: ConformanceImplementation,

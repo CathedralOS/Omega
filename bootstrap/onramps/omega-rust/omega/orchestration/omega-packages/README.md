@@ -184,10 +184,13 @@ premises retain package-qualified public profile identity, receiver/non-`self`
 parameter roots, and package-qualified field projections. Generic conformance
 requirements retain optional alpha-normalized evidence-
 binder ordinals, exact subject ordinals, public trait identity, and structural
-arguments. Binder-free requirements do not fabricate evidence. Selected
-conformances, invariants, default realizations, and
-non-progress proof/boundary/crash contracts fail closed until complete rows
-land. Public domains with representable shape now retain exact package identity,
+arguments. Binder-free requirements do not fabricate evidence. Non-generic
+selected conformances retain exact package-qualified conformance, carrier, and
+underlying public-trait identities plus carrier/trait applications. Their
+semantic declarations retain exact carrier/trait symbols. Selected
+conformances with their own generic telescope, invariants, default
+realizations, and non-progress proof/boundary/crash contracts fail closed until
+complete rows land. Public domains with representable shape now retain exact package identity,
 alpha-normalized generic carrier/index shape, package-qualified carrier/index
 types, closed compiler-owned classifications, and authorized establishment
 routes with exact package-qualified trait/requirement identities. Transparent
@@ -202,8 +205,8 @@ retain exact package-qualified trait/requirement identities, alpha-normalized
 arguments, and aliases. Callable conformance bounds, static machine/proposition
 parameters, and non-public, external, operator, or lifetime-parameterized
 realizations fail closed until complete rows land, except that binder-free
-generic requirements and explicit evidence binders use the canonical public-
-trait row. Public callable `requires`,
+generic requirements, explicit evidence binders, and non-generic selected
+conformances use the canonical public-trait row. Public callable `requires`,
 `ensures`, and boundary clauses retain exact structural rows for the closed
 boolean/integer expression subset over parameter ordinals, `result`, generic
 binders, and package-qualified nominals. Domain-membership rows retain the exact
@@ -236,7 +239,7 @@ never repurposed as output directories.
 The legacy machine-contract fingerprint no longer enters package-review bytes,
 so private state shape is not public contract identity. Complete proof and
 unsupported-clause rows still gate sealed admission. The compiler now provides
-a version-24 length-framed binary comparison encoding over this review
+a version-25 length-framed binary comparison encoding over this review
 projection; it is explicitly not a package certificate or accepted-lock
 payload. Raw Rust/debug serialization is not an alternative. These pieces do
 not become an admission path until the legacy name-keyed lock APIs are replaced
