@@ -1,3 +1,4 @@
+use command_group::{CommandGroup, GroupChild};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 use std::ffi::{OsStr, OsString};
@@ -5,7 +6,7 @@ use std::fmt;
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command, ExitStatus, Stdio};
+use std::process::{Command, ExitStatus, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{self, RecvTimeoutError};
 use std::time::{Duration, Instant};
@@ -2550,14 +2551,22 @@ fn run_command_bounded(
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
-        .spawn()
+        .group_spawn()
         .map_err(|error| SourceResolveError::Git {
             operation: format!("{operation} spawn"),
             status: None,
             stderr: error.to_string(),
         })?;
-    let stdout = child.stdout.take().expect("command stdout was piped");
-    let stderr = child.stderr.take().expect("command stderr was piped");
+    let stdout = child
+        .inner()
+        .stdout
+        .take()
+        .expect("command stdout was piped");
+    let stderr = child
+        .inner()
+        .stderr
+        .take()
+        .expect("command stderr was piped");
     let (sender, receiver) = mpsc::channel();
     if let Err(error) = spawn_stream_capture(stdout, CapturedStream::Stdout, stdout_limit, &sender)
     {
@@ -2585,7 +2594,11 @@ fn run_command_bounded(
     loop {
         if status.is_none() {
             status = match child.try_wait() {
-                Ok(status) => status,
+                Ok(Some(status)) => {
+                    terminate_command_group(&mut child);
+                    Some(status)
+                }
+                Ok(None) => None,
                 Err(error) => {
                     terminate_child(&mut child);
                     return Err(SourceResolveError::Git {
@@ -2702,9 +2715,13 @@ where
     }
 }
 
-fn terminate_child(child: &mut Child) {
-    let _ = child.kill();
+fn terminate_child(child: &mut GroupChild) {
+    terminate_command_group(child);
     let _ = child.wait();
+}
+
+fn terminate_command_group(child: &mut GroupChild) {
+    let _ = child.kill();
 }
 
 fn duration_millis(duration: Duration) -> u64 {
@@ -2973,6 +2990,55 @@ mod tests {
         assert!(
             started.elapsed() < Duration::from_secs(2),
             "timed out subprocess was not terminated promptly"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn bounded_command_terminates_descendants_on_deadline() {
+        let root = temp_root("bounded-descendant-timeout");
+        std::fs::create_dir_all(&root).expect("create descendant test root");
+        let marker = root.join("survived");
+        let mut command = shell_command(
+            "(sleep 0.25; printf survived > \"$OMEGA_DESCENDANT_MARKER\") & exec sleep 10",
+        );
+        command.env("OMEGA_DESCENDANT_MARKER", &marker);
+
+        let error = run_command_bounded(
+            &mut command,
+            "test-descendant-timeout",
+            1024,
+            1024,
+            Duration::from_millis(50),
+        )
+        .expect_err("deadline must fail closed and terminate descendants");
+        assert!(matches!(error, SourceResolveError::GitTimedOut { .. }));
+
+        std::thread::sleep(Duration::from_millis(400));
+        assert!(
+            !marker.exists(),
+            "a descendant survived the bounded command deadline"
+        );
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn bounded_command_cleans_up_descendants_after_parent_exit() {
+        let mut command = shell_command("(sleep 10) &");
+        let started = Instant::now();
+        let output = run_command_bounded(
+            &mut command,
+            "test-descendant-cleanup",
+            1024,
+            1024,
+            Duration::from_secs(2),
+        )
+        .expect("a completed parent must not wait on descendant-held capture pipes");
+        assert!(output.status.success());
+        assert!(
+            started.elapsed() < Duration::from_secs(1),
+            "descendant cleanup did not close inherited capture pipes promptly"
         );
     }
 
