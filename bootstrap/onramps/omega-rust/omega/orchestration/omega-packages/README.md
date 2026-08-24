@@ -108,9 +108,9 @@ that happen to share a native ABI. Capability-flow states, including propagated
 length-framed binary comparison encoding over this review projection; it is
 explicitly not a package certificate or accepted-lock payload. Raw Rust/debug
 serialization is not an alternative. These pieces do not become an
-admission path until the legacy name-keyed lock APIs are replaced and sealed
-compiler-issued evidence plus the hardened resolver receipt are wired through
-end to end. The earlier public
+admission path until the legacy name-keyed lock APIs are replaced and sealed,
+locally regenerated compiler evidence plus the hardened resolver receipt are
+wired through end to end. The earlier public
 `PackageInstance` constructor was removed: the real type must not exist as a
 caller-constructible tuple of arbitrary toolchain and evidence fingerprints.
 
@@ -143,10 +143,13 @@ artifact.
 - Extract package declaration and dependency-source projection without
   build-host authority.
 - Reconcile one immutable instance per `PackageKey` in the initial model.
-- Invoke compiler package-admission mode and accept only compiler-issued
-  evidence bound to source and toolchain identity.
+- Invoke compiler package-admission mode and locally regenerate evidence bound
+  to source, evidence schema, and compiler/toolchain provenance. This excludes
+  dependency-authored manifests; it does not certify the selected compiler.
 - Persist the complete accepted baseline and exact closure in `omega.lock`.
 - Render compact capability conflicts and hostile-input-safe LLM triage packets.
+- Leave audit quality, reviewer/quorum requirements, and merge authorization to
+  root-project policy; no receipt or status is presented as proof of audit.
 - Perform conservative `build.omg` edits only after admission.
 
 ## Non-responsibilities

@@ -132,29 +132,7 @@ resolves those names into opaque identities during layout evaluation. Do not
 put raw IDs or field offsets in source, infer the demand from the callback row,
 or expose a callback-address-shaped semantic field.
 
-## Q5 — What compiler build identity authorizes package evidence?
-
-Context: package evidence must be inseparable from the compiler that derived
-it. Source and Terminal Psi already expose useful commitments, but the compiler
-currently has no exact self-identity suitable for an accepted lock baseline.
-
-Problem statement: a version string, source revision, or caller-supplied digest
-can identify the wrong executable or allow one compiler build to impersonate
-another. The authoritative identity must work for library-driven compilation as
-well as the `omega` executable and must not conflate compiler implementation
-identity with the separately reported Terminal trust graph.
-
-Proposed solution: make the digest of the exact distributed compiler artifact
-the authoritative compiler-build identity. Record readable release/source
-metadata only as diagnostics, and retain Terminal semantics, verifier, codec,
-fuel schedule, and backend commitments as separate evidence axes.
-
-Alternates: a reproducible-build attestation may later authorize a set of
-byte-distinct artifacts, but should supplement rather than replace the exact
-artifact digest. A version string, Git commit alone, or a digest supplied by the
-invoking build is tempting but not an authority boundary.
-
-## Q6 — Must accepted package evidence require complete Terminal coverage?
+## Q5 — Must accepted package evidence require complete Terminal coverage?
 
 Context: the compiler can now form an in-memory package review projection from
 checked trees, while final Terminal Psi commitments and verifier replay do not
