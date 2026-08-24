@@ -606,6 +606,14 @@ Closed compiler-owned classifications and authorized establishment routes
 retain exact route kind plus package-qualified trait and requirement identity;
 alternative routes are canonically sorted and deduplicated.
 
+Package-owned public traits retain exact identity, boundary status,
+alpha-normalized type/const binders, ordered package-qualified parent
+applications, and ordered machine/operator requirement signatures. Requirement
+rows retain parameter names and modes, package-qualified types, and fixed
+operator spelling. Lifetimes, conformance bounds, invariants,
+default realizations, and operational/proof/crash/termination contracts reject
+until complete canonical rows exist.
+
 Terminal Psi evidence remains a separate evidence class for checked
 final-realization claims: Omega-emitted executable code, asserted properties of
 native or externally supplied code, lowering- or ABI-bound guarantees, fixed

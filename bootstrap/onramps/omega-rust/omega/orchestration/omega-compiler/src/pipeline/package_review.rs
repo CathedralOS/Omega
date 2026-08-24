@@ -50,6 +50,120 @@ impl PackageReviewTypeParameter {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PackageReviewTraitParent {
+    kind: psi_typed_trees::trait_definition::TraitCompositionKind,
+    identity: PackageReviewNominalIdentity,
+    arguments: Vec<PackageReviewTypeIdentity>,
+}
+
+impl PackageReviewTraitParent {
+    pub const fn kind(&self) -> psi_typed_trees::trait_definition::TraitCompositionKind {
+        self.kind
+    }
+
+    pub const fn identity(&self) -> &PackageReviewNominalIdentity {
+        &self.identity
+    }
+
+    pub fn arguments(&self) -> &[PackageReviewTypeIdentity] {
+        &self.arguments
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PackageReviewTraitRequirementParameter {
+    name: String,
+    type_identity: PackageReviewTypeIdentity,
+    is_const: bool,
+    is_mutable: bool,
+    is_self: bool,
+}
+
+impl PackageReviewTraitRequirementParameter {
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub const fn type_identity(&self) -> &PackageReviewTypeIdentity {
+        &self.type_identity
+    }
+
+    pub const fn is_const(&self) -> bool {
+        self.is_const
+    }
+
+    pub const fn is_mutable(&self) -> bool {
+        self.is_mutable
+    }
+
+    pub const fn is_self(&self) -> bool {
+        self.is_self
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PackageReviewTraitRequirement {
+    identity: PackageReviewNominalIdentity,
+    spelling: Option<psi_language_core::OperatorSpelling>,
+    type_parameters: Vec<PackageReviewTypeParameter>,
+    parameters: Vec<PackageReviewTraitRequirementParameter>,
+    return_type: PackageReviewTypeIdentity,
+}
+
+impl PackageReviewTraitRequirement {
+    pub const fn identity(&self) -> &PackageReviewNominalIdentity {
+        &self.identity
+    }
+
+    pub const fn spelling(&self) -> Option<psi_language_core::OperatorSpelling> {
+        self.spelling
+    }
+
+    pub fn type_parameters(&self) -> &[PackageReviewTypeParameter] {
+        &self.type_parameters
+    }
+
+    pub fn parameters(&self) -> &[PackageReviewTraitRequirementParameter] {
+        &self.parameters
+    }
+
+    pub const fn return_type(&self) -> &PackageReviewTypeIdentity {
+        &self.return_type
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PackageReviewTraitShape {
+    identity: PackageReviewNominalIdentity,
+    is_boundary: bool,
+    type_parameters: Vec<PackageReviewTypeParameter>,
+    parents: Vec<PackageReviewTraitParent>,
+    requirements: Vec<PackageReviewTraitRequirement>,
+}
+
+impl PackageReviewTraitShape {
+    pub const fn identity(&self) -> &PackageReviewNominalIdentity {
+        &self.identity
+    }
+
+    pub const fn is_boundary(&self) -> bool {
+        self.is_boundary
+    }
+
+    pub fn type_parameters(&self) -> &[PackageReviewTypeParameter] {
+        &self.type_parameters
+    }
+
+    pub fn parents(&self) -> &[PackageReviewTraitParent] {
+        &self.parents
+    }
+
+    pub fn requirements(&self) -> &[PackageReviewTraitRequirement] {
+        &self.requirements
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PackageReviewDomainClassification {
     ProgressProfile,
@@ -736,6 +850,7 @@ impl CheckedPackageCallableReview {
 pub struct CheckedPackageReviewProjection {
     package: PackageKeyIdentity,
     target: omega_target::TargetProfile,
+    public_traits: Vec<PackageReviewTraitShape>,
     public_domains: Vec<PackageReviewDomainShape>,
     public_data: Vec<PackageReviewDataShape>,
     callables: Vec<CheckedPackageCallableReview>,
@@ -749,6 +864,10 @@ impl CheckedPackageReviewProjection {
 
     pub const fn target(&self) -> omega_target::TargetProfile {
         self.target
+    }
+
+    pub fn public_traits(&self) -> &[PackageReviewTraitShape] {
+        &self.public_traits
     }
 
     pub fn public_domains(&self) -> &[PackageReviewDomainShape] {
@@ -814,6 +933,7 @@ pub fn project_checked_package_review(
             .collect());
     }
     let build_machine = compilation.selected_build_machine_symbol();
+    let public_traits = project_public_traits(compilation, package)?;
     let public_domains = project_public_domains(compilation, package)?;
     let public_data = project_public_data(compilation, package)?;
     let synchronous_invocations = psi_effects::infer_synchronous_invocations(&compilation.typed);
@@ -888,10 +1008,196 @@ pub fn project_checked_package_review(
     Ok(CheckedPackageReviewProjection {
         package,
         target,
+        public_traits,
         public_domains,
         public_data,
         callables,
         selected_providers,
+    })
+}
+
+fn project_public_traits(
+    compilation: &CheckedCompilation,
+    package: PackageKeyIdentity,
+) -> Result<Vec<PackageReviewTraitShape>, Vec<Diagnostic>> {
+    let mut rows = Vec::new();
+    for definition in compilation.traits().iter().filter(|row| row.is_public) {
+        let identity = nominal_identity(compilation, definition.symbol)?;
+        if !reviewed_package_owns(&identity, package)? {
+            continue;
+        }
+        if !definition.lifetime_parameters.is_empty() {
+            return Err(vec![Diagnostic::error(format!(
+                "public trait `{}` uses lifetime parameters not yet represented by package review",
+                identity.path
+            ))]);
+        }
+        if !definition.conformance_bounds.is_empty() {
+            return Err(vec![Diagnostic::error(format!(
+                "public trait `{}` uses conformance bounds not yet represented by package review",
+                identity.path
+            ))]);
+        }
+        if !compilation.trait_invariants(definition).is_empty() {
+            return Err(vec![Diagnostic::error(format!(
+                "public trait `{}` uses invariants not yet represented by package review",
+                identity.path
+            ))]);
+        }
+
+        let parameters = compilation.trait_type_parameters(definition);
+        let (mut trait_binders, type_parameters) =
+            project_type_parameters(compilation, parameters, "trait", &identity.path)?;
+        trait_binders.insert(0, (definition.symbol, "trait-self".to_owned()));
+        let parents = compilation
+            .trait_requirements(definition)
+            .iter()
+            .map(|parent| project_trait_parent(compilation, parent, &trait_binders))
+            .collect::<Result<Vec<_>, _>>()?;
+        let requirements = compilation
+            .trait_machine_signatures(definition)
+            .iter()
+            .map(|requirement| {
+                project_trait_requirement(
+                    compilation,
+                    requirement,
+                    &trait_binders,
+                    parameters.len(),
+                )
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        rows.push(PackageReviewTraitShape {
+            identity,
+            is_boundary: definition.is_boundary,
+            type_parameters,
+            parents,
+            requirements,
+        });
+    }
+    rows.sort_by(|left, right| left.identity.cmp(&right.identity));
+    Ok(rows)
+}
+
+fn project_trait_parent(
+    compilation: &CheckedCompilation,
+    parent: &psi_typed_trees::trait_definition::TraitRequirement,
+    binders: &[(SymbolHandle, String)],
+) -> Result<PackageReviewTraitParent, Vec<Diagnostic>> {
+    let matches = compilation
+        .traits()
+        .iter()
+        .filter(|candidate| candidate.symbol == parent.symbol)
+        .collect::<Vec<_>>();
+    let [definition] = matches.as_slice() else {
+        return Err(vec![Diagnostic::error(format!(
+            "package review trait parent resolves to {} declarations; expected exactly one",
+            matches.len()
+        ))]);
+    };
+    Ok(PackageReviewTraitParent {
+        kind: if definition.is_boundary {
+            psi_typed_trees::trait_definition::TraitCompositionKind::ServiceReach
+        } else {
+            psi_typed_trees::trait_definition::TraitCompositionKind::Policy
+        },
+        identity: nominal_identity(compilation, definition.symbol)?,
+        arguments: compilation
+            .type_reference_table
+            .type_reference_handles(parent.arguments)
+            .iter()
+            .map(|argument| review_type_identity_with_binders(compilation, *argument, binders))
+            .collect(),
+    })
+}
+
+fn project_trait_requirement(
+    compilation: &CheckedCompilation,
+    requirement: &psi_typed_trees::signature::StateSignature,
+    trait_binders: &[(SymbolHandle, String)],
+    trait_parameter_count: usize,
+) -> Result<PackageReviewTraitRequirement, Vec<Diagnostic>> {
+    let identity = nominal_identity(compilation, requirement.symbol)?;
+    if !requirement.lifetime_parameters.is_empty() {
+        return Err(vec![Diagnostic::error(format!(
+            "public trait requirement `{}` uses lifetime parameters not yet represented by package review",
+            identity.path
+        ))]);
+    }
+    if requirement.is_default {
+        return Err(vec![Diagnostic::error(format!(
+            "public trait requirement `{}` has a default realization not yet joined to package review",
+            identity.path
+        ))]);
+    }
+    if !compilation.state_signature_invokes(requirement).is_empty()
+        || !compilation
+            .service_reach_rows
+            .services(requirement.service_reach_row)
+            .is_empty()
+        || requirement.service_reach_is_installation_bound
+    {
+        return Err(vec![Diagnostic::error(format!(
+            "public trait requirement `{}` uses service reach or invocation contracts not yet represented by public-trait review",
+            identity.path
+        ))]);
+    }
+    if requirement.suspends || requirement.blocks {
+        return Err(vec![Diagnostic::error(format!(
+            "public trait requirement `{}` uses suspension or blocking contracts not yet represented by public-trait review",
+            identity.path
+        ))]);
+    }
+    if !compilation
+        .state_signature_contracts(requirement)
+        .is_empty()
+    {
+        return Err(vec![Diagnostic::error(format!(
+            "public trait requirement `{}` uses proof, boundary, or crash contracts not yet represented by public-trait review",
+            identity.path
+        ))]);
+    }
+    if requirement.termination_guarantee
+        != psi_language_semantics::TerminationGuarantee::NoGuarantee
+    {
+        return Err(vec![Diagnostic::error(format!(
+            "public trait requirement `{}` uses a termination guarantee not yet represented by public-trait review",
+            identity.path
+        ))]);
+    }
+
+    let parameters = compilation.state_signature_type_parameters(requirement);
+    let (binders, type_parameters) = project_type_parameters_after(
+        compilation,
+        parameters,
+        "trait requirement",
+        &identity.path,
+        trait_binders,
+        trait_parameter_count,
+    )?;
+    Ok(PackageReviewTraitRequirement {
+        identity,
+        spelling: requirement.spelling,
+        type_parameters,
+        parameters: compilation
+            .state_signature_parameters(requirement)
+            .iter()
+            .map(|parameter| PackageReviewTraitRequirementParameter {
+                name: parameter.name.as_str().to_owned(),
+                type_identity: review_type_identity_with_binders(
+                    compilation,
+                    parameter.type_reference,
+                    &binders,
+                ),
+                is_const: parameter.is_const,
+                is_mutable: parameter.is_mutable,
+                is_self: parameter.is_self,
+            })
+            .collect(),
+        return_type: review_type_identity_with_binders(
+            compilation,
+            requirement.return_type,
+            &binders,
+        ),
     })
 }
 
@@ -1189,11 +1495,31 @@ fn project_type_parameters(
     declaration_kind: &str,
     declaration_path: &str,
 ) -> Result<(Vec<(SymbolHandle, String)>, Vec<PackageReviewTypeParameter>), Vec<Diagnostic>> {
-    let binders = parameters
-        .iter()
-        .enumerate()
-        .map(|(ordinal, parameter)| (parameter.symbol, format!("type-parameter:{ordinal}")))
-        .collect::<Vec<_>>();
+    project_type_parameters_after(
+        compilation,
+        parameters,
+        declaration_kind,
+        declaration_path,
+        &[],
+        0,
+    )
+}
+
+fn project_type_parameters_after(
+    compilation: &CheckedCompilation,
+    parameters: &[psi_typed_trees::data::TypeParameter],
+    declaration_kind: &str,
+    declaration_path: &str,
+    preceding_binders: &[(SymbolHandle, String)],
+    ordinal_offset: usize,
+) -> Result<(Vec<(SymbolHandle, String)>, Vec<PackageReviewTypeParameter>), Vec<Diagnostic>> {
+    let mut binders = preceding_binders.to_vec();
+    binders.extend(parameters.iter().enumerate().map(|(ordinal, parameter)| {
+        (
+            parameter.symbol,
+            format!("type-parameter:{}", ordinal_offset + ordinal),
+        )
+    }));
     let mut projected = Vec::with_capacity(parameters.len());
     for parameter in parameters {
         let kind = match parameter.kind {

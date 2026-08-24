@@ -223,6 +223,15 @@ classifications and authorized establishment routes retain the exact route kind 
 package-qualified trait/requirement identities; alternative routes normalize
 as a sorted set.
 
+Package-owned public traits retain exact identity, boundary status,
+alpha-normalized type/const binders, ordered package-qualified parent
+applications, and ordered machine/operator requirement signatures. Each
+requirement retains parameter names and modes, package-qualified types, and
+fixed operator spelling. Trait or requirement
+lifetimes, conformance bounds, invariants, default realizations, and
+operational/proof/crash/termination contracts reject until their complete
+canonical rows land.
+
 The eventual normalized package-admission evidence must include, with exact
 provenance:
 
