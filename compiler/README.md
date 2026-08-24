@@ -9,6 +9,8 @@ Alpha → Beta → Gamma → Delta
               omega-bootstrap (Delta-built, accepts Ωself)
                            ↓
               omega (full optimizing compiler; own binary may be conservative)
+                           │
+                           └── optional self-rebuild ──▶ omega (same compiler; optimized binary)
 ```
 
 Delta is an independent compiler-host language, not necessarily an Omega
@@ -26,8 +28,10 @@ closure unless the compiler executable actually depends on them.
 The bridge may run slowly and lower the product compiler conservatively. It
 must compile the `Ωself` source that implements the production optimizer and
 advanced lowering, but need not run those passes itself. A further product
-rebuild can optimize the compiler binary and add fixed-point evidence; it is
-optional for functionality and dependency closure.
+`omega` → `omega` rebuild can optimize the compiler binary and add fixed-point
+evidence; it is optional for functionality and dependency closure. The required
+bridge → product edge is a cross-language hosted build; only that optional edge
+is a strict self-rebuild.
 
 The hosted edge does not claim self-hosting proves correctness. A defect in
 `omega-bootstrap` can reproduce into production Omega. Canonical meaning routes,

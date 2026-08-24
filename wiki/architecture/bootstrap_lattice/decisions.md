@@ -254,14 +254,15 @@ incomplete in what Omega programs it accepts, but exact in the meaning of every
 program it does accept. The production compiler it builds accepts full Omega
 and preserves the full specified artifact meaning.
 
-There is one required hosted/self-host compile. `omega-bootstrap` may be slow
+There is one required hosted production build. `omega-bootstrap` may be slow
 and may lower the production compiler conservatively. It must compile the
 `Ωself` source that implements the production optimizer and advanced lowering,
 but it does not implement or run those product passes during this build. The
 resulting compiler has full optimizing functionality even if its own binary is
-not yet optimized. A later production self-rebuild may optimize that binary and
-provide fixed-point/reproducibility evidence; it is product work, not a second
-bootstrap task or architectural dependency. As
+not yet optimized. This Delta-compiler → Omega-source edge is not, strictly, an
+Omega self-rebuild. A later production `omega` → `omega` rebuild may optimize
+that binary and provide fixed-point/reproducibility evidence; it is product
+work, not a second bootstrap task or architectural dependency. As
 with every hosted edge, a defect can reproduce; proof, meaning, and
 translation-validation gates remain responsible for detecting it.
 

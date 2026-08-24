@@ -35,6 +35,10 @@ optimizer and advanced lowering, but need not implement those passes itself. A
 later product self-rebuild can optimize the compiler binary and add fixed-point
 evidence; it is not required for full functionality or dependency closure.
 
+In strict compiler terminology, the required top edge is a **hosted production
+build**, not yet a self-rebuild: the Delta-written `omega-bootstrap` compiles
+Omega source. Only the optional final `omega` → `omega` edge is self-hosting.
+
 Do not conflate implementation language, accepted source, implemented language,
 and executable optimization quality. `omega-bootstrap` is written in Delta and
 accepts a compositional subset of Omega. The production compiler is written in
@@ -69,7 +73,7 @@ Omega, or whether a second hosted rebuild is required.
 - Do not add another language or compiler generation between Delta and the
   product compiler. `omega-bootstrap` is a compiler role; `Ωself` is an Omega
   source profile; O0/O1 remain regression canaries only.
-- Require exactly one hosted/self-host compile: the Delta-built
+- Require exactly one hosted production build: the Delta-built
   `omega-bootstrap` compiles the `Ωself` product source into the full optimizing
   product compiler. No second compile is a bootstrap task. Rebuilding that same
   compiler with itself is optional product performance/reproducibility work.
@@ -318,14 +322,12 @@ outside that manifest unless the compiler executable imports them.
     the Delta-written bridge;
   - [ ] freeze compositional syntax, static-semantics, resource, ABI/layout, and
     lowering rules—not file identities, statement counts, or AST permutations;
-  - [ ] presumptively exclude mathematical proof/program syntax and
-    linear/dependent types from the compiler's own implementation source;
-  - [ ] presumptively retain ordinary named fields, payload-bearing sums, and
-    basic generics unless source evidence makes their removal cheaper overall;
-  - [ ] decide domains, advanced generics, numeric/schema field tags, complex
-    transition payloads, and mixed field-plus-case data from the actual source,
-    preferring a simpler discriminant plus explicit context or separate
-    record/sum shapes only when that lowers total source-and-assurance cost;
+  - [ ] resolve every row in the working feature-disposition table in
+    [`self_hosting_profile.md`](wiki/architecture/bootstrap_lattice/self_hosting_profile.md):
+    proof and linear/dependent features are presumptively excluded; ordinary
+    named fields, payload sums, and basic generics are presumptively retained;
+    domains, advanced generics, numeric/schema field tags, complex transition
+    payloads, and mixed field-plus-case data remain measurement questions;
   - [ ] keep standalone terminal-Psi tools, interpreters, REPLs, proof explorers,
     viewers, and debuggers outside the manifest unless the compiler executable
     imports them; and
@@ -333,8 +335,11 @@ outside that manifest unless the compiler executable imports them.
     language capability.
 
   Acceptance: every program admitted by `Ωself` is ordinary Omega with exact
-  Omega meaning; unsupported Omega rejects. The profile is a true subset, not a
-  dialect or another lattice rung.
+  Omega meaning; unsupported Omega rejects. Publish the deterministic source
+  manifest and the compositional feature/resource profile as distinct
+  artifacts, with every candidate recorded as retained or excluded and tied to
+  its cost evidence. The profile is a true subset, not a dialect or another
+  lattice rung.
 
 - [ ] **Implement `omega-bootstrap` in Delta.**
   Reuse the closed O0/O1 test path as vertical-canary evidence only. O0/O1 are
@@ -395,13 +400,14 @@ outside that manifest unless the compiler executable imports them.
   may remain a differential reference but is never authority or a release
   dependency.
 
-- [ ] **Perform the sole required hosted/self-host compile.**
+- [ ] **Perform the sole required hosted production build.**
   Run the Delta-built bridge on the exact `Ωself` manifest and validate the
   result against canonical meaning plus the full compiler/language suites. The
   required artifact accepts full Omega and contains the production optimizer
   and advanced lowering, although its own binary may have been conservatively
-  generated. This closes the required build lattice. A later production
-  self-rebuild is optional product optimization and reproducibility work, not a
+  generated. This closes the required build lattice. This cross-language edge
+  is not itself an Omega self-rebuild. A later production `omega` → `omega`
+  rebuild is optional product optimization and reproducibility work, not a
   bootstrap task, rung, or dependency.
 
 ## Cross-rung assurance work

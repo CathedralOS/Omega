@@ -156,34 +156,26 @@ That gives the design loop exactly two feature inventories:
 Everything else in the hosted build is implementation, validation, or optional
 optimization work under those two inventories.
 
-Presumptively excluded language features from the production compiler's own
-implementation source:
+The working feature disposition is:
 
-- the mathematical proof/program surface;
-- linear and dependent types.
+| Omega facility in the compiler's own source | Working disposition | Decision test |
+| --- | --- | --- |
+| mathematical proof/program surface | presumptively exclude | retain only if the compiler implementation itself has an unavoidable use; implementing proof checking for user programs is not such a use |
+| linear and dependent types | presumptively exclude | same source-need and total-cost test |
+| ordinary named record fields | presumptively retain | removing them is likely to make compiler data less clear and more brittle |
+| payload-bearing enums/sum data | presumptively retain | syntax and IR modeling cost versus explicit-tag records |
+| basic generics | presumptively retain | collection, result, arena-ID, and compiler-data reuse versus monomorphic duplication |
+| concrete domains and domain arithmetic | measure | compare with explicit compiler contexts and narrow operations |
+| domain polymorphism | measure | admit only the forms used by the closed source manifest |
+| advanced generic constraints, specialization, and reflection | measure | source benefit versus bridge and assurance cost |
+| numeric/schema field tags such as `0:` | measure | compare with ordinary named fields; these are distinct from named record fields |
+| complex transition payloads | measure | compare with a simple discriminant plus explicit compiler context |
+| mixed field-plus-case data | measure | compare with separate record and sum-data types |
 
-Presumptively excluded source units from the hosted closure:
-
-- standalone terminal-Psi tools, interpreters, REPLs, proof explorers, viewers,
-  debuggers, and other product tooling not imported by the compiler executable.
-
-Presumptively retained in the compiler's own source profile because removing
-them is likely to make the compiler larger or less robust:
-
-- ordinary named record fields;
-- payload-bearing enums/sum data for syntax trees and IR;
-- basic generics needed by collections, results, arena IDs, and compiler data
-  structures.
-
-Candidates to decide from the actual source and a bootstrap-cost measurement:
-
-- concrete domains versus explicit compiler contexts;
-- domain polymorphism and arithmetic;
-- advanced generic constraints, specialization, or reflection;
-- numeric/schema field tags such as `0:` versus ordinary named fields;
-- complex transition payloads versus a simple discriminant and explicit
-  compiler context;
-- mixed field-plus-case data versus separate record and sum-data types.
+Source-unit membership is a separate question from language features.
+Standalone terminal-Psi tools, interpreters, REPLs, proof explorers, viewers,
+debuggers, and other product tooling are presumptively outside the hosted
+closure unless the compiler executable imports them.
 
 These are `Ωself` source-profile choices, not proposals to remove the features
 from full Omega. Conversely, Delta does not acquire or reject any of them merely
@@ -210,7 +202,7 @@ dependent typing are not. Profile growth is an architectural change and must
 update the profile rules, compiler, meaning route, diagnostics, and negative
 gates together.
 
-## One required hosted compile
+## One required hosted production build
 
 `omega-bootstrap` may itself be a slow binary and may lower `main.omg`
 conservatively. It must understand enough `Ωself` to compile the source that
@@ -228,6 +220,8 @@ the same product source ──[optional omega rebuild]──▶ omega (same comp
 A later production-Omega rebuild can optimize the compiler binary itself and
 provide fixed-point or reproducibility evidence. It is optional: neither full
 language functionality nor bootstrap dependency closure waits for it.
+Strictly, that optional `omega` → `omega` edge is the self-rebuild; the required
+Delta-written-compiler → Omega-source edge is a cross-language hosted build.
 
 ## Mechanical enforcement
 
