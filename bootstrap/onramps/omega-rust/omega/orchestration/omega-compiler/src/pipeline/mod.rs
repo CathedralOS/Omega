@@ -87,9 +87,10 @@ pub use package_compilation::{
 };
 pub use package_review::{
     CheckedPackageCallableReview, CheckedPackageProviderReview, CheckedPackageReviewProjection,
-    PACKAGE_REVIEW_ENCODING_VERSION, PackageReviewArithmeticDomain,
-    PackageReviewCallableConformance, PackageReviewCallableContract,
-    PackageReviewCallableParameter, PackageReviewCallableRole, PackageReviewCapabilityFlow,
+    PACKAGE_REVIEW_ENCODING_VERSION, PACKAGE_REVIEW_ROW_ENCODING_VERSION,
+    PackageReviewArithmeticDomain, PackageReviewCallableConformance, PackageReviewCallableContract,
+    PackageReviewCallableParameter, PackageReviewCallableRole, PackageReviewCanonicalRow,
+    PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk, PackageReviewCapabilityFlow,
     PackageReviewCastForm, PackageReviewConformanceBound, PackageReviewContractBinaryOperator,
     PackageReviewContractExpression, PackageReviewContractFact, PackageReviewContractKind,
     PackageReviewContractUnaryOperator, PackageReviewCrash, PackageReviewCrashCall,

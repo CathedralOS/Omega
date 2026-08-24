@@ -11,6 +11,8 @@ use psi_checked_trees::{
 
 const MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW\0";
 pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 30;
+const ROW_MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW-ROW\0";
+pub const PACKAGE_REVIEW_ROW_ENCODING_VERSION: u16 = 1;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageReviewEncodingError {
@@ -47,6 +49,146 @@ pub(super) fn encode(
     encoder.sequence(&review.dangerous_authorities, encode_dangerous_authority)?;
     encoder.sequence(&review.selected_providers, encode_provider)?;
     Ok(encoder.output)
+}
+
+pub(super) fn encode_rows(
+    review: &CheckedPackageReviewProjection,
+) -> Result<Vec<PackageReviewCanonicalRow>, PackageReviewEncodingError> {
+    let mut rows = Vec::new();
+    rows.push(encode_row(
+        review,
+        PackageReviewCanonicalRowKind::ProjectionHeader,
+        PackageReviewCanonicalRowRisk::Blocking,
+        |_| Ok(()),
+        |_| Ok(()),
+    )?);
+    for shape in &review.public_traits {
+        rows.push(encode_row(
+            review,
+            PackageReviewCanonicalRowKind::PublicTrait,
+            PackageReviewCanonicalRowRisk::Blocking,
+            |encoder| encode_nominal(encoder, &shape.identity),
+            |encoder| encode_trait_shape(encoder, shape),
+        )?);
+    }
+    for shape in &review.public_domains {
+        rows.push(encode_row(
+            review,
+            PackageReviewCanonicalRowKind::PublicDomain,
+            PackageReviewCanonicalRowRisk::Blocking,
+            |encoder| encode_nominal(encoder, &shape.identity),
+            |encoder| encode_domain_shape(encoder, shape),
+        )?);
+    }
+    for shape in &review.public_data {
+        rows.push(encode_row(
+            review,
+            PackageReviewCanonicalRowKind::PublicData,
+            PackageReviewCanonicalRowRisk::Blocking,
+            |encoder| encode_nominal(encoder, &shape.identity),
+            |encoder| encode_data_shape(encoder, shape),
+        )?);
+    }
+    for row in &review.representation_tcb {
+        rows.push(encode_row(
+            review,
+            PackageReviewCanonicalRowKind::RepresentationTcb,
+            PackageReviewCanonicalRowRisk::AuditRecommended,
+            |encoder| encode_nominal(encoder, &row.declaration),
+            |encoder| encode_representation_tcb(encoder, row),
+        )?);
+    }
+    for callable in &review.callables {
+        rows.push(encode_row(
+            review,
+            PackageReviewCanonicalRowKind::Callable,
+            PackageReviewCanonicalRowRisk::Blocking,
+            |encoder| encode_nominal(encoder, &callable.identity),
+            |encoder| encode_callable(encoder, callable),
+        )?);
+    }
+    for authority in &review.dangerous_authorities {
+        rows.push(encode_row(
+            review,
+            PackageReviewCanonicalRowKind::DangerousAuthority,
+            PackageReviewCanonicalRowRisk::Blocking,
+            |encoder| encode_nominal(encoder, &authority.service),
+            |encoder| encode_dangerous_authority(encoder, authority),
+        )?);
+    }
+    rows.push(encode_row(
+        review,
+        PackageReviewCanonicalRowKind::SelectedProviderSet,
+        PackageReviewCanonicalRowRisk::OpaqueBlocking,
+        |_| Ok(()),
+        |encoder| encoder.sequence(&review.selected_providers, encode_provider),
+    )?);
+    rows.sort_by(|left, right| {
+        left.kind
+            .cmp(&right.kind)
+            .then(left.key_bytes.cmp(&right.key_bytes))
+    });
+    if rows
+        .windows(2)
+        .any(|pair| pair[0].kind == pair[1].kind && pair[0].key_bytes == pair[1].key_bytes)
+    {
+        return Err(PackageReviewEncodingError::new(
+            "package review contains duplicate canonical row keys",
+        ));
+    }
+    Ok(rows)
+}
+
+fn encode_row(
+    review: &CheckedPackageReviewProjection,
+    kind: PackageReviewCanonicalRowKind,
+    risk: PackageReviewCanonicalRowRisk,
+    encode_key: impl FnOnce(&mut Encoder) -> Result<(), PackageReviewEncodingError>,
+    encode_value: impl FnOnce(&mut Encoder) -> Result<(), PackageReviewEncodingError>,
+) -> Result<PackageReviewCanonicalRow, PackageReviewEncodingError> {
+    let mut key = Encoder::default();
+    encode_key(&mut key)?;
+    let key_bytes = key.output;
+    let mut value = Encoder::default();
+    encode_value(&mut value)?;
+    let value_bytes = value.output;
+    let mut canonical = Encoder::default();
+    canonical.output.extend_from_slice(ROW_MAGIC);
+    canonical.u16(PACKAGE_REVIEW_ROW_ENCODING_VERSION);
+    canonical.u16(PACKAGE_REVIEW_ENCODING_VERSION);
+    canonical.package_identity(review.package);
+    canonical.string(review.target.target_name())?;
+    canonical.byte(canonical_row_kind_tag(kind));
+    canonical.byte(canonical_row_risk_tag(risk));
+    canonical.bytes(&key_bytes)?;
+    canonical.bytes(&value_bytes)?;
+    Ok(PackageReviewCanonicalRow {
+        kind,
+        risk,
+        key_bytes,
+        canonical_bytes: canonical.output,
+    })
+}
+
+const fn canonical_row_risk_tag(risk: PackageReviewCanonicalRowRisk) -> u8 {
+    match risk {
+        PackageReviewCanonicalRowRisk::Blocking => 0,
+        PackageReviewCanonicalRowRisk::AuditRecommended => 1,
+        PackageReviewCanonicalRowRisk::OpaqueBlocking => 2,
+    }
+}
+
+const fn canonical_row_kind_tag(kind: PackageReviewCanonicalRowKind) -> u8 {
+    match kind {
+        PackageReviewCanonicalRowKind::ProjectionHeader => 0,
+        PackageReviewCanonicalRowKind::PublicTrait => 1,
+        PackageReviewCanonicalRowKind::PublicDomain => 2,
+        PackageReviewCanonicalRowKind::PublicData => 3,
+        PackageReviewCanonicalRowKind::RepresentationTcb => 4,
+        PackageReviewCanonicalRowKind::Callable => 5,
+        PackageReviewCanonicalRowKind::DangerousAuthority => 6,
+        PackageReviewCanonicalRowKind::SelectedProviderSet => 7,
+    }
 }
 
 fn encode_representation_tcb(

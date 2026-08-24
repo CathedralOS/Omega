@@ -1,7 +1,8 @@
 use omega_compiler::{
-    BuildObservationClass, PACKAGE_REVIEW_ENCODING_VERSION, PackageCompilationInputs,
-    PackageDependencyBinding, PackageReviewArithmeticDomain, PackageReviewCallableRole,
-    PackageReviewCastForm, PackageReviewContractBinaryOperator, PackageReviewContractExpression,
+    BuildObservationClass, PACKAGE_REVIEW_ENCODING_VERSION, PACKAGE_REVIEW_ROW_ENCODING_VERSION,
+    PackageCompilationInputs, PackageDependencyBinding, PackageReviewArithmeticDomain,
+    PackageReviewCallableRole, PackageReviewCanonicalRowKind, PackageReviewCastForm,
+    PackageReviewContractBinaryOperator, PackageReviewContractExpression,
     PackageReviewContractFact, PackageReviewContractKind, PackageReviewCrashInterface,
     PackageReviewCrashRouteGuard, PackageReviewDangerousAuthorityClass, PackageReviewDataMember,
     PackageReviewDomainClassification, PackageReviewDomainEstablishmentKind,
@@ -120,16 +121,25 @@ target macos_arm64 { }
             .source_consumption_commitment()
             .expect("changed package source commitment")
     );
+    let first_review =
+        project_checked_package_review(&first_checked).expect("first package review");
+    let changed_review =
+        project_checked_package_review(&changed_checked).expect("changed package review");
     assert_eq!(
-        project_checked_package_review(&first_checked)
-            .expect("first package review")
+        first_review
             .canonical_review_bytes()
             .expect("first package review bytes"),
-        project_checked_package_review(&changed_checked)
-            .expect("changed package review")
+        changed_review
             .canonical_review_bytes()
             .expect("changed package review bytes"),
         "source consumption and normalized capability/API comparison remain separate identities"
+    );
+    assert_eq!(
+        first_review.canonical_rows().expect("first canonical rows"),
+        changed_review
+            .canonical_rows()
+            .expect("changed-source canonical rows"),
+        "source-only changes remain outside every normalized capability/API row"
     );
 
     first.write("main.omg", changed_source);
@@ -507,6 +517,34 @@ crashes Abort
             .canonical_review_bytes()
             .expect("repeated encoding must be deterministic")
     );
+    let rows = review
+        .canonical_rows()
+        .expect("review projection should have canonical comparison rows");
+    assert_eq!(
+        rows,
+        review
+            .canonical_rows()
+            .expect("repeated row encoding must be deterministic")
+    );
+    assert!(rows.windows(2).all(|pair| {
+        (pair[0].kind(), pair[0].key_bytes()) < (pair[1].kind(), pair[1].key_bytes())
+    }));
+    assert!(
+        rows.iter()
+            .any(|row| row.kind() == PackageReviewCanonicalRowKind::ProjectionHeader)
+    );
+    assert!(
+        rows.iter()
+            .any(|row| row.kind() == PackageReviewCanonicalRowKind::Callable)
+    );
+    let row_magic = b"OMEGA-PACKAGE-REVIEW-ROW\0";
+    for row in &rows {
+        assert!(row.canonical_bytes().starts_with(row_magic));
+        assert_eq!(
+            &row.canonical_bytes()[row_magic.len()..row_magic.len() + 2],
+            &PACKAGE_REVIEW_ROW_ENCODING_VERSION.to_le_bytes()
+        );
+    }
 
     assert_eq!(review.package(), package_identity());
     assert_eq!(
@@ -515,6 +553,7 @@ crashes Abort
         "review identity must retain the deployment profile, not only its native ABI",
     );
     assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 30);
+    assert_eq!(PACKAGE_REVIEW_ROW_ENCODING_VERSION, 1);
     let [ready] = review.public_domains() else {
         panic!("one package-owned public domain row")
     };
