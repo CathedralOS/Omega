@@ -39,15 +39,17 @@ DELTA_ARCH=aarch64 cargo run -- ../../rungs/delta/samples/shape.alp out  # macOS
 
 ## Status
 
-- **Bridge frontend O1 — DONE for native/self-host, direct artifacts, and the
-  current lower-rung observations.**
+- **Bridge frontend O1 plus bounded scalar calls — DONE for native/self-host,
+  direct artifacts, product validation, and current lower-rung observations.**
   `../../omega-bootstrap/compiler/omega-bootstrap-frontend.alp` is the canonical
   first Delta-written bridge compiler slice
   (`samples/omega-bootstrap-frontend.alp` is the canonical sample link and
   `samples/omega0-frontend.alp` is a compatibility alias):
   canonical bounded bundle decoding, retained source-unit provenance, per-unit
   UTF-8 validation, streaming lexing without cross-unit fusion, and exact O0/O1
-  parsing/name/type/count checks,
+  parsing/name/type/count checks plus a profile-neutral table-driven lane for
+  named machines, signed-`i32` parameters/results, literals, parameter
+  references, and acyclic calls,
   retaining 0–16 ordered `write_line` literals plus one final `exit_process`
   `i32`. Its focused gate covers the acceptance/rejection matrix and recompiles
   the frontend through Delta-written `lowermachine`; every operand affects the

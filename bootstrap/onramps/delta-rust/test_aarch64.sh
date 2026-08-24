@@ -495,12 +495,12 @@ filter_test "lowermachine keeps the outer operator when an array read is an oper
 filter_test "lowermachine lowers a value-returning self-call as an operand" "$SAMPLES/lowermachine.alp" "// SELF-HOSTING / CODEGEN: a COMPLETE transition -- fuses the subject lowering (lowersubj) with the
 // arm dispatch (armdispatch). Phase 0 collects the field table (scalar fields, offset = 8*index),
 // phase 1 the state labels (Lm<mi>s<si>), phase 2 lowers the first transition: the SUBJECT (a literal
-// `movz w0,#v` / push, OR a `self.field` load `ldr x9,[x29,#16]; ldr w0,[x9,#off]` / push) then the
+// 'movz w0,#v' / push, OR a 'self.field' load 'ldr x9,[x29,#16]; ldr w0,[x9,#off]' / push) then the
 // subject-pop and per-arm dispatch -- exactly the backend's Transition lowering (src/aarch64.rs):
 //     ldr x0, [sp], #16              pop the subject
 //   per value arm  (true=1, false=0, N):
 //     movz w1, #<value> / cmp w0, w1 / b.eq Lm<mi>s<target>
-//   per wild arm `_`:
+//   per wild arm '_':
 //     b Lm<mi>s<target>
 // Combined with lowersubj (the subject), this is a complete transition. Single-machine inputs
 // (mi 0) for verification; the target is resolved via the state table by name.
@@ -546,6 +546,56 @@ fi
 
 selfhost_file_test "self-hosting: lowermachine compiles the Omega0 bundle decoder" \
   "$SAMPLES/omega-bootstrap-bundle-decode.alp" "$T/bundle-ok"
+selfhost_test "self-hosting: lowermachine preserves nested array contexts and keyword-named states" \
+  "$SAMPLES/nested-array-context.alp" ""
+selfhost_test "self-hosting: lowermachine parses both signed i32 literal boundaries" \
+  "$SAMPLES/literal-boundaries.alp" ""
+
+# The nested-array context stack has an explicit compiler resource ceiling.
+# The adjacent admitted source must compile and run; the next context must
+# reject deterministically rather than scanning beyond the retained source.
+make_nested_array_context_source() {
+  nested_count=$1
+  nested_output=$2
+  printf '%s' 'boundary trait Console { machine exit_process(return_code: i32); } data Main { console: Console; values: [i32; 1]; result: i32; } machine Main::main(&mut self) { self.result = ' > "$nested_output"
+  nested_index=0
+  while [ "$nested_index" -lt "$nested_count" ]; do
+    printf '%s' 'self.values[' >> "$nested_output"
+    nested_index=$((nested_index + 1))
+  done
+  printf '0' >> "$nested_output"
+  nested_index=0
+  while [ "$nested_index" -lt "$nested_count" ]; do
+    printf ']' >> "$nested_output"
+    nested_index=$((nested_index + 1))
+  done
+  printf '%s' '; self.console.exit_process(self.result); }' >> "$nested_output"
+}
+make_nested_array_context_source 16 "$T/nested-array-16.alp"
+selfhost_test "self-hosting: lowermachine admits exactly 16 nested array contexts" \
+  "$T/nested-array-16.alp" ""
+make_nested_array_context_source 17 "$T/nested-array-17.alp"
+set +e
+"$T/lmx" < "$T/nested-array-17.alp" > /dev/null 2>&1
+nested_array_overflow=$?
+set -e
+if [ "$nested_array_overflow" = 3 ]; then
+  PASS=$((PASS+1)); echo "  ok  lowermachine rejects the 17th nested array context"
+else
+  FAIL=$((FAIL+1)); echo "  FAIL lowermachine nested array overflow: exit $nested_array_overflow, expected 3"
+fi
+
+set +e
+printf '%s' 'boundary trait Console { machine exit_process(return_code: i32); } data Main { console: Console; values: [i32; 1]; result: i32; } machine Main::main(&mut self) { self.result = self.values[self.values[0]' | "$T/lmx" > /dev/null 2>&1
+truncated_array_status=$?
+printf '%s' 'boundary trait Console { machine exit_process(return_code: i32); } data Main { console: Console; } machine Main::main(&mut self) { state machine' | "$T/lmx" > /dev/null 2>&1
+trailing_machine_status=$?
+set -e
+if [ "$truncated_array_status" = 1 ] && [ "$trailing_machine_status" = 1 ]; then
+  PASS=$((PASS+1)); echo "  ok  lowermachine rejects truncated array and keyword-state source"
+else
+  FAIL=$((FAIL+1)); echo "  FAIL lowermachine malformed-source guards: array=$truncated_array_status machine=$trailing_machine_status, expected 1/1"
+fi
 
 # SECOND-ORDER self-hosting: the byte-identical lowermachine ($T/lmx) compiles rpn.alp -- another
 # real ~200-line Delta program (a shunting-yard compiler) -- and the resulting arm64 binary
@@ -562,8 +612,8 @@ selfhost_test "self-hosting: lowermachine compiles calc.alp; binary matches the 
 # assert.alp: the dynamic-contract feature (`assert <cond>;` traps on false). Needed the assert
 # statement path (ckas -> asrt0 -> mode 9 -> cbz w0, Ltrap). All asserts hold -> exit 42.
 selfhost_test "self-hosting: lowermachine compiles assert.alp; binary matches the reference" "$SAMPLES/assert.alp" ""
-selfhost_test "self-hosting: lowermachine lowers `i32 in Wrapping` (no overflow trap); matches reference" "$SAMPLES/wraptest.alp" ""
-selfhost_test "self-hosting: lowermachine lowers `i32 in Saturating` (clamp to MIN/MAX); matches reference" "$SAMPLES/sattest.alp" ""
+selfhost_test "self-hosting: lowermachine lowers i32 in Wrapping (no overflow trap); matches reference" "$SAMPLES/wraptest.alp" ""
+selfhost_test "self-hosting: lowermachine lowers i32 in Saturating (clamp to MIN/MAX); matches reference" "$SAMPLES/sattest.alp" ""
 selfhost_test "self-hosting: lowermachine lowers a Saturating FIELD store (per-field fdom table); matches reference" "$SAMPLES/fieldsat.alp" ""
 # lowerexpr.alp: itself a COMPILER (emits arm64 asm). lowermachine compiling it exercises a
 # self-method-call statement with no trailing ';' as a block's last statement (state pu(){self.push()});

@@ -67,18 +67,20 @@ compiler-host feasibility, not completeness of the latter.
 - `bootstrap/omega-bootstrap/compiler/omega-bootstrap-frontend.alp` is the first actual bridge
   compiler slice written in Delta. It decodes the complete bounded canonical
   bundle, retains unit provenance, validates each unit independently, and admits
-  one O0/O1 program-bearing unit plus trivia-only auxiliaries without cross-unit
-  token fusion. It then performs exact name/type/count checks and retains a
-  checked table of console-boundary operands. Its focused gate also recompiles it
+  one program-bearing unit plus trivia-only auxiliaries without cross-unit token
+  fusion. It then performs exact O0/O1 console checks or bounded scalar-call
+  symbol/signature/value/graph checks. Its focused gates also recompile it
   through Delta-written `lowermachine`; the lower-rung meaning gate executes the
   complete frontend through `omega2gamma.beta` and Gamma. The old Delta-sample
   path is compatibility plumbing.
 - `bootstrap/omega-bootstrap/compiler/BOOTSTRAP_PROFILES.md` freezes the current Delta D0
-  implementation profile and Omega O0/O1 vertical-canary input profiles; the
-  production `Ωself` profile remains source-derived.
+  implementation profile, Omega O0/O1 vertical-canary input profiles, and the
+  profile-neutral scalar-call conformance slice; the production `Ωself` profile
+  remains source-derived.
 - `bootstrap/omega-bootstrap/compiler/omega-bootstrap-terminal-to-elf.alp` is the first direct
-  artifact backend. It emits exact O0/O1 Linux x86-64 images without a host
-  assembler or linker; general Omega lowering remains open.
+  artifact backend. It emits exact O0/O1 and bounded scalar-call Linux x86-64
+  images without a host assembler or linker; general Omega lowering remains
+  open.
 
 ## Relationship to Psi and Omega
 

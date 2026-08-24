@@ -56,15 +56,18 @@ reserved `compiler/{psi,omega}/` product roots.
 - [`gates/scalar-call-reference.sh`](gates/scalar-call-reference.sh) pins the
   product-owned, deterministic vocabulary-28 signed-`i32` scalar-`Call` fixture,
   meaning, Linux x86-64 internal-call lowering, and structural mutation teeth.
-  This is differential preparation for a general Delta call tranche, not
-  bootstrap authority or evidence that the bridge implements calls yet.
+  [`gates/delta-scalar-call-frontend.sh`](gates/delta-scalar-call-frontend.sh)
+  carries the implemented table-driven Delta source tranche through native and
+  lowermachine-built frontends plus independent product validation. The fixture
+  remains differential evidence, not bootstrap authority.
 - [`../assurance/refinement/omega-bootstrap/`](../assurance/refinement/omega-bootstrap/)
   owns the meaning-TV, input-TV, translation-validation, and
   generated-certificate replay gates and their untrusted encoders.
 - convergence and certificate gates run emitted evidence through the low-rung
   proof kernel and negative controls.
 - [`compiler/BOOTSTRAP_PROFILES.md`](compiler/BOOTSTRAP_PROFILES.md) freezes the
-  current Delta implementation profile and the O0/O1 Omega console canaries.
+  current Delta implementation profile, the O0/O1 Omega console canaries, and
+  the bounded profile-neutral scalar-call conformance slice.
   A provisional production `Ωself` profile can be derived and enforced once the
   exact Omega compiler source and transitive dependency manifest exists; it
   freezes only when the general bridge supplies the cost evidence used to
@@ -79,25 +82,30 @@ These are seed pieces for `omega-bootstrap`, not that compiler itself.
 [`compiler/omega-bootstrap-frontend.alp`](compiler/omega-bootstrap-frontend.alp)
 is the canonical Delta-written frontend source. It decodes the canonical bundle,
 retains bounded labels and exact source spans, validates every unit independently,
-selects exactly one O1 program-bearing unit without concatenation, lexes, parses,
-resolves, and type/count-checks O0 plus O1's variable straight-line console
-body, then emits canonical terminal-Psi bytes. Empty, line-comment-only, and
+selects exactly one program-bearing unit without concatenation, lexes, parses,
+and type/count-checks O0/O1's variable straight-line console body or the bounded
+table-driven scalar-call lane, then emits canonical terminal-Psi bytes. The
+scalar lane supports named machines, signed-`i32` parameters/results, literals,
+parameter references, and forward acyclic calls. Empty, line-comment-only, and
 nested-block-comment-only auxiliary units are a pre-profile transport/scanner
 canary, not module semantics or `Ωself` admission. The same bounded nested
 comment scanner is used inside the program unit and rejects a delimiter that
 would need another source unit to close. The old Delta-sample path is a
 compatibility symlink.
 [`compiler/omega-bootstrap-terminal-to-elf.alp`](compiler/omega-bootstrap-terminal-to-elf.alp)
-accepts the same 0–16-write profile and emits a deterministic Linux x86-64 ELF
-directly, without a host assembler or linker. Focused gates compare terminal
-modules and images byte-for-byte with the shared product pipeline and through
-lower-rung meaning, and reject malformed or exhausted inputs before emitting
-any byte. The composite self-host gate additionally proves that the same frozen
+accepts the same 0–16-write profile and the bounded scalar-call terminal shape,
+then emits a deterministic Linux x86-64 ELF directly without a host assembler
+or linker. Focused gates compare the canonical fixtures byte-for-byte, validate
+general scalar terminals with the product codec/verifier/interpreter, run the
+resulting images, and reject malformed or exhausted inputs before emitting any
+byte. The composite self-host gate additionally proves that the same frozen
 frontend and backend still compose after both are compiled by the Delta-written
 `lowermachine`. Its initial `lowermachine` executable remains a disposable Rust
 on-ramp product, and Darwin assembly/signing still uses `clang` and `codesign`;
-the claim is O1 dependency/behavior closure, not a Rust-free root or general
-Omega checking. This closes O1, not the future `Ωself` bridge backend.
+the claim is bounded dependency/behavior closure, not a Rust-free root or
+general Omega checking. The inferred scalar root and process-status shim are
+conformance conventions, not Omega's authored `target::ProgramEntry`. This
+closes O1 and the scalar tranche, not the future `Ωself` bridge backend.
 
 ## Coverage boundary
 

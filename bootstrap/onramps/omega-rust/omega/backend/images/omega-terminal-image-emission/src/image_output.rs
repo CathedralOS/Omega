@@ -12,9 +12,10 @@ use psi_terminal::TerminalPsiIdentity;
 
 use super::final_image_validation::{validate_terminal_image, validate_terminal_native_fuel_image};
 use super::{
-    TerminalObjectArtifact, TerminalObjectBoundarySettlement, TerminalObjectFuelAttribution,
-    TerminalObjectFunction, TerminalObjectPortEffect, ValidatedTerminalNativeFuelArtifact,
-    ValidatedTerminalNativeFuelFunction,
+    LINUX_X86_SCALAR_EXIT_SHIM_BYTES, SCALAR_CALL_REFERENCE_FINGERPRINT,
+    TerminalLinuxX86ScalarExitShim, TerminalObjectArtifact, TerminalObjectBoundarySettlement,
+    TerminalObjectFuelAttribution, TerminalObjectFunction, TerminalObjectPortEffect,
+    ValidatedTerminalNativeFuelArtifact, ValidatedTerminalNativeFuelFunction,
 };
 use omega_terminal_installation_evidence::NativeFuelTargetPlanProjection;
 
@@ -110,7 +111,14 @@ pub fn emit_terminal_executable_image(
         }
     }?;
     let mut output = emitted_direct_executable_output(output);
-    output.compiler_text_validation = Some(validate_terminal_image(artifact, &output)?);
+    output.compiler_text_validation = Some(validate_terminal_image(
+        artifact,
+        &artifact.object,
+        &artifact.relocations,
+        &artifact.text_bytes,
+        None,
+        &output,
+    )?);
     Ok(TerminalExecutableImage {
         terminal_psi: artifact.terminal_psi,
         target: artifact.target,
@@ -119,6 +127,111 @@ pub fn emit_terminal_executable_image(
         fuel_attribution: artifact.fuel_attribution.clone(),
         port_effects: artifact.port_effects.clone(),
         boundary_settlements: artifact.boundary_settlements.clone(),
+        output,
+    })
+}
+
+/// Emit the runnable Linux x86-64 image for the exact published proof-free i32
+/// scalar-call reference.
+///
+/// This fixture/profile-specific API is deliberately not a general scalar
+/// process adapter. `TerminalObjectFunction` does not retain ordinary scalar
+/// arity, and an unused entry parameter can produce byte-identical machine code.
+/// Exact semantic-identity binding prevents such an entry from silently
+/// acquiring zero-argument process-entry semantics.
+pub fn emit_terminal_scalar_call_reference_linux_x86_64_image(
+    artifact: &TerminalObjectArtifact,
+) -> Result<TerminalScalarCallReferenceImage, Diagnostic> {
+    if artifact.target != NativeTarget::linux_x64() {
+        return Err(Diagnostic::error(format!(
+            "Linux x86-64 scalar entry shim cannot target {:?}",
+            artifact.target
+        )));
+    }
+    if artifact.terminal_psi.vocabulary_marker != psi_terminal::VocabularyMarker::CURRENT
+        || artifact.terminal_psi.program_fingerprint.as_bytes()
+            != &SCALAR_CALL_REFERENCE_FINGERPRINT
+    {
+        return Err(Diagnostic::error(
+            "Linux x86-64 scalar-call reference image requires the exact published semantic identity",
+        ));
+    }
+    let entry = artifact.entry_function();
+    if entry.scalar_stack.is_none() || entry.bytes(artifact).last() != Some(&0xc3) {
+        return Err(Diagnostic::error(format!(
+            "terminal entry {} is not a completely accounted returning scalar function",
+            artifact.entry
+        )));
+    }
+
+    let mut object = artifact.object.clone();
+    let mut relocations = artifact.relocations.clone();
+    let mut text_bytes = artifact.text_bytes.clone();
+    let text_offset = text_bytes.len();
+    text_bytes.extend_from_slice(&LINUX_X86_SCALAR_EXIT_SHIM_BYTES);
+
+    let text_section = object
+        .layout
+        .sections
+        .iter()
+        .find(|(_, section)| section.kind == omega_object_file::SectionKind::Text)
+        .map(|(handle, _)| handle)
+        .ok_or_else(|| Diagnostic::error("terminal object has no text section"))?;
+    object.layout.sections.get_mut(text_section).size = text_bytes.len();
+
+    let symbol = object.layout.symbols.insert(omega_object_file::SymbolPlan {
+        name: "omega_terminal_linux_x86_64_scalar_exit_entry".into(),
+        section: omega_object_file::SymbolSection::Section(omega_object_file::SectionKind::Text),
+        offset: text_offset,
+        size: LINUX_X86_SCALAR_EXIT_SHIM_BYTES.len(),
+        kind: omega_object_file::SymbolKind::Function,
+        import_library: String::new(),
+    });
+    object.layout.entry_symbol = symbol;
+    let relocation_offset = text_offset
+        .checked_add(1)
+        .ok_or_else(|| Diagnostic::error("terminal scalar entry relocation offset overflows"))?;
+    relocations.push_record(omega_object_file::RelocationRecord {
+        origin: omega_object_file::RelocationOrigin::Instruction {
+            function_symbol_handle: symbol,
+            selected_instruction_index: 0,
+        },
+        section: omega_object_file::SectionKind::Text,
+        offset: relocation_offset,
+        byte_width: 4,
+        symbol_handle: entry.symbol,
+        addend: 0,
+        kind: omega_object_file::RelocationKind::X86_64Relative32,
+    });
+    let shim = TerminalLinuxX86ScalarExitShim {
+        symbol,
+        target_symbol: entry.symbol,
+        text_offset,
+        byte_count: LINUX_X86_SCALAR_EXIT_SHIM_BYTES.len(),
+        relocation_offset,
+    };
+
+    let image = omega_image::build_final_image(FinalImageInput {
+        target: artifact.target,
+        object: &object,
+        relocations: &relocations,
+        text_bytes: &text_bytes,
+        data_bytes: &[],
+    });
+    let output = omega_image_elf::emit_elf_x86_64_executable(image)?;
+    let mut output = emitted_direct_executable_output(output);
+    output.compiler_text_validation = Some(validate_terminal_image(
+        artifact,
+        &object,
+        &relocations,
+        &text_bytes,
+        Some(shim),
+        &output,
+    )?);
+    Ok(TerminalScalarCallReferenceImage {
+        terminal_psi: artifact.terminal_psi,
+        target: artifact.target,
+        shim,
         output,
     })
 }
@@ -362,5 +475,35 @@ impl TerminalExecutableImage {
 
     pub fn fuel_attribution(&self) -> &[TerminalObjectFuelAttribution] {
         &self.fuel_attribution
+    }
+}
+
+/// Differential-only runnable image for the exact published scalar-call
+/// reference. This deliberately is not `TerminalExecutableImage`, so it cannot
+/// be passed to installation-record or installed-artifact APIs that account
+/// only semantic terminal functions.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalScalarCallReferenceImage {
+    terminal_psi: TerminalPsiIdentity,
+    target: NativeTarget,
+    shim: TerminalLinuxX86ScalarExitShim,
+    output: EmittedImageOutput,
+}
+
+impl TerminalScalarCallReferenceImage {
+    pub const fn terminal_psi(&self) -> TerminalPsiIdentity {
+        self.terminal_psi
+    }
+
+    pub const fn target(&self) -> NativeTarget {
+        self.target
+    }
+
+    pub const fn linux_x86_scalar_exit_shim(&self) -> TerminalLinuxX86ScalarExitShim {
+        self.shim
+    }
+
+    pub const fn output(&self) -> &EmittedImageOutput {
+        &self.output
     }
 }

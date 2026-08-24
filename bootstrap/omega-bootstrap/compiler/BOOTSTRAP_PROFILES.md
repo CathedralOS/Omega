@@ -344,7 +344,7 @@ semantic rejection, and resource exhaustion. Its previously unbounded expansion 
 aliasing at machine 25, not an inherent cost of the route. O1 remains a small
 vertical compiler slice, not the `Ωself` profile.
 
-## Profile-neutral scalar-call reference (bridge implementation open)
+## Profile-neutral scalar-call conformance slice
 
 [`../gates/fixtures/omega-bootstrap-scalar-call-v28.hex`](../gates/fixtures/omega-bootstrap-scalar-call-v28.hex)
 is the exact product-owned differential reference for the next general compiler
@@ -356,13 +356,26 @@ Linux x86-64 internal-relocation path, and rejects mutated arity, callee,
 argument identity, and result type. The exporter gate requires repeated output
 to equal the committed bytes.
 
-This fixture is differential evidence only. The Delta frontend/backend do not
-yet implement the corresponding general source/call tables, so it admits no
-Omega source form and does not define `Ωself`. The pending conformance slice is
-bounded to one program unit, signed-`i32` literals/parameters/results, multiple
-arbitrarily named machines, and forward acyclic calls. Modules, recursion,
-records, generics, domains, proofs, and general control flow remain separate
-questions.
+The fixture remains differential evidence rather than bootstrap authority. The
+Delta frontend and backend now implement the corresponding bounded,
+table-driven conformance slice: one program unit; at most 16 arbitrarily named
+machines, four signed-`i32` parameters or arguments, and 16 operations per
+machine; literals, parameter references, scalar results, and acyclic calls.
+Declaration/name permutations take the same implementation path. Duplicate or
+unknown names and IDs, signature/type/result mismatches, cycles, malformed
+terminal structure, and adjacent table/code exhaustion reject before
+publication. Native, lowermachine-built, lower-rung meaning, product terminal
+validation, terminal mutation, and runnable-artifact gates carry the slice.
+
+Only the canonical two-machine fixture has a product-owned exact source-lowering
+byte identity. Other accepted programs are codec-compatible and independently
+decoded, re-encoded, verified, interpreted, and lowered; they do not claim a
+second product frontend produces identical terminal bytes. The source lane's
+unique zero-parameter indegree-zero root and the backend's process-status shim
+are deterministic conformance-adapter conventions. They do not replace Omega's
+authored target-qualified `target::ProgramEntry` binding. The slice does not
+define `Ωself`; modules, recursion, records, generics, domains, proofs, and
+general control flow remain separate questions.
 
 The same route now admits the current 695-state `lowermachine.alp` source to
 marker-free elaboration. Its explicit translator ceilings are 1,024 states per

@@ -43,9 +43,10 @@ mod unit_stack;
 
 pub use image_output::{
     TerminalExecutableImage, TerminalNativeFuelExecutableImage, TerminalObjectContainer,
-    can_emit_terminal_executable_image, emit_terminal_executable_image,
-    emit_terminal_native_fuel_executable_image, emit_terminal_native_fuel_object_container,
-    emit_terminal_object_container,
+    TerminalScalarCallReferenceImage, can_emit_terminal_executable_image,
+    emit_terminal_executable_image, emit_terminal_native_fuel_executable_image,
+    emit_terminal_native_fuel_object_container, emit_terminal_object_container,
+    emit_terminal_scalar_call_reference_linux_x86_64_image,
 };
 pub use installation::*;
 pub use installed_artifact::{
@@ -364,6 +365,37 @@ pub struct TerminalObjectFuelAttribution {
     pub attribution: TerminalNativeFuelAttribution,
     pub text_offset: usize,
 }
+
+/// Product-owned Linux process-entry adapter for a zero-argument scalar
+/// terminal entry function. The semantic machine functions retain their exact
+/// bytes and order; this separately classified suffix calls the semantic entry
+/// and terminates the process with its low 32-bit result through `exit_group`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TerminalLinuxX86ScalarExitShim {
+    pub symbol: ObjectSymbolHandle,
+    pub target_symbol: ObjectSymbolHandle,
+    pub text_offset: usize,
+    pub byte_count: usize,
+    /// Absolute offset of the `call rel32` immediate in object `.text`.
+    pub relocation_offset: usize,
+}
+
+pub(crate) const LINUX_X86_SCALAR_EXIT_SHIM_BYTES: [u8; 16] = [
+    0xe8, 0, 0, 0, 0, // call rel32 (owned relocation to the semantic entry)
+    0x89, 0xc7, // mov edi, eax
+    0xb8, 0xe7, 0, 0, 0, // mov eax, 231 (exit_group)
+    0x0f, 0x05, // syscall
+    0x0f, 0x0b, // ud2 if the nonreturning syscall unexpectedly returns
+];
+
+/// Semantic identity of the exact published proof-free i32 scalar-call
+/// reference. Binding the process adapter to this identity is necessary because
+/// ordinary scalar arity is not retained by `TerminalObjectFunction`: an unused
+/// entry parameter can otherwise have byte-identical machine code.
+pub(crate) const SCALAR_CALL_REFERENCE_FINGERPRINT: [u8; 32] = [
+    0xb7, 0x54, 0x1a, 0xdd, 0xf5, 0x85, 0x83, 0x18, 0xf7, 0xcc, 0xa1, 0x16, 0x95, 0xf9, 0x55, 0x7f,
+    0xf4, 0x29, 0xb7, 0x86, 0xcf, 0x2b, 0x25, 0x0e, 0x5e, 0x56, 0xd5, 0xf0, 0x69, 0x5b, 0xec, 0xc8,
+];
 
 /// Construct a self-contained object plan and exact text carrier.
 ///

@@ -24,33 +24,49 @@ T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
 FIXTURE="$OMEGA_PATH_OMEGA_BOOTSTRAP/gates/fixtures/omega-bootstrap-scalar-call-v28.hex"
 
-export_reference() {
-  OUTPUT=$1
-  OMEGA_BOOTSTRAP_SCALAR_CALL_TERMINAL="$OUTPUT" cargo test -q \
-    -p omega-native-differential-test --test terminal_psi_calls \
-    scalar_i32_call_has_exact_exportable_vocabulary_28_bytes -- --exact
-  [ -s "$OUTPUT" ] \
-    || { echo "scalar call reference FAIL — exporter published no bytes" >&2; exit 1; }
-}
+OMEGA_BOOTSTRAP_SCALAR_CALL_TERMINAL="$T/reference.terminal" \
+OMEGA_BOOTSTRAP_SCALAR_CALL_X64_IMAGE="$T/reference.x86_64.elf" cargo test -q \
+  -p omega-native-differential-test --test terminal_psi_calls \
+  scalar_i32_call_has_exact_exportable_vocabulary_28_bytes -- --exact
+[ -s "$T/reference.terminal" ] \
+  || { echo "scalar call reference FAIL — terminal exporter published no bytes" >&2; exit 1; }
+[ -s "$T/reference.x86_64.elf" ] \
+  || { echo "scalar call reference FAIL — image exporter published no bytes" >&2; exit 1; }
 
-export_reference "$T/one.terminal"
-export_reference "$T/two.terminal"
-cmp "$T/one.terminal" "$T/two.terminal" >/dev/null \
-  || { echo "scalar call reference FAIL — repeated export changed bytes" >&2; exit 1; }
-
-python3 - "$FIXTURE" "$T/one.terminal" <<'PY'
+python3 - "$FIXTURE" "$T/reference.terminal" "$T/reference.x86_64.elf" <<'PY'
 import pathlib
 import struct
 import sys
 
 fixture = bytes.fromhex(pathlib.Path(sys.argv[1]).read_text(encoding="ascii"))
 exported = pathlib.Path(sys.argv[2]).read_bytes()
+image = pathlib.Path(sys.argv[3]).read_bytes()
 if fixture != exported:
     raise SystemExit("scalar call reference FAIL — committed fixture differs from exporter")
 if len(exported) < 12 or exported[:8] != b"PSITERM\0":
     raise SystemExit("scalar call reference FAIL — malformed terminal envelope")
 if struct.unpack_from("<HH", exported, 8) != (26, 28):
     raise SystemExit("scalar call reference FAIL — not codec 26 / vocabulary 28")
+if len(image) != 8192 or image[:4] != b"\x7fELF":
+    raise SystemExit("scalar call reference FAIL — malformed Linux x86-64 ELF")
+if struct.unpack_from("<H", image, 18)[0] != 62:
+    raise SystemExit("scalar call reference FAIL — image is not x86-64")
+if struct.unpack_from("<Q", image, 24)[0] != 0x401033:
+    raise SystemExit("scalar call reference FAIL — ELF entry does not name the owned shim")
+if image[4096 + 51:4096 + 67] != bytes.fromhex(
+    "e8c8ffffff89c7b8e70000000f050f0b"
+):
+    raise SystemExit("scalar call reference FAIL — final entry shim drifted")
 PY
 
-echo "scalar call reference: exact deterministic vocabulary-28 i32 Call fixture, meaning, lowering, and mutation teeth passed"
+if [ "$(uname -sm)" = "Linux x86_64" ]; then
+  chmod +x "$T/reference.x86_64.elf"
+  set +e
+  "$T/reference.x86_64.elf" > "$T/stdout" 2> "$T/stderr"
+  scalar_rc=$?
+  set -e
+  [ "$scalar_rc" -eq 73 ] && [ ! -s "$T/stdout" ] && [ ! -s "$T/stderr" ] \
+    || { echo "scalar call reference FAIL — runnable image observation drifted" >&2; exit 1; }
+fi
+
+echo "scalar call reference: exact deterministic vocabulary-28 i32 Call fixture, meaning, runnable lowering, and mutation teeth passed"
