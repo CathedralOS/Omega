@@ -50,7 +50,7 @@ machine Main::exhaust(&mut self) { self.status = 252; }
 machine Main::read_raw(&mut self) {
     self.c = read_byte();
     transition self.c < 0 { true -> bad() _ -> count() }
-    state count() { transition self.bytes_read < 4194304 { true -> keep() _ -> exhausted() } }
+    state count() { transition self.bytes_read < 2260040 { true -> keep() _ -> exhausted() } }
     state keep() { self.bytes_read = self.bytes_read + 1; transition 0 { _ -> done() } }
     state bad() { self.reject(); transition 0 { _ -> done() } }
     state exhausted() { self.exhaust(); transition 0 { _ -> done() } }
@@ -135,18 +135,18 @@ machine Main::read_header(&mut self) {
     state flags_check() { transition self.flags <= 1 { true -> entry_read() _ -> bad() } }
     state entry_read() { self.entry_id = self.read_u32(); transition self.status == 0 { true -> total() _ -> done() } }
     state total() { self.total_len = self.read_u32(); self.type_count = self.read_u32(); self.record_count = self.read_u32(); self.field_count = self.read_u32(); self.machine_count = self.read_u32(); self.mparam_count = self.read_u32(); self.block_count = self.read_u32(); self.bparam_count = self.read_u32(); self.op_count = self.read_u32(); self.operand_count = self.read_u32(); self.term_count = self.read_u32(); self.value_count = self.read_u32(); self.place_count = self.read_u32(); transition self.status == 0 { true -> ceilings() _ -> done() } }
-    state ceilings() { transition self.total_len <= 4194304 { true -> type_cap() _ -> exhausted() } }
+    state ceilings() { transition self.total_len <= 2260040 { true -> type_cap() _ -> exhausted() } }
     state type_cap() { transition self.type_count <= 8192 { true -> record_cap() _ -> exhausted() } }
     state record_cap() { transition self.record_count <= 128 { true -> field_cap() _ -> exhausted() } }
     state field_cap() { transition self.field_count <= 8192 { true -> machine_cap() _ -> exhausted() } }
     state machine_cap() { transition self.machine_count <= 128 { true -> block_cap() _ -> exhausted() } }
     state block_cap() { transition self.block_count <= 2048 { true -> mp_cap() _ -> exhausted() } }
-    state mp_cap() { transition self.mparam_count <= 4096 { true -> bp_cap() _ -> exhausted() } }
+    state mp_cap() { transition self.mparam_count <= 896 { true -> bp_cap() _ -> exhausted() } }
     state bp_cap() { transition self.bparam_count <= 4096 { true -> combined_cap() _ -> exhausted() } }
     state combined_cap() { transition self.mparam_count <= 4096 - self.bparam_count { true -> op_cap() _ -> exhausted() } }
     state op_cap() { transition self.op_count <= 32768 { true -> operand_cap() _ -> exhausted() } }
-    state operand_cap() { transition self.operand_count <= 131072 { true -> value_cap() _ -> exhausted() } }
-    state value_cap() { transition self.value_count <= 40960 { true -> place_cap() _ -> exhausted() } }
+    state operand_cap() { transition self.operand_count <= 94208 { true -> value_cap() _ -> exhausted() } }
+    state value_cap() { transition self.value_count <= 36864 { true -> place_cap() _ -> exhausted() } }
     state place_cap() { transition self.place_count <= 32768 { true -> term_relation() _ -> exhausted() } }
     state term_relation() { transition self.term_count == self.block_count { true -> flag_relation() _ -> bad() } }
     state flag_relation() { transition self.flags == 1 { true -> entry_present() _ -> entry_absent() } }
@@ -444,8 +444,10 @@ machine Main::parse_terminators(&mut self) {
     state target1_arity() { transition self.metadata_arena[173696 + 14336 + self.i] == self.metadata_arena[106496 + 44672 + self.target] { true -> advance() _ -> bad() } }
     state advance() { self.i = self.i + 1; transition 0 { _ -> loop() } }
     state partition() { transition self.operand_cursor == self.operand_count { true -> eof() _ -> bad() } }
-    state eof() { self.c = read_byte(); transition self.c < 0 { true -> length() _ -> bad() } }
+    state eof() { self.c = read_byte(); transition self.c < 0 { true -> length() _ -> trailing() } }
+    state trailing() { transition self.bytes_read == 2260040 { true -> exhausted() _ -> bad() } }
     state length() { transition self.bytes_read == self.total_len { true -> done() _ -> bad() } }
+    state exhausted() { self.exhaust(); transition 0 { _ -> done() } }
     state bad() { self.reject(); }
     state done() { }
 }

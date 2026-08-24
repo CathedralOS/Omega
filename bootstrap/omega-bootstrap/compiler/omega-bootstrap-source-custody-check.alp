@@ -1097,7 +1097,8 @@ machine Main::zero_type_valid(&mut self, type_id: i32) {
 machine Main::prepare_ck_blocks(&mut self) {
     self.block_count = 0; self.block_parameter_count = self.param_count - self.machine_parameter_count;
     self.ck_block_parameter_cursor = 0; self.i = 0;
-    transition self.machine_count + self.state_count <= 2048 { true -> parameter_capacity() _ -> exhausted() }
+    transition self.machine_count + self.state_count <= 2048 { true -> machine_parameter_capacity() _ -> exhausted() }
+    state machine_parameter_capacity() { transition self.machine_parameter_count <= 896 { true -> parameter_capacity() _ -> exhausted() } }
     state parameter_capacity() { transition self.param_count <= 4096 { true -> machines() _ -> exhausted() } }
     state machines() { transition self.i < self.machine_count { true -> machine_begin() _ -> parameters() } }
     state machine_begin() {
@@ -1166,7 +1167,7 @@ machine Main::record_operation(
 ) {
     self.expr_value_id = 0 - 1; self.expr_place_id = 0 - 1;
     transition self.op_count < 32768 { true -> operand_capacity() _ -> exhausted() }
-    state operand_capacity() { transition self.record_operand_words <= 131072 - self.operand_count { true -> store() _ -> exhausted() } }
+    state operand_capacity() { transition self.record_operand_words <= 94208 - self.operand_count { true -> store() _ -> exhausted() } }
     state store() {
         let operation: i32 = self.op_count;
         self.op_owner_machines[operation] = self.current_machine;
@@ -1192,7 +1193,7 @@ machine Main::record_operation(
         transition 0 { _ -> complete() }
     }
     state value_check(operation: i32) { transition result_kind == 1 { true -> value_capacity(operation) _ -> place_capacity(operation) } }
-    state value_capacity(operation: i32) { transition self.value_count < 40960 { true -> value(operation) _ -> exhausted() } }
+    state value_capacity(operation: i32) { transition self.value_count < 36864 { true -> value(operation) _ -> exhausted() } }
     state value(operation: i32) {
         self.expr_value_id = self.value_count; self.op_result_ids[operation] = self.value_count;
         self.value_types[self.value_count] = result_type; self.value_blocks[self.value_count] = self.current_block;
@@ -2115,12 +2116,12 @@ machine Main::publish_ckir(&mut self) {
     state pre_kind() { transition self.terminator_kinds[self.i] > 0 { true -> pre_arg0() _ -> pre_bad() } }
     state pre_arg0() {
         self.terminator_arg0_starts[self.i] = self.operand_count + self.term_operand_count;
-        transition self.terminator_arg0_counts[self.i] <= 131072 - self.operand_count - self.term_operand_count { true -> pre_add0() _ -> pre_exhausted() }
+        transition self.terminator_arg0_counts[self.i] <= 94208 - self.operand_count - self.term_operand_count { true -> pre_add0() _ -> pre_exhausted() }
     }
     state pre_add0() {
         self.term_operand_count = self.term_operand_count + self.terminator_arg0_counts[self.i];
         self.terminator_arg1_starts[self.i] = self.operand_count + self.term_operand_count;
-        transition self.terminator_arg1_counts[self.i] <= 131072 - self.operand_count - self.term_operand_count { true -> pre_add1() _ -> pre_exhausted() }
+        transition self.terminator_arg1_counts[self.i] <= 94208 - self.operand_count - self.term_operand_count { true -> pre_add1() _ -> pre_exhausted() }
     }
     state pre_add1() {
         self.term_operand_count = self.term_operand_count + self.terminator_arg1_counts[self.i];
@@ -2128,12 +2129,15 @@ machine Main::publish_ckir(&mut self) {
     }
     state pre_length() {
         self.final_operand_count = self.operand_count + self.term_operand_count;
+        transition self.final_operand_count <= 94208 { true -> pre_length_compute() _ -> pre_exhausted() }
+    }
+    state pre_length_compute() {
         self.ck_length = 72 + 24 * self.ck_type_count + 20 * self.data_count
             + 16 * self.field_count + 36 * self.machine_count
             + 20 * self.machine_parameter_count + 32 * self.block_count
             + 20 * self.block_parameter_count + 40 * self.op_count
             + 4 * self.final_operand_count + 44 * self.block_count;
-        transition self.ck_length <= 4194304 { true -> pub_magic() _ -> pre_exhausted() }
+        transition self.ck_length <= 2260040 { true -> pub_magic() _ -> pre_exhausted() }
     }
     state pre_bad() { self.reject(); transition 0 { _ -> pub_done() } }
     state pre_exhausted() { self.status = 252; transition 0 { _ -> pub_done() } }

@@ -62,8 +62,8 @@ def decode(contents: bytes) -> Module:
     names = list(ROWS)
     require(len(counts) == len(names) + 2, "internal count schema mismatch")
     table_counts = counts[: len(names)]
-    ceilings = (8_192, 128, 8_192, 128, 4_096, 2_048, 4_096, 32_768, 131_072, 2_048, 40_960, 32_768)
-    require(len(contents) <= 4_194_304, "CKIR byte exhaustion")
+    ceilings = (8_192, 128, 8_192, 128, 896, 2_048, 4_096, 32_768, 94_208, 2_048, 36_864, 32_768)
+    require(len(contents) <= 2_260_040, "CKIR byte exhaustion")
     require(all(count <= ceiling for count, ceiling in zip(counts, ceilings)), "CKIR table exhaustion")
     require(counts[4] + counts[6] <= 4_096, "combined parameter exhaustion")
     expected = HEADER.size + sum(ROWS[name].size * count for name, count in zip(names, table_counts))
