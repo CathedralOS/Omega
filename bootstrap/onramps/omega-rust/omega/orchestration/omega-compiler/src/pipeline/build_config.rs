@@ -153,7 +153,7 @@ pub(crate) fn selected_program_entry_machine<'config>(
     let selected_profile = omega_target::TargetProfile::from_omega_target_name(target_name)
         .map_err(|diagnostic| vec![diagnostic])?;
     let mut diagnostics = Vec::new();
-    let mut program_entries = Vec::new();
+    let mut selected_bindings = Vec::new();
     for binding in &config.root_bindings {
         let Some((profile, slot_name)) = binding.slot.rsplit_once("::") else {
             diagnostics.push(Diagnostic::error(format!(
@@ -172,18 +172,59 @@ pub(crate) fn selected_program_entry_machine<'config>(
                 continue;
             }
         };
-        let declaration = profile.program_entry_slot();
-        if slot_name != declaration.slot_name {
+        let Some(required_slot) = profile.required_root_slot(slot_name) else {
             diagnostics.push(Diagnostic::error(format!(
-                "root slot `{}` is not implemented yet; the current target-slot slice accepts `target::ProgramEntry`",
+                "target profile `{}` declares no required root slot `{}`",
+                profile.target_name(),
                 binding.slot
             )));
             continue;
-        }
+        };
         if profile != selected_profile {
             continue;
         }
-        program_entries.push((declaration, binding));
+        selected_bindings.push((required_slot, binding));
+    }
+    if !diagnostics.is_empty() {
+        return Err(diagnostics);
+    }
+
+    let mut program_entries = Vec::new();
+    for required_slot in selected_profile.required_root_slots() {
+        let matches = selected_bindings
+            .iter()
+            .filter(|(selected, _)| selected == &required_slot)
+            .collect::<Vec<_>>();
+        let binding = match matches.as_slice() {
+            [(_, binding)] => *binding,
+            [] => {
+                diagnostics.push(Diagnostic::error(format!(
+                    "selected target `{}` has no bound required root slot `{}::{}`",
+                    selected_profile.target_name(),
+                    required_slot.owner().root_slot_owner_name(),
+                    required_slot.slot_name()
+                )));
+                continue;
+            }
+            _ => {
+                diagnostics.push(Diagnostic::error(format!(
+                    "selected target `{}` has more than one bound required root slot `{}::{}`",
+                    selected_profile.target_name(),
+                    required_slot.owner().root_slot_owner_name(),
+                    required_slot.slot_name()
+                )));
+                continue;
+            }
+        };
+        let Some(program_entry) = required_slot.program_entry() else {
+            diagnostics.push(Diagnostic::error(format!(
+                "root slot `{}::{}` uses a target-required schema that the ProgramEntry source-lowering path does not implement",
+                required_slot.owner().root_slot_owner_name(),
+                required_slot.slot_name()
+            )));
+            continue;
+        };
+        program_entries.push((program_entry, binding));
     }
     if !diagnostics.is_empty() {
         return Err(diagnostics);
@@ -195,11 +236,11 @@ pub(crate) fn selected_program_entry_machine<'config>(
             slot: *slot,
         })),
         [] => Err(vec![Diagnostic::error(format!(
-            "selected target `{}` has no bound `ProgramEntry` root slot",
+            "selected target `{}` has no supported ProgramEntry root schema",
             selected_profile.target_name()
         ))]),
         _ => Err(vec![Diagnostic::error(format!(
-            "selected target `{}` has more than one bound `ProgramEntry` root slot",
+            "selected target `{}` declares more than one ProgramEntry root schema",
             selected_profile.target_name()
         ))]),
     }
@@ -1333,6 +1374,50 @@ mod tests {
         assert_eq!(diagnostics.len(), 1);
         assert!(diagnostics[0].to_string().contains(
             "root slot `windows_x64::ProgramEntry` belongs to unknown target profile `windows_x64`"
+        ));
+    }
+
+    #[test]
+    fn root_selection_rejects_names_absent_from_the_target_catalog() {
+        let config =
+            config_with_root_bindings(&[("windows_x86_64::UndeclaredEntry", "Application::start")]);
+
+        let diagnostics = selected_program_entry_machine(&config, Some("windows_x64"))
+            .expect_err("an undeclared target root cannot enter ProgramEntry lowering");
+
+        assert_eq!(diagnostics.len(), 1);
+        assert!(diagnostics[0].to_string().contains(
+            "target profile `windows_x64` declares no required root slot `windows_x86_64::UndeclaredEntry`"
+        ));
+    }
+
+    #[test]
+    fn selected_target_requires_every_member_of_its_catalog() {
+        let config =
+            config_with_root_bindings(&[("linux_x86_64::ProgramEntry", "Diagnostics::start")]);
+
+        let diagnostics = selected_program_entry_machine(&config, Some("windows_x64"))
+            .expect_err("a foreign target row cannot satisfy the selected catalog");
+
+        assert_eq!(diagnostics.len(), 1);
+        assert!(diagnostics[0].to_string().contains(
+            "selected target `windows_x64` has no bound required root slot `windows_x86_64::ProgramEntry`"
+        ));
+    }
+
+    #[test]
+    fn selected_target_rejects_duplicate_catalog_members() {
+        let config = config_with_root_bindings(&[
+            ("windows_x86_64::ProgramEntry", "Application::start"),
+            ("windows_x86_64::ProgramEntry", "Diagnostics::start"),
+        ]);
+
+        let diagnostics = selected_program_entry_machine(&config, Some("windows_x64"))
+            .expect_err("one required catalog member cannot be bound twice");
+
+        assert_eq!(diagnostics.len(), 1);
+        assert!(diagnostics[0].to_string().contains(
+            "selected target `windows_x64` has more than one bound required root slot `windows_x86_64::ProgramEntry`"
         ));
     }
 }

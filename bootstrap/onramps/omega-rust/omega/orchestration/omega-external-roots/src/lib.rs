@@ -329,41 +329,70 @@ impl RootSlotAuthority {
         self.owner
     }
 
+    /// Canonical authority coordinates for one member of the owning target's
+    /// complete required-root catalog.
+    pub fn for_target_required_root_slot(
+        declaration: omega_target::TargetRequiredRootSlotDeclaration,
+    ) -> Result<Self, ExternalRootDiagnostic> {
+        if declaration
+            .owner()
+            .required_root_slot(declaration.slot_name())
+            != Some(declaration)
+        {
+            return Err(ExternalRootDiagnostic(
+                "target required-root declaration does not match its owning profile catalog".into(),
+            ));
+        }
+        Ok(Self {
+            slot: RootSlotId::for_target_required_root_slot(declaration)?,
+            owner: RootSlotOwnerId::for_target_profile(declaration.owner())?,
+        })
+    }
+
     /// Canonical authority coordinates for one target-owned `ProgramEntry`
     /// declaration. Target-slot identity is derived in one place; callers do
     /// not restate a numeric slot or owner identity.
     pub fn for_target_program_entry(
         slot: omega_target::ProgramEntrySlotDeclaration,
     ) -> Result<Self, ExternalRootDiagnostic> {
-        if slot != slot.owner.program_entry_slot() {
-            return Err(ExternalRootDiagnostic(
-                "target program-entry slot declaration does not match its owning profile".into(),
-            ));
-        }
-        Ok(Self {
-            slot: RootSlotId::for_target_program_entry(slot)?,
-            owner: RootSlotOwnerId::for_target_profile(slot.owner)?,
-        })
+        Self::for_target_required_root_slot(
+            omega_target::TargetRequiredRootSlotDeclaration::ProgramEntry(slot),
+        )
     }
 }
 
 impl RootSlotId {
+    /// Derive the stable slot identity shared by build selection,
+    /// installation, and external-root verification for any target-required
+    /// root schema.
+    pub fn for_target_required_root_slot(
+        declaration: omega_target::TargetRequiredRootSlotDeclaration,
+    ) -> Result<Self, ExternalRootDiagnostic> {
+        if declaration
+            .owner()
+            .required_root_slot(declaration.slot_name())
+            != Some(declaration)
+        {
+            return Err(ExternalRootDiagnostic(
+                "target required-root declaration does not match its owning profile catalog".into(),
+            ));
+        }
+        let canonical = format!(
+            "target-root-slot\n{}::{}",
+            declaration.owner().root_slot_owner_name(),
+            declaration.slot_name()
+        );
+        Self::from_normalized_identity(fnv1a_identity(&canonical))
+    }
+
     /// Derive the stable slot identity shared by build selection, installation,
     /// and external-root verification.
     pub fn for_target_program_entry(
         slot: omega_target::ProgramEntrySlotDeclaration,
     ) -> Result<Self, ExternalRootDiagnostic> {
-        if slot != slot.owner.program_entry_slot() {
-            return Err(ExternalRootDiagnostic(
-                "target program-entry slot declaration does not match its owning profile".into(),
-            ));
-        }
-        let canonical = format!(
-            "target-root-slot\n{}::{}",
-            slot.owner.root_slot_owner_name(),
-            slot.slot_name
-        );
-        Self::from_normalized_identity(fnv1a_identity(&canonical))
+        Self::for_target_required_root_slot(
+            omega_target::TargetRequiredRootSlotDeclaration::ProgramEntry(slot),
+        )
     }
 }
 

@@ -420,6 +420,17 @@ orthogonal. The selected target owns required-slot completeness, so a
 cross-profile binding, duplicate binding, or missing required build-bound slot
 rejects.
 
+The Rust on-ramp exposes that completeness surface as a closed
+`TargetRequiredRootSlotDeclaration` schema catalog behind an exact-size
+iterator; its public type does not encode the current catalog cardinality.
+Build selection validates named rows against the owning profile and requires
+the selected profile's complete catalog. Installation derives the expected
+root-slot closure from the same declarations and rejects duplicate declarations
+or compact-identity collisions before comparing selections. `ProgramEntry` is
+the only current member. A future schema variant therefore forces exhaustive
+consumers either to implement it or reject it; it cannot become an ignored
+open slot merely because the catalog grew.
+
 An entry schema fixes one physical arrival requirement and separately selects
 one semantic arrival requirement for its build-bound continuation. It
 contributes physical calling/state policy, an exact target bootstrap adapter,

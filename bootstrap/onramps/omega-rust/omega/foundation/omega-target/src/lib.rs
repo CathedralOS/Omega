@@ -103,6 +103,43 @@ pub struct ProgramEntrySlotDeclaration {
     pub receiver: ProgramEntryReceiverProvisioning,
 }
 
+/// One build-bound environment-to-program root required by a target profile.
+///
+/// The catalog is intentionally an enum rather than a flattened bag of entry
+/// fields: each slot schema owns its own physical/semantic contract shape.
+/// Consumers that only implement one schema must inspect the variant and fail
+/// closed for every other member instead of accepting and ignoring it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TargetRequiredRootSlotDeclaration {
+    ProgramEntry(ProgramEntrySlotDeclaration),
+}
+
+impl TargetRequiredRootSlotDeclaration {
+    pub const fn owner(self) -> TargetProfile {
+        match self {
+            Self::ProgramEntry(slot) => slot.owner,
+        }
+    }
+
+    pub const fn slot_name(self) -> &'static str {
+        match self {
+            Self::ProgramEntry(slot) => slot.slot_name,
+        }
+    }
+
+    pub const fn program_entry(self) -> Option<ProgramEntrySlotDeclaration> {
+        match self {
+            Self::ProgramEntry(slot) => Some(slot),
+        }
+    }
+}
+
+impl From<ProgramEntrySlotDeclaration> for TargetRequiredRootSlotDeclaration {
+    fn from(slot: ProgramEntrySlotDeclaration) -> Self {
+        Self::ProgramEntry(slot)
+    }
+}
+
 impl TargetProfile {
     pub fn host() -> Self {
         if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
@@ -229,6 +266,27 @@ impl TargetProfile {
             receiver: ProgramEntryReceiverProvisioning::NoneOrProvisionedZii,
         }
     }
+
+    /// Complete ordered catalog of build-bound external roots required by
+    /// this target profile. Runtime-open roots (for example dynamically
+    /// installed callbacks or interrupt vectors) do not belong here.
+    ///
+    /// `ProgramEntry` is the sole current member. Returning a catalog now,
+    /// rather than teaching closure verification that singleton fact, makes a
+    /// later real target-owned member visible to every completeness consumer.
+    pub fn required_root_slots(
+        self,
+    ) -> impl ExactSizeIterator<Item = TargetRequiredRootSlotDeclaration> {
+        [TargetRequiredRootSlotDeclaration::ProgramEntry(
+            self.program_entry_slot(),
+        )]
+        .into_iter()
+    }
+
+    pub fn required_root_slot(self, slot_name: &str) -> Option<TargetRequiredRootSlotDeclaration> {
+        self.required_root_slots()
+            .find(|slot| slot.slot_name() == slot_name)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -334,7 +392,7 @@ fn host_object_format() -> ObjectFormat {
 mod tests {
     use super::{
         ProgramEntryPhysicalContractPackage, ProgramEntrySchema, ProgramEntryVisibleParameters,
-        TargetProfile,
+        TargetProfile, TargetRequiredRootSlotDeclaration,
     };
 
     #[test]
@@ -402,5 +460,29 @@ mod tests {
             TargetProfile::WindowsX64.root_slot_owner_name(),
             "windows_x86_64"
         );
+    }
+
+    #[test]
+    fn required_root_catalog_is_complete_ordered_and_target_owned() {
+        for profile in [
+            TargetProfile::LinuxArm64,
+            TargetProfile::LinuxX64,
+            TargetProfile::MacosArm64,
+            TargetProfile::WindowsX64,
+            TargetProfile::UefiX64,
+            TargetProfile::CrossPlatformCli,
+            TargetProfile::LocalUnchecked,
+        ] {
+            let slots = profile.required_root_slots().collect::<Vec<_>>();
+            assert_eq!(slots.len(), 1);
+            let TargetRequiredRootSlotDeclaration::ProgramEntry(slot) = slots[0];
+            assert_eq!(slot, profile.program_entry_slot());
+            assert_eq!(slot.owner, profile);
+            assert_eq!(
+                profile.required_root_slot("ProgramEntry"),
+                Some(slot.into())
+            );
+            assert_eq!(profile.required_root_slot("NotDeclared"), None);
+        }
     }
 }
