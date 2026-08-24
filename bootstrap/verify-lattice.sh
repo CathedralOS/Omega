@@ -143,6 +143,8 @@ step "omega-bootstrap Delta compilation-envelope meaning (RUST-FREE) — structu
 step "omega-bootstrap two-package fixture — pinned deterministic OMGCOMP and semantic negatives" omega-bootstrap-gates two-unit-compilation-fixture.sh omega-bootstrap-compiler
 step "omega-bootstrap Delta resolution handoff — exact OMGCOMP to canonical OMGRSW1, native/self/resource agreement" omega-bootstrap-gates delta-resolution-handoff.sh omega-bootstrap-compiler delta-rust
 step "omega-bootstrap resolution meaning (RUST-FREE) — canonical 0/251/252 through Gamma" omega-bootstrap-gates delta-resolution-handoff-meaning.sh omega-bootstrap-compiler omega-bootstrap-meaning delta-rust gamma
+step "omega-bootstrap resolved-source lowerer — exact OMGLOW1 to CKIR1, native/self relation and resource agreement" omega-bootstrap-gates delta-resolved-to-ckir.sh omega-bootstrap-compiler delta-rust
+step "omega-bootstrap resolved-source lowering meaning (RUST-FREE) — canonical CKIR plus 251/252 through Gamma" omega-bootstrap-gates delta-resolved-to-ckir-meaning.sh omega-bootstrap-compiler omega-bootstrap-meaning delta-rust gamma
 step "product compiler checkpoint — exact resolver closure plus provisional Ωself admission" source-checkpoints verify.sh omega-rust psi
 step "omega-bootstrap source-custody frontend probe — exhaustive native plus representative Delta-self-built checking" omega-bootstrap-gates delta-source-custody-frontend.sh delta-rust psi source-checkpoints
 step "omega-bootstrap source-custody meaning (RUST-FREE) — exact product unit plus semantic rejection and exhaustion through Gamma" omega-bootstrap-gates delta-source-custody-meaning.sh omega-bootstrap-meaning gamma psi source-checkpoints

@@ -210,6 +210,16 @@ native/Delta-self-built coverage and representative Rust-free Gamma
 `0`/`251`/`252` observations agree. This grants neither resolver/lock authority
 nor SHA-256 custody and performs no body lowering, CKIR, or ELF work.
 
+The separate resolved-source lowerer tranche is also closed through CKIR.
+Exact `OMGCOMP + OMGRSW1` framing in `OMGLOW1` is locally revalidated, every
+consumed witness family is joined to its source/envelope extent, exact bodies
+are reparsed without repeating name resolution, and the canonical public
+two-package nominal-data fixture produces the same 996-byte CKIR1 and scalar
+result 70 as the frozen one-unit oracle. Native and Delta-self-built bytes,
+17 phase-isolated relation/resource mutations, and representative Rust-free
+Gamma `0`/`251`/`252` observations agree. This closes neither CKIR→ELF
+composition nor the lower-rooted `OMGRFN2` reconstruction.
+
 - [ ] Join the structurally checked multi-unit
   [compilation envelope](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION.md)
   to an independently accepted resolver/lock commitment and compare the exact
@@ -217,10 +227,9 @@ nor SHA-256 custody and performs no body lowering, CKIR, or ELF work.
   This join blocks final artifact acceptance, not fixture-driven implementation
   and testing of resolution, checking, or lowering against structurally valid
   envelopes.
-- [ ] Consume exact `OMGCOMP + OMGRSW1` through `OMGLOW1` in the separate
-  resolved-source lowerer, publish the exact CKIR for the first real
-  two-package public-nominal-data fixture, and compose it with the limited-ELF
-  backend and lower-rooted reconstruction. Compare exact CKIR, ELF, and result
+- [ ] Compose the exact lowerer-produced CKIR for the first real two-package
+  public-nominal-data fixture with the limited-ELF backend and implement the
+  lower-rooted `OMGRFN2` reconstruction. Compare exact CKIR, ELF, and result
   through native, self-built, Rust-free meaning, and lower-rooted evidence. The selected
   [`OMGCOMP → OMGRSW1 → CKIR`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION.md)
   boundary and its lower-rooted
