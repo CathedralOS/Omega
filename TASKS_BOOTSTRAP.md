@@ -201,11 +201,15 @@ It does not admit those source families to `Ωself`; the private handoff remains
 bridge-local, and Terminal-Psi vocabulary work remains product work in
 `TASKS.md`.
 
-- [ ] Resolve logical modules, exact `use` paths, requester-local direct aliases,
-  visibility, duplicate identities, authored-module agreement, the selected
-  root, and deterministic semantic order from the accepted envelope and source
-  bytes. Reject missing, private, transitive-only, ambiguous, or mismatched
-  names without publishing checked IR.
+The standalone multi-unit resolver tranche is closed. Exact structurally valid
+`OMGCOMP` produces canonical `OMGRSW1` with independent unit lexing,
+authored-module agreement, direct requester-local aliases and same-package
+paths, visibility and duplicate rejection, deterministic semantic order,
+normalized static bindings/types, and exact selected-root identity. Exhaustive
+native/Delta-self-built coverage and representative Rust-free Gamma
+`0`/`251`/`252` observations agree. This grants neither resolver/lock authority
+nor SHA-256 custody and performs no body lowering, CKIR, or ELF work.
+
 - [ ] Join the structurally checked multi-unit
   [compilation envelope](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION.md)
   to an independently accepted resolver/lock commitment and compare the exact
@@ -213,10 +217,11 @@ bridge-local, and Terminal-Psi vocabulary work remains product work in
   This join blocks final artifact acceptance, not fixture-driven implementation
   and testing of resolution, checking, or lowering against structurally valid
   envelopes.
-- [ ] Close the first real two-package artifact by importing public nominal data
-  into the selected call-free machine, then compare the exact CKIR and limited
-  ELF through native, self-built, Rust-free meaning, and lower-rooted
-  reconstruction. The selected
+- [ ] Consume exact `OMGCOMP + OMGRSW1` through `OMGLOW1` in the separate
+  resolved-source lowerer, publish the exact CKIR for the first real
+  two-package public-nominal-data fixture, and compose it with the limited-ELF
+  backend and lower-rooted reconstruction. Compare exact CKIR, ELF, and result
+  through native, self-built, Rust-free meaning, and lower-rooted evidence. The selected
   [`OMGCOMP → OMGRSW1 → CKIR`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION.md)
   boundary and its lower-rooted
   [resolution witness](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS.md)
