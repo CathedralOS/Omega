@@ -72,7 +72,7 @@ OMEGA_BOOTSTRAP_WRITE_VARIANT_TERMINAL="$T/variant.psi" cargo test -q \
   -p psi-checked-trees-to-terminal --test provider_attachment_source \
   source_projection_is_the_shared_o0_fixture_and_perturbations_fail_closed -- --exact
 
-python3 - "$OMEGA_PATH_OMEGA_BOOTSTRAP/gates/fixtures/omega-bootstrap-terminal-v26.hex" \
+python3 - "$OMEGA_PATH_OMEGA_BOOTSTRAP/gates/fixtures/omega-bootstrap-terminal-v27.hex" \
   "$T/canonical.psi" "$T/tampered.psi" <<'PY'
 import pathlib
 import sys

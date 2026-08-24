@@ -4,7 +4,7 @@
 //! vocabulary envelope. Individual declaration, machine, scalar, proof, and
 //! structural payloads remain in their dedicated sibling wire modules.
 
-use psi_core::IeeeFloatFormat;
+use psi_core::{ContentProjectionIdentity, IeeeFloatFormat};
 use psi_terminal::{
     ClosedConformanceApplication, ClosedConformanceParameterBinding,
     ClosedConformanceParameterKind, ClosedConformanceRow, EvidenceContractLane,
@@ -13,9 +13,11 @@ use psi_terminal::{
     FloatProjectionInputId, InstallationReachDependency, ProofOnlyValueType, ProofOutput,
     ProofOutputCall, ProofOutputEvidenceArgument, ProofOutputRuntimeCall, ProofOutputRuntimeResult,
     ProofPropositionId, ProofValueDeclaration, ProofValueId, ServiceDeclaration,
-    StructuralDomainDeclaration, TerminalModule, TerminalRootServiceReach, VocabularyMarker,
+    StructuralContentProjection, StructuralDomainDeclaration, TerminalModule,
+    TerminalRootServiceReach, VocabularyMarker,
 };
 
+use super::content_wire::{decode_content_algebra, encode_content_algebra};
 use super::machine_wire::{decode_machine, encode_machine};
 use super::proof_declaration_wire::{
     decode_evidence_interface, decode_proposition_application, decode_proposition_declaration,
@@ -23,7 +25,10 @@ use super::proof_declaration_wire::{
 };
 use super::provider_candidate_wire::{decode_provider_candidate, encode_provider_candidate};
 use super::scalar_wire::{decode_scalar_type, encode_scalar_type};
-use super::structural_signature_wire::{decode_boundary_machine, encode_boundary_machine};
+use super::structural_signature_wire::{
+    decode_boundary_machine, decode_content_projection_expression, encode_boundary_machine,
+    encode_content_projection_expression,
+};
 use super::structural_type_wire::{decode_structural_type, encode_structural_type};
 use super::wire::{Reader, Writer};
 use super::{CodecError, FORMAT_MARKER, MAGIC, decode_counted, decode_ids};
@@ -44,6 +49,13 @@ pub(super) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
         writer.id(declaration.semantic_domain);
         writer.string("structural domain identity", &declaration.identity)?;
         writer.id(declaration.carrier);
+        writer.boolean(declaration.content_projection.is_some());
+        if let Some(projection) = &declaration.content_projection {
+            writer.id(projection.identity.domain);
+            writer.u64(projection.identity.projection_fingerprint);
+            encode_content_algebra(&mut writer, &projection.algebra)?;
+            encode_content_projection_expression(&mut writer, &projection.expression)?;
+        }
     }
     writer.len("services", module.services.len())?;
     for declaration in &module.services {
@@ -274,6 +286,18 @@ pub(super) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
             semantic_domain: reader.id("DomainSemanticId")?,
             identity: reader.string("structural domain identity")?,
             carrier: reader.id("StructuralTypeId")?,
+            content_projection: if reader.boolean()? {
+                Some(StructuralContentProjection {
+                    identity: ContentProjectionIdentity {
+                        domain: reader.id("ContentDomainId")?,
+                        projection_fingerprint: reader.u64()?,
+                    },
+                    algebra: decode_content_algebra(reader)?,
+                    expression: decode_content_projection_expression(reader, 0)?,
+                })
+            } else {
+                None
+            },
         })
     })?;
     let services = decode_counted(reader, |reader| {

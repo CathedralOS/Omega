@@ -1,12 +1,14 @@
 use psi_core::{
     BlockId, ClaimId, ContentAlgebra, ContentAlgebraKind, ContentDomainId, ContentPlaceVersion,
-    ContentProjectionIdentity, ContentStructuralPlace, ContractId, EdgeId, IntegerSign,
-    IntegerType, MachineId, OperationId, PlaceId, ScalarType, StructuralPlaceKind, ValueId,
+    ContentProjectionExpression, ContentProjectionIdentity, ContentProjectionScalar,
+    ContentStructuralPlace, ContractId, EdgeId, IntegerSign, IntegerType, MachineId, OperationId,
+    PlaceId, ScalarType, StructuralPlaceKind, StructuralTypeId, ValueId,
 };
 use psi_terminal::{
-    Block, ClaimContentProjection, ContentEntryClaim, MachineContract, StructuralPlaceDeclaration,
-    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
-    VocabularyMarker,
+    Block, ClaimContentProjection, ContentEntryClaim, MachineContract, StructuralContentProjection,
+    StructuralDomainDeclaration, StructuralPlaceDeclaration, StructuralTypeDeclaration,
+    StructuralTypeShape, TerminalMachine, TerminalMachineResult, TerminalModule, Terminator,
+    ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_codec::{
     DebugFileId, DebugMapError, DebugSite, DebugSourceFile, DebugSourceOrigin, DebugSourceSpan,
@@ -101,6 +103,37 @@ fn typed_debug_map_accepts_an_entry_only_claim_subject() {
             is_self: false,
         },
     }];
+    let algebra = ContentAlgebra {
+        kind: ContentAlgebraKind::CountedQuantity,
+        parameter: "Byte".to_owned(),
+    };
+    let expression = ContentProjectionExpression::CountedQuantity(
+        ContentProjectionScalar::Natural("1".to_owned()),
+    );
+    let projection = ContentProjectionIdentity {
+        domain: ContentDomainId::new(1).expect("content domain"),
+        projection_fingerprint: psi_language_semantics::content::terminal_projection_fingerprint(
+            &algebra,
+            &expression,
+        ),
+    };
+    let structural_type = StructuralTypeId::new(1).expect("structural type");
+    module.structural_types = vec![StructuralTypeDeclaration {
+        id: structural_type,
+        identity: "DebugStorage".to_owned(),
+        shape: StructuralTypeShape::Record { fields: Vec::new() },
+    }];
+    module.structural_domains = vec![StructuralDomainDeclaration {
+        id: psi_core::StructuralDomainId::new(1).expect("structural domain"),
+        semantic_domain: psi_core::DomainSemanticId::new(1).expect("semantic domain"),
+        identity: "DebugStorage::Content".to_owned(),
+        carrier: structural_type,
+        content_projection: Some(StructuralContentProjection {
+            identity: projection,
+            algebra: algebra.clone(),
+            expression,
+        }),
+    }];
     module.machines[0].content_entry_claims = vec![ContentEntryClaim {
         claim,
         input: ContentStructuralPlace {
@@ -109,14 +142,8 @@ fn typed_debug_map_accepts_an_entry_only_claim_subject() {
             segments: Vec::new(),
         },
         projections: vec![ClaimContentProjection {
-            projection: ContentProjectionIdentity {
-                domain: ContentDomainId::new(1).expect("content domain"),
-                projection_fingerprint: 1,
-            },
-            algebra: ContentAlgebra {
-                kind: ContentAlgebraKind::CountedQuantity,
-                parameter: "Byte".to_owned(),
-            },
+            projection,
+            algebra,
         }],
     }];
     let mut debug_map = debug_map(&module);

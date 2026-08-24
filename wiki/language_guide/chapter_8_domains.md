@@ -253,6 +253,11 @@ per-instance requirement controls deployment cardinality. Cross-epoch or
 machine-lifetime caps require persistent authority rather than a newly
 introduced program-local root.
 
+The normalized owner projection is retained independently from every
+establishment route. A route may cite it and specialize its subject observations,
+but cannot redefine its algebra or content expression; even a self-consistent
+route-local fingerprint rejects when it differs from the owning domain.
+
 The concrete installation cannot derive that cardinality from an open ledger.
 It first seals the complete target-required root-slot closure against the exact
 installed roots, then issues one cohort verifier for that installation. The

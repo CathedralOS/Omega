@@ -96,10 +96,10 @@ fn structural_return_transfers_value_and_claim_atomically_after_edge_charge() {
         }],
         structural_domains: vec![StructuralDomainDeclaration {
             id: domain,
-            semantic_domain: psi_core::DomainSemanticId::new(1)
-                .expect("semantic domain identity"),
+            semantic_domain: psi_core::DomainSemanticId::new(1).expect("semantic domain identity"),
             identity: "test::Owned".into(),
             carrier: structural_type,
+            content_projection: None,
         }],
         services: Vec::new(),
         root_service_reach: Default::default(),
@@ -1814,10 +1814,10 @@ fn effect_module() -> TerminalModule {
         }],
         structural_domains: vec![StructuralDomainDeclaration {
             id: domain,
-            semantic_domain: psi_core::DomainSemanticId::new(1)
-                .expect("semantic domain identity"),
+            semantic_domain: psi_core::DomainSemanticId::new(1).expect("semantic domain identity"),
             identity: "test::Ready".into(),
             carrier: structural_type,
+            content_projection: None,
         }],
         services: vec![ServiceDeclaration {
             id: service,

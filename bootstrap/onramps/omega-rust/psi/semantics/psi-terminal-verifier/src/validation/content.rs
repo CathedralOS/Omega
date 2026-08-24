@@ -1,5 +1,28 @@
 use super::*;
 
+fn register_content_projection(
+    registry: &mut IdRegistry,
+    projection: ContentProjectionIdentity,
+    algebra: &ContentAlgebra,
+) -> Result<(), ModuleError> {
+    let Some((owner_identity, owner_algebra)) =
+        registry.owner_content_projections.get(&projection.domain)
+    else {
+        return Err(ModuleError::ContentProjectionOwnerMismatch(projection));
+    };
+    if *owner_identity != projection || owner_algebra != algebra {
+        return Err(ModuleError::ContentProjectionOwnerMismatch(projection));
+    }
+    if let Some(previous) = registry
+        .content_projection_algebras
+        .insert(projection, algebra.clone())
+        && previous != *algebra
+    {
+        return Err(ModuleError::ContentProjectionAlgebraMismatch(projection));
+    }
+    Ok(())
+}
+
 pub(super) fn validate_content_entry_claims(
     machine: &TerminalMachine,
     registry: &mut IdRegistry,
@@ -84,15 +107,7 @@ pub(super) fn validate_content_entry_claims(
         }
         inputs.insert(binding.input.clone());
         for content in &binding.projections {
-            if let Some(previous) = registry
-                .content_projection_algebras
-                .insert(content.projection, content.algebra.clone())
-                && previous != content.algebra
-            {
-                return Err(ModuleError::ContentProjectionAlgebraMismatch(
-                    content.projection,
-                ));
-            }
+            register_content_projection(registry, content.projection, &content.algebra)?;
             let term = ContentTerm::Projection {
                 projection: content.projection,
                 subject: binding.input.clone(),
@@ -219,15 +234,7 @@ pub(super) fn validate_content_identity_reshuffles(
             .iter()
             .zip(reshuffle.inferred_propositions())
         {
-            if let Some(previous) = registry
-                .content_projection_algebras
-                .insert(content.projection, content.algebra.clone())
-                && previous != content.algebra
-            {
-                return Err(ModuleError::ContentProjectionAlgebraMismatch(
-                    content.projection,
-                ));
-            }
+            register_content_projection(registry, content.projection, &content.algebra)?;
             context
                 .validate(&proposition)
                 .map_err(ModuleError::MalformedProposition)?;
@@ -524,13 +531,7 @@ fn register_partition_projections(
     conservation: &ContentConservation,
 ) -> Result<(), ModuleError> {
     for (projection, _) in content_conservation_projections(conservation) {
-        if let Some(previous) = registry
-            .content_projection_algebras
-            .insert(projection, conservation.algebra().clone())
-            && previous != *conservation.algebra()
-        {
-            return Err(ModuleError::ContentProjectionAlgebraMismatch(projection));
-        }
+        register_content_projection(registry, projection, conservation.algebra())?;
     }
     Ok(())
 }

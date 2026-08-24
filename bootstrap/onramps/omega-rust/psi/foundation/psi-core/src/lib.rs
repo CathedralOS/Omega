@@ -14,8 +14,8 @@ mod proposition;
 
 pub use content::{
     ContentAlgebra, ContentAlgebraKind, ContentConservation, ContentPlaceSegment,
-    ContentPlaceVersion, ContentProjectionIdentity, ContentStructuralPlace, ContentTerm,
-    ProgramLocalCapacityExpression, ProgramLocalCapacityScalar, StructuralPlaceKind,
+    ContentPlaceVersion, ContentProjectionExpression, ContentProjectionIdentity,
+    ContentProjectionScalar, ContentStructuralPlace, ContentTerm, StructuralPlaceKind,
     content_conservation_fingerprint,
 };
 pub use identity::{

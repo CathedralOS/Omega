@@ -189,7 +189,7 @@ deterministic runnable artifact. The artifact must print the literal plus one
 newline, then exit with the requested low-byte status; those observations must
 agree with canonical meaning.
 
-Terminal-Psi vocabulary 26 represents both boundary operands needed by O0.
+Terminal-Psi vocabulary 27 represents both boundary operands needed by O0.
 `BoundaryMachineDeclaration` carries ordered scalar parameter types and
 `OperationKind::BoundaryCall` carries ordered scalar `ValueId` arguments. The
 checked producer retains exact scalar expressions, the codec and verifier bind
@@ -198,7 +198,7 @@ abstract operation preserves them. Provider candidates remain outside this
 scalar boundary slice and reject such signatures rather than silently ignoring
 them.
 
-Vocabulary 26 also carries a first-class borrowed byte-sequence structural type,
+Vocabulary 27 also carries a first-class borrowed byte-sequence structural type,
 an exact raw-octet literal establishment, and the literal's custody through a
 bodyless boundary call. Psi syntax, resolved, typed, and checked trees own the
 exact bytes, and checked-to-terminal lowering passes the established literal
@@ -220,7 +220,7 @@ The relevant provider field is erased from runtime layout only alongside exact,
 sorted provider roots for `write_line` and `exit_process`; verification requires
 those roots to equal the boundary calls and rejects missing or substituted
 attachments. The Delta frontend streams this canonical module directly through
-ordinary `write_byte`, byte-identical to the shared-codec vocabulary-26 fixture.
+ordinary `write_byte`, byte-identical to the shared-codec vocabulary-27 fixture.
 It uses no private terminal representation or artifact buffer; incomplete output
 is never accepted because every truncated prefix fails canonical decoding.
 
@@ -284,7 +284,7 @@ rejection of bad ordering, a non-final or duplicate exit, trailing operations,
 and every declared resource ceiling. The frontend's native and Delta-self-host
 gates and the backend's exact-product-image gate close those source/artifact
 claims. The composite gate also compiles both compiler programs through the
-Delta-written `lowermachine`, then requires bundle → vocabulary-26 terminal Psi
+Delta-written `lowermachine`, then requires bundle → vocabulary-27 terminal Psi
 → ELF to reproduce the independent product terminal and image bytes for 0, 1,
 2, and 16 writes, with frontend and backend refusal before partial publication.
 The gate's initial `lowermachine` executable is still produced by the

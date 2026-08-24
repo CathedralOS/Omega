@@ -35,7 +35,7 @@ pub struct ContentProjectionIdentity {
 /// per-occurrence capacity. Field segments are stable structural identities,
 /// never frontend arena handles.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum ProgramLocalCapacityScalar {
+pub enum ContentProjectionScalar {
     SubjectField(Vec<String>),
     RuntimeScalarEmbedding(Vec<String>),
     Natural(String),
@@ -49,9 +49,9 @@ pub enum ProgramLocalCapacityScalar {
 /// `Content<A>` projection. This is semantic schema, not a trusted manifest
 /// total and not an authority occurrence.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum ProgramLocalCapacityExpression {
-    IntervalSet(Vec<(ProgramLocalCapacityScalar, ProgramLocalCapacityScalar)>),
-    CountedQuantity(ProgramLocalCapacityScalar),
+pub enum ContentProjectionExpression {
+    IntervalSet(Vec<(ContentProjectionScalar, ContentProjectionScalar)>),
+    CountedQuantity(ContentProjectionScalar),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

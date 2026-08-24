@@ -171,6 +171,22 @@ pub(super) fn validate_structural_foundation(module: &TerminalModule) -> Result<
         if !types.contains_key(&declaration.carrier) {
             return Err(ModuleError::UnknownStructuralType(declaration.carrier));
         }
+        if declaration
+            .content_projection
+            .as_ref()
+            .is_some_and(|projection| {
+                !validate_structural_content_projection(
+                    declaration.semantic_domain,
+                    declaration.carrier,
+                    projection,
+                    &types,
+                )
+            })
+        {
+            return Err(ModuleError::InvalidStructuralDomainContentProjection(
+                declaration.id,
+            ));
+        }
     }
 
     let mut services = BTreeMap::new();
@@ -658,6 +674,101 @@ pub(super) fn validate_structural_foundation(module: &TerminalModule) -> Result<
     Ok(())
 }
 
+fn validate_content_projection_scalar(
+    value: &ContentProjectionScalar,
+    carrier: StructuralTypeId,
+    types: &BTreeMap<StructuralTypeId, &psi_terminal::StructuralTypeDeclaration>,
+    depth: usize,
+) -> bool {
+    if depth > 256 {
+        return false;
+    }
+    match value {
+        ContentProjectionScalar::SubjectField(path)
+        | ContentProjectionScalar::RuntimeScalarEmbedding(path) => {
+            if path.is_empty() || path.iter().any(String::is_empty) {
+                return false;
+            }
+            let mut current = carrier;
+            for (index, segment) in path.iter().enumerate() {
+                let Some(declaration) = types.get(&current) else {
+                    return false;
+                };
+                let StructuralTypeShape::Record { fields } = &declaration.shape else {
+                    return false;
+                };
+                let Some(field) = fields.iter().find(|field| field.identity == *segment) else {
+                    return false;
+                };
+                let last = index + 1 == path.len();
+                match (&field.field_type, last) {
+                    (StructuralFieldType::Structural(next), false) => current = *next,
+                    (StructuralFieldType::Scalar(_), true) => {}
+                    _ => return false,
+                }
+            }
+            true
+        }
+        ContentProjectionScalar::Natural(value) => {
+            !value.is_empty()
+                && value.bytes().all(|byte| byte.is_ascii_digit())
+                && (value == "0" || !value.starts_with('0'))
+        }
+        ContentProjectionScalar::Successor(inner) => {
+            validate_content_projection_scalar(inner, carrier, types, depth + 1)
+        }
+        ContentProjectionScalar::Add(left, right)
+        | ContentProjectionScalar::Subtract(left, right)
+        | ContentProjectionScalar::Multiply(left, right) => {
+            validate_content_projection_scalar(left, carrier, types, depth + 1)
+                && validate_content_projection_scalar(right, carrier, types, depth + 1)
+        }
+    }
+}
+
+fn validate_content_projection_expression(
+    expression: &ContentProjectionExpression,
+    carrier: StructuralTypeId,
+    types: &BTreeMap<StructuralTypeId, &psi_terminal::StructuralTypeDeclaration>,
+) -> bool {
+    match expression {
+        ContentProjectionExpression::IntervalSet(members) => members.iter().all(|(start, end)| {
+            validate_content_projection_scalar(start, carrier, types, 0)
+                && validate_content_projection_scalar(end, carrier, types, 0)
+        }),
+        ContentProjectionExpression::CountedQuantity(magnitude) => {
+            validate_content_projection_scalar(magnitude, carrier, types, 0)
+        }
+    }
+}
+
+fn validate_structural_content_projection(
+    semantic_domain: psi_core::DomainSemanticId,
+    carrier: StructuralTypeId,
+    projection: &psi_terminal::StructuralContentProjection,
+    types: &BTreeMap<StructuralTypeId, &psi_terminal::StructuralTypeDeclaration>,
+) -> bool {
+    let shape_matches_algebra = matches!(
+        (&projection.expression, projection.algebra.kind),
+        (
+            ContentProjectionExpression::IntervalSet(_),
+            psi_core::ContentAlgebraKind::IntervalSet
+        ) | (
+            ContentProjectionExpression::CountedQuantity(_),
+            psi_core::ContentAlgebraKind::CountedQuantity
+        )
+    );
+    projection.identity.domain.get() == semantic_domain.get()
+        && projection.identity.projection_fingerprint != 0
+        && !projection.algebra.parameter.is_empty()
+        && shape_matches_algebra
+        && validate_content_projection_expression(&projection.expression, carrier, types)
+        && psi_language_semantics::content::terminal_projection_fingerprint(
+            &projection.algebra,
+            &projection.expression,
+        ) == projection.identity.projection_fingerprint
+}
+
 fn validate_program_local_root_introductions(
     boundary: &BoundaryMachineDeclaration,
     types: &BTreeMap<StructuralTypeId, &psi_terminal::StructuralTypeDeclaration>,
@@ -669,58 +780,6 @@ fn validate_program_local_root_introductions(
             argument_index,
         }
     }
-    fn validate_scalar(
-        value: &ProgramLocalCapacityScalar,
-        carrier: StructuralTypeId,
-        types: &BTreeMap<StructuralTypeId, &psi_terminal::StructuralTypeDeclaration>,
-        depth: usize,
-    ) -> bool {
-        if depth > 256 {
-            return false;
-        }
-        match value {
-            ProgramLocalCapacityScalar::SubjectField(path)
-            | ProgramLocalCapacityScalar::RuntimeScalarEmbedding(path) => {
-                if path.is_empty() || path.iter().any(String::is_empty) {
-                    return false;
-                }
-                let mut current = carrier;
-                for (index, segment) in path.iter().enumerate() {
-                    let Some(declaration) = types.get(&current) else {
-                        return false;
-                    };
-                    let StructuralTypeShape::Record { fields } = &declaration.shape else {
-                        return false;
-                    };
-                    let Some(field) = fields.iter().find(|field| field.identity == *segment) else {
-                        return false;
-                    };
-                    let last = index + 1 == path.len();
-                    match (&field.field_type, last) {
-                        (StructuralFieldType::Structural(next), false) => current = *next,
-                        (StructuralFieldType::Scalar(_), true) => {}
-                        _ => return false,
-                    }
-                }
-                true
-            }
-            ProgramLocalCapacityScalar::Natural(value) => {
-                !value.is_empty()
-                    && value.bytes().all(|byte| byte.is_ascii_digit())
-                    && (value == "0" || !value.starts_with('0'))
-            }
-            ProgramLocalCapacityScalar::Successor(inner) => {
-                validate_scalar(inner, carrier, types, depth + 1)
-            }
-            ProgramLocalCapacityScalar::Add(left, right)
-            | ProgramLocalCapacityScalar::Subtract(left, right)
-            | ProgramLocalCapacityScalar::Multiply(left, right) => {
-                validate_scalar(left, carrier, types, depth + 1)
-                    && validate_scalar(right, carrier, types, depth + 1)
-            }
-        }
-    }
-
     let mut seen = BTreeSet::new();
     for schema in &boundary.program_local_root_introductions {
         if !seen.insert((schema.argument_index, schema.qualification)) {
@@ -743,27 +802,21 @@ fn validate_program_local_root_introductions(
             argument_index: schema.argument_index,
             domain: schema.qualification,
         };
+        let Some(owner_projection) = domain.content_projection.as_ref() else {
+            return Err(invalid(boundary.id, schema.argument_index));
+        };
         let shape_matches_algebra = matches!(
             (&schema.capacity, schema.algebra.kind),
             (
-                ProgramLocalCapacityExpression::IntervalSet(_),
+                ContentProjectionExpression::IntervalSet(_),
                 psi_core::ContentAlgebraKind::IntervalSet
             ) | (
-                ProgramLocalCapacityExpression::CountedQuantity(_),
+                ContentProjectionExpression::CountedQuantity(_),
                 psi_core::ContentAlgebraKind::CountedQuantity
             )
         );
-        let capacity_valid = match &schema.capacity {
-            ProgramLocalCapacityExpression::IntervalSet(members) => {
-                members.iter().all(|(start, end)| {
-                    validate_scalar(start, schema.carrier, types, 0)
-                        && validate_scalar(end, schema.carrier, types, 0)
-                })
-            }
-            ProgramLocalCapacityExpression::CountedQuantity(magnitude) => {
-                validate_scalar(magnitude, schema.carrier, types, 0)
-            }
-        };
+        let capacity_valid =
+            validate_content_projection_expression(&schema.capacity, schema.carrier, types);
         if schema.identity == 0
             || schema.source_parameter_position != parameter.position
             || schema.carrier != parameter.structural_type
@@ -775,6 +828,9 @@ fn validate_program_local_root_introductions(
             || schema.algebra.parameter.is_empty()
             || !shape_matches_algebra
             || !capacity_valid
+            || schema.projection != owner_projection.identity
+            || schema.algebra != owner_projection.algebra
+            || schema.capacity != owner_projection.expression
             || psi_language_semantics::content::terminal_projection_fingerprint(
                 &schema.algebra,
                 &schema.capacity,

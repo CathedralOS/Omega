@@ -704,7 +704,13 @@ Remaining:
   identity, the owner-unique content projection and closed algebra, normalized
   per-occurrence capacity, and one canonical schema identity that excludes
   module-local dense IDs. Terminal codec fixtures and source/verifier tamper
-  canaries cover this description. It is intentionally not an introduction
+  canaries cover this description. Terminal vocabulary 27 now also retains the
+  owner domain's normalized content projection independently from every route
+  schema. The verifier replays that owner definition first and requires each
+  producer schema, entry claim, reshuffle, and partition proposition to cite
+  the exact same projection identity and algebra; coherently lowering both a
+  producer's capacity and its self-authored fingerprint therefore still
+  rejects against the unchanged owner definition. It is intentionally not an introduction
   event and mints no claim. The portable side now has one owned producer
   catalog constructible only from a successfully verified Terminal module. It
   retains the exact Terminal identity and entry plus each resolved requirement,
@@ -841,8 +847,11 @@ Remaining:
   coexistence-reporting seam.
   Add source, terminal, artifact, and installation canaries for
   a one-root introduction, a finite multi-instance aggregate, an ordinary-call
-  mint attempt, an unbounded installation shape, understated producer totals,
-  cross-origin composition, and stale epoch replay.
+  mint attempt, an unbounded installation shape, cross-origin composition, and
+  stale epoch replay. Source, canonical-codec, and verifier canaries now close
+  coherent understatement of a producer schema against its independent owner
+  projection; retain that invariant through the remaining artifact and
+  installation work rather than adding a second authored total.
   A shared cap is one aggregate parent root divided among children; another
   child without supply rejects. Cross-epoch limits require persistent authority.
 - **BOUNDARY-ISSUANCE** (after conservation): derive invocation geometry from

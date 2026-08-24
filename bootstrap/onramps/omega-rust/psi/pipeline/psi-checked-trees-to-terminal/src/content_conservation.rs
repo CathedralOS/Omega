@@ -2,6 +2,159 @@
 
 use super::*;
 
+fn content_field_identity(
+    checked: &CheckedTrees,
+    symbol: psi_symbols::SymbolHandle,
+) -> Option<String> {
+    checked.data_definitions().iter().find_map(|definition| {
+        checked.data_members(definition).iter().find_map(|member| {
+            let psi_checked_trees::data::DataMember::Field(field) = member else {
+                return None;
+            };
+            (field.symbol == symbol).then(|| {
+                field
+                    .identity
+                    .map(|identity| format!("#{identity}"))
+                    .unwrap_or_else(|| field.name.as_str().to_owned())
+            })
+        })
+    })
+}
+
+fn lower_content_projection_scalar(
+    checked: &CheckedTrees,
+    value: &CheckedContentScalarExpression,
+    depth: usize,
+) -> Result<ContentProjectionScalar, LoweringError> {
+    if depth > 256 {
+        return unsupported("content projection expression is too deeply nested");
+    }
+    let path = |segments: &[psi_language_semantics::content::ContentFieldSegment]| {
+        segments
+            .iter()
+            .map(|segment| {
+                let identity = content_field_identity(checked, segment.symbol).ok_or(
+                    LoweringError::Unsupported(
+                        "content projection references an unknown structural field",
+                    ),
+                )?;
+                if identity != segment.name {
+                    return unsupported(
+                        "content projection field identity drifted from its definition",
+                    );
+                }
+                Ok(identity)
+            })
+            .collect::<Result<Vec<_>, LoweringError>>()
+    };
+    Ok(match value {
+        CheckedContentScalarExpression::SubjectField(segments) => {
+            ContentProjectionScalar::SubjectField(path(segments)?)
+        }
+        CheckedContentScalarExpression::RuntimeScalarEmbedding(segments) => {
+            ContentProjectionScalar::RuntimeScalarEmbedding(path(segments)?)
+        }
+        CheckedContentScalarExpression::Natural(value) => {
+            if value.is_empty() {
+                return unsupported("content projection contains an empty natural");
+            }
+            ContentProjectionScalar::Natural(value.clone())
+        }
+        CheckedContentScalarExpression::Successor(inner) => ContentProjectionScalar::Successor(
+            Box::new(lower_content_projection_scalar(checked, inner, depth + 1)?),
+        ),
+        CheckedContentScalarExpression::Arithmetic {
+            operator,
+            left,
+            right,
+        } => {
+            let left = Box::new(lower_content_projection_scalar(checked, left, depth + 1)?);
+            let right = Box::new(lower_content_projection_scalar(checked, right, depth + 1)?);
+            match operator {
+                ContentArithmeticOperator::Add => ContentProjectionScalar::Add(left, right),
+                ContentArithmeticOperator::Subtract => {
+                    ContentProjectionScalar::Subtract(left, right)
+                }
+                ContentArithmeticOperator::Multiply => {
+                    ContentProjectionScalar::Multiply(left, right)
+                }
+            }
+        }
+    })
+}
+
+fn lower_content_projection_expression(
+    checked: &CheckedTrees,
+    expression: &CheckedContentProjectionExpression,
+) -> Result<ContentProjectionExpression, LoweringError> {
+    Ok(match expression {
+        CheckedContentProjectionExpression::IntervalSet { members } => {
+            ContentProjectionExpression::IntervalSet(
+                members
+                    .iter()
+                    .map(|member| {
+                        Ok((
+                            lower_content_projection_scalar(checked, member.start(), 0)?,
+                            lower_content_projection_scalar(checked, member.end(), 0)?,
+                        ))
+                    })
+                    .collect::<Result<Vec<_>, LoweringError>>()?,
+            )
+        }
+        CheckedContentProjectionExpression::CountedQuantity { magnitude } => {
+            ContentProjectionExpression::CountedQuantity(lower_content_projection_scalar(
+                checked, magnitude, 0,
+            )?)
+        }
+    })
+}
+
+pub(super) fn lower_structural_content_projection(
+    checked: &CheckedTrees,
+    domain: SemanticDomainId,
+    expected_carrier_identity: &str,
+) -> Result<Option<StructuralContentProjection>, LoweringError> {
+    let Some(projection) = checked
+        .facts
+        .qualifications
+        .content
+        .for_semantic_domain(domain)
+    else {
+        return Ok(None);
+    };
+    if projection.carrier_identity != expected_carrier_identity || projection.fingerprint == 0 {
+        return unsupported(
+            "structural domain content projection disagrees with its carrier or identity",
+        );
+    }
+    let algebra = match &projection.algebra {
+        CheckedContentAlgebraIdentity::IntervalSet { coordinate_space } => ContentAlgebra {
+            kind: ContentAlgebraKind::IntervalSet,
+            parameter: coordinate_space.clone(),
+        },
+        CheckedContentAlgebraIdentity::CountedQuantity { unit } => ContentAlgebra {
+            kind: ContentAlgebraKind::CountedQuantity,
+            parameter: unit.clone(),
+        },
+    };
+    let expression = lower_content_projection_expression(checked, &projection.expression)?;
+    let identity = ContentProjectionIdentity {
+        domain: ContentDomainId::new(u64::from(domain.0))
+            .ok_or(LoweringError::InvalidContentDomainIdentity)?,
+        projection_fingerprint: projection.fingerprint,
+    };
+    if psi_language_semantics::content::terminal_projection_fingerprint(&algebra, &expression)
+        != identity.projection_fingerprint
+    {
+        return unsupported("structural domain content projection fingerprint does not replay");
+    }
+    Ok(Some(StructuralContentProjection {
+        identity,
+        algebra,
+        expression,
+    }))
+}
+
 /// Publish the exact content carried by whole structural entry claims.
 ///
 /// Structural claim identity remains authoritative. A qualification contributes

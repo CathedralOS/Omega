@@ -451,13 +451,13 @@ pub fn projection_fingerprint(
 /// This is the verifier bridge for portable program-local root schemas.
 pub fn terminal_projection_fingerprint(
     algebra: &psi_core::ContentAlgebra,
-    expression: &psi_core::ProgramLocalCapacityExpression,
+    expression: &psi_core::ContentProjectionExpression,
 ) -> u64 {
     fn encode_terminal_scalar(
-        expression: &psi_core::ProgramLocalCapacityScalar,
+        expression: &psi_core::ContentProjectionScalar,
         output: &mut Vec<u8>,
     ) {
-        use psi_core::ProgramLocalCapacityScalar as Scalar;
+        use psi_core::ContentProjectionScalar as Scalar;
         match expression {
             Scalar::SubjectField(path) | Scalar::RuntimeScalarEmbedding(path) => {
                 output.push(if matches!(expression, Scalar::SubjectField(_)) {
@@ -507,7 +507,7 @@ pub fn terminal_projection_fingerprint(
         }
     }
     match expression {
-        psi_core::ProgramLocalCapacityExpression::IntervalSet(members) => {
+        psi_core::ContentProjectionExpression::IntervalSet(members) => {
             bytes.push(3);
             bytes.extend_from_slice(&(members.len() as u64).to_le_bytes());
             for (start, end) in members {
@@ -515,7 +515,7 @@ pub fn terminal_projection_fingerprint(
                 encode_terminal_scalar(end, &mut bytes);
             }
         }
-        psi_core::ProgramLocalCapacityExpression::CountedQuantity(magnitude) => {
+        psi_core::ContentProjectionExpression::CountedQuantity(magnitude) => {
             bytes.push(2);
             encode_terminal_scalar(magnitude, &mut bytes);
         }

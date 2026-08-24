@@ -94,6 +94,25 @@ impl VerifiedProgramLocalRootProducerCatalog {
                         },
                     );
                 }
+                let Some(owner_projection) = qualification.content_projection.as_ref() else {
+                    return Err(
+                        ProgramLocalRootProducerCatalogError::MissingOwnerContentProjection {
+                            requirement_identity: boundary.identity.clone(),
+                            schema_identity: schema.identity,
+                        },
+                    );
+                };
+                if schema.projection != owner_projection.identity
+                    || schema.algebra != owner_projection.algebra
+                    || schema.capacity != owner_projection.expression
+                {
+                    return Err(
+                        ProgramLocalRootProducerCatalogError::OwnerContentProjectionMismatch {
+                            requirement_identity: boundary.identity.clone(),
+                            schema_identity: schema.identity,
+                        },
+                    );
+                }
 
                 schemas.push(VerifiedProgramLocalRootProducerSchema {
                     boundary_requirement_identity: boundary.identity.clone(),
@@ -156,6 +175,14 @@ pub enum ProgramLocalRootProducerCatalogError {
         requirement_identity: String,
         schema_identity: u64,
     },
+    MissingOwnerContentProjection {
+        requirement_identity: String,
+        schema_identity: u64,
+    },
+    OwnerContentProjectionMismatch {
+        requirement_identity: String,
+        schema_identity: u64,
+    },
     DuplicateSchema {
         requirement_identity: String,
         schema_identity: u64,
@@ -191,6 +218,20 @@ impl std::fmt::Display for ProgramLocalRootProducerCatalogError {
             } => write!(
                 formatter,
                 "verified program-local root schema {schema_identity:#018x} for `{requirement_identity}` disagrees with its qualification carrier"
+            ),
+            Self::MissingOwnerContentProjection {
+                requirement_identity,
+                schema_identity,
+            } => write!(
+                formatter,
+                "verified program-local root schema {schema_identity:#018x} for `{requirement_identity}` has no owner content projection"
+            ),
+            Self::OwnerContentProjectionMismatch {
+                requirement_identity,
+                schema_identity,
+            } => write!(
+                formatter,
+                "verified program-local root schema {schema_identity:#018x} for `{requirement_identity}` disagrees with its owner content projection"
             ),
             Self::DuplicateSchema {
                 requirement_identity,

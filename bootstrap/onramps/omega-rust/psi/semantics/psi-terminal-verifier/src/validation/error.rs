@@ -151,6 +151,7 @@ pub enum ModuleError {
     RecursiveStructuralType(StructuralTypeId),
     DuplicateStructuralDomain(StructuralDomainId),
     InvalidStructuralDomainIdentity(StructuralDomainId),
+    InvalidStructuralDomainContentProjection(StructuralDomainId),
     UnknownStructuralDomain(StructuralDomainId),
     StructuralDomainCarrierMismatch {
         domain: StructuralDomainId,
@@ -635,6 +636,7 @@ pub enum ModuleError {
         second: ContentStructuralPlace,
     },
     ContentProjectionAlgebraMismatch(ContentProjectionIdentity),
+    ContentProjectionOwnerMismatch(ContentProjectionIdentity),
     DuplicateContentPartitionComposition,
     ContentPartitionCompositionHasNoInputClaims,
     NonCanonicalContentPartitionInputClaims,

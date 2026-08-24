@@ -5,8 +5,8 @@
 //! provider refinement semantics remain outside this module.
 
 use psi_core::{
-    ContentAlgebra, ContentAlgebraKind, ContentProjectionIdentity, ProgramLocalCapacityExpression,
-    ProgramLocalCapacityScalar, ServiceId,
+    ContentAlgebra, ContentAlgebraKind, ContentProjectionExpression, ContentProjectionIdentity,
+    ContentProjectionScalar, ServiceId,
 };
 use psi_terminal::{
     BoundaryMachineDeclaration, ProgramLocalRootIntroductionSchema, StructuralDomainRequirement,
@@ -63,18 +63,18 @@ pub(super) fn encode_boundary_machine(
             "program-local content algebra parameter",
             &schema.algebra.parameter,
         )?;
-        encode_capacity(writer, &schema.capacity)?;
+        encode_content_projection_expression(writer, &schema.capacity)?;
         writer.u64(schema.identity);
     }
     encode_service_ceiling(writer, &declaration.published_service_ceiling)
 }
 
-fn encode_capacity(
+pub(super) fn encode_content_projection_expression(
     writer: &mut Writer,
-    capacity: &ProgramLocalCapacityExpression,
+    capacity: &ContentProjectionExpression,
 ) -> Result<(), CodecError> {
     match capacity {
-        ProgramLocalCapacityExpression::IntervalSet(members) => {
+        ContentProjectionExpression::IntervalSet(members) => {
             writer.u8(1);
             writer.len("program-local interval members", members.len())?;
             for (start, end) in members {
@@ -82,7 +82,7 @@ fn encode_capacity(
                 encode_capacity_scalar(writer, end)?;
             }
         }
-        ProgramLocalCapacityExpression::CountedQuantity(magnitude) => {
+        ContentProjectionExpression::CountedQuantity(magnitude) => {
             writer.u8(2);
             encode_capacity_scalar(writer, magnitude)?;
         }
@@ -92,13 +92,13 @@ fn encode_capacity(
 
 fn encode_capacity_scalar(
     writer: &mut Writer,
-    scalar: &ProgramLocalCapacityScalar,
+    scalar: &ContentProjectionScalar,
 ) -> Result<(), CodecError> {
     match scalar {
-        ProgramLocalCapacityScalar::SubjectField(path)
-        | ProgramLocalCapacityScalar::RuntimeScalarEmbedding(path) => {
+        ContentProjectionScalar::SubjectField(path)
+        | ContentProjectionScalar::RuntimeScalarEmbedding(path) => {
             writer.u8(
-                if matches!(scalar, ProgramLocalCapacityScalar::SubjectField(_)) {
+                if matches!(scalar, ContentProjectionScalar::SubjectField(_)) {
                     1
                 } else {
                     2
@@ -106,21 +106,21 @@ fn encode_capacity_scalar(
             );
             writer.strings("program-local capacity field path", path)?;
         }
-        ProgramLocalCapacityScalar::Natural(value) => {
+        ContentProjectionScalar::Natural(value) => {
             writer.u8(3);
             writer.string("program-local natural", value)?;
         }
-        ProgramLocalCapacityScalar::Successor(inner) => {
+        ContentProjectionScalar::Successor(inner) => {
             writer.u8(4);
             encode_capacity_scalar(writer, inner)?;
         }
-        ProgramLocalCapacityScalar::Add(left, right)
-        | ProgramLocalCapacityScalar::Subtract(left, right)
-        | ProgramLocalCapacityScalar::Multiply(left, right) => {
+        ContentProjectionScalar::Add(left, right)
+        | ContentProjectionScalar::Subtract(left, right)
+        | ContentProjectionScalar::Multiply(left, right) => {
             writer.u8(match scalar {
-                ProgramLocalCapacityScalar::Add(_, _) => 5,
-                ProgramLocalCapacityScalar::Subtract(_, _) => 6,
-                ProgramLocalCapacityScalar::Multiply(_, _) => 7,
+                ContentProjectionScalar::Add(_, _) => 5,
+                ContentProjectionScalar::Subtract(_, _) => 6,
+                ContentProjectionScalar::Multiply(_, _) => 7,
                 _ => unreachable!(),
             });
             encode_capacity_scalar(writer, left)?;
@@ -199,7 +199,7 @@ pub(super) fn decode_boundary_machine(
                 tag => return Err(CodecError::InvalidTag("ContentAlgebraKind", tag)),
             };
             let algebra_parameter = reader.string("program-local content algebra parameter")?;
-            let capacity = decode_capacity(reader, 0)?;
+            let capacity = decode_content_projection_expression(reader, 0)?;
             let identity = reader.u64()?;
             Ok(ProgramLocalRootIntroductionSchema {
                 argument_index,
@@ -222,18 +222,18 @@ pub(super) fn decode_boundary_machine(
     })
 }
 
-fn decode_capacity(
+pub(super) fn decode_content_projection_expression(
     reader: &mut Reader<'_>,
     depth: usize,
-) -> Result<ProgramLocalCapacityExpression, CodecError> {
+) -> Result<ContentProjectionExpression, CodecError> {
     if depth > 256 {
         return Err(CodecError::InvalidTag(
-            "ProgramLocalCapacityExpressionDepth",
+            "ContentProjectionExpressionDepth",
             0,
         ));
     }
     match reader.u8()? {
-        1 => Ok(ProgramLocalCapacityExpression::IntervalSet(decode_counted(
+        1 => Ok(ContentProjectionExpression::IntervalSet(decode_counted(
             reader,
             |reader| {
                 Ok((
@@ -242,49 +242,46 @@ fn decode_capacity(
                 ))
             },
         )?)),
-        2 => Ok(ProgramLocalCapacityExpression::CountedQuantity(
+        2 => Ok(ContentProjectionExpression::CountedQuantity(
             decode_capacity_scalar(reader, depth + 1)?,
         )),
-        tag => Err(CodecError::InvalidTag(
-            "ProgramLocalCapacityExpression",
-            tag,
-        )),
+        tag => Err(CodecError::InvalidTag("ContentProjectionExpression", tag)),
     }
 }
 
 fn decode_capacity_scalar(
     reader: &mut Reader<'_>,
     depth: usize,
-) -> Result<ProgramLocalCapacityScalar, CodecError> {
+) -> Result<ContentProjectionScalar, CodecError> {
     if depth > 256 {
-        return Err(CodecError::InvalidTag("ProgramLocalCapacityScalarDepth", 0));
+        return Err(CodecError::InvalidTag("ContentProjectionScalarDepth", 0));
     }
     match reader.u8()? {
-        1 => Ok(ProgramLocalCapacityScalar::SubjectField(
+        1 => Ok(ContentProjectionScalar::SubjectField(
             reader.strings("program-local capacity field path")?,
         )),
-        2 => Ok(ProgramLocalCapacityScalar::RuntimeScalarEmbedding(
+        2 => Ok(ContentProjectionScalar::RuntimeScalarEmbedding(
             reader.strings("program-local capacity field path")?,
         )),
-        3 => Ok(ProgramLocalCapacityScalar::Natural(
+        3 => Ok(ContentProjectionScalar::Natural(
             reader.string("program-local natural")?,
         )),
-        4 => Ok(ProgramLocalCapacityScalar::Successor(Box::new(
+        4 => Ok(ContentProjectionScalar::Successor(Box::new(
             decode_capacity_scalar(reader, depth + 1)?,
         ))),
-        5 => Ok(ProgramLocalCapacityScalar::Add(
+        5 => Ok(ContentProjectionScalar::Add(
             Box::new(decode_capacity_scalar(reader, depth + 1)?),
             Box::new(decode_capacity_scalar(reader, depth + 1)?),
         )),
-        6 => Ok(ProgramLocalCapacityScalar::Subtract(
+        6 => Ok(ContentProjectionScalar::Subtract(
             Box::new(decode_capacity_scalar(reader, depth + 1)?),
             Box::new(decode_capacity_scalar(reader, depth + 1)?),
         )),
-        7 => Ok(ProgramLocalCapacityScalar::Multiply(
+        7 => Ok(ContentProjectionScalar::Multiply(
             Box::new(decode_capacity_scalar(reader, depth + 1)?),
             Box::new(decode_capacity_scalar(reader, depth + 1)?),
         )),
-        tag => Err(CodecError::InvalidTag("ProgramLocalCapacityScalar", tag)),
+        tag => Err(CodecError::InvalidTag("ContentProjectionScalar", tag)),
     }
 }
 

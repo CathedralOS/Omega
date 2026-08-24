@@ -545,6 +545,14 @@ fn source_content_custody_exit_retains_projection_and_commits_only_after_success
     };
     assert_eq!(projection.algebra.kind, ContentAlgebraKind::CountedQuantity);
     assert_ne!(projection.projection.projection_fingerprint, 0);
+    let owner_projection = module.structural_domains[0]
+        .content_projection
+        .as_ref()
+        .expect(
+            "content-bearing domain retains its owner projection independently of installation",
+        );
+    assert_eq!(owner_projection.identity, projection.projection);
+    assert_eq!(owner_projection.algebra, projection.algebra);
 
     let semantic = encode_module(module).expect("content custody semantics encode");
     assert_eq!(

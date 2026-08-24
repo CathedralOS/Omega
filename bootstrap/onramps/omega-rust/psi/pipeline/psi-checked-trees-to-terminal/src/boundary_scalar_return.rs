@@ -44,7 +44,7 @@ pub(super) fn lower_boundary_scalar_return_machine(
 
     let (structural_types, type_ids) = lower_structural_type_plans(&plans.structural_types)?;
     let (structural_domains, domain_ids) =
-        lower_boundary_scalar_domains(plans, plan, boundary, &type_ids)?;
+        lower_boundary_scalar_domains(checked, plans, plan, boundary, &type_ids)?;
     let (services, service_ids) =
         lower_boundary_scalar_services(checked, plan, boundary, *service_reach)?;
     let root_service_reach = lower_root_service_reach(checked, plan.machine, &service_ids)?;
@@ -303,6 +303,7 @@ pub(super) fn lower_boundary_scalar_return_machine(
 }
 
 fn lower_boundary_scalar_domains(
+    checked: &CheckedTrees,
     plans: &psi_checked_trees::CheckedBoundaryScalarReturnPlans,
     machine: &CheckedBoundaryScalarReturnMachinePlan,
     boundary: &CheckedBoundaryMachinePlan,
@@ -366,6 +367,11 @@ fn lower_boundary_scalar_domains(
                     .ok_or(LoweringError::InvalidContentDomainIdentity)?,
                 identity: plan.identity.clone(),
                 carrier: lookup_type_id(type_ids, &plan.carrier_type_identity)?,
+                content_projection: content_conservation::lower_structural_content_projection(
+                    checked,
+                    plan.domain,
+                    &plan.carrier_type_identity,
+                )?,
             })
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;

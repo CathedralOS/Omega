@@ -1,10 +1,11 @@
 use psi_core::{
     BlockId, ClaimId, ContentAlgebra, ContentAlgebraKind, ContentConservation, ContentDomainId,
-    ContentPlaceSegment, ContentPlaceVersion, ContentProjectionIdentity, ContentStructuralPlace,
-    ContentTerm, ContractId, EdgeId, EvidenceIdentity, IntegerSign, IntegerType, IntegerValue,
-    MachineId, ObligationId, OperationId, PlaceId, Proposition, PropositionError, ScalarTerm,
-    ScalarType, StructuralCaseId, StructuralCaseSubject, StructuralPlaceKind, StructuralTypeId,
-    ValueId, content_conservation_fingerprint,
+    ContentPlaceSegment, ContentPlaceVersion, ContentProjectionExpression,
+    ContentProjectionIdentity, ContentProjectionScalar, ContentStructuralPlace, ContentTerm,
+    ContractId, EdgeId, EvidenceIdentity, IntegerSign, IntegerType, IntegerValue, MachineId,
+    ObligationId, OperationId, PlaceId, Proposition, PropositionError, ScalarTerm, ScalarType,
+    StructuralCaseId, StructuralCaseSubject, StructuralPlaceKind, StructuralTypeId, ValueId,
+    content_conservation_fingerprint,
 };
 use psi_proof_kernel::{
     AdmissionProfile, CertificateEnvelope, EvidenceError, EvidenceRoute, PrimitiveJudgment,
@@ -14,10 +15,11 @@ use psi_terminal::{
     Block, ClaimContentProjection, ContentEntryClaim, ContentIdentityReshuffle,
     ContentPartitionComposition, ContentPlaceSubstitution, ContractClause, CrashCause, EntryClaim,
     MachineContract, Operation, OperationKind, OperationResult, StructuralCaseDeclaration,
-    StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
-    StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralResultDeclaration,
-    StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine, TerminalMachineResult,
-    TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
+    StructuralContentProjection, StructuralDomainDeclaration, StructuralFieldDeclaration,
+    StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
+    StructuralPlaceDeclaration, StructuralResultDeclaration, StructuralTypeDeclaration,
+    StructuralTypeShape, TerminalMachine, TerminalMachineResult, TerminalModule, Terminator,
+    ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_verifier::{
     ContractClauseKind, ModuleError, ObligationEvidence, ProofBundle, VerificationError,
@@ -2504,6 +2506,7 @@ fn structural_return_rejects_inexact_custody_and_scalar_content_carriers() {
             semantic_domain: psi_core::DomainSemanticId::new(91).unwrap(),
             identity: "Other".into(),
             carrier: result.structural_type,
+            content_projection: None,
         });
     let TerminalMachineResult::Structural(result) = &mut wrong_signature.machines[0].result else {
         unreachable!()
@@ -3186,6 +3189,20 @@ fn identity_reshuffle_module() -> (TerminalModule, Proposition, ObligationId) {
     let output_root = PlaceId::new(91).expect("output place");
     let structural_type = StructuralTypeId::new(90).expect("structural type");
     let claim = ClaimId::new(1).expect("claim");
+    let algebra = ContentAlgebra {
+        kind: ContentAlgebraKind::CountedQuantity,
+        parameter: "Byte".to_owned(),
+    };
+    let expression = ContentProjectionExpression::CountedQuantity(
+        ContentProjectionScalar::Natural("1".to_owned()),
+    );
+    let projection = ContentProjectionIdentity {
+        domain: ContentDomainId::new(90).expect("content domain"),
+        projection_fingerprint: psi_language_semantics::content::terminal_projection_fingerprint(
+            &algebra,
+            &expression,
+        ),
+    };
     let reshuffle = ContentIdentityReshuffle {
         claim,
         input: ContentStructuralPlace {
@@ -3199,14 +3216,8 @@ fn identity_reshuffle_module() -> (TerminalModule, Proposition, ObligationId) {
             segments: Vec::new(),
         },
         projections: vec![ClaimContentProjection {
-            projection: ContentProjectionIdentity {
-                domain: ContentDomainId::new(90).expect("content domain"),
-                projection_fingerprint: 0x9055,
-            },
-            algebra: ContentAlgebra {
-                kind: ContentAlgebraKind::CountedQuantity,
-                parameter: "Byte".to_owned(),
-            },
+            projection,
+            algebra: algebra.clone(),
         }],
     };
     let goal = reshuffle
@@ -3289,7 +3300,17 @@ fn identity_reshuffle_module() -> (TerminalModule, Proposition, ObligationId) {
                 identity: "Region".to_owned(),
                 shape: StructuralTypeShape::Record { fields: Vec::new() },
             }],
-            structural_domains: Vec::new(),
+            structural_domains: vec![StructuralDomainDeclaration {
+                id: psi_core::StructuralDomainId::new(90).expect("structural domain"),
+                semantic_domain: psi_core::DomainSemanticId::new(90).expect("semantic domain"),
+                identity: "Region::Content".to_owned(),
+                carrier: structural_type,
+                content_projection: Some(StructuralContentProjection {
+                    identity: projection,
+                    algebra,
+                    expression,
+                }),
+            }],
             services: Vec::new(),
             root_service_reach: Default::default(),
             boundary_machines: Vec::new(),

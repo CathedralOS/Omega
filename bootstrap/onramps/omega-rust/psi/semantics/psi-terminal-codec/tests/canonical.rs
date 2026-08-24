@@ -1,10 +1,11 @@
 use psi_core::{
     BlockId, BoundaryMachineId, ClaimId, ContentAlgebra, ContentAlgebraKind, ContentConservation,
-    ContentDomainId, ContentPlaceSegment, ContentPlaceVersion, ContentProjectionIdentity,
-    ContentStructuralPlace, ContentTerm, ContractId, EdgeId, IeeeFloatFormat, IntegerSign,
-    IntegerType, IntegerValue, MachineId, ObligationId, OperationId, PlaceId, Proposition,
-    PropositionId, ScalarTerm, ScalarType, ServiceId, StructuralCaseId, StructuralDomainId,
-    StructuralFieldId, StructuralPlaceKind, StructuralTypeId, ValueId,
+    ContentDomainId, ContentPlaceSegment, ContentPlaceVersion, ContentProjectionExpression,
+    ContentProjectionIdentity, ContentProjectionScalar, ContentStructuralPlace, ContentTerm,
+    ContractId, EdgeId, IeeeFloatFormat, IntegerSign, IntegerType, IntegerValue, MachineId,
+    ObligationId, OperationId, PlaceId, Proposition, PropositionId, ScalarTerm, ScalarType,
+    ServiceId, StructuralCaseId, StructuralDomainId, StructuralFieldId, StructuralPlaceKind,
+    StructuralTypeId, ValueId,
 };
 use psi_terminal::{
     BindingRelevance, Block, BoundaryMachineDeclaration, ClaimContentProjection, ClaimTransfer,
@@ -17,12 +18,12 @@ use psi_terminal::{
     PropositionBinderArgumentIdentity, PropositionBinderArgumentKind, PropositionBinderDeclaration,
     PropositionBinderKind, PropositionDeclaration, PropositionEvidence, ServiceDeclaration,
     StructuralAffineDiscard, StructuralArgument, StructuralCaseDeclaration,
-    StructuralDomainDeclaration, StructuralDomainRequirement, StructuralFieldDeclaration,
-    StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
-    StructuralPathSegment, StructuralPlaceDeclaration, StructuralResultDeclaration,
-    StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge, TerminalAffineCleanupAction,
-    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
-    VocabularyMarker,
+    StructuralContentProjection, StructuralDomainDeclaration, StructuralDomainRequirement,
+    StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
+    StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge,
+    TerminalAffineCleanupAction, TerminalMachine, TerminalMachineResult, TerminalModule,
+    Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_codec::{
     CodecError, decode_module, encode_module, semantic_fingerprint, terminal_psi_identity,
@@ -34,7 +35,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     let bytes = encode_module(&module).expect("fixture should encode");
 
     assert_eq!(&bytes[..8], b"PSITERM\0");
-    assert_eq!(&bytes[8..10], 23_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 24_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 
@@ -42,12 +43,69 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.vocabulary_marker, VocabularyMarker::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "f3d1e60d12d137ea3031e11469a28ff8bc14bf9b556580ed0a07282e820d2a3f"
+        "36ab369495de019cd6e836ab9e27822e9a6474c9222a254afe551360606ea39b"
     );
     assert_eq!(
         identity.program_fingerprint,
         semantic_fingerprint(&module).unwrap()
     );
+}
+
+#[test]
+fn structural_domain_owner_content_projection_round_trips_and_enters_identity() {
+    let mut module = nominal_affine_fixture();
+    let algebra = ContentAlgebra {
+        kind: ContentAlgebraKind::CountedQuantity,
+        parameter: "ByteUnit".into(),
+    };
+    let expression =
+        ContentProjectionExpression::CountedQuantity(ContentProjectionScalar::Natural("4".into()));
+    let projection_fingerprint =
+        psi_language_semantics::content::terminal_projection_fingerprint(&algebra, &expression);
+    module.structural_domains.push(StructuralDomainDeclaration {
+        id: structural_domain_id(1),
+        semantic_domain: psi_core::DomainSemanticId::new(1).unwrap(),
+        identity: "example::NominalResource::Content".into(),
+        carrier: structural_type_id(1),
+        content_projection: Some(StructuralContentProjection {
+            identity: ContentProjectionIdentity {
+                domain: ContentDomainId::new(1).unwrap(),
+                projection_fingerprint,
+            },
+            algebra,
+            expression,
+        }),
+    });
+
+    let bytes = encode_module(&module).expect("owner content projection encodes");
+    assert_eq!(decode_module(&bytes), Ok(module.clone()));
+    let original_identity = terminal_psi_identity(&module).expect("owner projection identity");
+
+    let mut changed = module.clone();
+    let owner = changed.structural_domains[0]
+        .content_projection
+        .as_mut()
+        .expect("owner projection");
+    owner.expression =
+        ContentProjectionExpression::CountedQuantity(ContentProjectionScalar::Natural("5".into()));
+    owner.identity.projection_fingerprint =
+        psi_language_semantics::content::terminal_projection_fingerprint(
+            &owner.algebra,
+            &owner.expression,
+        );
+    assert_ne!(
+        terminal_psi_identity(&changed).expect("changed owner projection identity"),
+        original_identity
+    );
+
+    let mut malformed = module;
+    malformed.structural_domains[0]
+        .content_projection
+        .as_mut()
+        .expect("owner projection")
+        .expression =
+        ContentProjectionExpression::CountedQuantity(ContentProjectionScalar::Natural("6".into()));
+    assert!(encode_module(&malformed).is_err());
 }
 
 #[test]
@@ -252,8 +310,8 @@ fn payload_sum_shape_round_trips_exact_fields_and_requires_canonical_order() {
 fn partial_affine_unit_return_round_trips_exact_path_and_leaf_type() {
     let module = partial_affine_fixture();
     let bytes = encode_module(&module).expect("partial affine return should encode");
-    assert_eq!(&bytes[8..10], 23_u16.to_le_bytes());
-    assert_eq!(&bytes[10..12], 26_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 24_u16.to_le_bytes());
+    assert_eq!(&bytes[10..12], 27_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 }
@@ -262,8 +320,8 @@ fn partial_affine_unit_return_round_trips_exact_path_and_leaf_type() {
 fn nominal_affine_unit_return_round_trips_exact_root_type_and_cleanup_machine() {
     let module = nominal_affine_fixture();
     let bytes = encode_module(&module).expect("nominal affine return should encode");
-    assert_eq!(&bytes[8..10], 23_u16.to_le_bytes());
-    assert_eq!(&bytes[10..12], 26_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 24_u16.to_le_bytes());
+    assert_eq!(&bytes[10..12], 27_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 }
@@ -294,7 +352,7 @@ fn scalar_return_round_trips_nominal_affine_cleanup_action() {
     };
 
     let bytes = encode_module(&module).expect("scalar nominal cleanup should encode");
-    assert_eq!(&bytes[8..10], 23_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 24_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 }
@@ -491,6 +549,7 @@ fn nominal_affine_unit_return_rejects_malformed_source_carriers() {
             semantic_domain: psi_core::DomainSemanticId::new(1).unwrap(),
             identity: "example::NominalResource::Ready".to_owned(),
             carrier: structural_type_id(1),
+            content_projection: None,
         });
     qualified.machines[0].structural_parameters[0]
         .qualifications
@@ -876,7 +935,7 @@ fn structural_effect_foundation_round_trips_and_has_stable_identity() {
     let module = structural_effect_fixture();
     let bytes = encode_module(&module).expect("structural/effect foundation should encode");
 
-    assert_eq!(&bytes[10..12], 26_u16.to_le_bytes());
+    assert_eq!(&bytes[10..12], 27_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 
@@ -1732,10 +1791,10 @@ fn decoder_rejects_noncanonical_or_ambiguous_bytes() {
     assert_eq!(decode_module(&trailing), Err(CodecError::TrailingBytes(1)));
 
     let mut future_format = bytes.clone();
-    future_format[8..10].copy_from_slice(&24_u16.to_le_bytes());
+    future_format[8..10].copy_from_slice(&25_u16.to_le_bytes());
     assert_eq!(
         decode_module(&future_format),
-        Err(CodecError::UnsupportedFormatMarker(24))
+        Err(CodecError::UnsupportedFormatMarker(25))
     );
 
     let mut stale_format = bytes.clone();
@@ -2274,6 +2333,7 @@ fn structural_effect_fixture() -> TerminalModule {
             semantic_domain: psi_core::DomainSemanticId::new(1).unwrap(),
             identity: "example::Occurrence::Pending".to_owned(),
             carrier: resource_type,
+            content_projection: None,
         }],
         services: vec![ServiceDeclaration {
             id: service,

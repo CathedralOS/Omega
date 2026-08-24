@@ -69,7 +69,7 @@ pub(super) fn lower_structural_return_machine(
 
     let (structural_types, type_ids) = lower_structural_type_plans(&plans.structural_types)?;
     let (structural_domains, domain_ids) =
-        lower_structural_domain_plans(&plans.structural_domains, &type_ids)?;
+        lower_structural_domain_plans(checked, &plans.structural_domains, &type_ids)?;
     let mut next_place = 1_u64;
     let parameters = lower_unit_parameters(
         &plan.structural_parameters,
@@ -278,6 +278,7 @@ pub(super) fn lower_structural_return_machine(
 }
 
 fn lower_structural_domain_plans(
+    checked: &CheckedTrees,
     plans: &[psi_checked_trees::CheckedUnitStructuralDomainPlan],
     type_ids: &[(String, StructuralTypeId)],
 ) -> Result<
@@ -313,6 +314,11 @@ fn lower_structural_domain_plans(
                     .ok_or(LoweringError::InvalidContentDomainIdentity)?,
                 identity: plan.identity.clone(),
                 carrier: lookup_type_id(type_ids, &plan.carrier_type_identity)?,
+                content_projection: content_conservation::lower_structural_content_projection(
+                    checked,
+                    plan.domain,
+                    &plan.carrier_type_identity,
+                )?,
             })
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
