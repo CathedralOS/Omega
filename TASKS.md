@@ -85,6 +85,16 @@ Remaining:
   Terminal-Psi representation and lowering modules linked into the compiler do
   remain ordinary members of its source closure.
 
+  Deliver this incrementally through coherent, versioned source checkpoints.
+  Each checkpoint publishes the complete deterministic transitive closure for
+  the compiler functionality it claims, passes the applicable full-Omega
+  product suites for that claim, and is usable to derive or update provisional
+  `Ωself`. A checkpoint manifest is exact for that checkpoint but does not
+  pretend that either the final file set or final profile has frozen. The final
+  manifest and `Ωself` freeze together only after the general Delta-written
+  bridge compiles the complete product compiler and supplies the measured cost
+  evidence for every retain/refactor decision.
+
 - **OMEGA-RUST-COMPARATOR.** Maintain the current Rust Psi/Omega compiler under
   `bootstrap/onramps/omega-rust/` as a parallel differential implementation
   while its bug-finding value justifies its cost. It may compare diagnostics,

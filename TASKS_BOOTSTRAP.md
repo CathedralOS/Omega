@@ -188,9 +188,10 @@ been retired; bootstrap callers resolve canonical owners through
   not general full-Omega input acceptance or the product optimizer itself.
 
 > **Immediate next dependency:** establish the Omega-written production compiler
-> source closure while the Delta bridge and its Rust-free meaning route grow.
-> Profile growth follows that actual source tree and must carry direct-artifact
-> and Rust-free-meaning coverage in the same milestone.
+> source and publish its first deterministic closure snapshot while the bounded
+> Delta substrate and Rust-free meaning route grow. Profile growth follows those
+> actual source snapshots and must carry direct-artifact and Rust-free-meaning
+> coverage in the same milestone.
 
 ## Delta → omega-bootstrap → production Omega readiness
 
@@ -273,19 +274,21 @@ or prescribe work inside the Rust on-ramp or the eventual product compiler.
 
 Two source efforts can proceed in parallel:
 
-- establish the Omega-written production compiler and publish its exact
-  transitive source manifest under `OMEGA-PRODUCT-COMPILER-SOURCE` in
-  `TASKS.md`; and
-- grow the Delta-written bridge from O0/O1 while maintaining a provisional,
-  explicit Delta feature ledger and lower-rung meaning for every used
-  construct.
+- establish the Omega-written production compiler and publish versioned,
+  deterministic transitive source-closure snapshots under
+  `OMEGA-PRODUCT-COMPILER-SOURCE` in `TASKS.md`; and
+- grow only the bounded profile-neutral Delta-written compiler substrate while
+  maintaining a provisional, explicit Delta feature ledger and lower-rung
+  meaning for every used construct.
 
-The product manifest permits `Ωself` to be derived. `Ωself` determines the
-accepted-source work of `omega-bootstrap`; implementing that bridge exposes its
-complete Delta source closure, from which Delta v1 is pruned and frozen. This is
-an iterative discovery loop with two eventual freezes, not a circular runtime
-or build dependency. O0/O1 may continue before those joins, but neither current
-source nor producer acceptance may silently define a language contract.
+The first coherent product manifest snapshot permits provisional `Ωself` to be
+derived; later snapshots update it. `Ωself` determines the accepted-source work
+of `omega-bootstrap`; implementing that bridge exposes its complete Delta source
+closure, from which Delta v1 is pruned and frozen. This is an iterative
+discovery loop with two eventual freezes, not a circular runtime or build
+dependency. Only the explicitly bounded profile-neutral substrate may continue
+before the first snapshot. Neither canary succession, current source, nor
+producer acceptance may silently define a language contract.
 
 ### Active work packages and acceptance gates
 
@@ -344,14 +347,17 @@ coverage. No provisional construct is presented as frozen Delta v1.
 
 **External input, not a bootstrap task:**
 `OMEGA-PRODUCT-COMPILER-SOURCE` in `TASKS.md` owns the Omega-written product
-source. It may proceed in parallel with Delta/bridge discovery. The bootstrap
-lane consumes its deterministic transitive manifest; product Psi/Omega
-implementation work must not be duplicated here. Compiler-adjacent tools are
-outside that manifest unless the compiler executable imports them. Under the
-current product architecture, terminal-Psi representation and lowering modules
-used by the compiler belong to the manifest. That does not pull in a standalone
-Terminal-Psi interpreter, verifier, viewer, or debugger, and it does not require
-`omega-bootstrap` to use Terminal Psi as its own internal compiler IR.
+source. It may proceed in parallel with Delta/bridge discovery and should
+publish a versioned deterministic transitive closure at each coherent source
+checkpoint. The bootstrap lane consumes those snapshots to derive provisional
+profiles; it requires the exact final manifest only for the freeze and hosted
+build. Product Psi/Omega implementation work must not be duplicated here.
+Compiler-adjacent tools are outside that manifest unless the compiler executable
+imports them. Under the current product architecture, terminal-Psi
+representation and lowering modules used by the compiler belong to the
+manifest. That does not pull in a standalone Terminal-Psi interpreter,
+verifier, viewer, or debugger, and it does not require `omega-bootstrap` to use
+Terminal Psi as its own internal compiler IR.
 
 - [x] **Complete bundle-wide source-unit ingestion in the canonical Delta
   frontend.** This is pre-profile bridge infrastructure, not O2, `Ωself`
@@ -392,13 +398,15 @@ may advance before the product source manifest exists, while provisional
   into an `Ωself` feature decision.
 
 - [ ] **Derive and enforce provisional `Ωself` from the product source.**
-  **Blocked input:** the exact production-compiler source manifest above must
-  exist before the profile can be derived. Standard library samples and current
-  Rust source cannot substitute for it; provisional bridge work may continue
-  before that manifest exists. This task produces the general candidate
-  contract used to implement the bridge. It does not freeze the profile:
-  measured bridge and assurance costs still have to settle every
-  retain-versus-refactor choice.
+  **Required input:** the first coherent Omega-written production-compiler
+  checkpoint and its deterministic transitive manifest. The final product
+  closure need not already be frozen; rerun this task as later versioned
+  snapshots land. Standard-library samples and current Rust source cannot
+  substitute for Omega-written product source. Before the first snapshot, only
+  the bounded profile-neutral bridge substrate above may grow. This task
+  produces the general candidate contract used to implement the bridge. It does
+  not freeze the profile: measured bridge and assurance costs still have to
+  settle every retain-versus-refactor choice.
   - [ ] measure every feature used by the complete source closure against its
     production-source benefit and the cost of implementing and assuring it in
     the Delta-written bridge;
@@ -415,6 +423,8 @@ may advance before the product source manifest exists, while provisional
     named fields, payload sums, and basic generics are presumptively retained;
     domains, advanced generics, numeric/schema field tags, complex transition
     payloads, and mixed field-plus-case data remain measurement questions;
+    these are working defaults, not admissions or exclusions before the source
+    and bridge-cost evidence exists;
   - [ ] keep standalone terminal-Psi tools, interpreters, REPLs, proof explorers,
     viewers, and debuggers outside the manifest unless the compiler executable
     imports them; and
@@ -423,13 +433,13 @@ may advance before the product source manifest exists, while provisional
     feature omitted from compiler *source* cannot be confused with a feature
     omitted from the compiler it implements.
 
-  Acceptance: publish the deterministic source manifest and a mechanically
-  enforced, compositional candidate feature/resource profile as distinct
-  artifacts. Every currently retained program is ordinary Omega with exact
-  Omega meaning; unsupported Omega rejects. Each unresolved candidate names the
-  product-source benefit and bridge-cost evidence still needed at the freeze
-  join. The candidate profile is a true subset, not a dialect, a source-file
-  whitelist, or another lattice rung.
+  Acceptance for each checkpoint: publish the versioned deterministic source
+  manifest and a mechanically enforced, compositional candidate
+  feature/resource profile as distinct artifacts. Every currently retained
+  program is ordinary Omega with exact Omega meaning; unsupported Omega rejects.
+  Each unresolved candidate names the product-source benefit and bridge-cost
+  evidence still needed at the freeze join. The candidate profile is a true
+  subset, not a dialect, a source-file whitelist, or another lattice rung.
 
 - [ ] **Advance profile-neutral bridge substrate in Delta.** **Actionable now,
   with a bounded stop.** Reuse the closed
@@ -472,9 +482,11 @@ may advance before the product source manifest exists, while provisional
   the landed substrate may continue.
 
 - [ ] **Implement `omega-bootstrap` in Delta against provisional `Ωself`.**
-  **Blocked input:** the deterministic product-source manifest and mechanically
-  enforced provisional profile above. Grow the bridge by general capabilities
-  required by that source rather than by hard-coded source permutations.
+  **Required input:** a versioned deterministic product-source manifest and its
+  mechanically enforced provisional profile above. Grow and revise the bridge
+  by general capabilities required by those snapshots rather than by hard-coded
+  source permutations. The exact final manifest is required at the freeze join,
+  not before the first implementation tranche.
   - [ ] publish the complete deterministic Delta source manifest and prove each
     transitive unit valid under the provisional profile; final validity under
     frozen Delta v1 belongs to the subsequent freeze task, and one entry source
@@ -570,146 +582,23 @@ may advance before the product source manifest exists, while provisional
   rebuild is optional product optimization and reproducibility work, not a
   bootstrap task, rung, or dependency.
 
-## Cross-rung assurance work
+## Cross-rung assurance status
 
-- [x] **Close the `bc` source-correspondence edge by checked refinement.**
-  Validate the exact persisted Alpha tape against `bc.beta` with authority
-  rooted below `bc`. Fixed-point identity and corpus agreement establish
-  dependency closure and regression evidence, not this theorem.
+The Beta `bc` source-correspondence edge is closed. One independently
+reconstructed, lower-rooted proposition now proves the complete maximal
+observable of the exact persisted artifact for every finite source stream and
+supported `B_bc1` resource profile. It joins exact source/artifact custody,
+procedure and control summaries, memory safety, typed resource provenance,
+guarded divergence, and phase-isolated mutation teeth. Fixed-point identity and
+cross-compiler agreement remain regression evidence rather than authority.
 
-  Established boundary:
-  - the Alpha-built `bc.tape`, exact source/tape fingerprints, complete source
-    observable, structural decode, procedure/control/effect ownership, frame and
-    local layout, raw-memory classification, stack/call potentials, and source
-    storage bounds are checked;
-  - the proof carries exact quiet/cursor and trace summaries through
-    `main.ready`, loop entry, `parse_proc`'s prefix, and the current
-    `gen_stmts`/expression cutpoints, and now composes the conditional
-    `parse_proc.genbody` tail over every exact entry block depth;
-  - fixed emitters, bounded decimal emission, parse-number, parse-character,
-    operator classifiers, `cmp_op`, the nine fixed keyword recognizers, and
-    conditional `name_eq`/`lookup` have exact shape/meaning/negative modules;
-    lookup retains distinct hit-slot-zero versus no-match provenance despite
-    their deliberate numeric-zero alias;
-  - the bounded `WSTR`/decimal emitter family has exact conditional contracts
-    for `gen_read_byte`, `emit_pop_into`, `emit_push`, `emit_mnemonic`,
-    `emit_combine`, `emit_slot_addr`, `emit_load_slot`, and `emit_store_slot`,
-    with value-parameterized child custody and no dependence on a full-word
-    decimal claim;
-  - an independent full-word `emit_dec` theorem now covers the complete signed
-    Word partition. Nonnegative words append canonical decimal; negative words
-    take the source's one-byte base edge and append `48 + srem(n,10)`, with no
-    invented minus sign or unsigned-format claim;
-  - `new_label`, `emit_lref`, `emit_str_body`, `gen_emit`, and `emit_cmp` now
-    compose through an independent lower-rooted checker. It preserves modular
-    label wrap, the source's signed-negative label spelling, blind string-body
-    opening, escaped-NUL continuation, exact `[92,0]` malformed-tail behavior,
-    the 48-byte/four-label `gen_emit` trace, both final-expect cursor classes,
-    invalid-comparison no-op output, signed high-bit materialization, and exact
-    `set,done,set,done` label order;
-  - the ROOT checker composes source slurp, the reusable main loop,
-    complete `parse_proc`, all root-reachable resource joins, guarded
-    divergence, and maximal trace equality. Its independent memory-safety
-    closure rescans all 95 raw-memory rows and joins the five SRC-indexed and
-    two table-indexed loads to exact guards and nonwrapping extents; and
-  - every claimed source/artifact join remains lower-rooted and mutation-toothed.
-
-  Established proof decomposition:
-  - [x] establish the bounded conditional name-table/query-slice domain and
-    exact terminating `name_eq` relation, including length short circuit,
-    first mismatch, and full byte equality;
-  - [x] compose conditional `lookup` over that carried domain and `name_eq`,
-    preserving the source's deliberate no-match alias to slot zero while
-    retaining distinct proof provenance;
-  - [x] close the bounded `WSTR`/bounded-decimal emitters:
-    `gen_read_byte`, `emit_pop_into`, `emit_push`, `emit_mnemonic`,
-    `emit_combine`, `emit_slot_addr`, `emit_load_slot`, and
-    `emit_store_slot`;
-  - [x] add the separate full-word `emit_dec` theorem. Preserve the source's
-    signed comparison/division behavior: negative words take the one-byte base
-    case; no unimplemented minus-sign or unsigned-format claim is allowed;
-  - [x] compose `new_label`, `emit_lref`, `emit_str_body`, `gen_emit`,
-    and `emit_cmp`, retaining exact trace order and malformed-tail cursor
-    bounds;
-  - [x] close `gen_load`, `gen_write_byte`, `gen_call`, `gen_factor`,
-    `gen_term`, `gen_sum`, and `gen_expr` together under the checked
-    `EXPRDEPTH<=64` induction, including every resource exit;
-  - [x] build `gen_stmt`'s branch relation and the guarded greatest fixed point
-    for `gen_stmts`/`gen_block`/`gen_state`/`gen_stmt`, preserving finite
-    or infinite stdout prefixes without assuming output productivity:
-    - [x] bind exact p26/p46/p62..p67 source/artifact shape in an independent
-      checker split into bounded modules, with an assembler diamond and
-      phase-isolated mutation teeth;
-    - [x] establish the finite helper/dispatch relation, including every
-      post-resource suffix and name-table provenance branch; and
-    - [x] close the block-depth-stratified guarded greatest fixed point, using a
-      completed child/backedge machine step—not cursor or stdout progress—as
-      the coinductive guard. The independent conditional semantic checker is
-      conjoined with its prerequisite owners over the identical canonical
-      bundle and has phase-isolated mutation teeth;
-  - [x] compose the `parse_proc`/PFXS body cutpoint through the unconditional
-    epilogue and return, including finite child returns after numeric resource
-    status 252:
-    - [x] discharge the statement theorem's fifteen antecedents across six
-      owners at the same-bundle gate boundary rather than importing SPUB as its
-      conclusion;
-    - [x] quantify over entry `BLOCKDEPTH D=0..64`, with 64 Ret/status0,
-      65 Ret/numeric252, and 64 Div rows; `D=64` admits only its immediate
-      depth-exhaustion Ret/numeric252 base; and
-    - [x] preserve exact `P || child || 49-byte-epilogue` finite order and
-      `P || maximal-child` divergence, including status/provenance, restored or
-      live frames/depth, and no cursor/output productivity premise. The
-      independent checker has an assembler diamond, bounded modules, and
-      phase-isolated mutation teeth;
-  - [x] classify each checked resource outcome from its exact proved guard,
-    resource profile, and requested amount. Status 252/253 is only a process
-    projection and is never used to recover `ResourceKind`:
-    - [x] map seven exact checked origins to five `B_bc1` kinds while retaining
-      distinct actual/formal arity and declaration/preflight provenance;
-    - [x] retain exact literal requests and the symbolic preflight
-      `nslots=nparams+count_lets()` request with its proved nonwrapping
-      `[1025,1048580]` range, rather than clamping it to the lower bound; and
-    - [x] conjoin Checker A and expression-family ownership over one immutable
-      bundle in an independent bounded-module checker, with an assembler
-      diamond, a scanned origin/kind/projection census, and phase-isolated
-      mutation teeth; and
-  - [x] close the root loop and prove equality of maximal stdout plus
-    `Halt`/`Trap`/`Exhaust`/`Diverge` for every finite source stream and
-    supported resource profile in `BOOTSTRAP_OBSERVABLE.md`:
-    - [x] bind the exact `main.body` call and `parse_proc` entry prefix through
-      `NLOC` reset, whitespace/identifier helpers, saved procedure-name fields,
-      permissive `expect('(')`, and entry to the already-published parameter
-      loop, carrying root trace, frame, depth-zero, and resource provenance;
-    - [x] instantiate the existing parameter, capacity, output-prefix, and
-      parse-body relations at root block depth zero, partitioning ordinary
-      return, each root-reachable checked resource origin, and child divergence
-      without recovering a resource kind from numeric status 252; prove any
-      conditionally published but root-unreachable origin impossible. Publish
-      this entry-to-return/divergence composition as its own independently
-      checked conditional `parse_proc` relation rather than folding it into the
-      root checker;
-    - [x] bind the exact post-return status split: ordinary return traverses
-      `skip_ws` and republishes every reusable loop invariant, while resource
-      return preserves first-failure provenance through `main.resource` and its
-      deterministic output suffix;
-    - [x] generalize the reusable loop split across the honest post-parse cursor
-      bound `0 <= CUR <= LEN+2`: in-range NUL and every `LEN <= CUR` miss halt,
-      while only an in-range nonzero byte enters the body. Do not silently reuse
-      the narrower initial-loop theorem or normalize malformed-tail overshoot;
-    - [x] close the guarded greatest fixed point over any number of completed
-      parse/backedge iterations without assuming cursor or stdout productivity,
-      then join the source-oversize wrapper; and
-    - [x] prove the final partition excludes invalid-opcode/arithmetic traps and
-      undefined stack or memory states, and accept the root publication only
-      after the control, parse-body, resource-classification, and completed
-      `parse_proc` owners have checked the identical canonical bundle. The root
-      checker must consume those relations as hypotheses and must not import a
-      process-local publication cell as authority.
-
-  Acceptance: one independently reconstructed, lower-rooted proposition proves
-  the complete observable of the exact persisted artifact for the supported
-  profile. No second compiler, finite corpus, or byte-identical fixed point
-  substitutes for that result.
+The detailed theorem decomposition, checker ownership, resource partitions,
+and current gate entry points belong in
+[`bootstrap/assurance/refinement/beta/README.md`](bootstrap/assurance/refinement/beta/README.md)
+beside the implementation. No open Beta-refinement dependency remains in this
+task list. Reopening that edge requires a concrete defect, a widened `B_bc1`
+claim, or a changed persisted artifact—not routine Delta or Omega bootstrap
+growth.
 
 ## Gate and performance discipline
 
@@ -732,13 +621,15 @@ may advance before the product source manifest exists, while provisional
 1. In parallel, keep Delta's Rust-free meaning route and provisional feature
    ledger live, finish only the explicitly bounded profile-neutral bridge
    substrate listed above, and let `OMEGA-PRODUCT-COMPILER-SOURCE` establish the
-   Omega-written product source and deterministic closure in `TASKS.md`.
-2. Derive and mechanically enforce a provisional `Ωself` from that product
-   closure, then implement the remaining `omega-bootstrap` capabilities directly
-   against its compositional rules. Use O0/O1 only as regression canaries; do
-   not manufacture an O2/O3 ladder or continue speculative accepted-source
-   growth after the bounded substrate stop. Feed measured bridge and assurance
-   cost back into each retained/excluded profile decision.
+   Omega-written product source and its first deterministic closure snapshot in
+   `TASKS.md`.
+2. Derive and mechanically enforce provisional `Ωself` from each coherent
+   product-source snapshot, then implement the remaining `omega-bootstrap`
+   capabilities directly against its compositional rules. Use O0/O1 only as
+   regression canaries; do not manufacture an O2/O3 ladder or continue
+   speculative accepted-source growth after the bounded substrate stop. Feed
+   measured bridge and assurance cost back into each retained/excluded profile
+   decision.
 3. At the completed bridge join, freeze `Ωself` from the exact Omega product
    closure and general accepted-source implementation. Separately freeze a
    coherent Delta v1 from the bridge's complete Delta source closure after
