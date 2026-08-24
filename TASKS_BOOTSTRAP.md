@@ -26,6 +26,10 @@ Delta bridge source ──[lattice-built Delta compiler]──▶ omega-bootstra
 Ωself product source ──[optional omega rebuild]───────▶ omega (same compiler; optimized binary)
 ```
 
+In artifact shorthand this is `Alpha → Beta → Gamma → Delta → omega-bootstrap
+→ omega [→ omega]`, where the bracketed self-rebuild is optional. The bridge is
+an artifact between language rungs, not a language generation of its own.
+
 The languages become increasingly capable through Delta. Delta is the final
 small-language rung: an independent, robust compiler-host language with C-like
 power and Omega-shaped conventions where cheap. It is not required to be valid
@@ -153,24 +157,12 @@ recognize the current compiler files, declaration counts, or syntax-tree
 permutations.
 
 - [x] Complete the first checkpoint-driven frontend cost probe over
-  `compiler/psi/source/source.omg`. Implement compositional parsing, resolution,
-  type checking, mutation/lvalue checking, and guarded range/index obligations
-  for the source families it isolates: ordinary records and fields, attached
-  machines, fixed arrays and indexing, Trapping/range-constrained scalars,
-  mutable/shared `self`, assignment, scalar result, and named guarded
-  transitions. Enforce published general ceilings; unsupported syntax must
-  return 251 with no output and declared exhaustion must return 252 with no
-  output. The fast native checker carries the exhaustive actual, renamed/
-  reordered, semantic-negative, and exact/adjacent resource matrix; a
-  representative matrix repeats through a lowermachine-built checker. The
-  Rust-free route executes the exact product unit plus distinct 251 and 252
-  paths through canonical Gamma, avoiding another equivalent two-minute
-  positive. The resulting checker is 78,450 Delta-source bytes with 5,395,760
-  bytes of fixed backing and elaborates to 626,059 Gamma bytes. Its present
-  signed-`i32` interval carrier explicitly rejects authored `u32` endpoints
-  above 2,147,483,647. Contract, costs, ceilings, and the correction separating
-  qualified-name `path.components` from postfix expression depth are recorded
-  in
+  `compiler/psi/source/source.omg`. The general checker covers the record,
+  field, attached-machine, fixed-array/index, constrained-scalar, receiver,
+  assignment, result, and guarded-transition families isolated by checkpoint
+  000001, including semantic negatives, resource teeth, self-built execution,
+  and Rust-free meaning. Exact contract, measurements, ceilings, and limitations
+  live in
   [`SOURCE_CUSTODY_FRONTEND_PROBE.md`](bootstrap/omega-bootstrap/compiler/SOURCE_CUSTODY_FRONTEND_PROBE.md).
   This checker-only measurement does not admit the families to `Ωself` or claim
   an artifact path.

@@ -55,45 +55,31 @@ Remaining:
   contains no Rust implementation under the
   reserved product roots. Publish a deterministic manifest of every transitive
   compiler module, library, generated/compile-time source, build input, and tool
-  imported by that build. Develop against the conservative working policy in
-  `wiki/architecture/bootstrap_lattice/compiler_source_profile.md`; this task does
-  not wait for Delta v1 or a frozen `Ωself`. Once the exact source closure
-  exists, jointly derive the profile: for each disputed source feature, either
-  refactor it away or retain a general compositional form whose source benefit
-  justifies its measured bootstrap and assurance cost. Feature removal is not
-  a goal when it only produces brittle monomorphic duplication. Keep
-  the final closure within that ordinary-Omega profile. `Ωself` is the incidental
-  feature footprint of this implementation made into a compositional contract;
-  it is not a second product language. The manifest is closure evidence, not
-  permission for `omega-bootstrap` to whitelist particular files or AST shapes.
-  Using a deliberately narrow set of Omega features in the compiler
-  implementation does not narrow the language the resulting compiler
-  implements. Deriving, enforcing, and closing `Ωself` and the Delta-built
-  `omega-bootstrap` compiler are tracked separately in `TASKS_BOOTSTRAP.md`;
-  product Psi/Omega implementation work must not be added there. The source
-  manifest yields a provisional profile; `Ωself` freezes only at the bridge
-  join, after the general implementation supplies the cost evidence used to
-  settle every retained feature.
-  The feature choice made by this task concerns only the product compiler's
-  own ordinary-Omega source footprint. It does not select Delta features,
-  redefine full Omega, or choose
-  between a "limited" and "full" compiler: the resulting compiler must always
-  implement full Omega. Keep compiler-adjacent tools out of the source closure
-  unless the compiler executable imports them; full Omega acceptance does not
-  require a hosted Terminal-Psi interpreter, REPL, proof explorer, viewer, or
-  debugger. The
-  Terminal-Psi representation and lowering modules linked into the compiler do
-  remain ordinary members of its source closure.
+  imported by that build.
+
+  Author this source against the working `Ωself` policy in
+  `wiki/architecture/bootstrap_lattice/compiler_source_profile.md`; this task
+  does not wait for Delta v1 or a frozen profile. `Ωself` restricts only the
+  compiler's own ordinary-Omega source, never the full Omega language that the
+  resulting compiler implements. Prefer a small regular implementation
+  footprint, but do not replace useful general facilities with brittle
+  monomorphic duplication merely to reduce the feature count. Keep adjacent
+  tools outside the closure unless the compiler executable imports them.
+
+  Deriving and enforcing `Ωself`, implementing the Delta-written bridge, and
+  validating the hosted build remain in `TASKS_BOOTSTRAP.md`; do not duplicate
+  product Psi/Omega implementation tasks there. The exact manifest is closure
+  evidence, not permission for the bridge to recognize particular files or AST
+  permutations. Terminal-Psi representation and lowering modules linked into
+  the compiler remain ordinary source dependencies; standalone interpreters,
+  viewers, REPLs, proof explorers, and debuggers do not.
 
   Deliver this incrementally through coherent, versioned source checkpoints.
   Each checkpoint publishes the complete deterministic transitive closure for
-  the compiler functionality it claims, passes the applicable full-Omega
-  product suites for that claim, and is usable to derive or update provisional
-  `Ωself`. A checkpoint manifest is exact for that checkpoint but does not
-  pretend that either the final file set or final profile has frozen. The final
-  manifest and `Ωself` freeze together only after the general Delta-written
-  bridge compiles the complete product compiler and supplies the measured cost
-  evidence for every retain/refactor decision.
+  the compiler functionality it claims, passes the applicable product suites,
+  and updates the provisional `Ωself` census. A checkpoint manifest is exact
+  for that checkpoint; the final manifest and profile freeze only at the
+  completed bridge join.
 
   Current checkpoint: `compiler/source-checkpoints/checkpoint-000001.json`
   closes the first real Psi source-to-token slice under `compiler/psi/` plus
