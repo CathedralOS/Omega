@@ -69,6 +69,14 @@ merge policy from the trust base. Review status, signatures, and reasons are
 organization policy records; none is a portable proof that a human or LLM
 performed a sound audit.
 
+The compiler derives the ordinary admission baseline from checked semantic
+state through a total internal package-admission projection. The lock stores its
+versioned canonical rows rather than raw compiler IR. This does not make the
+checked IR a public compatibility surface or require another nominal IR stage.
+Terminal Psi evidence is additional and is required only for claims about final
+realization or by a hardened profile; absence of that evidence never implies a
+weaker Terminal guarantee.
+
 ### Build orchestration is not semantic evaluation
 
 Two kinds of Omega code run before the final program:

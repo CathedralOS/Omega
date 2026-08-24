@@ -1,6 +1,6 @@
 # Design Brief: Package Manager First Draft
 
-Status: corrected first design, 2026-08-23. This brief is temporary until the
+Status: corrected first design, 2026-08-24. This brief is temporary until the
 implementation vocabulary is established and the settled model is folded into
 `build_and_package_model.md`.
 
@@ -179,6 +179,21 @@ Package capabilities are derived from the candidate repository after the
 complete source/build closure is available. The package author writes ordinary
 Omega contracts; it cannot author or patch the admission manifest.
 
+Ordinary admission derives from the compiler's coherent checked semantic graph
+through a total internal `PackageAdmissionProjection`. The projection is not a
+new public IR or execution stage: it owns no transformations or independent
+semantics. It normalizes only package-visible semantic identities and evidence
+rows, rejects any required fact that is unresolved or cannot be projected, and
+emits a versioned canonical evidence encoding. Locks persist that encoding, not
+raw checked-tree nodes, arena handles, display strings, or compiler-private IDs.
+Compiler internals may change freely provided the projection remains equivalent
+or the evidence schema changes explicitly.
+
+There is no nominal Chi stage merely to stabilize this report. A distinct IR is
+justified later only if multiple independent consumers need the same semantic
+stage or it acquires its own transformations, invariants, and verification
+rules.
+
 The eventual normalized package-admission evidence must include, with exact
 provenance:
 
@@ -193,6 +208,17 @@ provenance:
 - installation-bound rows; and
 - suspension, blocking, crash, failure, termination, and reproducibility facts.
 
+Terminal evidence is a separate stronger lane. It is required only for rows
+that claim checked properties of final realization—Omega-emitted executable
+code, native or externally supplied code, lowering- or ABI-dependent
+guarantees, fixed native resource bounds, or a hardened release profile that
+explicitly requires independently replayable final-code evidence. Opaque
+executable supply may instead remain an explicit trust/TCB row making no
+Terminal claim. Ordinary reach, authority-flow, provider, proof-status, and
+build-contract admission does not wait for blanket Terminal coverage. Evidence
+rows state their exact class; missing Terminal evidence cannot be represented
+as a weaker “complete enough” bit or mistaken for a Terminal-verified claim.
+
 Underdeclared effective reach is a compiler error. Overdeclared reach remains a
 visible contract-slack row. Dangerous slack is suspicious because it reserves
 authority that a later implementation may begin exercising without changing
@@ -206,10 +232,11 @@ reject an unresolved stand-down or retain the exact later checked obligation
 that discharged it. The package-aware checked path now retains exact
 machine/contract/fact coordinates with a closed stand-down reason from the
 pristine typed graph, and review rejects every checked-implementation row.
-Accepted and opaque supply remains in the trust lane. Sealed/terminal
-propagation and any later-discharge ledger are still unfinished; a successful
-ordinary compilation is not by itself a complete proof verdict. Checked proofs
-are rechecked by the proof kernel.
+Accepted and opaque supply remains in the trust lane. Sealing and any exact
+later-discharge ledger are still unfinished; a successful ordinary compilation
+is not by itself a complete proof verdict. Checked proofs are rechecked by the
+proof kernel. Terminal propagation remains necessary only when an admitted row
+actually makes a final-realization claim.
 Accepted axioms and opaque boundary claims must remain explicit trust-bearing
 evidence and require admission; authored postconditions are obligations, never
 proof. Boundary realization must use exact package-qualified nominal identities

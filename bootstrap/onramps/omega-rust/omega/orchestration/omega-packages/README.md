@@ -26,6 +26,11 @@ real package fixture demonstrates an irreducible external contract.
   build code receives any host provider.
 - The compiler, not the package or CLI caller, derives package capability/API
   evidence from checked source and build results.
+- Ordinary admission uses a total internal projection from checked semantic
+  state into versioned canonical evidence. Raw compiler IR is never a lock
+  format, and this projection does not require a nominal Chi stage.
+- Terminal evidence is separate and required only for final-realization claims
+  or hardened profiles, not as a blanket package-admission gate.
 - `omega.lock` records the exact reconciled closure and normalized accepted
   evidence baseline. It should normally be committed.
 - Every update receives source/provenance triage. Blocking capability/API
