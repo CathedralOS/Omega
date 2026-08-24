@@ -7,7 +7,7 @@
 ; not establish NPFX from a dynamic root; it checks the bounded address family
 ; and publishes a reusable conditional descriptor.
 ;
-; Fresh cells after the split-continuation token at 531840:
+; Fresh cells after the stable common-prefix token at 531840:
 ;   public NTDM / prefix / query / selected i   531848..531872
 ;   table address/payload/query slice           531880..531896
 ;   source address/byte relation                531904/531912
@@ -17,7 +17,7 @@
 
 name_table_domain_init:
         imm r20, 531840
-        imm r21, 1162760275           ; SPNE name_eq continuation
+        imm r21, 1481003091           ; stable SPFX common-prefix contract
         call exact_require_cell
         call name_table_domain_reset
         call name_table_require_load_classes

@@ -4,7 +4,7 @@
 ; claim or import a dynamic slurp execution from Checker A.
 bc_post_write_str:
         imm r20, 531840
-        imm r21, 1431261267             ; SPOU
+        imm r21, 1481003091             ; SPFX
         call exact_require_cell
         imm r20, 525816
         imm r21, 1465074514             ; WSTR

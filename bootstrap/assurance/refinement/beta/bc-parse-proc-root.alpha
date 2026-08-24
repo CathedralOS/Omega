@@ -1,0 +1,12 @@
+; Root of the independent complete parse_proc implication checker.
+;
+; The process starts after the canonical expression-table loader has established
+; register custody.  It does not import process-local cells from another
+; executable: the named lower publications are proposition-schema hypotheses,
+; recorded and rechecked locally by the antecedent module.
+
+stack_register_custody_init:
+        imm r1, 606000
+        imm r2, 1481789520             ; PPRX
+        store r1, r2
+        jmp parse_proc_antecedent_init

@@ -28,8 +28,8 @@ emit_dec_word_build_tooth() { # name exact-old exact-new
 
 emit_dec_word_build_teeth() {
   emit_dec_word_build_tooth emit-dec-word-wrong-stack-bridge \
-    'imm r2, 1464094803             ; SPDW' \
-    'imm r2, 1464094802             ; SPDW'
+    'imm r2, 1481003091             ; SPFX' \
+    'imm r2, 1481003090             ; SPFX'
   emit_dec_word_build_tooth emit-dec-word-wrong-guard \
     'imm r24, 29307              ; checked n>=10 recursive guard' \
     'imm r24, 29308              ; checked n>=10 recursive guard'

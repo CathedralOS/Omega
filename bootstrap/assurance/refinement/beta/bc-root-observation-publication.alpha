@@ -1,0 +1,412 @@
+; Final whole-root maximal-observation publication.
+;
+; ROOT is a conditional proposition over the exact canonical bundle.  The gate
+; may accept it only after same-bundle discharge of PPRC, PBOD, RCLS, and the
+; control/skip/loop owners named by RANT.  The result is exact equality, not
+; simulation inclusion, termination on finite input, corpus coverage, or a
+; byte-identical fixed-point surrogate.
+
+root_observation_publication_init:
+        call root_observation_publication_require_roots
+        call root_observation_publication_require_relations
+        call root_observation_publication_write_metadata
+        call root_observation_publication_require_metadata
+        imm r1, 620024
+        imm r2, 1414483794             ; ROOT
+        store r1, r2
+        imm r20, 620024
+        imm r21, 1414483794
+        call exact_require_cell
+        imm r0, 0
+        halt r0
+
+root_observation_publication_require_roots:
+        imm r20, 616000
+        imm r21, 1481789266             ; RORX
+        call exact_require_cell
+        imm r20, 616008
+        imm r21, 1414414674             ; RANT
+        call exact_require_cell
+        imm r20, 616016
+        imm r21, 826823506              ; RSH1
+        call exact_require_cell
+        imm r20, 616024
+        imm r21, 1346783058             ; RGFP
+        call exact_require_cell
+        imm r20, 616032
+        imm r21, 1480674642             ; RMAX
+        call exact_require_cell
+        imm r20, 616040
+        imm r21, 558845522              ; RNO!
+        call exact_require_cell
+        imm r20, 616048
+        imm r21, 1                      ; exact main suffix
+        call exact_require_cell
+        imm r20, 616080
+        imm r21, 1                      ; exact iteration partition
+        call exact_require_cell
+        imm r20, 616056
+        imm r21, 1347374162             ; RLOP
+        call exact_require_cell
+        imm r20, 616064
+        imm r21, 1                      ; source plus five joined resource origins
+        call exact_require_cell
+        imm r20, 616072
+        imm r21, 1                      ; guarded greatest fixed point
+        call exact_require_cell
+        imm r20, 616088
+        imm r21, 1313819218             ; RJON
+        call exact_require_cell
+        imm r20, 631224
+        imm r21, 1178686285             ; MSAF dynamic memory closure
+        call exact_require_cell
+        ret
+
+root_observation_publication_require_relations:
+        call root_observation_publication_require_loop_payloads
+        call root_observation_publication_require_resource_join_payloads
+        call root_observation_publication_require_iteration_payloads
+        call root_observation_publication_require_resource_payloads
+        call root_observation_publication_require_equality_payloads
+        call root_observation_publication_require_exclusion_payloads
+        ; Generalized loop has exactly NUL, safe miss, and nonzero body rows.
+        imm r10, 1
+root_observation_publication_loop_rows:
+        imm r1, 4
+        jlt r10, r1, root_observation_publication_loop_one
+        jmp root_observation_publication_iteration_init
+root_observation_publication_loop_one:
+        mov r20, r10
+        imm r1, 80
+        mul r20, r1
+        imm r1, 620920
+        add r20, r1
+        mov r21, r10
+        call exact_require_cell
+        imm r1, 72
+        add r20, r1
+        imm r21, 1
+        call exact_require_cell
+        imm r1, 1
+        add r10, r1
+        jmp root_observation_publication_loop_rows
+
+root_observation_publication_iteration_init:
+        imm r10, 1
+root_observation_publication_iteration_rows:
+        imm r1, 9
+        jlt r10, r1, root_observation_publication_iteration_one
+        jmp root_observation_publication_resource_init
+root_observation_publication_iteration_one:
+        mov r20, r10
+        imm r1, 96
+        mul r20, r1
+        imm r1, 621904
+        add r20, r1
+        mov r21, r10
+        call exact_require_cell
+        imm r1, 88
+        add r20, r1
+        imm r21, 1
+        call exact_require_cell
+        imm r1, 1
+        add r10, r1
+        jmp root_observation_publication_iteration_rows
+
+root_observation_publication_resource_init:
+        ; Only source overflow lives in the wrapper-resource table. The five
+        ; parse_proc origins are checked through their exact RJON foreign keys.
+        imm r20, 623000
+        imm r21, 1
+        call exact_require_cell
+        imm r1, 88
+        add r20, r1
+        imm r21, 1
+        call exact_require_cell
+        jmp root_observation_publication_equality_init
+
+root_observation_publication_equality_init:
+        imm r10, 1
+root_observation_publication_equality_rows:
+        imm r1, 6
+        jlt r10, r1, root_observation_publication_equality_one
+        ret
+root_observation_publication_equality_one:
+        mov r20, r10
+        imm r1, 56
+        mul r20, r1
+        imm r1, 624944
+        add r20, r1
+        mov r21, r10
+        call exact_require_cell
+        imm r1, 48
+        add r20, r1
+        imm r21, 1
+        call exact_require_cell
+        imm r1, 1
+        add r10, r1
+        jmp root_observation_publication_equality_rows
+
+; Independent field checks make mutations of semantic rows reject rather than
+; merely storing a different self-consistent table.
+root_observation_publication_require_loop_payloads:
+        imm r10, 1
+root_observation_publication_loop_payload:
+        imm r1, 4
+        jlt r10, r1, root_observation_publication_select_loop_payload
+        ret
+root_observation_publication_select_loop_payload:
+        imm r30, 1                    ; CUR<LEN
+        imm r31, 1                    ; cbyte hit
+        imm r32, 0
+        imm r33, 1                    ; Halt
+        imm r34, 0
+        imm r35, 1                    ; trace retained
+        imm r36, 0                    ; frame restored
+        imm r37, 1                    ; MLSP basis
+        imm r1, 1
+        jeq r10, r1, root_observation_publication_check_loop_payload
+        imm r1, 2
+        jeq r10, r1, root_observation_publication_loop_miss_payload
+        imm r1, 3
+        jeq r10, r1, root_observation_publication_loop_body_payload
+        jmp reject
+root_observation_publication_loop_miss_payload:
+        imm r30, 2                    ; LEN<=CUR<=LEN+2
+        imm r31, 2                    ; cbyte miss
+        imm r37, 2                    ; CBLE miss plus safe bound
+        jmp root_observation_publication_check_loop_payload
+root_observation_publication_loop_body_payload:
+        imm r32, 1                    ; nonzero byte
+        imm r33, 5                    ; Body
+        imm r34, 51405
+        imm r36, 1                    ; main frame active
+root_observation_publication_check_loop_payload:
+        mov r20, r10
+        imm r1, 80
+        mul r20, r1
+        imm r1, 620920
+        add r20, r1
+        mov r21, r10
+        call root_observation_publication_require_next_word
+        mov r21, r30
+        call root_observation_publication_require_next_word
+        mov r21, r31
+        call root_observation_publication_require_next_word
+        mov r21, r32
+        call root_observation_publication_require_next_word
+        mov r21, r33
+        call root_observation_publication_require_next_word
+        mov r21, r34
+        call root_observation_publication_require_next_word
+        mov r21, r35
+        call root_observation_publication_require_next_word
+        mov r21, r36
+        call root_observation_publication_require_next_word
+        mov r21, r37
+        call root_observation_publication_require_next_word
+        imm r21, 1
+        call exact_require_cell
+        imm r1, 1
+        add r10, r1
+        jmp root_observation_publication_loop_payload
+
+root_observation_publication_require_iteration_payloads:
+        imm r10, 1
+root_observation_publication_iteration_payload:
+        imm r1, 9
+        jlt r10, r1, root_observation_publication_select_iteration_payload
+        ret
+root_observation_publication_select_iteration_payload:
+        imm r30, 1                    ; exact PPRC row1 Ret0
+        imm r31, 1                    ; SWSQ
+        imm r32, 0                    ; status0
+        imm r33, 51262
+        imm r34, 3                    ; exact finite PPRC trace
+        imm r35, 0                    ; no resource provenance
+        imm r36, 1                    ; completed Tau guard
+        imm r37, 1                    ; live main, depths zero
+        imm r38, 0                    ; no RJON row
+        imm r39, 0                    ; no resource origin
+        imm r1, 1
+        jeq r10, r1, root_observation_publication_check_iteration_payload
+        imm r1, 2
+        jeq r10, r1, root_observation_publication_iteration_overshoot
+        imm r1, 3
+        jeq r10, r1, root_observation_publication_iteration_origin2
+        imm r1, 4
+        jeq r10, r1, root_observation_publication_iteration_origin4
+        imm r1, 5
+        jeq r10, r1, root_observation_publication_iteration_origin5
+        imm r1, 6
+        jeq r10, r1, root_observation_publication_iteration_origin6
+        imm r1, 7
+        jeq r10, r1, root_observation_publication_iteration_origin7
+        imm r1, 8
+        jeq r10, r1, root_observation_publication_iteration_div
+        jmp reject
+root_observation_publication_iteration_overshoot:
+        imm r31, 2                    ; SWSX, CUR preserved
+        jmp root_observation_publication_check_iteration_payload
+root_observation_publication_iteration_origin2:
+        imm r30, 2                    ; exact PPRC row2/origin2
+        imm r38, 1                    ; exact RJON row1
+        imm r39, 2
+        jmp root_observation_publication_iteration_resource
+root_observation_publication_iteration_origin4:
+        imm r30, 3                    ; exact PPRC row3/origin4
+        imm r38, 2
+        imm r39, 4
+        jmp root_observation_publication_iteration_resource
+root_observation_publication_iteration_origin5:
+        imm r30, 4                    ; exact PPRC row4/origin5
+        imm r38, 3
+        imm r39, 5
+        jmp root_observation_publication_iteration_resource
+root_observation_publication_iteration_origin6:
+        imm r30, 5                    ; exact PPRC row5/origin6
+        imm r34, 1                    ; epsilon before output prefix
+        imm r38, 4
+        imm r39, 6
+        jmp root_observation_publication_iteration_resource
+root_observation_publication_iteration_origin7:
+        imm r30, 6                    ; exact PPRC row6/origin7
+        imm r34, 1
+        imm r38, 5
+        imm r39, 7
+root_observation_publication_iteration_resource:
+        imm r31, 3                    ; exact resource suffix
+        imm r32, 252
+        imm r33, 2                    ; typed Exhaust
+        imm r35, 1                    ; exact joined rho remains sticky
+        imm r36, 0                    ; terminal, no GFP edge
+        imm r37, 2                    ; root return
+        jmp root_observation_publication_check_iteration_payload
+root_observation_publication_iteration_div:
+        imm r30, 7                    ; exact PPRC row7 Div
+        imm r31, 0                    ; no suffix
+        imm r32, 0
+        imm r33, 4                    ; Diverge
+        imm r34, 2                    ; maximal PPRC divergence trace
+        imm r35, 1                    ; live provenance/resumptions
+        imm r36, 0
+        imm r37, 3                    ; live p68/main frames
+root_observation_publication_check_iteration_payload:
+        mov r20, r10
+        imm r1, 96
+        mul r20, r1
+        imm r1, 621904
+        add r20, r1
+        mov r21, r10
+        call root_observation_publication_require_next_word
+        mov r21, r30
+        call root_observation_publication_require_next_word
+        mov r21, r31
+        call root_observation_publication_require_next_word
+        mov r21, r32
+        call root_observation_publication_require_next_word
+        mov r21, r33
+        call root_observation_publication_require_next_word
+        mov r21, r34
+        call root_observation_publication_require_next_word
+        mov r21, r35
+        call root_observation_publication_require_next_word
+        mov r21, r36
+        call root_observation_publication_require_next_word
+        mov r21, r37
+        call root_observation_publication_require_next_word
+        mov r21, r38
+        call root_observation_publication_require_next_word
+        mov r21, r39
+        call root_observation_publication_require_next_word
+        imm r21, 1
+        call exact_require_cell
+        imm r1, 1
+        add r10, r1
+        jmp root_observation_publication_iteration_payload
+
+root_observation_publication_require_next_word:
+        call exact_require_cell
+        imm r1, 8
+        add r20, r1
+        ret
+
+root_observation_publication_write_metadata:
+        imm r1, 620000
+        imm r2, 1
+        store r1, r2                  ; every finite source stream
+        imm r1, 620008
+        store r1, r2                  ; exact supported B_bc1 profile
+        imm r1, 620016
+        imm r2, 4
+        store r1, r2                  ; Halt/Trap/Exhaust/Diverge accounted
+        imm r1, 620032
+        imm r2, 1
+        store r1, r2                  ; exact Alpha/Beta maximal equality
+        imm r1, 620040
+        store r1, r2                  ; sole canonical Halt payload is zero
+        imm r1, 620048
+        imm r2, 0
+        store r1, r2                  ; Trap outcome set empty
+        imm r1, 620056
+        store r1, r2                  ; stuck/invalid outcome set empty
+        imm r1, 620064
+        imm r2, 1
+        store r1, r2                  ; Exhaust retains kind/limit/request/rho
+        imm r1, 620072
+        store r1, r2                  ; source overflow has empty stdout
+        imm r1, 620080
+        imm r2, 0
+        store r1, r2                  ; no canonical Halt252
+        imm r1, 620088
+        store r1, r2                  ; no canonical Halt253
+        imm r1, 620096
+        imm r2, 1
+        store r1, r2                  ; finite/infinite maximal traces covered
+        imm r1, 620104
+        store r1, r2                  ; silent divergence admitted
+        imm r1, 620112
+        store r1, r2                  ; arbitrary iteration trace/state carried
+        imm r1, 620120
+        store r1, r2                  ; exact persisted Alpha artifact only
+        ret
+
+root_observation_publication_require_metadata:
+        imm r20, 620000
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 620008
+        call exact_require_cell
+        imm r20, 620016
+        imm r21, 4
+        call exact_require_cell
+        imm r20, 620032
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 620040
+        call exact_require_cell
+        imm r20, 620048
+        imm r21, 0
+        call exact_require_cell
+        imm r20, 620056
+        call exact_require_cell
+        imm r20, 620064
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 620072
+        call exact_require_cell
+        imm r20, 620080
+        imm r21, 0
+        call exact_require_cell
+        imm r20, 620088
+        call exact_require_cell
+        imm r20, 620096
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 620104
+        call exact_require_cell
+        imm r20, 620112
+        call exact_require_cell
+        imm r20, 620120
+        call exact_require_cell
+        ret

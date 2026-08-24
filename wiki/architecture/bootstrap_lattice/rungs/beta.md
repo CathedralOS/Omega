@@ -28,9 +28,10 @@ governed by Alpha's written semantics. The steady-state compiler is
 fixed point. The first compiler was cold-started by the disposable
 `bootstrap/onramps/beta-rust/` producer. The current persisted artifact is
 instead reconstructed by the Alpha-written cold-start compiler and contains no
-Rust producer in its lineage; it still needs complete lower-rooted validation
-against `bc.beta`. A fixed point proves deterministic dependency closure, not
-compiler correctness or source correspondence.
+Rust producer in its lineage. Its independent ROOT checker now establishes
+complete lower-rooted maximal-observation correspondence against `bc.beta` for
+the supported `B_bc1` profile. The fixed point still proves only deterministic
+dependency closure; authority comes from that separate refinement check.
 
 The Alpha assembler formerly lived in `compiler/beta/`, but it is an Alpha tool:
 it is written in Alpha assembly and translates Alpha assembly to Alpha tapes.
@@ -70,7 +71,7 @@ lower-rooted refinement coverage.
 ## Implementation frontiers
 
 - Guard the explicit data stack against overflow.
-- Close the complete `bc.beta` source-to-artifact refinement edge with authority
-  rooted below the compiler being checked.
+- Keep the closed `bc.beta`/persisted-artifact ROOT refinement and its mutation
+  teeth green when the compiler or `B_bc1` profile changes.
 - Extend resource budgets only when a higher-rung implementation demonstrates a
   concrete need; do not import higher-rung language machinery speculatively.

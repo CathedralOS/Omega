@@ -25,12 +25,12 @@ checker_split_reject_fixed_tooth() {
 }
 
 checker_split_build_name_tooth() {
-  checker_split_count=$(grep -F -c -- 'imm r2, 1162760275             ; SPNE' "$T/name-eq-check.alpha" || true)
+  checker_split_count=$(grep -F -c -- 'imm r2, 1481003091             ; SPFX' "$T/name-eq-check.alpha" || true)
   if [ "$checker_split_count" != 1 ]; then
     echo "bc block control FAIL — name_eq continuation anchor count $checker_split_count" >&2
     exit 1
   fi
-  sed 's/imm r2, 1162760275             ; SPNE/imm r2, 1162760274             ; SPNE/' \
+  sed 's/imm r2, 1481003091             ; SPFX/imm r2, 1481003090             ; SPFX/' \
     "$T/name-eq-check.alpha" > "$T/name-eq-wrong-continuation.alpha"
   "$ASM" < "$T/name-eq-wrong-continuation.alpha" > "$T/name-eq-wrong-continuation.tape"
   stamp_seed "$T/name-eq-wrong-continuation.tape" "$SEED" "$T/name-eq-wrong-continuation" >/dev/null

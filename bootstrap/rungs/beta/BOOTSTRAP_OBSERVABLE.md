@@ -579,14 +579,24 @@ are valuable teeth, but they do not yet establish the quantified observation:
   admissions with the five frozen `B_bc1` profile rows and exact requested
   amounts. It retains the symbolic preflight `nslots` value, scans the complete
   kind/projection census, and proves status is only a one-way projection. This
-  closes direct typed classification and sticky origin provenance; the root
-  simulation must still instantiate and carry it into the final maximal
-  `Exhaust` observation;
-- Alpha out-of-range memory remains undefined in `alpha/SEMANTICS.md` and must be
-  excluded by independently checked `B_bc1` bounds before whole-artifact closure
-  (or Alpha must be hardened independently);
-- divergence requires a checked progress/termination argument or a coinductive
-  trace argument, not a timeout.
+  closes direct typed classification and sticky origin provenance. The final
+  ROOT process instantiates its five root-reachable parse origins plus source
+  overflow and carries each exact request/kind/origin through maximal
+  `Exhaust`;
+- Alpha out-of-range memory remains undefined in `alpha/SEMANTICS.md`. ROOT's
+  MSAF subproof therefore rescans all 95 raw-memory rows, rejects an unknown
+  dynamic site, and joins the five SRC-indexed plus two name-table-indexed loads
+  to exact semantic guards and nonwrapping exclusive extents. Fixed loads,
+  stores, stack memory, and frame bounds come from the independently checked
+  common prefix;
+- ROOT uses a guarded greatest fixed point whose sole guard is a completed
+  machine step. It admits silent divergence and finite or infinite maximal
+  output without a cursor/output-productivity assumption or timeout; and
+- the final publication proves exact Alpha/Beta maximal-observation equality
+  for `Halt`, `Trap`, typed `Exhaust`, and `Diverge` over every finite source and
+  supported `B_bc1` resource profile. Forty-nine phase-isolated ROOT mutations
+  protect its antecedents, shapes, resource joins, iteration/fixed-point rules,
+  seven-site memory closure, maximality, and publication.
 
-Those are the concrete obligations of the lower-rooted source-to-artifact
-refinement edge.
+Together these discharge the concrete lower-rooted source-to-artifact
+refinement obligations for the exact persisted `bc.tape` and `B_bc1`.

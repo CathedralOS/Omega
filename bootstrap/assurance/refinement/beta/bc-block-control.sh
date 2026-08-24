@@ -44,6 +44,9 @@ trap 'rm -rf "$T"' EXIT
 . "$GATE_DIR/bc-statement-family-semantic-teeth.sh"
 . "$GATE_DIR/bc-parse-body-teeth.sh"
 . "$GATE_DIR/bc-resource-classification-teeth.sh"
+. "$GATE_DIR/bc-declaration-budget-teeth.sh"
+. "$GATE_DIR/bc-parse-proc-teeth.sh"
+. "$GATE_DIR/bc-root-observation-teeth.sh"
 
 bc_timing_start() { # phase
   BC_TIMING_PHASE=$1
@@ -155,6 +158,30 @@ make_bounds_bundle() { # bounds-witness output
     "$T/control.witness" "$1" > "$2"
 }
 make_bundle "$ARTIFACT" "$T/control.witness" "$T/control.bundle"
+CONTROL_BUNDLE_CKSUM=$(cksum < "$T/control.bundle")
+require_control_bundle_unchanged() {
+  control_bundle_now=$(cksum < "$T/control.bundle")
+  if [ "$control_bundle_now" != "$CONTROL_BUNDLE_CKSUM" ]; then
+    echo "bc block control FAIL — canonical control.bundle changed between owners" >&2
+    exit 1
+  fi
+}
+
+# The root observable excludes invalid-opcode execution only after the exact
+# persisted artifact has passed the independent reachable-structure checker.
+# Establish that owner before any focused mode may exit; the historical matrix
+# below reuses the same executable for its structurally valid mutations.
+"$ASM" < "$GATE_DIR/bc-artifact-structure.alpha" > "$T/structure-check.tape"
+stamp_seed "$T/structure-check.tape" "$SEED" "$T/structure-check" >/dev/null
+set +e
+"$T/structure-check" < "$ARTIFACT" > "$T/stdout"
+artifact_structure_status=$?
+set -e
+if [ "$artifact_structure_status" != 0 ] || [ -s "$T/stdout" ]; then
+  echo "bc block control FAIL — persisted artifact failed its structural prerequisite" >&2
+  exit 1
+fi
+BC_OWNER_ARTIFACT_STRUCTURE=1
 make_bundle "$ARTIFACT" "$T/operand.witness" "$T/operand.bundle"
 make_bundle "$ARTIFACT" "$T/duplicate.witness" "$T/duplicate.bundle"
 make_bundle "$ARTIFACT" "$T/missing.witness" "$T/missing.bundle"
@@ -708,6 +735,7 @@ smoke_lookup_checker() {
     echo "bc block control FAIL — lookup canonical smoke: expected 0/empty, got $lookup_smoke_status/$(wc -c < "$T/stdout" | tr -d ' ') bytes" >&2
     exit 1
   fi
+  require_control_bundle_unchanged
   BC_OWNER_LOOKUP=1
 }
 
@@ -720,6 +748,7 @@ smoke_bounded_emitters_checker() {
     echo "bc block control FAIL — bounded emitters canonical smoke: expected 0/empty, got $bounded_emitters_smoke_status/$(wc -c < "$T/stdout" | tr -d ' ') bytes" >&2
     exit 1
   fi
+  require_control_bundle_unchanged
   BC_OWNER_BOUNDED_EMITTERS=1
 }
 
@@ -732,6 +761,8 @@ smoke_emit_dec_word_checker() {
     echo "bc block control FAIL — emit_dec Word canonical smoke: expected 0/empty, got $emit_dec_word_smoke_status/$(wc -c < "$T/stdout" | tr -d ' ') bytes" >&2
     exit 1
   fi
+  require_control_bundle_unchanged
+  BC_OWNER_EMIT_DEC_WORD=1
 }
 
 smoke_label_emitters_checker() {
@@ -743,6 +774,7 @@ smoke_label_emitters_checker() {
     echo "bc block control FAIL — label emitters canonical smoke: expected 0/empty, got $label_emitters_smoke_status/$(wc -c < "$T/stdout" | tr -d ' ') bytes" >&2
     exit 1
   fi
+  require_control_bundle_unchanged
   BC_OWNER_LABEL_EMITTERS=1
 }
 
@@ -759,6 +791,7 @@ smoke_expression_family_checkers() {
       exit 1
     fi
   done
+  require_control_bundle_unchanged
   BC_OWNER_EXPRESSION_FAMILY=1
 }
 
@@ -771,6 +804,7 @@ smoke_statement_family_shape_checker() {
     echo "bc block control FAIL — statement shape canonical smoke: expected 0/empty, got $statement_shape_status/$(wc -c < "$T/stdout" | tr -d ' ') bytes" >&2
     exit 1
   fi
+  require_control_bundle_unchanged
   BC_OWNER_STATEMENT_SHAPE=1
 }
 
@@ -783,6 +817,7 @@ smoke_statement_family_semantic_checker() {
     echo "bc block control FAIL — statement semantic canonical smoke: expected 0/empty, got $statement_semantic_status/$(wc -c < "$T/stdout" | tr -d ' ') bytes" >&2
     exit 1
   fi
+  require_control_bundle_unchanged
   BC_OWNER_STATEMENT_IMPLICATION=1
 }
 
@@ -842,19 +877,27 @@ smoke_parse_body_checker() {
 # (PFXS and SREL)=>PBOD; it does not import SPUB as though SPUB were SREL.
 # These flags are set only after the canonical owner processes have accepted.
 parse_body_discharge_statement_relation() {
-  parse_body_require_owner label "${BC_OWNER_LABEL_EMITTERS:-0}"
-  parse_body_require_owner expression "${BC_OWNER_EXPRESSION_FAMILY:-0}"
-  parse_body_require_owner statement-shape "${BC_OWNER_STATEMENT_SHAPE:-0}"
-  parse_body_require_owner checker-a "${BC_OWNER_CHECKER_A:-0}"
-  parse_body_require_owner lookup "${BC_OWNER_LOOKUP:-0}"
-  parse_body_require_owner bounded-emitters "${BC_OWNER_BOUNDED_EMITTERS:-0}"
-  parse_body_require_owner statement-implication \
+  bc_require_owner label "${BC_OWNER_LABEL_EMITTERS:-0}"
+  bc_require_owner expression "${BC_OWNER_EXPRESSION_FAMILY:-0}"
+  bc_require_owner statement-shape "${BC_OWNER_STATEMENT_SHAPE:-0}"
+  bc_require_owner checker-a "${BC_OWNER_CHECKER_A:-0}"
+  bc_require_owner lookup "${BC_OWNER_LOOKUP:-0}"
+  bc_require_owner bounded-emitters "${BC_OWNER_BOUNDED_EMITTERS:-0}"
+  bc_require_owner statement-implication \
     "${BC_OWNER_STATEMENT_IMPLICATION:-0}"
 }
 
-parse_body_require_owner() { # name accepted
+establish_parse_body_canonical() {
+  parse_body_discharge_statement_relation
+  build_parse_body_checker
+  smoke_parse_body_checker
+  require_control_bundle_unchanged
+  BC_OWNER_PARSE_BODY=1
+}
+
+bc_require_owner() { # name accepted
   if [ "$2" != 1 ]; then
-    echo "bc block control FAIL — parse body missing discharged owner $1" >&2
+    echo "bc block control FAIL — missing discharged owner $1" >&2
     exit 1
   fi
 }
@@ -914,6 +957,7 @@ smoke_resource_classification_checker() {
     echo "bc block control FAIL — resource classification canonical smoke: expected 0/empty, got $resource_smoke_status/$(wc -c < "$T/stdout" | tr -d ' ') bytes" >&2
     exit 1
   fi
+  require_control_bundle_unchanged
   BC_OWNER_RESOURCE_CLASSIFICATION=1
 }
 
@@ -922,8 +966,239 @@ smoke_resource_classification_checker() {
 # conclusions. Checker A owns source/declare/block/parse guards, while the
 # expression-family process owns call/expression guards and XRSC.
 resource_classification_discharge_owners() {
-  parse_body_require_owner checker-a "${BC_OWNER_CHECKER_A:-0}"
-  parse_body_require_owner expression "${BC_OWNER_EXPRESSION_FAMILY:-0}"
+  bc_require_owner checker-a "${BC_OWNER_CHECKER_A:-0}"
+  bc_require_owner expression "${BC_OWNER_EXPRESSION_FAMILY:-0}"
+}
+
+establish_resource_classification_canonical() {
+  resource_classification_discharge_owners
+  build_resource_classification_checker
+  smoke_resource_classification_checker
+}
+
+declaration_budget_require_module_budgets() {
+  for declaration_budget_module in \
+    bc-declaration-budget-root.alpha \
+    bc-declaration-budget-antecedents.alpha \
+    bc-declaration-budget-shape.alpha \
+    bc-declaration-budget-rules.alpha \
+    bc-declaration-budget-publication.alpha
+  do
+    declaration_budget_module_bytes=$(wc -c \
+      < "$GATE_DIR/$declaration_budget_module" | tr -d ' ')
+    if [ "$declaration_budget_module_bytes" -ge 20000 ]; then
+      echo "bc block control FAIL — $declaration_budget_module is ${declaration_budget_module_bytes} bytes (20KB module cap)" >&2
+      exit 1
+    fi
+  done
+}
+
+build_declaration_budget_checker() {
+  declaration_budget_require_module_budgets
+  {
+    emit_expression_table_prefix
+    cat "$GATE_DIR/bc-declaration-budget-root.alpha" \
+      "$GATE_DIR/bc-expression-selected-row-helpers.alpha" \
+      "$GATE_DIR/bc-exact-shape-helpers.alpha" \
+      "$GATE_DIR/bc-declaration-budget-antecedents.alpha" \
+      "$GATE_DIR/bc-declaration-budget-shape.alpha" \
+      "$GATE_DIR/bc-declaration-budget-rules.alpha" \
+      "$GATE_DIR/bc-declaration-budget-publication.alpha"
+  } > "$T/declaration-budget.alpha"
+  python3 "$OMEGA_PATH_ALPHA_ASSEMBLER/asm_ref.py" \
+    < "$T/declaration-budget.alpha" > "$T/declaration-budget-ref.tape"
+  "$ASM" < "$T/declaration-budget.alpha" > "$T/declaration-budget.tape"
+  cmp -s "$T/declaration-budget.tape" "$T/declaration-budget-ref.tape" || {
+    echo "bc block control FAIL — declaration budget assembler diamond disagrees" >&2
+    exit 1
+  }
+  declaration_budget_tape_bytes=$(wc -c \
+    < "$T/declaration-budget.tape" | tr -d ' ')
+  if [ "$declaration_budget_tape_bytes" -gt 100000 ]; then
+    echo "bc block control FAIL — declaration budget tape is ${declaration_budget_tape_bytes} bytes (100000-byte engineering budget)" >&2
+    exit 1
+  fi
+  stamp_seed "$T/declaration-budget.tape" "$SEED" \
+    "$T/declaration-budget" >/dev/null
+}
+
+smoke_declaration_budget_checker() {
+  set +e
+  "$T/declaration-budget" < "$T/control.bundle" > "$T/stdout"
+  declaration_budget_status=$?
+  set -e
+  if [ "$declaration_budget_status" != 0 ] || [ -s "$T/stdout" ]; then
+    echo "bc block control FAIL — declaration budget canonical smoke: expected 0/empty, got $declaration_budget_status/$(wc -c < "$T/stdout" | tr -d ' ') bytes" >&2
+    exit 1
+  fi
+  require_control_bundle_unchanged
+  BC_OWNER_DECLARATION_BUDGET=1
+}
+
+declaration_budget_discharge_owners() {
+  bc_require_owner checker-a "${BC_OWNER_CHECKER_A:-0}"
+  bc_require_owner parse-body "${BC_OWNER_PARSE_BODY:-0}"
+}
+
+establish_declaration_budget_canonical() {
+  declaration_budget_discharge_owners
+  build_declaration_budget_checker
+  smoke_declaration_budget_checker
+}
+
+parse_proc_require_module_budgets() {
+  for parse_proc_module in \
+    bc-parse-proc-root.alpha \
+    bc-parse-proc-antecedents.alpha \
+    bc-parse-proc-entry-shape.alpha \
+    bc-parse-proc-entry-semantics.alpha \
+    bc-parse-proc-outcomes.alpha \
+    bc-parse-proc-publication.alpha
+  do
+    parse_proc_module_bytes=$(wc -c < "$GATE_DIR/$parse_proc_module" | tr -d ' ')
+    if [ "$parse_proc_module_bytes" -ge 20000 ]; then
+      echo "bc block control FAIL — $parse_proc_module is ${parse_proc_module_bytes} bytes (20KB module cap)" >&2
+      exit 1
+    fi
+  done
+}
+
+build_parse_proc_checker() {
+  parse_proc_require_module_budgets
+  {
+    emit_expression_table_prefix
+    cat "$GATE_DIR/bc-parse-proc-root.alpha" \
+      "$GATE_DIR/bc-expression-selected-row-helpers.alpha" \
+      "$GATE_DIR/bc-exact-shape-helpers.alpha" \
+      "$GATE_DIR/bc-parse-proc-antecedents.alpha" \
+      "$GATE_DIR/bc-parse-proc-entry-shape.alpha" \
+      "$GATE_DIR/bc-parse-proc-entry-semantics.alpha" \
+      "$GATE_DIR/bc-parse-proc-outcomes.alpha" \
+      "$GATE_DIR/bc-parse-proc-publication.alpha"
+  } > "$T/parse-proc.alpha"
+  python3 "$OMEGA_PATH_ALPHA_ASSEMBLER/asm_ref.py" \
+    < "$T/parse-proc.alpha" > "$T/parse-proc-ref.tape"
+  "$ASM" < "$T/parse-proc.alpha" > "$T/parse-proc.tape"
+  cmp -s "$T/parse-proc.tape" "$T/parse-proc-ref.tape" || {
+    echo "bc block control FAIL — complete parse_proc assembler diamond disagrees" >&2
+    exit 1
+  }
+  parse_proc_tape_bytes=$(wc -c < "$T/parse-proc.tape" | tr -d ' ')
+  if [ "$parse_proc_tape_bytes" -gt 100000 ]; then
+    echo "bc block control FAIL — complete parse_proc tape is ${parse_proc_tape_bytes} bytes (100000-byte engineering budget)" >&2
+    exit 1
+  fi
+  stamp_seed "$T/parse-proc.tape" "$SEED" "$T/parse-proc" >/dev/null
+}
+
+smoke_parse_proc_checker() {
+  set +e
+  "$T/parse-proc" < "$T/control.bundle" > "$T/stdout"
+  parse_proc_status=$?
+  set -e
+  if [ "$parse_proc_status" != 0 ] || [ -s "$T/stdout" ]; then
+    echo "bc block control FAIL — complete parse_proc canonical smoke: expected 0/empty, got $parse_proc_status/$(wc -c < "$T/stdout" | tr -d ' ') bytes" >&2
+    exit 1
+  fi
+  require_control_bundle_unchanged
+  BC_OWNER_PARSE_PROC=1
+}
+
+parse_proc_discharge_owners() {
+  bc_require_owner checker-a "${BC_OWNER_CHECKER_A:-0}"
+  bc_require_owner parse-body "${BC_OWNER_PARSE_BODY:-0}"
+  bc_require_owner declaration-budget "${BC_OWNER_DECLARATION_BUDGET:-0}"
+}
+
+establish_parse_proc_canonical() {
+  parse_proc_discharge_owners
+  build_parse_proc_checker
+  smoke_parse_proc_checker
+}
+
+root_observation_require_module_budgets() {
+  for root_observation_module in \
+    bc-root-observation-root.alpha \
+    bc-root-observation-antecedents.alpha \
+    bc-root-observation-shape.alpha \
+    bc-root-observation-gfp.alpha \
+    bc-root-observation-resource-join.alpha \
+    bc-root-observation-memory-safety.alpha \
+    bc-root-observation-maximal.alpha \
+    bc-root-observation-publication.alpha \
+    bc-root-observation-publication-payloads.alpha
+  do
+    root_observation_module_bytes=$(wc -c \
+      < "$GATE_DIR/$root_observation_module" | tr -d ' ')
+    if [ "$root_observation_module_bytes" -ge 20000 ]; then
+      echo "bc block control FAIL — $root_observation_module is ${root_observation_module_bytes} bytes (20KB module cap)" >&2
+      exit 1
+    fi
+  done
+}
+
+build_root_observation_checker() {
+  root_observation_require_module_budgets
+  {
+    emit_expression_table_prefix
+    cat "$GATE_DIR/bc-root-observation-root.alpha" \
+      "$GATE_DIR/bc-expression-selected-row-helpers.alpha" \
+      "$GATE_DIR/bc-exact-shape-helpers.alpha" \
+      "$GATE_DIR/bc-root-observation-antecedents.alpha" \
+      "$GATE_DIR/bc-root-observation-shape.alpha" \
+      "$GATE_DIR/bc-root-observation-gfp.alpha" \
+      "$GATE_DIR/bc-root-observation-resource-join.alpha" \
+      "$GATE_DIR/bc-root-observation-memory-safety.alpha" \
+      "$GATE_DIR/bc-root-observation-maximal.alpha" \
+      "$GATE_DIR/bc-root-observation-publication.alpha" \
+      "$GATE_DIR/bc-root-observation-publication-payloads.alpha"
+  } > "$T/root-observation.alpha"
+  python3 "$OMEGA_PATH_ALPHA_ASSEMBLER/asm_ref.py" \
+    < "$T/root-observation.alpha" > "$T/root-observation-ref.tape"
+  "$ASM" < "$T/root-observation.alpha" > "$T/root-observation.tape"
+  cmp -s "$T/root-observation.tape" "$T/root-observation-ref.tape" || {
+    echo "bc block control FAIL — root observation assembler diamond disagrees" >&2
+    exit 1
+  }
+  root_observation_tape_bytes=$(wc -c \
+    < "$T/root-observation.tape" | tr -d ' ')
+  if [ "$root_observation_tape_bytes" -gt 100000 ]; then
+    echo "bc block control FAIL — root observation tape is ${root_observation_tape_bytes} bytes (100000-byte engineering budget)" >&2
+    exit 1
+  fi
+  stamp_seed "$T/root-observation.tape" "$SEED" \
+    "$T/root-observation" >/dev/null
+}
+
+smoke_root_observation_checker() {
+  set +e
+  "$T/root-observation" < "$T/control.bundle" > "$T/stdout"
+  root_observation_status=$?
+  set -e
+  if [ "$root_observation_status" != 0 ] || [ -s "$T/stdout" ]; then
+    echo "bc block control FAIL — root observation canonical smoke: expected 0/empty, got $root_observation_status/$(wc -c < "$T/stdout" | tr -d ' ') bytes" >&2
+    exit 1
+  fi
+  require_control_bundle_unchanged
+  BC_OWNER_ROOT_OBSERVATION=1
+}
+
+root_observation_discharge_owners() {
+  bc_require_owner artifact-structure "${BC_OWNER_ARTIFACT_STRUCTURE:-0}"
+  bc_require_owner checker-a "${BC_OWNER_CHECKER_A:-0}"
+  bc_require_owner lookup "${BC_OWNER_LOOKUP:-0}"
+  bc_require_owner emit-dec-word "${BC_OWNER_EMIT_DEC_WORD:-0}"
+  bc_require_owner parse-body "${BC_OWNER_PARSE_BODY:-0}"
+  bc_require_owner resource-classification \
+    "${BC_OWNER_RESOURCE_CLASSIFICATION:-0}"
+  bc_require_owner declaration-budget "${BC_OWNER_DECLARATION_BUDGET:-0}"
+  bc_require_owner parse-proc "${BC_OWNER_PARSE_PROC:-0}"
+}
+
+establish_root_observation_canonical() {
+  root_observation_discharge_owners
+  build_root_observation_checker
+  smoke_root_observation_checker
 }
 
 # Statement-family focus continues through the canonical prerequisite owners
@@ -952,7 +1227,7 @@ if [ "${BC_BLOCK_FOCUS:-}" = label-emitters ]; then
   label_emitters_build_teeth
   label_emitters_reject_teeth
   bc_timing_finish
-  echo "bc label emitters: focused canonical + 36 phase-isolated teeth passed ($(wc -c < "$T/label-emitters-check.tape" | tr -d ' ')-byte checker tape)"
+  echo "bc label emitters: focused canonical + 37 phase-isolated teeth passed ($(wc -c < "$T/label-emitters-check.tape" | tr -d ' ')-byte checker tape)"
   exit 0
 fi
 
@@ -1016,8 +1291,15 @@ if [ "${BC_BLOCK_FOCUS:-}" = resource-classification ]; then
   smoke_expression_family_checkers
   bc_timing_finish
 elif [ "${BC_BLOCK_FOCUS:-}" = statement-family ] || \
-   [ "${BC_BLOCK_FOCUS:-}" = parse-proc-body ]; then
+   [ "${BC_BLOCK_FOCUS:-}" = parse-proc-body ] || \
+   [ "${BC_BLOCK_FOCUS:-}" = declaration-budget ] || \
+   [ "${BC_BLOCK_FOCUS:-}" = parse-proc ] || \
+   [ "${BC_BLOCK_FOCUS:-}" = root-observation ]; then
   bc_timing_start statement-family-prerequisites
+  if [ "${BC_BLOCK_FOCUS:-}" = root-observation ]; then
+    build_emit_dec_word_checker
+    smoke_emit_dec_word_checker
+  fi
   build_label_emitters_checker
   smoke_label_emitters_checker
   build_expression_family_checkers
@@ -1129,6 +1411,12 @@ cat "$GATE_DIR/bc-block-control.alpha" \
   "$GATE_DIR/bc-fixed-keyword-cases.alpha" \
   "$GATE_DIR/bc-fixed-keyword-summary.alpha" > "$T/control-check.alpha"
 "$ASM" < "$T/control-check.alpha" > "$T/control-check.tape"
+checker_a_tape_bytes=$(wc -c < "$T/control-check.tape" | tr -d ' ')
+checker_a_seed_payload_limit=$((HOLE_SIZE - 4))
+if [ "$checker_a_tape_bytes" -gt "$checker_a_seed_payload_limit" ]; then
+  echo "bc block control FAIL — Checker A tape is ${checker_a_tape_bytes} bytes (${checker_a_seed_payload_limit}-byte seed payload limit)" >&2
+  exit 1
+fi
 stamp_seed "$T/control-check.tape" "$SEED" "$T/control-check" >/dev/null
 
 # Fail fast on the canonical proof before spending most of the gate assembling
@@ -1142,6 +1430,7 @@ if [ "$control_smoke_status" != 0 ] || [ -s "$T/stdout" ]; then
   echo "bc block control FAIL — canonical proof smoke: expected 0/empty, got $control_smoke_status/$(wc -c < "$T/stdout" | tr -d ' ') bytes" >&2
   exit 1
 fi
+require_control_bundle_unchanged
 BC_OWNER_CHECKER_A=1
 bc_timing_finish
 
@@ -1150,9 +1439,7 @@ bc_timing_finish
 case "${BC_BLOCK_FOCUS:-}" in
   resource-classification)
     bc_timing_start resource-classification
-    resource_classification_discharge_owners
-    build_resource_classification_checker
-    smoke_resource_classification_checker
+    establish_resource_classification_canonical
     resource_classification_build_teeth
     resource_classification_reject_teeth
     bc_timing_finish
@@ -1167,13 +1454,63 @@ case "${BC_BLOCK_FOCUS:-}" in
     smoke_bounded_emitters_checker
     build_statement_family_semantic_checker
     smoke_statement_family_semantic_checker
-    parse_body_discharge_statement_relation
-    build_parse_body_checker
-    smoke_parse_body_checker
+    establish_parse_body_canonical
     parse_body_build_teeth
     parse_body_reject_teeth
     bc_timing_finish
     echo "bc parse_proc genbody: same-bundle statement implication discharged; D=0..64 maximal Ret-or-Div composition through unconditional epilogue/return + 25 teeth passed ($(wc -c < "$T/parse-body.tape" | tr -d ' ')-byte tape)"
+    exit 0
+    ;;
+  declaration-budget)
+    bc_timing_start declaration-budget
+    build_lookup_checker
+    smoke_lookup_checker
+    build_bounded_emitters_checker
+    smoke_bounded_emitters_checker
+    build_statement_family_semantic_checker
+    smoke_statement_family_semantic_checker
+    establish_parse_body_canonical
+    establish_declaration_budget_canonical
+    declaration_budget_build_teeth
+    declaration_budget_reject_teeth
+    bc_timing_finish
+    echo "bc declaration budget: count_lets/PCAP/SREL occurrence rank excludes root declare exhaustion + 14 phase-isolated teeth passed ($(wc -c < "$T/declaration-budget.tape" | tr -d ' ')-byte tape)"
+    exit 0
+    ;;
+  parse-proc)
+    bc_timing_start complete-parse-proc
+    build_lookup_checker
+    smoke_lookup_checker
+    build_bounded_emitters_checker
+    smoke_bounded_emitters_checker
+    build_statement_family_semantic_checker
+    smoke_statement_family_semantic_checker
+    establish_parse_body_canonical
+    establish_declaration_budget_canonical
+    establish_parse_proc_canonical
+    parse_proc_build_teeth
+    parse_proc_reject_teeth
+    bc_timing_finish
+    echo "bc complete parse_proc: exact permissive entry and PLOP/PCAP/PFXS/PBOD(D0) compose to Ret0/Ret252/Div with origins1/3 excluded + 16 phase-isolated teeth passed ($(wc -c < "$T/parse-proc.tape" | tr -d ' ')-byte tape)"
+    exit 0
+    ;;
+  root-observation)
+    bc_timing_start whole-root-observation
+    build_lookup_checker
+    smoke_lookup_checker
+    build_bounded_emitters_checker
+    smoke_bounded_emitters_checker
+    build_statement_family_semantic_checker
+    smoke_statement_family_semantic_checker
+    establish_parse_body_canonical
+    establish_resource_classification_canonical
+    establish_declaration_budget_canonical
+    establish_parse_proc_canonical
+    establish_root_observation_canonical
+    root_observation_build_teeth
+    root_observation_reject_teeth
+    bc_timing_finish
+    echo "bc root observable: exact maximal stdout and Halt/Trap/Exhaust/Diverge equality over every finite source and supported resource profile + root teeth passed ($(wc -c < "$T/root-observation.tape" | tr -d ' ')-byte tape)"
     exit 0
     ;;
   statement-family)
@@ -1245,19 +1582,33 @@ statement_family_semantic_reject_teeth
 bc_timing_finish
 
 bc_timing_start parse-proc-body-tranche
-parse_body_discharge_statement_relation
-build_parse_body_checker
-smoke_parse_body_checker
+establish_parse_body_canonical
 parse_body_build_teeth
 parse_body_reject_teeth
 bc_timing_finish
 
 bc_timing_start resource-classification-tranche
-resource_classification_discharge_owners
-build_resource_classification_checker
-smoke_resource_classification_checker
+establish_resource_classification_canonical
 resource_classification_build_teeth
 resource_classification_reject_teeth
+bc_timing_finish
+
+bc_timing_start declaration-budget-tranche
+establish_declaration_budget_canonical
+declaration_budget_build_teeth
+declaration_budget_reject_teeth
+bc_timing_finish
+
+bc_timing_start complete-parse-proc-tranche
+establish_parse_proc_canonical
+parse_proc_build_teeth
+parse_proc_reject_teeth
+bc_timing_finish
+
+bc_timing_start root-observation-tranche
+establish_root_observation_canonical
+root_observation_build_teeth
+root_observation_reject_teeth
 bc_timing_finish
 
 bc_timing_start independent-historical-teeth
@@ -2417,19 +2768,9 @@ case_run "same-width argument push opcode" 1 "$T/push-opcode.bundle"
 case_run "duplicate stack-push location" 1 "$T/duplicate-push.bundle"
 case_run "cross-block stack-push location" 1 "$T/cross-block-push.bundle"
 
-# Show that the negative control has teeth beyond the pre-existing structural
-# obligation: its changed target is another real instruction boundary, so the
-# generic Alpha CFG checker still accepts it.
-"$ASM" < "$GATE_DIR/bc-artifact-structure.alpha" > "$T/structure-check.tape"
-stamp_seed "$T/structure-check.tape" "$SEED" "$T/structure-check" >/dev/null
-set +e
-"$T/structure-check" < "$ARTIFACT" > "$T/stdout"
-artifact_structure_status=$?
-set -e
-if [ "$artifact_structure_status" != 0 ] || [ -s "$T/stdout" ]; then
-  echo "bc block control FAIL — persisted artifact failed its structural prerequisite" >&2
-  exit 1
-fi
+# Show that the negative control has teeth beyond the early structural owner:
+# its changed target is another real instruction boundary, so the generic Alpha
+# CFG checker still accepts it.
 set +e
 "$T/structure-check" < "$T/retarget.tape" > "$T/stdout"
 structure_status=$?

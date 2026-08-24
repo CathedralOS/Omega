@@ -21,8 +21,8 @@ bounded_emitters_build_tooth() { # name exact-old exact-new
 
 bounded_emitters_build_teeth() {
   bounded_emitters_build_tooth bounded-emitters-wrong-stack-bridge \
-    'imm r2, 1431261267             ; SPOU' \
-    'imm r2, 1431261266             ; SPOU'
+    'imm r2, 1481003091             ; SPFX' \
+    'imm r2, 1481003090             ; SPFX'
   bounded_emitters_build_tooth bounded-emitters-drop-source-premise \
     'imm r2, 1                       ; conditional successful source segment' \
     'imm r2, 0                       ; conditional successful source segment'

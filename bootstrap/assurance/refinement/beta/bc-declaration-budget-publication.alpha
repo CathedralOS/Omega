@@ -1,0 +1,44 @@
+; Final publication of the conditional declaration-budget theorem.
+
+declaration_budget_publication_init:
+        imm r20, 632000
+        imm r21, 1480938052             ; DREX
+        call exact_require_cell
+        imm r20, 632008
+        imm r21, 1312903748             ; DRAN
+        call exact_require_cell
+        imm r20, 632016
+        imm r21, 1213420100             ; DRSH
+        call exact_require_cell
+        imm r20, 632032
+        imm r21, 1280660036             ; DRUL
+        call exact_require_cell
+        imm r20, 635016
+        imm r21, 1                      ; current occurrence remains
+        call exact_require_cell
+        imm r20, 635024
+        imm r21, 1                      ; exact NLOC equation
+        call exact_require_cell
+        imm r20, 635032
+        imm r21, 1                      ; strict declaration room
+        call exact_require_cell
+        imm r20, 635040
+        imm r21, 1                      ; DCLS full impossible
+        call exact_require_cell
+        imm r20, 635048
+        imm r21, 1                      ; origin3 excluded
+        call exact_require_cell
+        imm r20, 635056
+        imm r21, 1                      ; divergence preserved honestly
+        call exact_require_cell
+        imm r20, 635064
+        imm r21, 1                      ; no status-to-kind inference
+        call exact_require_cell
+        imm r1, 632024
+        imm r2, 1296388676             ; DREM
+        store r1, r2
+        imm r20, 632024
+        imm r21, 1296388676
+        call exact_require_cell
+        imm r0, 0
+        halt r0

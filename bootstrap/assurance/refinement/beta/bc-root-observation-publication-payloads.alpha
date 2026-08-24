@@ -1,0 +1,130 @@
+; Split payload validators for the final ROOT publication.  Kept separate so
+; no Alpha source module crosses the 20KB review boundary.
+
+root_observation_publication_require_resource_join_payloads:
+        imm r20, 616088
+        imm r21, 1313819218             ; RJON
+        call exact_require_cell
+        call root_resource_join_require_cleanup
+        call root_resource_join_require_rows
+        call root_resource_join_require_domain
+        ret
+
+root_observation_publication_require_resource_payloads:
+        ; The separate wrapper table contains only source origin1. Parse
+        ; origins2/4/5/6/7 are validated by the RJON payload checker above.
+        imm r20, 623000
+        imm r21, 1                    ; source origin
+        call root_observation_publication_require_next_word
+        imm r21, 1                    ; SourceBytes
+        call root_observation_publication_require_next_word
+        imm r21, 1048576              ; source limit
+        call root_observation_publication_require_next_word
+        imm r21, 1                    ; literal request
+        call root_observation_publication_require_next_word
+        imm r21, 1048577
+        call root_observation_publication_require_next_word
+        imm r21, 1048577
+        call root_observation_publication_require_next_word
+        imm r21, 1048577
+        call root_observation_publication_require_next_word
+        imm r21, 253                  ; source projection only
+        call root_observation_publication_require_next_word
+        imm r21, 1
+        call root_observation_publication_require_next_word
+        imm r21, 1
+        call root_observation_publication_require_next_word
+        imm r21, 1
+        call root_observation_publication_require_next_word
+        imm r21, 1
+        call exact_require_cell
+        ret
+
+root_observation_publication_require_equality_payloads:
+        imm r10, 1
+root_observation_publication_equality_payload:
+        imm r1, 6
+        jlt r10, r1, root_observation_publication_select_equality_payload
+        ret
+root_observation_publication_select_equality_payload:
+        imm r30, 4                    ; default Diverge
+        imm r1, 1
+        jeq r10, r1, root_observation_publication_equality_halt
+        imm r1, 2
+        jeq r10, r1, root_observation_publication_equality_exhaust
+        imm r1, 3
+        jeq r10, r1, root_observation_publication_equality_exhaust
+        jmp root_observation_publication_check_equality_payload
+root_observation_publication_equality_halt:
+        imm r30, 1
+        jmp root_observation_publication_check_equality_payload
+root_observation_publication_equality_exhaust:
+        imm r30, 2
+root_observation_publication_check_equality_payload:
+        mov r20, r10
+        imm r1, 56
+        mul r20, r1
+        imm r1, 624944
+        add r20, r1
+        mov r21, r10
+        call root_observation_publication_require_next_word
+        mov r21, r30
+        call root_observation_publication_require_next_word
+        mov r21, r30
+        call root_observation_publication_require_next_word
+        imm r21, 1
+        call root_observation_publication_require_next_word
+        imm r21, 1
+        call root_observation_publication_require_next_word
+        imm r21, 1
+        call root_observation_publication_require_next_word
+        imm r21, 1
+        call exact_require_cell
+        imm r1, 1
+        add r10, r1
+        jmp root_observation_publication_equality_payload
+
+root_observation_publication_require_exclusion_payloads:
+        imm r10, 1
+root_observation_publication_exclusion_payload:
+        imm r1, 7
+        jlt r10, r1, root_observation_publication_exclusion_one
+        ret
+root_observation_publication_exclusion_one:
+        call root_observation_select_exclusion_expected
+        mov r20, r10
+        imm r1, 1
+        sub r20, r1
+        imm r1, 104
+        mul r20, r1
+        imm r1, 629000
+        add r20, r1
+        mov r21, r10
+        call root_observation_publication_require_next_word
+        imm r21, 0
+        call root_observation_publication_require_next_word
+        imm r21, 0
+        call root_observation_publication_require_next_word
+        mov r21, r11
+        call root_observation_publication_require_next_word
+        mov r21, r12
+        call root_observation_publication_require_next_word
+        mov r21, r13
+        call root_observation_publication_require_next_word
+        mov r21, r14
+        call root_observation_publication_require_next_word
+        imm r21, 1
+        call root_observation_publication_require_next_word
+        imm r21, 1
+        call root_observation_publication_require_next_word
+        imm r21, 1
+        call root_observation_publication_require_next_word
+        mov r21, r15
+        call root_observation_publication_require_next_word
+        mov r21, r16
+        call root_observation_publication_require_next_word
+        imm r21, 1
+        call exact_require_cell
+        imm r1, 1
+        add r10, r1
+        jmp root_observation_publication_exclusion_payload

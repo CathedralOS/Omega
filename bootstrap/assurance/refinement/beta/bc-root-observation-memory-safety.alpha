@@ -1,0 +1,680 @@
+; Exact dynamic raw-load safety closure for the whole-root theorem. Rescan all
+; 95 rows; reject unknown dynamic loads; rejoin the seven exact rows to their
+; owner, guard, and nonwrapping exclusive extent.
+; Seven rows at630000, stride160:
+;   +0 ordinal, +8 memory row, +16 owner procedure, +24 block, +32 load PC,
+;   +40 dynamic class, +48 width, +56 base, +64 stride, +72 bound mode,
+;   +80 maximum index, +88 exclusive end, +96 semantic cell,
+;   +104 semantic tag, +112 guard cell, +120 guard tag,
+;   +128 GFP basis cell, +136 GFP basis value, +144 derived end,
+;   +152 completion.
+; Marks631120..631168; census/MSAF631176..631224.
+
+root_observation_memory_safety_init:
+        call root_memory_safety_require_imports
+        call root_memory_safety_reset_marks
+        call root_memory_safety_scan_rows
+        call root_memory_safety_require_marks
+        call root_memory_safety_build_rows
+        call root_memory_safety_require_rows
+        call root_memory_safety_publish
+        ret
+
+root_memory_safety_require_imports:
+        imm r20, 616008
+        imm r21, 1414414674             ; RANT
+        call exact_require_cell
+        imm r20, 616072
+        imm r21, 1                      ; completed guarded GFP
+        call exact_require_cell
+        imm r20, 617000
+        imm r21, 610024                 ; PPRC basis
+        call exact_require_cell
+        imm r20, 617064
+        imm r21, 560440                 ; PBOD basis
+        call exact_require_cell
+        ret
+
+root_memory_safety_reset_marks:
+        imm r10, 631120
+root_memory_safety_reset_mark:
+        imm r1, 631176
+        jlt r10, r1, root_memory_safety_reset_one
+        ret
+root_memory_safety_reset_one:
+        imm r2, 0
+        store r10, r2
+        imm r1, 8
+        add r10, r1
+        jmp root_memory_safety_reset_mark
+
+root_memory_safety_scan_rows:
+        imm r10, 0                     ; memory row
+        imm r11, 0                     ; fixed loads
+        imm r12, 0                     ; SRC loads
+        imm r13, 0                     ; table loads
+        imm r14, 0                     ; all dynamic loads
+root_memory_safety_scan_loop:
+        imm r1, 95
+        jlt r10, r1, root_memory_safety_scan_row
+        jmp root_memory_safety_require_counts
+root_memory_safety_scan_row:
+        mov r15, r10
+        imm r1, 8
+        mul r15, r1
+        imm r1, 7610368
+        add r1, r15
+        load r16, r1                   ; memory kind
+        imm r1, 16924672
+        add r1, r15
+        load r17, r1                   ; dynamic address class
+        imm r1, 1
+        jeq r16, r1, root_memory_safety_scan_load
+        imm r1, 2
+        jeq r16, r1, root_memory_safety_scan_store
+        jmp reject
+root_memory_safety_scan_store:
+        imm r1, 0
+        jeq r17, r1, root_memory_safety_scan_next
+        jmp reject
+root_memory_safety_scan_load:
+        imm r1, 1
+        jeq r17, r1, root_memory_safety_scan_fixed
+        imm r1, 2
+        jeq r17, r1, root_memory_safety_scan_src
+        imm r1, 3
+        jeq r17, r1, root_memory_safety_scan_table
+        jmp reject
+root_memory_safety_scan_fixed:
+        imm r1, 1
+        add r11, r1
+        jmp root_memory_safety_scan_next
+root_memory_safety_scan_src:
+        imm r1, 1
+        add r12, r1
+        add r14, r1
+        call root_memory_safety_mark_dynamic
+        jmp root_memory_safety_scan_next
+root_memory_safety_scan_table:
+        imm r1, 1
+        add r13, r1
+        add r14, r1
+        call root_memory_safety_mark_dynamic
+root_memory_safety_scan_next:
+        imm r1, 1
+        add r10, r1
+        jmp root_memory_safety_scan_loop
+
+root_memory_safety_mark_dynamic:
+        imm r18, 1                    ; ordinal1 / row13 / SRC
+        imm r19, 2
+        imm r1, 13
+        jeq r10, r1, root_memory_safety_mark_selected
+        imm r18, 2
+        imm r1, 21
+        jeq r10, r1, root_memory_safety_mark_selected
+        imm r18, 3
+        imm r19, 3
+        imm r1, 44
+        jeq r10, r1, root_memory_safety_mark_selected
+        imm r18, 4
+        imm r1, 46
+        jeq r10, r1, root_memory_safety_mark_selected
+        imm r18, 5
+        imm r19, 2
+        imm r1, 49
+        jeq r10, r1, root_memory_safety_mark_selected
+        imm r18, 6
+        imm r1, 50
+        jeq r10, r1, root_memory_safety_mark_selected
+        imm r18, 7
+        imm r1, 54
+        jeq r10, r1, root_memory_safety_mark_selected
+        jmp reject
+root_memory_safety_mark_selected:
+        jeq r17, r19, root_memory_safety_mark_address
+        jmp reject
+root_memory_safety_mark_address:
+        mov r20, r18
+        imm r1, 1
+        sub r20, r1
+        imm r1, 8
+        mul r20, r1
+        imm r1, 631120
+        add r20, r1
+        imm r21, 0
+        call exact_require_cell
+        imm r2, 1
+        store r20, r2
+        ret
+
+root_memory_safety_require_counts:
+        imm r1, 54
+        jeq r11, r1, root_memory_safety_require_src_count
+        jmp reject
+root_memory_safety_require_src_count:
+        imm r1, 5
+        jeq r12, r1, root_memory_safety_require_table_count
+        jmp reject
+root_memory_safety_require_table_count:
+        imm r1, 2
+        jeq r13, r1, root_memory_safety_require_dynamic_count
+        jmp reject
+root_memory_safety_require_dynamic_count:
+        imm r1, 7                    ; unique anchor: exact dynamic load count
+        jeq r14, r1, root_memory_safety_counts_ok
+        jmp reject
+root_memory_safety_counts_ok:
+        ret
+
+root_memory_safety_require_marks:
+        imm r10, 631120
+root_memory_safety_require_mark:
+        imm r1, 631176
+        jlt r10, r1, root_memory_safety_require_one_mark
+        ret
+root_memory_safety_require_one_mark:
+        mov r20, r10
+        imm r21, 1
+        call exact_require_cell
+        imm r1, 8
+        add r10, r1
+        jmp root_memory_safety_require_mark
+
+root_memory_safety_build_rows:
+        imm r10, 1
+root_memory_safety_build_loop:
+        imm r1, 8
+        jlt r10, r1, root_memory_safety_build_one
+        ret
+root_memory_safety_build_one:
+        call root_memory_safety_select_build
+        call root_memory_safety_validate_selected_site
+        call root_memory_safety_compute_extent
+        call root_memory_safety_store_row
+        imm r1, 1
+        add r10, r1
+        jmp root_memory_safety_build_loop
+
+; Producer selector; verifier below reconstructs independently.
+root_memory_safety_select_build:
+        imm r11, 13                   ; producer row1 cbyte memory row
+        imm r12, 4
+        imm r13, 10
+        imm r14, 1896                 ; producer row1 exact load PC
+        imm r15, 2
+        imm r16, 1
+        imm r17, 2097152
+        imm r18, 1
+        imm r19, 1                    ; CBLE hit bound
+        imm r22, 1048575              ; producer source maximum index
+        imm r23, 3145728
+        imm r24, 525960
+        imm r25, 1128421445
+        imm r26, 525960
+        imm r27, 1128421445
+        imm r28, 616072
+        imm r29, 1
+        imm r1, 1
+        jeq r10, r1, root_memory_safety_build_selected
+        imm r1, 2
+        jeq r10, r1, root_memory_safety_build_id_char
+        imm r1, 3
+        jeq r10, r1, root_memory_safety_build_namelen
+        imm r1, 4
+        jeq r10, r1, root_memory_safety_build_nameoff
+        imm r1, 5
+        jeq r10, r1, root_memory_safety_build_name_a
+        imm r1, 6
+        jeq r10, r1, root_memory_safety_build_name_b
+        imm r1, 7
+        jeq r10, r1, root_memory_safety_build_emit_ident
+        jmp reject
+root_memory_safety_build_id_char:
+        imm r11, 21
+        imm r12, 13
+        imm r13, 47
+        imm r14, 5803
+        imm r15, 2                    ; producer IDCH dynamic class
+        imm r19, 2                    ; identifier-slice bound
+        imm r24, 527184
+        imm r25, 1212367945           ; producer IDCH semantic tag
+        imm r26, 526792
+        imm r27, 1396984146
+        ret
+root_memory_safety_build_namelen:
+        imm r11, 44
+        imm r12, 35
+        imm r13, 174
+        imm r14, 25080
+        imm r15, 3
+        imm r16, 8
+        imm r17, 3153920              ; producer NAMELEN base
+        imm r18, 8
+        imm r19, 3                    ; bounded table slot
+        imm r22, 1023                 ; producer table maximum index
+        imm r23, 3162112
+        imm r24, 531952
+        imm r25, 1397839182
+        imm r26, 531848
+        imm r27, 1296323662           ; producer NTDM guard tag
+        ret
+root_memory_safety_build_nameoff:
+        call root_memory_safety_build_namelen
+        imm r11, 46
+        imm r13, 175
+        imm r14, 25335
+        imm r17, 3145728
+        imm r23, 3153920
+        ret
+root_memory_safety_build_name_a:
+        call root_memory_safety_build_namelen
+        imm r11, 49
+        imm r13, 177
+        imm r14, 25745
+        imm r15, 2
+        imm r16, 1
+        imm r17, 2097152
+        imm r18, 1
+        imm r19, 4                    ; name_eq source slice
+        imm r22, 1048575
+        imm r23, 3145728
+        ret
+root_memory_safety_build_name_b:
+        call root_memory_safety_build_name_a
+        imm r11, 50
+        imm r14, 25888
+        ret
+root_memory_safety_build_emit_ident:
+        call root_memory_safety_build_id_char
+        imm r11, 54                   ; producer emit-ident memory row
+        imm r12, 45
+        imm r13, 216
+        imm r14, 31850
+        imm r19, 5                    ; emit-ident source slice
+        imm r24, 528192
+        imm r25, 1396984133
+        imm r26, 526792
+        imm r27, 1396984146
+root_memory_safety_build_selected:
+        ret
+
+root_memory_safety_validate_selected_site:
+        mov r20, r11
+        imm r1, 8
+        mul r20, r1
+        imm r1, 7602176
+        add r20, r1
+        mov r21, r13
+        call exact_require_cell
+        mov r20, r11
+        imm r1, 8
+        mul r20, r1
+        imm r1, 7610368
+        add r20, r1
+        imm r21, 1                    ; load, never store
+        call exact_require_cell
+        mov r20, r11
+        imm r1, 8
+        mul r20, r1
+        imm r1, 7618560
+        add r20, r1
+        mov r21, r16
+        call exact_require_cell
+        mov r20, r11
+        imm r1, 8
+        mul r20, r1
+        imm r1, 7626752
+        add r20, r1
+        mov r21, r14
+        call exact_require_cell
+        mov r20, r11
+        imm r1, 8
+        mul r20, r1
+        imm r1, 16924672
+        add r20, r1
+        mov r21, r15
+        call exact_require_cell
+        mov r20, r13
+        imm r1, 8
+        mul r20, r1
+        imm r1, 3145728
+        add r20, r1
+        mov r21, r12
+        call exact_require_cell
+
+        mov r30, r24
+        mov r31, r25
+        call root_memory_safety_require_antecedent
+        mov r30, r26
+        mov r31, r27
+        call root_memory_safety_require_antecedent
+        mov r20, r28
+        mov r21, r29
+        call exact_require_cell
+        ret
+
+; Find exactly one repeated public cell/tag pair in local RANT.
+root_memory_safety_require_antecedent:
+        imm r3, 617000
+        imm r4, 0
+root_memory_safety_antecedent_loop:
+        imm r1, 617576
+        jlt r3, r1, root_memory_safety_antecedent_row
+        imm r1, 1
+        jeq r4, r1, root_memory_safety_antecedent_ok
+        jmp reject
+root_memory_safety_antecedent_row:
+        load r5, r3
+        jeq r5, r30, root_memory_safety_antecedent_match
+        jmp root_memory_safety_antecedent_next
+root_memory_safety_antecedent_match:
+        mov r20, r3
+        imm r1, 8
+        add r20, r1
+        mov r21, r31
+        call exact_require_cell
+        mov r20, r3
+        imm r1, 16
+        add r20, r1
+        mov r21, r30
+        call exact_require_cell
+        mov r20, r3
+        imm r1, 24
+        add r20, r1
+        mov r21, r31
+        call exact_require_cell
+        imm r1, 1
+        add r4, r1
+root_memory_safety_antecedent_next:
+        imm r1, 32
+        add r3, r1
+        jmp root_memory_safety_antecedent_loop
+root_memory_safety_antecedent_ok:
+        ret
+
+; Compute exact nonwrapping base + max*stride + width into r9.
+root_memory_safety_compute_extent:
+        mov r9, r22
+        mul r9, r18
+        jlt r9, r22, reject
+        mov r8, r17
+        add r8, r9
+        jlt r8, r17, reject
+        mov r9, r8
+        add r9, r16
+        jlt r9, r8, reject
+        jeq r9, r23, root_memory_safety_extent_ok
+        jmp reject
+root_memory_safety_extent_ok:
+        ret
+
+root_memory_safety_store_row:
+        mov r20, r10
+        imm r1, 1
+        sub r20, r1
+        imm r1, 160
+        mul r20, r1
+        imm r1, 630000
+        add r20, r1
+        mov r21, r10
+        call root_memory_safety_store_next
+        mov r21, r11
+        call root_memory_safety_store_next
+        mov r21, r12
+        call root_memory_safety_store_next
+        mov r21, r13
+        call root_memory_safety_store_next
+        mov r21, r14
+        call root_memory_safety_store_next
+        mov r21, r15
+        call root_memory_safety_store_next
+        mov r21, r16
+        call root_memory_safety_store_next
+        mov r21, r17
+        call root_memory_safety_store_next
+        mov r21, r18
+        call root_memory_safety_store_next
+        mov r21, r19
+        call root_memory_safety_store_next
+        mov r21, r22
+        call root_memory_safety_store_next
+        mov r21, r23
+        call root_memory_safety_store_next
+        mov r21, r24
+        call root_memory_safety_store_next
+        mov r21, r25
+        call root_memory_safety_store_next
+        mov r21, r26
+        call root_memory_safety_store_next
+        mov r21, r27
+        call root_memory_safety_store_next
+        mov r21, r28
+        call root_memory_safety_store_next
+        mov r21, r29
+        call root_memory_safety_store_next
+        mov r21, r9
+        call root_memory_safety_store_next
+        imm r21, 1
+        store r20, r21
+        ret
+
+root_memory_safety_store_next:
+        store r20, r21
+        imm r1, 8
+        add r20, r1
+        ret
+
+root_memory_safety_require_rows:
+        imm r10, 1
+root_memory_safety_require_row_loop:
+        imm r1, 8
+        jlt r10, r1, root_memory_safety_require_one_row
+        ret
+root_memory_safety_require_one_row:
+        call root_memory_safety_select_expected
+        call root_memory_safety_validate_selected_site
+        call root_memory_safety_compute_extent
+        mov r20, r10
+        imm r1, 1
+        sub r20, r1
+        imm r1, 160
+        mul r20, r1
+        imm r1, 630000
+        add r20, r1
+        mov r21, r10
+        call root_memory_safety_require_next
+        mov r21, r11
+        call root_memory_safety_require_next
+        mov r21, r12
+        call root_memory_safety_require_next
+        mov r21, r13
+        call root_memory_safety_require_next
+        mov r21, r14
+        call root_memory_safety_require_next
+        mov r21, r15
+        call root_memory_safety_require_next
+        mov r21, r16
+        call root_memory_safety_require_next
+        mov r21, r17
+        call root_memory_safety_require_next
+        mov r21, r18
+        call root_memory_safety_require_next
+        mov r21, r19
+        call root_memory_safety_require_next
+        mov r21, r22
+        call root_memory_safety_require_next
+        mov r21, r23
+        call root_memory_safety_require_next
+        mov r21, r24
+        call root_memory_safety_require_next
+        mov r21, r25
+        call root_memory_safety_require_next
+        mov r21, r26
+        call root_memory_safety_require_next
+        mov r21, r27
+        call root_memory_safety_require_next
+        mov r21, r28
+        call root_memory_safety_require_next
+        mov r21, r29
+        call root_memory_safety_require_next
+        mov r21, r9
+        call root_memory_safety_require_next
+        imm r21, 1
+        call exact_require_cell
+        imm r1, 1
+        add r10, r1
+        jmp root_memory_safety_require_row_loop
+
+root_memory_safety_require_next:
+        call exact_require_cell
+        imm r1, 8
+        add r20, r1
+        ret
+
+; Independent expected selector.
+root_memory_safety_select_expected:
+        imm r11, 13
+        imm r12, 4
+        imm r13, 10
+        imm r14, 1896
+        imm r15, 2
+        imm r16, 1
+        imm r17, 2097152
+        imm r18, 1
+        imm r19, 1
+        imm r22, 1048575
+        imm r23, 3145728
+        imm r24, 525960
+        imm r25, 1128421445
+        imm r26, 525960
+        imm r27, 1128421445
+        imm r28, 616072
+        imm r29, 1
+        imm r1, 1
+        jeq r10, r1, root_memory_safety_expected_selected
+        imm r1, 2
+        jeq r10, r1, root_memory_safety_expected_id_char
+        imm r1, 3
+        jeq r10, r1, root_memory_safety_expected_namelen
+        imm r1, 4
+        jeq r10, r1, root_memory_safety_expected_nameoff
+        imm r1, 5
+        jeq r10, r1, root_memory_safety_expected_name_a
+        imm r1, 6
+        jeq r10, r1, root_memory_safety_expected_name_b
+        imm r1, 7
+        jeq r10, r1, root_memory_safety_expected_emit_ident
+        jmp reject
+root_memory_safety_expected_id_char:
+        imm r11, 21
+        imm r12, 13
+        imm r13, 47
+        imm r14, 5803
+        imm r19, 2
+        imm r24, 527184
+        imm r25, 1212367945
+        imm r26, 526792
+        imm r27, 1396984146
+        ret
+root_memory_safety_expected_namelen:
+        imm r11, 44
+        imm r12, 35
+        imm r13, 174
+        imm r14, 25080
+        imm r15, 3
+        imm r16, 8
+        imm r17, 3153920
+        imm r18, 8
+        imm r19, 3
+        imm r22, 1023
+        imm r23, 3162112
+        imm r24, 531952
+        imm r25, 1397839182
+        imm r26, 531848
+        imm r27, 1296323662
+        ret
+root_memory_safety_expected_nameoff:
+        call root_memory_safety_expected_namelen
+        imm r11, 46
+        imm r13, 175
+        imm r14, 25335
+        imm r17, 3145728
+        imm r23, 3153920
+        ret
+root_memory_safety_expected_name_a:
+        call root_memory_safety_expected_namelen
+        imm r11, 49
+        imm r13, 177
+        imm r14, 25745
+        imm r15, 2
+        imm r16, 1
+        imm r17, 2097152
+        imm r18, 1
+        imm r19, 4
+        imm r22, 1048575
+        imm r23, 3145728
+        ret
+root_memory_safety_expected_name_b:
+        call root_memory_safety_expected_name_a
+        imm r11, 50
+        imm r14, 25888
+        ret
+root_memory_safety_expected_emit_ident:
+        call root_memory_safety_expected_id_char
+        imm r11, 54
+        imm r12, 45
+        imm r13, 216
+        imm r14, 31850
+        imm r19, 5
+        imm r24, 528192
+        imm r25, 1396984133
+        imm r26, 526792
+        imm r27, 1396984146
+root_memory_safety_expected_selected:
+        ret
+
+root_memory_safety_publish:
+        imm r1, 631176
+        imm r2, 1481790285             ; MSRX
+        store r1, r2
+        imm r1, 631184
+        imm r2, 54
+        store r1, r2                  ; fixed loads
+        imm r1, 631192
+        imm r2, 5
+        store r1, r2                  ; SRC-indexed loads
+        imm r1, 631200
+        imm r2, 2
+        store r1, r2                  ; table-indexed loads
+        imm r1, 631208
+        imm r2, 7
+        store r1, r2                  ; all dynamic loads
+        imm r1, 631216
+        imm r2, 1
+        store r1, r2                  ; every derived extent exact/nonwrapping
+        imm r1, 631224
+        imm r2, 1178686285             ; MSAF
+        store r1, r2
+        imm r20, 631176
+        imm r21, 1481790285
+        call exact_require_cell
+        imm r20, 631184
+        imm r21, 54
+        call exact_require_cell
+        imm r20, 631192
+        imm r21, 5
+        call exact_require_cell
+        imm r20, 631200
+        imm r21, 2
+        call exact_require_cell
+        imm r20, 631208
+        imm r21, 7
+        call exact_require_cell
+        imm r20, 631216
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 631224
+        imm r21, 1178686285
+        call exact_require_cell
+        ret

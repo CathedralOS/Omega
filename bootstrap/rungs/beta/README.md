@@ -6,8 +6,8 @@ This directory owns the complete Beta-language surface and its compiler written
 not hand-written in assembly. **It self-hosts** — `bc` compiles its own source to a
 compiler that reproduces that compilation byte-for-byte (`selfhost.sh`). This
 closes the steady-state execution dependency on Rust. It does not by itself prove
-that the cold-started artifact corresponds to `bc.beta`; complete lower-rooted
-source-to-artifact validation remains open.
+that the cold-started artifact corresponds to `bc.beta`; the separate
+lower-rooted ROOT checker now proves that correspondence for `B_bc1`.
 
 The lower-rooted replacement is complete under
 [`cold-start/`](cold-start/README.md). The Alpha-written compiler covers the
@@ -37,8 +37,8 @@ The default gates stamp the persisted, platform-independent tape into the host's
 audited Alpha seed. `bootstrap/onramps/beta-rust/` remains available only as a
 diagnostic/reference producer; it is not in this construction lineage. The
 fixed-point equality establishes deterministic self-reproduction, not compiler
-correctness. Complete source-to-artifact refinement against canonical Beta
-meaning remains a separate open assurance edge.
+correctness. Source-to-artifact authority comes from the separate complete
+maximal-observation refinement gate under `bootstrap/assurance/refinement/beta/`.
 
 Run the gate:
 
@@ -95,8 +95,8 @@ the `db` directive itself.
 
 ## Role in the lattice
 
-The Beta compiler has a Rust-free cold-start and steady-state execution path;
-complete lower-rooted validation of its source correspondence remains open. It builds
+The Beta compiler has a Rust-free cold-start and steady-state execution path,
+and complete lower-rooted validation of its `B_bc1` source correspondence. It builds
 Gamma's canonical interpreter and type checker; Gamma in turn supplies Delta's meaning substrate. The proof kernel
 is a cross-cutting service with independent Beta and Gamma implementations, not
 a later language rung. The Rust producer (`../../onramps/beta-rust/`) is outside

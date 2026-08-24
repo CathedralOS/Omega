@@ -3,7 +3,7 @@
 
 bc_post_stack_potential:
         imm r1, 531840
-        imm r2, 1464094803             ; SPDW
+        imm r2, 1481003091             ; SPFX
         store r1, r2
         imm r1, 534800
         imm r2, 1163022164             ; EROOT

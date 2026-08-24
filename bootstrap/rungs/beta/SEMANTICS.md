@@ -210,10 +210,14 @@ stream admitted by `B_bc1`.
   three ranged stores. A witness-free selected-row join transfers those three
   address operands through the exact compiled slots with an executable selected
   tag/interval domain and proves conditional 32-byte frame restoration for the
-  two call-free procedures. Whole-artifact establishment of the frame and
-  machine-`NLOC` entry relations remains open.
+  two call-free procedures. Later protected-counter, frame-summary, and
+  potential phases establish those entry relations globally. The final ROOT
+  process composes all conditional relations, independently rescans and bounds
+  the seven dynamic raw loads, and proves exact maximal-observation equality for
+  the persisted artifact over every finite source and supported `B_bc1` profile.
 
-These gates are evidence. Whole-compiler closure still requires a checked
-forward simulation from these source transitions to Alpha small steps, including
-memory bounds, call/return discipline, complete output traces, traps,
-exhaustion, and cyclic/divergent control.
+These executable gates close the repository's declared `B_bc1`
+source-to-artifact refinement edge, including memory bounds, call/return
+discipline, complete output traces, traps, exhaustion, and coinductive
+divergence. Broader soundness of the checking method against the written
+Alpha/Beta semantics remains the separate lattice soundness obligation.
