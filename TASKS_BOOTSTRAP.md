@@ -179,6 +179,22 @@ permutations.
   reordered case. This handoff choice settles only the tranche's implementation
   route, not the final `Ωself` disposition of any source feature. Any future
   Terminal-Psi vocabulary work remains product work in `TASKS.md`.
+  - [x] Specify versioned `CKIR1`; implement the Delta producer and direct
+    Linux x86-64 ELF backend; require exact repeated/native/self-built bytes for
+    the product source and renamed/reordered structural cases.
+  - [x] Pin product-owned fixture behavior, exact/adjacent source-array-layout
+    limits, representative fail-closed mutations, and independent ELF
+    segment/entry/BSS-envelope reconstruction.
+  - [x] Pin producer and backend 0/251/252 status plus every published byte
+    through the persisted Beta-written Omega-to-Gamma route. Keep the backend's
+    three fixed arenas below Gamma's persistent-array capacity so this remains
+    a practical gate rather than a timeout waiver.
+  - [ ] Finish exhaustive teeth for every CKIR table ceiling and every relation
+    class enumerated by `OMEGA_BOOTSTRAP_CHECKED_IR.md` §10.4.
+  - [ ] Reconstruct every selected instruction, displacement, padding byte,
+    frame/field/array offset, and mutation control independently (§10.5).
+  - [ ] Land lower-rooted source→CKIR→limited-ELF refinement with perturbed
+    source/result/operation/offset/branch/artifact negatives (§10.6).
 - [ ] Continue against later provisional checkpoints until the bridge generally
   parses, resolves, checks, diagnoses, and conservatively lowers every program
   admitted by the candidate `Ωself` profile while rejecting everything else

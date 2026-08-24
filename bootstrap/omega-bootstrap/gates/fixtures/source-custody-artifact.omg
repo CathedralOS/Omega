@@ -1,0 +1,159 @@
+// Closed checkpoint-000001 structural conformance program. The artifact gate
+// selects the sole zero-explicit-parameter attached scalar-result machine as
+// its private executable adapter; this is not Omega's ProgramEntry binding.
+
+data Probe {
+    before: u8;
+    source: Pair;
+    copy: Pair;
+    bytes: [u8; 4] in Trapping;
+    length: u32 [0..=4];
+    index: u32 [0..=3];
+    after: u8;
+    retained: bool;
+}
+
+data Pair [copy] {
+    first: u8;
+    second: u8;
+}
+
+machine Probe::run(&mut self) -> u8 {
+    self.before = 7;
+    self.source.first = 70;
+    self.source.second = 23;
+    self.copy = self.source;
+    self.length = 0;
+    self.index = 3;
+    self.after = 9;
+    self.retained = false;
+    transition self.length < 4 {
+        true -> store_0(11)
+        _ -> fail()
+    }
+
+    state store_0(&mut self, value: u8) {
+        self.bytes[self.length] = value;
+        self.length = self.length + 1;
+        transition self.length < 4 {
+            true -> store_1(22)
+            _ -> fail()
+        }
+    }
+
+    state store_1(&mut self, value: u8) {
+        self.bytes[self.length] = value;
+        self.length = self.length + 1;
+        transition self.length < 4 {
+            true -> store_2(33)
+            _ -> fail()
+        }
+    }
+
+    state store_2(&mut self, value: u8) {
+        self.bytes[self.length] = value;
+        self.length = self.length + 1;
+        transition self.length < 4 {
+            true -> store_3(70)
+            _ -> fail()
+        }
+    }
+
+    state store_3(&mut self, value: u8) {
+        self.bytes[self.length] = value;
+        self.length = self.length + 1;
+        self.retained = true;
+        transition self.retained {
+            true -> before_high()
+            _ -> fail()
+        }
+    }
+
+    state before_high(&mut self) {
+        transition self.before < 8 {
+            true -> before_low()
+            _ -> fail()
+        }
+    }
+
+    state before_low(&mut self) {
+        transition 6 < self.before {
+            true -> after_high()
+            _ -> fail()
+        }
+    }
+
+    state after_high(&mut self) {
+        transition self.after < 10 {
+            true -> after_low()
+            _ -> fail()
+        }
+    }
+
+    state after_low(&mut self) {
+        transition 8 < self.after {
+            true -> copy_first_high()
+            _ -> fail()
+        }
+    }
+
+    state copy_first_high(&mut self) {
+        transition self.copy.first < 71 {
+            true -> copy_first_low()
+            _ -> fail()
+        }
+    }
+
+    state copy_first_low(&mut self) {
+        transition 69 < self.copy.first {
+            true -> copy_second_high()
+            _ -> fail()
+        }
+    }
+
+    state copy_second_high(&mut self) {
+        transition self.copy.second < 24 {
+            true -> copy_second_low()
+            _ -> fail()
+        }
+    }
+
+    state copy_second_low(&mut self) {
+        transition 22 < self.copy.second {
+            true -> index_bound()
+            _ -> fail()
+        }
+    }
+
+    state index_bound(&mut self) {
+        transition self.index < self.length {
+            true -> present()
+            _ -> fail()
+        }
+    }
+
+    state present(&mut self) {
+        self.bytes[self.index]
+    }
+
+    state fail(&mut self) {
+        71
+    }
+}
+
+// Shared-receiver dynamic indexing belongs to the same admitted source family,
+// even though the closed conformance adapter executes only `Probe::run`.
+machine Probe::peek(&self, index: u32 in Trapping) -> u8 {
+    transition index < self.length {
+        true -> present()
+        _ -> absent()
+    }
+
+    state present(&self) {
+        self.bytes[index]
+    }
+
+    state absent(&self) {
+        0
+    }
+}

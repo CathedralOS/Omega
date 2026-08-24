@@ -702,11 +702,16 @@ machine Main::emit_prologue(&mut self) {
     state pdone() { }
 }
 machine Main::emit_epilogue(&mut self) {
+    transition self.mi == self.emi { true -> entry_io()  false -> common() }
+    state entry_io() { transition self.usesio > 0 { true -> flush()  false -> common() } }
+    state flush() { self.console.write_line("    bl Lflush_output"); transition 0 { _ -> common() } }
+    state common() {
     self.console.write_line("    mov w0, #0");
     self.console.write_line("    mov sp, x29");
     self.console.write_line("    ldp x29, x30, [sp]");
     self.p_addsp(); self.v = self.frame; self.emit_int(); write_byte(10);
     self.console.write_line("    ret")
+    }
 }
 machine Main::p_lm(&mut self) {          // "Lm"  (label def, column 0)
     write_byte(76);  transition 0 { _ -> b0() }
@@ -874,9 +879,16 @@ machine Main::main(&mut self) {
     state setL1() { self.lpend = 1; transition 0 { _ -> sk() } }
     state newM1() { transition self.depth == 0 { true -> nm1()  false -> sk() } }
     state nm1()   { self.mi = self.mi + 1; self.si = 0; self.mdecl = 1; self.typed_backing[self.hsf_base + self.mi] = 0; transition 0 { _ -> sk() } }
-    state ck1s()  { transition self.depth == 1 { true -> ck1s2()  false -> sk() } }
-    state ck1s2() { self.w = self.is_state(self.start, self.pos); transition self.w == 1 { true -> setP1()  false -> sk() } }
+    state ck1s()  { transition self.depth == 1 { true -> ck1s2()  false -> ck1wb() } }
+    state ck1s2() { self.w = self.is_state(self.start, self.pos); transition self.w == 1 { true -> setP1()  false -> ck1wb() } }
     state setP1() { self.pend = 1; transition 0 { _ -> sk() } }
+    // Pre-scan the sealed byte-I/O spellings before pass 2 emits the entry
+    // epilogue. This lets an implicit entry return flush output even when the
+    // only write occurs in a later method body.
+    state ck1wb() { self.w = self.is_wbyte(self.start, self.pos); transition self.w == 1 { true -> setio1()  false -> ck1rb() } }
+    state ck1rb() { self.w = self.is_rbyte(self.start, self.pos); transition self.w == 1 { true -> setio1()  false -> ck1wl() } }
+    state ck1wl() { self.w = self.is_wline(self.start, self.pos); transition self.w == 1 { true -> setio1()  false -> sk() } }
+    state setio1(){ self.usesio = 1; transition 0 { _ -> sk() } }
     // ---- pass 2: find the first `transition`, skip its subject, emit pop + arm dispatch ----
     state tok2()  { self.w = self.is_word(self.byte_backing[self.source_base + self.pos]); transition self.w == 1 { true -> word2()  false -> padv2() } }
     state padv2() { self.pos = self.pos + 1; transition 0 { _ -> sk() } }
@@ -927,13 +939,16 @@ machine Main::main(&mut self) {
     state wb0()    { transition self.byte_backing[self.source_base + self.pos] == 40 { true -> wb1()  false -> wbadv() } }   // skip to '('
     state wbadv()  { self.pos = self.pos + 1; transition 0 { _ -> wb0() } }
     state wb1()    { self.pos = self.pos + 1; self.mode = 8; self.opnd = 0; transition 0 { _ -> subj0() } }   // past '(', lower the byte arg
-    state wbemit() { self.usesio = 1; self.console.write_line("    ldr x0, [sp], #16"); self.console.write_line("    adrp x9, _iobyte@PAGE"); self.console.write_line("    add x9, x9, _iobyte@PAGEOFF"); self.console.write_line("    strb w0, [x9]"); self.console.write_line("    mov x0, #1"); self.console.write_line("    adrp x1, _iobyte@PAGE"); self.console.write_line("    add x1, x1, _iobyte@PAGEOFF"); self.console.write_line("    mov x2, #1"); self.console.write_line("    bl _write"); transition 0 { _ -> wbsk() } }
+    state wbemit() { self.usesio = 1; self.console.write_line("    ldr x0, [sp], #16"); self.console.write_line("    adrp x9, _iobuf_used@PAGE"); self.console.write_line("    add x9, x9, _iobuf_used@PAGEOFF"); self.console.write_line("    ldr w10, [x9]"); self.console.write_line("    cmp w10, #1, lsl #12"); self.console.write_line("    b.lo 1f"); self.console.write_line("    str x0, [sp, #-16]!"); self.console.write_line("    bl Lflush_output"); self.console.write_line("    ldr x0, [sp], #16"); self.console.write_line("    mov w10, #0"); self.console.write_line("    adrp x9, _iobuf_used@PAGE"); self.console.write_line("    add x9, x9, _iobuf_used@PAGEOFF"); self.console.write_line("1:"); self.console.write_line("    adrp x11, _iobuf@PAGE"); self.console.write_line("    add x11, x11, _iobuf@PAGEOFF"); self.console.write_line("    strb w0, [x11, x10]"); self.console.write_line("    add w10, w10, #1"); self.console.write_line("    str w10, [x9]"); transition 0 { _ -> wbsk() } }
     state wbsk()   { transition self.byte_backing[self.source_base + self.pos] == 59 { true -> wbsk2()  false -> wbsk3() } }   // ';' -> consume
     state wbsk3()  { transition self.byte_backing[self.source_base + self.pos] == 125 { true -> sk()  false -> wbadv2() } }    // '}' -> stop (block end)
     state wbadv2() { self.pos = self.pos + 1; transition 0 { _ -> wbsk() } }
     state wbsk2()  { self.pos = self.pos + 1; transition 0 { _ -> sk() } }
     state ret0()  { self.mode = 4; self.opnd = 0; transition 0 { _ -> subj0() } }
-    state retemit(){ self.console.write_line("    ldr x0, [sp], #16"); self.console.write_line("    mov sp, x29"); self.console.write_line("    ldp x29, x30, [sp]"); self.p_addsp(); self.v = self.frame; self.emit_int(); write_byte(10); self.console.write_line("    ret"); transition 0 { _ -> retsk() } }
+    state retemit(){ self.console.write_line("    ldr x0, [sp], #16"); transition self.mi == self.emi { true -> retentry()  false -> retfinish() } }
+    state retentry(){ transition self.usesio > 0 { true -> retflush()  false -> retfinish() } }
+    state retflush(){ self.console.write_line("    str x0, [sp, #-16]!"); self.console.write_line("    bl Lflush_output"); self.console.write_line("    ldr x0, [sp], #16"); transition 0 { _ -> retfinish() } }
+    state retfinish(){ self.console.write_line("    mov sp, x29"); self.console.write_line("    ldp x29, x30, [sp]"); self.p_addsp(); self.v = self.frame; self.emit_int(); write_byte(10); self.console.write_line("    ret"); transition 0 { _ -> retsk() } }
     state retsk() { transition self.byte_backing[self.source_base + self.pos] == 59 { true -> retsk2()  false -> retsk3() } }
     state retsk3(){ transition self.byte_backing[self.source_base + self.pos] == 125 { true -> sk()  false -> retadv() } }   // '}' (no trailing ';') -> stop, leave it for the block handler
     state retadv(){ self.pos = self.pos + 1; transition 0 { _ -> retsk() } }
@@ -976,7 +991,7 @@ machine Main::main(&mut self) {
     state wlscan(){ transition self.byte_backing[self.source_base + self.pos] == 34 { true -> wllen0()  false -> wlsadv() } }   // scan to closing '"'
     state wlsadv(){ self.pos = self.pos + 1; transition 0 { _ -> wlscan() } }
     state wllen0(){ self.wllen = self.pos - self.wlstart + 1; transition 0 { _ -> wlemit() } }   // len = content + trailing '\n'
-    state wlemit(){ self.usesio = 1; self.console.write_line("    mov x0, #1"); self.p_adrpx1l(); self.v = self.nstr; self.emit_int(); self.console.write_line("@PAGE"); self.p_addx1l(); self.v = self.nstr; self.emit_int(); self.console.write_line("@PAGEOFF"); self.p_movw2(); self.v = self.wllen; self.emit_int(); write_byte(10); self.console.write_line("    bl _write"); self.nstr = self.nstr + 1; transition 0 { _ -> wlsk() } }
+    state wlemit(){ self.usesio = 1; self.console.write_line("    bl Lflush_output"); self.console.write_line("    mov x0, #1"); self.p_adrpx1l(); self.v = self.nstr; self.emit_int(); self.console.write_line("@PAGE"); self.p_addx1l(); self.v = self.nstr; self.emit_int(); self.console.write_line("@PAGEOFF"); self.p_movw2(); self.v = self.wllen; self.emit_int(); write_byte(10); self.console.write_line("    bl _write"); self.nstr = self.nstr + 1; transition 0 { _ -> wlsk() } }
     state wlsk()  { self.pos = self.pos + 1; transition 0 { _ -> wlsk2() } }   // past the closing '"'
     state wlsk2() { transition self.byte_backing[self.source_base + self.pos] == 41 { true -> wlsk3()  false -> wlsadv2() } }   // skip to write_line's ')'
     state wlsadv2(){ self.pos = self.pos + 1; transition 0 { _ -> wlsk2() } }
@@ -1109,7 +1124,7 @@ machine Main::main(&mut self) {
     state bchkn() { self.cj = self.cj + 1; transition 0 { _ -> bchk2() } }
     state bemit() { self.p_ldrx29(); self.v = self.sd; self.emit_int(); write_byte(93); write_byte(10); self.p_ldrw0(); self.v = self.typed_backing[self.bndoff_base + self.cj]; self.emit_int(); write_byte(93); write_byte(10); self.console.write_line("    str x0, [sp, #-16]!"); transition 0 { _ -> opdisp() } }   // payload read: ldr x9,[x29,#sd]; ldr w0,[x9,#bndoff[i]]; push
     state fcall() { self.ocmode = self.mode; self.ocopnd = self.opnd; self.callmode = 1; self.fs = self.start; self.fe = self.pos; transition 0 { _ -> calllk() } }
-    state rbemit(){ self.usesio = 1; self.console.write_line("    mov x0, #0"); self.console.write_line("    adrp x1, _iobyte@PAGE"); self.console.write_line("    add x1, x1, _iobyte@PAGEOFF"); self.console.write_line("    mov x2, #1"); self.console.write_line("    bl _read"); self.console.write_line("    adrp x9, _iobyte@PAGE"); self.console.write_line("    add x9, x9, _iobyte@PAGEOFF"); self.console.write_line("    ldrb w1, [x9]"); self.console.write_line("    movz w2, #65535"); self.console.write_line("    movk w2, #65535, lsl #16"); self.console.write_line("    cmp x0, #1"); self.console.write_line("    csel w0, w1, w2, ge"); self.console.write_line("    str x0, [sp, #-16]!"); transition 0 { _ -> rbsk() } }
+    state rbemit(){ self.usesio = 1; self.console.write_line("    bl Lflush_output"); self.console.write_line("    mov x0, #0"); self.console.write_line("    adrp x1, _iobyte@PAGE"); self.console.write_line("    add x1, x1, _iobyte@PAGEOFF"); self.console.write_line("    mov x2, #1"); self.console.write_line("    bl _read"); self.console.write_line("    adrp x9, _iobyte@PAGE"); self.console.write_line("    add x9, x9, _iobyte@PAGEOFF"); self.console.write_line("    ldrb w1, [x9]"); self.console.write_line("    movz w2, #65535"); self.console.write_line("    movk w2, #65535, lsl #16"); self.console.write_line("    cmp x0, #1"); self.console.write_line("    csel w0, w1, w2, ge"); self.console.write_line("    str x0, [sp, #-16]!"); transition 0 { _ -> rbsk() } }
     state rbsk()  { transition self.byte_backing[self.source_base + self.pos] == 41 { true -> rbsk2()  false -> rbadv() } }   // skip to ')'
     state rbadv() { self.pos = self.pos + 1; transition 0 { _ -> rbsk() } }
     state rbsk2() { self.pos = self.pos + 1; transition 0 { _ -> opdisp() } }   // past ')', operand done
@@ -1459,10 +1474,46 @@ machine Main::main(&mut self) {
     state source_malformed() { self.console.exit_process(1) }
     state p1()    { self.dsize = self.coff; self.phase = 1; self.pos = 0; self.mi = 0 - 1; self.depth = 0; self.pend = 0; self.nl = 0; self.lpend = 0; self.ns = 0; self.si = 0; self.mn = 0; self.mdecl = 0; self.insig = 0; self.np = 0; self.array_depth = 0; transition 0 { _ -> sk() } }   // capture the entry struct's data size (coff is final after phase 0)
     state p2()    { self.console.write_line("// generated by the proof kernel-rs aarch64 backend (slices 1-2, 4-6)"); self.console.write_line(".global _main"); self.console.write_line(".align 2"); self.phase = 2; self.pos = 0; self.mi = 0 - 1; self.lsi = 0; self.depth = 0; self.pend = 0; self.array_depth = 0; transition 0 { _ -> sk() } }   // emit the asm header before any machine
-    state done()  { self.emit_epilogue(); self.console.write_line("Ltrap:"); self.console.write_line("    brk #0x1"); transition self.dsize > 0 { true -> wself()  false -> wdone() } }
+    state done()  { self.emit_epilogue(); transition self.usesio > 0 { true -> iosupport()  false -> trap_plain() } }
+    state iosupport() {
+        self.console.write_line("Lflush_output:");
+        self.console.write_line("    stp x19, x20, [sp, #-32]!");
+        self.console.write_line("    str x30, [sp, #16]");
+        self.console.write_line("    adrp x9, _iobuf_used@PAGE");
+        self.console.write_line("    add x9, x9, _iobuf_used@PAGEOFF");
+        self.console.write_line("    ldr w19, [x9]");
+        self.console.write_line("    cbz w19, Lflush_done");
+        self.console.write_line("    mov x20, #0");
+        self.console.write_line("Lflush_loop:");
+        self.console.write_line("    mov x0, #1");
+        self.console.write_line("    adrp x1, _iobuf@PAGE");
+        self.console.write_line("    add x1, x1, _iobuf@PAGEOFF");
+        self.console.write_line("    add x1, x1, x20");
+        self.console.write_line("    sub x2, x19, x20");
+        self.console.write_line("    bl _write");
+        self.console.write_line("    cmp x0, #0");
+        self.console.write_line("    b.le Lflush_discard");
+        self.console.write_line("    add x20, x20, x0");
+        self.console.write_line("    cmp x20, x19");
+        self.console.write_line("    b.lo Lflush_loop");
+        self.console.write_line("Lflush_discard:");
+        self.console.write_line("    adrp x9, _iobuf_used@PAGE");
+        self.console.write_line("    add x9, x9, _iobuf_used@PAGEOFF");
+        self.console.write_line("    str wzr, [x9]");
+        self.console.write_line("Lflush_done:");
+        self.console.write_line("    ldr x30, [sp, #16]");
+        self.console.write_line("    ldp x19, x20, [sp], #32");
+        self.console.write_line("    ret");
+        self.console.write_line("Ltrap:");
+        self.console.write_line("    bl Lflush_output");
+        self.console.write_line("    brk #0x1");
+        transition 0 { _ -> trap_done() }
+    }
+    state trap_plain() { self.console.write_line("Ltrap:"); self.console.write_line("    brk #0x1"); transition 0 { _ -> trap_done() } }
+    state trap_done() { transition self.dsize > 0 { true -> wself()  false -> wdone() } }
     state wself() { self.fv = (self.dsize + 7) / 8 * 8; self.p_zerosd(); self.v = self.fv; self.emit_int(); write_byte(44); write_byte(51); write_byte(10); transition 0 { _ -> wdone() } }   // .zerofill ...,_selfdata,align8(dsize),3
     state wdone() { transition self.usesio > 0 { true -> wio()  false -> wfin() } }
-    state wio()   { self.console.write_line(".zerofill __DATA,__bss,_iobyte,1,0"); transition 0 { _ -> wfin() } }
+    state wio()   { self.console.write_line(".zerofill __DATA,__bss,_iobyte,1,0"); self.console.write_line(".zerofill __DATA,__bss,_iobuf_used,4,2"); self.console.write_line(".zerofill __DATA,__bss,_iobuf,4096,4"); transition 0 { _ -> wfin() } }
     state wfin()  { transition self.nstr > 0 { true -> wsec()  false -> wexit() } }
     state wexit() { self.console.exit_process(0) }
     state wsec()  { self.console.write_line(".section __TEXT,__const"); self.console.write_line(".align 2"); self.pos = 0; self.lstri = 0; transition 0 { _ -> rps() } }

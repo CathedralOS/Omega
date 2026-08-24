@@ -203,9 +203,16 @@ positive. Its current signed-`i32` interval carrier admits only authored `u32`
 literal/range endpoints through 2,147,483,647; larger endpoints remain explicit
 unsupported input.
 
-This is cost and feasibility evidence only. The corresponding artifact tranche,
-ABI/layout/lowering rules, and final retain-versus-refactor disposition remain
-open. The raw-unit interface also avoids silently widening the frozen O0/O1
+This checker-only measurement remains cost and feasibility evidence. Its
+corresponding artifact tranche has since selected and implemented private
+versioned `CKIR1` plus direct conservative ELF lowering. Exact native/self
+bytes, canonical-Gamma status/publication meaning, representative resources and
+mutations, product fixture behavior, and an independent ELF envelope are
+closed; exhaustive CKIR relation teeth, exact instruction reconstruction, and
+lower-rooted source-to-artifact refinement remain open. ABI/layout/lowering are
+private tranche rules rather than Omega ABI promises, and the final
+retain-versus-refactor disposition remains open. The raw-unit interface also
+avoids silently widening the frozen O0/O1
 bundle transport ceiling; eventual bridge admission must compose the measured
 rules with the canonical bundle frontend.
 

@@ -44,10 +44,20 @@ compiler cannot be confused with either the current Rust on-ramp or the
   actual Delta compiler's marker-free elaboration, exact state-table boundaries,
   bounded persistent-array carrier, canonical Gamma source ceiling, and a
   complete tiny compile whose status and output bytes equal native execution.
+  Its native differential also pins buffered byte publication across the 4 KiB
+  boundary, ordering with line output and input, nonzero/implicit exit, and trap
+  flushing.
 - [`gates/delta-terminal-to-elf-meaning.sh`](gates/delta-terminal-to-elf-meaning.sh)
   compares the Delta backend's complete status and artifact bytes across native
   execution and the Rust-free Gamma meaning route, including malformed and
   exhausted inputs.
+- [`gates/delta-source-custody-artifact.sh`](gates/delta-source-custody-artifact.sh)
+  composes source bundle → `CKIR1` → deterministic ELF across native and
+  lowermachine-built producer/backend paths, product behavior, representative
+  limits/mutations, and an independent ELF envelope.
+- [`gates/delta-source-custody-artifact-meaning.sh`](gates/delta-source-custody-artifact-meaning.sh)
+  requires the `CKIR1` producer and backend to reproduce native 0/251/252 status
+  and every published byte through the persisted Beta-written Gamma route.
 - [`gates/delta-o1-selfhost-composite.sh`](gates/delta-o1-selfhost-composite.sh)
   recompiles both frozen O1 compiler programs through Delta's `lowermachine`,
   composes bundle → vocabulary-28 terminal Psi → ELF, and requires exact
@@ -94,10 +104,19 @@ checkpoint-driven compositional frontend/typechecker cost probe over
 claim. Its artifact tranche has selected private `CKIR1` plus direct
 conservative lowering because current Terminal-Psi vocabulary 28 cannot express
 the needed general structural scalar mutation and runtime indexing. That
-artifact tranche remains open while its exact format, implementation, and
-required evidence close. `CKIR1` is a private handoff, not Terminal Psi, a
+artifact tranche remains open while its exhaustive relation teeth and
+lower-rooted refinement close. The exact format, Delta producer/direct backend,
+native/self byte identity, canonical-Gamma 0/251/252 meaning, product behavior
+comparison, representative mutations, and independent ELF envelope are now
+executable gates. `CKIR1` is a private handoff, not Terminal Psi, a
 product IR, a source dialect, or a third feature inventory. A Terminal-Psi
 vocabulary change would be product work, not an assumed prerequisite here.
+The backend uses three statically partitioned fixed arenas rather than general
+allocation or one carrier per logical table. This is an implementation choice
+inside Delta: it does not add an allocator feature or expose CKIR layout to
+Omega source. The remaining obligations are listed explicitly in
+`TASKS_BOOTSTRAP.md` and §10 of
+[`compiler/OMEGA_BOOTSTRAP_CHECKED_IR.md`](compiler/OMEGA_BOOTSTRAP_CHECKED_IR.md).
 [`compiler/omega-bootstrap-frontend.alp`](compiler/omega-bootstrap-frontend.alp)
 is the canonical Delta-written frontend source. It decodes the canonical bundle,
 retains bounded labels and exact source spans, validates every unit independently,

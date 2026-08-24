@@ -27,11 +27,11 @@ use std::collections::BTreeSet;
 // offset), and self arrays (by base byte offset; each holds a gamma LIST modeling the array).
 #[derive(Clone)]
 struct Env {
-    locals: Vec<String>,    // current gamma name per local index
-    field_off: Vec<i32>,    // distinct self-field byte offsets, ascending (canonical slot order)
+    locals: Vec<String>,        // current gamma name per local index
+    field_off: Vec<i32>, // distinct self-field byte offsets, ascending (canonical slot order)
     field_cur: Vec<String>, // current gamma name per field (parallel to field_off)
-    array_off: Vec<i32>,    // distinct self-array base offsets, ascending
-    array_cnt: Vec<i32>,    // element count per array (parallel to array_off) -- for zero-init
+    array_off: Vec<i32>, // distinct self-array base offsets, ascending
+    array_cnt: Vec<i32>, // element count per array (parallel to array_off) -- for zero-init
     array_cur: Vec<String>, // current gamma name per array (the list)
     input_cur: Option<String>, // the remaining stdin as a list, if this machine reads it (read_byte)
     output_cur: Option<String>, // the stdout written so far (reversed list), if this machine writes
@@ -39,7 +39,10 @@ struct Env {
 
 impl Env {
     fn field_name(&self, offset: i32) -> Option<&str> {
-        self.field_off.iter().position(|&o| o == offset).map(|i| self.field_cur[i].as_str())
+        self.field_off
+            .iter()
+            .position(|&o| o == offset)
+            .map(|i| self.field_cur[i].as_str())
     }
     fn field_set(&mut self, offset: i32, name: String) -> Option<()> {
         let i = self.field_off.iter().position(|&o| o == offset)?;
@@ -47,7 +50,10 @@ impl Env {
         Some(())
     }
     fn array_name(&self, offset: i32) -> Option<&str> {
-        self.array_off.iter().position(|&o| o == offset).map(|i| self.array_cur[i].as_str())
+        self.array_off
+            .iter()
+            .position(|&o| o == offset)
+            .map(|i| self.array_cur[i].as_str())
     }
     fn array_set(&mut self, offset: i32, name: String) -> Option<()> {
         let i = self.array_off.iter().position(|&o| o == offset)?;
@@ -105,18 +111,81 @@ fn unbundle(call: &str, nss: &[String], rest: &str, fresh: &mut usize) -> String
     }
     let t = format!("t{}", *fresh);
     *fresh += 1;
-    format!("(let {} {} {})", t, call, unbundle_matches(&t, nss, 0, rest, fresh))
+    format!(
+        "(let {} {} {})",
+        t,
+        call,
+        unbundle_matches(&t, nss, 0, rest, fresh)
+    )
 }
 
-fn unbundle_matches(src: &str, nss: &[String], from: usize, rest: &str, fresh: &mut usize) -> String {
+fn unbundle_matches(
+    src: &str,
+    nss: &[String],
+    from: usize,
+    rest: &str,
+    fresh: &mut usize,
+) -> String {
     if from == nss.len() - 2 {
-        format!("(match {} ((Pair {} {}) {}))", src, nss[from], nss[from + 1], rest)
+        format!(
+            "(match {} ((Pair {} {}) {}))",
+            src,
+            nss[from],
+            nss[from + 1],
+            rest
+        )
     } else {
         let r = format!("t{}", *fresh);
         *fresh += 1;
         let inner = unbundle_matches(&r, nss, from + 1, rest, fresh);
         format!("(match {} ((Pair {} {}) {}))", src, nss[from], r, inner)
     }
+}
+
+// A value-returning method yields `(Pair result self-bundle)`. Bind the result
+// and thread the updated self-state before continuing. With one self slot the
+// pair already is the complete result shape; larger states use the same nested
+// bundle decoder as effect-only method calls.
+fn unbundle_value(
+    call: &str,
+    result: &str,
+    nss: &[String],
+    rest: &str,
+    fresh: &mut usize,
+) -> String {
+    if nss.is_empty() {
+        return format!("(let {} {} {})", result, call, rest);
+    }
+    if nss.len() == 1 {
+        return format!("(match {} ((Pair {} {}) {}))", call, result, nss[0], rest);
+    }
+    let state = format!("t{}", *fresh);
+    *fresh += 1;
+    let decoded = unbundle_matches(&state, nss, 0, rest, fresh);
+    format!("(match {} ((Pair {} {}) {}))", call, result, state, decoded)
+}
+
+fn self_call(
+    callee: usize,
+    start: usize,
+    count: usize,
+    program: &Program,
+    env: &Env,
+) -> Option<String> {
+    let cm = &program.machines[callee];
+    let mut parts = Vec::new();
+    for j in 0..count {
+        parts.push(gexpr(program.call_args[start + j], program, env)?);
+    }
+    for _ in cm.param_count..cm.local_count {
+        parts.push("0".to_string());
+    }
+    parts.extend(env.self_slots());
+    Some(if parts.is_empty() {
+        format!("(m{}_me)", callee)
+    } else {
+        format!("(m{}_me {})", callee, parts.join(" "))
+    })
 }
 
 // Does this machine write stdout (write_byte / write_line anywhere)?
@@ -133,13 +202,18 @@ fn uses_output(machine: &Machine) -> bool {
 fn uses_read_byte(machine: &Machine, program: &Program) -> bool {
     let mut blocks: Vec<&[Statement]> = vec![&machine.entry];
     blocks.extend(machine.states.iter().map(|s| s.as_slice()));
-    blocks.iter().flat_map(|b| b.iter()).any(|s| stmt_value_is_read_byte(s, program))
+    blocks
+        .iter()
+        .flat_map(|b| b.iter())
+        .any(|s| stmt_value_is_read_byte(s, program))
 }
 
 // Is the statement a write whose value is exactly read_byte()? (the only supported read_byte shape)
 fn stmt_value_is_read_byte(statement: &Statement, program: &Program) -> bool {
     let v = match statement {
-        Statement::Let(_, e, _) | Statement::Assign(_, e) | Statement::StoreSelfField(_, e, _) => *e,
+        Statement::Let(_, e, _) | Statement::Assign(_, e) | Statement::StoreSelfField(_, e, _) => {
+            *e
+        }
         _ => return false,
     };
     matches!(program.expressions[v], Expr::ReadByte)
@@ -193,7 +267,10 @@ fn gexpr(node: usize, program: &Program, env: &Env) -> Option<String> {
         // gexpr) which is this expression's value. SELF/method callees are a later slice.
         Expr::Call(callee, start, count) => {
             let cm = &program.machines[callee];
-            if !collect_field_offsets(cm, program).is_empty() || uses_read_byte(cm, program) || uses_output(cm) {
+            if !collect_field_offsets(cm, program).is_empty()
+                || uses_read_byte(cm, program)
+                || uses_output(cm)
+            {
                 return None; // a callee touching self fields, stdin, or stdout is a later slice
             }
             let mut parts = Vec::new();
@@ -248,7 +325,13 @@ fn translate_transition(
             Pattern::Int(k) => k,
             Pattern::Wild => return None, // a non-terminal `_` would shadow the rest -> degenerate
         };
-        acc = format!("(if (eq {} {}) {} {})", subj, k, call_state(mi, arm.target, env), acc);
+        acc = format!(
+            "(if (eq {} {}) {} {})",
+            subj,
+            k,
+            call_state(mi, arm.target, env),
+            acc
+        );
     }
     Some(acc)
 }
@@ -285,7 +368,10 @@ fn read_byte_into(
     }
     env.input_cur = Some(inm.clone());
     let rest = translate_seq(as_method, mi, stmts, idx + 1, program, env, fresh)?;
-    Some(format!("(let {} {} (let {} {} {}))", cnm, head, inm, tail, rest))
+    Some(format!(
+        "(let {} {} (let {} {} {}))",
+        cnm, head, inm, tail, rest
+    ))
 }
 
 // Translate a statement sequence (an entry or state body) from `idx`, threading the SSA Env. The
@@ -304,7 +390,11 @@ fn translate_seq(
         Some(s) => s,
         None => {
             // fell off the end: a void method yields its self-state bundle; the root needs explicit exit
-            return if as_method { Some(method_return(env)) } else { None };
+            return if as_method {
+                Some(method_return(env))
+            } else {
+                None
+            };
         }
     };
     match statement {
@@ -315,7 +405,16 @@ fn translate_seq(
                 return None;
             }
             if matches!(program.expressions[e], Expr::ReadByte) {
-                return read_byte_into(Target::Local(i), as_method, mi, stmts, idx, program, env, fresh);
+                return read_byte_into(
+                    Target::Local(i),
+                    as_method,
+                    mi,
+                    stmts,
+                    idx,
+                    program,
+                    env,
+                    fresh,
+                );
             }
             let value = gexpr(e, program, env)?; // evaluated under pre-write bindings
             let nm = format!("t{}", *fresh);
@@ -328,7 +427,16 @@ fn translate_seq(
         Statement::StoreSelfField(off, val, _domain) => {
             let (off, val) = (*off, *val);
             if matches!(program.expressions[val], Expr::ReadByte) {
-                return read_byte_into(Target::Field(off), as_method, mi, stmts, idx, program, env, fresh);
+                return read_byte_into(
+                    Target::Field(off),
+                    as_method,
+                    mi,
+                    stmts,
+                    idx,
+                    program,
+                    env,
+                    fresh,
+                );
             }
             let value = gexpr(val, program, env)?;
             let nm = format!("t{}", *fresh);
@@ -340,8 +448,41 @@ fn translate_seq(
         // a self-array write: self.<arr>[ix] = e  (functional update of the modeled list)
         Statement::StoreSelfIndex(off, _count, _eb, ix, val) => {
             let (off, ix, val) = (*off, *ix, *val);
+            if let Expr::SelfCall(callee, start, count) = program.expressions[val] {
+                // Native evaluation fixes the destination index before invoking
+                // the RHS method. The method can mutate any self carrier, so
+                // apply the array update to its returned array state.
+                let index = gexpr(ix, program, env)?;
+                let call = self_call(callee, start, count, program, env)?;
+                let ss = env.self_slots();
+                let result = format!("t{}", *fresh);
+                *fresh += 1;
+                let nss: Vec<String> = (0..ss.len())
+                    .map(|_| {
+                        let name = format!("t{}", *fresh);
+                        *fresh += 1;
+                        name
+                    })
+                    .collect();
+                env.set_self_slots(&nss);
+                let arr = env.array_name(off)?.to_string();
+                let updated = format!("t{}", *fresh);
+                *fresh += 1;
+                env.array_set(off, updated.clone())?;
+                let rest = translate_seq(as_method, mi, stmts, idx + 1, program, env, fresh)?;
+                let continuation = format!(
+                    "(let {} (setl {} {} {}) {})",
+                    updated, arr, index, result, rest
+                );
+                return Some(unbundle_value(&call, &result, &nss, &continuation, fresh));
+            }
             let arr = env.array_name(off)?.to_string();
-            let update = format!("(setl {} {} {})", arr, gexpr(ix, program, env)?, gexpr(val, program, env)?);
+            let update = format!(
+                "(setl {} {} {})",
+                arr,
+                gexpr(ix, program, env)?,
+                gexpr(val, program, env)?
+            );
             let nm = format!("t{}", *fresh);
             *fresh += 1;
             env.array_set(off, nm.clone())?;
@@ -372,17 +513,23 @@ fn translate_seq(
         }
         // a terminating exit/return: a METHOD yields its self-state bundle; otherwise (the root) the
         // produced stdout in OUTPUT mode (un-reversed via rev), else the exit-code expression.
-        Statement::Exit(e) | Statement::Return(e) => {
-            if as_method {
-                Some(method_return(env))
+        Statement::Return(e) if as_method => {
+            let result = gexpr(*e, program, env)?;
+            let ss = env.self_slots();
+            Some(if ss.is_empty() {
+                result
             } else {
-                match &env.output_cur {
-                    Some(out) => Some(format!("(rev {} Nil)", out)),
-                    None => gexpr(*e, program, env),
-                }
-            }
+                format!("(Pair {} {})", result, bundle(&ss))
+            })
         }
-        Statement::Transition(subject, arms) => translate_transition(mi, *subject, arms, program, env),
+        Statement::Exit(_) if as_method => Some(method_return(env)),
+        Statement::Exit(e) | Statement::Return(e) => match &env.output_cur {
+            Some(out) => Some(format!("(rev {} Nil)", out)),
+            None => gexpr(*e, program, env),
+        },
+        Statement::Transition(subject, arms) => {
+            translate_transition(mi, *subject, arms, program, env)
+        }
         // a method call `self.m(args)` for effect: thread the whole self-state through the callee
         Statement::Eval(node) => {
             let (callee, start, count) = match program.expressions[*node] {
@@ -455,7 +602,9 @@ fn collect_field_offsets(machine: &Machine, program: &Program) -> Vec<i32> {
                 Statement::Let(_, e, _) | Statement::Assign(_, e) | Statement::WriteByte(e) => {
                     collect_expr_offsets(*e, program, &mut set)
                 }
-                Statement::Exit(e) | Statement::Return(e) => collect_expr_offsets(*e, program, &mut set),
+                Statement::Exit(e) | Statement::Return(e) => {
+                    collect_expr_offsets(*e, program, &mut set)
+                }
                 Statement::StoreSelfField(off, val, _) => {
                     set.insert(*off);
                     collect_expr_offsets(*val, program, &mut set);
@@ -473,7 +622,11 @@ fn collect_field_offsets(machine: &Machine, program: &Program) -> Vec<i32> {
 }
 
 // Collect SelfIndex array (base offset -> element count) in an expression tree.
-fn collect_arrays_expr(node: usize, program: &Program, out: &mut std::collections::BTreeMap<i32, i32>) {
+fn collect_arrays_expr(
+    node: usize,
+    program: &Program,
+    out: &mut std::collections::BTreeMap<i32, i32>,
+) {
     match program.expressions[node] {
         Expr::SelfIndex(off, count, _eb, idx) => {
             out.insert(off, count);
@@ -496,10 +649,12 @@ fn collect_arrays(machine: &Machine, program: &Program) -> Vec<(i32, i32)> {
     for block in blocks {
         for statement in block {
             match statement {
-                Statement::Let(_, e, _) | Statement::Assign(_, e) | Statement::Exit(e)
-                | Statement::Return(e) | Statement::StoreSelfField(_, e, _) | Statement::WriteByte(e) => {
-                    collect_arrays_expr(*e, program, &mut map)
-                }
+                Statement::Let(_, e, _)
+                | Statement::Assign(_, e)
+                | Statement::Exit(e)
+                | Statement::Return(e)
+                | Statement::StoreSelfField(_, e, _)
+                | Statement::WriteByte(e) => collect_arrays_expr(*e, program, &mut map),
                 Statement::StoreSelfIndex(off, count, _eb, ix, val) => {
                     map.insert(*off, *count);
                     collect_arrays_expr(*ix, program, &mut map);
@@ -516,7 +671,7 @@ fn collect_arrays(machine: &Machine, program: &Program) -> Vec<(i32, i32)> {
 // Collect machine indices reached by Call exprs in an expression tree.
 fn collect_callees_expr(node: usize, program: &Program, out: &mut BTreeSet<usize>) {
     match program.expressions[node] {
-        Expr::Call(callee, start, count) => {
+        Expr::Call(callee, start, count) | Expr::SelfCall(callee, start, count) => {
             out.insert(callee);
             for j in 0..count {
                 collect_callees_expr(program.call_args[start + j], program, out);
@@ -538,8 +693,11 @@ fn machine_callees(mi: usize, program: &Program, out: &mut BTreeSet<usize>) {
     for block in blocks {
         for statement in block {
             match statement {
-                Statement::Let(_, e, _) | Statement::Assign(_, e) | Statement::Exit(e)
-                | Statement::Return(e) | Statement::StoreSelfField(_, e, _)
+                Statement::Let(_, e, _)
+                | Statement::Assign(_, e)
+                | Statement::Exit(e)
+                | Statement::Return(e)
+                | Statement::StoreSelfField(_, e, _)
                 | Statement::WriteByte(e) => collect_callees_expr(*e, program, out),
                 Statement::StoreSelfIndex(_, _, _, ix, val) => {
                     collect_callees_expr(*ix, program, out);
@@ -601,7 +759,9 @@ fn compute_self_state(reachable: &[usize], program: &Program) -> SelfState {
 // (so caller and callee agree on the bundle); a free callee gets locals only.
 fn machine_env(mi: usize, program: &Program, unified: &SelfState) -> Env {
     let machine = &program.machines[mi];
-    let locals: Vec<String> = (0..machine.local_count).map(|i| format!("l{}", i)).collect();
+    let locals: Vec<String> = (0..machine.local_count)
+        .map(|i| format!("l{}", i))
+        .collect();
     if !machine.has_self {
         return Env {
             locals,
@@ -616,13 +776,25 @@ fn machine_env(mi: usize, program: &Program, unified: &SelfState) -> Env {
     }
     Env {
         locals,
-        field_cur: (0..unified.field_off.len()).map(|i| format!("g{}", i)).collect(),
+        field_cur: (0..unified.field_off.len())
+            .map(|i| format!("g{}", i))
+            .collect(),
         field_off: unified.field_off.clone(),
-        array_cur: (0..unified.array_off.len()).map(|i| format!("a{}", i)).collect(),
+        array_cur: (0..unified.array_off.len())
+            .map(|i| format!("a{}", i))
+            .collect(),
         array_off: unified.array_off.clone(),
         array_cnt: unified.array_cnt.clone(),
-        input_cur: if unified.has_input { Some("inp".to_string()) } else { None },
-        output_cur: if unified.has_output { Some("out".to_string()) } else { None },
+        input_cur: if unified.has_input {
+            Some("inp".to_string())
+        } else {
+            None
+        },
+        output_cur: if unified.has_output {
+            Some("out".to_string())
+        } else {
+            None
+        },
     }
 }
 
@@ -679,7 +851,9 @@ pub fn emit_gamma(program: &Program, input: &[i32]) -> Option<String> {
     // list helpers for self arrays: nth (read) and setl (functional update). Emitted only when the
     // entry uses arrays (free callees have no self, so only the entry can). interp's Cons/Nil + match.
     if !entry_env.array_off.is_empty() {
-        out.push_str("(def nth (xs k) (match xs (Nil 0) ((Cons h t) (if (eq k 0) h (nth t (- k 1)))))) ");
+        out.push_str(
+            "(def nth (xs k) (match xs (Nil 0) ((Cons h t) (if (eq k 0) h (nth t (- k 1)))))) ",
+        );
         out.push_str("(def setl (xs k v) (match xs (Nil Nil) ((Cons h t) (if (eq k 0) (Cons v t) (Cons h (setl t (- k 1) v)))))) ");
     }
     // reverse helper for output: the accumulator conses bytes front-first, so the final value is rev'd

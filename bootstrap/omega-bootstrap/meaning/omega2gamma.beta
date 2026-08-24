@@ -2595,7 +2595,7 @@ proc translate_block(mi, off) {
     state t_scall { depth = depth + emit_scall(lookup_machine(foff))  to loop }   ; CUR is at '('
     state t_wbyte { depth = depth + emit_write_byte()  to loop }
     state t_wline { depth = depth + emit_write_line()  to loop }
-    state t_awrite { do_array_write(array_lookup(cur_pref(), foff))  depth = depth + 1  to loop }
+    state t_awrite { depth = depth + 1 + do_array_write(array_lookup(cur_pref(), foff))  to loop }
     state t_fstore {                   ; self.PATH = ... : an ARRAY field takes a list expression;
         to t_fstr when (array_exists(cur_pref(), foff) == 1)   ; a scalar field takes a scalar expression
         to t_fnorm
@@ -3373,6 +3373,9 @@ proc collect_arrays() {
 }
 
 ; self.arr[ix] = val;  ->  emit `(let t{fresh} (setl <arr> <ix> <val>) ` and rebind the array slot.
+; Hoist value-returning self calls before the array update, just as scalar and
+; local writes do: a call can advance input or mutate another self carrier.
+; Reusing the block-entry carrier here rereads adjacent wire-row fields.
 proc do_array_write(arr) {
     adv()                              ; consume '['
     let ix = parse_cmp()
@@ -3397,6 +3400,7 @@ proc do_array_write(arr) {
     state weat {
         adv()
         skip_ws()
+        let whd = hoist_calls()
         let wval = parse_cmp()
         emit("(let t")  emit_dec(word[6000016])  write_byte(' ')
         emit("(setl ")  print_acurname(arr)  write_byte(' ')  print_expr(ix)  write_byte(' ')
@@ -3427,12 +3431,13 @@ proc do_array_write(arr) {
         to wsemi
     }
     state wsemi { to wsemi2 when (cbyte() == ';')  to wend when (word[2097144] >= word[2097136])  adv()  to wsemi }
-    state wsemi2 { adv()  return 0 }
-    state wend { return 0 }
+    state wsemi2 { adv()  return whd }
+    state wend { return whd }
     state toeq { to eat when (cbyte() == '=')  adv()  to toeq }
     state eat {
         adv()                          ; consume '='
         skip_ws()
+        let hd = hoist_calls()
         let val = parse_cmp()
         emit("(let t")  emit_dec(word[6000016])  write_byte(' ')
         emit("(setl ")  print_acurname(arr)  write_byte(' ')  print_expr(ix)  write_byte(' ')  print_expr(val)  write_byte(')')
@@ -3443,7 +3448,7 @@ proc do_array_write(arr) {
         to tosemi
     }
     state tosemi { to esemi when (cbyte() == ';')  adv()  to tosemi }
-    state esemi { adv()  return 0 }
+    state esemi { adv()  return hd }
 }
 
 proc add_field(pref, off) {
