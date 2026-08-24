@@ -439,6 +439,7 @@ fn call_mutated_places_include_mutable_attached_data_arguments() {
         termination_plan: Default::default(),
         service_reach_row: Default::default(),
         service_reach_is_installation_bound: false,
+        body_is_present: true,
         lifetime_parameters: Vec::new(),
         type_parameters: Default::default(),
         owned_data: Default::default(),
@@ -461,6 +462,7 @@ fn call_mutated_places_include_mutable_attached_data_arguments() {
     program.statement_table.push_statement(
         &mut state.statement_nodes,
         StatementNode::Call(TableCall {
+            source_span: psi_source::SourceSpan::default(),
             receiver_symbol: machine_symbol,
             target_symbol,
             receiver: Default::default(),
@@ -551,6 +553,7 @@ fn call_mutated_places_include_mutable_local_arguments_from_unresolved_names() {
         termination_plan: Default::default(),
         service_reach_row: Default::default(),
         service_reach_is_installation_bound: false,
+        body_is_present: true,
         lifetime_parameters: Vec::new(),
         type_parameters: Default::default(),
         owned_data: Default::default(),
@@ -583,6 +586,7 @@ fn call_mutated_places_include_mutable_local_arguments_from_unresolved_names() {
     program.statement_table.push_statement(
         &mut state.statement_nodes,
         StatementNode::Call(TableCall {
+            source_span: psi_source::SourceSpan::default(),
             receiver_symbol: machine_symbol,
             target_symbol,
             receiver: Default::default(),

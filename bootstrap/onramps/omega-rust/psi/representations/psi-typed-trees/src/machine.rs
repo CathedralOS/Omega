@@ -16,6 +16,9 @@ pub struct Machine {
     /// Copied from symbol-resolved trees; semantic consumers must not
     /// reconstruct supply from source spelling or body presence.
     pub supply_mode: psi_language_semantics::MachineSupplyMode,
+    /// Exact source-body presence copied from symbol-resolved trees. Boundary
+    /// supply can be either bodyless or a checked adapter.
+    pub body_is_present: bool,
     /// TPR2 (decision 23): the normalized termination plan (published
     /// guarantee vs private ranking witness), populated ONCE at the
     /// syntax->resolved lowering and COPIED here -- never re-derived.
@@ -45,6 +48,7 @@ impl Default for Machine {
             attached_data: None,
             is_public: false,
             supply_mode: psi_language_semantics::MachineSupplyMode::CheckedBody,
+            body_is_present: true,
             termination_plan: psi_language_semantics::MachineTerminationPlan::default(),
             service_reach_row: psi_language_semantics::ServiceReachRowId::NULL,
             service_reach_is_installation_bound: false,

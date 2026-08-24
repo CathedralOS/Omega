@@ -117,6 +117,7 @@ pub(crate) fn lower_machine_into(
         attached_data,
         is_public: machine.is_public,
         supply_mode,
+        body_is_present: !machine.bodyless,
         // TPR2: the termination plan's ONE population site (see
         // build_termination_plan below).
         termination_plan,

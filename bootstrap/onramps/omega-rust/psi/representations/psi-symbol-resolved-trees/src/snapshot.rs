@@ -407,6 +407,7 @@ pub struct MachineSnapshot {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub conformance_bounds: Vec<GenericConformanceBoundSnapshot>,
     pub supply: MachineSupplySnapshot,
+    pub body_is_present: bool,
     pub termination: TerminationInterfaceSnapshot,
     pub ranking_subjects: Vec<ExpressionSnapshot>,
     pub ranking_view: Vec<String>,
@@ -1069,6 +1070,7 @@ fn machine_snapshot(program: &SymbolResolvedTrees, machine: &Machine) -> Machine
             })
             .collect(),
         supply: machine_supply_snapshot(machine.supply_mode),
+        body_is_present: machine.body_is_present,
         termination: termination_interface_snapshot(&machine.termination_plan.interface),
         ranking_subjects: program
             .tables

@@ -874,9 +874,20 @@ compatibility identity; private implementation bodies and proof evidence affect
 content identity while remaining outside public contract identity.
 
 For every public callable and the build machine, evidence retains both the
-declared service-reach ceiling and the realized transitive reach. An
+declared service-reach ceiling and, when an actual checked body exists, the
+exact inferred transitive reach plus its preselection concrete-transitive base.
+The concrete base excludes authority contributed only by unresolved
+installation-selected upper bounds and is not final-provider evidence. Bodyless boundary, accepted, requirement, and
+external supply instead retain an explicit no-checked-body disposition; their
+published ceilings are not relabeled as realized facts. An
+impossible combination rejects: checked supply requires a retained body, while
+accepted, requirement, and external supply forbid one; boundary supply permits
+either an adapter body or a bodyless declaration. An
 underdeclared implementation rejects. An overdeclared ceiling remains visible
-as contract slack; dangerous slack is audit-relevant, and a later transition
+as contract slack. Compiler-classified dangerous slack emits a separate
+audit-recommended row keyed by exact callable and service identity, with both
+source coordinates; bodyless supply and package-authored lookalikes emit none.
+A later transition
 from unused to used authority changes realized evidence even when the public
 ceiling is unchanged. Capability-flow, provider, trust, proof, installation,
 operational, and executable-TCB rows must retain exact package-qualified

@@ -781,6 +781,7 @@ mod tests {
                 published_ceiling: psi_language_semantics::ServiceReachRowTable::EMPTY_ROW,
                 inferred_direct: service_row,
                 inferred_transitive: service_row,
+                concrete_transitive: service_row,
                 effective: service_row,
                 concrete_effective: service_row,
                 unresolved_installation_reaches: Vec::new(),

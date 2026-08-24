@@ -34,6 +34,7 @@ fn builds_shared_flow_facts_for_state_and_call_sites() {
         termination_plan: Default::default(),
         service_reach_row: Default::default(),
         service_reach_is_installation_bound: false,
+        body_is_present: true,
         lifetime_parameters: Vec::new(),
         type_parameters: Default::default(),
         owned_data: Default::default(),
@@ -60,6 +61,7 @@ fn builds_shared_flow_facts_for_state_and_call_sites() {
     let call_arguments = HandleSpan::empty();
     let call_statement_receiver = HandleSpan::empty();
     let call_statement = StatementNode::Call(TableCall {
+        source_span: psi_source::SourceSpan::default(),
         receiver: call_statement_receiver,
         receiver_symbol: caller_machine_symbol,
         target: Identifier::generated("run"),
@@ -88,6 +90,7 @@ fn builds_shared_flow_facts_for_state_and_call_sites() {
         termination_plan: Default::default(),
         service_reach_row: Default::default(),
         service_reach_is_installation_bound: false,
+        body_is_present: true,
         lifetime_parameters: Vec::new(),
         type_parameters: Default::default(),
         owned_data: Default::default(),
@@ -273,6 +276,7 @@ fn records_checked_boundary_edges_for_boundary_trait_calls() {
         termination_plan: Default::default(),
         service_reach_row: Default::default(),
         service_reach_is_installation_bound: false,
+        body_is_present: true,
         lifetime_parameters: Vec::new(),
         type_parameters: Default::default(),
         owned_data: Default::default(),
@@ -311,6 +315,7 @@ fn records_checked_boundary_edges_for_boundary_trait_calls() {
     let call_statement = program
         .statement_table
         .insert(StatementNode::Call(TableCall {
+            source_span: psi_source::SourceSpan::default(),
             receiver: HandleSpan::empty(),
             receiver_symbol: target_machine_symbol,
             target: Identifier::generated("write_line"),
@@ -330,6 +335,7 @@ fn records_checked_boundary_edges_for_boundary_trait_calls() {
         termination_plan: Default::default(),
         service_reach_row: Default::default(),
         service_reach_is_installation_bound: false,
+        body_is_present: true,
         lifetime_parameters: Vec::new(),
         type_parameters: Default::default(),
         owned_data: Default::default(),

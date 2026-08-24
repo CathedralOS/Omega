@@ -35,6 +35,7 @@ pub enum PackageTriageReason {
     RepresentationTcbIntroducedOrChanged,
     AcceptedClaimRequiresResolution,
     RetainedDangerousAuthority(PackageReviewDangerousAuthorityClass),
+    DangerousAuthoritySlack(PackageReviewDangerousAuthorityClass),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -407,6 +408,16 @@ fn append_candidate_audit_reasons(
         reasons.push(PackageTriageReason::RetainedDangerousAuthority(class));
         recommend = true;
     }
+    for class in candidate
+        .projection()
+        .dangerous_authority_slack()
+        .iter()
+        .map(|slack| slack.class())
+        .collect::<BTreeSet<_>>()
+    {
+        reasons.push(PackageTriageReason::DangerousAuthoritySlack(class));
+        recommend = true;
+    }
     recommend
 }
 
@@ -498,6 +509,27 @@ const fn reason_token(reason: PackageTriageReason) -> &'static str {
         PackageTriageReason::RetainedDangerousAuthority(
             PackageReviewDangerousAuthorityClass::Process,
         ) => "retained_dangerous_authority_process",
+        PackageTriageReason::DangerousAuthoritySlack(
+            PackageReviewDangerousAuthorityClass::Filesystem,
+        ) => "dangerous_authority_slack_filesystem",
+        PackageTriageReason::DangerousAuthoritySlack(
+            PackageReviewDangerousAuthorityClass::MachineControl,
+        ) => "dangerous_authority_slack_machine_control",
+        PackageTriageReason::DangerousAuthoritySlack(
+            PackageReviewDangerousAuthorityClass::PortIo,
+        ) => "dangerous_authority_slack_port_io",
+        PackageTriageReason::DangerousAuthoritySlack(
+            PackageReviewDangerousAuthorityClass::InterruptControl,
+        ) => "dangerous_authority_slack_interrupt_control",
+        PackageTriageReason::DangerousAuthoritySlack(
+            PackageReviewDangerousAuthorityClass::InterruptEntry,
+        ) => "dangerous_authority_slack_interrupt_entry",
+        PackageTriageReason::DangerousAuthoritySlack(
+            PackageReviewDangerousAuthorityClass::RootMemory,
+        ) => "dangerous_authority_slack_root_memory",
+        PackageTriageReason::DangerousAuthoritySlack(
+            PackageReviewDangerousAuthorityClass::Process,
+        ) => "dangerous_authority_slack_process",
     }
 }
 
@@ -540,6 +572,12 @@ mod tests {
                 PackageReviewDangerousAuthorityClass::Process,
             )),
             "retained_dangerous_authority_process"
+        );
+        assert_eq!(
+            reason_token(PackageTriageReason::DangerousAuthoritySlack(
+                PackageReviewDangerousAuthorityClass::PortIo,
+            )),
+            "dangerous_authority_slack_port_io"
         );
         assert_eq!(
             reason_token(PackageTriageReason::AcceptedClaimRequiresResolution),

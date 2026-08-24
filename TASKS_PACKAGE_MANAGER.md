@@ -154,9 +154,14 @@ complete.
   rejects once cleanup returns. Cleanup and reaping receive a separate bounded
   two-second deadline. A whole-resolution budget permits at most 64 launches,
   independent of package file count, and ten minutes of ordinary elapsed
-  execution, passing only the smaller remaining interval to each command. One
+  execution, including bounded cache-lock acquisition, and passes only the
+  smaller remaining interval to each command. Cleanup failure outranks ordinary
+  budget expiry; on Unix only `ESRCH`, not `EPERM`, proves that a process group
+  is absent. One
   exactly framed `cat-file --batch` launch reads all validated blobs in tree
-  order. This is a portable-executor floor, not strict hostile-process
+  order. Blob entries retain shared ranges into that one bounded response and
+  release it before staged-source revalidation, avoiding a second
+  package-sized resident copy. This is a portable-executor floor, not strict hostile-process
   confinement. Fetch requests only the selected revision at depth one and
   disables Git automatic maintenance and garbage collection; unrelated
   reachable history is not traversed merely to resolve one package revision.
@@ -455,8 +460,18 @@ complete.
   of `pub`. Ordinary `pub machine` visibility is now retained through syntax,
   resolved, typed, checked, snapshot, copy, and specialization paths. Public
   omission is a strict empty ceiling for service reach, synchronous invocation,
-  suspension, blocking, and crash; checked underdeclaration rejects. Ordinary
-  `pub data` visibility, including numbered data's wire identity and retired
+  suspension, blocking, and crash; checked underdeclaration rejects. Machine
+  body presence now survives symbol-resolved and typed copies instead
+  of being reconstructed from synthesized states. Package review v33 reports
+  `inferred_transitive` reach only for an actual checked body and records an
+  explicit no-checked-body disposition for bodyless boundary, accepted,
+  requirement, and external supply. It never relabels a published ceiling as
+  realized reach. For checked bodies, compiler-classified dangerous services
+  present in the declaration but absent from exact inferred reach emit
+  callable-and-service-keyed audit-recommended slack rows with exact authority
+  and callable source coordinates; bodyless supply and package-authored
+  lookalikes cannot mint slack. Ordinary `pub data` visibility, including
+  numbered data's wire identity and retired
   identities, likewise survives parsing, copies, snapshots, lowering, and
   generic specialization. Public trait visibility survives the same frontend
   and checked-tree path. Normalized package-owned public-data rows are now in
@@ -606,7 +621,7 @@ complete.
   `Volatile`, including a denied attempt, while pure, console-only, and declared-
   but-unreachable filesystem rows remain `Hermetic`. Console-only granted
   execution no longer installs real filesystem authority. Compiler-issued
-  package review carries this summary outside v32 capability/API comparison
+  package review carries this summary outside v33 capability/API comparison
   bytes. It is explicitly not a receipt and makes no replayability or source-
   rebuildability claim.
   Exact rows for the unsupported forms and proof/admission dispositions still
@@ -637,7 +652,7 @@ complete.
   closing the implicit-entry-state ownership gap discovered by the crash
   projection. Review identity now retains the exact deployment target profile,
   so profiles such as Windows and UEFI cannot collapse merely because they
-  share a native ABI. A v32 length-framed binary comparison encoding now covers
+  share a native ABI. A v33 length-framed binary comparison encoding now covers
   every retained public-domain, public-data, public-trait, callable,
   representation-TCB, crash/proof predicate, proposition/witness, authority
   flow, dangerous-authority classification, mutation, and selected-provider
@@ -700,7 +715,7 @@ complete.
   realized filesystem-touch fact separate from deterministic evaluator usage.
   The compiler derives the static class from exact reachable toolchain service
   identity, retains the versioned Hermetic/Volatile summary through checked and
-  full reports and compiler-issued package review, and keeps it outside v32
+  full reports and compiler-issued package review, and keeps it outside v33
   capability/API comparison bytes. Console-only execution no longer installs
   real filesystem authority. Both statement- and value-position filesystem
   dispatch now require an exact requirement symbol owned by the canonical
@@ -791,7 +806,10 @@ complete.
   behavior, not sealed evidence: kernel recheck receipts and a possible exact
   later-discharge ledger remain. Terminal propagation is required only for a
   row making a final-realization claim. Ordinary successful compilation is not
-  itself a complete proof verdict. The standalone
+  itself a complete proof verdict. Dangerous overdeclaration is now exact for
+  checked bodies: retained source-body presence selects inferred transitive
+  reach, and v33 emits separate audit-recommended slack rows without treating a
+  bodyless declaration as a failed realization. The standalone
   `psi-proof` boundary obligation ledger is not wired into production and must
   not be cited as enforcement.
 
@@ -971,7 +989,7 @@ complete.
   `Console` is additionally classified as process authority because reach is
   trait-granular and that canonical trait includes `exit_process`; a
   package-owned `Console` lookalike cannot mint the class. Comparison encoding
-  v32 retains these rows. `ProgramStorageEntry` is not mislabeled as executable-
+  v33 retains these rows. `ProgramStorageEntry` is not mislabeled as executable-
   installation authority merely because it receives already-installed roots;
   that class must come from exact installation evidence. Network, dynamic
   loading, signing, secrets, executable installation, DMA/IOMMU, and sealed
@@ -995,7 +1013,7 @@ complete.
   `boundary data`, including private declarations and declarations with no
   reach or claim. The row is target-scoped by the containing projection and
   explicitly records both ABI commitment and external mechanism as `Unbound`;
-  it does not fabricate layout or realization. Comparison encoding v32 retains
+  it does not fabricate layout or realization. Comparison encoding v33 retains
   the lane. Exact mechanism/ABI selection, source/toolchain/compiler sealing,
   and admission-policy outcomes remain.
 

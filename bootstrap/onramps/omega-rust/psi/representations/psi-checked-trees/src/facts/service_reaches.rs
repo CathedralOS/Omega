@@ -67,6 +67,9 @@ pub struct MachineServiceReachRows {
     pub published_ceiling: ServiceReachRowId,
     pub inferred_direct: ServiceReachRowId,
     pub inferred_transitive: ServiceReachRowId,
+    /// Exact checked-body reach before unresolved installation-selected upper
+    /// bounds are admitted.
+    pub concrete_transitive: ServiceReachRowId,
     pub effective: ServiceReachRowId,
     pub concrete_effective: ServiceReachRowId,
     /// Exact bounded requirement rows that final composition must resolve.

@@ -452,6 +452,7 @@ mod tests {
             attached_data: None,
             is_public: false,
             supply_mode: Default::default(),
+            body_is_present: true,
             termination_plan: Default::default(),
             service_reach_row: Default::default(),
             service_reach_is_installation_bound: false,

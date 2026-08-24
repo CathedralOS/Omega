@@ -282,6 +282,15 @@ fn bounded_installation_reach_retains_exact_unresolved_requirement_through_check
             .is_empty(),
         "the abstract upper bound must not enter concrete reach"
     );
+    assert!(
+        checked
+            .facts
+            .service_reaches
+            .rows
+            .services(reach.concrete_transitive)
+            .is_empty(),
+        "the checked body's preselection reach must exclude the abstract upper bound"
+    );
     let outer_reach = checked
         .facts
         .service_reaches
@@ -290,6 +299,15 @@ fn bounded_installation_reach_retains_exact_unresolved_requirement_through_check
     assert_eq!(
         outer_reach.unresolved_installation_reaches,
         reach.unresolved_installation_reaches
+    );
+    assert!(
+        checked
+            .facts
+            .service_reaches
+            .rows
+            .services(outer_reach.concrete_transitive)
+            .is_empty(),
+        "a wrapper must preserve the callee's unresolved upper bound distinction"
     );
     assert_eq!(
         checked

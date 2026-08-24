@@ -9,6 +9,7 @@ use std::fs::{File, OpenOptions};
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus, Stdio};
+use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{self, RecvTimeoutError};
 use std::time::{Duration, Instant, SystemTime};
@@ -488,7 +489,7 @@ pub fn resolve_git_source(
         let cache_identity = git_cache_identity(&spec.url, &requested_rev);
         let entry_root = cache_dir.join(format!("git-{cache_identity}"));
         let lock_path = cache_dir.join(format!("git-{cache_identity}.lock"));
-        let _entry_lock = CacheEntryLock::acquire(&lock_path)?;
+        let _entry_lock = CacheEntryLock::acquire_with_git_budget(&lock_path, &executor)?;
 
         if entry_root.exists() {
             if let Err(error) =
@@ -521,10 +522,7 @@ pub fn resolve_git_source(
         result
     })();
     let executable_result = executor.verify_content();
-    match (result, executable_result) {
-        (_, Err(error)) => Err(error),
-        (result, Ok(())) => result,
-    }
+    reconcile_git_command_result(result, executable_result, Ok(()))
 }
 
 fn resolve_verified_git_cache_entry(
@@ -601,8 +599,34 @@ struct GitTreeEntry {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum GitTreeEntryKind {
-    File { executable: bool, bytes: Vec<u8> },
-    Symlink { target_bytes: Vec<u8> },
+    File {
+        executable: bool,
+        bytes: GitBlobBytes,
+    },
+    Symlink {
+        target_bytes: GitBlobBytes,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct GitBlobBytes {
+    batch: Arc<Vec<u8>>,
+    start: usize,
+    end: usize,
+}
+
+impl GitBlobBytes {
+    fn empty() -> Self {
+        Self {
+            batch: Arc::new(Vec::new()),
+            start: 0,
+            end: 0,
+        }
+    }
+
+    fn as_slice(&self) -> &[u8] {
+        &self.batch[self.start..self.end]
+    }
 }
 
 fn inspect_git_tree(
@@ -720,14 +744,14 @@ fn parse_git_tree_entries(
         let kind = match mode {
             b"100644" => GitTreeEntryKind::File {
                 executable: false,
-                bytes: Vec::new(),
+                bytes: GitBlobBytes::empty(),
             },
             b"100755" => GitTreeEntryKind::File {
                 executable: true,
-                bytes: Vec::new(),
+                bytes: GitBlobBytes::empty(),
             },
             b"120000" => GitTreeEntryKind::Symlink {
-                target_bytes: Vec::new(),
+                target_bytes: GitBlobBytes::empty(),
             },
             _ => return Err(git_tree_invalid(path, "unsupported Git entry mode")),
         };
@@ -865,7 +889,7 @@ fn resolve_git_snapshot(
     executor: &GitExecutor,
     entry_root: &Path,
     tree: &str,
-    entries: Vec<GitTreeEntry>,
+    mut entries: Vec<GitTreeEntry>,
     limits: LocalSourceLimits,
 ) -> Result<(PathBuf, ResolvedLocalSource), SourceResolveError> {
     let snapshots = entry_root.join(GIT_CACHE_SNAPSHOTS);
@@ -873,6 +897,8 @@ fn resolve_git_snapshot(
     require_real_directory(&snapshots, "snapshot cache is not a real directory")?;
     let publication = snapshots.join(format!("tree-{tree}"));
     if publication.exists() {
+        verify_snapshot_symlink_targets(&publication.join(GIT_SNAPSHOT_SOURCE), &entries)?;
+        release_git_blob_payloads(&mut entries);
         return verify_git_snapshot(&publication, tree, &entries, limits);
     }
 
@@ -905,21 +931,21 @@ fn resolve_git_snapshot(
         std::fs::create_dir_all(parent).map_err(|error| io_error(parent, error))?;
         match &entry.kind {
             GitTreeEntryKind::File { executable, bytes } => {
-                expected_identity.add_file(&entry.relative_bytes, *executable, bytes)?;
+                expected_identity.add_file(&entry.relative_bytes, *executable, bytes.as_slice())?;
                 let mut file = OpenOptions::new()
                     .write(true)
                     .create_new(true)
                     .open(&destination)
                     .map_err(|error| io_error(&destination, error))?;
-                file.write_all(&bytes)
+                file.write_all(bytes.as_slice())
                     .map_err(|error| io_error(&destination, error))?;
                 file.sync_all()
                     .map_err(|error| io_error(&destination, error))?;
                 set_snapshot_file_mode(&destination, *executable)?;
             }
             GitTreeEntryKind::Symlink { target_bytes } => {
-                expected_identity.add_symlink(&entry.relative_bytes, target_bytes);
-                create_snapshot_symlink(target_bytes, &destination)?;
+                expected_identity.add_symlink(&entry.relative_bytes, target_bytes.as_slice());
+                create_snapshot_symlink(target_bytes.as_slice(), &destination)?;
             }
         }
     }
@@ -934,6 +960,10 @@ fn resolve_git_snapshot(
         set_snapshot_directory_read_only(&path)?;
     }
 
+    // The staged source is re-read to bind publication identity. Release the
+    // shared batch payload first so that this verification does not retain a
+    // second package-sized in-memory copy.
+    release_git_blob_payloads(&mut entries);
     let staged = resolve_materialized_source(&source, limits)?;
     let (expected_byte_count, expected_content_identity) = expected_identity.finish();
     if staged.file_count != entries.len()
@@ -964,6 +994,37 @@ fn resolve_git_snapshot(
     // The returned identity is always calculated from the atomically published tree, never from
     // the staging directory or Git's mutable object-cache state.
     verify_git_snapshot(&publication, tree, &entries, limits)
+}
+
+fn release_git_blob_payloads(entries: &mut [GitTreeEntry]) {
+    for entry in entries {
+        match &mut entry.kind {
+            GitTreeEntryKind::File { bytes, .. } => *bytes = GitBlobBytes::empty(),
+            GitTreeEntryKind::Symlink { target_bytes } => {
+                *target_bytes = GitBlobBytes::empty();
+            }
+        }
+    }
+}
+
+fn verify_snapshot_symlink_targets(
+    source: &Path,
+    entries: &[GitTreeEntry],
+) -> Result<(), SourceResolveError> {
+    for entry in entries {
+        let GitTreeEntryKind::Symlink { target_bytes } = &entry.kind else {
+            continue;
+        };
+        let path = source.join(&entry.relative_path);
+        let target = std::fs::read_link(&path).map_err(|error| io_error(&path, error))?;
+        if raw_os_bytes(target.as_os_str()) != target_bytes.as_slice() {
+            return Err(cache_invalid(
+                &path,
+                "snapshot symlink target does not match Git",
+            ));
+        }
+    }
+    Ok(())
 }
 
 fn verify_git_snapshot(
@@ -1045,18 +1106,11 @@ fn verify_snapshot_entry_kinds_and_modes(
                 }
                 verify_snapshot_file_mode(&path, &metadata, *executable)?;
             }
-            GitTreeEntryKind::Symlink { target_bytes } => {
+            GitTreeEntryKind::Symlink { .. } => {
                 if !metadata.file_type().is_symlink() {
                     return Err(cache_invalid(
                         &path,
                         "snapshot symlink kind does not match Git",
-                    ));
-                }
-                let target = std::fs::read_link(&path).map_err(|error| io_error(&path, error))?;
-                if raw_os_bytes(target.as_os_str()) != *target_bytes {
-                    return Err(cache_invalid(
-                        &path,
-                        "snapshot symlink target does not match Git",
                     ));
                 }
             }
@@ -1504,13 +1558,7 @@ fn read_git_blobs_batch(
         GIT_STDERR_LIMIT,
         command_timeout,
     );
-    let executable_result = executor.verify();
-    let budget_result = executor.verify_budget();
-    let output = match (result, executable_result, budget_result) {
-        (_, Err(error), _) => return Err(error),
-        (_, _, Err(error)) => return Err(error),
-        (result, Ok(()), Ok(())) => result?,
-    };
+    let output = reconcile_git_command_result(result, executor.verify(), executor.verify_budget())?;
     drop(request_guard);
     if !output.status.success() {
         return Err(SourceResolveError::Git {
@@ -1519,7 +1567,7 @@ fn read_git_blobs_batch(
             stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
         });
     }
-    assign_git_batch_output(entries, &output.stdout)?;
+    assign_git_batch_output(entries, output.stdout)?;
     executor.verify_budget()
 }
 
@@ -1572,16 +1620,19 @@ fn decimal_digit_count(mut value: u64) -> usize {
 
 fn assign_git_batch_output(
     entries: &mut [GitTreeEntry],
-    mut output: &[u8],
+    output: Vec<u8>,
 ) -> Result<(), SourceResolveError> {
-    for entry in entries {
-        let Some(header_end) = output.iter().position(|byte| *byte == b'\n') else {
+    let mut remaining = output.as_slice();
+    let mut offset = 0_usize;
+    let mut ranges = Vec::with_capacity(entries.len());
+    for entry in entries.iter() {
+        let Some(header_end) = remaining.iter().position(|byte| *byte == b'\n') else {
             return Err(git_tree_invalid(
                 entry.oid.as_bytes(),
                 "truncated cat-file batch header",
             ));
         };
-        let header = &output[..=header_end];
+        let header = &remaining[..=header_end];
         let expected_header = format!("{} blob {}\n", entry.oid, entry.size);
         if header != expected_header.as_bytes() {
             return Err(git_tree_invalid(
@@ -1589,38 +1640,61 @@ fn assign_git_batch_output(
                 "cat-file batch header did not match the exact requested blob",
             ));
         }
-        output = &output[header_end + 1..];
+        remaining = &remaining[header_end + 1..];
+        offset = offset
+            .checked_add(header_end + 1)
+            .ok_or_else(|| git_tree_invalid(entry.oid.as_bytes(), "batch offset overflow"))?;
         let size = usize::try_from(entry.size).map_err(|_| {
             git_tree_invalid(entry.oid.as_bytes(), "blob cannot fit in host memory")
         })?;
-        let Some(bytes) = output.get(..size) else {
+        let Some(bytes) = remaining.get(..size) else {
             return Err(git_tree_invalid(
                 entry.oid.as_bytes(),
                 "truncated cat-file batch blob",
             ));
         };
-        if output.get(size) != Some(&b'\n') {
+        if remaining.get(size) != Some(&b'\n') {
             return Err(git_tree_invalid(
                 entry.oid.as_bytes(),
                 "cat-file batch blob lacks its separator",
             ));
         }
-        match &mut entry.kind {
-            GitTreeEntryKind::File {
-                bytes: entry_bytes, ..
-            } => *entry_bytes = bytes.to_vec(),
-            GitTreeEntryKind::Symlink { target_bytes } => {
-                validate_git_symlink_target(&entry.relative_bytes, bytes)?;
-                *target_bytes = bytes.to_vec();
-            }
+        if matches!(&entry.kind, GitTreeEntryKind::Symlink { .. }) {
+            validate_git_symlink_target(&entry.relative_bytes, bytes)?;
         }
-        output = &output[size + 1..];
+        let end = offset
+            .checked_add(size)
+            .ok_or_else(|| git_tree_invalid(entry.oid.as_bytes(), "batch offset overflow"))?;
+        ranges.push(offset..end);
+        remaining = &remaining[size + 1..];
+        offset = end
+            .checked_add(1)
+            .ok_or_else(|| git_tree_invalid(entry.oid.as_bytes(), "batch offset overflow"))?;
     }
-    if !output.is_empty() {
+    if !remaining.is_empty() {
         return Err(git_tree_invalid(
             Vec::new(),
             "cat-file batch returned an unexpected trailing response",
         ));
+    }
+    let batch = Arc::new(output);
+    for (entry, range) in entries.iter_mut().zip(ranges) {
+        match &mut entry.kind {
+            GitTreeEntryKind::File { bytes, .. } => {
+                *bytes = GitBlobBytes {
+                    batch: Arc::clone(&batch),
+                    start: range.start,
+                    end: range.end,
+                };
+            }
+            GitTreeEntryKind::Symlink { target_bytes } => {
+                *target_bytes = GitBlobBytes {
+                    batch: Arc::clone(&batch),
+                    start: range.start,
+                    end: range.end,
+                };
+            }
+        }
     }
     Ok(())
 }
@@ -2093,19 +2167,50 @@ struct CacheEntryLock {
 }
 
 impl CacheEntryLock {
-    fn acquire(path: &Path) -> Result<Self, SourceResolveError> {
+    fn open_git(path: &Path) -> Result<File, SourceResolveError> {
         if let Ok(metadata) = std::fs::symlink_metadata(path)
             && (metadata.file_type().is_symlink() || !metadata.is_file())
         {
             return Err(cache_invalid(path, "cache lock is not a regular file"));
         }
-        let file = OpenOptions::new()
+        OpenOptions::new()
             .read(true)
             .write(true)
             .create(true)
             .truncate(false)
             .open(path)
-            .map_err(|error| io_error(path, error))?;
+            .map_err(|error| io_error(path, error))
+    }
+
+    fn acquire_with_git_budget(
+        path: &Path,
+        executor: &GitExecutor,
+    ) -> Result<Self, SourceResolveError> {
+        let file = Self::open_git(path)?;
+        loop {
+            executor.verify_budget()?;
+            match file.try_lock() {
+                Ok(()) => break,
+                Err(std::fs::TryLockError::WouldBlock) => {
+                    let remaining = executor.remaining_time()?;
+                    std::thread::sleep(PROCESS_POLL_INTERVAL.min(remaining));
+                }
+                Err(std::fs::TryLockError::Error(error)) => {
+                    return Err(io_error(path, error));
+                }
+            }
+        }
+        if let Err(error) = executor.verify_budget() {
+            let _ = file.unlock();
+            return Err(error);
+        }
+        require_regular_file(path, "cache lock was replaced while being acquired")?;
+        Ok(Self { file })
+    }
+
+    #[cfg(test)]
+    fn acquire(path: &Path) -> Result<Self, SourceResolveError> {
+        let file = Self::open_git(path)?;
         file.lock().map_err(|error| io_error(path, error))?;
         require_regular_file(path, "cache lock was replaced while being acquired")?;
         Ok(Self { file })
@@ -3115,9 +3220,16 @@ where
         GIT_STDERR_LIMIT,
         command_timeout,
     );
-    let executable_result = executor.verify();
-    let budget_result = executor.verify_budget();
+    reconcile_git_command_result(result, executor.verify(), executor.verify_budget())
+}
+
+fn reconcile_git_command_result<T>(
+    result: Result<T, SourceResolveError>,
+    executable_result: Result<(), SourceResolveError>,
+    budget_result: Result<(), SourceResolveError>,
+) -> Result<T, SourceResolveError> {
     match (result, executable_result, budget_result) {
+        (Err(error @ SourceResolveError::GitCleanupFailed { .. }), _, _) => Err(error),
         (_, Err(error), _) => Err(error),
         (_, _, Err(error)) => Err(error),
         (result, Ok(()), Ok(())) => result,
@@ -3432,19 +3544,15 @@ fn terminate_child_bounded(
 }
 
 fn process_group_already_absent(error: &std::io::Error) -> bool {
-    if error.kind() == std::io::ErrorKind::InvalidInput {
-        return true;
-    }
     #[cfg(unix)]
     {
-        // POSIX ESRCH means the process group is gone. macOS can also report EPERM when the
-        // group leader exits between the signal and wait probes; once `try_wait` has reaped our
-        // child there is no further portable handle with which to distinguish that race.
-        matches!(error.raw_os_error(), Some(1 | 3))
+        // POSIX ESRCH alone proves that no process group exists. EPERM proves
+        // the opposite: a group exists but this resolver cannot signal it.
+        error.raw_os_error() == Some(3)
     }
     #[cfg(not(unix))]
     {
-        false
+        error.kind() == std::io::ErrorKind::InvalidInput
     }
 }
 
@@ -3709,9 +3817,14 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn bounded_command_rejects_stdout_and_stderr_overflow() {
+        assert!(matches!(
+            capture_stream_bounded(std::io::Cursor::new(vec![0_u8; 1025]), 1024),
+            StreamCaptureResult::Overflow
+        ));
         for (stream, redirect) in [("stdout", ""), ("stderr", "1>&2")] {
-            let script =
-                format!("i=0; while [ $i -lt 4096 ]; do printf x {redirect}; i=$((i + 1)); done");
+            let script = format!(
+                "i=0; while [ $i -lt 4096 ]; do printf x {redirect}; i=$((i + 1)); done; while :; do :; done"
+            );
             let mut command = shell_command(&script);
             let error = run_command_bounded(
                 &mut command,
@@ -3721,15 +3834,18 @@ mod tests {
                 Duration::from_secs(2),
             )
             .expect_err("capture overflow must fail closed");
+            let exact_overflow = matches!(
+                &error,
+                SourceResolveError::GitOutputOverflow {
+                    stream: actual,
+                    limit: 1024,
+                    ..
+                } if actual == stream
+            );
+            let fail_closed_macos_cleanup = cfg!(target_os = "macos")
+                && matches!(&error, SourceResolveError::GitCleanupFailed { .. });
             assert!(
-                matches!(
-                    error,
-                    SourceResolveError::GitOutputOverflow {
-                        stream: ref actual,
-                        limit: 1024,
-                        ..
-                    } if actual == stream
-                ),
+                exact_overflow || fail_closed_macos_cleanup,
                 "unexpected overflow error: {error:?}"
             );
         }
@@ -3863,7 +3979,7 @@ mod tests {
                 && matches!(
                     &entry.kind,
                     GitTreeEntryKind::File { bytes, .. }
-                        if bytes == b"machine Main::main() {}\n"
+                        if bytes.as_slice() == b"machine Main::main() {}\n"
                 )
         }));
 
@@ -3874,7 +3990,7 @@ mod tests {
             size: 2,
             kind: GitTreeEntryKind::File {
                 executable: false,
-                bytes: Vec::new(),
+                bytes: GitBlobBytes::empty(),
             },
         };
         let error = git_batch_output_limit(
@@ -3903,12 +4019,12 @@ mod tests {
                 size,
                 kind: if symlink {
                     GitTreeEntryKind::Symlink {
-                        target_bytes: Vec::new(),
+                        target_bytes: GitBlobBytes::empty(),
                     }
                 } else {
                     GitTreeEntryKind::File {
                         executable: false,
-                        bytes: Vec::new(),
+                        bytes: GitBlobBytes::empty(),
                     }
                 },
             }
@@ -3925,14 +4041,14 @@ mod tests {
         valid.push(b'\n');
         valid.extend_from_slice(format!("{second_oid} blob 6\n").as_bytes());
         valid.extend_from_slice(b"target\n");
-        assign_git_batch_output(&mut entries, &valid).expect("parse exact batch response");
+        assign_git_batch_output(&mut entries, valid).expect("parse exact batch response");
         assert!(matches!(
             &entries[0].kind,
-            GitTreeEntryKind::File { bytes, .. } if bytes == &[0, 255, b'\n']
+            GitTreeEntryKind::File { bytes, .. } if bytes.as_slice() == &[0, 255, b'\n']
         ));
         assert!(matches!(
             &entries[1].kind,
-            GitTreeEntryKind::Symlink { target_bytes } if target_bytes == b"target"
+            GitTreeEntryKind::Symlink { target_bytes } if target_bytes.as_slice() == b"target"
         ));
 
         for malformed in [
@@ -3946,7 +4062,7 @@ mod tests {
         ] {
             let mut one = vec![entry('a', "file.omg", 3, false)];
             assert!(matches!(
-                assign_git_batch_output(&mut one, malformed),
+                assign_git_batch_output(&mut one, malformed.to_vec()),
                 Err(SourceResolveError::GitTreeInvalid { .. })
             ));
         }
@@ -3954,7 +4070,7 @@ mod tests {
         let mut escaping_link = vec![entry('a', "link", 2, true)];
         let response = format!("{first_oid} blob 2\n..\n");
         assert!(matches!(
-            assign_git_batch_output(&mut escaping_link, response.as_bytes()),
+            assign_git_batch_output(&mut escaping_link, response.into_bytes()),
             Err(SourceResolveError::GitTreeInvalid { .. })
         ));
     }
@@ -4869,7 +4985,7 @@ mod tests {
             size: 1,
             kind: GitTreeEntryKind::File {
                 executable: false,
-                bytes: Vec::new(),
+                bytes: GitBlobBytes::empty(),
             },
         }];
         let error = read_git_blobs_batch(
@@ -4959,6 +5075,56 @@ mod tests {
         assert!(lock_path.is_file());
 
         let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn git_cache_lock_wait_obeys_the_whole_resolution_budget() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let root = temp_root("git-lock-budget");
+        std::fs::create_dir_all(&root).expect("create lock budget root");
+        let lock_path = root.join("entry.lock");
+        let held = CacheEntryLock::acquire(&lock_path).expect("hold cache lock");
+        let fake_git = root.join("git");
+        std::fs::write(&fake_git, b"#!/bin/sh\nexit 0\n").expect("write fake Git");
+        std::fs::set_permissions(&fake_git, std::fs::Permissions::from_mode(0o700))
+            .expect("make fake Git executable");
+        let executor = GitExecutor::open_with_budget(&fake_git, 1, Duration::from_millis(30))
+            .expect("capture time-bounded Git");
+
+        assert!(matches!(
+            CacheEntryLock::acquire_with_git_budget(&lock_path, &executor),
+            Err(SourceResolveError::GitResolutionTimedOut { .. })
+        ));
+
+        drop(held);
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn only_esrch_proves_a_process_group_is_absent() {
+        assert!(process_group_already_absent(
+            &std::io::Error::from_raw_os_error(3)
+        ));
+        assert!(!process_group_already_absent(
+            &std::io::Error::from_raw_os_error(1)
+        ));
+    }
+
+    #[test]
+    fn cleanup_failure_outranks_whole_resolution_expiry() {
+        let result: Result<(), _> = Err(SourceResolveError::GitCleanupFailed {
+            operation: "test".to_owned(),
+            message: "process group may remain".to_owned(),
+        });
+        let budget = Err(SourceResolveError::GitResolutionTimedOut { timeout_millis: 1 });
+
+        assert!(matches!(
+            reconcile_git_command_result(result, Ok(()), budget),
+            Err(SourceResolveError::GitCleanupFailed { .. })
+        ));
     }
 
     #[test]

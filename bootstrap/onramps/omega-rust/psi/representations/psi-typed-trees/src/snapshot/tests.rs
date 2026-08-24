@@ -175,11 +175,13 @@ fn snapshots_normalized_machine_supply_including_external_binding_identity() {
             binding,
             mechanism: psi_language_semantics::ExternalBindingMechanism::CompilerIntrinsic,
         },
+        body_is_present: false,
         ..Machine::default()
     });
 
     let snapshot = TypedTreesSnapshot::from_typed_trees(&program);
     assert!(snapshot.roots.machines[0].is_public);
+    assert!(snapshot.roots.machines[0].body_is_present);
     assert_eq!(
         snapshot.roots.machines[0].supply,
         MachineSupplySnapshot::CheckedBody
@@ -191,6 +193,7 @@ fn snapshots_normalized_machine_supply_including_external_binding_identity() {
             mechanism: "compiler_intrinsic"
         }
     );
+    assert!(!snapshot.roots.machines[1].body_is_present);
     assert_eq!(snapshot.external_bindings.len(), 1);
     assert_eq!(snapshot.external_bindings[0].identity, 1);
     assert_eq!(

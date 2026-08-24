@@ -1812,6 +1812,7 @@ fn build_service_reach_facts(
                 published_ceiling: machine.published,
                 inferred_direct: machine.inferred_direct,
                 inferred_transitive: machine.inferred_transitive,
+                concrete_transitive: machine.concrete_transitive,
                 effective: machine.effective,
                 concrete_effective: machine.concrete_effective,
                 unresolved_installation_reaches: machine.unresolved_installation_reaches,
