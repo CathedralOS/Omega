@@ -5,7 +5,8 @@ use crate::{
     package_compilation_inputs_for,
 };
 use omega_compiler::{
-    CheckedPackageReviewProjection, PackageCompilationInputError, PackageReviewEncodingError,
+    CheckedPackageReviewProjection, CompilerExecutableCommitment,
+    CompilerExecutableCommitmentError, PackageCompilationInputError, PackageReviewEncodingError,
     PackageSourceConsumptionCommitment, compile_to_checked_with_packages_in_build_dir,
     project_checked_package_review,
 };
@@ -23,6 +24,7 @@ use std::path::{Path, PathBuf};
 pub struct CompilerIssuedPackageReview {
     key: PackageKey,
     resolution: ImmutableSourceResolution,
+    compiler_executable_commitment: CompilerExecutableCommitment,
     source_consumption_commitment: PackageSourceConsumptionCommitment,
     projection: CheckedPackageReviewProjection,
     canonical_review_bytes: Vec<u8>,
@@ -35,6 +37,10 @@ impl CompilerIssuedPackageReview {
 
     pub fn resolution(&self) -> &ImmutableSourceResolution {
         &self.resolution
+    }
+
+    pub const fn compiler_executable_commitment(&self) -> CompilerExecutableCommitment {
+        self.compiler_executable_commitment
     }
 
     pub const fn source_consumption_commitment(&self) -> PackageSourceConsumptionCommitment {
@@ -65,6 +71,12 @@ pub enum PackageSourceVerificationPhase {
     AfterCompilation,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CompilerExecutableVerificationPhase {
+    BeforeCompilation,
+    AfterCompilation,
+}
+
 impl CompilerIssuedPackageReviewSet {
     pub fn reviews(&self) -> &[CompilerIssuedPackageReview] {
         &self.reviews
@@ -77,6 +89,14 @@ impl CompilerIssuedPackageReviewSet {
 
 #[derive(Debug)]
 pub enum CompileResolvedPackageReviewsError {
+    CompilerExecutable {
+        phase: CompilerExecutableVerificationPhase,
+        error: CompilerExecutableCommitmentError,
+    },
+    CompilerExecutableDrift {
+        before: CompilerExecutableCommitment,
+        after: CompilerExecutableCommitment,
+    },
     SourceCustody {
         compiling_package: PackageKey,
         source_package: PackageKey,
@@ -114,6 +134,14 @@ pub enum CompileResolvedPackageReviewsError {
 impl fmt::Display for CompileResolvedPackageReviewsError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::CompilerExecutable { phase, error } => write!(
+                formatter,
+                "compiler executable verification failed {phase:?}: {error}"
+            ),
+            Self::CompilerExecutableDrift { .. } => write!(
+                formatter,
+                "compiler executable bytes changed while package reviews were being produced"
+            ),
             Self::SourceCustody {
                 compiling_package,
                 source_package,
@@ -190,6 +218,13 @@ pub fn compile_resolved_package_reviews(
     target: &str,
     build_root: &Path,
 ) -> Result<CompilerIssuedPackageReviewSet, CompileResolvedPackageReviewsError> {
+    let compiler_executable_commitment =
+        CompilerExecutableCommitment::derive_current().map_err(|error| {
+            CompileResolvedPackageReviewsError::CompilerExecutable {
+                phase: CompilerExecutableVerificationPhase::BeforeCompilation,
+                error,
+            }
+        })?;
     let mut reviews = Vec::with_capacity(closure.custodies().len());
     for key in dependency_first_package_order(closure) {
         verify_transitive_source_custody(
@@ -255,10 +290,26 @@ pub fn compile_resolved_package_reviews(
         reviews.push(CompilerIssuedPackageReview {
             key,
             resolution: custody.resolution().clone(),
+            compiler_executable_commitment,
             source_consumption_commitment,
             projection,
             canonical_review_bytes,
         });
+    }
+    let compiler_executable_commitment_after = CompilerExecutableCommitment::derive_current()
+        .map_err(
+            |error| CompileResolvedPackageReviewsError::CompilerExecutable {
+                phase: CompilerExecutableVerificationPhase::AfterCompilation,
+                error,
+            },
+        )?;
+    if compiler_executable_commitment_after != compiler_executable_commitment {
+        return Err(
+            CompileResolvedPackageReviewsError::CompilerExecutableDrift {
+                before: compiler_executable_commitment,
+                after: compiler_executable_commitment_after,
+            },
+        );
     }
     Ok(CompilerIssuedPackageReviewSet { reviews })
 }

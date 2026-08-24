@@ -286,6 +286,16 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
         .unwrap_or_else(|error| panic!("{package} package reviews should close: {error:#?}"));
 
         assert_eq!(reviews.reviews().len(), closure.graph().packages().len());
+        let compiler_executable_commitment = reviews
+            .reviews()
+            .first()
+            .expect("nonempty package closure receives review material")
+            .compiler_executable_commitment();
+        assert_ne!(
+            compiler_executable_commitment.digest(),
+            [0; 32],
+            "review set must identify its observed producer executable"
+        );
         for node in closure.graph().packages() {
             let custody = closure
                 .custody(node.source().key())
@@ -294,6 +304,11 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
                 .review(node.source().key())
                 .expect("every resolved graph package receives compiler review material");
             assert_eq!(issued.resolution(), custody.resolution());
+            assert_eq!(
+                issued.compiler_executable_commitment(),
+                compiler_executable_commitment,
+                "every row in one review operation must retain the same producer executable"
+            );
             assert_ne!(
                 issued.source_consumption_commitment().digest(),
                 [0; 32],
