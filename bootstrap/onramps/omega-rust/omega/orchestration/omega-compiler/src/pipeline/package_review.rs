@@ -902,6 +902,11 @@ impl PackageReviewNominalIdentity {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackageReviewDangerousAuthorityClass {
     Filesystem,
+    MachineControl,
+    PortIo,
+    InterruptControl,
+    InterruptEntry,
+    RootMemory,
 }
 
 /// One exact reached/invoked service whose compiler-owned metadata marks it as
@@ -1729,6 +1734,21 @@ fn dangerous_authority_class(
     ) {
         (path, "FilesystemHost") if path == std::path::Path::new("filesystem_host.omg") => {
             Some(PackageReviewDangerousAuthorityClass::Filesystem)
+        }
+        (path, "MachineControl") if path == std::path::Path::new("assembly.omg") => {
+            Some(PackageReviewDangerousAuthorityClass::MachineControl)
+        }
+        (path, "PortIo") if path == std::path::Path::new("assembly.omg") => {
+            Some(PackageReviewDangerousAuthorityClass::PortIo)
+        }
+        (path, "InterruptMaskControl") if path == std::path::Path::new("interrupt.omg") => {
+            Some(PackageReviewDangerousAuthorityClass::InterruptControl)
+        }
+        (path, "InterruptEntry") if path == std::path::Path::new("interrupt.omg") => {
+            Some(PackageReviewDangerousAuthorityClass::InterruptEntry)
+        }
+        (path, "ExtentRootProvider") if path == std::path::Path::new("extent.omg") => {
+            Some(PackageReviewDangerousAuthorityClass::RootMemory)
         }
         _ => None,
     }

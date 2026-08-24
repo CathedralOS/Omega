@@ -43,9 +43,10 @@ real package fixture demonstrates an irreducible external contract.
   changes produce exact conflicts; retained dangerous authority always
   recommends code audit.
 - Dangerous-authority review classes come from compiler-owned metadata joined
-  to exact reached/invoked service identities. The first implemented row marks
-  the canonical toolchain `FilesystemHost`; package-authored lookalikes and
-  similarly named local traits do not acquire the class.
+  to exact reached/invoked service identities. Implemented rows mark canonical
+  toolchain filesystem, machine-control, port-I/O, interrupt-control,
+  interrupt-entry, and root-memory services; package-authored lookalikes and
+  similarly named local traits do not acquire a class.
 - Claim-free opaque boundary data remains visible as package-qualified
   representation-TCB evidence. Introduction or material change recommends
   code/ABI audit without becoming a trust claim unless exact mechanism,
