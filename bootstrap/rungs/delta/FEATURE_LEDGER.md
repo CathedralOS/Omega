@@ -10,6 +10,12 @@ entry must then identify exact semantics, lower-rung meaning, positive coverage,
 and a negative gate for the nearest excluded form. Unused constructs are removed
 before the v1 freeze.
 
+This ledger is not the `Ωself` profile. `Ωself` records which ordinary Omega
+features the production compiler source uses and `omega-bootstrap` must accept;
+this file records which Delta facilities are justified by the implementation of
+that bridge. A feature excluded from one surface is not thereby excluded from,
+or admitted to, the other.
+
 ## Fixed constraints
 
 - deterministic specified behavior, with no undefined behavior;

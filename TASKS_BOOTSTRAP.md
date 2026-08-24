@@ -212,9 +212,9 @@ define a language contract.
 The remaining bootstrap dependencies are:
 
 ```text
-provisional Delta profile ◀──▶ omega-bootstrap source ──▶ Delta v1 freeze
-                                      ▲
-production compiler source ──▶ Ωself ┘
+production compiler source ──▶ Ωself ──┐
+                                         ▼
+provisional Delta ledger ◀──▶ omega-bootstrap source ──▶ Delta v1 freeze
 
 Delta v1 + omega-bootstrap + Ωself ──▶ hosted production build
 
@@ -229,44 +229,30 @@ feature decision belongs to Delta v1; an Omega feature used or rejected by the
 production compiler source belongs to `Ωself`. Do not solve one contract by
 silently widening the other.
 
-- [ ] **Discover and freeze Delta's literal compiler-host specification.**
+- [ ] **Maintain Delta's provisional compiler-host feature ledger.**
   There is no remaining owner-level feature-list ruling. The fixed constraints
   are deterministic specified behavior, no undefined behavior or ambient host
   authority, specified failure, lower-rung meaning for every admitted construct,
   and Omega spelling/ordinary meaning where Delta retains the same construct.
-  Derive the smallest coherent v1 surface from the complete `omega-bootstrap`
-  source closure:
+  This task co-evolves with the bridge; it is not a prerequisite freeze:
   - [ ] maintain a provisional feature ledger naming the concrete bridge need,
     simpler rejected alternative, and meaning/gate coverage for every admitted
     construct, beginning with
     [`bootstrap/rungs/delta/FEATURE_LEDGER.md`](bootstrap/rungs/delta/FEATURE_LEDGER.md);
   - [ ] treat D0, the sample corpus, and Rust-producer acceptance as discovery
-    evidence only; remove every unused or accidental feature before the freeze;
+    evidence only, never as admission to Delta v1;
   - [ ] test whether Exact arithmetic, fixed arrays, direct tags, and a sealed
     compiler-host interface suffice before retaining general arithmetic
     policies, allocators, sum machinery, or boundary traits;
-  - [ ] publish versioned normative grammar, static/dynamic semantics,
-    representation/ABI, source-bundle, and retained resource/host-interface
-    documents under `bootstrap/rungs/delta/`; do not require an allocation or
-    boundary-trait subsystem when the final bridge does not retain one;
-  - [ ] reject every excluded source, type, module, boundary, and resource form
-    explicitly;
-  - [ ] align every retained arithmetic, layout, call, allocation, trap, and I/O
-    edge across native targets, the Delta self-host, and the Rust-free
-    Delta-to-Gamma meaning route;
+  - [ ] keep every provisionally used arithmetic, layout, call, allocation,
+    trap, and I/O edge aligned across native targets, the Delta self-host, and
+    the Rust-free Delta-to-Gamma meaning route;
   - [ ] replace newline-concatenated source input with the ruled deterministic,
-    byte-preserving source-unit/bundle contract; and
-  - [ ] publish a classified conformance corpus and feature manifest with
-    positive observations, one phase-isolated negative per exclusion,
-    exhaustion teeth for every retained resource mechanism, cross-target
-    layout/arithmetic edges, and
-    native/self-host/lower-rung differentials.
+    byte-preserving source-unit/bundle contract.
 
-  Acceptance: the literal Delta v1 contract is self-consistent, mechanically
-  enforced, and contains the complete deterministic `omega-bootstrap` source
-  closure. It has no feature justified only by the current producer or corpus.
-  Later widening is an explicit versioned language change, never silent bridge
-  pressure.
+  Acceptance: every currently used bridge construct has a concrete need, a
+  recorded simpler alternative, explicit semantics, and live lower-rung/gate
+  coverage. No provisional construct is presented as frozen Delta v1.
 
 **External input, not a bootstrap task:**
 `OMEGA-PRODUCT-COMPILER-SOURCE` in `TASKS.md` owns the Omega-written product
@@ -276,8 +262,9 @@ implementation work must not be duplicated here. Compiler-adjacent tools are
 outside that manifest unless the compiler executable imports them.
 
 - [ ] **Derive and freeze the Omega self-hosting profile (`Ωself`).**
-  Blocked only on the exact production-compiler source manifest above. Standard
-  library samples and current Rust source cannot substitute for it.
+  Dependency: the exact production-compiler source manifest above must exist
+  before the profile can freeze. Standard library samples and current Rust
+  source cannot substitute for it; provisional bridge work may continue.
   - [ ] measure every feature used by the complete source closure against its
     production-source benefit and its Delta implementation/assurance cost;
   - [ ] freeze compositional syntax, static-semantics, resource, ABI/layout, and
@@ -302,8 +289,9 @@ outside that manifest unless the compiler executable imports them.
   bridge by general capabilities required by the product source rather than by
   hard-coded source permutations.
   - [ ] publish the complete deterministic Delta source manifest and prove each
-    transitive unit valid under the provisional profile, then under frozen Delta
-    v1; one entry source file alone is not the closure;
+    transitive unit valid under the provisional profile; final validity under
+    frozen Delta v1 belongs to the subsequent freeze task, and one entry source
+    file alone is not the closure;
   - [ ] accept exactly `Ωself` with general parsing, checking, diagnostics,
     terminal representation, and conservative lowering;
   - [ ] reject unsupported Omega before artifact publication;
@@ -315,6 +303,28 @@ outside that manifest unless the compiler executable imports them.
   Acceptance: the bridge compiles every admitted `Ωself` program with exact
   Omega semantics. It need not accept full Omega, optimize its own output, use
   the production allocator architecture, or host unrelated product tools.
+
+- [ ] **Freeze Delta v1 from the complete `omega-bootstrap` source closure.**
+  This follows implementation of the complete bridge source, although normative
+  documents and conformance gates should be maintained while it grows.
+  - [ ] trace every retained construct to the deterministic bridge manifest and
+    remove every unused or accidental D0, corpus, or Rust-producer feature;
+  - [ ] publish versioned normative grammar, static/dynamic semantics,
+    representation/ABI, source-bundle, and retained resource/host-interface
+    documents under `bootstrap/rungs/delta/`;
+  - [ ] reject every excluded source, type, module, boundary, and resource form
+    explicitly;
+  - [ ] publish a classified conformance corpus and feature manifest with
+    positive observations, one phase-isolated negative per exclusion,
+    exhaustion teeth for every retained resource mechanism, cross-target
+    layout/arithmetic edges, and native/self-host/lower-rung differentials; and
+  - [ ] prove the complete deterministic `omega-bootstrap` source closure valid
+    under the frozen contract.
+
+  Acceptance: the literal Delta v1 contract is self-consistent, mechanically
+  enforced, and sufficient for the complete bridge closure. It contains no
+  feature justified only by the current producer or corpus. Later widening is
+  an explicit versioned language change, never silent bridge pressure.
 
 - [ ] **Validate Delta → `omega-bootstrap`.**
   Gate the complete Delta source closure, exact `Ωself` coverage,

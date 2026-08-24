@@ -137,7 +137,7 @@ and its remaining compatibility paths are:
 | `bootstrap/assurance/proof-kernel/` (compatibility: `compiler/proof-kernel`) | `bootstrap/assurance/proof-kernel/{implementations,tools,corpus,gates}/` — complete |
 | Beta-source/Alpha-artifact refinement tools (compatibility entries under Alpha) | `bootstrap/assurance/refinement/beta/` — complete |
 | bridge meaning/artifact TV encoders and gates | `bootstrap/assurance/refinement/omega-bootstrap/` — complete |
-| historical `bootstrap/omega0/` owner name | `bootstrap/omega-bootstrap/{meaning,compiler,gates}/` — rename complete, compiler implementation open |
+| historical `bootstrap/omega0/` references | `bootstrap/omega-bootstrap/{meaning,compiler,gates}/` — rename complete; no live `omega0` owner path, compiler implementation open |
 | `bootstrap/corpus/` (compatibility: `compiler/lattice-corpus`) | `bootstrap/corpus/` — complete |
 | eventual Omega-written Psi/Omega compiler | `compiler/{psi,omega}/` — roots reserved; implementation open |
 

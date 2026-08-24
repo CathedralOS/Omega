@@ -20,7 +20,7 @@ independent low-rung proof kernel checks, not by trusting the Rust producer.
 
 ## What the refinement pillar proved transferable
 
-| Technique (proved at α/bc) | ω-rung analogue |
+| Technique (proved at α/bc) | Hosted-Omega analogue |
 | --- | --- |
 | **Two untrusted derivations, kernel-checked equal** — `alpha_symbolic` (what the code does) vs `beta_symbolic` (what the source means), checked by the low kernel | `omega_symbolic` (what elaborated Gamma does) vs an Omega-source meaning derivation; the same kernel-checked equality shape |
 | **Meaning-language constructors instead of kernel surgery** — ℤ pairs `(k 5 ..)`, monus `(k 6 ..)`, stream `(k 7/8 ..)`: plain constructors to the kernel, semantics carried by pinned evaluators | Omega values (structs, cases, strings, capabilities) enter the meaning language the same way — constructor families + pinned evaluators, δ untouched |
