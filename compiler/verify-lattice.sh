@@ -1,1 +1,0 @@
-../bootstrap/verify-lattice.sh

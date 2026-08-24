@@ -27,5 +27,5 @@ sh bootstrap/onramps/alpha-assembler-rust/test.sh
 It compares the Rust output with the lattice-built assembler over the
 self-hosting assembler and example corpus, checks the Rust-only historical
 numeric transport and file
-arguments, and pins fail-closed malformed-input behavior. `compiler/beta-rs` is
-a historical compatibility symlink to this directory.
+arguments, and pins fail-closed malformed-input behavior. The former
+`compiler/beta-rs` compatibility entry has been retired.

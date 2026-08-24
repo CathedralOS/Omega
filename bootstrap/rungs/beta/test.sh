@@ -22,7 +22,7 @@ fi
 cd "$OMEGA_GATE_DIR"
 . "${OMEGA_PATH_ALPHA}"/seed_env.sh
 SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
-ASM="${OMEGA_PATH_BETA_ASSEMBLER}"/$BETA_SEED
+ASM="${OMEGA_PATH_ALPHA_ASSEMBLER}"/$BETA_SEED
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 
 # An explicit executable remains injectable for producer diagnostics. The

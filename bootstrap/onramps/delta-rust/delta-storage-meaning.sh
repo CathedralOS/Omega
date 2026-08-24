@@ -24,7 +24,7 @@ cd "$OMEGA_GATE_DIR"
 SAMPLES="$OMEGA_PATH_DELTA/samples"
 . "${OMEGA_PATH_BETA}"/artifact_env.sh
 SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
-ASM="${OMEGA_PATH_BETA_ASSEMBLER}"/$BETA_SEED
+ASM="${OMEGA_PATH_ALPHA_ASSEMBLER}"/$BETA_SEED
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 
 stamp_beta_compiler "$T/bc.exe" >/dev/null \

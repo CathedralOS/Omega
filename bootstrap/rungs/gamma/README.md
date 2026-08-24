@@ -73,8 +73,8 @@ must not grow into a second meaning path.
 
 The parked files remain co-located for compatibility only. Their classification,
 not their host-language suffix or directory proximity, determines their
-architectural role. `compiler/gamma` is a historical compatibility symlink to
-this directory.
+architectural role. The former `compiler/gamma` compatibility entry has been
+retired.
 
 See [LANGUAGE.md](LANGUAGE.md) for the canonical surface and
 [`rungs/gamma.md`](../../../wiki/architecture/bootstrap_lattice/rungs/gamma.md) for

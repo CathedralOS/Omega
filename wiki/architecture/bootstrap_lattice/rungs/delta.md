@@ -47,7 +47,7 @@ compiler-host feasibility, not completeness of the latter.
 - `bootstrap/rungs/delta/samples/lowermachine.alp` is the self-hosting compiler
   written in Delta.
 - `bootstrap/onramps/delta-rust/` is the current disposable Rust producer and
-  executable reference. `compiler/delta-rs` remains a compatibility symlink.
+  executable reference. The former `compiler/delta-rs` entry is retired.
 - `DELTA_EMIT=gamma` exposes the Rust reference elaborator. The
   `delta-meaning-diamond.sh` gate compares it with native execution; it is useful
   regression evidence, not the final authority.
@@ -57,7 +57,7 @@ compiler-host feasibility, not completeness of the latter.
   `omega-bootstrap` remains
   the closure criterion.
 - `bootstrap/rungs/delta/build/` contains the checked-in bootstrap binaries
-  produced by this work. `compiler/delta` is a compatibility symlink.
+  produced by this work.
 - `bootstrap/rungs/delta/samples/bootstrap-storage.alp` is the first fixed-backing
   storage profile canary. It uses checked integer-offset reservations and bulk
   reset without adding pointers or a general heap to Delta.

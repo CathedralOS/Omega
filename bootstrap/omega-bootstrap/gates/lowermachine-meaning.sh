@@ -31,7 +31,7 @@ stamp_beta_compiler "$T/bc.exe" >/dev/null || {
   echo "lowermachine meaning: Beta compiler artifact unavailable" >&2
   exit 1
 }
-ASM="$OMEGA_PATH_BETA_ASSEMBLER/$BETA_SEED"
+ASM="$OMEGA_PATH_ALPHA_ASSEMBLER/$BETA_SEED"
 build_beta() {
   "$T/bc.exe" < "$1" > "$T/program.asm" 2>/dev/null \
     && "$ASM" < "$T/program.asm" > "$T/program.tape" 2>/dev/null \

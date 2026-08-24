@@ -1,12 +1,12 @@
 #!/usr/bin/env sh
 # OMEGA KERNEL DIAMOND — delta's meaning, now with RUST OFF the meaning route.
 #
-# The delta-meaning diamond (delta-rs/delta-meaning-diamond.sh) already pins delta's meaning
+# The delta-meaning diamond (delta-rust/delta-meaning-diamond.sh) already pins delta's meaning
 # against native execution — but its translator, gamma_emit.rs, is RUST, so Rust still sat on the
 # meaning side. This diamond removes it: omega/omega2gamma.beta is a Rust-FREE delta->gamma
 # translator (built alpha->beta->bc, the same lineage as interp.beta). Each program is run TWO ways
 # and the exit codes must agree:
-#   (1) NATIVE     — compiled by the delta-rs aarch64 backend and executed (the reference)
+#   (1) NATIVE     — compiled by the delta-rust aarch64 backend and executed (the reference)
 #   (2) OMEGA2GAMMA  — omega2gamma.beta (Rust-free) translates it to gamma; interp.beta (Rust-free) runs it
 # Both artifacts on route (2) execute without Rust, so Delta's supported meaning
 # subset has a Rust-free steady route. The bc cold-start refinement edge remains
@@ -41,7 +41,7 @@ T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 # Rust-free steady execution via the persisted lattice Beta compiler artifact.
 . "${OMEGA_PATH_BETA}"/artifact_env.sh
 SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
-ASM="${OMEGA_PATH_BETA_ASSEMBLER}"/$BETA_SEED
+ASM="${OMEGA_PATH_ALPHA_ASSEMBLER}"/$BETA_SEED
 stamp_beta_compiler "$T/bc.exe" >/dev/null || { echo "omega kernel diamond FAIL — Beta compiler artifact"; exit 1; }
 BC="$T/bc.exe"
 build_beta() { # src.beta  ->  out.exe   (bc -> assemble -> stamp)

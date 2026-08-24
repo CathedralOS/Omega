@@ -19,7 +19,7 @@ fi
 cd "$OMEGA_GATE_DIR"
 SEED="${OMEGA_PATH_ALPHA}"/alpha_x64_windows.exe
 mkdir -p build
-"${OMEGA_PATH_BETA_ASSEMBLER}"/beta_x64_windows.exe < gamma.alpha > build/gamma.tape
+"${OMEGA_PATH_ALPHA_ASSEMBLER}"/beta_x64_windows.exe < gamma.alpha > build/gamma.tape
 L=$(wc -c < build/gamma.tape)
 [ $((L + 4)) -le 32768 ] || { echo "FAIL: gamma tape is $L B, exceeds the seed's 32 KB hole" >&2; exit 1; }
 cp "$SEED" gamma_x64_windows.exe

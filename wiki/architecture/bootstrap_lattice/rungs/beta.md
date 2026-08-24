@@ -35,8 +35,8 @@ dependency closure; authority comes from that separate refinement check.
 
 The Alpha assembler formerly lived in `compiler/beta/`, but it is an Alpha tool:
 it is written in Alpha assembly and translates Alpha assembly to Alpha tapes.
-Its canonical owner is now `bootstrap/rungs/alpha/assembler/`; `compiler/beta`
-is only a compatibility symlink. “Beta” without qualification means the
+Its canonical owner is now `bootstrap/rungs/alpha/assembler/`; the old entry is
+retired. “Beta” without qualification means the
 structured language compiled by `bc`.
 
 ## Must not contain
@@ -51,12 +51,10 @@ Beta remains a small compiler-construction substrate with raw memory.
 
 - `bootstrap/rungs/alpha/assembler/assembler.alpha` — self-hosting Alpha assembler;
 - `bootstrap/rungs/beta/bc.beta` — self-hosting Beta compiler;
-- `bootstrap/onramps/beta-rust/` — retained Rust diagnostic/reference producer
-  (`compiler/beta-lang-rs` is a compatibility path);
+- `bootstrap/onramps/beta-rust/` — retained Rust diagnostic/reference producer;
 - `bootstrap/rungs/beta/reference/` — executable Python reference meaning,
   parser, and semantic fuzzing;
 - `bootstrap/assurance/refinement/beta/` — symbolic/refinement reconstruction;
-- `compiler/beta-lang-py/` — compatibility forwarding entry points only;
 - `bootstrap/rungs/beta/CALLING_CONVENTION.md` — Beta's frame and register
   discipline over Alpha;
 - `bootstrap/rungs/beta/LANGUAGE.md` — current Beta surface.

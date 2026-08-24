@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 # RUST-FREE REFERENCE-ROUTE CONVERGENCE — the proof-carrying loop with NO Rust anywhere.
 #
-# delta-rs/convergence-reference.sh runs a certifier down the MEANING route, but its delta->gamma
+# delta-rust/convergence-reference.sh runs a certifier down the MEANING route, but its delta->gamma
 # translator is `DELTA_EMIT=gamma` (Rust gamma_emit.rs). This is the same loop with that last Rust step
 # removed: `omega2gamma.beta` (Rust-free, alpha->beta->bc) translates the certifier to gamma,
 # `gamma/interp.beta` (Rust-free) EXECUTES it and emits the certificate, and `proof-kernel/check.beta` (Rust-free)
@@ -37,7 +37,7 @@ fi
 cd "$OMEGA_GATE_DIR"
 . "${OMEGA_PATH_BETA}"/artifact_env.sh
 SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
-ASM="${OMEGA_PATH_BETA_ASSEMBLER}"/$BETA_SEED
+ASM="${OMEGA_PATH_ALPHA_ASSEMBLER}"/$BETA_SEED
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 stamp_beta_compiler "$T/bc.exe" >/dev/null || { echo "convergence-reference(rust-free) FAIL — Beta compiler artifact"; exit 1; }
 b() { "$T/bc.exe" < "$1" > "$T/x.asm" 2>/dev/null && "$ASM" < "$T/x.asm" > "$T/x.tape" 2>/dev/null && stamp_seed "$T/x.tape" "$SEED" "$2" >/dev/null 2>&1; }

@@ -1,7 +1,7 @@
 # Delta Rust on-ramp
 
-The `-rust` suffix marks this as the external-language on-ramp for the Delta rung
-(`-rs` survives only in historical compatibility paths):
+The `-rust` suffix marks this as the external-language on-ramp for the Delta rung;
+the former `-rs` compatibility spelling has been retired:
 it compiles the current experimental `.alp` surface (state **machines**, **data**
 structs, **transition** dispatch, and payload **enums**) to a native binary to
 discover what the bridge language needs. It is an interim producer and
@@ -13,7 +13,7 @@ monomorphic so the port down to the lattice is mechanical.
 > **Naming note.** Header, extension (`.alp`), and a few "Alpha" mentions in older
 > samples are inherited from the `alpha-rs` README this was forked from — they do
 > **not** mean this is the 21-opcode tape-VM *alpha* (owned by
-> `bootstrap/rungs/alpha/`; `compiler/alpha` is a compatibility path).
+> `bootstrap/rungs/alpha/`).
 > This builds the richer machines/data/transition language and is gated as
 > **Delta** in `verify-lattice.sh`.
 

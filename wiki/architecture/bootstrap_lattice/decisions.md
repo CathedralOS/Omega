@@ -144,8 +144,8 @@ between implementations unnecessarily creates a second compiler to maintain and
 conflates reproducibility with correctness.
 
 The current `bc` cold start no longer passes through
-`bootstrap/onramps/beta-rust/` (`compiler/beta-lang-rs` is a compatibility
-path). An Alpha-written compiler accepts the exact pinned `bc.beta` surface,
+`bootstrap/onramps/beta-rust/`. An Alpha-written compiler accepts the exact
+pinned `bc.beta` surface,
 reconstructs the persisted fixed-point tape, and runs the complete Beta corpus.
 That closes the external-producer dependency and establishes reproducible
 lineage. The separate lower-rooted refinement gate now establishes source
@@ -159,8 +159,8 @@ The dedicated `compiler/beta-lang-py` comparison gate and `bc2.py` backend have
 been removed because they supplied no unique semantic or refinement coverage. Shared
 source recognition and executable meaning now live under
 `bootstrap/rungs/beta/reference/`; symbolic reconstruction lives under
-`bootstrap/assurance/refinement/beta/`. `compiler/beta-lang-py/` is compatibility
-plumbing only.
+`bootstrap/assurance/refinement/beta/`. The forwarding facade under
+`compiler/beta-lang-py/` has been retired.
 
 Independent Alpha realizations and independent proof-kernel implementations are
 conformance and soundness cross-checks against explicit
@@ -284,13 +284,12 @@ translation-validation gates remain responsible for detecting it.
 
 `bootstrap/onramps/delta-rust/` is Delta's disposable Rust implementation;
 `bootstrap/rungs/delta/` owns the language corpus, the self-hosted
-`lowermachine.alp`, and lattice-built artifacts. `compiler/delta-rs` and
-`compiler/delta` are compatibility paths. The self-host and meaning diamond
-remain principal gates.
+`lowermachine.alp`, and lattice-built artifacts. The former `compiler/delta-rs`
+and `compiler/delta` compatibility entries are retired. The self-host and
+meaning diamond remain principal gates.
 
 The certificate checker is renamed the **proof kernel**. Its canonical owner is
-`bootstrap/assurance/proof-kernel/`; `compiler/proof-kernel` is a compatibility
-path. It remains a trusted assurance service with
+`bootstrap/assurance/proof-kernel/`. It remains a trusted assurance service with
 Beta and Gamma implementations. The rename changes neither its authority nor its
 validation gates; it removes the false claim that proof checking is a language
 stage between Gamma and Delta.

@@ -11,9 +11,8 @@ The proof kernel is deliberately not a language rung. Programs do not elaborate
 through it, and it adds no stage between Gamma and Delta. It is an assurance
 service used by producers and artifact verifiers throughout the build lattice.
 
-Its canonical owner is `bootstrap/assurance/proof-kernel/`;
-`compiler/proof-kernel` is a compatibility path. Beta, Gamma, and executable
-reference implementations live under `implementations/`; untrusted automation,
+Its canonical owner is `bootstrap/assurance/proof-kernel/`. Beta, Gamma, and
+executable reference implementations live under `implementations/`; untrusted automation,
 fixtures, and executable policy live under `tools/`, `corpus/`, and `gates/`.
 The
 product-specific `psi-proof-kernel` remains under Psi semantics; it checks Psi

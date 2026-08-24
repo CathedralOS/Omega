@@ -4,7 +4,7 @@
 # rungs/delta.md: delta's meaning is "Written in Delta/Gamma" -- defined by the reference
 # interpreter, not the native (Rust on-ramp) backend. This diamond pins that meaning for the
 # supported subset (straight-line integer code AND state machines): a Delta program is run TWO ways and the exit codes must match:
-#   (1) NATIVE   -- compiled by the delta-rs aarch64 backend and executed
+#   (1) NATIVE   -- compiled by the delta-rust aarch64 backend and executed
 #   (2) GAMMA    -- `DELTA_EMIT=gamma` translates it to a gamma expression, which the Rust-FREE
 #                   reference interpreter (interp.beta, built by the alpha->beta->bc pipeline) runs
 # Agreement is evidence delta's native execution and its lattice-defined meaning coincide -- the
@@ -37,7 +37,7 @@ T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 # the gamma reference interpreter, built by the persisted lattice Beta compiler
 . "${OMEGA_PATH_BETA}"/artifact_env.sh
 SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
-ASM="${OMEGA_PATH_BETA_ASSEMBLER}"/$BETA_SEED
+ASM="${OMEGA_PATH_ALPHA_ASSEMBLER}"/$BETA_SEED
 stamp_beta_compiler "$T/bc.exe" >/dev/null \
   || { echo "delta-meaning diamond FAIL — Beta compiler artifact"; exit 1; }
 if "$T/bc.exe" < "${OMEGA_PATH_GAMMA}"/interp.beta > "$T/i.asm" 2>/dev/null \

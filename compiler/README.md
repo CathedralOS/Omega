@@ -1,4 +1,4 @@
-# `compiler/` — product compilers and bootstrap compatibility paths
+# `compiler/` — product compiler source
 
 Omega is rebuilt from a small audited seed through increasingly capable
 languages, then through one deliberately profile-limited hosted edge:
@@ -48,20 +48,15 @@ translation validation supply the assurance.
 | **Delta** | independent systems/compiler-host language that can build `omega-bootstrap` | self-host, native corpus, Delta-to-Gamma meaning diamond |
 
 The Greek names and order are fixed language roles. The Alpha assembler now
-lives at `bootstrap/rungs/alpha/assembler/`; historical `compiler/beta` is only
-a compatibility path. Beta proper is the language compiled by
-`bootstrap/rungs/beta/bc.beta`; `compiler/beta-lang` is also only a
-compatibility path.
+lives at `bootstrap/rungs/alpha/assembler/`. Beta proper is the language
+compiled by `bootstrap/rungs/beta/bc.beta`.
 The disposable Rust producer of Alpha VM tapes lives at
-`bootstrap/onramps/alpha-assembler-rust/`; historical `compiler/beta-rs` is
-only its compatibility path and has no Beta-language role.
+`bootstrap/onramps/alpha-assembler-rust/` and has no Beta-language role.
 The disposable Beta-language diagnostic/reference producer lives at
-`bootstrap/onramps/beta-rust/`; `compiler/beta-lang-rs` is its compatibility
-path.
+`bootstrap/onramps/beta-rust/`.
 Delta's language corpus, Delta-written compiler, and lattice-built artifacts
 live under `bootstrap/rungs/delta/`; its disposable Rust producer lives under
-`bootstrap/onramps/delta-rust/`. Historical `compiler/delta` and
-`compiler/delta-rs` entries are compatibility paths.
+`bootstrap/onramps/delta-rust/`.
 
 ## Proof kernel
 
@@ -146,8 +141,8 @@ sh bootstrap/assurance/proof-kernel/gates/test.sh
 Architecture and standing decisions live in
 [`wiki/architecture/bootstrap_lattice/`](../wiki/architecture/bootstrap_lattice/).
 The product roots have role-based names; external-language producers are
-explicitly suffixed on-ramps. Retained historical compatibility entries under
-`compiler/` are documented in
+explicitly suffixed on-ramps. The retired flat bootstrap facade and canonical
+ownership map are documented in
 [`repository_structure.md`](../wiki/architecture/bootstrap_lattice/repository_structure.md).
 Live bootstrap work belongs in [`TASKS_BOOTSTRAP.md`](../TASKS_BOOTSTRAP.md),
 while broader product work belongs in [`TASKS.md`](../TASKS.md). Exact corpus and

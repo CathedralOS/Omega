@@ -101,4 +101,3 @@ Gamma's canonical interpreter and type checker; Gamma in turn supplies Delta's m
 is a cross-cutting service with independent Beta and Gamma implementations, not
 a later language rung. The Rust producer (`../../onramps/beta-rust/`) is outside
 the lineage and remains only as a documented diagnostic/reference producer.
-`compiler/beta-lang-rs` is a compatibility path.

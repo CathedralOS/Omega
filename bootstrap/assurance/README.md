@@ -14,5 +14,5 @@ checking. The current Rust realization of Psi judgments lives under
 `bootstrap/onramps/omega-rust/psi/`; the bootstrap proof kernel accepts only the
 derivations for obligations an independent, artifact-aware layer reconstructs.
 
-Canonical paths are resolved through [`../paths.sh`](../paths.sh). Historical
-entries under `compiler/` are compatibility paths, not additional owners.
+Canonical paths are resolved through [`../paths.sh`](../paths.sh). The former
+compatibility entries under `compiler/` have been retired.

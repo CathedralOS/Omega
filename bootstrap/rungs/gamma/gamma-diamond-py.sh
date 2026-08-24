@@ -28,7 +28,7 @@ cd "$OMEGA_GATE_DIR"
 command -v python3 >/dev/null 2>&1 || { echo "gamma diamond (py): skipped (python3 absent)"; exit 0; }
 . "${OMEGA_PATH_ALPHA}"/seed_env.sh
 SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
-ASM="${OMEGA_PATH_BETA_ASSEMBLER}"/$BETA_SEED
+ASM="${OMEGA_PATH_ALPHA_ASSEMBLER}"/$BETA_SEED
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 stamp_beta_compiler "$T/bc.exe" >/dev/null
 "$T/bc.exe" < interp.beta > "$T/g.asm" 2>/dev/null && "$ASM" < "$T/g.asm" > "$T/g.tape" 2>/dev/null \

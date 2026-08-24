@@ -16,7 +16,7 @@ cd "$GATE_DIR"
 SAMPLES="$OMEGA_PATH_DELTA/samples"
 . "$OMEGA_PATH_BETA/artifact_env.sh"
 SEED="$OMEGA_PATH_ALPHA/$ALPHA_SEED"
-ASM="$OMEGA_PATH_BETA_ASSEMBLER/$BETA_SEED"
+ASM="$OMEGA_PATH_ALPHA_ASSEMBLER/$BETA_SEED"
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 
 command -v python3 >/dev/null 2>&1 || { echo "omega-bootstrap frontend meaning: python3 required" >&2; exit 2; }

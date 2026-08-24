@@ -24,8 +24,8 @@ Alpha supplies raw deterministic computation:
 
 It does not parse Omega, check proofs, define higher-language meaning, manage
 ownership, allocate objects, or optimize code. The Alpha assembler is the next
-tool above the VM and lives at `bootstrap/rungs/alpha/assembler/`;
-`compiler/beta` is a compatibility symlink for its historical location.
+tool above the VM and lives at `bootstrap/rungs/alpha/assembler/`; the former
+`compiler/beta` compatibility entry has been retired.
 
 ## Auditability constraints
 

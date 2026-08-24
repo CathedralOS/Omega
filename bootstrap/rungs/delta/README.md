@@ -32,5 +32,5 @@ and process termination rather than a general boundary-trait system.
 
 The lower-rung Delta-to-Gamma route under [`../../omega-bootstrap/meaning/`](../../omega-bootstrap/meaning/)
 defines the meaning profile being widened toward `omega-bootstrap`.
-`compiler/delta` and `compiler/delta-rs` remain historical compatibility paths;
-new gates use the `delta` and `delta-rs` roles from `bootstrap/paths.sh`.
+The former `compiler/delta` and `compiler/delta-rs` entries are retired; gates
+use the canonical `delta` and `delta-rust` roles from `bootstrap/paths.sh`.

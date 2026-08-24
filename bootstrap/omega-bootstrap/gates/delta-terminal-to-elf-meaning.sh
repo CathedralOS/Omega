@@ -39,7 +39,7 @@ fi
 stamp_beta_compiler "$T/bc.exe" >/dev/null \
   || { echo "delta O1 artifact meaning FAIL — Beta compiler artifact"; exit 1; }
 BC="$T/bc.exe"
-ASM="$OMEGA_PATH_BETA_ASSEMBLER/$BETA_SEED"
+ASM="$OMEGA_PATH_ALPHA_ASSEMBLER/$BETA_SEED"
 build_beta() {
   "$BC" < "$1" > "$T/program.asm" 2>/dev/null \
     && "$ASM" < "$T/program.asm" > "$T/program.tape" 2>/dev/null \
