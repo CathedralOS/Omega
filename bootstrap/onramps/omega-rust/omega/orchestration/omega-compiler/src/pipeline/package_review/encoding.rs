@@ -10,7 +10,7 @@ use psi_checked_trees::{
 };
 
 const MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW\0";
-pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 4;
+pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 5;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageReviewEncodingError {
@@ -53,7 +53,27 @@ fn encode_domain_shape(
     encode_nominal(encoder, &shape.identity)?;
     encoder.sequence(&shape.type_parameters, encode_type_parameter)?;
     encode_type_identity(encoder, &shape.target_type)?;
-    encoder.sequence(&shape.index_arguments, encode_type_identity)
+    encoder.sequence(&shape.index_arguments, encode_type_identity)?;
+    match shape.classification {
+        None => encoder.byte(0),
+        Some(PackageReviewDomainClassification::ProgressProfile) => encoder.byte(1),
+    }
+    encoder.sequence(
+        &shape.establishment_routes,
+        encode_domain_establishment_route,
+    )
+}
+
+fn encode_domain_establishment_route(
+    encoder: &mut Encoder,
+    route: &PackageReviewDomainEstablishmentRoute,
+) -> Result<(), PackageReviewEncodingError> {
+    encoder.byte(match route.kind {
+        PackageReviewDomainEstablishmentKind::CheckedRequirement => 0,
+        PackageReviewDomainEstablishmentKind::BoundaryRequirement => 1,
+    });
+    encode_nominal(encoder, &route.trait_identity)?;
+    encode_nominal(encoder, &route.requirement_identity)
 }
 
 fn encode_data_shape(

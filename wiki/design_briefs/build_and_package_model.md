@@ -598,8 +598,10 @@ Public domain rows likewise retain exact declaring-package identity,
 alpha-normalized type/const binders, carrier type, and index arguments.
 Synthesized semantic paths retain an authored provenance span without replacing
 their canonical spelling with the source substring. Alias, predicate,
-classification, semantic-role, establishment-route, and operator semantics fail
-closed until exact rows exist.
+semantic-role, and operator semantics fail closed until exact rows exist.
+Closed compiler-owned classifications and authorized establishment routes
+retain exact route kind plus package-qualified trait and requirement identity;
+alternative routes are canonically sorted and deduplicated.
 
 Terminal Psi evidence remains a separate evidence class for checked
 final-realization claims: Omega-emitted executable code, asserted properties of

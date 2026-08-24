@@ -214,9 +214,12 @@ that the projection cannot yet encode exactly, projection rejects it.
 Public domain rows retain exact declaring-package identity, alpha-normalized
 type/const binders, carrier type, and closed index arguments. A synthesized
 domain path retains its semantic spelling separately from the authored span
-that supplies package provenance. Alias expansion, predicate facts, closed
-classifications, semantic roles, establishment routes, and domain operators
-reject until exact canonical rows exist; none is inferred from the domain name.
+that supplies package provenance. Alias expansion, predicate facts, semantic
+roles, and domain operators reject until exact canonical rows exist;
+none is inferred from the domain name. Compiler-owned classifications and
+authorized establishment routes retain the exact route kind and
+package-qualified trait/requirement identities; alternative routes normalize
+as a sorted set.
 
 The eventual normalized package-admission evidence must include, with exact
 provenance:
