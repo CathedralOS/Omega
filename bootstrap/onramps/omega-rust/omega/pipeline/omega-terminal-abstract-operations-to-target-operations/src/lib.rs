@@ -261,6 +261,38 @@ fn lower_function(
         .iter()
         .map(|parameter| scalar_shape(parameter.value, parameter.scalar_type, true))
         .collect::<Result<Vec<_>, _>>()?;
+    let boundary_custody_places = function
+        .operations
+        .iter()
+        .filter_map(|operation| {
+            let TerminalAbstractOperation::BoundaryCall {
+                structural_arguments,
+                completion_claim_sources,
+                completion_receipts,
+                ..
+            } = operation
+            else {
+                return None;
+            };
+            Some(structural_arguments.iter().enumerate().filter_map(
+                |(argument_index, argument)| {
+                    let receipt = completion_receipts.iter().find(|receipt| {
+                        usize::try_from(receipt.argument_index) == Ok(argument_index)
+                    })?;
+                    completion_claim_sources
+                        .iter()
+                        .any(|source| {
+                            source.claim == receipt.claim
+                                && source.entry.as_ref().is_some_and(|entry| {
+                                    entry.input == argument.place && entry.path == argument.path
+                                })
+                        })
+                        .then_some(argument.place)
+                },
+            ))
+        })
+        .flatten()
+        .collect::<BTreeSet<_>>();
     let mut shape_cache = BTreeMap::new();
     let mut active = BTreeSet::new();
     let structural_parameter_shapes = function
@@ -268,10 +300,21 @@ fn lower_function(
         .iter()
         .enumerate()
         .map(|(position, parameter)| {
+            // Verified qualifications remain in the exact completion-custody
+            // source and do not alter the structural ABI shape. Linear inputs
+            // enter this scalar lane only when that same boundary call carries
+            // their claim toward provider custody.
+            let carries_boundary_custody = boundary_custody_places.contains(&parameter.place);
             if usize::try_from(parameter.position) != Ok(position)
                 || parameter.is_self
-                || !parameter.qualifications.is_empty()
-                || parameter.multiplicity != psi_terminal::StructuralMultiplicity::Affine
+                || !matches!(
+                    parameter.multiplicity,
+                    psi_terminal::StructuralMultiplicity::Affine
+                        | psi_terminal::StructuralMultiplicity::Linear
+                )
+                || ((!parameter.qualifications.is_empty()
+                    || parameter.multiplicity == psi_terminal::StructuralMultiplicity::Linear)
+                    && !carries_boundary_custody)
             {
                 return Err(LoweringError::UnsupportedOperationInScalarFunction(
                     function.machine,

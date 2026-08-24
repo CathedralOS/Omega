@@ -212,6 +212,7 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "core/vec_core_surface",
     "operators/slice_index_via_spelling_compile",
     "parser/deep_nesting_within_limit",
+    "terminal_psi/content_custody_exit",
     "slices/guarded_slice_parameter_empty_false_index_compile",
     "slices/guarded_slice_parameter_empty_false_tail_compile",
     "slices/guarded_slice_parameter_bounded_subslice_compile",

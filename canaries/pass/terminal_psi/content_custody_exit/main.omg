@@ -1,0 +1,38 @@
+data ByteUnit {}
+
+data CountedQuantity<Unit> {
+    magnitude: u64;
+}
+
+trait Content<A> {
+    machine project(subject: &Self) -> A;
+}
+
+data Region [linear] {
+    length: u64;
+}
+
+domain Region::Owned;
+
+machine Owned::content(region: &Region) -> CountedQuantity<ByteUnit>
+satisfies Content<CountedQuantity<ByteUnit>>::project
+{
+    CountedQuantity { magnitude: region.length }
+}
+
+boundary trait PortIo {}
+
+boundary machine Region::read_status(self) -> u8
+reaches PortIo
+ensures true;
+
+data Root {}
+
+machine Root::enter(region: Region in Owned) -> u8
+reaches PortIo
+{
+    let status: u8 = region.read_status();
+    status
+}
+
+machine Root::main(&mut self) {}

@@ -1595,6 +1595,17 @@ admit only acceptance of custody for that exact residual—not the partition
 arithmetic. External root correspondence and fresh issuance remain scoped
 admitted hypotheses with provenance; downstream conservation remains derived.
 
+The whole-claim source slice closes one native custody-exit path without
+weakening that rule. A verified qualified linear structural input may enter a
+scalar native function only when the same boundary call retains its exact
+whole argument path, entry claim source, and completion receipt. Qualification
+does not change the ABI carrier shape; it remains in the zero-runtime
+completion-custody catalog. The selected admitted provider, target operation,
+machine settlement, object, image, and canonical installation all replay that
+same catalog, and source, receipt, or provider substitution rejects before
+publication. This is custody transfer to a selected provider, not authority to
+mint a replacement claim.
+
 Program-local root introduction is a separate derived origin, not an admission
 and not a producer-authored aggregate. Terminal Psi retains one canonical
 introduction schema for each exact domain-authorized requirement parameter
