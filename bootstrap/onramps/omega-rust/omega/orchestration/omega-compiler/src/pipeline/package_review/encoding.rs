@@ -10,7 +10,7 @@ use psi_checked_trees::{
 };
 
 const MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW\0";
-pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 27;
+pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 28;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageReviewEncodingError {
@@ -175,6 +175,7 @@ fn encode_trait_requirement(
         Ok(())
     })?;
     encode_type_identity(encoder, &requirement.return_type)?;
+    encoder.sequence(&requirement.contracts, encode_callable_contract)?;
     encoder.sequence(&requirement.service_reach, encode_nominal)?;
     encoder.boolean(requirement.service_reach_is_installation_bound);
     encoder.sequence(

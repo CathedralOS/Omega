@@ -648,9 +648,12 @@ identity, and structural type arguments. Binder-free `where T satisfies Trait`
 does not fabricate evidence. Non-generic selected conformances retain exact
 package-qualified conformance, carrier, and underlying public-trait identities
 plus carrier/trait applications; the semantic declaration owns exact carrier
-and trait symbols. Generic selected-conformance telescopes, public-trait
-invariants, and non-progress proof/boundary/crash contracts reject until
-complete canonical rows exist. Public trait requirements retain whether their
+and trait symbols. Public trait requirements retain unnamed `requires` and
+`ensures` through the same closed structural fact/expression vocabulary as
+public callables, joined to their exact checked state-signature owner. Generic
+selected-conformance telescopes, public-trait invariants, named evidence
+contracts, boundary/crash contracts, and unsupported expression forms reject
+until complete canonical rows exist. Requirements also retain whether their
 checked declaration supplies a default realization; implementation bodies
 remain checked source subject to universal update triage rather than entering
 the evidence format as compiler-private IR.

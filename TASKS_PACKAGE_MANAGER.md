@@ -470,12 +470,15 @@ complete.
   conformances retain exact package-qualified conformance, carrier, and
   underlying public-trait identities plus carrier/trait applications. Their
   declarations retain exact carrier and trait symbols instead of reselecting
-  either by text. Generic selected-conformance telescopes, invariants, default
-  realizations, and non-progress proof/boundary/crash contracts fail closed
-  until their complete rows are joined; no public trait is silently omitted.
+  either by text. Public trait requirements now project unnamed `requires` and
+  `ensures` through the same closed structural fact/expression lane as public
+  callables, joined to exactly one checked `StateSignature` owner. Generic
+  selected-conformance telescopes, invariants, named evidence contracts,
+  boundary/crash contracts, and unsupported expression forms still fail closed;
+  no public trait is silently omitted.
   Declaration kinds without retained visibility reject
   `pub` instead of silently compiling a private API. Settled export semantics,
-  the remaining public-trait contract lanes, domain predicate/semantic-role/
+  the remaining named/boundary/crash public-trait contract lanes, domain predicate/semantic-role/
   operator lanes,
   generated/toolchain symbol ownership, package-qualified provider
   binding/selection identities, source/toolchain/compiler commitments,
@@ -574,12 +577,13 @@ complete.
   closing the implicit-entry-state ownership gap discovered by the crash
   projection. Review identity now retains the exact deployment target profile,
   so profiles such as Windows and UEFI cannot collapse merely because they
-  share a native ABI. A v27 length-framed binary comparison encoding now covers
+  share a native ABI. A v28 length-framed binary comparison encoding now covers
   every retained public-domain, public-data, public-trait, callable,
   representation-TCB, crash/proof predicate, proposition/witness, authority
   flow, dangerous-authority classification, mutation, and selected-provider
-  row. Public trait requirements now also retain whether the declaration
-  supplies a default realization; changing body presence changes comparison
+  row. Public trait requirements retain unnamed structural `requires` and
+  `ensures` rows plus whether the declaration supplies a default realization;
+  changing either the public contract or body presence changes comparison
   identity without serializing compiler-private body IR. The checked body must
   satisfy the retained requirement envelope, instantiated uses contribute
   ordinary compiler-derived evidence, and every source update remains subject
@@ -723,7 +727,7 @@ complete.
   `PortIo`, `InterruptMaskControl`, `InterruptEntry`, and
   `ExtentRootProvider` as machine-control, port-I/O, interrupt-control,
   interrupt-entry, and root-memory authority. Canonical and same-named
-  package-owned tests pin both sides of each join, and comparison encoding v27
+  package-owned tests pin both sides of each join, and comparison encoding v28
   retains the rows. `ProgramStorageEntry` is not mislabeled as executable-
   installation authority merely because it receives already-installed roots;
   that class must come from exact installation evidence. Network, process,
@@ -747,7 +751,7 @@ complete.
   `boundary data`, including private declarations and declarations with no
   reach or claim. The row is target-scoped by the containing projection and
   explicitly records both ABI commitment and external mechanism as `Unbound`;
-  it does not fabricate layout or realization. Comparison encoding v27 retains
+  it does not fabricate layout or realization. Comparison encoding v28 retains
   the lane. Exact mechanism/ABI selection, source/toolchain/compiler sealing,
   and admission-policy outcomes remain.
 
