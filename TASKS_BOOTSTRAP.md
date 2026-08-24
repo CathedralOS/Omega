@@ -71,66 +71,47 @@ These standing rulings are not tasks:
 
 ## Delta → omega-bootstrap → production Omega readiness
 
-Current status: Delta is demonstrably compiler-capable, and the O0/O1 plus
-bounded scalar-call bridge canaries close through native, lower-rung meaning,
-and direct artifact paths. The complete general bridge, frozen Delta v1,
-frozen `Ωself`, and hosted production build remain open.
+Delta's compiler-host feasibility, self-host, and bounded bridge canaries exist.
+The general `omega-bootstrap`, frozen Delta v1, frozen `Ωself`, and hosted
+production build do not. Canaries and D0 are discovery evidence, not numbered
+steps toward `Ωself` or definitions of Delta v1.
 
-The current `lowermachine.alp` proves substantial compiler-host feasibility and
-self-compilation, but it does not define Delta v1 or implement
-`omega-bootstrap`. The current bridge canaries prove bounded infrastructure,
-not a numbered path to `Ωself`. Further accepted-source growth must trace a
-measured product-source checkpoint need.
+Two lanes co-evolve until their join:
 
-Delta may use fixed backing, deterministic bump or paged reservation,
-typed/indexed arenas, bulk reclamation, a byte-preserving source bundle, and
-conservative lowering when those choices reduce total implementation and
-assurance cost. It does not need the product allocator, optimizer, parallel
-compiler architecture, or general host abstractions. Every retained behavior
-must nevertheless be specified, deterministic, lower-rung meaningful, and
-fail explicitly rather than truncate or depend on ambient authority. Maintain
-the candidate inventory only in
+| Lane | Owner | Bootstrap responsibility |
+| --- | --- | --- |
+| production compiler source | `OMEGA-PRODUCT-COMPILER-SOURCE` in [`TASKS.md`](TASKS.md) | consume each deterministic checkpoint; derive and measure provisional `Ωself` |
+| bridge and language closure | this file | implement general profile rules in Delta; maintain the Delta ledger; freeze both contracts at their completed closures |
+
+Product Psi/Omega implementation and any chosen source refactor stay in
+`TASKS.md`. This queue must not turn possible `Ωself` exclusions into separate
+proof, generics, domain, field-tag, data-shape, or transition projects. Those
+choices stay in the single disposition table in
+[`compiler_source_profile.md`](wiki/architecture/bootstrap_lattice/compiler_source_profile.md).
+
+The required execution order is:
+
+1. consume product checkpoints while growing the general bridge;
+2. freeze `Ωself` at the complete product-source/bridge join;
+3. freeze Delta v1 from the complete bridge source and explicit language
+   arguments;
+4. build and validate `omega-bootstrap` through the lattice; and
+5. perform the one required hosted production build.
+
+The optional product self-rebuild is not part of this queue. Fixed or paged
+backing, typed/indexed arenas, bulk reclamation, and conservative lowering are
+available bridge implementation choices when they reduce total cost. They do
+not become Delta features without specified behavior, lower-rung meaning, and
+explicit failure. Maintain that evidence only in
 [`bootstrap/rungs/delta/FEATURE_LEDGER.md`](bootstrap/rungs/delta/FEATURE_LEDGER.md).
 
-Product source is an external input to this queue.
-`OMEGA-PRODUCT-COMPILER-SOURCE` in [`TASKS.md`](TASKS.md) owns implementation
-under `compiler/{psi,omega}/` and publishes deterministic source checkpoints.
-Do not duplicate product Psi/Omega implementation tasks here.
+## Current decision blocker
 
-Likewise, do not turn candidate `Ωself` exclusions into standalone bootstrap
-projects. Proof syntax, linear/dependent types, generics, domains, field tags,
-data shapes, and transition payloads remain rows in the one working disposition
-table until checkpoint evidence and measured bridge cost settle them. This queue
-implements and assures the resulting general profile; `TASKS.md` owns any
-chosen product-source refactor.
-
-The two work streams meet at explicit joins rather than forming a circular
-task dependency:
-
-1. Product work publishes a coherent Omega-written compiler-source checkpoint.
-2. Bootstrap work derives a provisional compositional `Ωself` profile from
-   that closure and implements its general rules in `omega-bootstrap`.
-3. Measured bridge cost feeds back into retain-versus-refactor decisions for the
-   next product checkpoint; it does not authorize bridge-shaped special cases.
-4. The complete product closure and complete bridge freeze `Ωself`; the
-   complete Delta bridge closure separately freezes Delta v1.
-5. The lattice-built Delta compiler builds the validated bridge, which performs
-   the one required production build.
-
-Step 1 and any product-source refactor chosen in step 3 remain in `TASKS.md`.
-Profile derivation, bridge implementation and measurement, both freezes, and
-hosted validation in steps 2 through 5 are bootstrap work here. The optional
-production `omega` self-rebuild remains product optimization/reproducibility
-work after the required build closes.
-
-Items 1 and 2 therefore co-evolve; they are not sequential phases. The first
-selected artifact tranche within checkpoint 000001 is closed, but that
-checkpoint's complete 12-unit compiler closure is not. The current concrete
-bootstrap edge is its remaining general multi-unit, name-resolution, generated-
-data, control-flow, call, sum, boundary, and artifact capabilities; later
-checkpoints join only after their product owner publishes coherent evidence.
-Sections 3 through 6 are downstream joins, not parallel language-design
-projects.
+The visibility rule for private access between distinct logical modules in one
+package is unspecified. Until it is ruled, the bridge rejects that case. Public
+cross-package access and same-module private access remain unblocked, including
+the current two-package nominal-data artifact. No other item below is presently
+design-blocked merely because it is large or difficult.
 
 ### Rolling invariant — maintain the provisional Delta ledger
 
@@ -156,13 +137,11 @@ At every bridge milestone:
   candidate feature/resource profile. Checkpoint 000001 already supplies the
   first closure and normalized-syntax/resource profile; later compiler phases
   publish later checkpoints from their product owner.
-- [ ] Measure every used feature's product-source benefit against the cost of
-  implementing and assuring its general form in the Delta-written bridge.
-  Absence from a partial checkpoint is provisional evidence, not a final
-  exclusion.
-- [ ] Give every disputed facility an explicit provisional outcome: retain a
-  general compositional candidate, refactor it out and preserve a negative
-  canary, or leave it unresolved with the exact missing evidence named.
+- [ ] Measure every used feature's source benefit against the cost of its
+  general Delta-written bridge implementation. Record one provisional outcome:
+  retain, refactor from product source and preserve a negative canary, or leave
+  unresolved with the exact missing evidence. Absence from a partial checkpoint
+  is not a final exclusion.
 - [ ] Publish and provisionally enforce compositional syntax, static semantics,
   resources, ABI/layout, and lowering rules. File identities, exact statement
   counts, and enumerated AST permutations are not profile rules.
@@ -174,11 +153,10 @@ At every bridge milestone:
   suites so an omission from compiler source is never confused with an
   omission from the compiler it implements.
 
-Checkpoint 000001's exact manifest, every-target normalized census, provisional
-profile digest, resource boundaries, valid-Omega admission canaries, and
-mutation teeth are already gated. Its general typed, lowering, capacity, and
-artifact implementation remains section-2 work; the rolling items above stay
-open for that evidence and for later checkpoints.
+Checkpoint 000001's manifest, normalized census, provisional profile digest,
+resource bounds, admission canaries, and mutation teeth are already gated.
+Typed semantics, lowering, capacity, and general artifact coverage remain
+section-2 work.
 
 Its current resolver replay maps `use` components onto repository files and the
 product sources generally omit explicit `module` items. That is exact evidence
@@ -188,10 +166,9 @@ logical source placements and source valid under the normative visibility and
 import rules. The bridge consumes those placements, requires any authored
 module declaration to agree, and must not reproduce the compatibility scanner.
 
-Acceptance for each checkpoint: the product-owned exact manifest and the
-separately versioned candidate-profile evidence are reproducible artifacts;
-every admitted program is ordinary Omega with exact Omega meaning; unsupported
-forms reject; and every unresolved row names the source and bridge evidence
+Acceptance for each checkpoint: its exact manifest and separately versioned
+candidate-profile evidence reproduce; admitted programs retain exact Omega
+meaning; unsupported forms reject; and every unresolved row names the evidence
 needed to settle it. The final profile remains unfrozen until the complete
 source and bridge join.
 
@@ -201,21 +178,17 @@ Grow the bridge from checkpoint needs through general capabilities. Do not
 recognize the current compiler files, declaration counts, or syntax-tree
 permutations.
 
-The first checkpoint-driven frontend probe and selected private `CKIR1` direct
-artifact route are established. The lower-rooted CKIR1→limited-ELF checker now
-reconstructs the exact selected bytes and observation. Independent source
-checkers reconstruct declarations, signatures, copyability, layout, bodies,
-transition facts, canonical operations and terminators, and the full selected
-result. Valid source/artifact and CKIR/ELF cross-pairs close the first finite,
-acyclic, returning source→artifact tranche. This is one cluster within
-checkpoint 000001, not closure of that checkpoint. Completed evidence and
-remaining boundaries live in
+The first checkpoint-driven frontend probe and finite, acyclic, returning
+`CKIR1`→limited-ELF tranche are closed. This is one bounded cluster within
+checkpoint 000001, not closure of that checkpoint. Exact evidence and remaining
+boundaries live in
 [`SOURCE_CUSTODY_FRONTEND_PROBE.md`](bootstrap/omega-bootstrap/compiler/SOURCE_CUSTODY_FRONTEND_PROBE.md)
 and
 [`OMEGA_BOOTSTRAP_CHECKED_IR.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR.md).
-That evidence measures the route; it does not by itself admit the source
-families to `Ωself`. The private handoff remains bridge-local, and future
-Terminal-Psi vocabulary work remains product work in `TASKS.md`.
+It does not admit those source families to `Ωself`; the private handoff remains
+bridge-local, and Terminal-Psi vocabulary work remains product work in
+`TASKS.md`.
+
 - [ ] Join the structurally checked multi-unit
   [compilation envelope](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION.md)
   to an independently accepted resolver/lock commitment and compare the exact

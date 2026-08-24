@@ -171,6 +171,8 @@ that grants an artifact authority.
 **Policy:**
 
 - Do not add second or third compilers merely for implementation diversity.
+- Do not create a DDC work lane or acceptance gate; direct checked refinement
+  is the compiler-provenance obligation.
 - Do not make cross-implementation byte identity a release or trust requirement.
 - Require deterministic reproduction where it serves build identity and audit,
   but never present a fixed point as correctness evidence.

@@ -242,7 +242,7 @@ includes all transitive libraries, generated and compile-time source, build
 behavior, and compiler-imported tools. See
 [`../../../wiki/architecture/bootstrap_lattice/compiler_source_profile.md`](../../../wiki/architecture/bootstrap_lattice/compiler_source_profile.md).
 
-## O0 — Omega vertical-canary acceptance profile
+## Legacy O0 canary — fixed console acceptance
 
 O0 is exactly the single-file console program shape represented by
 [`../../corpus/cli_mvp/main.omg`](../../corpus/cli_mvp/main.omg):
@@ -357,7 +357,7 @@ contract directly; there is no numbered acceptance-profile ladder. A separate
 bounded conformance slice may exercise implementation machinery, but cannot
 admit a feature to `Ωself`.
 
-## O1 — variable straight-line console profile
+## Legacy O1 canary — variable straight-line console acceptance
 
 O1 is the monotonic replacement for O0's exact two-statement body:
 

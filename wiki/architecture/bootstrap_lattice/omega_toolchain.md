@@ -90,9 +90,7 @@ The distinction is architectural:
   product entrypoints live under `apps/omega-compiler/`, and exact closure and
   profile snapshots live under `compiler/source-checkpoints/`.
 - `bootstrap/omega-bootstrap/` is the owner for Rust-free meaning,
-  Delta-written bridge-compiler slices/profiles, and bootstrap validation. Its
-  architectural role is `omega-bootstrap`; the obsolete `omega0` label is not
-  a compiler generation or language claim.
+  Delta-written bridge-compiler slices/profiles, and bootstrap validation.
 - `bootstrap/rungs/delta/` owns the bootstrap language corpus and Delta-written
   compiler; `bootstrap/onramps/delta-rust/` is its disposable Rust producer.
   Together their current gates are growing toward `omega-bootstrap` without
