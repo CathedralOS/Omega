@@ -207,9 +207,11 @@ complete.
   non-portable development sources. Each archive/protocol adapter defines
   lineage and immutable-content evidence instead of guessing from a locator.
 
-  Progress 2026-08-23: the first conservative lineage adapter normalizes known
-  GitHub HTTPS, SCP-like SSH, and `ssh://` spellings; unknown hosts retain
-  transport, user, port, case-sensitive path, and suffix distinctions.
+  Progress 2026-08-24: conservative known-host lineage adapters normalize
+  GitHub and hosted GitLab HTTPS, SCP-like SSH, and `ssh://` spellings. GitLab
+  supports exact nested namespace paths while retaining path case; self-hosted
+  and unknown hosts retain transport, user, port, case-sensitive path, and
+  suffix distinctions.
   Workspace members bind a normalized relative path to workspace lineage, and
   external local sources bind canonical absolute path plus consuming context.
   Workspace-member custody now derives the live member solely from its

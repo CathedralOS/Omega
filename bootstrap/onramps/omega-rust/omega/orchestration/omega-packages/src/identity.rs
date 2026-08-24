@@ -108,6 +108,7 @@ impl PackageKey {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum SourceLineage {
     GitHub(GitHubRepositoryLineage),
+    GitLab(GitLabRepositoryLineage),
     Git(GenericGitLineage),
     Workspace(WorkspaceMemberLineage),
     ExternalLocal(ExternalLocalLineage),
@@ -119,6 +120,8 @@ impl SourceLineage {
         let parsed = ParsedGitLocator::parse(locator)?;
         if parsed.host == "github.com" {
             GitHubRepositoryLineage::from_parsed(parsed).map(Self::GitHub)
+        } else if parsed.host == "gitlab.com" {
+            GitLabRepositoryLineage::from_parsed(parsed).map(Self::GitLab)
         } else {
             GenericGitLineage::from_parsed(parsed).map(Self::Git)
         }
@@ -126,7 +129,7 @@ impl SourceLineage {
 
     fn family(&self) -> SourceLineageFamily {
         match self {
-            Self::GitHub(_) | Self::Git(_) => SourceLineageFamily::Git,
+            Self::GitHub(_) | Self::GitLab(_) | Self::Git(_) => SourceLineageFamily::Git,
             Self::Workspace(_) => SourceLineageFamily::Workspace,
             Self::ExternalLocal(_) => SourceLineageFamily::ExternalLocal,
         }
@@ -138,6 +141,10 @@ impl SourceLineage {
                 hash_field(hasher, b"github");
                 hash_field(hasher, lineage.owner.as_bytes());
                 hash_field(hasher, lineage.repository.as_bytes());
+            }
+            Self::GitLab(lineage) => {
+                hash_field(hasher, b"gitlab");
+                hash_field(hasher, lineage.repository_path.as_bytes());
             }
             Self::Git(lineage) => {
                 hash_field(hasher, b"git");
@@ -211,6 +218,44 @@ impl GitHubRepositoryLineage {
 
     pub fn repository(&self) -> &str {
         &self.repository
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct GitLabRepositoryLineage {
+    repository_path: String,
+}
+
+impl GitLabRepositoryLineage {
+    fn from_parsed(parsed: ParsedGitLocator) -> Result<Self, IdentityError> {
+        if parsed.port.is_some() {
+            return Err(IdentityError::PortNotAllowed);
+        }
+        match parsed.transport {
+            GitTransport::Https if parsed.user.is_some() => {
+                return Err(IdentityError::CredentialsNotAllowed);
+            }
+            GitTransport::SshUrl | GitTransport::ScpLike
+                if parsed.user.as_deref() != Some("git") =>
+            {
+                return Err(IdentityError::UnexpectedGitLabSshUser);
+            }
+            _ => {}
+        }
+
+        let repository_path = parsed
+            .repository_path
+            .strip_suffix(".git")
+            .unwrap_or(&parsed.repository_path);
+        let repository_path = validate_repository_path(repository_path)?;
+        if repository_path.split('/').count() < 2 {
+            return Err(IdentityError::MalformedRepositoryPath);
+        }
+        Ok(Self { repository_path })
+    }
+
+    pub fn repository_path(&self) -> &str {
+        &self.repository_path
     }
 }
 
@@ -548,6 +593,7 @@ pub enum IdentityError {
     QueryOrFragmentNotAllowed,
     PortNotAllowed,
     UnexpectedGitHubSshUser,
+    UnexpectedGitLabSshUser,
     InvalidWorkspaceMemberPath,
     RecursiveWorkspaceLineage,
     CanonicalPath { path: PathBuf, error: String },
@@ -570,11 +616,13 @@ impl fmt::Display for IdentityError {
                 .write_str("credentials and embedded secrets are not allowed in source identity"),
             Self::QueryOrFragmentNotAllowed => formatter
                 .write_str("query strings and fragments are not allowed in source identity"),
-            Self::PortNotAllowed => {
-                formatter.write_str("ports are not part of the stable GitHub repository namespace")
-            }
+            Self::PortNotAllowed => formatter
+                .write_str("ports are not part of a normalized known-host repository namespace"),
             Self::UnexpectedGitHubSshUser => {
                 formatter.write_str("GitHub SSH repository identity requires the `git` user")
+            }
+            Self::UnexpectedGitLabSshUser => {
+                formatter.write_str("GitLab SSH repository identity requires the `git` user")
             }
             Self::InvalidWorkspaceMemberPath => formatter
                 .write_str("workspace member path must be a normalized portable relative path"),
@@ -1019,6 +1067,52 @@ mod tests {
 
         assert_ne!(github, lookalike);
         assert!(matches!(lookalike, SourceLineage::Git(_)));
+    }
+
+    #[test]
+    fn gitlab_https_scp_and_ssh_url_share_one_nested_repository_lineage() {
+        let https = lineage("https://GitLab.com/CathedralOS/libraries/Exact-Math.git");
+        let scp = lineage("git@gitlab.com:CathedralOS/libraries/Exact-Math");
+        let ssh = lineage("ssh://git@GITLAB.COM/CathedralOS/libraries/Exact-Math.git");
+
+        assert_eq!(https, scp);
+        assert_eq!(https, ssh);
+        let SourceLineage::GitLab(lineage) = https else {
+            panic!("GitLab locator did not use known-host normalization");
+        };
+        assert_eq!(
+            lineage.repository_path(),
+            "CathedralOS/libraries/Exact-Math"
+        );
+    }
+
+    #[test]
+    fn gitlab_preserves_path_case_and_rejects_ambiguous_known_host_forms() {
+        assert_ne!(
+            lineage("https://gitlab.com/CathedralOS/libraries/Exact-Math.git"),
+            lineage("https://gitlab.com/cathedralos/libraries/exact-math.git")
+        );
+        for locator in [
+            "https://token@gitlab.com/CathedralOS/tool.git",
+            "https://gitlab.com:443/CathedralOS/tool.git",
+            "ssh://deploy@gitlab.com/CathedralOS/tool.git",
+            "git@gitlab.com:tool.git",
+            "https://gitlab.com/CathedralOS/../tool.git",
+        ] {
+            assert!(SourceLineage::git(locator).is_err(), "accepted {locator:?}");
+        }
+    }
+
+    #[test]
+    fn gitlab_lookalikes_and_self_hosted_instances_remain_generic() {
+        let hosted = lineage("https://gitlab.com/CathedralOS/tool.git");
+        let lookalike = lineage("https://gitlab.com.evil.example/CathedralOS/tool.git");
+        let self_hosted = lineage("https://gitlab.example/CathedralOS/tool.git");
+
+        assert_ne!(hosted, lookalike);
+        assert_ne!(hosted, self_hosted);
+        assert!(matches!(lookalike, SourceLineage::Git(_)));
+        assert!(matches!(self_hosted, SourceLineage::Git(_)));
     }
 
     #[test]

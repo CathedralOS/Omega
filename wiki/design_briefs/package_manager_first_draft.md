@@ -75,10 +75,11 @@ source-rebuildable release profile. Archive and future protocol adapters must
 define their own canonical lineage and immutable-content receipt; an unknown
 URL is never guessed to be Git or delegated to an ambient protocol helper.
 
-The first implementation deliberately normalizes only GitHub's established
-HTTPS and SSH repository namespace. Other Git hosts retain transport, user,
-port, path case, and suffix distinctions until a host adapter can prove more;
-conservative duplication is preferable to false package identity.
+The implementation normalizes GitHub's and hosted GitLab's established HTTPS
+and SSH repository namespaces. GitLab nested namespace paths remain exact and
+case-sensitive in lineage. Self-hosted and other Git hosts retain transport,
+user, port, path case, and suffix distinctions until a host adapter can prove
+more; conservative duplication is preferable to false package identity.
 
 Canonical symbol and boundary identities include `PackageKey`. A package that
 declares a lookalike trait or package name therefore cannot impersonate an
