@@ -8,18 +8,21 @@ to produce an artifact. The final Delta program on the hosted path is
 compiler.
 
 Delta is an independent compiler-host language, not an Omega subset. Its v1
-contract is being discovered from the complete `omega-bootstrap` source closure,
-under fixed safety and determinism constraints, and is tracked in
+contract is being discovered from the complete `omega-bootstrap` source closure
+plus explicit coherence, safety, robustness, and maintainability arguments, and
+is tracked in
 [`../../../TASKS_BOOTSTRAP.md`](../../../TASKS_BOOTSTRAP.md).
 
 The corpus and disposable Rust producer are discovery inputs, not a feature
-vote. A construct belongs to Delta v1 only when the bridge demonstrates that it
-reduces total implementation and assurance cost and its lower-rung meaning is
-closed. Shared constructs should retain Omega spelling and ordinary meaning
-where that is cheap. Source outside Delta v1 rejects as Delta source; rejection
-of Omega outside `Ωself` is `omega-bootstrap`'s separate responsibility. The
-working host surface is sealed byte input, artifact output, diagnostic output,
-and process termination rather than a general boundary-trait system.
+vote. A construct belongs to Delta v1 when the bridge demonstrates a concrete
+need or an explicit language-coherence, robustness, safety, or maintainability
+argument shows that retaining it reduces whole-bootstrap cost; its lower-rung
+meaning must also close. Shared constructs should retain Omega spelling and
+ordinary meaning where that is cheap. Source outside Delta v1 rejects as Delta
+source; rejection of Omega outside `Ωself` is `omega-bootstrap`'s separate
+responsibility. The working host surface is sealed byte input, artifact output,
+diagnostic output, and process termination rather than a general boundary-trait
+system.
 
 - [`samples/`](samples/) contains the executable language corpus.
 - [`FEATURE_LEDGER.md`](FEATURE_LEDGER.md) tracks provisional candidates and the

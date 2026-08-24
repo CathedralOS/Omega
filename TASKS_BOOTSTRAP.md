@@ -104,6 +104,25 @@ Product source is an external input to this queue.
 under `compiler/{psi,omega}/` and publishes deterministic source checkpoints.
 Do not duplicate product Psi/Omega implementation tasks here.
 
+The two work streams meet at explicit joins rather than forming a circular
+task dependency:
+
+1. Product work publishes a coherent Omega-written compiler-source checkpoint.
+2. Bootstrap work derives a provisional compositional `Ωself` profile from
+   that closure and implements its general rules in `omega-bootstrap`.
+3. Measured bridge cost feeds back into retain-versus-refactor decisions for the
+   next product checkpoint; it does not authorize bridge-shaped special cases.
+4. The complete product closure and complete bridge freeze `Ωself`; the
+   complete Delta bridge closure separately freezes Delta v1.
+5. The lattice-built Delta compiler builds the validated bridge, which performs
+   the one required production build.
+
+Step 1 and any product-source refactor chosen in step 3 remain in `TASKS.md`.
+Profile derivation, bridge implementation and measurement, both freezes, and
+hosted validation in steps 2 through 5 are bootstrap work here. The optional
+production `omega` self-rebuild remains product optimization/reproducibility
+work after the required build closes.
+
 ### Rolling invariant — maintain the provisional Delta ledger
 
 At every bridge milestone:

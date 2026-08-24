@@ -205,14 +205,14 @@ discovery experiments, not ratified Delta-v1 language additions.
 - Add mixed field-plus-case data only if the real bridge demonstrates that
   separate records and sums impose greater total cost. Producer completeness is
   not independently a goal.
-- **Subset enforcement** the front end should add as it firms up: arena-capacity
+- **Delta-surface enforcement** the front end should add as it firms up: arena-capacity
   bounds; `>4`-arg free calls already error. The Gamma meaning route remains the
   semantic authority.
 - Retire the remaining inherited `alpha-rs` framing as the Delta surface firms up.
 - Grow the real bridge while maintaining a provisional Delta feature ledger;
   after the complete source closure exists, remove unused experiments and
-  freeze Delta's smallest robust literal compiler-host specification. It must
-  implement `omega-bootstrap` with exact `Ωself` acceptance.
+  freeze Delta's lowest-total-cost coherent, robust compiler-host specification.
+  It must implement `omega-bootstrap` with exact `Ωself` acceptance.
   The bridge may conservatively lower the production compiler, but it must
   correctly compile the `Ωself` source that implements the full optimizer and
   advanced lowering. Those product passes need not be implemented twice.
