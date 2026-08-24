@@ -759,9 +759,17 @@ aliases expand before identity. Witness rows retain exact root arguments and
 the complete package-qualified direct/inherited requirement surface. Named
 contracts join checked evidence-term identity and positional lane; local
 `requires` alias spelling is omitted while public `ensures` selector spelling
-remains. Diagnostic strings do not enter the row. Evidence-projection binder
-arguments and unsupported call, member, cast, and aggregate expression forms
-fail closed. The coarse 64-bit machine-contract fingerprint is no longer
+remains. Diagnostic strings do not enter the row. A proof-static
+`evidence.member` binder argument retains its source named-`requires` lane,
+exact package-qualified declaring trait, structural requirement-argument
+template, and exact requirement while omitting the local evidence alias. The
+lane binds that template to the source proposition application's concrete
+arguments. Matching checked evidence-term, interface, and projection facts are
+required. Direct parameter-rooted member paths retain their receiver ordinal
+and exact package-qualified case/field chain after a unique checked semantic-
+place join. Computed members, proposition-argument members without that join,
+and unsupported call, cast, and aggregate expression forms fail closed. The
+coarse 64-bit machine-contract fingerprint is no longer
 package-review identity, so private state-machine shape cannot alter the public
 contract baseline. Complete rows for the remaining unsupported forms and exact
 proof/admission dispositions still gate sealing.
