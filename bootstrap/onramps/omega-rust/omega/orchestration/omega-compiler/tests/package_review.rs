@@ -1,6 +1,7 @@
 use omega_compiler::{
-    PackageCompilationInputs, PackageReviewCallableRole, PackageReviewNominalOwner,
-    PackageSourceBinding, compile_to_checked_with_packages, project_checked_package_review,
+    PackageCompilationInputs, PackageReviewCallableRole, PackageReviewCrashInterface,
+    PackageReviewCrashRouteGuard, PackageReviewNominalOwner, PackageSourceBinding,
+    compile_to_checked_with_packages, project_checked_package_review,
 };
 use psi_core::PackageKeyIdentity;
 use std::fs;
@@ -60,6 +61,12 @@ fn review_projects_root_boundary_and_build_authority() {
         r#"boundary machine host_ping() reaches <= Host;
 boundary trait Host { machine ping(); }
 machine ping_leaf() satisfies Host::ping via Binding::VtableSlot(1);
+data Receipt [linear] { code: i32; }
+machine helper()
+crashes Abort
+{
+    crash Abort;
+}
 "#,
     );
     package.write(
@@ -68,7 +75,13 @@ machine ping_leaf() satisfies Host::ping via Binding::VtableSlot(1);
 target linux_x64 { }
 target linux_arm64 { }
 target macos_arm64 { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build)
+crashes Abort
+{
+    helper();
+    let receipt: Receipt = Receipt { code: 1 };
+    crash Abort;
+}
 "#,
     );
 
@@ -135,6 +148,56 @@ machine build(builder: &mut Build) { }
         .expect("build row");
     assert_eq!(build.identity().path(), "build");
     assert_eq!(build.declared_service_reach(), None);
+    let crash = build.checked_crash();
+    assert_eq!(
+        crash.interface(),
+        PackageReviewCrashInterface::PublishedCeiling
+    );
+    let [published_crash] = crash.published() else {
+        panic!("one normalized published crash route")
+    };
+    assert_eq!(
+        published_crash.cause(),
+        psi_checked_trees::CrashCause::Abort
+    );
+    assert_eq!(
+        published_crash.alternative_guards(),
+        [PackageReviewCrashRouteGuard::Truth]
+    );
+    let [crash_site] = crash.checked_sites() else {
+        panic!("one normalized checked crash site")
+    };
+    assert_eq!(
+        crash_site.state().owner(),
+        PackageReviewNominalOwner::Package(package_identity())
+    );
+    assert_eq!(crash_site.cause(), psi_checked_trees::CrashCause::Abort);
+    assert_eq!(crash_site.guard_covering_buckets(), [1]);
+    assert!(!crash_site.frontier_lower_bound().is_empty());
+    assert!(
+        crash_site
+            .frontier_lower_bound()
+            .iter()
+            .all(|claim| claim.machine().owner()
+                == PackageReviewNominalOwner::Package(package_identity())
+                && claim.state().owner() == PackageReviewNominalOwner::Package(package_identity()))
+    );
+    let [crash_call] = crash.checked_calls() else {
+        panic!("one normalized checked crash call")
+    };
+    assert_eq!(
+        crash_call.state().owner(),
+        PackageReviewNominalOwner::Package(package_identity())
+    );
+    assert_eq!(
+        crash_call.target_machine().owner(),
+        PackageReviewNominalOwner::Package(package_identity())
+    );
+    assert_eq!(crash_call.target_machine().path(), "helper");
+    assert_eq!(
+        crash_call.target_state().owner(),
+        PackageReviewNominalOwner::Package(package_identity())
+    );
 
     let [provider] = review.selected_providers() else {
         panic!("one selected provider review row")

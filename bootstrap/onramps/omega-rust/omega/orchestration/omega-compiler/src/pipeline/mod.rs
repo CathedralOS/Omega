@@ -71,8 +71,12 @@ pub use package_compilation::{
 };
 pub use package_review::{
     CheckedPackageCallableReview, CheckedPackageProviderReview, CheckedPackageReviewProjection,
-    PackageReviewCallableRole, PackageReviewCapabilityFlow, PackageReviewNominalIdentity,
-    PackageReviewNominalOwner, project_checked_package_review,
+    PackageReviewCallableRole, PackageReviewCapabilityFlow, PackageReviewCrash,
+    PackageReviewCrashCall, PackageReviewCrashInterface, PackageReviewCrashPredicate,
+    PackageReviewCrashRoute, PackageReviewCrashRouteGuard, PackageReviewCrashSite,
+    PackageReviewInstallationReach, PackageReviewMutation, PackageReviewNominalIdentity,
+    PackageReviewNominalOwner, PackageReviewPermissionClaim, PackageReviewPermissionSource,
+    PackageReviewProgressPremise, PackageReviewTermination, project_checked_package_review,
 };
 pub use program_entry_physical::ProgramEntryPhysicalContractPlan;
 pub use program_entry_source_signature::{
