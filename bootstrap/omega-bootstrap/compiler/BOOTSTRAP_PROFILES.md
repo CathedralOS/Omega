@@ -207,12 +207,13 @@ This checker-only measurement remains cost and feasibility evidence. Its
 corresponding artifact tranche has since selected and implemented private
 versioned `CKIR1` plus direct conservative ELF lowering. Exact native/self
 bytes, canonical-Gamma status/publication meaning, exhaustive CKIR resource and
-relation teeth, product fixture behavior, and exact independent reconstruction
-of every selected ELF byte and relation are closed. A persisted-Beta checker now
+relation teeth, product fixture behavior, and exact independent reference
+reconstruction of every selected ELF byte and relation are closed. A
+persisted-Beta checker now
 independently validates CKIR1 and recomputes the selected result across the real
 fixture/library, valid structural controls, and all 142 schema mutations;
-lower-rooted source-table correspondence and limited-ELF reconstruction remain
-open. ABI/layout/lowering are private tranche rules
+lower-rooted source-table correspondence and lower-rooted limited-ELF
+reconstruction remain open. ABI/layout/lowering are private tranche rules
 rather than Omega ABI promises, and the final
 retain-versus-refactor disposition remains open. The raw-unit interface also
 avoids silently widening the frozen O0/O1
