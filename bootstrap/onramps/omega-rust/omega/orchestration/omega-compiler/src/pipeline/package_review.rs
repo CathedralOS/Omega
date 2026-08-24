@@ -554,6 +554,13 @@ pub enum PackageReviewPropositionBinderValue {
     Nominal(PackageReviewNominalIdentity),
     GenericBinder(u32),
     Integer(String),
+    EvidenceProjection {
+        source_kind: PackageReviewContractKind,
+        source_lane_position: u32,
+        declaring_trait: PackageReviewNominalIdentity,
+        declaring_trait_arguments: Vec<PackageReviewTypeIdentity>,
+        requirement: PackageReviewNominalIdentity,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -2826,12 +2833,6 @@ fn project_proposition_binder_argument(
     argument: &psi_typed_trees::proposition::PropositionBinderArgument,
     substitutions: &[(SymbolHandle, PackageReviewPropositionBinderArgument)],
 ) -> Result<PackageReviewPropositionBinderArgument, Vec<Diagnostic>> {
-    if argument.evidence_projection.is_some() {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed callable `{}` uses a proposition evidence-projection binder argument not yet represented by package review",
-            machine.name
-        ))]);
-    }
     if let Some((_, substitution)) = substitutions
         .iter()
         .rev()
@@ -2845,7 +2846,9 @@ fn project_proposition_binder_argument(
         }
         return Ok(substitution.clone());
     }
-    let value = if let Some(literal) = &argument.const_literal {
+    let value = if let Some(projection) = argument.evidence_projection.as_ref() {
+        project_proposition_evidence_projection(compilation, machine, projection)?
+    } else if let Some(literal) = &argument.const_literal {
         PackageReviewPropositionBinderValue::Integer(literal.text().to_owned())
     } else if let Some(position) = callable_binders
         .iter()
@@ -2869,6 +2872,134 @@ fn project_proposition_binder_argument(
     })
 }
 
+fn project_proposition_evidence_projection(
+    compilation: &CheckedCompilation,
+    machine: &psi_typed_trees::machine::Machine,
+    projection: &psi_typed_trees::expression::EvidenceProjection,
+) -> Result<PackageReviewPropositionBinderValue, Vec<Diagnostic>> {
+    let matching_terms = compilation
+        .facts
+        .proof
+        .evidence_terms
+        .iter()
+        .filter_map(|(handle, term)| {
+            (term.owner
+                == psi_checked_trees::ContractProofFactOwner::Machine {
+                    machine_symbol: machine.symbol,
+                }
+                && term.kind == psi_checked_trees::ContractProofFactKind::Requires
+                && term.name == projection.term.as_str())
+            .then_some((handle, term))
+        })
+        .collect::<Vec<_>>();
+    let [(term_handle, term)] = matching_terms.as_slice() else {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed callable `{}` evidence projection `{}.{}` resolves to {} checked source terms; expected one",
+            machine.name,
+            projection.term,
+            projection.member,
+            matching_terms.len()
+        ))]);
+    };
+    let Some(checked_interface) = term.evidence_interface.as_ref() else {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed callable `{}` evidence projection `{}.{}` has no exact checked source interface",
+            machine.name, projection.term, projection.member
+        ))]);
+    };
+    let matching_requirements = checked_interface
+        .requirements
+        .iter()
+        .filter(|requirement| {
+            compilation.symbols.name(requirement.requirement) == projection.member.as_str()
+        })
+        .collect::<Vec<_>>();
+    let [checked_requirement] = matching_requirements.as_slice() else {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed callable `{}` evidence projection `{}.{}` resolves to {} checked requirement rows; expected one",
+            machine.name,
+            projection.term,
+            projection.member,
+            matching_requirements.len()
+        ))]);
+    };
+    if !compilation
+        .facts
+        .proof
+        .proposition_vocabulary
+        .applications
+        .iter()
+        .flat_map(|application| &application.binder_arguments)
+        .filter_map(|argument| argument.evidence_projection.as_ref())
+        .any(|retained| {
+            retained.term == *term_handle
+                && retained.declaring_trait == checked_requirement.declaring_trait
+                && retained.requirement == checked_requirement.requirement
+        })
+    {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed callable `{}` evidence projection `{}.{}` has no retained checked projection row",
+            machine.name, projection.term, projection.member
+        ))]);
+    }
+
+    let declaration = compilation
+        .propositions()
+        .iter()
+        .find(|candidate| candidate.symbol == term.proposition.declaration)
+        .ok_or_else(|| {
+            vec![Diagnostic::error(format!(
+                "reviewed callable `{}` evidence projection `{}.{}` has an unresolved source proposition endpoint",
+                machine.name, projection.term, projection.member
+            ))]
+        })?;
+    let psi_typed_trees::proposition::PropositionBody::Witness { evidence } = &declaration.body
+    else {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed callable `{}` evidence projection `{}.{}` does not originate from witness evidence",
+            machine.name, projection.term, projection.member
+        ))]);
+    };
+    let proposition_binders = compilation
+        .proposition_binders(declaration)
+        .iter()
+        .enumerate()
+        .map(|(position, binder)| (binder.symbol, format!("proposition-binder:{position}")))
+        .collect::<Vec<_>>();
+    let interface = project_evidence_interface(compilation, *evidence, &proposition_binders)?;
+    if nominal_identity(compilation, checked_interface.trait_symbol)? != interface.trait_identity {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed callable `{}` evidence projection `{}.{}` changed source interface during checked lowering",
+            machine.name, projection.term, projection.member
+        ))]);
+    }
+    let declaring_trait = nominal_identity(compilation, checked_requirement.declaring_trait)?;
+    let requirement = nominal_identity(compilation, checked_requirement.requirement)?;
+    let matching_projected = interface
+        .requirements
+        .iter()
+        .filter(|candidate| {
+            candidate.declaring_trait == declaring_trait && candidate.requirement == requirement
+        })
+        .collect::<Vec<_>>();
+    let [projected_requirement] = matching_projected.as_slice() else {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed callable `{}` evidence projection `{}.{}` resolves to {} structural interface rows; expected one",
+            machine.name,
+            projection.term,
+            projection.member,
+            matching_projected.len()
+        ))]);
+    };
+    Ok(PackageReviewPropositionBinderValue::EvidenceProjection {
+        source_kind: PackageReviewContractKind::Requires,
+        source_lane_position: portable_parameter_position(term.lane_position)?,
+        declaring_trait,
+        declaring_trait_arguments: projected_requirement.declaring_trait_arguments.clone(),
+        requirement,
+    })
+}
+
 fn proposition_binder_value_expression(
     argument: &PackageReviewPropositionBinderArgument,
 ) -> Option<PackageReviewContractExpression> {
@@ -2882,6 +3013,7 @@ fn proposition_binder_value_expression(
         PackageReviewPropositionBinderValue::Integer(value) => {
             Some(PackageReviewContractExpression::Integer(value.clone()))
         }
+        PackageReviewPropositionBinderValue::EvidenceProjection { .. } => None,
     }
 }
 

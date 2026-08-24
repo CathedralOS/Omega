@@ -192,13 +192,18 @@ and complete direct/inherited requirement surfaces. Named contracts join their
 checked evidence term and positional lane. A `requires` binding spelling is a
 local alias and is excluded from canonical identity; an `ensures` selector is
 public and remains. Checked string renderings are diagnostic only and changing
-them does not change review bytes. Evidence-projection binder arguments and
-unsupported call, member, cast, and aggregate expressions still fail closed.
+them does not change review bytes. A proof-static `evidence.member` binder
+argument retains its named-`requires` lane, package-qualified declaring trait,
+structural requirement-argument template, and exact requirement. The source
+lane binds the template to the proposition application's concrete arguments;
+the local evidence alias is not identity. Matching checked evidence-term,
+interface, and projection facts are mandatory. Unsupported ordinary call,
+member, cast, and aggregate expressions still fail closed.
 This join does not create a nominal Chi stage.
 The legacy machine-contract fingerprint no longer enters package-review bytes,
 so private state shape is not public contract identity. Complete proof and
 unsupported-clause rows still gate sealed admission. The compiler now provides
-a version-16 length-framed
+a version-17 length-framed
 binary comparison encoding over this review projection; it is explicitly not a package certificate or
 accepted-lock payload. Raw Rust/debug serialization is not an alternative. These pieces do
 not become an admission path until the legacy name-keyed lock APIs are replaced
