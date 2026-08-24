@@ -19,7 +19,7 @@ milestones. Engineering difficulty is not a design blocker; mark an item
 blocked only when a literal language/profile ruling is required and the
 existing decision procedure cannot settle it.
 
-## Settled build shape
+## Settled boundary
 
 ```text
 Alpha → Beta → Gamma → Delta
@@ -29,39 +29,28 @@ Delta bridge source ──[lattice-built Delta compiler]──▶ omega-bootstra
 ```
 
 In artifact shorthand this is `Alpha → Beta → Gamma → Delta → omega-bootstrap
-→ omega [→ omega]`, where the bracketed self-rebuild is optional. The bridge is
-an artifact between language rungs, not a language generation of its own.
+→ omega [→ omega]`. Language growth stops at Delta. Everything to its right is
+a compiler artifact or a build edge, not another language rung.
 
-The languages become increasingly capable through Delta. Delta is the final
-small-language rung: an independent, robust compiler-host language with C-like
-power and Omega-shaped conventions where cheap. It is not required to be valid
-Omega or a subset of Omega.
+Only two source surfaces are still being selected:
 
-`omega-bootstrap` is a compiler artifact written in Delta. It accepts the
-ordinary-Omega product-source profile `Ωself`, rejects unsupported Omega, and
-compiles the production compiler conservatively. The product compiler source
-is normal Omega constrained to `Ωself`; the compiler it defines implements
-the complete Omega specification and contains the optimizer and advanced
-lowering pipeline.
-The bridge compiles those passes as source but does not duplicate or run them.
-
-Only the optional final `omega` → `omega` edge is strict self-hosting. It may
-improve the compiler executable and add reproducibility evidence, but it is not
-a bootstrap dependency, language generation, or second implementation. There
-is no omega0, omega1, or Epsilon rung. O0 and O1 are bounded regression canaries
-only.
-
-Exactly two source-surface contracts remain to be discovered and frozen:
-
-| Contract | Meaning | Freeze evidence |
+| Surface | Kind | Required closure |
 | --- | --- | --- |
-| Delta v1 | the literal independent language used to write `omega-bootstrap` | the complete bridge source closure plus explicit coherence, safety, robustness, and maintainability arguments |
-| `Ωself` | a compositional profile of valid Omega used by the product compiler source | the complete product source closure plus measured bridge and assurance cost for every retain/refactor choice |
+| Delta v1 | independent robust compiler-host language, C-like in power and Omega-shaped where cheap | the complete Delta source of `omega-bootstrap` |
+| `Ωself` | compositional subset of already-valid Omega, with no private meaning | the complete Omega source of production `omega` |
 
-The bridge artifacts do not create a third source contract. Full-Omega
-implementation coverage is already fixed by the product specification, and a
-compiler can implement a feature without using that feature in its own source.
-Generated-code quality is an artifact property, not a language-surface choice.
+`omega-bootstrap` is written in Delta and need only accept `Ωself`. The
+production source is written in `Ωself` but must define a compiler that accepts
+full Omega and contains the production optimizer and advanced lowering. A
+compiler does not need to use a language feature in order to implement that
+feature for its users.
+
+Only the optional bracketed `omega` → `omega` edge is strict self-hosting. It
+may improve the compiler executable and add reproducibility evidence, but it is
+not a bootstrap dependency, language generation, or second implementation.
+There is no omega0, omega1, or Epsilon rung. O0 and O1 are bounded regression
+canaries only. Generated-code quality is an artifact property, not a third
+source-surface choice.
 
 These standing rulings are not tasks:
 
@@ -227,23 +216,27 @@ and
 That evidence measures the route; it does not by itself admit the source
 families to `Ωself`. The private handoff remains bridge-local, and future
 Terminal-Psi vocabulary work remains product work in `TASKS.md`.
+- [ ] Join the structurally checked multi-unit
+  [compilation envelope](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION.md)
+  to an independently accepted resolver/lock commitment and compare the exact
+  envelope SHA-256. Structural validity alone is never compilation authority.
+- [ ] Resolve logical modules, exact `use` paths, requester-local direct aliases,
+  visibility, duplicate identities, authored-module agreement, the selected
+  root, and deterministic semantic order from the accepted envelope and source
+  bytes. Reject missing, private, transitive-only, ambiguous, or mismatched
+  names without publishing checked IR.
+- [ ] Close the first real two-package artifact by importing public nominal data
+  into the selected call-free machine, then compare the exact CKIR and limited
+  ELF through native, self-built, Rust-free meaning, and lower-rooted
+  reconstruction. The planned lower-rooted
+  [resolution witness](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS.md)
+  keeps transport checking, source resolution, CKIR comparison, and artifact
+  refinement as distinct responsibilities joined by exact bytes.
 - [ ] Continue through the remaining general capabilities used by checkpoint
   000001, then later provisional checkpoints, until the bridge generally parses,
   resolves, checks, diagnoses, and conservatively lowers every program admitted
-  by the candidate `Ωself` profile while rejecting everything else before
-  publication. The Delta structural checker for the resolver-supplied multi-unit
-  [compilation envelope](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION.md)
-  now reproduces bounded canonical transport through native, self-built, and
-  Rust-free `0`/`251`/`252` gates. This does not complete the tranche or grant
-  compilation authority. Next, join an independently accepted lock/closure
-  commitment and exact envelope SHA-256, implement general import/name
-  resolution, and end in a real cross-unit artifact rather than a frontend-only
-  claim. Structural envelope validity is not resolver authority: also enforce
-  direct requester-local reach, resolver-owned logical module placement plus
-  any agreeing authored declaration, visibility, root selection, and
-  deterministic semantic order. The first two-unit CKIR1
-  fixture may import nominal data; a cross-unit machine call waits for a
-  versioned CKIR call operation rather than being implied by transport work.
+  by candidate `Ωself`. Cross-unit machine calls wait for a versioned CKIR call
+  operation; transport work does not imply that widening.
 - [ ] Carry each admitted capability's compositional rules, negative boundary,
   resource teeth, Rust-free meaning, and direct artifact path in the same
   milestone. A bounded frontend-only cost probe is evidence, not bridge
@@ -330,6 +323,13 @@ work.
 
 - Keep one focused gate per active capability; run the full lattice gate only
   at coherent milestones.
+- Give transport decoding, semantic resolution, checked-IR validation, artifact
+  reconstruction, and orchestration separate modules/checkers. Compose them by
+  versioned artifacts and cross-pair tests; do not grow one verifier through a
+  Cartesian product of source and artifact permutations.
+- Put shared fixture generation and corpus registration in small harnesses.
+  Keep positive, negative, resource, and target families in responsibility-
+  specific files so adding a case does not recompile an unrelated monolith.
 - A gate approaching tens of minutes must report subgate timings before more
   feature growth. Profile compiler, evaluator, and harness separately.
 - Keep one compilation single-threaded until profiling justifies compiler

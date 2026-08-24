@@ -229,7 +229,7 @@ Omega/
 |-- tests/
 |   |-- integration/                                    # End-to-end compiler tests.
 |   |-- target_corpus/                                  # Per-target calling convention, ABI, object, link, and image tests.
-|   `-- bootstrap/                                      # Future self-hosting/bootstrap tests.
+|   `-- bootstrap/                                      # Product/hosted-build integration tests; lattice gates stay under bootstrap/.
 |
 `-- wiki/                                               # Language design notes, target notes, and guide drafts.
 ```
