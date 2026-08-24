@@ -27,7 +27,7 @@ self-hosting.
 | Source contract | What it is | Selected from | What does **not** define it |
 | --- | --- | --- | --- |
 | Delta v1 | an independent literal language specification | the complete Delta source closure of `omega-bootstrap` | D0, samples, or whatever the Rust producer happens to accept |
-| `Ωself` | a compositional profile of ordinary Omega | the complete Omega source closure of the production compiler | Delta's features, a file allowlist, or the current compiler's exact AST permutations |
+| `Ωself` | a compositional profile of ordinary Omega | the complete Omega source closure of the production compiler, with retain/refactor settled by measured bridge cost | Delta's features, a file allowlist, or the current compiler's exact AST permutations |
 
 Full Omega is the already-separate product language specification. It is what
 the production compiler must implement, not a third bootstrap source-profile
@@ -184,6 +184,14 @@ Standalone terminal-Psi tools, interpreters, REPLs, proof explorers, viewers,
 debuggers, and other product tooling are presumptively outside the hosted
 closure unless the compiler executable imports them.
 
+The current product architecture does use Terminal Psi as the target-neutral
+compiler boundary. Consequently, the representation and lowering modules the
+compiler links are ordinary members of the product source manifest. This does
+not imply that a standalone Terminal-Psi interpreter, artifact viewer, or debug
+tool belongs to the manifest, nor that `omega-bootstrap` must use Terminal Psi
+as its own internal IR. The bridge must compile those product modules as
+ordinary `Ωself` source; it need not duplicate or execute their product role.
+
 These are `Ωself` source-profile choices, not proposals to remove the features
 from full Omega. Conversely, Delta does not acquire or reject any of them merely
 because the production compiler source does: Delta's literal feature set is a
@@ -213,9 +221,11 @@ implementation + assurance cost in the omega-bootstrap Delta source closure
 ```
 
 Basic generics and payload enums are likely favorable. Proof syntax and
-dependent typing are not. Profile growth is an architectural change and must
-update the profile rules, compiler, meaning route, diagnostics, and negative
-gates together.
+dependent typing are not. This is a total-cost profile, not a contest to remove
+the most features: retaining a cheap general facility is preferable to forcing
+large, brittle, monomorphic compiler source. Profile growth is an architectural
+change and must update the profile rules, compiler, meaning route, diagnostics,
+and negative gates together.
 
 ## One required hosted production build
 
@@ -243,8 +253,9 @@ Delta-written-compiler → Omega-source edge is a cross-language hosted build.
 The production compiler task must publish one deterministic source/dependency
 manifest. This is a staged discovery loop, not a circular build dependency: the
 product source can be authored under the working policy while the Delta bridge
-and ledger evolve against provisional closures. The freezes happen only after
-the relevant complete source is visible:
+and ledger evolve against provisional closures. `Ωself` can be derived and
+enforced provisionally once the product closure is visible, but its cost claims
+cannot be final until the general bridge implementation exists:
 
 1. Write the product compiler under the conservative working policy and publish
    its complete source closure.
@@ -252,8 +263,10 @@ the relevant complete source is visible:
    implementation/assurance cost in Delta.
 3. Either refactor the product source to remove the feature or admit it to the
    compositional `Ωself` contract.
-4. Freeze the source manifest and profile together, then enforce both
-   mechanically.
+4. Implement and assure those general profile rules in `omega-bootstrap`, feeding
+   measured cost back into the retain/refactor decision.
+5. Freeze the source manifest and `Ωself` together at that bridge join, then
+   enforce both mechanically.
 
 This process classifies facilities, not individual occurrences. A retained
 facility is implemented compositionally for every source admitted by its
@@ -271,8 +284,9 @@ Delta's freeze is adjacent but separate. Its provisional ledger evolves while
 `omega-bootstrap` is written. Once the complete Delta source closure exists,
 prune accidental producer/corpus behavior, publish the general Delta v1 grammar
 and semantics, and prove that exact closure valid under the frozen language. The
-Omega product-source manifest decides `Ωself`; the Delta bridge-source manifest
-decides Delta v1. Neither manifest substitutes for the corresponding general
+Omega product-source manifest plus measured bridge cost decide `Ωself`; the
+Delta bridge-source manifest plus explicit compiler-host coherence arguments
+decide Delta v1. Neither manifest substitutes for the corresponding general
 profile or language contract.
 
 The current Rust Psi/Omega compiler remains a maintained reference and

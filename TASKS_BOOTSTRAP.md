@@ -54,12 +54,14 @@ need their exact inventories frozen:
 | Contract | Evidence that selects it | Working owner | Freeze point |
 | --- | --- | --- | --- |
 | **Delta v1** — the literal independent language used to write `omega-bootstrap` | the bridge's complete deterministic Delta source closure, plus explicit language-coherence and robustness arguments | [`bootstrap/rungs/delta/FEATURE_LEDGER.md`](bootstrap/rungs/delta/FEATURE_LEDGER.md) | after the complete bridge source exists and accidental producer/corpus behavior is pruned |
-| **`Ωself`** — the incidental ordinary-Omega product-compiler source profile | the product compiler's complete deterministic Omega source closure | [`compiler_source_profile.md`](wiki/architecture/bootstrap_lattice/compiler_source_profile.md) and the bootstrap profile gate | after `OMEGA-PRODUCT-COMPILER-SOURCE` publishes that closure and each disputed feature is measured |
+| **`Ωself`** — the incidental ordinary-Omega product-compiler source profile | the product compiler's complete deterministic Omega source closure, with retain/refactor choices settled by measured bridge cost | [`compiler_source_profile.md`](wiki/architecture/bootstrap_lattice/compiler_source_profile.md) and the bootstrap profile gate | at the general bridge join, after the source closure exists and every disputed feature is implemented or refactored away |
 
-Delta's source manifest decides what its independent language must support;
-Omega's product-source manifest decides what ordinary Omega the bridge must
-accept. Neither manifest is itself a grammar, and neither contract may be
-inferred from the other.
+Delta's source manifest supplies the primary need for its independent language;
+explicit compiler-host coherence arguments may retain modest companion
+facilities. Omega's product-source manifest supplies the feature candidates for
+`Ωself`; measured bridge and assurance cost settles retain-versus-refactor.
+Neither manifest is itself a grammar, and neither contract may be inferred from
+the other.
 
 “Selected from the source closure” does not mean Delta is a whitelist of the
 constructs textually exercised by one compiler revision. The closure supplies
@@ -68,6 +70,12 @@ facility when doing so makes the literal language safer, more regular, easier
 to specify, or materially easier to use for compiler work. That justification
 must be recorded explicitly; acceptance by a disposable producer or presence
 in an old sample is not one.
+
+The same total-cost rule applies to `Ωself`. The goal is not the fewest possible
+Omega features. A cheap, compositional feature should remain when excluding it
+would make the production compiler source substantially larger, less regular,
+or harder to audit. The profile is deliberately restricted, not deliberately
+crippled.
 
 There is no `omega0`, `omega1`, or Epsilon language generation between them.
 O0 and O1 below are bounded vertical-canary labels for the current bridge work,
@@ -324,12 +332,19 @@ coverage. No provisional construct is presented as frozen Delta v1.
 source. It may proceed in parallel with Delta/bridge discovery. The bootstrap
 lane consumes its deterministic transitive manifest; product Psi/Omega
 implementation work must not be duplicated here. Compiler-adjacent tools are
-outside that manifest unless the compiler executable imports them.
+outside that manifest unless the compiler executable imports them. Under the
+current product architecture, terminal-Psi representation and lowering modules
+used by the compiler belong to the manifest. That does not pull in a standalone
+Terminal-Psi interpreter, verifier, viewer, or debugger, and it does not require
+`omega-bootstrap` to use Terminal Psi as its own internal compiler IR.
 
-- [ ] **Derive and freeze the Omega product-compiler source profile (`Ωself`).**
-  Dependency: the exact production-compiler source manifest above must exist
-  before the profile can freeze. Standard library samples and current Rust
-  source cannot substitute for it; provisional bridge work may continue.
+- [ ] **Derive `Ωself` from the product source and freeze it at the bridge
+  join.** Dependency: the exact production-compiler source manifest above must
+  exist before the profile can be derived. Standard library samples and current
+  Rust source cannot substitute for it; provisional bridge work may continue.
+  The candidate profile may be mechanically enforced while the bridge grows,
+  but it freezes only after the bridge supplies real implementation and
+  assurance costs for every retained feature.
   - [ ] measure every feature used by the complete source closure against its
     production-source benefit and the cost of implementing and assuring it in
     the Delta-written bridge;
@@ -366,18 +381,20 @@ outside that manifest unless the compiler executable imports them.
     frozen Delta v1 belongs to the subsequent freeze task, and one entry source
     file alone is not the closure;
   - [ ] accept exactly `Ωself` with general parsing, checking, diagnostics,
-    and the conservative lowering path selected for the profile; Terminal Psi
-    is required only if that selected compiler closure imports it;
+    and the conservative lowering path selected for the profile. The bridge may
+    lower directly; compiling product modules that implement or manipulate
+    Terminal Psi does not require a Terminal-Psi interpreter in the bridge;
   - [ ] reject unsupported Omega before artifact publication;
   - [ ] carry every admitted capability through the Rust-free meaning route and
     direct artifact path in the same milestone; and
   - [ ] compile, rather than duplicate, the production optimizer and advanced
     lowering source.
 
-  This task may grow provisionally against the working `Ωself` policy before
-  the profile freeze. A capability is complete only when its general profile
-  rule, unsupported-form rejection, Rust-free meaning, and artifact path land
-  together; recognizing just the current product source shape does not count.
+  This task grows against the working `Ωself` policy and feeds measured cost
+  back into the profile decision. A capability is complete only when its
+  general profile rule, unsupported-form rejection, Rust-free meaning, and
+  artifact path land together; recognizing just the current product source
+  shape does not count.
 
   Acceptance: the bridge compiles every admitted `Ωself` program with exact
   Omega semantics. It need not accept full Omega, optimize its own output, use
@@ -592,22 +609,22 @@ outside that manifest unless the compiler executable imports them.
 
 1. Close the Alpha-rooted `bc` source-correspondence edge with lower-rooted
    checking.
-2. Keep Delta's Rust-free meaning route as a rolling invariant: every newly
-   admitted compiler construct lands with native/meaning differential coverage.
-3. Maintain Delta's provisional feature ledger while growing the bridge; once
-   `OMEGA-PRODUCT-COMPILER-SOURCE` is complete in `TASKS.md`, derive and gate
-   `Ωself`, complete the bridge source closure, then remove accidental surface
-   and freeze a coherent, robust Delta v1.
-4. Grow proof-kernel capability and its operational seams only in lockstep with
-   real obligation classes.
-5. Build translation-validation evidence for native compiler outputs.
-6. Use the closed O0/O1 source-through-ELF canaries as regression evidence while
-   implementing `omega-bootstrap` directly against `Ωself`; do not manufacture
-   an O2/O3 profile ladder. Carry correct conservative lowering sufficient for
-   the required hosted production build.
-7. Use `omega-bootstrap` once to build and validate the full optimizing Omega
-   compiler from the `Ωself` production source manifest. Treat any later
-   product self-rebuild as optional assurance evidence, not another rung.
+2. In parallel, keep Delta's Rust-free meaning route and provisional feature
+   ledger live while `OMEGA-PRODUCT-COMPILER-SOURCE` establishes the Omega-written
+   product source and deterministic closure in `TASKS.md`.
+3. Derive a provisional `Ωself` from that product closure and implement
+   `omega-bootstrap` directly against its compositional rules. Use O0/O1 only as
+   regression canaries; do not manufacture an O2/O3 ladder. Feed measured bridge
+   and assurance cost back into each retained/excluded profile decision.
+4. Freeze `Ωself` when the general bridge implementation closes, then freeze a
+   coherent Delta v1 from the bridge's complete Delta source closure after
+   removing accidental producer and corpus surface.
+5. Build the exact bridge through the canonical lattice path, join source,
+   meaning, artifact, and negative-profile evidence, then use it once to build
+   and validate the full optimizing Omega compiler. Any later product
+   self-rebuild is optional performance/reproducibility work.
+6. Throughout those steps, grow proof-kernel seams and translation-validation
+   evidence only for real obligation classes introduced by the compiler edges.
 
 This ordering follows D1–D6. Producer optimization does not outrank removal of a
 trusted Rust meaning or verification dependency.
