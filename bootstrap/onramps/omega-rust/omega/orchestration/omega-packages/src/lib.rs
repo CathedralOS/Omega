@@ -10,7 +10,9 @@
 
 mod audit;
 mod commands;
+mod declaration;
 mod diff;
+mod identity;
 mod install;
 mod json;
 mod lock;
@@ -37,7 +39,9 @@ pub use commands::{
     plan_package_lock_update_from_lock, resolve_source_cache_record_locator,
     write_source_cache_record_locator,
 };
+pub use declaration::{PackageDeclaration, PackageDeclarationError, extract_package_declaration};
 pub use diff::{ManifestDelta, ManifestDiff, ManifestSeverity, diff_package_capability_manifests};
+pub use identity::PackageName;
 pub use install::{PackageInstallPlan, PackageInstallPlanError, plan_package_install};
 pub use lock::{
     LockedDependency, LockedPackage, PackageLock, PackageLockAssemblyError, PackageLockParseError,
@@ -46,7 +50,7 @@ pub use lock::{
 pub use manifest::{
     AliasName, BuildMachineManifest, CapabilityFlowSummary, DependencyAlias,
     InstallationBoundReach, PackageCapabilityManifest, PackageCapabilityManifestParseError,
-    PackageCapabilityManifestPersistenceError, PackageName, ProviderRequirement, ProviderSelection,
+    PackageCapabilityManifestPersistenceError, ProviderRequirement, ProviderSelection,
     QualificationRoute, ReproducibilityEvidence, SourceIdentity, TrustReceipt,
 };
 pub use resolver::{

@@ -1,3 +1,4 @@
+pub use crate::identity::PackageName;
 use crate::json::{JsonParseError, JsonParser, JsonValue};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
@@ -5,26 +6,6 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 pub const PACKAGE_CAPABILITY_MANIFEST_SCHEMA_VERSION: u32 = 1;
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct PackageName(String);
-
-impl PackageName {
-    pub fn parse(value: impl Into<String>) -> Result<Self, String> {
-        let value = value.into();
-        if is_kebab_case(&value) {
-            Ok(Self(value))
-        } else {
-            Err(format!(
-                "package identity `{value}` must use kebab-case lowercase words"
-            ))
-        }
-    }
-
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-}
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct AliasName(String);
@@ -879,10 +860,6 @@ pub(crate) fn section_json(manifest: &PackageCapabilityManifest, section: &str) 
         "reproducibility" => format!("{:?}", manifest.reproducibility),
         _ => String::new(),
     }
-}
-
-fn is_kebab_case(value: &str) -> bool {
-    is_separated_lowercase(value, '-')
 }
 
 fn is_snake_case(value: &str) -> bool {
