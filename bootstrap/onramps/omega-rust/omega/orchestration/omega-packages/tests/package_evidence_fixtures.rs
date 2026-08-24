@@ -2,6 +2,7 @@ use omega_compiler::{
     CheckedPackageReviewProjection, PackageReviewCallableRole, PackageReviewContractExpression,
     PackageReviewContractFact, PackageReviewContractKind, PackageReviewDangerousAuthorityClass,
     PackageReviewNominalOwner, PackageReviewPropositionEvidence,
+    PackageReviewRepresentationAbiCommitment, PackageReviewRepresentationMechanism,
     compile_to_checked_with_packages_in_build_dir, project_checked_package_review,
 };
 use omega_packages::{
@@ -243,6 +244,18 @@ fn assert_fixture_evidence(package: &str, review: &CheckedPackageReviewProjectio
                 "opaque-carrier supply must not collapse to an ordinary checked shape"
             );
             assert!(opaque.members().is_empty());
+            let [representation] = review.representation_tcb() else {
+                panic!("opaque-carrier exact representation-TCB row")
+            };
+            assert_eq!(representation.declaration(), opaque.identity());
+            assert_eq!(
+                representation.abi(),
+                PackageReviewRepresentationAbiCommitment::Unbound
+            );
+            assert_eq!(
+                representation.mechanism(),
+                PackageReviewRepresentationMechanism::Unbound
+            );
             assert!(callable.contracts().is_empty());
             assert!(
                 callable
@@ -252,6 +265,12 @@ fn assert_fixture_evidence(package: &str, review: &CheckedPackageReviewProjectio
             );
         }
         _ => {}
+    }
+    if package != "opaque-carrier" {
+        assert!(
+            review.representation_tcb().is_empty(),
+            "{package} must not fabricate opaque representation evidence"
+        );
     }
 }
 

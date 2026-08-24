@@ -389,6 +389,46 @@ pub struct PackageReviewDataShape {
     members: Vec<PackageReviewDataMember>,
 }
 
+/// The representation/ABI commitment retained for an opaque boundary datum.
+/// Review projection currently has no sealed realization join, so it can only
+/// state that the commitment is absent rather than inventing a layout.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum PackageReviewRepresentationAbiCommitment {
+    Unbound,
+}
+
+/// The selected external representation mechanism for an opaque boundary
+/// datum. Mechanism selection is not yet joined into checked package review.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum PackageReviewRepresentationMechanism {
+    Unbound,
+}
+
+/// Distinct representation-TCB evidence for one package-owned opaque boundary
+/// datum. This row is emitted independently of visibility, claims, and reach:
+/// none of those facts can make an externally supplied representation cease to
+/// be trusted implementation surface.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct PackageReviewRepresentationTcb {
+    declaration: PackageReviewNominalIdentity,
+    abi: PackageReviewRepresentationAbiCommitment,
+    mechanism: PackageReviewRepresentationMechanism,
+}
+
+impl PackageReviewRepresentationTcb {
+    pub const fn declaration(&self) -> &PackageReviewNominalIdentity {
+        &self.declaration
+    }
+
+    pub const fn abi(&self) -> PackageReviewRepresentationAbiCommitment {
+        self.abi
+    }
+
+    pub const fn mechanism(&self) -> PackageReviewRepresentationMechanism {
+        self.mechanism
+    }
+}
+
 impl PackageReviewDataShape {
     pub const fn identity(&self) -> &PackageReviewNominalIdentity {
         &self.identity
@@ -1330,6 +1370,7 @@ pub struct CheckedPackageReviewProjection {
     public_traits: Vec<PackageReviewTraitShape>,
     public_domains: Vec<PackageReviewDomainShape>,
     public_data: Vec<PackageReviewDataShape>,
+    representation_tcb: Vec<PackageReviewRepresentationTcb>,
     callables: Vec<CheckedPackageCallableReview>,
     dangerous_authorities: Vec<PackageReviewDangerousAuthority>,
     selected_providers: Vec<CheckedPackageProviderReview>,
@@ -1354,6 +1395,10 @@ impl CheckedPackageReviewProjection {
 
     pub fn public_data(&self) -> &[PackageReviewDataShape] {
         &self.public_data
+    }
+
+    pub fn representation_tcb(&self) -> &[PackageReviewRepresentationTcb] {
+        &self.representation_tcb
     }
 
     pub fn callables(&self) -> &[CheckedPackageCallableReview] {
@@ -1418,6 +1463,7 @@ pub fn project_checked_package_review(
     let public_traits = project_public_traits(compilation, package)?;
     let public_domains = project_public_domains(compilation, package)?;
     let public_data = project_public_data(compilation, package)?;
+    let representation_tcb = project_representation_tcb(compilation, package)?;
     let synchronous_invocations = psi_effects::infer_synchronous_invocations(&compilation.typed);
     let mut callables = Vec::new();
     let mut projected_build_machine = false;
@@ -1494,10 +1540,34 @@ pub fn project_checked_package_review(
         public_traits,
         public_domains,
         public_data,
+        representation_tcb,
         callables,
         dangerous_authorities,
         selected_providers,
     })
+}
+
+fn project_representation_tcb(
+    compilation: &CheckedCompilation,
+    package: PackageKeyIdentity,
+) -> Result<Vec<PackageReviewRepresentationTcb>, Vec<Diagnostic>> {
+    let mut rows = Vec::new();
+    for definition in compilation.data_definitions().iter().filter(|definition| {
+        definition.supply_mode == psi_language_semantics::DataSupplyMode::BoundaryOpaque
+    }) {
+        let declaration = nominal_identity(compilation, definition.symbol)?;
+        if !reviewed_package_owns(&declaration, package)? {
+            continue;
+        }
+        rows.push(PackageReviewRepresentationTcb {
+            declaration,
+            abi: PackageReviewRepresentationAbiCommitment::Unbound,
+            mechanism: PackageReviewRepresentationMechanism::Unbound,
+        });
+    }
+    rows.sort();
+    rows.dedup();
+    Ok(rows)
 }
 
 fn project_dangerous_authorities(

@@ -10,7 +10,7 @@ use psi_checked_trees::{
 };
 
 const MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW\0";
-pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 20;
+pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 21;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageReviewEncodingError {
@@ -42,10 +42,25 @@ pub(super) fn encode(
     encoder.sequence(&review.public_traits, encode_trait_shape)?;
     encoder.sequence(&review.public_domains, encode_domain_shape)?;
     encoder.sequence(&review.public_data, encode_data_shape)?;
+    encoder.sequence(&review.representation_tcb, encode_representation_tcb)?;
     encoder.sequence(&review.callables, encode_callable)?;
     encoder.sequence(&review.dangerous_authorities, encode_dangerous_authority)?;
     encoder.sequence(&review.selected_providers, encode_provider)?;
     Ok(encoder.output)
+}
+
+fn encode_representation_tcb(
+    encoder: &mut Encoder,
+    row: &PackageReviewRepresentationTcb,
+) -> Result<(), PackageReviewEncodingError> {
+    encode_nominal(encoder, &row.declaration)?;
+    encoder.byte(match row.abi {
+        PackageReviewRepresentationAbiCommitment::Unbound => 0,
+    });
+    encoder.byte(match row.mechanism {
+        PackageReviewRepresentationMechanism::Unbound => 0,
+    });
+    Ok(())
 }
 
 fn encode_dangerous_authority(

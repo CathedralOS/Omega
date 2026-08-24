@@ -7,6 +7,7 @@ use omega_compiler::{
     PackageReviewDomainClassification, PackageReviewDomainEstablishmentKind,
     PackageReviewNominalOwner, PackageReviewPropositionBinderKind,
     PackageReviewPropositionBinderValue, PackageReviewPropositionEvidence,
+    PackageReviewRepresentationAbiCommitment, PackageReviewRepresentationMechanism,
     PackageReviewSynchronousInvocation, PackageSourceBinding, compile_to_checked_with_packages,
     project_checked_package_review,
 };
@@ -147,6 +148,79 @@ target macos_arm64 { }
 }
 
 #[test]
+fn representation_tcb_retains_private_opaque_data_as_unbound() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let package = TempPackage::new();
+    package.write("main.omg", "boundary data InternalToken;\n");
+    package.write(
+        "build.omg",
+        r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+"#,
+    );
+
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some(target),
+        package_inputs(&package.0),
+    )
+    .expect("opaque representation fixture should check");
+    let review = project_checked_package_review(&checked)
+        .expect("opaque representation review should close");
+    let [row] = review.representation_tcb() else {
+        panic!("one private representation-TCB row")
+    };
+    assert_eq!(row.declaration().path(), "InternalToken");
+    assert_eq!(
+        row.declaration().owner(),
+        PackageReviewNominalOwner::Package(package_identity())
+    );
+    assert_eq!(row.abi(), PackageReviewRepresentationAbiCommitment::Unbound);
+    assert_eq!(
+        row.mechanism(),
+        PackageReviewRepresentationMechanism::Unbound
+    );
+    assert!(
+        review.public_data().is_empty(),
+        "ordinary public API projection remains visibility-scoped"
+    );
+
+    let control = TempPackage::new();
+    control.write("main.omg", "data InternalToken { }\n");
+    control.write(
+        "build.omg",
+        r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+"#,
+    );
+    let control_checked = compile_to_checked_with_packages(
+        &control.0.join("main.omg"),
+        Some(target),
+        package_inputs(&control.0),
+    )
+    .expect("ordinary private representation fixture should check");
+    let control_review = project_checked_package_review(&control_checked)
+        .expect("ordinary private representation review should close");
+    assert!(control_review.public_data().is_empty());
+    assert!(control_review.representation_tcb().is_empty());
+    assert_ne!(
+        review
+            .canonical_review_bytes()
+            .expect("opaque review encoding"),
+        control_review
+            .canonical_review_bytes()
+            .expect("ordinary review encoding"),
+        "a private opaque representation-TCB row must enter comparison identity"
+    );
+}
+
+#[test]
 fn review_projects_root_boundary_and_build_authority() {
     let Some(target) = host_target_name() else {
         return;
@@ -216,7 +290,7 @@ crashes Abort
         target,
         "review identity must retain the deployment profile, not only its native ABI",
     );
-    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 20);
+    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 21);
     let [ready] = review.public_domains() else {
         panic!("one package-owned public domain row")
     };
@@ -1535,7 +1609,7 @@ invokes waiting;
 }
 
 #[test]
-fn exact_synchronous_invocations_change_v20_comparison_encoding() {
+fn exact_synchronous_invocations_change_v21_comparison_encoding() {
     let quiet = TempPackage::new();
     let invoking = TempPackage::new();
     quiet.write(
@@ -1725,7 +1799,7 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
-fn public_data_and_numbered_wire_shape_changes_change_v20_comparison_encoding() {
+fn public_data_and_numbered_wire_shape_changes_change_v21_comparison_encoding() {
     let first = TempPackage::new();
     let second = TempPackage::new();
     first.write(
@@ -1759,7 +1833,7 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
-fn public_domain_shape_changes_change_v20_comparison_encoding() {
+fn public_domain_shape_changes_change_v21_comparison_encoding() {
     let first = TempPackage::new();
     let second = TempPackage::new();
     first.write(

@@ -50,6 +50,9 @@ real package fixture demonstrates an irreducible external contract.
   representation-TCB evidence. Introduction or material change recommends
   code/ABI audit without becoming a trust claim unless exact mechanism,
   authority, executable, claim, or compatibility policy independently blocks.
+  Current compiler review emits this lane for public and private opaque data
+  with ABI and mechanism explicitly `Unbound`; sealed realization provenance
+  remains future admission work.
 - Missing old source escalates code review but does not prevent comparison
   against the lock baseline. Missing lock evidence causes fresh graph
   admission.

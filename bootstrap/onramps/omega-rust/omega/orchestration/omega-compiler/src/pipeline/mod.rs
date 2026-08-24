@@ -92,10 +92,11 @@ pub use package_review::{
     PackageReviewPropositionApplication, PackageReviewPropositionBinder,
     PackageReviewPropositionBinderArgument, PackageReviewPropositionBinderKind,
     PackageReviewPropositionBinderValue, PackageReviewPropositionEvidence,
-    PackageReviewSynchronousInvocation, PackageReviewTermination, PackageReviewTraitParent,
-    PackageReviewTraitRequirement, PackageReviewTraitRequirementParameter, PackageReviewTraitShape,
-    PackageReviewTypeIdentity, PackageReviewTypeParameter, PackageReviewTypeParameterKind,
-    project_checked_package_review,
+    PackageReviewRepresentationAbiCommitment, PackageReviewRepresentationMechanism,
+    PackageReviewRepresentationTcb, PackageReviewSynchronousInvocation, PackageReviewTermination,
+    PackageReviewTraitParent, PackageReviewTraitRequirement,
+    PackageReviewTraitRequirementParameter, PackageReviewTraitShape, PackageReviewTypeIdentity,
+    PackageReviewTypeParameter, PackageReviewTypeParameterKind, project_checked_package_review,
 };
 pub use program_entry_physical::ProgramEntryPhysicalContractPlan;
 pub use program_entry_source_signature::{
