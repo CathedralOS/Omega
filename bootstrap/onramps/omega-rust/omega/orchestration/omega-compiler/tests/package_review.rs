@@ -1,8 +1,8 @@
 use omega_compiler::{
     BuildObservationClass, PACKAGE_REVIEW_ENCODING_VERSION, PACKAGE_REVIEW_ROW_ENCODING_VERSION,
     PackageCompilationInputs, PackageDependencyBinding, PackageReviewArithmeticDomain,
-    PackageReviewCallableRole, PackageReviewCanonicalRowKind, PackageReviewCanonicalRowSource,
-    PackageReviewCastForm, PackageReviewContractBinaryOperator, PackageReviewContractExpression,
+    PackageReviewCallableRole, PackageReviewCanonicalRowKind, PackageReviewCastForm,
+    PackageReviewContractBinaryOperator, PackageReviewContractExpression,
     PackageReviewContractFact, PackageReviewContractKind, PackageReviewCrashInterface,
     PackageReviewCrashRouteGuard, PackageReviewDangerousAuthorityClass, PackageReviewDataMember,
     PackageReviewDomainClassification, PackageReviewDomainEstablishmentKind,
@@ -10,8 +10,8 @@ use omega_compiler::{
     PackageReviewPropositionBinderValue, PackageReviewPropositionEvidence,
     PackageReviewRepresentationAbiCommitment, PackageReviewRepresentationMechanism,
     PackageReviewSourceLocationOwner, PackageReviewSourceLocationRole,
-    PackageReviewSynchronousInvocation, PackageSourceBinding, compile_to_checked_with_packages,
-    project_checked_package_review,
+    PackageReviewSynchronousInvocation, PackageReviewSyntheticSourceKind, PackageSourceBinding,
+    compile_to_checked_with_packages, project_checked_package_review,
 };
 use psi_core::PackageKeyIdentity;
 use std::fs;
@@ -151,12 +151,14 @@ target macos_arm64 { }
         .iter()
         .find(|row| row.kind() == PackageReviewCanonicalRowKind::PublicData)
         .expect("changed-source public data row");
-    let PackageReviewCanonicalRowSource::Authored(first_locations) = first_data.source() else {
-        panic!("public data receives an authored source coordinate")
-    };
-    let PackageReviewCanonicalRowSource::Authored(changed_locations) = changed_data.source() else {
-        panic!("changed public data receives an authored source coordinate")
-    };
+    let first_locations = first_data
+        .source()
+        .authored_locations()
+        .expect("public data receives an authored source coordinate");
+    let changed_locations = changed_data
+        .source()
+        .authored_locations()
+        .expect("changed public data receives an authored source coordinate");
     assert_eq!(first_locations.len(), 1);
     assert_eq!(changed_locations.len(), 1);
     assert_eq!(first_locations[0].relative_path(), "main.omg");
@@ -273,9 +275,10 @@ target macos_arm64 { }
         .iter()
         .find(|row| row.kind() == PackageReviewCanonicalRowKind::DangerousAuthority)
         .expect("dangerous authority canonical row");
-    let PackageReviewCanonicalRowSource::Authored(locations) = authority_row.source() else {
-        panic!("dangerous authority row must retain authored provenance")
-    };
+    let locations = authority_row
+        .source()
+        .authored_locations()
+        .expect("dangerous authority row must retain authored provenance");
     assert!(locations.iter().any(|location| {
         location.role() == PackageReviewSourceLocationRole::AuthorityDeclaration
             && matches!(
@@ -793,6 +796,34 @@ crashes Abort
         provider.rows()[0].binding,
         omega_effects::provider_plan::ProviderBinding::VtableSlot { index: 1 }
     ));
+    let provider_row = rows
+        .iter()
+        .find(|row| row.kind() == PackageReviewCanonicalRowKind::SelectedProviderSet)
+        .expect("selected provider canonical row");
+    assert_eq!(
+        provider_row.source().compiler_derivations(),
+        [
+            PackageReviewSyntheticSourceKind::UniqueCoveringProviderSelection,
+            PackageReviewSyntheticSourceKind::FreeExternalProviderType,
+        ]
+    );
+    let provider_locations = provider_row
+        .source()
+        .authored_locations()
+        .expect("implicit provider still retains authored schema and realization provenance");
+    assert!(provider_locations.iter().any(|location| {
+        location.role() == PackageReviewSourceLocationRole::ProviderSchemaDeclaration
+            && location.relative_path() == "main.omg"
+    }));
+    assert!(provider_locations.iter().any(|location| {
+        location.role() == PackageReviewSourceLocationRole::ProviderRealization
+            && location.relative_path() == "main.omg"
+    }));
+    assert!(!provider_locations.iter().any(|location| matches!(
+        location.role(),
+        PackageReviewSourceLocationRole::ProviderSelection
+            | PackageReviewSourceLocationRole::ProviderTypeDeclaration
+    )));
 }
 
 #[test]

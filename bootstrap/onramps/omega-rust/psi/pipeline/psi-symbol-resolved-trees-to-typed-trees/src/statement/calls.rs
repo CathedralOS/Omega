@@ -41,5 +41,6 @@ pub(super) fn lower_call_statement(
             .into_boxed_slice(),
         operational_acknowledgement: call.operational_acknowledgement,
         discards_result: call.discards_result,
+        source_span: call.target.source_span(),
     })
 }

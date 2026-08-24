@@ -2121,17 +2121,21 @@ fn provider_type_package_identity(
     typed: &TypedTrees,
     machine: &psi_typed_trees::machine::Machine,
 ) -> Option<psi_core::PackageKeyIdentity> {
+    provider_type_symbol(typed, machine)
+        .and_then(|symbol| typed.symbols.symbol_package_identity(symbol))
+}
+
+fn provider_type_symbol(
+    typed: &TypedTrees,
+    machine: &psi_typed_trees::machine::Machine,
+) -> Option<psi_symbols::SymbolHandle> {
     let attached_data = machine.attached_data.as_ref()?;
     let mut owners = typed
         .data_definitions()
         .iter()
         .filter(|definition| definition.name == *attached_data);
     let owner = owners.next()?;
-    owners
-        .next()
-        .is_none()
-        .then(|| typed.symbols.symbol_package_identity(owner.symbol))
-        .flatten()
+    owners.next().is_none().then_some(owner.symbol)
 }
 
 /// PRV4 order step (2): derive plans from explicit SATISFIES edges -- one
@@ -2151,13 +2155,51 @@ pub(crate) fn derive_satisfies_plans(
     typed: &TypedTrees,
     selected_target: Option<&str>,
 ) -> Vec<ProviderPlan> {
-    let mut plans: Vec<ProviderPlan> = Vec::new();
+    derive_satisfies_plans_with_provenance(typed, selected_target)
+        .into_iter()
+        .map(|derived| derived.plan)
+        .collect()
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum ProviderSchemaDeclaration {
+    BoundaryTrait(psi_symbols::SymbolHandle),
+    BoundaryOperator(psi_symbols::SymbolHandle),
+}
+
+impl ProviderSchemaDeclaration {
+    pub(super) const fn symbol(self) -> psi_symbols::SymbolHandle {
+        match self {
+            Self::BoundaryTrait(symbol) | Self::BoundaryOperator(symbol) => symbol,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct ProviderPlanProvenance {
+    pub(super) schema: ProviderSchemaDeclaration,
+    pub(super) provider_type: Option<psi_symbols::SymbolHandle>,
+    pub(super) row_realizations: Vec<psi_symbols::SymbolHandle>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct DerivedProviderPlan {
+    pub(super) plan: ProviderPlan,
+    pub(super) provenance: ProviderPlanProvenance,
+}
+
+pub(super) fn derive_satisfies_plans_with_provenance(
+    typed: &TypedTrees,
+    selected_target: Option<&str>,
+) -> Vec<DerivedProviderPlan> {
+    let mut plans: Vec<DerivedProviderPlan> = Vec::new();
     // Target filtering has already admitted only unscoped and selected-target
     // machines into typed trees. Derive from their exact retained conformance
     // and supply identities; source syntax is no longer a binding authority.
     for machine in typed.machines() {
         let origin_package_identity = typed.symbols.symbol_package_identity(machine.symbol);
         let provider_type_package_identity = provider_type_package_identity(typed, machine);
+        let provider_type_symbol = provider_type_symbol(typed, machine);
         for clause in typed.machine_trait_conformances(machine) {
             if clause.requirement.as_ref().is_some_and(|requirement| {
                 psi_typed_trees::operator::resolve_satisfied_boundary_operator(
@@ -2217,7 +2259,6 @@ pub(crate) fn derive_satisfies_plans(
             };
             let binding = binding_kind;
             let target = selected_target.unwrap_or_default().to_owned();
-            let trait_leaf = clause.name.as_str().to_owned();
             let provider_type = machine
                 .attached_data
                 .as_ref()
@@ -2249,42 +2290,64 @@ pub(crate) fn derive_satisfies_plans(
                 clause.name.as_str(),
                 requirement.as_str(),
             );
-            for (schema_trait, schema) in provider_plan_schema_targets(
+            for (schema_declaration, schema_trait, schema) in provider_plan_schema_targets(
                 typed,
                 &provider_type,
-                &trait_leaf,
+                provider_type_symbol,
+                clause.symbol,
                 &semantic_requirement_identity,
             ) {
                 let plan_name = satisfies_plan_name(&target, &schema_trait, &provider_type);
                 let position = plans
                     .iter()
-                    .position(|plan| {
-                        plan.name == plan_name
-                            && plan.provider_type_package_identity == provider_type_package_identity
-                            && plan.origin_package_identity == origin_package_identity
+                    .position(|derived| {
+                        derived.plan.name == plan_name
+                            && derived.plan.provider_type_package_identity
+                                == provider_type_package_identity
+                            && derived.plan.origin_package_identity == origin_package_identity
+                            && derived.provenance.schema == schema_declaration
                     })
                     .unwrap_or_else(|| {
-                        plans.push(ProviderPlan {
-                            name: plan_name.clone(),
-                            provider_type: provider_type.clone(),
-                            provider_type_package_identity,
-                            target: target.clone(),
-                            schema,
-                            rows: Vec::new(),
-                            origin_package_identity,
-                            origin_package: String::new(),
+                        plans.push(DerivedProviderPlan {
+                            plan: ProviderPlan {
+                                name: plan_name.clone(),
+                                provider_type: provider_type.clone(),
+                                provider_type_package_identity,
+                                target: target.clone(),
+                                schema,
+                                rows: Vec::new(),
+                                origin_package_identity,
+                                origin_package: String::new(),
+                            },
+                            provenance: ProviderPlanProvenance {
+                                schema: schema_declaration,
+                                provider_type: provider_type_symbol,
+                                row_realizations: Vec::new(),
+                            },
                         });
                         plans.len() - 1
                     });
-                plans[position].rows.push(ProviderPlanRow {
+                debug_assert_eq!(plans[position].provenance.schema, schema_declaration);
+                debug_assert_eq!(
+                    plans[position].provenance.provider_type,
+                    provider_type_symbol
+                );
+                plans[position].plan.rows.push(ProviderPlanRow {
                     method: requirement.as_str().to_owned(),
                     requirement_identity: requirement_identity.clone(),
                     binding: row_binding.clone(),
                 });
+                plans[position]
+                    .provenance
+                    .row_realizations
+                    .push(machine.symbol);
             }
         }
     }
-    plans.extend(derive_boundary_operator_plans(typed, selected_target));
+    plans.extend(derive_boundary_operator_plans_with_provenance(
+        typed,
+        selected_target,
+    ));
     plans
 }
 
@@ -2298,25 +2361,22 @@ pub(crate) fn derive_satisfies_plans(
 fn provider_plan_schema_targets(
     typed: &TypedTrees,
     provider_type: &str,
-    satisfied_trait: &str,
+    provider_type_symbol: Option<psi_symbols::SymbolHandle>,
+    satisfied_trait_symbol: psi_symbols::SymbolHandle,
     requirement_identity: &str,
-) -> Vec<(String, ServiceSchema)> {
-    let direct = typed.traits().iter().find(|definition| {
-        definition.is_boundary && same_semantic_name(definition.name.as_str(), satisfied_trait)
-    });
+) -> Vec<(ProviderSchemaDeclaration, String, ServiceSchema)> {
+    let direct = typed
+        .traits()
+        .iter()
+        .find(|definition| definition.is_boundary && definition.symbol == satisfied_trait_symbol);
 
     let mut refined = typed
         .conformances()
         .iter()
-        .filter(|conformance| {
-            conformance
-                .carrier_name()
-                .is_some_and(|carrier| same_semantic_name(carrier.as_str(), provider_type))
-        })
+        .filter(|conformance| Some(conformance.carrier_symbol) == provider_type_symbol)
         .filter_map(|conformance| {
             let definition = typed.traits().iter().find(|definition| {
-                definition.is_boundary
-                    && same_semantic_name(definition.name.as_str(), conformance.trait_name.as_str())
+                definition.is_boundary && definition.symbol == conformance.trait_symbol
             })?;
             let arguments = provider_boundary_arguments(typed, definition, provider_type);
             let schema = ServiceSchema::from_typed_instance(typed, definition, &arguments)?;
@@ -2327,18 +2387,24 @@ fn provider_plan_schema_targets(
                     method.requirement_identity == requirement_identity
                         && !method.entry_claims.is_empty()
                 })
-                .then(|| (definition.name.as_str().to_owned(), schema))
+                .then(|| {
+                    (
+                        ProviderSchemaDeclaration::BoundaryTrait(definition.symbol),
+                        definition.name.as_str().to_owned(),
+                        schema,
+                    )
+                })
         })
         .collect::<Vec<_>>();
-    refined.sort_by(|left, right| left.0.cmp(&right.0));
+    refined.sort_by(|left, right| left.1.cmp(&right.1));
     refined.dedup_by(|left, right| left.0 == right.0);
 
-    let has_descendant = refined.iter().any(|(name, _)| {
-        direct.is_some_and(|definition| !same_semantic_name(name, definition.name.as_str()))
+    let has_descendant = refined.iter().any(|(schema, _, _)| {
+        direct.is_some_and(|definition| schema.symbol() != definition.symbol)
     });
     if has_descendant {
-        refined.retain(|(name, _)| {
-            direct.is_none_or(|definition| !same_semantic_name(name, definition.name.as_str()))
+        refined.retain(|(schema, _, _)| {
+            direct.is_none_or(|definition| schema.symbol() != definition.symbol)
         });
     }
     if !refined.is_empty() {
@@ -2348,21 +2414,27 @@ fn provider_plan_schema_targets(
     direct
         .and_then(|definition| {
             let arguments = provider_boundary_arguments(typed, definition, provider_type);
-            ServiceSchema::from_typed_instance(typed, definition, &arguments)
-                .map(|schema| (definition.name.as_str().to_owned(), schema))
+            ServiceSchema::from_typed_instance(typed, definition, &arguments).map(|schema| {
+                (
+                    ProviderSchemaDeclaration::BoundaryTrait(definition.symbol),
+                    definition.name.as_str().to_owned(),
+                    schema,
+                )
+            })
         })
         .into_iter()
         .collect()
 }
 
-fn derive_boundary_operator_plans(
+fn derive_boundary_operator_plans_with_provenance(
     typed: &TypedTrees,
     selected_target: Option<&str>,
-) -> Vec<ProviderPlan> {
-    let mut plans = Vec::<ProviderPlan>::new();
+) -> Vec<DerivedProviderPlan> {
+    let mut plans = Vec::<DerivedProviderPlan>::new();
     for machine in typed.machines() {
         let origin_package_identity = typed.symbols.symbol_package_identity(machine.symbol);
         let provider_type_package_identity = provider_type_package_identity(typed, machine);
+        let provider_type_symbol = provider_type_symbol(typed, machine);
         for clause in typed.machine_trait_conformances(machine) {
             let Some(requirement) = clause.requirement.as_ref() else {
                 continue;
@@ -2429,29 +2501,51 @@ fn derive_boundary_operator_plans(
             let plan_name = satisfies_plan_name(&target, &schema.trait_name, &provider_type);
             let position = plans
                 .iter()
-                .position(|plan| {
-                    plan.name == plan_name
-                        && plan.provider_type_package_identity == provider_type_package_identity
-                        && plan.origin_package_identity == origin_package_identity
+                .position(|derived| {
+                    derived.plan.name == plan_name
+                        && derived.plan.provider_type_package_identity
+                            == provider_type_package_identity
+                        && derived.plan.origin_package_identity == origin_package_identity
+                        && derived.provenance.schema
+                            == ProviderSchemaDeclaration::BoundaryOperator(operator.symbol)
                 })
                 .unwrap_or_else(|| {
-                    plans.push(ProviderPlan {
-                        name: plan_name.clone(),
-                        provider_type: provider_type.clone(),
-                        provider_type_package_identity,
-                        target: target.clone(),
-                        schema: schema.clone(),
-                        rows: Vec::new(),
-                        origin_package_identity,
-                        origin_package: String::new(),
+                    plans.push(DerivedProviderPlan {
+                        plan: ProviderPlan {
+                            name: plan_name.clone(),
+                            provider_type: provider_type.clone(),
+                            provider_type_package_identity,
+                            target: target.clone(),
+                            schema: schema.clone(),
+                            rows: Vec::new(),
+                            origin_package_identity,
+                            origin_package: String::new(),
+                        },
+                        provenance: ProviderPlanProvenance {
+                            schema: ProviderSchemaDeclaration::BoundaryOperator(operator.symbol),
+                            provider_type: provider_type_symbol,
+                            row_realizations: Vec::new(),
+                        },
                     });
                     plans.len() - 1
                 });
-            plans[position].rows.push(ProviderPlanRow {
+            debug_assert_eq!(
+                plans[position].provenance.schema,
+                ProviderSchemaDeclaration::BoundaryOperator(operator.symbol)
+            );
+            debug_assert_eq!(
+                plans[position].provenance.provider_type,
+                provider_type_symbol
+            );
+            plans[position].plan.rows.push(ProviderPlanRow {
                 method: "realize".to_owned(),
                 requirement_identity: schema.methods[0].requirement_identity.clone(),
                 binding,
             });
+            plans[position]
+                .provenance
+                .row_realizations
+                .push(machine.symbol);
         }
     }
     plans
@@ -3448,6 +3542,174 @@ fn provider_plan_key(plan: &omega_effects::provider_plan::ProviderPlan) -> Provi
     )
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) enum ProviderSelectionProvenance {
+    BuildOverride(Vec<crate::pipeline::build_config::ProviderSelection>),
+    TargetDefault(Vec<crate::pipeline::build_config::ProviderSelection>),
+    UniqueCoveringCandidate,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct SelectedProviderPlanWithProvenance {
+    pub(super) derived: DerivedProviderPlan,
+    pub(super) selected_by: ProviderSelectionProvenance,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct SelectedProviderReviewProvenance {
+    pub(super) plan: ProviderPlan,
+    pub(super) provider: ProviderPlanProvenance,
+    pub(super) selected_by: ProviderSelectionProvenance,
+}
+
+pub(super) fn selected_provider_plan_facts_with_provenance(
+    typed: &TypedTrees,
+    mut selected: Vec<SelectedProviderPlanWithProvenance>,
+) -> Result<
+    (
+        omega_effects::SelectedProviderPlanFacts,
+        Vec<SelectedProviderReviewProvenance>,
+    ),
+    Vec<psi_diagnostics::Diagnostic>,
+> {
+    selected.sort_by(|left, right| {
+        let left = &left.derived.plan;
+        let right = &right.derived.plan;
+        left.name
+            .cmp(&right.name)
+            .then_with(|| {
+                left.origin_package_identity
+                    .cmp(&right.origin_package_identity)
+            })
+            .then_with(|| {
+                left.provider_type_package_identity
+                    .cmp(&right.provider_type_package_identity)
+            })
+            .then_with(|| {
+                left.schema
+                    .trait_package_identity
+                    .cmp(&right.schema.trait_package_identity)
+            })
+            .then_with(|| {
+                left.identity_fingerprint()
+                    .cmp(&right.identity_fingerprint())
+            })
+    });
+
+    let mut diagnostics = Vec::new();
+    for selected_plan in &selected {
+        let plan = &selected_plan.derived.plan;
+        let provenance = &selected_plan.derived.provenance;
+        if provenance.row_realizations.len() != plan.rows.len() {
+            diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
+                "selected provider plan `{}` has {} semantic rows but {} retained realization symbols",
+                plan.name,
+                plan.rows.len(),
+                provenance.row_realizations.len(),
+            )));
+        }
+        let schema_symbol = provenance.schema.symbol();
+        let schema_is_exact = match provenance.schema {
+            ProviderSchemaDeclaration::BoundaryTrait(symbol) => typed
+                .traits()
+                .iter()
+                .any(|definition| definition.symbol == symbol && definition.is_boundary),
+            ProviderSchemaDeclaration::BoundaryOperator(symbol) => typed
+                .operators()
+                .iter()
+                .any(|operator| operator.symbol == symbol && operator.is_boundary),
+        };
+        if !schema_is_exact {
+            diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
+                "selected provider plan `{}` has no exact retained boundary schema symbol",
+                plan.name,
+            )));
+        }
+        match (plan.provider_type.is_empty(), provenance.provider_type) {
+            (true, None) => {}
+            (false, Some(symbol))
+                if typed
+                    .data_definitions()
+                    .iter()
+                    .any(|definition| definition.symbol == symbol) => {}
+            _ => diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
+                "selected provider plan `{}` has no exact retained nominal provider declaration",
+                plan.name,
+            ))),
+        }
+        for realization in &provenance.row_realizations {
+            if !typed
+                .machines()
+                .iter()
+                .any(|machine| machine.symbol == *realization)
+            {
+                diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
+                    "selected provider plan `{}` has a row without its exact realizing machine",
+                    plan.name,
+                )));
+            }
+        }
+        let declarations = match &selected_plan.selected_by {
+            ProviderSelectionProvenance::BuildOverride(declarations)
+            | ProviderSelectionProvenance::TargetDefault(declarations) => declarations,
+            ProviderSelectionProvenance::UniqueCoveringCandidate => continue,
+        };
+        if declarations.is_empty() {
+            diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
+                "selected provider plan `{}` has an authored selection origin without a declaration",
+                plan.name,
+            )));
+        }
+        for declaration in declarations {
+            let selecting_source = typed
+                .symbols
+                .symbol_provenance_source_span(declaration.selecting_machine);
+            if declaration.boundary_trait.symbol != schema_symbol
+                || Some(declaration.provider_type.symbol) != provenance.provider_type
+                || selecting_source.is_none_or(|source| {
+                    source.source_id != declaration.source_span.source_id
+                        || declaration.source_span.span.start >= declaration.source_span.span.end
+                })
+            {
+                diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
+                    "selected provider plan `{}` has a selection declaration outside its exact schema, provider, or selecting-machine provenance",
+                    plan.name,
+                )));
+            }
+        }
+    }
+    if !diagnostics.is_empty() {
+        return Err(diagnostics);
+    }
+
+    let plans = selected
+        .iter()
+        .map(|selected| selected.derived.plan.clone())
+        .collect::<Vec<_>>();
+    let facts = omega_effects::SelectedProviderPlanFacts::from_selected_plans(plans.clone())
+        .map_err(|reason| vec![psi_diagnostics::Diagnostic::error(reason)])?;
+    if facts.plans() != plans {
+        return Err(vec![psi_diagnostics::Diagnostic::error(
+            "selected provider semantic facts reordered independently of retained provenance",
+        )]);
+    }
+    let provenance = selected
+        .into_iter()
+        .map(|selected| SelectedProviderReviewProvenance {
+            plan: selected.derived.plan,
+            provider: selected.derived.provenance,
+            selected_by: selected.selected_by,
+        })
+        .collect();
+    Ok((facts, provenance))
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SelectedProviderPlanIndex {
+    candidate: usize,
+    selected_by: ProviderSelectionProvenance,
+}
+
 fn resolve_provider_selection_slots(
     slot_keys: &[ProviderSelectionKey],
     declarations: &[crate::pipeline::build_config::ProviderSelection],
@@ -3487,6 +3749,41 @@ pub(crate) fn select_provider_plans(
     defaults: &[crate::pipeline::build_config::ProviderSelection],
     requested: &[crate::pipeline::build_config::ProviderSelection],
 ) -> Result<Vec<ProviderPlan>, Vec<psi_diagnostics::Diagnostic>> {
+    select_provider_plan_indices(plans, selected_target, defaults, requested).map(|selected| {
+        selected
+            .into_iter()
+            .map(|selected| plans[selected.candidate].clone())
+            .collect()
+    })
+}
+
+pub(super) fn select_provider_plans_with_provenance(
+    derived: &[DerivedProviderPlan],
+    selected_target: omega_target::NativeTarget,
+    defaults: &[crate::pipeline::build_config::ProviderSelection],
+    requested: &[crate::pipeline::build_config::ProviderSelection],
+) -> Result<Vec<SelectedProviderPlanWithProvenance>, Vec<psi_diagnostics::Diagnostic>> {
+    let plans = derived
+        .iter()
+        .map(|derived| derived.plan.clone())
+        .collect::<Vec<_>>();
+    select_provider_plan_indices(&plans, selected_target, defaults, requested).map(|selected| {
+        selected
+            .into_iter()
+            .map(|selected| SelectedProviderPlanWithProvenance {
+                derived: derived[selected.candidate].clone(),
+                selected_by: selected.selected_by,
+            })
+            .collect()
+    })
+}
+
+fn select_provider_plan_indices(
+    plans: &[omega_effects::provider_plan::ProviderPlan],
+    selected_target: omega_target::NativeTarget,
+    defaults: &[crate::pipeline::build_config::ProviderSelection],
+    requested: &[crate::pipeline::build_config::ProviderSelection],
+) -> Result<Vec<SelectedProviderPlanIndex>, Vec<psi_diagnostics::Diagnostic>> {
     // Target inertness (the fail-canary host-portability convention): a
     // plan scoped to a NON-selected target is inert and never collides --
     // only plans that RESOLVE to the selected target participate.
@@ -3550,21 +3847,26 @@ pub(crate) fn select_provider_plans(
             .filter(|(slot, _)| slot == &slot_key)
             .map(|(_, selection)| selection)
             .collect();
-        let candidates: Vec<&ProviderPlan> = plans
+        let candidates: Vec<(usize, &ProviderPlan)> = plans
             .iter()
-            .filter(|plan| provider_slot_key(plan) == slot_key && applies(&plan.target))
+            .enumerate()
+            .filter(|(_, plan)| provider_slot_key(plan) == slot_key && applies(&plan.target))
             .collect();
-        let covering: Vec<&ProviderPlan> = candidates
+        let covering: Vec<(usize, &ProviderPlan)> = candidates
             .iter()
             .copied()
-            .filter(|plan| plan.covers_schema())
+            .filter(|(_, plan)| plan.covers_schema())
             .collect();
 
         let selected_declaration = if let Some(explicit) = explicit {
             // A slot-owner override intentionally replaces every target
             // default for this slot, including a default whose provider is
             // absent from the selected dependency closure.
-            Some(("build", explicit))
+            Some((
+                "build",
+                explicit,
+                ProviderSelectionProvenance::BuildOverride(vec![explicit.clone()]),
+            ))
         } else if let Some(first) = slot_defaults.first().copied() {
             let mut distinct_provider_types: Vec<ProviderSelectionKey> = slot_defaults
                 .iter()
@@ -3583,21 +3885,35 @@ pub(crate) fn select_provider_plans(
                 )));
                 continue;
             }
-            Some(("target package", first))
+            Some((
+                "target package",
+                first,
+                ProviderSelectionProvenance::TargetDefault(
+                    slot_defaults
+                        .iter()
+                        .map(|selection| (*selection).clone())
+                        .collect(),
+                ),
+            ))
         } else {
             None
         };
 
-        if let Some((owner, declaration)) = selected_declaration {
+        if let Some((owner, declaration, selected_by)) = selected_declaration {
             let selected_provider = selected_provider_key(declaration);
-            let matching: Vec<&ProviderPlan> = candidates
+            let matching: Vec<(usize, &ProviderPlan)> = candidates
                 .iter()
                 .copied()
-                .filter(|plan| provider_plan_key(plan) == selected_provider)
+                .filter(|(_, plan)| provider_plan_key(plan) == selected_provider)
                 .collect();
             match matching.as_slice() {
-                [plan] if plan.covers_schema() => selected.push((*plan).clone()),
-                [plan] => diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
+                [(candidate, plan)] if plan.covers_schema() => {
+                    selected.push(SelectedProviderPlanIndex {
+                        candidate: *candidate,
+                        selected_by,
+                    });
+                }
+                [(_, plan)] => diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
                     "{owner} selects provider `{}` for slot `{slot_name}`, but candidate `{}` is partial ({}/{}) and cannot be selected",
                     declaration.provider_type.authored_path,
                     plan.name,
@@ -3625,7 +3941,10 @@ pub(crate) fn select_provider_plans(
 
         match covering.as_slice() {
             [] => {}
-            [plan] => selected.push((*plan).clone()),
+            [(candidate, _)] => selected.push(SelectedProviderPlanIndex {
+                candidate: *candidate,
+                selected_by: ProviderSelectionProvenance::UniqueCoveringCandidate,
+            }),
             many => {
                 let count = if many.len() == 2 {
                     "two".to_owned()
@@ -3635,7 +3954,7 @@ pub(crate) fn select_provider_plans(
                 diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
                     "slot `{slot_name}` has {count} covering provider plans for the selected target: {} -- choose one in build.omg with `b.select_provider<{slot_name}, ProviderType>();`",
                     many.iter()
-                        .map(|plan| format!("`{}` [{:016x}]", plan.name, plan.identity_fingerprint()))
+                        .map(|(_, plan)| format!("`{}` [{:016x}]", plan.name, plan.identity_fingerprint()))
                         .collect::<Vec<_>>()
                         .join(", "),
                 )));

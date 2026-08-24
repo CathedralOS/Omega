@@ -202,12 +202,16 @@ fn proof_output_call_requires_execution(
 
 fn proof_output_runtime_call(
     lowerer: &mut Lowerer,
-    call: typed::expression::ExpressionHandle,
+    call_handle: typed::expression::ExpressionHandle,
 ) -> Result<typed::statement::TableCall, Diagnostic> {
+    let source_span = lowerer
+        .typed_trees
+        .expression_table
+        .source_span(call_handle);
     let typed::expression::ExpressionNode::Call(call) = lowerer
         .typed_trees
         .expression_table
-        .expression(call)
+        .expression(call_handle)
         .clone()
     else {
         return Err(Diagnostic::error(
@@ -234,6 +238,7 @@ fn proof_output_runtime_call(
         evidence_arguments: call.evidence_arguments,
         operational_acknowledgement: call.operational_acknowledgement,
         discards_result: false,
+        source_span,
     })
 }
 

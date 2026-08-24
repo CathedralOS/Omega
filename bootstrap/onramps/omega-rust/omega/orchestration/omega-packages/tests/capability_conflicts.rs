@@ -127,11 +127,10 @@ pub machine identity_u64(value: u64) -> u64 {
     assert!(conflict.baseline_row().is_none());
     assert!(conflict.candidate_row().is_some());
     assert!(conflict.baseline_source().is_none());
-    let Some(PackageReviewCanonicalRowSource::Authored(candidate_locations)) =
-        conflict.candidate_source()
-    else {
-        panic!("added callable has compiler-issued candidate source")
-    };
+    let candidate_locations = conflict
+        .candidate_source()
+        .and_then(PackageReviewCanonicalRowSource::authored_locations)
+        .expect("added callable has compiler-issued candidate source");
     assert_eq!(candidate_locations.len(), 1);
     assert_eq!(candidate_locations[0].relative_path(), "main.omg");
     assert!(conflict.is_blocking());
@@ -153,7 +152,7 @@ pub machine identity_u64(value: u64) -> u64 {
     let rendered = conflicts
         .render_bounded(1024 * 1024)
         .expect("render bounded conflict evidence");
-    assert!(rendered.starts_with("OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V2\n"));
+    assert!(rendered.starts_with("OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V3\n"));
     assert!(rendered.contains("change added\nkind callable\nrisk blocking\n"));
     assert!(rendered.contains("candidate_location declaration package "));
     assert!(rendered.contains(" \"main.omg\"\n"));

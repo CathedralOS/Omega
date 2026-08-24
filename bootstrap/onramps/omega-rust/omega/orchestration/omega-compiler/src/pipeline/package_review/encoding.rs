@@ -134,7 +134,7 @@ fn encode_rows_with_limits(
             limits,
             PackageReviewCanonicalRowKind::ProjectionHeader,
             PackageReviewCanonicalRowRisk::Blocking,
-            PackageReviewCanonicalRowSource::CompilerDerived(
+            PackageReviewCanonicalRowSource::compiler_derived(
                 PackageReviewSyntheticSourceKind::ProjectionHeader,
             ),
             |_| Ok(()),
@@ -1743,8 +1743,8 @@ mod tests {
                 representation_tcb: Vec::new(),
                 callables: Vec::new(),
                 dangerous_authorities: Vec::new(),
-                selected_provider_set: PackageReviewCanonicalRowSource::CompilerDerived(
-                    PackageReviewSyntheticSourceKind::SelectedProviderProvenancePending,
+                selected_provider_set: PackageReviewCanonicalRowSource::compiler_derived(
+                    PackageReviewSyntheticSourceKind::EmptySelectedProviderSet,
                 ),
             },
         }

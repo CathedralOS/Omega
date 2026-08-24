@@ -161,6 +161,7 @@ impl StatementTable {
                         evidence_arguments: call.evidence_arguments.clone(),
                         operational_acknowledgement: call.operational_acknowledgement,
                         discards_result: call.discards_result,
+                        source_span: call.source_span,
                     })
                 }
                 StatementNode::Expression(expression) => StatementNode::Expression(
@@ -484,6 +485,9 @@ pub struct TableCall {
     pub operational_acknowledgement: psi_language_semantics::CallOperationalAcknowledgement,
     /// `_ = call();` -- the caller explicitly discards a non-unit result.
     pub discards_result: bool,
+    /// Exact authored call-target span. Compiler-generated calls retain the
+    /// default span rather than inventing source provenance.
+    pub source_span: SourceSpan,
 }
 
 impl Default for TableCall {
@@ -498,6 +502,7 @@ impl Default for TableCall {
             evidence_arguments: Box::default(),
             operational_acknowledgement: Default::default(),
             discards_result: false,
+            source_span: SourceSpan::default(),
         }
     }
 }

@@ -865,8 +865,9 @@ complete.
   representation TCB, callables, dangerous authority, and the selected-provider
   set. Package orchestration must compare the complete row bytes and must not
   parse or reconstruct their semantics. Callable details are initially one
-  exact envelope; selected providers remain an opaque blocking set until the
-  compiler has a sealed provider identity. The package layer now stores those
+  exact envelope; selected providers deliberately remain one opaque blocking
+  set even though the compiler retains their sealed identities. The package
+  layer now stores those
   bounded rows when compiler review is issued, linearly compares exact
   `(kind, key)` coordinates, and emits added/removed/changed review-only
   conflicts without decoding compiler payloads. Each conflict retains complete
@@ -889,10 +890,19 @@ complete.
   shown. Generated symbols follow their mandatory authored derivation origin,
   toolchain owners reuse the compiler's canonical source-custody framing, and
   absent authored provenance has a closed compiler-derived reason rather than
-  an empty placeholder. Exact nested clause/use-site anchors, selected-provider
-  provenance sidecars, capture-alongside-projection instead of the current
-  post-projection joins, and durable root-policy resolutions remain engineering
-  work. They do not require nominal Chi or a new owner decision.
+  an empty placeholder. Provider candidate derivation now captures an internal
+  sidecar beside each semantic plan: its exact boundary schema symbol, optional
+  nominal provider symbol, and the exact realizing machine for every row,
+  including external leaves and checked adapters. Selection keeps that pair
+  intact and adds the exact build-override or target-default call sites, or the
+  closed `UniqueCoveringProviderSelection` reason for an implicit choice;
+  semantic sorting moves plans and provenance together. The single selected-
+  provider review row can therefore combine authored coordinates with compiler-
+  derived reasons without reconstructing either from names, schemas, or
+  fingerprints. Free external providers and an empty selected set also carry
+  closed reasons. Exact nested clause/use-site anchors and durable root-policy
+  resolutions remain engineering work. They do not require nominal Chi or a
+  new owner decision.
 
 - **DANGEROUS-AUTHORITY-CLASSIFICATION.** Classify risk from compiler-owned
   nominal metadata.
@@ -1029,7 +1039,8 @@ complete.
   package identity, public surface, reach, invocation, accepted claim, and
   capability flow represented by the fixture. `provider-switchboard` now also
   selects a real ordinary provider type from its canonical build machine and
-  asserts the compiler-derived selected-provider row. The integration now uses
+  asserts the compiler-issued selected-provider row and its exact selection,
+  schema, provider-type, and realization coordinates. The integration now uses
   production review orchestration for every package in each resolved closure;
   a tampered read-only snapshot canary rejects before compiler consumption.
   Sealed admission evidence remains gated on the final admission pipeline.

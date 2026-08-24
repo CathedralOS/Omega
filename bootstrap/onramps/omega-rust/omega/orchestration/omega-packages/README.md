@@ -393,9 +393,9 @@ them exactly; it does not parse compiler IR or duplicate capability semantics.
 This does not create a nominal Chi stage. A new stage is warranted only if
 implementation discovers a genuine shared semantic invariant, not merely to
 stabilize a private checker interface. The initial callable row is one complete
-envelope, and the selected-provider set remains opaque and blocking until exact
-provider identity is sealed; finer explanation can be added without changing
-that ownership boundary.
+envelope, and the selected-provider set deliberately remains one opaque,
+blocking row even with sealed provider identity; finer explanation does not
+change that ownership boundary.
 
 Compiler issuance now retains a separately bounded canonical row sequence.
 Review-only update comparison joins candidate rows to exact resolver custody,
@@ -413,9 +413,16 @@ dangerous-authority rows point to both the canonical toolchain declaration and
 the package callables exposing it. Generated symbols follow authored derivation
 provenance. Changed-row fingerprints bind the exact old/new coordinates shown
 by the escaped fixed-vocabulary renderer, but source movement alone is not a
-capability change. Selected-provider provenance, exact nested clause/use-site
-anchors, and durable root-policy resolutions remain unfinished engineering
-work; none independently motivates nominal Chi.
+capability change. Provider candidates now carry compiler-internal provenance
+beside their semantic plans: exact schema and optional nominal-provider symbols,
+plus the exact realizing machine for every external or checked-adapter row.
+Selection and sorting preserve the pair and add exact authored build/target-
+default call sites or a closed reason for an implicit unique choice. The single
+selected-provider row may therefore contain both authored coordinates and
+compiler-derived reasons; free external providers and empty sets also have
+closed reasons. Exact nested clause/use-site coordinates and durable root-policy
+resolutions remain unfinished engineering work; none independently motivates
+nominal Chi.
 
 The former commands accepting `manifest.json`, `receipt.json`, `--package`, or
 mandatory `--alias` are quarantined from the production CLI. Their manifest,
