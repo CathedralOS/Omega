@@ -171,6 +171,9 @@ fn validate_call_selection(
     diagnostics: &mut Vec<Diagnostic>,
     nominal_uses: &mut Vec<ValidatedNominalMachineUse>,
 ) {
+    if target_name == "select_provider" {
+        return;
+    }
     let (requirements, generic_types): (Vec<_>, Vec<_>) = if let Some((callee, _)) =
         machine_and_state(program, target_symbol)
     {

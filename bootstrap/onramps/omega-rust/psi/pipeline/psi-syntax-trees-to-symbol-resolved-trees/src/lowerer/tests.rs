@@ -83,6 +83,57 @@ fn retains_public_machine_visibility_in_symbol_resolved_trees() {
 }
 
 #[test]
+fn resolves_provider_selection_type_paths_to_exact_symbols() {
+    let source = r#"
+        boundary trait Console { machine write(); }
+        data ConsoleProvider { }
+        machine build(builder: &mut Build) {
+            builder.select_provider<Console, ConsoleProvider>();
+        }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize provider selection");
+    let syntax = parse_syntax_trees(&tokens).expect("parse provider selection");
+    let program = lower_syntax_trees(&syntax).expect("resolve provider selection");
+    let build = program
+        .machines
+        .iter()
+        .find(|machine| machine.name.as_str() == "build")
+        .expect("build machine");
+    let state = program.machine_state(program.machine_state_handles(build.states)[0]);
+    let call = program
+        .tables
+        .bodies
+        .statements
+        .statements(state.statement_nodes)
+        .iter()
+        .find_map(|statement| match statement {
+            psi_symbol_resolved_trees::statement::StatementNode::Call(call)
+                if call.target.as_str() == "select_provider" =>
+            {
+                Some(call)
+            }
+            _ => None,
+        })
+        .expect("provider-selection statement call");
+    let [boundary, provider] = call.machine_arguments.as_ref() else {
+        panic!("two retained provider-selection arguments")
+    };
+
+    assert_eq!(
+        program.symbols.get(boundary.symbol).kind,
+        psi_symbols::SymbolKind::Trait
+    );
+    assert_eq!(
+        program.symbols.get(provider.symbol).kind,
+        psi_symbols::SymbolKind::Data
+    );
+    assert_eq!(program.symbols.name(boundary.symbol), "Console");
+    assert_eq!(program.symbols.name(provider.symbol), "ConsoleProvider");
+}
+
+#[test]
 fn resolves_name_owned_conformance_telescope_in_its_own_scope() {
     let source = r#"
         trait Converter<Source, Target> {}

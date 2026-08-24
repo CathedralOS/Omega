@@ -116,11 +116,12 @@ truly source-free symbols remain unresolved. The projection includes selected pr
 mechanisms, and provider plans/trust rows retain exact package owners for the
 realizing machine, provider type, service schema, and requirement owner.
 Checked-adapter bindings resolve by canonical overload plus exact package owner
-without a short-name fallback. Authored provider choices now resolve once to
-exact plans which remain intact through selected-cycle, ABI, and checked-fact
-construction; package-distinct same-spelled selected slots do not collapse,
-and ambiguous readable invocation targets reject. Authored selector resolution,
-remaining schema/grant joins, compiler-intrinsic toolchain identity, and the
+without a short-name fallback. Authored provider choices retain two structural
+type paths, resolve to exact typed trait/data symbols, and match plans only by
+package plus canonical path. The selected plans remain intact through cycle,
+ABI, and checked-fact construction; package-distinct same-spelled slots and
+providers do not collapse. Remaining schema/grant joins, compiler-intrinsic
+toolchain identity, and the
 remaining trust/proof/reproducibility joins are incomplete. Build-bound
 progress obligations retain and match package ownership for both service and
 requirement, and retained selected-provider facts expose no name-only plan

@@ -7,7 +7,8 @@ use crate::symbols::expressions::{
 use crate::symbols::scope::MachineScope;
 use crate::symbols::scoped_paths::resolve_state_scoped_members;
 use crate::symbols::targets::{
-    assign_static_argument_symbols, assign_transition_target_symbols, resolve_call_target_symbol,
+    assign_provider_selection_argument_symbol, assign_static_argument_symbols,
+    assign_transition_target_symbols, resolve_call_target_symbol,
 };
 use crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_self_type_and_constraints;
 
@@ -87,8 +88,13 @@ pub(super) fn assign_statement_symbols(
                 child_type_references,
                 symbols,
             );
+            let provider_selection = call.target.as_str() == "select_provider";
             for argument in &mut call.machine_arguments {
-                assign_static_argument_symbols(symbols, machine.symbol, argument, false);
+                if provider_selection {
+                    assign_provider_selection_argument_symbol(symbols, argument);
+                } else {
+                    assign_static_argument_symbols(symbols, machine.symbol, argument, false);
+                }
             }
         }
         psi_symbol_resolved_trees::statement::Statement::ProofOutputBindingStatement(binding) => {

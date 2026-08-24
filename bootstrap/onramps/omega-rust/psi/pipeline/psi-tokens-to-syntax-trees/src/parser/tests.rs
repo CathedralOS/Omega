@@ -55,6 +55,46 @@ fn retains_public_machine_visibility_in_syntax() {
 }
 
 #[test]
+fn provider_selection_retains_two_structural_type_paths() {
+    let source = r#"
+        machine build(builder: &mut Build) {
+            builder.select_provider<host::Console, application::ConsoleProvider>();
+        }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize provider selection");
+    let parsed = parse_syntax_trees(&tokens).expect("parse provider selection");
+    let call = parsed
+        .expressions
+        .iter_expressions()
+        .find_map(|(_, expression)| match expression {
+            ExpressionNode::Call(call) if call.target.as_str() == "select_provider" => Some(call),
+            _ => None,
+        })
+        .expect("provider-selection call");
+
+    assert_eq!(call.machine_arguments.len(), 2);
+    assert_eq!(
+        call.machine_arguments[0]
+            .path
+            .iter()
+            .map(|member| member.as_str())
+            .collect::<Vec<_>>(),
+        ["host", "Console"]
+    );
+    assert_eq!(
+        call.machine_arguments[1]
+            .path
+            .iter()
+            .map(|member| member.as_str())
+            .collect::<Vec<_>>(),
+        ["application", "ConsoleProvider"]
+    );
+    assert!(!call.target.as_str().contains('#'));
+}
+
+#[test]
 fn rejects_pub_when_the_declaration_cannot_retain_visibility() {
     for source in ["pub export Shape;"] {
         let tokens = Lexer::new(source).tokenize().expect("tokenize declaration");

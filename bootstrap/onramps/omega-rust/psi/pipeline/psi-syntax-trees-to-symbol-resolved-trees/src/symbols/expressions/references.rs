@@ -9,7 +9,9 @@ use super::super::lookup::{
 };
 use super::super::scope::MachineScope;
 use super::super::scoped_paths::resolve_state_scoped_table_path;
-use super::super::targets::assign_static_argument_symbols;
+use super::super::targets::{
+    assign_provider_selection_argument_symbol, assign_static_argument_symbols,
+};
 
 /// The spelled member names of a `self`-rooted receiver path, root -> leaf
 /// (`["self", "p"]` for the receiver `self.p`). `None` for non-place receivers
@@ -146,13 +148,18 @@ pub(super) fn assign_call_symbol(
         expression_table.expression_mut(expression)
     {
         call.target_symbol = target_symbol;
+        let provider_selection = call.target.as_str() == "select_provider";
         for argument in &mut call.machine_arguments {
-            let proof_static = target_symbol.is_valid()
-                && matches!(
-                    symbols.get(target_symbol).kind,
-                    SymbolKind::Proposition | SymbolKind::PropositionParameter
-                );
-            assign_static_argument_symbols(symbols, machine.symbol, argument, proof_static);
+            if provider_selection {
+                assign_provider_selection_argument_symbol(symbols, argument);
+            } else {
+                let proof_static = target_symbol.is_valid()
+                    && matches!(
+                        symbols.get(target_symbol).kind,
+                        SymbolKind::Proposition | SymbolKind::PropositionParameter
+                    );
+                assign_static_argument_symbols(symbols, machine.symbol, argument, proof_static);
+            }
         }
     }
 }

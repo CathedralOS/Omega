@@ -355,14 +355,17 @@ slot mechanism chooses among them. The retired top-level
 clause are bootstrap syntax from a parallel primitive registry and must not be
 preserved as a second selection path.
 
-Selection and binding identities must be nominal. The current compiler validates
-normalized overload strings against typed declarations and binds provider plans
-to exact package owners for the realizing machine, provider type, selected
-service schema, and requirement owner. Provider bindings and selection keys
-remain string-carried. Admission requires package-qualified typed identities
-and sealed target/catalog metadata rather than trusting those spellings.
-Changing sealed foreign or target metadata must change artifact identity and
-trigger fresh admission rather than silently retargeting a nominal ID.
+Selection and binding identities are nominal. `select_provider` retains two
+structural type paths through parsing, resolves them to an exact boundary-trait
+symbol and provider-data symbol, and carries their compiler-derived package
+owners into selection. Plans match only exact `(package, canonical path)` slot
+and provider identities; authored spellings remain diagnostic data and there is
+no leaf-name fallback. Checked adapters likewise bind normalized overloads to
+exact package owners for the realizing machine, provider type, selected service
+schema, and requirement owner. Sealed target/catalog metadata remains required
+for final admission. Changing sealed foreign or target metadata must change
+artifact identity and trigger fresh admission rather than silently retargeting
+a nominal ID.
 
 The exact `Build` library method names remain ordinary API design. Conceptually
 the operations are target-profile selection plus type-per-slot override; users
