@@ -96,7 +96,9 @@ progress obligations retain and match package ownership for both service and
 requirement, and retained selected-provider facts expose no name-only plan
 lookup. Installation-bound reach, termination, mutation, crash, and permission
 frontier rows now use normalized package-owned semantic paths, and crash
-predicates retain their existing source-independent canonical identity. The
+predicates retain their existing source-independent canonical identity. Review
+identity retains the exact deployment profile rather than collapsing profiles
+that happen to share a native ABI. The
 projection is therefore ready for a deliberately versioned canonical encoder;
 raw Rust/debug serialization is not one. These pieces do not become an
 admission path until the legacy
