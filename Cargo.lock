@@ -472,6 +472,8 @@ dependencies = [
  "psi-typed-trees",
  "psi-typed-trees-to-checked-trees",
  "psi-validation",
+ "serde",
+ "serde_json",
  "sha2",
 ]
 

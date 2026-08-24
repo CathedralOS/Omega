@@ -2,7 +2,8 @@
 //!
 //! This producer is untrusted construction tooling. The product checkpoint
 //! commits its output, pins this source plus unicode-ident's crate checksum and
-//! Unicode version, and exhaustively checks the resulting classifier.
+//! Unicode version, and regenerates the ranges by enumerating every Unicode
+//! scalar against the pinned source predicate.
 
 use std::fmt::Write as _;
 

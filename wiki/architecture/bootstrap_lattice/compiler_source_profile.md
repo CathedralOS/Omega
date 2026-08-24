@@ -212,10 +212,12 @@ powerful facility used only incidentally should not enter the bridge merely
 because the production compiler can express itself with it.
 
 The working feature disposition is below. These are defaults for authoring and
-measurement, not ratified exclusions or admissions. A row becomes resolved only
-when a deterministic compiler-source snapshot demonstrates the source benefit
-and the general Delta-written bridge demonstrates the implementation and
-assurance cost.
+measurement, not ratified exclusions or admissions. A checkpoint may omit and
+provisionally reject a facility that its source does not use, but that absence
+does not settle the final profile while later compiler phases remain unwritten.
+A row becomes resolved only when the final deterministic compiler-source closure
+establishes the source need or absence and the general Delta-written bridge
+establishes the implementation and assurance cost.
 
 | Omega facility in the compiler's own source | Working disposition | Decision test |
 | --- | --- | --- |
@@ -323,15 +325,17 @@ freeze join as distinct milestones:
 1. Write a coherent product-compiler source checkpoint under the conservative
    working policy and publish its complete deterministic transitive closure.
 2. Derive or update provisional `Ωself`; measure each used feature against its
-   benefit in that source snapshot and its implementation/assurance cost in
-   Delta.
-3. Either refactor the product source to remove the feature or admit it to the
-   compositional `Ωself` contract.
-4. Implement and assure those general profile rules in `omega-bootstrap`, feeding
-   measured cost back into the retain/refactor decision.
-5. Repeat for later source checkpoints, then freeze the final source manifest
-   and `Ωself` together at the completed bridge join; the already-running
-   mechanical enforcement becomes the frozen acceptance gate.
+   benefit in that source snapshot and record the Delta implementation/assurance
+   cost that is known or still missing.
+3. Provisionally retain a general compositional form, refactor the product source
+   and retain a negative canary, or leave the facility explicitly unresolved.
+4. Implement and assure the retained candidate rules in `omega-bootstrap`,
+   feeding measured cost back into the retain/refactor decision. A provisional
+   retention is not a final admission until this evidence exists.
+5. Repeat for later source checkpoints, resolve every remaining row, then freeze
+   the final source manifest and `Ωself` together at the completed bridge join;
+   the already-running mechanical enforcement becomes the frozen acceptance
+   gate.
 
 This process classifies facilities, not individual occurrences. A retained
 facility is implemented compositionally for every source admitted by its

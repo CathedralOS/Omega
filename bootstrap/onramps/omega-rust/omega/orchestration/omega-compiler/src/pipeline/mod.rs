@@ -36,6 +36,7 @@ mod project;
 mod provider_approval;
 mod provider_plans;
 pub mod source;
+mod source_inspection;
 mod stage;
 mod stages;
 mod target_machines;
@@ -222,6 +223,10 @@ pub use psi_layout_plans::{
 };
 pub use psi_layout_plans::{
     IntegerInterpretation, LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport,
+};
+pub use source_inspection::{
+    SOURCE_CLOSURE_SNAPSHOT_SCHEMA, SourceClosureSnapshot, SourceClosureSnapshotEntry,
+    inspect_source_closure,
 };
 pub use terminal_component_candidate::{
     TerminalComponentCandidate, TerminalComponentCandidateParts,
