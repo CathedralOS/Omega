@@ -10,7 +10,7 @@ use psi_checked_trees::{
 };
 
 const MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW\0";
-pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 2;
+pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 3;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageReviewEncodingError {
@@ -39,9 +39,140 @@ pub(super) fn encode(
     encoder.u16(PACKAGE_REVIEW_ENCODING_VERSION);
     encoder.package_identity(review.package);
     encoder.string(review.target.target_name())?;
+    encoder.sequence(&review.public_data, encode_data_shape)?;
     encoder.sequence(&review.callables, encode_callable)?;
     encoder.sequence(&review.selected_providers, encode_provider)?;
     Ok(encoder.output)
+}
+
+fn encode_data_shape(
+    encoder: &mut Encoder,
+    shape: &PackageReviewDataShape,
+) -> Result<(), PackageReviewEncodingError> {
+    encode_nominal(encoder, &shape.identity)?;
+    encoder.byte(match shape.supply {
+        psi_language_semantics::DataSupplyMode::CheckedShape => 0,
+        psi_language_semantics::DataSupplyMode::BoundaryOpaque => 1,
+    });
+    encoder.usize(shape.lifetime_parameter_count)?;
+    encoder.sequence(&shape.type_parameters, encode_type_parameter)?;
+    encode_data_properties(encoder, shape.properties);
+    encoder.boolean(shape.zero_gated);
+    encoder.sequence(&shape.retired_identities, |encoder, identity| {
+        encoder.u64(*identity);
+        Ok(())
+    })?;
+    encoder.sequence(&shape.members, encode_data_member)
+}
+
+fn encode_type_parameter(
+    encoder: &mut Encoder,
+    parameter: &PackageReviewTypeParameter,
+) -> Result<(), PackageReviewEncodingError> {
+    match &parameter.kind {
+        PackageReviewTypeParameterKind::Type => encoder.byte(0),
+        PackageReviewTypeParameterKind::Const(type_identity) => {
+            encoder.byte(1);
+            encode_type_identity(encoder, type_identity)?;
+        }
+    }
+    encode_data_properties(encoder, parameter.bounds);
+    Ok(())
+}
+
+fn encode_data_properties(
+    encoder: &mut Encoder,
+    properties: psi_typed_trees::data::DataProperties,
+) {
+    encoder.byte(match properties.multiplicity {
+        psi_language_semantics::Multiplicity::Unrestricted => 0,
+        psi_language_semantics::Multiplicity::Affine => 1,
+        psi_language_semantics::Multiplicity::Linear => 2,
+    });
+    match properties.carry {
+        None => encoder.byte(0),
+        Some(carry) => {
+            encoder.byte(1);
+            encoder.byte(match carry.suspension {
+                psi_language_semantics::CarrySuspension::Forbidden => 0,
+                psi_language_semantics::CarrySuspension::Allowed => 1,
+            });
+            encoder.byte(match carry.cpu {
+                psi_language_semantics::CarryCpu::Origin => 0,
+                psi_language_semantics::CarryCpu::Any => 1,
+            });
+            encoder.byte(match carry.host_thread {
+                psi_language_semantics::CarryHostThread::Origin => 0,
+                psi_language_semantics::CarryHostThread::Any => 1,
+            });
+            encoder.byte(match carry.address {
+                psi_language_semantics::CarryAddress::Stable => 0,
+                psi_language_semantics::CarryAddress::Movable => 1,
+            });
+        }
+    }
+}
+
+fn encode_data_member(
+    encoder: &mut Encoder,
+    member: &PackageReviewDataMember,
+) -> Result<(), PackageReviewEncodingError> {
+    match member {
+        PackageReviewDataMember::Field(field) => {
+            encoder.byte(0);
+            encode_data_field(encoder, field)?;
+        }
+        PackageReviewDataMember::Variant {
+            identity,
+            name,
+            payload,
+            retired_payload_identities,
+        } => {
+            encoder.byte(1);
+            encode_optional_u64(encoder, *identity);
+            encoder.string(name)?;
+            encoder.sequence(payload, encode_data_field)?;
+            encoder.sequence(retired_payload_identities, |encoder, identity| {
+                encoder.u64(*identity);
+                Ok(())
+            })?;
+        }
+    }
+    Ok(())
+}
+
+fn encode_data_field(
+    encoder: &mut Encoder,
+    field: &PackageReviewDataField,
+) -> Result<(), PackageReviewEncodingError> {
+    encode_optional_u64(encoder, field.identity);
+    encoder.string(&field.name)?;
+    encode_relevance(encoder, field.relevance);
+    encode_type_identity(encoder, &field.type_identity)
+}
+
+fn encode_type_identity(
+    encoder: &mut Encoder,
+    identity: &PackageReviewTypeIdentity,
+) -> Result<(), PackageReviewEncodingError> {
+    encoder.string(&identity.canonical)
+}
+
+fn encode_relevance(encoder: &mut Encoder, relevance: psi_language_core::BindingRelevance) {
+    encoder.byte(match relevance {
+        psi_language_core::BindingRelevance::Relevant => 0,
+        psi_language_core::BindingRelevance::Erased => 1,
+    });
+}
+
+fn encode_optional_u64(encoder: &mut Encoder, value: Option<u64>) {
+    match value {
+        None => encoder.byte(0),
+        Some(value) => {
+            encoder.byte(1);
+            encoder.u64(value);
+        }
+    }
 }
 
 #[derive(Default)]

@@ -202,6 +202,16 @@ justified later only if multiple independent consumers need the same semantic
 stage or it acquires its own transformations, invariants, and verification
 rules.
 
+The current review projection follows this rule directly. Package-visible type
+identity qualifies each non-binder nominal by exact package ownership, an
+explicit toolchain marker, or an unresolved marker; generic binders remain
+owner-free and alpha-normalized. Public data rows include their complete
+structural surface and stable numbered/retired identities. Numbered ordinary
+`data` is also the wire contract—the retired standalone `wire data` form does
+not create a parallel package surface. If a public data form contains quotient
+semantics, default-domain proof facts, or static callable/proposition contracts
+that the projection cannot yet encode exactly, projection rejects it.
+
 The eventual normalized package-admission evidence must include, with exact
 provenance:
 

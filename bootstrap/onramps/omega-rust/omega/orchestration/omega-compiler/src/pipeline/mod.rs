@@ -74,10 +74,12 @@ pub use package_review::{
     PACKAGE_REVIEW_ENCODING_VERSION, PackageReviewCallableRole, PackageReviewCapabilityFlow,
     PackageReviewCrash, PackageReviewCrashCall, PackageReviewCrashInterface,
     PackageReviewCrashPredicate, PackageReviewCrashRoute, PackageReviewCrashRouteGuard,
-    PackageReviewCrashSite, PackageReviewEncodingError, PackageReviewInstallationReach,
+    PackageReviewCrashSite, PackageReviewDataField, PackageReviewDataMember,
+    PackageReviewDataShape, PackageReviewEncodingError, PackageReviewInstallationReach,
     PackageReviewMutation, PackageReviewNominalIdentity, PackageReviewNominalOwner,
     PackageReviewPermissionClaim, PackageReviewPermissionSource, PackageReviewProgressPremise,
-    PackageReviewSynchronousInvocation, PackageReviewTermination, project_checked_package_review,
+    PackageReviewSynchronousInvocation, PackageReviewTermination, PackageReviewTypeIdentity,
+    PackageReviewTypeParameter, PackageReviewTypeParameterKind, project_checked_package_review,
 };
 pub use program_entry_physical::ProgramEntryPhysicalContractPlan;
 pub use program_entry_source_signature::{

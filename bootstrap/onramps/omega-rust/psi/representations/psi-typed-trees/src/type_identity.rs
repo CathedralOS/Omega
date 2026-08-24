@@ -169,6 +169,45 @@ impl TypedTrees {
             &TypeIdentityContext {
                 binders,
                 substitutions: &[],
+                qualification: TypeIdentityQualification::Ordinary,
+            },
+        ))
+    }
+
+    /// Canonical type identity for a package graph. Every non-binder nominal
+    /// carries both its stable declaration path and its exact source owner:
+    /// the managed package-key digest, the toolchain marker, or an explicit
+    /// unresolved marker. Ordinary type identity deliberately remains local
+    /// to one compilation and is unchanged by this stronger form.
+    pub fn package_qualified_type_identity(
+        &self,
+        type_reference: TypeReferenceHandle,
+    ) -> NormalizedTypeIdentity {
+        NormalizedTypeIdentity(normalize_type_reference(
+            self,
+            type_reference,
+            &TypeIdentityContext {
+                qualification: TypeIdentityQualification::PackageQualified,
+                ..TypeIdentityContext::default()
+            },
+        ))
+    }
+
+    /// Binder-aware package-graph identity. Binder substitutions are applied
+    /// before owner qualification, preserving alpha-normalization without
+    /// falsely assigning a package owner to a local telescope variable.
+    pub fn package_qualified_type_identity_with_binders(
+        &self,
+        type_reference: TypeReferenceHandle,
+        binders: &[(SymbolHandle, String)],
+    ) -> NormalizedTypeIdentity {
+        NormalizedTypeIdentity(normalize_type_reference(
+            self,
+            type_reference,
+            &TypeIdentityContext {
+                binders,
+                substitutions: &[],
+                qualification: TypeIdentityQualification::PackageQualified,
             },
         ))
     }
@@ -189,6 +228,7 @@ impl TypedTrees {
             &TypeIdentityContext {
                 binders,
                 substitutions,
+                qualification: TypeIdentityQualification::Ordinary,
             },
         ))
     }
@@ -503,6 +543,31 @@ fn declared_domain_name(
 struct TypeIdentityContext<'binders> {
     binders: &'binders [(SymbolHandle, String)],
     substitutions: &'binders [(SymbolHandle, TypeReferenceHandle)],
+    qualification: TypeIdentityQualification,
+}
+
+#[derive(Clone, Copy, Default, PartialEq, Eq)]
+enum TypeIdentityQualification {
+    #[default]
+    Ordinary,
+    PackageQualified,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum PackageQualifiedNominalOwner {
+    Package([u8; 32]),
+    Toolchain,
+    Unresolved,
+}
+
+impl PackageQualifiedNominalOwner {
+    fn encode(self) -> String {
+        match self {
+            Self::Package(digest) => byte_atom("package-owner", &digest),
+            Self::Toolchain => "toolchain-owner".to_owned(),
+            Self::Unresolved => "unresolved-owner".to_owned(),
+        }
+    }
 }
 
 impl TypeIdentityContext<'_> {
@@ -530,11 +595,36 @@ impl TypeIdentityContext<'_> {
         if symbol.is_valid() {
             let path = program.symbols.display_path(symbol, "::");
             if !path.is_empty() {
-                return path;
+                return self.qualify_non_binder_name(program, symbol, path);
             }
         }
-        fallback.to_owned()
+        self.qualify_non_binder_name(program, symbol, fallback.to_owned())
     }
+
+    fn qualify_non_binder_name(
+        &self,
+        program: &TypedTrees,
+        symbol: SymbolHandle,
+        path: String,
+    ) -> String {
+        if self.qualification == TypeIdentityQualification::Ordinary {
+            return path;
+        }
+        let owner = if let Some(package) = program.symbols.symbol_package_identity(symbol) {
+            PackageQualifiedNominalOwner::Package(package.digest())
+        } else if program.symbols.symbol_source_origin(symbol)
+            == Some(psi_source::SourceOrigin::Toolchain)
+        {
+            PackageQualifiedNominalOwner::Toolchain
+        } else {
+            PackageQualifiedNominalOwner::Unresolved
+        };
+        package_qualified_nominal_name(owner, &path)
+    }
+}
+
+fn package_qualified_nominal_name(owner: PackageQualifiedNominalOwner, path: &str) -> String {
+    compound("nominal", [owner.encode(), atom("path", path)])
 }
 
 fn normalize_type_reference(
@@ -572,7 +662,7 @@ fn normalize_type_reference(
         } => {
             let (base, mut all_constraints) =
                 normalize_constrained_base(program, *base_type, context);
-            all_constraints.extend(normalized_constraints(program, *constraints));
+            all_constraints.extend(normalized_constraints(program, *constraints, context));
             all_constraints.sort();
             all_constraints.dedup();
             compound(
@@ -636,9 +726,11 @@ fn normalize_type_reference(
                 let fallback = format!("{carrier}::{selection}");
                 identity.push(atom(
                     "conformance",
-                    &conformance
-                        .map(|selected| context.name(program, selected, &fallback))
-                        .unwrap_or(fallback),
+                    &context.name(
+                        program,
+                        conformance.unwrap_or_else(SymbolHandle::invalid),
+                        &fallback,
+                    ),
                 ));
             }
             compound("dynamic-trait", identity)
@@ -699,12 +791,15 @@ fn normalize_index_expression(
             operands.sort();
             compound(
                 index_binary_operator_name(binary.operator),
-                std::iter::once(atom("operation", &selection.operation_contract_identity))
-                    .chain(std::iter::once(atom(
-                        "algebra",
-                        &open_index_algebra_identity(program, selection),
-                    )))
-                    .chain(operands),
+                std::iter::once(atom(
+                    "operation",
+                    &open_index_operation_identity(program, selection, context),
+                ))
+                .chain(std::iter::once(atom(
+                    "algebra",
+                    &open_index_algebra_identity(program, selection, context),
+                )))
+                .chain(operands),
             )
         }
         ExpressionNode::Integer(value) => atom("integer", &value.to_string()),
@@ -749,12 +844,61 @@ fn open_index_operation_selection(
 fn open_index_algebra_identity(
     program: &TypedTrees,
     selection: &crate::typed_trees::OpenIndexOperationSelection,
+    context: &TypeIdentityContext<'_>,
 ) -> String {
-    format!(
-        "{}::{} as {}",
-        program.symbols.display_path(selection.algebra_trait, "::"),
-        selection.algebra_requirement,
-        selection.algebra_alias.as_deref().unwrap_or("<default>")
+    if context.qualification == TypeIdentityQualification::Ordinary {
+        return format!(
+            "{}::{} as {}",
+            program.symbols.display_path(selection.algebra_trait, "::"),
+            selection.algebra_requirement,
+            selection.algebra_alias.as_deref().unwrap_or("<default>")
+        );
+    }
+    compound(
+        "open-index-algebra",
+        [
+            atom(
+                "provider",
+                &context.name(program, selection.provider, "<unresolved-provider>"),
+            ),
+            atom(
+                "trait",
+                &context.name(
+                    program,
+                    selection.algebra_trait,
+                    "<unresolved-algebra-trait>",
+                ),
+            ),
+            atom("requirement", &selection.algebra_requirement),
+            atom(
+                "alias",
+                selection.algebra_alias.as_deref().unwrap_or("<default>"),
+            ),
+        ],
+    )
+}
+
+fn open_index_operation_identity(
+    program: &TypedTrees,
+    selection: &crate::typed_trees::OpenIndexOperationSelection,
+    context: &TypeIdentityContext<'_>,
+) -> String {
+    if context.qualification == TypeIdentityQualification::Ordinary {
+        return selection.operation_contract_identity.clone();
+    }
+    compound(
+        "open-index-operation",
+        [
+            atom(
+                "symbol",
+                &context.name(
+                    program,
+                    selection.operator,
+                    selection.operation_contract_identity.as_str(),
+                ),
+            ),
+            atom("contract", &selection.operation_contract_identity),
+        ],
     )
 }
 
@@ -831,7 +975,7 @@ fn normalize_constrained_base(
         } => {
             let (base, mut all_constraints) =
                 normalize_constrained_base(program, *base_type, context);
-            all_constraints.extend(normalized_constraints(program, *constraints));
+            all_constraints.extend(normalized_constraints(program, *constraints, context));
             (base, all_constraints)
         }
         _ => (
@@ -844,6 +988,7 @@ fn normalize_constrained_base(
 fn normalized_constraints(
     program: &TypedTrees,
     constraints: HandleSpan<TypeConstraintNode>,
+    context: &TypeIdentityContext<'_>,
 ) -> Vec<NormalizedConstraint> {
     program
         .type_reference_table
@@ -853,18 +998,53 @@ fn normalized_constraints(
             TypeConstraintNode::Named(name) => {
                 NormalizedConstraint::Named(name.as_str().to_owned())
             }
-            TypeConstraintNode::Range { minimum, maximum } => NormalizedConstraint::Range {
-                minimum: program.expression_table.display_name(*minimum),
-                maximum: program.expression_table.display_name(*maximum),
-            },
+            TypeConstraintNode::Range { minimum, maximum } => {
+                let (minimum, maximum) =
+                    if context.qualification == TypeIdentityQualification::PackageQualified {
+                        (
+                            normalize_index_expression(program, *minimum, context),
+                            normalize_index_expression(program, *maximum, context),
+                        )
+                    } else {
+                        (
+                            program.expression_table.display_name(*minimum),
+                            program.expression_table.display_name(*maximum),
+                        )
+                    };
+                NormalizedConstraint::Range { minimum, maximum }
+            }
             TypeConstraintNode::ArithmeticDomain(domain) => {
                 NormalizedConstraint::Arithmetic(domain.name().to_owned())
             }
-            TypeConstraintNode::Domain(domain) => {
-                NormalizedConstraint::DeclaredDomain(declared_domain_identity(program, domain))
-            }
+            TypeConstraintNode::Domain(domain) => NormalizedConstraint::DeclaredDomain(
+                normalized_declared_domain_identity(program, domain, context),
+            ),
         })
         .collect()
+}
+
+fn normalized_declared_domain_identity(
+    program: &TypedTrees,
+    domain: &DomainConstraint,
+    context: &TypeIdentityContext<'_>,
+) -> String {
+    let ordinary_name = declared_domain_identity(program, domain);
+    if context.qualification == TypeIdentityQualification::Ordinary {
+        return ordinary_name;
+    }
+    compound(
+        "declared-domain",
+        std::iter::once(atom(
+            "name",
+            &context.name(program, domain.symbol, &ordinary_name),
+        ))
+        .chain(
+            domain
+                .arguments
+                .iter()
+                .map(|argument| normalize_type_reference(program, *argument, context)),
+        ),
+    )
 }
 
 fn normalized_domain_term(
@@ -973,7 +1153,13 @@ fn compound(tag: &str, parts: impl IntoIterator<Item = String>) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{NormalizedDomainTerm, NormalizedTypeIdentity};
+    use std::path::PathBuf;
+    use std::sync::Arc;
+
+    use super::{
+        NormalizedDomainTerm, NormalizedTypeIdentity, PackageQualifiedNominalOwner,
+        package_qualified_nominal_name,
+    };
     use crate::TypedTrees;
     use crate::domain::{DomainAliasConstituent, DomainAliasDefinition, DomainDefinition};
     use crate::expression::{
@@ -987,7 +1173,193 @@ mod tests {
         DomainEstablishmentRoute, DomainPredicateBody, DomainSemanticRoles, ReferenceAccess,
         SemanticDomainId,
     };
-    use psi_symbols::SymbolHandle;
+    use psi_source::{SourceMap, SourceOrigin, SourceSpan, Span};
+    use psi_symbols::{SymbolHandle, SymbolKind, SymbolNameRef, SymbolTableBuilder};
+
+    #[test]
+    fn same_spelled_package_nominals_have_distinct_qualified_identities() {
+        let path = "shared::Packet";
+        let first =
+            package_qualified_nominal_name(PackageQualifiedNominalOwner::Package([0x11; 32]), path);
+        let second =
+            package_qualified_nominal_name(PackageQualifiedNominalOwner::Package([0x22; 32]), path);
+
+        assert_ne!(first, second);
+        assert!(first.contains(path));
+        assert!(second.contains(path));
+        assert!(first.contains(&"11".repeat(32)), "{first}");
+        assert!(second.contains(&"22".repeat(32)), "{second}");
+    }
+
+    #[test]
+    fn package_qualified_binder_identity_is_alpha_normalized_without_an_owner() {
+        let mut program = TypedTrees::default();
+        let first_symbol = SymbolHandle::from_arena_index(81);
+        let second_symbol = SymbolHandle::from_arena_index(82);
+        let first = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: first_symbol,
+                name: Identifier::generated("Element"),
+            });
+        let second = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: second_symbol,
+                name: Identifier::generated("RenamedElement"),
+            });
+
+        let first = program.package_qualified_type_identity_with_binders(
+            first,
+            &[(first_symbol, "$T0".to_owned())],
+        );
+        let second = program.package_qualified_type_identity_with_binders(
+            second,
+            &[(second_symbol, "$T0".to_owned())],
+        );
+
+        assert_eq!(first, second);
+        assert_eq!(first.as_str(), "named(name($T0))");
+        assert!(!first.as_str().contains("owner"));
+    }
+
+    #[test]
+    fn package_qualified_nominals_mark_toolchain_and_unresolved_owners() {
+        let mut sources = SourceMap::default();
+        let source_id = sources
+            .add_with_metadata(
+                PathBuf::from("toolchain/types.omg"),
+                String::from("Packet"),
+                PathBuf::from("toolchain"),
+                None,
+                SourceOrigin::Toolchain,
+            )
+            .source_id;
+        let mut symbols = SymbolTableBuilder::with_sources(Some(Arc::new(sources)));
+        let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let packet = SymbolTableBuilder::child_handles(symbols.insert_children(
+            root,
+            [(
+                SymbolKind::Data,
+                SymbolNameRef::Source(SourceSpan::new(source_id, Span::new(0, 6))),
+            )],
+        ))
+        .next()
+        .expect("toolchain nominal symbol");
+        let mut program = TypedTrees {
+            symbols: symbols.finish(),
+            ..TypedTrees::default()
+        };
+        let toolchain = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: packet,
+                name: Identifier::generated("ignored-diagnostic-name"),
+            });
+        let unresolved = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: SymbolHandle::invalid(),
+                name: Identifier::generated("Pending"),
+            });
+
+        let toolchain = program.package_qualified_type_identity(toolchain);
+        let unresolved = program.package_qualified_type_identity(unresolved);
+        assert!(
+            toolchain.as_str().contains("toolchain-owner"),
+            "{toolchain}"
+        );
+        assert!(toolchain.as_str().contains("Packet"), "{toolchain}");
+        assert!(
+            !toolchain.as_str().contains("ignored-diagnostic-name"),
+            "{toolchain}"
+        );
+        assert!(
+            unresolved.as_str().contains("unresolved-owner"),
+            "{unresolved}"
+        );
+        assert!(unresolved.as_str().contains("Pending"), "{unresolved}");
+    }
+
+    #[test]
+    fn package_qualified_declared_domains_normalize_their_owner_and_arguments() {
+        let mut program = TypedTrees::default();
+        let carrier = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: SymbolHandle::invalid(),
+                name: Identifier::generated("Carrier"),
+            });
+        let argument = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: SymbolHandle::invalid(),
+                name: Identifier::generated("Argument"),
+            });
+        let constraints =
+            program
+                .type_reference_table
+                .insert_constraints([TypeConstraintNode::Domain(DomainConstraint {
+                    name: Identifier::generated("Policy"),
+                    arguments: vec![argument],
+                    ..DomainConstraint::default()
+                })]);
+        let constrained = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Constrained {
+                base_type: carrier,
+                constraints,
+            });
+
+        let identity = program.package_qualified_type_identity(constrained);
+        assert!(identity.as_str().contains("Carrier"), "{identity}");
+        assert!(identity.as_str().contains("Policy"), "{identity}");
+        assert!(identity.as_str().contains("Argument"), "{identity}");
+        assert_eq!(identity.as_str().matches("unresolved-owner").count(), 3);
+    }
+
+    #[test]
+    fn package_qualified_open_index_authority_qualifies_every_nominal_symbol() {
+        let mut program = TypedTrees::default();
+        let expression = program
+            .expression_table
+            .insert_tree(&Expression::Binary(Box::new(BinaryExpression {
+                left: Expression::Boolean(true),
+                operator: BinaryOperator::Add,
+                right: Expression::Boolean(false),
+            })));
+        program
+            .open_index_normalizations
+            .push(OpenIndexNormalization {
+                expression,
+                index_type: psi_arena::Handle::invalid(),
+                operations: vec![OpenIndexOperationSelection {
+                    expression,
+                    spelling: OperatorSpelling::Add,
+                    operator: SymbolHandle::invalid(),
+                    operation_contract_identity: "Index::add(i32,i32)->i32".to_owned(),
+                    provider: SymbolHandle::invalid(),
+                    algebra_trait: SymbolHandle::invalid(),
+                    algebra_requirement: "add".to_owned(),
+                    algebra_alias: Some("Canonical".to_owned()),
+                }],
+                normalizer_version: 1,
+            });
+        let type_reference = program
+            .type_reference_table
+            .insert(TypeReferenceNode::ConstExpression(expression));
+
+        let identity = program.package_qualified_type_identity(type_reference);
+        assert!(
+            identity.as_str().contains("open-index-operation"),
+            "{identity}"
+        );
+        assert!(
+            identity.as_str().contains("open-index-algebra"),
+            "{identity}"
+        );
+        assert_eq!(identity.as_str().matches("unresolved-owner").count(), 3);
+    }
 
     #[test]
     fn reference_access_modes_have_distinct_normalized_identities() {

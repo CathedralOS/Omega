@@ -40,6 +40,12 @@ complete.
 - Each evidence row comes from its earliest coherent checked representation.
   The final projection is total, but no one internal stage must contain every
   row; do not introduce nominal Chi merely to freeze compiler internals.
+- Public type identities in package evidence qualify every non-binder nominal
+  with its exact package, toolchain, or unresolved owner. Generic binders are
+  alpha-normalized without inventing an owner.
+- Numbered fields and retired identities on ordinary public `data` are the wire
+  contract. The retired standalone `wire data` representation is not a second
+  package API surface.
 - Complete Terminal coverage is not an ordinary admission prerequisite.
   Terminal evidence is a separate class required for final-realization claims
   and hardened profiles. No partial/completeness bit may imply a Terminal claim.
@@ -357,13 +363,18 @@ complete.
   resolved, typed, checked, snapshot, copy, and specialization paths. Public
   omission is a strict empty ceiling for service reach, synchronous invocation,
   suspension, blocking, and crash; checked underdeclaration rejects. Ordinary
-  `pub data` visibility, including numbered data's wire schema and wire-derived
-  plain-data root, likewise survives parsing, copies, snapshots, lowering, and
+  `pub data` visibility, including numbered data's wire identity and retired
+  identities, likewise survives parsing, copies, snapshots, lowering, and
   generic specialization. Public trait visibility survives the same frontend
-  and checked-tree path. Their normalized public shapes are not yet in the
-  review projection. Declaration kinds without retained visibility reject
+  and checked-tree path. Normalized package-owned public-data rows are now in
+  the review projection: supply mode, lifetime arity, alpha-normalized type and
+  const parameters, copy/carry properties, zero gating, retired identities,
+  fields, variants, payloads, relevance, and package-qualified type identities.
+  Quotients, data `where` facts, and static machine/proposition parameters fail
+  review until exact canonical rows exist; none are silently omitted.
+  Declaration kinds without retained visibility reject
   `pub` instead of silently compiling a private API. Settled export semantics,
-  normalized shape for public data, traits, domains, and wire schemas,
+  normalized shape for public traits and domains,
   generated/toolchain symbol ownership, package-qualified provider
   binding/selection identities, source/toolchain/compiler commitments,
   non-provider trust ownership, build observations, and reproducibility
@@ -399,8 +410,8 @@ complete.
   closing the implicit-entry-state ownership gap discovered by the crash
   projection. Review identity now retains the exact deployment target profile,
   so profiles such as Windows and UEFI cannot collapse merely because they
-  share a native ABI. A v2 length-framed binary comparison encoding now covers
-  every retained callable,
+  share a native ABI. A v3 length-framed binary comparison encoding now covers
+  every retained public-data, callable,
   crash/proof predicate, authority flow, mutation, and selected-provider row.
   It converts platform-width ordinals to portable `u64`, distinguishes exact
   deployment profiles, rejects interner-backed external-supply variants, and
