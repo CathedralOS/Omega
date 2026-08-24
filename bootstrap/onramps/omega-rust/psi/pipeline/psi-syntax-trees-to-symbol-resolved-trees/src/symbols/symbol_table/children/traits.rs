@@ -28,6 +28,16 @@ pub(in crate::symbols::symbol_table) fn insert_trait_symbol_children(
                 symbol_seed(kind, &parameter.name, has_sources)
             })
             .chain(
+                trait_definition
+                    .conformance_bounds
+                    .iter()
+                    .filter_map(|bound| {
+                        bound.binder_name.as_ref().map(|binder| {
+                            symbol_seed(SymbolKind::ConformanceParameter, binder, has_sources)
+                        })
+                    }),
+            )
+            .chain(
                 program
                     .trait_machine_signatures(trait_definition.machines)
                     .iter()
@@ -53,6 +63,14 @@ pub(in crate::symbols::symbol_table) fn insert_trait_symbol_children(
                     }),
             );
         }
+    }
+
+    for _ in trait_definition
+        .conformance_bounds
+        .iter()
+        .filter(|bound| bound.binder_name.is_some())
+    {
+        let _ = trait_children.next();
     }
 
     for (machine_symbol, machine) in trait_children.zip(

@@ -254,7 +254,10 @@ status, synchronous invocations as exact non-`self` parameter ordinals or
 package-qualified services, suspension, blocking, and termination. Progress
 premises retain package-qualified public profile identity, receiver/non-`self`
 parameter roots, and package-qualified field projections. Trait or requirement
-conformance bounds, invariants, default realizations, and non-progress
+generic conformance evidence binders retain alpha-normalized binder and subject
+ordinals, exact package-qualified public trait identity, and structural type
+arguments. Non-evidence `where` requirements, specifically selected
+conformances, invariants, default realizations, and non-progress
 proof/boundary/crash contracts reject until complete canonical rows land.
 
 Package-owned boundary and ordinary public machines, plus the selected build
@@ -268,8 +271,10 @@ package-qualified trait and requirement identities, alpha-normalized arguments,
 and any explicit conformance alias. Callable conformance bounds, static
 machine/proposition parameters, and non-public, external, operator, or
 lifetime-parameterized realizations reject until their complete canonical forms
-are represented. The projection never substitutes an overload display name or
-a runtime-layout-only type identity for this contract surface.
+are represented, except that explicit generic evidence binders use the same
+alpha-normalized conformance-bound row as public traits. The projection never
+substitutes an overload display name or a runtime-layout-only type identity for
+this contract surface.
 
 Public callable `requires`, `ensures`, and boundary clauses now retain exact
 structural rows for the closed boolean/integer expression subset over parameter

@@ -26,14 +26,13 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
     input = next;
     let ((), next) = parse_proposition_parameter_contracts(syntax_trees, type_parameters, input)?;
     input = next;
-    let conformance_bounds = if input.at_contextual("where") {
-        let (bounds, next) =
+    let mut conformance_bounds = generic_parameters.conformance_bounds;
+    if input.at_contextual("where") {
+        let (mut bounds, next) =
             crate::parser::machine::parse_generic_conformance_bounds(syntax_trees, input)?;
         input = next;
-        bounds
-    } else {
-        Vec::new()
-    };
+        conformance_bounds.append(&mut bounds);
+    }
     input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
     let mut required_trait_start = Handle::invalid();
     let mut required_trait_count = 0u32;

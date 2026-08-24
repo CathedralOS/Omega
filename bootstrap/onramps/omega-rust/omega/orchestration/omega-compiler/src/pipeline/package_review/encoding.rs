@@ -10,7 +10,7 @@ use psi_checked_trees::{
 };
 
 const MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW\0";
-pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 22;
+pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 23;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageReviewEncodingError {
@@ -81,8 +81,19 @@ fn encode_trait_shape(
     encoder.boolean(shape.is_boundary);
     encoder.usize(shape.lifetime_parameter_count)?;
     encoder.sequence(&shape.type_parameters, encode_type_parameter)?;
+    encoder.sequence(&shape.conformance_bounds, encode_conformance_bound)?;
     encoder.sequence(&shape.parents, encode_trait_parent)?;
     encoder.sequence(&shape.requirements, encode_trait_requirement)
+}
+
+fn encode_conformance_bound(
+    encoder: &mut Encoder,
+    bound: &PackageReviewConformanceBound,
+) -> Result<(), PackageReviewEncodingError> {
+    encoder.u32(bound.binder_ordinal);
+    encoder.u32(bound.subject_parameter);
+    encode_nominal(encoder, &bound.trait_identity)?;
+    encoder.sequence(&bound.arguments, encode_type_identity)
 }
 
 fn encode_trait_parent(
@@ -421,6 +432,7 @@ fn encode_callable(
     encode_supply(encoder, callable.supply)?;
     encoder.usize(callable.lifetime_parameter_count)?;
     encoder.sequence(&callable.type_parameters, encode_type_parameter)?;
+    encoder.sequence(&callable.conformance_bounds, encode_conformance_bound)?;
     encoder.sequence(&callable.parameters, |encoder, parameter| {
         encoder.string(&parameter.name)?;
         encode_type_identity(encoder, &parameter.type_identity)?;

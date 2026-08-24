@@ -69,6 +69,16 @@ pub(super) fn assign_trait_symbols(
             .span_or_empty(trait_definition.type_parameters)
             .to_vec();
 
+        for bound in &mut trait_definition.conformance_bounds {
+            if bound.binder_name.is_some() {
+                bound.binder = Some(next_child_of_kind(
+                    &mut trait_children,
+                    symbols,
+                    SymbolKind::ConformanceParameter,
+                ));
+            }
+        }
+
         for index in 0..trait_definition.type_parameters.len() {
             let (parameter_symbol, kind) = {
                 let parameter =

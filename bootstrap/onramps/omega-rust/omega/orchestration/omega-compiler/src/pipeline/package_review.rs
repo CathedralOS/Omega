@@ -42,6 +42,36 @@ pub struct PackageReviewTypeParameter {
     bounds: psi_typed_trees::data::DataProperties,
 }
 
+/// One proof-static conformance parameter in a public generic signature.
+///
+/// Binder spellings are alpha-normalized to `binder_ordinal`; the subject is
+/// the ordinal of an ordinary type parameter in the containing declaration.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PackageReviewConformanceBound {
+    binder_ordinal: u32,
+    subject_parameter: u32,
+    trait_identity: PackageReviewNominalIdentity,
+    arguments: Vec<PackageReviewTypeIdentity>,
+}
+
+impl PackageReviewConformanceBound {
+    pub const fn binder_ordinal(&self) -> u32 {
+        self.binder_ordinal
+    }
+
+    pub const fn subject_parameter(&self) -> u32 {
+        self.subject_parameter
+    }
+
+    pub const fn trait_identity(&self) -> &PackageReviewNominalIdentity {
+        &self.trait_identity
+    }
+
+    pub fn arguments(&self) -> &[PackageReviewTypeIdentity] {
+        &self.arguments
+    }
+}
+
 impl PackageReviewTypeParameter {
     pub const fn kind(&self) -> &PackageReviewTypeParameterKind {
         &self.kind
@@ -238,6 +268,7 @@ pub struct PackageReviewTraitShape {
     is_boundary: bool,
     lifetime_parameter_count: usize,
     type_parameters: Vec<PackageReviewTypeParameter>,
+    conformance_bounds: Vec<PackageReviewConformanceBound>,
     parents: Vec<PackageReviewTraitParent>,
     requirements: Vec<PackageReviewTraitRequirement>,
 }
@@ -257,6 +288,10 @@ impl PackageReviewTraitShape {
 
     pub fn type_parameters(&self) -> &[PackageReviewTypeParameter] {
         &self.type_parameters
+    }
+
+    pub fn conformance_bounds(&self) -> &[PackageReviewConformanceBound] {
+        &self.conformance_bounds
     }
 
     pub fn parents(&self) -> &[PackageReviewTraitParent] {
@@ -1207,6 +1242,7 @@ pub struct CheckedPackageCallableReview {
     supply: MachineSupplyMode,
     lifetime_parameter_count: usize,
     type_parameters: Vec<PackageReviewTypeParameter>,
+    conformance_bounds: Vec<PackageReviewConformanceBound>,
     parameters: Vec<PackageReviewCallableParameter>,
     return_type: PackageReviewTypeIdentity,
     conformances: Vec<PackageReviewCallableConformance>,
@@ -1310,6 +1346,10 @@ impl CheckedPackageCallableReview {
 
     pub fn type_parameters(&self) -> &[PackageReviewTypeParameter] {
         &self.type_parameters
+    }
+
+    pub fn conformance_bounds(&self) -> &[PackageReviewConformanceBound] {
+        &self.conformance_bounds
     }
 
     pub fn parameters(&self) -> &[PackageReviewCallableParameter] {
@@ -1680,12 +1720,6 @@ fn project_public_traits(
         if !reviewed_package_owns(&identity, package)? {
             continue;
         }
-        if !definition.conformance_bounds.is_empty() {
-            return Err(vec![Diagnostic::error(format!(
-                "public trait `{}` uses conformance bounds not yet represented by package review",
-                identity.path
-            ))]);
-        }
         if !compilation.trait_invariants(definition).is_empty() {
             return Err(vec![Diagnostic::error(format!(
                 "public trait `{}` uses invariants not yet represented by package review",
@@ -1697,6 +1731,15 @@ fn project_public_traits(
         let (mut trait_binders, type_parameters) =
             project_type_parameters(compilation, parameters, "trait", &identity.path)?;
         trait_binders.insert(0, (definition.symbol, "trait-self".to_owned()));
+        let conformance_bounds = project_conformance_bounds(
+            compilation,
+            &definition.conformance_bounds,
+            parameters,
+            &trait_binders,
+            &definition.lifetime_parameters,
+            "public trait",
+            &identity.path,
+        )?;
         let parents = compilation
             .trait_requirements(definition)
             .iter()
@@ -1727,6 +1770,7 @@ fn project_public_traits(
             is_boundary: definition.is_boundary,
             lifetime_parameter_count: definition.lifetime_parameters.len(),
             type_parameters,
+            conformance_bounds,
             parents,
             requirements,
         });
@@ -2267,6 +2311,92 @@ fn project_type_parameters_after(
     Ok((binders, projected))
 }
 
+fn project_conformance_bounds(
+    compilation: &CheckedCompilation,
+    bounds: &[psi_typed_trees::machine::GenericConformanceBound],
+    parameters: &[psi_typed_trees::data::TypeParameter],
+    binders: &[(SymbolHandle, String)],
+    lifetime_binders: &[psi_typed_trees::name::Identifier],
+    declaration_kind: &str,
+    declaration_path: &str,
+) -> Result<Vec<PackageReviewConformanceBound>, Vec<Diagnostic>> {
+    let mut projected = Vec::with_capacity(bounds.len());
+    for (binder_ordinal, bound) in bounds.iter().enumerate() {
+        let Some(binder) = bound.binder else {
+            return Err(vec![Diagnostic::error(format!(
+                "{declaration_kind} `{declaration_path}` uses a non-evidence-binder conformance requirement not yet represented by package review"
+            ))]);
+        };
+        if !binder.is_valid() {
+            return Err(vec![Diagnostic::error(format!(
+                "{declaration_kind} `{declaration_path}` has an unresolved conformance evidence binder"
+            ))]);
+        }
+        if bound.conformance.is_some() {
+            return Err(vec![Diagnostic::error(format!(
+                "{declaration_kind} `{declaration_path}` selects a specific conformance whose complete declaration is not yet represented by package review"
+            ))]);
+        }
+        let Some(subject_parameter) = parameters
+            .iter()
+            .position(|parameter| parameter.symbol == bound.subject)
+        else {
+            return Err(vec![Diagnostic::error(format!(
+                "{declaration_kind} `{declaration_path}` has a conformance subject outside its type-parameter telescope"
+            ))]);
+        };
+        let matching_traits = compilation
+            .traits()
+            .iter()
+            .filter(|definition| definition.symbol == bound.carrier)
+            .collect::<Vec<_>>();
+        let [trait_definition] = matching_traits.as_slice() else {
+            return Err(vec![Diagnostic::error(format!(
+                "{declaration_kind} `{declaration_path}` conformance bound resolves to {} traits; expected exactly one",
+                matching_traits.len()
+            ))]);
+        };
+        if !trait_definition.is_public {
+            return Err(vec![Diagnostic::error(format!(
+                "{declaration_kind} `{declaration_path}` exposes non-public conformance trait `{}`",
+                trait_definition.name
+            ))]);
+        }
+        if !trait_definition.lifetime_parameters.is_empty() {
+            return Err(vec![Diagnostic::error(format!(
+                "{declaration_kind} `{declaration_path}` uses lifetime-parameterized conformance trait `{}` without retained lifetime arguments",
+                trait_definition.name
+            ))]);
+        }
+        projected.push(PackageReviewConformanceBound {
+            binder_ordinal: u32::try_from(binder_ordinal).map_err(|_| {
+                vec![Diagnostic::error(format!(
+                    "{declaration_kind} `{declaration_path}` has too many conformance binders for portable review evidence"
+                ))]
+            })?,
+            subject_parameter: u32::try_from(subject_parameter).map_err(|_| {
+                vec![Diagnostic::error(format!(
+                    "{declaration_kind} `{declaration_path}` conformance subject exceeds the portable review parameter range"
+                ))]
+            })?,
+            trait_identity: nominal_identity(compilation, trait_definition.symbol)?,
+            arguments: bound
+                .arguments
+                .iter()
+                .map(|argument| {
+                    review_signature_type_identity_with_binders(
+                        compilation,
+                        *argument,
+                        binders,
+                        lifetime_binders,
+                    )
+                })
+                .collect::<Result<Vec<_>, _>>()?,
+        });
+    }
+    Ok(projected)
+}
+
 fn project_data_field(
     compilation: &CheckedCompilation,
     field: &psi_typed_trees::data::DataField,
@@ -2499,20 +2629,21 @@ fn project_callable(
     identity: PackageReviewNominalIdentity,
 ) -> Result<CheckedPackageCallableReview, Vec<Diagnostic>> {
     let subject = identity.path.as_str();
-    if !machine.conformance_bounds.is_empty() {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed callable `{subject}` uses conformance bounds not yet represented by package review"
-        ))]);
-    }
     let Some(entry) = compilation.machine_states(machine).first() else {
         return Err(vec![Diagnostic::error(format!(
             "reviewed callable `{subject}` has no canonical entry signature"
         ))]);
     };
-    let (binders, type_parameters) = project_type_parameters(
+    let machine_type_parameters = compilation.machine_type_parameters(machine);
+    let (binders, type_parameters) =
+        project_type_parameters(compilation, machine_type_parameters, "callable", subject)?;
+    let conformance_bounds = project_conformance_bounds(
         compilation,
-        compilation.machine_type_parameters(machine),
-        "callable",
+        &machine.conformance_bounds,
+        machine_type_parameters,
+        &binders,
+        &machine.lifetime_parameters,
+        "reviewed callable",
         subject,
     )?;
     let parameters = compilation
@@ -2635,6 +2766,7 @@ fn project_callable(
         supply: machine.supply_mode,
         lifetime_parameter_count: machine.lifetime_parameters.len(),
         type_parameters,
+        conformance_bounds,
         parameters,
         return_type,
         conformances,
